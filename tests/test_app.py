@@ -6,10 +6,32 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_homepage_renders():
+def test_homepage_renders_in_dev_mode():
+    from app.config import get_settings
+    settings = get_settings()
+    settings.app_env = "development"
     response = client.get("/")
     assert response.status_code == 200
-    assert "AmSonnenhang" in response.text or "Portfolio" in response.text
+    assert "DerSchweigert" in response.text or "Urs Schweigert" in response.text
+
+
+def test_homepage_requires_pin_in_production():
+    from app.config import get_settings
+    settings = get_settings()
+    settings.app_env = "production"
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"].startswith("/unlock?next=")
+
+
+def test_pin_unlock_redirects_to_homepage():
+    from app.config import get_settings
+    settings = get_settings()
+    settings.app_env = "production"
+    response = client.post("/unlock", data={"pin": "3009", "next": "/"}, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/"
+    assert "ams_pin=1" in response.headers.get("set-cookie", "")
 
 
 def test_contact_form_accepts_payload():
@@ -30,8 +52,12 @@ def test_contact_form_rejects_missing_fields():
 
 
 def test_admin_pin_requires_cookie():
-    response = client.get("/admin")
-    assert response.status_code == 403
+    from app.config import get_settings
+    settings = get_settings()
+    settings.app_env = "production"
+    response = client.get("/admin", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"].startswith("/unlock?next=")
 
 
 def test_invalid_pin_is_rejected():
@@ -40,7 +66,7 @@ def test_invalid_pin_is_rejected():
 
 
 def test_admin_pin_verification_sets_cookie():
-    response = client.post("/api/admin/verify-pin", json={"pin": "123456"})
+    response = client.post("/api/admin/verify-pin", json={"pin": "3009"})
     assert response.status_code == 200
     set_cookie = response.headers.get("set-cookie", "")
     assert "ams_pin" in set_cookie

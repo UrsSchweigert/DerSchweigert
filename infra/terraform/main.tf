@@ -1,6 +1,14 @@
 terraform {
   required_version = ">= 1.5.7"
 
+  backend "s3" {
+    bucket         = "derschweigert-terraform-state"
+    key            = "derschweigert/prod/terraform.tfstate"
+    region         = "eu-central-1"
+    encrypt        = true
+    dynamodb_table = "derschweigert-terraform-locks"
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -65,6 +73,57 @@ resource "aws_cloudfront_origin_access_identity" "site" {
   comment = "OAI for ${local.domain}"
 }
 
+resource "aws_cloudfront_function" "pin_lock" {
+  name    = "derschweigert-pin-lock"
+  runtime = "cloudfront-js-2.0"
+  comment = "Block access until a valid PIN cookie is present"
+  publish = true
+  code    = <<-EOF
+  function handler(event) {
+    var request = event.request;
+    var uri = request.uri || '/';
+    var headers = request.headers || {};
+    var host = headers.host && headers.host.value ? headers.host.value.toLowerCase() : '';
+
+    var hasPinCookie = false;
+    var cookies = request.cookies || {};
+    if (cookies.ams_pin && cookies.ams_pin.value === '1') {
+      hasPinCookie = true;
+    }
+    var cookieHeader = headers.cookie && headers.cookie.value ? headers.cookie.value : '';
+    if (!hasPinCookie && cookieHeader) {
+      var parts = cookieHeader.split(';');
+      for (var i = 0; i < parts.length; i++) {
+        var kv = parts[i].trim().split('=');
+        if (kv[0] === 'ams_pin' && kv[1] === '1') {
+          hasPinCookie = true;
+          break;
+        }
+      }
+    }
+
+    if (host.indexOf('localhost') !== -1 || host === '127.0.0.1') {
+      return request;
+    }
+
+    var isPublicPath = uri === '/health' || uri === '/unlock' || uri === '/favicon.ico' || uri.startsWith('/static/') || uri.startsWith('/api/') || uri === '/contact' || uri === '/impressum' || uri === '/datenschutz';
+
+    if (!isPublicPath && !hasPinCookie) {
+      return {
+        statusCode: 302,
+        statusDescription: 'Found',
+        headers: {
+          location: { value: '/unlock?next=' + encodeURIComponent(uri) },
+          'cache-control': { value: 'no-store' }
+        }
+      };
+    }
+
+    return request;
+  }
+  EOF
+}
+
 resource "aws_s3_bucket_policy" "site" {
   bucket = aws_s3_bucket.site.id
 
@@ -126,6 +185,11 @@ resource "aws_cloudfront_distribution" "site" {
     default_ttl            = 3600
     max_ttl                = 86400
 
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.pin_lock.arn
+    }
+
     forwarded_values {
       query_string = false
 
@@ -143,6 +207,28 @@ resource "aws_cloudfront_distribution" "site" {
     cached_methods         = ["GET", "HEAD"]
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
+
+    forwarded_values {
+      query_string = true
+      headers      = ["Authorization", "Content-Type", "Origin", "Accept"]
+
+      cookies {
+        forward = "all"
+      }
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "/unlock*"
+    target_origin_id = "api-origin"
+
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
 
     forwarded_values {
       query_string = true
@@ -186,7 +272,7 @@ resource "aws_lambda_function" "api" {
       CANONICAL_HOST   = local.www_domain
       SITE_URL         = "https://${local.www_domain}"
       CONTACT_EMAIL    = "hello@${local.domain}"
-      ADMIN_PIN        = "123456"
+      ADMIN_PIN        = "3009"
       ADMIN_COOKIE_NAME = "ams_pin"
     }
   }
