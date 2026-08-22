@@ -1,0 +1,1 @@
+"""AmSonnenhang application package."""

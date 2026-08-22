@@ -1,0 +1,15 @@
+.env
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Terraform / AWS deployment artifacts
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/*.tfplan
+infra/terraform/lambda.zip
