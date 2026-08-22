@@ -30,6 +30,23 @@ if STATIC_DIR.exists():
 
 
 @app.middleware("http")
+async def canonical_host_redirect(request: Request, call_next):
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    host = forwarded_host.split(":", 1)[0].lower()
+    redirect_proto = forwarded_proto if forwarded_proto == "https" else "https" if host not in {"localhost", "127.0.0.1"} else "http"
+
+    if host == settings.domain and host != settings.canonical_host:
+        redirect_url = f"{redirect_proto}://{settings.canonical_host}{request.url.path}"
+        if request.url.query:
+            redirect_url = f"{redirect_url}?{request.url.query}"
+        return RedirectResponse(url=redirect_url, status_code=308)
+
+    response = await call_next(request)
+    return response
+
+
+@app.middleware("http")
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"

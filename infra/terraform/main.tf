@@ -183,6 +183,8 @@ resource "aws_lambda_function" "api" {
     variables = {
       APP_ENV          = "production"
       APP_DOMAIN       = local.domain
+      CANONICAL_HOST   = local.www_domain
+      SITE_URL         = "https://${local.www_domain}"
       CONTACT_EMAIL    = "hello@${local.domain}"
       ADMIN_PIN        = "123456"
       ADMIN_COOKIE_NAME = "ams_pin"
@@ -354,6 +356,10 @@ output "site_bucket" {
 
 output "cloudfront_url" {
   value = aws_cloudfront_distribution.site.domain_name
+}
+
+output "cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.site.id
 }
 
 output "api_gateway_url" {

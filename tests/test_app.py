@@ -54,3 +54,9 @@ def test_security_headers_are_present():
     assert response.headers.get("x-frame-options") == "DENY"
     assert response.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
     assert "geolocation" in response.headers.get("permissions-policy", "")
+
+
+def test_apex_domain_redirects_to_www():
+    response = client.get("/", headers={"host": "derschweigert.de"}, follow_redirects=False)
+    assert response.status_code == 308
+    assert response.headers["location"] == "https://www.derschweigert.de/"

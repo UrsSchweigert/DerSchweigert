@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -19,12 +22,43 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION || 'eu-central-1' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      TF_VAR_route53_zone_id: ${{ secrets.ROUTE53_ZONE_ID }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Set deployment target
         run: echo "Deploy target: derschweigert.de"
-      - name: Placeholder deploy step
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Provision infrastructure with Terraform
         run: |
-          echo "Add your real hosting deployment here: ECS, App Runner, EC2, or a CDN pipeline."
-          echo "Production DNS is already created in Route53 for derschweigert.de."
+          terraform -chdir=infra/terraform init -upgrade
+          terraform -chdir=infra/terraform apply -auto-approve
+
+      - name: Upload static site files
+        run: |
+          BUCKET=$(terraform -chdir=infra/terraform output -raw site_bucket)
+          aws s3 sync templates "s3://$BUCKET" --delete
+          aws s3 sync static "s3://$BUCKET/static" --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DIST_ID=$(terraform -chdir=infra/terraform output -raw cloudfront_distribution_id)
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
