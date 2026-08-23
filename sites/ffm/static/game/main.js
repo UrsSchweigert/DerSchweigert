@@ -79,7 +79,7 @@ const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this dist
 const input = new InputManager(handleAnswer);
 
 // --- Difficulty select ---
-document.querySelectorAll('.diff-btn').forEach(btn => {
+document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     state.difficulty = btn.dataset.difficulty;
     state.timerMax = parseInt(btn.dataset.timer);
@@ -244,7 +244,8 @@ function handleCorrectAnswer() {
     updatePaceAdapter();
   }
   
-  const ratio = Math.max(0, state.timerRemaining / state.timerMax);
+  const safeMax = state.timerMax > 0 ? state.timerMax : 1;
+  const ratio = Math.max(0, Math.min(1, state.timerRemaining / safeMax));
   const speedBonus = activeFiend.wasRequeued ? 0 : Math.round(ratio * 50);
   const comboBonus = activeFiend.wasRequeued ? 0 : state.combo * 10;
   const points = 100 + speedBonus + comboBonus;
