@@ -746,7 +746,7 @@ export class Fiend extends Entity {
     const ry = (h / 2 + 5*P) * scale;
     ctx.save();
     ctx.globalAlpha = (0.45 + 0.25 * Math.sin(t)) * 0.8;
-    ctx.fillStyle = '#20ff50';
+    ctx.fillStyle = '#ff2000';
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
