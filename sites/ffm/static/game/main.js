@@ -2,18 +2,41 @@
 
 import { LevelConfig, generateProblem } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
-import { Hero, Slimeling, Bonehead, Toadlord, Magelitch } from './entities.js';
+import { Hero, Slimeling, BirdFoe, WolfFoe, SnakeFoe, LightningBolt } from './entities.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
 import { api } from './api.js';
 
+// ─── Tunable game-event constants (edit here to adjust game feel) ─────────────
+const GAME_CONFIG = {
+  eliteFiendChance:      0.10,  // probability a spawned fiend is elite
+  eliteFiendHp:          3,     // HP of an elite fiend
+  elitePointMultiplier:  3,     // score multiplier per answer on an elite fiend
+  lightningEveryN:       10,    // check for lightning on every Nth kill
+  lightningChance:       0.30,  // probability lightning fires on that Nth kill
+  healingAuraDuration:   2.0,   // seconds green aura lasts after level clear
+};
+
+// Operator → Fiend class (edit this map to change which monster represents each op)
+const OPERATOR_FIEND = {
+  '+': Slimeling,
+  '-': BirdFoe,
+  '*': WolfFoe,
+  '/': SnakeFoe,
+};
+
 // --- Fiend factory ---
 function createFiend(levelIndex, x) {
   const cfg = LevelConfig[levelIndex];
-  const Classes = { slimeling: Slimeling, bonehead: Bonehead, toadlord: Toadlord, magelitch: Magelitch };
-  const FiendClass = Classes[cfg.fiendType] || Slimeling;
-  return new FiendClass(x, GROUND_Y, cfg.fiendHP);
+  const problem = generateProblem(levelIndex, Date.now());
+  const FiendClass = OPERATOR_FIEND[problem.operation] ?? Slimeling;
+  const isElite = Math.random() < GAME_CONFIG.eliteFiendChance;
+  const hp = isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
+  const fiend = new FiendClass(x, GROUND_Y, hp);
+  fiend.problem = problem;
+  fiend.isElite = isElite;
+  return fiend;
 }
 
 // --- GameState ---
@@ -73,6 +96,7 @@ let answerTimes = [];
 let questionStartTime = 0;
 let inputDisabled = false;
 let gameRunning = false;
+let activeLightningBolts = [];
 let heroLunge = null; // { phase:'out'|'back', fiend?, targetX, onArrive? }
 const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
 const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this distance of HERO_X
@@ -223,8 +247,7 @@ function spawnNextFiend() {
     fiend.setState('walk');
   } else if (spawnQueue.length > 0) {
     const levelIndex = spawnQueue.shift();
-    fiend = createFiend(levelIndex, CANVAS_W + 20);
-    fiend.problem = generateProblem(levelIndex, Date.now());
+    fiend = createFiend(levelIndex, CANVAS_W + 20);  // problem already assigned inside
   }
   if (fiend) {
     fiend.on('retreated', () => { onFiendRetreated(fiend); });
@@ -266,48 +289,78 @@ function handleAnswer(value) {
 
 function handleCorrectAnswer() {
   const elapsed = (Date.now() - questionStartTime) / 1000;
-  
+
   if (!activeFiend.wasRequeued) {
     answerTimes.push(elapsed);
     if (answerTimes.length > 5) answerTimes.shift();
     updatePaceAdapter();
   }
-  
+
   const safeMax = state.timerMax > 0 ? state.timerMax : 1;
   const ratio = Math.max(0, Math.min(1, state.timerRemaining / safeMax));
-  const speedBonus = activeFiend.wasRequeued ? 0 : Math.round(ratio * 50);
-  const comboBonus = activeFiend.wasRequeued ? 0 : state.combo * 10;
-  const points = 100 + speedBonus + comboBonus;
-  
+  const speedBonus  = activeFiend.wasRequeued ? 0 : Math.round(ratio * 50);
+  const comboBonus  = activeFiend.wasRequeued ? 0 : state.combo * 10;
+  const multiplier  = activeFiend.isElite ? GAME_CONFIG.elitePointMultiplier : 1;
+  const points      = (100 + speedBonus + comboBonus) * multiplier;
+
   state.score += points;
   state.combo++;
   state.timerActive = false;
-  
+
   const fiend = activeFiend;
 
   const strikeNow = () => {
-    hero.setState('swing');
-    fiend.hit();
-    audio.playSwordSwing();
+    const willKill     = fiend.hp <= 1;
+    const nextDefeated = state.enemiesDefeated + 1;
+    const useLightning = willKill &&
+      nextDefeated % GAME_CONFIG.lightningEveryN === 0 &&
+      Math.random() < GAME_CONFIG.lightningChance;
 
-    if (fiend.isDead) {
-      audio.playEnemyDeath();
-      state.enemiesDefeated++;
-      activeFiend = null;
-      input.disable();
-      inputDisabled = true;
-      heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-        setTimeout(() => {
-          if (checkAllDefeated()) triggerWaveClear();
-          else { spawnTimer = spawnInterval; inputDisabled = false; }
-        }, 300);
-      }};
+    if (useLightning) {
+      // Hero raises sword skyward (hold at victory frame 1)
+      hero.setState('victory');
+      hero._frame = 1; hero._tick = 0; hero._dur = 999;
+      activeLightningBolts.push(new LightningBolt(fiend.x, fiend.y - 6 * LOGICAL_PX));
+      setTimeout(() => {
+        fiend.hp = 0;
+        fiend.setState('death');
+        audio.playEnemyDeath();
+        state.enemiesDefeated++;
+        activeFiend = null;
+        input.disable();
+        inputDisabled = true;
+        heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+          hero.setState('idle');
+          setTimeout(() => {
+            if (checkAllDefeated()) triggerWaveClear();
+            else { spawnTimer = spawnInterval; inputDisabled = false; }
+          }, 300);
+        }};
+        hud.update(state);
+      }, 600);
     } else {
-      // show next problem immediately so player can chain-lunge before hero returns
-      activeFiend.problem = generateProblem(state.level - 1, Date.now());
-      inputDisabled = false;
-      heroLunge = { phase: 'back', targetX: HERO_X };
-      showProblem(activeFiend);
+      hero.setState('swing');
+      fiend.hit();
+      audio.playSwordSwing();
+
+      if (fiend.isDead) {
+        audio.playEnemyDeath();
+        state.enemiesDefeated++;
+        activeFiend = null;
+        input.disable();
+        inputDisabled = true;
+        heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+          setTimeout(() => {
+            if (checkAllDefeated()) triggerWaveClear();
+            else { spawnTimer = spawnInterval; inputDisabled = false; }
+          }, 300);
+        }};
+      } else {
+        activeFiend.problem = generateProblem(state.level - 1, Date.now());
+        inputDisabled = false;
+        heroLunge = { phase: 'back', targetX: HERO_X };
+        showProblem(activeFiend);
+      }
     }
     hud.update(state);
   };
@@ -317,27 +370,7 @@ function handleCorrectAnswer() {
     inputDisabled = true;
     heroLunge = { phase: 'out', fiend, onArrive: strikeNow };
   } else {
-    // Already close — immediate swing, original behaviour
-    hero.setState('swing');
-    fiend.hit();
-    audio.playSwordSwing();
-    if (fiend.isDead) {
-      audio.playEnemyDeath();
-      state.enemiesDefeated++;
-      activeFiend = null;
-      input.disable();
-      inputDisabled = true;
-      setTimeout(() => {
-        if (checkAllDefeated()) triggerWaveClear();
-        else { spawnTimer = spawnInterval; inputDisabled = false; }
-      }, 600);
-    } else {
-      activeFiend.problem = generateProblem(state.level - 1, Date.now());
-      state.timerRemaining = state.timerMax;
-      state.timerActive = true;
-      showProblem(activeFiend);
-    }
-    hud.update(state);
+    strikeNow();
   }
 }
 
@@ -402,7 +435,12 @@ function triggerWaveClear() {
   gameRunning = false;
   hero.setState('victory');
   audio.playLevelClear();
-  
+
+  // Restore all hearts and show green healing aura
+  state.hearts = state.maxHearts;
+  hero._healAura = GAME_CONFIG.healingAuraDuration;
+  hud.update(state);
+
   setTimeout(() => {
     triggerLevelClear();
   }, 2000);
@@ -480,6 +518,7 @@ function gameLoop(ts) {
     
     hero.update(dt);
     fiends.forEach(f => f.update(dt));
+    activeLightningBolts = activeLightningBolts.filter(b => { b.update(dt); return !b.isDone; });
 
     if (heroLunge) {
       if (heroLunge.phase === 'out') {
@@ -540,6 +579,9 @@ function gameLoop(ts) {
       renderer.drawTimerBar(f.x - 44, f.y - 22 * LOGICAL_PX, 88, ratio);
     }
   });
+
+  // Pass 3: lightning bolts (over gameplay, under HUD)
+  activeLightningBolts.forEach(b => b.draw(renderer.ctx));
 
   hud.draw();
 }

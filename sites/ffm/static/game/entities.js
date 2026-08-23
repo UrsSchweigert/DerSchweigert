@@ -30,7 +30,12 @@ const H_DUR = { idle:20, swing:4, hurt:6, victory:12, walk:6, dead:10 };
 const H_FRM = { idle:2,  swing:3, hurt:2, victory:2,  walk:4, dead:3  };
 
 export class Hero extends Entity {
-  constructor() { super(HERO_X, GROUND_Y); }
+  constructor() { super(HERO_X, GROUND_Y); this._healAura = 0; }
+
+  update(dt) {
+    super.update(dt);
+    if (this._healAura > 0) this._healAura = Math.max(0, this._healAura - dt);
+  }
 
   setState(s) {
     if (H_DUR[s]) { super.setState(s); this._dur = H_DUR[s]; }
@@ -64,9 +69,27 @@ export class Hero extends Entity {
       const sourceH = 180;
       const drawW = 160;
       const drawH = 150;
-      ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH,
-        this.x - 36, this.y - drawH, drawW, drawH);
-      return;
+    if (this._healAura > 0) {
+      const pulse = 0.45 + 0.3 * Math.sin(this._tick * 0.25);
+      const fade  = Math.min(1, this._healAura * 2);
+      ctx.save();
+      ctx.globalAlpha = fade * pulse * 0.55;
+      ctx.fillStyle = '#30f060';
+      ctx.fillRect(this.x - 44, this.y - 158, 180, 170);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+    ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH,
+      this.x - 36, this.y - drawH, drawW, drawH);
+    if (this._healAura > 0) {
+      const pulse2 = 0.3 + 0.2 * Math.sin(this._tick * 0.25 + 1);
+      const fade2  = Math.min(1, this._healAura * 2);
+      ctx.save();
+      ctx.globalAlpha = fade2 * pulse2 * 0.35;
+      ctx.fillStyle = '#20f850';
+      ctx.fillRect(this.x - 36, this.y - drawH, drawW, drawH);
+      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     return;
@@ -623,6 +646,7 @@ export class Fiend extends Entity {
     this._particles = [];
     this._events = new EventTarget();
     this._dur = 8;
+    this.isElite = false;
     this.setState('walk');
   }
 
@@ -703,6 +727,16 @@ export class Fiend extends Entity {
     ctx.fillStyle = `rgba(255,50,20,${Math.min(0.65, this._redFlash * 2).toFixed(2)})`;
     ctx.fillRect(bx, by, w, h);
   }
+
+  _drawEliteAura(ctx, bx, by, w, h) {
+    const pulse = 0.45 + 0.25 * Math.sin(this._tick * 0.18);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = '#ff2000';
+    ctx.fillRect(bx - 3*P, by - 3*P, w + 6*P, h + 6*P);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
 }
 
 // ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────
@@ -720,6 +754,7 @@ export class Slimeling extends Fiend {
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillRect(bx+2*P, by+15*P, 14*P, 3*P);
+    if (this.isElite) this._drawEliteAura(ctx, bx, by, 18*P, 15*P);
 
     // body — rounded blob
     ctx.fillStyle = this._pal.dark;
@@ -782,6 +817,7 @@ export class Bonehead extends Fiend {
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillRect(bx+2*P, by+28*P, 14*P, 2*P);
+    if (this.isElite) this._drawEliteAura(ctx, bx, by, 16*P, 30*P);
 
     // --- skull ---
     ctx.fillStyle = this._pal.body;
@@ -882,6 +918,7 @@ export class Toadlord extends Fiend {
     // shadow (grows on stomp)
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.fillRect(bx+2*P, by+22*P-stomp, 20*P, 3*P);
+    if (this.isElite) this._drawEliteAura(ctx, bx, by - 6*P, 22*P, 30*P);
 
     // body — wide rounded blob
     ctx.fillStyle = this._pal.dark;
@@ -989,6 +1026,7 @@ export class Magelitch extends Fiend {
     const shadowA = 0.22 - Math.abs(hov) * 0.008;
     ctx.fillStyle = `rgba(0,0,0,${shadowA.toFixed(2)})`;
     ctx.fillRect(bx+2*P, by+30*P-hov, 12*P, 3*P);
+    if (this.isElite) this._drawEliteAura(ctx, bx, by - 10*P, 16*P, 42*P);
 
     // robe body
     ctx.fillStyle = this._pal.dark;
@@ -1082,5 +1120,342 @@ export class Magelitch extends Fiend {
     if (this._state === 'hit') this._flashWhite(ctx, bx, by-10*P, 16*P, 42*P);
     this._flashRed(ctx, bx, by-10*P, 16*P, 42*P);
     this._drawParticles(ctx);
+  }
+}
+
+// ─── BirdFoe (raven-type, Subtraction '−') ────────────────────────────────────
+export class BirdFoe extends Fiend {
+  constructor(x, y, hp = 1) {
+    super(x, y, { hp, palette: { body:'#5048a8', dark:'#28205a', hi:'#8878d0' } });
+  }
+
+  draw(ctx) {
+    const wY   = (this._state === 'walk') ? (this._frame % 2 === 0 ? -P : P) : 0;
+    const attX = (this._state === 'attack') ? -this._frame * 2 * P : 0;
+    const bx = ~~(this.x - 11*P) + attX;
+    const by = ~~(this.y - 22*P);
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(bx+3*P, by+21*P, 16*P, 2*P);
+    if (this.isElite) this._drawEliteAura(ctx, bx, by, 22*P, 22*P);
+
+    // tail feathers
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+16*P, by+13*P, 6*P, P);
+    ctx.fillRect(bx+17*P, by+14*P, 5*P, P);
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+18*P, by+12*P, 3*P, P);
+
+    // body
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+4*P, by+11*P, 12*P, 9*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+5*P, by+10*P, 10*P, 8*P);
+    ctx.fillRect(bx+4*P, by+12*P, 12*P, 5*P);
+    // breast
+    ctx.fillStyle = '#b0a0e0';
+    ctx.fillRect(bx+7*P, by+12*P, 6*P, 5*P);
+
+    // wings (flap alternates up/down)
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx,      by+9*P+wY,  6*P, 8*P);
+    ctx.fillRect(bx+16*P, by+9*P-wY,  6*P, 8*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+P,    by+9*P+wY,  4*P, 7*P);
+    ctx.fillRect(bx+16*P, by+9*P-wY,  4*P, 7*P);
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+P,    by+14*P+wY, 3*P, P);
+    ctx.fillRect(bx+16*P, by+14*P-wY, 3*P, P);
+
+    // neck
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+7*P, by+7*P, 4*P, 4*P);
+
+    // head
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+5*P, by+2*P, 10*P, 8*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+6*P, by+2*P, 8*P,  7*P);
+    ctx.fillRect(bx+5*P, by+4*P, 2*P,  3*P);  // crown feather
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+6*P, by+2*P, 2*P,  3*P);  // head highlight
+
+    // beak (pointing left = attack direction)
+    ctx.fillStyle = '#d8a020';
+    ctx.fillRect(bx+2*P, by+5*P, 5*P, 2*P);
+    ctx.fillRect(bx+P,   by+6*P, 4*P, P);
+    ctx.fillStyle = '#f8c840';
+    ctx.fillRect(bx+2*P, by+5*P, 3*P, P);
+
+    // eyes (yellow)
+    ctx.fillStyle = '#f8e040';
+    ctx.fillRect(bx+8*P,  by+4*P, 3*P, 3*P);
+    ctx.fillRect(bx+12*P, by+4*P, 3*P, 3*P);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(bx+9*P,  by+5*P, P, P);
+    ctx.fillRect(bx+13*P, by+5*P, P, P);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+9*P,  by+4*P, P, P);  // catchlight
+
+    // legs / talons
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+6*P,  by+17*P, 2*P, 4*P);
+    ctx.fillRect(bx+12*P, by+17*P, 2*P, 4*P);
+    ctx.fillStyle = '#c89040';
+    ctx.fillRect(bx+4*P,  by+20*P, 5*P, P);
+    ctx.fillRect(bx+11*P, by+20*P, 5*P, P);
+    ctx.fillRect(bx+6*P,  by+21*P, P,   P);
+    ctx.fillRect(bx+12*P, by+21*P, P,   P);
+
+    if (this._state === 'hit') this._flashWhite(ctx, bx, by, 22*P, 22*P);
+    this._flashRed(ctx, bx, by, 22*P, 22*P);
+    this._drawParticles(ctx);
+  }
+}
+
+// ─── WolfFoe (wolf-type, Multiplication '×') ──────────────────────────────────
+export class WolfFoe extends Fiend {
+  constructor(x, y, hp = 1) {
+    super(x, y, { hp, palette: { body:'#808090', dark:'#404050', hi:'#b0b0c0' } });
+  }
+
+  draw(ctx) {
+    const prowl = (this._state === 'walk') ? (this._frame % 2 === 0 ? P : 0) : 0;
+    const attX  = (this._state === 'attack') ? -this._frame * 3 * P : 0;
+    const bx = ~~(this.x - 10*P) + attX;
+    const by = ~~(this.y - 26*P) + prowl;
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(bx+2*P, by+25*P-prowl, 18*P, 2*P);
+    if (this.isElite) this._drawEliteAura(ctx, bx, by, 24*P, 26*P);
+
+    // tail
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+20*P, by+10*P, 4*P, 3*P);
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+18*P, by+12*P, 4*P, 3*P);
+    ctx.fillStyle = '#e0e0d8';
+    ctx.fillRect(bx+22*P, by+9*P,  3*P, 4*P);  // white tail tip
+
+    // hind legs
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+3*P,  by+20*P, 4*P, 6*P);
+    ctx.fillRect(bx+13*P, by+20*P, 4*P, 6*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+4*P,  by+20*P, 3*P, 5*P);
+    ctx.fillRect(bx+14*P, by+20*P, 3*P, 5*P);
+    // paws
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+2*P,  by+24*P, 6*P, 2*P);
+    ctx.fillRect(bx+12*P, by+24*P, 6*P, 2*P);
+
+    // body
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+2*P, by+12*P, 16*P, 10*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+3*P, by+11*P, 14*P, 10*P);
+    ctx.fillRect(bx+2*P, by+13*P, 16*P,  7*P);
+    // belly (lighter)
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+7*P,  by+14*P, 6*P, 6*P);
+
+    // arms / claws
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx-P,    by+13*P, 4*P, 8*P);
+    ctx.fillRect(bx+17*P, by+13*P, 4*P, 8*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx,      by+14*P, 3*P, 6*P);
+    ctx.fillRect(bx+17*P, by+14*P, 3*P, 6*P);
+    ctx.fillStyle = '#d8d0b0';
+    ctx.fillRect(bx-2*P,  by+20*P, P,   2*P);
+    ctx.fillRect(bx,      by+20*P, P,   3*P);
+    ctx.fillRect(bx+2*P,  by+20*P, P,   2*P);
+    ctx.fillRect(bx+17*P, by+20*P, P,   2*P);
+    ctx.fillRect(bx+19*P, by+20*P, P,   3*P);
+    ctx.fillRect(bx+21*P, by+20*P, P,   2*P);
+
+    // neck fur spikes
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+5*P,  by+9*P, 10*P, 4*P);
+    ctx.fillStyle = this._pal.hi;
+    for (let i = 0; i < 4; i++) ctx.fillRect(bx+5*P+i*2*P, by+8*P+i%2*P, P, 4*P);
+
+    // head
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+4*P,  by+2*P, 12*P, 9*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+5*P,  by+2*P, 10*P, 8*P);
+    // ears (pointy)
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+4*P,  by+0,   P,    4*P);
+    ctx.fillRect(bx+15*P, by+0,   P,    4*P);
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+5*P,  by+2*P, 3*P,  4*P);  // head highlight
+
+    // snout
+    ctx.fillStyle = '#b0a898';
+    ctx.fillRect(bx+3*P,  by+6*P, 7*P,  4*P);
+    ctx.fillRect(bx+2*P,  by+7*P, 8*P,  2*P);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(bx+6*P,  by+6*P, 3*P,  2*P);  // nose
+    ctx.fillStyle = '#606060';
+    ctx.fillRect(bx+6*P,  by+6*P, P,    P);
+    // fangs
+    ctx.fillStyle = '#f0f0e8';
+    ctx.fillRect(bx+4*P,  by+9*P, P,    2*P);
+    ctx.fillRect(bx+7*P,  by+9*P, P,    2*P);
+
+    // eyes (amber)
+    ctx.fillStyle = '#d8900c';
+    ctx.fillRect(bx+8*P,  by+3*P, 3*P,  3*P);
+    ctx.fillRect(bx+12*P, by+3*P, 3*P,  3*P);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(bx+9*P,  by+4*P, P,    P);
+    ctx.fillRect(bx+13*P, by+4*P, P,    P);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+9*P,  by+3*P, P,    P);
+    ctx.fillRect(bx+13*P, by+3*P, P,    P);
+
+    if (this._state === 'hit') this._flashWhite(ctx, bx, by, 22*P, 26*P);
+    this._flashRed(ctx, bx, by, 22*P, 26*P);
+    this._drawParticles(ctx);
+  }
+}
+
+// ─── SnakeFoe (serpent-type, Division '÷') ────────────────────────────────────
+export class SnakeFoe extends Fiend {
+  constructor(x, y, hp = 1) {
+    super(x, y, { hp, palette: { body:'#40a840', dark:'#205428', hi:'#70d870' } });
+  }
+
+  draw(ctx) {
+    const sway    = ~~(Math.sin(this._tick * 0.15) * 2 * P);
+    const tongueOut = this._tick % 6 < 3;
+    const attX    = (this._state === 'attack') ? -this._frame * 2 * P : 0;
+    const bx = ~~(this.x - 8*P) + attX;
+    const by = ~~(this.y - 28*P);
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(bx+2*P, by+27*P, 12*P, 2*P);
+    if (this.isElite) this._drawEliteAura(ctx, bx, by + 4*P, 16*P, 24*P);
+
+    // bottom coil
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+P,   by+22*P, 14*P, 6*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+2*P, by+22*P, 12*P, 5*P);
+    ctx.fillRect(bx+3*P, by+21*P, 10*P, 2*P);
+    ctx.fillStyle = this._pal.dark;
+    for (let i = 0; i < 4; i++) ctx.fillRect(bx+2*P+i*3*P, by+23*P, 2*P, P);
+
+    // mid coil
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+P,    by+16*P, 6*P, 7*P);
+    ctx.fillRect(bx+9*P,  by+16*P, 6*P, 7*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+2*P,  by+16*P, 4*P, 6*P);
+    ctx.fillRect(bx+10*P, by+16*P, 4*P, 6*P);
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+2*P,  by+17*P, 2*P, P);
+    ctx.fillRect(bx+10*P, by+17*P, 2*P, P);
+    ctx.fillRect(bx+2*P,  by+19*P, 2*P, P);
+    ctx.fillRect(bx+10*P, by+19*P, 2*P, P);
+
+    // rearing neck
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+5*P+sway, by+10*P, 6*P, 8*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+6*P+sway, by+10*P, 4*P, 7*P);
+    ctx.fillStyle = '#a8e890';
+    ctx.fillRect(bx+7*P+sway, by+11*P, 2*P, 5*P);  // belly strip
+    ctx.fillStyle = this._pal.dark;
+    for (let i = 0; i < 3; i++) ctx.fillRect(bx+6*P+sway, by+11*P+i*2*P, P, P);
+
+    // head (hood flared)
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+2*P+sway, by+4*P, 12*P, 7*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+3*P+sway, by+4*P, 10*P, 6*P);
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+3*P+sway, by+4*P, 2*P,  5*P);
+    ctx.fillRect(bx+11*P+sway, by+4*P, 2*P, 5*P);
+    // face
+    ctx.fillStyle = '#508050';
+    ctx.fillRect(bx+5*P+sway, by+5*P, 6*P, 4*P);
+    // slit eyes (red)
+    ctx.fillStyle = '#f03030';
+    ctx.fillRect(bx+4*P+sway,  by+6*P, 2*P, 2*P);
+    ctx.fillRect(bx+10*P+sway, by+6*P, 2*P, 2*P);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(bx+5*P+sway,  by+6*P, P,   2*P);
+    ctx.fillRect(bx+11*P+sway, by+6*P, P,   2*P);
+    // tongue (flicks in/out)
+    if (tongueOut) {
+      ctx.fillStyle = '#e82040';
+      ctx.fillRect(bx+6*P+sway,  by+9*P, 4*P, P);
+      ctx.fillRect(bx+5*P+sway,  by+10*P, P,  P);
+      ctx.fillRect(bx+10*P+sway, by+10*P, P,  P);
+    }
+
+    if (this._state === 'hit') this._flashWhite(ctx, bx, by+4*P, 16*P, 24*P);
+    this._flashRed(ctx, bx, by+4*P, 16*P, 24*P);
+    this._drawParticles(ctx);
+  }
+}
+
+// ─── LightningBolt (sky-strike visual effect) ─────────────────────────────────
+export class LightningBolt {
+  constructor(x, groundY) {
+    this.x = x;
+    this.groundY = groundY;
+    this._life    = 0.7;
+    this._maxLife = 0.7;
+    this._segs    = this._build();
+  }
+
+  get isDone() { return this._life <= 0; }
+
+  update(dt) { this._life -= dt; }
+
+  _build() {
+    const segs = [];
+    let curX = this.x;
+    let curY = -10;
+    while (curY < this.groundY) {
+      const h   = 14 + Math.floor(Math.random() * 18);
+      const off = (Math.random() < 0.5 ? -1 : 1) * (Math.floor(Math.random() * 3) + 1) * P * 3;
+      segs.push({ x: curX, y: curY, h: Math.min(h, this.groundY - curY) });
+      curX += off;
+      curY += h;
+    }
+    return segs;
+  }
+
+  draw(ctx) {
+    if (this._life <= 0) return;
+    const alpha = this._life / this._maxLife;
+    ctx.save();
+    // outer glow
+    ctx.globalAlpha = Math.min(1, alpha * 1.4);
+    for (const s of this._segs) {
+      ctx.fillStyle = '#a0b8ff';
+      ctx.fillRect(~~s.x - 3*P, s.y, 6*P, s.h + 2);
+    }
+    // bright core
+    ctx.globalAlpha = Math.min(1, alpha * 1.8);
+    for (const s of this._segs) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(~~s.x - P, s.y, 2*P, s.h + 2);
+    }
+    // impact flash at bottom
+    const last = this._segs[this._segs.length - 1];
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.fillStyle = '#f8f040';
+    ctx.fillRect(~~last.x - 10*P, last.y + last.h - 6*P, 20*P, 10*P);
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 }
