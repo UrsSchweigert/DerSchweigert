@@ -188,8 +188,8 @@ jobs:
       - name: Update Lambda function code
         run: |
           set -x
-          aws sts get-caller-identity
-          BUCKET="ffm-site-${{ secrets.AWS_ACCOUNT_ID }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="ffm-site-${ACCOUNT_ID}"
           aws s3 cp sites/ffm/ffm-lambda.zip "s3://$BUCKET/deployments/ffm-lambda.zip" --region eu-central-1
           aws lambda wait function-updated --function-name ffm-api --region eu-central-1
           aws lambda update-function-code \
@@ -201,7 +201,8 @@ jobs:
 
       - name: Sync static assets to S3
         run: |
-          BUCKET="ffm-site-${{ secrets.AWS_ACCOUNT_ID }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="ffm-site-${ACCOUNT_ID}"
           aws s3 sync sites/ffm/static/ "s3://$BUCKET/" \
             --delete \
             --cache-control "public, max-age=31536000" \
