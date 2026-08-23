@@ -210,7 +210,9 @@ function checkAllDefeated() {
 }
 
 function handleAnswer(value) {
-  if (!activeFiend || activeFiend.state !== 'idle') return;
+  if (!activeFiend || activeFiend.isDead) return;
+  // ignore input while fiend is retreating, revealing, or exploding
+  if (['retreat', 'reveal', 'death'].includes(activeFiend.state)) return;
   const correct = parseInt(value) === activeFiend.problem.answer;
   if (correct) {
     handleCorrectAnswer();
