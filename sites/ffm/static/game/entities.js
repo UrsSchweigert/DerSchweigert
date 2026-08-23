@@ -40,7 +40,7 @@ export class Hero extends Entity {
     const max = H_FRM[this._state] || 1;
     if (this._frame >= max) {
       if (['swing','hurt','victory'].includes(this._state)) this.setState('idle');
-      else if (this._state === 'dead') this._frame = max - 1;
+      else if (['idle', 'dead'].includes(this._state)) this._frame = max - 1;
       else this._frame = 0;
     }
   }
