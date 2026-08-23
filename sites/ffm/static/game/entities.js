@@ -70,24 +70,32 @@ export class Hero extends Entity {
       const drawW = 160;
       const drawH = 150;
     if (this._healAura > 0) {
-      const pulse = 0.45 + 0.3 * Math.sin(this._tick * 0.25);
+      const t = this._tick * 0.25;
+      const scale = 1 + 0.1 * Math.sin(t);
       const fade  = Math.min(1, this._healAura * 2);
+      const cx = this.x + 44; const cy = this.y - 73;
       ctx.save();
-      ctx.globalAlpha = fade * pulse * 0.55;
+      ctx.globalAlpha = fade * (0.45 + 0.3 * Math.sin(t)) * 0.55;
       ctx.fillStyle = '#30f060';
-      ctx.fillRect(this.x - 44, this.y - 158, 180, 170);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 100 * scale, 92 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalAlpha = 1;
       ctx.restore();
     }
     ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH,
       this.x - 36, this.y - drawH, drawW, drawH);
     if (this._healAura > 0) {
-      const pulse2 = 0.3 + 0.2 * Math.sin(this._tick * 0.25 + 1);
+      const t2 = this._tick * 0.25 + 1;
+      const scale2 = 1 + 0.08 * Math.sin(t2);
       const fade2  = Math.min(1, this._healAura * 2);
+      const cx = this.x + 44; const cy = this.y - 73;
       ctx.save();
-      ctx.globalAlpha = fade2 * pulse2 * 0.35;
+      ctx.globalAlpha = fade2 * (0.3 + 0.2 * Math.sin(t2)) * 0.35;
       ctx.fillStyle = '#20f850';
-      ctx.fillRect(this.x - 36, this.y - drawH, drawW, drawH);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 78 * scale2, 70 * scale2, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalAlpha = 1;
       ctx.restore();
     }
@@ -730,11 +738,18 @@ export class Fiend extends Entity {
   }
 
   _drawEliteAura(ctx, bx, by, w, h) {
-    const pulse = 0.45 + 0.25 * Math.sin(this._tick * 0.18);
+    const t = this._tick * 0.18;
+    const scale = 1 + 0.12 * Math.sin(t);
+    const cx = bx + w / 2;
+    const cy = by + h / 2;
+    const rx = (w / 2 + 5*P) * scale;
+    const ry = (h / 2 + 5*P) * scale;
     ctx.save();
-    ctx.globalAlpha = pulse;
-    ctx.fillStyle = '#ff2000';
-    ctx.fillRect(bx - 3*P, by - 3*P, w + 6*P, h + 6*P);
+    ctx.globalAlpha = (0.45 + 0.25 * Math.sin(t)) * 0.8;
+    ctx.fillStyle = '#20ff50';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.globalAlpha = 1;
     ctx.restore();
   }
