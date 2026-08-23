@@ -1,14 +1,8 @@
-// entities.js — sprite-sheet-driven entities for Math Fiend Slayer
+// entities.js — pixel-art Hero + fiends for Math Fiend Slayer
 
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
 
 const P = LOGICAL_PX; // shorthand
-
-// ─── Hero sprite sheet ───────────────────────────────────────────────────────
-const _heroSheet = new Image();
-_heroSheet.src = new URL('./hero-spritesheet.png', import.meta.url).href;
-const _CELL = 256; // px per cell in 1024×1536 sheet (4 cols × 6 rows)
-const _STATE_ROW = { idle: 0, swing: 1, hurt: 2, victory: 3, walk: 4, dead: 5 };
 
 // ─── Base Entity ─────────────────────────────────────────────────────────────
 export class Entity {
@@ -47,13 +41,318 @@ export class Hero extends Entity {
   }
 
   draw(ctx) {
-    const row = _STATE_ROW[this._state] ?? 0;
-    const col = Math.min(this._frame, (H_FRM[this._state] ?? 1) - 1);
-    // dest matches the 12px padding used in the exported sheet template
-    ctx.drawImage(_heroSheet,
-      col * _CELL, row * _CELL, _CELL, _CELL,
-      this.x - 12*P - 12, this.y - 36*P - 12, 200, 168
-    );
+    const bx = ~~(this.x - 12*P);
+    const by = ~~(this.y - 36*P);
+    const br = this._state === 'hurt';
+    const breathe = this._state === 'idle' && this._frame === 1 ? P : 0;
+    const fr = this._frame;
+
+    if (this._state === 'dead') { this._drawDead(ctx, bx, by, fr); return; }
+
+    // walk: legs alternate forward / back
+    let lO = 0, rO = 0;
+    if (this._state === 'walk') {
+      lO = fr === 1 ?  2*P : fr === 3 ? -2*P : 0;
+      rO = fr === 1 ? -2*P : fr === 3 ?  2*P : 0;
+    }
+
+    // sword drawn first so torso overlaps the guard
+    this._drawSword(ctx, bx, by, breathe, fr);
+
+    // ── boots ────────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#101450';
+    ctx.fillRect(bx+5*P, by+33*P+lO, 5*P, 3*P);
+    ctx.fillRect(bx+14*P, by+33*P+rO, 5*P, 3*P);
+    ctx.fillStyle = '#c89020';
+    ctx.fillRect(bx+5*P, by+35*P, 5*P, P);
+    ctx.fillRect(bx+14*P, by+35*P, 5*P, P);
+
+    // ── pants ────────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#1a2888';
+    ctx.fillRect(bx+5*P, by+25*P+lO, 5*P, 8*P);
+    ctx.fillRect(bx+14*P, by+25*P+rO, 5*P, 8*P);
+    ctx.fillStyle = '#2838a8';
+    ctx.fillRect(bx+5*P, by+25*P+lO, P, 7*P);
+    ctx.fillRect(bx+14*P, by+25*P+rO, P, 7*P);
+
+    // ── belt ─────────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#c89020';
+    ctx.fillRect(bx+4*P, by+22*P+breathe, 16*P, 3*P);
+    ctx.fillStyle = '#f0c030';
+    ctx.fillRect(bx+4*P, by+22*P+breathe, 16*P, P);
+    ctx.fillStyle = '#f8d840';
+    ctx.fillRect(bx+10*P, by+22*P+breathe, 4*P, 3*P);
+    ctx.fillStyle = '#fff080';
+    ctx.fillRect(bx+11*P, by+23*P+breathe, 2*P, P);
+
+    // ── chest armor ──────────────────────────────────────────────────────────
+    ctx.fillStyle = br ? '#c02818' : '#2848c8';
+    ctx.fillRect(bx+4*P, by+13*P+breathe, 16*P, 9*P);
+    ctx.fillStyle = br ? '#e04030' : '#4870e8';           // left highlight
+    ctx.fillRect(bx+4*P, by+13*P+breathe, 2*P, 9*P);
+    ctx.fillRect(bx+4*P, by+13*P+breathe, 16*P, P);
+    ctx.fillStyle = br ? '#801010' : '#1428a0';           // right shadow
+    ctx.fillRect(bx+18*P, by+13*P+breathe, 2*P, 9*P);
+    ctx.fillRect(bx+4*P, by+21*P+breathe, 16*P, P);
+    ctx.fillStyle = br ? '#e04030' : '#90b8f0';           // center strip
+    ctx.fillRect(bx+10*P, by+13*P+breathe, 4*P, 9*P);
+    ctx.fillStyle = br ? '#c02818' : '#2848c8';
+    ctx.fillRect(bx+11*P, by+14*P+breathe, 2*P, 7*P);
+
+    // ── shoulder pads ────────────────────────────────────────────────────────
+    ctx.fillStyle = br ? '#801010' : '#1428a0';
+    ctx.fillRect(bx+2*P,  by+12*P+breathe, 5*P, 3*P);
+    ctx.fillRect(bx+17*P, by+12*P+breathe, 5*P, 3*P);
+    ctx.fillStyle = br ? '#e04030' : '#4870e8';
+    ctx.fillRect(bx+2*P,  by+12*P+breathe, 5*P, P);
+    ctx.fillRect(bx+17*P, by+12*P+breathe, 5*P, P);
+
+    // ── arms ─────────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#f0c090';
+    ctx.fillRect(bx+P,    by+15*P+breathe, 4*P, 7*P);
+    ctx.fillRect(bx+19*P, by+15*P+breathe, 4*P, 7*P);
+    ctx.fillStyle = br ? '#801010' : '#1428a0';           // bracers
+    ctx.fillRect(bx+P,    by+19*P+breathe, 4*P, 3*P);
+    ctx.fillRect(bx+19*P, by+19*P+breathe, 4*P, 3*P);
+    ctx.fillStyle = br ? '#e04030' : '#4870e8';
+    ctx.fillRect(bx+P,    by+19*P+breathe, P, 3*P);
+    ctx.fillRect(bx+22*P, by+19*P+breathe, P, 3*P);
+
+    // ── head ─────────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#f0c090';
+    ctx.fillRect(bx+7*P,  by+5*P+breathe, 10*P, 9*P);
+    ctx.fillRect(bx+6*P,  by+8*P+breathe, 2*P, 4*P);  // ears
+    ctx.fillRect(bx+17*P, by+8*P+breathe, 2*P, 4*P);
+    ctx.fillStyle = '#f8a898';
+    ctx.fillRect(bx+14*P, by+10*P+breathe, 2*P, 2*P); // cheek
+
+    // ── eyes ─────────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#0c1850';
+    ctx.fillRect(bx+9*P,  by+8*P+breathe, 3*P, 3*P);
+    ctx.fillRect(bx+14*P, by+8*P+breathe, 3*P, 3*P);
+    ctx.fillStyle = '#2060d0';
+    ctx.fillRect(bx+9*P,  by+8*P+breathe, 2*P, 2*P);
+    ctx.fillRect(bx+14*P, by+8*P+breathe, 2*P, 2*P);
+    ctx.fillStyle = '#60a0ff';
+    ctx.fillRect(bx+9*P,  by+8*P+breathe, P, P);
+    ctx.fillRect(bx+14*P, by+8*P+breathe, P, P);
+    ctx.fillStyle = '#c07810';                           // eyebrows
+    ctx.fillRect(bx+9*P,  by+7*P+breathe, 3*P, P);
+    ctx.fillRect(bx+14*P, by+7*P+breathe, 3*P, P);
+
+    // ── hair (golden, fluffy spikes) ──────────────────────────────────────────
+    ctx.fillStyle = '#e8a020';
+    ctx.fillRect(bx+6*P,  by+3*P+breathe, 12*P, 4*P); // forehead band
+    ctx.fillRect(bx+4*P,  by+4*P+breathe, 4*P, 5*P);  // left puff
+    ctx.fillRect(bx+16*P, by+4*P+breathe, 4*P, 5*P);  // right puff
+    ctx.fillRect(bx+3*P,  by+6*P+breathe, 3*P, 4*P);  // left side
+    ctx.fillRect(bx+18*P, by+6*P+breathe, 3*P, 4*P);  // right side
+    ctx.fillRect(bx+6*P,  by+P+breathe,   4*P, 3*P);  // left spike
+    ctx.fillRect(bx+10*P, by+breathe,     4*P, 4*P);  // centre spike
+    ctx.fillRect(bx+14*P, by+P+breathe,   4*P, 3*P);  // right spike
+    ctx.fillStyle = '#f8d040';
+    ctx.fillRect(bx+7*P,  by+P+breathe,   2*P, 2*P);
+    ctx.fillRect(bx+11*P, by+breathe,     2*P, 2*P);
+    ctx.fillRect(bx+15*P, by+P+breathe,   2*P, 2*P);
+    ctx.fillRect(bx+4*P,  by+4*P+breathe, 2*P, 3*P);
+    ctx.fillRect(bx+18*P, by+4*P+breathe, 2*P, 3*P);
+    ctx.fillStyle = '#c07810';
+    ctx.fillRect(bx+4*P,  by+8*P+breathe, 16*P, 2*P); // base shadow
+
+    // ── victory: right arm raised progressively ───────────────────────────────
+    if (this._state === 'victory') {
+      const lift = fr * 3*P;
+      ctx.fillStyle = '#f0c090';
+      ctx.fillRect(bx+19*P, by+14*P+breathe-lift, 4*P, 7*P);
+      ctx.fillRect(bx+19*P, by+12*P+breathe-lift, 4*P, 4*P);
+      ctx.fillStyle = '#1428a0';
+      ctx.fillRect(bx+19*P, by+19*P+breathe-lift, 4*P, 2*P);
+    }
+  }
+
+  _drawSword(ctx, bx, by, breathe, fr) {
+    const st = this._state;
+
+    if (st === 'swing') {
+      if (fr === 0) {
+        // wind-up: ~45° up-right
+        for (let i = 0; i < 14; i++) {
+          ctx.fillStyle = '#1460c0';
+          ctx.fillRect(bx+(18+i)*P, by+(23-i)*P+breathe+P, P, 4*P);
+          ctx.fillStyle = '#40a0f0';
+          ctx.fillRect(bx+(18+i)*P, by+(23-i)*P+breathe, P, 4*P);
+          ctx.fillStyle = '#88d0ff';
+          ctx.fillRect(bx+(18+i)*P, by+(23-i)*P+breathe, P, 2*P);
+        }
+        ctx.fillStyle = '#c89020';
+        ctx.fillRect(bx+15*P, by+23*P+breathe, 7*P, 3*P);
+        ctx.fillStyle = '#f0c030';
+        ctx.fillRect(bx+15*P, by+23*P+breathe, 7*P, P);
+      } else if (fr === 1) {
+        // mid-swing: diagonal forward-down
+        for (let i = 0; i < 14; i++) {
+          const oy = (i >> 1) * P;
+          ctx.fillStyle = '#1460c0';
+          ctx.fillRect(bx+(18+i)*P, by+15*P+breathe+oy+P, P, 4*P);
+          ctx.fillStyle = '#40a0f0';
+          ctx.fillRect(bx+(18+i)*P, by+15*P+breathe+oy, P, 4*P);
+          ctx.fillStyle = '#88d0ff';
+          ctx.fillRect(bx+(18+i)*P, by+15*P+breathe+oy, P, 2*P);
+        }
+        ctx.fillStyle = '#c89020';
+        ctx.fillRect(bx+15*P, by+18*P+breathe, 6*P, 3*P);
+        ctx.fillStyle = '#f0c030';
+        ctx.fillRect(bx+15*P, by+18*P+breathe, 6*P, P);
+      } else {
+        // follow-through: fully horizontal
+        ctx.fillStyle = '#1460c0';
+        ctx.fillRect(bx+20*P, by+17*P+breathe+P, 18*P, 4*P);
+        ctx.fillStyle = '#40a0f0';
+        ctx.fillRect(bx+20*P, by+17*P+breathe, 18*P, 4*P);
+        ctx.fillStyle = '#88d0ff';
+        ctx.fillRect(bx+20*P, by+17*P+breathe, 18*P, 2*P);
+        ctx.fillStyle = '#c8f0ff';
+        ctx.fillRect(bx+20*P, by+17*P+breathe, 6*P, P);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(bx+37*P, by+17*P+breathe, P, 3*P);
+        ctx.fillStyle = '#c89020';
+        ctx.fillRect(bx+17*P, by+15*P+breathe, 4*P, 8*P);
+        ctx.fillStyle = '#f0c030';
+        ctx.fillRect(bx+17*P, by+15*P+breathe, P, 8*P);
+        ctx.fillRect(bx+17*P, by+15*P+breathe, 4*P, P);
+      }
+      // handle shared across all swing frames
+      ctx.fillStyle = '#8a5020';
+      ctx.fillRect(bx+18*P, by+22*P+breathe, 2*P, 4*P);
+      ctx.fillStyle = '#b07030';
+      ctx.fillRect(bx+18*P, by+22*P+breathe, P, 4*P);
+      return;
+    }
+
+    // at rest (idle / walk / hurt / victory): sword pointing down, right side
+    ctx.fillStyle = '#1460c0';
+    ctx.fillRect(bx+21*P, by+16*P+breathe+P, 3*P, 17*P);
+    ctx.fillStyle = '#40a0f0';
+    ctx.fillRect(bx+21*P, by+16*P+breathe, 3*P, 17*P);
+    ctx.fillStyle = '#88d0ff';
+    ctx.fillRect(bx+21*P, by+16*P+breathe, 2*P, 17*P);
+    ctx.fillStyle = '#c8f0ff';
+    ctx.fillRect(bx+21*P, by+16*P+breathe, P, 8*P);
+    // tip
+    ctx.fillStyle = '#c8f0ff';
+    ctx.fillRect(bx+22*P, by+32*P+breathe, 2*P, 2*P);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+22*P, by+32*P+breathe, P, P);
+    // guard
+    ctx.fillStyle = '#c89020';
+    ctx.fillRect(bx+17*P, by+13*P+breathe, 8*P, 3*P);
+    ctx.fillStyle = '#f0c030';
+    ctx.fillRect(bx+17*P, by+13*P+breathe, 8*P, P);
+    // handle
+    ctx.fillStyle = '#8a5020';
+    ctx.fillRect(bx+21*P, by+10*P+breathe, 2*P, 4*P);
+    ctx.fillStyle = '#b07030';
+    ctx.fillRect(bx+21*P, by+10*P+breathe, P, 4*P);
+    // pommel
+    ctx.fillStyle = '#c89020';
+    ctx.fillRect(bx+20*P, by+8*P+breathe, 4*P, 3*P);
+    ctx.fillStyle = '#f0c030';
+    ctx.fillRect(bx+20*P, by+8*P+breathe, 4*P, P);
+  }
+
+  _drawDead(ctx, bx, by, fr) {
+    // fr 0: stumbling, fr 1: on knees, fr 2: lying flat (freezes here)
+    if (fr < 2) {
+      // kneeling / stumbling — body still semi-upright
+      const tilt = fr * 4*P;
+      // hair
+      ctx.fillStyle = '#e8a020';
+      ctx.fillRect(bx+6*P, by+4*P+tilt, 12*P, 4*P);
+      ctx.fillRect(bx+4*P, by+5*P+tilt, 4*P, 4*P);
+      ctx.fillRect(bx+16*P, by+5*P+tilt, 4*P, 4*P);
+      ctx.fillRect(bx+10*P, by+2*P+tilt, 4*P, 3*P);
+      ctx.fillStyle = '#f8d040';
+      ctx.fillRect(bx+11*P, by+2*P+tilt, 2*P, 2*P);
+      ctx.fillStyle = '#c07810';
+      ctx.fillRect(bx+5*P, by+8*P+tilt, 14*P, 2*P);
+      // head
+      ctx.fillStyle = '#f0c090';
+      ctx.fillRect(bx+7*P, by+6*P+tilt, 10*P, 9*P);
+      ctx.fillStyle = '#0c1850';
+      ctx.fillRect(bx+9*P, by+9*P+tilt, 3*P, 3*P);
+      ctx.fillRect(bx+14*P, by+9*P+tilt, 3*P, 3*P);
+      ctx.fillStyle = '#2060d0';
+      ctx.fillRect(bx+9*P, by+9*P+tilt, 2*P, 2*P);
+      ctx.fillRect(bx+14*P, by+9*P+tilt, 2*P, 2*P);
+      // body leaning
+      ctx.fillStyle = '#2848c8';
+      ctx.fillRect(bx+4*P, by+14*P+tilt, 16*P, 8*P);
+      ctx.fillStyle = '#4870e8';
+      ctx.fillRect(bx+4*P, by+14*P+tilt, 2*P, 8*P);
+      ctx.fillRect(bx+4*P, by+14*P+tilt, 16*P, P);
+      ctx.fillStyle = '#c89020';
+      ctx.fillRect(bx+4*P, by+21*P+tilt, 16*P, 2*P);
+      // kneeling legs
+      ctx.fillStyle = '#1a2888';
+      ctx.fillRect(bx+5*P, by+23*P+tilt, 5*P, 5*P);
+      ctx.fillRect(bx+14*P, by+22*P+tilt, 5*P, 6*P);
+      ctx.fillStyle = '#101450';
+      ctx.fillRect(bx+5*P, by+27*P+tilt, 5*P, P);
+      ctx.fillRect(bx+14*P, by+27*P+tilt, 5*P, P);
+      return;
+    }
+
+    // fr 2: lying flat on ground
+    const y = by + 26*P;
+    // hair splayed
+    ctx.fillStyle = '#e8a020';
+    ctx.fillRect(bx,      y-7*P, 14*P, 4*P);
+    ctx.fillRect(bx,      y-10*P, 10*P, 4*P);
+    ctx.fillStyle = '#f8d040';
+    ctx.fillRect(bx+P,    y-9*P, 4*P, 3*P);
+    ctx.fillStyle = '#c07810';
+    ctx.fillRect(bx,      y-4*P, 14*P, P);
+    // head
+    ctx.fillStyle = '#f0c090';
+    ctx.fillRect(bx+P,    y-4*P, 8*P, 7*P);
+    ctx.fillStyle = '#f8a898';
+    ctx.fillRect(bx+6*P,  y-P,   2*P, 2*P);
+    // X eyes
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(bx+2*P, y-2*P, P, P); ctx.fillRect(bx+4*P, y-2*P, P, P);
+    ctx.fillRect(bx+3*P, y-3*P, P, P); ctx.fillRect(bx+3*P, y-P,   P, P);
+    ctx.fillRect(bx+5*P, y-3*P, P, P); ctx.fillRect(bx+5*P, y-P,   P, P);
+    ctx.fillRect(bx+4*P, y-2*P, P, P); // second eye
+    // body
+    ctx.fillStyle = '#2848c8';
+    ctx.fillRect(bx+6*P,  y-3*P, 16*P, 6*P);
+    ctx.fillStyle = '#4870e8';
+    ctx.fillRect(bx+6*P,  y-3*P, 16*P, P);
+    ctx.fillStyle = '#1428a0';
+    ctx.fillRect(bx+6*P,  y+2*P, 16*P, P);
+    ctx.fillStyle = '#c89020';
+    ctx.fillRect(bx+6*P,  y+P,   16*P, P);
+    // legs
+    ctx.fillStyle = '#1a2888';
+    ctx.fillRect(bx+16*P, y+P,   12*P, 4*P);
+    ctx.fillStyle = '#101450';
+    ctx.fillRect(bx+22*P, y+P,   6*P,  4*P);
+    ctx.fillStyle = '#c89020';
+    ctx.fillRect(bx+22*P, y+4*P, 6*P,  P);
+    // sword on ground
+    ctx.fillStyle = '#1460c0';
+    ctx.fillRect(bx+18*P, y+3*P, 14*P, 3*P);
+    ctx.fillStyle = '#40a0f0';
+    ctx.fillRect(bx+18*P, y+3*P, 14*P, 2*P);
+    ctx.fillStyle = '#88d0ff';
+    ctx.fillRect(bx+18*P, y+3*P, 14*P, P);
+    ctx.fillStyle = '#c89020';
+    ctx.fillRect(bx+15*P, y+2*P, 4*P,  4*P);
+    ctx.fillStyle = '#8a5020';
+    ctx.fillRect(bx+13*P, y+3*P, 3*P,  4*P);
+    // arm lying out
+    ctx.fillStyle = '#f0c090';
+    ctx.fillRect(bx+16*P, y-5*P, 4*P,  6*P);
   }
 }
 
