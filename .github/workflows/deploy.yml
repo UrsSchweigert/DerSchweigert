@@ -172,7 +172,14 @@ jobs:
           sudo apt-get install -y zip -q
           rm -rf sites/ffm/build
           mkdir -p sites/ffm/build
-          pip install -r sites/ffm/requirements.txt -t sites/ffm/build/
+          # install manylinux wheels — compatible with Lambda's Amazon Linux 2023
+          pip install \
+            --platform manylinux2014_x86_64 \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: \
+            -t sites/ffm/build/ \
+            -r sites/ffm/requirements.txt
           cp -r sites/ffm/app sites/ffm/build/
           cp sites/ffm/lambda/handler.py sites/ffm/build/
           (cd sites/ffm/build && zip -r ../ffm-lambda.zip .)
@@ -181,6 +188,7 @@ jobs:
       - name: Update Lambda function code
         run: |
           set -x
+          aws sts get-caller-identity
           BUCKET="ffm-site-${{ secrets.AWS_ACCOUNT_ID }}"
           aws s3 cp sites/ffm/ffm-lambda.zip "s3://$BUCKET/deployments/ffm-lambda.zip" --region eu-central-1
           aws lambda wait function-updated --function-name ffm-api --region eu-central-1
