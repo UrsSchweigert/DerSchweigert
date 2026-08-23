@@ -76,20 +76,6 @@ export class Renderer {
     const off = mod(scrollX * 0.2, dw);
     ctx.drawImage(_bgImage, -off, dy, dw, dh);
     ctx.drawImage(_bgImage, -off + dw, dy, dw, dh);
-
-    // Blur a narrow strip at the seam to hide the tile join
-    const seamX = dw - off;
-    const blendW = 22;
-    if (seamX > -blendW && seamX < CANVAS_W + blendW) {
-      ctx.save();
-      ctx.filter = 'blur(10px)';
-      ctx.beginPath();
-      ctx.rect(seamX - blendW, dy, blendW * 2, dh);
-      ctx.clip();
-      ctx.drawImage(_bgImage, -off, dy, dw, dh);
-      ctx.drawImage(_bgImage, -off + dw, dy, dw, dh);
-      ctx.restore();
-    }
   }
 
   // ─── layer helpers ──────────────────────────────────────────────────────────

@@ -482,7 +482,7 @@ function gameLoop(ts) {
     }
     
     if (hero.state === 'walk' && !heroLunge) state.scrollX += 100 * dt;
-    hero.lunging = heroLunge !== null;
+    hero.lunging = heroLunge !== null && hero.state !== 'swing';
   }
   
   renderer.clear();
