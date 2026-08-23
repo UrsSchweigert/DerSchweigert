@@ -3,6 +3,11 @@
 .pytest_cache/
 __pycache__/
 *.pyc
+.terraform/
+.terraform-build/
+*.tfstate
+*.tfstate.backup
+*.zip
 .DS_Store
 
 # Terraform / AWS deployment artifacts

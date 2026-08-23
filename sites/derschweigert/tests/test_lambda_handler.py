@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 
-HANDLER_PATH = Path(__file__).resolve().parents[1] / "infra" / "lambda" / "handler.py"
+HANDLER_PATH = Path(__file__).resolve().parents[1] / "lambda" / "handler.py"
 SPEC = importlib.util.spec_from_file_location("contact_lambda_handler", HANDLER_PATH)
 handler = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(handler)

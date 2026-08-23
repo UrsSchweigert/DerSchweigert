@@ -88,18 +88,18 @@ jobs:
 
       - name: Provision infrastructure with Terraform
         run: |
-          terraform -chdir=infra/terraform init -upgrade -reconfigure
-          terraform -chdir=infra/terraform apply -auto-approve
+          terraform -chdir=infra/terraform/sites/derschweigert init -upgrade -reconfigure
+          terraform -chdir=infra/terraform/sites/derschweigert apply -auto-approve
 
       - name: Upload static site files
         run: |
-          BUCKET=$(terraform -chdir=infra/terraform output -raw site_bucket)
-          aws s3 sync templates "s3://$BUCKET" --delete
-          aws s3 sync static "s3://$BUCKET/static" --delete
+          BUCKET=$(terraform -chdir=infra/terraform/sites/derschweigert output -raw site_bucket)
+          aws s3 sync sites/derschweigert/templates "s3://$BUCKET" --delete
+          aws s3 sync sites/derschweigert/static "s3://$BUCKET/static" --delete
 
       - name: Verify Route53 aliases point to the Terraform CloudFront distribution
         run: |
-          DIST_ID=$(terraform -chdir=infra/terraform output -raw cloudfront_distribution_id)
+          DIST_ID=$(terraform -chdir=infra/terraform/sites/derschweigert output -raw cloudfront_distribution_id)
           CF_DOMAIN=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.DomainName' --output text)
 
           python3 - "$TF_VAR_route53_zone_id" "$CF_DOMAIN" <<'PY'
@@ -129,5 +129,5 @@ jobs:
 
       - name: Invalidate CloudFront cache
         run: |
-          DIST_ID=$(terraform -chdir=infra/terraform output -raw cloudfront_distribution_id)
+          DIST_ID=$(terraform -chdir=infra/terraform/sites/derschweigert output -raw cloudfront_distribution_id)
           aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
