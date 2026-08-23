@@ -25,6 +25,7 @@ body {
 }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
+h1, h2, h3, p { overflow-wrap: break-word; word-wrap: break-word; }
 .container {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -118,6 +119,7 @@ img { max-width: 100%; display: block; }
   display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 32px; align-items: center;
   overflow: hidden;
 }
+.hero-panel > * { min-width: 0; }
 .hero-panel::before {
   content: "";
   position: absolute;
@@ -198,6 +200,7 @@ h1 {
 .section-head h2 { margin: 0; font-size: clamp(2rem, 3vw, 2.8rem); letter-spacing: -0.05em; }
 .section-head p { color: var(--muted); margin: 8px 0 0; max-width: 52ch; }
 .grid { display: grid; gap: 20px; }
+.grid > * { min-width: 0; }
 .service-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .service-card {
   background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 24px; display: flex; flex-direction: column; gap: 16px; min-height: 100%;
@@ -218,6 +221,7 @@ h1 {
 .timeline-item {
   display: grid; grid-template-columns: 180px 1fr; gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px;
 }
+.timeline-item > * { min-width: 0; }
 .timeline-item .year { font-weight: 800; color: var(--brand); }
 .process-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .step {
@@ -226,6 +230,7 @@ h1 {
 .step strong { display: inline-flex; width: 36px; height: 36px; border-radius: 50%; align-items: center; justify-content: center; background: rgba(15,76,129,0.12); color: var(--brand-deep); margin-bottom: 12px; }
 .cta { padding: 50px 0 80px; }
 .cta .card { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.cta .card > * { min-width: 0; }
 .footer {
   background: linear-gradient(180deg, #091a2b, #101e2f);
   color: rgba(255,255,255,0.82); padding: 28px 0 50px;
@@ -244,6 +249,7 @@ h1 {
 }
 .page-content { padding: 0 0 80px; }
 .content-grid { display: grid; grid-template-columns: 1.4fr 0.6fr; gap: 24px; }
+.content-grid > * { min-width: 0; }
 .content-card {
   background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 28px; box-shadow: var(--shadow);
 }
@@ -308,7 +314,7 @@ textarea { min-height: 150px; resize: vertical; }
   .nav-links {
     position: absolute;
     top: calc(100% + 1px); left: 0; right: 0;
-    flex-direction: column; align-items: stretch; gap: 2px;
+    flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px;
     background: var(--panel);
     border: 1px solid var(--line); border-top: none;
     border-radius: 0 0 18px 18px;
