@@ -1,7 +1,7 @@
 // main.js — Complete game loop for Math Fiend Slayer
 
 import { LevelConfig, generateProblem } from './levels.js';
-import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX } from './renderer.js';
+import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch } from './entities.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
@@ -70,6 +70,9 @@ let answerTimes = [];
 let questionStartTime = 0;
 let inputDisabled = false;
 let gameRunning = false;
+let heroLunge = null; // { phase:'out'|'back', fiend?, targetX, onArrive? }
+const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
+const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this distance of HERO_X
 
 // --- Input ---
 const input = new InputManager(handleAnswer);
@@ -248,32 +251,65 @@ function handleCorrectAnswer() {
   state.combo++;
   state.timerActive = false;
   
-  hero.setState('swing');
-  activeFiend.hit();
-  audio.playSwordSwing();
-  
-  if (activeFiend.isDead) {
-    audio.playEnemyDeath();
-    state.enemiesDefeated++;
-    activeFiend = null;
+  const fiend = activeFiend;
+
+  const strikeNow = () => {
+    hero.setState('swing');
+    fiend.hit();
+    audio.playSwordSwing();
+
+    if (fiend.isDead) {
+      audio.playEnemyDeath();
+      state.enemiesDefeated++;
+      activeFiend = null;
+      input.disable();
+      inputDisabled = true;
+      heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+        setTimeout(() => {
+          if (checkAllDefeated()) triggerWaveClear();
+          else { spawnTimer = spawnInterval; inputDisabled = false; }
+        }, 300);
+      }};
+    } else {
+      heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+        inputDisabled = false;
+        activeFiend.problem = generateProblem(state.level - 1, Date.now());
+        state.timerRemaining = state.timerMax;
+        state.timerActive = true;
+        showProblem(activeFiend);
+      }};
+    }
+    hud.update(state);
+  };
+
+  if (fiend.x - HERO_X > LUNGE_MIN_DIST) {
+    hero.setState('walk');
     input.disable();
     inputDisabled = true;
-    
-    setTimeout(() => {
-      if (checkAllDefeated()) {
-        triggerWaveClear();
-      } else {
-        spawnTimer = spawnInterval;
-        inputDisabled = false;
-      }
-    }, 600);
+    heroLunge = { phase: 'out', fiend, onArrive: strikeNow };
   } else {
-    activeFiend.problem = generateProblem(state.level - 1, Date.now());
-    state.timerRemaining = state.timerMax;
-    state.timerActive = true;
-    showProblem(activeFiend);
+    // Already close — immediate swing, original behaviour
+    hero.setState('swing');
+    fiend.hit();
+    audio.playSwordSwing();
+    if (fiend.isDead) {
+      audio.playEnemyDeath();
+      state.enemiesDefeated++;
+      activeFiend = null;
+      input.disable();
+      inputDisabled = true;
+      setTimeout(() => {
+        if (checkAllDefeated()) triggerWaveClear();
+        else { spawnTimer = spawnInterval; inputDisabled = false; }
+      }, 600);
+    } else {
+      activeFiend.problem = generateProblem(state.level - 1, Date.now());
+      state.timerRemaining = state.timerMax;
+      state.timerActive = true;
+      showProblem(activeFiend);
+    }
+    hud.update(state);
   }
-  hud.update(state);
 }
 
 function handleWrongAnswer() {
@@ -413,7 +449,33 @@ function gameLoop(ts) {
     
     hero.update(dt);
     fiends.forEach(f => f.update(dt));
-    
+
+    if (heroLunge) {
+      if (heroLunge.phase === 'out') {
+        // chase the fiend's current position so they meet naturally
+        const targetX = heroLunge.fiend.x - 65;
+        if (hero.x >= targetX - 4) {
+          hero.x = targetX;
+          const cb = heroLunge.onArrive;
+          heroLunge = null; // clear before cb so cb can install 'back' phase
+          cb();
+        } else {
+          hero.x += LUNGE_SPEED * dt;
+        }
+      } else {
+        // 'back' — return to home position
+        if (hero.state !== 'swing') hero.setState('walk');
+        if (hero.x <= HERO_X + 4) {
+          hero.x = HERO_X;
+          const cb = heroLunge.onArrive;
+          heroLunge = null;
+          if (cb) cb();
+        } else {
+          hero.x -= LUNGE_SPEED * dt;
+        }
+      }
+    }
+
     if (!activeFiend && !inputDisabled) {
       // enable input as soon as the problem bubble enters the screen
       const visible = fiends.find(f => !f.isDead && f.problem && f.x < CANVAS_W - 40);
@@ -423,7 +485,7 @@ function gameLoop(ts) {
       }
     }
     
-    if (hero.state === 'walk') state.scrollX += 100 * dt;
+    if (hero.state === 'walk' && !heroLunge) state.scrollX += 100 * dt;
   }
   
   renderer.clear();
