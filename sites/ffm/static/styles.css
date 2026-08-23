@@ -194,6 +194,24 @@ input[type=number] {
   outline-offset: 2px;
 }
 
+#btn-next-level {
+  border-color: #60d060;
+  color: #c0f0c0;
+}
+
+#btn-next-level:hover {
+  background: #2a4a2a;
+}
+
+#btn-replay-level {
+  border-color: #d0a040;
+  color: #f0e0a0;
+}
+
+#btn-replay-level:hover {
+  background: #3a3020;
+}
+
 #top-bar {
   position: fixed;
   top: max(8px, env(safe-area-inset-top));

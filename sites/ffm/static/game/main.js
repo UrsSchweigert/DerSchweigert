@@ -34,6 +34,11 @@ let state = {
 
 // --- DOM refs ---
 const canvas = document.getElementById('game');
+const levelClearOverlay = document.getElementById('level-clear');
+const levelClearTitle = document.getElementById('level-clear-title');
+const levelClearScore = document.getElementById('level-clear-score');
+const btnNextLevel = document.getElementById('btn-next-level');
+const btnReplayLevel = document.getElementById('btn-replay-level');
 const diffSelect = document.getElementById('difficulty-select');
 const authModal = document.getElementById('auth-modal');
 const loginBtn = document.getElementById('login-btn');
@@ -339,19 +344,29 @@ function triggerWaveClear() {
 function triggerLevelClear() {
   spawnQueue = [];
   requeuedFiends = [];
-  
+
   if (api.isLoggedIn) {
     api.postScore(state.level, state.score, state.difficulty).catch(() => {});
   }
-  
+
   if (state.level >= 40) {
     triggerGameOver();
     return;
   }
-  
-  setTimeout(() => {
-    startLevel(state.level);
-  }, 3000);
+
+  const completedLevelNum = state.level;          // 1-based display number
+  const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
+  levelClearTitle.textContent = `Level ${completedLevelNum} Clear!`;
+  levelClearScore.textContent = `Score: ${state.score}`;
+  btnNextLevel.onclick = () => {
+    levelClearOverlay.style.display = 'none';
+    startLevel(completedIndex + 1);
+  };
+  btnReplayLevel.onclick = () => {
+    levelClearOverlay.style.display = 'none';
+    startLevel(completedIndex);
+  };
+  levelClearOverlay.style.display = 'flex';
 }
 
 function triggerGameOver() {
