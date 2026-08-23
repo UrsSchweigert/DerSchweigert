@@ -30,12 +30,11 @@ export class InputManager {
     });
     
     document.addEventListener('keydown', e => {
-      if (this._enabled && this._mode === 'multiple-choice' && e.key >= '1' && e.key <= '4') {
-        const idx = parseInt(e.key) - 1;
-        if (this._mcButtons[idx]) {
-          this._submit(this._mcButtons[idx].textContent.trim());
-        }
-      }
+      if (!this._enabled || this._mode !== 'multiple-choice') return;
+      if (!/^\d$/.test(e.key)) return;
+      // Match by label value so pressing '4' submits the button showing '4', not the 4th button
+      const match = this._mcButtons.find(btn => btn.textContent.trim() === e.key);
+      if (match) this._submit(match.textContent.trim());
     });
   }
 
