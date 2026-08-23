@@ -281,7 +281,6 @@ function handleCorrectAnswer() {
   };
 
   if (fiend.x - HERO_X > LUNGE_MIN_DIST) {
-    hero.setState('walk');
     input.disable();
     inputDisabled = true;
     heroLunge = { phase: 'out', fiend, onArrive: strikeNow };
@@ -462,7 +461,6 @@ function gameLoop(ts) {
         }
       } else {
         // 'back' — return to home position
-        if (hero.state !== 'swing') hero.setState('walk');
         if (hero.x <= HERO_X + 4) {
           hero.x = HERO_X;
           const cb = heroLunge.onArrive;
@@ -487,7 +485,7 @@ function gameLoop(ts) {
   }
   
   renderer.clear();
-  renderer.drawBackground(state.scrollX);
+  renderer.drawBackground(0);
 
   // Pass 1: all entity sprites (right-to-left so farther back draws first)
   const sorted = [...fiends].sort((a, b) => b.x - a.x);
