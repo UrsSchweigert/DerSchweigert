@@ -417,7 +417,6 @@ function gameLoop(ts) {
       const visible = fiends.find(f => !f.isDead && f.problem && f.x < CANVAS_W - 40);
       if (visible) {
         activeFiend = visible;
-        hero.setState('swing');
         showProblem(activeFiend);
       }
     }
