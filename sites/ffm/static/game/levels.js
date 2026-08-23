@@ -25,84 +25,121 @@ function lcg(seed) {
  * @returns {number} HP value
  */
 function calculateFiendHP(level, rngSeed) {
-  if (level <= 15) return 1;
-  if (level <= 22) {
-    const rng = lcg(rngSeed + level);
-    return rng.next() % 2 === 0 ? 1 : 2;
-  }
-  if (level <= 30) return 2;
-  if (level <= 35) {
-    const rng = lcg(rngSeed + level);
-    return rng.next() % 2 === 0 ? 2 : 3;
-  }
-  // levels 36-40
-  const rng = lcg(rngSeed + level);
-  return rng.next() % 2 === 0 ? 3 : 4;
+  const rng = lcg(rngSeed + level * 31);
+  if (level <= 12) return 1;
+  if (level <= 24) return rng.next() % 3 === 0 ? 2 : 1;
+  if (level <= 40) return rng.next() % 2 === 0 ? 2 : 3;
+  if (level <= 50) return [2, 3, 3, 4][rng.next() % 4];
+  return [3, 3, 4, 4][rng.next() % 4];
+}
+
+const CHAPTER_NAMES = {
+  1: 'Grade 1 Foundations',
+  2: 'Grade 1-2 Expansion',
+  3: 'Grade 3-4 Core Arithmetic',
+  4: 'Elementary Mastery Mix'
+};
+
+const FIEND_PATTERNS = {
+  1: ['slimeling', 'bonehead', 'slimeling', 'bonehead', 'slimeling'],
+  2: ['bonehead', 'slimeling', 'toadlord', 'bonehead', 'slimeling'],
+  3: ['toadlord', 'magelitch', 'bonehead', 'toadlord', 'snakefoe'],
+  4: ['magelitch', 'toadlord', 'snakefoe', 'bonehead', 'slimeling']
+};
+
+function getFiendType(level, chapter) {
+  const pattern = FIEND_PATTERNS[chapter] || FIEND_PATTERNS[4];
+  return pattern[(level - 1) % pattern.length];
+}
+
+function buildLevel(overrides) {
+  const level = overrides.level;
+  const chapter = overrides.chapter;
+  return {
+    level,
+    chapter,
+    chapterName: CHAPTER_NAMES[chapter],
+    operations: overrides.operations,
+    operandRange: overrides.operandRange,
+    maxResult: overrides.maxResult,
+    fiendType: overrides.fiendType || getFiendType(level, chapter),
+    fiendHP: overrides.fiendHP ?? calculateFiendHP(level, level),
+    waveSize: overrides.waveSize,
+    inputMode: overrides.inputMode
+  };
 }
 
 /**
- * Get fiend type based on level
- * @param {number} level - 1-based level number
- * @returns {string} Fiend type name
- */
-function getFiendType(level) {
-  if (level <= 10) return "slimeling";
-  if (level <= 20) return "bonehead";
-  if (level <= 30) return "toadlord";
-  return "magelitch";
-}
-
-/**
- * Configuration for all 40 levels
+ * Configuration for all 60 levels
  */
 export const LevelConfig = [
-  // Chapter 1: Addition (Levels 1-10)  — 5–6 waves
-  { level: 1, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 5], b: [1, 5] }, maxResult: 10, fiendType: "slimeling", fiendHP: 1, waveSize: 5, inputMode: "multiple-choice" },
-  { level: 2, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 5], b: [1, 5] }, maxResult: 10, fiendType: "slimeling", fiendHP: 1, waveSize: 5, inputMode: "multiple-choice" },
-  { level: 3, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 10], b: [1, 10] }, maxResult: 20, fiendType: "slimeling", fiendHP: 1, waveSize: 5, inputMode: "multiple-choice" },
-  { level: 4, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 10], b: [1, 10] }, maxResult: 20, fiendType: "slimeling", fiendHP: 1, waveSize: 5, inputMode: "multiple-choice" },
-  { level: 5, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 30, fiendType: "slimeling", fiendHP: 1, waveSize: 5, inputMode: "multiple-choice" },
-  { level: 6, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 30, fiendType: "slimeling", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 7, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 40, fiendType: "slimeling", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 8, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 40, fiendType: "slimeling", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 9, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 50], b: [1, 50] }, maxResult: 100, fiendType: "slimeling", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 10, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 50], b: [1, 50] }, maxResult: 100, fiendType: "slimeling", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
+  // Block 1: Grade 1 (Levels 1-15)
+  buildLevel({ level: 1, chapter: 1, operations: ['+'], operandRange: { a: [1, 5], b: [1, 5] }, maxResult: 10, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 2, chapter: 1, operations: ['+'], operandRange: { a: [1, 6], b: [1, 6] }, maxResult: 12, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 3, chapter: 1, operations: ['+'], operandRange: { a: [1, 8], b: [1, 8] }, maxResult: 16, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 4, chapter: 1, operations: ['+'], operandRange: { a: [1, 10], b: [1, 10] }, maxResult: 20, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 5, chapter: 1, operations: ['+'], operandRange: { a: [1, 12], b: [1, 8] }, maxResult: 20, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 6, chapter: 1, operations: ['+'], operandRange: { a: [1, 15], b: [1, 5] }, maxResult: 20, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 7, chapter: 1, operations: ['+'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 8, chapter: 1, operations: ['-'], operandRange: { a: [5, 20], b: [1, 10] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 9, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 10, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 12] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 11, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 15] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 12, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 13, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 20, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 14, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 20, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 15, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 20, waveSize: 6, inputMode: 'free-text' }),
 
-  // Chapter 2: Addition & Subtraction (Levels 11-20)  — 6–7 waves
-  { level: 11, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 12, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 13, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 14, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 15, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 16, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: calculateFiendHP(16, 16), waveSize: 7, inputMode: "free-text" },
-  { level: 17, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(17, 17), waveSize: 7, inputMode: "free-text" },
-  { level: 18, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(18, 18), waveSize: 7, inputMode: "free-text" },
-  { level: 19, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(19, 19), waveSize: 7, inputMode: "free-text" },
-  { level: 20, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(20, 20), waveSize: 7, inputMode: "free-text" },
+  // Block 2: Grade 1-2 (Levels 16-30)
+  buildLevel({ level: 16, chapter: 2, operations: ['+'], operandRange: { a: [10, 40], b: [10, 40] }, maxResult: 80, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 17, chapter: 2, operations: ['+'], operandRange: { a: [20, 60], b: [10, 40] }, maxResult: 100, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 18, chapter: 2, operations: ['-'], operandRange: { a: [20, 80], b: [1, 40] }, maxResult: 80, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 19, chapter: 2, operations: ['-'], operandRange: { a: [30, 100], b: [1, 60] }, maxResult: 100, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 20, chapter: 2, operations: ['+', '-'], operandRange: { a: [10, 100], b: [1, 50] }, maxResult: 100, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 21, chapter: 2, operations: ['+', '-'], operandRange: { a: [10, 100], b: [1, 70] }, maxResult: 100, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 22, chapter: 2, operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 23, chapter: 2, operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 24, chapter: 2, operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 25, chapter: 2, operations: ['*'], operandRange: { a: [1, 10], b: [2, 3] }, maxResult: 30, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 26, chapter: 2, operations: ['*'], operandRange: { a: [1, 10], b: [2, 5] }, maxResult: 50, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 27, chapter: 2, operations: ['*'], operandRange: { a: [1, 12], b: [2, 6] }, maxResult: 72, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 28, chapter: 2, operations: ['+', '-', '*'], operandRange: { a: [1, 100], b: [2, 8] }, maxResult: 120, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 29, chapter: 2, operations: ['+', '-', '*'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 150, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 30, chapter: 2, operations: ['+', '-', '*'], operandRange: { a: [1, 100], b: [2, 10] }, maxResult: 200, waveSize: 7, inputMode: 'free-text' }),
 
-  // Chapter 3: Multiplication (Levels 21-30)  — 7–8 waves
-  { level: 21, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 3] }, maxResult: 30, fiendType: "toadlord", fiendHP: calculateFiendHP(21, 21), waveSize: 7, inputMode: "free-text" },
-  { level: 22, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 3] }, maxResult: 30, fiendType: "toadlord", fiendHP: calculateFiendHP(22, 22), waveSize: 7, inputMode: "free-text" },
-  { level: 23, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 4] }, maxResult: 40, fiendType: "toadlord", fiendHP: 2, waveSize: 7, inputMode: "free-text" },
-  { level: 24, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 4] }, maxResult: 40, fiendType: "toadlord", fiendHP: 2, waveSize: 7, inputMode: "free-text" },
-  { level: 25, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 6] }, maxResult: 60, fiendType: "toadlord", fiendHP: 2, waveSize: 7, inputMode: "free-text" },
-  { level: 26, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 6] }, maxResult: 60, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 27, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 9] }, maxResult: 90, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 28, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 9] }, maxResult: 90, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 29, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [2, 25], b: [2, 12] }, maxResult: 300, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 30, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [2, 25], b: [2, 12] }, maxResult: 300, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
+  // Block 3: Grade 3-4 Arithmetic Core (Levels 31-45)
+  buildLevel({ level: 31, chapter: 3, operations: ['*'], operandRange: { a: [2, 12], b: [2, 10] }, maxResult: 120, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 32, chapter: 3, operations: ['*'], operandRange: { a: [2, 15], b: [2, 10] }, maxResult: 150, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 33, chapter: 3, operations: ['*'], operandRange: { a: [2, 20], b: [2, 12] }, maxResult: 240, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 34, chapter: 3, operations: ['/'], operandRange: { a: [2, 10], b: [2, 10] }, maxResult: 10, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 35, chapter: 3, operations: ['/'], operandRange: { a: [2, 12], b: [2, 12] }, maxResult: 12, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 36, chapter: 3, operations: ['*', '/'], operandRange: { a: [2, 12], b: [2, 12] }, maxResult: 144, waveSize: 7, inputMode: 'free-text' }),
+  buildLevel({ level: 37, chapter: 3, operations: ['+', '-'], operandRange: { a: [100, 500], b: [10, 200] }, maxResult: 700, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 38, chapter: 3, operations: ['+', '-'], operandRange: { a: [200, 800], b: [20, 300] }, maxResult: 1000, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 39, chapter: 3, operations: ['*'], operandRange: { a: [10, 50], b: [2, 12] }, maxResult: 600, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 40, chapter: 3, operations: ['*', '/'], operandRange: { a: [5, 25], b: [2, 12] }, maxResult: 300, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 41, chapter: 3, operations: ['+', '-', '*'], operandRange: { a: [50, 400], b: [2, 12] }, maxResult: 800, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 42, chapter: 3, operations: ['+', '-', '*'], operandRange: { a: [100, 600], b: [2, 12] }, maxResult: 1000, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 43, chapter: 3, operations: ['+', '-', '*', '/'], operandRange: { a: [10, 80], b: [2, 12] }, maxResult: 960, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 44, chapter: 3, operations: ['+', '-', '*', '/'], operandRange: { a: [20, 100], b: [2, 12] }, maxResult: 1200, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 45, chapter: 3, operations: ['+', '-', '*', '/'], operandRange: { a: [20, 120], b: [2, 12] }, maxResult: 1440, waveSize: 8, inputMode: 'free-text' }),
 
-  // Chapter 4: All Operations (Levels 31-40)  — 8 waves
-  { level: 31, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(31, 31), waveSize: 8, inputMode: "free-text" },
-  { level: 32, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(32, 32), waveSize: 8, inputMode: "free-text" },
-  { level: 33, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(33, 33), waveSize: 8, inputMode: "free-text" },
-  { level: 34, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(34, 34), waveSize: 8, inputMode: "free-text" },
-  { level: 35, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(35, 35), waveSize: 8, inputMode: "free-text" },
-  { level: 36, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(36, 36), waveSize: 8, inputMode: "free-text" },
-  { level: 37, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(37, 37), waveSize: 8, inputMode: "free-text" },
-  { level: 38, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(38, 38), waveSize: 8, inputMode: "free-text" },
-  { level: 39, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(39, 39), waveSize: 8, inputMode: "free-text" },
-  { level: 40, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(40, 40), waveSize: 8, inputMode: "free-text" },
+  // Block 4: Mastery and transfer (Levels 46-60)
+  buildLevel({ level: 46, chapter: 4, operations: ['+', '-'], operandRange: { a: [100, 900], b: [20, 400] }, maxResult: 1300, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 47, chapter: 4, operations: ['*', '/'], operandRange: { a: [5, 40], b: [2, 12] }, maxResult: 480, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 48, chapter: 4, operations: ['+', '-', '*'], operandRange: { a: [50, 500], b: [2, 15] }, maxResult: 2000, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 49, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [10, 100], b: [2, 12] }, maxResult: 1200, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 50, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [20, 120], b: [2, 15] }, maxResult: 1800, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 51, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [30, 150], b: [2, 15] }, maxResult: 2250, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 52, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [40, 180], b: [2, 15] }, maxResult: 2700, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 53, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [50, 200], b: [2, 18] }, maxResult: 3600, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 54, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [60, 220], b: [2, 18] }, maxResult: 3960, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 55, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [70, 240], b: [2, 20] }, maxResult: 4800, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 56, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [80, 260], b: [2, 20] }, maxResult: 5200, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 57, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [90, 280], b: [2, 20] }, maxResult: 5600, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 58, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [100, 300], b: [2, 20] }, maxResult: 6000, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 59, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [120, 320], b: [2, 20] }, maxResult: 6400, waveSize: 8, inputMode: 'free-text' }),
+  buildLevel({ level: 60, chapter: 4, operations: ['+', '-', '*', '/'], operandRange: { a: [150, 350], b: [2, 20] }, maxResult: 7000, waveSize: 8, inputMode: 'free-text' }),
 ];
 
 /**
@@ -149,7 +186,7 @@ function generateDistractors(answer, rng, cfg) {
 
 /**
  * Generate a math problem for a given level
- * @param {number} levelIndex - 0-based level index (0-39)
+ * @param {number} levelIndex - 0-based level index (0-59)
  * @param {number} rngSeed - Seed for RNG
  * @returns {object} Problem object with question, answer, distractors, operation
  */
@@ -174,7 +211,7 @@ export function generateProblem(levelIndex, rngSeed) {
     // Subtraction - ensure a >= b
     const [aMin, aMax] = cfg.operandRange.a;
     a = rng.nextInt(aMin, aMax);
-    b = rng.nextInt(1, a); // b is always <= a
+    b = rng.nextInt(1, a);
     answer = a - b;
     question = `${a} − ${b} = ?`;
   } else if (operation === '*') {
@@ -195,9 +232,8 @@ export function generateProblem(levelIndex, rngSeed) {
     question = `${a} ÷ ${b} = ?`;
   }
 
-  // Generate distractors for multiple-choice levels
   let distractors = [];
-  if (cfg.inputMode === "multiple-choice") {
+  if (cfg.inputMode === 'multiple-choice') {
     distractors = generateDistractors(answer, rng, cfg);
   }
 

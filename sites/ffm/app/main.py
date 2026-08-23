@@ -70,7 +70,7 @@ def submit_score():
     difficulty = data.get('difficulty', '').strip()
     
     # Validate input
-    if not isinstance(level, int) or not (1 <= level <= 40):
+    if not isinstance(level, int) or not (1 <= level <= 60):
         return jsonify({"error": "Invalid input"}), 400
     if not isinstance(score, int) or score < 0:
         return jsonify({"error": "Invalid input"}), 400
@@ -125,7 +125,7 @@ def leaderboard():
     if level_param:
         try:
             level_filter = int(level_param)
-            if not (1 <= level_filter <= 40):
+            if not (1 <= level_filter <= 60):
                 level_filter = None
         except ValueError:
             level_filter = None

@@ -144,3 +144,39 @@ def test_leaderboard(client):
     assert r.status_code == 200
     data = r.get_json()
     assert 'entries' in data
+
+
+def test_score_level_range_validation(client):
+    client.post('/api/auth/register', json={
+        "username": "rangeuser",
+        "email": "range@example.com",
+        "password": "rangepass1"
+    })
+    login_r = client.post('/api/auth/login', json={
+        "username": "rangeuser",
+        "password": "rangepass1"
+    })
+    token = login_r.get_json()['access_token']
+    headers = {"Authorization": f"Bearer {token}"}
+
+    valid = client.post('/api/score', json={
+        "level": 60,
+        "score": 1234,
+        "difficulty": "medium"
+    }, headers=headers)
+    assert valid.status_code == 200
+    assert valid.get_json()['saved'] is True
+
+    too_low = client.post('/api/score', json={
+        "level": 0,
+        "score": 1,
+        "difficulty": "easy"
+    }, headers=headers)
+    assert too_low.status_code == 400
+
+    too_high = client.post('/api/score', json={
+        "level": 61,
+        "score": 1,
+        "difficulty": "easy"
+    }, headers=headers)
+    assert too_high.status_code == 400
