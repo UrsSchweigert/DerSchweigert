@@ -43,316 +43,545 @@ export class Hero extends Entity {
   draw(ctx) {
     const bx = ~~(this.x - 12*P);
     const by = ~~(this.y - 36*P);
+    const Q  = 2;              // sprite pixel = 2×2 real pixels → finer detail
     const br = this._state === 'hurt';
-    const breathe = this._state === 'idle' && this._frame === 1 ? P : 0;
+    const bob = this._state === 'idle' && this._frame === 1 ? Q : 0;
     const fr = this._frame;
 
-    if (this._state === 'dead') { this._drawDead(ctx, bx, by, fr); return; }
+    if (this._state === 'dead') { this._drawDead(ctx, bx, by, fr, Q); return; }
 
-    // walk: legs alternate forward / back
-    let lO = 0, rO = 0;
+    // walk: legs swing horizontally
+    let lH = 0, rH = 0;
     if (this._state === 'walk') {
-      lO = fr === 1 ?  2*P : fr === 3 ? -2*P : 0;
-      rO = fr === 1 ? -2*P : fr === 3 ?  2*P : 0;
+      lH = fr === 1 ? -3*Q : fr === 3 ?  3*Q : 0;
+      rH = fr === 1 ?  3*Q : fr === 3 ? -3*Q : 0;
     }
 
-    // sword drawn first so torso overlaps the guard
-    this._drawSword(ctx, bx, by, breathe, fr);
+    // sword behind torso (not during swing or victory — those draw their own)
+    if (this._state !== 'swing' && this._state !== 'victory') {
+      this._drawSword(ctx, bx, by, bob, Q);
+    }
 
-    // ── boots ────────────────────────────────────────────────────────────────
+    // ── BOOTS ────────────────────────────────────────────────────────────────
     ctx.fillStyle = '#101450';
-    ctx.fillRect(bx+5*P, by+33*P+lO, 5*P, 3*P);
-    ctx.fillRect(bx+14*P, by+33*P+rO, 5*P, 3*P);
+    ctx.fillRect(bx+10*Q+lH, by+64*Q, 12*Q, 8*Q);
+    ctx.fillRect(bx+26*Q+rH, by+64*Q, 12*Q, 8*Q);
+    ctx.fillStyle = '#1c2480';
+    ctx.fillRect(bx+10*Q+lH, by+64*Q,  2*Q, 7*Q);
+    ctx.fillRect(bx+26*Q+rH, by+64*Q,  2*Q, 7*Q);
     ctx.fillStyle = '#c89020';
-    ctx.fillRect(bx+5*P, by+35*P, 5*P, P);
-    ctx.fillRect(bx+14*P, by+35*P, 5*P, P);
+    ctx.fillRect(bx+10*Q+lH, by+70*Q, 12*Q, 2*Q);
+    ctx.fillRect(bx+26*Q+rH, by+70*Q, 12*Q, 2*Q);
+    ctx.fillStyle = '#0a0c34';
+    ctx.fillRect(bx+19*Q+lH, by+64*Q,  3*Q, 8*Q);   // toe cap L
+    ctx.fillRect(bx+35*Q+rH, by+64*Q,  3*Q, 8*Q);   // toe cap R
 
-    // ── pants ────────────────────────────────────────────────────────────────
+    // ── PANTS ────────────────────────────────────────────────────────────────
     ctx.fillStyle = '#1a2888';
-    ctx.fillRect(bx+5*P, by+25*P+lO, 5*P, 8*P);
-    ctx.fillRect(bx+14*P, by+25*P+rO, 5*P, 8*P);
+    ctx.fillRect(bx+10*Q+lH, by+52*Q, 12*Q, 12*Q);
+    ctx.fillRect(bx+26*Q+rH, by+52*Q, 12*Q, 12*Q);
     ctx.fillStyle = '#2838a8';
-    ctx.fillRect(bx+5*P, by+25*P+lO, P, 7*P);
-    ctx.fillRect(bx+14*P, by+25*P+rO, P, 7*P);
+    ctx.fillRect(bx+10*Q+lH, by+52*Q,  2*Q, 11*Q);
+    ctx.fillRect(bx+26*Q+rH, by+52*Q,  2*Q, 11*Q);
+    ctx.fillStyle = '#0e1660';
+    ctx.fillRect(bx+20*Q+lH, by+52*Q,  Q,   12*Q);
+    ctx.fillRect(bx+36*Q+rH, by+52*Q,  Q,   12*Q);
 
-    // ── belt ─────────────────────────────────────────────────────────────────
+    // ── BELT ─────────────────────────────────────────────────────────────────
     ctx.fillStyle = '#c89020';
-    ctx.fillRect(bx+4*P, by+22*P+breathe, 16*P, 3*P);
+    ctx.fillRect(bx+10*Q, by+48*Q+bob, 28*Q, 4*Q);
     ctx.fillStyle = '#f0c030';
-    ctx.fillRect(bx+4*P, by+22*P+breathe, 16*P, P);
+    ctx.fillRect(bx+10*Q, by+48*Q+bob, 28*Q, Q);
     ctx.fillStyle = '#f8d840';
-    ctx.fillRect(bx+10*P, by+22*P+breathe, 4*P, 3*P);
-    ctx.fillStyle = '#fff080';
-    ctx.fillRect(bx+11*P, by+23*P+breathe, 2*P, P);
+    ctx.fillRect(bx+21*Q, by+48*Q+bob,  6*Q, 4*Q);
+    ctx.fillStyle = '#fff088';
+    ctx.fillRect(bx+22*Q, by+49*Q+bob,  4*Q, 2*Q);
 
-    // ── chest armor ──────────────────────────────────────────────────────────
-    ctx.fillStyle = br ? '#c02818' : '#2848c8';
-    ctx.fillRect(bx+4*P, by+13*P+breathe, 16*P, 9*P);
-    ctx.fillStyle = br ? '#e04030' : '#4870e8';           // left highlight
-    ctx.fillRect(bx+4*P, by+13*P+breathe, 2*P, 9*P);
-    ctx.fillRect(bx+4*P, by+13*P+breathe, 16*P, P);
-    ctx.fillStyle = br ? '#801010' : '#1428a0';           // right shadow
-    ctx.fillRect(bx+18*P, by+13*P+breathe, 2*P, 9*P);
-    ctx.fillRect(bx+4*P, by+21*P+breathe, 16*P, P);
-    ctx.fillStyle = br ? '#e04030' : '#90b8f0';           // center strip
-    ctx.fillRect(bx+10*P, by+13*P+breathe, 4*P, 9*P);
-    ctx.fillStyle = br ? '#c02818' : '#2848c8';
-    ctx.fillRect(bx+11*P, by+14*P+breathe, 2*P, 7*P);
+    // ── CHEST ARMOR ──────────────────────────────────────────────────────────
+    const ac = br ? '#b82818' : '#2848c8';
+    const ah = br ? '#e04838' : '#4870e8';
+    const ad = br ? '#781010' : '#1428a0';
+    const al = br ? '#e04838' : '#90b8f0';
+    ctx.fillStyle = ac;
+    ctx.fillRect(bx+12*Q, by+28*Q+bob, 24*Q, 20*Q);
+    ctx.fillStyle = ah;
+    ctx.fillRect(bx+12*Q, by+28*Q+bob,  3*Q, 20*Q);  // left edge highlight
+    ctx.fillRect(bx+12*Q, by+28*Q+bob, 24*Q,  Q);     // top edge
+    ctx.fillStyle = ad;
+    ctx.fillRect(bx+33*Q, by+28*Q+bob,  3*Q, 20*Q);  // right shadow
+    ctx.fillRect(bx+12*Q, by+47*Q+bob, 24*Q,  Q);     // bottom edge
+    ctx.fillStyle = al;
+    ctx.fillRect(bx+20*Q, by+28*Q+bob,  8*Q, 20*Q);  // centre accent strip
+    ctx.fillStyle = ac;
+    ctx.fillRect(bx+22*Q, by+29*Q+bob,  4*Q, 18*Q);  // re-darken centre
 
-    // ── shoulder pads ────────────────────────────────────────────────────────
-    ctx.fillStyle = br ? '#801010' : '#1428a0';
-    ctx.fillRect(bx+2*P,  by+12*P+breathe, 5*P, 3*P);
-    ctx.fillRect(bx+17*P, by+12*P+breathe, 5*P, 3*P);
-    ctx.fillStyle = br ? '#e04030' : '#4870e8';
-    ctx.fillRect(bx+2*P,  by+12*P+breathe, 5*P, P);
-    ctx.fillRect(bx+17*P, by+12*P+breathe, 5*P, P);
+    // ── SHOULDER PADS ────────────────────────────────────────────────────────
+    ctx.fillStyle = ad;
+    ctx.fillRect(bx+5*Q,  by+26*Q+bob, 10*Q, 6*Q);
+    ctx.fillRect(bx+33*Q, by+26*Q+bob, 10*Q, 6*Q);
+    ctx.fillStyle = ah;
+    ctx.fillRect(bx+5*Q,  by+26*Q+bob, 10*Q, Q);
+    ctx.fillRect(bx+33*Q, by+26*Q+bob, 10*Q, Q);
+    ctx.fillRect(bx+5*Q,  by+26*Q+bob,  Q,   6*Q);
+    ctx.fillRect(bx+42*Q, by+26*Q+bob,  Q,   6*Q);
 
-    // ── arms ─────────────────────────────────────────────────────────────────
-    ctx.fillStyle = '#f0c090';
-    ctx.fillRect(bx+P,    by+15*P+breathe, 4*P, 7*P);
-    ctx.fillRect(bx+19*P, by+15*P+breathe, 4*P, 7*P);
-    ctx.fillStyle = br ? '#801010' : '#1428a0';           // bracers
-    ctx.fillRect(bx+P,    by+19*P+breathe, 4*P, 3*P);
-    ctx.fillRect(bx+19*P, by+19*P+breathe, 4*P, 3*P);
-    ctx.fillStyle = br ? '#e04030' : '#4870e8';
-    ctx.fillRect(bx+P,    by+19*P+breathe, P, 3*P);
-    ctx.fillRect(bx+22*P, by+19*P+breathe, P, 3*P);
-
-    // ── head ─────────────────────────────────────────────────────────────────
-    ctx.fillStyle = '#f0c090';
-    ctx.fillRect(bx+7*P,  by+5*P+breathe, 10*P, 9*P);
-    ctx.fillRect(bx+6*P,  by+8*P+breathe, 2*P, 4*P);  // ears
-    ctx.fillRect(bx+17*P, by+8*P+breathe, 2*P, 4*P);
-    ctx.fillStyle = '#f8a898';
-    ctx.fillRect(bx+14*P, by+10*P+breathe, 2*P, 2*P); // cheek
-
-    // ── eyes ─────────────────────────────────────────────────────────────────
-    ctx.fillStyle = '#0c1850';
-    ctx.fillRect(bx+9*P,  by+8*P+breathe, 3*P, 3*P);
-    ctx.fillRect(bx+14*P, by+8*P+breathe, 3*P, 3*P);
-    ctx.fillStyle = '#2060d0';
-    ctx.fillRect(bx+9*P,  by+8*P+breathe, 2*P, 2*P);
-    ctx.fillRect(bx+14*P, by+8*P+breathe, 2*P, 2*P);
-    ctx.fillStyle = '#60a0ff';
-    ctx.fillRect(bx+9*P,  by+8*P+breathe, P, P);
-    ctx.fillRect(bx+14*P, by+8*P+breathe, P, P);
-    ctx.fillStyle = '#c07810';                           // eyebrows
-    ctx.fillRect(bx+9*P,  by+7*P+breathe, 3*P, P);
-    ctx.fillRect(bx+14*P, by+7*P+breathe, 3*P, P);
-
-    // ── hair (golden, fluffy spikes) ──────────────────────────────────────────
-    ctx.fillStyle = '#e8a020';
-    ctx.fillRect(bx+6*P,  by+3*P+breathe, 12*P, 4*P); // forehead band
-    ctx.fillRect(bx+4*P,  by+4*P+breathe, 4*P, 5*P);  // left puff
-    ctx.fillRect(bx+16*P, by+4*P+breathe, 4*P, 5*P);  // right puff
-    ctx.fillRect(bx+3*P,  by+6*P+breathe, 3*P, 4*P);  // left side
-    ctx.fillRect(bx+18*P, by+6*P+breathe, 3*P, 4*P);  // right side
-    ctx.fillRect(bx+6*P,  by+P+breathe,   4*P, 3*P);  // left spike
-    ctx.fillRect(bx+10*P, by+breathe,     4*P, 4*P);  // centre spike
-    ctx.fillRect(bx+14*P, by+P+breathe,   4*P, 3*P);  // right spike
-    ctx.fillStyle = '#f8d040';
-    ctx.fillRect(bx+7*P,  by+P+breathe,   2*P, 2*P);
-    ctx.fillRect(bx+11*P, by+breathe,     2*P, 2*P);
-    ctx.fillRect(bx+15*P, by+P+breathe,   2*P, 2*P);
-    ctx.fillRect(bx+4*P,  by+4*P+breathe, 2*P, 3*P);
-    ctx.fillRect(bx+18*P, by+4*P+breathe, 2*P, 3*P);
-    ctx.fillStyle = '#c07810';
-    ctx.fillRect(bx+4*P,  by+8*P+breathe, 16*P, 2*P); // base shadow
-
-    // ── victory: right arm raised progressively ───────────────────────────────
-    if (this._state === 'victory') {
-      const lift = fr * 3*P;
+    // ── ARMS (swing draws its own; victory replaces right arm) ───────────────
+    if (this._state !== 'swing') {
       ctx.fillStyle = '#f0c090';
-      ctx.fillRect(bx+19*P, by+14*P+breathe-lift, 4*P, 7*P);
-      ctx.fillRect(bx+19*P, by+12*P+breathe-lift, 4*P, 4*P);
-      ctx.fillStyle = '#1428a0';
-      ctx.fillRect(bx+19*P, by+19*P+breathe-lift, 4*P, 2*P);
+      ctx.fillRect(bx+5*Q,  by+30*Q+bob,  8*Q, 18*Q);          // left
+      if (this._state !== 'victory') {
+        ctx.fillRect(bx+35*Q, by+30*Q+bob,  8*Q, 18*Q);         // right
+      }
+      ctx.fillStyle = ad;
+      ctx.fillRect(bx+5*Q,  by+42*Q+bob,  8*Q,  6*Q);           // gauntlets
+      if (this._state !== 'victory') {
+        ctx.fillRect(bx+35*Q, by+42*Q+bob,  8*Q,  6*Q);
+      }
+      ctx.fillStyle = ah;
+      ctx.fillRect(bx+5*Q,  by+42*Q+bob,  Q,    6*Q);
+      ctx.fillRect(bx+5*Q,  by+42*Q+bob,  8*Q,  Q);
+      if (this._state !== 'victory') {
+        ctx.fillRect(bx+42*Q, by+42*Q+bob,  Q,    6*Q);
+        ctx.fillRect(bx+35*Q, by+42*Q+bob,  8*Q,  Q);
+      }
+    }
+
+    // ── NECK ─────────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#f0c090';
+    ctx.fillRect(bx+20*Q, by+26*Q+bob, 8*Q, 4*Q);
+    ctx.fillStyle = '#dab080';
+    ctx.fillRect(bx+20*Q, by+29*Q+bob, 8*Q, Q);
+
+    // ── HEAD (face) ──────────────────────────────────────────────────────────
+    ctx.fillStyle = '#f0c090';
+    ctx.fillRect(bx+12*Q, by+8*Q+bob, 24*Q, 20*Q);
+    ctx.fillRect(bx+10*Q, by+12*Q+bob,  3*Q,  8*Q); // L ear
+    ctx.fillRect(bx+35*Q, by+12*Q+bob,  3*Q,  8*Q); // R ear
+    ctx.fillStyle = '#e0a078';
+    ctx.fillRect(bx+11*Q, by+14*Q+bob,  Q,    4*Q);
+    ctx.fillRect(bx+36*Q, by+14*Q+bob,  Q,    4*Q);
+    ctx.fillStyle = '#dab080';
+    ctx.fillRect(bx+13*Q, by+26*Q+bob, 22*Q,  Q);   // jaw shadow
+    ctx.fillStyle = '#f8a898';                        // cheek blush
+    ctx.fillRect(bx+13*Q, by+19*Q+bob,  4*Q,  3*Q);
+    ctx.fillRect(bx+31*Q, by+19*Q+bob,  4*Q,  3*Q);
+
+    // ── EYES (white sclera + iris + pupil + catchlight) ──────────────────────
+    this._drawEye(ctx, bx+14*Q, by+12*Q+bob, Q, br);
+    this._drawEye(ctx, bx+24*Q, by+12*Q+bob, Q, br);
+
+    // ── EYEBROWS (gentle arch = friendly expression) ──────────────────────────
+    ctx.fillStyle = '#c07810';
+    ctx.fillRect(bx+14*Q, by+11*Q+bob, 2*Q, Q);
+    ctx.fillRect(bx+16*Q, by+10*Q+bob, 4*Q, Q);
+    ctx.fillRect(bx+20*Q, by+11*Q+bob, 2*Q, Q);
+    ctx.fillRect(bx+24*Q, by+11*Q+bob, 2*Q, Q);
+    ctx.fillRect(bx+26*Q, by+10*Q+bob, 4*Q, Q);
+    ctx.fillRect(bx+30*Q, by+11*Q+bob, 2*Q, Q);
+
+    // ── NOSE (two tiny shadow dots) ───────────────────────────────────────────
+    ctx.fillStyle = '#dab080';
+    ctx.fillRect(bx+21*Q, by+20*Q+bob, Q, Q);
+    ctx.fillRect(bx+26*Q, by+20*Q+bob, Q, Q);
+
+    // ── MOUTH (gentle smile) ──────────────────────────────────────────────────
+    ctx.fillStyle = '#b05040';
+    ctx.fillRect(bx+17*Q, by+22*Q+bob, Q,    2*Q); // L corner
+    ctx.fillRect(bx+30*Q, by+22*Q+bob, Q,    2*Q); // R corner
+    ctx.fillStyle = '#d07868';
+    ctx.fillRect(bx+18*Q, by+23*Q+bob, 12*Q, Q);
+    ctx.fillStyle = '#f8e0d8';
+    ctx.fillRect(bx+19*Q, by+23*Q+bob, 10*Q, Q);   // teeth gleam
+
+    // ── HAIR (golden, big dramatic spikes) ────────────────────────────────────
+    ctx.fillStyle = '#e8a020';
+    ctx.fillRect(bx+10*Q, by+4*Q+bob, 28*Q,  6*Q); // forehead band
+    ctx.fillRect(bx+7*Q,  by+6*Q+bob,  5*Q,  6*Q); // L side puff
+    ctx.fillRect(bx+36*Q, by+6*Q+bob,  5*Q,  6*Q); // R side puff
+    ctx.fillRect(bx+6*Q,  by+8*Q+bob,  3*Q,  5*Q); // L lower
+    ctx.fillRect(bx+39*Q, by+8*Q+bob,  3*Q,  5*Q); // R lower
+    ctx.fillRect(bx+10*Q, by+2*Q+bob,  5*Q,  3*Q); // far-L spike
+    ctx.fillRect(bx+14*Q, by+0*Q+bob,  5*Q,  5*Q); // L-centre spike
+    ctx.fillRect(bx+19*Q, by-2*Q+bob,  6*Q,  7*Q); // centre spike (tallest)
+    ctx.fillRect(bx+25*Q, by+0*Q+bob,  5*Q,  5*Q); // R-centre spike
+    ctx.fillRect(bx+30*Q, by+2*Q+bob,  5*Q,  3*Q); // far-R spike
+    ctx.fillStyle = '#f8d040';                       // spike highlights
+    ctx.fillRect(bx+11*Q, by+2*Q+bob,  2*Q,  2*Q);
+    ctx.fillRect(bx+15*Q, by+0*Q+bob,  2*Q,  3*Q);
+    ctx.fillRect(bx+20*Q, by-2*Q+bob,  3*Q,  5*Q);
+    ctx.fillRect(bx+26*Q, by+0*Q+bob,  2*Q,  3*Q);
+    ctx.fillRect(bx+31*Q, by+2*Q+bob,  2*Q,  2*Q);
+    ctx.fillRect(bx+7*Q,  by+6*Q+bob,  2*Q,  4*Q);
+    ctx.fillRect(bx+39*Q, by+6*Q+bob,  2*Q,  4*Q);
+    ctx.fillStyle = '#c07810';
+    ctx.fillRect(bx+9*Q,  by+9*Q+bob, 30*Q,  2*Q); // base shadow band
+
+    // ── SWING (overlays arms + draws sword arc + speed lines) ─────────────────
+    if (this._state === 'swing') this._drawSwing(ctx, bx, by, fr, Q, bob);
+
+    // ── VICTORY ───────────────────────────────────────────────────────────────
+    if (this._state === 'victory') {
+      const lift = fr * 6*Q;
+      // right arm raised
+      ctx.fillStyle = '#f0c090';
+      ctx.fillRect(bx+35*Q, by+18*Q+bob-lift, 8*Q, 14*Q);
+      ctx.fillRect(bx+36*Q, by+14*Q+bob-lift, 6*Q,  6*Q);
+      ctx.fillStyle = ad;
+      ctx.fillRect(bx+35*Q, by+28*Q+bob-lift, 8*Q,  5*Q);
+      ctx.fillStyle = ah;
+      ctx.fillRect(bx+35*Q, by+28*Q+bob-lift, Q,    5*Q);
+      ctx.fillRect(bx+35*Q, by+28*Q+bob-lift, 8*Q,  Q);
+      // sword pointing skyward in raised fist
+      ctx.fillStyle = '#1460c0';
+      ctx.fillRect(bx+38*Q, by+2*Q+bob-lift+Q, 4*Q, 14*Q);
+      ctx.fillStyle = '#40a0f0';
+      ctx.fillRect(bx+38*Q, by+2*Q+bob-lift,   4*Q, 14*Q);
+      ctx.fillStyle = '#88d0ff';
+      ctx.fillRect(bx+38*Q, by+2*Q+bob-lift,   3*Q, 14*Q);
+      ctx.fillStyle = '#c8f0ff';
+      ctx.fillRect(bx+38*Q, by+2*Q+bob-lift,   Q,   7*Q);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bx+39*Q, by+2*Q+bob-lift,   Q,   2*Q); // tip glow
+      ctx.fillStyle = '#c89020';
+      ctx.fillRect(bx+35*Q, by+14*Q+bob-lift, 10*Q, 3*Q);
+      ctx.fillStyle = '#f0c030';
+      ctx.fillRect(bx+35*Q, by+14*Q+bob-lift, 10*Q, Q);
     }
   }
 
-  _drawSword(ctx, bx, by, breathe, fr) {
-    const st = this._state;
-
-    if (st === 'swing') {
-      if (fr === 0) {
-        // wind-up: ~45° up-right
-        for (let i = 0; i < 14; i++) {
-          ctx.fillStyle = '#1460c0';
-          ctx.fillRect(bx+(18+i)*P, by+(23-i)*P+breathe+P, P, 4*P);
-          ctx.fillStyle = '#40a0f0';
-          ctx.fillRect(bx+(18+i)*P, by+(23-i)*P+breathe, P, 4*P);
-          ctx.fillStyle = '#88d0ff';
-          ctx.fillRect(bx+(18+i)*P, by+(23-i)*P+breathe, P, 2*P);
-        }
-        ctx.fillStyle = '#c89020';
-        ctx.fillRect(bx+15*P, by+23*P+breathe, 7*P, 3*P);
-        ctx.fillStyle = '#f0c030';
-        ctx.fillRect(bx+15*P, by+23*P+breathe, 7*P, P);
-      } else if (fr === 1) {
-        // mid-swing: diagonal forward-down
-        for (let i = 0; i < 14; i++) {
-          const oy = (i >> 1) * P;
-          ctx.fillStyle = '#1460c0';
-          ctx.fillRect(bx+(18+i)*P, by+15*P+breathe+oy+P, P, 4*P);
-          ctx.fillStyle = '#40a0f0';
-          ctx.fillRect(bx+(18+i)*P, by+15*P+breathe+oy, P, 4*P);
-          ctx.fillStyle = '#88d0ff';
-          ctx.fillRect(bx+(18+i)*P, by+15*P+breathe+oy, P, 2*P);
-        }
-        ctx.fillStyle = '#c89020';
-        ctx.fillRect(bx+15*P, by+18*P+breathe, 6*P, 3*P);
-        ctx.fillStyle = '#f0c030';
-        ctx.fillRect(bx+15*P, by+18*P+breathe, 6*P, P);
-      } else {
-        // follow-through: fully horizontal
-        ctx.fillStyle = '#1460c0';
-        ctx.fillRect(bx+20*P, by+17*P+breathe+P, 18*P, 4*P);
-        ctx.fillStyle = '#40a0f0';
-        ctx.fillRect(bx+20*P, by+17*P+breathe, 18*P, 4*P);
-        ctx.fillStyle = '#88d0ff';
-        ctx.fillRect(bx+20*P, by+17*P+breathe, 18*P, 2*P);
-        ctx.fillStyle = '#c8f0ff';
-        ctx.fillRect(bx+20*P, by+17*P+breathe, 6*P, P);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(bx+37*P, by+17*P+breathe, P, 3*P);
-        ctx.fillStyle = '#c89020';
-        ctx.fillRect(bx+17*P, by+15*P+breathe, 4*P, 8*P);
-        ctx.fillStyle = '#f0c030';
-        ctx.fillRect(bx+17*P, by+15*P+breathe, P, 8*P);
-        ctx.fillRect(bx+17*P, by+15*P+breathe, 4*P, P);
-      }
-      // handle shared across all swing frames
-      ctx.fillStyle = '#8a5020';
-      ctx.fillRect(bx+18*P, by+22*P+breathe, 2*P, 4*P);
-      ctx.fillStyle = '#b07030';
-      ctx.fillRect(bx+18*P, by+22*P+breathe, P, 4*P);
+  _drawEye(ctx, ex, ey, Q, hurt) {
+    // rim / lashes
+    ctx.fillStyle = '#2a1808';
+    ctx.fillRect(ex,      ey,       8*Q,  Q);   // top lash
+    ctx.fillRect(ex-Q,    ey+Q,     Q,    4*Q); // L rim
+    ctx.fillRect(ex+8*Q,  ey+Q,     Q,    4*Q); // R rim
+    ctx.fillRect(ex,      ey+5*Q,   8*Q,  Q);   // bottom lash
+    // sclera (white)
+    ctx.fillStyle = '#f8f8f0';
+    ctx.fillRect(ex,      ey+Q,     8*Q,  4*Q);
+    if (hurt) {
+      // pained X pupils
+      ctx.fillStyle = '#080810';
+      ctx.fillRect(ex+Q,   ey+Q,    Q, Q); ctx.fillRect(ex+4*Q, ey+Q,   Q, Q);
+      ctx.fillRect(ex+2*Q, ey+2*Q,  2*Q, Q);
+      ctx.fillRect(ex+Q,   ey+3*Q,  Q, Q); ctx.fillRect(ex+4*Q, ey+3*Q, Q, Q);
       return;
     }
-
-    // at rest (idle / walk / hurt / victory): sword pointing down, right side
-    ctx.fillStyle = '#1460c0';
-    ctx.fillRect(bx+21*P, by+16*P+breathe+P, 3*P, 17*P);
-    ctx.fillStyle = '#40a0f0';
-    ctx.fillRect(bx+21*P, by+16*P+breathe, 3*P, 17*P);
-    ctx.fillStyle = '#88d0ff';
-    ctx.fillRect(bx+21*P, by+16*P+breathe, 2*P, 17*P);
-    ctx.fillStyle = '#c8f0ff';
-    ctx.fillRect(bx+21*P, by+16*P+breathe, P, 8*P);
-    // tip
-    ctx.fillStyle = '#c8f0ff';
-    ctx.fillRect(bx+22*P, by+32*P+breathe, 2*P, 2*P);
+    // iris (blue)
+    ctx.fillStyle = '#1858c8';
+    ctx.fillRect(ex+2*Q,  ey+Q,     4*Q,  4*Q);
+    // pupil (black)
+    ctx.fillStyle = '#080810';
+    ctx.fillRect(ex+3*Q,  ey+2*Q,   2*Q,  2*Q);
+    // iris highlight ring
+    ctx.fillStyle = '#4888f8';
+    ctx.fillRect(ex+2*Q,  ey+Q,     4*Q,  Q);
+    ctx.fillRect(ex+2*Q,  ey+4*Q,   4*Q,  Q);
+    ctx.fillRect(ex+2*Q,  ey+Q,     Q,    4*Q);
+    // catchlights
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(bx+22*P, by+32*P+breathe, P, P);
-    // guard
-    ctx.fillStyle = '#c89020';
-    ctx.fillRect(bx+17*P, by+13*P+breathe, 8*P, 3*P);
-    ctx.fillStyle = '#f0c030';
-    ctx.fillRect(bx+17*P, by+13*P+breathe, 8*P, P);
-    // handle
-    ctx.fillStyle = '#8a5020';
-    ctx.fillRect(bx+21*P, by+10*P+breathe, 2*P, 4*P);
-    ctx.fillStyle = '#b07030';
-    ctx.fillRect(bx+21*P, by+10*P+breathe, P, 4*P);
+    ctx.fillRect(ex+2*Q,  ey+Q,     Q,    Q);   // main top-left spark
+    ctx.fillRect(ex+5*Q,  ey+3*Q,   Q,    Q);   // secondary bottom-right
+  }
+
+  _drawSword(ctx, bx, by, bob, Q) {
+    // held horizontally — combat-ready stance
     // pommel
     ctx.fillStyle = '#c89020';
-    ctx.fillRect(bx+20*P, by+8*P+breathe, 4*P, 3*P);
+    ctx.fillRect(bx+33*Q, by+33*Q+bob, 5*Q, 6*Q);
     ctx.fillStyle = '#f0c030';
-    ctx.fillRect(bx+20*P, by+8*P+breathe, 4*P, P);
+    ctx.fillRect(bx+33*Q, by+33*Q+bob, 5*Q, Q);
+    ctx.fillRect(bx+33*Q, by+33*Q+bob, Q,   6*Q);
+    // handle
+    ctx.fillStyle = '#6a3c10';
+    ctx.fillRect(bx+38*Q, by+34*Q+bob, 8*Q, 4*Q);
+    ctx.fillStyle = '#9a5c20';
+    ctx.fillRect(bx+38*Q, by+34*Q+bob, 8*Q, Q);
+    ctx.fillStyle = '#c89020';                    // handle wrapping
+    ctx.fillRect(bx+39*Q, by+34*Q+bob, Q, 4*Q);
+    ctx.fillRect(bx+41*Q, by+34*Q+bob, Q, 4*Q);
+    ctx.fillRect(bx+43*Q, by+34*Q+bob, Q, 4*Q);
+    ctx.fillRect(bx+45*Q, by+34*Q+bob, Q, 4*Q);
+    // cross-guard
+    ctx.fillStyle = '#c89020';
+    ctx.fillRect(bx+46*Q, by+29*Q+bob,  4*Q, 14*Q);
+    ctx.fillStyle = '#f0c030';
+    ctx.fillRect(bx+46*Q, by+29*Q+bob,  Q,   14*Q);
+    ctx.fillRect(bx+46*Q, by+29*Q+bob,  4*Q,  Q);
+    // blade (crystal blue)
+    ctx.fillStyle = '#1460c0';
+    ctx.fillRect(bx+50*Q, by+34*Q+bob, 22*Q,  4*Q); // shadow layer
+    ctx.fillStyle = '#40a0f0';
+    ctx.fillRect(bx+50*Q, by+33*Q+bob, 22*Q,  4*Q);
+    ctx.fillStyle = '#88d0ff';
+    ctx.fillRect(bx+50*Q, by+33*Q+bob, 22*Q,  2*Q);
+    ctx.fillStyle = '#c8f0ff';
+    ctx.fillRect(bx+50*Q, by+33*Q+bob, 10*Q,  Q);
+    // angled tip
+    ctx.fillStyle = '#40a0f0';
+    ctx.fillRect(bx+72*Q, by+34*Q+bob,  2*Q,  2*Q);
+    ctx.fillRect(bx+74*Q, by+35*Q+bob,  2*Q,  Q);
+    ctx.fillStyle = '#c8f0ff';
+    ctx.fillRect(bx+72*Q, by+33*Q+bob,  2*Q,  Q);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+72*Q, by+33*Q+bob,  Q,    Q);   // tip shine
   }
 
-  _drawDead(ctx, bx, by, fr) {
-    // fr 0: stumbling, fr 1: on knees, fr 2: lying flat (freezes here)
-    if (fr < 2) {
-      // kneeling / stumbling — body still semi-upright
-      const tilt = fr * 4*P;
-      // hair
-      ctx.fillStyle = '#e8a020';
-      ctx.fillRect(bx+6*P, by+4*P+tilt, 12*P, 4*P);
-      ctx.fillRect(bx+4*P, by+5*P+tilt, 4*P, 4*P);
-      ctx.fillRect(bx+16*P, by+5*P+tilt, 4*P, 4*P);
-      ctx.fillRect(bx+10*P, by+2*P+tilt, 4*P, 3*P);
-      ctx.fillStyle = '#f8d040';
-      ctx.fillRect(bx+11*P, by+2*P+tilt, 2*P, 2*P);
-      ctx.fillStyle = '#c07810';
-      ctx.fillRect(bx+5*P, by+8*P+tilt, 14*P, 2*P);
-      // head
+  _drawSwing(ctx, bx, by, fr, Q, bob) {
+    const ah = '#4870e8', ad = '#1428a0';
+
+    if (fr === 0) {
+      // WIND-UP: sword held high overhead with both hands, anticipation sparkles
       ctx.fillStyle = '#f0c090';
-      ctx.fillRect(bx+7*P, by+6*P+tilt, 10*P, 9*P);
-      ctx.fillStyle = '#0c1850';
-      ctx.fillRect(bx+9*P, by+9*P+tilt, 3*P, 3*P);
-      ctx.fillRect(bx+14*P, by+9*P+tilt, 3*P, 3*P);
-      ctx.fillStyle = '#2060d0';
-      ctx.fillRect(bx+9*P, by+9*P+tilt, 2*P, 2*P);
-      ctx.fillRect(bx+14*P, by+9*P+tilt, 2*P, 2*P);
-      // body leaning
+      ctx.fillRect(bx+5*Q,  by+10*Q+bob, 8*Q, 22*Q); // L arm raised
+      ctx.fillRect(bx+35*Q, by+10*Q+bob, 8*Q, 22*Q); // R arm raised
+      ctx.fillStyle = ad;
+      ctx.fillRect(bx+5*Q,  by+10*Q+bob, 8*Q,  6*Q); // gauntlets
+      ctx.fillRect(bx+35*Q, by+10*Q+bob, 8*Q,  6*Q);
+      ctx.fillStyle = ah;
+      ctx.fillRect(bx+5*Q,  by+10*Q+bob, Q,    6*Q);
+      ctx.fillRect(bx+42*Q, by+10*Q+bob, Q,    6*Q);
+      ctx.fillRect(bx+5*Q,  by+10*Q+bob, 8*Q,  Q);
+      ctx.fillRect(bx+35*Q, by+10*Q+bob, 8*Q,  Q);
+      ctx.fillStyle = '#f0c090';
+      ctx.fillRect(bx+6*Q,  by+6*Q+bob,  6*Q,  6*Q); // fists
+      ctx.fillRect(bx+36*Q, by+6*Q+bob,  6*Q,  6*Q);
+      // blade horizontal overhead (wide two-handed grip)
+      ctx.fillStyle = '#1460c0';
+      ctx.fillRect(bx-4*Q,  by+2*Q+bob,  58*Q, 5*Q); // shadow
+      ctx.fillStyle = '#40a0f0';
+      ctx.fillRect(bx-4*Q,  by+P+bob,    58*Q, 5*Q);  // blade (P=4)
+      ctx.fillStyle = '#88d0ff';
+      ctx.fillRect(bx-4*Q,  by+P+bob,    58*Q, 3*Q);
+      ctx.fillStyle = '#c8f0ff';
+      ctx.fillRect(bx-4*Q,  by+P+bob,    18*Q, Q);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bx-4*Q,  by+P+bob,     Q,   3*Q);  // L tip
+      ctx.fillRect(bx+53*Q, by+P+bob,     Q,   3*Q);  // R tip
+      ctx.fillStyle = '#c89020';                        // guard
+      ctx.fillRect(bx+20*Q, by+4*Q+bob,   8*Q, 4*Q);
+      ctx.fillStyle = '#f0c030';
+      ctx.fillRect(bx+20*Q, by+4*Q+bob,   8*Q, Q);
+      ctx.fillStyle = '#6a3c10';                        // handle sections
+      ctx.fillRect(bx+7*Q,  by+5*Q+bob,  14*Q, 4*Q);
+      ctx.fillRect(bx+27*Q, by+5*Q+bob,  12*Q, 4*Q);
+      // anticipation energy sparkles
+      ctx.fillStyle = '#f8f040';
+      ctx.fillRect(bx+10*Q, by-2*Q+bob,   2*Q, 2*Q);
+      ctx.fillRect(bx+34*Q, by-2*Q+bob,   2*Q, 2*Q);
+      ctx.fillRect(bx+22*Q, by-4*Q+bob,   2*Q, 2*Q);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bx+22*Q, by-4*Q+bob,   Q,   Q);    // brightest spark
+
+    } else if (fr === 1) {
+      // MID-SWING: diagonal slash — DRAMATIC SPEED LINES
+      ctx.fillStyle = '#f0c090';
+      ctx.fillRect(bx+6*Q,  by+26*Q+bob, 8*Q, 16*Q); // arms extended
+      ctx.fillRect(bx+34*Q, by+26*Q+bob, 8*Q, 16*Q);
+      ctx.fillStyle = ad;
+      ctx.fillRect(bx+6*Q,  by+36*Q+bob, 8*Q,  6*Q);
+      ctx.fillRect(bx+34*Q, by+36*Q+bob, 8*Q,  6*Q);
+      ctx.fillStyle = ah;
+      ctx.fillRect(bx+6*Q,  by+36*Q+bob, Q,    6*Q);
+      ctx.fillRect(bx+41*Q, by+36*Q+bob, Q,    6*Q);
+      ctx.fillRect(bx+6*Q,  by+36*Q+bob, 8*Q,  Q);
+      ctx.fillRect(bx+34*Q, by+36*Q+bob, 8*Q,  Q);
+      // diagonal blade (steep arc from top-L to bottom-R)
+      for (let i = 0; i < 22; i++) {
+        const ox = ~~(i * 1.1) * Q, oy = i * Q;
+        ctx.fillStyle = '#1460c0';
+        ctx.fillRect(bx+12*Q+ox, by+8*Q+bob+oy+Q, 2*Q, 5*Q);
+        ctx.fillStyle = '#40a0f0';
+        ctx.fillRect(bx+12*Q+ox, by+8*Q+bob+oy,   2*Q, 5*Q);
+        ctx.fillStyle = '#88d0ff';
+        ctx.fillRect(bx+12*Q+ox, by+8*Q+bob+oy,   2*Q, 2*Q);
+      }
+      ctx.fillStyle = '#c8f0ff';
+      ctx.fillRect(bx+54*Q, by+28*Q+bob, 2*Q, 5*Q);  // tip glow
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bx+54*Q, by+28*Q+bob, Q,   3*Q);
+      ctx.fillStyle = '#c89020';                        // guard
+      ctx.fillRect(bx+9*Q,  by+26*Q+bob, 6*Q, 6*Q);
+      ctx.fillStyle = '#f0c030';
+      ctx.fillRect(bx+9*Q,  by+26*Q+bob, 6*Q, Q);
+      ctx.fillRect(bx+9*Q,  by+26*Q+bob, Q,   6*Q);
+      ctx.fillStyle = '#6a3c10';
+      ctx.fillRect(bx+13*Q, by+28*Q+bob, 4*Q, 4*Q);   // handle
+
+      // ── SPEED LINES (fan in upper arc, where sword just swept from) ────────
+      ctx.save();
+      const speedLines = [
+        [bx+38*Q, by+2*Q,  32*Q, -0.20, 0.90],
+        [bx+36*Q, by+0*Q,  30*Q, -0.38, 0.85],
+        [bx+34*Q, by-2*Q,  28*Q, -0.55, 0.90],
+        [bx+32*Q, by-2*Q,  26*Q, -0.72, 0.75],
+        [bx+30*Q, by+0*Q,  24*Q, -0.90, 0.80],
+        [bx+28*Q, by+2*Q,  22*Q, -1.08, 0.65],
+        [bx+42*Q, by+4*Q,  28*Q, -0.04, 0.70],
+      ];
+      for (const [lx, ly, len, ang, alpha] of speedLines) {
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.rotate(ang);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, -Q, len, Q);        // white line
+        ctx.fillStyle = '#f8f040';
+        ctx.fillRect(Q,  0, len-2*Q, Q);   // yellow echo
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // impact burst at blade tip
+      ctx.save();
+      ctx.globalAlpha = 0.50;
+      ctx.fillStyle = '#fff080';
+      ctx.fillRect(bx+46*Q, by+24*Q, 16*Q, 16*Q);
+      ctx.globalAlpha = 0.30;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bx+48*Q, by+26*Q, 12*Q, 12*Q);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+    } else {
+      // FOLLOW-THROUGH: sword horizontal forward, trailing lines
+      ctx.fillStyle = '#f0c090';
+      ctx.fillRect(bx+8*Q,  by+30*Q+bob, 8*Q, 14*Q);
+      ctx.fillRect(bx+32*Q, by+30*Q+bob, 8*Q, 14*Q);
+      ctx.fillStyle = ad;
+      ctx.fillRect(bx+8*Q,  by+40*Q+bob, 8*Q,  5*Q);
+      ctx.fillRect(bx+32*Q, by+40*Q+bob, 8*Q,  5*Q);
+      ctx.fillStyle = ah;
+      ctx.fillRect(bx+8*Q,  by+40*Q+bob, Q,    5*Q);
+      ctx.fillRect(bx+39*Q, by+40*Q+bob, Q,    5*Q);
+      ctx.fillRect(bx+8*Q,  by+40*Q+bob, 8*Q,  Q);
+      ctx.fillRect(bx+32*Q, by+40*Q+bob, 8*Q,  Q);
+      // horizontal blade
+      ctx.fillStyle = '#1460c0';
+      ctx.fillRect(bx+22*Q, by+33*Q+bob, 26*Q, 5*Q);
+      ctx.fillStyle = '#40a0f0';
+      ctx.fillRect(bx+22*Q, by+32*Q+bob, 26*Q, 5*Q);
+      ctx.fillStyle = '#88d0ff';
+      ctx.fillRect(bx+22*Q, by+32*Q+bob, 26*Q, 2*Q);
+      ctx.fillStyle = '#c8f0ff';
+      ctx.fillRect(bx+22*Q, by+32*Q+bob,  8*Q, Q);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bx+47*Q, by+32*Q+bob,  Q,   5*Q); // tip shine
+      ctx.fillStyle = '#c89020';                        // guard
+      ctx.fillRect(bx+17*Q, by+28*Q+bob,  6*Q, 12*Q);
+      ctx.fillStyle = '#f0c030';
+      ctx.fillRect(bx+17*Q, by+28*Q+bob,  Q,   12*Q);
+      ctx.fillRect(bx+17*Q, by+28*Q+bob,  6*Q, Q);
+      ctx.fillStyle = '#6a3c10';
+      ctx.fillRect(bx+10*Q, by+32*Q+bob,  8*Q, 4*Q);  // handle
+      ctx.fillStyle = '#9a5c20';
+      ctx.fillRect(bx+10*Q, by+32*Q+bob,  8*Q, Q);
+
+      // trailing speed lines (fading)
+      ctx.save();
+      const trail = [
+        [bx+22*Q, by+22*Q, 22*Q, -0.70, 0.45],
+        [bx+20*Q, by+26*Q, 20*Q, -0.85, 0.38],
+        [bx+18*Q, by+30*Q, 18*Q, -1.00, 0.30],
+        [bx+16*Q, by+34*Q, 16*Q, -1.15, 0.22],
+      ];
+      for (const [lx, ly, len, ang, alpha] of trail) {
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.rotate(ang);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, len, Q);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
+
+  _drawDead(ctx, bx, by, fr, Q) {
+    if (fr < 2) {
+      // fr 0 = stumbling, fr 1 = on knees
+      const tilt = fr * 4*Q;
+      ctx.fillStyle = '#e8a020';
+      ctx.fillRect(bx+10*Q, by+4*Q+tilt, 28*Q,  6*Q);
+      ctx.fillRect(bx+18*Q, by+0*Q+tilt,  6*Q,  5*Q);
+      ctx.fillStyle = '#f8d040';
+      ctx.fillRect(bx+19*Q, by+0*Q+tilt,  3*Q,  4*Q);
+      ctx.fillStyle = '#c07810';
+      ctx.fillRect(bx+9*Q,  by+9*Q+tilt, 30*Q,  2*Q);
+      ctx.fillStyle = '#f0c090';
+      ctx.fillRect(bx+12*Q, by+8*Q+tilt, 24*Q, 18*Q);
       ctx.fillStyle = '#2848c8';
-      ctx.fillRect(bx+4*P, by+14*P+tilt, 16*P, 8*P);
+      ctx.fillRect(bx+12*Q, by+26*Q+tilt, 24*Q, 16*Q);
       ctx.fillStyle = '#4870e8';
-      ctx.fillRect(bx+4*P, by+14*P+tilt, 2*P, 8*P);
-      ctx.fillRect(bx+4*P, by+14*P+tilt, 16*P, P);
+      ctx.fillRect(bx+12*Q, by+26*Q+tilt, 24*Q,  Q);
       ctx.fillStyle = '#c89020';
-      ctx.fillRect(bx+4*P, by+21*P+tilt, 16*P, 2*P);
-      // kneeling legs
+      ctx.fillRect(bx+12*Q, by+41*Q+tilt, 24*Q,  3*Q);
       ctx.fillStyle = '#1a2888';
-      ctx.fillRect(bx+5*P, by+23*P+tilt, 5*P, 5*P);
-      ctx.fillRect(bx+14*P, by+22*P+tilt, 5*P, 6*P);
+      ctx.fillRect(bx+12*Q, by+44*Q+tilt, 10*Q,  8*Q);
+      ctx.fillRect(bx+26*Q, by+44*Q+tilt, 10*Q,  8*Q);
       ctx.fillStyle = '#101450';
-      ctx.fillRect(bx+5*P, by+27*P+tilt, 5*P, P);
-      ctx.fillRect(bx+14*P, by+27*P+tilt, 5*P, P);
+      ctx.fillRect(bx+10*Q, by+51*Q+tilt, 12*Q,  5*Q);
+      ctx.fillRect(bx+26*Q, by+51*Q+tilt, 12*Q,  5*Q);
       return;
     }
 
-    // fr 2: lying flat on ground
-    const y = by + 26*P;
-    // hair splayed
-    ctx.fillStyle = '#e8a020';
-    ctx.fillRect(bx,      y-7*P, 14*P, 4*P);
-    ctx.fillRect(bx,      y-10*P, 10*P, 4*P);
+    // fr 2: lying flat (freezes here)
+    const y = by + 36*Q;
+    ctx.fillStyle = '#e8a020';                          // hair splayed
+    ctx.fillRect(bx,      y-10*Q, 18*Q,  5*Q);
+    ctx.fillRect(bx,      y-14*Q, 12*Q,  5*Q);
     ctx.fillStyle = '#f8d040';
-    ctx.fillRect(bx+P,    y-9*P, 4*P, 3*P);
+    ctx.fillRect(bx+Q,    y-13*Q,  4*Q,  3*Q);
+    ctx.fillRect(bx+5*Q,  y-15*Q,  3*Q,  4*Q);
     ctx.fillStyle = '#c07810';
-    ctx.fillRect(bx,      y-4*P, 14*P, P);
-    // head
-    ctx.fillStyle = '#f0c090';
-    ctx.fillRect(bx+P,    y-4*P, 8*P, 7*P);
+    ctx.fillRect(bx,      y-6*Q,  18*Q,  Q);
+    ctx.fillStyle = '#f0c090';                          // head profile
+    ctx.fillRect(bx+Q,    y-6*Q,  14*Q, 10*Q);
+    ctx.fillStyle = '#dab080';
+    ctx.fillRect(bx+Q,    y+3*Q,  14*Q,  Q);
     ctx.fillStyle = '#f8a898';
-    ctx.fillRect(bx+6*P,  y-P,   2*P, 2*P);
+    ctx.fillRect(bx+9*Q,  y-Q,     4*Q,  3*Q);
     // X eyes
     ctx.fillStyle = '#000000';
-    ctx.fillRect(bx+2*P, y-2*P, P, P); ctx.fillRect(bx+4*P, y-2*P, P, P);
-    ctx.fillRect(bx+3*P, y-3*P, P, P); ctx.fillRect(bx+3*P, y-P,   P, P);
-    ctx.fillRect(bx+5*P, y-3*P, P, P); ctx.fillRect(bx+5*P, y-P,   P, P);
-    ctx.fillRect(bx+4*P, y-2*P, P, P); // second eye
-    // body
-    ctx.fillStyle = '#2848c8';
-    ctx.fillRect(bx+6*P,  y-3*P, 16*P, 6*P);
+    const ex = bx+3*Q, ey = y-3*Q;
+    ctx.fillRect(ex,      ey,       Q, Q); ctx.fillRect(ex+2*Q, ey,      Q, Q);
+    ctx.fillRect(ex+Q,    ey+Q,     Q, Q);
+    ctx.fillRect(ex,      ey+2*Q,   Q, Q); ctx.fillRect(ex+2*Q, ey+2*Q,  Q, Q);
+    const ex2 = bx+8*Q;
+    ctx.fillRect(ex2,     ey,       Q, Q); ctx.fillRect(ex2+2*Q, ey,     Q, Q);
+    ctx.fillRect(ex2+Q,   ey+Q,     Q, Q);
+    ctx.fillRect(ex2,     ey+2*Q,   Q, Q); ctx.fillRect(ex2+2*Q, ey+2*Q, Q, Q);
+    ctx.fillStyle = '#2848c8';                          // body
+    ctx.fillRect(bx+12*Q, y-5*Q,  28*Q, 10*Q);
     ctx.fillStyle = '#4870e8';
-    ctx.fillRect(bx+6*P,  y-3*P, 16*P, P);
+    ctx.fillRect(bx+12*Q, y-5*Q,  28*Q,  Q);
     ctx.fillStyle = '#1428a0';
-    ctx.fillRect(bx+6*P,  y+2*P, 16*P, P);
+    ctx.fillRect(bx+12*Q, y+4*Q,  28*Q,  Q);
     ctx.fillStyle = '#c89020';
-    ctx.fillRect(bx+6*P,  y+P,   16*P, P);
-    // legs
+    ctx.fillRect(bx+12*Q, y+2*Q,  28*Q,  2*Q);
     ctx.fillStyle = '#1a2888';
-    ctx.fillRect(bx+16*P, y+P,   12*P, 4*P);
+    ctx.fillRect(bx+30*Q, y+2*Q,  18*Q,  6*Q);
     ctx.fillStyle = '#101450';
-    ctx.fillRect(bx+22*P, y+P,   6*P,  4*P);
+    ctx.fillRect(bx+38*Q, y+2*Q,   8*Q,  6*Q);
     ctx.fillStyle = '#c89020';
-    ctx.fillRect(bx+22*P, y+4*P, 6*P,  P);
-    // sword on ground
-    ctx.fillStyle = '#1460c0';
-    ctx.fillRect(bx+18*P, y+3*P, 14*P, 3*P);
+    ctx.fillRect(bx+38*Q, y+7*Q,   8*Q,  Q);
+    ctx.fillStyle = '#1460c0';                          // fallen sword
+    ctx.fillRect(bx+22*Q, y+5*Q,  22*Q,  4*Q);
     ctx.fillStyle = '#40a0f0';
-    ctx.fillRect(bx+18*P, y+3*P, 14*P, 2*P);
+    ctx.fillRect(bx+22*Q, y+5*Q,  22*Q,  3*Q);
     ctx.fillStyle = '#88d0ff';
-    ctx.fillRect(bx+18*P, y+3*P, 14*P, P);
+    ctx.fillRect(bx+22*Q, y+5*Q,  22*Q,  Q);
     ctx.fillStyle = '#c89020';
-    ctx.fillRect(bx+15*P, y+2*P, 4*P,  4*P);
-    ctx.fillStyle = '#8a5020';
-    ctx.fillRect(bx+13*P, y+3*P, 3*P,  4*P);
-    // arm lying out
-    ctx.fillStyle = '#f0c090';
-    ctx.fillRect(bx+16*P, y-5*P, 4*P,  6*P);
+    ctx.fillRect(bx+17*Q, y+3*Q,   6*Q,  8*Q);
+    ctx.fillStyle = '#6a3c10';
+    ctx.fillRect(bx+14*Q, y+5*Q,   4*Q,  5*Q);
+    ctx.fillStyle = '#f0c090';                          // arm dangling
+    ctx.fillRect(bx+22*Q, y-8*Q,   6*Q,  8*Q);
+    ctx.fillStyle = '#1428a0';
+    ctx.fillRect(bx+22*Q, y-4*Q,   6*Q,  4*Q);
   }
 }
 
