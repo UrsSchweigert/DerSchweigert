@@ -4,6 +4,7 @@ export class InputManager {
   constructor(onAnswer) {
     this._onAnswer = onAnswer;
     this._enabled = false;
+    this._mode = 'free-text';  // tracks whether MC shortcuts are active
     this._answerInput = document.getElementById('answer-input');
     this._strikeBtn = document.getElementById('strike-btn');
     this._mcButtons = [...document.querySelectorAll('.mc-btn')];
@@ -29,7 +30,7 @@ export class InputManager {
     });
     
     document.addEventListener('keydown', e => {
-      if (this._enabled && e.key >= '1' && e.key <= '4') {
+      if (this._enabled && this._mode === 'multiple-choice' && e.key >= '1' && e.key <= '4') {
         const idx = parseInt(e.key) - 1;
         if (this._mcButtons[idx]) {
           this._submit(this._mcButtons[idx].textContent.trim());
@@ -46,6 +47,7 @@ export class InputManager {
 
   enable(mode) {
     this._enabled = true;
+    this._mode = mode;
     const isMC = mode === 'multiple-choice';
     document.getElementById('mc-buttons').style.display = isMC ? 'flex' : 'none';
     document.getElementById('free-text-zone').style.display = isMC ? 'none' : 'flex';
