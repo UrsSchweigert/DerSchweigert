@@ -131,3 +131,71 @@ jobs:
         run: |
           DIST_ID=$(terraform -chdir=infra/terraform/sites/derschweigert output -raw cloudfront_distribution_id)
           aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+
+  deploy-ffm:
+    needs: [check-secrets]
+    runs-on: ubuntu-latest
+    if: |
+      github.ref == 'refs/heads/main' &&
+      needs.check-secrets.outputs.has_secrets == 'true'
+    env:
+      AWS_REGION: eu-central-1
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: eu-central-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Run FFM tests
+        run: |
+          pip install -r sites/ffm/requirements.txt -q
+          SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q --tb=short
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Build Lambda zip
+        run: |
+          mkdir -p sites/ffm/build
+          pip install -r sites/ffm/requirements.txt -t sites/ffm/build/ -q
+          cp -r sites/ffm/app sites/ffm/build/
+          cp -r sites/ffm/lambda sites/ffm/build/
+          cd sites/ffm/build && zip -r ../ffm-lambda.zip . && cd -
+
+      - name: Update Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name ffm-api \
+            --zip-file fileb://sites/ffm/ffm-lambda.zip \
+            --region eu-central-1
+
+      - name: Sync static assets to S3
+        run: |
+          BUCKET="ffm-site-${{ secrets.AWS_ACCOUNT_ID }}"
+          aws s3 sync sites/ffm/static/ "s3://$BUCKET/" \
+            --delete \
+            --cache-control "public, max-age=31536000" \
+            --exclude "index.html"
+          aws s3 cp sites/ffm/static/index.html \
+            "s3://$BUCKET/index.html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?contains(Aliases.Items,'ffm.derschweigert.de')].Id | [0]" \
+            --output text)
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+
+      - name: Smoke test
+        run: |
+          sleep 10
+          curl -sf https://ffm.derschweigert.de/ > /dev/null
+          curl -sf https://ffm.derschweigert.de/api/health | grep '"ok":true'

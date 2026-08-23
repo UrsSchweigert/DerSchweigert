@@ -1,0 +1,173 @@
+from flask import Blueprint, request, jsonify, make_response, current_app
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+import bcrypt
+import jwt
+import datetime
+from .models import db, User
+
+auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+limiter = Limiter(get_remote_address, storage_uri="memory://")
+
+
+@auth_bp.route('/register', methods=['POST'])
+@limiter.limit("10/minute")
+def register():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+    
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    
+    # Validate input
+    if not username or len(username) < 3 or len(username) > 20 or not username.isalnum():
+        return jsonify({"error": "Username must be 3-20 alphanumeric characters"}), 400
+    if not email or '@' not in email:
+        return jsonify({"error": "Valid email required"}), 400
+    if not password or len(password) < 8 or len(password) > 128:
+        return jsonify({"error": "Password must be 8-128 characters"}), 400
+    
+    # Check if user already exists
+    existing_user = User.query.filter(
+        (User.username == username) | (User.email == email)
+    ).first()
+    if existing_user:
+        return jsonify({"error": "Username or email already taken"}), 409
+    
+    # Hash password
+    password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+    
+    # Create user
+    user = User(username=username, email=email, password_hash=password_hash)
+    db.session.add(user)
+    db.session.commit()
+    
+    # Generate JWT access token
+    payload = {
+        "sub": str(user.id),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES'])
+    }
+    token = jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    
+    return jsonify({
+        "access_token": token,
+        "user": {"id": user.id, "username": user.username}
+    }), 201
+
+
+@auth_bp.route('/login', methods=['POST'])
+@limiter.limit("10/minute")
+def login():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+    
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    if not username or not password:
+        return jsonify({"error": "Invalid credentials"}), 401
+    
+    # Look up user
+    user = User.query.filter_by(username=username).first()
+    
+    # Verify password - use constant-time comparison
+    if not user or not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+        return jsonify({"error": "Invalid credentials"}), 401
+    
+    # Generate access JWT
+    access_payload = {
+        "sub": str(user.id),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES'])
+    }
+    access_token = jwt.encode(access_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    
+    # Generate refresh JWT
+    refresh_payload = {
+        "sub": str(user.id),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_REFRESH_EXPIRES'])
+    }
+    refresh_token = jwt.encode(refresh_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    
+    # Build response
+    response_data = {
+        "access_token": access_token,
+        "user": {"id": user.id, "username": user.username}
+    }
+    response = make_response(jsonify(response_data), 200)
+    
+    # Set refresh cookie
+    response.set_cookie(
+        "refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite='Strict',
+        max_age=current_app.config['JWT_REFRESH_EXPIRES']
+    )
+    
+    return response
+
+
+@auth_bp.route('/refresh', methods=['POST'])
+def refresh():
+    refresh_token = request.cookies.get('refresh_token')
+    
+    if not refresh_token:
+        return jsonify({"error": "No refresh token"}), 401
+    
+    try:
+        payload = jwt.decode(refresh_token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+        user_id = payload['sub']
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Refresh token expired or invalid"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Refresh token expired or invalid"}), 401
+    
+    # Generate new access JWT
+    access_payload = {
+        "sub": user_id,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES'])
+    }
+    new_access_token = jwt.encode(access_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    
+    # Generate new refresh JWT (rotate)
+    refresh_payload = {
+        "sub": user_id,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_REFRESH_EXPIRES'])
+    }
+    new_refresh_token = jwt.encode(refresh_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    
+    response = make_response(jsonify({"access_token": new_access_token}), 200)
+    
+    # Set new refresh cookie
+    response.set_cookie(
+        "refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=True,
+        samesite='Strict',
+        max_age=current_app.config['JWT_REFRESH_EXPIRES']
+    )
+    
+    return response
+
+
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    response = make_response(jsonify({"ok": True}), 200)
+    
+    # Clear refresh cookie
+    response.set_cookie(
+        "refresh_token",
+        "",
+        max_age=0,
+        expires=0,
+        httponly=True,
+        secure=True,
+        samesite='Strict'
+    )
+    
+    return response

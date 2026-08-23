@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Math Fiend Slayer — Sprite Demo</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #ffffff;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      border: 2px solid #4a4a4a;
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    #stateLabel {
+      position: absolute;
+      top: 30px;
+      left: 30px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border: 2px solid #ffffff;
+      font-size: 16px;
+      font-weight: bold;
+      z-index: 10;
+    }
+    #controls {
+      margin-top: 20px;
+      padding: 10px;
+      background: #2a2a2a;
+      border: 1px solid #4a4a4a;
+    }
+    #entityNames {
+      margin-top: 10px;
+      padding: 10px;
+      background: #2a2a2a;
+      border: 1px solid #4a4a4a;
+    }
+    .entity-name {
+      display: inline-block;
+      margin: 0 10px;
+      padding: 5px 10px;
+      background: #3a3a3a;
+      border: 1px solid #5a5a5a;
+    }
+  </style>
+</head>
+<body>
+  <h1>Math Fiend Slayer — Sprite Demo</h1>
+  <div style="position: relative;">
+    <canvas id="game" width="800" height="450"></canvas>
+    <div id="stateLabel">State: idle</div>
+  </div>
+  <div id="controls">
+    <strong>Controls:</strong> Press SPACEBAR to pause/unpause animation
+  </div>
+  <div id="entityNames">
+    <div class="entity-name">Hero</div>
+    <div class="entity-name">Slimeling</div>
+    <div class="entity-name">Bonehead</div>
+    <div class="entity-name">Toadlord</div>
+    <div class="entity-name">Magelitch</div>
+  </div>
+
+  <script type="module">
+    import { Renderer, LOGICAL_PX, CANVAS_W, CANVAS_H, GROUND_Y, HERO_X } from './game/renderer.js';
+    import { Hero, Slimeling, Bonehead, Toadlord, Magelitch } from './game/entities.js';
+
+    const canvas = document.getElementById('game');
+    const renderer = new Renderer(canvas);
+    const stateLabel = document.getElementById('stateLabel');
+
+    // Create all entities
+    const hero = new Hero();
+    const entities = [
+      hero,
+      new Slimeling(300, GROUND_Y, 1),
+      new Bonehead(400, GROUND_Y, 1),
+      new Toadlord(500, GROUND_Y, 2),
+      new Magelitch(600, GROUND_Y, 2)
+    ];
+
+    // States to cycle through
+    const allStates = ['idle', 'walk', 'swing', 'hurt', 'victory', 'attack', 'hit', 'death', 'reveal', 'retreat'];
+    let currentStateIndex = 0;
+    let lastStateChange = Date.now();
+    let paused = false;
+
+    // Cycle states every 2 seconds
+    function cycleStates() {
+      if (paused) return;
+      
+      const now = Date.now();
+      if (now - lastStateChange >= 2000) {
+        currentStateIndex = (currentStateIndex + 1) % allStates.length;
+        const state = allStates[currentStateIndex];
+        stateLabel.textContent = `State: ${state}`;
+        
+        // Try to set state on each entity
+        entities.forEach(entity => {
+          try {
+            entity.setState(state);
+          } catch (e) {
+            // Ignore errors for invalid states
+          }
+        });
+        
+        lastStateChange = now;
+      }
+    }
+
+    // Game loop
+    let last = 0;
+    function loop(ts) {
+      const dt = Math.min((ts - last) / 1000, 0.05);
+      last = ts;
+
+      if (!paused) {
+        cycleStates();
+        
+        // Update entities
+        entities.forEach(e => e.update(dt));
+      }
+
+      // Render
+      renderer.clear();
+      renderer.drawBackground(0);
+      entities.forEach(e => renderer.drawEntity(e));
+      renderer.drawHUD(3, 5, 1234, 3, 'Level 5');
+
+      requestAnimationFrame(loop);
+    }
+
+    // Start loop
+    requestAnimationFrame(loop);
+
+    // Spacebar to pause/unpause
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        paused = !paused;
+        console.log(paused ? 'PAUSED' : 'RESUMED');
+      }
+    });
+  </script>
+</body>
+</html>

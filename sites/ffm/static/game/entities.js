@@ -1,0 +1,612 @@
+// entities.js — detailed SNES-era pixel sprites for Math Fiend Slayer
+
+import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
+
+const P = LOGICAL_PX; // shorthand
+
+// ─── Base Entity ─────────────────────────────────────────────────────────────
+export class Entity {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this._state = 'idle'; this._frame = 0; this._tick = 0; this._dur = 10;
+  }
+  update(dt) {
+    this._tick += dt * 60;
+    if (this._tick >= this._dur) { this._tick = 0; this._onFrameAdvance(); }
+  }
+  _onFrameAdvance() { this._frame++; }
+  get state()  { return this._state; }
+  setState(s)  { this._state = s; this._frame = 0; this._tick = 0; }
+  draw(_ctx)   {}
+}
+
+// ─── Hero ─────────────────────────────────────────────────────────────────────
+const H_DUR = { idle:20, swing:4, hurt:6, victory:12, walk:6, dead:10 };
+const H_FRM = { idle:2,  swing:3, hurt:2, victory:2,  walk:4, dead:3  };
+
+export class Hero extends Entity {
+  constructor() { super(HERO_X, GROUND_Y); }
+
+  setState(s) {
+    if (H_DUR[s]) { super.setState(s); this._dur = H_DUR[s]; }
+  }
+  _onFrameAdvance() {
+    this._frame++;
+    const max = H_FRM[this._state] || 1;
+    if (this._frame >= max) {
+      if (['swing','hurt','victory'].includes(this._state)) this.setState('idle');
+      else if (this._state === 'dead') this._frame = max - 1;
+      else this._frame = 0;
+    }
+  }
+
+  draw(ctx) {
+    const bx = ~~(this.x - 12*P);
+    const by = ~~(this.y - 36*P);
+    const br = (this._state === 'hurt') ? 1 : 0;
+    const breathe = (this._state === 'idle' && this._frame === 1) ? P : 0;
+
+    if (this._state === 'dead') { this._drawDead(ctx, bx, by); return; }
+
+    // --- boots ---
+    ctx.fillStyle = '#5a3010';
+    ctx.fillRect(bx+5*P, by+32*P, 5*P, 4*P);
+    ctx.fillRect(bx+14*P, by+32*P, 5*P, 4*P);
+    ctx.fillStyle = '#3a1a08';
+    ctx.fillRect(bx+5*P, by+35*P, 5*P, P);
+    ctx.fillRect(bx+14*P, by+35*P, 5*P, P);
+
+    // --- pants ---
+    ctx.fillStyle = '#5a3820';
+    ctx.fillRect(bx+5*P, by+26*P+breathe, 5*P, 6*P);
+    ctx.fillRect(bx+14*P, by+26*P+breathe, 5*P, 6*P);
+    ctx.fillStyle = '#7a5030';
+    ctx.fillRect(bx+6*P, by+26*P+breathe, 3*P, P);
+    ctx.fillRect(bx+15*P, by+26*P+breathe, 3*P, P);
+
+    // --- tunic body ---
+    ctx.fillStyle = br ? '#d05040' : '#3a8030';
+    ctx.fillRect(bx+6*P, by+18*P+breathe, 12*P, 10*P);
+    // tunic highlights
+    ctx.fillStyle = br ? '#e87060' : '#50a848';
+    ctx.fillRect(bx+7*P, by+18*P+breathe, 3*P, 8*P);
+    // tunic shadow
+    ctx.fillStyle = br ? '#b03020' : '#287018';
+    ctx.fillRect(bx+16*P, by+18*P+breathe, 2*P, 10*P);
+    // belt
+    ctx.fillStyle = '#7a5020';
+    ctx.fillRect(bx+6*P, by+26*P+breathe, 12*P, 2*P);
+    ctx.fillStyle = '#c8a040';
+    ctx.fillRect(bx+11*P, by+26*P+breathe, 2*P, 2*P); // buckle
+
+    // --- arms ---
+    ctx.fillStyle = '#f4c080';  // skin
+    ctx.fillRect(bx+3*P, by+18*P+breathe, 3*P, 7*P);  // left arm
+    ctx.fillRect(bx+18*P, by+18*P+breathe, 3*P, 6*P); // right arm (sword hand)
+    // arm cuff
+    ctx.fillStyle = br ? '#c03020' : '#287018';
+    ctx.fillRect(bx+3*P, by+22*P+breathe, 3*P, 2*P);
+    ctx.fillRect(bx+18*P, by+22*P+breathe, 3*P, 2*P);
+
+    // --- sword ---
+    const swingExt = (this._state === 'swing') ? this._frame * 3 * P : 0;
+    const swingAng = (this._state === 'swing') ? -this._frame * P : 0;
+    // blade
+    ctx.fillStyle = '#d8e0e8';
+    ctx.fillRect(bx+20*P+swingExt, by+20*P+breathe+swingAng, 14*P, 2*P);
+    ctx.fillStyle = '#f0f8ff';
+    ctx.fillRect(bx+20*P+swingExt, by+20*P+breathe+swingAng, 14*P, P);
+    // guard
+    ctx.fillStyle = '#c8a030';
+    ctx.fillRect(bx+18*P, by+18*P+breathe, 3*P, 6*P);
+    ctx.fillStyle = '#e8c040';
+    ctx.fillRect(bx+18*P, by+19*P+breathe, 3*P, 2*P);
+    // handle
+    ctx.fillStyle = '#7a4018';
+    ctx.fillRect(bx+15*P, by+20*P+breathe, 3*P, 4*P);
+    ctx.fillStyle = '#c8a060';
+    ctx.fillRect(bx+15*P, by+20*P+breathe, P, 4*P);
+
+    // --- head ---
+    ctx.fillStyle = '#f4c080';
+    ctx.fillRect(bx+7*P, by+8*P+breathe, 10*P, 10*P);
+    // ear
+    ctx.fillRect(bx+6*P, by+11*P+breathe, 2*P, 4*P);
+    ctx.fillRect(bx+17*P, by+11*P+breathe, 2*P, 4*P);
+    // cheek
+    ctx.fillStyle = '#f8a8a0';
+    ctx.fillRect(bx+14*P, by+13*P+breathe, 2*P, 2*P);
+
+    // --- hair (red, spiky) ---
+    ctx.fillStyle = '#d83820';
+    ctx.fillRect(bx+7*P, by+6*P+breathe, 10*P, 4*P);   // base
+    ctx.fillRect(bx+6*P, by+5*P+breathe, 3*P, 3*P);    // left spike
+    ctx.fillRect(bx+10*P, by+4*P+breathe, 4*P, 3*P);   // mid spike
+    ctx.fillRect(bx+15*P, by+5*P+breathe, 3*P, 3*P);   // right spike
+    ctx.fillStyle = '#f04030';
+    ctx.fillRect(bx+8*P, by+5*P+breathe, 2*P, 2*P);    // hair highlight
+
+    // --- eye ---
+    ctx.fillStyle = '#204880';
+    ctx.fillRect(bx+10*P, by+12*P+breathe, 2*P, 2*P);
+    ctx.fillRect(bx+15*P, by+12*P+breathe, 2*P, 2*P);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+10*P, by+12*P+breathe, P, P);
+    ctx.fillRect(bx+15*P, by+12*P+breathe, P, P);
+
+    // victory: sword raised
+    if (this._state === 'victory') {
+      const vf = this._frame;
+      ctx.fillStyle = '#d8e0e8';
+      ctx.fillRect(bx+18*P, by+4*P-vf*P, 2*P, 14*P+vf*P);
+      ctx.fillStyle = '#c8a030';
+      ctx.fillRect(bx+16*P, by+9*P-vf*P, 6*P, 3*P);
+    }
+  }
+
+  _drawDead(ctx, bx, by) {
+    ctx.fillStyle = '#888888';
+    ctx.fillRect(bx+4*P, by+28*P, 16*P, 8*P);
+    ctx.fillRect(bx+4*P, by+22*P, 10*P, 6*P);
+    ctx.fillStyle = '#666';
+    ctx.fillRect(bx+4*P, by+22*P, 4*P, P);
+    ctx.fillRect(bx+8*P, by+23*P, 2*P, 2*P);
+  }
+}
+
+// ─── Fiend base ───────────────────────────────────────────────────────────────
+const F_FRM = { walk:4, idle:2, attack:3, hit:2, death:5, reveal:1, retreat:4 };
+
+export class Fiend extends Entity {
+  constructor(x, y, cfg) {
+    super(x, y);
+    this.hp = cfg.hp;
+    this._pal = cfg.palette;
+    this.problem = null;
+    this.wasRequeued = false;
+    this._particles = [];
+    this._events = new EventTarget();
+    this._dur = 8;
+    this.setState('walk');
+  }
+
+  get isDead() { return this.hp <= 0; }
+  hit() { this.hp-- > 1 ? this.setState('hit') : this.setState('death'); }
+  attack() { this.setState('attack'); }
+  on(ev, fn) { this._events.addEventListener(ev, fn); }
+  _emit(ev) { this._events.dispatchEvent(new Event(ev)); }
+
+  update(dt) {
+    super.update(dt);
+    if (this._state === 'walk') {
+      this.x -= 50 * dt;
+      if (this.x < HERO_X + 108) this.setState('idle');
+    }
+    if (this._state === 'retreat') {
+      this.x += 80 * dt;
+      if (this.x > CANVAS_W + 100) this._emit('retreated');
+    }
+    this._particles = this._particles.filter(p => p.life > 0);
+    this._particles.forEach(p => { p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt; });
+  }
+
+  _onFrameAdvance() {
+    this._frame++;
+    const max = F_FRM[this._state] || 2;
+    if (this._frame >= max) {
+      if (this._state === 'hit' || this._state === 'attack') this.setState('idle');
+      else if (this._state === 'death') {
+        if (this._particles.length === 0) this._spawnParticles();
+        if (this._particles.every(p => p.life <= 0)) this._emit('dead');
+        this._frame = max - 1;
+      } else this._frame = 0;
+    }
+  }
+
+  _spawnParticles() {
+    for (let i = 0; i < 12; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 80 + Math.random() * 140;
+      this._particles.push({
+        x: this.x, y: this.y - 8*P,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 60,
+        life: 0.7 + Math.random() * 0.5,
+        colour: [this._pal.body, this._pal.hi || '#ffffff', this._pal.dark][i % 3],
+        size: 4 + (i % 3) * 4,
+      });
+    }
+  }
+
+  _drawParticles(ctx) {
+    ctx.save();
+    this._particles.forEach(p => {
+      ctx.fillStyle = p.colour;
+      ctx.globalAlpha = Math.max(0, p.life * 1.2);
+      ctx.fillRect(~~(p.x - p.size/2), ~~(p.y - p.size/2), p.size, p.size);
+    });
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  _flashWhite(ctx, bx, by, w, h) {
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(bx, by, w, h);
+  }
+}
+
+// ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────
+export class Slimeling extends Fiend {
+  constructor(x, y, hp = 1) {
+    super(x, y, { hp, palette: { body:'#4488e8', dark:'#2255b0', hi:'#88ccff' } });
+  }
+
+  draw(ctx) {
+    const bobY = (this._state === 'walk') ? ~~(Math.sin(this._frame * Math.PI) * 2 * P) : 0;
+    const attX  = (this._state === 'attack') ? -this._frame * 2 * P : 0;
+    const bx = ~~(this.x - 9*P) + attX;
+    const by = ~~(this.y - 15*P) + bobY;
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(bx+2*P, by+15*P, 14*P, 3*P);
+
+    // body — rounded blob
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+2*P, by+10*P, 14*P, 6*P);  // base dark
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+2*P, by+2*P, 14*P, 12*P);  // main
+    ctx.fillRect(bx+4*P, by,     10*P, 4*P);    // top dome
+    ctx.fillRect(bx,     by+6*P, 18*P, 6*P);    // wide equator
+    ctx.fillRect(bx+P,   by+4*P, 16*P, 4*P);    // mid band
+    // specular highlight
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+4*P, by+P,   4*P, 3*P);
+    ctx.fillRect(bx+3*P, by+3*P, 2*P, 2*P);
+    // underbelly
+    ctx.fillStyle = '#c0d8ff';
+    ctx.fillRect(bx+4*P, by+10*P, 10*P, 4*P);
+    ctx.fillRect(bx+6*P, by+12*P, 6*P,  2*P);
+
+    // feet / squish bottom
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+2*P, by+13*P, 4*P, 2*P);
+    ctx.fillRect(bx+12*P, by+13*P, 4*P, 2*P);
+
+    // eyes
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+4*P, by+4*P, 4*P, 4*P);
+    ctx.fillRect(bx+10*P, by+4*P, 4*P, 4*P);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(bx+5*P, by+5*P, 2*P, 2*P);
+    ctx.fillRect(bx+11*P, by+5*P, 2*P, 2*P);
+    // eye shine
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+5*P, by+5*P, P, P);
+    ctx.fillRect(bx+11*P, by+5*P, P, P);
+
+    // smile
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+5*P, by+10*P, P, P);
+    ctx.fillRect(bx+6*P, by+11*P, 6*P, P);
+    ctx.fillRect(bx+12*P, by+10*P, P, P);
+
+    if (this._state === 'hit') this._flashWhite(ctx, bx, by, 18*P, 15*P);
+    this._drawParticles(ctx);
+  }
+}
+
+// ─── Bonehead (skeleton, Chapter 2 — Subtraction) ─────────────────────────────
+export class Bonehead extends Fiend {
+  constructor(x, y, hp = 1) {
+    super(x, y, { hp, palette: { body:'#ddd5c0', dark:'#a09070', hi:'#f0eee0' } });
+  }
+
+  draw(ctx) {
+    const rattle = (this._state === 'walk' && this._frame % 2 === 0) ? P : 0;
+    const attX   = (this._state === 'attack') ? -this._frame * 2 * P : 0;
+    const bx = ~~(this.x - 8*P) + attX;
+    const by = ~~(this.y - 28*P);
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(bx+2*P, by+28*P, 14*P, 2*P);
+
+    // --- skull ---
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+3*P, by,       10*P, 10*P);  // cranium
+    ctx.fillRect(bx+2*P, by+2*P,   12*P, 6*P);   // wider mid
+    ctx.fillRect(bx+4*P, by+9*P,   8*P,  4*P);   // jaw
+    // skull highlight
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+4*P, by+P,     4*P,  3*P);
+    ctx.fillRect(bx+3*P, by+3*P,   2*P,  2*P);
+    // skull shadow edge
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+12*P, by+2*P,  2*P,  6*P);
+    ctx.fillRect(bx+3*P,  by+9*P,  2*P,  3*P);
+    ctx.fillRect(bx+11*P, by+9*P,  2*P,  3*P);
+    // eyes (dark hollow sockets)
+    ctx.fillStyle = '#202010';
+    ctx.fillRect(bx+4*P, by+3*P,   3*P, 3*P);
+    ctx.fillRect(bx+9*P, by+3*P,   3*P, 3*P);
+    ctx.fillStyle = '#404030';
+    ctx.fillRect(bx+4*P, by+3*P,   P,   P);
+    ctx.fillRect(bx+9*P, by+3*P,   P,   P);
+    // nose
+    ctx.fillStyle = '#404030';
+    ctx.fillRect(bx+7*P, by+7*P,   2*P, 2*P);
+    // teeth
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+4*P, by+10*P,  2*P, 2*P);
+    ctx.fillRect(bx+7*P, by+10*P,  2*P, 2*P);
+    ctx.fillRect(bx+10*P, by+10*P, 2*P, 2*P);
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+6*P, by+10*P,  P,   2*P);
+    ctx.fillRect(bx+9*P, by+10*P,  P,   2*P);
+
+    // --- neck ---
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+6*P, by+12*P,  4*P, 2*P);
+
+    // --- ribcage ---
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+4*P, by+14*P,  8*P, 10*P);   // sternum
+    // ribs (4 pairs)
+    const ribC = this._pal.body;
+    for (let ri = 0; ri < 4; ri++) {
+      const ry = by+14*P+ri*2*P;
+      ctx.fillStyle = ribC;
+      ctx.fillRect(bx+2*P,  ry, 2*P, P);  // left rib
+      ctx.fillRect(bx+12*P, ry, 2*P, P);  // right rib
+    }
+    // spine
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+7*P, by+14*P, 2*P, 10*P);
+    // ribcage highlight
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+4*P, by+14*P, 2*P, 2*P);
+
+    // --- arms ---
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+P,   by+14*P+rattle, 3*P, 10*P);  // left
+    ctx.fillRect(bx+12*P, by+14*P-rattle, 3*P, 10*P); // right
+    // elbow knobs
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+P,   by+18*P+rattle, 3*P, 2*P);
+    ctx.fillRect(bx+12*P, by+18*P-rattle, 3*P, 2*P);
+    // hand bones
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx,     by+22*P+rattle, 4*P, 4*P);
+    ctx.fillRect(bx+12*P, by+22*P-rattle, 4*P, 4*P);
+
+    // --- pelvis + legs ---
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+3*P, by+24*P, 10*P, 3*P);
+    ctx.fillRect(bx+4*P, by+26*P, 3*P,  4*P);
+    ctx.fillRect(bx+9*P, by+26*P, 3*P,  4*P);
+    // knee
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+4*P, by+27*P, 3*P,  2*P);
+    ctx.fillRect(bx+9*P, by+27*P, 3*P,  2*P);
+
+    if (this._state === 'hit') this._flashWhite(ctx, bx, by, 16*P, 30*P);
+    this._drawParticles(ctx);
+  }
+}
+
+// ─── Toadlord (crowned green blob, Chapter 3 — Multiplication) ────────────────
+export class Toadlord extends Fiend {
+  constructor(x, y, hp = 2) {
+    super(x, y, { hp, palette: { body:'#38b030', dark:'#207818', hi:'#60d850' } });
+  }
+
+  draw(ctx) {
+    const stomp   = (this._state === 'walk') ? (this._frame % 2 === 0 ? P : -P) : 0;
+    const attX    = (this._state === 'attack') ? -this._frame * 3 * P : 0;
+    const bx = ~~(this.x - 11*P) + attX;
+    const by = ~~(this.y - 22*P) + stomp;
+
+    // shadow (grows on stomp)
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(bx+2*P, by+22*P-stomp, 20*P, 3*P);
+
+    // body — wide rounded blob
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+P,   by+12*P, 20*P, 10*P);  // dark base
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+2*P, by+4*P,  18*P, 16*P);  // main body
+    ctx.fillRect(bx,     by+8*P,  22*P, 8*P);   // wide equator
+    ctx.fillRect(bx+4*P, by+2*P,  14*P, 4*P);   // head top
+    // body highlight
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+3*P, by+4*P,  5*P, 6*P);
+    ctx.fillRect(bx+4*P, by+3*P,  3*P, 3*P);
+    // belly (lighter)
+    ctx.fillStyle = '#78d860';
+    ctx.fillRect(bx+5*P, by+12*P, 12*P, 6*P);
+    ctx.fillRect(bx+7*P, by+16*P, 8*P,  3*P);
+    // belly dots
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+8*P, by+13*P, 2*P, 2*P);
+    ctx.fillRect(bx+12*P, by+13*P, 2*P, 2*P);
+    ctx.fillRect(bx+10*P, by+16*P, 2*P, 2*P);
+
+    // feet / lumps at bottom
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+2*P, by+18*P, 5*P, 4*P);
+    ctx.fillRect(bx+15*P, by+18*P, 5*P, 4*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+3*P, by+18*P, 3*P, 3*P);
+    ctx.fillRect(bx+16*P, by+18*P, 3*P, 3*P);
+
+    // eyes (big, round, expressive)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+4*P, by+5*P, 6*P, 5*P);
+    ctx.fillRect(bx+12*P, by+5*P, 6*P, 5*P);
+    ctx.fillStyle = '#204010';
+    ctx.fillRect(bx+6*P, by+6*P, 3*P, 3*P);
+    ctx.fillRect(bx+14*P, by+6*P, 3*P, 3*P);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+6*P, by+6*P, P, P);
+    ctx.fillRect(bx+14*P, by+6*P, P, P);
+    // eye sockets outline
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+3*P, by+4*P, P, 6*P);
+    ctx.fillRect(bx+11*P, by+4*P, P, 6*P);
+
+    // smile / mouth
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+6*P, by+12*P, P, P);
+    ctx.fillRect(bx+7*P, by+13*P, 8*P, P);
+    ctx.fillRect(bx+15*P, by+12*P, P, P);
+    // teeth
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+8*P, by+12*P, 2*P, P);
+    ctx.fillRect(bx+12*P, by+12*P, 2*P, P);
+
+    // arms (stubby)
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx-2*P, by+8*P, 4*P, 8*P);
+    ctx.fillRect(bx+20*P, by+8*P, 4*P, 8*P);
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx-P, by+9*P, 3*P, 6*P);
+    ctx.fillRect(bx+20*P, by+9*P, 3*P, 6*P);
+
+    // crown
+    ctx.fillStyle = '#c8a020';
+    ctx.fillRect(bx+4*P, by-2*P, 14*P, 5*P);  // crown band
+    // crown spikes
+    ctx.fillStyle = '#e8c030';
+    ctx.fillRect(bx+4*P, by-6*P,  3*P, 5*P);
+    ctx.fillRect(bx+9*P, by-8*P,  4*P, 7*P);  // centre spike (tallest)
+    ctx.fillRect(bx+15*P, by-6*P, 3*P, 5*P);
+    // crown gems
+    ctx.fillStyle = '#e03030'; ctx.fillRect(bx+6*P, by-P, 2*P, 2*P);  // red
+    ctx.fillStyle = '#3060e8'; ctx.fillRect(bx+10*P, by-P, 2*P, 2*P); // blue
+    ctx.fillStyle = '#30c030'; ctx.fillRect(bx+14*P, by-P, 2*P, 2*P); // green
+    // crown jewel (orb on top)
+    ctx.fillStyle = '#f8e050';
+    ctx.fillRect(bx+10*P, by-10*P, 2*P, 2*P);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+10*P, by-10*P, P, P);
+    // crown highlight
+    ctx.fillStyle = '#f8e060';
+    ctx.fillRect(bx+4*P, by-2*P, 14*P, 2*P);
+
+    if (this._state === 'hit') this._flashWhite(ctx, bx, by-6*P, 22*P, 30*P);
+    this._drawParticles(ctx);
+  }
+}
+
+// ─── Magelitch (robed mage, Chapter 4 — All Operations) ───────────────────────
+export class Magelitch extends Fiend {
+  constructor(x, y, hp = 2) {
+    super(x, y, { hp, palette: { body:'#5030a8', dark:'#301870', hi:'#9060d8' } });
+  }
+
+  draw(ctx) {
+    // hover animation
+    const hov = ~~(Math.sin(this._tick * 0.12) * 3 * P);
+    const attX = (this._state === 'attack') ? -this._frame * 2 * P : 0;
+    const bx = ~~(this.x - 8*P) + attX;
+    const by = ~~(this.y - 30*P) + hov;
+
+    // shadow (fades at hover peak)
+    const shadowA = 0.22 - Math.abs(hov) * 0.008;
+    ctx.fillStyle = `rgba(0,0,0,${shadowA.toFixed(2)})`;
+    ctx.fillRect(bx+2*P, by+30*P-hov, 12*P, 3*P);
+
+    // robe body
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+P,   by+10*P, 14*P, 20*P);  // dark base
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+2*P, by+10*P, 12*P, 18*P);  // robe main
+    ctx.fillRect(bx+3*P, by+10*P, 10*P, 2*P);   // collar
+    // robe highlight (left edge)
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+2*P, by+10*P, 3*P, 16*P);
+    // robe shadow (right edge)
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+13*P, by+10*P, 2*P, 18*P);
+    // robe hem (wave)
+    ctx.fillStyle = '#8050c8';
+    ctx.fillRect(bx+2*P, by+26*P, 12*P, 2*P);
+    ctx.fillRect(bx+3*P, by+27*P, 10*P, P);
+    // robe trim (gold)
+    ctx.fillStyle = '#c8a030';
+    ctx.fillRect(bx+2*P, by+10*P, 12*P, P);
+    ctx.fillRect(bx+2*P, by+26*P, 12*P, P);
+    // rune symbols on robe
+    ctx.fillStyle = '#a060e0';
+    ctx.fillRect(bx+7*P, by+16*P, 2*P, 4*P);
+    ctx.fillRect(bx+6*P, by+17*P, 4*P, 2*P);
+
+    // arms (sleeves)
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx,     by+12*P, 3*P, 8*P);
+    ctx.fillRect(bx+13*P, by+12*P, 3*P, 8*P);
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx,     by+12*P, P, 8*P);
+    // hands with sparkle
+    ctx.fillStyle = '#f4c080';
+    ctx.fillRect(bx-P, by+19*P, 3*P, 3*P);
+    ctx.fillRect(bx+14*P, by+19*P, 3*P, 3*P);
+    // sparkles on hands
+    const spA = (this._tick % 4 < 2);
+    ctx.fillStyle = spA ? '#f8e060' : '#a0c0ff';
+    ctx.fillRect(bx-2*P, by+17*P, 2*P, 2*P);
+    ctx.fillRect(bx+16*P, by+17*P, 2*P, 2*P);
+
+    // neck/head
+    ctx.fillStyle = '#f4c080';
+    ctx.fillRect(bx+6*P, by+8*P, 4*P, 4*P);
+    // face glow
+    ctx.fillStyle = '#202040';
+    ctx.fillRect(bx+5*P, by+6*P, 6*P, 6*P);
+    // glowing eyes
+    ctx.fillStyle = '#c0c0ff';
+    ctx.fillRect(bx+5*P, by+7*P, 2*P, 2*P);
+    ctx.fillRect(bx+9*P, by+7*P, 2*P, 2*P);
+    ctx.fillStyle = '#e0e8ff';
+    ctx.fillRect(bx+5*P, by+7*P, P, P);
+    ctx.fillRect(bx+9*P, by+7*P, P, P);
+    // tiny pointy nose
+    ctx.fillStyle = '#c0a0a0';
+    ctx.fillRect(bx+7*P, by+9*P, P, P);
+    // grinning mouth
+    ctx.fillStyle = '#a080d0';
+    ctx.fillRect(bx+6*P, by+10*P, P, P);
+    ctx.fillRect(bx+7*P, by+11*P, 2*P, P);
+    ctx.fillRect(bx+9*P, by+10*P, P, P);
+
+    // pointed hat
+    ctx.fillStyle = this._pal.dark;
+    ctx.fillRect(bx+4*P,  by+2*P, 8*P, 6*P);   // brim
+    ctx.fillRect(bx+5*P,  by-2*P, 6*P, 5*P);   // lower cone
+    ctx.fillRect(bx+6*P,  by-6*P, 4*P, 5*P);   // mid cone
+    ctx.fillRect(bx+7*P,  by-10*P, 2*P, 5*P);  // tip
+    ctx.fillStyle = this._pal.body;
+    ctx.fillRect(bx+5*P,  by+2*P, 6*P, 5*P);
+    ctx.fillRect(bx+6*P,  by-2*P, 4*P, 5*P);
+    ctx.fillRect(bx+7*P,  by-6*P, 2*P, 4*P);
+    ctx.fillStyle = this._pal.hi;
+    ctx.fillRect(bx+5*P,  by+2*P, P, 5*P);
+    // hat band
+    ctx.fillStyle = '#c8a030';
+    ctx.fillRect(bx+4*P, by+2*P, 8*P, 2*P);
+    // hat gem
+    ctx.fillStyle = '#e830a0';
+    ctx.fillRect(bx+7*P, by+2*P, 2*P, 2*P);
+    ctx.fillStyle = '#ff70c8';
+    ctx.fillRect(bx+7*P, by+2*P, P, P);
+    // tip star
+    ctx.fillStyle = '#f0f0a0';
+    ctx.fillRect(bx+7*P, by-10*P, 2*P, 2*P);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx+7*P, by-10*P, P, P);
+
+    if (this._state === 'hit') this._flashWhite(ctx, bx, by-10*P, 16*P, 42*P);
+    this._drawParticles(ctx);
+  }
+}

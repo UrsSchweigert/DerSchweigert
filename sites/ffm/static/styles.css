@@ -1,0 +1,291 @@
+body {
+  background: #0a0a1a;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  color: #f0f0f0;
+  font-family: monospace;
+}
+
+#game {
+  display: block;
+  max-width: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+#input-zone {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  width: 800px;
+  max-width: 100%;
+}
+
+#mc-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.mc-btn {
+  min-width: 80px;
+  min-height: 40px;
+  background: #1a1a3a;
+  color: #f0f0f0;
+  border: 2px solid #4040a0;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: monospace;
+}
+
+.mc-btn:hover {
+  background: #2a2a5a;
+}
+
+.mc-btn:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+#free-text-zone {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#answer-input {
+  background: #1a1a3a;
+  color: #f0f0f0;
+  border: 2px solid #4040a0;
+  padding: 8px;
+  font-size: 18px;
+  font-family: monospace;
+  width: 120px;
+}
+
+#answer-input:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+  border-color: #6060d0;
+}
+
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+#strike-btn {
+  background: #4040c0;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 16px;
+}
+
+#strike-btn:hover {
+  background: #5050d0;
+}
+
+#strike-btn:focus {
+  outline: 2px solid #8080e0;
+  outline-offset: 2px;
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.overlay-card {
+  background: #1a1a3a;
+  border: 2px solid #4040a0;
+  padding: 32px;
+  max-width: 400px;
+  width: 90%;
+  position: relative;
+}
+
+.overlay-card h2 {
+  margin: 0 0 16px 0;
+  color: #f0f0f0;
+}
+
+.overlay-card p {
+  margin: 0 0 16px 0;
+  color: #d0d0d0;
+}
+
+.diff-btn {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  padding: 12px;
+  font-size: 16px;
+  background: #2a2a5a;
+  color: #f0f0f0;
+  border: 2px solid #6060d0;
+  cursor: pointer;
+  font-family: monospace;
+}
+
+.diff-btn:hover {
+  background: #3a3a6a;
+}
+
+.diff-btn:focus {
+  outline: 2px solid #8080e0;
+  outline-offset: 2px;
+}
+
+#top-bar {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+  z-index: 50;
+}
+
+#top-bar button,
+#top-bar span {
+  background: #1a1a3a;
+  color: #f0f0f0;
+  border: 2px solid #4040a0;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+#top-bar button:hover {
+  background: #2a2a5a;
+}
+
+#top-bar button:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+#username-display {
+  cursor: default;
+  padding: 8px 16px;
+}
+
+#close-auth {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #f0f0f0;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+#close-auth:hover {
+  color: #ff6060;
+}
+
+#close-auth:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+#auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px;
+  background: #2a2a5a;
+  color: #a0a0a0;
+  border: 2px solid #4040a0;
+  cursor: pointer;
+  font-family: monospace;
+}
+
+.tab-btn.active {
+  background: #4040a0;
+  color: #f0f0f0;
+  border-color: #6060d0;
+}
+
+.tab-btn:hover {
+  background: #3a3a6a;
+}
+
+.tab-btn:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+form input {
+  background: #2a2a5a;
+  color: #f0f0f0;
+  border: 2px solid #4040a0;
+  padding: 8px;
+  font-size: 14px;
+  font-family: monospace;
+}
+
+form input:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+  border-color: #6060d0;
+}
+
+form button {
+  background: #4040c0;
+  color: white;
+  padding: 10px;
+  border: none;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+form button:hover {
+  background: #5050d0;
+}
+
+form button:focus {
+  outline: 2px solid #8080e0;
+  outline-offset: 2px;
+}
+
+.error-msg {
+  color: #ff6060;
+  font-size: 12px;
+  margin: 0;
+  min-height: 16px;
+}

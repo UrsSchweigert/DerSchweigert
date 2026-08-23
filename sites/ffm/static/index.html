@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Math Fiend Slayer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="game" width="800" height="450"></canvas>
+  
+  <div id="input-zone">
+    <div id="mc-buttons">
+      <button class="mc-btn" data-index="0"></button>
+      <button class="mc-btn" data-index="1"></button>
+      <button class="mc-btn" data-index="2"></button>
+      <button class="mc-btn" data-index="3"></button>
+    </div>
+    <div id="free-text-zone">
+      <input id="answer-input" type="number" inputmode="numeric" placeholder="Answer..." autocomplete="off">
+      <button id="strike-btn">Strike!</button>
+    </div>
+    <div id="timer-bar-container"></div>
+  </div>
+  
+  <div id="difficulty-select" class="overlay">
+    <div class="overlay-card">
+      <h2>Math Fiend Slayer</h2>
+      <p>Choose difficulty:</p>
+      <button class="diff-btn" data-difficulty="easy" data-timer="30" data-hearts="7">Easy (30s)</button>
+      <button class="diff-btn" data-difficulty="medium" data-timer="20" data-hearts="5">Medium (20s)</button>
+      <button class="diff-btn" data-difficulty="hard" data-timer="10" data-hearts="3">Hard (10s)</button>
+    </div>
+  </div>
+  
+  <div id="auth-modal" class="overlay" style="display:none">
+    <div class="overlay-card">
+      <button id="close-auth">×</button>
+      <div id="auth-tabs">
+        <button id="tab-login" class="tab-btn active">Login</button>
+        <button id="tab-register" class="tab-btn">Register</button>
+      </div>
+      <form id="login-form">
+        <input id="login-username" type="text" placeholder="Username">
+        <input id="login-password" type="password" placeholder="Password">
+        <button type="submit">Login</button>
+        <p id="login-error" class="error-msg"></p>
+      </form>
+      <form id="register-form" style="display:none">
+        <input id="reg-username" type="text" placeholder="Username (3-20 chars)">
+        <input id="reg-email" type="email" placeholder="Email">
+        <input id="reg-password" type="password" placeholder="Password (8+ chars)">
+        <button type="submit">Register</button>
+        <p id="register-error" class="error-msg"></p>
+      </form>
+    </div>
+  </div>
+  
+  <div id="top-bar">
+    <button id="login-btn">Login</button>
+    <span id="username-display" style="display:none"></span>
+    <button id="logout-btn" style="display:none">Logout</button>
+    <button id="mute-btn">🔊</button>
+  </div>
+  
+  <script type="module" src="game/main.js"></script>
+</body>
+</html>
