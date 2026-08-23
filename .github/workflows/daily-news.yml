@@ -65,8 +65,7 @@ jobs:
           if gh issue list --state all --search "\"$TITLE\" in:title" --json title --jq 'length' | grep -q '^0$'; then
             gh issue create \
               --title "$TITLE" \
-              --body-file summary.txt \
-              --label "news"
+              --body-file summary.txt
           else
             echo "An issue for $DATE already exists."
           fi
