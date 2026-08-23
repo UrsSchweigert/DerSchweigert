@@ -9,6 +9,8 @@ __pycache__/
 *.tfstate.backup
 *.zip
 .DS_Store
+sites/ffm/build/
+uploads/
 
 # Terraform / AWS deployment artifacts
 .terraform/
