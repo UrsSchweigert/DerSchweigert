@@ -6,6 +6,8 @@ const P = LOGICAL_PX; // shorthand
 const _uploadedHeroSheet = new Image();
 _uploadedHeroSheet.src = new URL('./hero-spritesheet-clean.png', import.meta.url).href;
 const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victory: 5 };
+// col 2 of the walk row sits in the bottom half of its cell — skip it
+const _walkCols = [0, 1, 3, 1];
 
 // ─── Base Entity ─────────────────────────────────────────────────────────────
 export class Entity {
@@ -53,7 +55,9 @@ export class Hero extends Entity {
 
     if (_uploadedHeroSheet.complete && _uploadedHeroSheet.naturalWidth) {
       const row = _uploadedHeroRows[this._state] ?? 0;
-      const col = Math.min(fr, (H_FRM[this._state] ?? 1) - 1);
+      const col = this._state === 'walk'
+        ? _walkCols[fr % _walkCols.length]
+        : Math.min(fr, (H_FRM[this._state] ?? 1) - 1);
       const sourceX = col * 200;
       const sourceY = row * 180;
       const sourceW = 200;
