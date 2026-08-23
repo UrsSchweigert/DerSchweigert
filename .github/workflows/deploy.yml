@@ -171,15 +171,17 @@ jobs:
           mkdir -p sites/ffm/build
           pip install -r sites/ffm/requirements.txt -t sites/ffm/build/ -q
           cp -r sites/ffm/app sites/ffm/build/
-          cp -r sites/ffm/lambda sites/ffm/build/
+          cp sites/ffm/lambda/handler.py sites/ffm/build/
           cd sites/ffm/build && zip -r ../ffm-lambda.zip . && cd -
 
       - name: Update Lambda function code
         run: |
+          aws lambda wait function-updated --function-name ffm-api --region eu-central-1
           aws lambda update-function-code \
             --function-name ffm-api \
             --zip-file fileb://sites/ffm/ffm-lambda.zip \
             --region eu-central-1
+          aws lambda wait function-updated --function-name ffm-api --region eu-central-1
 
       - name: Sync static assets to S3
         run: |
