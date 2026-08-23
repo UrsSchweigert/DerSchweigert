@@ -31,6 +31,13 @@ body {
   width: min(100vw, calc(100svh * 800 / 450));
 }
 
+@media (min-width: 900px) and (min-height: 520px) {
+  #game-wrap {
+    max-width: 1600px;
+    max-height: 900px;
+  }
+}
+
 #game {
   display: block;
   width: 100%;
