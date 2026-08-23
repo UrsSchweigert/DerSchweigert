@@ -67,6 +67,8 @@ export class Hero extends Entity {
       return;
     }
 
+    return;
+
     if (this._state === 'dead') { this._drawDead(ctx, bx, by, fr, Q); return; }
 
     // walk: legs swing horizontally
