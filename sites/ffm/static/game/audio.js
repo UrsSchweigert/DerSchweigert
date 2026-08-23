@@ -1,4 +1,4 @@
-// audio.js — Web Audio API chiptune engine for Math Fiend Slayer
+// audio.js — Web Audio API chiptune engine for Arithmo Slayer
 
 export class AudioEngine {
   constructor() {

@@ -1,4 +1,4 @@
-// entities.js — pixel-art Hero + fiends for Math Fiend Slayer
+// entities.js — pixel-art Hero + fiends for Arithmo Slayer
 
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
 

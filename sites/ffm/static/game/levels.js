@@ -1,4 +1,4 @@
-// Math Fiend Slayer - Levels Configuration and Problem Generator
+// Arithmo Slayer - Levels Configuration and Problem Generator
 
 /**
  * LCG (Linear Congruential Generator) for deterministic random numbers

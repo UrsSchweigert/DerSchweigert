@@ -1,4 +1,4 @@
-// input.js — Input management for Math Fiend Slayer
+// input.js — Input management for Arithmo Slayer
 
 export class InputManager {
   constructor(onAnswer) {

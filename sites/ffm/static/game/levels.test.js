@@ -1,4 +1,4 @@
-// Math Fiend Slayer - Levels Tests
+// Arithmo Slayer - Levels Tests
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { LevelConfig, generateProblem } from './levels.js';

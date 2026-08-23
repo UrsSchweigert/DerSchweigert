@@ -1,4 +1,4 @@
-// api.js — JWT auth + score API client for Math Fiend Slayer
+// api.js — JWT auth + score API client for Arithmo Slayer
 
 const BASE_URL = window.location.origin + '/api';
 let _accessToken = null;

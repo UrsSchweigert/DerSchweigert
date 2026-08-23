@@ -1,8 +1,8 @@
-# Math Fiend Slayer — Full Implementation Specification
+# Arithmo Slayer — Full Implementation Specification
 
 ## Overview
 
-Implement a browser-based educational math game called **"Math Fiend Slayer"** served at
+Implement a browser-based educational math game called **"Arithmo Slayer"** served at
 `ffm.derschweigert.de`. The game is a SNES-era 2-D side-scroller where a sword-wielding hero
 stands on the left side of the screen and monsters (fiends, inspired by Final Fantasy enemies)
 march in from the right. Each fiend carries a speech bubble displaying a math problem. The player

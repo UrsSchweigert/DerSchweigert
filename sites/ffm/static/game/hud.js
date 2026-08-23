@@ -1,4 +1,4 @@
-// hud.js — HUD management for Math Fiend Slayer
+// hud.js — HUD management for Arithmo Slayer
 
 import { Renderer } from './renderer.js';
 

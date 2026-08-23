@@ -1,6 +1,6 @@
 ---
 description: >
-  Orchestrator for the Math Fiend Slayer game build. Reads game-build-state.json,
+  Orchestrator for the Arithmo Slayer game build. Reads game-build-state.json,
   determines which phases are unblocked, and for each phase invokes a LEAD agent that
   decomposes the work and reviews it, and WORKER agents (Haiku) that write the code.
   The orchestrator never writes code itself — it only manages state and dispatches.
@@ -14,7 +14,7 @@ tools:
   - runSubagent
 ---
 
-# Math Fiend Slayer — Build Orchestrator
+# Arithmo Slayer — Build Orchestrator
 
 You are the **build orchestrator**. You manage state and dispatch agents. You do not write
 code. Every phase runs through a two-tier **lead → worker** hierarchy described below.

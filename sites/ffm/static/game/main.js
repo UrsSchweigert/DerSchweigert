@@ -1,4 +1,4 @@
-// main.js — Complete game loop for Math Fiend Slayer
+// main.js — Complete game loop for Arithmo Slayer
 
 import { LevelConfig, generateProblem } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';

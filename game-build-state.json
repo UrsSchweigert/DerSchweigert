@@ -1,5 +1,5 @@
 {
-  "project": "Math Fiend Slayer",
+  "project": "Arithmo Slayer",
   "spec": "ffm-math-game.prompt.md",
   "agent_pattern": "lead-worker: lead decomposes + reviews, worker writes code",
   "phases": {
