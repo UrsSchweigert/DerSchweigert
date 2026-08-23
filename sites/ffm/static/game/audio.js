@@ -6,6 +6,9 @@ export class AudioEngine {
     this._muted = false;
     this._bgmNodes = [];
     this._bgmTimer = null;
+    this._bgmAudio = new Audio(new URL('./background-music.mp3', import.meta.url).href);
+    this._bgmAudio.loop = true;
+    this._bgmAudio.volume = 0.35;
   }
 
   _ensureCtx() {
@@ -107,37 +110,9 @@ export class AudioEngine {
     this._ensureCtx();
     this.stopBGM();
     if (this._muted) return;
-    
-    const motifs = {
-      1: [261, 294, 330, 349, 330, 294, 261, 247, 261, 294, 330, 392, 349, 330, 294, 261],
-      2: [220, 247, 261, 294, 261, 247, 220, 196, 220, 247, 261, 220, 196, 175, 196, 220],
-      3: [392, 440, 494, 523, 494, 440, 392, 349, 392, 440, 494, 440, 392, 330, 392, 349],
-      4: [294, 330, 349, 392, 370, 330, 294, 261, 294, 311, 349, 330, 294, 261, 247, 294]
-    };
-    const seq = motifs[chapter] || motifs[1];
-    const tempo = 0.5;
-    let startTime = this._ctx.currentTime;
-    
-    const scheduleLoop = () => {
-      this._bgmNodes = [];
-      seq.forEach((freq, i) => {
-        const osc = this._ctx.createOscillator();
-        const gain = this._ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(freq, startTime + i * tempo);
-        gain.gain.setValueAtTime(0.1, startTime + i * tempo);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + i * tempo + tempo * 0.9);
-        osc.connect(gain);
-        gain.connect(this._ctx.destination);
-        osc.start(startTime + i * tempo);
-        osc.stop(startTime + i * tempo + tempo);
-        this._bgmNodes.push(osc);
-      });
-      startTime += seq.length * tempo;
-      const loopDuration = seq.length * tempo * 1000;
-      this._bgmTimer = setTimeout(scheduleLoop, loopDuration - 100);
-    };
-    scheduleLoop();
+
+    this._bgmAudio.currentTime = 0;
+    this._bgmAudio.play().catch(() => {});
   }
 
   stopBGM() {
@@ -151,6 +126,8 @@ export class AudioEngine {
       } catch (e) {}
     });
     this._bgmNodes = [];
+    this._bgmAudio.pause();
+    this._bgmAudio.currentTime = 0;
   }
 
   get muted() {
@@ -161,6 +138,8 @@ export class AudioEngine {
     this._muted = !this._muted;
     if (this._muted) {
       this.stopBGM();
+    } else {
+      this._bgmAudio.play().catch(() => {});
     }
   }
 }
