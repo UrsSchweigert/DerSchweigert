@@ -4,10 +4,8 @@ import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
 
 const P = LOGICAL_PX; // shorthand
 const _uploadedHeroSheet = new Image();
-_uploadedHeroSheet.src = new URL('./hero-spritesheet-upload.png', import.meta.url).href;
+_uploadedHeroSheet.src = new URL('./hero-spritesheet-clean.png', import.meta.url).href;
 const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victory: 5 };
-const _uploadedHeroRowY = [0, 190, 372, 545, 700, 840];
-const _uploadedHeroRowH = [190, 182, 173, 155, 140, 184];
 
 // ─── Base Entity ─────────────────────────────────────────────────────────────
 export class Entity {
@@ -56,10 +54,10 @@ export class Hero extends Entity {
     if (_uploadedHeroSheet.complete && _uploadedHeroSheet.naturalWidth) {
       const row = _uploadedHeroRows[this._state] ?? 0;
       const col = Math.min(fr, (H_FRM[this._state] ?? 1) - 1);
-      const sourceX = 180 + col * 320;
-      const sourceY = _uploadedHeroRowY[row];
-      const sourceW = 290;
-      const sourceH = _uploadedHeroRowH[row];
+      const sourceX = col * 200;
+      const sourceY = row * 180;
+      const sourceW = 200;
+      const sourceH = 180;
       const drawW = 160;
       const drawH = 150;
       ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH,
