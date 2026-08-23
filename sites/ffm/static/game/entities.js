@@ -54,9 +54,9 @@ export class Hero extends Entity {
     const fr = this._frame;
 
     if (_uploadedHeroSheet.complete && _uploadedHeroSheet.naturalWidth) {
-      const row = _uploadedHeroRows[this._state] ?? 0;
-      const col = this._state === 'walk'
-        ? _walkCols[fr % _walkCols.length]
+      const row = this.lunging ? _uploadedHeroRows['walk'] : (_uploadedHeroRows[this._state] ?? 0);
+      const col = this.lunging ? 0
+        : this._state === 'walk' ? _walkCols[fr % _walkCols.length]
         : Math.min(fr, (H_FRM[this._state] ?? 1) - 1);
       const sourceX = col * 200;
       const sourceY = row * 180;
