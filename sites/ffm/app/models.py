@@ -29,7 +29,7 @@ class LevelScore(db.Model):
     achieved_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
     __table_args__ = (
-        db.CheckConstraint('level >= 1 AND level <= 40', name='check_level_range'),
+        db.CheckConstraint('level >= 1 AND level <= 60', name='check_level_range'),
         db.CheckConstraint('score >= 0', name='check_score_positive'),
         db.UniqueConstraint('user_id', 'level', 'difficulty', name='uq_user_level_difficulty'),
     )

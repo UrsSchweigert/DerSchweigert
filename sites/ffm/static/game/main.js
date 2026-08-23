@@ -2,7 +2,7 @@
 
 import { LevelConfig, generateProblem } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
-import { Hero, Slimeling, BirdFoe, WolfFoe, SnakeFoe, LightningBolt } from './entities.js';
+import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt } from './entities.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
@@ -18,7 +18,7 @@ const GAME_CONFIG = {
   healingAuraDuration:   2.0,   // seconds green aura lasts after level clear
 };
 
-// Operator → Fiend class (edit this map to change which monster represents each op)
+// Operator → Fiend class (fallback when level fiendType is unknown)
 const OPERATOR_FIEND = {
   '+': Slimeling,
   '-': BirdFoe,
@@ -26,11 +26,23 @@ const OPERATOR_FIEND = {
   '/': SnakeFoe,
 };
 
+// Level config fiendType → Fiend class
+const FIEND_TYPE_CLASS = {
+  slimeling: Slimeling,
+  bonehead: Bonehead,
+  toadlord: Toadlord,
+  magelitch: Magelitch,
+  birdfoe: BirdFoe,
+  wolffoe: WolfFoe,
+  snakefoe: SnakeFoe,
+};
+
 // --- Fiend factory ---
 function createFiend(levelIndex, x) {
   const cfg = LevelConfig[levelIndex];
   const problem = generateProblem(levelIndex, Date.now());
-  const FiendClass = OPERATOR_FIEND[problem.operation] ?? Slimeling;
+  const fiendTypeKey = String(cfg.fiendType || '').toLowerCase();
+  const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey] ?? OPERATOR_FIEND[problem.operation] ?? Slimeling;
   const isElite = Math.random() < GAME_CONFIG.eliteFiendChance;
   const hp = isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
   const fiend = new FiendClass(x, GROUND_Y, hp);
@@ -454,7 +466,7 @@ function triggerLevelClear() {
     api.postScore(state.level, state.score, state.difficulty).catch(() => {});
   }
 
-  if (state.level >= 40) {
+  if (state.level >= LevelConfig.length) {
     triggerGameOver();
     return;
   }
