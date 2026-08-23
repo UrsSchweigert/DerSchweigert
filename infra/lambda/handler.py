@@ -1,6 +1,8 @@
 import json
 import os
 from urllib.parse import parse_qs, quote
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 def lambda_handler(event, context):
@@ -20,10 +22,25 @@ def lambda_handler(event, context):
         email = str(body.get("email", "")).strip()
         message = str(body.get("message", "")).strip()
 
-        if not name or not email or not message:
+        if not name or "@" not in email or not message:
             return _respond(400, {"detail": "Missing required fields"})
 
-        return _respond(200, {"ok": True, "message": "Thanks — I will get back to you soon."})
+        if len(name) > 200 or len(email) > 320 or len(message) > 10_000:
+            return _respond(400, {"detail": "Message is too long"})
+
+        try:
+            token = _get_github_token()
+            _create_github_issue(
+                token=token,
+                repository=os.getenv("GITHUB_CONTACT_REPOSITORY", "UrsSchweigert/DerSchweigert"),
+                name=name,
+                email=email,
+                message=message,
+            )
+        except (HTTPError, URLError, ValueError, RuntimeError):
+            return _respond(502, {"detail": "Ihre Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut."})
+
+        return _respond(200, {"ok": True, "message": "Vielen Dank. Ihre Nachricht wurde gesendet."})
 
     if route == "/api/admin/verify-pin":
         if method != "POST":
@@ -41,6 +58,56 @@ def lambda_handler(event, context):
         )
 
     return _respond(200, {"status": "ok", "service": "derschweigert"})
+
+
+def _get_github_token():
+    secret_arn = os.getenv("GITHUB_CONTACT_SECRET_ARN", "")
+    if not secret_arn:
+        raise ValueError("Missing GitHub contact secret ARN")
+
+    import boto3
+    from botocore.exceptions import ClientError
+
+    try:
+        response = boto3.client("secretsmanager").get_secret_value(SecretId=secret_arn)
+    except ClientError as error:
+        raise RuntimeError("GitHub contact token could not be read") from error
+    token = response.get("SecretString", "").strip()
+    if not token:
+        raise ValueError("Empty GitHub contact token")
+    return token
+
+
+def _create_github_issue(token, repository, name, email, message):
+    issue_body = "\n".join([
+        "## Neue Kontaktanfrage",
+        "",
+        f"**Name:** {name}",
+        f"**E-Mail:** {email}",
+        "",
+        "### Nachricht",
+        message,
+    ])
+    payload = json.dumps({
+        "title": f"Kontakt: {name}",
+        "body": issue_body,
+    }).encode("utf-8")
+    request = Request(
+        f"https://api.github.com/repos/{repository}/issues",
+        data=payload,
+        method="POST",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": "derschweigert-contact-form",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    with urlopen(request, timeout=10) as response:
+        if response.status != 201:
+            raise ValueError("GitHub issue creation failed")
+        return json.loads(response.read().decode("utf-8"))
 
 
 def _handle_unlock_page(event, error=False):

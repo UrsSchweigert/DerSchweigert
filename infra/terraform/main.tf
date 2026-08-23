@@ -274,6 +274,8 @@ resource "aws_lambda_function" "api" {
       CONTACT_EMAIL    = "hello@${local.domain}"
       ADMIN_PIN        = "3009"
       ADMIN_COOKIE_NAME = "ams_pin"
+      GITHUB_CONTACT_REPOSITORY = "UrsSchweigert/DerSchweigert"
+      GITHUB_CONTACT_SECRET_ARN = aws_secretsmanager_secret.github_contact_token.arn
     }
   }
 
@@ -300,6 +302,27 @@ resource "aws_iam_role" "lambda_exec" {
 resource "aws_iam_role_policy_attachment" "lambda_basic" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_secretsmanager_secret" "github_contact_token" {
+  name                    = "${local.app_name}/github-contact-token"
+  description             = "GitHub token for creating contact-form issues"
+  recovery_window_in_days = 0
+  tags                    = local.tags
+}
+
+resource "aws_iam_role_policy" "lambda_github_contact" {
+  name = "${local.app_name}-github-contact"
+  role = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = aws_secretsmanager_secret.github_contact_token.arn
+    }]
+  })
 }
 
 resource "aws_api_gateway_rest_api" "api" {
