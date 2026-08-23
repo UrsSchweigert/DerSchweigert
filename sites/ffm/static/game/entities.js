@@ -6,8 +6,8 @@ const P = LOGICAL_PX; // shorthand
 const _uploadedHeroSheet = new Image();
 _uploadedHeroSheet.src = new URL('./hero-spritesheet-upload.png', import.meta.url).href;
 const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victory: 5 };
-const _uploadedHeroRowY = [0, 176, 350, 522, 692, 850];
-const _uploadedHeroRowH = [176, 174, 172, 170, 158, 174];
+const _uploadedHeroRowY = [0, 190, 372, 545, 700, 840];
+const _uploadedHeroRowH = [190, 182, 173, 155, 140, 184];
 
 // ─── Base Entity ─────────────────────────────────────────────────────────────
 export class Entity {
