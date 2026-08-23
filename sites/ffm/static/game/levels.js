@@ -64,7 +64,7 @@ function buildLevel(overrides) {
     maxResult: overrides.maxResult,
     fiendType: overrides.fiendType || getFiendType(level, chapter),
     fiendHP: overrides.fiendHP ?? calculateFiendHP(level, level),
-    waveSize: overrides.waveSize,
+    waveSize: overrides.waveSize ?? 5,
     inputMode: overrides.inputMode
   };
 }
