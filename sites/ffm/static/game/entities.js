@@ -164,6 +164,7 @@ export class Fiend extends Entity {
     this._pal = cfg.palette;
     this.problem = null;
     this.wasRequeued = false;
+    this._redFlash = 0;
     this._particles = [];
     this._events = new EventTarget();
     this._dur = 8;
@@ -186,6 +187,7 @@ export class Fiend extends Entity {
       this.x += 80 * dt;
       if (this.x > CANVAS_W + 100) this._emit('retreated');
     }
+    if (this._redFlash > 0) this._redFlash -= dt;
     this._particles = this._particles.filter(p => p.life > 0);
     this._particles.forEach(p => { p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt; });
   }
@@ -231,6 +233,12 @@ export class Fiend extends Entity {
 
   _flashWhite(ctx, bx, by, w, h) {
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(bx, by, w, h);
+  }
+
+  _flashRed(ctx, bx, by, w, h) {
+    if (this._redFlash <= 0) return;
+    ctx.fillStyle = `rgba(255,50,20,${Math.min(0.65, this._redFlash * 2).toFixed(2)})`;
     ctx.fillRect(bx, by, w, h);
   }
 }
@@ -292,6 +300,7 @@ export class Slimeling extends Fiend {
     ctx.fillRect(bx+12*P, by+10*P, P, P);
 
     if (this._state === 'hit') this._flashWhite(ctx, bx, by, 18*P, 15*P);
+    this._flashRed(ctx, bx, by, 18*P, 15*P);
     this._drawParticles(ctx);
   }
 }
@@ -391,6 +400,7 @@ export class Bonehead extends Fiend {
     ctx.fillRect(bx+9*P, by+27*P, 3*P,  2*P);
 
     if (this._state === 'hit') this._flashWhite(ctx, bx, by, 16*P, 30*P);
+    this._flashRed(ctx, bx, by, 16*P, 30*P);
     this._drawParticles(ctx);
   }
 }
@@ -495,6 +505,7 @@ export class Toadlord extends Fiend {
     ctx.fillRect(bx+4*P, by-2*P, 14*P, 2*P);
 
     if (this._state === 'hit') this._flashWhite(ctx, bx, by-6*P, 22*P, 30*P);
+    this._flashRed(ctx, bx, by-6*P, 22*P, 30*P);
     this._drawParticles(ctx);
   }
 }
@@ -607,6 +618,7 @@ export class Magelitch extends Fiend {
     ctx.fillRect(bx+7*P, by-10*P, P, P);
 
     if (this._state === 'hit') this._flashWhite(ctx, bx, by-10*P, 16*P, 42*P);
+    this._flashRed(ctx, bx, by-10*P, 16*P, 42*P);
     this._drawParticles(ctx);
   }
 }

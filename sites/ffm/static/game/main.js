@@ -167,13 +167,12 @@ function startLevel(levelIndex) {
   if (!animFrameId) gameLoop(performance.now());
 }
 
-// Minimum horizontal gap between fiend centres prevents visual overlap
+// Only one fiend on screen at a time; gap kept for requeue safety
 const FIEND_MIN_GAP = 145;
 
 function spawnNextFiend() {
-  // Don't spawn if a fiend is still too close to the right edge
-  const rightmost = fiends.reduce((mx, f) => Math.max(mx, f.x), 0);
-  if (rightmost > CANVAS_W - FIEND_MIN_GAP) return;
+  // Wait until the previous fiend is completely gone
+  if (fiends.length > 0) return;
 
   let fiend;
   if (requeuedFiends.length > 0) {
@@ -269,6 +268,7 @@ function handleCorrectAnswer() {
 function handleWrongAnswer() {
   state.combo = 0;
   hero.setState('hurt');
+  activeFiend._redFlash = 0.5;  // red flash = wrong answer
   activeFiend.setState('attack');
   audio.playWrong();
   audio.playHeroHurt();
@@ -397,6 +397,7 @@ function gameLoop(ts) {
       const reached = fiends.find(f => f.state === 'idle' && !f.isDead);
       if (reached) {
         activeFiend = reached;
+        hero.setState('swing');  // hero attacks on sight
         showProblem(activeFiend);
       }
     }
