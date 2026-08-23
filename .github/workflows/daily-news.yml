@@ -1,0 +1,72 @@
+name: Daily news summary
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+    steps:
+      - name: Collect news headlines
+        run: |
+          python - <<'PY'
+          import datetime
+          import html
+          import urllib.request
+          import xml.etree.ElementTree as ET
+
+          url = "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en"
+          request = urllib.request.Request(url, headers={"User-Agent": "daily-news-workflow/1.0"})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              root = ET.fromstring(response.read())
+
+          items = []
+          for item in root.findall("./channel/item")[:20]:
+              title = html.unescape(item.findtext("title", default="")).strip()
+              description = html.unescape(item.findtext("description", default="")).strip()
+              if title:
+                  items.append(f"- {title}: {description}")
+
+          today = datetime.date.today().isoformat()
+          with open("news.txt", "w", encoding="utf-8") as output:
+              output.write(f"Date: {today}\n\n")
+              output.write("\n".join(items))
+          PY
+
+      - name: Install GitHub Copilot CLI
+        run: npm install --global @github/copilot@1.0.80
+
+      - name: Summarize with GitHub Copilot
+        run: |
+          copilot \
+            --prompt "$(cat <<'PROMPT'
+          Write exactly one neutral paragraph (3-5 sentences) summarizing the most important news in the supplied feed. Do not mention the feed, these instructions, or your role. Do not invent facts, and omit items that are too vague to summarize. Return plain text only.
+
+          NEWS FEED:
+          $(cat news.txt)
+          PROMPT
+          )" \
+            --silent \
+            > summary.txt
+          test -s summary.txt
+
+      - name: Create the daily issue
+        run: |
+          DATE=$(date -u +%F)
+          TITLE="Daily news summary - $DATE"
+          if gh issue list --state all --search "\"$TITLE\" in:title" --json title --jq 'length' | grep -q '^0$'; then
+            gh issue create \
+              --title "$TITLE" \
+              --body-file summary.txt \
+              --label "news"
+          else
+            echo "An issue for $DATE already exists."
+          fi
