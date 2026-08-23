@@ -56,53 +56,53 @@ function getFiendType(level) {
  * Configuration for all 40 levels
  */
 export const LevelConfig = [
-  // Chapter 1: Addition (Levels 1-10)
+  // Chapter 1: Addition (Levels 1-10)  — 3–4 waves
   { level: 1, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 5], b: [1, 5] }, maxResult: 10, fiendType: "slimeling", fiendHP: 1, waveSize: 3, inputMode: "multiple-choice" },
   { level: 2, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 5], b: [1, 5] }, maxResult: 10, fiendType: "slimeling", fiendHP: 1, waveSize: 3, inputMode: "multiple-choice" },
   { level: 3, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 10], b: [1, 10] }, maxResult: 20, fiendType: "slimeling", fiendHP: 1, waveSize: 3, inputMode: "multiple-choice" },
   { level: 4, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 10], b: [1, 10] }, maxResult: 20, fiendType: "slimeling", fiendHP: 1, waveSize: 3, inputMode: "multiple-choice" },
-  { level: 5, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 30, fiendType: "slimeling", fiendHP: 1, waveSize: 4, inputMode: "multiple-choice" },
+  { level: 5, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 30, fiendType: "slimeling", fiendHP: 1, waveSize: 3, inputMode: "multiple-choice" },
   { level: 6, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 30, fiendType: "slimeling", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
   { level: 7, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 40, fiendType: "slimeling", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
   { level: 8, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 40, fiendType: "slimeling", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
   { level: 9, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 50], b: [1, 50] }, maxResult: 100, fiendType: "slimeling", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
-  { level: 10, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 50], b: [1, 50] }, maxResult: 100, fiendType: "slimeling", fiendHP: 1, waveSize: 5, inputMode: "free-text" },
+  { level: 10, chapter: 1, chapterName: "Addition", operations: ['+'], operandRange: { a: [1, 50], b: [1, 50] }, maxResult: 100, fiendType: "slimeling", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
 
-  // Chapter 2: Addition & Subtraction (Levels 11-20)
-  { level: 11, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 5, inputMode: "free-text" },
-  { level: 12, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 5, inputMode: "free-text" },
-  { level: 13, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 5, inputMode: "free-text" },
-  { level: 14, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: 1, waveSize: 5, inputMode: "free-text" },
-  { level: 15, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: 1, waveSize: 6, inputMode: "free-text" },
-  { level: 16, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: calculateFiendHP(16, 16), waveSize: 6, inputMode: "free-text" },
-  { level: 17, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(17, 17), waveSize: 6, inputMode: "free-text" },
-  { level: 18, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(18, 18), waveSize: 6, inputMode: "free-text" },
-  { level: 19, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(19, 19), waveSize: 6, inputMode: "free-text" },
-  { level: 20, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(20, 20), waveSize: 7, inputMode: "free-text" },
+  // Chapter 2: Addition & Subtraction (Levels 11-20)  — 4–5 waves
+  { level: 11, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
+  { level: 12, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
+  { level: 13, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [5, 20], b: [1, 20] }, maxResult: 20, fiendType: "bonehead", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
+  { level: 14, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
+  { level: 15, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: 1, waveSize: 4, inputMode: "free-text" },
+  { level: 16, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 30], b: [1, 30] }, maxResult: 30, fiendType: "bonehead", fiendHP: calculateFiendHP(16, 16), waveSize: 5, inputMode: "free-text" },
+  { level: 17, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(17, 17), waveSize: 5, inputMode: "free-text" },
+  { level: 18, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(18, 18), waveSize: 5, inputMode: "free-text" },
+  { level: 19, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(19, 19), waveSize: 5, inputMode: "free-text" },
+  { level: 20, chapter: 2, chapterName: "Addition & Subtraction", operations: ['+', '-'], operandRange: { a: [1, 100], b: [1, 100] }, maxResult: 100, fiendType: "bonehead", fiendHP: calculateFiendHP(20, 20), waveSize: 5, inputMode: "free-text" },
 
-  // Chapter 3: Multiplication (Levels 21-30)
-  { level: 21, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 3] }, maxResult: 30, fiendType: "toadlord", fiendHP: calculateFiendHP(21, 21), waveSize: 7, inputMode: "free-text" },
-  { level: 22, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 3] }, maxResult: 30, fiendType: "toadlord", fiendHP: calculateFiendHP(22, 22), waveSize: 7, inputMode: "free-text" },
-  { level: 23, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 4] }, maxResult: 40, fiendType: "toadlord", fiendHP: 2, waveSize: 7, inputMode: "free-text" },
-  { level: 24, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 4] }, maxResult: 40, fiendType: "toadlord", fiendHP: 2, waveSize: 7, inputMode: "free-text" },
-  { level: 25, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 6] }, maxResult: 60, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 26, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 6] }, maxResult: 60, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 27, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 9] }, maxResult: 90, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 28, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 9] }, maxResult: 90, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 29, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [2, 25], b: [2, 12] }, maxResult: 300, fiendType: "toadlord", fiendHP: 2, waveSize: 8, inputMode: "free-text" },
-  { level: 30, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [2, 25], b: [2, 12] }, maxResult: 300, fiendType: "toadlord", fiendHP: 2, waveSize: 9, inputMode: "free-text" },
+  // Chapter 3: Multiplication (Levels 21-30)  — 5–6 waves
+  { level: 21, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 3] }, maxResult: 30, fiendType: "toadlord", fiendHP: calculateFiendHP(21, 21), waveSize: 5, inputMode: "free-text" },
+  { level: 22, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 3] }, maxResult: 30, fiendType: "toadlord", fiendHP: calculateFiendHP(22, 22), waveSize: 5, inputMode: "free-text" },
+  { level: 23, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 4] }, maxResult: 40, fiendType: "toadlord", fiendHP: 2, waveSize: 5, inputMode: "free-text" },
+  { level: 24, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 4] }, maxResult: 40, fiendType: "toadlord", fiendHP: 2, waveSize: 5, inputMode: "free-text" },
+  { level: 25, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 6] }, maxResult: 60, fiendType: "toadlord", fiendHP: 2, waveSize: 5, inputMode: "free-text" },
+  { level: 26, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 6] }, maxResult: 60, fiendType: "toadlord", fiendHP: 2, waveSize: 6, inputMode: "free-text" },
+  { level: 27, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 9] }, maxResult: 90, fiendType: "toadlord", fiendHP: 2, waveSize: 6, inputMode: "free-text" },
+  { level: 28, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [1, 10], b: [2, 9] }, maxResult: 90, fiendType: "toadlord", fiendHP: 2, waveSize: 6, inputMode: "free-text" },
+  { level: 29, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [2, 25], b: [2, 12] }, maxResult: 300, fiendType: "toadlord", fiendHP: 2, waveSize: 6, inputMode: "free-text" },
+  { level: 30, chapter: 3, chapterName: "Multiplication", operations: ['*'], operandRange: { a: [2, 25], b: [2, 12] }, maxResult: 300, fiendType: "toadlord", fiendHP: 2, waveSize: 6, inputMode: "free-text" },
 
-  // Chapter 4: All Operations (Levels 31-40)
-  { level: 31, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(31, 31), waveSize: 9, inputMode: "free-text" },
-  { level: 32, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(32, 32), waveSize: 9, inputMode: "free-text" },
-  { level: 33, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(33, 33), waveSize: 9, inputMode: "free-text" },
-  { level: 34, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(34, 34), waveSize: 9, inputMode: "free-text" },
-  { level: 35, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(35, 35), waveSize: 10, inputMode: "free-text" },
-  { level: 36, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(36, 36), waveSize: 10, inputMode: "free-text" },
-  { level: 37, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(37, 37), waveSize: 10, inputMode: "free-text" },
-  { level: 38, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(38, 38), waveSize: 10, inputMode: "free-text" },
-  { level: 39, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(39, 39), waveSize: 10, inputMode: "free-text" },
-  { level: 40, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(40, 40), waveSize: 11, inputMode: "free-text" },
+  // Chapter 4: All Operations (Levels 31-40)  — 6 waves
+  { level: 31, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(31, 31), waveSize: 6, inputMode: "free-text" },
+  { level: 32, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(32, 32), waveSize: 6, inputMode: "free-text" },
+  { level: 33, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 100], b: [2, 9] }, maxResult: 200, fiendType: "magelitch", fiendHP: calculateFiendHP(33, 33), waveSize: 6, inputMode: "free-text" },
+  { level: 34, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(34, 34), waveSize: 6, inputMode: "free-text" },
+  { level: 35, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(35, 35), waveSize: 6, inputMode: "free-text" },
+  { level: 36, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 200], b: [2, 12] }, maxResult: 500, fiendType: "magelitch", fiendHP: calculateFiendHP(36, 36), waveSize: 6, inputMode: "free-text" },
+  { level: 37, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(37, 37), waveSize: 6, inputMode: "free-text" },
+  { level: 38, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(38, 38), waveSize: 6, inputMode: "free-text" },
+  { level: 39, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(39, 39), waveSize: 6, inputMode: "free-text" },
+  { level: 40, chapter: 4, chapterName: "All Operations", operations: ['+', '-', '*', '/'], operandRange: { a: [1, 500], b: [2, 20] }, maxResult: 1000, fiendType: "magelitch", fiendHP: calculateFiendHP(40, 40), waveSize: 6, inputMode: "free-text" },
 ];
 
 /**
