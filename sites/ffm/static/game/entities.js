@@ -1,8 +1,14 @@
-// entities.js — detailed SNES-era pixel sprites for Math Fiend Slayer
+// entities.js — sprite-sheet-driven entities for Math Fiend Slayer
 
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
 
 const P = LOGICAL_PX; // shorthand
+
+// ─── Hero sprite sheet ───────────────────────────────────────────────────────
+const _heroSheet = new Image();
+_heroSheet.src = new URL('./hero-spritesheet.png', import.meta.url).href;
+const _CELL = 256; // px per cell in 1024×1536 sheet (4 cols × 6 rows)
+const _STATE_ROW = { idle: 0, swing: 1, hurt: 2, victory: 3, walk: 4, dead: 5 };
 
 // ─── Base Entity ─────────────────────────────────────────────────────────────
 export class Entity {
@@ -41,116 +47,13 @@ export class Hero extends Entity {
   }
 
   draw(ctx) {
-    const bx = ~~(this.x - 12*P);
-    const by = ~~(this.y - 36*P);
-    const br = (this._state === 'hurt') ? 1 : 0;
-    const breathe = (this._state === 'idle' && this._frame === 1) ? P : 0;
-
-    if (this._state === 'dead') { this._drawDead(ctx, bx, by); return; }
-
-    // --- boots ---
-    ctx.fillStyle = '#5a3010';
-    ctx.fillRect(bx+5*P, by+32*P, 5*P, 4*P);
-    ctx.fillRect(bx+14*P, by+32*P, 5*P, 4*P);
-    ctx.fillStyle = '#3a1a08';
-    ctx.fillRect(bx+5*P, by+35*P, 5*P, P);
-    ctx.fillRect(bx+14*P, by+35*P, 5*P, P);
-
-    // --- pants ---
-    ctx.fillStyle = '#5a3820';
-    ctx.fillRect(bx+5*P, by+26*P+breathe, 5*P, 6*P);
-    ctx.fillRect(bx+14*P, by+26*P+breathe, 5*P, 6*P);
-    ctx.fillStyle = '#7a5030';
-    ctx.fillRect(bx+6*P, by+26*P+breathe, 3*P, P);
-    ctx.fillRect(bx+15*P, by+26*P+breathe, 3*P, P);
-
-    // --- tunic body ---
-    ctx.fillStyle = br ? '#d05040' : '#3a8030';
-    ctx.fillRect(bx+6*P, by+18*P+breathe, 12*P, 10*P);
-    // tunic highlights
-    ctx.fillStyle = br ? '#e87060' : '#50a848';
-    ctx.fillRect(bx+7*P, by+18*P+breathe, 3*P, 8*P);
-    // tunic shadow
-    ctx.fillStyle = br ? '#b03020' : '#287018';
-    ctx.fillRect(bx+16*P, by+18*P+breathe, 2*P, 10*P);
-    // belt
-    ctx.fillStyle = '#7a5020';
-    ctx.fillRect(bx+6*P, by+26*P+breathe, 12*P, 2*P);
-    ctx.fillStyle = '#c8a040';
-    ctx.fillRect(bx+11*P, by+26*P+breathe, 2*P, 2*P); // buckle
-
-    // --- arms ---
-    ctx.fillStyle = '#f4c080';  // skin
-    ctx.fillRect(bx+3*P, by+18*P+breathe, 3*P, 7*P);  // left arm
-    ctx.fillRect(bx+18*P, by+18*P+breathe, 3*P, 6*P); // right arm (sword hand)
-    // arm cuff
-    ctx.fillStyle = br ? '#c03020' : '#287018';
-    ctx.fillRect(bx+3*P, by+22*P+breathe, 3*P, 2*P);
-    ctx.fillRect(bx+18*P, by+22*P+breathe, 3*P, 2*P);
-
-    // --- sword ---
-    const swingExt = (this._state === 'swing') ? this._frame * 3 * P : 0;
-    const swingAng = (this._state === 'swing') ? -this._frame * P : 0;
-    // blade
-    ctx.fillStyle = '#d8e0e8';
-    ctx.fillRect(bx+20*P+swingExt, by+20*P+breathe+swingAng, 14*P, 2*P);
-    ctx.fillStyle = '#f0f8ff';
-    ctx.fillRect(bx+20*P+swingExt, by+20*P+breathe+swingAng, 14*P, P);
-    // guard
-    ctx.fillStyle = '#c8a030';
-    ctx.fillRect(bx+18*P, by+18*P+breathe, 3*P, 6*P);
-    ctx.fillStyle = '#e8c040';
-    ctx.fillRect(bx+18*P, by+19*P+breathe, 3*P, 2*P);
-    // handle
-    ctx.fillStyle = '#7a4018';
-    ctx.fillRect(bx+15*P, by+20*P+breathe, 3*P, 4*P);
-    ctx.fillStyle = '#c8a060';
-    ctx.fillRect(bx+15*P, by+20*P+breathe, P, 4*P);
-
-    // --- head ---
-    ctx.fillStyle = '#f4c080';
-    ctx.fillRect(bx+7*P, by+8*P+breathe, 10*P, 10*P);
-    // ear
-    ctx.fillRect(bx+6*P, by+11*P+breathe, 2*P, 4*P);
-    ctx.fillRect(bx+17*P, by+11*P+breathe, 2*P, 4*P);
-    // cheek
-    ctx.fillStyle = '#f8a8a0';
-    ctx.fillRect(bx+14*P, by+13*P+breathe, 2*P, 2*P);
-
-    // --- hair (red, spiky) ---
-    ctx.fillStyle = '#d83820';
-    ctx.fillRect(bx+7*P, by+6*P+breathe, 10*P, 4*P);   // base
-    ctx.fillRect(bx+6*P, by+5*P+breathe, 3*P, 3*P);    // left spike
-    ctx.fillRect(bx+10*P, by+4*P+breathe, 4*P, 3*P);   // mid spike
-    ctx.fillRect(bx+15*P, by+5*P+breathe, 3*P, 3*P);   // right spike
-    ctx.fillStyle = '#f04030';
-    ctx.fillRect(bx+8*P, by+5*P+breathe, 2*P, 2*P);    // hair highlight
-
-    // --- eye ---
-    ctx.fillStyle = '#204880';
-    ctx.fillRect(bx+10*P, by+12*P+breathe, 2*P, 2*P);
-    ctx.fillRect(bx+15*P, by+12*P+breathe, 2*P, 2*P);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(bx+10*P, by+12*P+breathe, P, P);
-    ctx.fillRect(bx+15*P, by+12*P+breathe, P, P);
-
-    // victory: sword raised
-    if (this._state === 'victory') {
-      const vf = this._frame;
-      ctx.fillStyle = '#d8e0e8';
-      ctx.fillRect(bx+18*P, by+4*P-vf*P, 2*P, 14*P+vf*P);
-      ctx.fillStyle = '#c8a030';
-      ctx.fillRect(bx+16*P, by+9*P-vf*P, 6*P, 3*P);
-    }
-  }
-
-  _drawDead(ctx, bx, by) {
-    ctx.fillStyle = '#888888';
-    ctx.fillRect(bx+4*P, by+28*P, 16*P, 8*P);
-    ctx.fillRect(bx+4*P, by+22*P, 10*P, 6*P);
-    ctx.fillStyle = '#666';
-    ctx.fillRect(bx+4*P, by+22*P, 4*P, P);
-    ctx.fillRect(bx+8*P, by+23*P, 2*P, 2*P);
+    const row = _STATE_ROW[this._state] ?? 0;
+    const col = Math.min(this._frame, (H_FRM[this._state] ?? 1) - 1);
+    // dest matches the 12px padding used in the exported sheet template
+    ctx.drawImage(_heroSheet,
+      col * _CELL, row * _CELL, _CELL, _CELL,
+      this.x - 12*P - 12, this.y - 36*P - 12, 200, 168
+    );
   }
 }
 

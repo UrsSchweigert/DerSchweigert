@@ -6,6 +6,9 @@ export const CANVAS_H   = 450;
 export const GROUND_Y   = 340;   // y where hero / front fiends anchor
 export const HERO_X     = 110;
 
+const _bgImage = new Image();
+_bgImage.src = new URL('./background.png', import.meta.url).href;
+
 // 5×7 pixel font — chars needed for math questions + HUD labels
 export const PIXEL_FONT = {
   '0':['01110','10001','10011','10101','11001','10001','01110'],
@@ -61,33 +64,18 @@ export class Renderer {
   // ─── main background ────────────────────────────────────────────────────────
   drawBackground(scrollX) {
     const ctx = this.ctx;
-
-    // Layer 0 – sky
-    const sky = ctx.createLinearGradient(0, 0, 0, 200);
-    sky.addColorStop(0,   '#3a8ec8');
-    sky.addColorStop(0.55,'#68b8e8');
-    sky.addColorStop(1,   '#b0dcf8');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, CANVAS_W, 200);
-    this._clouds(ctx);
-
-    // Layer 1 – distant mountains  (scroll 0.06×)
-    const mOff = mod(scrollX * 0.06, CANVAS_W);
-    for (let w = 0; w < 2; w++) this._mountains(ctx, mOff - CANVAS_W + w * CANVAS_W);
-
-    // Layer 2 – far forest silhouette  (scroll 0.16×)
-    const ff = mod(scrollX * 0.16, CANVAS_W);
-    for (let w = 0; w < 2; w++) this._farForest(ctx, ff - CANVAS_W + w * CANVAS_W);
-
-    // Layer 3 – near trees + waterfall  (scroll 0.33×)
-    const mf = mod(scrollX * 0.33, CANVAS_W);
-    for (let w = 0; w < 2; w++) this._nearTrees(ctx, mf - CANVAS_W + w * CANVAS_W);
-
-    // Layer 4 – 3-D cobblestone path + grass
-    this._ground(ctx, scrollX);
-
-    // Layer 5 – front stone wall
-    this._frontWall(ctx, scrollX);
+    if (!_bgImage.complete || !_bgImage.naturalWidth) {
+      ctx.fillStyle = '#3a8ec8';
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      return;
+    }
+    // scale image to fill canvas width; crop top+bottom if taller than canvas
+    const dw  = CANVAS_W;
+    const dh  = _bgImage.naturalHeight * (CANVAS_W / _bgImage.naturalWidth);
+    const dy  = (CANVAS_H - dh) / 2;
+    const off = mod(scrollX * 0.2, dw);
+    ctx.drawImage(_bgImage, -off, dy, dw, dh);
+    ctx.drawImage(_bgImage, -off + dw, dy, dw, dh);
   }
 
   // ─── layer helpers ──────────────────────────────────────────────────────────
