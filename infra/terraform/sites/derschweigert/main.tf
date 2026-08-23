@@ -136,7 +136,7 @@ module "site" {
 
   app_name            = local.app_name
   domain              = local.domain
-  additional_aliases  = [local.www_domain, local.ffm_domain]
+  additional_aliases  = [local.www_domain]  # ffm gets its own dedicated stack
   route53_zone_id                  = data.aws_route53_zone.primary.zone_id
   viewer_request_function_code     = local.pin_lock_function_code
   viewer_request_function_comment  = "Block access until a valid PIN cookie is present"
