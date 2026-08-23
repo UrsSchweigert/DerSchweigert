@@ -196,7 +196,10 @@ export class Fiend extends Entity {
     this._frame++;
     const max = F_FRM[this._state] || 2;
     if (this._frame >= max) {
-      if (this._state === 'hit' || this._state === 'attack') this.setState('idle');
+      if (this._state === 'hit' || this._state === 'attack') {
+        // resume walking if not yet at combat range
+        this.setState(this.x > HERO_X + 108 ? 'walk' : 'idle');
+      }
       else if (this._state === 'death') {
         if (this._particles.length === 0) this._spawnParticles();
         if (this._particles.every(p => p.life <= 0)) this._emit('dead');

@@ -394,10 +394,11 @@ function gameLoop(ts) {
     fiends.forEach(f => f.update(dt));
     
     if (!activeFiend && !inputDisabled) {
-      const reached = fiends.find(f => f.state === 'idle' && !f.isDead);
-      if (reached) {
-        activeFiend = reached;
-        hero.setState('swing');  // hero attacks on sight
+      // enable input as soon as the problem bubble enters the screen
+      const visible = fiends.find(f => !f.isDead && f.problem && f.x < CANVAS_W - 40);
+      if (visible) {
+        activeFiend = visible;
+        hero.setState('swing');
         showProblem(activeFiend);
       }
     }
