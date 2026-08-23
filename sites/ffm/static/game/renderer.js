@@ -306,30 +306,41 @@ export class Renderer {
 
   drawHUD(hearts, maxHearts, score, combo, levelLabel) {
     const ctx=this.ctx,P=LOGICAL_PX;
-    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(0,0,CANVAS_W,38);
-    ctx.fillStyle='#1a3060';ctx.fillRect(0,36,CANVAS_W,2);
-    // HP label
-    ctx.fillStyle='#e83030';ctx.fillRect(8,7,20,11);
-    this._text('HP',10,8,'#fff',.65);
-    // hearts
+    const hP=P>>1;                        // half-scale pixel for hearts/icons (2 when P=4)
+    const barH=7*P+10;                    // bar height: 38px when P=4
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(0,0,CANVAS_W,barH);
+    ctx.fillStyle='#1a3060';ctx.fillRect(0,barH-2,CANVAS_W,2);
+    // HP label box — wide enough to contain "HP" text
+    const hpS=0.65,hpTW=~~(2*6*P*hpS),hpBW=hpTW+6;
+    ctx.fillStyle='#e83030';ctx.fillRect(4,5,hpBW,barH-10);
+    this._text('HP',7,~~(5+(barH-10-7*P*hpS)/2),'#fff',hpS);
+    // hearts — scaled with hP so they match the text height
+    const heartY=~~((barH-10*hP)/2);
     for(let i=0;i<maxHearts;i++){
-      const hx=32+i*16,hy=8,f=i<hearts;
+      const hx=4+hpBW+4+i*13*hP,hy=heartY,f=i<hearts;
       ctx.fillStyle=f?'#e82020':'#401010';
-      ctx.fillRect(hx+1,hy,4,3);ctx.fillRect(hx+7,hy,4,3);
-      ctx.fillRect(hx,hy+2,12,5);ctx.fillRect(hx+2,hy+7,8,2);ctx.fillRect(hx+4,hy+9,4,2);
-      if(f){ctx.fillStyle='#ff6868';ctx.fillRect(hx+2,hy+1,3,2);}
+      ctx.fillRect(hx+hP,hy,4*hP,3*hP);ctx.fillRect(hx+7*hP,hy,4*hP,3*hP);
+      ctx.fillRect(hx,hy+2*hP,12*hP,5*hP);ctx.fillRect(hx+2*hP,hy+7*hP,8*hP,2*hP);
+      ctx.fillRect(hx+4*hP,hy+9*hP,4*hP,hP);
+      if(f){ctx.fillStyle='#ff6868';ctx.fillRect(hx+2*hP,hy+hP,3*hP,2*hP);}
     }
-    // coin + score
+    // coin + score (right-aligned)
+    const ty=~~((barH-7*P)/2);
     const sc=''+score;const scoreX=CANVAS_W-10-sc.length*6*P;
-    ctx.fillStyle='#e8c040';ctx.fillRect(scoreX-18,9,12,12);
-    ctx.fillStyle='#fce880';ctx.fillRect(scoreX-16,10,8,5);
-    ctx.fillStyle='#b09020';ctx.fillRect(scoreX-18,19,12,2);
-    this._text(sc,scoreX,9,'#f8e040');
-    // combo
-    if(combo>=2){const cs='×'+combo;this._text(cs,CANVAS_W-10-cs.length*6*P,28,'#ff8020');}
-    // level
+    const cW=(7*P)>>1;                    // coin size: 14px when P=4
+    const coinX=scoreX-cW-4,coinY=ty+~~((7*P-cW)/2);
+    ctx.fillStyle='#e8c040';ctx.fillRect(coinX,coinY,cW,cW);
+    ctx.fillStyle='#fce880';ctx.fillRect(coinX+1,coinY+1,cW-2,cW>>1);
+    ctx.fillStyle='#b09020';ctx.fillRect(coinX,coinY+cW-2,cW,2);
+    this._text(sc,scoreX,ty,'#f8e040');
+    // combo — placed left of coin on the same row so it stays inside the bar
+    if(combo>=2){
+      const cs='×'+combo,csS=0.65,csW=~~(cs.length*6*P*csS);
+      this._text(cs,coinX-6-csW,ty+~~(7*P*(1-csS)/2),'#ff8020',csS);
+    }
+    // level (centred)
     const llX=~~(CANVAS_W/2-levelLabel.length*3*P);
-    this._text(levelLabel,llX,9,'#f0f0f0');
+    this._text(levelLabel,llX,ty,'#f0f0f0');
   }
 
   drawBanner(text) {
