@@ -118,12 +118,12 @@ jobs:
               target = None
               for record in rrset.get("ResourceRecordSets", []):
                   if record.get("Name") == f"{host}." and record.get("Type") == "A":
-                      target = record.get("Alias", {}).get("DNSName")
+                      target = record.get("AliasTarget", {}).get("DNSName")
                       break
               if target is None:
                   raise SystemExit(f"Missing Route53 A alias for {host}")
               print(f"{host} -> {target}")
-              if target != cf_domain:
+              if target.rstrip('.').lower() != cf_domain.rstrip('.').lower():
                   raise SystemExit(f"Route53 alias mismatch for {host}: expected {cf_domain}, got {target}")
           PY
 
