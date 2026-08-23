@@ -318,7 +318,7 @@ export class Renderer {
     const heartY=~~((barH-10*hP)/2);
     for(let i=0;i<maxHearts;i++){
       const hx=4+hpBW+4+i*13*hP,hy=heartY,f=i<hearts;
-      ctx.fillStyle=f?'#e82020':'#401010';
+      ctx.fillStyle=f?'#e82020':'#6a2020';
       ctx.fillRect(hx+hP,hy,4*hP,3*hP);ctx.fillRect(hx+7*hP,hy,4*hP,3*hP);
       ctx.fillRect(hx,hy+2*hP,12*hP,5*hP);ctx.fillRect(hx+2*hP,hy+7*hP,8*hP,2*hP);
       ctx.fillRect(hx+4*hP,hy+9*hP,4*hP,hP);
