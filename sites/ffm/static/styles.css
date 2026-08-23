@@ -213,23 +213,23 @@ input[type=number] {
 }
 
 #top-bar {
-  position: absolute;
-  top: 40px;
-  right: 4px;
-  z-index: 30;
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  z-index: 200;
   display: flex;
-  gap: 4px;
+  gap: 8px;
 }
 
 #top-bar button,
 #top-bar span {
-  background: rgba(5,5,20,0.75);
+  background: #1a1a3a;
   color: #f0f0f0;
-  border: 1px solid #4040a0;
-  padding: 4px 8px;
+  border: 2px solid #4040a0;
+  padding: 8px 12px;
   cursor: pointer;
   font-family: monospace;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 #top-bar button:hover {

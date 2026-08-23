@@ -317,7 +317,7 @@ export class Renderer {
     // hearts — scaled with hP so they match the text height
     const heartY=~~((barH-10*hP)/2);
     for(let i=0;i<maxHearts;i++){
-      const hx=4+hpBW+4+i*13*hP,hy=heartY,f=i<hearts;
+      const hx=4+hpBW+4+i*16*hP,hy=heartY,f=i<hearts;
       ctx.fillStyle=f?'#e82020':'#6a2020';
       ctx.fillRect(hx+hP,hy,4*hP,3*hP);ctx.fillRect(hx+7*hP,hy,4*hP,3*hP);
       ctx.fillRect(hx,hy+2*hP,12*hP,5*hP);ctx.fillRect(hx+2*hP,hy+7*hP,8*hP,2*hP);
@@ -326,7 +326,7 @@ export class Renderer {
     }
     // coin + score (right-aligned)
     const ty=~~((barH-7*P)/2);
-    const sc=''+score;const scoreX=CANVAS_W-10-sc.length*6*P;
+    const sc=''+(score|0);const scoreX=CANVAS_W-10-sc.length*6*P;
     const cW=(7*P)>>1;                    // coin size: 14px when P=4
     const coinX=scoreX-cW-4,coinY=ty+~~((7*P-cW)/2);
     ctx.fillStyle='#e8c040';ctx.fillRect(coinX,coinY,cW,cW);

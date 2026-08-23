@@ -45,6 +45,7 @@ const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const userDisplay = document.getElementById('username-display');
 const muteBtn = document.getElementById('mute-btn');
+const topBar  = document.getElementById('top-bar');
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
 const loginError = document.getElementById('login-error');
@@ -172,6 +173,7 @@ function startLevel(levelIndex) {
   spawnTimer = 2.0;
   state.combo = 0;
   gameRunning = true;
+  topBar.style.display = 'none';
   hud.update(state);
   audio.startBGM(cfg.chapter);
   if (!animFrameId) gameLoop(performance.now());
@@ -393,6 +395,7 @@ function triggerLevelClear() {
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
   levelClearTitle.textContent = `Level ${completedLevelNum} Clear!`;
   levelClearScore.textContent = `Score: ${state.score}`;
+  topBar.style.display = 'flex';
   btnNextLevel.onclick = () => {
     levelClearOverlay.style.display = 'none';
     startLevel(completedIndex + 1);
@@ -406,6 +409,7 @@ function triggerLevelClear() {
 
 function triggerGameOver() {
   gameRunning = false;
+  topBar.style.display = 'flex';
   audio.stopBGM();
   audio.playGameOver();
   renderer.drawBanner('GAME OVER  SCORE: ' + state.score);
