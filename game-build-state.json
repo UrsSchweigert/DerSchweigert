@@ -1,0 +1,73 @@
+{
+  "project": "Math Fiend Slayer",
+  "spec": "ffm-math-game.prompt.md",
+  "agent_pattern": "lead-worker: lead decomposes + reviews, worker writes code",
+  "phases": {
+    "1-infra": {
+      "status": "done",
+      "depends_on": [],
+      "lead_model": "Claude Sonnet 4.6 (copilot)",
+      "worker_model": "Claude Haiku 3.5 (copilot)",
+      "prompt": ".github/prompts/game/phase-1-infra.prompt.md",
+      "validation": "terraform -chdir=infra/terraform/sites/ffm validate",
+      "validation_expect": "Success",
+      "started_at": "2026-08-23T00:30:00Z",
+      "completed_at": "2026-08-23T01:00:00Z"
+    },
+    "2-backend": {
+      "status": "done",
+      "depends_on": [],
+      "lead_model": "Claude Sonnet 4.6 (copilot)",
+      "worker_model": "Claude Haiku 3.5 (copilot)",
+      "prompt": ".github/prompts/game/phase-2-backend.prompt.md",
+      "validation": "pytest sites/ffm/tests/test_app.py -q --tb=short",
+      "validation_expect": "passed",
+      "started_at": "2026-08-23T01:00:00Z",
+      "completed_at": "2026-08-23T02:00:00Z"
+    },
+    "3-math-engine": {
+      "status": "done",
+      "depends_on": [],
+      "lead_model": "Claude Sonnet 5 (copilot)",
+      "worker_model": "Claude Haiku 3.5 (copilot)",
+      "prompt": ".github/prompts/game/phase-3-math-engine.prompt.md",
+      "validation": "node --test sites/ffm/static/game/levels.test.js",
+      "validation_expect": "# pass",
+      "started_at": "2026-08-23T00:00:00Z",
+      "completed_at": "2026-08-23T00:30:00Z"
+    },
+    "4-renderer": {
+      "status": "done",
+      "depends_on": ["3-math-engine"],
+      "lead_model": "Claude Sonnet 4.6 (copilot)",
+      "worker_model": "Claude Haiku 3.5 (copilot)",
+      "prompt": ".github/prompts/game/phase-4-renderer.prompt.md",
+      "validation": "test -f sites/ffm/static/game/renderer.js && test -f sites/ffm/static/game/entities.js",
+      "validation_expect": "exit 0",
+      "started_at": "2026-08-23T02:00:00Z",
+      "completed_at": "2026-08-23T03:00:00Z"
+    },
+    "5-game-loop": {
+      "status": "done",
+      "depends_on": ["3-math-engine", "4-renderer"],
+      "lead_model": "Claude Opus 4.5 (copilot)",
+      "worker_model": "Claude Haiku 3.5 (copilot)",
+      "prompt": ".github/prompts/game/phase-5-game-loop.prompt.md",
+      "validation": "test -f sites/ffm/static/index.html && test -f sites/ffm/static/game/main.js",
+      "validation_expect": "exit 0",
+      "started_at": "2026-08-23T03:00:00Z",
+      "completed_at": "2026-08-23T04:00:00Z"
+    },
+    "6-cicd": {
+      "status": "done",
+      "depends_on": ["1-infra", "2-backend", "5-game-loop"],
+      "lead_model": "Claude Sonnet 4.6 (copilot)",
+      "worker_model": "Claude Haiku 3.5 (copilot)",
+      "prompt": ".github/prompts/game/phase-6-cicd.prompt.md",
+      "validation": "grep -q 'deploy-ffm' .github/workflows/deploy.yml",
+      "validation_expect": "exit 0",
+      "started_at": "2026-08-23T04:00:00Z",
+      "completed_at": "2026-08-23T05:00:00Z"
+    }
+  }
+}
