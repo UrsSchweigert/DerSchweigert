@@ -2,26 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Math Fiend Slayer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="game-wrap">
   <canvas id="game" width="800" height="450"></canvas>
   
   <div id="input-zone">
     <div id="mc-buttons">
-      <button class="mc-btn" type="button" data-index="0"></button>
-      <button class="mc-btn" type="button" data-index="1"></button>
-      <button class="mc-btn" type="button" data-index="2"></button>
-      <button class="mc-btn" type="button" data-index="3"></button>
+      <button class="mc-btn" type="button" touch-action="manipulation" data-index="0"></button>
+      <button class="mc-btn" type="button" touch-action="manipulation" data-index="1"></button>
+      <button class="mc-btn" type="button" touch-action="manipulation" data-index="2"></button>
+      <button class="mc-btn" type="button" touch-action="manipulation" data-index="3"></button>
     </div>
     <div id="free-text-zone">
-      <input id="answer-input" type="text" inputmode="numeric" placeholder="Answer..." autocomplete="off">
-      <button id="strike-btn" type="button">Strike!</button>
+      <input id="answer-input" type="text" inputmode="numeric" placeholder="..." autocomplete="off" autocorrect="off" autocapitalize="off">
+      <button id="strike-btn" type="button" touch-action="manipulation">Strike!</button>
     </div>
     <div id="timer-bar-container"></div>
-  </div>
+  </div><!-- #input-zone -->
+  </div><!-- #game-wrap -->
   
   <div id="difficulty-select" class="overlay">
     <div class="overlay-card">

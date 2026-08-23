@@ -1,30 +1,62 @@
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   background: #0a0a1a;
   margin: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  min-height: 100vh;
+  justify-content: center;
   color: #f0f0f0;
   font-family: monospace;
 }
 
+/* Wrapper shrinks to canvas size so absolute children can reference it */
+#game-wrap {
+  position: relative;
+  flex-shrink: 0;
+  /* Scale canvas to fill viewport at 16:9 */
+  width: min(100vw, calc(100svh * 800 / 450));
+  aspect-ratio: 800 / 450;
+  max-width: 800px;
+  max-height: 450px;
+  /* Fallback for browsers without svh */
+  width: min(100vw, calc(100vh * 800 / 450));
+  width: min(100vw, calc(100svh * 800 / 450));
+}
+
 #game {
   display: block;
-  max-width: 100%;
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
 }
 
+/* Input zone overlays the bottom of the canvas */
 #input-zone {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  width: 800px;
-  max-width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: rgba(5, 5, 20, 0.88);
+  z-index: 20;
+  box-sizing: border-box;
 }
 
 #mc-buttons {
@@ -33,14 +65,16 @@ body {
 }
 
 .mc-btn {
-  min-width: 80px;
-  min-height: 40px;
+  min-width: 72px;
+  min-height: 48px;
   background: #1a1a3a;
   color: #f0f0f0;
   border: 2px solid #4040a0;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 20px;
   font-family: monospace;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mc-btn:hover {
@@ -88,10 +122,13 @@ input[type=number] {
   background: #4040c0;
   color: white;
   padding: 8px 16px;
+  min-height: 44px;
   border: none;
   cursor: pointer;
   font-family: monospace;
   font-size: 16px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #strike-btn:hover {
@@ -158,6 +195,13 @@ input[type=number] {
 }
 
 #top-bar {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  z-index: 200;
+  display: flex;
+  gap: 8px;
+}
   position: fixed;
   top: 8px;
   right: 8px;
