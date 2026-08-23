@@ -213,7 +213,7 @@ export function generateProblem(levelIndex, rngSeed) {
     a = rng.nextInt(aMin, aMax);
     b = rng.nextInt(1, a);
     answer = a - b;
-    question = `${a} − ${b} = ?`;
+    question = `${a} - ${b} = ?`;
   } else if (operation === '*') {
     // Multiplication
     const [aMin, aMax] = cfg.operandRange.a;

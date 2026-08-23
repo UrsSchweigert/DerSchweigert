@@ -73,7 +73,7 @@ export class Hero extends Entity {
       const t = this._tick * 0.25;
       const scale = 1 + 0.1 * Math.sin(t);
       const fade  = Math.min(1, this._healAura * 2);
-      const cx = this.x + 44; const cy = this.y - 73;
+      const cx = this.x + 44; const cy = this.y - 73 + 6*P;
       ctx.save();
       ctx.globalAlpha = fade * (0.45 + 0.3 * Math.sin(t)) * 0.55;
       ctx.fillStyle = '#30f060';
@@ -84,12 +84,12 @@ export class Hero extends Entity {
       ctx.restore();
     }
     ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH,
-      this.x - 36, this.y - drawH, drawW, drawH);
+      this.x - 36, this.y - drawH + 6*P, drawW, drawH);
     if (this._healAura > 0) {
       const t2 = this._tick * 0.25 + 1;
       const scale2 = 1 + 0.08 * Math.sin(t2);
       const fade2  = Math.min(1, this._healAura * 2);
-      const cx = this.x + 44; const cy = this.y - 73;
+      const cx = this.x + 44; const cy = this.y - 73 + 6*P;
       ctx.save();
       ctx.globalAlpha = fade2 * (0.3 + 0.2 * Math.sin(t2)) * 0.35;
       ctx.fillStyle = '#20f850';
