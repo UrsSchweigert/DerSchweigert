@@ -153,6 +153,139 @@ input[type=number] {
   z-index: 100;
 }
 
+/* ── Splash screen ────────────────────────────────────── */
+.splash-screen {
+  background: #0a0a1a;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.splash-bg {
+  position: absolute;
+  inset: 0;
+  background: url('game/splash-bg.png') center center / cover no-repeat;
+  filter: brightness(0.55) saturate(1.1);
+}
+
+.splash-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 16px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+}
+
+.splash-title {
+  font-family: monospace;
+  font-size: clamp(28px, 6vw, 52px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #ffe080;
+  text-shadow:
+    0 0 12px #ff9000,
+    0 0 28px #ff4400,
+    2px 3px 0 #000;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.splash-login-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.splash-greeting {
+  font-family: monospace;
+  font-size: 14px;
+  color: #a0e0a0;
+}
+
+.splash-subtitle {
+  font-family: monospace;
+  font-size: 15px;
+  color: #c0c0e0;
+  margin: 0;
+  text-shadow: 1px 1px 4px #000;
+}
+
+.splash-diff-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.splash-btn {
+  font-family: monospace;
+  font-size: 14px;
+  padding: 8px 20px;
+  cursor: pointer;
+  border: 2px solid;
+  transition: background 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.splash-btn--secondary {
+  background: rgba(20, 20, 60, 0.85);
+  color: #a0c0ff;
+  border-color: #4060c0;
+}
+
+.splash-btn--secondary:hover {
+  background: rgba(40, 40, 100, 0.9);
+}
+
+.splash-btn:focus {
+  outline: 2px solid #8080e0;
+  outline-offset: 2px;
+}
+
+.splash-diff-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(10, 10, 40, 0.82);
+  backdrop-filter: blur(4px);
+  border-color: #6060c0;
+  padding: 12px 16px;
+  text-shadow: 1px 1px 3px #000;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.splash-diff-btn:hover {
+  background: rgba(40, 40, 90, 0.92);
+  border-color: #9090f0;
+  transform: scale(1.02);
+}
+
+.diff-label {
+  font-size: 18px;
+  font-weight: bold;
+  color: #f0f0ff;
+}
+
+.diff-detail {
+  font-size: 12px;
+  color: #9090c0;
+}
+
+[data-difficulty="easy"] .diff-label  { color: #80f080; }
+[data-difficulty="easy"]              { border-color: #408040; }
+[data-difficulty="easy"]:hover        { border-color: #60c060; }
+
+[data-difficulty="hard"] .diff-label  { color: #ff8080; }
+[data-difficulty="hard"]              { border-color: #803030; }
+[data-difficulty="hard"]:hover        { border-color: #d06060; }
+
 .overlay-card {
   background: #1a1a3a;
   border: 2px solid #4040a0;

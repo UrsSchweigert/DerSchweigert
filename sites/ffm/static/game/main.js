@@ -53,6 +53,8 @@ const registerError = document.getElementById('register-error');
 const tabLogin = document.getElementById('tab-login');
 const tabRegister = document.getElementById('tab-register');
 const closeAuth = document.getElementById('close-auth');
+const splashLoginBtn = document.getElementById('splash-login-btn');
+const splashGreeting = document.getElementById('splash-user-greeting');
 
 // --- Engine instances ---
 const renderer = new Renderer(canvas);
@@ -77,6 +79,30 @@ const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this dist
 
 // --- Input ---
 const input = new InputManager(handleAnswer);
+
+// --- Splash login button ---
+function updateSplashAuthState() {
+  if (api.username) {
+    splashLoginBtn.textContent = 'Logout';
+    splashGreeting.textContent = `Welcome, ${api.username}!`;
+  } else {
+    splashLoginBtn.textContent = 'Login / Register';
+    splashGreeting.textContent = '';
+  }
+}
+
+splashLoginBtn.addEventListener('click', () => {
+  if (api.username) {
+    api.logout().then(() => {
+      loginBtn.style.display = '';
+      logoutBtn.style.display = 'none';
+      userDisplay.style.display = 'none';
+      updateSplashAuthState();
+    });
+  } else {
+    authModal.style.display = 'flex';
+  }
+});
 
 // --- Difficulty select ---
 document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
@@ -103,6 +129,7 @@ logoutBtn.addEventListener('click', async () => {
   loginBtn.style.display = '';
   logoutBtn.style.display = 'none';
   userDisplay.style.display = 'none';
+  updateSplashAuthState();
 });
 tabLogin.addEventListener('click', () => {
   loginForm.style.display = '';
@@ -128,6 +155,7 @@ loginForm.addEventListener('submit', async e => {
     userDisplay.style.display = '';
     logoutBtn.style.display = '';
     loginError.textContent = '';
+    updateSplashAuthState();
   } catch (err) {
     loginError.textContent = err.message;
   }
@@ -145,6 +173,7 @@ registerForm.addEventListener('submit', async e => {
     userDisplay.style.display = '';
     logoutBtn.style.display = '';
     registerError.textContent = '';
+    updateSplashAuthState();
   } catch (err) {
     registerError.textContent = err.message;
   }
