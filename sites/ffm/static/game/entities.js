@@ -165,6 +165,7 @@ export class Fiend extends Entity {
     this.problem = null;
     this.wasRequeued = false;
     this._redFlash = 0;
+    this._particlesSpawned = false;
     this._particles = [];
     this._events = new EventTarget();
     this._dur = 8;
@@ -201,8 +202,12 @@ export class Fiend extends Entity {
         this.setState(this.x > HERO_X + 108 ? 'walk' : 'idle');
       }
       else if (this._state === 'death') {
-        if (this._particles.length === 0) this._spawnParticles();
-        if (this._particles.every(p => p.life <= 0)) this._emit('dead');
+        if (!this._particlesSpawned) {
+          this._spawnParticles();
+          this._particlesSpawned = true;
+        } else if (this._particles.length === 0) {
+          this._emit('dead');
+        }
         this._frame = max - 1;
       } else this._frame = 0;
     }
