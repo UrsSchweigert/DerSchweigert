@@ -704,7 +704,7 @@ export class Fiend extends Entity {
 // ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────
 export class Slimeling extends Fiend {
   constructor(x, y, hp = 1) {
-    super(x, y, { hp, palette: { body:'#4488e8', dark:'#2255b0', hi:'#88ccff' } });
+    super(x, y, { hp, palette: { body:'#f07030', dark:'#a04010', hi:'#ffb060' } });
   }
 
   draw(ctx) {
@@ -730,7 +730,7 @@ export class Slimeling extends Fiend {
     ctx.fillRect(bx+4*P, by+P,   4*P, 3*P);
     ctx.fillRect(bx+3*P, by+3*P, 2*P, 2*P);
     // underbelly
-    ctx.fillStyle = '#c0d8ff';
+    ctx.fillStyle = '#ffe0c0';
     ctx.fillRect(bx+4*P, by+10*P, 10*P, 4*P);
     ctx.fillRect(bx+6*P, by+12*P, 6*P,  2*P);
 
@@ -766,7 +766,7 @@ export class Slimeling extends Fiend {
 // ─── Bonehead (skeleton, Chapter 2 — Subtraction) ─────────────────────────────
 export class Bonehead extends Fiend {
   constructor(x, y, hp = 1) {
-    super(x, y, { hp, palette: { body:'#ddd5c0', dark:'#a09070', hi:'#f0eee0' } });
+    super(x, y, { hp, palette: { body:'#b8c0c8', dark:'#606870', hi:'#d8e4ec' } });
   }
 
   draw(ctx) {
@@ -866,7 +866,7 @@ export class Bonehead extends Fiend {
 // ─── Toadlord (crowned green blob, Chapter 3 — Multiplication) ────────────────
 export class Toadlord extends Fiend {
   constructor(x, y, hp = 2) {
-    super(x, y, { hp, palette: { body:'#38b030', dark:'#207818', hi:'#60d850' } });
+    super(x, y, { hp, palette: { body:'#e02828', dark:'#901010', hi:'#ff6060' } });
   }
 
   draw(ctx) {
@@ -891,7 +891,7 @@ export class Toadlord extends Fiend {
     ctx.fillRect(bx+3*P, by+4*P,  5*P, 6*P);
     ctx.fillRect(bx+4*P, by+3*P,  3*P, 3*P);
     // belly (lighter)
-    ctx.fillStyle = '#78d860';
+    ctx.fillStyle = '#ff9090';
     ctx.fillRect(bx+5*P, by+12*P, 12*P, 6*P);
     ctx.fillRect(bx+7*P, by+16*P, 8*P,  3*P);
     // belly dots
@@ -971,7 +971,7 @@ export class Toadlord extends Fiend {
 // ─── Magelitch (robed mage, Chapter 4 — All Operations) ───────────────────────
 export class Magelitch extends Fiend {
   constructor(x, y, hp = 2) {
-    super(x, y, { hp, palette: { body:'#5030a8', dark:'#301870', hi:'#9060d8' } });
+    super(x, y, { hp, palette: { body:'#1890a8', dark:'#0c5870', hi:'#30c0d8' } });
   }
 
   draw(ctx) {
@@ -999,7 +999,7 @@ export class Magelitch extends Fiend {
     ctx.fillStyle = this._pal.dark;
     ctx.fillRect(bx+13*P, by+10*P, 2*P, 18*P);
     // robe hem (wave)
-    ctx.fillStyle = '#8050c8';
+    ctx.fillStyle = '#28a8c0';
     ctx.fillRect(bx+2*P, by+26*P, 12*P, 2*P);
     ctx.fillRect(bx+3*P, by+27*P, 10*P, P);
     // robe trim (gold)
@@ -1007,7 +1007,7 @@ export class Magelitch extends Fiend {
     ctx.fillRect(bx+2*P, by+10*P, 12*P, P);
     ctx.fillRect(bx+2*P, by+26*P, 12*P, P);
     // rune symbols on robe
-    ctx.fillStyle = '#a060e0';
+    ctx.fillStyle = '#40d0e8';
     ctx.fillRect(bx+7*P, by+16*P, 2*P, 4*P);
     ctx.fillRect(bx+6*P, by+17*P, 4*P, 2*P);
 
@@ -1034,17 +1034,17 @@ export class Magelitch extends Fiend {
     ctx.fillStyle = '#202040';
     ctx.fillRect(bx+5*P, by+6*P, 6*P, 6*P);
     // glowing eyes
-    ctx.fillStyle = '#c0c0ff';
+    ctx.fillStyle = '#60f0f8';
     ctx.fillRect(bx+5*P, by+7*P, 2*P, 2*P);
     ctx.fillRect(bx+9*P, by+7*P, 2*P, 2*P);
-    ctx.fillStyle = '#e0e8ff';
+    ctx.fillStyle = '#a0f8ff';
     ctx.fillRect(bx+5*P, by+7*P, P, P);
     ctx.fillRect(bx+9*P, by+7*P, P, P);
     // tiny pointy nose
     ctx.fillStyle = '#c0a0a0';
     ctx.fillRect(bx+7*P, by+9*P, P, P);
     // grinning mouth
-    ctx.fillStyle = '#a080d0';
+    ctx.fillStyle = '#0c7080';
     ctx.fillRect(bx+6*P, by+10*P, P, P);
     ctx.fillRect(bx+7*P, by+11*P, 2*P, P);
     ctx.fillRect(bx+9*P, by+10*P, P, P);

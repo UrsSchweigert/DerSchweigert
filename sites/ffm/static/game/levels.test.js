@@ -101,14 +101,14 @@ describe('generateProblem', () => {
   });
 
   it('should have correct waveSize values', () => {
-    // All levels must be in the 3–6 range
+    // All levels must be in the 5–8 range
     LevelConfig.forEach((cfg, i) => {
-      assert.ok(cfg.waveSize >= 3 && cfg.waveSize <= 6,
-        `Level ${i + 1} waveSize ${cfg.waveSize} is outside 3–6`);
+      assert.ok(cfg.waveSize >= 5 && cfg.waveSize <= 8,
+        `Level ${i + 1} waveSize ${cfg.waveSize} is outside 5–8`);
     });
-    assert.strictEqual(LevelConfig[0].waveSize,  3, 'Level 1 should have waveSize=3');
-    assert.strictEqual(LevelConfig[9].waveSize,  4, 'Level 10 should have waveSize=4');
-    assert.strictEqual(LevelConfig[39].waveSize, 6, 'Level 40 should have waveSize=6');
+    assert.strictEqual(LevelConfig[0].waveSize,  5, 'Level 1 should have waveSize=5');
+    assert.strictEqual(LevelConfig[9].waveSize,  6, 'Level 10 should have waveSize=6');
+    assert.strictEqual(LevelConfig[39].waveSize, 8, 'Level 40 should have waveSize=8');
   });
 
   it('should produce the same problem for the same seed', () => {
