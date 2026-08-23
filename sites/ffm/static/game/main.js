@@ -271,13 +271,11 @@ function handleCorrectAnswer() {
         }, 300);
       }};
     } else {
-      heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-        inputDisabled = false;
-        activeFiend.problem = generateProblem(state.level - 1, Date.now());
-        state.timerRemaining = state.timerMax;
-        state.timerActive = true;
-        showProblem(activeFiend);
-      }};
+      // show next problem immediately so player can chain-lunge before hero returns
+      activeFiend.problem = generateProblem(state.level - 1, Date.now());
+      inputDisabled = false;
+      heroLunge = { phase: 'back', targetX: HERO_X };
+      showProblem(activeFiend);
     }
     hud.update(state);
   };
