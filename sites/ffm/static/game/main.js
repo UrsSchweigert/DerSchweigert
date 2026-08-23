@@ -200,7 +200,7 @@ function onFiendRetreated(fiend) {
 }
 
 function onFiendDead(fiend) {
-  // Fiend fully dead (particles gone)
+  fiends = fiends.filter(f => f !== fiend);
 }
 
 function checkAllDefeated() {
