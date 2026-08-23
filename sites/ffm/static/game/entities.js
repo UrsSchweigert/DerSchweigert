@@ -3,6 +3,9 @@
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
 
 const P = LOGICAL_PX; // shorthand
+const _uploadedHeroSheet = new Image();
+_uploadedHeroSheet.src = new URL('./hero-spritesheet-upload.png', import.meta.url).href;
+const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victory: 5 };
 
 // ─── Base Entity ─────────────────────────────────────────────────────────────
 export class Entity {
@@ -47,6 +50,17 @@ export class Hero extends Entity {
     const br = this._state === 'hurt';
     const bob = this._state === 'idle' && this._frame === 1 ? Q : 0;
     const fr = this._frame;
+
+    if (_uploadedHeroSheet.complete && _uploadedHeroSheet.naturalWidth) {
+      const row = _uploadedHeroRows[this._state] ?? 0;
+      const col = Math.min(fr, (H_FRM[this._state] ?? 1) - 1);
+      const sourceX = 180 + col * 320;
+      const sourceY = row * (_uploadedHeroSheet.naturalHeight / 6);
+      const sourceW = 290;
+      const sourceH = _uploadedHeroSheet.naturalHeight / 6;
+      ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH, bx, by, 200, 180);
+      return;
+    }
 
     if (this._state === 'dead') { this._drawDead(ctx, bx, by, fr, Q); return; }
 
