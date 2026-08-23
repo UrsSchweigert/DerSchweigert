@@ -213,7 +213,9 @@ function handleAnswer(value) {
   if (!activeFiend || activeFiend.isDead) return;
   // ignore input while fiend is retreating, revealing, or exploding
   if (['retreat', 'reveal', 'death'].includes(activeFiend.state)) return;
-  const correct = parseInt(value) === activeFiend.problem.answer;
+  // ignore if value contains no digits (prevents empty or accidental submissions)
+  if (!/\d/.test(value)) return;
+  const correct = parseInt(value, 10) === activeFiend.problem.answer;
   if (correct) {
     handleCorrectAnswer();
   } else {

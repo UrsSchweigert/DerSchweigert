@@ -53,6 +53,7 @@ export class InputManager {
     document.getElementById('free-text-zone').style.display = isMC ? 'none' : 'flex';
     if (!isMC) {
       this._answerInput.value = '';
+      if (document.activeElement) document.activeElement.blur();
       this._answerInput.focus();
     }
   }
