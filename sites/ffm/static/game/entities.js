@@ -93,6 +93,7 @@ export class Hero extends Entity {
     }
 
     return;
+    }
 
     if (this._state === 'dead') { this._drawDead(ctx, bx, by, fr, Q); return; }
 
