@@ -757,8 +757,8 @@ export class Fiend extends Entity {
 
 // ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────
 export class Slimeling extends Fiend {
-  constructor(x, y, hp = 1) {
-    super(x, y, { hp, palette: { body:'#f07030', dark:'#a04010', hi:'#ffb060' } });
+  constructor(x, y, hp = 1, palette) {
+    super(x, y, { hp, palette: palette ?? { body:'#f07030', dark:'#a04010', hi:'#ffb060' } });
   }
 
   draw(ctx) {
@@ -820,8 +820,8 @@ export class Slimeling extends Fiend {
 
 // ─── Bonehead (skeleton, Chapter 2 — Subtraction) ─────────────────────────────
 export class Bonehead extends Fiend {
-  constructor(x, y, hp = 1) {
-    super(x, y, { hp, palette: { body:'#b8c0c8', dark:'#606870', hi:'#d8e4ec' } });
+  constructor(x, y, hp = 1, palette) {
+    super(x, y, { hp, palette: palette ?? { body:'#b8c0c8', dark:'#606870', hi:'#d8e4ec' } });
   }
 
   draw(ctx) {
@@ -921,8 +921,8 @@ export class Bonehead extends Fiend {
 
 // ─── Toadlord (crowned green blob, Chapter 3 — Multiplication) ────────────────
 export class Toadlord extends Fiend {
-  constructor(x, y, hp = 2) {
-    super(x, y, { hp, palette: { body:'#e02828', dark:'#901010', hi:'#ff6060' } });
+  constructor(x, y, hp = 2, palette) {
+    super(x, y, { hp, palette: palette ?? { body:'#e02828', dark:'#901010', hi:'#ff6060' } });
   }
 
   draw(ctx) {
@@ -1027,8 +1027,8 @@ export class Toadlord extends Fiend {
 
 // ─── Magelitch (robed mage, Chapter 4 — All Operations) ───────────────────────
 export class Magelitch extends Fiend {
-  constructor(x, y, hp = 2) {
-    super(x, y, { hp, palette: { body:'#1890a8', dark:'#0c5870', hi:'#30c0d8' } });
+  constructor(x, y, hp = 2, palette) {
+    super(x, y, { hp, palette: palette ?? { body:'#1890a8', dark:'#0c5870', hi:'#30c0d8' } });
   }
 
   draw(ctx) {
@@ -1141,8 +1141,8 @@ export class Magelitch extends Fiend {
 
 // ─── BirdFoe (raven-type, Subtraction '−') ────────────────────────────────────
 export class BirdFoe extends Fiend {
-  constructor(x, y, hp = 1) {
-    super(x, y, { hp, palette: { body:'#5048a8', dark:'#28205a', hi:'#8878d0' } });
+  constructor(x, y, hp = 1, palette) {
+    super(x, y, { hp, palette: palette ?? { body:'#5048a8', dark:'#28205a', hi:'#8878d0' } });
   }
 
   draw(ctx) {
@@ -1232,8 +1232,8 @@ export class BirdFoe extends Fiend {
 
 // ─── WolfFoe (wolf-type, Multiplication '×') ──────────────────────────────────
 export class WolfFoe extends Fiend {
-  constructor(x, y, hp = 1) {
-    super(x, y, { hp, palette: { body:'#808090', dark:'#404050', hi:'#b0b0c0' } });
+  constructor(x, y, hp = 1, palette) {
+    super(x, y, { hp, palette: palette ?? { body:'#808090', dark:'#404050', hi:'#b0b0c0' } });
   }
 
   draw(ctx) {
@@ -1342,8 +1342,8 @@ export class WolfFoe extends Fiend {
 
 // ─── SnakeFoe (serpent-type, Division '÷') ────────────────────────────────────
 export class SnakeFoe extends Fiend {
-  constructor(x, y, hp = 1) {
-    super(x, y, { hp, palette: { body:'#40a840', dark:'#205428', hi:'#70d870' } });
+  constructor(x, y, hp = 1, palette) {
+    super(x, y, { hp, palette: palette ?? { body:'#40a840', dark:'#205428', hi:'#70d870' } });
   }
 
   draw(ctx) {

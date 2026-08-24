@@ -37,6 +37,52 @@ const FIEND_TYPE_CLASS = {
   snakefoe: SnakeFoe,
 };
 
+// Colour tiers (0-3) keyed by fiend type, applied by level band (every 15 levels)
+const FIEND_PALETTES = {
+  slimeling: [
+    { body:'#f07030', dark:'#a04010', hi:'#ffb060' },
+    { body:'#9040d0', dark:'#601090', hi:'#c878f8' },
+    { body:'#20b840', dark:'#106828', hi:'#50e870' },
+    { body:'#d02020', dark:'#801010', hi:'#ff5050' },
+  ],
+  bonehead: [
+    { body:'#b8c0c8', dark:'#606870', hi:'#d8e4ec' },
+    { body:'#c8b870', dark:'#807840', hi:'#f0e090' },
+    { body:'#789060', dark:'#405040', hi:'#a8c090' },
+    { body:'#504868', dark:'#201830', hi:'#8078a0' },
+  ],
+  toadlord: [
+    { body:'#e02828', dark:'#901010', hi:'#ff6060' },
+    { body:'#38a028', dark:'#186010', hi:'#68d048' },
+    { body:'#8028a8', dark:'#501068', hi:'#b058d8' },
+    { body:'#c03010', dark:'#781808', hi:'#f06040' },
+  ],
+  magelitch: [
+    { body:'#1890a8', dark:'#0c5870', hi:'#30c0d8' },
+    { body:'#7828b0', dark:'#481878', hi:'#a050d8' },
+    { body:'#b08018', dark:'#705010', hi:'#e0b030' },
+    { body:'#1818a0', dark:'#101060', hi:'#3838d0' },
+  ],
+  birdfoe: [
+    { body:'#5048a8', dark:'#28205a', hi:'#8878d0' },
+    { body:'#a04040', dark:'#601818', hi:'#d07070' },
+    { body:'#308848', dark:'#185028', hi:'#58b870' },
+    { body:'#b89018', dark:'#786010', hi:'#e8c040' },
+  ],
+  wolffoe: [
+    { body:'#808090', dark:'#404050', hi:'#b0b0c0' },
+    { body:'#804020', dark:'#401808', hi:'#c07040' },
+    { body:'#204070', dark:'#102040', hi:'#4070a0' },
+    { body:'#601020', dark:'#300810', hi:'#a03040' },
+  ],
+  snakefoe: [
+    { body:'#40a840', dark:'#205428', hi:'#70d870' },
+    { body:'#a8a020', dark:'#686010', hi:'#d8d040' },
+    { body:'#284898', dark:'#101860', hi:'#5878c8' },
+    { body:'#881830', dark:'#480c18', hi:'#b84050' },
+  ],
+};
+
 // --- Fiend factory ---
 function createFiend(levelIndex, x) {
   const cfg = LevelConfig[levelIndex];
@@ -45,7 +91,10 @@ function createFiend(levelIndex, x) {
   const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey] ?? OPERATOR_FIEND[problem.operation] ?? Slimeling;
   const isElite = Math.random() < GAME_CONFIG.eliteFiendChance;
   const hp = isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
-  const fiend = new FiendClass(x, GROUND_Y, hp);
+  const tier = Math.min(3, Math.floor(levelIndex / 15));
+  const palettes = FIEND_PALETTES[fiendTypeKey];
+  const palette = palettes ? palettes[tier] : undefined;
+  const fiend = new FiendClass(x, GROUND_Y, hp, palette);
   fiend.problem = problem;
   fiend.isElite = isElite;
   return fiend;

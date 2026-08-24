@@ -41,10 +41,10 @@ const CHAPTER_NAMES = {
 };
 
 const FIEND_PATTERNS = {
-  1: ['slimeling', 'bonehead', 'slimeling', 'bonehead', 'slimeling'],
-  2: ['bonehead', 'slimeling', 'toadlord', 'bonehead', 'slimeling'],
-  3: ['toadlord', 'magelitch', 'bonehead', 'toadlord', 'snakefoe'],
-  4: ['magelitch', 'toadlord', 'snakefoe', 'bonehead', 'slimeling']
+  1: ['slimeling', 'bonehead', 'slimeling', 'toadlord', 'bonehead', 'magelitch', 'slimeling', 'bonehead'],
+  2: ['bonehead', 'birdfoe', 'toadlord', 'slimeling', 'wolffoe', 'bonehead', 'magelitch', 'slimeling'],
+  3: ['toadlord', 'magelitch', 'wolffoe', 'snakefoe', 'toadlord', 'birdfoe', 'magelitch', 'bonehead'],
+  4: ['magelitch', 'snakefoe', 'wolffoe', 'toadlord', 'birdfoe', 'magelitch', 'snakefoe', 'wolffoe']
 };
 
 function getFiendType(level, chapter) {
@@ -77,13 +77,13 @@ export const LevelConfig = [
   buildLevel({ level: 1, chapter: 1, operations: ['+'], operandRange: { a: [1, 5], b: [1, 5] }, maxResult: 10, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
   buildLevel({ level: 2, chapter: 1, operations: ['+'], operandRange: { a: [1, 6], b: [1, 6] }, maxResult: 12, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
   buildLevel({ level: 3, chapter: 1, operations: ['+'], operandRange: { a: [1, 8], b: [1, 8] }, maxResult: 16, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
-  buildLevel({ level: 4, chapter: 1, operations: ['+'], operandRange: { a: [1, 10], b: [1, 10] }, maxResult: 20, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
-  buildLevel({ level: 5, chapter: 1, operations: ['+'], operandRange: { a: [1, 12], b: [1, 8] }, maxResult: 20, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
-  buildLevel({ level: 6, chapter: 1, operations: ['+'], operandRange: { a: [1, 15], b: [1, 5] }, maxResult: 20, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
-  buildLevel({ level: 7, chapter: 1, operations: ['+'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
-  buildLevel({ level: 8, chapter: 1, operations: ['-'], operandRange: { a: [5, 20], b: [1, 10] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
-  buildLevel({ level: 9, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 10] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
-  buildLevel({ level: 10, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 12] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 4, chapter: 1, operations: ['+'], operandRange: { a: [1, 10], b: [1, 9] }, maxResult: 19, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 5, chapter: 1, operations: ['+', '+', '-'], operandRange: { a: [1, 11], b: [1, 8] }, maxResult: 19, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 6, chapter: 1, operations: ['+', '+', '-'], operandRange: { a: [1, 14], b: [1, 5] }, maxResult: 19, fiendHP: 1, waveSize: 5, inputMode: 'multiple-choice' }),
+  buildLevel({ level: 7, chapter: 1, operations: ['+', '+', '-'], operandRange: { a: [1, 10], b: [1, 9] }, maxResult: 19, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 8, chapter: 1, operations: ['-'], operandRange: { a: [5, 19], b: [1, 10] }, maxResult: 18, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 9, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 10], b: [1, 9] }, maxResult: 19, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
+  buildLevel({ level: 10, chapter: 1, operations: ['+', '-'], operandRange: { a: [2, 12], b: [1, 7] }, maxResult: 19, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
   buildLevel({ level: 11, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 15] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
   buildLevel({ level: 12, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 20, fiendHP: 1, waveSize: 6, inputMode: 'free-text' }),
   buildLevel({ level: 13, chapter: 1, operations: ['+', '-'], operandRange: { a: [1, 20], b: [1, 20] }, maxResult: 20, waveSize: 6, inputMode: 'free-text' }),
