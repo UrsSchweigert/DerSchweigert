@@ -6,6 +6,7 @@ from .models import db
 from .config import BaseConfig, ProductionConfig
 import os
 import re
+from sqlalchemy import inspect, text
 
 
 def create_app(config_class=None):
@@ -40,5 +41,46 @@ def create_app(config_class=None):
     
     with app.app_context():
         db.create_all()
+        _ensure_leaderboard_schema()
     
     return app
+
+
+def _ensure_leaderboard_schema():
+    from .models import LevelScore, UserHighScore
+
+    inspector = inspect(db.engine)
+    user_columns = {column["name"] for column in inspector.get_columns("users")}
+
+    if "first_grade_year" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN first_grade_year INTEGER"))
+        db.session.commit()
+
+    db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_users_first_grade_year ON users(first_grade_year)"))
+    UserHighScore.__table__.create(bind=db.engine, checkfirst=True)
+
+    best_scores = (
+        db.session.query(
+            LevelScore.user_id,
+            db.func.max(LevelScore.score).label("max_score")
+        )
+        .group_by(LevelScore.user_id)
+        .all()
+    )
+    for user_id, max_score in best_scores:
+        exists = UserHighScore.query.filter_by(user_id=user_id).first()
+        if exists:
+            continue
+        best_row = (
+            LevelScore.query
+            .filter_by(user_id=user_id, score=max_score)
+            .order_by(LevelScore.achieved_at.asc())
+            .first()
+        )
+        if best_row:
+            db.session.add(UserHighScore(
+                user_id=user_id,
+                high_score=max_score,
+                achieved_at=best_row.achieved_at
+            ))
+    db.session.commit()

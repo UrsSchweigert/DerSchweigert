@@ -8,12 +8,16 @@ function parseJwt(token) {
 }
 
 export const api = {
-  async register(username, email, password) {
+  async register(username, email, password, firstGradeYear) {
+    const payload = { username, email, password };
+    if (firstGradeYear !== null && firstGradeYear !== undefined && firstGradeYear !== '') {
+      payload.first_grade_year = Number(firstGradeYear);
+    }
     const res = await fetch(BASE_URL + '/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ username, email, password })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!res.ok) {
@@ -84,17 +88,26 @@ export const api = {
     return res.json();
   },
 
-  async postScore(level, score, difficulty) {
-    const res = await this._fetch('/score', {
-      method: 'POST',
+  async updateProfile(firstGradeYear) {
+    const res = await this._fetch('/profile', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ level, score, difficulty })
+      body: JSON.stringify({ first_grade_year: firstGradeYear })
     });
     return res.json();
   },
 
-  async getLeaderboard(level) {
-    const path = level ? '/leaderboard?level=' + level : '/leaderboard';
+  async postHighScore(score) {
+    const res = await this._fetch('/high-score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ score })
+    });
+    return res.json();
+  },
+
+  async getLeaderboard(firstGradeYear) {
+    const path = firstGradeYear ? '/leaderboard?first_grade_year=' + firstGradeYear : '/leaderboard';
     const res = await this._fetch(path);
     return res.json();
   },
@@ -106,7 +119,8 @@ export const api = {
   get username() {
     if (!_accessToken) return null;
     try {
-      return parseJwt(_accessToken).sub;
+      const payload = parseJwt(_accessToken);
+      return payload.username || payload.sub;
     } catch {
       return null;
     }
