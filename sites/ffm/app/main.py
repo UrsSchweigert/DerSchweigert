@@ -168,7 +168,7 @@ def submit_high_score():
     if not isinstance(score, int) or score < 0:
         return jsonify({"error": "Invalid input"}), 400
 
-    dialect = db.session.bind.dialect.name
+    dialect = db.engine.dialect.name
     if dialect == 'sqlite':
         from sqlalchemy.dialects.sqlite import insert as dialect_insert
     elif dialect == 'postgresql':
