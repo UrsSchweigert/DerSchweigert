@@ -162,6 +162,7 @@ let questionStartTime = 0;
 let inputDisabled = false;
 let gameRunning = false;
 let currentLevelIndex = 0;
+let levelStartScore = 0;
 let activeLightningBolts = [];
 let heroLunge = null; // { phase:'out'|'back', fiend?, targetX, onArrive? }
 const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
@@ -202,6 +203,8 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
     state.timerRemaining = state.timerMax;
     state.maxHearts = parseInt(btn.dataset.hearts);
     state.hearts = state.maxHearts;
+    state.score = 0;
+    levelStartScore = 0;
     diffSelect.style.display = 'none';
     startLevel(0);
   });
@@ -277,6 +280,7 @@ muteBtn.addEventListener('click', () => {
 function startLevel(levelIndex) {
   const cfg = LevelConfig[levelIndex];
   currentLevelIndex = levelIndex;
+  levelStartScore = state.score;
   state.level = cfg.level;
   state.waveNumber = 1;
   state.enemiesDefeated = 0;
@@ -539,6 +543,7 @@ function triggerLevelClear() {
   };
   btnReplayLevel.onclick = () => {
     levelClearOverlay.style.display = 'none';
+    state.score = levelStartScore;
     startLevel(completedIndex);
   };
   levelClearOverlay.style.display = 'flex';
@@ -556,6 +561,7 @@ function triggerGameOver() {
   gameOverScore.textContent = `Score: ${state.score}`;
   btnRetryLevel.onclick = () => {
     gameOverOverlay.style.display = 'none';
+    state.score = levelStartScore;
     startLevel(currentLevelIndex);
   };
   btnReturnTitle.onclick = () => {
