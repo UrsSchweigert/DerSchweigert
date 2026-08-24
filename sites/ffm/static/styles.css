@@ -352,6 +352,24 @@ input[type=number] {
   background: #3a3020;
 }
 
+#btn-retry-level {
+  border-color: #d0a040;
+  color: #f0e0a0;
+}
+
+#btn-retry-level:hover {
+  background: #3a3020;
+}
+
+#btn-return-title {
+  border-color: #60a0d0;
+  color: #c0e8ff;
+}
+
+#btn-return-title:hover {
+  background: #20384a;
+}
+
 #top-bar {
   position: fixed;
   top: max(8px, env(safe-area-inset-top));

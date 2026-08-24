@@ -123,6 +123,10 @@ const levelClearTitle = document.getElementById('level-clear-title');
 const levelClearScore = document.getElementById('level-clear-score');
 const btnNextLevel = document.getElementById('btn-next-level');
 const btnReplayLevel = document.getElementById('btn-replay-level');
+const gameOverOverlay = document.getElementById('game-over');
+const gameOverScore = document.getElementById('game-over-score');
+const btnRetryLevel = document.getElementById('btn-retry-level');
+const btnReturnTitle = document.getElementById('btn-return-title');
 const diffSelect = document.getElementById('difficulty-select');
 const authModal = document.getElementById('auth-modal');
 const loginBtn = document.getElementById('login-btn');
@@ -157,6 +161,7 @@ let answerTimes = [];
 let questionStartTime = 0;
 let inputDisabled = false;
 let gameRunning = false;
+let currentLevelIndex = 0;
 let activeLightningBolts = [];
 let heroLunge = null; // { phase:'out'|'back', fiend?, targetX, onArrive? }
 const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
@@ -271,6 +276,7 @@ muteBtn.addEventListener('click', () => {
 // --- Level/Wave setup ---
 function startLevel(levelIndex) {
   const cfg = LevelConfig[levelIndex];
+  currentLevelIndex = levelIndex;
   state.level = cfg.level;
   state.waveNumber = 1;
   state.enemiesDefeated = 0;
@@ -288,6 +294,8 @@ function startLevel(levelIndex) {
   state.combo = 0;
   gameRunning = true;
   topBar.style.display = 'none';
+  levelClearOverlay.style.display = 'none';
+  gameOverOverlay.style.display = 'none';
   hud.update(state);
   audio.startBGM(cfg.chapter);
   if (!animFrameId) gameLoop(performance.now());
@@ -538,10 +546,23 @@ function triggerLevelClear() {
 
 function triggerGameOver() {
   gameRunning = false;
+  input.disable();
+  inputDisabled = true;
+  state.timerActive = false;
+  levelClearOverlay.style.display = 'none';
   topBar.style.display = 'flex';
   audio.stopBGM();
   audio.playGameOver();
-  renderer.drawBanner('GAME OVER  SCORE: ' + state.score);
+  gameOverScore.textContent = `Score: ${state.score}`;
+  btnRetryLevel.onclick = () => {
+    gameOverOverlay.style.display = 'none';
+    startLevel(currentLevelIndex);
+  };
+  btnReturnTitle.onclick = () => {
+    gameOverOverlay.style.display = 'none';
+    diffSelect.style.display = 'flex';
+  };
+  gameOverOverlay.style.display = 'flex';
 }
 
 // --- Timer ---
