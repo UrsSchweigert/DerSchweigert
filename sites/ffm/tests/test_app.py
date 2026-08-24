@@ -88,6 +88,16 @@ def test_login_success(client):
     register_and_login(client, "loginuser", "login@example.com", "mypassword1")
 
 
+def test_register_duplicate(client):
+    register_and_login(client, "dup", "dup@example.com", "password123")
+    r = client.post('/api/auth/register', json={
+        "username": "dup",
+        "email": "dup2@example.com",
+        "password": "password123",
+    })
+    assert r.status_code == 409
+
+
 def test_login_wrong_password(client):
     register_and_login(client, "wpass", "wpass@example.com", "correct123")
     r = client.post('/api/auth/login', json={
@@ -95,13 +105,26 @@ def test_login_wrong_password(client):
         "password": "wrong"
     })
     assert r.status_code == 401
-    # Same error message as wrong username
+    # Same error message as wrong username to prevent user enumeration
     r2 = client.post('/api/auth/login', json={
         "username": "nonexistent",
         "password": "anything"
     })
     assert r2.status_code == 401
     assert r.get_json()['error'] == r2.get_json()['error']
+
+
+def test_high_score_unauthenticated(client):
+    r = client.post('/api/high-score', json={"score": 100})
+    assert r.status_code == 401
+
+
+def test_high_score_invalid_inputs(client):
+    headers = register_and_login(client, "badinput", "badinput@example.com", "password123")
+
+    for bad in [{"score": "500"}, {"score": True}, {"score": -1}, {"score": None}, {}]:
+        r = client.post('/api/high-score', json=bad, headers=headers)
+        assert r.status_code == 400, f"expected 400 for payload {bad}"
 
 
 def test_high_score_upsert_max_only(client):
@@ -133,6 +156,50 @@ def test_profile_update_first_grade_year(client):
     profile = client.get('/api/profile', headers=headers)
     assert profile.status_code == 200
     assert profile.get_json()['user']['first_grade_year'] == 2012
+
+
+def test_profile_update_unauthenticated(client):
+    r = client.patch('/api/profile', json={"first_grade_year": 2012})
+    assert r.status_code == 401
+
+
+def test_profile_update_invalid_inputs(client):
+    headers = register_and_login(client, "profbad", "profbad@example.com", "password123")
+
+    for bad_year in [True, False, "2012", 1949, 2101]:
+        r = client.patch('/api/profile', json={"first_grade_year": bad_year}, headers=headers)
+        assert r.status_code == 400, f"expected 400 for first_grade_year={bad_year!r}"
+
+    # Missing key entirely
+    r = client.patch('/api/profile', json={"other": "field"}, headers=headers)
+    assert r.status_code == 400
+
+
+def test_profile_update_clears_year(client):
+    headers = register_and_login(client, "profclear", "profclear@example.com", "password123", 2010)
+
+    r = client.patch('/api/profile', json={"first_grade_year": None}, headers=headers)
+    assert r.status_code == 200
+    assert r.get_json()['user']['first_grade_year'] is None
+
+
+def test_leaderboard_empty(client):
+    r = client.get('/api/leaderboard')
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data['global_entries'] == []
+    assert data['grouped_entries'] == []
+
+
+def test_leaderboard_invalid_filter(client):
+    r = client.get('/api/leaderboard?first_grade_year=notanumber')
+    assert r.status_code == 400
+
+    r2 = client.get('/api/leaderboard?first_grade_year=1900')
+    assert r2.status_code == 400
+
+    r3 = client.get('/api/leaderboard?first_grade_year=2200')
+    assert r3.status_code == 400
 
 
 def test_leaderboard_global_grouping_filter_and_unclassified(client):
