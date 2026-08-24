@@ -1,6 +1,5 @@
-import pytest
-import json
 import os
+import pytest
 
 # Set SECRET_KEY before importing the app
 os.environ['SECRET_KEY'] = 'test-secret-key-for-testing-only'
@@ -20,17 +19,38 @@ def client(app):
     return app.test_client()
 
 
+def register_and_login(client, username, email, password, first_grade_year=None):
+    payload = {
+        "username": username,
+        "email": email,
+        "password": password,
+    }
+    if first_grade_year is not None:
+        payload["first_grade_year"] = first_grade_year
+    register_resp = client.post('/api/auth/register', json=payload)
+    assert register_resp.status_code == 201
+
+    login_resp = client.post('/api/auth/login', json={
+        "username": username,
+        "password": password,
+    })
+    assert login_resp.status_code == 200
+    token = login_resp.get_json()['access_token']
+    return {"Authorization": 'Bearer ' + token}
+
+
 def test_health(client):
     r = client.get('/api/health')
     assert r.status_code == 200
     assert r.get_json()['ok'] is True
 
 
-def test_register_success(client):
+def test_register_success_with_first_grade_year(client):
     r = client.post('/api/auth/register', json={
         "username": "testuser",
         "email": "test@example.com",
-        "password": "password123"
+        "password": "password123",
+        "first_grade_year": 2011
     })
     assert r.status_code == 201
     data = r.get_json()
@@ -38,40 +58,38 @@ def test_register_success(client):
     assert data['user']['username'] == 'testuser'
 
 
-def test_register_duplicate(client):
-    client.post('/api/auth/register', json={
-        "username": "dup",
-        "email": "dup@example.com",
-        "password": "password123"
+def test_register_first_grade_year_validation(client):
+    invalid_low = client.post('/api/auth/register', json={
+        "username": "yearlow",
+        "email": "yearlow@example.com",
+        "password": "password123",
+        "first_grade_year": 1949
     })
-    r = client.post('/api/auth/register', json={
-        "username": "dup",
-        "email": "dup2@example.com",
-        "password": "password123"
+    assert invalid_low.status_code == 400
+
+    invalid_type = client.post('/api/auth/register', json={
+        "username": "yearbad",
+        "email": "yearbad@example.com",
+        "password": "password123",
+        "first_grade_year": "2010"
     })
-    assert r.status_code == 409
+    assert invalid_type.status_code == 400
+
+    valid = client.post('/api/auth/register', json={
+        "username": "yearok",
+        "email": "yearok@example.com",
+        "password": "password123",
+        "first_grade_year": 2010
+    })
+    assert valid.status_code == 201
 
 
 def test_login_success(client):
-    client.post('/api/auth/register', json={
-        "username": "loginuser",
-        "email": "login@example.com",
-        "password": "mypassword1"
-    })
-    r = client.post('/api/auth/login', json={
-        "username": "loginuser",
-        "password": "mypassword1"
-    })
-    assert r.status_code == 200
-    assert 'access_token' in r.get_json()
+    register_and_login(client, "loginuser", "login@example.com", "mypassword1")
 
 
 def test_login_wrong_password(client):
-    client.post('/api/auth/register', json={
-        "username": "wpass",
-        "email": "wpass@example.com",
-        "password": "correct123"
-    })
+    register_and_login(client, "wpass", "wpass@example.com", "correct123")
     r = client.post('/api/auth/login', json={
         "username": "wpass",
         "password": "wrong"
@@ -86,97 +104,72 @@ def test_login_wrong_password(client):
     assert r.get_json()['error'] == r2.get_json()['error']
 
 
-def test_score_unauthenticated(client):
-    r = client.post('/api/score', json={
-        "level": 1,
-        "score": 100,
-        "difficulty": "easy"
-    })
-    assert r.status_code == 401
+def test_high_score_upsert_max_only(client):
+    headers = register_and_login(client, "scorer", "scorer@example.com", "scorepass1")
+
+    first = client.post('/api/high-score', json={"score": 500}, headers=headers)
+    assert first.status_code == 200
+    assert first.get_json()['saved'] is True
+    assert first.get_json()['high_score'] == 500
+
+    lower = client.post('/api/high-score', json={"score": 100}, headers=headers)
+    assert lower.status_code == 200
+    assert lower.get_json()['saved'] is False
+    assert lower.get_json()['high_score'] == 500
+
+    higher = client.post('/api/high-score', json={"score": 1000}, headers=headers)
+    assert higher.status_code == 200
+    assert higher.get_json()['saved'] is True
+    assert higher.get_json()['high_score'] == 1000
 
 
-def test_score_personal_best(client):
-    # Register and login
-    client.post('/api/auth/register', json={
-        "username": "scorer",
-        "email": "scorer@example.com",
-        "password": "scorepass1"
-    })
-    login_r = client.post('/api/auth/login', json={
-        "username": "scorer",
-        "password": "scorepass1"
-    })
-    token = login_r.get_json()['access_token']
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    # First score
-    r = client.post('/api/score', json={
-        "level": 1,
-        "score": 500,
-        "difficulty": "easy"
-    }, headers=headers)
-    assert r.status_code == 200
-    assert r.get_json()['saved'] is True
-    
-    # Lower score — should not save
-    r2 = client.post('/api/score', json={
-        "level": 1,
-        "score": 100,
-        "difficulty": "easy"
-    }, headers=headers)
-    assert r2.status_code == 200
-    assert r2.get_json()['saved'] is False
-    assert r2.get_json()['personal_best'] == 500
-    
-    # Higher score — should save
-    r3 = client.post('/api/score', json={
-        "level": 1,
-        "score": 1000,
-        "difficulty": "easy"
-    }, headers=headers)
-    assert r3.status_code == 200
-    assert r3.get_json()['saved'] is True
-    assert r3.get_json()['personal_best'] == 1000
+def test_profile_update_first_grade_year(client):
+    headers = register_and_login(client, "profileu", "profileu@example.com", "profilepass1")
+
+    update = client.patch('/api/profile', json={"first_grade_year": 2012}, headers=headers)
+    assert update.status_code == 200
+    assert update.get_json()['user']['first_grade_year'] == 2012
+
+    profile = client.get('/api/profile', headers=headers)
+    assert profile.status_code == 200
+    assert profile.get_json()['user']['first_grade_year'] == 2012
 
 
-def test_leaderboard(client):
-    r = client.get('/api/leaderboard?level=1')
-    assert r.status_code == 200
-    data = r.get_json()
-    assert 'entries' in data
+def test_leaderboard_global_grouping_filter_and_unclassified(client):
+    users = [
+        ("alice", "alice@example.com", 2010, 900),
+        ("bob", "bob@example.com", 2010, 600),
+        ("cara", "cara@example.com", 2011, 800),
+        ("dave", "dave@example.com", None, 700),
+    ]
 
+    for username, email, year, score in users:
+        headers = register_and_login(client, username, email, "password123", year)
+        r = client.post('/api/high-score', json={"score": score}, headers=headers)
+        assert r.status_code == 200
 
-def test_score_level_range_validation(client):
-    client.post('/api/auth/register', json={
-        "username": "rangeuser",
-        "email": "range@example.com",
-        "password": "rangepass1"
-    })
-    login_r = client.post('/api/auth/login', json={
-        "username": "rangeuser",
-        "password": "rangepass1"
-    })
-    token = login_r.get_json()['access_token']
-    headers = {"Authorization": f"Bearer {token}"}
+    leaderboard = client.get('/api/leaderboard')
+    assert leaderboard.status_code == 200
+    data = leaderboard.get_json()
 
-    valid = client.post('/api/score', json={
-        "level": 60,
-        "score": 1234,
-        "difficulty": "medium"
-    }, headers=headers)
-    assert valid.status_code == 200
-    assert valid.get_json()['saved'] is True
+    assert [entry['username'] for entry in data['global_entries']] == ["alice", "cara", "dave", "bob"]
+    assert all('high_score' in entry for entry in data['global_entries'])
 
-    too_low = client.post('/api/score', json={
-        "level": 0,
-        "score": 1,
-        "difficulty": "easy"
-    }, headers=headers)
-    assert too_low.status_code == 400
+    grouped = {entry['label']: entry['entries'] for entry in data['grouped_entries']}
+    assert "2010" in grouped
+    assert "2011" in grouped
+    assert "unclassified" in grouped
+    assert grouped["2010"][0]['rank'] == 1
+    assert grouped["2010"][0]['username'] == "alice"
+    assert grouped["2010"][1]['rank'] == 2
+    assert grouped["2010"][1]['username'] == "bob"
+    assert grouped["unclassified"][0]['username'] == "dave"
+    assert grouped["unclassified"][0]['first_grade_year'] is None
 
-    too_high = client.post('/api/score', json={
-        "level": 61,
-        "score": 1,
-        "difficulty": "easy"
-    }, headers=headers)
-    assert too_high.status_code == 400
+    year_filter = client.get('/api/leaderboard?first_grade_year=2010')
+    assert year_filter.status_code == 200
+    year_data = year_filter.get_json()
+    assert year_data['first_grade_year_filter'] == 2010
+    assert len(year_data['grouped_entries']) == 1
+    assert year_data['grouped_entries'][0]['label'] == "2010"
+    assert [e['username'] for e in year_data['grouped_entries'][0]['entries']] == ["alice", "bob"]

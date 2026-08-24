@@ -223,6 +223,64 @@ input[type=number] {
   text-shadow: 1px 1px 4px #000;
 }
 
+.splash-leaderboard {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(10, 10, 40, 0.82);
+  border: 2px solid #6060c0;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+.leaderboard-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.leaderboard-title {
+  margin: 0;
+  font-size: 16px;
+  color: #f0f0ff;
+}
+
+.leaderboard-filter {
+  background: #2a2a5a;
+  color: #f0f0f0;
+  border: 1px solid #6060d0;
+  font-family: monospace;
+}
+
+.leaderboard-list {
+  margin: 0;
+  padding-left: 20px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.leaderboard-list li {
+  margin-bottom: 4px;
+  color: #d0d0f0;
+}
+
+.leaderboard-list li.current-user {
+  color: #a0f0a0;
+  font-weight: bold;
+}
+
+.leaderboard-profile-prompt {
+  color: #f0d080;
+  font-size: 12px;
+  margin: 0 0 8px 0;
+}
+
+#leaderboard-complete-profile {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
 .splash-diff-buttons {
   display: flex;
   flex-direction: column;

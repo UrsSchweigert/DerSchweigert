@@ -4,7 +4,7 @@ from flask_limiter.util import get_remote_address
 import bcrypt
 import jwt
 import datetime
-from .models import db, User
+from .models import db, User, MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 limiter = Limiter(get_remote_address, storage_uri="memory://")
@@ -20,6 +20,7 @@ def register():
     username = data.get('username', '').strip()
     email = data.get('email', '').strip()
     password = data.get('password', '')
+    first_grade_year = data.get('first_grade_year')
     
     # Validate input
     if not username or len(username) < 3 or len(username) > 20 or not username.isalnum():
@@ -28,6 +29,9 @@ def register():
         return jsonify({"error": "Valid email required"}), 400
     if not password or len(password) < 8 or len(password) > 128:
         return jsonify({"error": "Password must be 8-128 characters"}), 400
+    if first_grade_year is not None:
+        if not isinstance(first_grade_year, int) or not (MIN_FIRST_GRADE_YEAR <= first_grade_year <= MAX_FIRST_GRADE_YEAR):
+            return jsonify({"error": f"first_grade_year must be between {MIN_FIRST_GRADE_YEAR} and {MAX_FIRST_GRADE_YEAR}"}), 400
     
     # Check if user already exists
     existing_user = User.query.filter(
@@ -40,13 +44,19 @@ def register():
     password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
     
     # Create user
-    user = User(username=username, email=email, password_hash=password_hash)
+    user = User(
+        username=username,
+        email=email,
+        password_hash=password_hash,
+        first_grade_year=first_grade_year
+    )
     db.session.add(user)
     db.session.commit()
     
     # Generate JWT access token
     payload = {
         "sub": str(user.id),
+        "username": user.username,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES'])
     }
     token = jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
@@ -80,6 +90,7 @@ def login():
     # Generate access JWT
     access_payload = {
         "sub": str(user.id),
+        "username": user.username,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES'])
     }
     access_token = jwt.encode(access_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
@@ -87,6 +98,7 @@ def login():
     # Generate refresh JWT
     refresh_payload = {
         "sub": str(user.id),
+        "username": user.username,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_REFRESH_EXPIRES'])
     }
     refresh_token = jwt.encode(refresh_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
@@ -129,6 +141,7 @@ def refresh():
     # Generate new access JWT
     access_payload = {
         "sub": user_id,
+        "username": payload.get("username", ""),
         "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES'])
     }
     new_access_token = jwt.encode(access_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
@@ -136,6 +149,7 @@ def refresh():
     # Generate new refresh JWT (rotate)
     refresh_payload = {
         "sub": user_id,
+        "username": payload.get("username", ""),
         "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_REFRESH_EXPIRES'])
     }
     new_refresh_token = jwt.encode(refresh_payload, current_app.config['SECRET_KEY'], algorithm='HS256')

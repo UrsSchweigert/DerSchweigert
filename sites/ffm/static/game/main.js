@@ -143,6 +143,10 @@ const tabRegister = document.getElementById('tab-register');
 const closeAuth = document.getElementById('close-auth');
 const splashLoginBtn = document.getElementById('splash-login-btn');
 const splashGreeting = document.getElementById('splash-user-greeting');
+const leaderboardList = document.getElementById('leaderboard-list');
+const leaderboardYearFilter = document.getElementById('leaderboard-year-filter');
+const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
+const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
 
 // --- Engine instances ---
 const renderer = new Renderer(canvas);
@@ -167,9 +171,91 @@ let activeLightningBolts = [];
 let heroLunge = null; // { phase:'out'|'back', fiend?, targetX, onArrive? }
 const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
 const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this distance of HERO_X
+let currentProfile = null;
+let currentLeaderboard = null;
 
 // --- Input ---
 const input = new InputManager(handleAnswer);
+
+function leaderboardBucketLabel(value) {
+  return value === null || value === undefined ? 'Unclassified' : String(value);
+}
+
+function renderLeaderboard(entries) {
+  if (!entries || entries.length === 0) {
+    leaderboardList.innerHTML = '<li>No high scores yet.</li>';
+    return;
+  }
+
+  const currentUser = api.username;
+  leaderboardList.innerHTML = entries.map((entry) => {
+    const isCurrent = currentUser && entry.username === currentUser;
+    const bucket = leaderboardBucketLabel(entry.first_grade_year);
+    return `<li class="${isCurrent ? 'current-user' : ''}">#${entry.rank} ${entry.username} — ${entry.high_score} (${bucket})</li>`;
+  }).join('');
+}
+
+function syncLeaderboardFilterOptions(groupedEntries) {
+  const previous = leaderboardYearFilter.value;
+  const yearValues = new Set();
+  for (const group of groupedEntries || []) {
+    if (group.first_grade_year !== null && group.first_grade_year !== undefined) {
+      yearValues.add(String(group.first_grade_year));
+    }
+  }
+
+  const sortedYears = Array.from(yearValues).sort();
+  leaderboardYearFilter.innerHTML = '<option value="">All years</option>' +
+    sortedYears.map((year) => `<option value="${year}">${year}</option>`).join('') +
+    '<option value="unclassified">Unclassified</option>';
+
+  if (previous && Array.from(leaderboardYearFilter.options).some((opt) => opt.value === previous)) {
+    leaderboardYearFilter.value = previous;
+  }
+}
+
+function entriesForSelectedFilter(data) {
+  if (!data) return [];
+  const selected = leaderboardYearFilter.value;
+  if (!selected) return data.global_entries || [];
+
+  const wantedYear = selected === 'unclassified' ? null : Number(selected);
+  const group = (data.grouped_entries || []).find((entry) => entry.first_grade_year === wantedYear);
+  return group ? group.entries : [];
+}
+
+async function refreshProfileAndLeaderboard() {
+  try {
+    currentLeaderboard = await api.getLeaderboard();
+    syncLeaderboardFilterOptions(currentLeaderboard.grouped_entries || []);
+    renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
+  } catch {
+    renderLeaderboard([]);
+  }
+
+  if (!api.isLoggedIn) {
+    currentProfile = null;
+    leaderboardProfilePrompt.style.display = 'none';
+    leaderboardCompleteProfile.style.display = 'none';
+    return;
+  }
+
+  try {
+    currentProfile = await api.getProfile();
+    const year = currentProfile?.user?.first_grade_year;
+    if (year === null || year === undefined) {
+      leaderboardProfilePrompt.textContent = 'Add your first grade year in profile to join year groups.';
+      leaderboardProfilePrompt.style.display = '';
+      leaderboardCompleteProfile.style.display = '';
+    } else {
+      leaderboardProfilePrompt.style.display = 'none';
+      leaderboardCompleteProfile.style.display = 'none';
+    }
+  } catch {
+    leaderboardProfilePrompt.style.display = 'none';
+    leaderboardCompleteProfile.style.display = 'none';
+  }
+}
 
 // --- Splash login button ---
 function updateSplashAuthState() {
@@ -180,6 +266,7 @@ function updateSplashAuthState() {
     splashLoginBtn.textContent = 'Login / Register';
     splashGreeting.textContent = '';
   }
+  refreshProfileAndLeaderboard();
 }
 
 splashLoginBtn.addEventListener('click', () => {
@@ -259,7 +346,8 @@ registerForm.addEventListener('submit', async e => {
     const u = document.getElementById('reg-username').value;
     const em = document.getElementById('reg-email').value;
     const pw = document.getElementById('reg-password').value;
-    await api.register(u, em, pw);
+    const firstGradeYear = document.getElementById('reg-first-grade-year').value;
+    await api.register(u, em, pw, firstGradeYear);
     authModal.style.display = 'none';
     loginBtn.style.display = 'none';
     userDisplay.textContent = api.username || 'Player';
@@ -270,6 +358,26 @@ registerForm.addEventListener('submit', async e => {
   } catch (err) {
     registerError.textContent = err.message;
   }
+});
+leaderboardYearFilter.addEventListener('change', () => {
+  renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
+});
+leaderboardCompleteProfile.addEventListener('click', async () => {
+  const yearInput = prompt('Enter your first grade year (e.g. 2012):');
+  if (yearInput === null) return;
+  const year = Number(yearInput);
+  if (!Number.isInteger(year)) {
+    leaderboardProfilePrompt.textContent = 'Please enter a valid year.';
+    leaderboardProfilePrompt.style.display = '';
+    return;
+  }
+  const result = await api.updateProfile(year);
+  if (result.error) {
+    leaderboardProfilePrompt.textContent = result.error;
+    leaderboardProfilePrompt.style.display = '';
+    return;
+  }
+  await refreshProfileAndLeaderboard();
 });
 muteBtn.addEventListener('click', () => {
   audio.toggleMute();
@@ -523,10 +631,6 @@ function triggerLevelClear() {
   spawnQueue = [];
   requeuedFiends = [];
 
-  if (api.isLoggedIn) {
-    api.postScore(state.level, state.score, state.difficulty).catch(() => {});
-  }
-
   if (state.level >= LevelConfig.length) {
     triggerGameOver();
     return;
@@ -558,6 +662,11 @@ function triggerGameOver() {
   topBar.style.display = 'flex';
   audio.stopBGM();
   audio.playGameOver();
+  if (api.isLoggedIn) {
+    api.postHighScore(state.score).then(() => {
+      refreshProfileAndLeaderboard();
+    }).catch(() => {});
+  }
   gameOverScore.textContent = `Score: ${state.score}`;
   btnRetryLevel.onclick = () => {
     gameOverOverlay.style.display = 'none';
@@ -673,3 +782,9 @@ function gameLoop(ts) {
 
   hud.draw();
 }
+
+api.refresh()
+  .catch(() => false)
+  .finally(() => {
+    updateSplashAuthState();
+  });

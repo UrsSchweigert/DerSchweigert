@@ -41,6 +41,17 @@
         <span id="splash-user-greeting" class="splash-greeting"></span>
       </div>
       <p class="splash-subtitle">Choose your difficulty:</p>
+      <section class="splash-leaderboard" aria-live="polite">
+        <div class="leaderboard-header">
+          <h2 class="leaderboard-title">Leaderboard</h2>
+          <select id="leaderboard-year-filter" class="leaderboard-filter">
+            <option value="">All years</option>
+          </select>
+        </div>
+        <p id="leaderboard-profile-prompt" class="leaderboard-profile-prompt" style="display:none"></p>
+        <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none">Complete profile</button>
+        <ol id="leaderboard-list" class="leaderboard-list"></ol>
+      </section>
       <div class="splash-diff-buttons">
         <button class="diff-btn splash-diff-btn" data-difficulty="easy" data-timer="30" data-hearts="7">
           <span class="diff-label">Easy</span>
@@ -75,6 +86,7 @@
         <input id="reg-username" type="text" placeholder="Username (3-20 chars)">
         <input id="reg-email" type="email" placeholder="Email">
         <input id="reg-password" type="password" placeholder="Password (8+ chars)">
+        <input id="reg-first-grade-year" type="number" placeholder="First grade year (optional)">
         <button type="submit">Register</button>
         <p id="register-error" class="error-msg"></p>
       </form>
