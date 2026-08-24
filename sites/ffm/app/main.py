@@ -81,7 +81,7 @@ def update_profile():
 
     first_grade_year = data.get('first_grade_year')
     if first_grade_year is not None:
-        if not isinstance(first_grade_year, int) or not (MIN_FIRST_GRADE_YEAR <= first_grade_year <= MAX_FIRST_GRADE_YEAR):
+        if type(first_grade_year) is not int or not (MIN_FIRST_GRADE_YEAR <= first_grade_year <= MAX_FIRST_GRADE_YEAR):
             return jsonify({"error": f"first_grade_year must be between {MIN_FIRST_GRADE_YEAR} and {MAX_FIRST_GRADE_YEAR}"}), 400
 
     user.first_grade_year = first_grade_year
@@ -165,7 +165,7 @@ def submit_high_score():
         return jsonify({"error": "Invalid input"}), 400
 
     score = data.get('score')
-    if not isinstance(score, int) or score < 0:
+    if type(score) is not int or score < 0:
         return jsonify({"error": "Invalid input"}), 400
 
     dialect = db.engine.dialect.name
@@ -194,12 +194,18 @@ def submit_high_score():
         db.session.commit()
         saved = result.rowcount > 0
     else:
+        from sqlalchemy.exc import IntegrityError
         current = UserHighScore.query.filter_by(user_id=user_id).first()
         if current is None:
-            current = UserHighScore(user_id=user_id, high_score=score, achieved_at=db.func.now())
-            db.session.add(current)
-            db.session.commit()
-            saved = True
+            try:
+                current = UserHighScore(user_id=user_id, high_score=score, achieved_at=db.func.now())
+                db.session.add(current)
+                db.session.commit()
+                saved = True
+            except IntegrityError:
+                db.session.rollback()
+                current = UserHighScore.query.filter_by(user_id=user_id).first()
+                saved = False
         elif score > current.high_score:
             current.high_score = score
             current.achieved_at = db.func.now()

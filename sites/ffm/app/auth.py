@@ -30,7 +30,7 @@ def register():
     if not password or len(password) < 8 or len(password) > 128:
         return jsonify({"error": "Password must be 8-128 characters"}), 400
     if first_grade_year is not None:
-        if not isinstance(first_grade_year, int) or not (MIN_FIRST_GRADE_YEAR <= first_grade_year <= MAX_FIRST_GRADE_YEAR):
+        if type(first_grade_year) is not int or not (MIN_FIRST_GRADE_YEAR <= first_grade_year <= MAX_FIRST_GRADE_YEAR):
             return jsonify({"error": f"first_grade_year must be between {MIN_FIRST_GRADE_YEAR} and {MAX_FIRST_GRADE_YEAR}"}), 400
     
     # Check if user already exists

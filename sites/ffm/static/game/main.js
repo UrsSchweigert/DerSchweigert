@@ -181,6 +181,10 @@ function leaderboardBucketLabel(value) {
   return value === null || value === undefined ? 'Unclassified' : String(value);
 }
 
+function escHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function renderLeaderboard(entries) {
   if (!entries || entries.length === 0) {
     leaderboardList.innerHTML = '<li>No high scores yet.</li>';
@@ -191,7 +195,7 @@ function renderLeaderboard(entries) {
   leaderboardList.innerHTML = entries.map((entry) => {
     const isCurrent = currentUser && entry.username === currentUser;
     const bucket = leaderboardBucketLabel(entry.first_grade_year);
-    return `<li class="${isCurrent ? 'current-user' : ''}">#${entry.rank} ${entry.username} — ${entry.high_score} (${bucket})</li>`;
+    return `<li class="${isCurrent ? 'current-user' : ''}">#${entry.rank} ${escHtml(entry.username)} — ${escHtml(entry.high_score)} (${escHtml(bucket)})</li>`;
   }).join('');
 }
 
