@@ -397,6 +397,12 @@ input[type=number] {
   }
 }
 
+@media (orientation: portrait) and (max-width: 700px) {
+  .splash-screen {
+    padding-top: max(84px, calc(env(safe-area-inset-top) + 84px));
+  }
+}
+
 @media (orientation: landscape) and (max-height: 520px) {
   .splash-screen {
     overflow-y: auto;

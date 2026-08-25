@@ -425,14 +425,14 @@ function spawnNextFiend() {
   if (fiends.length > 0) return;
 
   let fiend;
-  if (requeuedFiends.length > 0) {
+  if (spawnQueue.length > 0) {
+    const levelIndex = spawnQueue.shift();
+    fiend = createFiend(levelIndex, CANVAS_W + 20);  // problem already assigned inside
+  } else if (requeuedFiends.length > 0) {
     fiend = requeuedFiends.shift();
     fiend.x = CANVAS_W + 20;
     fiend.wasRequeued = true;
     fiend.setState('walk');
-  } else if (spawnQueue.length > 0) {
-    const levelIndex = spawnQueue.shift();
-    fiend = createFiend(levelIndex, CANVAS_W + 20);  // problem already assigned inside
   }
   if (fiend) {
     fiend.on('retreated', () => { onFiendRetreated(fiend); });
@@ -585,6 +585,11 @@ function handleWrongAnswer() {
       
       setTimeout(() => {
         if (activeFiend) {
+          if (activeFiend.isElite) {
+            const regularHp = LevelConfig[currentLevelIndex]?.fiendHP ?? 1;
+            activeFiend.isElite = false;
+            activeFiend.hp = Math.max(1, Math.min(activeFiend.hp, regularHp));
+          }
           requeuedFiends.push(activeFiend);
           activeFiend.setState('retreat');
         }
