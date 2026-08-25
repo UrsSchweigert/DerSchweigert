@@ -47,7 +47,7 @@ describe('generateProblem', () => {
     for (let i = 0; i < TOTAL_LEVELS; i++) {
       const problem = generateProblem(i, 42);
 
-      const questionMatch = problem.question.match(/^(\d+)\s*([+−×÷])\s*(\d+)\s*=\s*\?$/);
+      const questionMatch = problem.question.match(/^(\d+)\s*([+\-−×÷])\s*(\d+)\s*=\s*\?$/);
       assert.ok(questionMatch, `Level ${i + 1} question should be in format "a OP b = ?", got: ${problem.question}`);
 
       const a = parseInt(questionMatch[1], 10);
@@ -57,7 +57,7 @@ describe('generateProblem', () => {
       let expected;
       if (op === '+') {
         expected = a + b;
-      } else if (op === '−') {
+      } else if (op === '-' || op === '−') {
         expected = a - b;
       } else if (op === '×') {
         expected = a * b;
@@ -118,12 +118,11 @@ describe('generateProblem', () => {
 
   it('should have correct waveSize values', () => {
     LevelConfig.forEach((cfg, i) => {
-      assert.ok(cfg.waveSize >= 5 && cfg.waveSize <= 8,
-        `Level ${i + 1} waveSize ${cfg.waveSize} is outside 5–8`);
+      assert.strictEqual(cfg.waveSize, 30, `Level ${i + 1} waveSize ${cfg.waveSize} should be 30`);
     });
-    assert.strictEqual(LevelConfig[0].waveSize, 5, 'Level 1 should have waveSize=5');
-    assert.strictEqual(LevelConfig[14].waveSize, 6, 'Level 15 should have waveSize=6');
-    assert.strictEqual(LevelConfig[59].waveSize, 8, 'Level 60 should have waveSize=8');
+    assert.strictEqual(LevelConfig[0].waveSize, 30, 'Level 1 should have waveSize=30');
+    assert.strictEqual(LevelConfig[14].waveSize, 30, 'Level 15 should have waveSize=30');
+    assert.strictEqual(LevelConfig[59].waveSize, 30, 'Level 60 should have waveSize=30');
   });
 
   it('should produce the same problem for the same seed', () => {
