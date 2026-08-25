@@ -3,11 +3,18 @@
 export const LOGICAL_PX = 4;
 export const CANVAS_W   = 800;
 export const CANVAS_H   = 450;
-export const GROUND_Y   = 340;   // y where hero / front fiends anchor
+export const GROUND_Y   = 312;   // y where hero / front fiends anchor; lifted so feet stay visible above the terrain
 export const HERO_X     = 110;
 
-const _bgImage = new Image();
-_bgImage.src = new URL('./background.png', import.meta.url).href;
+const FALLBACK_BG_SRC = new URL('./background.png', import.meta.url).href;
+const STAGE_BG_SOURCES = [
+  new URL('./stage-1.png', import.meta.url).href,
+  new URL('./stage-2.png', import.meta.url).href,
+  new URL('./stage-3.png', import.meta.url).href,
+  new URL('./stage-4.png', import.meta.url).href,
+  new URL('./stage-5.png', import.meta.url).href,
+  new URL('./stage-6.png', import.meta.url).href,
+];
 
 // 5×7 pixel font — chars needed for math questions + HUD labels
 export const PIXEL_FONT = {
@@ -54,6 +61,11 @@ export class Renderer {
     this.canvas = canvas;
     this.ctx    = canvas.getContext('2d');
     this._tick  = 0;
+    this._bgImage = new Image();
+    this._fallbackBgImage = new Image();
+    this._fallbackBgImage.src = FALLBACK_BG_SRC;
+    this._bgImage.src = STAGE_BG_SOURCES[0];
+    this._stageIndex = 0;
   }
 
   clear() {
@@ -61,21 +73,31 @@ export class Renderer {
     this._tick++;
   }
 
+  setBackgroundByLevel(levelNumber) {
+    const stageIndex = Math.min(STAGE_BG_SOURCES.length - 1, Math.max(0, Math.ceil(levelNumber / 10) - 1));
+    if (stageIndex === this._stageIndex && this._bgImage.src) {
+      return;
+    }
+    this._stageIndex = stageIndex;
+    this._bgImage.src = STAGE_BG_SOURCES[stageIndex];
+  }
+
   // ─── main background ────────────────────────────────────────────────────────
   drawBackground(scrollX) {
     const ctx = this.ctx;
-    if (!_bgImage.complete || !_bgImage.naturalWidth) {
+    const bgImage = this._bgImage.complete && this._bgImage.naturalWidth ? this._bgImage : this._fallbackBgImage;
+    if (!bgImage.complete || !bgImage.naturalWidth) {
       ctx.fillStyle = '#3a8ec8';
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
       return;
     }
     // scale image to fill canvas width; crop top+bottom if taller than canvas
     const dw  = CANVAS_W;
-    const dh  = _bgImage.naturalHeight * (CANVAS_W / _bgImage.naturalWidth);
+    const dh  = bgImage.naturalHeight * (CANVAS_W / bgImage.naturalWidth);
     const dy  = (CANVAS_H - dh) / 2;
     const off = mod(scrollX * 0.2, dw);
-    ctx.drawImage(_bgImage, -off, dy, dw, dh);
-    ctx.drawImage(_bgImage, -off + dw, dy, dw, dh);
+    ctx.drawImage(bgImage, -off, dy, dw, dh);
+    ctx.drawImage(bgImage, -off + dw, dy, dw, dh);
   }
 
   // ─── layer helpers ──────────────────────────────────────────────────────────

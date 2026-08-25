@@ -392,6 +392,7 @@ muteBtn.addEventListener('click', () => {
 function startLevel(levelIndex) {
   const cfg = LevelConfig[levelIndex];
   currentLevelIndex = levelIndex;
+  renderer.setBackgroundByLevel(cfg.level);
   levelStartScore = state.score;
   state.level = cfg.level;
   state.waveNumber = 1;
