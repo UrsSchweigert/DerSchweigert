@@ -7,7 +7,12 @@ import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
 import { api } from './api.js';
-import { FIEND_ENTRY_TRIGGER_X, getFiendWalkSpeed } from './difficulty.js';
+import {
+  FIEND_ENTRY_TRIGGER_X,
+  getFiendWalkSpeed,
+  getProblemTimerRemaining,
+  shouldPreserveTimerAfterHit,
+} from './difficulty.js';
 
 // ─── Tunable game-event constants (edit here to adjust game feel) ─────────────
 const GAME_CONFIG = {
@@ -545,10 +550,20 @@ function handleCorrectAnswer() {
           }, 300);
         }};
       } else {
-        activeFiend.problem = generateProblem(state.level - 1, Date.now());
-        inputDisabled = false;
-        heroLunge = { phase: 'back', targetX: HERO_X };
-        showProblem(activeFiend);
+        const preserveTimer = shouldPreserveTimerAfterHit(fiend);
+        activeFiend = null;
+        input.disable();
+        inputDisabled = true;
+        heroLunge = {
+          phase: 'back',
+          targetX: HERO_X,
+          onArrive: () => {
+            fiend.problem = generateProblem(state.level - 1, Date.now());
+            activeFiend = fiend;
+            showProblem(fiend, { preserveTimer });
+            inputDisabled = false;
+          }
+        };
       }
     }
     hud.update(state);
@@ -602,7 +617,8 @@ function handleWrongAnswer() {
   }, 600);
 }
 
-function showProblem(fiend) {
+function showProblem(fiend, options = {}) {
+  const { preserveTimer = false } = options;
   const cfg = LevelConfig[state.level - 1];
   const mode = cfg.inputMode;
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x);
@@ -612,7 +628,7 @@ function showProblem(fiend) {
   }
   input.enable(mode);
   questionStartTime = Date.now();
-  state.timerRemaining = state.timerMax;
+  state.timerRemaining = getProblemTimerRemaining(state.timerMax, state.timerRemaining, preserveTimer);
   state.timerActive = true;
 }
 

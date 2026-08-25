@@ -12,3 +12,11 @@ export function getFiendWalkSpeed(timerSeconds, startX = FIEND_ENTRY_TRIGGER_X) 
   const distance = Math.max(0, startX - FIEND_COMBAT_X);
   return distance / timerSeconds;
 }
+
+export function shouldPreserveTimerAfterHit(fiend) {
+  return Boolean(fiend?.isElite && fiend.hp > 0);
+}
+
+export function getProblemTimerRemaining(timerMax, currentRemaining, preserveRemaining = false) {
+  return preserveRemaining ? currentRemaining : timerMax;
+}
