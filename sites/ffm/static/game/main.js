@@ -152,6 +152,7 @@ const splashLoginBtn = document.getElementById('splash-login-btn');
 const splashGreeting = document.getElementById('splash-user-greeting');
 const leaderboardList = document.getElementById('leaderboard-list');
 const leaderboardYearFilter = document.getElementById('leaderboard-year-filter');
+const leaderboardPersonalBest = document.getElementById('leaderboard-personal-best');
 const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
 const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
 
@@ -191,6 +192,31 @@ function leaderboardBucketLabel(value) {
 
 function escHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatAchievedAt(value) {
+  if (!value) return '';
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) return value;
+  return timestamp.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function renderPersonalBest(profile) {
+  if (!profile?.high_score) {
+    leaderboardPersonalBest.style.display = 'none';
+    leaderboardPersonalBest.textContent = '';
+    return;
+  }
+
+  const achievedAt = formatAchievedAt(profile.high_score.achieved_at);
+  leaderboardPersonalBest.textContent = `Your high score: ${profile.high_score.score} (${achievedAt})`;
+  leaderboardPersonalBest.style.display = '';
 }
 
 function renderLeaderboard(entries) {
@@ -247,6 +273,7 @@ async function refreshProfileAndLeaderboard() {
 
   if (!api.isLoggedIn) {
     currentProfile = null;
+    renderPersonalBest(null);
     leaderboardProfilePrompt.style.display = 'none';
     leaderboardCompleteProfile.style.display = 'none';
     return;
@@ -254,6 +281,7 @@ async function refreshProfileAndLeaderboard() {
 
   try {
     currentProfile = await api.getProfile();
+    renderPersonalBest(currentProfile);
     const year = currentProfile?.user?.first_grade_year;
     if (year === null || year === undefined) {
       leaderboardProfilePrompt.textContent = 'Add your first grade year in profile to join year groups.';
@@ -264,6 +292,7 @@ async function refreshProfileAndLeaderboard() {
       leaderboardCompleteProfile.style.display = 'none';
     }
   } catch {
+    renderPersonalBest(null);
     leaderboardProfilePrompt.style.display = 'none';
     leaderboardCompleteProfile.style.display = 'none';
   }

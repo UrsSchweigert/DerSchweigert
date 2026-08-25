@@ -275,6 +275,12 @@ input[type=number] {
   font-family: monospace;
 }
 
+.leaderboard-note {
+  margin: 0 0 8px 0;
+  color: #c8d2ff;
+  font-size: 12px;
+}
+
 .leaderboard-list {
   margin: 0;
   padding-left: 20px;
@@ -294,6 +300,12 @@ input[type=number] {
 
 .leaderboard-profile-prompt {
   color: #f0d080;
+  font-size: 12px;
+  margin: 0 0 8px 0;
+}
+
+.leaderboard-personal-best {
+  color: #a0f0a0;
   font-size: 12px;
   margin: 0 0 8px 0;
 }

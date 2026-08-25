@@ -1,4 +1,6 @@
 import os
+from datetime import datetime, timedelta, timezone
+
 import pytest
 import boto3
 from moto import mock_aws
@@ -64,6 +66,11 @@ def register_and_login(client, username, email, password, first_grade_year=None)
     assert login_resp.status_code == 200
     token = login_resp.get_json()['access_token']
     return {"Authorization": 'Bearer ' + token}
+
+
+def score_table():
+    ddb = boto3.resource('dynamodb', region_name='eu-central-1')
+    return ddb.Table(os.environ['DYNAMODB_SCORES_TABLE'])
 
 
 def test_health(client):
@@ -173,6 +180,20 @@ def test_high_score_upsert_max_only(client):
     assert higher.get_json()['high_score'] == 1000
 
 
+def test_profile_returns_high_score_and_timestamp(client):
+    headers = register_and_login(client, "profilehs", "profilehs@example.com", "scorepass1")
+
+    saved = client.post('/api/high-score', json={"score": 750}, headers=headers)
+    assert saved.status_code == 200
+
+    profile = client.get('/api/profile', headers=headers)
+    assert profile.status_code == 200
+    data = profile.get_json()
+
+    assert data['high_score']['score'] == 750
+    assert data['high_score']['achieved_at'] == saved.get_json()['achieved_at']
+
+
 def test_profile_update_first_grade_year(client):
     headers = register_and_login(client, "profileu", "profileu@example.com", "profilepass1")
 
@@ -267,3 +288,29 @@ def test_leaderboard_global_grouping_filter_and_unclassified(client):
     assert len(year_data['grouped_entries']) == 1
     assert year_data['grouped_entries'][0]['label'] == "2010"
     assert [e['username'] for e in year_data['grouped_entries'][0]['entries']] == ["alice", "bob"]
+
+
+def test_leaderboard_only_shows_scores_from_last_two_weeks(client):
+    recent_headers = register_and_login(client, "recent", "recent@example.com", "password123", 2010)
+    old_headers = register_and_login(client, "oldie", "oldie@example.com", "password123", 2011)
+
+    recent = client.post('/api/high-score', json={"score": 700}, headers=recent_headers)
+    old = client.post('/api/high-score', json={"score": 999}, headers=old_headers)
+    assert recent.status_code == 200
+    assert old.status_code == 200
+
+    cutoff_breach = (datetime.now(timezone.utc) - timedelta(days=15)).isoformat()
+    score_table().update_item(
+        Key={'pk': 'USER#oldie', 'sk': 'HIGHSCORE'},
+        UpdateExpression='SET achieved_at = :achieved_at',
+        ExpressionAttributeValues={':achieved_at': cutoff_breach},
+    )
+
+    leaderboard = client.get('/api/leaderboard')
+    assert leaderboard.status_code == 200
+    data = leaderboard.get_json()
+
+    assert [entry['username'] for entry in data['global_entries']] == ["recent"]
+    grouped = {entry['label']: entry['entries'] for entry in data['grouped_entries']}
+    assert "2010" in grouped
+    assert "2011" not in grouped

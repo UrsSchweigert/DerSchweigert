@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
@@ -7,6 +7,7 @@ from botocore.exceptions import ClientError
 
 MIN_FIRST_GRADE_YEAR = 1950
 MAX_FIRST_GRADE_YEAR = 2100
+LEADERBOARD_WINDOW_DAYS = 14
 
 
 def _ddb():
@@ -31,6 +32,15 @@ def _int_or_none(val):
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_timestamp(value):
+    dt = datetime.fromisoformat(value)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def _leaderboard_cutoff():
+    return datetime.now(timezone.utc) - timedelta(days=LEADERBOARD_WINDOW_DAYS)
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +202,7 @@ def put_high_score(username, score, first_grade_year=None):
 
 
 def get_leaderboard(first_grade_year_filter=None):
-    """Scan all HIGHSCORE items. Returns (global_entries, grouped_entries)."""
+    """Scan recent HIGHSCORE items. Returns (global_entries, grouped_entries)."""
     items = []
     kwargs = {
         'FilterExpression': Attr('sk').eq('HIGHSCORE'),
@@ -202,6 +212,9 @@ def get_leaderboard(first_grade_year_filter=None):
     while 'LastEvaluatedKey' in resp:
         resp = _scores().scan(**kwargs, ExclusiveStartKey=resp['LastEvaluatedKey'])
         items.extend(resp.get('Items', []))
+
+    cutoff = _leaderboard_cutoff()
+    items = [item for item in items if _parse_timestamp(item['achieved_at']) >= cutoff]
 
     items.sort(key=lambda x: (-int(x['high_score']), x['achieved_at'], x.get('username', '')))
 
