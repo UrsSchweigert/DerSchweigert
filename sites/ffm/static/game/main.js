@@ -7,6 +7,7 @@ import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
 import { api } from './api.js';
+import { FIEND_ENTRY_TRIGGER_X, getFiendWalkSpeed } from './difficulty.js';
 
 // ─── Tunable game-event constants (edit here to adjust game feel) ─────────────
 const GAME_CONFIG = {
@@ -95,6 +96,7 @@ function createFiend(levelIndex, x) {
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[tier] : undefined;
   const fiend = new FiendClass(x, GROUND_Y, hp, palette);
+  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
   fiend.problem = problem;
   fiend.isElite = isElite;
   return fiend;
@@ -432,6 +434,7 @@ function spawnNextFiend() {
   } else if (requeuedFiends.length > 0) {
     fiend = requeuedFiends.shift();
     fiend.x = CANVAS_W + 20;
+    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
     fiend.wasRequeued = true;
     fiend.setState('walk');
   }
@@ -602,6 +605,7 @@ function handleWrongAnswer() {
 function showProblem(fiend) {
   const cfg = LevelConfig[state.level - 1];
   const mode = cfg.inputMode;
+  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x);
   if (mode === 'multiple-choice') {
     const options = [fiend.problem.answer, ...(fiend.problem.distractors || [])].sort(() => Math.random() - 0.5);
     input.setMCOptions(options);
@@ -754,7 +758,7 @@ function gameLoop(ts) {
 
     if (!activeFiend && !inputDisabled) {
       // enable input as soon as the problem bubble enters the screen
-      const visible = fiends.find(f => !f.isDead && f.problem && f.x < CANVAS_W - 40);
+      const visible = fiends.find(f => !f.isDead && f.problem && f.x < FIEND_ENTRY_TRIGGER_X);
       if (visible) {
         activeFiend = visible;
         showProblem(activeFiend);

@@ -1,6 +1,7 @@
 // entities.js — pixel-art Hero + fiends for Arithmo Slayer
 
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
+import { FIEND_COMBAT_X } from './difficulty.js';
 
 const P = LOGICAL_PX; // shorthand
 const _uploadedHeroSheet = new Image();
@@ -648,6 +649,8 @@ export class Fiend extends Entity {
     super(x, y);
     this.hp = cfg.hp;
     this._pal = cfg.palette;
+    this.walkSpeed = 50;
+    this.retreatSpeed = 80;
     this.problem = null;
     this.wasRequeued = false;
     this._redFlash = 0;
@@ -668,11 +671,11 @@ export class Fiend extends Entity {
   update(dt) {
     super.update(dt);
     if (this._state === 'walk') {
-      this.x -= 50 * dt;
-      if (this.x < HERO_X + 108) this.setState('idle');
+      this.x -= this.walkSpeed * dt;
+      if (this.x < FIEND_COMBAT_X) this.setState('idle');
     }
     if (this._state === 'retreat') {
-      this.x += 80 * dt;
+      this.x += this.retreatSpeed * dt;
       if (this.x > CANVAS_W + 100) this._emit('retreated');
     }
     if (this._redFlash > 0) this._redFlash -= dt;
@@ -686,7 +689,7 @@ export class Fiend extends Entity {
     if (this._frame >= max) {
       if (this._state === 'hit' || this._state === 'attack') {
         // resume walking if not yet at combat range
-        this.setState(this.x > HERO_X + 108 ? 'walk' : 'idle');
+        this.setState(this.x > FIEND_COMBAT_X ? 'walk' : 'idle');
       }
       else if (this._state === 'death') {
         if (!this._particlesSpawned) {
