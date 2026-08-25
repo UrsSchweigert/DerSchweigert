@@ -1,17 +1,44 @@
 import os
 import pytest
+import boto3
+from moto import mock_aws
 
-# Set SECRET_KEY before importing the app
 os.environ['SECRET_KEY'] = 'test-secret-key-for-testing-only'
+os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
+os.environ['AWS_SECRET_ACCESS_KEY'] = 'testing'
+os.environ['AWS_SECURITY_TOKEN'] = 'testing'
+os.environ['AWS_SESSION_TOKEN'] = 'testing'
+os.environ['AWS_DEFAULT_REGION'] = 'eu-central-1'
+os.environ['DYNAMODB_USERS_TABLE'] = 'ffm-users-test'
+os.environ['DYNAMODB_SCORES_TABLE'] = 'ffm-scores-test'
 
 from sites.ffm.app import create_app
 from sites.ffm.app.config import TestingConfig
 
 
+@pytest.fixture(scope='function')
+def aws_mock():
+    with mock_aws():
+        ddb = boto3.resource('dynamodb', region_name='eu-central-1')
+        for table_name in ('ffm-users-test', 'ffm-scores-test'):
+            ddb.create_table(
+                TableName=table_name,
+                KeySchema=[
+                    {'AttributeName': 'pk', 'KeyType': 'HASH'},
+                    {'AttributeName': 'sk', 'KeyType': 'RANGE'},
+                ],
+                AttributeDefinitions=[
+                    {'AttributeName': 'pk', 'AttributeType': 'S'},
+                    {'AttributeName': 'sk', 'AttributeType': 'S'},
+                ],
+                BillingMode='PAY_PER_REQUEST',
+            )
+        yield
+
+
 @pytest.fixture
-def app():
-    app = create_app(TestingConfig)
-    yield app
+def app(aws_mock):
+    return create_app(TestingConfig)
 
 
 @pytest.fixture

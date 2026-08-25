@@ -51,6 +51,30 @@ module "api" {
   tags = local.tags
 }
 
+resource "aws_iam_role_policy" "lambda_dynamodb" {
+  name = "ffm-lambda-dynamodb-access"
+  role = module.api.lambda_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+      ]
+      Resource = [
+        aws_dynamodb_table.users.arn,
+        aws_dynamodb_table.scores.arn,
+      ]
+    }]
+  })
+}
+
 module "site" {
   source = "../../modules/static_site"
 

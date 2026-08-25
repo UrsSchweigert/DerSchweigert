@@ -17,3 +17,7 @@ output "function_name" {
 output "stage_invoke_url" {
   value = aws_api_gateway_stage.prod.invoke_url
 }
+
+output "lambda_role_name" {
+  value = aws_iam_role.lambda_exec.name
+}
