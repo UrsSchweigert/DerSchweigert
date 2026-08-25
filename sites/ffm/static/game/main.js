@@ -130,6 +130,7 @@ const levelClearTitle = document.getElementById('level-clear-title');
 const levelClearScore = document.getElementById('level-clear-score');
 const btnNextLevel = document.getElementById('btn-next-level');
 const btnReplayLevel = document.getElementById('btn-replay-level');
+const btnSaveScoreReturnTitle = document.getElementById('btn-save-score-return-title');
 const gameOverOverlay = document.getElementById('game-over');
 const gameOverScore = document.getElementById('game-over-score');
 const btnRetryLevel = document.getElementById('btn-retry-level');
@@ -718,6 +719,18 @@ function triggerLevelClear() {
     levelClearOverlay.style.display = 'none';
     state.score = levelStartScore;
     startLevel(completedIndex);
+  };
+  btnSaveScoreReturnTitle.style.display = api.isLoggedIn ? 'block' : 'none';
+  btnSaveScoreReturnTitle.onclick = async () => {
+    if (!api.isLoggedIn) return;
+    try {
+      await api.postHighScore(state.score);
+      await refreshProfileAndLeaderboard();
+      levelClearOverlay.style.display = 'none';
+      diffSelect.style.display = 'flex';
+    } catch {
+      levelClearScore.textContent = 'Could not save score. Please try again.';
+    }
   };
   levelClearOverlay.style.display = 'flex';
 }
