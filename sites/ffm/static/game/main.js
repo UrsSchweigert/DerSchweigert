@@ -171,6 +171,7 @@ let spawnTimer = 0;
 let answerTimes = [];
 let questionStartTime = 0;
 let inputDisabled = false;
+let pendingProblemActivation = null;
 let gameRunning = false;
 let currentLevelIndex = 0;
 let levelStartScore = 0;
@@ -409,6 +410,7 @@ function startLevel(levelIndex) {
   fiends = [];
   activeFiend = null;
   inputDisabled = false;
+  pendingProblemActivation = null;
   
   const waveSize = cfg.waveSize;
   for (let i = 0; i < waveSize; i++) {
@@ -559,8 +561,7 @@ function handleCorrectAnswer() {
           targetX: HERO_X,
           onArrive: () => {
             fiend.problem = generateProblem(state.level - 1, Date.now());
-            activeFiend = fiend;
-            showProblem(fiend, { preserveTimer });
+            queueProblemActivation(fiend, { preserveTimer });
             inputDisabled = false;
           }
         };
@@ -617,19 +618,28 @@ function handleWrongAnswer() {
   }, 600);
 }
 
-function showProblem(fiend, options = {}) {
+function queueProblemActivation(fiend, options = {}) {
   const { preserveTimer = false } = options;
+  pendingProblemActivation = { fiend, preserveTimer };
+}
+
+function activatePendingProblem() {
+  if (!pendingProblemActivation) return;
+
+  const { fiend, preserveTimer } = pendingProblemActivation;
+  pendingProblemActivation = null;
   const cfg = LevelConfig[state.level - 1];
   const mode = cfg.inputMode;
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x);
-  if (mode === 'multiple-choice') {
-    const options = [fiend.problem.answer, ...(fiend.problem.distractors || [])].sort(() => Math.random() - 0.5);
-    input.setMCOptions(options);
-  }
-  input.enable(mode);
-  questionStartTime = Date.now();
+  activeFiend = fiend;
   state.timerRemaining = getProblemTimerRemaining(state.timerMax, state.timerRemaining, preserveTimer);
   state.timerActive = true;
+  questionStartTime = Date.now();
+  if (mode === 'multiple-choice') {
+    const mcOptions = [fiend.problem.answer, ...(fiend.problem.distractors || [])].sort(() => Math.random() - 0.5);
+    input.setMCOptions(mcOptions);
+  }
+  input.enable(mode);
 }
 
 function updatePaceAdapter() {
@@ -776,11 +786,12 @@ function gameLoop(ts) {
       // enable input as soon as the problem bubble enters the screen
       const visible = fiends.find(f => !f.isDead && f.problem && f.x < FIEND_ENTRY_TRIGGER_X);
       if (visible) {
-        activeFiend = visible;
-        showProblem(activeFiend);
+        queueProblemActivation(visible);
       }
     }
-    
+
+    activatePendingProblem();
+     
     if (hero.state === 'walk' && !heroLunge) state.scrollX += 100 * dt;
     hero.lunging = heroLunge !== null && hero.state !== 'swing';
   }
