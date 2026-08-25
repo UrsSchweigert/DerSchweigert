@@ -9,13 +9,13 @@ app under `sites/`, and shared infrastructure building blocks live under
 ```
 sites/
   derschweigert/   # www.derschweigert.de — FastAPI app, templates, static assets, Lambda API, tests
-  ffm/              # ffm.derschweigert.de — reserved for the "Final Fantasy Math" game (not yet implemented)
+  ffm/              # ffm.derschweigert.de — Arithmo Slayer static game + Flask API
 infra/
   terraform/
     modules/        # shared Terraform modules (static_site, api_backend) used by every site stack
     sites/
-      derschweigert/  # root module for derschweigert.de + www + ffm alias (current live infra)
-      ffm/            # reserved for FFM's own stack once it has content
+      derschweigert/  # root module for derschweigert.de + www
+      ffm/            # dedicated FFM stack (static site + API backend)
 requirements.txt      # shared Python dependency baseline
 pytest.ini            # points pytest at sites/derschweigert/tests
 ```
@@ -35,13 +35,17 @@ pytest.ini            # points pytest at sites/derschweigert/tests
 
 - `pytest` (uses `pytest.ini` to target `sites/derschweigert/tests`)
 
+## Arithmo Slayer / FFM
+
+Arithmo Slayer now lives under `sites/ffm/`. For the current system overview, architecture notes, and working gotchas, start with [`sites/ffm/README.md`](sites/ffm/README.md).
+
 ## Environment
 
 The app loads `sites/derschweigert/.env` automatically when it starts, so local and production values stay in one place.
 
 ## Domain / Route53 note
 
-The configured production domain for this project is `derschweigert.de`. In Route53, create the hosted zone and add an apex plus `www` alias record pointing at your app host or CDN, then keep the `APP_DOMAIN` and `SITE_URL` values aligned with the live entry point. `ffm.derschweigert.de` currently aliases the same CloudFront distribution until it has dedicated infrastructure.
+The configured production domains for this project are `derschweigert.de` / `www.derschweigert.de` and `ffm.derschweigert.de`. In Route53, keep the apex + `www` aliases aligned with the derschweigert stack and the `ffm` record aligned with `infra/terraform/sites/ffm`.
 
 ## Minimal Route53 setup
 
@@ -55,22 +59,21 @@ The configured production domain for this project is `derschweigert.de`. In Rout
 There are two deployment shapes supported by the shared Terraform modules
 (`infra/terraform/modules/static_site` and `infra/terraform/modules/api_backend`):
 
-### Shared deployment (current state of `ffm.derschweigert.de`)
+### Shared deployment (historical / optional pattern)
 
 A subdomain can "ride" an existing site's CloudFront distribution before it has
 its own app: add the subdomain to that stack's `additional_aliases` list (and
 therefore the ACM certificate's SAN list) and add a matching exemption in the
 CloudFront viewer-request function if the target site is behind the PIN lock.
-This is what `ffm.derschweigert.de` does today inside
-[`infra/terraform/sites/derschweigert/main.tf`](infra/terraform/sites/derschweigert/main.tf) —
-there is no dedicated S3 bucket, CloudFront distribution, or Lambda for FFM yet.
+This was the bootstrap pattern before FFM had its own stack.
 
-Pros: zero extra infra/cost. Cons: FFM's availability and deploys are coupled to
-derschweigert.de's stack (e.g. any CloudFront/ACM change touches both).
+Pros: zero extra infra/cost. Cons: the subdomain's availability and deploys are
+coupled to the parent stack (e.g. any CloudFront/ACM change touches both).
 
 ### Independent deployment (a site gets its own stack)
 
-When a site (e.g. FFM) has real content and should be deployed independently:
+This is the current shape for FFM under `infra/terraform/sites/ffm/`, and the
+recommended shape for any real standalone site:
 
 1. Add real app code under `sites/<name>/` (see `sites/derschweigert` as the
    reference layout: `app/`, `templates/`, `static/`, `lambda/`, `tests/`).
@@ -123,24 +126,22 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
 - **Route53 zone**: `derschweigert.de` hosted zone ID `Z02407051JK3BF2C58UEQ`
   (shared across all subdomains/sites — no need to create a new zone for a new
   subdomain, just add records/aliases in the relevant site's Terraform stack).
-- **CI**: `.github/workflows/deploy.yml` runs tests, then `terraform apply` for
-  `infra/terraform/sites/derschweigert`, then syncs `sites/derschweigert/{templates,static}`
-  to the site's S3 bucket and invalidates CloudFront. It only deploys the
-  derschweigert.de stack today — a new independent site needs its own job.
-  Required GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
-  `AWS_SESSION_TOKEN` (optional), `AWS_REGION` (optional, defaults to
-  `eu-central-1`), `ROUTE53_ZONE_ID`.
+- **CI**: `.github/workflows/deploy.yml` contains deploy flows for both the
+  derschweigert and FFM stacks. The FFM job runs backend tests, builds the
+  Lambda zip, updates the `ffm-api` Lambda, syncs `sites/ffm/static`, and
+  invalidates the FFM CloudFront distribution. Required GitHub secrets:
+  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
+  (optional), `AWS_REGION` (optional, defaults to `eu-central-1`),
+  `ROUTE53_ZONE_ID`.
 - **PIN lock**: production traffic to derschweigert.de/www is gated by a
   CloudFront Function (`derschweigert-pin-lock`) requiring an `ams_pin=1`
   cookie, except for a small allowlist of public paths (`/health`, `/unlock`,
-  `/static/*`, `/api/*`, `/contact`, `/impressum`, `/datenschutz`) and any host
-  under `ffm.derschweigert.de` (exempted since FFM is a separate, non-locked
-  audience). If FFM ever needs its own lock behavior, update
-  `local.pin_lock_function_code` in the derschweigert stack (or give FFM its
-  own CloudFront function once it has an independent stack).
-  The PIN value itself is defined in `module "api"`'s `environment_variables`
-  in `infra/terraform/sites/derschweigert/main.tf` — treat it like any other
-  credential when changing it (don't casually paste it into chat/commits).
+  `/static/*`, `/api/*`, `/contact`, `/impressum`, `/datenschutz`). FFM now
+  has its own stack, so its access policy should be treated independently from
+  the derschweigert PIN lock. The PIN value itself is defined in `module "api"`'s
+  `environment_variables` in `infra/terraform/sites/derschweigert/main.tf` —
+  treat it like any other credential when changing it (don't casually paste it
+  into chat/commits).
 - **Env file**: `app/config.py`'s `BASE_DIR` resolves relative to the `app/`
   package, so each site's `.env` must live at `sites/<name>/.env`, not the repo
   root.
