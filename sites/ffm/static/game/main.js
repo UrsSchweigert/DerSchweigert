@@ -118,8 +118,8 @@ let state = {
   scrollX: 0,
   waveNumber: 1,
   enemiesDefeated: 0,
-  timerMax: 20,
-  timerRemaining: 20,
+  timerMax: 10,
+  timerRemaining: 10,
   timerActive: false,
 };
 
