@@ -835,7 +835,7 @@ function gameLoop(ts) {
 
   // Pass 2: speech bubbles and timer bars always on top of every sprite
   sorted.forEach(f => {
-    if (f.problem && f.x < CANVAS_W - 20 && !f.isDead && f.state !== 'death') {
+    if (f.problem && f.x < FIEND_ENTRY_TRIGGER_X && !f.isDead && f.state !== 'death') {
       const bubbleText = f.state === 'reveal'
         ? (f._revealText || f.problem.question)
         : f.problem.question;
