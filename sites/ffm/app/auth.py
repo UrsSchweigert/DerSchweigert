@@ -1,20 +1,19 @@
 from flask import Blueprint, request, jsonify, make_response, current_app
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import bcrypt
 import jwt
 import datetime
+from .extensions import limiter
 from .models import (
     create_user, get_user,
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
 )
+from .validation import is_valid_int
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
-limiter = Limiter(get_remote_address, storage_uri="memory://")
 
 
 @auth_bp.route('/register', methods=['POST'])
-@limiter.limit("10/minute")
+@limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
 def register():
     data = request.get_json()
     if not data:
@@ -32,7 +31,7 @@ def register():
     if not password or len(password) < 8 or len(password) > 128:
         return jsonify({"error": "Password must be 8-128 characters"}), 400
     if first_grade_year is not None:
-        if type(first_grade_year) is not int or not (MIN_FIRST_GRADE_YEAR <= first_grade_year <= MAX_FIRST_GRADE_YEAR):
+        if not is_valid_int(first_grade_year, MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR):
             return jsonify({"error": f"first_grade_year must be between {MIN_FIRST_GRADE_YEAR} and {MAX_FIRST_GRADE_YEAR}"}), 400
 
     password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
@@ -53,7 +52,7 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
-@limiter.limit("10/minute")
+@limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
 def login():
     data = request.get_json()
     if not data:

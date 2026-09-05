@@ -7,6 +7,7 @@ from .models import (
     get_high_score, put_high_score,
     get_leaderboard,
 )
+from .validation import is_valid_int
 
 main_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -62,7 +63,7 @@ def update_profile():
 
     first_grade_year = data['first_grade_year']
     if first_grade_year is not None:
-        if type(first_grade_year) is not int or not (MIN_FIRST_GRADE_YEAR <= first_grade_year <= MAX_FIRST_GRADE_YEAR):
+        if not is_valid_int(first_grade_year, MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR):
             return jsonify({"error": f"first_grade_year must be between {MIN_FIRST_GRADE_YEAR} and {MAX_FIRST_GRADE_YEAR}"}), 400
 
     update_user_first_grade_year(username, first_grade_year)
@@ -84,9 +85,9 @@ def submit_score():
     score = data.get('score')
     difficulty = data.get('difficulty', '').strip()
 
-    if not isinstance(level, int) or not (1 <= level <= 60):
+    if not is_valid_int(level, 1, 60):
         return jsonify({"error": "Invalid input"}), 400
-    if not isinstance(score, int) or score < 0:
+    if not is_valid_int(score, min_value=0):
         return jsonify({"error": "Invalid input"}), 400
     if difficulty not in ("easy", "medium", "hard"):
         return jsonify({"error": "Invalid input"}), 400
@@ -104,7 +105,7 @@ def submit_high_score():
         return jsonify({"error": "Invalid input"}), 400
 
     score = data.get('score')
-    if type(score) is not int or score < 0:
+    if not is_valid_int(score, min_value=0):
         return jsonify({"error": "Invalid input"}), 400
 
     user = get_user(username)

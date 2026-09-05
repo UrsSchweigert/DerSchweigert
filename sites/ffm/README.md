@@ -118,23 +118,27 @@ The dedicated FFM stack now exists under `infra/terraform/sites/ffm/`.
 - DynamoDB tables:
   - `ffm-users`
   - `ffm-scores`
+  - `ffm-ratelimits` (flask-limiter's `dynamodb://` storage backend; see `app/ratelimit_storage.py`)
+- JWT signing key: Secrets Manager secret `ffm/jwt-secret-key`, passed to the Lambda as `SECRET_KEY_ARN` and resolved at cold start in `lambda/handler.py`
 - Terraform backend key: `ffm/prod/terraform.tfstate`
 - CI deploy flow is in `.github/workflows/deploy.yml`
 
 The deploy workflow currently:
 
-1. runs FFM backend tests
-2. builds a Lambda zip into `sites/ffm/ffm-lambda.zip`
-3. uploads the zip and updates the Lambda
+1. runs FFM backend tests (`test-ffm` job, gates both PRs and pushes to `main`)
+2. `terraform apply`s `infra/terraform/sites/ffm/` — provisions/updates DynamoDB tables, the Secrets Manager secret, IAM policies, the CloudFront response-headers policy, and the Lambda's environment variables
+3. builds a dependency-bundled Lambda zip into `sites/ffm/ffm-lambda.zip` and pushes it with `aws lambda update-function-code`
 4. syncs `sites/ffm/static/` to the site bucket
 5. invalidates CloudFront
 6. smoke-tests `/` and `/api/health`
+
+**Known trade-off in step 2→3:** Terraform's own `archive_file` data source (in the shared `api_backend` module) only zips `sites/ffm/lambda/` (just `handler.py`) — it does not bundle `app/` or pip dependencies, because those need Lambda-compatible (`manylinux2014`) wheels that Terraform can't easily produce. So `terraform apply` in step 2 briefly deploys that thin, non-functional zip as the Lambda's code before step 3 overwrites it with the real, fully-bundled one moments later in the same job. In practice this means a deploy has a short window (well under a minute) where a live request could hit `ModuleNotFoundError` before step 3 completes. Acceptable for this project's traffic level, but if it ever needs to become a non-issue, the fix is to build the dependency-bundled directory *before* running `terraform apply` and point `lambda_source_dir` at that pre-built directory instead of `sites/ffm/lambda/`, then drop the separate `update-function-code` step entirely so Terraform is the single source of truth for both code and config.
 
 ## Local development and validation
 
 Known-good automated checks:
 
-- `SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q --tb=short`
+- `pip install -r sites/ffm/requirements-dev.txt && SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q --tb=short`
 - `node --test sites/ffm/static/game/levels.test.js`
 
 Important local-dev caveat:
@@ -149,7 +153,6 @@ These are the things most likely to mislead a future session:
 
 - The original build prompt in `ffm-math-game.prompt.md` describes a **40-level** plan; the shipped code and tests use **60 levels**.
 - `sites/ffm/app/models.py` is DynamoDB access code, not SQLAlchemy models.
-- `sites/ffm/migrate_leaderboard_schema.py` and `sites/ffm/migrate_level_range.py` are leftovers from an earlier SQLite design and are not part of the active production path.
 - `sites/ffm/build/` and `sites/ffm/ffm-lambda.zip` are packaging artifacts, not source.
 - `sites/ffm/templates/` is effectively unused by the current static-frontend/JSON-API architecture.
 - Some names are stale:
