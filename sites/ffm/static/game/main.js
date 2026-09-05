@@ -300,11 +300,19 @@ async function refreshProfileAndLeaderboard() {
 }
 
 // --- Splash login button ---
-function updateSplashAuthState() {
+function applyAuthUIState() {
   if (api.username) {
+    loginBtn.style.display = 'none';
+    logoutBtn.style.display = '';
+    userDisplay.textContent = api.username;
+    userDisplay.style.display = '';
     splashLoginBtn.textContent = 'Logout';
     splashGreeting.textContent = `Welcome, ${api.username}!`;
   } else {
+    loginBtn.style.display = '';
+    logoutBtn.style.display = 'none';
+    userDisplay.textContent = '';
+    userDisplay.style.display = 'none';
     splashLoginBtn.textContent = 'Login / Register';
     splashGreeting.textContent = '';
   }
@@ -314,10 +322,7 @@ function updateSplashAuthState() {
 splashLoginBtn.addEventListener('click', () => {
   if (api.username) {
     api.logout().then(() => {
-      loginBtn.style.display = '';
-      logoutBtn.style.display = 'none';
-      userDisplay.style.display = 'none';
-      updateSplashAuthState();
+      applyAuthUIState();
     });
   } else {
     authModal.style.display = 'flex';
@@ -348,10 +353,7 @@ closeAuth.addEventListener('click', () => {
 });
 logoutBtn.addEventListener('click', async () => {
   await api.logout();
-  loginBtn.style.display = '';
-  logoutBtn.style.display = 'none';
-  userDisplay.style.display = 'none';
-  updateSplashAuthState();
+  applyAuthUIState();
 });
 tabLogin.addEventListener('click', () => {
   loginForm.style.display = '';
@@ -372,12 +374,8 @@ loginForm.addEventListener('submit', async e => {
     const p = document.getElementById('login-password').value;
     await api.login(u, p);
     authModal.style.display = 'none';
-    loginBtn.style.display = 'none';
-    userDisplay.textContent = api.username || 'Player';
-    userDisplay.style.display = '';
-    logoutBtn.style.display = '';
     loginError.textContent = '';
-    updateSplashAuthState();
+    applyAuthUIState();
   } catch (err) {
     loginError.textContent = err.message;
   }
@@ -391,12 +389,8 @@ registerForm.addEventListener('submit', async e => {
     const firstGradeYear = document.getElementById('reg-first-grade-year').value;
     await api.register(u, em, pw, firstGradeYear);
     authModal.style.display = 'none';
-    loginBtn.style.display = 'none';
-    userDisplay.textContent = api.username || 'Player';
-    userDisplay.style.display = '';
-    logoutBtn.style.display = '';
     registerError.textContent = '';
-    updateSplashAuthState();
+    applyAuthUIState();
   } catch (err) {
     registerError.textContent = err.message;
   }
@@ -869,5 +863,5 @@ function gameLoop(ts) {
 api.refresh()
   .catch(() => false)
   .finally(() => {
-    updateSplashAuthState();
+    applyAuthUIState();
   });
