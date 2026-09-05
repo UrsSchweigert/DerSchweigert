@@ -444,6 +444,40 @@ def test_auth_rate_limit_persists_via_dynamodb_storage(aws_mock):
     assert any(int(item['counter']) >= 2 for item in items)
 
 
+def test_resend_verification_rate_limited_per_target_email_not_just_ip(aws_mock):
+    """Regression test for the per-recipient-email limit on
+    resend-verification/forgot-password (app/config.py's
+    EMAIL_TARGET_RATE_LIMIT, keyed by _email_rate_limit_key in auth.py).
+    Without this, AUTH_RATE_LIMIT alone (per source IP) would let a single
+    caller keep re-sending verification emails to one victim address
+    forever, since every request here comes from the same test client IP
+    but targets the same email — the per-email limit must trip well before
+    the generous per-IP TestingConfig limit ever would."""
+
+    class LowEmailTargetRateLimitConfig(TestingConfig):
+        EMAIL_TARGET_RATE_LIMIT = "3/minute"
+
+    app = create_app(LowEmailTargetRateLimitConfig)
+    test_client = app.test_client()
+
+    statuses = [
+        test_client.post(
+            '/api/auth/resend-verification', json={"email": "samevictim@example.com"}
+        ).status_code
+        for _ in range(5)
+    ]
+
+    assert statuses[:3] == [200, 200, 200]
+    assert statuses[3:] == [429, 429]
+
+    # A different target email is a different rate-limit bucket, so it's
+    # unaffected by the above victim's requests having exhausted theirs.
+    other_status = test_client.post(
+        '/api/auth/resend-verification', json={"email": "different@example.com"}
+    ).status_code
+    assert other_status == 200
+
+
 def test_score_history_unauthenticated(client):
     r = client.get('/api/profile/score-history')
     assert r.status_code == 401

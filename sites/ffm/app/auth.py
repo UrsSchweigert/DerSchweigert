@@ -18,6 +18,18 @@ from . import mailer
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 
+def _email_rate_limit_key():
+    """Rate-limit key for resend-verification/forgot-password: the *target*
+    email address from the request body, not the caller's IP. This bounds
+    how many emails one specific address can be sent regardless of how many
+    different source IPs an attacker uses — AUTH_RATE_LIMIT alone only
+    bounds requests per IP, which doesn't stop a patient or IP-rotating
+    attacker from mail-bombing one victim's inbox via our domain."""
+    data = request.get_json(silent=True) or {}
+    email = str(data.get('email', '')).strip().lower()
+    return email or 'no-email'
+
+
 @auth_bp.route('/register', methods=['POST'])
 @limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
 def register():
@@ -105,6 +117,7 @@ def login():
 
 @auth_bp.route('/resend-verification', methods=['POST'])
 @limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
+@limiter.limit(lambda: current_app.config['EMAIL_TARGET_RATE_LIMIT'], key_func=_email_rate_limit_key)
 def resend_verification():
     data = request.get_json()
     if not data:
@@ -146,6 +159,7 @@ def verify_email():
 
 @auth_bp.route('/forgot-password', methods=['POST'])
 @limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
+@limiter.limit(lambda: current_app.config['EMAIL_TARGET_RATE_LIMIT'], key_func=_email_rate_limit_key)
 def forgot_password():
     data = request.get_json()
     if not data:

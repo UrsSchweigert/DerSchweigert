@@ -11,6 +11,15 @@ class BaseConfig:
     # routes specifically (see app/auth.py). Kept apart from the app-wide
     # default so it can be tuned independently.
     AUTH_RATE_LIMIT = "10/minute"
+    # Applied per-*target-email* (not per-IP) specifically to
+    # /auth/resend-verification and /auth/forgot-password. AUTH_RATE_LIMIT
+    # above only bounds requests per source IP, so an attacker rotating IPs
+    # (or just being patient) could otherwise call either endpoint against
+    # one victim's address indefinitely, using our domain to mail-bomb
+    # someone who never asked for anything. This limit closes that
+    # specifically by keying on the email in the request body instead of
+    # the caller's IP — see _email_rate_limit_key() in auth.py.
+    EMAIL_TARGET_RATE_LIMIT = "3/hour"
     DYNAMODB_USERS_TABLE = os.environ.get('DYNAMODB_USERS_TABLE', 'ffm-users')
     DYNAMODB_SCORES_TABLE = os.environ.get('DYNAMODB_SCORES_TABLE', 'ffm-scores')
     DYNAMODB_RATELIMIT_TABLE = os.environ.get('DYNAMODB_RATELIMIT_TABLE', 'ffm-ratelimits')
@@ -35,3 +44,8 @@ class TestingConfig(BaseConfig):
     # trips it; the real 10/minute limit is covered by a dedicated test
     # that overrides this value for just that one request cycle.
     AUTH_RATE_LIMIT = "1000/minute"
+    # Same rationale as AUTH_RATE_LIMIT's test override: high enough that
+    # the test suite's own repeated calls (often reusing the same test
+    # email) never trip it; a dedicated test overrides this value down to
+    # exercise the real limit for just that one request cycle.
+    EMAIL_TARGET_RATE_LIMIT = "1000/hour"
