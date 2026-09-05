@@ -190,9 +190,12 @@ const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
 const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this distance of HERO_X
 // Ranged spells (fireball/lightning) launch from just right of the hero's
 // sprite while he strikes in place at the base location, rather than lunging
-// up to the fiend like a melee hit does.
+// up to the fiend like a melee hit does. The target height matches the
+// launch height so the bolt/fireball flies level, straight into the fiend's
+// body instead of angling down at its feet.
 const SPELL_LAUNCH_X = HERO_X + 130;
 const SPELL_LAUNCH_Y = GROUND_Y - 60;
+const SPELL_TARGET_Y_OFFSET = 60;
 // Must match Fireball's `life` (in entities.js) in milliseconds, so the hit
 // lands right as the sprite reaches the fiend instead of the instant it's cast.
 const FIREBALL_FLIGHT_MS = 1350;
@@ -618,7 +621,7 @@ function handleCorrectAnswer() {
       // Hero strikes in place at the base location; the bolt is launched
       // from just right of his sprite toward the fiend.
       hero.setState('swing');
-      activeLightningBolts.push(new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y));
+      activeLightningBolts.push(new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
       setTimeout(() => {
         fiend.hp = 0;
         fiend.setState('death');
@@ -641,7 +644,7 @@ function handleCorrectAnswer() {
       // from just right of his sprite toward the fiend, and the hit lands
       // when it actually arrives rather than the instant it's cast.
       hero.setState('swing');
-      activeFireballs.push(new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y));
+      activeFireballs.push(new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
       audio.playSwordSwing();
       input.disable();
       inputDisabled = true;

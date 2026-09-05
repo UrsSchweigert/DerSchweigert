@@ -1522,7 +1522,7 @@ export class SnakeFoe extends Fiend {
 const SPELL_SPRITE_DRAW_W = 14 * P;
 
 class SpellProjectile {
-  constructor(startX, startY, targetX, targetY, { life, hueRotateDeg = 0, trailColor, streaks = 2 }) {
+  constructor(startX, startY, targetX, targetY, { life, hueRotateDeg = 0, trailColor, streaks = 2, spriteScale = 1 }) {
     this.startX = startX;
     this.startY = startY;
     this.targetX = targetX;
@@ -1532,6 +1532,9 @@ class SpellProjectile {
     this._hue     = hueRotateDeg;
     this._trailColor = trailColor;
     this._streaks = streaks;
+    this._scale   = spriteScale;
+    // Fixed heading computed once at launch so the projectile travels in a
+    // straight line directly at the fiend's position, rather than curving.
     this._angle = Math.atan2(targetY - startY, targetX - startX);
   }
 
@@ -1550,7 +1553,7 @@ class SpellProjectile {
   _drawSprite(ctx, x, y, alpha) {
     if (alpha <= 0 || !_fireballSprite.complete || !_fireballSprite.naturalWidth) return;
     const sw = _fireballSprite.naturalWidth, sh = _fireballSprite.naturalHeight;
-    const drawW = SPELL_SPRITE_DRAW_W, drawH = drawW * (sh / sw);
+    const drawW = SPELL_SPRITE_DRAW_W * this._scale, drawH = drawW * (sh / sw);
     ctx.save();
     ctx.globalAlpha = alpha;
     if (this._hue) ctx.filter = `hue-rotate(${this._hue}deg) saturate(1.6) brightness(1.15)`;
@@ -1576,13 +1579,13 @@ class SpellProjectile {
       const { x: sx, y: sy } = this._posAt(backT);
       const streakAlpha = alpha * (0.4 - i * 0.12);
       if (streakAlpha <= 0) continue;
-      const segLen = (10 + i * 6) * P;
+      const segLen = (10 + i * 6) * P * this._scale;
       ctx.save();
       ctx.globalAlpha = streakAlpha;
       ctx.fillStyle = this._trailColor;
       ctx.translate(sx, sy);
       ctx.rotate(this._angle);
-      ctx.fillRect(-segLen, -P, segLen, 2 * P);
+      ctx.fillRect(-segLen, -P * this._scale, segLen, 2 * P * this._scale);
       ctx.restore();
     }
 
@@ -1608,6 +1611,7 @@ export class LightningBolt extends SpellProjectile {
       hueRotateDeg: 190,
       trailColor: '#8fd8ff',
       streaks: 3,
+      spriteScale: 4,
     });
   }
 }
@@ -1619,6 +1623,7 @@ export class Fireball extends SpellProjectile {
       hueRotateDeg: 0,
       trailColor: '#ffcf40',
       streaks: 2,
+      spriteScale: 3,
     });
   }
 }
