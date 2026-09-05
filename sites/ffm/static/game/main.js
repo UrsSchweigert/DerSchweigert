@@ -8,7 +8,7 @@ import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
 import { api } from './api.js';
 import { getFiendClass, sampleFiendClassId } from './difficulty-classes.js';
-import { pickComboAbility } from './combo-abilities.js';
+import { pickComboAbility, getComboFrameBand } from './combo-abilities.js';
 import {
   FIEND_ENTRY_TRIGGER_X,
   getFiendWalkSpeed,
@@ -1328,6 +1328,10 @@ function gameLoop(ts) {
   activeLightningBolts.forEach(b => b.draw(renderer.ctx));
   activeFireballs.forEach(b => b.draw(renderer.ctx));
   activeDragons.forEach(d => d.draw(renderer.ctx));
+
+  // Pulsating frame around the play area while the combo counter is charging
+  // toward (or sitting in) a special-ability band.
+  renderer.drawComboFrame(getComboFrameBand(state.combo), ts);
 
   hud.draw();
 }

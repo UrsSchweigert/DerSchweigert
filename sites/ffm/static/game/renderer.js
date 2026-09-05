@@ -56,6 +56,14 @@ export const PIXEL_FONT = {
   'Y':['10001','10001','01010','00100','00100','00100','00100'],
 };
 
+// Matches Fireball/LightningBolt trailColor and the DragonSummon ice-breath
+// palette in entities.js so the combo frame reads as "that ability's color".
+const COMBO_FRAME_COLORS = {
+  fireball: '#ffcf40',
+  lightning: '#8fd8ff',
+  dragon: '#eaffff',
+};
+
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -71,6 +79,28 @@ export class Renderer {
   clear() {
     this.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     this._tick++;
+  }
+
+  // Pulsating border around the whole play area while the combo counter is
+  // deep enough in a special-ability band, colored to match that ability's
+  // own sprite/effect palette (see Fireball/LightningBolt trailColor and the
+  // DragonSummon ice-breath palette in entities.js) so the frame telegraphs
+  // which ability is "charged" before it actually fires.
+  drawComboFrame(band, ts) {
+    const color = COMBO_FRAME_COLORS[band];
+    if (!color) return;
+    const ctx = this.ctx;
+    const pulse = (Math.sin(ts / 220) + 1) / 2; // 0..1
+    const alpha = 0.35 + pulse * 0.45;
+    const thickness = 6 + pulse * 6;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = thickness;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12 + pulse * 12;
+    ctx.strokeRect(thickness / 2, thickness / 2, CANVAS_W - thickness, CANVAS_H - thickness);
+    ctx.restore();
   }
 
   setBackgroundByLevel(levelNumber) {
