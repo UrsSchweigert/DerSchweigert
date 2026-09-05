@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import boto3
@@ -8,6 +9,7 @@ from botocore.exceptions import ClientError
 MIN_FIRST_GRADE_YEAR = 1950
 MAX_FIRST_GRADE_YEAR = 2100
 LEADERBOARD_WINDOW_DAYS = 14
+SCORE_HISTORY_LIMIT = 100
 
 
 def _ddb():
@@ -199,6 +201,36 @@ def put_high_score(username, score, first_grade_year=None):
         if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':
             return False, get_high_score(username)
         raise
+
+
+def put_score_history(username, score):
+    """Append a score-history entry. Always writes (unlike put_high_score,
+    which only writes on improvement) so the curve reflects every submission."""
+    now = _now()
+    suffix = uuid.uuid4().hex[:8]
+    _scores().put_item(Item={
+        'pk': f'USER#{username}',
+        'sk': f'HIST#{now}#{suffix}',
+        'username': username,
+        'score': score,
+        'achieved_at': now,
+    })
+
+
+def get_score_history(username, limit=SCORE_HISTORY_LIMIT):
+    """Return up to `limit` most recent {score, achieved_at} dicts,
+    ordered oldest-to-newest for charting."""
+    resp = _scores().query(
+        KeyConditionExpression=Key('pk').eq(f'USER#{username}') & Key('sk').begins_with('HIST#'),
+        ScanIndexForward=False,
+        Limit=limit,
+    )
+    items = resp.get('Items', [])
+    items.sort(key=lambda x: x['sk'])
+    return [
+        {'score': int(item['score']), 'achieved_at': item['achieved_at']}
+        for item in items
+    ]
 
 
 def get_leaderboard(first_grade_year_filter=None):

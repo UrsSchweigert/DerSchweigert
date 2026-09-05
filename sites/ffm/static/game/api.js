@@ -112,6 +112,11 @@ export const api = {
     return res.json();
   },
 
+  async getScoreHistory() {
+    const res = await this._fetch('/profile/score-history');
+    return res.json();
+  },
+
   get isLoggedIn() {
     return _accessToken !== null;
   },

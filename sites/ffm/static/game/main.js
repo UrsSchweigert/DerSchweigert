@@ -157,6 +157,7 @@ const splashGreeting = document.getElementById('splash-user-greeting');
 const leaderboardList = document.getElementById('leaderboard-list');
 const leaderboardYearFilter = document.getElementById('leaderboard-year-filter');
 const leaderboardPersonalBest = document.getElementById('leaderboard-personal-best');
+const scoreHistoryChart = document.getElementById('score-history-chart');
 const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
 const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
 
@@ -223,6 +224,59 @@ function renderPersonalBest(profile) {
   leaderboardPersonalBest.style.display = '';
 }
 
+function buildScoreHistorySvg(history) {
+  const width = 300;
+  const height = 100;
+  const padding = 8;
+
+  if (!history || history.length === 0) {
+    return '';
+  }
+
+  const scores = history.map((entry) => entry.score);
+  const minScore = Math.min(...scores);
+  const maxScore = Math.max(...scores);
+  const range = maxScore - minScore;
+
+  const innerWidth = width - padding * 2;
+  const innerHeight = height - padding * 2;
+
+  const points = history.map((entry, i) => {
+    const x = history.length === 1
+      ? padding + innerWidth / 2
+      : padding + (i / (history.length - 1)) * innerWidth;
+    const y = range === 0
+      ? padding + innerHeight / 2
+      : padding + innerHeight - ((entry.score - minScore) / range) * innerHeight;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const circles = points.map((p) => {
+    const [x, y] = p.split(',');
+    return `<circle cx="${x}" cy="${y}" r="2.5" fill="#4dd0e1" />`;
+  }).join('');
+
+  const polyline = history.length > 1
+    ? `<polyline points="${points.join(' ')}" fill="none" stroke="#4dd0e1" stroke-width="2" />`
+    : '';
+
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="100" role="img" aria-label="Score history chart">` +
+    `<line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#555" stroke-width="1" />` +
+    polyline + circles +
+    `</svg>`;
+}
+
+function renderScoreHistory(historyResponse) {
+  const history = historyResponse?.history || [];
+  if (history.length === 0) {
+    scoreHistoryChart.style.display = 'none';
+    scoreHistoryChart.innerHTML = '';
+    return;
+  }
+  scoreHistoryChart.innerHTML = buildScoreHistorySvg(history);
+  scoreHistoryChart.style.display = '';
+}
+
 function renderLeaderboard(entries) {
   if (!entries || entries.length === 0) {
     leaderboardList.innerHTML = '<li>No high scores yet.</li>';
@@ -278,6 +332,7 @@ async function refreshProfileAndLeaderboard() {
   if (!api.isLoggedIn) {
     currentProfile = null;
     renderPersonalBest(null);
+    renderScoreHistory(null);
     leaderboardProfilePrompt.style.display = 'none';
     leaderboardCompleteProfile.style.display = 'none';
     return;
@@ -299,6 +354,13 @@ async function refreshProfileAndLeaderboard() {
     renderPersonalBest(null);
     leaderboardProfilePrompt.style.display = 'none';
     leaderboardCompleteProfile.style.display = 'none';
+  }
+
+  try {
+    const historyResponse = await api.getScoreHistory();
+    renderScoreHistory(historyResponse);
+  } catch {
+    renderScoreHistory(null);
   }
 }
 

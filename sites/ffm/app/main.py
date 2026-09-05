@@ -5,6 +5,7 @@ from .models import (
     get_user, update_user_first_grade_year,
     get_level_scores, put_level_score,
     get_high_score, put_high_score,
+    put_score_history, get_score_history,
     get_leaderboard,
 )
 from .validation import is_valid_int
@@ -112,6 +113,7 @@ def submit_high_score():
     first_grade_year = user['first_grade_year'] if user else None
 
     saved, record = put_high_score(username, score, first_grade_year)
+    put_score_history(username, score)
     return jsonify({
         "saved": saved,
         "high_score": record['high_score'],
@@ -139,3 +141,13 @@ def leaderboard():
         "grouped_entries": grouped_entries,
     }), 200
 
+
+@main_bp.route('/profile/score-history', methods=['GET'])
+def score_history():
+    username = require_auth()
+    user = get_user(username)
+    if not user:
+        abort(404)
+
+    history = get_score_history(username)
+    return jsonify({"history": history}), 200

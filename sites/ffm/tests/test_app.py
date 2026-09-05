@@ -416,3 +416,62 @@ def test_auth_rate_limit_persists_via_dynamodb_storage(aws_mock):
     )
     items = ratelimit_table.scan()['Items']
     assert any(int(item['counter']) >= 2 for item in items)
+
+
+def test_score_history_unauthenticated(client):
+    r = client.get('/api/profile/score-history')
+    assert r.status_code == 401
+
+
+def test_score_history_empty(client):
+    headers = register_and_login(client, "historyuser", "historyuser@example.com", "password123")
+    r = client.get('/api/profile/score-history', headers=headers)
+    assert r.status_code == 200
+    assert r.get_json() == {"history": []}
+
+
+def test_score_history_multiple_submissions_ordered_by_time(client):
+    headers = register_and_login(client, "multihistory", "multihistory@example.com", "password123")
+    
+    scores_to_submit = [100, 50, 300, 200]
+    for score in scores_to_submit:
+        r = client.post('/api/high-score', json={"score": score}, headers=headers)
+        assert r.status_code == 200
+
+    r = client.get('/api/profile/score-history', headers=headers)
+    assert r.status_code == 200
+    data = r.get_json()
+    history = data['history']
+    
+    assert len(history) == 4
+    assert [entry['score'] for entry in history] == [100, 50, 300, 200]
+    
+    achieved_at_times = [entry['achieved_at'] for entry in history]
+    assert achieved_at_times == sorted(achieved_at_times), "achieved_at values should be in ascending order"
+
+
+def test_score_history_does_not_affect_leaderboard_or_high_score(client):
+    headers = register_and_login(client, "historycheck", "historycheck@example.com", "password123")
+    
+    scores = [100, 50, 300]
+    for score in scores:
+        r = client.post('/api/high-score', json={"score": score}, headers=headers)
+        assert r.status_code == 200
+
+    profile = client.get('/api/profile', headers=headers)
+    assert profile.status_code == 200
+    profile_data = profile.get_json()
+    assert profile_data['high_score']['score'] == 300
+
+    leaderboard = client.get('/api/leaderboard', headers=headers)
+    assert leaderboard.status_code == 200
+    leaderboard_data = leaderboard.get_json()
+    
+    user_in_leaderboard = [e for e in leaderboard_data['global_entries'] if e['username'] == 'historycheck']
+    assert len(user_in_leaderboard) == 1
+    assert user_in_leaderboard[0]['high_score'] == 300
+
+    history = client.get('/api/profile/score-history', headers=headers)
+    assert history.status_code == 200
+    history_data = history.get_json()
+    assert len(history_data['history']) == 3

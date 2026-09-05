@@ -310,6 +310,10 @@ input[type=number] {
   margin: 0 0 8px 0;
 }
 
+.score-history-chart {
+  margin: 4px 0 8px;
+}
+
 #leaderboard-complete-profile {
   width: 100%;
   margin-bottom: 8px;
