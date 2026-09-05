@@ -25,3 +25,19 @@ export function pickComboAbility(combo, rollFn = Math.random) {
   }
   return null;
 }
+
+/**
+ * Identify which ability "band" the current combo count falls in, purely from
+ * its minCombo threshold - no roll involved. Used to drive persistent visual
+ * feedback (e.g. a pulsating screen frame) that should reflect how close the
+ * player is to triggering an ability, independent of whether the ability's
+ * chance roll actually succeeds on any given hit.
+ * @param {number} combo - the current combo counter.
+ * @returns {'dragon' | 'lightning' | 'fireball' | null}
+ */
+export function getComboFrameBand(combo) {
+  for (const rule of COMBO_ABILITY_RULES) {
+    if (combo > rule.minCombo) return rule.ability;
+  }
+  return null;
+}

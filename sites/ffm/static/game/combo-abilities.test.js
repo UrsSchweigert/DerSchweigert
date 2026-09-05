@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { COMBO_ABILITY_RULES, pickComboAbility } from './combo-abilities.js';
+import { COMBO_ABILITY_RULES, pickComboAbility, getComboFrameBand } from './combo-abilities.js';
 
 describe('pickComboAbility', () => {
   it('returns null for combos 0, 1, 3, 5 with rollFn () => 0', () => {
@@ -68,5 +68,31 @@ describe('pickComboAbility', () => {
     assert.strictEqual(COMBO_ABILITY_RULES[1].minCombo, 10);
     assert.strictEqual(COMBO_ABILITY_RULES[2].ability, 'fireball');
     assert.strictEqual(COMBO_ABILITY_RULES[2].minCombo, 5);
+  });
+});
+
+describe('getComboFrameBand', () => {
+  it('returns null for combos 0 through 5 (no ability band yet)', () => {
+    for (const combo of [0, 1, 3, 5]) {
+      assert.strictEqual(getComboFrameBand(combo), null);
+    }
+  });
+
+  it('returns fireball for combos 6 through 10', () => {
+    for (const combo of [6, 8, 10]) {
+      assert.strictEqual(getComboFrameBand(combo), 'fireball');
+    }
+  });
+
+  it('returns lightning for combos 11 through 20', () => {
+    for (const combo of [11, 15, 20]) {
+      assert.strictEqual(getComboFrameBand(combo), 'lightning');
+    }
+  });
+
+  it('returns dragon for combos above 20, regardless of ability roll outcome', () => {
+    for (const combo of [21, 30, 100]) {
+      assert.strictEqual(getComboFrameBand(combo), 'dragon');
+    }
   });
 });
