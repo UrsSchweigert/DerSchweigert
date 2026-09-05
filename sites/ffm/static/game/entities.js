@@ -2,6 +2,7 @@
 
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
 import { FIEND_COMBAT_X } from './difficulty.js';
+import { FIEND_CLASSES } from './difficulty-classes.js';
 
 const P = LOGICAL_PX; // shorthand
 const _uploadedHeroSheet = new Image();
@@ -9,6 +10,23 @@ _uploadedHeroSheet.src = new URL('./hero-spritesheet-clean.png', import.meta.url
 const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victory: 5 };
 // col 2 of the walk row sits in the bottom half of its cell — skip it
 const _walkCols = [0, 1, 3, 1];
+
+// Fiend class sprite cache: one Image per class, created lazily, checked via
+// .complete/.naturalWidth before use (same pattern as the hero spritesheet above).
+const _fiendClassSpriteCache = new Map();
+
+function getFiendClassSprite(fiendClassId) {
+  if (!fiendClassId) return null;
+  let img = _fiendClassSpriteCache.get(fiendClassId);
+  if (!img) {
+    const cls = FIEND_CLASSES.find((c) => c.id === fiendClassId);
+    if (!cls) return null;
+    img = new Image();
+    img.src = new URL(cls.spritePath, import.meta.url).href;
+    _fiendClassSpriteCache.set(fiendClassId, img);
+  }
+  return img;
+}
 
 // ─── Base Entity ─────────────────────────────────────────────────────────────
 export class Entity {
@@ -659,6 +677,7 @@ export class Fiend extends Entity {
     this._events = new EventTarget();
     this._dur = 8;
     this.isElite = false;
+    this.fiendClassId = cfg.fiendClassId ?? null;
     this.setState('walk');
   }
 
@@ -756,6 +775,31 @@ export class Fiend extends Entity {
     ctx.globalAlpha = 1;
     ctx.restore();
   }
+
+  // Draws the selected fiend-class sprite if its image has loaded. Returns true if
+  // it drew (caller skips its procedural body), false to fall back to procedural art.
+  _drawClassSprite(ctx, targetW = 20 * P, targetH = 20 * P) {
+    if (!this.fiendClassId) return false;
+    const img = getFiendClassSprite(this.fiendClassId);
+    if (!img || !img.complete || !img.naturalWidth) return false;
+
+    const aspect = img.naturalWidth / img.naturalHeight;
+    let drawW = targetW;
+    let drawH = targetW / aspect;
+    if (drawH > targetH) { drawH = targetH; drawW = targetH * aspect; }
+
+    const bx = ~~(this.x - drawW / 2);
+    const by = ~~(this.y - drawH);
+
+    ctx.save();
+    if (this.isElite) this._drawEliteAura(ctx, bx, by, drawW, drawH);
+    ctx.drawImage(img, bx, by, drawW, drawH);
+    if (this._state === 'hit') this._flashWhite(ctx, bx, by, drawW, drawH);
+    this._flashRed(ctx, bx, by, drawW, drawH);
+    ctx.restore();
+    this._drawParticles(ctx);
+    return true;
+  }
 }
 
 // ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────
@@ -765,6 +809,7 @@ export class Slimeling extends Fiend {
   }
 
   draw(ctx) {
+    if (this._drawClassSprite(ctx)) return;
     const bobY = (this._state === 'walk') ? ~~(Math.sin(this._frame * Math.PI) * 2 * P) : 0;
     const attX  = (this._state === 'attack') ? -this._frame * 2 * P : 0;
     const bx = ~~(this.x - 9*P) + attX;
@@ -828,6 +873,7 @@ export class Bonehead extends Fiend {
   }
 
   draw(ctx) {
+    if (this._drawClassSprite(ctx)) return;
     const rattle = (this._state === 'walk' && this._frame % 2 === 0) ? P : 0;
     const attX   = (this._state === 'attack') ? -this._frame * 2 * P : 0;
     const bx = ~~(this.x - 8*P) + attX;
@@ -929,6 +975,7 @@ export class Toadlord extends Fiend {
   }
 
   draw(ctx) {
+    if (this._drawClassSprite(ctx)) return;
     const stomp   = (this._state === 'walk') ? (this._frame % 2 === 0 ? P : -P) : 0;
     const attX    = (this._state === 'attack') ? -this._frame * 3 * P : 0;
     const bx = ~~(this.x - 11*P) + attX;
@@ -1035,6 +1082,7 @@ export class Magelitch extends Fiend {
   }
 
   draw(ctx) {
+    if (this._drawClassSprite(ctx)) return;
     // hover animation
     const hov = ~~(Math.sin(this._tick * 0.12) * 3 * P);
     const attX = (this._state === 'attack') ? -this._frame * 2 * P : 0;
@@ -1149,6 +1197,7 @@ export class BirdFoe extends Fiend {
   }
 
   draw(ctx) {
+    if (this._drawClassSprite(ctx)) return;
     const wY   = (this._state === 'walk') ? (this._frame % 2 === 0 ? -P : P) : 0;
     const attX = (this._state === 'attack') ? -this._frame * 2 * P : 0;
     const bx = ~~(this.x - 11*P) + attX;
@@ -1240,6 +1289,7 @@ export class WolfFoe extends Fiend {
   }
 
   draw(ctx) {
+    if (this._drawClassSprite(ctx)) return;
     const prowl = (this._state === 'walk') ? (this._frame % 2 === 0 ? P : 0) : 0;
     const attX  = (this._state === 'attack') ? -this._frame * 3 * P : 0;
     const bx = ~~(this.x - 10*P) + attX;
@@ -1350,6 +1400,7 @@ export class SnakeFoe extends Fiend {
   }
 
   draw(ctx) {
+    if (this._drawClassSprite(ctx)) return;
     const sway    = ~~(Math.sin(this._tick * 0.15) * 2 * P);
     const tongueOut = this._tick % 6 < 3;
     const attX    = (this._state === 'attack') ? -this._frame * 2 * P : 0;

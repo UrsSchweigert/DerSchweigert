@@ -7,6 +7,7 @@ import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
 import { api } from './api.js';
+import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
 import {
   FIEND_ENTRY_TRIGGER_X,
   getFiendWalkSpeed,
@@ -106,6 +107,7 @@ function createFiend(levelIndex, x) {
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
   fiend.problem = problem;
   fiend.isElite = isElite;
+  fiend.fiendClassId = state.fiendClass;
   return fiend;
 }
 
@@ -113,6 +115,7 @@ function createFiend(levelIndex, x) {
 let state = {
   level: 1,
   difficulty: 'medium',
+  fiendClass: 1,
   hearts: 5,
   maxHearts: 5,
   score: 0,
@@ -139,6 +142,7 @@ const gameOverScore = document.getElementById('game-over-score');
 const btnRetryLevel = document.getElementById('btn-retry-level');
 const btnReturnTitle = document.getElementById('btn-return-title');
 const diffSelect = document.getElementById('difficulty-select');
+const fiendClassSelect = document.getElementById('fiend-class-select');
 const authModal = document.getElementById('auth-modal');
 const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
@@ -160,6 +164,16 @@ const leaderboardPersonalBest = document.getElementById('leaderboard-personal-be
 const scoreHistoryChart = document.getElementById('score-history-chart');
 const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
 const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
+
+if (fiendClassSelect && fiendClassSelect.options.length === 0) {
+  FIEND_CLASSES.forEach((cls) => {
+    const opt = document.createElement('option');
+    opt.value = String(cls.id);
+    opt.textContent = `Class ${cls.id} - ${cls.name}`;
+    fiendClassSelect.appendChild(opt);
+  });
+  fiendClassSelect.value = '1';
+}
 
 // --- Engine instances ---
 const renderer = new Renderer(canvas);
@@ -402,6 +416,7 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
     state.timerRemaining = state.timerMax;
     state.maxHearts = parseInt(btn.dataset.hearts);
     state.hearts = state.maxHearts;
+    state.fiendClass = fiendClassSelect ? parseInt(fiendClassSelect.value, 10) : 1;
     state.score = 0;
     levelStartScore = 0;
     diffSelect.style.display = 'none';
@@ -587,7 +602,8 @@ function handleCorrectAnswer() {
   const speedBonus  = activeFiend.wasRequeued ? 0 : Math.round(ratio * 50);
   const comboBonus  = activeFiend.wasRequeued ? 0 : state.combo * 10;
   const multiplier  = activeFiend.isElite ? GAME_CONFIG.elitePointMultiplier : 1;
-  const points      = (100 + speedBonus + comboBonus) * multiplier;
+  const classBase   = getFiendClass(activeFiend.fiendClassId).scoreValue;
+  const points      = (classBase + speedBonus + comboBonus) * multiplier;
 
   state.score += points;
   state.combo++;
