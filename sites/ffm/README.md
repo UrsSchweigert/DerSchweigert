@@ -191,29 +191,14 @@ aws iam create-policy-version --policy-arn arn:aws:iam::113725432218:policy/ders
 
 Customer-managed policies cap out at **5 versions** — once at capacity, `aws iam delete-policy-version --policy-arn ... --version-id vN` an old non-default one first. Also: newly-added permissions can take a minute or two to propagate; if a freshly-granted action still gets `AccessDenied` immediately after updating the policy, wait ~2 minutes and retry before assuming the policy edit was wrong (observed directly during this rollout: a `secretsmanager:GetSecretValue` read-back failed once right after being granted, then succeeded on retry with no further changes).
 
-As of 2026-09-05 the policy is at **v8** and includes, beyond its original derschweigert/ffm S3+CloudFront+API-Gateway+Lambda+ACM+Route53 scope:
+As of 2026-09-05 the policy is at **v9** and includes, beyond its original derschweigert/ffm S3+CloudFront+API-Gateway+Lambda+ACM+Route53 scope:
 - `FfmDynamoDbTables` — full lifecycle (`CreateTable`/`DescribeTable`/`UpdateTable`/`DeleteTable`/TTL/tags, plus `DescribeContinuousBackups`/`DescribeTableReplicaAutoScaling`/`DescribeKinesisStreamingDestination`, all of which the AWS provider's table-refresh calls even though nothing in this repo's config uses backups/replicas/streams) scoped to `ffm-users`, `ffm-scores`, `ffm-ratelimits`.
 - `FfmJwtSecretManage` — full lifecycle including `CreateSecret`/`PutSecretValue`/`GetSecretValue` (the provider reads a secret version back right after creating it, to populate Terraform state) scoped to `ffm/jwt-secret-key`.
 - `CloudFrontAll` extended with `CreateResponseHeadersPolicy`/`UpdateResponseHeadersPolicy`/`DeleteResponseHeadersPolicy` — needed by **both** sites now that they share a response-headers-policy resource in the `static_site` module.
 - `IamRoleForLambda` extended with `PutRolePolicy`/`DeleteRolePolicy` (inline role policies aren't covered by the existing `iam:Get*`/`iam:List*` wildcards) for both `ffm-lambda-role` and `derschweigert-lambda-role`.
+- `FfmSesManage` (added 2026-09-05 for the email-verification feature) — `ses:VerifyDomainIdentity`/`DeleteIdentity`/`GetIdentityVerificationAttributes`/`VerifyDomainDkim`/`GetIdentityDkimAttributes`/`SetIdentityDkimEnabled` on `Resource: "*"` (SES v1 identity-management APIs don't support resource-level ARN scoping the way `ses:SendEmail` does). `Route53All`/`IamRoleForLambda` already covered the Route53 records and Lambda inline-policy needs, so no other statement changes were required. This statement grants no send capability itself — sending is authorized separately via the Lambda role's own `ffm-lambda-ses-access` inline policy (created by Terraform, scoped to the domain identity ARN).
 
-**⚠️ Known gap as of the email-verification feature (not yet applied):** the policy has **no `ses:*` statement at all**, and it is currently at the **5/5 version cap (v4–v8)**, so a slot must be freed (`aws iam delete-policy-version ... --version-id v4`) before a new version can be pushed. The new `aws_ses_domain_identity`/`aws_ses_domain_dkim`/`aws_ses_domain_identity_verification` resources in `infra/terraform/sites/ffm/main.tf` will fail in CI with `AccessDenied` on `ses:VerifyDomainIdentity` etc. until a statement like this is added by hand:
-```json
-{
-  "Sid": "FfmSesManage",
-  "Effect": "Allow",
-  "Action": [
-    "ses:VerifyDomainIdentity",
-    "ses:DeleteIdentity",
-    "ses:GetIdentityVerificationAttributes",
-    "ses:VerifyDomainDkim",
-    "ses:GetIdentityDkimAttributes",
-    "ses:SetIdentityDkimEnabled"
-  ],
-  "Resource": "*"
-}
-```
-Verified live against the account: `Route53All` (already has `route53:ChangeResourceRecordSets`/`Get*`/`List*` on `*`) and `IamRoleForLambda` (already covers `ffm-lambda-role` inline policies) need **no** changes — only the SES statement above is missing. This does not grant any send capability; sending is authorized separately via the Lambda role's own `ffm-lambda-ses-access` inline policy (scoped to the domain identity ARN), which Terraform creates directly since it only needs the already-sufficient `IamRoleForLambda` permissions.
+Freeing a version slot (the policy sits at the 5-version cap) was done by deleting the then-oldest version (`v4`) before pushing `v9`.
 
 **Recommendation, not yet done:** bring `derschweigert-deploy-scope` under Terraform management so this can't silently drift out of sync again. Skipped in the 2026-09-05 session to avoid widening the blast radius of an already-eventful production deploy.
 
