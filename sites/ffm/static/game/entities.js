@@ -10,6 +10,8 @@ _uploadedHeroSheet.src = new URL('./hero-spritesheet-clean.png', import.meta.url
 const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victory: 5 };
 // col 2 of the walk row sits in the bottom half of its cell — skip it
 const _walkCols = [0, 1, 3, 1];
+const _dragonSprite = new Image();
+_dragonSprite.src = new URL('./dragon.png', import.meta.url).href;
 
 // Fiend class sprite cache: one Image per class, created lazily, checked via
 // .complete/.naturalWidth before use (same pattern as the hero spritesheet above).
@@ -1528,4 +1530,133 @@ export class LightningBolt {
     ctx.globalAlpha = 1;
     ctx.restore();
   }
+}
+
+export class Fireball {
+ constructor(startX, startY, targetX, targetY) {
+   this.startX = startX;
+   this.startY = startY;
+   this.targetX = targetX;
+   this.targetY = targetY;
+   this._life = 0.5;
+   this._maxLife = 0.5;
+ }
+
+ get isDone() { return this._life <= 0; }
+
+ update(dt) {
+   this._life -= dt;
+ }
+
+ draw(ctx) {
+   if (this._life <= 0) return;
+   const t = 1 - (this._life / this._maxLife);
+   const currentX = this.startX + (this.targetX - this.startX) * t;
+   const currentY = this.startY + (this.targetY - this.startY) * t;
+   const alpha = Math.max(0, this._life / (this._maxLife * 0.3));
+    
+   ctx.save();
+   ctx.globalAlpha = alpha;
+    
+   // Draw tail (2-3 smaller fading blocks behind)
+   const tailSegments = 3;
+   for (let i = 1; i <= tailSegments; i++) {
+     const tailT = t - (i * 0.15);
+     if (tailT > 0) {
+       const tailX = this.startX + (this.targetX - this.startX) * Math.max(0, tailT);
+       const tailY = this.startY + (this.targetY - this.startY) * Math.max(0, tailT);
+       const tailAlpha = alpha * (1 - i / tailSegments);
+       ctx.globalAlpha = tailAlpha;
+       ctx.fillStyle = '#ffcf40';
+       ctx.fillRect(~~(tailX - P), ~~(tailY - P), 2*P, 2*P);
+     }
+   }
+    
+   ctx.globalAlpha = alpha;
+   // Draw chunky pixel-art fireball
+   // Outer ring
+   ctx.fillStyle = '#ff6a00';
+   ctx.fillRect(~~(currentX - 2*P), ~~(currentY - 2*P), 4*P, 4*P);
+   // Mid layer
+   ctx.fillStyle = '#ffcf40';
+   ctx.fillRect(~~(currentX - P), ~~(currentY - P), 2*P, 2*P);
+   // Core
+   ctx.fillStyle = '#fff2b0';
+   ctx.fillRect(~~(currentX), ~~(currentY), P, P);
+    
+   ctx.restore();
+ }
+}
+
+const DRAGON_SPRITE_W = 1536, DRAGON_SPRITE_H = 1024;
+const DRAGON_DRAW_W = 260;
+const DRAGON_DRAW_H = DRAGON_DRAW_W * (DRAGON_SPRITE_H / DRAGON_SPRITE_W);
+
+export class DragonSummon {
+ constructor(canvasW, groundY) {
+   this.canvasW = canvasW;
+   this.groundY = groundY;
+   this._life = 2.0;
+   this._maxLife = 2.0;
+   this._lastDt = 0;
+   this._appearEnd = 0.3;
+   this._breathEnd = 1.5;
+   this.dragonX = 20;
+   this.dragonY = 40;
+ }
+
+ get isDone() { return this._life <= 0; }
+ get elapsed() { return this._maxLife - this._life; }
+ get breathJustCompleted() {
+   const prevElapsed = this.elapsed - this._lastDt;
+   return prevElapsed < this._breathEnd && this.elapsed >= this._breathEnd;
+ }
+
+ update(dt) {
+   this._lastDt = dt;
+   this._life -= dt;
+ }
+
+ draw(ctx) {
+   if (this._life <= 0 || !_dragonSprite.complete || _dragonSprite.naturalWidth === 0) return;
+   const e = this.elapsed;
+   const w = DRAGON_DRAW_W, h = DRAGON_DRAW_H;
+   const appearT = Math.min(1, e / this._appearEnd);
+   const fadeT = e > this._breathEnd
+     ? Math.max(0, this._life / (this._maxLife - this._breathEnd))
+     : 1;
+
+   ctx.save();
+   ctx.globalAlpha = Math.min(appearT, fadeT);
+   // The source dragon faces and breathes LEFT. Mirror it horizontally so it
+   // faces and breathes RIGHT in-game, toward the fiends entering from the
+   // right. Translating to the right edge of the box before scale(-1,1) maps
+   // drawImage's local [0,w] back onto screen [dragonX, dragonX + w], so the
+   // dragon occupies x in [20, 280], y in [40, 213] and its mouth ends up on
+   // the RIGHT side of that box.
+   ctx.translate(this.dragonX + w, this.dragonY);
+   ctx.scale(-1, 1);
+   ctx.drawImage(_dragonSprite, 0, 0, DRAGON_SPRITE_W, DRAGON_SPRITE_H, 0, 0, w, h);
+   ctx.restore();
+
+   const mouthX = this.dragonX + w * 0.88;
+   const mouthY = this.dragonY + h * 0.5;
+
+   if (e >= this._appearEnd && e <= this._breathEnd) {
+     const breathT = (e - this._appearEnd) / (this._breathEnd - this._appearEnd);
+     // Sweep RIGHTWARD from the mouth toward the far right edge of the canvas.
+     const sweepEndX = mouthX + breathT * (this.canvasW - mouthX);
+     const coneW = sweepEndX - mouthX;
+     if (coneW > 0) {
+       const grad = ctx.createLinearGradient(mouthX, mouthY, sweepEndX, mouthY);
+       grad.addColorStop(0, 'rgba(191,233,255,0.9)');
+       grad.addColorStop(0.6, 'rgba(255,255,255,0.6)');
+       grad.addColorStop(1, 'rgba(191,233,255,0)');
+       ctx.save();
+       ctx.fillStyle = grad;
+       ctx.fillRect(mouthX, mouthY - 30 * P, coneW, 60 * P);
+       ctx.restore();
+     }
+   }
+ }
 }
