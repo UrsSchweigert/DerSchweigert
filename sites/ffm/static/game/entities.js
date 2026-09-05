@@ -1517,9 +1517,77 @@ export class SnakeFoe extends Fiend {
 // ─── SpellProjectile (shared base for hero-launched bolt/fireball fx) ─────────
 // Both the fireball and lightning strike are the same uploaded fireball sprite
 // launched from just right of the hero toward the fiend; lightning reuses the
-// art hue-shifted into blue (via a canvas filter) with extra speed-trail
-// streaks so it still reads as "electric" rather than "fire".
+// art hue-shifted into blue with extra speed-trail streaks so it still reads
+// as "electric" rather than "fire". The tint is pre-baked once (per hue
+// value) into an offscreen canvas via pixel-level matrix math rather than a
+// live `ctx.filter`, so it renders identically everywhere `ctx.filter` isn't
+// reliably supported/applied (older WebViews, some mobile browsers) instead
+// of silently falling back to the plain (un-shifted) fireball art.
 const SPELL_SPRITE_DRAW_W = 14 * P;
+
+// Cache of hue-rotated (+ saturated/brightened) offscreen canvases, keyed by
+// hueRotateDeg, built lazily the first time each hue is requested after the
+// source sprite has finished loading.
+const _tintedSpriteCache = new Map();
+
+// Standard hue-rotate matrix (same coefficients browsers use for the CSS
+// `hue-rotate()` filter / SVG feColorMatrix type="hueRotate"), composed with
+// a saturate(1.6) + brightness(1.15) pass so the tint reads as vivid electric
+// blue rather than a washed-out grey-blue.
+function _hueRotateMatrix(deg) {
+  const rad = (deg * Math.PI) / 180;
+  const c = Math.cos(rad), s = Math.sin(rad);
+  const hue = [
+    [0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928],
+    [0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.140, 0.072 - c * 0.072 - s * 0.283],
+    [0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072],
+  ];
+  const sat = 1.6;
+  const satM = [
+    [0.213 + 0.787 * sat, 0.715 - 0.715 * sat, 0.072 - 0.072 * sat],
+    [0.213 - 0.213 * sat, 0.715 + 0.285 * sat, 0.072 - 0.072 * sat],
+    [0.213 - 0.213 * sat, 0.715 - 0.715 * sat, 0.072 + 0.928 * sat],
+  ];
+  const brightness = 1.15;
+  // Compose satM * hue, then scale the result by brightness.
+  const m = [];
+  for (let row = 0; row < 3; row++) {
+    m.push([]);
+    for (let col = 0; col < 3; col++) {
+      let v = 0;
+      for (let k = 0; k < 3; k++) v += satM[row][k] * hue[k][col];
+      m[row].push(v * brightness);
+    }
+  }
+  return m;
+}
+
+function _getTintedSprite(hueRotateDeg) {
+  if (!hueRotateDeg) return _fireballSprite;
+  if (!_fireballSprite.complete || !_fireballSprite.naturalWidth) return null;
+  const cached = _tintedSpriteCache.get(hueRotateDeg);
+  if (cached) return cached;
+
+  const w = _fireballSprite.naturalWidth, h = _fireballSprite.naturalHeight;
+  const off = document.createElement('canvas');
+  off.width = w;
+  off.height = h;
+  const octx = off.getContext('2d');
+  octx.drawImage(_fireballSprite, 0, 0, w, h);
+
+  const imgData = octx.getImageData(0, 0, w, h);
+  const px = imgData.data;
+  const m = _hueRotateMatrix(hueRotateDeg);
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i], g = px[i + 1], b = px[i + 2];
+    px[i]     = Math.max(0, Math.min(255, m[0][0] * r + m[0][1] * g + m[0][2] * b));
+    px[i + 1] = Math.max(0, Math.min(255, m[1][0] * r + m[1][1] * g + m[1][2] * b));
+    px[i + 2] = Math.max(0, Math.min(255, m[2][0] * r + m[2][1] * g + m[2][2] * b));
+  }
+  octx.putImageData(imgData, 0, 0);
+  _tintedSpriteCache.set(hueRotateDeg, off);
+  return off;
+}
 
 class SpellProjectile {
   constructor(startX, startY, targetX, targetY, { life, hueRotateDeg = 0, trailColor, streaks = 2, spriteScale = 1 }) {
@@ -1551,15 +1619,16 @@ class SpellProjectile {
   }
 
   _drawSprite(ctx, x, y, alpha) {
-    if (alpha <= 0 || !_fireballSprite.complete || !_fireballSprite.naturalWidth) return;
-    const sw = _fireballSprite.naturalWidth, sh = _fireballSprite.naturalHeight;
+    if (alpha <= 0) return;
+    const sprite = _getTintedSprite(this._hue);
+    if (!sprite || !sprite.width) return;
+    const sw = sprite.width, sh = sprite.height;
     const drawW = SPELL_SPRITE_DRAW_W * this._scale, drawH = drawW * (sh / sw);
     ctx.save();
     ctx.globalAlpha = alpha;
-    if (this._hue) ctx.filter = `hue-rotate(${this._hue}deg) saturate(1.6) brightness(1.15)`;
     ctx.translate(x, y);
     ctx.rotate(this._angle);
-    ctx.drawImage(_fireballSprite, -drawW / 2, -drawH / 2, drawW, drawH);
+    ctx.drawImage(sprite, -drawW / 2, -drawH / 2, drawW, drawH);
     ctx.restore();
   }
 
