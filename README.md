@@ -126,13 +126,31 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
 - **Route53 zone**: `derschweigert.de` hosted zone ID `Z02407051JK3BF2C58UEQ`
   (shared across all subdomains/sites — no need to create a new zone for a new
   subdomain, just add records/aliases in the relevant site's Terraform stack).
-- **CI**: `.github/workflows/deploy.yml` contains deploy flows for both the
-  derschweigert and FFM stacks. The FFM job runs backend tests, builds the
-  Lambda zip, updates the `ffm-api` Lambda, syncs `sites/ffm/static`, and
-  invalidates the FFM CloudFront distribution. Required GitHub secrets:
-  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
-  (optional), `AWS_REGION` (optional, defaults to `eu-central-1`),
-  `ROUTE53_ZONE_ID`.
+- **CI**: `.github/workflows/deploy.yml` has 5 jobs: `test` (derschweigert
+  pytest), `test-ffm` (ffm pytest, standalone), `check-secrets` (gates deploy
+  on AWS secrets being present), `deploy` (derschweigert terraform apply +
+  static sync), `deploy-ffm` (ffm terraform apply + Lambda code push + static
+  sync). Triggers are `push` to `main` **and** `pull_request` into `main` —
+  the two test jobs run on both, but the two deploy jobs are additionally
+  gated on `github.ref == 'refs/heads/main'` so they never run for a PR.
+  Required GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+  `AWS_SESSION_TOKEN` (optional), `AWS_REGION` (optional, defaults to
+  `eu-central-1`), `ROUTE53_ZONE_ID`.
+- **CI's IAM permissions live outside this repo — read this before adding any
+  new AWS resource type.** Both deploy jobs authenticate as IAM user
+  `derschweigert-ci-deploy`, whose permissions come from a customer-managed
+  policy (`derschweigert-deploy-scope`) that is **hand-maintained in AWS IAM,
+  not defined anywhere in `infra/terraform/`.** There is no drift check
+  between what a `.tf` file needs and what that policy grants — a `terraform
+  apply` step can be green in a PR's `test`/`test-ffm` jobs and then fail in
+  `deploy`/`deploy-ffm` purely on `AccessDenied`. This bit a 2026-09-05 session
+  hard: `deploy-ffm` had never actually run `terraform apply` before that day,
+  and turned out to be missing DynamoDB/Secrets Manager/CloudFront/IAM
+  permissions for resources that had existed for a while. See
+  [`sites/ffm/README.md`](sites/ffm/README.md)'s "CI's AWS IAM permissions are
+  NOT managed in this repo" section for the exact `aws iam` commands to
+  inspect/update it, the 5-versions-per-policy cap, and the current (v8)
+  permission set.
 - **PIN lock**: production traffic to derschweigert.de/www is gated by a
   CloudFront Function (`derschweigert-pin-lock`) requiring an `ams_pin=1`
   cookie, except for a small allowlist of public paths (`/health`, `/unlock`,
@@ -142,6 +160,14 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   `environment_variables` in `infra/terraform/sites/derschweigert/main.tf` —
   treat it like any other credential when changing it (don't casually paste it
   into chat/commits).
+- **Security response headers**: the shared `static_site` module
+  (`infra/terraform/modules/static_site/main.tf`) provisions a CloudFront
+  response-headers policy (CSP, HSTS, X-Frame-Options, nosniff,
+  referrer-policy) applied to every site that uses this module — both
+  derschweigert and ffm get it automatically. The default CSP
+  (`var.content_security_policy`) assumes same-origin-only assets with no
+  external CDNs/fonts and allows inline `style="..."` attributes but not
+  inline `<script>`; override the variable per-site if that stops being true.
 - **Env file**: `app/config.py`'s `BASE_DIR` resolves relative to the `app/`
   package, so each site's `.env` must live at `sites/<name>/.env`, not the repo
   root.
@@ -149,7 +175,20 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   `pythonpath = sites/derschweigert` and `testpaths = sites/derschweigert/tests`
   so `from app.main import app` resolves without extra config. A new
   independent site will need its own pytest config (or a multi-root setup) if
-  it also uses this pattern.
+  it also uses this pattern. FFM's tests live under `sites/ffm/tests/` and are
+  run explicitly by the `test-ffm` CI job and by
+  `pip install -r sites/ffm/requirements-dev.txt && SECRET_KEY=... pytest sites/ffm/tests/`
+  locally — they are not picked up by the root `pytest.ini` config.
 - **Lambda build artifacts**: `infra/terraform/modules/api_backend` zips the
   Lambda source into `<root-module>/.terraform-build/`, which is gitignored —
   don't expect it to appear in git status, and don't manually edit `.zip` files.
+- **FFM's Lambda deploy has a deliberate Terraform/code split**: Terraform's
+  own zip for `ffm-api` only contains `lambda/handler.py` (no dependencies),
+  since bundling Lambda-compatible wheels isn't something Terraform does well.
+  The real, dependency-bundled code is built and pushed separately via
+  `aws lambda update-function-code` in the same CI job, immediately after
+  `terraform apply`. This means a `terraform apply` for ffm briefly leaves the
+  Lambda non-functional until the very next step overwrites it — see
+  `sites/ffm/README.md`'s "Deployment shape" section for the full trade-off
+  and the fix if it's ever worth removing.
+
