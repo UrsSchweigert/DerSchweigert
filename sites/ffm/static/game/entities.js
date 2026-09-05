@@ -1591,6 +1591,8 @@ export class Fireball {
 const DRAGON_SPRITE_W = 1536, DRAGON_SPRITE_H = 1024;
 const DRAGON_DRAW_W = 260;
 const DRAGON_DRAW_H = DRAGON_DRAW_W * (DRAGON_SPRITE_H / DRAGON_SPRITE_W);
+const DRAGON_BREATH_SLICES = 14;
+const DRAGON_BREATH_MAX_HALF_H = 20 * P; // capped cone half-height at the leading edge
 
 export class DragonSummon {
  constructor(canvasW, groundY) {
@@ -1648,13 +1650,44 @@ export class DragonSummon {
      const sweepEndX = mouthX + breathT * (this.canvasW - mouthX);
      const coneW = sweepEndX - mouthX;
      if (coneW > 0) {
-       const grad = ctx.createLinearGradient(mouthX, mouthY, sweepEndX, mouthY);
-       grad.addColorStop(0, 'rgba(191,233,255,0.9)');
-       grad.addColorStop(0.6, 'rgba(255,255,255,0.6)');
-       grad.addColorStop(1, 'rgba(191,233,255,0)');
        ctx.save();
-       ctx.fillStyle = grad;
-       ctx.fillRect(mouthX, mouthY - 30 * P, coneW, 60 * P);
+       const slices = DRAGON_BREATH_SLICES;
+       for (let i = 0; i < slices; i++) {
+         const frac = i / (slices - 1);
+         // Half-height grows from a narrow throat at the mouth to a capped
+         // width at the leading edge - this is the tapered cone silhouette.
+         const halfH = 2 * P + frac * (DRAGON_BREATH_MAX_HALF_H - 2 * P);
+         const x0 = mouthX + (i / slices) * coneW;
+         const x1 = mouthX + ((i + 1) / slices) * coneW;
+         const sliceW = Math.ceil(x1 - x0) + 1;
+         // The breath front reads brightest; the wake fades back toward the mouth.
+         const edgeBoost = 0.35 + 0.65 * frac;
+
+         // Three nested bands per slice fake a soft vertical falloff using flat
+         // fills, so the cone has no hard top/bottom edge.
+         ctx.fillStyle = '#bfe9ff';
+         ctx.globalAlpha = 0.10 * edgeBoost;
+         ctx.fillRect(x0, mouthY - halfH, sliceW, halfH * 2);
+
+         ctx.fillStyle = '#ffffff';
+         ctx.globalAlpha = 0.14 * edgeBoost;
+         ctx.fillRect(x0, mouthY - halfH * 0.6, sliceW, halfH * 1.2);
+
+         ctx.fillStyle = '#ffffff';
+         ctx.globalAlpha = 0.18 * edgeBoost;
+         ctx.fillRect(x0, mouthY - halfH * 0.28, sliceW, halfH * 0.56);
+
+         // Deterministic (index-keyed, not random) ice-shard glints so frames
+         // don't strobe.
+         if (i % 3 === 2) {
+           const shardX = x0 + sliceW * 0.5;
+           const shardY = mouthY + (i % 2 === 0 ? 1 : -1) * halfH * 0.5;
+           ctx.fillStyle = '#eaffff';
+           ctx.globalAlpha = 0.5 * edgeBoost;
+           ctx.fillRect(shardX, shardY - P, 2 * P, 2 * P);
+         }
+       }
+       ctx.globalAlpha = 1;
        ctx.restore();
      }
    }
