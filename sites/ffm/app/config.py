@@ -24,7 +24,22 @@ class BaseConfig:
     DYNAMODB_SCORES_TABLE = os.environ.get('DYNAMODB_SCORES_TABLE', 'ffm-scores')
     DYNAMODB_RATELIMIT_TABLE = os.environ.get('DYNAMODB_RATELIMIT_TABLE', 'ffm-ratelimits')
     SES_SENDER_EMAIL = os.environ.get('SES_SENDER_EMAIL', 'no-reply@ffm.derschweigert.de')
+    # SES configuration set that tags every outgoing email so CloudWatch can
+    # track Send/Bounce/Complaint/Reject counts and the alarms in
+    # infra/terraform/sites/ffm/main.tf can actually fire (see app/mailer.py's
+    # ConfigurationSetName usage). Empty default is fine locally/in tests —
+    # SES accepts sends with no configuration set, it just won't be tracked.
+    SES_CONFIGURATION_SET = os.environ.get('SES_CONFIGURATION_SET', '')
     APP_BASE_URL = os.environ.get('APP_BASE_URL', 'https://ffm.derschweigert.de')
+    # Cloudflare Turnstile CAPTCHA verification, applied to the anonymous
+    # mail-triggering endpoints (register/forgot-password/resend-verification,
+    # see app/captcha.py and app/auth.py). TURNSTILE_SECRET_KEY is resolved
+    # from Secrets Manager at Lambda cold start (see lambda/handler.py); it
+    # is intentionally NOT read directly by config.py the way SES_SENDER_EMAIL
+    # is, since app/captcha.py reads it from os.environ at call time instead
+    # (same lazy-read pattern as mailer.py), so no config.py attribute is
+    # needed for the secret value itself.
+    TURNSTILE_ENABLED = True
 
 
 class ProductionConfig(BaseConfig):
@@ -49,3 +64,9 @@ class TestingConfig(BaseConfig):
     # email) never trip it; a dedicated test overrides this value down to
     # exercise the real limit for just that one request cycle.
     EMAIL_TARGET_RATE_LIMIT = "1000/hour"
+    # Disabled by default so the existing test suite's many
+    # register/forgot-password/resend-verification calls don't need a real
+    # (or mocked) Turnstile token; dedicated tests re-enable this on a
+    # per-test config subclass and monkeypatch captcha.verify_turnstile_token
+    # to exercise the enforcement logic itself.
+    TURNSTILE_ENABLED = False

@@ -238,6 +238,50 @@ let currentProfile = null;
 let currentLeaderboard = null;
 let pendingResetToken = null;
 
+// --- Cloudflare Turnstile CAPTCHA (register/forgot-password/resend-verification) ---
+// Site key is public by design (Cloudflare's own docs embed it directly in
+// client HTML/JS) — only the secret key (server-side, verified in
+// app/captcha.py) is sensitive.
+const TURNSTILE_SITE_KEY = '0x4AAAAAAEpYkPRsDpkS9Dlo';
+const turnstileWidgets = { register: null, forgotPassword: null, resend: null };
+
+function renderTurnstileWidgets() {
+  if (!window.turnstile) return;
+  const containers = {
+    register: document.getElementById('turnstile-register'),
+    forgotPassword: document.getElementById('turnstile-forgot-password'),
+    resend: document.getElementById('turnstile-resend'),
+  };
+  for (const [key, container] of Object.entries(containers)) {
+    if (container && turnstileWidgets[key] === null) {
+      turnstileWidgets[key] = window.turnstile.render(container, { sitekey: TURNSTILE_SITE_KEY });
+    }
+  }
+}
+
+function getTurnstileToken(key) {
+  const widgetId = turnstileWidgets[key];
+  if (!window.turnstile || widgetId === null) return '';
+  return window.turnstile.getResponse(widgetId) || '';
+}
+
+function resetTurnstileWidget(key) {
+  const widgetId = turnstileWidgets[key];
+  if (window.turnstile && widgetId !== null) {
+    window.turnstile.reset(widgetId);
+  }
+}
+
+// Turnstile's script tag (index.html) loads asynchronously; poll briefly
+// until window.turnstile is available rather than relying on a fixed delay.
+(function waitForTurnstile() {
+  if (window.turnstile) {
+    renderTurnstileWidgets();
+  } else {
+    setTimeout(waitForTurnstile, 100);
+  }
+})();
+
 // --- Input ---
 const input = new InputManager(handleAnswer);
 
@@ -524,13 +568,15 @@ loginResendBtn.addEventListener('click', async () => {
     return;
   }
   try {
-    await api.resendVerification(email);
+    await api.resendVerification(email, getTurnstileToken('resend'));
     loginError.classList.add('success-msg');
     loginError.textContent = 'Verification email sent. Please check your inbox.';
     loginVerifyResend.style.display = 'none';
   } catch (err) {
     loginError.classList.remove('success-msg');
     loginError.textContent = err.message;
+  } finally {
+    resetTurnstileWidget('resend');
   }
 });
 
@@ -541,7 +587,7 @@ registerForm.addEventListener('submit', async e => {
     const em = document.getElementById('reg-email').value;
     const pw = document.getElementById('reg-password').value;
     const firstGradeYear = document.getElementById('reg-first-grade-year').value;
-    await api.register(u, em, pw, firstGradeYear);
+    await api.register(u, em, pw, firstGradeYear, getTurnstileToken('register'));
     registerError.textContent = '';
     registerForm.reset();
     showAuthForm(loginForm);
@@ -549,6 +595,8 @@ registerForm.addEventListener('submit', async e => {
     loginError.textContent = 'Registration successful! Check your email to verify your account before logging in.';
   } catch (err) {
     registerError.textContent = err.message;
+  } finally {
+    resetTurnstileWidget('register');
   }
 });
 
@@ -565,12 +613,14 @@ forgotPasswordForm.addEventListener('submit', async e => {
   const email = document.getElementById('forgot-password-email').value.trim();
   const msgEl = document.getElementById('forgot-password-message');
   try {
-    await api.forgotPassword(email);
+    await api.forgotPassword(email, getTurnstileToken('forgotPassword'));
     msgEl.classList.add('success-msg');
     msgEl.textContent = 'If that email is registered, a reset link has been sent.';
   } catch (err) {
     msgEl.classList.remove('success-msg');
     msgEl.textContent = err.message;
+  } finally {
+    resetTurnstileWidget('forgotPassword');
   }
 });
 
@@ -869,14 +919,16 @@ function handleCorrectAnswer() {
       // from just right of his sprite toward the fiend.
       hero.setState('swing');
       activeLightningBolts.push(new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
+      audio.playLightningCast();
+      input.disable();
+      inputDisabled = true;
       setTimeout(() => {
         fiend.hp = 0;
         fiend.setState('death');
+        audio.playLightningHit();
         audio.playEnemyDeath();
         state.enemiesDefeated++;
         activeFiend = null;
-        input.disable();
-        inputDisabled = true;
         heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
           hero.setState('idle');
           setTimeout(() => {

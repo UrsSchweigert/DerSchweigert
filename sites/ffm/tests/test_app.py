@@ -18,6 +18,7 @@ os.environ['DYNAMODB_RATELIMIT_TABLE'] = 'ffm-ratelimits-test'
 
 from sites.ffm.app import create_app
 from sites.ffm.app.config import TestingConfig
+from sites.ffm.app.captcha import verify_turnstile_token
 
 
 @pytest.fixture(scope='function')
@@ -476,6 +477,101 @@ def test_resend_verification_rate_limited_per_target_email_not_just_ip(aws_mock)
         '/api/auth/resend-verification', json={"email": "different@example.com"}
     ).status_code
     assert other_status == 200
+
+
+def test_register_rejected_without_valid_captcha_when_enabled(aws_mock):
+    """Regression test for Turnstile CAPTCHA enforcement (app/captcha.py,
+    _check_captcha() in auth.py). TestingConfig disables this by default
+    (TURNSTILE_ENABLED = False) so the rest of the suite doesn't need a
+    token; this test explicitly re-enables it and stubs out the network
+    call to Cloudflare's siteverify endpoint."""
+
+    class TurnstileEnabledConfig(TestingConfig):
+        TURNSTILE_ENABLED = True
+
+    app = create_app(TurnstileEnabledConfig)
+    test_client = app.test_client()
+
+    with patch('sites.ffm.app.auth.verify_turnstile_token', return_value=False):
+        r = test_client.post('/api/auth/register', json={
+            "username": "captchafail", "email": "captchafail@example.com",
+            "password": "password123", "turnstile_token": "bad-token",
+        })
+    assert r.status_code == 400
+    assert r.get_json()['error'] == 'captcha_verification_failed'
+
+
+def test_register_succeeds_with_valid_captcha_when_enabled(aws_mock):
+    """Same enforcement path as above, but with a passing verification —
+    confirms _check_captcha() doesn't block legitimate traffic when the
+    token is valid."""
+
+    class TurnstileEnabledConfig(TestingConfig):
+        TURNSTILE_ENABLED = True
+
+    app = create_app(TurnstileEnabledConfig)
+    test_client = app.test_client()
+
+    with patch('sites.ffm.app.auth.verify_turnstile_token', return_value=True):
+        r = test_client.post('/api/auth/register', json={
+            "username": "captchaok", "email": "captchaok@example.com",
+            "password": "password123", "turnstile_token": "good-token",
+        })
+    assert r.status_code == 201
+
+
+def test_forgot_password_rejected_without_valid_captcha_when_enabled(aws_mock):
+    """Same Turnstile enforcement, exercised on forgot-password since it's
+    a separate anonymous mail-triggering endpoint with its own _check_captcha
+    call site."""
+
+    class TurnstileEnabledConfig(TestingConfig):
+        TURNSTILE_ENABLED = True
+
+    app = create_app(TurnstileEnabledConfig)
+    test_client = app.test_client()
+
+    with patch('sites.ffm.app.auth.verify_turnstile_token', return_value=False):
+        r = test_client.post('/api/auth/forgot-password', json={
+            "email": "someone@example.com", "turnstile_token": "bad-token",
+        })
+    assert r.status_code == 400
+    assert r.get_json()['error'] == 'captcha_verification_failed'
+
+
+def test_resend_verification_rejected_without_valid_captcha_when_enabled(aws_mock):
+    """Same Turnstile enforcement, exercised on resend-verification since
+    it's a separate anonymous mail-triggering endpoint with its own
+    _check_captcha call site."""
+
+    class TurnstileEnabledConfig(TestingConfig):
+        TURNSTILE_ENABLED = True
+
+    app = create_app(TurnstileEnabledConfig)
+    test_client = app.test_client()
+
+    with patch('sites.ffm.app.auth.verify_turnstile_token', return_value=False):
+        r = test_client.post('/api/auth/resend-verification', json={
+            "email": "someone@example.com", "turnstile_token": "bad-token",
+        })
+    assert r.status_code == 400
+    assert r.get_json()['error'] == 'captcha_verification_failed'
+
+
+def test_verify_turnstile_token_fails_closed_without_secret(monkeypatch):
+    """Unit test for app/captcha.py directly: an empty/unset
+    TURNSTILE_SECRET_KEY must fail verification rather than silently
+    succeed (fail closed, not open) — a misconfiguration should never
+    accidentally disable the check."""
+    monkeypatch.delenv('TURNSTILE_SECRET_KEY', raising=False)
+    assert verify_turnstile_token("some-token") is False
+
+
+def test_verify_turnstile_token_fails_closed_without_token():
+    """Unit test for app/captcha.py: an empty token must fail verification
+    without making any network call."""
+    assert verify_turnstile_token("") is False
+    assert verify_turnstile_token(None) is False
 
 
 def test_score_history_unauthenticated(client):

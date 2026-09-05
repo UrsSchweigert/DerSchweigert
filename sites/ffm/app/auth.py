@@ -14,6 +14,7 @@ from .models import (
 )
 from .validation import is_valid_int
 from . import mailer
+from .captcha import verify_turnstile_token
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -30,12 +31,27 @@ def _email_rate_limit_key():
     return email or 'no-email'
 
 
+def _check_captcha(data):
+    """Verify the request's Turnstile token. Always True (no-op) when
+    TURNSTILE_ENABLED is False (e.g. TestingConfig), so the existing test
+    suite doesn't need a real/mocked token for every call. Applied to the
+    anonymous, mail-triggering endpoints (register/forgot-password/
+    resend-verification) to raise the cost of automated abuse."""
+    if not current_app.config['TURNSTILE_ENABLED']:
+        return True
+    token = data.get('turnstile_token', '')
+    return verify_turnstile_token(token, request.remote_addr)
+
+
 @auth_bp.route('/register', methods=['POST'])
 @limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
 def register():
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid request"}), 400
+
+    if not _check_captcha(data):
+        return jsonify({"error": "captcha_verification_failed"}), 400
 
     username = data.get('username', '').strip()
     email = data.get('email', '').strip()
@@ -123,6 +139,9 @@ def resend_verification():
     if not data:
         return jsonify({"error": "Invalid request"}), 400
 
+    if not _check_captcha(data):
+        return jsonify({"error": "captcha_verification_failed"}), 400
+
     email = data.get('email', '').strip()
     generic_response = jsonify({
         "message": "If that account exists and is unverified, a verification email has been sent."
@@ -164,6 +183,9 @@ def forgot_password():
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid request"}), 400
+
+    if not _check_captcha(data):
+        return jsonify({"error": "captcha_verification_failed"}), 400
 
     email = data.get('email', '').strip()
     generic_response = jsonify({

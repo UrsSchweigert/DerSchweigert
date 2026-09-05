@@ -12,25 +12,23 @@ describe('pickComboAbility', () => {
     assert.strictEqual(pickComboAbility(5, always0), null);
   });
 
-  it('fireball: combo 6, 8, 10 with roll 0.49 returns fireball; 0.5+ returns null', () => {
-    const roll049 = () => 0.49;
-    const roll05 = () => 0.5;
+  it('fireball: combo 6, 8, 10 always fires regardless of roll (100% chance)', () => {
+    const roll0 = () => 0;
     const roll0999 = () => 0.999;
-    
+
     for (const combo of [6, 8, 10]) {
-      assert.strictEqual(pickComboAbility(combo, roll049), 'fireball');
-      assert.strictEqual(pickComboAbility(combo, roll05), null);
-      assert.strictEqual(pickComboAbility(combo, roll0999), null);
+      assert.strictEqual(pickComboAbility(combo, roll0), 'fireball');
+      assert.strictEqual(pickComboAbility(combo, roll0999), 'fireball');
     }
   });
 
-  it('lightning: combo 11, 15, 20 with roll 0.69 returns lightning; 0.7+ returns null', () => {
-    const roll069 = () => 0.69;
-    const roll07 = () => 0.7;
-    
+  it('lightning: combo 11, 15, 20 always fires regardless of roll (100% chance)', () => {
+    const roll0 = () => 0;
+    const roll0999 = () => 0.999;
+
     for (const combo of [11, 15, 20]) {
-      assert.strictEqual(pickComboAbility(combo, roll069), 'lightning');
-      assert.strictEqual(pickComboAbility(combo, roll07), null);
+      assert.strictEqual(pickComboAbility(combo, roll0), 'lightning');
+      assert.strictEqual(pickComboAbility(combo, roll0999), 'lightning');
     }
   });
 

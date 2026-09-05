@@ -6,8 +6,8 @@ export const COMBO_ABILITY_RULES = [
   // satisfies gets exactly one independent roll; if that roll fails, no ability
   // fires (it does not fall through to a lower band).
   { ability: 'dragon', minCombo: 20, chance: 0.8 },
-  { ability: 'lightning', minCombo: 10, chance: 0.7 },
-  { ability: 'fireball', minCombo: 5, chance: 0.5 },
+  { ability: 'lightning', minCombo: 10, chance: 1.0 },
+  { ability: 'fireball', minCombo: 5, chance: 1.0 },
 ];
 
 /**

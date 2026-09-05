@@ -669,6 +669,10 @@ form input:focus {
   border-color: #6060d0;
 }
 
+.turnstile-container {
+  margin: 4px 0;
+}
+
 form button {
   background: #4040c0;
   color: white;

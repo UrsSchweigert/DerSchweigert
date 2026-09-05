@@ -1,10 +1,11 @@
 """Transactional email sending via SES v1 (not SESv2 — kept consistent
 with using the simplest boto3 client API for this small set of plain-text
-transactional emails; no templates/configuration sets are needed).
+transactional emails).
 
-Reads APP_BASE_URL / SES_SENDER_EMAIL from os.environ at call time (not at
-import time) so tests can override them per-test via monkeypatch/os.environ,
-matching how app/models.py reads DYNAMODB_USERS_TABLE.
+Reads APP_BASE_URL / SES_SENDER_EMAIL / SES_CONFIGURATION_SET from
+os.environ at call time (not at import time) so tests can override them
+per-test via monkeypatch/os.environ, matching how app/models.py reads
+DYNAMODB_USERS_TABLE.
 """
 import os
 
@@ -26,18 +27,31 @@ def _base_url():
     return os.environ.get('APP_BASE_URL', 'https://ffm.derschweigert.de')
 
 
+def _configuration_set():
+    return os.environ.get('SES_CONFIGURATION_SET', '')
+
+
 def _send(to_email, subject, body_text):
     """Send a plain-text email. Callers are expected to wrap this in
     try/except so a transient SES failure doesn't 500 the whole request —
     this function itself does not swallow errors, it just performs the send."""
-    _ses_client().send_email(
-        Source=_sender(),
-        Destination={'ToAddresses': [to_email]},
-        Message={
+    kwargs = {
+        'Source': _sender(),
+        'Destination': {'ToAddresses': [to_email]},
+        'Message': {
             'Subject': {'Data': subject, 'Charset': 'UTF-8'},
             'Body': {'Text': {'Data': body_text, 'Charset': 'UTF-8'}},
         },
-    )
+    }
+    # Tagging the send with our configuration set is what lets CloudWatch
+    # track Send/Bounce/Complaint/Reject counts and the alarms in
+    # infra/terraform/sites/ffm/main.tf actually fire. Omitted (rather than
+    # sent as an empty string) when unset, since SES rejects an empty
+    # ConfigurationSetName — local/dev/test runs simply aren't tracked.
+    configuration_set = _configuration_set()
+    if configuration_set:
+        kwargs['ConfigurationSetName'] = configuration_set
+    _ses_client().send_email(**kwargs)
 
 
 def send_verification_email(to_email, username, token):

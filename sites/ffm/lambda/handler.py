@@ -22,7 +22,26 @@ def _resolve_secret_key():
     os.environ['SECRET_KEY'] = response['SecretString']
 
 
+def _resolve_turnstile_secret_key():
+    """Populate TURNSTILE_SECRET_KEY from Secrets Manager when
+    TURNSTILE_SECRET_KEY_ARN is set. Mirrors _resolve_secret_key() above —
+    the secret itself was created directly via `aws secretsmanager
+    create-secret` (its value originates externally at Cloudflare, not
+    from Terraform), but the Lambda still only ever receives its ARN,
+    never the raw value, via Terraform's environment_variables."""
+    if os.environ.get('TURNSTILE_SECRET_KEY'):
+        return
+    secret_arn = os.environ.get('TURNSTILE_SECRET_KEY_ARN')
+    if not secret_arn:
+        return
+
+    import boto3
+    response = boto3.client('secretsmanager').get_secret_value(SecretId=secret_arn)
+    os.environ['TURNSTILE_SECRET_KEY'] = response['SecretString']
+
+
 _resolve_secret_key()
+_resolve_turnstile_secret_key()
 
 import apig_wsgi
 from app import create_app

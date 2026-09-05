@@ -8,8 +8,8 @@ function parseJwt(token) {
 }
 
 export const api = {
-  async register(username, email, password, firstGradeYear) {
-    const payload = { username, email, password };
+  async register(username, email, password, firstGradeYear, turnstileToken) {
+    const payload = { username, email, password, turnstile_token: turnstileToken };
     if (firstGradeYear !== null && firstGradeYear !== undefined && firstGradeYear !== '') {
       payload.first_grade_year = Number(firstGradeYear);
     }
@@ -70,11 +70,11 @@ export const api = {
     }
   },
 
-  async resendVerification(email) {
+  async resendVerification(email, turnstileToken) {
     const res = await fetch(BASE_URL + '/auth/resend-verification', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email, turnstile_token: turnstileToken })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -96,11 +96,11 @@ export const api = {
     return data;
   },
 
-  async forgotPassword(email) {
+  async forgotPassword(email, turnstileToken) {
     const res = await fetch(BASE_URL + '/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email, turnstile_token: turnstileToken })
     });
     const data = await res.json();
     if (!res.ok) {

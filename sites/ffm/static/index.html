@@ -13,6 +13,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Arithmo Slayer">
   <link rel="stylesheet" href="styles.css">
+  <!-- Cloudflare Turnstile CAPTCHA widget script. Loaded here (not
+       render=explicit) but our containers below don't carry the
+       "cf-turnstile" class, so Turnstile's automatic implicit-render scan
+       ignores them; main.js calls turnstile.render(...) on each container
+       itself once this script has loaded, giving it full control over
+       reading/resetting tokens for fetch()-based (non-native) submits. -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
   <div id="game-wrap">
@@ -96,6 +103,7 @@
         <p id="login-error" class="error-msg"></p>
         <div id="login-verify-resend" style="display:none">
           <input id="login-resend-email" type="email" placeholder="Your email">
+          <div id="turnstile-resend" class="turnstile-container"></div>
           <button type="button" id="login-resend-btn">Resend verification email</button>
         </div>
       </form>
@@ -104,11 +112,13 @@
         <input id="reg-email" type="email" placeholder="Email">
         <input id="reg-password" type="password" placeholder="Password (8+ chars)">
         <input id="reg-first-grade-year" type="number" placeholder="First grade year (optional)">
+        <div id="turnstile-register" class="turnstile-container"></div>
         <button type="submit">Register</button>
         <p id="register-error" class="error-msg"></p>
       </form>
       <form id="forgot-password-form" style="display:none">
         <input id="forgot-password-email" type="email" placeholder="Your email">
+        <div id="turnstile-forgot-password" class="turnstile-container"></div>
         <button type="submit">Send reset link</button>
         <button type="button" id="back-to-login-link" class="link-btn">Back to login</button>
         <p id="forgot-password-message" class="error-msg"></p>

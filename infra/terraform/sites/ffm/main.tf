@@ -103,6 +103,17 @@ resource "aws_secretsmanager_secret_version" "jwt_secret" {
   }
 }
 
+# Cloudflare Turnstile secret key was created directly via
+# `aws secretsmanager create-secret --name ffm/turnstile-secret-key`
+# (see README) rather than by Terraform, since its value originates
+# externally at Cloudflare and must never be written into a .tf file or
+# Terraform state as plaintext. This is a metadata-only data source
+# (never `aws_secretsmanager_secret_version`, which would pull the
+# actual secret string into state) — only its ARN is referenced below.
+data "aws_secretsmanager_secret" "turnstile_secret" {
+  name = "ffm/turnstile-secret-key"
+}
+
 module "api" {
   source = "../../modules/api_backend"
 
@@ -117,10 +128,15 @@ module "api" {
     DYNAMODB_RATELIMIT_TABLE = aws_dynamodb_table.ratelimits.name
     RATELIMIT_STORAGE_URI    = "dynamodb://${aws_dynamodb_table.ratelimits.name}"
     SES_SENDER_EMAIL         = "no-reply@ffm.derschweigert.de"
+    SES_CONFIGURATION_SET    = aws_ses_configuration_set.ffm_transactional.name
     APP_BASE_URL             = "https://ffm.derschweigert.de"
+    TURNSTILE_SECRET_KEY_ARN = data.aws_secretsmanager_secret.turnstile_secret.arn
   }
 
-  secret_arns = [aws_secretsmanager_secret.jwt_secret.arn]
+  secret_arns = [
+    aws_secretsmanager_secret.jwt_secret.arn,
+    data.aws_secretsmanager_secret.turnstile_secret.arn,
+  ]
 
   tags = local.tags
 }
@@ -248,4 +264,103 @@ resource "aws_dynamodb_table" "ratelimits" {
   }
 
   tags = local.tags
+}
+
+# --- SES sending-activity monitoring ---
+#
+# A configuration set + CloudWatch event destination is required to get
+# per-send/bounce/complaint *counter* metrics into CloudWatch at all — SES
+# does not publish these to CloudWatch automatically without one. The
+# Lambda's app/mailer.py passes ConfigurationSetName="ffm-transactional"
+# on every send so its emails are tracked under this set.
+resource "aws_ses_configuration_set" "ffm_transactional" {
+  name = "ffm-transactional"
+}
+
+resource "aws_ses_event_destination" "ffm_cloudwatch" {
+  name                   = "cloudwatch"
+  configuration_set_name = aws_ses_configuration_set.ffm_transactional.name
+  enabled                = true
+  matching_types         = ["send", "bounce", "complaint", "reject"]
+
+  cloudwatch_destination {
+    default_value  = aws_ses_configuration_set.ffm_transactional.name
+    dimension_name = "ses:configuration-set"
+    value_source   = "messageTag"
+  }
+}
+
+# Notifies a human when SES sending looks abnormal (any bounce/complaint,
+# or an unusually high send volume — either could mean abuse is getting
+# through the app-level defenses in sites/ffm/app/auth.py, or a bug).
+resource "aws_sns_topic" "ffm_alerts" {
+  name = "ffm-alerts"
+  tags = local.tags
+}
+
+resource "aws_sns_topic_subscription" "ffm_alerts_email" {
+  topic_arn = aws_sns_topic.ffm_alerts.arn
+  protocol  = "email"
+  endpoint  = "urs.schweigert@outlook.com"
+}
+
+# Any bounce at all is worth a look: this is a small, transactional-only,
+# opt-in-registration service, so the legitimate bounce rate should be
+# ~0. A real bounce spike threatens the SES production-access
+# request/approval and ongoing sending reputation.
+resource "aws_cloudwatch_metric_alarm" "ffm_ses_bounce" {
+  alarm_name          = "ffm-ses-bounce"
+  alarm_description   = "One or more SES bounces for ffm-transactional in a 1-hour window."
+  namespace           = "AWS/SES"
+  metric_name         = "Bounce"
+  dimensions          = { "ses:configuration-set" = "ffm-transactional" }
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.ffm_alerts.arn]
+  tags                = local.tags
+}
+
+# Any spam complaint is more urgent than a bounce (a real recipient
+# actively flagged the mail) and should be investigated immediately.
+resource "aws_cloudwatch_metric_alarm" "ffm_ses_complaint" {
+  alarm_name          = "ffm-ses-complaint"
+  alarm_description   = "One or more SES spam complaints for ffm-transactional in a 1-hour window."
+  namespace           = "AWS/SES"
+  metric_name         = "Complaint"
+  dimensions          = { "ses:configuration-set" = "ffm-transactional" }
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.ffm_alerts.arn]
+  tags                = local.tags
+}
+
+# A generous but finite volume ceiling given expected traffic (a handful
+# of registrations/resets per day) — a proxy for either abuse slipping
+# past the app-level rate limits at scale, or a runaway bug (e.g. a
+# retry loop). 50/hour is well above realistic legitimate traffic but
+# well below anything that would risk the account's 200/day sandbox cap
+# outright, so it should fire before the account gets throttled by SES
+# itself.
+resource "aws_cloudwatch_metric_alarm" "ffm_ses_send_volume" {
+  alarm_name          = "ffm-ses-send-volume"
+  alarm_description   = "SES send volume for ffm-transactional exceeded 50 in a 1-hour window."
+  namespace           = "AWS/SES"
+  metric_name         = "Send"
+  dimensions          = { "ses:configuration-set" = "ffm-transactional" }
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 50
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.ffm_alerts.arn]
+  tags                = local.tags
 }

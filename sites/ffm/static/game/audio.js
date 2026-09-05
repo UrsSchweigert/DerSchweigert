@@ -95,7 +95,11 @@ export class AudioEngine {
     osc.stop(startTime + duration);
   }
 
-  _playNoiseBurst(duration, startTime, gain = 0.3, filterFreq = null, filterType = 'lowpass') {
+  // filterFreqEnd sweeps the filter's cutoff/center frequency over the burst's
+  // duration (e.g. a bandpass sweeping upward reads as a fast "whoosh"/"zap"
+  // rather than static hiss), and Q narrows a bandpass filter for a more
+  // focused, airy swish instead of broadband noise.
+  _playNoiseBurst(duration, startTime, gain = 0.3, filterFreq = null, filterType = 'lowpass', filterFreqEnd = null, Q = null) {
     this._ensureCtx();
     if (this._muted) return;
 
@@ -115,6 +119,10 @@ export class AudioEngine {
       const filter = this._ctx.createBiquadFilter();
       filter.type = filterType;
       filter.frequency.setValueAtTime(filterFreq, startTime);
+      if (filterFreqEnd) {
+        filter.frequency.exponentialRampToValueAtTime(Math.max(1, filterFreqEnd), startTime + duration);
+      }
+      if (Q !== null) filter.Q.setValueAtTime(Q, startTime);
       tail.connect(filter);
       tail = filter;
     }
@@ -123,23 +131,53 @@ export class AudioEngine {
     src.start(startTime);
   }
 
+  // Short, punchy noise transient with an almost-instant decay — the "smack"
+  // of a hit landing, layered under a boomier tail for weight.
+  _playImpactCrack(startTime, gain, filterFreq, filterType = 'highpass') {
+    this._playNoiseBurst(0.035, startTime, gain, filterFreq, filterType);
+  }
+
   playFireballCast() {
     this._ensureCtx();
     if (this._muted) return;
     const t = this._ctx.currentTime;
-    // Rising ignition whoosh as the flame launches, plus a hiss of sparks.
-    this._playSweep(180, 900, 'sawtooth', 0.22, t, 0.22);
-    this._playNoiseBurst(0.18, t, 0.18, 3000, 'highpass');
+    // A fast, narrow bandpass sweep reads as a real air-splitting "swish"
+    // rather than plain hiss; a rising pitched sawtooth underneath gives the
+    // flame body its whooshing launch energy.
+    this._playNoiseBurst(0.24, t, 0.35, 700, 'bandpass', 3200, 6);
+    this._playSweep(250, 720, 'sawtooth', 0.2, t, 0.16);
   }
 
   playFireballHit() {
     this._ensureCtx();
     if (this._muted) return;
     const t = this._ctx.currentTime;
-    // Low boom on impact plus a crackling explosion of noise.
-    this._playTone(90, 'sine', 0.35, t, 0.5);
-    this._playTone(50, 'triangle', 0.3, t + 0.03, 0.35);
-    this._playNoiseBurst(0.3, t, 0.35, 1200, 'lowpass');
+    // Layered impact: an instant crack transient for the "smack", a fast
+    // pitch-drop thump for punch, and a rumbling boom tail for weight.
+    this._playImpactCrack(t, 0.4, 3500);
+    this._playSweep(260, 45, 'sine', 0.22, t, 0.6);
+    this._playNoiseBurst(0.4, t, 0.35, 1000, 'lowpass');
+  }
+
+  playLightningCast() {
+    this._ensureCtx();
+    if (this._muted) return;
+    const t = this._ctx.currentTime;
+    // Bright, fast bandpass sweep for the "zzzt" swish, plus a jittery
+    // descending buzz to sell the electric crackle.
+    this._playNoiseBurst(0.14, t, 0.3, 5500, 'bandpass', 1800, 10);
+    this._playSweep(2800, 500, 'square', 0.14, t, 0.15);
+  }
+
+  playLightningHit() {
+    this._ensureCtx();
+    if (this._muted) return;
+    const t = this._ctx.currentTime;
+    // A sharp snap transient reads as the electric strike, backed by a
+    // short thunderclap rumble for impact weight.
+    this._playImpactCrack(t, 0.5, 6000);
+    this._playSweep(200, 40, 'sawtooth', 0.28, t, 0.35);
+    this._playNoiseBurst(0.3, t, 0.3, 500, 'lowpass');
   }
 
   playDragonRoar() {
