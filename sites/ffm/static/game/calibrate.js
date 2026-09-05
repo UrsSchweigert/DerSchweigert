@@ -1,0 +1,181 @@
+// calibrate.js — standalone visual tool for tuning the hero's and each fiend
+// class's ground-contact offset by eye. Reuses the real game's Renderer,
+// Hero, Fiend (via Slimeling) and difficulty-classes modules directly, so
+// what you see here is pixel-identical to what the real game renders once
+// you paste the generated values back into entities.js / difficulty-classes.js.
+// Not part of the shipped game — a dev tool only, reachable at calibrate.html.
+
+import { Renderer, CANVAS_W, GROUND_Y } from './renderer.js';
+import { Hero, Slimeling, getHeroGroundOffsetPx, setHeroGroundOffsetPx } from './entities.js';
+import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
+
+const FIEND_CAL_X = 560; // fixed on-screen position for the calibration fiend
+
+// Snapshot of the CURRENT hard-coded defaults, so "copy code" always reflects
+// (these defaults + whatever you've changed this session), even though the
+// live preview mutates FIEND_CLASSES entries in memory as you tune.
+const DEFAULT_RATIOS = FIEND_CLASSES.map((c) => c.bottomPadRatio);
+const DEFAULT_HERO_OFFSET = getHeroGroundOffsetPx();
+
+const sessionRatioOverrides = new Map(); // id -> ratio
+let heroOffsetPx = DEFAULT_HERO_OFFSET;
+let selectedId = 1;
+
+const canvas = document.getElementById('game');
+const renderer = new Renderer(canvas);
+const hero = new Hero();
+const fiend = new Slimeling(FIEND_CAL_X, GROUND_Y, 1);
+fiend.setState('idle'); // static pose — we never call fiend.update(), so it never walks/animates away
+
+const classSelect = document.getElementById('class-select');
+FIEND_CLASSES.forEach((c) => {
+  const opt = document.createElement('option');
+  opt.value = String(c.id);
+  opt.textContent = `${c.id} — ${c.name}`;
+  classSelect.appendChild(opt);
+});
+classSelect.value = '1';
+
+const heroValueEl = document.getElementById('hero-value');
+const fiendValueEl = document.getElementById('fiend-value');
+
+function currentRatio(id) {
+  return sessionRatioOverrides.has(id) ? sessionRatioOverrides.get(id) : DEFAULT_RATIOS[id - 1];
+}
+
+function applyLive() {
+  setHeroGroundOffsetPx(heroOffsetPx);
+  getFiendClass(selectedId).bottomPadRatio = currentRatio(selectedId);
+  heroValueEl.textContent = String(heroOffsetPx);
+  fiendValueEl.textContent = currentRatio(selectedId).toFixed(3);
+}
+
+function setHeroOffset(px) {
+  heroOffsetPx = px;
+  applyLive();
+}
+
+function setFiendRatio(id, ratio) {
+  sessionRatioOverrides.set(id, Math.max(0, Math.round(ratio * 1000) / 1000));
+  applyLive();
+}
+
+function selectClass(id) {
+  selectedId = ((id - 1 + 36) % 36) + 1;
+  classSelect.value = String(selectedId);
+  applyLive();
+}
+
+classSelect.addEventListener('change', () => selectClass(parseInt(classSelect.value, 10)));
+
+document.querySelectorAll('[data-hero-step]').forEach((btn) => {
+  btn.addEventListener('click', () => setHeroOffset(heroOffsetPx + parseFloat(btn.dataset.heroStep)));
+});
+document.querySelector('[data-hero-reset]').addEventListener('click', () => setHeroOffset(DEFAULT_HERO_OFFSET));
+
+document.querySelectorAll('[data-fiend-step]').forEach((btn) => {
+  btn.addEventListener('click', () => setFiendRatio(selectedId, currentRatio(selectedId) + parseFloat(btn.dataset.fiendStep)));
+});
+document.querySelector('[data-fiend-reset]').addEventListener('click', () => {
+  sessionRatioOverrides.delete(selectedId);
+  applyLive();
+});
+document.querySelectorAll('[data-fiend-nav]').forEach((btn) => {
+  btn.addEventListener('click', () => selectClass(selectedId + parseInt(btn.dataset.fiendNav, 10)));
+});
+
+window.addEventListener('keydown', (e) => {
+  // A native <select> also uses Up/Down to browse its own options, and would
+  // otherwise fight with these shortcuts (double-changing state) whenever the
+  // dropdown has focus. Only handle these shortcuts when focus is elsewhere
+  // (e.g. the body/canvas) — let form controls handle their own keys.
+  const tag = (e.target && e.target.tagName || '').toLowerCase();
+  if (tag === 'select' || tag === 'input' || tag === 'textarea') return;
+
+  const big = e.shiftKey;
+  if (e.key === 'ArrowUp')    { setFiendRatio(selectedId, currentRatio(selectedId) + (big ? 0.02 : 0.005)); e.preventDefault(); }
+  if (e.key === 'ArrowDown')  { setFiendRatio(selectedId, currentRatio(selectedId) - (big ? 0.02 : 0.005)); e.preventDefault(); }
+  if (e.key === 'ArrowLeft')  { selectClass(selectedId - 1); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { selectClass(selectedId + 1); e.preventDefault(); }
+  if (e.key === 'PageUp')     { setHeroOffset(heroOffsetPx + (big ? 5 : 1)); e.preventDefault(); }
+  if (e.key === 'PageDown')   { setHeroOffset(heroOffsetPx - (big ? 5 : 1)); e.preventDefault(); }
+});
+
+function trimNum(n) {
+  return n.toFixed(3).replace(/0+$/, '').replace(/\.$/, '.0');
+}
+
+document.getElementById('copy-btn').addEventListener('click', () => {
+  const finalRatios = DEFAULT_RATIOS.map((def, idx) =>
+    sessionRatioOverrides.has(idx + 1) ? sessionRatioOverrides.get(idx + 1) : def
+  );
+  const set1 = finalRatios.slice(0, 18).map(trimNum).join(', ');
+  const set2 = finalRatios.slice(18, 36).map(trimNum).join(', ');
+  const code = `// --- entities.js: replace "let _heroGroundOffsetPx = 6 * P;" with ---\n`
+    + `let _heroGroundOffsetPx = ${heroOffsetPx};\n\n`
+    + `// --- difficulty-classes.js: replace the BOTTOM_PAD_RATIO object with ---\n`
+    + `const BOTTOM_PAD_RATIO = {\n`
+    + `  1: [${set1}],\n`
+    + `  2: [${set2}],\n`
+    + `};\n`;
+  const out = document.getElementById('output');
+  out.value = code;
+  navigator.clipboard?.writeText(code).catch(() => {});
+});
+
+function drawGroundLine() {
+  const ctx = canvas.getContext('2d');
+  ctx.save();
+  ctx.strokeStyle = '#ff2040';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y + 0.5);
+  ctx.lineTo(CANVAS_W, GROUND_Y + 0.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Magnified inset showing a tight window around each character's feet and the
+// ground line — judging a 1-2px snap on the full-size 800x450 canvas is hard;
+// zooming ~6x makes the exact pixel where feet meet the line unambiguous.
+const ZOOM = 6;
+const WIN_W = 100; // source px captured around each subject, before zoom — wide
+                    // enough to include both hero boots in one window
+const WIN_H = 40;
+
+function drawMagnifier(id, canvasEl, subjectX) {
+  const ctx = canvasEl.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  const sx = Math.round(subjectX - WIN_W / 2);
+  const sy = Math.round(GROUND_Y - WIN_H / 2);
+  ctx.drawImage(canvas, sx, sy, WIN_W, WIN_H, 0, 0, WIN_W * ZOOM, WIN_H * ZOOM);
+  // re-draw the ground line at zoomed scale for a crisp, unambiguous reference
+  const lineY = (GROUND_Y - sy) * ZOOM;
+  ctx.strokeStyle = '#ff2040';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, lineY);
+  ctx.lineTo(canvasEl.width, lineY);
+  ctx.stroke();
+}
+
+const heroZoomCanvas = document.getElementById('hero-zoom');
+const fiendZoomCanvas = document.getElementById('fiend-zoom');
+
+function loop() {
+  renderer.clear();
+  renderer.drawBackground(0);
+  renderer.drawEntity(hero);
+  fiend.fiendClassId = selectedId;
+  fiend.x = FIEND_CAL_X;
+  fiend.y = GROUND_Y;
+  renderer.drawEntity(fiend);
+  drawGroundLine();
+  drawMagnifier('hero', heroZoomCanvas, hero.x + 44);
+  drawMagnifier('fiend', fiendZoomCanvas, FIEND_CAL_X);
+  requestAnimationFrame(loop);
+}
+
+applyLive();
+requestAnimationFrame(loop);

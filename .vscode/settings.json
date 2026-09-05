@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^source \\.\\./\\.\\./DerSchweigert/\\.venv/bin/activate && python3 -m pytest sites/ffm/tests/ -q$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Level → Fiend Class Allocator — Arithmo Slayer</title>
+<style>
+  body { background:#0a0a1a; color:#eee; font-family: monospace; padding: 20px; }
+  h1 { color:#f8e040; margin:0 0 4px; font-size:20px; }
+  p.hint { color:#888; font-size:12px; margin:0 0 16px; max-width: 900px; }
+  .layout { display:flex; gap:20px; align-items:flex-start; flex-wrap: wrap; }
+  .preview-col { flex: 0 0 auto; max-width: 420px; }
+  #game { display:block; border:1px solid #333; image-rendering: pixelated; margin-bottom: 8px; }
+  #preview-label { color:#80c0ff; font-size:13px; margin-bottom:10px; }
+  .preview-nav { margin-bottom: 16px; }
+  button { font: inherit; background:#3050d8; color:#fff; border:none; border-radius:4px; padding:6px 14px; cursor:pointer; margin: 2px 4px 2px 0; }
+  button:hover { background:#4060f0; }
+  button.big { background:#d84030; }
+  button.big:hover { background:#f05840; }
+  button.reset-btn { background:#444; padding: 4px 8px; }
+  button.reset-btn:hover { background:#666; }
+  .list-col { flex: 1 1 auto; min-width: 480px; }
+  #level-list { max-height: 620px; overflow-y: auto; border:1px solid #333; border-radius:6px; padding: 8px; background:#101024; }
+  .chapter-header { color:#f8e040; font-size:13px; margin: 12px 0 6px; padding-bottom:4px; border-bottom: 1px solid #333; }
+  .chapter-header:first-child { margin-top: 0; }
+  .level-row { display:flex; align-items:center; gap:8px; padding: 4px 6px; border-radius:4px; cursor:pointer; }
+  .level-row:hover { background:#1a1a3a; }
+  .level-row.active { background:#20306a; }
+  .level-label { width: 44px; color:#aaa; flex-shrink:0; }
+  .type-label { width: 90px; color:#666; font-size:11px; flex-shrink:0; }
+  .thumb { width:28px; height:28px; object-fit:contain; background:#000; border-radius:3px; flex-shrink:0; }
+  .picker-trigger { display:flex; align-items:center; gap:8px; background:#151530; color:#eee; border:1px solid #444; border-radius:4px; padding:3px 8px; flex:1 1 auto; min-width:0; cursor:pointer; text-align:left; }
+  .picker-trigger:hover { background:#1e1e44; }
+  .picker-trigger .trigger-text { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .picker-trigger .caret { color:#888; flex-shrink:0; }
+  #picker-panel { position:absolute; z-index:1000; max-height:360px; overflow-y:auto; background:#101024; border:1px solid #4060c0; border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.6); padding:4px; }
+  .picker-option { display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:4px; cursor:pointer; white-space:nowrap; }
+  .picker-option:hover { background:#2848a0; }
+  .picker-option.selected { background:#1a3060; outline:1px solid #4878e0; }
+  .picker-thumb { width:26px; height:26px; object-fit:contain; background:#000; border-radius:3px; flex-shrink:0; }
+  textarea { width:100%; height:160px; background:#0e0e20; color:#8fd88f; border:1px solid #333; border-radius:6px; font: 12px/1.4 monospace; padding:8px; box-sizing: border-box; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <h1>Level → Fiend Class Allocator</h1>
+  <p class="hint">
+    Pick which fiend class (1–36 art tier) is primarily used at each of the 60 levels. Click a row to preview it
+    against the hero on the left. Click a row's dropdown to open the class picker — <b>hovering</b> an option previews
+    it live in the canvas before you commit; click an option to actually select it. The in-game spawner still
+    occasionally mixes in the previous 1-2 levels' classes (50% this level / 30% level−1 / 20% level−2) — that
+    blending is unchanged, only which class each level itself points to is now yours to set. When done, click
+    "Generate + copy" and paste the result into <code>difficulty-classes.js</code>, replacing the
+    <code>LEVEL_FIEND_CLASS_ID</code> block.
+  </p>
+
+  <div class="layout">
+    <div class="preview-col">
+      <canvas id="game" width="800" height="450" style="width:400px;height:225px;"></canvas>
+      <div id="preview-label">Level 1</div>
+      <div class="preview-nav">
+        <button id="prev-level-btn">◀ Prev level</button>
+        <button id="next-level-btn">Next level ▶</button>
+      </div>
+      <button class="big" id="reset-all-btn">Reset ALL to formula defaults</button>
+      <button class="big" id="copy-btn">📋 Generate + copy final code</button>
+      <textarea id="output" readonly placeholder="Click 'Generate + copy' once you're happy with the allocation — this fills in with the exact code to paste back into difficulty-classes.js."></textarea>
+    </div>
+    <div class="list-col">
+      <div id="level-list"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./level-fiend-allocator.js"></script>
+</body>
+</html>

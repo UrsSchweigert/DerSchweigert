@@ -7,7 +7,7 @@ import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
 import { api } from './api.js';
-import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
+import { getFiendClass, sampleFiendClassId } from './difficulty-classes.js';
 import { pickComboAbility } from './combo-abilities.js';
 import {
   FIEND_ENTRY_TRIGGER_X,
@@ -106,7 +106,7 @@ function createFiend(levelIndex, x) {
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
   fiend.problem = problem;
   fiend.isElite = isElite;
-  fiend.fiendClassId = state.fiendClass;
+  fiend.fiendClassId = sampleFiendClassId(cfg.level, spawnIndex);
   return fiend;
 }
 
@@ -114,7 +114,6 @@ function createFiend(levelIndex, x) {
 let state = {
   level: 1,
   difficulty: 'medium',
-  fiendClass: 1,
   hearts: 5,
   maxHearts: 5,
   score: 0,
@@ -141,7 +140,6 @@ const gameOverScore = document.getElementById('game-over-score');
 const btnRetryLevel = document.getElementById('btn-retry-level');
 const btnReturnTitle = document.getElementById('btn-return-title');
 const diffSelect = document.getElementById('difficulty-select');
-const fiendClassSelect = document.getElementById('fiend-class-select');
 const authModal = document.getElementById('auth-modal');
 const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
@@ -163,16 +161,6 @@ const leaderboardPersonalBest = document.getElementById('leaderboard-personal-be
 const scoreHistoryChart = document.getElementById('score-history-chart');
 const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
 const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
-
-if (fiendClassSelect && fiendClassSelect.options.length === 0) {
-  FIEND_CLASSES.forEach((cls) => {
-    const opt = document.createElement('option');
-    opt.value = String(cls.id);
-    opt.textContent = `Class ${cls.id} - ${cls.name}`;
-    fiendClassSelect.appendChild(opt);
-  });
-  fiendClassSelect.value = '1';
-}
 
 // --- Engine instances ---
 const renderer = new Renderer(canvas);
@@ -200,6 +188,14 @@ let activeDragons = [];
 let heroLunge = null; // { phase:'out'|'back', fiend?, targetX, onArrive? }
 const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
 const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this distance of HERO_X
+// Ranged spells (fireball/lightning) launch from just right of the hero's
+// sprite while he strikes in place at the base location, rather than lunging
+// up to the fiend like a melee hit does.
+const SPELL_LAUNCH_X = HERO_X + 130;
+const SPELL_LAUNCH_Y = GROUND_Y - 60;
+// Must match Fireball's `life` (in entities.js) in milliseconds, so the hit
+// lands right as the sprite reaches the fiend instead of the instant it's cast.
+const FIREBALL_FLIGHT_MS = 1350;
 let currentProfile = null;
 let currentLeaderboard = null;
 
@@ -417,7 +413,6 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
     state.timerRemaining = state.timerMax;
     state.maxHearts = parseInt(btn.dataset.hearts);
     state.hearts = state.maxHearts;
-    state.fiendClass = fiendClassSelect ? parseInt(fiendClassSelect.value, 10) : 1;
     state.score = 0;
     levelStartScore = 0;
     diffSelect.style.display = 'none';
@@ -614,15 +609,16 @@ function handleCorrectAnswer() {
   state.timerActive = false;
 
   const fiend = activeFiend;
+  // Decided once up front (not inside strikeNow) so the lunge gate below can
+  // tell ranged spells apart from a melee hit before the hero starts moving.
+  const ability = pickComboAbility(state.combo);
 
   const strikeNow = () => {
-    const ability = pickComboAbility(state.combo);
-
     if (ability === 'lightning') {
-      // Hero raises sword skyward (hold at victory frame 1)
-      hero.setState('victory');
-      hero._frame = 1; hero._tick = 0; hero._dur = 999;
-      activeLightningBolts.push(new LightningBolt(fiend.x, fiend.y - 6 * LOGICAL_PX));
+      // Hero strikes in place at the base location; the bolt is launched
+      // from just right of his sprite toward the fiend.
+      hero.setState('swing');
+      activeLightningBolts.push(new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y));
       setTimeout(() => {
         fiend.hp = 0;
         fiend.setState('death');
@@ -641,38 +637,42 @@ function handleCorrectAnswer() {
         hud.update(state);
       }, 600);
     } else if (ability === 'fireball') {
-      activeFireballs.push(new Fireball(HERO_X, GROUND_Y, fiend.x, fiend.y));
+      // Hero strikes in place at the base location; the fireball is launched
+      // from just right of his sprite toward the fiend, and the hit lands
+      // when it actually arrives rather than the instant it's cast.
       hero.setState('swing');
-      fiend.hit();
+      activeFireballs.push(new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y));
       audio.playSwordSwing();
+      input.disable();
+      inputDisabled = true;
+      setTimeout(() => {
+        fiend.hit();
 
-      if (fiend.isDead) {
-        audio.playEnemyDeath();
-        state.enemiesDefeated++;
-        activeFiend = null;
-        input.disable();
-        inputDisabled = true;
-        heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-          setTimeout(() => {
-            if (checkAllDefeated()) triggerWaveClear();
-            else { spawnTimer = spawnInterval; inputDisabled = false; }
-          }, 300);
-        }};
-      } else {
-        const preserveTimer = shouldPreserveTimerAfterHit(fiend);
-        activeFiend = null;
-        input.disable();
-        inputDisabled = true;
-        heroLunge = {
-          phase: 'back',
-          targetX: HERO_X,
-          onArrive: () => {
-            fiend.problem = generateProblem(state.level - 1, Date.now());
-            queueProblemActivation(fiend, { preserveTimer });
-            inputDisabled = false;
-          }
-        };
-      }
+        if (fiend.isDead) {
+          audio.playEnemyDeath();
+          state.enemiesDefeated++;
+          activeFiend = null;
+          heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+            setTimeout(() => {
+              if (checkAllDefeated()) triggerWaveClear();
+              else { spawnTimer = spawnInterval; inputDisabled = false; }
+            }, 300);
+          }};
+        } else {
+          const preserveTimer = shouldPreserveTimerAfterHit(fiend);
+          activeFiend = null;
+          heroLunge = {
+            phase: 'back',
+            targetX: HERO_X,
+            onArrive: () => {
+              fiend.problem = generateProblem(state.level - 1, Date.now());
+              queueProblemActivation(fiend, { preserveTimer });
+              inputDisabled = false;
+            }
+          };
+        }
+        hud.update(state);
+      }, FIREBALL_FLIGHT_MS);
     } else if (ability === 'dragon') {
       activeDragons.push(new DragonSummon(CANVAS_W, GROUND_Y));
       hero.setState('swing');
@@ -743,7 +743,11 @@ function handleCorrectAnswer() {
     hud.update(state);
   };
 
-  if (fiend.x - HERO_X > LUNGE_MIN_DIST) {
+  // Ranged spells strike from the hero's base location, so only lunge the
+  // hero toward the fiend for a plain melee hit (or a dragon summon, which
+  // still swings the sword up close).
+  const isRangedSpell = ability === 'lightning' || ability === 'fireball';
+  if (!isRangedSpell && fiend.x - HERO_X > LUNGE_MIN_DIST) {
     input.disable();
     inputDisabled = true;
     heroLunge = { phase: 'out', fiend, onArrive: strikeNow };

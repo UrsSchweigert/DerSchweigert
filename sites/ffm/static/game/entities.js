@@ -2,9 +2,18 @@
 
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
 import { FIEND_COMBAT_X } from './difficulty.js';
-import { FIEND_CLASSES } from './difficulty-classes.js';
+import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
 
 const P = LOGICAL_PX; // shorthand
+
+// Vertical nudge applied when drawing the hero, so the sprite's actual boots
+// (not the shadow baked into the art beneath them) land on GROUND_Y. Exposed
+// as a mutable value (with getter/setter) rather than an inline literal so
+// calibrate.html can tune it live with perfect parity with the real game.
+let _heroGroundOffsetPx = 9;
+export function getHeroGroundOffsetPx() { return _heroGroundOffsetPx; }
+export function setHeroGroundOffsetPx(px) { _heroGroundOffsetPx = px; }
+
 const _uploadedHeroSheet = new Image();
 _uploadedHeroSheet.src = new URL('./hero-spritesheet-clean.png', import.meta.url).href;
 const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victory: 5 };
@@ -12,6 +21,8 @@ const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victor
 const _walkCols = [0, 1, 3, 1];
 const _dragonSprite = new Image();
 _dragonSprite.src = new URL('./dragon.png', import.meta.url).href;
+const _fireballSprite = new Image();
+_fireballSprite.src = new URL('./fireball.png', import.meta.url).href;
 
 // Fiend class sprite cache: one Image per class, created lazily, checked via
 // .complete/.naturalWidth before use (same pattern as the hero spritesheet above).
@@ -105,7 +116,7 @@ export class Hero extends Entity {
       ctx.restore();
     }
     ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH,
-      this.x - 36, this.y - drawH + 6*P, drawW, drawH);
+      this.x - 36, this.y - drawH + _heroGroundOffsetPx, drawW, drawH);
     if (this._healAura > 0) {
       const t2 = this._tick * 0.25 + 1;
       const scale2 = 1 + 0.08 * Math.sin(t2);
@@ -670,7 +681,6 @@ export class Fiend extends Entity {
     this.hp = cfg.hp;
     this._pal = cfg.palette;
     this.walkSpeed = 50;
-    this.retreatSpeed = 80;
     this.problem = null;
     this.wasRequeued = false;
     this._redFlash = 0;
@@ -684,6 +694,9 @@ export class Fiend extends Entity {
   }
 
   get isDead() { return this.hp <= 0; }
+  // Retreat is always twice the fiend's current walk speed (which itself varies
+  // by difficulty/timer), so a fiend that walked in fast also flees out fast.
+  get retreatSpeed() { return this.walkSpeed * 2; }
   hit() { this.hp-- > 1 ? this.setState('hit') : this.setState('death'); }
   attack() { this.setState('attack'); }
   on(ev, fn) { this._events.addEventListener(ev, fn); }
@@ -780,7 +793,11 @@ export class Fiend extends Entity {
 
   // Draws the selected fiend-class sprite if its image has loaded. Returns true if
   // it drew (caller skips its procedural body), false to fall back to procedural art.
-  _drawClassSprite(ctx, targetW = 20 * P, targetH = 20 * P) {
+  // Target box enlarged from 20*P to 38*P: fiend source art was being downscaled far
+  // more aggressively than the hero spritesheet, making fiends look tiny/out of place
+  // next to the hero. 38*P puts fiends at a comparable on-screen scale to the hero
+  // (hero draws at a fixed 150-160px tall).
+  _drawClassSprite(ctx, targetW = 38 * P, targetH = 38 * P) {
     if (!this.fiendClassId) return false;
     const img = getFiendClassSprite(this.fiendClassId);
     if (!img || !img.complete || !img.naturalWidth) return false;
@@ -791,14 +808,33 @@ export class Fiend extends Entity {
     if (drawH > targetH) { drawH = targetH; drawW = targetH * aspect; }
 
     const bx = ~~(this.x - drawW / 2);
-    const by = ~~(this.y - drawH);
+    // Fiend art has a few percent of transparent padding below the actual
+    // artwork (varies per creature). Shift the draw position down by that
+    // padding fraction of drawH so the creature's real visual base lands on
+    // this.y — the same ground line the hero's feet stand on — instead of
+    // the sprite's raw (padded) bounding-box bottom landing there. No
+    // separate drawn shadow is needed once the base actually lines up.
+    const bottomPadRatio = getFiendClass(this.fiendClassId).bottomPadRatio ?? 0;
+    const by = ~~(this.y - drawH + drawH * bottomPadRatio);
+    // Fiends' art faces left (their walk-in direction, toward the hero). When
+    // retreating after a wrong answer they move right, so mirror the sprite
+    // horizontally to face the direction of travel — same technique
+    // DragonSummon.draw() uses below (translate to the right edge, then
+    // scale(-1,1) so drawImage's local [0,w] maps back onto [bx, bx+w]).
+    const faceRight = this._state === 'retreat';
 
     ctx.save();
     if (this.isElite) this._drawEliteAura(ctx, bx, by, drawW, drawH);
-    ctx.drawImage(img, bx, by, drawW, drawH);
+    if (faceRight) {
+      ctx.translate(bx + drawW, by);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, drawW, drawH);
+    } else {
+      ctx.drawImage(img, bx, by, drawW, drawH);
+    }
+    ctx.restore();
     if (this._state === 'hit') this._flashWhite(ctx, bx, by, drawW, drawH);
     this._flashRed(ctx, bx, by, drawW, drawH);
-    ctx.restore();
     this._drawParticles(ctx);
     return true;
   }
@@ -1478,114 +1514,113 @@ export class SnakeFoe extends Fiend {
   }
 }
 
-// ─── LightningBolt (sky-strike visual effect) ─────────────────────────────────
-export class LightningBolt {
-  constructor(x, groundY) {
-    this.x = x;
-    this.groundY = groundY;
-    this._life    = 0.7;
-    this._maxLife = 0.7;
-    this._segs    = this._build();
+// ─── SpellProjectile (shared base for hero-launched bolt/fireball fx) ─────────
+// Both the fireball and lightning strike are the same uploaded fireball sprite
+// launched from just right of the hero toward the fiend; lightning reuses the
+// art hue-shifted into blue (via a canvas filter) with extra speed-trail
+// streaks so it still reads as "electric" rather than "fire".
+const SPELL_SPRITE_DRAW_W = 14 * P;
+
+class SpellProjectile {
+  constructor(startX, startY, targetX, targetY, { life, hueRotateDeg = 0, trailColor, streaks = 2 }) {
+    this.startX = startX;
+    this.startY = startY;
+    this.targetX = targetX;
+    this.targetY = targetY;
+    this._life    = life;
+    this._maxLife = life;
+    this._hue     = hueRotateDeg;
+    this._trailColor = trailColor;
+    this._streaks = streaks;
+    this._angle = Math.atan2(targetY - startY, targetX - startX);
   }
 
   get isDone() { return this._life <= 0; }
 
   update(dt) { this._life -= dt; }
 
-  _build() {
-    const segs = [];
-    let curX = this.x;
-    let curY = -10;
-    while (curY < this.groundY) {
-      const h   = 14 + Math.floor(Math.random() * 18);
-      const off = (Math.random() < 0.5 ? -1 : 1) * (Math.floor(Math.random() * 3) + 1) * P * 3;
-      segs.push({ x: curX, y: curY, h: Math.min(h, this.groundY - curY) });
-      curX += off;
-      curY += h;
-    }
-    return segs;
+  _posAt(t) {
+    const ct = Math.max(0, Math.min(1, t));
+    return {
+      x: this.startX + (this.targetX - this.startX) * ct,
+      y: this.startY + (this.targetY - this.startY) * ct,
+    };
+  }
+
+  _drawSprite(ctx, x, y, alpha) {
+    if (alpha <= 0 || !_fireballSprite.complete || !_fireballSprite.naturalWidth) return;
+    const sw = _fireballSprite.naturalWidth, sh = _fireballSprite.naturalHeight;
+    const drawW = SPELL_SPRITE_DRAW_W, drawH = drawW * (sh / sw);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (this._hue) ctx.filter = `hue-rotate(${this._hue}deg) saturate(1.6) brightness(1.15)`;
+    ctx.translate(x, y);
+    ctx.rotate(this._angle);
+    ctx.drawImage(_fireballSprite, -drawW / 2, -drawH / 2, drawW, drawH);
+    ctx.restore();
   }
 
   draw(ctx) {
-    if (this._life <= 0) return;
-    const alpha = this._life / this._maxLife;
+    if (this.isDone) return;
+    const t = 1 - (this._life / this._maxLife);
+    const alpha = Math.max(0, Math.min(1, this._life / (this._maxLife * 0.3)));
+    const { x, y } = this._posAt(t);
+
     ctx.save();
-    // outer glow
-    ctx.globalAlpha = Math.min(1, alpha * 1.4);
-    for (const s of this._segs) {
-      ctx.fillStyle = '#a0b8ff';
-      ctx.fillRect(~~s.x - 3*P, s.y, 6*P, s.h + 2);
+
+    // Speed-trail streaks: thin tapered blocks stretched back along the
+    // flight path, fading out with distance from the projectile.
+    for (let i = 0; i < this._streaks; i++) {
+      const backT = t - 0.05 - i * 0.03;
+      if (backT <= 0) continue;
+      const { x: sx, y: sy } = this._posAt(backT);
+      const streakAlpha = alpha * (0.4 - i * 0.12);
+      if (streakAlpha <= 0) continue;
+      const segLen = (10 + i * 6) * P;
+      ctx.save();
+      ctx.globalAlpha = streakAlpha;
+      ctx.fillStyle = this._trailColor;
+      ctx.translate(sx, sy);
+      ctx.rotate(this._angle);
+      ctx.fillRect(-segLen, -P, segLen, 2 * P);
+      ctx.restore();
     }
-    // bright core
-    ctx.globalAlpha = Math.min(1, alpha * 1.8);
-    for (const s of this._segs) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(~~s.x - P, s.y, 2*P, s.h + 2);
+
+    // Ghost after-images of the sprite, fading toward the tail.
+    for (let i = 3; i >= 1; i--) {
+      const ghostT = t - i * 0.045;
+      if (ghostT <= 0) continue;
+      const { x: gx, y: gy } = this._posAt(ghostT);
+      this._drawSprite(ctx, gx, gy, alpha * (0.5 - i * 0.12));
     }
-    // impact flash at bottom
-    const last = this._segs[this._segs.length - 1];
-    ctx.globalAlpha = alpha * 0.6;
-    ctx.fillStyle = '#f8f040';
-    ctx.fillRect(~~last.x - 10*P, last.y + last.h - 6*P, 20*P, 10*P);
-    ctx.globalAlpha = 1;
+
+    // The projectile itself, drawn last so it sits on top of its own trail.
+    this._drawSprite(ctx, x, y, alpha);
+
     ctx.restore();
   }
 }
 
-export class Fireball {
- constructor(startX, startY, targetX, targetY) {
-   this.startX = startX;
-   this.startY = startY;
-   this.targetX = targetX;
-   this.targetY = targetY;
-   this._life = 0.5;
-   this._maxLife = 0.5;
- }
+export class LightningBolt extends SpellProjectile {
+  constructor(startX, startY, targetX, targetY) {
+    super(startX, startY, targetX, targetY, {
+      life: 0.35,
+      hueRotateDeg: 190,
+      trailColor: '#8fd8ff',
+      streaks: 3,
+    });
+  }
+}
 
- get isDone() { return this._life <= 0; }
-
- update(dt) {
-   this._life -= dt;
- }
-
- draw(ctx) {
-   if (this._life <= 0) return;
-   const t = 1 - (this._life / this._maxLife);
-   const currentX = this.startX + (this.targetX - this.startX) * t;
-   const currentY = this.startY + (this.targetY - this.startY) * t;
-   const alpha = Math.max(0, this._life / (this._maxLife * 0.3));
-    
-   ctx.save();
-   ctx.globalAlpha = alpha;
-    
-   // Draw tail (2-3 smaller fading blocks behind)
-   const tailSegments = 3;
-   for (let i = 1; i <= tailSegments; i++) {
-     const tailT = t - (i * 0.15);
-     if (tailT > 0) {
-       const tailX = this.startX + (this.targetX - this.startX) * Math.max(0, tailT);
-       const tailY = this.startY + (this.targetY - this.startY) * Math.max(0, tailT);
-       const tailAlpha = alpha * (1 - i / tailSegments);
-       ctx.globalAlpha = tailAlpha;
-       ctx.fillStyle = '#ffcf40';
-       ctx.fillRect(~~(tailX - P), ~~(tailY - P), 2*P, 2*P);
-     }
-   }
-    
-   ctx.globalAlpha = alpha;
-   // Draw chunky pixel-art fireball
-   // Outer ring
-   ctx.fillStyle = '#ff6a00';
-   ctx.fillRect(~~(currentX - 2*P), ~~(currentY - 2*P), 4*P, 4*P);
-   // Mid layer
-   ctx.fillStyle = '#ffcf40';
-   ctx.fillRect(~~(currentX - P), ~~(currentY - P), 2*P, 2*P);
-   // Core
-   ctx.fillStyle = '#fff2b0';
-   ctx.fillRect(~~(currentX), ~~(currentY), P, P);
-    
-   ctx.restore();
- }
+export class Fireball extends SpellProjectile {
+  constructor(startX, startY, targetX, targetY) {
+    super(startX, startY, targetX, targetY, {
+      life: 1.35, // 1/3rd the travel speed of a plain projectile (3x the flight time)
+      hueRotateDeg: 0,
+      trailColor: '#ffcf40',
+      streaks: 2,
+    });
+  }
 }
 
 const DRAGON_SPRITE_W = 1536, DRAGON_SPRITE_H = 1024;

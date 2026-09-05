@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ground Alignment Calibrator — Arithmo Slayer</title>
+<style>
+  body { background:#0a0a1a; color:#eee; font-family: monospace; padding: 20px; }
+  h1 { color:#f8e040; margin:0 0 4px; font-size:20px; }
+  p.hint { color:#888; font-size:12px; margin:0 0 16px; max-width: 800px; }
+  #game { display:block; border:1px solid #333; image-rendering: pixelated; margin-bottom: 16px; }
+  .zoom-row { display:flex; gap:16px; margin-bottom:16px; }
+  .zoom-box { border:1px solid #444; border-radius:6px; padding:8px; background:#101024; }
+  .zoom-box h3 { margin:0 0 6px; font-size:12px; color:#80c0ff; font-weight:normal; }
+  canvas.zoom { display:block; image-rendering: pixelated; background:#000; }
+  .panel { display:flex; gap:24px; flex-wrap: wrap; margin-bottom:16px; }
+  fieldset { border:1px solid #333; border-radius:6px; padding:12px 16px; }
+  legend { color:#80c0ff; padding:0 6px; }
+  label { display:block; margin:6px 0 2px; color:#aaa; font-size:12px; }
+  select, input[type=number] { font: inherit; background:#151530; color:#eee; border:1px solid #444; border-radius:4px; padding:4px 8px; }
+  button { font: inherit; background:#3050d8; color:#fff; border:none; border-radius:4px; padding:6px 14px; cursor:pointer; margin: 2px 4px 2px 0; }
+  button:hover { background:#4060f0; }
+  button.big { background:#d84030; }
+  button.big:hover { background:#f05840; }
+  .value { font-size:20px; color:#f8e040; margin: 4px 0; }
+  textarea { width:100%; height:160px; background:#0e0e20; color:#8fd88f; border:1px solid #333; border-radius:6px; font: 12px/1.4 monospace; padding:8px; box-sizing: border-box; }
+  .row { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <h1>Ground Alignment Calibrator</h1>
+  <p class="hint">
+    Red line = ground (GROUND_Y). The goal: each character's actual feet/claws/hooves should just
+    <b>touch the top of the red line</b> — not float above it, not sink below it. Ignore any drawn
+    shadow blob under a fiend's feet; align the <em>character</em>, not its shadow.<br>
+    <b>Direction:</b> increasing the value (+ / ↑) pushes the sprite <b>further down</b> (use this when feet float
+    <em>above</em> the line). Decreasing (− / ↓) pulls it <b>up</b> (use this when feet sink <em>below</em> the line).
+    Use the zoomed insets below the main canvas — they make a 1px snap obvious; the full-size canvas above is too
+    small to judge precisely by eye.<br>
+    Keyboard: ↑/↓ = fiend ±0.005 (Shift = ±0.02) · ←/→ = previous/next fiend class · PageUp/PageDown = hero ±1px (Shift = ±5px).
+    When everything lines up, click "Generate + copy" and paste the two snippets back into <code>entities.js</code> and <code>difficulty-classes.js</code>.
+  </p>
+
+  <canvas id="game" width="800" height="450"></canvas>
+
+  <div class="zoom-row">
+    <div class="zoom-box">
+      <h3>Hero feet — zoomed 6×</h3>
+      <canvas id="hero-zoom" class="zoom" width="600" height="240"></canvas>
+    </div>
+    <div class="zoom-box">
+      <h3>Selected fiend's feet — zoomed 6×</h3>
+      <canvas id="fiend-zoom" class="zoom" width="600" height="240"></canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <fieldset id="hero-panel">
+      <legend>Hero ground offset (px)</legend>
+      <div class="value" id="hero-value">24</div>
+      <div class="row">
+        <button data-hero-step="-5">−5</button>
+        <button data-hero-step="-1">−1</button>
+        <button data-hero-step="1">+1</button>
+        <button data-hero-step="5">+5</button>
+        <button data-hero-reset>Reset</button>
+      </div>
+    </fieldset>
+
+    <fieldset id="fiend-panel">
+      <legend>Fiend class</legend>
+      <label for="class-select">Class (1–36)</label>
+      <select id="class-select"></select>
+      <div class="value" id="fiend-value">0.060</div>
+      <div class="row">
+        <button data-fiend-step="-0.02">−0.02</button>
+        <button data-fiend-step="-0.005">−0.005</button>
+        <button data-fiend-step="0.005">+0.005</button>
+        <button data-fiend-step="0.02">+0.02</button>
+        <button data-fiend-reset>Reset</button>
+      </div>
+      <div class="row">
+        <button data-fiend-nav="-1">◀ Prev class</button>
+        <button data-fiend-nav="1">Next class ▶</button>
+      </div>
+    </fieldset>
+  </div>
+
+  <button class="big" id="copy-btn">📋 Generate + copy final code for both files</button>
+  <textarea id="output" readonly placeholder="Click the button above once you're happy with all the alignments — this fills in with the exact code to paste back into entities.js and difficulty-classes.js."></textarea>
+
+  <script type="module" src="./calibrate.js"></script>
+</body>
+</html>
