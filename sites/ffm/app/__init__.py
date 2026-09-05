@@ -21,6 +21,8 @@ def create_app(config_class=None):
     os.environ['DYNAMODB_USERS_TABLE'] = app.config['DYNAMODB_USERS_TABLE']
     os.environ['DYNAMODB_SCORES_TABLE'] = app.config['DYNAMODB_SCORES_TABLE']
     os.environ['DYNAMODB_RATELIMIT_TABLE'] = app.config['DYNAMODB_RATELIMIT_TABLE']
+    os.environ['SES_SENDER_EMAIL'] = app.config['SES_SENDER_EMAIL']
+    os.environ['APP_BASE_URL'] = app.config['APP_BASE_URL']
 
     allowed_origins = ["https://ffm.derschweigert.de"]
     if os.environ.get('FLASK_ENV') != 'production':

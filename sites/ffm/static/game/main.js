@@ -162,6 +162,41 @@ const scoreHistoryChart = document.getElementById('score-history-chart');
 const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
 const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
 
+const accountModal = document.getElementById('account-modal');
+const closeAccount = document.getElementById('close-account');
+const tabAccountProfile = document.getElementById('tab-account-profile');
+const tabAccountPassword = document.getElementById('tab-account-password');
+const tabAccountScores = document.getElementById('tab-account-scores');
+const accountProfilePanel = document.getElementById('account-profile-panel');
+const accountPasswordPanel = document.getElementById('account-password-panel');
+const accountScoresPanel = document.getElementById('account-scores-panel');
+const accountProfileForm = document.getElementById('account-profile-form');
+const accountCurrentEmailDisplay = document.getElementById('account-current-email-display');
+const accountPendingEmailNote = document.getElementById('account-pending-email-note');
+const accountNewEmail = document.getElementById('account-new-email');
+const accountFirstGradeYear = document.getElementById('account-first-grade-year');
+const accountProfileCurrentPassword = document.getElementById('account-profile-current-password');
+const accountProfileMessage = document.getElementById('account-profile-message');
+const accountPasswordForm = document.getElementById('account-password-form');
+const accountCurrentPassword = document.getElementById('account-current-password');
+const accountNewPassword = document.getElementById('account-new-password');
+const accountConfirmNewPassword = document.getElementById('account-confirm-new-password');
+const accountPasswordMessage = document.getElementById('account-password-message');
+const accountPersonalBest = document.getElementById('account-personal-best');
+const accountScoreHistoryChart = document.getElementById('account-score-history-chart');
+
+const forgotPasswordLink = document.getElementById('forgot-password-link');
+const forgotPasswordForm = document.getElementById('forgot-password-form');
+const backToLoginLink = document.getElementById('back-to-login-link');
+const resetPasswordForm = document.getElementById('reset-password-form');
+const loginVerifyResend = document.getElementById('login-verify-resend');
+const loginResendEmail = document.getElementById('login-resend-email');
+const loginResendBtn = document.getElementById('login-resend-btn');
+
+const authStatusModal = document.getElementById('auth-status-modal');
+const authStatusMessage = document.getElementById('auth-status-message');
+const closeAuthStatus = document.getElementById('close-auth-status');
+
 // --- Engine instances ---
 const renderer = new Renderer(canvas);
 const hud = new HUD(renderer);
@@ -201,6 +236,7 @@ const SPELL_TARGET_Y_OFFSET = 60;
 const FIREBALL_FLIGHT_MS = 1350;
 let currentProfile = null;
 let currentLeaderboard = null;
+let pendingResetToken = null;
 
 // --- Input ---
 const input = new InputManager(handleAnswer);
@@ -226,16 +262,17 @@ function formatAchievedAt(value) {
   });
 }
 
-function renderPersonalBest(profile) {
+function renderPersonalBest(profile, container) {
+  if (!container) return;
   if (!profile?.high_score) {
-    leaderboardPersonalBest.style.display = 'none';
-    leaderboardPersonalBest.textContent = '';
+    container.style.display = 'none';
+    container.textContent = '';
     return;
   }
 
   const achievedAt = formatAchievedAt(profile.high_score.achieved_at);
-  leaderboardPersonalBest.textContent = `Your high score: ${profile.high_score.score} (${achievedAt})`;
-  leaderboardPersonalBest.style.display = '';
+  container.textContent = `Your high score: ${profile.high_score.score} (${achievedAt})`;
+  container.style.display = '';
 }
 
 function buildScoreHistorySvg(history) {
@@ -280,15 +317,16 @@ function buildScoreHistorySvg(history) {
     `</svg>`;
 }
 
-function renderScoreHistory(historyResponse) {
+function renderScoreHistory(historyResponse, container) {
+  if (!container) return;
   const history = historyResponse?.history || [];
   if (history.length === 0) {
-    scoreHistoryChart.style.display = 'none';
-    scoreHistoryChart.innerHTML = '';
+    container.style.display = 'none';
+    container.innerHTML = '';
     return;
   }
-  scoreHistoryChart.innerHTML = buildScoreHistorySvg(history);
-  scoreHistoryChart.style.display = '';
+  container.innerHTML = buildScoreHistorySvg(history);
+  container.style.display = '';
 }
 
 function renderLeaderboard(entries) {
@@ -345,8 +383,8 @@ async function refreshProfileAndLeaderboard() {
 
   if (!api.isLoggedIn) {
     currentProfile = null;
-    renderPersonalBest(null);
-    renderScoreHistory(null);
+    renderPersonalBest(null, leaderboardPersonalBest);
+    renderScoreHistory(null, scoreHistoryChart);
     leaderboardProfilePrompt.style.display = 'none';
     leaderboardCompleteProfile.style.display = 'none';
     return;
@@ -354,7 +392,7 @@ async function refreshProfileAndLeaderboard() {
 
   try {
     currentProfile = await api.getProfile();
-    renderPersonalBest(currentProfile);
+    renderPersonalBest(currentProfile, leaderboardPersonalBest);
     const year = currentProfile?.user?.first_grade_year;
     if (year === null || year === undefined) {
       leaderboardProfilePrompt.textContent = 'Add your first grade year in profile to join year groups.';
@@ -365,16 +403,16 @@ async function refreshProfileAndLeaderboard() {
       leaderboardCompleteProfile.style.display = 'none';
     }
   } catch {
-    renderPersonalBest(null);
+    renderPersonalBest(null, leaderboardPersonalBest);
     leaderboardProfilePrompt.style.display = 'none';
     leaderboardCompleteProfile.style.display = 'none';
   }
 
   try {
     const historyResponse = await api.getScoreHistory();
-    renderScoreHistory(historyResponse);
+    renderScoreHistory(historyResponse, scoreHistoryChart);
   } catch {
-    renderScoreHistory(null);
+    renderScoreHistory(null, scoreHistoryChart);
   }
 }
 
@@ -404,6 +442,7 @@ splashLoginBtn.addEventListener('click', () => {
       applyAuthUIState();
     });
   } else {
+    showAuthForm(loginForm);
     authModal.style.display = 'flex';
   }
 });
@@ -424,30 +463,43 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
 });
 
 // --- Auth ---
+const authForms = [loginForm, registerForm, forgotPasswordForm, resetPasswordForm];
+
+function showAuthForm(formToShow) {
+  authForms.forEach(f => { f.style.display = (f === formToShow) ? '' : 'none'; });
+  if (formToShow !== loginForm) {
+    loginVerifyResend.style.display = 'none';
+  }
+  const isMainTabForm = formToShow === loginForm || formToShow === registerForm;
+  document.getElementById('auth-tabs').style.display = isMainTabForm ? '' : 'none';
+  if (formToShow === loginForm) {
+    tabLogin.classList.add('active');
+    tabRegister.classList.remove('active');
+  } else if (formToShow === registerForm) {
+    tabRegister.classList.add('active');
+    tabLogin.classList.remove('active');
+  }
+}
+
+tabLogin.addEventListener('click', () => showAuthForm(loginForm));
+tabRegister.addEventListener('click', () => showAuthForm(registerForm));
+
 loginBtn.addEventListener('click', () => {
+  showAuthForm(loginForm);
   authModal.style.display = 'flex';
 });
 closeAuth.addEventListener('click', () => {
   authModal.style.display = 'none';
+  showAuthForm(loginForm);
 });
 logoutBtn.addEventListener('click', async () => {
   await api.logout();
   applyAuthUIState();
 });
-tabLogin.addEventListener('click', () => {
-  loginForm.style.display = '';
-  registerForm.style.display = 'none';
-  tabLogin.classList.add('active');
-  tabRegister.classList.remove('active');
-});
-tabRegister.addEventListener('click', () => {
-  registerForm.style.display = '';
-  loginForm.style.display = 'none';
-  tabRegister.classList.add('active');
-  tabLogin.classList.remove('active');
-});
 loginForm.addEventListener('submit', async e => {
   e.preventDefault();
+  loginError.classList.remove('success-msg');
+  loginVerifyResend.style.display = 'none';
   try {
     const u = document.getElementById('login-username').value;
     const p = document.getElementById('login-password').value;
@@ -456,9 +508,32 @@ loginForm.addEventListener('submit', async e => {
     loginError.textContent = '';
     applyAuthUIState();
   } catch (err) {
+    if (err.message === 'email_not_verified') {
+      loginError.textContent = 'Please verify your email before logging in.';
+      loginVerifyResend.style.display = '';
+    } else {
+      loginError.textContent = err.message;
+    }
+  }
+});
+
+loginResendBtn.addEventListener('click', async () => {
+  const email = loginResendEmail.value.trim();
+  if (!email) {
+    loginError.textContent = 'Enter your email to resend the verification link.';
+    return;
+  }
+  try {
+    await api.resendVerification(email);
+    loginError.classList.add('success-msg');
+    loginError.textContent = 'Verification email sent. Please check your inbox.';
+    loginVerifyResend.style.display = 'none';
+  } catch (err) {
+    loginError.classList.remove('success-msg');
     loginError.textContent = err.message;
   }
 });
+
 registerForm.addEventListener('submit', async e => {
   e.preventDefault();
   try {
@@ -467,16 +542,74 @@ registerForm.addEventListener('submit', async e => {
     const pw = document.getElementById('reg-password').value;
     const firstGradeYear = document.getElementById('reg-first-grade-year').value;
     await api.register(u, em, pw, firstGradeYear);
-    authModal.style.display = 'none';
     registerError.textContent = '';
-    applyAuthUIState();
+    registerForm.reset();
+    showAuthForm(loginForm);
+    loginError.classList.add('success-msg');
+    loginError.textContent = 'Registration successful! Check your email to verify your account before logging in.';
   } catch (err) {
     registerError.textContent = err.message;
   }
 });
+
+forgotPasswordLink.addEventListener('click', () => {
+  showAuthForm(forgotPasswordForm);
+});
+
+backToLoginLink.addEventListener('click', () => {
+  showAuthForm(loginForm);
+});
+
+forgotPasswordForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = document.getElementById('forgot-password-email').value.trim();
+  const msgEl = document.getElementById('forgot-password-message');
+  try {
+    await api.forgotPassword(email);
+    msgEl.classList.add('success-msg');
+    msgEl.textContent = 'If that email is registered, a reset link has been sent.';
+  } catch (err) {
+    msgEl.classList.remove('success-msg');
+    msgEl.textContent = err.message;
+  }
+});
+
+resetPasswordForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const msgEl = document.getElementById('reset-password-message');
+  const newPw = document.getElementById('reset-new-password').value;
+  const confirmPw = document.getElementById('reset-confirm-password').value;
+  if (newPw !== confirmPw) {
+    msgEl.classList.remove('success-msg');
+    msgEl.textContent = 'Passwords do not match.';
+    return;
+  }
+  if (!pendingResetToken) {
+    msgEl.classList.remove('success-msg');
+    msgEl.textContent = 'Missing or expired reset link.';
+    return;
+  }
+  try {
+    await api.resetPassword(pendingResetToken, newPw);
+    msgEl.classList.add('success-msg');
+    msgEl.textContent = 'Password reset! You can now log in.';
+    pendingResetToken = null;
+    resetPasswordForm.reset();
+    setTimeout(() => showAuthForm(loginForm), 1500);
+  } catch (err) {
+    msgEl.classList.remove('success-msg');
+    msgEl.textContent = err.message;
+  }
+});
+
+closeAuthStatus.addEventListener('click', () => {
+  authStatusModal.style.display = 'none';
+});
+
 leaderboardYearFilter.addEventListener('change', () => {
   renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
 });
+
 leaderboardCompleteProfile.addEventListener('click', async () => {
   const yearInput = prompt('Enter your first grade year (e.g. 2012):');
   if (yearInput === null) return;
@@ -493,6 +626,120 @@ leaderboardCompleteProfile.addEventListener('click', async () => {
     return;
   }
   await refreshProfileAndLeaderboard();
+});
+
+userDisplay.addEventListener('click', async () => {
+  if (!api.isLoggedIn) return;
+  showAccountTab(tabAccountProfile, accountProfilePanel);
+  accountModal.style.display = 'flex';
+  await populateAccountModal();
+});
+
+closeAccount.addEventListener('click', () => {
+  accountModal.style.display = 'none';
+});
+
+function showAccountTab(tabBtn, panel) {
+  [accountProfilePanel, accountPasswordPanel, accountScoresPanel].forEach(p => { p.style.display = 'none'; });
+  [tabAccountProfile, tabAccountPassword, tabAccountScores].forEach(t => t.classList.remove('active'));
+  panel.style.display = '';
+  tabBtn.classList.add('active');
+}
+
+tabAccountProfile.addEventListener('click', () => showAccountTab(tabAccountProfile, accountProfilePanel));
+tabAccountPassword.addEventListener('click', () => showAccountTab(tabAccountPassword, accountPasswordPanel));
+tabAccountScores.addEventListener('click', () => showAccountTab(tabAccountScores, accountScoresPanel));
+
+async function populateAccountModal() {
+  accountProfileMessage.textContent = '';
+  accountProfileMessage.classList.remove('success-msg');
+  try {
+    const profile = await api.getProfile();
+    accountCurrentEmailDisplay.textContent = profile.user.email;
+    accountNewEmail.value = '';
+    accountFirstGradeYear.value = profile.user.first_grade_year ?? '';
+    accountProfileCurrentPassword.value = '';
+    if (profile.user.pending_email) {
+      accountPendingEmailNote.textContent = `Verification pending for ${profile.user.pending_email}. Check that inbox to confirm the change.`;
+      accountPendingEmailNote.style.display = '';
+    } else {
+      accountPendingEmailNote.style.display = 'none';
+    }
+    renderPersonalBest(profile, accountPersonalBest);
+  } catch (err) {
+    accountProfileMessage.textContent = 'Failed to load profile.';
+  }
+
+  try {
+    const historyResponse = await api.getScoreHistory();
+    renderScoreHistory(historyResponse, accountScoreHistoryChart);
+  } catch {
+    renderScoreHistory(null, accountScoreHistoryChart);
+  }
+}
+
+accountProfileForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  accountProfileMessage.classList.remove('success-msg');
+  accountProfileMessage.textContent = '';
+  const newEmail = accountNewEmail.value.trim();
+  const yearRaw = accountFirstGradeYear.value;
+  const currentPassword = accountProfileCurrentPassword.value;
+
+  try {
+    if (yearRaw !== '') {
+      const year = Number(yearRaw);
+      if (!Number.isInteger(year)) {
+        accountProfileMessage.textContent = 'Please enter a valid year.';
+        return;
+      }
+      const result = await api.updateProfile(year);
+      if (result.error) {
+        accountProfileMessage.textContent = result.error;
+        return;
+      }
+    }
+
+    if (newEmail) {
+      if (!currentPassword) {
+        accountProfileMessage.textContent = 'Enter your current password to change your email.';
+        return;
+      }
+      const result = await api.changeEmail(newEmail, currentPassword);
+      accountPendingEmailNote.textContent = `Verification pending for ${result.pending_email}. Check that inbox to confirm the change.`;
+      accountPendingEmailNote.style.display = '';
+      accountNewEmail.value = '';
+      accountProfileCurrentPassword.value = '';
+    }
+
+    accountProfileMessage.classList.add('success-msg');
+    accountProfileMessage.textContent = 'Saved.';
+    await refreshProfileAndLeaderboard();
+  } catch (err) {
+    accountProfileMessage.classList.remove('success-msg');
+    accountProfileMessage.textContent = err.message;
+  }
+});
+
+accountPasswordForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  accountPasswordMessage.classList.remove('success-msg');
+  const current = accountCurrentPassword.value;
+  const next = accountNewPassword.value;
+  const confirm = accountConfirmNewPassword.value;
+  if (next !== confirm) {
+    accountPasswordMessage.textContent = 'New passwords do not match.';
+    return;
+  }
+  try {
+    await api.changePassword(current, next);
+    accountPasswordMessage.classList.add('success-msg');
+    accountPasswordMessage.textContent = 'Password changed.';
+    accountPasswordForm.reset();
+  } catch (err) {
+    accountPasswordMessage.classList.remove('success-msg');
+    accountPasswordMessage.textContent = err.message;
+  }
 });
 muteBtn.addEventListener('click', () => {
   audio.toggleMute();
@@ -645,10 +892,11 @@ function handleCorrectAnswer() {
       // when it actually arrives rather than the instant it's cast.
       hero.setState('swing');
       activeFireballs.push(new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
-      audio.playSwordSwing();
+      audio.playFireballCast();
       input.disable();
       inputDisabled = true;
       setTimeout(() => {
+        audio.playFireballHit();
         fiend.hit();
 
         if (fiend.isDead) {
@@ -680,7 +928,7 @@ function handleCorrectAnswer() {
       activeDragons.push(new DragonSummon(CANVAS_W, GROUND_Y));
       hero.setState('swing');
       fiend.hit();
-      audio.playSwordSwing();
+      audio.playDragonRoar();
 
       if (fiend.isDead) {
         audio.playEnemyDeath();
@@ -952,6 +1200,7 @@ function gameLoop(ts) {
     activeDragons.forEach(d => {
       d.update(dt);
       if (d.breathJustCompleted) {
+        audio.playDragonBreath();
         fiends.forEach(f => { if (!f.isDead) { f.hp = 0; f.setState('death'); } });
         triggerWaveClear();
       }
@@ -1026,6 +1275,42 @@ function gameLoop(ts) {
 
   hud.draw();
 }
+
+function handleUrlAuthTokens() {
+  const params = new URLSearchParams(window.location.search);
+  const verifyToken = params.get('verify_token');
+  const resetToken = params.get('reset_token');
+  const confirmEmailToken = params.get('confirm_email_token');
+
+  if (verifyToken) {
+    history.replaceState(null, '', window.location.pathname);
+    authStatusModal.style.display = 'flex';
+    authStatusMessage.textContent = 'Verifying your email...';
+    api.verifyEmail(verifyToken)
+      .then(() => { authStatusMessage.textContent = 'Your email has been verified! You can now log in.'; })
+      .catch(err => { authStatusMessage.textContent = 'Verification failed: ' + err.message; });
+    return;
+  }
+
+  if (confirmEmailToken) {
+    history.replaceState(null, '', window.location.pathname);
+    authStatusModal.style.display = 'flex';
+    authStatusMessage.textContent = 'Confirming your new email address...';
+    api.confirmEmailChange(confirmEmailToken)
+      .then(() => { authStatusMessage.textContent = 'Your new email address has been confirmed!'; })
+      .catch(err => { authStatusMessage.textContent = 'Could not confirm email change: ' + err.message; });
+    return;
+  }
+
+  if (resetToken) {
+    history.replaceState(null, '', window.location.pathname);
+    pendingResetToken = resetToken;
+    showAuthForm(resetPasswordForm);
+    authModal.style.display = 'flex';
+  }
+}
+
+handleUrlAuthTokens();
 
 api.refresh()
   .catch(() => false)

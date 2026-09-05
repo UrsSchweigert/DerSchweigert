@@ -565,7 +565,7 @@ input[type=number] {
 }
 
 #username-display {
-  cursor: default;
+  cursor: pointer;
   padding: 8px 16px;
 }
 
@@ -590,7 +590,34 @@ input[type=number] {
   outline-offset: 2px;
 }
 
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #f0f0f0;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.close-btn:hover {
+  color: #ff6060;
+}
+
+.close-btn:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
 #auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+#account-tabs {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
@@ -666,5 +693,43 @@ form button:focus {
   font-size: 12px;
   margin: 0;
   min-height: 16px;
+}
+
+.success-msg {
+  color: #a0f0a0;
+}
+
+.pending-email-note {
+  color: #f0d080;
+  font-size: 12px;
+  margin: 0 0 8px 0;
+}
+
+.link-btn {
+  background: transparent;
+  border: none;
+  color: #8080e0;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 0;
+  align-self: flex-start;
+}
+
+.link-btn:hover {
+  color: #a0a0ff;
+}
+
+.link-btn:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+#login-verify-resend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
 }
 

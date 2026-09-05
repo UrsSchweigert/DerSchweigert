@@ -1,14 +1,20 @@
 from flask import Blueprint, request, jsonify, current_app, abort
+import bcrypt
+import sys
 import jwt
 from .models import (
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
+    CHANGE_EMAIL_TTL_SECONDS,
     get_user, update_user_first_grade_year,
+    get_user_by_email, set_password_hash, set_pending_email,
+    create_token,
     get_level_scores, put_level_score,
     get_high_score, put_high_score,
     put_score_history, get_score_history,
     get_leaderboard,
 )
 from .validation import is_valid_int
+from . import mailer
 
 main_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -45,6 +51,9 @@ def profile():
         "user": {
             "username": user['username'],
             "first_grade_year": user['first_grade_year'],
+            "email": user['email'],
+            "email_verified": user['email_verified'],
+            "pending_email": user['pending_email'],
         },
         "high_score": {"score": hs['high_score'], "achieved_at": hs['achieved_at']} if hs else None,
         "scores": scores,
@@ -72,6 +81,69 @@ def update_profile():
     return jsonify({
         "user": {"username": username, "first_grade_year": first_grade_year}
     }), 200
+
+
+@main_bp.route('/profile/password', methods=['POST'])
+def update_password():
+    username = require_auth()
+    user = get_user(username)
+    if not user:
+        abort(404)
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
+
+    current_password = data.get('current_password', '')
+    new_password = data.get('new_password', '')
+
+    if not bcrypt.checkpw(current_password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+        return jsonify({"error": "Invalid current password"}), 401
+
+    if not new_password or len(new_password) < 8 or len(new_password) > 128:
+        return jsonify({"error": "Password must be 8-128 characters"}), 400
+
+    password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+    set_password_hash(username, password_hash)
+
+    return jsonify({"ok": True}), 200
+
+
+@main_bp.route('/profile/email', methods=['POST'])
+def update_email():
+    username = require_auth()
+    user = get_user(username)
+    if not user:
+        abort(404)
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
+
+    new_email = data.get('new_email', '').strip()
+    current_password = data.get('current_password', '')
+
+    if not bcrypt.checkpw(current_password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+        return jsonify({"error": "Invalid current password"}), 401
+
+    if not new_email or '@' not in new_email:
+        return jsonify({"error": "Valid email required"}), 400
+
+    if new_email == user['email']:
+        return jsonify({"error": "New email must be different from current email"}), 400
+
+    existing = get_user_by_email(new_email)
+    if existing and existing['username'] != username:
+        return jsonify({"error": "Email address already in use"}), 409
+
+    set_pending_email(username, new_email)
+    token = create_token(username, 'change_email', CHANGE_EMAIL_TTL_SECONDS, new_email=new_email)
+    try:
+        mailer.send_email_change_confirmation(new_email, username, token)
+    except Exception as exc:
+        print(f"send_email_change_confirmation failed for {username}: {exc}", file=sys.stderr)
+
+    return jsonify({"pending_email": new_email}), 200
 
 
 @main_bp.route('/score', methods=['POST'])

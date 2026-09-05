@@ -40,6 +40,45 @@ data "aws_route53_zone" "primary" {
   zone_id = var.route53_zone_id
 }
 
+# SES domain identity + DNS verification/DKIM for transactional email
+# (registration verification, password reset, email-change confirmation)
+# sent by the Lambda backend. Uses the default (eu-central-1) provider —
+# SES does not need the us_east_1 alias used for the ACM cert.
+resource "aws_ses_domain_identity" "ffm" {
+  domain = local.domain
+}
+
+resource "aws_route53_record" "ses_verification" {
+  zone_id = data.aws_route53_zone.primary.zone_id
+  name    = "_amazonses.${local.domain}"
+  type    = "TXT"
+  ttl     = 600
+  records = [aws_ses_domain_identity.ffm.verification_token]
+}
+
+resource "aws_ses_domain_identity_verification" "ffm" {
+  domain = aws_ses_domain_identity.ffm.domain
+
+  depends_on = [aws_route53_record.ses_verification]
+}
+
+resource "aws_ses_domain_dkim" "ffm" {
+  domain = aws_ses_domain_identity.ffm.domain
+}
+
+resource "aws_route53_record" "ses_dkim" {
+  # aws_ses_domain_dkim always emits exactly 3 tokens; the token VALUES are
+  # only known after apply, but the count is a fixed SES behavior, so `count`
+  # (not `for_each`, which needs statically-known keys) is required here.
+  count = 3
+
+  zone_id = data.aws_route53_zone.primary.zone_id
+  name    = "${aws_ses_domain_dkim.ffm.dkim_tokens[count.index]}._domainkey.${local.domain}"
+  type    = "CNAME"
+  ttl     = 600
+  records = ["${aws_ses_domain_dkim.ffm.dkim_tokens[count.index]}.dkim.amazonses.com"]
+}
+
 # JWT signing key. Generated once and stored in Secrets Manager so it is
 # reproducible/rotatable via IaC instead of having been set by hand
 # directly on the Lambda function outside of Terraform. `ignore_changes`
@@ -77,6 +116,8 @@ module "api" {
     SECRET_KEY_ARN           = aws_secretsmanager_secret.jwt_secret.arn
     DYNAMODB_RATELIMIT_TABLE = aws_dynamodb_table.ratelimits.name
     RATELIMIT_STORAGE_URI    = "dynamodb://${aws_dynamodb_table.ratelimits.name}"
+    SES_SENDER_EMAIL         = "no-reply@ffm.derschweigert.de"
+    APP_BASE_URL             = "https://ffm.derschweigert.de"
   }
 
   secret_arns = [aws_secretsmanager_secret.jwt_secret.arn]
@@ -105,6 +146,23 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         aws_dynamodb_table.scores.arn,
         aws_dynamodb_table.ratelimits.arn,
       ]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_ses" {
+  name = "ffm-lambda-ses-access"
+  role = module.api.lambda_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+      ]
+      Resource = aws_ses_domain_identity.ffm.arn
     }]
   })
 }

@@ -92,7 +92,12 @@
         <input id="login-username" type="text" placeholder="Username">
         <input id="login-password" type="password" placeholder="Password">
         <button type="submit">Login</button>
+        <button type="button" id="forgot-password-link" class="link-btn">Forgot password?</button>
         <p id="login-error" class="error-msg"></p>
+        <div id="login-verify-resend" style="display:none">
+          <input id="login-resend-email" type="email" placeholder="Your email">
+          <button type="button" id="login-resend-btn">Resend verification email</button>
+        </div>
       </form>
       <form id="register-form" style="display:none">
         <input id="reg-username" type="text" placeholder="Username (3-20 chars)">
@@ -102,6 +107,63 @@
         <button type="submit">Register</button>
         <p id="register-error" class="error-msg"></p>
       </form>
+      <form id="forgot-password-form" style="display:none">
+        <input id="forgot-password-email" type="email" placeholder="Your email">
+        <button type="submit">Send reset link</button>
+        <button type="button" id="back-to-login-link" class="link-btn">Back to login</button>
+        <p id="forgot-password-message" class="error-msg"></p>
+      </form>
+      <form id="reset-password-form" style="display:none">
+        <input id="reset-new-password" type="password" placeholder="New password (8+ chars)">
+        <input id="reset-confirm-password" type="password" placeholder="Confirm new password">
+        <button type="submit">Reset Password</button>
+        <p id="reset-password-message" class="error-msg"></p>
+      </form>
+    </div>
+  </div>
+  
+  <div id="account-modal" class="overlay" style="display:none">
+    <div class="overlay-card">
+      <button id="close-account" class="close-btn">×</button>
+      <div id="account-tabs">
+        <button id="tab-account-profile" class="tab-btn active">Profile</button>
+        <button id="tab-account-password" class="tab-btn">Password</button>
+        <button id="tab-account-scores" class="tab-btn">High Scores</button>
+      </div>
+
+      <div id="account-profile-panel">
+        <form id="account-profile-form">
+          <p>Current email: <strong id="account-current-email-display"></strong></p>
+          <p id="account-pending-email-note" class="pending-email-note" style="display:none"></p>
+          <input id="account-new-email" type="email" placeholder="New email (optional)">
+          <input id="account-first-grade-year" type="number" placeholder="First grade year (optional)">
+          <input id="account-profile-current-password" type="password" placeholder="Current password (required to change email)">
+          <button type="submit">Save</button>
+          <p id="account-profile-message" class="error-msg"></p>
+        </form>
+      </div>
+
+      <div id="account-password-panel" style="display:none">
+        <form id="account-password-form">
+          <input id="account-current-password" type="password" placeholder="Current password">
+          <input id="account-new-password" type="password" placeholder="New password (8+ chars)">
+          <input id="account-confirm-new-password" type="password" placeholder="Confirm new password">
+          <button type="submit">Change Password</button>
+          <p id="account-password-message" class="error-msg"></p>
+        </form>
+      </div>
+
+      <div id="account-scores-panel" style="display:none">
+        <p id="account-personal-best" class="leaderboard-personal-best" style="display:none"></p>
+        <div id="account-score-history-chart" class="score-history-chart" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="auth-status-modal" class="overlay" style="display:none">
+    <div class="overlay-card">
+      <button id="close-auth-status" class="close-btn">×</button>
+      <p id="auth-status-message">Working...</p>
     </div>
   </div>
   

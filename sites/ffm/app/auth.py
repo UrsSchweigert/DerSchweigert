@@ -2,12 +2,18 @@ from flask import Blueprint, request, jsonify, make_response, current_app
 import bcrypt
 import jwt
 import datetime
+import sys
 from .extensions import limiter
 from .models import (
-    create_user, get_user,
+    create_user, get_user, get_user_by_email,
+    set_email_verified, set_password_hash,
+    create_token, consume_token,
+    confirm_email_change,
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
+    VERIFY_EMAIL_TTL_SECONDS, RESET_PASSWORD_TTL_SECONDS, CHANGE_EMAIL_TTL_SECONDS,
 )
 from .validation import is_valid_int
+from . import mailer
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -41,14 +47,16 @@ def register():
     except ValueError:
         return jsonify({"error": "Username or email already taken"}), 409
 
-    payload = {
-        "sub": user['username'],
-        "username": user['username'],
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES']),
-    }
-    token = jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    token = create_token(user['username'], 'verify_email', VERIFY_EMAIL_TTL_SECONDS)
+    try:
+        mailer.send_verification_email(user['email'], user['username'], token)
+    except Exception as exc:  # SES failures must not fail registration; the account is already created
+        print(f"send_verification_email failed for {user['username']}: {exc}", file=sys.stderr)
 
-    return jsonify({"access_token": token, "user": {"username": user['username']}}), 201
+    return jsonify({
+        "message": "Check your email to verify your account.",
+        "user": {"username": user['username']},
+    }), 201
 
 
 @auth_bp.route('/login', methods=['POST'])
@@ -68,6 +76,9 @@ def login():
 
     if not user or not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
         return jsonify({"error": "Invalid credentials"}), 401
+
+    if not user['email_verified']:
+        return jsonify({"error": "email_not_verified"}), 403
 
     access_payload = {
         "sub": user['username'],
@@ -90,6 +101,114 @@ def login():
         max_age=current_app.config['JWT_REFRESH_EXPIRES'],
     )
     return response
+
+
+@auth_bp.route('/resend-verification', methods=['POST'])
+@limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
+def resend_verification():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    email = data.get('email', '').strip()
+    generic_response = jsonify({
+        "message": "If that account exists and is unverified, a verification email has been sent."
+    })
+
+    if not email:
+        return generic_response, 200
+
+    user = get_user_by_email(email)
+    if user and not user['email_verified']:
+        token = create_token(user['username'], 'verify_email', VERIFY_EMAIL_TTL_SECONDS)
+        try:
+            mailer.send_verification_email(user['email'], user['username'], token)
+        except Exception as exc:
+            print(f"send_verification_email failed for {user['username']}: {exc}", file=sys.stderr)
+
+    return generic_response, 200
+
+
+@auth_bp.route('/verify-email', methods=['POST'])
+def verify_email():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    token = data.get('token', '')
+    result = consume_token(token, 'verify_email')
+    if not result:
+        return jsonify({"error": "invalid_or_expired_token"}), 400
+
+    set_email_verified(result['username'], True)
+    return jsonify({"ok": True}), 200
+
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+@limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
+def forgot_password():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    email = data.get('email', '').strip()
+    generic_response = jsonify({
+        "message": "If that account exists, a password reset email has been sent."
+    })
+
+    if not email:
+        return generic_response, 200
+
+    user = get_user_by_email(email)
+    if user:
+        token = create_token(user['username'], 'reset_password', RESET_PASSWORD_TTL_SECONDS)
+        try:
+            mailer.send_password_reset_email(user['email'], user['username'], token)
+        except Exception as exc:
+            print(f"send_password_reset_email failed for {user['username']}: {exc}", file=sys.stderr)
+
+    return generic_response, 200
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    token = data.get('token', '')
+    new_password = data.get('new_password', '')
+
+    if not new_password or len(new_password) < 8 or len(new_password) > 128:
+        return jsonify({"error": "Password must be 8-128 characters"}), 400
+
+    result = consume_token(token, 'reset_password')
+    if not result:
+        return jsonify({"error": "invalid_or_expired_token"}), 400
+
+    password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+    set_password_hash(result['username'], password_hash)
+
+    return jsonify({"ok": True}), 200
+
+
+@auth_bp.route('/confirm-email-change', methods=['POST'])
+def confirm_email_change_route():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    token = data.get('token', '')
+    result = consume_token(token, 'change_email')
+    if not result or not result.get('new_email'):
+        return jsonify({"error": "invalid_or_expired_token"}), 400
+
+    try:
+        confirm_email_change(result['username'], result['new_email'])
+    except ValueError:
+        return jsonify({"error": "Email address already in use"}), 409
+
+    return jsonify({"ok": True}), 200
 
 
 @auth_bp.route('/refresh', methods=['POST'])

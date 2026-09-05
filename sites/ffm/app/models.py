@@ -5,11 +5,16 @@ from datetime import datetime, timedelta, timezone
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
+import hashlib
+import secrets
 
 MIN_FIRST_GRADE_YEAR = 1950
 MAX_FIRST_GRADE_YEAR = 2100
 LEADERBOARD_WINDOW_DAYS = 14
 SCORE_HISTORY_LIMIT = 100
+VERIFY_EMAIL_TTL_SECONDS = 24 * 3600
+RESET_PASSWORD_TTL_SECONDS = 3600
+CHANGE_EMAIL_TTL_SECONDS = 24 * 3600
 
 
 def _ddb():
@@ -61,6 +66,14 @@ def get_user(username):
         'password_hash': item['password_hash'],
         'first_grade_year': _int_or_none(item.get('first_grade_year')),
         'created_at': item['created_at'],
+        # Pre-existing accounts created before email verification existed
+        # have no `email_verified` attribute at all in DynamoDB. Defaulting
+        # missing-attribute to True (not False) is what makes those
+        # accounts "grandfathered in" as verified without a migration
+        # script. New registrations always write the attribute explicitly
+        # (see create_user), so only truly old rows hit this default.
+        'email_verified': item.get('email_verified', True),
+        'pending_email': item.get('pending_email'),
     }
 
 
@@ -71,6 +84,7 @@ def create_user(username, email, password_hash, first_grade_year=None):
         'pk': f'USER#{username}', 'sk': 'PROFILE',
         'username': username, 'email': email,
         'password_hash': password_hash, 'created_at': now,
+        'email_verified': False,
     }
     if first_grade_year is not None:
         user_item['first_grade_year'] = first_grade_year
@@ -100,6 +114,125 @@ def create_user(username, email, password_hash, first_grade_year=None):
         raise
 
     return get_user(username)
+
+
+def get_user_by_email(email):
+    """Return user dict (same shape as get_user) or None, via the EMAIL#<email>/REF lookup item."""
+    resp = _users().get_item(Key={'pk': f'EMAIL#{email}', 'sk': 'REF'})
+    item = resp.get('Item')
+    if not item:
+        return None
+    return get_user(item['username'])
+
+
+def set_email_verified(username, verified):
+    """Set (or clear) the email_verified flag on a user's profile."""
+    _users().update_item(
+        Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+        UpdateExpression='SET email_verified = :v',
+        ExpressionAttributeValues={':v': verified},
+    )
+
+
+def set_password_hash(username, password_hash):
+    """Overwrite the stored bcrypt hash (used by /profile/password and /auth/reset-password)."""
+    _users().update_item(
+        Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+        UpdateExpression='SET password_hash = :v',
+        ExpressionAttributeValues={':v': password_hash},
+    )
+
+
+def set_pending_email(username, new_email):
+    """Set pending_email on the profile, or REMOVE it entirely when new_email is None."""
+    if new_email is None:
+        _users().update_item(
+            Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+            UpdateExpression='REMOVE pending_email',
+        )
+    else:
+        _users().update_item(
+            Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+            UpdateExpression='SET pending_email = :v',
+            ExpressionAttributeValues={':v': new_email},
+        )
+
+
+def confirm_email_change(username, new_email):
+    """Re-point the EMAIL# lookup from the user's current email to new_email,
+    update the PROFILE item's email, and clear pending_email.
+    Raises ValueError('already_exists') if new_email is already registered
+    to a different account (leaves everything untouched in that case)."""
+    user = get_user(username)
+    if user is None:
+        raise ValueError('not_found')
+    old_email = user['email']
+
+    new_email_item = {'pk': f'EMAIL#{new_email}', 'sk': 'REF', 'username': username}
+    try:
+        _users().put_item(
+            Item=new_email_item,
+            ConditionExpression=Attr('pk').not_exists(),
+        )
+    except ClientError as exc:
+        if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            raise ValueError('already_exists')
+        raise
+
+    # New ref created; now safe to update the profile and drop the old ref.
+    _users().update_item(
+        Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+        UpdateExpression='SET email = :e REMOVE pending_email',
+        ExpressionAttributeValues={':e': new_email},
+    )
+    if old_email != new_email:
+        _users().delete_item(Key={'pk': f'EMAIL#{old_email}', 'sk': 'REF'})
+
+
+def _token_hash(token):
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+def create_token(username, purpose, ttl_seconds, new_email=None):
+    """Create a single-use token for the given purpose. Returns the PLAINTEXT
+    token (only ever placed in an emailed link — never persisted). Only the
+    SHA-256 hex digest of the token is stored as the item's pk, so a leaked
+    DynamoDB read/backup cannot be used to log in or reset a password."""
+    token = secrets.token_urlsafe(32)
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)).isoformat()
+    item = {
+        'pk': f'TOKEN#{_token_hash(token)}', 'sk': 'T',
+        'username': username,
+        'purpose': purpose,
+        'expires_at': expires_at,
+    }
+    if new_email is not None:
+        item['new_email'] = new_email
+    _users().put_item(Item=item)
+    return token
+
+
+def consume_token(token, expected_purpose):
+    """Validate and single-use-consume a token. Returns
+    {'username': ..., 'new_email': ... or None} on success, else None.
+    A token that exists but doesn't match expected_purpose (or is expired)
+    is left untouched (NOT deleted) so an unrelated still-valid token for a
+    different purpose isn't destroyed by a mismatched lookup attempt."""
+    key = {'pk': f'TOKEN#{_token_hash(token)}', 'sk': 'T'}
+    resp = _users().get_item(Key=key)
+    item = resp.get('Item')
+    if not item:
+        return None
+    if item.get('purpose') != expected_purpose:
+        return None
+    if _parse_timestamp(item['expires_at']) < datetime.now(timezone.utc):
+        return None
+
+    _users().delete_item(Key=key)
+    return {
+        'username': item['username'],
+        'new_email': item.get('new_email'),
+    }
 
 
 def update_user_first_grade_year(username, first_grade_year):

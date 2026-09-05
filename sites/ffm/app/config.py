@@ -14,6 +14,8 @@ class BaseConfig:
     DYNAMODB_USERS_TABLE = os.environ.get('DYNAMODB_USERS_TABLE', 'ffm-users')
     DYNAMODB_SCORES_TABLE = os.environ.get('DYNAMODB_SCORES_TABLE', 'ffm-scores')
     DYNAMODB_RATELIMIT_TABLE = os.environ.get('DYNAMODB_RATELIMIT_TABLE', 'ffm-ratelimits')
+    SES_SENDER_EMAIL = os.environ.get('SES_SENDER_EMAIL', 'no-reply@ffm.derschweigert.de')
+    APP_BASE_URL = os.environ.get('APP_BASE_URL', 'https://ffm.derschweigert.de')
 
 
 class ProductionConfig(BaseConfig):

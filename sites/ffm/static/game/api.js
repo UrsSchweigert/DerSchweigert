@@ -23,8 +23,9 @@ export const api = {
     if (!res.ok) {
       throw new Error(data.error || 'Registration failed');
     }
-    _accessToken = data.access_token;
-    return data;
+    // NOTE: no longer sets _accessToken — registering does not log the user in.
+    // Caller (main.js) must show a "check your email" message instead of proceeding.
+    return data; // { message, user: { username } }
   },
 
   async login(username, password) {
@@ -69,6 +70,71 @@ export const api = {
     }
   },
 
+  async resendVerification(email) {
+    const res = await fetch(BASE_URL + '/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to resend verification email');
+    }
+    return data;
+  },
+
+  async verifyEmail(token) {
+    const res = await fetch(BASE_URL + '/auth/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Verification failed');
+    }
+    return data;
+  },
+
+  async forgotPassword(email) {
+    const res = await fetch(BASE_URL + '/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to send reset email');
+    }
+    return data;
+  },
+
+  async resetPassword(token, newPassword) {
+    const res = await fetch(BASE_URL + '/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, new_password: newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Password reset failed');
+    }
+    return data;
+  },
+
+  async confirmEmailChange(token) {
+    const res = await fetch(BASE_URL + '/auth/confirm-email-change', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Could not confirm email change');
+    }
+    return data;
+  },
+
   async _fetch(path, options = {}) {
     if (_accessToken) {
       options.headers = { ...options.headers, 'Authorization': 'Bearer ' + _accessToken };
@@ -95,6 +161,32 @@ export const api = {
       body: JSON.stringify({ first_grade_year: firstGradeYear })
     });
     return res.json();
+  },
+
+  async changePassword(currentPassword, newPassword) {
+    const res = await this._fetch('/profile/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to change password');
+    }
+    return data;
+  },
+
+  async changeEmail(newEmail, currentPassword) {
+    const res = await this._fetch('/profile/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_email: newEmail, current_password: currentPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to update email');
+    }
+    return data;
   },
 
   async postHighScore(score) {

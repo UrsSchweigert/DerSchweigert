@@ -74,10 +74,21 @@ Browser
 ### Auth/profile/leaderboard
 
 - `api.js` stores the access token only in memory.
-- Registration returns an access token, but only login/refresh set the refresh cookie.
+- Registration no longer returns an access token or logs the user in — new accounts start unverified and must click an emailed verification link before `/api/auth/login` will succeed (see "Email verification, password reset, email change" below).
 - Refresh/logout depend on the `refresh_token` cookie and same-origin requests with credentials.
 - Leaderboard grouping is by `first_grade_year`, not by level.
 - The splash screen can prompt logged-in users without a `first_grade_year` to complete their profile so they appear in year buckets.
+- Clicking the logged-in username in `#top-bar` opens an account modal (`#account-modal` in `index.html`) with three tabs: editable profile info (email change with re-verification, first grade year), change password, and high-score history (reusing the same chart renderer as the splash screen's leaderboard panel).
+
+### Email verification, password reset, email change
+
+- Sending is done via AWS SES (`app/mailer.py`, plain-text emails, no templates/configuration sets). Reads `SES_SENDER_EMAIL` / `APP_BASE_URL` from `os.environ` at call time; both are also exposed on `app.config` and propagated into `os.environ` by `app/__init__.py`, same pattern as `DYNAMODB_*`.
+- New accounts (`create_user`) are written with `email_verified: False`. **Pre-existing accounts created before this feature are grandfathered in as verified**: `get_user()` defaults a missing `email_verified` attribute to `True`, so no migration script was needed — only genuinely new rows can ever be `False`.
+- Single-use tokens (verification / password reset / email change) are stored in `ffm-users` as `TOKEN#<sha256 hex of the token>` / `T` items — only the SHA-256 digest is ever persisted; the plaintext token exists only in the emailed link (`create_token`/`consume_token` in `models.py`). `consume_token` deletes the item on success and leaves it untouched (not deleted) on a purpose mismatch or expiry, so a still-valid token for a different purpose can't be destroyed by an unrelated lookup. TTLs: 24h for `verify_email` and `change_email`, 1h for `reset_password`.
+- Endpoints: `POST /api/auth/verify-email`, `POST /api/auth/resend-verification`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `POST /api/auth/confirm-email-change`, plus authenticated `POST /api/profile/password` and `POST /api/profile/email`. `resend-verification`/`forgot-password` always return a generic response regardless of whether the account/email exists, to avoid leaking which emails are registered.
+- Email changes are two-phase: `POST /api/profile/email` (requires the current password) sets `pending_email` on the profile and emails a confirmation link to the *new* address; the account keeps using the old address for login until `POST /api/auth/confirm-email-change` is called with that link's token, which re-points the `EMAIL#<email>/REF` lookup item and updates `PROFILE.email`.
+- Verification/reset/email-change links all point at the single static `index.html` with a distinguishing query param (`?verify_token=`, `?reset_token=`, `?confirm_email_token=`) that `main.js` parses on load, calls the matching API, and then strips via `history.replaceState` so a page refresh can't replay it.
+- SES is **sandboxed** on this AWS account (`aws sesv2 get-account` → `ProductionAccessEnabled: false` as of this writing) — it can only deliver to individually-verified recipient addresses until AWS approves a production-access support request. The domain (`ffm.derschweigert.de`) is verified via Terraform (see next section) so the Lambda can *send*, but real end users won't receive mail until that request is approved.
 
 ### Backend/data model
 
@@ -87,8 +98,9 @@ Browser
   - `ffm-scores`
 - The tables use compound keys `pk` + `sk`.
 - `ffm-users` stores:
-  - `USER#<username>` / `PROFILE`
+  - `USER#<username>` / `PROFILE` (now also carries `email_verified` and, transiently, `pending_email`)
   - `EMAIL#<email>` / `REF`
+  - `TOKEN#<sha256 hex>` / `T` — single-use verification/reset/email-change tokens, see above
 - `ffm-scores` stores:
   - `USER#<username>` / `LEVEL#<level>#<difficulty>`
   - `USER#<username>` / `HIGHSCORE`
@@ -98,11 +110,12 @@ Browser
 ### Security: rate limiting and JWT secret
 
 - A single shared `flask_limiter.Limiter` instance lives in `app/extensions.py` and is `init_app()`'d once in `app/__init__.py`. **Never instantiate a second `Limiter()` anywhere else** (e.g. in a blueprint file) — a previous version of this code did exactly that in `auth.py`, and that second instance's `@limiter.limit(...)` decorators silently never enforced anything because it was never bound to the real app via `init_app()`. This was only caught by empirically firing repeated requests at `/api/auth/login` and observing that `429` never appeared.
-- `/api/auth/login` and `/api/auth/register` are rate-limited via `AUTH_RATE_LIMIT` (`app/config.py`): `10/minute` in production, `1000/minute` in `TestingConfig` (high enough that the normal test suite's many login/register calls never trip it — a dedicated regression test overrides `AUTH_RATE_LIMIT` to a low value just for itself instead).
+- `/api/auth/login`, `/api/auth/register`, `/api/auth/resend-verification`, and `/api/auth/forgot-password` are rate-limited via `AUTH_RATE_LIMIT` (`app/config.py`): `10/minute` in production, `1000/minute` in `TestingConfig` (high enough that the normal test suite's many login/register calls never trip it — a dedicated regression test overrides `AUTH_RATE_LIMIT` to a low value just for itself instead).
 - Every other route falls under the app-wide default limits set in `app/extensions.py`: `200/day, 50/hour` per client IP.
 - Storage backend is `RATELIMIT_STORAGE_URI`: `memory://` in dev/test, `dynamodb://ffm-ratelimits` in production. This isn't cosmetic — Lambda gives each concurrent execution environment its own process memory, so `memory://` cannot share counters across concurrent/cold-started invocations and would make the rate limit far weaker than configured in practice. `app/ratelimit_storage.py` implements a small custom `limits`-library `Storage` backend (registered under the `dynamodb://` URI scheme) to solve this instead of introducing Redis/ElastiCache (which would also require putting the Lambda in a VPC).
 - `SECRET_KEY` (used to sign/verify JWTs) is generated by Terraform (`random_password.jwt_secret` in `infra/terraform/sites/ffm/main.tf`), stored in Secrets Manager as `ffm/jwt-secret-key`, and passed to the Lambda as `SECRET_KEY_ARN`. `lambda/handler.py`'s `_resolve_secret_key()` fetches it at cold start and sets `os.environ['SECRET_KEY']` *before* `app.config.py` is imported (that module reads `os.environ['SECRET_KEY']` at class-definition time with no fallback, so ordering matters). Locally/in tests, just set `SECRET_KEY` directly and `_resolve_secret_key()` becomes a no-op.
 - The `aws_secretsmanager_secret_version` resource has `lifecycle { ignore_changes = [secret_string] }` specifically so routine `terraform apply` runs never rotate it by accident. **Rotating this secret invalidates every existing JWT (access + refresh) and logs out all users** — expected if it's ever deliberately rotated (e.g. suspected leak), but not something that should happen as a side effect of an unrelated change.
+
 
 ## API summary
 
@@ -112,12 +125,20 @@ Browser
 - `POST /api/auth/login`
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
+- `POST /api/auth/verify-email`
+- `POST /api/auth/resend-verification`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+- `POST /api/auth/confirm-email-change`
 
 ### Game/profile
 
 - `GET /api/health`
 - `GET /api/profile`
 - `PATCH /api/profile`
+- `POST /api/profile/password`
+- `POST /api/profile/email`
+- `GET /api/profile/score-history`
 - `POST /api/score`
 - `POST /api/high-score`
 - `GET /api/leaderboard`
@@ -133,6 +154,7 @@ The dedicated FFM stack now exists under `infra/terraform/sites/ffm/`.
   - `ffm-users`
   - `ffm-scores`
   - `ffm-ratelimits` (flask-limiter's `dynamodb://` storage backend; see `app/ratelimit_storage.py`)
+- SES: `aws_ses_domain_identity`/`aws_ses_domain_dkim` for `ffm.derschweigert.de`, verified via Route53 TXT/CNAME records that Terraform manages directly (using the existing `data.aws_route53_zone.primary`); the Lambda role gets a scoped `ses:SendEmail`/`ses:SendRawEmail` inline policy (`ffm-lambda-ses-access`) limited to that domain identity's ARN. **SES is sandboxed on this AWS account** (confirmed via `aws sesv2 get-account`) — domain verification lets the Lambda *send*, but real end users won't receive mail until AWS approves a production-access support request (manual, cannot be automated). See `git log`/PR history for the drafted support-case justification text if one hasn't been filed yet.
 - JWT signing key: Secrets Manager secret `ffm/jwt-secret-key`, passed to the Lambda as `SECRET_KEY_ARN` and resolved at cold start in `lambda/handler.py`
 - Terraform backend key: `ffm/prod/terraform.tfstate`
 - CI deploy flow is in `.github/workflows/deploy.yml`
@@ -174,6 +196,24 @@ As of 2026-09-05 the policy is at **v8** and includes, beyond its original dersc
 - `FfmJwtSecretManage` — full lifecycle including `CreateSecret`/`PutSecretValue`/`GetSecretValue` (the provider reads a secret version back right after creating it, to populate Terraform state) scoped to `ffm/jwt-secret-key`.
 - `CloudFrontAll` extended with `CreateResponseHeadersPolicy`/`UpdateResponseHeadersPolicy`/`DeleteResponseHeadersPolicy` — needed by **both** sites now that they share a response-headers-policy resource in the `static_site` module.
 - `IamRoleForLambda` extended with `PutRolePolicy`/`DeleteRolePolicy` (inline role policies aren't covered by the existing `iam:Get*`/`iam:List*` wildcards) for both `ffm-lambda-role` and `derschweigert-lambda-role`.
+
+**⚠️ Known gap as of the email-verification feature (not yet applied):** the policy has **no `ses:*` statement at all**, and it is currently at the **5/5 version cap (v4–v8)**, so a slot must be freed (`aws iam delete-policy-version ... --version-id v4`) before a new version can be pushed. The new `aws_ses_domain_identity`/`aws_ses_domain_dkim`/`aws_ses_domain_identity_verification` resources in `infra/terraform/sites/ffm/main.tf` will fail in CI with `AccessDenied` on `ses:VerifyDomainIdentity` etc. until a statement like this is added by hand:
+```json
+{
+  "Sid": "FfmSesManage",
+  "Effect": "Allow",
+  "Action": [
+    "ses:VerifyDomainIdentity",
+    "ses:DeleteIdentity",
+    "ses:GetIdentityVerificationAttributes",
+    "ses:VerifyDomainDkim",
+    "ses:GetIdentityDkimAttributes",
+    "ses:SetIdentityDkimEnabled"
+  ],
+  "Resource": "*"
+}
+```
+Verified live against the account: `Route53All` (already has `route53:ChangeResourceRecordSets`/`Get*`/`List*` on `*`) and `IamRoleForLambda` (already covers `ffm-lambda-role` inline policies) need **no** changes — only the SES statement above is missing. This does not grant any send capability; sending is authorized separately via the Lambda role's own `ffm-lambda-ses-access` inline policy (scoped to the domain identity ARN), which Terraform creates directly since it only needs the already-sufficient `IamRoleForLambda` permissions.
 
 **Recommendation, not yet done:** bring `derschweigert-deploy-scope` under Terraform management so this can't silently drift out of sync again. Skipped in the 2026-09-05 session to avoid widening the blast radius of an already-eventful production deploy.
 

@@ -1,6 +1,6 @@
 // entities.js — pixel-art Hero + fiends for Arithmo Slayer
 
-import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W } from './renderer.js';
+import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W, CANVAS_H } from './renderer.js';
 import { FIEND_COMBAT_X } from './difficulty.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
 
@@ -1629,7 +1629,9 @@ export class Fireball extends SpellProjectile {
 }
 
 const DRAGON_SPRITE_W = 1536, DRAGON_SPRITE_H = 1024;
-const DRAGON_DRAW_W = 260;
+// 4x the original 260px draw width so the summon looms large enough to fill
+// the whole canvas (see dragonX/dragonY below for how it's positioned).
+const DRAGON_DRAW_W = 260 * 4;
 const DRAGON_DRAW_H = DRAGON_DRAW_W * (DRAGON_SPRITE_H / DRAGON_SPRITE_W);
 const DRAGON_BREATH_SLICES = 14;
 const DRAGON_BREATH_MAX_HALF_H = 20 * P; // capped cone half-height at the leading edge
@@ -1643,8 +1645,12 @@ export class DragonSummon {
    this._lastDt = 0;
    this._appearEnd = 0.3;
    this._breathEnd = 1.5;
-   this.dragonX = 20;
-   this.dragonY = 40;
+   // Anchor the (now much larger) sprite so its right edge lines up with the
+   // canvas's right edge and it's vertically centered - at DRAGON_DRAW_W/H's
+   // size that means the box spills off all four sides of the canvas, so the
+   // dragon fills the entire screen instead of sitting in a corner.
+   this.dragonX = canvasW - DRAGON_DRAW_W;
+   this.dragonY = (CANVAS_H - DRAGON_DRAW_H) / 2;
  }
 
  get isDone() { return this._life <= 0; }
