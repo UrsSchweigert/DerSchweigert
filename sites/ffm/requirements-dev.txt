@@ -1,0 +1,7 @@
+# Test/dev-only dependencies. These must NOT be installed into the
+# production Lambda bundle (see .github/workflows/deploy.yml's "Build
+# Lambda zip" step, which installs only requirements.txt).
+-r requirements.txt
+pytest>=8.0
+moto>=5.0
+python-dotenv>=1.0

@@ -47,6 +47,46 @@ resource "aws_cloudfront_function" "viewer_request" {
   code    = var.viewer_request_function_code
 }
 
+# Baseline security response headers, applied to both the static-asset and
+# (if present) API cache behaviors below.
+resource "aws_cloudfront_response_headers_policy" "security_headers" {
+  name = "${var.app_name}-security-headers"
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+
+    strict_transport_security {
+      access_control_max_age_sec = 63072000 # 2 years
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+
+    content_security_policy {
+      content_security_policy = var.content_security_policy
+      override                = true
+    }
+
+    xss_protection {
+      mode_block = true
+      protection = true
+      override   = true
+    }
+  }
+}
+
 resource "aws_s3_bucket_policy" "site" {
   bucket = aws_s3_bucket.site.id
 
@@ -94,7 +134,7 @@ resource "aws_cloudfront_distribution" "site" {
 
       custom_origin_config {
         http_port              = 80
-        https_port              = 443
+        https_port             = 443
         origin_protocol_policy = "https-only"
         origin_ssl_protocols   = ["TLSv1.2"]
       }
@@ -102,14 +142,15 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "s3-origin"
-    compress               = true
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "s3-origin"
+    compress                   = true
+    viewer_protocol_policy     = "redirect-to-https"
+    min_ttl                    = 0
+    default_ttl                = 3600
+    max_ttl                    = 86400
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
     dynamic "function_association" {
       for_each = var.viewer_request_function_code == null ? [] : [1]
@@ -134,13 +175,14 @@ resource "aws_cloudfront_distribution" "site" {
       path_pattern     = ordered_cache_behavior.value
       target_origin_id = var.api_origin.origin_id
 
-      allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-      cached_methods         = ["GET", "HEAD"]
-      viewer_protocol_policy = "redirect-to-https"
-      compress               = true
-      min_ttl                = ordered_cache_behavior.value == "/unlock*" ? 0 : null
-      default_ttl            = ordered_cache_behavior.value == "/unlock*" ? 0 : null
-      max_ttl                = ordered_cache_behavior.value == "/unlock*" ? 0 : null
+      allowed_methods            = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      cached_methods             = ["GET", "HEAD"]
+      viewer_protocol_policy     = "redirect-to-https"
+      compress                   = true
+      min_ttl                    = ordered_cache_behavior.value == "/unlock*" ? 0 : null
+      default_ttl                = ordered_cache_behavior.value == "/unlock*" ? 0 : null
+      max_ttl                    = ordered_cache_behavior.value == "/unlock*" ? 0 : null
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
       forwarded_values {
         query_string = true

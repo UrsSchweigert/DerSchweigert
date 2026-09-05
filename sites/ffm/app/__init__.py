@@ -2,10 +2,10 @@ import os
 import re
 
 from flask import Flask
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask_cors import CORS
 from .config import BaseConfig, ProductionConfig
+from .extensions import limiter
+from . import ratelimit_storage  # noqa: F401 — import registers the "dynamodb://" storage scheme
 
 
 def create_app(config_class=None):
@@ -20,6 +20,7 @@ def create_app(config_class=None):
     # Propagate table names to environment so models.py reads them at call time
     os.environ['DYNAMODB_USERS_TABLE'] = app.config['DYNAMODB_USERS_TABLE']
     os.environ['DYNAMODB_SCORES_TABLE'] = app.config['DYNAMODB_SCORES_TABLE']
+    os.environ['DYNAMODB_RATELIMIT_TABLE'] = app.config['DYNAMODB_RATELIMIT_TABLE']
 
     allowed_origins = ["https://ffm.derschweigert.de"]
     if os.environ.get('FLASK_ENV') != 'production':
@@ -28,7 +29,10 @@ def create_app(config_class=None):
 
     CORS(app, origins=allowed_origins, supports_credentials=True)
 
-    Limiter(get_remote_address, app=app, default_limits=["200/day", "50/hour"])
+    # `limiter` is a single module-level instance shared with app/auth.py so
+    # its per-route @limiter.limit(...) decorators are bound to the same
+    # instance that gets init_app()'d here (and therefore actually enforced).
+    limiter.init_app(app)
 
     from .auth import auth_bp
     from .main import main_bp

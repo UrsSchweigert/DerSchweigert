@@ -53,6 +53,12 @@ variable "api_origin" {
   default = null
 }
 
+variable "content_security_policy" {
+  description = "Content-Security-Policy header value applied via the response headers policy. Default assumes a same-origin-only site with no external CDNs/fonts, and allows inline `style=\"...\"` attributes (both sites use them for simple show/hide toggling) without allowing inline <script>."
+  type        = string
+  default     = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+}
+
 variable "tags" {
   description = "Common tags applied to all resources"
   type        = map(string)
