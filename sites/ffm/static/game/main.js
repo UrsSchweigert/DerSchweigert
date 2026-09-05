@@ -244,18 +244,28 @@ let pendingResetToken = null;
 // app/captcha.py) is sensitive.
 const TURNSTILE_SITE_KEY = '0x4AAAAAAEpYkPRsDpkS9Dlo';
 const turnstileWidgets = { register: null, forgotPassword: null, resend: null };
+const TURNSTILE_CONTAINER_IDS = {
+  register: 'turnstile-register',
+  forgotPassword: 'turnstile-forgot-password',
+  resend: 'turnstile-resend',
+};
 
-function renderTurnstileWidgets() {
-  if (!window.turnstile) return;
-  const containers = {
-    register: document.getElementById('turnstile-register'),
-    forgotPassword: document.getElementById('turnstile-forgot-password'),
-    resend: document.getElementById('turnstile-resend'),
-  };
-  for (const [key, container] of Object.entries(containers)) {
-    if (container && turnstileWidgets[key] === null) {
-      turnstileWidgets[key] = window.turnstile.render(container, { sitekey: TURNSTILE_SITE_KEY });
-    }
+// Turnstile refuses to actually run its challenge (and never yields a
+// token) inside a `display:none` ancestor, so widgets must only be
+// rendered once their container is genuinely visible on screen — not
+// eagerly at page load, when the auth modal/forms are still hidden.
+// Call this right after making a widget's container visible.
+function ensureTurnstileWidget(key) {
+  if (turnstileWidgets[key] !== null) return;
+  if (!window.turnstile) {
+    // Turnstile's script tag (index.html) loads asynchronously; poll
+    // briefly until it's available rather than relying on a fixed delay.
+    setTimeout(() => ensureTurnstileWidget(key), 100);
+    return;
+  }
+  const container = document.getElementById(TURNSTILE_CONTAINER_IDS[key]);
+  if (container) {
+    turnstileWidgets[key] = window.turnstile.render(container, { sitekey: TURNSTILE_SITE_KEY });
   }
 }
 
@@ -271,16 +281,6 @@ function resetTurnstileWidget(key) {
     window.turnstile.reset(widgetId);
   }
 }
-
-// Turnstile's script tag (index.html) loads asynchronously; poll briefly
-// until window.turnstile is available rather than relying on a fixed delay.
-(function waitForTurnstile() {
-  if (window.turnstile) {
-    renderTurnstileWidgets();
-  } else {
-    setTimeout(waitForTurnstile, 100);
-  }
-})();
 
 // --- Input ---
 const input = new InputManager(handleAnswer);
@@ -522,6 +522,9 @@ function showAuthForm(formToShow) {
   } else if (formToShow === registerForm) {
     tabRegister.classList.add('active');
     tabLogin.classList.remove('active');
+    ensureTurnstileWidget('register');
+  } else if (formToShow === forgotPasswordForm) {
+    ensureTurnstileWidget('forgotPassword');
   }
 }
 
@@ -555,6 +558,7 @@ loginForm.addEventListener('submit', async e => {
     if (err.message === 'email_not_verified') {
       loginError.textContent = 'Please verify your email before logging in.';
       loginVerifyResend.style.display = '';
+      ensureTurnstileWidget('resend');
     } else {
       loginError.textContent = err.message;
     }
