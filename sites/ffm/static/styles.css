@@ -47,6 +47,20 @@ body {
   image-rendering: crisp-edges;
 }
 
+/* Pulsating combo-ability border. Sits above #input-zone (which otherwise
+   covers the bottom edge of the canvas) so the frame is visible on all four
+   sides, not just left/right. Color/width/opacity are driven per-frame from
+   renderer.js drawComboFrame() to stay in sync with the canvas pulse. */
+#combo-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 21;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 0 solid transparent;
+  opacity: 0;
+}
+
 /* Input zone overlays the bottom of the canvas */
 #input-zone {
   position: absolute;

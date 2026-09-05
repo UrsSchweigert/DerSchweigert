@@ -74,6 +74,11 @@ export class Renderer {
     this._fallbackBgImage.src = FALLBACK_BG_SRC;
     this._bgImage.src = STAGE_BG_SOURCES[0];
     this._stageIndex = 0;
+    // DOM overlay for the pulsating combo-ability border. It sits above both
+    // the canvas HUD bar (top) and the #input-zone panel (bottom), which
+    // otherwise paint over a border drawn onto the canvas itself, making it
+    // visible on left/right only. See index.html/styles.css for #combo-frame.
+    this._comboFrameEl = canvas.parentElement && canvas.parentElement.querySelector('#combo-frame');
   }
 
   clear() {
@@ -86,21 +91,27 @@ export class Renderer {
   // own sprite/effect palette (see Fireball/LightningBolt trailColor and the
   // DragonSummon ice-breath palette in entities.js) so the frame telegraphs
   // which ability is "charged" before it actually fires.
+  //
+  // Drawn as a DOM overlay (#combo-frame) rather than onto the canvas: the
+  // HUD bar (top) and the #input-zone panel (bottom) are painted over the
+  // canvas edges, so a border stroked directly on the canvas is only ever
+  // visible on the left/right. The overlay sits above both, so all four
+  // sides pulse.
   drawComboFrame(band, ts) {
+    const el = this._comboFrameEl;
+    if (!el) return;
     const color = COMBO_FRAME_COLORS[band];
-    if (!color) return;
-    const ctx = this.ctx;
+    if (!color) {
+      el.style.opacity = '0';
+      return;
+    }
     const pulse = (Math.sin(ts / 220) + 1) / 2; // 0..1
     const alpha = 0.35 + pulse * 0.45;
     const thickness = 6 + pulse * 6;
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = alpha;
-    ctx.lineWidth = thickness;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 12 + pulse * 12;
-    ctx.strokeRect(thickness / 2, thickness / 2, CANVAS_W - thickness, CANVAS_H - thickness);
-    ctx.restore();
+    el.style.opacity = String(alpha);
+    el.style.borderWidth = thickness + 'px';
+    el.style.borderColor = color;
+    el.style.boxShadow = `0 0 ${12 + pulse * 12}px ${color} inset, 0 0 ${12 + pulse * 12}px ${color}`;
   }
 
   setBackgroundByLevel(levelNumber) {
