@@ -52,6 +52,56 @@ function getFiendType(level, chapter) {
   return pattern[(level - 1) % pattern.length];
 }
 
+export function chapterForLevel(level) {
+  if (level < 1) return null;
+  if (level <= 15) return 1;
+  if (level <= 30) return 2;
+  if (level <= 45) return 3;
+  return 4;
+}
+
+export function getFiendWeights(level) {
+  const raw = [];
+  const ownChapter = chapterForLevel(level);
+  raw.push({ type: getFiendType(level, ownChapter), weight: 0.5 });
+
+  if (level - 1 >= 1) {
+    const ch1 = chapterForLevel(level - 1);
+    raw.push({ type: getFiendType(level - 1, ch1), weight: 0.3 });
+  }
+  if (level - 2 >= 1) {
+    const ch2 = chapterForLevel(level - 2);
+    raw.push({ type: getFiendType(level - 2, ch2), weight: 0.2 });
+  }
+
+  const total = raw.reduce((s, e) => s + e.weight, 0);
+  const normalized = raw.map(e => ({ type: e.type, weight: e.weight / total }));
+
+  const merged = [];
+  for (const e of normalized) {
+    const existing = merged.find(m => m.type === e.type);
+    if (existing) existing.weight += e.weight;
+    else merged.push({ type: e.type, weight: e.weight });
+  }
+  return merged;
+}
+
+export function sampleFiendType(level, spawnIndex) {
+  const weights = getFiendWeights(level);
+  const seed = ((level * 100003) ^ (spawnIndex * 7919)) >>> 0;
+  const rng = lcg(seed);
+  const draw = rng.next() / 4294967296;
+
+  let cumulative = 0;
+  for (let i = 0; i < weights.length; i++) {
+    cumulative += weights[i].weight;
+    if (draw < cumulative || i === weights.length - 1) {
+      return weights[i].type;
+    }
+  }
+  return weights[weights.length - 1].type;
+}
+
 function buildLevel(overrides) {
   const level = overrides.level;
   const chapter = overrides.chapter;

@@ -1,6 +1,6 @@
 // main.js — Complete game loop for Arithmo Slayer
 
-import { LevelConfig, generateProblem } from './levels.js';
+import { LevelConfig, generateProblem, sampleFiendType } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt } from './entities.js';
 import { HUD } from './hud.js';
@@ -93,7 +93,9 @@ const FIEND_PALETTES = {
 function createFiend(levelIndex, x) {
   const cfg = LevelConfig[levelIndex];
   const problem = generateProblem(levelIndex, Date.now());
-  const fiendTypeKey = String(cfg.fiendType || '').toLowerCase();
+  const spawnIndex = state.fiendsSpawned;
+  state.fiendsSpawned++;
+  const fiendTypeKey = String(sampleFiendType(cfg.level, spawnIndex) || cfg.fiendType || '').toLowerCase();
   const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey] ?? OPERATOR_FIEND[problem.operation] ?? Slimeling;
   const isElite = Math.random() < GAME_CONFIG.eliteFiendChance;
   const hp = isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
@@ -118,6 +120,7 @@ let state = {
   scrollX: 0,
   waveNumber: 1,
   enemiesDefeated: 0,
+  fiendsSpawned: 0,
   timerMax: 10,
   timerRemaining: 10,
   timerActive: false,
@@ -429,6 +432,7 @@ function startLevel(levelIndex) {
   state.level = cfg.level;
   state.waveNumber = 1;
   state.enemiesDefeated = 0;
+  state.fiendsSpawned = 0;
   spawnQueue = [];
   requeuedFiends = [];
   fiends = [];

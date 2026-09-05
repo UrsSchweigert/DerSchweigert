@@ -1,7 +1,7 @@
 // Arithmo Slayer - Levels Tests
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { LevelConfig, generateProblem } from './levels.js';
+import { LevelConfig, generateProblem, chapterForLevel, getFiendWeights, sampleFiendType } from './levels.js';
 
 const TOTAL_LEVELS = 60;
 
@@ -134,6 +134,119 @@ describe('generateProblem', () => {
       assert.strictEqual(p1.answer, p2.answer, `Level ${i + 1} should produce same answer with same seed`);
       assert.deepStrictEqual(p1.distractors, p2.distractors, `Level ${i + 1} should produce same distractors with same seed`);
       assert.strictEqual(p1.operation, p2.operation, `Level ${i + 1} should produce same operation with same seed`);
+    }
+  });
+});
+
+describe('fiend composition 50/30/20 rule', () => {
+  it('level 1: getFiendWeights(1) has exactly 1 entry with correct type and weight', () => {
+    const weights = getFiendWeights(1);
+    assert.strictEqual(weights.length, 1, 'Level 1 should have exactly 1 entry');
+    assert.strictEqual(weights[0].type, LevelConfig[0].fiendType, 'Entry type should match LevelConfig[0].fiendType');
+    assert.ok(Math.abs(weights[0].weight - 1.0) < 1e-9, 'Entry weight should be 1.0');
+  });
+
+  it('level 2: getFiendWeights(2) entries sum to 1.0, own type at 0.625', () => {
+    const weights = getFiendWeights(2);
+    const sum = weights.reduce((s, e) => s + e.weight, 0);
+    assert.ok(Math.abs(sum - 1.0) < 1e-9, 'Weights should sum to 1.0');
+    
+    const ownEntry = weights.find(e => e.type === LevelConfig[1].fiendType);
+    assert.ok(ownEntry, 'Should have entry for LevelConfig[1].fiendType');
+    assert.ok(Math.abs(ownEntry.weight - 0.625) < 1e-9, 'Own type weight should be 0.625');
+  });
+
+  it('level 20: verify own/prev/prev-2 types with their weights', () => {
+    const weights = getFiendWeights(20);
+    const sum = weights.reduce((s, e) => s + e.weight, 0);
+    assert.ok(Math.abs(sum - 1.0) < 1e-9, 'Weights should sum to 1.0');
+
+    const type20 = LevelConfig[19].fiendType;
+    const type19 = LevelConfig[18].fiendType;
+    const type18 = LevelConfig[17].fiendType;
+
+    // Check if all three types are distinct
+    const distinctTypes = new Set([type20, type19, type18]).size;
+    
+    if (distinctTypes === 3) {
+      // All three are distinct, check 50/30/20 split
+      const entry20 = weights.find(e => e.type === type20);
+      const entry19 = weights.find(e => e.type === type19);
+      const entry18 = weights.find(e => e.type === type18);
+      
+      assert.ok(entry20, `Should have entry for level 20 type (${type20})`);
+      assert.ok(entry19, `Should have entry for level 19 type (${type19})`);
+      assert.ok(entry18, `Should have entry for level 18 type (${type18})`);
+      
+      assert.ok(Math.abs(entry20.weight - 0.5) < 1e-9, `Level 20 type weight should be 0.5, got ${entry20.weight}`);
+      assert.ok(Math.abs(entry19.weight - 0.3) < 1e-9, `Level 19 type weight should be 0.3, got ${entry19.weight}`);
+      assert.ok(Math.abs(entry18.weight - 0.2) < 1e-9, `Level 18 type weight should be 0.2, got ${entry18.weight}`);
+    } else if (distinctTypes === 2) {
+      // Two types are the same, verify merged weight
+      if (type20 === type19) {
+        // 50% + 30% = 80% for this type, 20% for the other
+        const mergedEntry = weights.find(e => e.type === type20);
+        const otherEntry = weights.find(e => e.type === type18);
+        assert.ok(Math.abs(mergedEntry.weight - 0.8) < 1e-9, 'Merged weight should be 0.8');
+        assert.ok(Math.abs(otherEntry.weight - 0.2) < 1e-9, 'Other weight should be 0.2');
+      } else if (type20 === type18) {
+        // 50% + 20% = 70% for this type, 30% for the other
+        const mergedEntry = weights.find(e => e.type === type20);
+        const otherEntry = weights.find(e => e.type === type19);
+        assert.ok(Math.abs(mergedEntry.weight - 0.7) < 1e-9, 'Merged weight should be 0.7');
+        assert.ok(Math.abs(otherEntry.weight - 0.3) < 1e-9, 'Other weight should be 0.3');
+      } else if (type19 === type18) {
+        // 30% + 20% = 50% for this type, 50% for the other
+        const mergedEntry = weights.find(e => e.type === type19);
+        const otherEntry = weights.find(e => e.type === type20);
+        assert.ok(Math.abs(mergedEntry.weight - 0.5) < 1e-9, 'Merged weight should be 0.5');
+        assert.ok(Math.abs(otherEntry.weight - 0.5) < 1e-9, 'Other weight should be 0.5');
+      }
+    }
+  });
+
+  it('chapterForLevel: boundary checks', () => {
+    assert.strictEqual(chapterForLevel(15), 1, 'Level 15 should be chapter 1');
+    assert.strictEqual(chapterForLevel(16), 2, 'Level 16 should be chapter 2');
+    assert.strictEqual(chapterForLevel(30), 2, 'Level 30 should be chapter 2');
+    assert.strictEqual(chapterForLevel(31), 3, 'Level 31 should be chapter 3');
+    assert.strictEqual(chapterForLevel(45), 3, 'Level 45 should be chapter 3');
+    assert.strictEqual(chapterForLevel(46), 4, 'Level 46 should be chapter 4');
+  });
+
+  it('determinism: sampleFiendType returns consistent results', () => {
+    const testCases = [[1, 0], [2, 3], [20, 5], [16, 0], [46, 12]];
+    
+    for (const [level, spawnIndex] of testCases) {
+      const sample1 = sampleFiendType(level, spawnIndex);
+      const sample2 = sampleFiendType(level, spawnIndex);
+      assert.strictEqual(sample1, sample2, `Level ${level} spawn ${spawnIndex} should be deterministic`);
+      
+      const validTypes = getFiendWeights(level).map(e => e.type);
+      assert.ok(validTypes.includes(sample1), `Level ${level} spawn ${spawnIndex} returned ${sample1}, not in valid types`);
+    }
+  });
+
+  it('distribution: level 20 sample distribution matches weights', () => {
+    const weights = getFiendWeights(20);
+    const counts = {};
+    
+    for (const w of weights) {
+      counts[w.type] = 0;
+    }
+    
+    const numSamples = 2000;
+    for (let i = 0; i < numSamples; i++) {
+      const type = sampleFiendType(20, i);
+      if (counts.hasOwnProperty(type)) {
+        counts[type]++;
+      }
+    }
+    
+    for (const w of weights) {
+      const observed = counts[w.type] / numSamples;
+      assert.ok(Math.abs(observed - w.weight) < 0.05, 
+        `Type ${w.type} observed frequency ${observed} should be within 0.05 of weight ${w.weight}`);
     }
   });
 });
