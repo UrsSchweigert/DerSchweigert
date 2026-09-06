@@ -239,9 +239,24 @@ jobs:
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           BUCKET="ffm-site-${ACCOUNT_ID}"
+          # Deliberately NOT a long max-age for any of these (previously
+          # "public, max-age=31536000" == 1 year on everything but
+          # index.html). Filenames here aren't content-hashed/fingerprinted,
+          # so a 1-year browser cache meant any visitor who'd loaded the
+          # site before a given deploy kept serving stale styles.css/main.js
+          # indefinitely, mismatched against the freshly-deployed index.html
+          # - exactly the class of bug that broke the desktop layout on
+          # 2026-09-06 (a stale cached styles.css/main.js pairing with new
+          # markup) until the user did a full cache-clearing hard reload.
+          # "no-cache, must-revalidate" still lets browsers/CloudFront cache
+          # these locally, but forces a conditional (ETag) revalidation on
+          # every load, so a changed file is always picked up immediately
+          # while an unchanged one just gets a cheap 304 instead of a full
+          # re-download - the safety of no-cache with most of the
+          # bandwidth savings of long-lived caching.
           aws s3 sync sites/ffm/static/ "s3://$BUCKET/" \
             --delete \
-            --cache-control "public, max-age=31536000" \
+            --cache-control "no-cache, must-revalidate" \
             --exclude "index.html"
           aws s3 cp sites/ffm/static/index.html \
             "s3://$BUCKET/index.html" \
