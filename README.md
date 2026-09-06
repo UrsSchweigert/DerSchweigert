@@ -149,8 +149,14 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   permissions for resources that had existed for a while. See
   [`sites/ffm/README.md`](sites/ffm/README.md)'s "CI's AWS IAM permissions are
   NOT managed in this repo" section for the exact `aws iam` commands to
-  inspect/update it, the 5-versions-per-policy cap, and the current (v8)
-  permission set.
+  inspect/update it, the 5-versions-per-policy cap, and the current (v12)
+  permission set. It happened again on 2026-09-06: adding the
+  `email_forwarding` module (SES receiving + S3 + Lambda forwarder for
+  `info@derschweigert.de`) failed CI with `AccessDenied` on
+  `s3:GetBucketPublicAccessBlock`/`s3:GetBucketPolicy`, `iam:GetRole`, and
+  `ses:DescribeReceiptRuleSet` even though the same `terraform apply` had
+  already succeeded locally under root credentials — a reminder that a
+  clean local apply proves nothing about whether CI can do the same.
 - **PIN lock**: production traffic to derschweigert.de/www is gated by a
   CloudFront Function (`derschweigert-pin-lock`) requiring an `ams_pin=1`
   cookie, except for a small allowlist of public paths (`/health`, `/unlock`,
