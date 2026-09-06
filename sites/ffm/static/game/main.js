@@ -955,6 +955,15 @@ canvas.addEventListener('click', () => {
   }
 });
 
+// The pause overlay is a full-screen element stacked on top of the canvas
+// (like the other overlays), so once it's visible it intercepts every
+// click/tap before it can reach the canvas below — the canvas's own click
+// listener above never fires again to resume. Listen on the overlay itself
+// too, so tapping/clicking anywhere on the "Paused" screen resumes play.
+pauseOverlay.addEventListener('click', () => {
+  if (paused) resumeGame();
+});
+
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
