@@ -161,6 +161,7 @@ const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const userDisplay = document.getElementById('username-display');
 const muteBtn = document.getElementById('mute-btn');
+const pauseBtn = document.getElementById('pause-btn');
 const topBar  = document.getElementById('top-bar');
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
@@ -238,6 +239,8 @@ let questionStartTime = 0;
 let inputDisabled = false;
 let pendingProblemActivation = null;
 let gameRunning = false;
+let isPaused = false;
+let wasInputEnabledOnPause = false;
 let currentLevelIndex = 0;
 let levelStartScore = 0;
 let activeLightningBolts = [];
@@ -886,6 +889,34 @@ muteBtn.addEventListener('click', () => {
   muteBtn.textContent = audio.muted ? '🔇' : '🔊';
 });
 
+// --- Pause/unpause ---
+function pauseGame() {
+  if (!gameRunning || isPaused) return;
+  isPaused = true;
+  wasInputEnabledOnPause = !!activeFiend && !inputDisabled;
+  input.disable();
+  audio.pauseBGM();
+  pauseBtn.textContent = '▶';
+  pauseBtn.setAttribute('aria-label', 'Resume');
+}
+
+function resumeGame() {
+  if (!gameRunning || !isPaused) return;
+  isPaused = false;
+  audio.resumeBGM();
+  pauseBtn.textContent = '⏸';
+  pauseBtn.setAttribute('aria-label', 'Pause');
+  if (wasInputEnabledOnPause && activeFiend && !activeFiend.isDead) {
+    const cfg = LevelConfig[state.level - 1];
+    input.enable(cfg.inputMode);
+  }
+}
+
+pauseBtn.addEventListener('click', () => {
+  if (isPaused) resumeGame();
+  else pauseGame();
+});
+
 // --- Level/Wave setup ---
 function startLevel(levelIndex) {
   const cfg = LevelConfig[levelIndex];
@@ -913,6 +944,10 @@ function startLevel(levelIndex) {
   spawnTimer = 2.0;
   state.combo = 0;
   gameRunning = true;
+  isPaused = false;
+  pauseBtn.textContent = '⏸';
+  pauseBtn.setAttribute('aria-label', 'Pause');
+  pauseBtn.style.display = 'block';
   topBar.style.display = 'none';
   levelClearOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
@@ -1250,6 +1285,8 @@ function triggerLevelClear() {
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
   levelClearTitle.textContent = `Level ${completedLevelNum} Clear!`;
   levelClearScore.textContent = `Score: ${state.score}`;
+  isPaused = false;
+  pauseBtn.style.display = 'none';
   topBar.style.display = 'flex';
   btnNextLevel.onclick = () => {
     levelClearOverlay.style.display = 'none';
@@ -1277,6 +1314,8 @@ function triggerLevelClear() {
 
 function triggerGameOver() {
   gameRunning = false;
+  isPaused = false;
+  pauseBtn.style.display = 'none';
   input.disable();
   inputDisabled = true;
   state.timerActive = false;
@@ -1324,7 +1363,7 @@ function gameLoop(ts) {
   lastTs = ts;
   const dt = Math.min(rawDt, 0.1);
   
-  if (gameRunning) {
+  if (gameRunning && !isPaused) {
     updateTimer(dt);
     
     if (!activeFiend && !inputDisabled) {
@@ -1420,6 +1459,8 @@ function gameLoop(ts) {
   renderer.drawComboFrame(getComboFrameBand(state.combo), ts);
 
   hud.draw();
+
+  if (isPaused) renderer.drawBanner('PAUSED');
 }
 
 function handleUrlAuthTokens() {
