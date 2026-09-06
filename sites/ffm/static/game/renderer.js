@@ -71,14 +71,41 @@ export class Renderer {
     this._tick  = 0;
     this._bgImage = new Image();
     this._fallbackBgImage = new Image();
-    this._fallbackBgImage.src = FALLBACK_BG_SRC;
+    // Only load the fallback (a generic, unbranded scene not used by any
+    // stage — see background.png) if the real per-stage image actually
+    // fails, not eagerly alongside it. Both used to start loading in the
+    // constructor at once, and since network/decode timing is a race,
+    // background.png could finish first and flash on screen as the
+    // "wrong"/unused picture before stage-1.png replaced it. Until the real
+    // image loads, drawBackground()'s solid-color rect covers the gap
+    // instead.
+    this._bgImage.addEventListener('error', () => {
+      if (!this._fallbackBgImage.src) this._fallbackBgImage.src = FALLBACK_BG_SRC;
+    });
     this._bgImage.src = STAGE_BG_SOURCES[0];
     this._stageIndex = 0;
-    // DOM overlay for the pulsating combo-ability border. It sits above both
-    // the canvas HUD bar (top) and the #input-zone panel (bottom), which
-    // otherwise paint over a border drawn onto the canvas itself, making it
-    // visible on left/right only. See index.html/styles.css for #combo-frame.
+    // DOM overlay for the pulsating combo-ability border. It sits above the
+    // canvas HUD bar (top), which otherwise paints over a border drawn onto
+    // the canvas itself, making it visible on left/right only. See
+    // index.html/styles.css for #combo-frame.
     this._comboFrameEl = canvas.parentElement && canvas.parentElement.querySelector('#combo-frame');
+    // The frame's bottom edge should end where the game background art
+    // actually ends — i.e. at the top of #input-zone, not the bottom of the
+    // whole game-wrap — since #input-zone's own opaque panel (and its
+    // height, which varies between the multiple-choice buttons and
+    // free-text layouts) already covers everything below that. Kept in
+    // sync via ResizeObserver rather than a one-off read, since orientation
+    // changes / viewport resizes / input-mode switches can all change it.
+    const inputZoneEl = canvas.parentElement && canvas.parentElement.querySelector('#input-zone');
+    if (this._comboFrameEl && inputZoneEl) {
+      const syncBottom = () => { this._comboFrameEl.style.bottom = inputZoneEl.offsetHeight + 'px'; };
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(syncBottom).observe(inputZoneEl);
+      } else {
+        syncBottom();
+        window.addEventListener('resize', syncBottom);
+      }
+    }
   }
 
   clear() {
@@ -93,10 +120,11 @@ export class Renderer {
   // which ability is "charged" before it actually fires.
   //
   // Drawn as a DOM overlay (#combo-frame) rather than onto the canvas: the
-  // HUD bar (top) and the #input-zone panel (bottom) are painted over the
-  // canvas edges, so a border stroked directly on the canvas is only ever
-  // visible on the left/right. The overlay sits above both, so all four
-  // sides pulse.
+  // HUD bar (top) is painted over the canvas edges, so a border stroked
+  // directly on the canvas is only ever visible on the left/right. The
+  // overlay sits above it, and stops at the top of #input-zone (see the
+  // ResizeObserver in the constructor), so it frames the background art
+  // exactly, on all four sides.
   drawComboFrame(band, ts) {
     const el = this._comboFrameEl;
     if (!el) return;
@@ -107,11 +135,11 @@ export class Renderer {
     }
     const pulse = (Math.sin(ts / 220) + 1) / 2; // 0..1
     const alpha = 0.35 + pulse * 0.45;
-    const thickness = 6 + pulse * 6;
+    const thickness = 3 + pulse * 3;
     el.style.opacity = String(alpha);
     el.style.borderWidth = thickness + 'px';
     el.style.borderColor = color;
-    el.style.boxShadow = `0 0 ${12 + pulse * 12}px ${color} inset, 0 0 ${12 + pulse * 12}px ${color}`;
+    el.style.boxShadow = `0 0 ${6 + pulse * 6}px ${color} inset, 0 0 ${6 + pulse * 6}px ${color}`;
   }
 
   setBackgroundByLevel(levelNumber) {

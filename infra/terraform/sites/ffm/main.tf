@@ -203,6 +203,17 @@ module "site" {
     origin_path = "/prod"
   }
 
+  # Overrides the module's same-origin-only default: this site embeds
+  # Cloudflare Turnstile (see app/captcha.py, static/game/main.js) to guard
+  # register/forgot-password/resend-verification. Turnstile's docs
+  # (developers.cloudflare.com/turnstile/reference/content-security-policy/)
+  # require both script-src and frame-src to allow challenges.cloudflare.com
+  # — script-src alone lets api.js load but its iframe still gets blocked.
+  # Without this, the browser silently blocks api.js entirely, the widget
+  # never renders/produces a token, and the backend (which fails closed on
+  # a missing token) rejects every real user's request, not just bots'.
+  content_security_policy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
   tags = local.tags
 }
 

@@ -47,13 +47,21 @@ body {
   image-rendering: crisp-edges;
 }
 
-/* Pulsating combo-ability border. Sits above #input-zone (which otherwise
-   covers the bottom edge of the canvas) so the frame is visible on all four
-   sides, not just left/right. Color/width/opacity are driven per-frame from
-   renderer.js drawComboFrame() to stay in sync with the canvas pulse. */
+/* Pulsating combo-ability border. Sits above the canvas HUD bar (which
+   otherwise covers the top edge of the canvas) so the frame is visible on
+   all four sides, not just left/right. `bottom` is kept in sync with
+   #input-zone's rendered height by renderer.js (its constructor's
+   ResizeObserver), so the frame's south edge ends where the background art
+   ends instead of running behind the input panel; the 0px default here only
+   matters for the brief instant before that JS runs. Color/width/opacity
+   are driven per-frame from renderer.js drawComboFrame() to stay in sync
+   with the canvas pulse. */
 #combo-frame {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 21;
   pointer-events: none;
   box-sizing: border-box;
