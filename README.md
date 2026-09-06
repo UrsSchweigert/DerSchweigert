@@ -168,6 +168,13 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   (`var.content_security_policy`) assumes same-origin-only assets with no
   external CDNs/fonts and allows inline `style="..."` attributes but not
   inline `<script>`; override the variable per-site if that stops being true.
+  FFM does exactly this in `infra/terraform/sites/ffm/main.tf` (`module
+  "site"`'s `content_security_policy`), adding `https://challenges.cloudflare.com`
+  to `script-src`/`frame-src` for the Cloudflare Turnstile CAPTCHA widget (see
+  `sites/ffm/README.md`'s CAPTCHA section) — without it the browser silently
+  blocks Turnstile's script, so the widget never renders/produces a token and
+  the backend (which fails closed) rejects every register/forgot-password/
+  resend-verification request, not just bots'.
 - **Env file**: `app/config.py`'s `BASE_DIR` resolves relative to the `app/`
   package, so each site's `.env` must live at `sites/<name>/.env`, not the repo
   root.
