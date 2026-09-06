@@ -674,6 +674,12 @@ export class Hero extends Entity {
 
 // ─── Fiend base ───────────────────────────────────────────────────────────────
 const F_FRM = { walk:4, idle:2, attack:3, hit:2, death:5, reveal:1, retreat:4 };
+const FIEND_EXIT_X = CANVAS_W + 100;
+// Retreating fiends (after hitting the hero / a wrong answer) must always
+// clear the screen within this many seconds, no matter how slow the level's
+// walk-in speed was — otherwise a fiend on an easy (long-timer) level can
+// crawl off-screen for close to 10s.
+const RETREAT_MAX_SECONDS = 3;
 
 export class Fiend extends Entity {
   constructor(x, y, cfg) {
@@ -681,6 +687,7 @@ export class Fiend extends Entity {
     this.hp = cfg.hp;
     this._pal = cfg.palette;
     this.walkSpeed = 50;
+    this._retreatSpeed = this.walkSpeed * 2;
     this.problem = null;
     this.wasRequeued = false;
     this._redFlash = 0;
@@ -694,13 +701,23 @@ export class Fiend extends Entity {
   }
 
   get isDead() { return this.hp <= 0; }
-  // Retreat is always twice the fiend's current walk speed (which itself varies
-  // by difficulty/timer), so a fiend that walked in fast also flees out fast.
-  get retreatSpeed() { return this.walkSpeed * 2; }
+  // Fixed once retreat begins (see setState), so the pace stays constant for
+  // the whole flight off-screen instead of drifting with the fiend's walk speed.
+  get retreatSpeed() { return this._retreatSpeed; }
   hit() { this.hp-- > 1 ? this.setState('hit') : this.setState('death'); }
   attack() { this.setState('attack'); }
   on(ev, fn) { this._events.addEventListener(ev, fn); }
   _emit(ev) { this._events.dispatchEvent(new Event(ev)); }
+
+  setState(s) {
+    super.setState(s);
+    if (s === 'retreat') {
+      const distance = Math.max(1, FIEND_EXIT_X - this.x);
+      // Never slower than the old 2x-walk-speed pace, but always fast enough
+      // to finish within RETREAT_MAX_SECONDS.
+      this._retreatSpeed = Math.max(this.walkSpeed * 2, distance / RETREAT_MAX_SECONDS);
+    }
+  }
 
   update(dt) {
     super.update(dt);
@@ -710,7 +727,7 @@ export class Fiend extends Entity {
     }
     if (this._state === 'retreat') {
       this.x += this.retreatSpeed * dt;
-      if (this.x > CANVAS_W + 100) this._emit('retreated');
+      if (this.x > FIEND_EXIT_X) this._emit('retreated');
     }
     if (this._redFlash > 0) this._redFlash -= dt;
     this._particles = this._particles.filter(p => p.life > 0);
