@@ -255,6 +255,15 @@ export class AudioEngine {
     this._bgmAudio.currentTime = 0;
   }
 
+  pauseBGM() {
+    this._bgmAudio.pause();
+  }
+
+  resumeBGM() {
+    if (this._muted) return;
+    this._bgmAudio.play().catch(() => {});
+  }
+
   get muted() {
     return this._muted;
   }

@@ -8,6 +8,7 @@ import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
 import { api } from './api.js';
 import { getFiendClass, sampleFiendClassId } from './difficulty-classes.js';
+import { computeDragonPathBaselineScore } from './level-baseline-score.js';
 import { pickComboAbility, getComboFrameBand } from './combo-abilities.js';
 import {
   FIEND_ENTRY_TRIGGER_X,
@@ -145,6 +146,7 @@ let state = {
 
 // --- DOM refs ---
 const canvas = document.getElementById('game');
+const pauseOverlay = document.getElementById('pause-overlay');
 const levelClearOverlay = document.getElementById('level-clear');
 const levelClearTitle = document.getElementById('level-clear-title');
 const levelClearScore = document.getElementById('level-clear-score');
@@ -177,6 +179,8 @@ const leaderboardPersonalBest = document.getElementById('leaderboard-personal-be
 const scoreHistoryChart = document.getElementById('score-history-chart');
 const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
 const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
+const levelJumpRow = document.getElementById('level-jump-row');
+const levelJumpSelect = document.getElementById('level-jump-select');
 
 const accountModal = document.getElementById('account-modal');
 const closeAccount = document.getElementById('close-account');
@@ -238,6 +242,7 @@ let questionStartTime = 0;
 let inputDisabled = false;
 let pendingProblemActivation = null;
 let gameRunning = false;
+let paused = false;
 let currentLevelIndex = 0;
 let levelStartScore = 0;
 let activeLightningBolts = [];
@@ -407,6 +412,20 @@ function renderScoreHistory(historyResponse, container) {
   container.style.display = '';
 }
 
+function renderLevelJumpOptions(profile) {
+  const scores = profile && profile.scores ? profile.scores : [];
+  const levels = [...new Set(scores.map((s) => s.level))].sort((a, b) => a - b);
+  if (levels.length === 0) {
+    levelJumpRow.style.display = 'none';
+    levelJumpSelect.innerHTML = '<option value="">Start from Level 1</option>';
+    return;
+  }
+  const options = ['<option value="">Start from Level 1</option>']
+    .concat(levels.map((lvl) => `<option value="${lvl}">Level ${lvl}</option>`));
+  levelJumpSelect.innerHTML = options.join('');
+  levelJumpRow.style.display = '';
+}
+
 function renderLeaderboard(entries) {
   if (!entries || entries.length === 0) {
     leaderboardList.innerHTML = '<li>No high scores yet.</li>';
@@ -463,6 +482,7 @@ async function refreshProfileAndLeaderboard() {
     currentProfile = null;
     renderPersonalBest(null, leaderboardPersonalBest);
     renderScoreHistory(null, scoreHistoryChart);
+    renderLevelJumpOptions(null);
     leaderboardProfilePrompt.style.display = 'none';
     leaderboardCompleteProfile.style.display = 'none';
     return;
@@ -471,6 +491,7 @@ async function refreshProfileAndLeaderboard() {
   try {
     currentProfile = await api.getProfile();
     renderPersonalBest(currentProfile, leaderboardPersonalBest);
+    renderLevelJumpOptions(currentProfile);
     const year = currentProfile?.user?.first_grade_year;
     if (year === null || year === undefined) {
       leaderboardProfilePrompt.textContent = 'Add your first grade year in profile to join year groups.';
@@ -533,10 +554,13 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
     state.timerRemaining = state.timerMax;
     state.maxHearts = parseInt(btn.dataset.hearts);
     state.hearts = state.maxHearts;
-    state.score = 0;
-    levelStartScore = 0;
+    const jumpValue = levelJumpSelect.value;
+    const targetLevel = jumpValue ? parseInt(jumpValue, 10) : 1;
+    const targetIndex = targetLevel - 1;
+    state.score = computeDragonPathBaselineScore(targetLevel);
+    levelStartScore = state.score;
     diffSelect.style.display = 'none';
-    startLevel(0);
+    startLevel(targetIndex);
   });
 });
 
@@ -913,12 +937,41 @@ function startLevel(levelIndex) {
   spawnTimer = 2.0;
   state.combo = 0;
   gameRunning = true;
+  paused = false;
+  pauseOverlay.style.display = 'none';
   topBar.style.display = 'none';
   levelClearOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
   hud.update(state);
   audio.startBGM(cfg.chapter);
   if (!animFrameId) gameLoop(performance.now());
+}
+
+canvas.addEventListener('click', () => {
+  if (paused) {
+    resumeGame();
+  } else if (gameRunning) {
+    pauseGame();
+  }
+});
+
+function pauseGame() {
+  if (paused || !gameRunning) return;
+  paused = true;
+  pauseOverlay.style.display = 'flex';
+  input.disable();
+  audio.pauseBGM();
+}
+
+function resumeGame() {
+  if (!paused) return;
+  paused = false;
+  pauseOverlay.style.display = 'none';
+  audio.resumeBGM();
+  if (activeFiend && state.timerActive) {
+    const cfg = LevelConfig[state.level - 1];
+    input.enable(cfg.inputMode);
+  }
 }
 
 // Only one fiend on screen at a time; gap kept for requeue safety
@@ -1248,6 +1301,9 @@ function triggerLevelClear() {
 
   const completedLevelNum = state.level;          // 1-based display number
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
+  if (api.isLoggedIn) {
+    api.postLevelScore(completedLevelNum, state.score - levelStartScore, state.difficulty).catch(() => {});
+  }
   levelClearTitle.textContent = `Level ${completedLevelNum} Clear!`;
   levelClearScore.textContent = `Score: ${state.score}`;
   topBar.style.display = 'flex';
@@ -1324,7 +1380,7 @@ function gameLoop(ts) {
   lastTs = ts;
   const dt = Math.min(rawDt, 0.1);
   
-  if (gameRunning) {
+  if (gameRunning && !paused) {
     updateTimer(dt);
     
     if (!activeFiend && !inputDisabled) {

@@ -75,6 +75,12 @@
         <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none">Complete profile</button>
         <ol id="leaderboard-list" class="leaderboard-list"></ol>
       </section>
+      <div id="level-jump-row" class="level-jump-row" style="display:none">
+        <label for="level-jump-select">Jump to a level you've already cleared:</label>
+        <select id="level-jump-select">
+          <option value="">Start from Level 1</option>
+        </select>
+      </div>
       <div class="splash-diff-buttons">
         <button class="diff-btn splash-diff-btn" data-difficulty="easy" data-timer="15" data-hearts="7">
           <span class="diff-label">Easy</span>
@@ -218,6 +224,13 @@
       <p id="game-over-score"></p>
       <button class="diff-btn" id="btn-retry-level">Try This Level Again</button>
       <button class="diff-btn" id="btn-return-title">Return to Title</button>
+    </div>
+  </div>
+
+  <div id="pause-overlay" class="overlay" style="display:none">
+    <div class="overlay-card">
+      <h2>Paused</h2>
+      <p>Tap the play area to resume</p>
     </div>
   </div>
 

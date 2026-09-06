@@ -212,6 +212,15 @@ export const api = {
     return res.json();
   },
 
+  async postLevelScore(level, score, difficulty) {
+    const res = await this._fetch('/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, score, difficulty })
+    });
+    return res.json();
+  },
+
   async getLeaderboard(firstGradeYear) {
     const path = firstGradeYear ? '/leaderboard?first_grade_year=' + firstGradeYear : '/leaderboard';
     const res = await this._fetch(path);
