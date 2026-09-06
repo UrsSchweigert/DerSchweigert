@@ -135,8 +135,11 @@ def set_email_verified(username, verified):
 
 
 def delete_user(username):
-    """Permanently delete a user's account: the PROFILE item, its EMAIL#
-    lock, and every score item (HIGHSCORE, LEVEL#*, HIST#*). Raises
+    """Permanently delete a user's account: every score item (HIGHSCORE,
+    LEVEL#*, HIST#*), the PROFILE item, and its EMAIL# lock — deleted in
+    that order so a mid-way failure (e.g. a transient DynamoDB error)
+    leaves the account still intact/usable rather than half-deleted (profile
+    gone but orphaned scores left behind, or vice versa). Raises
     ValueError('not_found') if the account doesn't exist. Outstanding
     verify/reset/change-email TOKEN# items are intentionally left alone —
     they're keyed by token hash (not username), so finding them would
@@ -146,9 +149,6 @@ def delete_user(username):
     user = get_user(username)
     if user is None:
         raise ValueError('not_found')
-
-    _users().delete_item(Key={'pk': f'USER#{username}', 'sk': 'PROFILE'})
-    _users().delete_item(Key={'pk': f'EMAIL#{user["email"]}', 'sk': 'REF'})
 
     scores = _scores()
     resp = scores.query(KeyConditionExpression=Key('pk').eq(f'USER#{username}'))
@@ -163,6 +163,9 @@ def delete_user(username):
     with scores.batch_writer() as batch:
         for item in items:
             batch.delete_item(Key={'pk': item['pk'], 'sk': item['sk']})
+
+    _users().delete_item(Key={'pk': f'USER#{username}', 'sk': 'PROFILE'})
+    _users().delete_item(Key={'pk': f'EMAIL#{user["email"]}', 'sk': 'REF'})
 
 
 def set_password_hash(username, password_hash):

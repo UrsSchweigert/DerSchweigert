@@ -156,6 +156,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         "dynamodb:DeleteItem",
         "dynamodb:Query",
         "dynamodb:Scan",
+        "dynamodb:BatchWriteItem",
       ]
       Resource = [
         aws_dynamodb_table.users.arn,
