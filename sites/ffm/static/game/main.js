@@ -15,6 +15,22 @@ import {
   getProblemTimerRemaining,
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
+import { CookieConsent } from './cookie-consent.js';
+
+// The page's CSP is `script-src 'self' https://challenges.cloudflare.com`
+// with no 'unsafe-inline'/nonce, so an inline <script type="module"> in
+// index.html would be silently blocked by the browser and never run at
+// all (window.ffmCookieConsent would stay undefined, the banner would
+// never show, and Turnstile would never load). Wiring it up here instead,
+// in a same-origin file loaded via <script src>, is what actually executes.
+window.ffmCookieConsent = new CookieConsent();
+window.ffmCookieConsent.init();
+document.getElementById('cookie-accept')?.addEventListener('click', () => {
+  window.ffmCookieConsent.accept();
+});
+document.getElementById('cookie-decline')?.addEventListener('click', () => {
+  window.ffmCookieConsent.decline();
+});
 
 // ─── Tunable game-event constants (edit here to adjust game feel) ─────────────
 const GAME_CONFIG = {

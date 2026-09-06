@@ -90,7 +90,7 @@
         </button>
       </div>
       <p class="splash-legal-links">
-        <a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a> · <a href="impressum.en.html">English</a>
+        <a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a>
       </p>
     </div>
   </div>
@@ -221,19 +221,6 @@
     </div>
   </div>
 
-  <script type="module">
-    import { CookieConsent } from './game/cookie-consent.js';
-    window.ffmCookieConsent = new CookieConsent();
-    window.ffmCookieConsent.init();
-    
-    // Wire up cookie banner buttons
-    document.getElementById('cookie-accept')?.addEventListener('click', () => {
-      window.ffmCookieConsent.accept();
-    });
-    document.getElementById('cookie-decline')?.addEventListener('click', () => {
-      window.ffmCookieConsent.decline();
-    });
-  </script>
   <script type="module" src="game/main.js"></script>
 </body>
 </html>

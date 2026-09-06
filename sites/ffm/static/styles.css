@@ -922,6 +922,33 @@ form button:focus {
 }
 
 /* ── Legal pages (impressum, datenschutz) ──────────────────── */
+/* The game's global `html`/`body` rules (top of this file) fix the
+   viewport to exactly 100% with overflow:hidden and center a fixed-size
+   canvas — perfect for the game screen, but it also silently applied to
+   these plain-scrolling document pages, clipping content top/bottom with
+   no way to scroll and vertically centering it instead of starting at
+   the top. `body.legal-body` (set on these pages only) overrides that. */
+body.legal-body {
+  display: block;
+  align-items: initial;
+  justify-content: initial;
+  /* Match html's fixed 100% height (not auto/min-height) so this element
+     is itself a bounded scroll container — its own overflow-y:auto only
+     takes effect on a constrained box, and html above still has
+     overflow:hidden from the game rules, so this is what actually makes
+     the page scrollable rather than clipped. */
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+html:has(body.legal-body) {
+  height: auto;
+  min-height: 100%;
+  overflow-y: auto;
+}
+
 .legal-page {
   background: #0a0a1a;
   color: #f0f0f0;
