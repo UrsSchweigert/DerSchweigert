@@ -255,17 +255,6 @@ export class AudioEngine {
     this._bgmAudio.currentTime = 0;
   }
 
-  // Pause BGM playback in place (keeps currentTime) so it can resume later.
-  pauseBGM() {
-    this._bgmAudio.pause();
-  }
-
-  // Resume BGM playback from where it was paused.
-  resumeBGM() {
-    if (this._muted) return;
-    this._bgmAudio.play().catch(() => {});
-  }
-
   get muted() {
     return this._muted;
   }
