@@ -110,18 +110,30 @@ module "api" {
 
   environment_variables = {
     APP_ENV                   = "production"
-    APP_DOMAIN                 = local.domain
-    CANONICAL_HOST             = local.www_domain
-    SITE_URL                   = "https://${local.www_domain}"
-    CONTACT_EMAIL              = "hello@${local.domain}"
-    ADMIN_PIN                  = "3009"
-    ADMIN_COOKIE_NAME          = "ams_pin"
+    APP_DOMAIN                = local.domain
+    CANONICAL_HOST            = local.www_domain
+    SITE_URL                  = "https://${local.www_domain}"
+    CONTACT_EMAIL             = "hello@${local.domain}"
+    ADMIN_PIN                 = "3009"
+    ADMIN_COOKIE_NAME         = "ams_pin"
     GITHUB_CONTACT_REPOSITORY = "UrsSchweigert/DerSchweigert"
     GITHUB_CONTACT_SECRET_ARN = aws_secretsmanager_secret.github_contact_token.arn
   }
 
-  secret_arns          = [aws_secretsmanager_secret.github_contact_token.arn]
-  secrets_policy_name  = "${local.app_name}-github-contact"
+  secret_arns         = [aws_secretsmanager_secret.github_contact_token.arn]
+  secrets_policy_name = "${local.app_name}-github-contact"
+
+  tags = local.tags
+}
+
+module "email_forwarding" {
+  source = "../../modules/email_forwarding"
+
+  domain           = local.domain
+  route53_zone_id  = data.aws_route53_zone.primary.zone_id
+  recipient_email  = "info@${local.domain}"
+  forward_to_email = "urs.schweigert@outlook.com"
+  aws_region       = var.aws_region
 
   tags = local.tags
 }
@@ -134,12 +146,12 @@ module "site" {
     aws.us_east_1 = aws.us_east_1
   }
 
-  app_name            = local.app_name
-  domain              = local.domain
-  additional_aliases  = [local.www_domain]  # ffm gets its own dedicated stack
-  route53_zone_id                  = data.aws_route53_zone.primary.zone_id
-  viewer_request_function_code     = local.pin_lock_function_code
-  viewer_request_function_comment  = "Block access until a valid PIN cookie is present"
+  app_name                        = local.app_name
+  domain                          = local.domain
+  additional_aliases              = [local.www_domain] # ffm gets its own dedicated stack
+  route53_zone_id                 = data.aws_route53_zone.primary.zone_id
+  viewer_request_function_code    = local.pin_lock_function_code
+  viewer_request_function_comment = "Block access until a valid PIN cookie is present"
 
   api_origin = {
     origin_id   = "api-origin"
