@@ -140,6 +140,7 @@
         <button id="tab-account-profile" class="tab-btn active">Profile</button>
         <button id="tab-account-password" class="tab-btn">Password</button>
         <button id="tab-account-scores" class="tab-btn">High Scores</button>
+        <button id="tab-account-danger" class="tab-btn">Delete Account</button>
       </div>
 
       <div id="account-profile-panel">
@@ -167,6 +168,19 @@
       <div id="account-scores-panel" style="display:none">
         <p id="account-personal-best" class="leaderboard-personal-best" style="display:none"></p>
         <div id="account-score-history-chart" class="score-history-chart" style="display:none"></div>
+      </div>
+
+      <div id="account-danger-panel" style="display:none">
+        <form id="account-delete-form">
+          <p class="danger-warning">Deleting your account is permanent and cannot be undone. All your scores and profile data will be erased immediately.</p>
+          <input id="account-delete-password" type="password" placeholder="Current password" autocomplete="current-password">
+          <label class="danger-confirm-check">
+            <input type="checkbox" id="account-delete-confirm-checkbox">
+            I understand this cannot be undone.
+          </label>
+          <button type="submit" id="account-delete-submit" class="danger-btn">Delete my account permanently</button>
+          <p id="account-delete-message" class="error-msg"></p>
+        </form>
       </div>
     </div>
   </div>

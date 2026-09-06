@@ -167,9 +167,11 @@ const closeAccount = document.getElementById('close-account');
 const tabAccountProfile = document.getElementById('tab-account-profile');
 const tabAccountPassword = document.getElementById('tab-account-password');
 const tabAccountScores = document.getElementById('tab-account-scores');
+const tabAccountDanger = document.getElementById('tab-account-danger');
 const accountProfilePanel = document.getElementById('account-profile-panel');
 const accountPasswordPanel = document.getElementById('account-password-panel');
 const accountScoresPanel = document.getElementById('account-scores-panel');
+const accountDangerPanel = document.getElementById('account-danger-panel');
 const accountProfileForm = document.getElementById('account-profile-form');
 const accountCurrentEmailDisplay = document.getElementById('account-current-email-display');
 const accountPendingEmailNote = document.getElementById('account-pending-email-note');
@@ -184,6 +186,11 @@ const accountConfirmNewPassword = document.getElementById('account-confirm-new-p
 const accountPasswordMessage = document.getElementById('account-password-message');
 const accountPersonalBest = document.getElementById('account-personal-best');
 const accountScoreHistoryChart = document.getElementById('account-score-history-chart');
+const accountDeleteForm = document.getElementById('account-delete-form');
+const accountDeletePassword = document.getElementById('account-delete-password');
+const accountDeleteConfirmCheckbox = document.getElementById('account-delete-confirm-checkbox');
+const accountDeleteSubmit = document.getElementById('account-delete-submit');
+const accountDeleteMessage = document.getElementById('account-delete-message');
 
 const forgotPasswordLink = document.getElementById('forgot-password-link');
 const forgotPasswordForm = document.getElementById('forgot-password-form');
@@ -694,8 +701,8 @@ closeAccount.addEventListener('click', () => {
 });
 
 function showAccountTab(tabBtn, panel) {
-  [accountProfilePanel, accountPasswordPanel, accountScoresPanel].forEach(p => { p.style.display = 'none'; });
-  [tabAccountProfile, tabAccountPassword, tabAccountScores].forEach(t => t.classList.remove('active'));
+  [accountProfilePanel, accountPasswordPanel, accountScoresPanel, accountDangerPanel].forEach(p => { p.style.display = 'none'; });
+  [tabAccountProfile, tabAccountPassword, tabAccountScores, tabAccountDanger].forEach(t => t.classList.remove('active'));
   panel.style.display = '';
   tabBtn.classList.add('active');
 }
@@ -703,6 +710,12 @@ function showAccountTab(tabBtn, panel) {
 tabAccountProfile.addEventListener('click', () => showAccountTab(tabAccountProfile, accountProfilePanel));
 tabAccountPassword.addEventListener('click', () => showAccountTab(tabAccountPassword, accountPasswordPanel));
 tabAccountScores.addEventListener('click', () => showAccountTab(tabAccountScores, accountScoresPanel));
+tabAccountDanger.addEventListener('click', () => {
+  accountDeleteForm.reset();
+  accountDeleteMessage.classList.remove('success-msg');
+  accountDeleteMessage.textContent = '';
+  showAccountTab(tabAccountDanger, accountDangerPanel);
+});
 
 async function populateAccountModal() {
   accountProfileMessage.textContent = '';
@@ -795,6 +808,47 @@ accountPasswordForm.addEventListener('submit', async e => {
     accountPasswordMessage.textContent = err.message;
   }
 });
+
+// Deleting an account requires: the checkbox acknowledgement (button stays
+// disabled without it), the current password, and a final native confirm()
+// dialog — three independent confirmations for an irreversible action.
+accountDeleteConfirmCheckbox.addEventListener('change', () => {
+  accountDeleteSubmit.disabled = !accountDeleteConfirmCheckbox.checked;
+});
+accountDeleteSubmit.disabled = true;
+
+accountDeleteForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  accountDeleteMessage.classList.remove('success-msg');
+  accountDeleteMessage.textContent = '';
+
+  if (!accountDeleteConfirmCheckbox.checked) {
+    accountDeleteMessage.textContent = 'Please confirm you understand this cannot be undone.';
+    return;
+  }
+  const password = accountDeletePassword.value;
+  if (!password) {
+    accountDeleteMessage.textContent = 'Enter your current password.';
+    return;
+  }
+  if (!window.confirm('This will permanently delete your account and all your scores. This cannot be undone. Continue?')) {
+    return;
+  }
+
+  try {
+    await api.deleteAccount(password);
+    accountModal.style.display = 'none';
+    accountDeleteForm.reset();
+    accountDeleteSubmit.disabled = true;
+    applyAuthUIState();
+    loginError.textContent = 'Your account has been deleted.';
+    showAuthForm(loginForm);
+  } catch (err) {
+    accountDeleteMessage.classList.remove('success-msg');
+    accountDeleteMessage.textContent = err.message;
+  }
+});
+
 muteBtn.addEventListener('click', () => {
   audio.toggleMute();
   muteBtn.textContent = audio.muted ? '🔇' : '🔊';
@@ -1371,6 +1425,15 @@ function handleUrlAuthTokens() {
 }
 
 handleUrlAuthTokens();
+
+// Show a loading placeholder immediately so the leaderboard section never
+// looks empty/broken while the first network round-trip is in flight, and
+// kick off the leaderboard fetch right away rather than waiting on
+// api.refresh() to settle first — the leaderboard doesn't need auth, so
+// serializing it behind the refresh round-trip only doubles the wait
+// (each hop can also hit a cold Lambda) before anything is shown.
+leaderboardList.innerHTML = '<li>Loading leaderboard…</li>';
+refreshProfileAndLeaderboard();
 
 api.refresh()
   .catch(() => false)

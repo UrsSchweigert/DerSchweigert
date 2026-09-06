@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app, abort
+from flask import Blueprint, request, jsonify, make_response, current_app, abort
 import bcrypt
 import sys
 import jwt
@@ -7,7 +7,7 @@ from .models import (
     CHANGE_EMAIL_TTL_SECONDS,
     get_user, update_user_first_grade_year,
     get_user_by_email, set_password_hash, set_pending_email,
-    create_token,
+    create_token, delete_user,
     get_level_scores, put_level_score,
     get_high_score, put_high_score,
     put_score_history, get_score_history,
@@ -144,6 +144,34 @@ def update_email():
         print(f"send_email_change_confirmation failed for {username}: {exc}", file=sys.stderr)
 
     return jsonify({"pending_email": new_email}), 200
+
+
+@main_bp.route('/profile', methods=['DELETE'])
+def delete_account():
+    """Permanently delete the caller's account. Requires the current
+    password as a second confirmation factor (beyond whatever the frontend
+    already asks), same pattern as changing password/email."""
+    username = require_auth()
+    user = get_user(username)
+    if not user:
+        abort(404)
+
+    data = request.get_json(silent=True) or {}
+    current_password = data.get('current_password', '')
+    if not bcrypt.checkpw(current_password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+        return jsonify({"error": "Invalid current password"}), 401
+
+    delete_user(username)
+
+    # Clear the refresh cookie too, so the deleted session can't be used to
+    # silently mint a fresh access token via /auth/refresh.
+    response = make_response(jsonify({"ok": True}), 200)
+    response.set_cookie(
+        "refresh_token", "",
+        max_age=0, expires=0,
+        httponly=True, secure=True, samesite='Strict',
+    )
+    return response
 
 
 @main_bp.route('/score', methods=['POST'])

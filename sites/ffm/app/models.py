@@ -134,6 +134,37 @@ def set_email_verified(username, verified):
     )
 
 
+def delete_user(username):
+    """Permanently delete a user's account: the PROFILE item, its EMAIL#
+    lock, and every score item (HIGHSCORE, LEVEL#*, HIST#*). Raises
+    ValueError('not_found') if the account doesn't exist. Outstanding
+    verify/reset/change-email TOKEN# items are intentionally left alone —
+    they're keyed by token hash (not username), so finding them would
+    require a full table scan, and consume_token already rejects them once
+    expired; a token for a deleted account simply becomes unusable in
+    practice since the routes that consume it re-check get_user first."""
+    user = get_user(username)
+    if user is None:
+        raise ValueError('not_found')
+
+    _users().delete_item(Key={'pk': f'USER#{username}', 'sk': 'PROFILE'})
+    _users().delete_item(Key={'pk': f'EMAIL#{user["email"]}', 'sk': 'REF'})
+
+    scores = _scores()
+    resp = scores.query(KeyConditionExpression=Key('pk').eq(f'USER#{username}'))
+    items = resp.get('Items', [])
+    while 'LastEvaluatedKey' in resp:
+        resp = scores.query(
+            KeyConditionExpression=Key('pk').eq(f'USER#{username}'),
+            ExclusiveStartKey=resp['LastEvaluatedKey'],
+        )
+        items.extend(resp.get('Items', []))
+
+    with scores.batch_writer() as batch:
+        for item in items:
+            batch.delete_item(Key={'pk': item['pk'], 'sk': item['sk']})
+
+
 def set_password_hash(username, password_hash):
     """Overwrite the stored bcrypt hash (used by /profile/password and /auth/reset-password)."""
     _users().update_item(

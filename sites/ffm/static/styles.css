@@ -731,6 +731,35 @@ form button:focus {
   margin: 0 0 8px 0;
 }
 
+.danger-warning {
+  color: #ff8080;
+  font-size: 13px;
+  margin: 0 0 4px 0;
+}
+
+.danger-confirm-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #d0d0d0;
+  cursor: pointer;
+}
+
+.danger-btn {
+  background: #a02020;
+}
+
+.danger-btn:hover {
+  background: #c03030;
+}
+
+.danger-btn:disabled {
+  background: #4a2a2a;
+  color: #a08080;
+  cursor: not-allowed;
+}
+
 .link-btn {
   background: transparent;
   border: none;

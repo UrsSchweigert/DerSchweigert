@@ -170,6 +170,10 @@ resource "aws_iam_role_policy" "lambda_ses" {
   name = "ffm-lambda-ses-access"
   role = module.api.lambda_role_name
 
+  # SES authorizes SendEmail against *both* the sending identity and the
+  # configuration-set resource named in the request (app/mailer.py always
+  # passes ConfigurationSetName). Granting only the identity ARN causes
+  # every send to fail with AccessDenied once a configuration set is used.
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -178,7 +182,10 @@ resource "aws_iam_role_policy" "lambda_ses" {
         "ses:SendEmail",
         "ses:SendRawEmail",
       ]
-      Resource = aws_ses_domain_identity.ffm.arn
+      Resource = [
+        aws_ses_domain_identity.ffm.arn,
+        aws_ses_configuration_set.ffm_transactional.arn,
+      ]
     }]
   })
 }

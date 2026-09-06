@@ -189,6 +189,20 @@ export const api = {
     return data;
   },
 
+  async deleteAccount(currentPassword) {
+    const res = await this._fetch('/profile', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: currentPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to delete account');
+    }
+    _accessToken = null;
+    return data;
+  },
+
   async postHighScore(score) {
     const res = await this._fetch('/high-score', {
       method: 'POST',

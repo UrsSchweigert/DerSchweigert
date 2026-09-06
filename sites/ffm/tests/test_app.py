@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import boto3
+from boto3.dynamodb.conditions import Key
 from moto import mock_aws
 from unittest.mock import patch
 
@@ -954,6 +955,80 @@ def test_confirm_email_change_invalid_token(client):
     r = client.post('/api/auth/confirm-email-change', json={"token": "garbage"})
     assert r.status_code == 400
     assert r.get_json()['error'] == 'invalid_or_expired_token'
+
+
+def test_delete_account_wrong_password(client):
+    """Wrong current password should return 401 and leave the account intact."""
+    headers = register_and_login(client, "delwrongpw", "delwrongpw@example.com", "password123")
+
+    r = client.delete('/api/profile', json={"current_password": "wrongpass"}, headers=headers)
+    assert r.status_code == 401
+    assert r.get_json()['error'] == 'Invalid current password'
+
+    # Account should still be usable
+    profile = client.get('/api/profile', headers=headers)
+    assert profile.status_code == 200
+
+
+def test_delete_account_unauthenticated(client):
+    """Unauthenticated request to DELETE /profile should return 401."""
+    r = client.delete('/api/profile', json={"current_password": "whatever"})
+    assert r.status_code == 401
+
+
+def test_delete_account_success_removes_profile_and_frees_username_and_email(client):
+    """Successful deletion should remove the profile, clear the refresh
+    cookie, and free up both the username and email for reuse."""
+    headers = register_and_login(client, "deluser", "deluser@example.com", "password123")
+
+    r = client.delete('/api/profile', json={"current_password": "password123"}, headers=headers)
+    assert r.status_code == 200
+    assert r.get_json() == {"ok": True}
+    assert 'refresh_token=;' in r.headers.get('Set-Cookie', '') or 'refresh_token=' in r.headers.get('Set-Cookie', '')
+
+    # Old access token no longer resolves to a real profile
+    profile = client.get('/api/profile', headers=headers)
+    assert profile.status_code == 404
+
+    # Logging in with the old credentials should fail
+    login_resp = client.post('/api/auth/login', json={
+        "username": "deluser",
+        "password": "password123",
+    })
+    assert login_resp.status_code == 401
+
+    # Username and email should both be free for a brand-new registration
+    new_headers = register_and_login(client, "deluser", "deluser@example.com", "password123")
+    profile2 = client.get('/api/profile', headers=new_headers)
+    assert profile2.status_code == 200
+    assert profile2.get_json()['user']['email'] == 'deluser@example.com'
+
+
+def test_delete_account_removes_scores(client):
+    """Deleting an account should also remove its high score, level scores,
+    and score history so no orphaned data remains in the scores table."""
+    headers = register_and_login(client, "delscores", "delscores@example.com", "password123")
+
+    hs_resp = client.post('/api/high-score', json={"score": 500}, headers=headers)
+    assert hs_resp.status_code == 200
+    level_resp = client.post('/api/score', json={"level": 1, "score": 42, "difficulty": "easy"}, headers=headers)
+    assert level_resp.status_code == 200
+
+    scores_table = boto3.resource('dynamodb', region_name='eu-central-1').Table(
+        os.environ['DYNAMODB_SCORES_TABLE']
+    )
+    before = scores_table.query(
+        KeyConditionExpression=Key('pk').eq('USER#delscores')
+    )['Items']
+    assert len(before) > 0
+
+    r = client.delete('/api/profile', json={"current_password": "password123"}, headers=headers)
+    assert r.status_code == 200
+
+    after = scores_table.query(
+        KeyConditionExpression=Key('pk').eq('USER#delscores')
+    )['Items']
+    assert after == []
 
 
 def test_pre_existing_account_without_email_verified_attribute_can_login(client):
