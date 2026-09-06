@@ -58,13 +58,38 @@ def send_verification_email(to_email, username, token):
     link = f"{_base_url()}/?verify_token={token}"
     _send(
         to_email,
-        subject="Verify your Arithmo Slayer account",
+        subject="Welcome to Arithmo Slayer — verify your account",
         body_text=(
             f"Hi {username},\n\n"
+            f"Thanks for signing up for Arithmo Slayer!\n\n"
+            f"Arithmo Slayer is a fast-paced arcade game that turns mental math "
+            f"practice into a reflex challenge. Fiends march toward you carrying "
+            f"an arithmetic problem — solve it before the timer runs out to "
+            f"strike them down. It's a fun way to sharpen addition, subtraction, "
+            f"multiplication, and division under a bit of friendly time pressure, "
+            f"while competing for a spot on the leaderboard.\n\n"
+            f"Quick manual:\n"
+            f"- Pick a difficulty on the start screen: Easy (15s / 7 hearts), "
+            f"Medium (10s / 5 hearts), or Hard (5s / 3 hearts).\n"
+            f"- Each fiend shows a math problem above its head. Answer it — tap "
+            f"a multiple-choice button, or type the number and hit Strike! — "
+            f"before the timer runs out to defeat it.\n"
+            f"- A wrong answer or a timeout costs a heart and resets your combo "
+            f"streak. Run out of hearts and the run ends.\n"
+            f"- Chain correct answers to build a combo streak: past combo 5 you "
+            f"can unleash a fireball, past combo 10 a lightning bolt, and past "
+            f"combo 20 a dragon that can strike multiple fiends at once.\n"
+            f"- You'll progress through 60 levels grouped into chapters, each "
+            f"introducing new operations and bigger numbers — from simple "
+            f"addition all the way to mixed +, -, x, / problems.\n"
+            f"- Your best score is saved to your profile and shown on the "
+            f"leaderboard (last 2 weeks), grouped by first grade year if you "
+            f"set one in your profile.\n\n"
             f"Please verify your email address by visiting the link below:\n"
             f"{link}\n\n"
             f"This link expires in 24 hours. If you didn't create this account, "
-            f"you can ignore this email.\n"
+            f"you can ignore this email.\n\n"
+            f"Have fun, and good luck slaying!\n"
         ),
     )
 
