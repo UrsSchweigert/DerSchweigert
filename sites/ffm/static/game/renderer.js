@@ -151,6 +151,22 @@ export class Renderer {
     this._bgImage.src = STAGE_BG_SOURCES[stageIndex];
   }
 
+  // Resolves once the stage background most recently selected by
+  // setBackgroundByLevel() has actually finished loading (or errored). Even
+  // when its PNG bytes are already in the browser's HTTP cache, swapping
+  // `_bgImage.src` still requires a fresh decode before `.complete`/
+  // `.naturalWidth` become true again — during that gap drawBackground()
+  // falls back to a flat color rect. main.js awaits this before revealing a
+  // level, so a chapter-boundary stage swap (every 10 levels) never flashes
+  // that fallback rect on screen.
+  waitForBackgroundLoad() {
+    if (this._bgImage.complete && this._bgImage.naturalWidth) return Promise.resolve();
+    return new Promise((resolve) => {
+      this._bgImage.addEventListener('load', resolve, { once: true });
+      this._bgImage.addEventListener('error', resolve, { once: true });
+    });
+  }
+
   // ─── main background ────────────────────────────────────────────────────────
   drawBackground(scrollX) {
     const ctx = this.ctx;

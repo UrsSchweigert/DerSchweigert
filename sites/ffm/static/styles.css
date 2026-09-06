@@ -182,6 +182,56 @@ input[type=number] {
   z-index: 100;
 }
 
+/* ── Loading screen ───────────────────────────────────────────────────────
+   Fully opaque black, above every other overlay (including the splash
+   screen, z-index 100), shown from first paint until asset-preload.js
+   finishes fetching every sprite the game can show. This replaces the old
+   behavior where each sprite's procedural pixel-art fallback (see
+   entities.js's `.complete`/`.naturalWidth` checks) rendered first and got
+   replaced by the real PNG whenever it finished downloading — visible as a
+   flicker of "wrong" placeholder art on a slow connection. */
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.loading-title {
+  color: #f0f0f0;
+  font-family: monospace;
+  font-size: clamp(20px, 5vw, 28px);
+  margin: 0 0 8px 0;
+  letter-spacing: 2px;
+}
+
+.loading-bar-track {
+  width: min(80vw, 360px);
+  height: 18px;
+  border: 2px solid #6060d0;
+  background: #1a1a3a;
+  box-sizing: border-box;
+}
+
+.loading-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: #30f060;
+  transition: width 0.15s ease-out;
+}
+
+.loading-percent {
+  color: #d0d0d0;
+  font-family: monospace;
+  font-size: 14px;
+  margin: 0;
+}
+
 /* ── Splash screen ────────────────────────────────────── */
 .splash-screen {
   background: #0a0a1a;

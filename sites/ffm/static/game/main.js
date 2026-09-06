@@ -17,6 +17,7 @@ import {
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
+import { preloadGameAssets } from './asset-preload.js';
 
 // The page's CSP is `script-src 'self' https://challenges.cloudflare.com`
 // with no 'unsafe-inline'/nonce, so an inline <script type="module"> in
@@ -32,6 +33,47 @@ document.getElementById('cookie-accept')?.addEventListener('click', () => {
 document.getElementById('cookie-decline')?.addEventListener('click', () => {
   window.ffmCookieConsent.decline();
 });
+
+// --- Loading screen ---
+// Preload every sprite the game can show (hero, dragon/fireball combo
+// effects, all stage backgrounds, all 36 fiend class sprites) behind a
+// full-screen black loading bar, shown from first paint (see index.html),
+// instead of letting each sprite's procedural pixel-art fallback (see
+// entities.js) render first and pop over to the real PNG whenever it
+// happens to finish downloading — which looked like a flicker of
+// placeholder art on a slow connection.
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingBarFill = document.getElementById('loading-bar-fill');
+const loadingPercentEl = document.getElementById('loading-percent');
+
+function showLoadingOverlay() {
+  if (loadingOverlay) loadingOverlay.style.display = 'flex';
+}
+
+function hideLoadingOverlay() {
+  if (loadingOverlay) loadingOverlay.style.display = 'none';
+}
+
+const assetsLoaded = preloadGameAssets((loaded, total) => {
+  const pct = total > 0 ? Math.round((loaded / total) * 100) : 100;
+  if (loadingBarFill) loadingBarFill.style.width = pct + '%';
+  if (loadingPercentEl) loadingPercentEl.textContent = pct + '%';
+});
+
+// A single stuck/broken asset (or a truly catastrophic connection) must not
+// permanently trap the player behind a black screen — fall back to
+// revealing the game after a generous timeout even if preload never
+// settles, accepting the small risk of a placeholder flicker over an
+// unplayable page. Shared by the initial page-load preload below and by
+// every startLevel() transition (see startLevel in the Level/Wave setup
+// section), which re-shows this same overlay/bar so a level never starts
+// rendering until its assets (including that level's own stage background,
+// via renderer.waitForBackgroundLoad()) are actually ready.
+const LOADING_SAFETY_TIMEOUT_MS = 30000;
+Promise.race([
+  assetsLoaded,
+  new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
+]).then(hideLoadingOverlay);
 
 // ─── Tunable game-event constants (edit here to adjust game feel) ─────────────
 const GAME_CONFIG = {
@@ -911,10 +953,33 @@ muteBtn.addEventListener('click', () => {
 });
 
 // --- Level/Wave setup ---
+// Shows the same black loading bar used on first page load (see "Loading
+// screen" above) for every level transition too — this is the moment the
+// slow-connection artifact flicker was actually observed: even with all
+// sprites preloaded up front, crossing a chapter boundary (every 10 levels)
+// swaps renderer's single background Image's `.src`, which needs a fresh
+// decode (see waitForBackgroundLoad()) before it's paintable again, and a
+// freshly-loaded/very-slow session could still reach this point before the
+// initial preload (or its safety timeout) finished. Gating the actual level
+// setup behind both checks means gameplay never starts painting until
+// everything it needs is genuinely ready.
 function startLevel(levelIndex) {
   const cfg = LevelConfig[levelIndex];
-  currentLevelIndex = levelIndex;
+  showLoadingOverlay();
   renderer.setBackgroundByLevel(cfg.level);
+
+  const ready = Promise.all([assetsLoaded, renderer.waitForBackgroundLoad()]);
+  Promise.race([
+    ready,
+    new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
+  ]).then(() => {
+    hideLoadingOverlay();
+    finishStartLevel(levelIndex, cfg);
+  });
+}
+
+function finishStartLevel(levelIndex, cfg) {
+  currentLevelIndex = levelIndex;
   levelStartScore = state.score;
   state.level = cfg.level;
   state.waveNumber = 1;
