@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Datenschutz — Arithmo Slayer</title>
+  <link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="favicon.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#0d1b2a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Arithmo Slayer">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="legal-page" class="legal-page">
+    <div class="legal-content">
+      <h1>Datenschutzerklärung</h1>
+      
+      <h2>Verantwortlicher</h2>
+      <p>
+        <strong>Urs Schweigert</strong><br>
+        Am Sonnenhang 12<br>
+        85235 Pfaffenhofen a.d. Glonn<br>
+        Deutschland<br>
+        E-Mail: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>
+      </p>
+      
+      <h2>Übersicht der Verarbeitung</h2>
+      <p>
+        Bei der Nutzung von Arithmo Slayer werden folgende personenbezogene Daten verarbeitet:
+      </p>
+      <ul>
+        <li><strong>Kontodaten:</strong> Benutzername, E-Mail-Adresse, Passwort (gehashed mit bcrypt)</li>
+        <li><strong>Optionales Profil-Feld:</strong> Einschulungsjahr (für Leaderboard-Kategorisierung, kein Geburtstag)</li>
+        <li><strong>Nutzungsdaten:</strong> High Scores und Spielverlauf</li>
+        <li><strong>Sicherheitsdaten:</strong> Cloudflare Turnstile Anti-Abuse-Token und Ihre IP-Adresse (zur Brute-Force-Rate-Limiting)</li>
+        <li><strong>Session-Cookie:</strong> <code>refresh_token</code> (httpOnly, Secure, SameSite=Strict)</li>
+      </ul>
+      
+      <h2>Rechtsgrundlagen und Zwecke</h2>
+      <p>
+        <strong>Konto- und Anmeldungsdaten (Art. 6 Abs. 1 lit. b DSGVO — Vertragserfüllung):</strong>
+        Ihre Daten sind erforderlich, um ein Benutzerkonto zu erstellen, Sie zu authentifizieren, E-Mail-Verifikation durchzuführen und Kontorecovery zu ermöglichen.
+      </p>
+      <p>
+        <strong>Sicherheits- und Anti-Abuse-Daten (Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse):</strong>
+        Wir verwenden Ihre IP-Adresse und Turnstile-Tokens, um Brute-Force-Angriffe, Spam und Missbrauch zu verhindern.
+      </p>
+      <p>
+        <strong>High Scores und Leaderboard-Daten (Art. 6 Abs. 1 lit. b DSGVO — Vertragserfüllung):</strong>
+        Diese werden verarbeitet, um die Spielfunktionen und Rankings bereitzustellen.
+      </p>
+      
+      <h2>Empfänger und Auftragsverarbeiter</h2>
+      <p>
+        <strong>Amazon Web Services (AWS):</strong> Ihre Daten werden in AWS eu-central-1 (Frankfurt) gespeichert und verarbeitet, unter Verwendung von:
+      </p>
+      <ul>
+        <li>DynamoDB (Nutzerdaten, Scores)</li>
+        <li>AWS Lambda (Verarbeitung und API-Logik)</li>
+        <li>AWS SES (E-Mail-Versand für Verifikation und Passwort-Reset)</li>
+        <li>AWS CloudFront (Content Delivery)</li>
+      </ul>
+      <p>
+        AWS unterliegt einer Standard-Auftragsverarbeitungsvereinbarung (AVV) nach Art. 28 DSGVO. Weitere Informationen: <a href="https://aws.amazon.com/de/compliance/dpa/" target="_blank" rel="noopener">AWS Data Processing Addendum</a>.
+      </p>
+      <p>
+        <strong>Cloudflare Turnstile:</strong> Das Anti-Abuse-System wird über Cloudflare betrieben. Dabei werden Ihre Interaktion mit dem Widget, Ihre IP-Adresse und möglicherweise weitere Daten an Cloudflare übertragen. Der Status einer Auftragsverarbeitungsvereinbarung mit Cloudflare ist aktuell nicht abschließend bestätigt. Cloudflares Anycast-Netzwerk kann Daten auch auf Infrastruktur außerhalb der EU verarbeiten. Weitere Informationen: <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>.
+      </p>
+      <p>
+        <strong>E-Mail-Versand:</strong> Transaktionale E-Mails (Verifikation, Passwort-Reset, E-Mail-Änderung) werden über AWS SES versendet. Ihre E-Mail-Adresse wird nicht an Dritte weitergegeben und nicht für Marketing-Zwecke verwendet.
+      </p>
+      
+      <h2>Cookies und Tracking</h2>
+      <p>
+        <strong>Session-Cookie (<code>refresh_token</code>):</strong> Dies ist ein essentieller Cookie zur Verwaltung Ihrer Login-Sitzung. Er ist:
+      </p>
+      <ul>
+        <li>HttpOnly (nicht von JavaScript zugänglich)</li>
+        <li>Secure (nur über HTTPS übertragen)</li>
+        <li>SameSite=Strict (CSRF-Schutz)</li>
+        <li>Gültig für 30 Tage</li>
+      </ul>
+      <p>
+        Dieser Cookie unterliegt der Ausnahme nach § 25 Abs. 2 TDDDG (streng notwendige Cookies) und erfordert keine explizite Zustimmung.
+      </p>
+      <p>
+        <strong>Cloudflare Turnstile:</strong> Das Turnstile-Skript wird nur nach Ihrer ausdrücklichen Zustimmung über unser Cookie-Consent-Banner geladen. Ohne Ihre Zustimmung wird das Skript nicht geladen.
+      </p>
+      <p>
+        Wir verwenden <strong>keine Analytics-, Tracking-, Werbe- oder andere nicht-essentiellen Cookies</strong>.
+      </p>
+      
+      <h2>Speicherdauer</h2>
+      <p>
+        Ihre Daten werden so lange gespeichert, wie Ihr Konto aktiv ist. Bei Löschung Ihres Kontos werden alle damit verbundenen Daten unmittelbar gelöscht (Benutzername, E-Mail, Passwort, Scores, Profil-Einstellungen). Es gibt keine erweiterte Backup-Aufbewahrung oder archivierte Aufbewahrung personenbezogener Daten.
+      </p>
+      <p>
+        Rate-Limiting-Daten (IP-Adressen, Anfrage-Zähler) werden automatisch nach kurzer Zeit (Stunden) gelöscht.
+      </p>
+      
+      <h2>Kinder und Minderjährige</h2>
+      <p>
+        Arithmo Slayer ist für Nutzer ab 18 Jahren gedacht. Bei der Kontoregistrierung müssen Sie bestätigen, dass Sie mindestens 18 Jahre alt sind. Falls Sie beabsichtigen, dass ein Kind Ihr registriertes Konto nutzt, müssen Sie als Erziehungsberechtigte(r) bestätigen, dass Sie das Kind sind und der Nutzung dieses Dienstes zustimmen.
+      </p>
+      <p>
+        Wenn Sie unter 18 Jahren sind, benötigen Sie das Einverständnis Ihres Erziehungsberechtigten. Eltern und Erziehungsberechtigte, die bemerken, dass Ihr Kind ohne Ihre Zustimmung ein Konto registriert hat, können uns unter <a href="mailto:info@derschweigert.de">info@derschweigert.de</a> kontaktieren, um das Konto löschen zu lassen.
+      </p>
+      
+      <h2>Ihre Rechte</h2>
+      <p>
+        Gemäß der Datenschutz-Grundverordnung (DSGVO) haben Sie folgende Rechte:
+      </p>
+      <ul>
+        <li><strong>Art. 15 DSGVO — Auskunftsrecht:</strong> Sie können eine Kopie aller Ihrer personenbezogenen Daten anfordern.</li>
+        <li><strong>Art. 16 DSGVO — Berichtigungsrecht:</strong> Sie können fehlerhafte oder unvollständige Daten korrigieren lassen.</li>
+        <li><strong>Art. 17 DSGVO — Recht auf Löschung:</strong> Sie können die Löschung Ihrer Daten fordern (Recht auf Vergessenwerden). Sie können Ihr Konto jederzeit über die "Konto löschen" Funktion in der App selbst löschen.</li>
+        <li><strong>Art. 18 DSGVO — Recht auf Einschränkung:</strong> Sie können die Verarbeitung Ihrer Daten einschränken lassen.</li>
+        <li><strong>Art. 20 DSGVO — Recht auf Datenportabilität:</strong> Sie können eine Kopie Ihrer Daten in einem strukturierten, gängigen Format erhalten.</li>
+        <li><strong>Art. 21 DSGVO — Widerspruchsrecht:</strong> Sie können der Verarbeitung Ihrer Daten widersprechen.</li>
+      </ul>
+      <p>
+        Um diese Rechte auszuüben, schreiben Sie bitte an: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>
+      </p>
+      
+      <h2>Beschwerderecht</h2>
+      <p>
+        Wenn Sie der Ansicht sind, dass die Verarbeitung Ihrer personenbezogenen Daten gegen die DSGVO verstößt, haben Sie das Recht, sich bei einer Datenschutzbehörde zu beschweren. Die für den Verantwortlichen (Sitz in Bayern) zuständige Aufsichtsbehörde für den nicht-öffentlichen Bereich ist:
+      </p>
+      <p>
+        <strong>Bayerisches Landesamt für Datenschutzaufsicht (BayLDA):</strong><br>
+        Promenade 18<br>
+        91522 Ansbach<br>
+        Telefon: +49 (0)981 180093-0<br>
+        E-Mail: <a href="mailto:poststelle@lda.bayern.de">poststelle@lda.bayern.de</a> (nur PDF-Anhänge)<br>
+        Beschwerden bitte bevorzugt über das <a href="https://www.lda.bayern.de/de/beschwerde.html" target="_blank" rel="noopener">Online-Beschwerdeformular</a> einreichen.
+      </p>
+      
+      <h2>Erhebung beim Betroffenen erforderlich?</h2>
+      <p>
+        Ja. Zum Betrieb von Arithmo Slayer ist die Angabe einer gültigen E-Mail-Adresse und eines Benutzernamens erforderlich. Diese Daten sind notwendig, um ein Konto zu erstellen und zu authentifizieren. Ohne diese Informationen können Sie sich nicht registrieren. Das optionale Feld "Einschulungsjahr" ist optional und dient nur der Leaderboard-Kategorisierung.
+      </p>
+      
+      <h2>Änderungen dieser Datenschutzerklärung</h2>
+      <p>
+        Diese Datenschutzerklärung kann von Zeit zu Zeit aktualisiert werden, wenn sich unsere Praktiken oder Anforderungen ändern. Die aktuelle Version wird immer auf dieser Seite verfügbar sein.
+      </p>
+      
+      <hr>
+      
+      <p class="legal-footer-nav">
+        <a href="index.html">Zurück zum Spiel</a> · 
+        <a href="impressum.html">Impressum</a> ·
+        <a href="datenschutz.en.html">English</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

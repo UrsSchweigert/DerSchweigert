@@ -788,3 +788,207 @@ form button:focus {
   margin-top: 8px;
 }
 
+/* ── Legal links (splash footer) ─────────────────────────────── */
+.splash-legal-links {
+  margin: 0;
+  font-family: monospace;
+  font-size: 11px;
+  color: #8080a0;
+  text-align: center;
+}
+
+.splash-legal-links a {
+  color: #a0c0ff;
+  text-decoration: underline;
+}
+
+.splash-legal-links a:hover {
+  color: #d0e0ff;
+}
+
+/* ── Consent checkbox (registration form) ──────────────────── */
+.consent-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #c0c0e0;
+  cursor: pointer;
+}
+
+.consent-checkbox input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #8080e0;
+}
+
+.consent-checkbox input[type="checkbox"]:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+/* ── Cookie banner (fixed, bottom) ───────────────────────────── */
+#cookie-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: max(16px, env(safe-area-inset-bottom));
+  padding-top: 16px;
+  background: rgba(10, 10, 40, 0.95);
+  border-top: 1px solid #6060c0;
+  z-index: 150;
+  display: flex;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.cookie-banner-content {
+  max-width: 500px;
+  font-family: monospace;
+  font-size: 13px;
+  color: #dfe8ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cookie-banner-content p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.cookie-banner-content a {
+  color: #a0c0ff;
+  text-decoration: underline;
+}
+
+.cookie-banner-content a:hover {
+  color: #d0e0ff;
+}
+
+.cookie-banner-buttons {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cookie-btn {
+  padding: 6px 12px;
+  font-family: monospace;
+  font-size: 12px;
+  border: 1px solid #6060c0;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cookie-btn--accept {
+  background: #4040c0;
+  color: white;
+}
+
+.cookie-btn--accept:hover {
+  background: #5050d0;
+}
+
+.cookie-btn--accept:focus {
+  outline: 2px solid #8080e0;
+  outline-offset: 2px;
+}
+
+.cookie-btn--decline {
+  background: transparent;
+  color: #a0c0ff;
+}
+
+.cookie-btn--decline:hover {
+  background: rgba(80, 80, 160, 0.3);
+  color: #d0e0ff;
+}
+
+.cookie-btn--decline:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+/* ── Legal pages (impressum, datenschutz) ──────────────────── */
+.legal-page {
+  background: #0a0a1a;
+  color: #f0f0f0;
+  font-family: monospace;
+  min-height: 100vh;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  box-sizing: border-box;
+}
+
+.legal-content {
+  max-width: 800px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.legal-content h1 {
+  font-size: 28px;
+  margin: 24px 0 16px;
+  color: #ffe080;
+}
+
+.legal-content h2 {
+  font-size: 18px;
+  margin: 20px 0 12px;
+  color: #c0c0e0;
+}
+
+.legal-content p {
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.legal-content ul, .legal-content ol {
+  margin: 12px 0;
+  padding-left: 24px;
+  font-size: 14px;
+}
+
+.legal-content li {
+  margin: 6px 0;
+}
+
+.legal-content a {
+  color: #a0c0ff;
+  text-decoration: underline;
+}
+
+.legal-content a:hover {
+  color: #d0e0ff;
+}
+
+.legal-content hr {
+  border: none;
+  border-top: 1px solid #6060c0;
+  margin: 24px 0;
+}
+
+.legal-footer-nav {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid #6060c0;
+  text-align: center;
+  font-size: 12px;
+}
+
+.legal-footer-nav a {
+  margin: 0 8px;
+}
+
+

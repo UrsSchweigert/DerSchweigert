@@ -264,8 +264,19 @@ const TURNSTILE_CONTAINER_IDS = {
 // Call this right after making a widget's container visible.
 function ensureTurnstileWidget(key) {
   if (turnstileWidgets[key] !== null) return;
+  
+  // Check if user declined cookies
+  if (window.ffmCookieConsent && window.ffmCookieConsent.getState() === 'declined') {
+    const containerId = TURNSTILE_CONTAINER_IDS[key];
+    const container = document.getElementById(containerId);
+    if (container) {
+      container.innerHTML = '<p style="color: #d0a0a0; font-size: 12px; margin: 8px 0;">This feature requires the security check script. Please accept cookies in the banner to continue.</p>';
+    }
+    return;
+  }
+  
   if (!window.turnstile) {
-    // Turnstile's script tag (index.html) loads asynchronously; poll
+    // Turnstile's script tag loads asynchronously; poll
     // briefly until it's available rather than relying on a fixed delay.
     setTimeout(() => ensureTurnstileWidget(key), 100);
     return;
@@ -594,6 +605,11 @@ loginResendBtn.addEventListener('click', async () => {
 registerForm.addEventListener('submit', async e => {
   e.preventDefault();
   try {
+    const consentCheckbox = document.getElementById('reg-consent-checkbox');
+    if (!consentCheckbox.checked) {
+      registerError.textContent = 'You must confirm the terms and age requirements to register.';
+      return;
+    }
     const u = document.getElementById('reg-username').value;
     const em = document.getElementById('reg-email').value;
     const pw = document.getElementById('reg-password').value;

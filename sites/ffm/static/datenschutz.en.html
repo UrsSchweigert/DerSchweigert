@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Privacy Policy — Arithmo Slayer</title>
+  <link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="favicon.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#0d1b2a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Arithmo Slayer">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="legal-page" class="legal-page">
+    <div class="legal-content">
+      <h1>Privacy Policy</h1>
+      
+      <h2>Controller</h2>
+      <p>
+        <strong>Urs Schweigert</strong><br>
+        Am Sonnenhang 12<br>
+        85235 Pfaffenhofen a.d. Glonn<br>
+        Germany<br>
+        Email: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>
+      </p>
+      
+      <h2>Overview of Data Processing</h2>
+      <p>
+        When using Arithmo Slayer, the following personal data are processed:
+      </p>
+      <ul>
+        <li><strong>Account Data:</strong> username, email address, password (hashed with bcrypt)</li>
+        <li><strong>Optional Profile Field:</strong> first grade year (for leaderboard categorization, not a birthdate)</li>
+        <li><strong>Usage Data:</strong> high scores and gameplay history</li>
+        <li><strong>Security Data:</strong> Cloudflare Turnstile anti-abuse token and your IP address (for brute-force rate limiting)</li>
+        <li><strong>Session Cookie:</strong> <code>refresh_token</code> (httpOnly, Secure, SameSite=Strict)</li>
+      </ul>
+      
+      <h2>Legal Bases and Purposes</h2>
+      <p>
+        <strong>Account and Login Data (Art. 6(1)(b) GDPR — Contract Performance):</strong>
+        Your data are necessary to create a user account, authenticate you, perform email verification, and enable account recovery.
+      </p>
+      <p>
+        <strong>Security and Anti-Abuse Data (Art. 6(1)(f) GDPR — Legitimate Interest):</strong>
+        We use your IP address and Turnstile tokens to prevent brute-force attacks, spam, and abuse.
+      </p>
+      <p>
+        <strong>High Scores and Leaderboard Data (Art. 6(1)(b) GDPR — Contract Performance):</strong>
+        These are processed to deliver the game's ranking and leaderboard features.
+      </p>
+      
+      <h2>Recipients and Data Processors</h2>
+      <p>
+        <strong>Amazon Web Services (AWS):</strong> Your data are stored and processed in AWS eu-central-1 (Frankfurt), using:
+      </p>
+      <ul>
+        <li>DynamoDB (user data, scores)</li>
+        <li>AWS Lambda (processing and API logic)</li>
+        <li>AWS SES (email delivery for verification and password reset)</li>
+        <li>AWS CloudFront (content delivery)</li>
+      </ul>
+      <p>
+        AWS is subject to a standard Data Processing Agreement (DPA) under Art. 28 GDPR. Learn more: <a href="https://aws.amazon.com/compliance/dpa/" target="_blank" rel="noopener">AWS Data Processing Addendum</a>.
+      </p>
+      <p>
+        <strong>Cloudflare Turnstile:</strong> The anti-abuse system is operated via Cloudflare. Your interaction with the widget, IP address, and potentially other data are transmitted to Cloudflare. The status of a Data Processing Agreement with Cloudflare is currently not definitively confirmed. Cloudflare's anycast network may process data on infrastructure outside the EU. Learn more: <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>.
+      </p>
+      <p>
+        <strong>Email Delivery:</strong> Transactional emails (verification, password reset, email change) are sent via AWS SES. Your email address is not shared with third parties and is not used for marketing purposes.
+      </p>
+      
+      <h2>Cookies and Tracking</h2>
+      <p>
+        <strong>Session Cookie (<code>refresh_token</code>):</strong> This is an essential cookie for managing your login session. It is:
+      </p>
+      <ul>
+        <li>HttpOnly (not accessible from JavaScript)</li>
+        <li>Secure (only transmitted over HTTPS)</li>
+        <li>SameSite=Strict (CSRF protection)</li>
+        <li>Valid for 30 days</li>
+      </ul>
+      <p>
+        This cookie falls under the exemption in § 25(2) TDDDG (strictly necessary cookies) and does not require explicit consent.
+      </p>
+      <p>
+        <strong>Cloudflare Turnstile:</strong> The Turnstile script is only loaded after your explicit consent via our cookie consent banner. Without your consent, the script is not loaded.
+      </p>
+      <p>
+        We use <strong>no analytics, tracking, advertising, or other non-essential cookies</strong>.
+      </p>
+      
+      <h2>Data Retention</h2>
+      <p>
+        Your data are retained as long as your account is active. When you delete your account, all associated data are immediately deleted (username, email, password, scores, profile settings). There is no extended backup retention or archival of personal data.
+      </p>
+      <p>
+        Rate-limiting data (IP addresses, request counters) are automatically deleted after a short time (hours).
+      </p>
+      
+      <h2>Children and Minors</h2>
+      <p>
+        Arithmo Slayer is intended for users aged 18 and above. During account registration, you must confirm that you are at least 18 years old. If you intend for a child to use your registered account, you must confirm as the parent/legal guardian that you are that child's parent/legal guardian and consent to the child's use of this service.
+      </p>
+      <p>
+        If you are under 18, you need your parent or legal guardian's consent. Parents and guardians who notice that your child has registered an account without your consent can contact us at <a href="mailto:info@derschweigert.de">info@derschweigert.de</a> to have the account deleted.
+      </p>
+      
+      <h2>Your Rights</h2>
+      <p>
+        Under the General Data Protection Regulation (GDPR), you have the following rights:
+      </p>
+      <ul>
+        <li><strong>Art. 15 GDPR — Right to Access:</strong> You can request a copy of all your personal data.</li>
+        <li><strong>Art. 16 GDPR — Right to Rectification:</strong> You can correct inaccurate or incomplete data.</li>
+        <li><strong>Art. 17 GDPR — Right to Erasure:</strong> You can request deletion of your data (right to be forgotten). You can delete your account at any time using the "Delete Account" feature in the app itself.</li>
+        <li><strong>Art. 18 GDPR — Right to Restrict Processing:</strong> You can restrict the processing of your data.</li>
+        <li><strong>Art. 20 GDPR — Right to Data Portability:</strong> You can receive a copy of your data in a structured, commonly used format.</li>
+        <li><strong>Art. 21 GDPR — Right to Object:</strong> You can object to the processing of your data.</li>
+      </ul>
+      <p>
+        To exercise these rights, please write to: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>
+      </p>
+      
+      <h2>Right to Lodge a Complaint</h2>
+      <p>
+        If you believe that the processing of your personal data violates the GDPR, you have the right to lodge a complaint with a data protection authority. The competent supervisory authority for the private sector at the controller's registered location (Bavaria) is:
+      </p>
+      <p>
+        <strong>Bayerisches Landesamt für Datenschutzaufsicht (BayLDA) — Bavarian State Office for Data Protection Supervision:</strong><br>
+        Promenade 18<br>
+        91522 Ansbach, Germany<br>
+        Phone: +49 (0)981 180093-0<br>
+        Email: <a href="mailto:poststelle@lda.bayern.de">poststelle@lda.bayern.de</a> (PDF attachments only)<br>
+        Please prefer their <a href="https://www.lda.bayern.de/de/beschwerde.html" target="_blank" rel="noopener">online complaint form</a>.
+      </p>
+      
+      <h2>Is Provision of Data Required?</h2>
+      <p>
+        Yes. To operate Arithmo Slayer, a valid email address and username are required. This data is necessary to create and authenticate an account. Without this information, you cannot register. The optional "First Grade Year" field is optional and serves only for leaderboard categorization.
+      </p>
+      
+      <h2>Changes to This Privacy Policy</h2>
+      <p>
+        This privacy policy may be updated from time to time if our practices or requirements change. The current version will always be available on this page.
+      </p>
+      
+      <hr>
+      
+      <p class="legal-footer-nav">
+        <a href="index.html">Back to Game</a> · 
+        <a href="impressum.en.html">Legal Notice</a> ·
+        <a href="datenschutz.html">Deutsch</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>
