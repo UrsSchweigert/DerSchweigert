@@ -1050,6 +1050,17 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!gameRunning || paused) return;
   const x = canvasLogicalX(e.clientX);
   if (isInHealZone(x, CANVAS_W)) {
+    // A sustained press is exactly the gesture browsers use to start text
+    // selection / the mobile long-press callout menu. Without this,
+    // holding to heal shows a text cursor and the native selection UI can
+    // hijack the touch, freezing the visible canvas until release even
+    // though the game loop keeps running underneath (see styles.css
+    // `#game` for the accompanying user-select/touch-callout suppression).
+    // Scoped to just the heal zone (not preventDefault'd for every
+    // pointerdown) because on touch devices, canceling pointerdown also
+    // suppresses the synthesized 'click' event that the pause-zone tap
+    // relies on — the pause/resume tap outside this zone must stay intact.
+    e.preventDefault();
     isHealHolding = true;
     healHoldPointerId = e.pointerId;
   }
@@ -1555,9 +1566,13 @@ function gameLoop(ts) {
     hero.update(dt);
 
     // Hold-to-heal: continuously holding a pointer in the left-quarter heal
-    // zone (see canvas 'pointerdown' listener above) slowly restores hearts,
-    // as long as the hero isn't mid-'hurt' reaction and hearts aren't full.
-    const canHeal = state.hearts < state.maxHearts && hero.state !== 'hurt';
+    // zone (see canvas 'pointerdown' listener above) slowly restores hearts.
+    // Deliberately NOT gated on hearts < maxHearts: the hold gesture (aura +
+    // HUD glow + progress) stays fully "live" even at full hearts, so it
+    // never feels unresponsive if a player starts holding pre-emptively —
+    // any heart it would grant while already full is simply a harmless
+    // no-op (capped below), not a dead/silent interaction.
+    const canHeal = hero.state !== 'hurt';
     const healResult = updateHealHold(healHoldProgress, dt, {
       isHolding: isHealHolding,
       canHeal,

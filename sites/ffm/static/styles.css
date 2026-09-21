@@ -49,6 +49,15 @@ body {
      'pointerdown' on #game) must not trigger scrolling/pull-to-refresh/
      double-tap-zoom on mobile while the player holds still. */
   touch-action: none;
+  /* A sustained press/hold is exactly the gesture browsers use for text
+     selection (desktop click-drag) and the long-press selection
+     loupe/callout menu (mobile Safari/Chrome). Without suppressing this,
+     holding to heal shows a text-selection cursor and can let the native
+     selection UI hijack the touch, visually freezing the canvas until the
+     finger lifts even though the game loop keeps running underneath. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Pulsating combo-ability border. Sits above the canvas HUD bar (which
