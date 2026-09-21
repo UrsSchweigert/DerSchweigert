@@ -18,6 +18,7 @@ import {
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
 import { preloadGameAssets } from './asset-preload.js';
+import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 
 // The page's CSP is `script-src 'self' https://challenges.cloudflare.com`
 // with no 'unsafe-inline'/nonce, so an inline <script type="module"> in
@@ -81,6 +82,7 @@ const GAME_CONFIG = {
   eliteFiendHp:          3,     // HP of an elite fiend
   elitePointMultiplier:  3,     // score multiplier per answer on an elite fiend
   healingAuraDuration:   2.0,   // seconds green aura lasts after level clear
+  healHoldSecondsPerHeart: 9.0, // seconds of continuous hold-to-heal needed to restore one heart
 };
 
 // Operator → Fiend class (fallback when level fiendType is unknown)
@@ -189,6 +191,8 @@ let state = {
 // --- DOM refs ---
 const canvas = document.getElementById('game');
 const pauseOverlay = document.getElementById('pause-overlay');
+const healTipOverlay = document.getElementById('heal-tip-overlay');
+const btnHealTipConfirm = document.getElementById('btn-heal-tip-confirm');
 const levelClearOverlay = document.getElementById('level-clear');
 const levelClearTitle = document.getElementById('level-clear-title');
 const levelClearScore = document.getElementById('level-clear-score');
@@ -291,6 +295,10 @@ let activeLightningBolts = [];
 let activeFireballs = [];
 let activeDragons = [];
 let heroLunge = null; // { phase:'out'|'back', fiend?, targetX, onArrive? }
+let healHoldProgress = 0;   // seconds accumulated toward the next healed heart
+let isHealHolding = false;  // true while a pointer is held down in the heal zone
+let healHoldPointerId = null; // the pointer currently tracked for hold-to-heal (only one at a time)
+let healTipShown = false;   // whether the "hold left edge to heal" tip has been shown this playthrough
 const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
 const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this distance of HERO_X
 // Ranged spells (fireball/lightning) launch from just right of the hero's
@@ -596,6 +604,7 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
     state.timerRemaining = state.timerMax;
     state.maxHearts = parseInt(btn.dataset.hearts);
     state.hearts = state.maxHearts;
+    healTipShown = false;
     const jumpValue = levelJumpSelect.value;
     const targetLevel = jumpValue ? parseInt(jumpValue, 10) : 1;
     const targetIndex = targetLevel - 1;
@@ -994,6 +1003,7 @@ function finishStartLevel(levelIndex, cfg) {
   activeLightningBolts = [];
   activeFireballs = [];
   activeDragons = [];
+  resetHealHold();
   
   const waveSize = cfg.waveSize;
   for (let i = 0; i < waveSize; i++) {
@@ -1012,7 +1022,55 @@ function finishStartLevel(levelIndex, cfg) {
   if (!animFrameId) gameLoop(performance.now());
 }
 
-canvas.addEventListener('click', () => {
+// Converts a pointer/mouse event's CSS-pixel client coordinates into the
+// game's 800x450 logical canvas coordinate space. The canvas is scaled
+// responsively via CSS (see styles.css `#game { width:100%; height:100% }`
+// inside a viewport-sized wrapper), so client coordinates must be rescaled
+// by the canvas's actual on-screen size before they mean anything in game
+// coordinates (e.g. for the CANVAS_W/4 heal-zone boundary below).
+function canvasLogicalX(clientX) {
+  const rect = canvas.getBoundingClientRect();
+  return (clientX - rect.left) * (CANVAS_W / rect.width);
+}
+
+function resetHealHold() {
+  healHoldProgress = 0;
+  isHealHolding = false;
+  healHoldPointerId = null;
+  hero._holdHealActive = false;
+  hero._holdHealRatio = 0;
+}
+
+// Left quarter of the screen = hold-to-heal zone (see heal-hold.js); the
+// remaining three quarters keep the existing tap-to-pause/resume behavior.
+// A single gesture is either "start healing" or "toggle pause" — never
+// both — so pointerdown decides which, and the paired pointerup/cancel/leave
+// only ever tears down the heal-hold side of it.
+canvas.addEventListener('pointerdown', (e) => {
+  if (!gameRunning || paused) return;
+  const x = canvasLogicalX(e.clientX);
+  if (isInHealZone(x, CANVAS_W)) {
+    isHealHolding = true;
+    healHoldPointerId = e.pointerId;
+  }
+});
+
+function stopHealHoldForPointer(e) {
+  if (healHoldPointerId !== null && e.pointerId === healHoldPointerId) {
+    isHealHolding = false;
+    healHoldPointerId = null;
+    healHoldProgress = 0;
+  }
+}
+canvas.addEventListener('pointerup', stopHealHoldForPointer);
+canvas.addEventListener('pointercancel', stopHealHoldForPointer);
+canvas.addEventListener('pointerleave', stopHealHoldForPointer);
+
+canvas.addEventListener('click', (e) => {
+  // A click landing in the heal zone is part of the hold-to-heal gesture,
+  // never the pause toggle — even a quick tap there just starts/stops a
+  // (very short) heal attempt rather than pausing the game.
+  if (isInHealZone(canvasLogicalX(e.clientX), CANVAS_W)) return;
   if (paused) {
     resumeGame();
   } else if (gameRunning) {
@@ -1035,6 +1093,7 @@ function pauseGame() {
   pauseOverlay.style.display = 'flex';
   input.disable();
   audio.pauseBGM();
+  resetHealHold();
 }
 
 function resumeGame() {
@@ -1047,6 +1106,25 @@ function resumeGame() {
     input.enable(cfg.inputMode);
   }
 }
+
+// Shown once per playthrough, the first time hearts drop to half (or below)
+// of maxHearts, explaining the hold-to-heal mechanic. Pauses gameplay (like
+// pauseGame()) but shows a dedicated overlay instead of the generic "Paused"
+// one, and deliberately leaves `input`/`inputDisabled` untouched — the
+// wrong-answer sequence that triggered this (see handleWrongAnswer) already
+// owns that state via its own timers, and confirming this tip must not
+// re-enable input early or interfere with that sequence.
+function showHealTip() {
+  paused = true;
+  healTipOverlay.style.display = 'flex';
+  audio.pauseBGM();
+}
+
+btnHealTipConfirm.addEventListener('click', () => {
+  healTipOverlay.style.display = 'none';
+  paused = false;
+  audio.resumeBGM();
+});
 
 // Only one fiend on screen at a time; gap kept for requeue safety
 const FIEND_MIN_GAP = 145;
@@ -1293,6 +1371,14 @@ function handleWrongAnswer() {
     triggerGameOver();
     return;
   }
+
+  // First time hearts drop to half (or below) in this playthrough: pause and
+  // explain the hold-to-heal mechanic before letting the wrong-answer
+  // sequence (reveal/retreat, scheduled below) continue.
+  if (!healTipShown && state.hearts <= state.maxHearts / 2) {
+    healTipShown = true;
+    showHealTip();
+  }
   
   setTimeout(() => {
     if (activeFiend) {
@@ -1407,6 +1493,7 @@ function triggerLevelClear() {
 
 function triggerGameOver() {
   gameRunning = false;
+  resetHealHold();
   input.disable();
   inputDisabled = true;
   state.timerActive = false;
@@ -1466,6 +1553,24 @@ function gameLoop(ts) {
     }
     
     hero.update(dt);
+
+    // Hold-to-heal: continuously holding a pointer in the left-quarter heal
+    // zone (see canvas 'pointerdown' listener above) slowly restores hearts,
+    // as long as the hero isn't mid-'hurt' reaction and hearts aren't full.
+    const canHeal = state.hearts < state.maxHearts && hero.state !== 'hurt';
+    const healResult = updateHealHold(healHoldProgress, dt, {
+      isHolding: isHealHolding,
+      canHeal,
+      secondsPerHeart: GAME_CONFIG.healHoldSecondsPerHeart,
+    });
+    healHoldProgress = healResult.progress;
+    if (healResult.healed) {
+      state.hearts = Math.min(state.maxHearts, state.hearts + 1);
+      hud.update(state);
+    }
+    hero._holdHealActive = isHealHolding && canHeal;
+    hero._holdHealRatio = getHealHoldRatio(healHoldProgress, GAME_CONFIG.healHoldSecondsPerHeart);
+
     fiends.forEach(f => f.update(dt));
     activeLightningBolts = activeLightningBolts.filter(b => { b.update(dt); return !b.isDone; });
     activeFireballs = activeFireballs.filter(b => { b.update(dt); return !b.isDone; });
@@ -1549,6 +1654,16 @@ function gameLoop(ts) {
   // toward (or sitting in) a special-ability band.
   renderer.drawComboFrame(getComboFrameBand(state.combo), ts);
 
+  // Hearts glow the same green hue as the hero's healing aura while
+  // hold-to-heal is active, so the HUD visibly reflects the same effect.
+  // healGlowRatio: ambient row backdrop (floored so it's instantly visible
+  // once holding starts). healFillRatio: raw progress, drives the gradual
+  // per-heart fill cue in drawHUD (see renderer.js) so the next heart to be
+  // healed visibly brightens in step with the actual 9s hold countdown.
+  hud.update({
+    healGlowRatio: hero._holdHealActive ? Math.max(0.35, hero._holdHealRatio) : 0,
+    healFillRatio: hero._holdHealActive ? hero._holdHealRatio : 0,
+  });
   hud.draw();
 }
 

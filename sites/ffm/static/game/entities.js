@@ -61,12 +61,95 @@ export class Entity {
 const H_DUR = { idle:20, swing:4, hurt:6, victory:12, walk:6, dead:10 };
 const H_FRM = { idle:2,  swing:3, hurt:2, victory:2,  walk:4, dead:3  };
 
+// Fixed angle offsets for the aura's radiating energy spikes — precomputed
+// once at module load so drawing never allocates a new array per frame.
+const AURA_SPIKE_COUNT = 8;
+const AURA_SPIKE_ANGLES = Array.from({ length: AURA_SPIKE_COUNT }, (_, i) => (i / AURA_SPIKE_COUNT) * Math.PI * 2);
+
 export class Hero extends Entity {
-  constructor() { super(HERO_X, GROUND_Y); this._healAura = 0; }
+  constructor() {
+    super(HERO_X, GROUND_Y);
+    this._healAura = 0;       // countdown (seconds) — post-level-clear heal flash
+    this._holdHealActive = false; // continuous flag — hold-to-heal in progress
+    this._holdHealRatio = 0;  // 0..1 progress toward the next healed heart, for intensity
+  }
 
   update(dt) {
     super.update(dt);
     if (this._healAura > 0) this._healAura = Math.max(0, this._healAura - dt);
+  }
+
+  // Renders the pulsating green healing aura behind/in front of the hero
+  // sprite. Shared by both the post-level-clear heal flash (`_healAura`
+  // countdown) and the continuous hold-to-heal effect (`_holdHealActive`),
+  // so both draw the same enriched visual instead of duplicating it.
+  //
+  // `layer` is 'back' (drawn under the sprite) or 'front' (drawn over it) —
+  // matching the original two-pass ellipse effect, now with extra layers:
+  // a soft glow core, jagged radiating energy spikes (Broly-style tendrils),
+  // and a bright flickering highlight, all pulsing at slightly different
+  // phase offsets so the effect reads as "alive" rather than a static blob.
+  _drawHealAura(ctx, layer) {
+    const timerFade = this._healAura > 0 ? Math.min(1, this._healAura * 2) : 0;
+    const holdFade = this._holdHealActive ? Math.max(0.35, this._holdHealRatio) : 0;
+    const intensity = Math.max(timerFade, holdFade);
+    if (intensity <= 0) return;
+
+    const cx = this.x + 44;
+    const cy = this.y - 73 + 6 * P;
+    const t = this._tick * 0.25;
+    const front = layer === 'front';
+
+    ctx.save();
+
+    // Layer 1 — soft outer glow core (back only), broad and slow-pulsing.
+    if (!front) {
+      const scale = 1 + 0.1 * Math.sin(t);
+      ctx.globalAlpha = intensity * (0.45 + 0.3 * Math.sin(t)) * 0.55;
+      ctx.fillStyle = '#30f060';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 100 * scale, 92 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Layer 2 — radiating jagged energy spikes, rotating slowly, each
+    // flickering independently via a per-spike phase offset. This is what
+    // gives the aura a "flame/energy tendril" read instead of a plain blob.
+    const spikeBaseLen = front ? 34 : 46;
+    const rotation = t * (front ? -0.6 : 0.5);
+    for (let i = 0; i < AURA_SPIKE_COUNT; i++) {
+      const angle = AURA_SPIKE_ANGLES[i] + rotation;
+      const flicker = 0.6 + 0.4 * Math.sin(t * 3 + i * 1.7);
+      const len = (spikeBaseLen + 14 * Math.sin(t * 2 + i)) * flicker;
+      const innerR = front ? 46 : 58;
+      const x0 = cx + Math.cos(angle) * innerR;
+      const y0 = cy + Math.sin(angle) * innerR * 0.7;
+      const x1 = cx + Math.cos(angle) * (innerR + len);
+      const y1 = cy + Math.sin(angle) * (innerR + len) * 0.7;
+      const perpAngle = angle + Math.PI / 2;
+      const spread = front ? 5 : 7;
+      ctx.globalAlpha = intensity * flicker * (front ? 0.5 : 0.4);
+      ctx.fillStyle = i % 2 === 0 ? '#20f850' : '#7cff90';
+      ctx.beginPath();
+      ctx.moveTo(x0 + Math.cos(perpAngle) * spread, y0 + Math.sin(perpAngle) * spread);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x0 - Math.cos(perpAngle) * spread, y0 - Math.sin(perpAngle) * spread);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Layer 3 — bright inner highlight, fast pulse, mixes in a lighter
+    // yellow-green so the core doesn't read as flat/uniform green.
+    const t2 = t * 1.6 + 1;
+    const scale2 = 1 + 0.08 * Math.sin(t2);
+    ctx.globalAlpha = intensity * (0.3 + 0.25 * Math.sin(t2)) * (front ? 0.4 : 0.45);
+    ctx.fillStyle = front ? '#20f850' : '#c8ffb0';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, (front ? 78 : 50) * scale2, (front ? 70 : 44) * scale2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   setState(s) {
@@ -101,35 +184,13 @@ export class Hero extends Entity {
       const sourceH = 180;
       const drawW = 160;
       const drawH = 150;
-    if (this._healAura > 0) {
-      const t = this._tick * 0.25;
-      const scale = 1 + 0.1 * Math.sin(t);
-      const fade  = Math.min(1, this._healAura * 2);
-      const cx = this.x + 44; const cy = this.y - 73 + 6*P;
-      ctx.save();
-      ctx.globalAlpha = fade * (0.45 + 0.3 * Math.sin(t)) * 0.55;
-      ctx.fillStyle = '#30f060';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 100 * scale, 92 * scale, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.restore();
+    if (this._healAura > 0 || this._holdHealActive) {
+      this._drawHealAura(ctx, 'back');
     }
     ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH,
       this.x - 36, this.y - drawH + _heroGroundOffsetPx, drawW, drawH);
-    if (this._healAura > 0) {
-      const t2 = this._tick * 0.25 + 1;
-      const scale2 = 1 + 0.08 * Math.sin(t2);
-      const fade2  = Math.min(1, this._healAura * 2);
-      const cx = this.x + 44; const cy = this.y - 73 + 6*P;
-      ctx.save();
-      ctx.globalAlpha = fade2 * (0.3 + 0.2 * Math.sin(t2)) * 0.35;
-      ctx.fillStyle = '#20f850';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 78 * scale2, 70 * scale2, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.restore();
+    if (this._healAura > 0 || this._holdHealActive) {
+      this._drawHealAura(ctx, 'front');
     }
 
     return;

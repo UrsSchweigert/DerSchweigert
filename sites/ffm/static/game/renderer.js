@@ -411,7 +411,7 @@ export class Renderer {
     if(fw>2){ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(x,y,fw,~~(h/2));}
   }
 
-  drawHUD(hearts, maxHearts, score, combo, levelLabel) {
+  drawHUD(hearts, maxHearts, score, combo, levelLabel, healGlowRatio=0, healFillRatio=0) {
     const ctx=this.ctx,P=LOGICAL_PX;
     const hP=P>>1;                        // half-scale pixel for hearts/icons (2 when P=4)
     const barH=7*P+10;                    // bar height: 38px when P=4
@@ -423,13 +423,42 @@ export class Renderer {
     this._text('HP',7,~~(5+(barH-10-7*P*hpS)/2),'#fff',hpS);
     // hearts — scaled with hP so they match the text height
     const heartY=~~((barH-10*hP)/2);
+    // Pulsing green glow behind the hearts row while hold-to-heal is active
+    // (same hue as the hero's healing aura — see entities.js Hero._drawHealAura),
+    // drawn before the heart icons so it reads as a backdrop, not an overlay.
+    if(healGlowRatio>0){
+      const glowW=maxHearts*16*hP+6*hP,glowX=4+hpBW+4-3*hP,glowY=heartY-3*hP,glowH=10*hP+6*hP;
+      const pulse=(Math.sin(Date.now()/260)+1)/2;
+      ctx.save();
+      ctx.globalAlpha=healGlowRatio*(0.25+pulse*0.35);
+      ctx.fillStyle='#30f060';
+      ctx.fillRect(glowX,glowY,glowW,glowH);
+      ctx.globalAlpha=healGlowRatio*(0.2+pulse*0.25);
+      ctx.fillStyle='#c8ffb0';
+      ctx.fillRect(glowX+2*hP,glowY+2*hP,glowW-4*hP,glowH-4*hP);
+      ctx.restore();
+    }
+    // Gradual per-heart cue: the *next* empty heart to be healed progressively
+    // brightens/fills in (empty red → full red, plus its highlight fading in)
+    // as healFillRatio climbs from 0 to 1, instead of only flipping at the
+    // instant the heart is actually granted. healFillRatio is the raw
+    // (unfloored) hold-to-heal progress ratio — see heal-hold.js.
+    const nextHealIdx = healFillRatio>0 ? hearts : -1;
     for(let i=0;i<maxHearts;i++){
       const hx=4+hpBW+4+i*16*hP,hy=heartY,f=i<hearts;
-      ctx.fillStyle=f?'#e82020':'#6a2020';
+      const healing=i===nextHealIdx;
+      const bodyColor=healing?this._lerpColor('#6a2020','#e82020',healFillRatio):(f?'#e82020':'#6a2020');
+      ctx.fillStyle=bodyColor;
       ctx.fillRect(hx+hP,hy,4*hP,3*hP);ctx.fillRect(hx+7*hP,hy,4*hP,3*hP);
       ctx.fillRect(hx,hy+2*hP,12*hP,5*hP);ctx.fillRect(hx+2*hP,hy+7*hP,8*hP,2*hP);
       ctx.fillRect(hx+4*hP,hy+9*hP,4*hP,hP);
-      if(f){ctx.fillStyle='#ff6868';ctx.fillRect(hx+2*hP,hy+hP,3*hP,2*hP);}
+      if(f||healing){
+        ctx.save();
+        ctx.globalAlpha=healing?healFillRatio:1;
+        ctx.fillStyle='#ff6868';
+        ctx.fillRect(hx+2*hP,hy+hP,3*hP,2*hP);
+        ctx.restore();
+      }
     }
     // coin + score (right-aligned)
     const ty=~~((barH-7*P)/2);
@@ -459,6 +488,16 @@ export class Renderer {
     ctx.fillStyle='#2848e0';ctx.fillRect(tx-20,ty-16,tw+40,7*LOGICAL_PX*scale+32);
     ctx.fillStyle='#00003a';ctx.fillRect(tx-18,ty-14,tw+36,7*LOGICAL_PX*scale+28);
     this._text(text,tx,ty,'#f8f860',scale);
+  }
+
+  // Linearly interpolates between two '#rrggbb' hex colors at t (0..1).
+  // Used for the hearts row's gradual "next heart is healing" fill.
+  _lerpColor(colorA, colorB, t) {
+    const a=parseInt(colorA.slice(1),16),b=parseInt(colorB.slice(1),16);
+    const ar=(a>>16)&255,ag=(a>>8)&255,ab=a&255;
+    const br=(b>>16)&255,bg=(b>>8)&255,bb=b&255;
+    const r=Math.round(ar+(br-ar)*t),g=Math.round(ag+(bg-ag)*t),bl=Math.round(ab+(bb-ab)*t);
+    return `rgb(${r},${g},${bl})`;
   }
 
   _text(text, x, y, colour, scale=1) {

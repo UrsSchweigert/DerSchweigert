@@ -11,7 +11,9 @@ export class HUD {
       score: 0,
       combo: 0,
       level: 1,
-      difficulty: 'medium'
+      difficulty: 'medium',
+      healGlowRatio: 0,
+      healFillRatio: 0
     };
   }
 
@@ -25,7 +27,9 @@ export class HUD {
       this._state.maxHearts,
       this._state.score,
       this._state.combo,
-      'Level ' + this._state.level
+      'Level ' + this._state.level,
+      this._state.healGlowRatio,
+      this._state.healFillRatio
     );
   }
 }

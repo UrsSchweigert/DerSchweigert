@@ -45,6 +45,10 @@ body {
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
+  /* Holding a finger down for the hold-to-heal mechanic (see main.js
+     'pointerdown' on #game) must not trigger scrolling/pull-to-refresh/
+     double-tap-zoom on mobile while the player holds still. */
+  touch-action: none;
 }
 
 /* Pulsating combo-ability border. Sits above the canvas HUD bar (which
