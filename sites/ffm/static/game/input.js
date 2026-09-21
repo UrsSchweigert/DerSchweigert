@@ -15,14 +15,21 @@ export class InputManager {
       }
     });
     
-    this._strikeBtn.addEventListener('click', () => {
+    this._strikeBtn.addEventListener('pointerup', () => {
       if (this._enabled) {
         this._submit(this._answerInput.value);
       }
     });
     
     this._mcButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
+      // 'pointerup' rather than 'click': on touch devices, a synthesized
+      // 'click' is only fired for the primary touch point — a second,
+      // simultaneous touch (e.g. tapping an answer while the other hand
+      // holds the hold-to-heal zone on canvas) gets pointerdown/pointerup
+      // but never a 'click', so answers would silently fail to register
+      // whenever a heal-hold touch was already active. 'pointerup' fires
+      // for every touch regardless of primary/secondary status.
+      btn.addEventListener('pointerup', () => {
         if (this._enabled) {
           this._submit(btn.textContent.trim());
         }
