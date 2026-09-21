@@ -13,7 +13,8 @@ export class HUD {
       level: 1,
       difficulty: 'medium',
       healGlowRatio: 0,
-      healFillRatio: 0
+      healFillRatio: 0,
+      isShapesMode: false
     };
   }
 
@@ -22,14 +23,16 @@ export class HUD {
   }
 
   draw() {
+    const levelLabel = this._state.isShapesMode ? 'Shapes' : 'Level ' + this._state.level;
     this._renderer.drawHUD(
       this._state.hearts,
       this._state.maxHearts,
       this._state.score,
       this._state.combo,
-      'Level ' + this._state.level,
+      levelLabel,
       this._state.healGlowRatio,
-      this._state.healFillRatio
+      this._state.healFillRatio,
+      this._state.isShapesMode // hideScore — Shapes mode is unscored, so hide the coin/score/combo readout entirely
     );
   }
 }

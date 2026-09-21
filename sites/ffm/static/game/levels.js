@@ -1,11 +1,13 @@
 // Arithmo Slayer - Levels Configuration and Problem Generator
 
 /**
- * LCG (Linear Congruential Generator) for deterministic random numbers
+ * LCG (Linear Congruential Generator) for deterministic random numbers.
+ * Exported so other pure/testable problem generators (e.g. shapes.js)
+ * can reuse the same seeded RNG instead of duplicating it.
  * @param {number} seed - Initial seed value
  * @returns {object} RNG object with next() and nextInt() methods
  */
-function lcg(seed) {
+export function lcg(seed) {
   let s = seed >>> 0;
   return {
     next() {

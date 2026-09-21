@@ -7,7 +7,7 @@ import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
 import { api } from './api.js';
-import { getFiendClass, sampleFiendClassId } from './difficulty-classes.js';
+import { getFiendClass, sampleFiendClassId, FIEND_CLASSES } from './difficulty-classes.js';
 import { computeDragonPathBaselineScore } from './level-baseline-score.js';
 import { pickComboAbility, getComboFrameBand } from './combo-abilities.js';
 import {
@@ -19,6 +19,7 @@ import {
 import { CookieConsent } from './cookie-consent.js';
 import { preloadGameAssets } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
+import { generateShapesProblem } from './shapes.js';
 
 // The page's CSP is `script-src 'self' https://challenges.cloudflare.com`
 // with no 'unsafe-inline'/nonce, so an inline <script type="module"> in
@@ -171,6 +172,46 @@ function createFiend(levelIndex, x) {
   return fiend;
 }
 
+// Shapes-mode fiend factory: a plain 1-HP fiend of a uniformly random
+// type (no elite roll, no per-level curriculum lookup) carrying a
+// shape-counting "problem" instead of a math question. Deliberately
+// independent of LevelConfig/createFiend so this mode never needs a real
+// curriculum entry.
+const SHAPES_FIEND_TYPE_KEYS = Object.keys(FIEND_TYPE_CLASS);
+function createShapesFiend(x) {
+  const problem = generateShapesProblem(Date.now());
+  state.fiendsSpawned++;
+  const fiendTypeKey = SHAPES_FIEND_TYPE_KEYS[Math.floor(Math.random() * SHAPES_FIEND_TYPE_KEYS.length)];
+  const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey];
+  const palettes = FIEND_PALETTES[fiendTypeKey];
+  const palette = palettes ? palettes[0] : undefined;
+  const fiend = new FiendClass(x, GROUND_Y, 1, palette);
+  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
+  fiend.problem = problem;
+  fiend.isElite = false;
+  // sampleFiendClassId(level, spawnIndex) is what actually drives the fiend's
+  // *visible* sprite (via Fiend._drawClassSprite/FIEND_CLASSES) — the
+  // FiendClass picked above only affects HP/behavior defaults, since a
+  // loaded class sprite always takes drawing priority over the per-class
+  // procedural fallback. Calling it with a fixed level (e.g. always level 1)
+  // would be a bug here: getFiendClassWeights(1) has only one entry (no
+  // level-1/-2 history to blend in), so it would deterministically return
+  // the exact same sprite id every time regardless of spawnIndex — exactly
+  // the "always the same fiend" symptom this mode must avoid. Sample a
+  // uniformly random class id across the whole roster instead, for real
+  // visual variety on every spawn.
+  fiend.fiendClassId = 1 + Math.floor(Math.random() * FIEND_CLASSES.length);
+  return fiend;
+}
+
+// Returns the current problem's input mode ('multiple-choice' | 'free-text').
+// Shapes mode isn't a LevelConfig entry, so it's special-cased here rather
+// than relying on state.level happening to alias a real level's inputMode.
+function getCurrentInputMode() {
+  if (state.isShapesMode) return 'multiple-choice';
+  return LevelConfig[state.level - 1]?.inputMode;
+}
+
 // --- GameState ---
 let state = {
   level: 1,
@@ -186,6 +227,7 @@ let state = {
   timerMax: 10,
   timerRemaining: 10,
   timerActive: false,
+  isShapesMode: false, // "Shapes" mode: infinite, unscored shape-counting practice
 };
 
 // --- DOM refs ---
@@ -599,6 +641,19 @@ splashLoginBtn.addEventListener('click', () => {
 // --- Difficulty select ---
 document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (btn.dataset.difficulty === 'shapes') {
+      state.difficulty = 'shapes';
+      state.timerMax = parseInt(btn.dataset.timer);
+      state.timerRemaining = state.timerMax;
+      state.maxHearts = parseInt(btn.dataset.hearts);
+      state.hearts = state.maxHearts;
+      state.score = 0;
+      levelStartScore = 0;
+      healTipShown = false;
+      diffSelect.style.display = 'none';
+      startShapesMode();
+      return;
+    }
     state.difficulty = btn.dataset.difficulty;
     state.timerMax = parseInt(btn.dataset.timer);
     state.timerRemaining = state.timerMax;
@@ -1022,6 +1077,57 @@ function finishStartLevel(levelIndex, cfg) {
   if (!animFrameId) gameLoop(performance.now());
 }
 
+// Bootstraps the "Shapes" mode: an infinite, unscored shape-counting
+// practice loop. Deliberately independent of startLevel/finishStartLevel
+// (no LevelConfig entry, no waveSize/spawnQueue prefill, no level-clear) —
+// see createShapesFiend/spawnNextFiend/checkAllDefeated for how the
+// "infinite" spawning and "never clears" behavior is achieved.
+function startShapesMode() {
+  showLoadingOverlay();
+  renderer.setBackgroundByLevel(1); // reuse the Grade-1 stage art; no dedicated asset needed
+
+  const ready = Promise.all([assetsLoaded, renderer.waitForBackgroundLoad()]);
+  Promise.race([
+    ready,
+    new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
+  ]).then(() => {
+    hideLoadingOverlay();
+    finishStartShapesMode();
+  });
+}
+
+function finishStartShapesMode() {
+  currentLevelIndex = 0;
+  state.isShapesMode = true;
+  levelStartScore = state.score; // stays 0 — this mode never scores
+  state.level = 1;
+  state.waveNumber = 1;
+  state.enemiesDefeated = 0;
+  state.fiendsSpawned = 0;
+  spawnQueue = [];
+  requeuedFiends = [];
+  fiends = [];
+  activeFiend = null;
+  inputDisabled = false;
+  pendingProblemActivation = null;
+  activeLightningBolts = [];
+  activeFireballs = [];
+  activeDragons = [];
+  resetHealHold();
+
+  spawnTimer = 2.0;
+  state.combo = 0;
+  gameRunning = true;
+  paused = false;
+  pauseOverlay.style.display = 'none';
+  topBar.style.display = 'none';
+  levelClearOverlay.style.display = 'none';
+  gameOverOverlay.style.display = 'none';
+  hud.update(state);
+  audio.startBGM(1);
+  if (!animFrameId) gameLoop(performance.now());
+}
+
 // Converts a pointer/mouse event's CSS-pixel client coordinates into the
 // game's 800x450 logical canvas coordinate space. The canvas is scaled
 // responsively via CSS (see styles.css `#game { width:100%; height:100% }`
@@ -1051,8 +1157,7 @@ function resetHealHold() {
 // pointerup/cancel/leave only ever tears down the heal-hold side of it.
 canvas.addEventListener('pointerdown', (e) => {
   if (!gameRunning || paused) return;
-  const cfg = LevelConfig[state.level - 1];
-  if (!cfg || cfg.inputMode !== 'multiple-choice') return;
+  if (getCurrentInputMode() !== 'multiple-choice') return;
   const x = canvasLogicalX(e.clientX);
   if (isInHealZone(x, CANVAS_W)) {
     isHealHolding = true;
@@ -1107,8 +1212,7 @@ function resumeGame() {
   pauseOverlay.style.display = 'none';
   audio.resumeBGM();
   if (activeFiend && state.timerActive) {
-    const cfg = LevelConfig[state.level - 1];
-    input.enable(cfg.inputMode);
+    input.enable(getCurrentInputMode());
   }
 }
 
@@ -1148,6 +1252,11 @@ function spawnNextFiend() {
     fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
     fiend.wasRequeued = true;
     fiend.setState('walk');
+  } else if (state.isShapesMode) {
+    // Shapes mode never populates spawnQueue/requeuedFiends — it always
+    // falls through to here, giving the "infinite" one-fiend-at-a-time
+    // stream this mode needs.
+    fiend = createShapesFiend(CANVAS_W + 20);
   }
   if (fiend) {
     fiend.on('retreated', () => { onFiendRetreated(fiend); });
@@ -1168,6 +1277,9 @@ function onFiendDead(fiend) {
 }
 
 function checkAllDefeated() {
+  // Shapes mode is an endless practice loop with no wave/level-clear
+  // concept at all — never treat it as "cleared".
+  if (state.isShapesMode) return false;
   return spawnQueue.length === 0 &&
          requeuedFiends.length === 0 &&
          fiends.every(f => f.isDead || f.state === 'retreat');
@@ -1204,8 +1316,13 @@ function handleCorrectAnswer() {
   const classBase   = getFiendClass(activeFiend.fiendClassId).scoreValue;
   const points      = (classBase + speedBonus + comboBonus) * multiplier;
 
-  state.score += points;
-  state.combo++;
+  // Shapes mode is deliberately unscored (no score/combo/leaderboard) —
+  // combo staying at 0 also naturally keeps pickComboAbility() below from
+  // ever triggering fireball/lightning/dragon, so this mode is melee-only.
+  if (!state.isShapesMode) {
+    state.score += points;
+    state.combo++;
+  }
   state.timerActive = false;
 
   const fiend = activeFiend;
@@ -1388,7 +1505,11 @@ function handleWrongAnswer() {
   setTimeout(() => {
     if (activeFiend) {
       const p = activeFiend.problem;
-      activeFiend._revealText = p.question.replace(' = ?', ' = ' + p.answer);
+      // Shapes problems have no text question (see shapes.js's
+      // displayMode: 'shapes') — fall back to a plain "Answer: N" reveal.
+      activeFiend._revealText = p.question
+        ? p.question.replace(' = ?', ' = ' + p.answer)
+        : `Answer: ${p.answer}`;
       activeFiend.setState('reveal');
       
       setTimeout(() => {
@@ -1416,8 +1537,7 @@ function activatePendingProblem() {
 
   const { fiend, preserveTimer } = pendingProblemActivation;
   pendingProblemActivation = null;
-  const cfg = LevelConfig[state.level - 1];
-  const mode = cfg.inputMode;
+  const mode = getCurrentInputMode();
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x);
   activeFiend = fiend;
   state.timerRemaining = getProblemTimerRemaining(state.timerMax, state.timerRemaining, preserveTimer);
@@ -1506,14 +1626,21 @@ function triggerGameOver() {
   topBar.style.display = 'flex';
   audio.stopBGM();
   audio.playGameOver();
-  if (api.isLoggedIn) {
+  // Shapes mode is unscored — never submit a high score for it.
+  if (api.isLoggedIn && !state.isShapesMode) {
     api.postHighScore(state.score).then(() => {
       refreshProfileAndLeaderboard();
     }).catch(() => {});
   }
-  gameOverScore.textContent = `Score: ${state.score}`;
+  gameOverScore.textContent = state.isShapesMode
+    ? 'Take a breath, then try again!'
+    : `Score: ${state.score}`;
   btnRetryLevel.onclick = () => {
     gameOverOverlay.style.display = 'none';
+    if (state.isShapesMode) {
+      startShapesMode();
+      return;
+    }
     state.score = levelStartScore;
     startLevel(currentLevelIndex);
   };
@@ -1551,7 +1678,7 @@ function gameLoop(ts) {
     
     if (!activeFiend && !inputDisabled) {
       spawnTimer -= dt;
-      if (spawnTimer <= 0 && (spawnQueue.length > 0 || requeuedFiends.length > 0)) {
+      if (spawnTimer <= 0 && (spawnQueue.length > 0 || requeuedFiends.length > 0 || state.isShapesMode)) {
         spawnNextFiend();
         spawnTimer = spawnInterval;
       }
@@ -1569,8 +1696,7 @@ function gameLoop(ts) {
     // unresponsive if a player starts holding pre-emptively — any heart it
     // would grant while already full is simply a harmless no-op (capped
     // below), not a dead/silent interaction.
-    const currentLevelCfg = LevelConfig[state.level - 1];
-    const isMCLevel = currentLevelCfg?.inputMode === 'multiple-choice';
+    const isMCLevel = getCurrentInputMode() === 'multiple-choice';
     const canHeal = isMCLevel && hero.state !== 'hurt';
     const healResult = updateHealHold(healHoldProgress, dt, {
       isHolding: isHealHolding,
@@ -1648,10 +1774,14 @@ function gameLoop(ts) {
   // Pass 2: speech bubbles and timer bars always on top of every sprite
   sorted.forEach(f => {
     if (f.problem && f.x < FIEND_ENTRY_TRIGGER_X && !f.isDead && f.state !== 'death') {
-      const bubbleText = f.state === 'reveal'
-        ? (f._revealText || f.problem.question)
-        : f.problem.question;
-      renderer.drawSpeechBubble(f.x, f.y - 20 * LOGICAL_PX, bubbleText, f === activeFiend);
+      if (f.problem.displayMode === 'shapes' && f.state !== 'reveal') {
+        renderer.drawShapeBubble(f.x, f.y - 20 * LOGICAL_PX, f.problem.shapeType, f.problem.count, f === activeFiend);
+      } else {
+        const bubbleText = f.state === 'reveal'
+          ? (f._revealText || f.problem.question)
+          : f.problem.question;
+        renderer.drawSpeechBubble(f.x, f.y - 20 * LOGICAL_PX, bubbleText, f === activeFiend);
+      }
     }
     if (f === activeFiend && state.timerActive) {
       const ratio = state.timerRemaining / state.timerMax;

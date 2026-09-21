@@ -43,8 +43,10 @@ export const PIXEL_FONT = {
   'G':['01110','10001','10000','10111','10001','10001','01111'],
   'H':['10001','10001','10001','11111','10001','10001','10001'],
   'I':['01110','00100','00100','00100','00100','00100','01110'],
+  'K':['10001','10010','10100','11000','10100','10010','10001'],
   'L':['10000','10000','10000','10000','10000','10000','11111'],
   'M':['10001','11011','10101','10001','10001','10001','10001'],
+  'N':['10001','11001','10101','10101','10011','10001','10001'],
   'O':['01110','10001','10001','10001','10001','10001','01110'],
   'P':['11110','10001','10001','11110','10000','10000','10000'],
   'R':['11110','10001','10001','11110','10100','10010','10001'],
@@ -376,14 +378,12 @@ export class Renderer {
   // ─── public API ─────────────────────────────────────────────────────────────
   drawEntity(entity) { entity.draw(this.ctx); }
 
-  /** isActive=true → blue border (combat question), false → grey (queued) */
-  drawSpeechBubble(x, y, text, isActive = true) {
+  // Shared "chrome" (shadow/border/body/accent/tail) for the fiend problem
+  // bubble, factored out so both the text-question bubble (drawSpeechBubble)
+  // and the Shapes-mode shape-count bubble (drawShapeBubble) render with
+  // an identical frame around whatever content each one draws inside it.
+  _drawBubbleChrome(bx, by, bW, bH, isActive) {
     const ctx=this.ctx,P=LOGICAL_PX;
-    const charW=6*P,tW=text.length*charW,padX=12,padY=8;
-    const bW=tW+padX*2,bH=7*P+padY*2;
-    let bx=~~(x-bW/2);bx=Math.max(4,Math.min(CANVAS_W-bW-4,bx));
-    const by=~~(y-bH-20);
-
     // shadow
     ctx.fillStyle='rgba(0,0,0,0.28)';ctx.fillRect(bx+3,by+3,bW,bH);
     // border
@@ -397,8 +397,55 @@ export class Renderer {
     ctx.fillStyle=tc;
     ctx.fillRect(bx+14,by+bH,P*2,P);ctx.fillRect(bx+12,by+bH+P,P*2,P);ctx.fillRect(bx+10,by+bH+P*2,P*2,P);
     ctx.fillStyle=tf;ctx.fillRect(bx+14,by+bH,P,P);
-    // text
+  }
+
+  /** isActive=true → blue border (combat question), false → grey (queued) */
+  drawSpeechBubble(x, y, text, isActive = true) {
+    const P=LOGICAL_PX;
+    const charW=6*P,tW=text.length*charW,padX=12,padY=8;
+    const bW=tW+padX*2,bH=7*P+padY*2;
+    let bx=~~(x-bW/2);bx=Math.max(4,Math.min(CANVAS_W-bW-4,bx));
+    const by=~~(y-bH-20);
+    this._drawBubbleChrome(bx, by, bW, bH, isActive);
     this._text(text,bx+padX,by+padY+4,isActive?'#1020a0':'#303030');
+  }
+
+  /**
+   * Shapes-mode bubble: draws `count` (1-10) filled shape icons
+   * (square/circle/triangle) in a grid (up to 5 per row, wrapping to a
+   * 2nd row) instead of a text question, using the same bubble chrome as
+   * drawSpeechBubble so both problem styles read consistently in-game.
+   */
+  drawShapeBubble(x, y, shapeType, count, isActive = true) {
+    const ctx=this.ctx,P=LOGICAL_PX;
+    const cols=Math.min(count,5),rows=Math.ceil(count/5);
+    const cell=5*P,gap=3*P,padX=12,padY=8;
+    const gridW=cols*cell+(cols-1)*gap,gridH=rows*cell+(rows-1)*gap;
+    const bW=gridW+padX*2,bH=gridH+padY*2;
+    let bx=~~(x-bW/2);bx=Math.max(4,Math.min(CANVAS_W-bW-4,bx));
+    const by=~~(y-bH-20);
+    this._drawBubbleChrome(bx, by, bW, bH, isActive);
+
+    ctx.fillStyle=isActive?'#1020a0':'#303030';
+    for(let i=0;i<count;i++){
+      const col=i%5,row=Math.floor(i/5);
+      const cx=bx+padX+col*(cell+gap)+cell/2;
+      const cy=by+padY+row*(cell+gap)+cell/2;
+      this._drawShapeIcon(shapeType,cx,cy,cell);
+    }
+  }
+
+  _drawShapeIcon(shapeType, cx, cy, size) {
+    const ctx=this.ctx,half=size/2;
+    if(shapeType==='circle'){
+      ctx.beginPath();ctx.arc(cx,cy,half*0.85,0,Math.PI*2);ctx.fill();
+    } else if(shapeType==='triangle'){
+      ctx.beginPath();
+      ctx.moveTo(cx,cy-half);ctx.lineTo(cx+half,cy+half);ctx.lineTo(cx-half,cy+half);
+      ctx.closePath();ctx.fill();
+    } else {
+      ctx.fillRect(cx-half*0.85,cy-half*0.85,size*0.85,size*0.85);
+    }
   }
 
   drawTimerBar(x, y, w, ratio) {
@@ -411,7 +458,7 @@ export class Renderer {
     if(fw>2){ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(x,y,fw,~~(h/2));}
   }
 
-  drawHUD(hearts, maxHearts, score, combo, levelLabel, healGlowRatio=0, healFillRatio=0) {
+  drawHUD(hearts, maxHearts, score, combo, levelLabel, healGlowRatio=0, healFillRatio=0, hideScore=false) {
     const ctx=this.ctx,P=LOGICAL_PX;
     const hP=P>>1;                        // half-scale pixel for hearts/icons (2 when P=4)
     const barH=7*P+10;                    // bar height: 38px when P=4
@@ -460,23 +507,30 @@ export class Renderer {
         ctx.restore();
       }
     }
-    // coin + score (right-aligned)
-    const ty=~~((barH-7*P)/2);
-    const sc=''+(score|0);const scoreX=CANVAS_W-10-sc.length*6*P;
-    const cW=(7*P)>>1;                    // coin size: 14px when P=4
-    const coinX=scoreX-cW-4,coinY=ty+~~((7*P-cW)/2);
-    ctx.fillStyle='#e8c040';ctx.fillRect(coinX,coinY,cW,cW);
-    ctx.fillStyle='#fce880';ctx.fillRect(coinX+1,coinY+1,cW-2,cW>>1);
-    ctx.fillStyle='#b09020';ctx.fillRect(coinX,coinY+cW-2,cW,2);
-    this._text(sc,scoreX,ty,'#f8e040');
-    // combo — placed left of coin on the same row so it stays inside the bar
-    if(combo>=2){
-      const cs='×'+combo,csS=0.65,csW=~~(cs.length*6*P*csS);
-      this._text(cs,coinX-6-csW,ty+~~(7*P*(1-csS)/2),'#ff8020',csS);
+    // coin + score (right-aligned) — hidden in Shapes mode, which is
+    // deliberately unscored, so there's nothing to show here.
+    if(!hideScore){
+      const ty=~~((barH-7*P)/2);
+      const sc=''+(score|0);const scoreX=CANVAS_W-10-sc.length*6*P;
+      const cW=(7*P)>>1;                    // coin size: 14px when P=4
+      const coinX=scoreX-cW-4,coinY=ty+~~((7*P-cW)/2);
+      ctx.fillStyle='#e8c040';ctx.fillRect(coinX,coinY,cW,cW);
+      ctx.fillStyle='#fce880';ctx.fillRect(coinX+1,coinY+1,cW-2,cW>>1);
+      ctx.fillStyle='#b09020';ctx.fillRect(coinX,coinY+cW-2,cW,2);
+      this._text(sc,scoreX,ty,'#f8e040');
+      // combo — placed left of coin on the same row so it stays inside the bar
+      if(combo>=2){
+        const cs='×'+combo,csS=0.65,csW=~~(cs.length*6*P*csS);
+        this._text(cs,coinX-6-csW,ty+~~(7*P*(1-csS)/2),'#ff8020',csS);
+      }
     }
-    // level (centred)
-    const llX=~~(CANVAS_W/2-levelLabel.length*3*P);
-    this._text(levelLabel,llX,ty,'#f0f0f0');
+    // level (centred, but nudged right if a wide hearts row — e.g. the
+    // generous heart count used by Shapes mode — would otherwise
+    // run into it; centering alone assumes a short hearts row, which isn't
+    // true for every difficulty setting)
+    const heartsEndX = 4+hpBW+4+maxHearts*16*hP;
+    const llX = Math.max(~~(CANVAS_W/2-levelLabel.length*3*P), heartsEndX+6);
+    this._text(levelLabel,llX,~~((barH-7*P)/2),'#f0f0f0');
   }
 
   drawBanner(text) {
