@@ -367,7 +367,10 @@ def test_leaderboard_global_grouping_filter_and_unclassified(client):
     assert [e['username'] for e in year_data['grouped_entries'][0]['entries']] == ["alice", "bob"]
 
 
-def test_leaderboard_only_shows_scores_from_last_two_weeks(client):
+def test_leaderboard_includes_scores_regardless_of_achieved_at_age(client):
+    """Regression test: `achieved_at` only reflects when a personal best was
+    last improved, not when the player last played, so the leaderboard must
+    not filter entries out based on it (see get_leaderboard docstring)."""
     recent_headers = register_and_login(client, "recent", "recent@example.com", "password123", 2010)
     old_headers = register_and_login(client, "oldie", "oldie@example.com", "password123", 2011)
 
@@ -376,21 +379,21 @@ def test_leaderboard_only_shows_scores_from_last_two_weeks(client):
     assert recent.status_code == 200
     assert old.status_code == 200
 
-    cutoff_breach = (datetime.now(timezone.utc) - timedelta(days=15)).isoformat()
+    long_ago = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
     score_table().update_item(
         Key={'pk': 'USER#oldie', 'sk': 'HIGHSCORE'},
         UpdateExpression='SET achieved_at = :achieved_at',
-        ExpressionAttributeValues={':achieved_at': cutoff_breach},
+        ExpressionAttributeValues={':achieved_at': long_ago},
     )
 
     leaderboard = client.get('/api/leaderboard')
     assert leaderboard.status_code == 200
     data = leaderboard.get_json()
 
-    assert [entry['username'] for entry in data['global_entries']] == ["recent"]
+    assert [entry['username'] for entry in data['global_entries']] == ["oldie", "recent"]
     grouped = {entry['label']: entry['entries'] for entry in data['grouped_entries']}
     assert "2010" in grouped
-    assert "2011" not in grouped
+    assert "2011" in grouped
 
 
 def test_auth_login_rate_limit_is_enforced(aws_mock):

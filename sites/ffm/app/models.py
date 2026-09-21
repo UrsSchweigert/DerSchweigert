@@ -10,7 +10,6 @@ import secrets
 
 MIN_FIRST_GRADE_YEAR = 1950
 MAX_FIRST_GRADE_YEAR = 2100
-LEADERBOARD_WINDOW_DAYS = 14
 SCORE_HISTORY_LIMIT = 100
 VERIFY_EMAIL_TTL_SECONDS = 24 * 3600
 RESET_PASSWORD_TTL_SECONDS = 3600
@@ -44,10 +43,6 @@ def _now():
 def _parse_timestamp(value):
     dt = datetime.fromisoformat(value)
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
-
-
-def _leaderboard_cutoff():
-    return datetime.now(timezone.utc) - timedelta(days=LEADERBOARD_WINDOW_DAYS)
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +396,13 @@ def get_score_history(username, limit=SCORE_HISTORY_LIMIT):
 
 
 def get_leaderboard(first_grade_year_filter=None):
-    """Scan recent HIGHSCORE items. Returns (global_entries, grouped_entries)."""
+    """Scan all-time HIGHSCORE items. Returns (global_entries, grouped_entries).
+
+    Not filtered by recency: `achieved_at` only reflects when a personal best
+    was last improved, not when the player last played, so filtering on it
+    would hide active players whose existing record simply hasn't been beaten
+    recently.
+    """
     items = []
     kwargs = {
         'FilterExpression': Attr('sk').eq('HIGHSCORE'),
@@ -411,9 +412,6 @@ def get_leaderboard(first_grade_year_filter=None):
     while 'LastEvaluatedKey' in resp:
         resp = _scores().scan(**kwargs, ExclusiveStartKey=resp['LastEvaluatedKey'])
         items.extend(resp.get('Items', []))
-
-    cutoff = _leaderboard_cutoff()
-    items = [item for item in items if _parse_timestamp(item['achieved_at']) >= cutoff]
 
     items.sort(key=lambda x: (-int(x['high_score']), x['achieved_at'], x.get('username', '')))
 
