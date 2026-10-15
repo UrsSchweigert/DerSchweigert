@@ -232,7 +232,7 @@ resource "aws_route53_record" "cert_validation" {
     }
   }
 
-  zone_id = var.route53_zone_id
+  zone_id = lookup(var.route53_zone_ids_by_domain, each.key, var.route53_zone_id)
   name    = each.value.name
   type    = each.value.type
   ttl     = 60
@@ -248,7 +248,7 @@ resource "aws_acm_certificate_validation" "cert" {
 resource "aws_route53_record" "aliases" {
   for_each = toset(concat([var.domain], var.additional_aliases))
 
-  zone_id = var.route53_zone_id
+  zone_id = lookup(var.route53_zone_ids_by_domain, each.key, var.route53_zone_id)
   name    = each.value
   type    = "A"
 

@@ -19,6 +19,12 @@ variable "route53_zone_id" {
   type        = string
 }
 
+variable "route53_zone_ids_by_domain" {
+  description = "Optional per-hostname hosted zone IDs for aliases outside the primary DNS zone"
+  type        = map(string)
+  default     = {}
+}
+
 variable "price_class" {
   description = "CloudFront price class"
   type        = string

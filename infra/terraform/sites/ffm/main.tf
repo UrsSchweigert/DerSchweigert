@@ -237,9 +237,14 @@ module "site" {
 
   app_name            = local.app_name
   domain              = local.domain
-  additional_aliases  = []
+  additional_aliases  = ["arithmoslayer.de", "www.arithmoslayer.de"]
   route53_zone_id     = data.aws_route53_zone.primary.zone_id
   default_root_object = "index.html"
+
+  route53_zone_ids_by_domain = {
+    "arithmoslayer.de"     = aws_route53_zone.arithmoslayer.zone_id
+    "www.arithmoslayer.de" = aws_route53_zone.arithmoslayer.zone_id
+  }
 
   api_origin = {
     origin_id   = "api-origin"

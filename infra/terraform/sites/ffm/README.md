@@ -28,3 +28,40 @@ permissions for new resource types.
 
 For the application-level system overview, see
 [`sites/ffm/README.md`](../../../../sites/ffm/README.md).
+
+## arithmoslayer.de migration
+
+GoDaddy remains the registrar. `domain.tf` manages a separate Route 53 zone;
+the existing CloudFront distribution and ACM certificate also cover
+`arithmoslayer.de` and `www.arithmoslayer.de`. The shared static-site module's
+`route53_zone_ids_by_domain` selects the correct zone for each hostname,
+including certificate validation records.
+
+For the initial cutover, do not change the registrar's nameservers until
+the certificate is issued and CloudFront has finished deploying:
+
+1. Create only the Route 53 zone first, using a targeted Terraform plan for
+   `aws_route53_zone.arithmoslayer` during this bootstrap.
+2. Request a temporary ACM DNS-validated certificate in `us-east-1` for the
+   new apex and `www` hostnames. Copy its validation CNAMEs into the
+   existing GoDaddy DNS zone, leaving forwarding and nameservers unchanged.
+   ACM validation tokens are reusable for the same account and hostname,
+   so they also validate the Terraform-managed replacement certificate.
+   Do not target replacement of the existing certificate alone: the old
+   certificate must remain attached until CloudFront is updated.
+3. Once ACM validation succeeds, review and apply the infrastructure plan
+   using the current production billing variables, not their disabled
+   defaults. Wait for CloudFront deployment and verify both new hostnames
+   against CloudFront before switching DNS.
+   Delete the temporary certificate once the Terraform-managed certificate
+   is issued; retain the validation CNAMEs for automatic renewal.
+4. Allow the new domain in the Cloudflare Turnstile widget configuration
+   before public cutover. Preserve any existing email/verification DNS
+   records if added at GoDaddy.
+5. Set GoDaddy's nameservers to the `arithmoslayer_nameservers` output.
+   Verify HTTPS, API health, registration, and payment return links.
+
+Initially all three hostnames serve the same deployment without redirecting
+the old hostname. Application-generated email and payment links still use
+`ffm.derschweigert.de` until a separate canonical-domain cutover; keep that
+hostname and existing Stripe webhooks operational.
