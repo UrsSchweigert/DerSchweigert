@@ -989,9 +989,13 @@ def test_delete_account_success_removes_profile_and_frees_username_and_email(cli
     assert r.get_json() == {"ok": True}
     assert 'refresh_token=;' in r.headers.get('Set-Cookie', '') or 'refresh_token=' in r.headers.get('Set-Cookie', '')
 
-    # Old access token no longer resolves to a real profile
+    # Old access token is rejected outright by the shared JWT validator
+    # (its sub no longer resolves to any user at all) -- 401, not 404. A
+    # deleted account's token must never reach a route handler at all,
+    # since a since-recycled username could otherwise let it resolve to a
+    # brand new, unrelated account's profile.
     profile = client.get('/api/profile', headers=headers)
-    assert profile.status_code == 404
+    assert profile.status_code == 401
 
     # Logging in with the old credentials should fail
     login_resp = client.post('/api/auth/login', json={

@@ -185,6 +185,10 @@ const DICTIONARY = {
   'account.changePassword': { en: 'Change Password', de: 'Passwort ändern' },
   'account.newPasswordsDoNotMatch': { en: 'New passwords do not match.', de: 'Die neuen Passwörter stimmen nicht überein.' },
   'account.passwordChanged': { en: 'Password changed.', de: 'Passwort geändert.' },
+  'auth.passwordChangedPleaseLogIn': {
+    en: 'Password changed. For your security, please log in again.',
+    de: 'Passwort geändert. Bitte melde dich aus Sicherheitsgründen erneut an.',
+  },
 
   // Billing
   'billing.loading': { en: 'Loading billing status...', de: 'Abrechnungsstatus wird geladen...' },

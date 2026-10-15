@@ -1,17 +1,16 @@
 from flask import Blueprint, request, jsonify, make_response, current_app
 import bcrypt
-import jwt
-import datetime
 import sys
 from .extensions import limiter
 from .models import (
     create_user, get_user, get_user_by_email,
     set_email_verified, set_password_hash,
     create_token, consume_token,
-    confirm_email_change,
+    confirm_email_change, ensure_stable_id,
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
     VERIFY_EMAIL_TTL_SECONDS, RESET_PASSWORD_TTL_SECONDS, CHANGE_EMAIL_TTL_SECONDS,
 )
+from .jwt_utils import mint_access_token, mint_refresh_token, decode_auth_token, InvalidAuthToken, TYPE_REFRESH
 from .validation import is_valid_int
 from . import mailer
 from .captcha import verify_turnstile_token
@@ -108,19 +107,31 @@ def login():
     if not user['email_verified']:
         return jsonify({"error": "email_not_verified"}), 403
 
-    access_payload = {
-        "sub": user['username'],
-        "username": user['username'],
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES']),
-    }
-    access_token = jwt.encode(access_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    # Legacy profiles predating stable_id: backfill lazily, only when
+    # missing, so an already-provisioned account doesn't pay for an extra
+    # conditional DynamoDB write on every login.
+    stable_id = user['stable_id']
+    if not stable_id:
+        stable_id = ensure_stable_id(username)
+        if not stable_id:
+            # Account deleted between the get_user() read above and here.
+            return jsonify({"error": "Invalid credentials"}), 401
+        # ensure_stable_id() conditions only on the username's PROFILE row
+        # existing, not on it being the SAME account whose password we
+        # just checked. If it was deleted and the username re-registered
+        # by someone else in that window, the row now exists again (with
+        # its own stable_id already minted by create_user, untouched by
+        # if_not_exists) and this would silently bind the token to the
+        # new, unrelated account. Re-read and require the immutable
+        # identity anchors to still match before trusting it.
+        current = get_user(username)
+        if (not current or current['password_hash'] != user['password_hash']
+                or current['created_at'] != user['created_at']):
+            return jsonify({"error": "Invalid credentials"}), 401
+    user['stable_id'] = stable_id
 
-    refresh_payload = {
-        "sub": user['username'],
-        "username": user['username'],
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_REFRESH_EXPIRES']),
-    }
-    refresh_token = jwt.encode(refresh_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    access_token = mint_access_token(user)
+    refresh_token = mint_refresh_token(user)
 
     response = make_response(jsonify({"access_token": access_token, "user": {"username": user['username']}}), 200)
     response.set_cookie(
@@ -254,22 +265,16 @@ def refresh():
         return jsonify({"error": "No refresh token"}), 401
 
     try:
-        payload = jwt.decode(refresh_token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-        username = payload['sub']
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        # Re-validated against the current DynamoDB row: expired/malformed,
+        # missing-claim legacy token, access token presented here, deleted
+        # account, delete+recreate (stable_id mismatch), or a password
+        # change/reset since mint (token_version mismatch) all reject.
+        user = decode_auth_token(refresh_token, TYPE_REFRESH)
+    except InvalidAuthToken:
         return jsonify({"error": "Refresh token expired or invalid"}), 401
 
-    access_payload = {
-        "sub": username, "username": username,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_ACCESS_EXPIRES']),
-    }
-    new_access_token = jwt.encode(access_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
-
-    new_refresh_payload = {
-        "sub": username, "username": username,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=current_app.config['JWT_REFRESH_EXPIRES']),
-    }
-    new_refresh_token = jwt.encode(new_refresh_payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    new_access_token = mint_access_token(user)
+    new_refresh_token = mint_refresh_token(user)
 
     response = make_response(jsonify({"access_token": new_access_token}), 200)
     response.set_cookie(

@@ -71,6 +71,12 @@ def get_user(username):
         'pending_email': item.get('pending_email'),
         'stable_id': item.get('stable_id'),
         'grandfathered': item.get('grandfathered', False),
+        # Legacy profiles predating this attribute have no token_version at
+        # all in DynamoDB; default missing -> 0 so the shared JWT validator
+        # (app/jwt_utils.py) can still compare it against a freshly minted
+        # token's `ver` claim. set_password_hash()'s `ADD token_version :one`
+        # correctly bumps a missing attribute 0 -> 1 the first time it's used.
+        'token_version': int(item.get('token_version', 0)),
     }
 
 
@@ -169,11 +175,20 @@ def delete_user(username):
 
 
 def set_password_hash(username, password_hash):
-    """Overwrite the stored bcrypt hash (used by /profile/password and /auth/reset-password)."""
+    """Overwrite the stored bcrypt hash (used by /profile/password and
+    /auth/reset-password), atomically incrementing token_version in the
+    SAME DynamoDB update. Every access/refresh token minted before this
+    call carries the old `ver` claim, so app/jwt_utils.py's shared
+    validator rejects all of them on their very next use -- a password
+    change or reset immediately revokes every outstanding session and
+    forces re-login, with no window where the old password and an old
+    still-valid token could coexist. `ADD token_version :one` is safe even
+    when the attribute doesn't exist yet (legacy profiles): DynamoDB treats
+    a missing numeric attribute as 0 before adding, so it becomes 1."""
     _users().update_item(
         Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
-        UpdateExpression='SET password_hash = :v',
-        ExpressionAttributeValues={':v': password_hash},
+        UpdateExpression='SET password_hash = :v ADD token_version :one',
+        ExpressionAttributeValues={':v': password_hash, ':one': 1},
     )
 
 

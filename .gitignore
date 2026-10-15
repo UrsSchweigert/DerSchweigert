@@ -12,6 +12,7 @@ __pycache__/
 sites/ffm/build/
 uploads/
 sites/derschweigert/.tmp
+sites/ffm/private-codes/
 
 # Terraform / AWS deployment artifacts
 .terraform/

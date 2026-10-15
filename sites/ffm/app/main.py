@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, make_response, current_app, abort
 import bcrypt
 import sys
-import jwt
 import stripe
+from .jwt_utils import decode_auth_token, InvalidAuthToken, TYPE_ACCESS
 from .models import (
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
     CHANGE_EMAIL_TTL_SECONDS,
@@ -23,16 +23,18 @@ main_bp = Blueprint('api', __name__, url_prefix='/api')
 
 
 def require_auth():
-    """Verify JWT bearer token; returns username."""
+    """Validate the bearer access token via the shared validator
+    (app/jwt_utils.py) and return the CURRENT username. Every protected
+    route (incl. billing) goes through this single choke point."""
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         abort(401, description="Unauthorized")
     token = auth_header[7:]
     try:
-        payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-        return payload['sub']
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, KeyError):
+        user = decode_auth_token(token, TYPE_ACCESS)
+    except InvalidAuthToken:
         abort(401, description="Unauthorized")
+    return user['username']
 
 
 @main_bp.route('/health', methods=['GET'])

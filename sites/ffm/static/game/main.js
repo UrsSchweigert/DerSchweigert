@@ -1165,9 +1165,21 @@ accountPasswordForm.addEventListener('submit', async e => {
   }
   try {
     await api.changePassword(current, next);
-    accountPasswordMessage.classList.add('success-msg');
-    accountPasswordMessage.textContent = t('account.passwordChanged');
     accountPasswordForm.reset();
+    // The backend revokes every previously issued access/refresh token the
+    // moment the password changes (see app/jwt_utils.py's token_version
+    // check), so the tab's own in-memory access token and refresh cookie
+    // are already dead. Mirror the account-deletion flow: clear local
+    // session state and send the user back to the login form instead of
+    // leaving them in an apparently-logged-in UI that will 401 on its next
+    // request.
+    clearPremiumSession();
+    await api.logout();
+    accountModal.style.display = 'none';
+    applyAuthUIState();
+    loginError.textContent = t('auth.passwordChangedPleaseLogIn');
+    showAuthForm(loginForm);
+    authModal.style.display = 'flex';
   } catch (err) {
     accountPasswordMessage.classList.remove('success-msg');
     accountPasswordMessage.textContent = translateServerMessage(err.message);
