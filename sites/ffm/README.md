@@ -408,6 +408,68 @@ Gift-code grants are local data and are not recovered by this option, so do not
 restart in the middle of gift validation.
 For a no-network runner check, supply `--offline-check` instead of secrets.
 
+**LIVE Stripe + AWS provisioning (`sites/ffm/scripts/setup-stripe-live.py`):**
+
+A separate, interactive-only script for the Phase 3 step of pinning the LIVE
+webhook endpoint and storing the two production secrets. It is not the sandbox
+runner above: it makes real live-mode Stripe API calls and real AWS writes, and
+must be run by a human watching the terminal, never from CI or any
+non-interactive context.
+
+What it does, strictly in this order:
+
+1. Read-only checks, no writes yet: confirms the local AWS credentials resolve
+   to account `113725432218` in `eu-central-1`; confirms neither
+   `ffm/stripe-secret-key` nor `ffm/stripe-webhook-secret` already exist in
+   Secrets Manager (stops with explicit guidance instead of overwriting them
+   if either does).
+2. Prompts for the LIVE secret key at a hidden terminal prompt (`getpass`) —
+   refuses to run at all if stdin/stdout aren't a real terminal, rather than
+   letting the key echo in plain text. Rejects anything without the exact
+   `sk_live_` prefix.
+3. More read-only checks using that key: the given `--price-id` is live,
+   active, EUR 3.00, recurring every 3 months, `tax_behavior=inclusive`; the
+   given `--portal-id` is live, active, allows cancellation
+   (end-of-period) and payment-method updates with subscription
+   upgrades/downgrades disabled; and no existing webhook endpoint already
+   targets the production URL (stops instead of creating a duplicate).
+4. Prints a summary (IDs/status only — never secret values) and requires you
+   to type an exact confirmation phrase before any write happens.
+5. Creates `ffm/stripe-secret-key` in Secrets Manager (plain `SecretString`,
+   not JSON-wrapped).
+6. Creates the LIVE webhook endpoint for `https://ffm.derschweigert.de/api/billing/webhook`,
+   pinned to `api_version` `2024-06-20`, subscribed to the same 10 events
+   listed above, then immediately disables it (the Stripe API has no
+   create-already-disabled option) — it stays disabled until the payments
+   backend billing configuration is enabled and verified; nothing in the script
+   re-enables it.
+7. Creates `ffm/stripe-webhook-secret` from the signing secret Stripe returns
+   only at endpoint-creation time.
+
+Run from the repository root:
+
+```bash
+AWS_DEFAULT_REGION=eu-central-1 .venv/bin/python sites/ffm/scripts/setup-stripe-live.py --price-id price_1UQkljDYFrEur0X9y18ekslo --portal-id bpc_1UQkquDYFrEur0X9JdDK6pAG
+```
+
+Enter the LIVE secret key only at the hidden prompt, never as a CLI argument,
+environment variable, or in chat/source files. The script never echoes the
+secret key, the webhook signing secret, or any raw Stripe/AWS response —
+only non-secret IDs/ARNs/status are printed. If any read-only check fails, or
+the typed confirmation doesn't match exactly, it exits non-zero without
+writing anything. If a write step fails partway through (e.g. AWS secret
+created but the Stripe endpoint create fails), it reports the exact
+already-created residue (ARNs/IDs) and remediation guidance on stderr and
+exits non-zero; it never deletes resources automatically and never reports
+success unless every step actually completed.
+
+This script does **not** touch the repository, Terraform variables, or any
+deployment — it only prints the two resulting ARNs and tells you to wire them
+into `stripe_secret_key_arn`/`stripe_webhook_secret_arn` yourself when you are
+ready to deploy (see "Billing and Stripe integration" configuration list
+above). Targeted tests: `SECRET_KEY=ci-test-key pytest sites/ffm/tests/test_setup_stripe_live.py -q`
+(all Stripe/AWS/terminal interaction is mocked; it never makes a real call).
+
 **Legal/tax approval status (2026-10-15):** The operator (Urs Schweigert) provided approval for
 `sites/ffm/static/terms.html`/`terms.en.html` and the billing/payment sections of
 `sites/ffm/static/datenschutz.html`/`datenschutz.en.html`, and separately approved the tax
@@ -417,8 +479,9 @@ independently retained qualified legal or tax counsel. It is accepted as the pro
 legal and tax launch sign-off; the historical review questions below are retained for
 traceability, not as additional approval gates. No VAT rate, tax classification,
 invoicing procedure or statutory retention duration was supplied with that approval.
-These details must not be invented or inferred from it. Billing (`billing_enabled`/`billing_sales_enabled`)
-remains disabled; the actual paid launch stays pending further configuration (including
+These details must not be invented or inferred from it. Core billing is authorized
+for Phase 3 deployment, but sales and access enforcement remain disabled;
+the actual paid launch stays pending further configuration (including
 setting `grandfather_cutoff`) and a separate, explicit launch approval.
 
 **Sandbox test results (recorded 2026-10-15 from the preceding session):** Using the isolated local sandbox runner described
@@ -482,6 +545,154 @@ operational readiness and separate deployment/paid-activation authorization.
   an emergency sales-off action must preserve cancellation, webhook processing and
   existing access rather than reverting to the pre-billing code.
 - No commit, push, Terraform apply or production deployment was performed during Phase 1.
+
+**Phase 3 — persistent live-config wiring, preparation only (2026-10-15):**
+
+This phase makes the already-existing Terraform billing/access variables
+(`infra/terraform/sites/ffm/variables.tf`) settable from CI without editing
+code, so provisioning a real Stripe ID or secret ARN later doesn't need a
+source change. **It does not enable billing, access control or sales.** Every
+flag defaults to `false`/empty, reproducing the current production
+configuration exactly if nothing is set.
+
+Configuration — GitHub repository variables (Settings → Secrets and variables
+→ Actions → **Variables** tab, not Secrets; these are non-secret IDs/ARNs/flags
+only):
+
+| Repository variable | Maps to Terraform variable | Default if unset |
+| --- | --- | --- |
+| `FFM_ACCESS_CONTROL_ENABLED` | `access_control_enabled` | `false` |
+| `FFM_BILLING_ENABLED` | `billing_enabled` | `false` |
+| `FFM_BILLING_SALES_ENABLED` | `billing_sales_enabled` | `false` |
+| `FFM_BILLING_TERMS_APPROVED` | `billing_terms_approved` | `false` |
+| `FFM_GRANDFATHER_CUTOFF` | `grandfather_cutoff` | `""` (empty) |
+| `FFM_STRIPE_PRICE_ID` | `stripe_price_id` | `""` (empty) |
+| `FFM_STRIPE_PORTAL_CONFIGURATION_ID` | `stripe_portal_configuration_id` | `""` (empty) |
+| `FFM_STRIPE_SECRET_KEY_ARN` | `stripe_secret_key_arn` | `""` (empty) |
+| `FFM_STRIPE_WEBHOOK_SECRET_ARN` | `stripe_webhook_secret_arn` | `""` (empty) |
+
+The `deploy-ffm` job in `.github/workflows/deploy.yml` maps each repository
+variable to the matching `TF_VAR_*` environment variable with an explicit
+`|| 'false'` / `|| ''` fallback, then runs
+`infra/terraform/sites/ffm/scripts/preflight-billing-config.sh` immediately
+before `terraform apply`. **Actual Stripe secret values (API key, webhook
+signing secret) are never stored as repository variables or passed through
+this mechanism** — only the AWS Secrets Manager ARN that points at them
+(provisioned out-of-band per the "Billing and Stripe integration" section
+above: `aws secretsmanager create-secret ...`, then put that secret's ARN,
+not its value, into `FFM_STRIPE_SECRET_KEY_ARN`/`FFM_STRIPE_WEBHOOK_SECRET_ARN`).
+
+The preflight guard (`infra/terraform/sites/ffm/scripts/preflight-billing-config.sh`,
+covered by `sites/ffm/tests/test_billing_preflight_guard.py`) fails the deploy
+before any Terraform state changes if it finds:
+
+- a flag value other than literal `true`/`false` (the error names the
+  variable, never the invalid value itself);
+- `billing_enabled=true` without all four Stripe IDs/ARNs set — this gate does
+  **not** depend on `billing_terms_approved`, so core billing (webhook
+  processing, existing-subscription cancellation) keeps working even if terms
+  approval is false or gets flipped back to false during an incident;
+- `billing_sales_enabled=true` without `billing_enabled=true`,
+  `access_control_enabled=true`, `billing_terms_approved=true` **and** a
+  non-empty `grandfather_cutoff` — opening new sales is the only thing that
+  requires the full approved chain;
+- `access_control_enabled=true` without `billing_enabled=true` and a non-empty
+  `grandfather_cutoff` (this flag alone gates premium levels — enabling it
+  without a way to pay or a cutoff locks out non-grandfathered users), or with
+  a `grandfather_cutoff` that isn't a real UTC calendar date/time (parsed
+  strictly with Python, not just regex-shape-checked like Terraform's own
+  variable validation) or that is in the future;
+- a Stripe price/portal ID that is the README's example placeholder or doesn't
+  match the expected `price_…`/`bpc_…` shape — but **not** merely for
+  containing `test`/`sandbox`/`dev`: these IDs are opaque and don't encode
+  live-vs-test mode in their format at all, so a real LIVE id could
+  coincidentally contain one of those words, and the guard no longer guesses
+  from substrings. Confirm live/test mode directly in the Stripe
+  dashboard/API before provisioning;
+- a Stripe secret/webhook Secrets Manager ARN that doesn't match the expected
+  ARN shape, or whose secret name doesn't match this repo's own documented
+  production path (`ffm/stripe-secret-key` / `ffm/stripe-webhook-secret`,
+  optionally followed by AWS's random 6-character suffix) — this is a
+  precise match against a name *this repo* chose and documents above, not a
+  substring scan of the random suffix (which could itself coincidentally
+  contain `test`/`dev`).
+
+It does **not** require or invent values when `billing_enabled=false` — IDs and
+ARNs may be provisioned and set ahead of activation (that is the point of this
+phase) with sales/billing/access still off. The script also never echoes a
+raw config value (only variable names and normalized `true`/`false` flags)
+into CI's stdout/stderr, in case a value is accidentally pasted into the
+wrong (non-secret) variable. It avoids bash indirect-variable-expansion
+(`${!name}`) and `eval` entirely — every check is passed its name and value as
+explicit arguments.
+
+Because the same deploy workflow gained a `workflow_dispatch` trigger, setting
+or changing one of these repository variables can be applied by re-running
+"Deploy to production" from the Actions tab against `main`, without needing a
+new commit/push. This runs the identical job (tests, preflight guard,
+`terraform apply`, Lambda/static deploy, smoke test) — it is not a separate
+code path.
+
+**Live preparation and activation (requires configured resources and reviewed
+deployment; none of these settings have been applied yet):**
+
+1. Provision the real LIVE Stripe product/price, portal configuration and
+   webhook endpoint (see "Billing and Stripe integration" above, but against
+   the Stripe **LIVE** dashboard, not TEST), and the LIVE secret key +
+   webhook signing secret into their own AWS Secrets Manager secrets
+   (`aws secretsmanager create-secret --name ffm/stripe-secret-key ...` /
+   `ffm/stripe-webhook-secret`, distinct from any sandbox secret). None of
+   this repo's automation creates these — they must exist out-of-band first.
+2. Set `FFM_STRIPE_PRICE_ID`, `FFM_STRIPE_PORTAL_CONFIGURATION_ID`,
+   `FFM_STRIPE_SECRET_KEY_ARN`, `FFM_STRIPE_WEBHOOK_SECRET_ARN` and
+   `FFM_BILLING_TERMS_APPROVED=true`, then set `FFM_BILLING_ENABLED=true`
+   (sales still off) and deploy — this exercises checkout-adjacent
+   infrastructure (webhook endpoint, secret resolution) while
+   `billing_sales_enabled=false` keeps `can_checkout` false for everyone.
+Steps 1–2 are Phase 3 preparation: checkout and access enforcement stay off.
+
+Phase 4 requires separate paid-launch authorization. Only after preparation
+is deployed and verified, set the fixed `FFM_GRANDFATHER_CUTOFF` once,
+immediately before launch (not in advance — see the pre-launch checklist
+above), and set `FFM_ACCESS_CONTROL_ENABLED=true` and
+`FFM_BILLING_SALES_ENABLED=true` together for the same deploy. This avoids
+an intermediate state that locks out new users before checkout is available.
+
+**Operational cancellation runbook (reference — see "Operator commands and
+recovery" below for the full commands):**
+
+1. Set `FFM_BILLING_SALES_ENABLED=false` (closes new checkout; existing
+   subscriptions, cancellation, webhook processing and access all keep
+   working) and deploy.
+2. Notify existing subscribers and arrange unused-time refunds per the
+   reviewed terms and statutory rights.
+3. Run `billing-admin shutdown --confirm` against the production environment
+   to cancel subscriptions for the configured price (verifies cancellation;
+   does not itself send notices or issue refunds).
+4. Process any still-open public cancellation requests
+   (`billing-admin cancel-request`, see below) manually as usual.
+
+**Sales-off rollback (emergency, preserves webhook/cancel/access):** set
+`FFM_BILLING_SALES_ENABLED=false` and redeploy. This is the single-flag,
+lowest-risk rollback: `billing_enabled` stays `true` so the webhook endpoint
+keeps processing Stripe events and the authenticated/public cancellation
+flows keep working, and `can_checkout` becomes `false` immediately (see
+`sites/ffm/app/entitlements.py`), closing new signups without touching
+`access_control_enabled` or any already-granted access. Only fall back to
+`FFM_BILLING_ENABLED=false` if sales-off alone does not contain an incident;
+this stops billing handlers, but Lambda still resolves any configured Stripe
+secret ARNs at cold start. An unavailable secret requires repairing its
+access/value or explicitly clearing its repository ARN variable and redeploying;
+the billing flag alone does not bypass secret resolution. Do not disable
+`access_control_enabled` as a cancellation shortcut, since that would grant
+free premium access to everyone rather than closing sales.
+
+The initial local preparation made no production changes. On 2026-10-15 the
+operator subsequently authorized deploying Phase 3 with live Stripe IDs and
+secret ARNs, `FFM_BILLING_ENABLED=true` and `FFM_BILLING_TERMS_APPROVED=true`.
+`FFM_ACCESS_CONTROL_ENABLED` and `FFM_BILLING_SALES_ENABLED` stay `false`;
+`FFM_GRANDFATHER_CUTOFF` stays empty. Enable the prepared webhook only after
+the deployed backend and signature verification are confirmed ready.
 
 **Operator commands and recovery:**
 

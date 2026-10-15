@@ -11,6 +11,7 @@ __pycache__/
 .DS_Store
 sites/ffm/build/
 uploads/
+sites/derschweigert/.tmp
 
 # Terraform / AWS deployment artifacts
 .terraform/
