@@ -25,6 +25,7 @@ os.environ['DYNAMODB_RATELIMIT_TABLE'] = 'ffm-ratelimits-test'
 from sites.ffm.app import create_app
 from sites.ffm.app.config import TestingConfig
 from sites.ffm.app import billing_store, models, stripe_provider
+from sites.ffm.app.billing import _iso
 from .test_app import register_and_login
 
 
@@ -85,6 +86,15 @@ def mock_stripe_provider(monkeypatch):
     mock_client = MagicMock()
     monkeypatch.setattr('sites.ffm.app.stripe_provider._client', lambda: mock_client)
     return mock_client
+
+
+#: Valid Stripe Price object matching TestingConfig's STRIPE_PRICE_ID, used by
+#: tests that exercise the /checkout route past the adult/terms gate (it calls
+#: provider.validate_price, which previously-added tests never reached).
+_VALID_PRICE = {
+    'id': 'price_quarterly', 'active': True, 'currency': 'eur',
+    'unit_amount': 300, 'recurring': {'interval': 'month', 'interval_count': 3},
+}
 
 
 def _make_stripe_webhook_signature(payload_str, secret):
@@ -214,6 +224,67 @@ def test_webhook_signature_verification_invalid(client, billing_app):
 
     assert response.status_code == 400
     assert response.get_json()['error'] == 'invalid_webhook_signature'
+
+
+@pytest.mark.parametrize('reason', ['billing_busy', 'billing_conflict', 'version_mismatch'])
+def test_webhook_retryable_conflict_logs_sanitized_warning(client, billing_app, monkeypatch, caplog, reason):
+    """A retryable ValueError from process_event returns 503 and logs a
+    warning with only the known, allow-listed reason and the event id --
+    never the raw event payload, headers, or any secret."""
+    from sites.ffm.app import billing
+
+    def fake_process_event(event):
+        raise ValueError(reason)
+
+    monkeypatch.setattr(billing, 'process_event', fake_process_event)
+    event_data = {
+        'type': 'charge.dispute.created',
+        'id': 'evt_1UQnPsDYFrEur0X906nvAXLq',
+        'data': {'object': {'id': 'ch_test123', 'top_secret_field': 'should-not-be-logged'}},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, 'whsec_test_1234567890')
+
+    with caplog.at_level('WARNING'):
+        response = client.post('/api/billing/webhook', data=payload_str, content_type='application/json',
+                               headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 503
+    assert response.get_json()['error'] == 'billing_retry_required'
+    warnings = [r for r in caplog.records if r.levelname == 'WARNING']
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert reason in message
+    assert 'evt_1UQnPsDYFrEur0X906nvAXLq' in message
+    assert 'top_secret_field' not in message
+    assert 'should-not-be-logged' not in message
+
+
+def test_webhook_non_retryable_conflict_does_not_log_warning(client, billing_app, monkeypatch, caplog):
+    """A ValueError reason outside the retryable allow-list is re-raised
+    (existing behavior) and must not produce the retry warning log."""
+    from sites.ffm.app import billing
+
+    def fake_process_event(event):
+        raise ValueError('some_unexpected_reason')
+
+    monkeypatch.setattr(billing, 'process_event', fake_process_event)
+    event_data = {
+        'type': 'charge.dispute.created',
+        'id': 'evt_other',
+        'data': {'object': {'id': 'ch_test123'}},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, 'whsec_test_1234567890')
+    billing_app.config['PROPAGATE_EXCEPTIONS'] = False
+    billing_app.config['TESTING'] = False
+
+    with caplog.at_level('WARNING'):
+        response = client.post('/api/billing/webhook', data=payload_str, content_type='application/json',
+                               headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 500
+    assert not [r for r in caplog.records if r.levelname == 'WARNING']
 
 
 # ============ REGRESSION TEST 1: Grandfather subscription cutoff ============
@@ -1350,3 +1421,1222 @@ def test_foreign_refund_preserves_prior_valid_invoices_gift_persistence(client, 
         assert state['revocation'] is False
         assert state['gift_until'] == gift_until  # Gift persists
         assert state['paid_until'] is not None  # DE invoice still counts
+
+
+# ============ REGRESSION TEST 14: charge.refunded webhook reconciles paid_until ============
+
+def test_charge_refunded_webhook_excludes_refunded_charge_from_paid_until(client, billing_app, mock_stripe_provider):
+    """Regression 14: A direct Stripe charge.refunded event (not the foreign-ineligible
+    auto-refund path) must be routed charge -> invoice -> subscription, then reconcile
+    paid_until so the now-refunded invoice's period no longer counts toward access."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'refundeduser', 'refunded@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('refundeduser')
+        billing_store.put_billing_username_mapping(stable_id, 'refundeduser')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_refunded', subscription_id='sub_refunded', status='active'
+        )
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
+    mock_stripe_provider.subscriptions.retrieve.return_value = {
+        'id': 'sub_refunded',
+        'customer': 'cus_refunded',
+        'status': 'active',
+        'metadata': {'billing_uuid': stable_id},
+        'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+        'cancel_at_period_end': False,
+        'cancel_at': None,
+        'current_period_end': now_ts + 90 * 86400,
+        'trial_end': None,
+    }
+
+    # Only paid invoice is the one that just got refunded.
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        {
+            'id': 'inv_refunded',
+            'customer': 'cus_refunded',
+            'subscription': 'sub_refunded',
+            'status': 'paid',
+            'currency': 'eur',
+            'amount_paid': 300,
+            'paid': True,
+            'customer_address': {'country': 'DE'},
+            'charge': 'ch_refunded',
+            'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': now_ts + 90 * 86400}, 'proration': False}]},
+        }
+    ]
+
+    # The charge is now refunded (post-refund state), so _valid_paid_end must exclude it.
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_refunded',
+        'subscription': 'sub_refunded',
+        'paid': True,
+        'refunded': True,
+        'amount_refunded': 300,
+        'disputed': False,
+        'amount': 300,
+        'invoice': 'inv_refunded',
+    }
+    mock_stripe_provider.invoices.retrieve.return_value = {
+        'id': 'inv_refunded',
+        'customer': 'cus_refunded',
+        'subscription': 'sub_refunded',
+    }
+
+    event_data = {
+        'type': 'charge.refunded',
+        'id': 'evt_charge_refunded_1',
+        'data': {
+            'object': {
+                'id': 'ch_refunded',
+                'invoice': 'inv_refunded',
+                'refunded': True,
+                'amount_refunded': 300,
+            }
+        }
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    mock_stripe_provider.charges.retrieve.assert_any_call('ch_refunded')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_refunded')
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['status'] == 'active'
+        assert state['paid_until'] is None  # Only paid invoice is now refunded.
+
+    # Replay of the same event must not be reprocessed (idempotency).
+    retrieve_calls_before = mock_stripe_provider.subscriptions.retrieve.call_count
+    response2 = client.post('/api/billing/webhook',
+                           data=payload_str,
+                           content_type='application/json',
+                           headers={'Stripe-Signature': signature})
+    assert response2.status_code == 200
+    assert mock_stripe_provider.subscriptions.retrieve.call_count == retrieve_calls_before
+
+
+# ============ REGRESSION TEST 15: charge.dispute.created webhook reconciles subscription ============
+
+def test_charge_dispute_created_webhook_excludes_disputed_charge_from_paid_until(client, billing_app, mock_stripe_provider):
+    """Regression 15: A charge.dispute.created event carries a Dispute object (not a Charge),
+    whose 'charge' field must be used to resolve the charge, then invoice, then subscription.
+    Once disputed, the charge's invoice period must no longer count toward paid_until."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'disputeduser', 'disputed@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('disputeduser')
+        billing_store.put_billing_username_mapping(stable_id, 'disputeduser')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_disputed', subscription_id='sub_disputed', status='active'
+        )
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
+    mock_stripe_provider.subscriptions.retrieve.return_value = {
+        'id': 'sub_disputed',
+        'customer': 'cus_disputed',
+        'status': 'active',
+        'metadata': {'billing_uuid': stable_id},
+        'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+        'cancel_at_period_end': False,
+        'cancel_at': None,
+        'current_period_end': now_ts + 90 * 86400,
+        'trial_end': None,
+    }
+
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        {
+            'id': 'inv_disputed',
+            'customer': 'cus_disputed',
+            'subscription': 'sub_disputed',
+            'status': 'paid',
+            'currency': 'eur',
+            'amount_paid': 300,
+            'paid': True,
+            'customer_address': {'country': 'DE'},
+            'charge': 'ch_disputed',
+            'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': now_ts + 90 * 86400}, 'proration': False}]},
+        }
+    ]
+
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_disputed',
+        'subscription': 'sub_disputed',
+        'paid': True,
+        'refunded': False,
+        'amount_refunded': 0,
+        'disputed': True,
+        'amount': 300,
+        'invoice': 'inv_disputed',
+    }
+    mock_stripe_provider.invoices.retrieve.return_value = {
+        'id': 'inv_disputed',
+        'customer': 'cus_disputed',
+        'subscription': 'sub_disputed',
+    }
+
+    # The actual Dispute object for this charge is still open (needs_response), so
+    # the charge must stay excluded regardless of the webhook's own dispute summary.
+    mock_stripe_provider.disputes.list.return_value.auto_paging_iter.return_value = [
+        {'id': 'dp_test1', 'charge': 'ch_disputed', 'status': 'needs_response'},
+    ]
+
+    # Dispute objects reference the charge via a top-level 'charge' field, unlike Charge
+    # objects. The webhook object here is the Dispute, not the Charge.
+    event_data = {
+        'type': 'charge.dispute.created',
+        'id': 'evt_dispute_created_1',
+        'data': {
+            'object': {
+                'id': 'dp_test1',
+                'charge': 'ch_disputed',
+                'status': 'needs_response',
+            }
+        }
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    mock_stripe_provider.charges.retrieve.assert_any_call('ch_disputed')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_disputed')
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['status'] == 'active'
+        assert state['paid_until'] is None  # Only paid invoice is now disputed.
+
+
+# ============ REGRESSION TEST 16: charge.dispute.closed (lost) keeps charge excluded ============
+
+def test_charge_dispute_closed_lost_keeps_charge_excluded_from_paid_until(client, billing_app, mock_stripe_provider):
+    """Regression 16: When a dispute closes as 'lost', Stripe's Charge object keeps
+    disputed=True (the funds were permanently reversed to the cardholder's bank). This
+    is a *mocked* provider fact, not a production assumption: ``_valid_paid_end`` only
+    reads whatever ``charge.disputed`` the provider reports, so a lost dispute must keep
+    excluding the charge's invoice period from paid_until. Idempotent replay is also
+    verified (no duplicate subscription re-fetch)."""
+    with billing_app.app_context():
+        register_and_login(client, 'disputelostuser', 'disputelost@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('disputelostuser')
+        billing_store.put_billing_username_mapping(stable_id, 'disputelostuser')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_dispute_lost', subscription_id='sub_dispute_lost', status='active'
+        )
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
+    mock_stripe_provider.subscriptions.retrieve.return_value = {
+        'id': 'sub_dispute_lost',
+        'customer': 'cus_dispute_lost',
+        'status': 'active',
+        'metadata': {'billing_uuid': stable_id},
+        'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+        'cancel_at_period_end': False,
+        'cancel_at': None,
+        'current_period_end': now_ts + 90 * 86400,
+        'trial_end': None,
+    }
+
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        {
+            'id': 'inv_dispute_lost',
+            'customer': 'cus_dispute_lost',
+            'subscription': 'sub_dispute_lost',
+            'status': 'paid',
+            'currency': 'eur',
+            'amount_paid': 300,
+            'paid': True,
+            'customer_address': {'country': 'DE'},
+            'charge': 'ch_dispute_lost',
+            'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': now_ts + 90 * 86400}, 'proration': False}]},
+        }
+    ]
+
+    # Lost dispute: funds stay with the cardholder. disputed remains True.
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_dispute_lost',
+        'subscription': 'sub_dispute_lost',
+        'paid': True,
+        'refunded': False,
+        'amount_refunded': 0,
+        'disputed': True,
+        'amount': 300,
+        'invoice': 'inv_dispute_lost',
+    }
+    mock_stripe_provider.invoices.retrieve.return_value = {
+        'id': 'inv_dispute_lost',
+        'customer': 'cus_dispute_lost',
+        'subscription': 'sub_dispute_lost',
+    }
+    # The actual Dispute object for this charge resolved 'lost': the charge must stay
+    # excluded (a lost dispute never grants access).
+    mock_stripe_provider.disputes.list.return_value.auto_paging_iter.return_value = [
+        {'id': 'dp_test_lost', 'charge': 'ch_dispute_lost', 'status': 'lost'},
+    ]
+
+    event_data = {
+        'type': 'charge.dispute.closed',
+        'id': 'evt_dispute_closed_lost_1',
+        'data': {
+            'object': {
+                'id': 'dp_test_lost',
+                'charge': 'ch_dispute_lost',
+                'status': 'lost',
+            }
+        }
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+    assert response.status_code == 200
+    mock_stripe_provider.charges.retrieve.assert_any_call('ch_dispute_lost')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_lost')
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['status'] == 'active'
+        assert state['paid_until'] is None  # Lost dispute: charge stays excluded.
+
+    # Replay of the same event must not be reprocessed (idempotency).
+    retrieve_calls_before = mock_stripe_provider.subscriptions.retrieve.call_count
+    response2 = client.post('/api/billing/webhook',
+                           data=payload_str,
+                           content_type='application/json',
+                           headers={'Stripe-Signature': signature})
+    assert response2.status_code == 200
+    assert mock_stripe_provider.subscriptions.retrieve.call_count == retrieve_calls_before
+
+
+# ============ REGRESSION TEST 17: charge.dispute.closed (won) restores paid_until ============
+
+def _dispute_won_fixture(client, billing_app, mock_stripe_provider, username, email, suffix):
+    """Shared setup for the won-dispute family of tests: one active subscription with
+    exactly one paid, unrefunded DE invoice/charge whose Charge.disputed is True (per
+    documented Stripe semantics, disputed does not revert to False on its own)."""
+    with billing_app.app_context():
+        register_and_login(client, username, email, 'Pass123!')
+        stable_id = models.ensure_stable_id(username)
+        billing_store.put_billing_username_mapping(stable_id, username)
+        billing_store.put_billing_state(
+            stable_id, customer_id=f'cus_{suffix}', subscription_id=f'sub_{suffix}', status='active'
+        )
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    period_end = now_ts + 90 * 86400
+
+    mock_stripe_provider.subscriptions.retrieve.return_value = {
+        'id': f'sub_{suffix}',
+        'customer': f'cus_{suffix}',
+        'status': 'active',
+        'metadata': {'billing_uuid': stable_id},
+        'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+        'cancel_at_period_end': False,
+        'cancel_at': None,
+        'current_period_end': period_end,
+        'trial_end': None,
+    }
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        {
+            'id': f'inv_{suffix}',
+            'customer': f'cus_{suffix}',
+            'subscription': f'sub_{suffix}',
+            'status': 'paid',
+            'currency': 'eur',
+            'amount_paid': 300,
+            'paid': True,
+            'customer_address': {'country': 'DE'},
+            'charge': f'ch_{suffix}',
+            'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': period_end}, 'proration': False}]},
+        }
+    ]
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': f'ch_{suffix}',
+        'subscription': f'sub_{suffix}',
+        'paid': True,
+        'refunded': False,
+        'amount_refunded': 0,
+        'disputed': True,
+        'amount': 300,
+        'invoice': f'inv_{suffix}',
+    }
+    mock_stripe_provider.invoices.retrieve.return_value = {
+        'id': f'inv_{suffix}',
+        'customer': f'cus_{suffix}',
+        'subscription': f'sub_{suffix}',
+    }
+    return stable_id, period_end
+
+
+def test_charge_dispute_closed_won_restores_paid_until(client, billing_app, mock_stripe_provider):
+    """Regression 17: A dispute resolved 'won' MUST restore the otherwise-valid paid
+    invoice period, even though Stripe's Charge API reference documents ``disputed``
+    only as "Whether the charge has been disputed" and does not document it reverting to
+    False after a 'won' closure. ``_valid_paid_end`` must not trust the webhook payload's
+    own dispute summary; it must retrieve the actual Dispute object(s) for the charge via
+    ``disputes.list(charge=...)`` (a documented, server-side-filtered Stripe API) and
+    grant access when -- and only when -- every dispute found on the charge has
+    status == 'won'. This is a mocked-provider regression test, not a substitute for
+    live Stripe sandbox verification (see `scripts/replay-stripe-sandbox-event.py`);
+    whether an actual won-dispute replay restores access end-to-end against the live
+    Stripe test-mode API remains unverified in this environment pending that replay."""
+    stable_id, period_end = _dispute_won_fixture(
+        client, billing_app, mock_stripe_provider, 'disputewonuser', 'disputewon@example.com', 'dispute_won'
+    )
+    # The actual Dispute object for this charge resolved 'won'.
+    mock_stripe_provider.disputes.list.return_value.auto_paging_iter.return_value = [
+        {'id': 'dp_test_won', 'charge': 'ch_dispute_won', 'status': 'won'},
+    ]
+
+    event_data = {
+        'type': 'charge.dispute.closed',
+        'id': 'evt_dispute_closed_won_1',
+        'data': {
+            'object': {
+                'id': 'dp_test_won',
+                'charge': 'ch_dispute_won',
+                'status': 'won',
+            }
+        }
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+    assert response.status_code == 200
+    mock_stripe_provider.charges.retrieve.assert_any_call('ch_dispute_won')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_won')
+    mock_stripe_provider.disputes.list.assert_any_call({'charge': 'ch_dispute_won', 'limit': 100})
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['status'] == 'active'
+        # Won dispute: the otherwise-valid paid invoice period is restored.
+        assert state['paid_until'] == _iso(period_end)
+
+
+def test_charge_dispute_closed_won_does_not_restore_if_another_dispute_still_open(
+    client, billing_app, mock_stripe_provider
+):
+    """Regression 17b: a charge can accumulate more than one dispute over its lifetime.
+    If ANY dispute on the charge is not 'won' (e.g. a second, still-open dispute), the
+    charge must stay excluded -- we do not grant access just because one of several
+    disputes resolved in the merchant's favor."""
+    stable_id, _period_end = _dispute_won_fixture(
+        client, billing_app, mock_stripe_provider, 'disputemultiuser', 'disputemulti@example.com', 'dispute_multi'
+    )
+    mock_stripe_provider.disputes.list.return_value.auto_paging_iter.return_value = [
+        {'id': 'dp_won', 'charge': 'ch_dispute_multi', 'status': 'won'},
+        {'id': 'dp_open', 'charge': 'ch_dispute_multi', 'status': 'needs_response'},
+    ]
+
+    event_data = {
+        'type': 'charge.dispute.closed',
+        'id': 'evt_dispute_closed_multi_1',
+        'data': {'object': {'id': 'dp_won', 'charge': 'ch_dispute_multi', 'status': 'won'}},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+    assert response.status_code == 200
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['paid_until'] is None  # A second, still-open dispute denies access.
+
+
+def test_charge_disputed_true_but_no_dispute_object_found_denies_safely(
+    client, billing_app, mock_stripe_provider
+):
+    """Regression 17c: disputed=True but disputes.list(charge=...) returns nothing is an
+    unknown/inconsistent provider state. Fail safe: deny (exclude), never grant."""
+    stable_id, _period_end = _dispute_won_fixture(
+        client, billing_app, mock_stripe_provider, 'disputeunknownuser', 'disputeunknown@example.com', 'dispute_unknown'
+    )
+    mock_stripe_provider.disputes.list.return_value.auto_paging_iter.return_value = []
+
+    event_data = {
+        'type': 'charge.dispute.closed',
+        'id': 'evt_dispute_closed_unknown_1',
+        'data': {'object': {'id': 'dp_unknown', 'charge': 'ch_dispute_unknown', 'status': 'won'}},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+    assert response.status_code == 200
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['paid_until'] is None
+
+
+def test_dispute_charge_mismatch_raises_invalid_dispute(
+    client, billing_app, mock_stripe_provider
+):
+    """Regression 17d: never trust a dispute whose own 'charge' field doesn't match the
+    charge it was retrieved for -- that is a provider inconsistency, not something to
+    silently ignore or grant on. Must fail explicitly (surfacing as a 500 the webhook
+    does not swallow), not fall through to a default allow/deny decision."""
+    stable_id, _period_end = _dispute_won_fixture(
+        client, billing_app, mock_stripe_provider, 'disputemismatchuser', 'disputemismatch@example.com', 'dispute_mismatch'
+    )
+    mock_stripe_provider.disputes.list.return_value.auto_paging_iter.return_value = [
+        {'id': 'dp_wrong', 'charge': 'ch_some_other_charge', 'status': 'won'},
+    ]
+
+    event_data = {
+        'type': 'charge.dispute.closed',
+        'id': 'evt_dispute_closed_mismatch_1',
+        'data': {'object': {'id': 'dp_wrong', 'charge': 'ch_dispute_mismatch', 'status': 'won'}},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+    billing_app.config['PROPAGATE_EXCEPTIONS'] = False
+    billing_app.config['TESTING'] = False
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+    assert response.status_code == 500  # Non-retryable ValueError re-raised, never swallowed.
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state.get('paid_until') is None  # Never granted on an unverified dispute.
+
+
+# ============ REGRESSION TEST 18: partial refund still excludes the charge's invoice ============
+
+def test_partial_refund_excludes_charge_from_paid_until(client, billing_app, mock_stripe_provider):
+    """Regression 18: _valid_paid_end treats ANY non-zero amount_refunded as disqualifying
+    (``charge.get('amount_refunded', 0)`` is truthy-checked, not compared against the full
+    charge amount), so a partial refund must exclude the invoice period exactly like a
+    full refund -- there is no pro-rating of partially refunded access."""
+    with billing_app.app_context():
+        register_and_login(client, 'partialrefuser', 'partialref@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('partialrefuser')
+        billing_store.put_billing_username_mapping(stable_id, 'partialrefuser')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_partial_ref', subscription_id='sub_partial_ref', status='active'
+        )
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
+    mock_stripe_provider.subscriptions.retrieve.return_value = {
+        'id': 'sub_partial_ref',
+        'customer': 'cus_partial_ref',
+        'status': 'active',
+        'metadata': {'billing_uuid': stable_id},
+        'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+        'cancel_at_period_end': False,
+        'cancel_at': None,
+        'current_period_end': now_ts + 90 * 86400,
+        'trial_end': None,
+    }
+
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        {
+            'id': 'inv_partial_ref',
+            'customer': 'cus_partial_ref',
+            'subscription': 'sub_partial_ref',
+            'status': 'paid',
+            'currency': 'eur',
+            'amount_paid': 300,
+            'paid': True,
+            'customer_address': {'country': 'DE'},
+            'charge': 'ch_partial_ref',
+            'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': now_ts + 90 * 86400}, 'proration': False}]},
+        }
+    ]
+
+    # Only 100 of the 300 was refunded (partial), charge not fully `refunded`.
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_partial_ref',
+        'subscription': 'sub_partial_ref',
+        'paid': True,
+        'refunded': False,
+        'amount_refunded': 100,
+        'disputed': False,
+        'amount': 300,
+        'invoice': 'inv_partial_ref',
+    }
+    mock_stripe_provider.invoices.retrieve.return_value = {
+        'id': 'inv_partial_ref',
+        'customer': 'cus_partial_ref',
+        'subscription': 'sub_partial_ref',
+    }
+
+    event_data = {
+        'type': 'charge.refunded',
+        'id': 'evt_partial_refund_1',
+        'data': {
+            'object': {
+                'id': 'ch_partial_ref',
+                'invoice': 'inv_partial_ref',
+                'refunded': False,
+                'amount_refunded': 100,
+            }
+        }
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+    assert response.status_code == 200
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['status'] == 'active'
+        assert state['paid_until'] is None  # Partial refund still disqualifies the charge.
+
+
+# ============ REGRESSION TEST 19: dispute on one invoice preserves another valid invoice ============
+
+def test_dispute_closed_lost_preserves_prior_valid_invoice_paid_until(client, billing_app, mock_stripe_provider):
+    """Regression 19: Gap not covered by REGRESSION TEST 13 (which only exercises the
+    foreign-refund path). When a subscription has two DE invoices and only one of them
+    becomes the subject of a lost dispute, paid_until must still reflect the other,
+    still-valid invoice's period end -- dispute handling must not blanket-invalidate the
+    whole subscription, only the specific disputed charge's invoice."""
+    with billing_app.app_context():
+        register_and_login(client, 'disputekeepuser', 'disputekeep@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('disputekeepuser')
+        billing_store.put_billing_username_mapping(stable_id, 'disputekeepuser')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_dispute_keep', subscription_id='sub_dispute_keep', status='active'
+        )
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    valid_end = now_ts + 180 * 86400
+    disputed_end = now_ts + 90 * 86400
+
+    mock_stripe_provider.subscriptions.retrieve.return_value = {
+        'id': 'sub_dispute_keep',
+        'customer': 'cus_dispute_keep',
+        'status': 'active',
+        'metadata': {'billing_uuid': stable_id},
+        'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+        'cancel_at_period_end': False,
+        'cancel_at': None,
+        'current_period_end': now_ts + 180 * 86400,
+        'trial_end': None,
+    }
+
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        {
+            'id': 'inv_dispute_keep_valid',
+            'customer': 'cus_dispute_keep',
+            'subscription': 'sub_dispute_keep',
+            'status': 'paid',
+            'currency': 'eur',
+            'amount_paid': 300,
+            'paid': True,
+            'customer_address': {'country': 'DE'},
+            'charge': 'ch_dispute_keep_valid',
+            'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': valid_end}, 'proration': False}]},
+        },
+        {
+            'id': 'inv_dispute_keep_disputed',
+            'customer': 'cus_dispute_keep',
+            'subscription': 'sub_dispute_keep',
+            'status': 'paid',
+            'currency': 'eur',
+            'amount_paid': 300,
+            'paid': True,
+            'customer_address': {'country': 'DE'},
+            'charge': 'ch_dispute_keep_disputed',
+            'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': disputed_end}, 'proration': False}]},
+        },
+    ]
+
+    def get_charge_side_effect(charge_id):
+        if charge_id == 'ch_dispute_keep_valid':
+            return {
+                'id': 'ch_dispute_keep_valid',
+                'subscription': 'sub_dispute_keep',
+                'paid': True,
+                'refunded': False,
+                'amount_refunded': 0,
+                'disputed': False,
+                'amount': 300,
+            }
+        if charge_id == 'ch_dispute_keep_disputed':
+            return {
+                'id': 'ch_dispute_keep_disputed',
+                'subscription': 'sub_dispute_keep',
+                'paid': True,
+                'refunded': False,
+                'amount_refunded': 0,
+                'disputed': True,  # Lost dispute: stays disputed.
+                'amount': 300,
+                'invoice': 'inv_dispute_keep_disputed',
+            }
+        return {}
+
+    mock_stripe_provider.charges.retrieve.side_effect = get_charge_side_effect
+    mock_stripe_provider.invoices.retrieve.return_value = {
+        'id': 'inv_dispute_keep_disputed',
+        'customer': 'cus_dispute_keep',
+        'subscription': 'sub_dispute_keep',
+    }
+
+    event_data = {
+        'type': 'charge.dispute.closed',
+        'id': 'evt_dispute_closed_keep_1',
+        'data': {
+            'object': {
+                'id': 'dp_test_keep',
+                'charge': 'ch_dispute_keep_disputed',
+                'status': 'lost',
+            }
+        }
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+    assert response.status_code == 200
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['status'] == 'active'
+        # Only the disputed invoice's period is excluded; the other DE invoice's
+        # (later) period end is still used for paid_until.
+        assert state['paid_until'] == _iso(valid_end)
+
+
+# ============ REGRESSION TEST 20: /checkout recheckout after refund+cancel ============
+# Confirmed sandbox scenario: a customer's only subscription was refunded and
+# then immediately canceled (no replacement subscription exists). The stored
+# billing state still has a 'complete' checkout_session_id from the original
+# (now-terminal) subscription. /checkout must resolve the completed session's
+# subscription against fresh provider truth and permit a brand-new checkout
+# once it verifies: same customer, same identity (billing_uuid metadata), same
+# price, and a terminal (canceled/incomplete_expired) status, with no live
+# subscriptions for the customer.
+
+def test_checkout_allows_recheckout_after_terminal_subscription_same_session(client, billing_app, mock_stripe_provider):
+    """Repro + fix: completed checkout session whose subscription is now
+    canceled (refund+cancel) must not block recheckout forever."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'recheckoutuser', 'recheckout@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('recheckoutuser')
+        billing_store.put_billing_username_mapping(stable_id, 'recheckoutuser')
+        billing_store.put_billing_state(
+            stable_id,
+            customer_id='cus_recheckout',
+            checkout_session_id='cs_complete_terminal',
+            checkout_operation='op_recheckout_old',
+            subscription_id='sub_recheckout_terminal',
+            status='canceled',
+        )
+
+    # Fresh provider truth: customer now has no live subscriptions.
+    mock_stripe_provider.prices.retrieve.return_value = _VALID_PRICE
+    mock_stripe_provider.subscriptions.list.return_value.auto_paging_iter.return_value = []
+
+    mock_stripe_provider.checkout.sessions.retrieve.return_value = {
+        'id': 'cs_complete_terminal',
+        'status': 'complete',
+        'customer': 'cus_recheckout',
+        'subscription': 'sub_recheckout_terminal',
+        'url': 'https://checkout.stripe.com/pay/cs_complete_terminal',
+    }
+    mock_stripe_provider.subscriptions.retrieve.return_value = {
+        'id': 'sub_recheckout_terminal',
+        'customer': 'cus_recheckout',
+        'status': 'canceled',
+        'metadata': {'billing_uuid': stable_id},
+        'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+        'cancel_at_period_end': False,
+        'cancel_at': None,
+    }
+    mock_stripe_provider.checkout.sessions.create.return_value = {
+        'id': 'cs_brand_new',
+        'url': 'https://checkout.stripe.com/pay/cs_brand_new',
+    }
+
+    response = client.post('/api/billing/checkout',
+                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          headers=headers)
+
+    assert response.status_code == 200
+    assert response.get_json()['url'] == 'https://checkout.stripe.com/pay/cs_brand_new'
+
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['checkout_session_id'] == 'cs_brand_new'
+        # A brand new idempotency key must be used; the stale operation that
+        # already produced the old (now-terminal) checkout must not be reused.
+        assert state['checkout_operation'] != 'op_recheckout_old'
+
+    create_kwargs = mock_stripe_provider.checkout.sessions.create.call_args
+    assert create_kwargs is not None
+    idempotency_key = create_kwargs.kwargs['options']['idempotency_key']
+    assert idempotency_key != 'op_recheckout_old'
+
+
+def test_checkout_still_blocks_duplicate_when_live_subscription_exists(client, billing_app, mock_stripe_provider):
+    """Safety: even with a completed checkout session on file, a live (active)
+    subscription for the customer must still take precedence and block
+    checkout with duplicate_subscription, never silently replacing it."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'liveuser', 'live@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('liveuser')
+        billing_store.put_billing_username_mapping(stable_id, 'liveuser')
+        billing_store.put_billing_state(
+            stable_id,
+            customer_id='cus_live',
+            checkout_session_id='cs_complete_live',
+            checkout_operation='op_live_old',
+            subscription_id='sub_live_active',
+            status='active',
+        )
+
+    mock_stripe_provider.prices.retrieve.return_value = _VALID_PRICE
+    mock_stripe_provider.subscriptions.list.return_value.auto_paging_iter.return_value = [
+        {
+            'id': 'sub_live_active',
+            'customer': 'cus_live',
+            'status': 'active',
+            'metadata': {'billing_uuid': stable_id},
+        }
+    ]
+
+    response = client.post('/api/billing/checkout',
+                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          headers=headers)
+
+    assert response.status_code == 409
+    assert response.get_json()['error'] == 'duplicate_subscription'
+    # Checkout session lookup/creation must never be reached once a live
+    # subscription is already found.
+    mock_stripe_provider.checkout.sessions.retrieve.assert_not_called()
+    mock_stripe_provider.checkout.sessions.create.assert_not_called()
+
+
+def test_checkout_preserves_pending_confirmation_when_subscription_unresolvable(client, billing_app, mock_stripe_provider):
+    """Safety: a completed checkout session whose subscription cannot be
+    resolved to a verified terminal subscription (e.g. still being created,
+    or unlinked) must keep returning payment_confirmation_pending rather than
+    guessing and creating a duplicate checkout."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'pendinguser', 'pending@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('pendinguser')
+        billing_store.put_billing_username_mapping(stable_id, 'pendinguser')
+        billing_store.put_billing_state(
+            stable_id,
+            customer_id='cus_pending',
+            checkout_session_id='cs_complete_pending',
+            checkout_operation='op_pending_old',
+        )
+
+    mock_stripe_provider.prices.retrieve.return_value = _VALID_PRICE
+    mock_stripe_provider.subscriptions.list.return_value.auto_paging_iter.return_value = []
+    # Session completed but has no subscription reference yet (still settling).
+    mock_stripe_provider.checkout.sessions.retrieve.return_value = {
+        'id': 'cs_complete_pending',
+        'status': 'complete',
+        'customer': 'cus_pending',
+        'subscription': None,
+        'url': 'https://checkout.stripe.com/pay/cs_complete_pending',
+    }
+
+    response = client.post('/api/billing/checkout',
+                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          headers=headers)
+
+    assert response.status_code == 409
+    assert response.get_json()['error'] == 'payment_confirmation_pending'
+    mock_stripe_provider.checkout.sessions.create.assert_not_called()
+
+    with billing_app.app_context():
+        # State must be untouched: still pointing at the same pending session.
+        state = billing_store.get_billing_state(stable_id)
+        assert state['checkout_session_id'] == 'cs_complete_pending'
+        assert state['checkout_operation'] == 'op_pending_old'
+
+
+def test_checkout_rejects_session_subscription_for_different_customer(client, billing_app, mock_stripe_provider):
+    """Safety: a completed checkout session resolving to a subscription that
+    belongs to a different customer/identity must never be treated as
+    replaceable, even if it is terminal. Fail safe (keep pending) rather than
+    trust an unverified cross-account subscription."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'mismatchuser', 'mismatch@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('mismatchuser')
+        billing_store.put_billing_username_mapping(stable_id, 'mismatchuser')
+        billing_store.put_billing_state(
+            stable_id,
+            customer_id='cus_mismatch',
+            checkout_session_id='cs_complete_mismatch',
+            checkout_operation='op_mismatch_old',
+        )
+
+    mock_stripe_provider.prices.retrieve.return_value = _VALID_PRICE
+    mock_stripe_provider.subscriptions.list.return_value.auto_paging_iter.return_value = []
+    mock_stripe_provider.checkout.sessions.retrieve.return_value = {
+        'id': 'cs_complete_mismatch',
+        'status': 'complete',
+        'customer': 'cus_mismatch',
+        'subscription': 'sub_other_customer',
+        'url': 'https://checkout.stripe.com/pay/cs_complete_mismatch',
+    }
+    mock_stripe_provider.subscriptions.retrieve.return_value = {
+        'id': 'sub_other_customer',
+        'customer': 'cus_someone_else',  # Does not match state's customer_id.
+        'status': 'canceled',
+        'metadata': {'billing_uuid': 'other-identity'},
+        'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+    }
+
+    response = client.post('/api/billing/checkout',
+                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          headers=headers)
+
+    assert response.status_code == 409
+    assert response.get_json()['error'] == 'payment_confirmation_pending'
+    mock_stripe_provider.checkout.sessions.create.assert_not_called()
+
+
+# ============ Portal configuration tests ============
+
+def test_portal_missing_configuration_returns_explicit_json_503(client, billing_app, mock_stripe_provider):
+    """Repro + fix: a missing STRIPE_PORTAL_CONFIGURATION_ID (e.g. sandbox
+    started without --portal-id) must never reach stripe_provider.create_portal
+    (which raises RuntimeError, producing an uncaught Flask HTML 500 page that
+    breaks the frontend's res.json() parsing). The route must detect the
+    absent configuration itself and return an explicit, machine-readable JSON
+    503 before any provider call."""
+    billing_app.config['STRIPE_PORTAL_CONFIGURATION_ID'] = ''
+    with billing_app.app_context():
+        headers = register_and_login(client, 'portalnoconfig', 'portalnoconfig@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('portalnoconfig')
+        billing_store.put_billing_username_mapping(stable_id, 'portalnoconfig')
+        billing_store.put_billing_state(stable_id, customer_id='cus_portal_noconfig')
+
+    response = client.post('/api/billing/portal', headers=headers)
+
+    assert response.status_code == 503
+    assert response.content_type.startswith('application/json')
+    assert response.get_json()['error'] == 'portal_unavailable'
+    mock_stripe_provider.billing_portal.sessions.create.assert_not_called()
+
+
+def test_portal_configured_works_after_subscription_canceled(client, billing_app, mock_stripe_provider):
+    """A canceled subscription must not block portal access: the customer
+    can still reach their billing history/portal (only the configuration id
+    gates portal availability, never subscription status)."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'portalcanceled', 'portalcanceled@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('portalcanceled')
+        billing_store.put_billing_username_mapping(stable_id, 'portalcanceled')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_portal_canceled', subscription_id='sub_portal_canceled',
+            status='canceled',
+        )
+
+    mock_stripe_provider.billing_portal.sessions.create.return_value = {
+        'id': 'bps_portal_canceled', 'url': 'https://billing.stripe.com/p/session/portal_canceled',
+    }
+
+    response = client.post('/api/billing/portal', headers=headers)
+
+    assert response.status_code == 200
+    assert response.get_json()['url'] == 'https://billing.stripe.com/p/session/portal_canceled'
+    mock_stripe_provider.billing_portal.sessions.create.assert_called_once()
+
+
+# ============ REGRESSION: late events for a superseded subscription must not
+# ============ revoke access granted by a newer, still-live subscription ============
+
+def test_delayed_old_subscription_deleted_preserves_new_active_subscription(client, billing_app, mock_stripe_provider):
+    """Repro + fix: a late `customer.subscription.deleted` event for an old
+    subscription (e.g. a sandbox/replay delay) must not overwrite billing
+    state once a *different*, still-live subscription has already replaced
+    it -- otherwise the old subscription's own closure revokes access that
+    the newer subscription granted."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'oldsubdeleted', 'oldsubdeleted@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('oldsubdeleted')
+        billing_store.put_billing_username_mapping(stable_id, 'oldsubdeleted')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_oldnew', subscription_id='sub_new_active', status='active',
+        )
+
+    def get_subscription_side_effect(sub_id):
+        return {
+            'sub_old_deleted': {
+                'id': 'sub_old_deleted', 'customer': 'cus_oldnew', 'status': 'canceled',
+                'metadata': {'billing_uuid': stable_id},
+                'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+                'cancel_at_period_end': False, 'cancel_at': None,
+            },
+            'sub_new_active': {
+                'id': 'sub_new_active', 'customer': 'cus_oldnew', 'status': 'active',
+                'metadata': {'billing_uuid': stable_id},
+                'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+                'cancel_at_period_end': False, 'cancel_at': None,
+            },
+        }[sub_id]
+    mock_stripe_provider.subscriptions.retrieve.side_effect = get_subscription_side_effect
+
+    event_data = {
+        'type': 'customer.subscription.deleted',
+        'id': 'evt_old_sub_deleted_1',
+        'data': {'object': {'id': 'sub_old_deleted', 'status': 'canceled'}},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['subscription_id'] == 'sub_new_active'
+        assert state['status'] == 'active'
+
+    # Replay must not be reprocessed (idempotency still holds for the skip path).
+    retrieve_calls_before = mock_stripe_provider.subscriptions.retrieve.call_count
+    response2 = client.post('/api/billing/webhook',
+                           data=payload_str,
+                           content_type='application/json',
+                           headers={'Stripe-Signature': signature})
+    assert response2.status_code == 200
+    assert mock_stripe_provider.subscriptions.retrieve.call_count == retrieve_calls_before
+
+
+def test_delayed_old_subscription_refund_preserves_new_active_subscription(client, billing_app, mock_stripe_provider):
+    """Repro + fix: a late `charge.refunded` event whose invoice/subscription
+    chain resolves to an old, already-replaced subscription must not
+    overwrite the current, still-live subscription's state."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'oldsubrefund', 'oldsubrefund@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('oldsubrefund')
+        billing_store.put_billing_username_mapping(stable_id, 'oldsubrefund')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_oldrefund', subscription_id='sub_new_refund_active', status='active',
+        )
+
+    def get_subscription_side_effect(sub_id):
+        return {
+            'sub_old_refund': {
+                'id': 'sub_old_refund', 'customer': 'cus_oldrefund', 'status': 'canceled',
+                'metadata': {'billing_uuid': stable_id},
+                'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+                'cancel_at_period_end': False, 'cancel_at': None,
+            },
+            'sub_new_refund_active': {
+                'id': 'sub_new_refund_active', 'customer': 'cus_oldrefund', 'status': 'active',
+                'metadata': {'billing_uuid': stable_id},
+                'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+                'cancel_at_period_end': False, 'cancel_at': None,
+            },
+        }[sub_id]
+    mock_stripe_provider.subscriptions.retrieve.side_effect = get_subscription_side_effect
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_old_refund', 'invoice': 'inv_old_refund', 'refunded': True, 'amount_refunded': 300,
+    }
+    mock_stripe_provider.invoices.retrieve.return_value = {
+        'id': 'inv_old_refund', 'customer': 'cus_oldrefund', 'subscription': 'sub_old_refund',
+    }
+
+    event_data = {
+        'type': 'charge.refunded',
+        'id': 'evt_old_sub_refund_1',
+        'data': {'object': {'id': 'ch_old_refund', 'invoice': 'inv_old_refund', 'refunded': True, 'amount_refunded': 300}},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['subscription_id'] == 'sub_new_refund_active'
+        assert state['status'] == 'active'
+
+
+def test_delayed_old_subscription_dispute_closure_preserves_new_active_subscription(client, billing_app, mock_stripe_provider):
+    """Repro + fix: a late `charge.dispute.closed` event resolving to an old,
+    already-replaced subscription must not overwrite the current, still-live
+    subscription's state."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'oldsubdispute', 'oldsubdispute@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('oldsubdispute')
+        billing_store.put_billing_username_mapping(stable_id, 'oldsubdispute')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_olddispute', subscription_id='sub_new_dispute_active', status='active',
+        )
+
+    def get_subscription_side_effect(sub_id):
+        return {
+            'sub_old_dispute': {
+                'id': 'sub_old_dispute', 'customer': 'cus_olddispute', 'status': 'canceled',
+                'metadata': {'billing_uuid': stable_id},
+                'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+                'cancel_at_period_end': False, 'cancel_at': None,
+            },
+            'sub_new_dispute_active': {
+                'id': 'sub_new_dispute_active', 'customer': 'cus_olddispute', 'status': 'active',
+                'metadata': {'billing_uuid': stable_id},
+                'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+                'cancel_at_period_end': False, 'cancel_at': None,
+            },
+        }[sub_id]
+    mock_stripe_provider.subscriptions.retrieve.side_effect = get_subscription_side_effect
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_old_dispute', 'invoice': 'inv_old_dispute', 'disputed': True,
+    }
+    mock_stripe_provider.invoices.retrieve.return_value = {
+        'id': 'inv_old_dispute', 'customer': 'cus_olddispute', 'subscription': 'sub_old_dispute',
+    }
+
+    event_data = {
+        'type': 'charge.dispute.closed',
+        'id': 'evt_old_sub_dispute_1',
+        'data': {'object': {'id': 'dp_old_dispute', 'charge': 'ch_old_dispute', 'status': 'lost'}},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['subscription_id'] == 'sub_new_dispute_active'
+        assert state['status'] == 'active'
+
+
+def test_replacement_checkout_webhook_attaches_new_subscription_after_old_terminal(client, billing_app, mock_stripe_provider):
+    """Safety counterpart: the supersession guard must not blanket-ignore
+    every event whose subscription differs from the stored one -- a
+    legitimate replacement checkout's `checkout.session.completed` event must
+    still attach its brand-new, live subscription once the previously stored
+    subscription has itself gone terminal (canceled)."""
+    with billing_app.app_context():
+        headers = register_and_login(client, 'replaceattach', 'replaceattach@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('replaceattach')
+        billing_store.put_billing_username_mapping(stable_id, 'replaceattach')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_replaceattach', subscription_id='sub_replace_old_terminal', status='canceled',
+        )
+
+    def get_subscription_side_effect(sub_id):
+        return {
+            'sub_replace_old_terminal': {
+                'id': 'sub_replace_old_terminal', 'customer': 'cus_replaceattach', 'status': 'canceled',
+                'metadata': {'billing_uuid': stable_id},
+                'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+                'cancel_at_period_end': False, 'cancel_at': None,
+            },
+            'sub_replace_new_active': {
+                'id': 'sub_replace_new_active', 'customer': 'cus_replaceattach', 'status': 'active',
+                'metadata': {'billing_uuid': stable_id},
+                'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+                'cancel_at_period_end': False, 'cancel_at': None,
+                'current_period_end': int(datetime.now(timezone.utc).timestamp()) + 90 * 86400,
+                'trial_end': None,
+            },
+        }[sub_id]
+    mock_stripe_provider.subscriptions.retrieve.side_effect = get_subscription_side_effect
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = []
+
+    event_data = {
+        'type': 'checkout.session.completed',
+        'id': 'evt_replace_attach_1',
+        'data': {'object': {
+            'id': 'cs_replace_attach', 'subscription': 'sub_replace_new_active',
+            'customer_details': {'address': {'country': 'DE'}},
+        }},
+    }
+    payload_str = json.dumps(event_data)
+    signature = _make_stripe_webhook_signature(payload_str, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+
+    response = client.post('/api/billing/webhook',
+                          data=payload_str,
+                          content_type='application/json',
+                          headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+        assert state['subscription_id'] == 'sub_replace_new_active'
+        assert state['status'] == 'active'
+
+
+def test_reconcile_subscription_rejects_foreign_subscription_even_when_superseded_logic_runs(
+    client, billing_app, mock_stripe_provider,
+):
+    """Safety: the supersession guard must never mask a genuinely foreign
+    subscription (wrong identity/customer). Identity/customer/price
+    validation must still run -- and still raise -- before any supersession
+    comparison is reached, so a random foreign subscription reference can
+    never slip through just because it differs from the stored one."""
+    with billing_app.app_context():
+        stable_id = models.ensure_stable_id('foreignrefuser')
+        billing_store.put_billing_username_mapping(stable_id, 'foreignrefuser')
+        billing_store.put_billing_state(
+            stable_id, customer_id='cus_foreignref', subscription_id='sub_foreignref_active', status='active',
+        )
+
+        from sites.ffm.app import billing
+
+        mock_stripe_provider.subscriptions.retrieve.return_value = {
+            'id': 'sub_totally_unrelated', 'customer': 'cus_someone_else', 'status': 'active',
+            'metadata': {'billing_uuid': 'someone-elses-identity'},
+            'items': {'data': [{'price': {'id': 'price_quarterly'}}]},
+        }
+
+        with pytest.raises(ValueError, match='invalid_subscription'):
+            billing.reconcile_subscription(stable_id, 'sub_totally_unrelated')
+
+        # State must be completely untouched.
+        state = billing_store.get_billing_state(stable_id)
+        assert state['subscription_id'] == 'sub_foreignref_active'
+        assert state['status'] == 'active'

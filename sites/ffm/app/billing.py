@@ -14,6 +14,9 @@ from .main import require_auth
 
 billing_bp = Blueprint('billing', __name__, url_prefix='/api/billing')
 _LIVE_STATES = {'active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'}
+#: Terminal Stripe subscription statuses: the subscription will never become
+#: live again on its own. Complement of _LIVE_STATES.
+_TERMINAL_STATES = {'canceled', 'incomplete_expired'}
 
 
 def _iso(epoch):
@@ -46,6 +49,38 @@ def _pending_guard(state):
         raise ValueError('account_deleted')
     if state.get('pending_redemption'):
         raise ValueError('billing_busy')
+
+
+def _replaceable_terminal_subscription(session, identity, customer, price):
+    """True only if a completed checkout session's subscription is verified,
+    against fresh provider truth, to be a terminal (canceled/incomplete_expired)
+    subscription owned by this exact customer/identity/price.
+
+    Used to recover from a completed checkout session whose subscription was
+    later refunded and canceled (e.g. a sandbox refund immediately followed by
+    cancellation): without this, /checkout would refuse to issue a new
+    checkout forever, because a 'complete' session was treated as permanently
+    pending confirmation. Any ambiguity (missing/foreign subscription, wrong
+    customer, wrong identity, wrong price, or still-live status) must return
+    False so the caller keeps the existing safe 'payment_confirmation_pending'
+    behavior instead of risking a duplicate or cross-account subscription.
+    """
+    if session.get('customer') != customer:
+        return False
+    subscription_id = session.get('subscription')
+    if not subscription_id:
+        return False
+    subscription = provider.get_subscription(subscription_id)
+    if subscription['status'] not in _TERMINAL_STATES:
+        return False
+    if subscription.get('metadata', {}).get('billing_uuid') != identity:
+        return False
+    if subscription.get('customer') != customer:
+        return False
+    items = subscription.get('items', {}).get('data', [])
+    if len(items) != 1 or items[0]['price']['id'] != price:
+        return False
+    return True
 
 
 @billing_bp.after_request
@@ -120,7 +155,11 @@ def checkout():
             if existing['status'] == 'open':
                 return jsonify(url=existing['url'])
             if existing['status'] == 'complete':
-                return jsonify(error='payment_confirmation_pending'), 409
+                if _replaceable_terminal_subscription(existing, identity, customer, price):
+                    # Retire the terminal checkout and its idempotency key together.
+                    state = store.put_billing_state(identity, checkout_session_id=None, checkout_operation=None)
+                else:
+                    return jsonify(error='payment_confirmation_pending'), 409
         operation = state.get('checkout_operation')
         if not operation or state.get('checkout_session_id'):
             operation = f'checkout-{secrets.token_hex(16)}'
@@ -144,6 +183,14 @@ def portal():
     state = store.get_billing_state(user['stable_id']) or {}
     if not state.get('customer_id'):
         return jsonify(error='no_billing_account'), 404
+    # Detect missing portal configuration (e.g. a sandbox started without
+    # --portal-id) before calling the provider: stripe_provider.create_portal
+    # raises a bare RuntimeError in that case, which Flask turns into an
+    # uncaught HTML 500 page instead of a JSON error the frontend can parse.
+    # This never depends on subscription status -- a canceled subscription
+    # must still be able to reach portal/billing history.
+    if not current_app.config.get('STRIPE_PORTAL_CONFIGURATION_ID'):
+        return jsonify(error='portal_unavailable'), 503
     result = provider.create_portal(
         state['customer_id'], current_app.config['APP_BASE_URL'],
         current_app.config['STRIPE_PORTAL_CONFIGURATION_ID'],
@@ -314,6 +361,33 @@ def _invoice_country(invoice, charge=None):
     return (((charge or {}).get('billing_details') or {}).get('address') or {}).get('country')
 
 
+def _charge_disqualified_by_dispute(charge_id, charge):
+    """True unless every Stripe Dispute on this charge resolved as 'won'.
+
+    Stripe's Charge API reference documents ``disputed`` only as "Whether the
+    charge has been disputed" -- it does not document this flag reverting to
+    False once a dispute resolves 'won' (and ``charge.dispute.closed`` webhook
+    payloads must not be trusted at face value either way). So when
+    disputed=True we retrieve the actual Dispute object(s) for this charge via
+    ``disputes.list(charge=...)`` -- documented, server-side filtered by Stripe
+    -- and only treat the charge as eligible again if every dispute found on it
+    has Dispute.status == 'won'. A charge can in principle accumulate more than
+    one dispute over its lifetime; any dispute that is not won (open, lost,
+    inquiry, etc.) keeps the charge disqualified. Unknown or missing dispute
+    state (disputed=True but no Dispute object found) also denies safely."""
+    if not charge.get('disputed'):
+        return False
+    disputes = provider.list_disputes(charge_id)
+    if not disputes:
+        return True
+    for dispute in disputes:
+        if dispute.get('charge') != charge_id:
+            raise ValueError('invalid_dispute')
+        if dispute.get('status') != 'won':
+            return True
+    return False
+
+
 def _valid_paid_end(subscription):
     price_id = current_app.config['STRIPE_PRICE_ID']
     ends = []
@@ -326,12 +400,35 @@ def _valid_paid_end(subscription):
         charge = provider.get_charge(charge_id)
         if _invoice_country(invoice, charge) != 'DE':
             continue
-        if not charge.get('paid') or charge.get('refunded') or charge.get('amount_refunded', 0) or charge.get('disputed'):
+        if (not charge.get('paid') or charge.get('refunded') or charge.get('amount_refunded', 0)
+                or _charge_disqualified_by_dispute(charge_id, charge)):
             continue
         for line in invoice['lines']['data']:
             if (line.get('price') or {}).get('id') == price_id and not line.get('proration'):
                 ends.append(line['period']['end'])
     return _iso(max(ends)) if ends else None
+
+
+def _subscription_superseded(state, subscription_id):
+    """True if billing state already points at a different, still-live
+    subscription than the one being reconciled.
+
+    Always re-checks the *stored* subscription against fresh provider truth
+    (never the webhook payload, which can race a replacement checkout), so a
+    late lifecycle event for an old subscription -- a delayed
+    customer.subscription.deleted, refund, or dispute closure -- can never
+    overwrite billing state and revoke access that a subsequent, unrelated
+    subscription already granted. Returns False (letting the caller proceed
+    with its normal write) for same-subscription lifecycle events, first
+    attach (nothing stored yet), and legitimate replacement attachment once
+    the stored subscription has itself gone terminal -- only a *live*,
+    *different* stored subscription outranks the one being reconciled.
+    """
+    current_id = state.get('subscription_id')
+    if not current_id or current_id == subscription_id:
+        return False
+    current = provider.get_subscription(current_id)
+    return current['status'] in _LIVE_STATES
 
 
 def reconcile_subscription(identity, subscription_id, event_id=None, owner=None):
@@ -345,6 +442,12 @@ def reconcile_subscription(identity, subscription_id, event_id=None, owner=None)
     items = subscription.get('items', {}).get('data', [])
     if len(items) != 1 or items[0]['price']['id'] != current_app.config['STRIPE_PRICE_ID']:
         raise ValueError('invalid_subscription')
+    if _subscription_superseded(state, subscription_id):
+        # This subscription has already been replaced by a newer, still-live
+        # one; mark the event handled (if tracked) without touching state.
+        if event_id:
+            store.complete_billing_event(identity, event_id, owner, {})
+        return None
     renewing = subscription['status'] in _LIVE_STATES and not (
         subscription.get('cancel_at_period_end') or subscription.get('cancel_at')
     )
@@ -441,8 +544,19 @@ def webhook():
     try:
         process_event(event)
     except ValueError as exc:
-        if str(exc) not in {'billing_busy', 'billing_conflict', 'version_mismatch'}:
+        reason = str(exc)
+        retryable = {'billing_busy', 'billing_conflict', 'version_mismatch'}
+        if reason not in retryable:
             raise
+        # Known, allow-listed reason only -- never the raw exception/event payload -- plus
+        # the event id, so a 503 burst can be correlated with Stripe's dashboard/logs
+        # without risking arbitrary or secret data reaching application logs.
+        event_id = event.get('id')
+        if not isinstance(event_id, str) or not event_id.startswith('evt_'):
+            event_id = 'unknown'
+        current_app.logger.warning(
+            'Billing webhook retry required: reason=%s event_id=%s', reason, event_id,
+        )
         return jsonify(error='billing_retry_required'), 503
     return jsonify(received=True)
 

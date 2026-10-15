@@ -250,6 +250,26 @@ describe('openBillingPortal', () => {
       assert.strictEqual(err.statusCode, 401, 'Status should be 401');
     }
   });
+
+  it('surfaces a safe localizable code, never a raw SyntaxError, when the server returns a non-JSON body (e.g. an unhandled HTML 500 page)', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 503,
+      json: async () => { throw new SyntaxError("Unexpected token '<', \"<!doctype \"... is not valid JSON"); }
+    };
+
+    const api = createMockApi({ 'POST /billing/portal': mockResponse });
+
+    try {
+      await openBillingPortal(api);
+      assert.fail('Should have thrown AccessFlowError');
+    } catch (err) {
+      assert.ok(err instanceof AccessFlowError, 'Should throw AccessFlowError, not a raw SyntaxError');
+      assert.strictEqual(err.statusCode, 503, 'Status should be 503');
+      assert.strictEqual(err.message, 'portal_unavailable', 'Message must be the safe fallback error code');
+      assert.ok(!/Unexpected token/.test(err.message), 'Raw SyntaxError text must never reach the caller');
+    }
+  });
 });
 
 describe('redeemCode', () => {

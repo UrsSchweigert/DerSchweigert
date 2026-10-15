@@ -407,6 +407,10 @@ const SERVER_MESSAGES = {
     de: 'Zahlungsbestätigung ausstehend. Nutze „Zugriffsstatus aktualisieren“ nach der Bestätigung.',
   },
   no_billing_account: { en: 'No billing account found.', de: 'Kein Abrechnungskonto gefunden.' },
+  portal_unavailable: {
+    en: 'Subscription management is temporarily unavailable. Please retry later.',
+    de: 'Die Abo-Verwaltung ist vorübergehend nicht verfügbar. Bitte versuche es später erneut.',
+  },
   code_not_needed: { en: 'A code is not needed right now.', de: 'Ein Code wird derzeit nicht benötigt.' },
   invalid_code: { en: 'Invalid code.', de: 'Ungültiger Code.' },
   invalid_webhook_signature: { en: 'The payment confirmation could not be verified.', de: 'Die Zahlungsbestätigung konnte nicht überprüft werden.' },

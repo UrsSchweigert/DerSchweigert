@@ -16,6 +16,7 @@ it('hides the title when a blocked level successfully resumes', () => {
     levelClearOverlay: { style: {} },
     gameOverOverlay: { style: {} },
     resetHealHold() {},
+    updateHUDLogoutVisibility() {},
     hud: { update() {} },
     audio: { startBGM() {} },
     animFrameId: 1,
@@ -44,6 +45,7 @@ it('closes account and checkout dialogs while keeping title controls available a
     checkoutModal: { style: { display: 'flex' } },
     diffSelect: { style: { display: 'none' } },
     hideLoadingOverlay() {},
+    updateHUDLogoutVisibility() {},
     topBar: { style: { display: 'none' } },
     audio: { stopBGM() {} },
   };
@@ -55,4 +57,96 @@ it('closes account and checkout dialogs while keeping title controls available a
   assert.equal(context.diffSelect.style.display, 'flex');
   assert.equal(context.gameRunning, false);
   assert.equal(context.state.timerActive, false);
+});
+
+it('hides HUD logout button when splash screen is visible and shows it during gameplay', () => {
+  const updateFn = source.match(/function updateHUDLogoutVisibility\(\)[\s\S]*?\n\}/)?.[0];
+  const applyFn = source.match(/function applyAuthUIState\(\)[\s\S]*?\n\}/)?.[0];
+  assert.ok(updateFn, 'updateHUDLogoutVisibility must exist');
+  assert.ok(applyFn, 'applyAuthUIState must exist');
+
+  const context = {
+    api: { username: 'testuser' },
+    diffSelect: { style: { display: 'flex' } },
+    logoutBtn: { style: { display: '' } },
+    loginBtn: { style: { display: '' } },
+    userDisplay: { style: { display: '' }, textContent: '' },
+    splashLoginBtn: { textContent: '' },
+    splashGreeting: { textContent: '' },
+    t: (key, data) => {
+      if (key === 'splash.logout') return 'Logout';
+      if (key === 'splash.greeting') return `Hello, ${data?.username}`;
+      return key;
+    },
+    refreshProfileAndLeaderboard() {},
+  };
+  vm.createContext(context);
+  vm.runInContext(`${updateFn}\n${applyFn}`, context);
+
+  // Apply auth state with logged-in user
+  vm.runInContext('applyAuthUIState();', context);
+  // HUD logout should be hidden when splash is visible
+  assert.equal(context.logoutBtn.style.display, 'none', 'HUD logout should be hidden when splash is visible');
+
+  // Simulate going into gameplay (splash hidden)
+  context.diffSelect.style.display = 'none';
+  vm.runInContext('updateHUDLogoutVisibility();', context);
+  // HUD logout should be shown during gameplay
+  assert.equal(context.logoutBtn.style.display, '', 'HUD logout should be shown during gameplay');
+
+  // Simulate returning to title (splash shown)
+  context.diffSelect.style.display = 'flex';
+  vm.runInContext('updateHUDLogoutVisibility();', context);
+  // HUD logout should be hidden again when splash is visible
+  assert.equal(context.logoutBtn.style.display, 'none', 'HUD logout should be hidden when splash is shown again');
+
+  // Test when logged out
+  context.api.username = '';
+  vm.runInContext('applyAuthUIState();', context);
+  // HUD logout should be hidden when not logged in
+  assert.equal(context.logoutBtn.style.display, 'none', 'HUD logout should be hidden when not logged in');
+});
+
+it('stops music when access is denied for premium level', () => {
+  const fn = source.match(/function handleLevelConfigError\([\s\S]*?\n\}/)?.[0];
+  assert.ok(fn, 'handleLevelConfigError must exist');
+
+  const audioStopBGMCalls = [];
+  const context = {
+    state: { score: 0, difficulty: 'easy', timerMax: 60, maxHearts: 3 },
+    t: (key, data) => {
+      if (key === 'auth.accessDenied') return 'Access Denied';
+      if (key === 'auth.failedToLoadLevel') return `Failed to load level ${data?.level}`;
+      return key;
+    },
+    savePendingRecord() {},
+    diffSelect: { style: { display: 'none' } },
+    authStatusMessage: { textContent: '' },
+    authStatusModal: { style: { display: 'none' } },
+    updateHUDLogoutVisibility() {},
+    audio: {
+      stopBGM() {
+        audioStopBGMCalls.push('stopBGM');
+      },
+    },
+  };
+
+  vm.createContext(context);
+  vm.runInContext(`${fn}`, context);
+
+  // Test 403 access denied error for L3
+  audioStopBGMCalls.length = 0;
+  vm.runInContext('handleLevelConfigError({ statusCode: 403 }, 2);', context);
+  assert.equal(audioStopBGMCalls.length, 1, 'stopBGM should be called on 403 error');
+  assert.equal(context.diffSelect.style.display, 'flex', 'diffSelect should be shown on error');
+  assert.equal(context.authStatusModal.style.display, 'flex', '403 error should show status modal');
+
+  // Test 402 billing required error for L3
+  audioStopBGMCalls.length = 0;
+  context.openBillingPanel = () => {
+    context.accountModal = { style: { display: 'flex' } };
+  };
+  vm.runInContext('handleLevelConfigError({ statusCode: 402 }, 2);', context);
+  assert.equal(audioStopBGMCalls.length, 1, 'stopBGM should be called on 402 error');
+  assert.equal(context.diffSelect.style.display, 'flex', 'diffSelect should be shown on error');
 });

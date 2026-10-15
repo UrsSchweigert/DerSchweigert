@@ -122,6 +122,15 @@ def get_charge(charge_id):
     return _plain(_client().charges.retrieve(charge_id))
 
 
+def list_disputes(charge_id):
+    """Dispute objects for a charge, filtered server-side by Stripe (documented
+    ``charge`` list parameter). Charge.disputed only means "has been disputed" --
+    the actual won/lost/inquiry state lives on the Dispute object, not the charge."""
+    return [_plain(dispute) for dispute in _client().disputes.list({
+        'charge': charge_id, 'limit': 100,
+    }).auto_paging_iter()]
+
+
 def refund_charge(charge_id, amount, operation_id):
     return _plain(_client().refunds.create(
         {'charge': charge_id, 'amount': amount}, options={'idempotency_key': operation_id},

@@ -304,7 +304,15 @@ export const api = {
     const res = await this._fetch('/billing/portal', {
       method: 'POST'
     });
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (cause) {
+      if (!(cause instanceof SyntaxError)) throw cause;
+      const error = new Error('portal_unavailable', { cause });
+      error.status = res.status;
+      throw error;
+    }
     if (!res.ok) {
       const err = new Error(data.error || 'Failed to open billing portal');
       err.status = res.status;

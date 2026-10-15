@@ -664,22 +664,30 @@ async function refreshProfileAndLeaderboard() {
 }
 
 // --- Splash login button ---
+function updateHUDLogoutVisibility() {
+  const splashVisible = diffSelect.style.display !== 'none';
+  if (splashVisible || !api.username) {
+    logoutBtn.style.display = 'none';
+  } else {
+    logoutBtn.style.display = '';
+  }
+}
+
 function applyAuthUIState() {
   if (api.username) {
     loginBtn.style.display = 'none';
-    logoutBtn.style.display = '';
     userDisplay.textContent = api.username;
     userDisplay.style.display = '';
     splashLoginBtn.textContent = t('splash.logout');
     splashGreeting.textContent = t('splash.greeting', { username: api.username });
   } else {
     loginBtn.style.display = '';
-    logoutBtn.style.display = 'none';
     userDisplay.textContent = '';
     userDisplay.style.display = 'none';
     splashLoginBtn.textContent = t('splash.loginRegister');
     splashGreeting.textContent = '';
   }
+  updateHUDLogoutVisibility();
   refreshProfileAndLeaderboard();
 }
 
@@ -1283,6 +1291,7 @@ function clearPremiumSession() {
   hideLoadingOverlay();
   topBar.style.display = 'flex';
   audio.stopBGM();
+  updateHUDLogoutVisibility();
 }
 
 // --- Level/Wave setup ---
@@ -1358,6 +1367,8 @@ function handleLevelConfigError(err, levelIndex) {
   const level = levelIndex + 1;
   let message = t('auth.failedToLoadLevel', { level });
 
+  audio.stopBGM();
+
   if ([401, 402, 403].includes(err.statusCode) && level > 2) {
     savePendingRecord(levelIndex, state.score, state.difficulty, state.timerMax, state.maxHearts);
   }
@@ -1381,6 +1392,7 @@ function handleLevelConfigError(err, levelIndex) {
   authStatusModal.style.display = [401, 402].includes(err.statusCode) ? 'none' : 'flex';
 
   diffSelect.style.display = 'flex';
+  updateHUDLogoutVisibility();
 }
 
 function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
@@ -1421,6 +1433,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   topBar.style.display = 'none';
   levelClearOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
+  updateHUDLogoutVisibility();
   hud.update(state);
   audio.startBGM(cfg.chapter);
   if (!animFrameId) gameLoop(performance.now());
@@ -1966,6 +1979,7 @@ function triggerLevelClear() {
       await refreshProfileAndLeaderboard();
       levelClearOverlay.style.display = 'none';
       diffSelect.style.display = 'flex';
+      updateHUDLogoutVisibility();
     } catch {
       levelClearScore.textContent = t('overlay.saveScoreFailed');
     }
@@ -2004,6 +2018,7 @@ function triggerGameOver() {
   btnReturnTitle.onclick = () => {
     gameOverOverlay.style.display = 'none';
     diffSelect.style.display = 'flex';
+    updateHUDLogoutVisibility();
   };
   gameOverOverlay.style.display = 'flex';
 }

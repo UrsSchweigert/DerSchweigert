@@ -145,7 +145,13 @@ export async function openBillingPortal(api) {
     method: 'POST'
   });
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (cause) {
+    if (!(cause instanceof SyntaxError)) throw cause;
+    throw new AccessFlowError('portal_unavailable', res.status);
+  }
 
   if (res.status === 401) {
     throw new AccessFlowError('Authentication required', 401, data);

@@ -399,6 +399,48 @@ consent remains mandatory. Production retains hosted terms consent and requires 
 operator-approved public terms URL (see "Legal/tax approval status" above; operator
 sign-off, not qualified-counsel certification) in Stripe's public business details.
 
+**Replaying one exact sandbox event:**
+
+`sites/ffm/scripts/replay-stripe-sandbox-event.py` re-delivers a single, specific
+TEST-mode event (fetched read-only from Stripe by id) to the sandbox runner
+above, to reproduce or rule out a webhook outcome (e.g. an isolated 503) under
+controlled, single-event conditions. It is a diagnostic aid only: replaying an
+event does not by itself identify the root cause of a given response — that
+still comes from what the sandbox runner logs while the replay runs. It never
+makes an AWS call, a live-mode Stripe call, or a request to any host other
+than the fixed sandbox address below; it is not a substitute for the real
+`stripe listen` forwarding path.
+
+With the sandbox runner from the previous section still running (so
+`http://127.0.0.1:8766/api/billing/webhook` — the **local sandbox**, never the
+production `https://ffm.derschweigert.de/api/billing/webhook` — is listening),
+run in a third terminal at the repository root:
+
+```bash
+PYTHONPATH=. .venv/bin/python sites/ffm/scripts/replay-stripe-sandbox-event.py --event-id evt_1UQnPsDYFrEur0X906nvAXLq
+```
+
+Enter the TEST secret key (`sk_test_`/`rk_test_` only) and the same `stripe
+listen` signing secret (`whsec_...`) used above only at the hidden terminal
+prompts, never in chat, source files, or command-line arguments. The script:
+
+- Fetches only the requested event id, read-only, pinned to API version
+  `2024-06-20`, and requires `livemode` to be exactly `False` and the event's
+  `type` to be one of the events listed above — anything else stops before any
+  POST is attempted.
+- Signs the fetched event with a fresh timestamp and POSTs it once to the
+  fixed local sandbox address only, with redirects disabled.
+- Retries only a `503 billing_retry_required` response (the sandbox's own
+  transient-lock/version-conflict signal), up to 3 attempts with a short fixed
+  delay; any other response, including a different 503, is reported once and
+  is never retried or assumed to be a silent success.
+- Prints only the HTTP status code and the sandbox's own short error code —
+  never the full response body, the event payload, or either secret.
+
+A non-zero exit status, or any printed error, means the replay did not
+confirm success; check the sandbox runner's own terminal output for what it
+actually logged while handling that replay.
+
 Local data resets on shutdown, but Stripe sandbox subscriptions do not. Cancel
 the test subscriptions before stopping the server. Restarting starts a new local
 dataset. To reconnect a known test subscription after a restart, add
@@ -492,6 +534,57 @@ period; no-card gift-code redemption independent of a paying account (`sandbox-g
 the Stripe customer portal (cancel-only configuration). These are functional/sandbox
 verifications, not legal or tax determinations. Full webhook-event and refund coverage
 has not been established by these browser checks.
+
+**Production readiness checks (2026-10-15, sales still closed):**
+
+- Live Phase 3 deployment: commit `0d3f0ac`, workflow run `38720608124`.
+  Core billing and terms approval are enabled; sales and access enforcement
+  are disabled, with no grandfather cutoff. The live webhook is enabled.
+  Invalid signatures returned HTTP 400; a signed, non-mutating readiness
+  probe returned HTTP 200. This probe is not a Stripe-originated event.
+- The operator confirmed registration, inbox verification, login, account
+  panel access, password-reset email and login with the new password for
+  the `FFMPrelaunch2026` test account. Checkout remained unavailable.
+- Public cancellation request `16019a4a-1308-45bd-9318-f228aac1ab9a` was
+  durably submitted (HTTP 201) and replayed idempotently (HTTP 200, same ID).
+  The operator processing path recorded `no_subscription`; acknowledgement
+  email state was `sent`, and the operator confirmed receipt and correct
+  wording. No paid subscription was created or canceled by this check.
+  The labeled account/request remain as test evidence.
+- Urs Schweigert accepted responsibility for daily queue review, identity
+  verification, processing, outcome emails and failed-send retries. This
+  routine remains manual, not scheduled by the application.
+- Added mocked regression coverage for charge refunds, partial refunds,
+  dispute creation/closure, replay and preservation of other valid paid
+  periods. These tests do not establish real Stripe event semantics.
+  Won-dispute recovery now fetches the actual dispute outcomes rather than
+  treating the Charge's historical `disputed` flag as a permanent denial.
+  All disputes for a disputed charge must be won before its otherwise-valid
+  payment counts again.
+- Stripe-originated live webhook delivery remains outstanding. Standalone
+  `stripe trigger charge.*` fixtures are insufficient for entitlement checks
+  because they do not represent the game's subscription invoice/period.
+- Subsequent subscription-linked sandbox full-refund check: the operator
+  confirmed refunding the EUR 3 payment, `charge.refunded` delivery with
+  HTTP 200, and removal of premium access. This is operator-observed
+  sandbox evidence, not a production refund.
+- The accepted/lost sandbox dispute closure and immediate subscription
+  cancellation each returned HTTP 200, with no premium access afterward.
+  A later won-dispute subscription was resumed with the corrected backend;
+  the operator confirmed the billing panel changed to "Zugriff bis" with the
+  paid-period end. This verifies status-based entitlement recovery, not an
+  independent level-3 playthrough or successful closure-event delivery.
+- The original dispute-created delivery returned HTTP 503. Other events'
+  HTTP 200 responses do not establish its retry success; root cause and
+  exact-event recovery remain unconfirmed. Retry diagnostics and an isolated
+  test-event replay helper were added. A later expired Stripe CLI OAuth token
+  interrupted forwarding separately and is not evidence of a production-key
+  failure.
+- Local fixes also cover checkout after a terminal subscription, stale
+  historical events overwriting a replacement subscription, missing portal
+  configuration/HTML errors, duplicate title-screen logout controls, and
+  stopping music when level access is denied. These changes require a
+  separate reviewed release; they are not part of the Phase 3 baseline above.
 
 **Pre-launch checklist:**
 
