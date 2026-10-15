@@ -16,6 +16,21 @@ def create_app(config_class=None):
         config_class = ProductionConfig if env == 'production' else BaseConfig
 
     app.config.from_object(config_class)
+    if app.config['ACCESS_CONTROL_ENABLED']:
+        from datetime import datetime, timezone
+        cutoff = app.config['GRANDFATHER_CUTOFF']
+        if not cutoff:
+            raise ValueError('A fixed GRANDFATHER_CUTOFF is required before launching paid access')
+        parsed = datetime.fromisoformat(cutoff.replace('Z', '+00:00'))
+        if parsed.tzinfo is None or parsed.utcoffset().total_seconds() != 0:
+            raise ValueError('GRANDFATHER_CUTOFF must include the UTC timezone')
+        if parsed > datetime.now(timezone.utc):
+            raise ValueError('GRANDFATHER_CUTOFF cannot be in the future at launch')
+    if app.config['BILLING_SALES_ENABLED']:
+        if not all(app.config[key] for key in (
+            'ACCESS_CONTROL_ENABLED', 'BILLING_ENABLED', 'BILLING_TERMS_APPROVED', 'STRIPE_PRICE_ID',
+        )):
+            raise ValueError('Sales require configured billing, access control, price and reviewed terms')
 
     # Propagate table names to environment so models.py reads them at call time
     os.environ['DYNAMODB_USERS_TABLE'] = app.config['DYNAMODB_USERS_TABLE']
@@ -39,7 +54,13 @@ def create_app(config_class=None):
 
     from .auth import auth_bp
     from .main import main_bp
+    from .billing import billing_bp
+    from .cancel_requests import cancel_requests_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
+    app.register_blueprint(billing_bp)
+    app.register_blueprint(cancel_requests_bp)
+    from .billing_admin import register_billing_commands
+    register_billing_commands(app)
 
     return app

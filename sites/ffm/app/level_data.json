@@ -1,0 +1,1568 @@
+{
+  "version": 1,
+  "generated": "2026-10-14T11:58:19.618Z",
+  "totalLevels": 60,
+  "levels": [
+    {
+      "level": 1,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          5
+        ],
+        "b": [
+          1,
+          5
+        ]
+      },
+      "maxResult": 10,
+      "fiendType": "slimeling",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "multiple-choice",
+      "baseline_score": 0
+    },
+    {
+      "level": 2,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          6
+        ],
+        "b": [
+          1,
+          6
+        ]
+      },
+      "maxResult": 12,
+      "fiendType": "bonehead",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "multiple-choice",
+      "baseline_score": 17850
+    },
+    {
+      "level": 3,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          8
+        ],
+        "b": [
+          1,
+          8
+        ]
+      },
+      "maxResult": 16,
+      "fiendType": "slimeling",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "multiple-choice",
+      "baseline_score": 52575
+    },
+    {
+      "level": 4,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          10
+        ],
+        "b": [
+          1,
+          9
+        ]
+      },
+      "maxResult": 19,
+      "fiendType": "toadlord",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "multiple-choice",
+      "baseline_score": 73275
+    },
+    {
+      "level": 5,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          11
+        ],
+        "b": [
+          1,
+          8
+        ]
+      },
+      "maxResult": 19,
+      "fiendType": "bonehead",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "multiple-choice",
+      "baseline_score": 101625
+    },
+    {
+      "level": 6,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          14
+        ],
+        "b": [
+          1,
+          5
+        ]
+      },
+      "maxResult": 19,
+      "fiendType": "magelitch",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "multiple-choice",
+      "baseline_score": 117825
+    },
+    {
+      "level": 7,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          10
+        ],
+        "b": [
+          1,
+          9
+        ]
+      },
+      "maxResult": 19,
+      "fiendType": "slimeling",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 145275
+    },
+    {
+      "level": 8,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          5,
+          19
+        ],
+        "b": [
+          1,
+          10
+        ]
+      },
+      "maxResult": 18,
+      "fiendType": "bonehead",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 162975
+    },
+    {
+      "level": 9,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          10
+        ],
+        "b": [
+          1,
+          9
+        ]
+      },
+      "maxResult": 19,
+      "fiendType": "slimeling",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 191925
+    },
+    {
+      "level": 10,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          2,
+          12
+        ],
+        "b": [
+          1,
+          7
+        ]
+      },
+      "maxResult": 19,
+      "fiendType": "bonehead",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 211125
+    },
+    {
+      "level": 11,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          20
+        ],
+        "b": [
+          1,
+          15
+        ]
+      },
+      "maxResult": 20,
+      "fiendType": "slimeling",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 241575
+    },
+    {
+      "level": 12,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          20
+        ],
+        "b": [
+          1,
+          20
+        ]
+      },
+      "maxResult": 20,
+      "fiendType": "toadlord",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 263025
+    },
+    {
+      "level": 13,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          20
+        ],
+        "b": [
+          1,
+          20
+        ]
+      },
+      "maxResult": 20,
+      "fiendType": "bonehead",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 296175
+    },
+    {
+      "level": 14,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          20
+        ],
+        "b": [
+          1,
+          20
+        ]
+      },
+      "maxResult": 20,
+      "fiendType": "magelitch",
+      "fiendHP": 2,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 319875
+    },
+    {
+      "level": 15,
+      "chapter": 1,
+      "chapterName": "Grade 1 Foundations",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          20
+        ],
+        "b": [
+          1,
+          20
+        ]
+      },
+      "maxResult": 20,
+      "fiendType": "slimeling",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 398775
+    },
+    {
+      "level": 16,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          10,
+          40
+        ],
+        "b": [
+          10,
+          40
+        ]
+      },
+      "maxResult": 80,
+      "fiendType": "slimeling",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 423975
+    },
+    {
+      "level": 17,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          20,
+          60
+        ],
+        "b": [
+          10,
+          40
+        ]
+      },
+      "maxResult": 100,
+      "fiendType": "bonehead",
+      "fiendHP": 2,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 460425
+    },
+    {
+      "level": 18,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          20,
+          80
+        ],
+        "b": [
+          1,
+          40
+        ]
+      },
+      "maxResult": 120,
+      "fiendType": "birdfoe",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 522825
+    },
+    {
+      "level": 19,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          30,
+          100
+        ],
+        "b": [
+          1,
+          60
+        ]
+      },
+      "maxResult": 160,
+      "fiendType": "toadlord",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 560775
+    },
+    {
+      "level": 20,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          10,
+          100
+        ],
+        "b": [
+          1,
+          50
+        ]
+      },
+      "maxResult": 100,
+      "fiendType": "slimeling",
+      "fiendHP": 2,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 588975
+    },
+    {
+      "level": 21,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          10,
+          100
+        ],
+        "b": [
+          1,
+          70
+        ]
+      },
+      "maxResult": 100,
+      "fiendType": "wolffoe",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 676875
+    },
+    {
+      "level": 22,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          100
+        ],
+        "b": [
+          1,
+          100
+        ]
+      },
+      "maxResult": 100,
+      "fiendType": "bonehead",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 706575
+    },
+    {
+      "level": 23,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          100
+        ],
+        "b": [
+          1,
+          100
+        ]
+      },
+      "maxResult": 100,
+      "fiendType": "magelitch",
+      "fiendHP": 2,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 747525
+    },
+    {
+      "level": 24,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          100
+        ],
+        "b": [
+          1,
+          100
+        ]
+      },
+      "maxResult": 100,
+      "fiendType": "slimeling",
+      "fiendHP": 1,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 818925
+    },
+    {
+      "level": 25,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          10
+        ],
+        "b": [
+          2,
+          3
+        ]
+      },
+      "maxResult": 30,
+      "fiendType": "bonehead",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 861375
+    },
+    {
+      "level": 26,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          10
+        ],
+        "b": [
+          2,
+          5
+        ]
+      },
+      "maxResult": 50,
+      "fiendType": "birdfoe",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 986475
+    },
+    {
+      "level": 27,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          12
+        ],
+        "b": [
+          2,
+          6
+        ]
+      },
+      "maxResult": 72,
+      "fiendType": "toadlord",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 1145325
+    },
+    {
+      "level": 28,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          100
+        ],
+        "b": [
+          2,
+          8
+        ]
+      },
+      "maxResult": 120,
+      "fiendType": "slimeling",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 1274925
+    },
+    {
+      "level": 29,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          100
+        ],
+        "b": [
+          2,
+          9
+        ]
+      },
+      "maxResult": 150,
+      "fiendType": "wolffoe",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 1438275
+    },
+    {
+      "level": 30,
+      "chapter": 2,
+      "chapterName": "Grade 1-2 Expansion",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          1,
+          100
+        ],
+        "b": [
+          2,
+          10
+        ]
+      },
+      "maxResult": 200,
+      "fiendType": "bonehead",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 1572375
+    },
+    {
+      "level": 31,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          2,
+          12
+        ],
+        "b": [
+          2,
+          10
+        ]
+      },
+      "maxResult": 120,
+      "fiendType": "magelitch",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 1740225
+    },
+    {
+      "level": 32,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          2,
+          15
+        ],
+        "b": [
+          2,
+          10
+        ]
+      },
+      "maxResult": 150,
+      "fiendType": "bonehead",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 1878825
+    },
+    {
+      "level": 33,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*"
+      ],
+      "operandRange": {
+        "a": [
+          2,
+          20
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 240,
+      "fiendType": "toadlord",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 2051175
+    },
+    {
+      "level": 34,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          2,
+          10
+        ],
+        "b": [
+          2,
+          10
+        ]
+      },
+      "maxResult": 100,
+      "fiendType": "magelitch",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 2194275
+    },
+    {
+      "level": 35,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          2,
+          12
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 144,
+      "fiendType": "wolffoe",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 2371125
+    },
+    {
+      "level": 36,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          2,
+          12
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 144,
+      "fiendType": "snakefoe",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 2518725
+    },
+    {
+      "level": 37,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          5,
+          15
+        ],
+        "b": [
+          2,
+          15
+        ]
+      },
+      "maxResult": 225,
+      "fiendType": "toadlord",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 2700075
+    },
+    {
+      "level": 38,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          5,
+          20
+        ],
+        "b": [
+          2,
+          20
+        ]
+      },
+      "maxResult": 400,
+      "fiendType": "birdfoe",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 2861175
+    },
+    {
+      "level": 39,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          10,
+          50
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 600,
+      "fiendType": "magelitch",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 3020925
+    },
+    {
+      "level": 40,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          10,
+          60
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 720,
+      "fiendType": "bonehead",
+      "fiendHP": 3,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 3171225
+    },
+    {
+      "level": 41,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          50,
+          400
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 800,
+      "fiendType": "toadlord",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 3322875
+    },
+    {
+      "level": 42,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          100,
+          600
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 1000,
+      "fiendType": "magelitch",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 3547275
+    },
+    {
+      "level": 43,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          10,
+          80
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 960,
+      "fiendType": "wolffoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 3776475
+    },
+    {
+      "level": 44,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          20,
+          100
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 1200,
+      "fiendType": "snakefoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 4008675
+    },
+    {
+      "level": 45,
+      "chapter": 3,
+      "chapterName": "Grade 3-4 Core Arithmetic",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          20,
+          120
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 1440,
+      "fiendType": "toadlord",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 4245075
+    },
+    {
+      "level": 46,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          20,
+          130
+        ],
+        "b": [
+          2,
+          13
+        ]
+      },
+      "maxResult": 1690,
+      "fiendType": "magelitch",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 4483275
+    },
+    {
+      "level": 47,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          20,
+          140
+        ],
+        "b": [
+          2,
+          14
+        ]
+      },
+      "maxResult": 1960,
+      "fiendType": "snakefoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 4725675
+    },
+    {
+      "level": 48,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          50,
+          500
+        ],
+        "b": [
+          2,
+          15
+        ]
+      },
+      "maxResult": 2000,
+      "fiendType": "wolffoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 4972875
+    },
+    {
+      "level": 49,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          10,
+          100
+        ],
+        "b": [
+          2,
+          12
+        ]
+      },
+      "maxResult": 1200,
+      "fiendType": "magelitch",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 5223075
+    },
+    {
+      "level": 50,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          20,
+          120
+        ],
+        "b": [
+          2,
+          15
+        ]
+      },
+      "maxResult": 1800,
+      "fiendType": "snakefoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 5477475
+    },
+    {
+      "level": 51,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          30,
+          150
+        ],
+        "b": [
+          2,
+          15
+        ]
+      },
+      "maxResult": 2250,
+      "fiendType": "wolffoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 5733675
+    },
+    {
+      "level": 52,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          40,
+          180
+        ],
+        "b": [
+          2,
+          15
+        ]
+      },
+      "maxResult": 2700,
+      "fiendType": "toadlord",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 5994075
+    },
+    {
+      "level": 53,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          50,
+          200
+        ],
+        "b": [
+          2,
+          18
+        ]
+      },
+      "maxResult": 3600,
+      "fiendType": "birdfoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 6259275
+    },
+    {
+      "level": 54,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          60,
+          220
+        ],
+        "b": [
+          2,
+          18
+        ]
+      },
+      "maxResult": 3960,
+      "fiendType": "magelitch",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 6527475
+    },
+    {
+      "level": 55,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          70,
+          240
+        ],
+        "b": [
+          2,
+          20
+        ]
+      },
+      "maxResult": 4800,
+      "fiendType": "snakefoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 6799875
+    },
+    {
+      "level": 56,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          80,
+          260
+        ],
+        "b": [
+          2,
+          20
+        ]
+      },
+      "maxResult": 5200,
+      "fiendType": "wolffoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 7074075
+    },
+    {
+      "level": 57,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          90,
+          280
+        ],
+        "b": [
+          2,
+          20
+        ]
+      },
+      "maxResult": 5600,
+      "fiendType": "magelitch",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 7352475
+    },
+    {
+      "level": 58,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          100,
+          300
+        ],
+        "b": [
+          2,
+          20
+        ]
+      },
+      "maxResult": 6000,
+      "fiendType": "snakefoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 7635675
+    },
+    {
+      "level": 59,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          120,
+          320
+        ],
+        "b": [
+          2,
+          20
+        ]
+      },
+      "maxResult": 6400,
+      "fiendType": "wolffoe",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 7921875
+    },
+    {
+      "level": 60,
+      "chapter": 4,
+      "chapterName": "Elementary Mastery Mix",
+      "operations": [
+        "+",
+        "-",
+        "*",
+        "/"
+      ],
+      "operandRange": {
+        "a": [
+          150,
+          350
+        ],
+        "b": [
+          2,
+          20
+        ]
+      },
+      "maxResult": 7000,
+      "fiendType": "toadlord",
+      "fiendHP": 4,
+      "waveSize": 30,
+      "inputMode": "free-text",
+      "baseline_score": 8212275
+    }
+  ]
+}

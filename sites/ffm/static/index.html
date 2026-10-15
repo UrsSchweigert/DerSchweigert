@@ -25,7 +25,7 @@
 
   <div id="game-wrap">
   <canvas id="game" width="800" height="450"></canvas>
-  
+
   <div id="input-zone">
     <div id="mc-buttons">
       <button class="mc-btn" type="button" touch-action="manipulation" data-index="0"></button>
@@ -34,8 +34,8 @@
       <button class="mc-btn" type="button" touch-action="manipulation" data-index="3"></button>
     </div>
     <div id="free-text-zone">
-      <input id="answer-input" type="text" inputmode="numeric" placeholder="..." autocomplete="off" autocorrect="off" autocapitalize="off">
-      <button id="strike-btn" type="button" touch-action="manipulation">Strike!</button>
+      <input id="answer-input" type="text" inputmode="numeric" placeholder="..." data-i18n-placeholder="input.answerPlaceholder" autocomplete="off" autocorrect="off" autocapitalize="off">
+      <button id="strike-btn" type="button" touch-action="manipulation" data-i18n="input.strike">Strike!</button>
     </div>
     <div id="timer-bar-container"></div>
   </div><!-- #input-zone -->
@@ -43,152 +43,155 @@
   </div><!-- #game-wrap -->
 
   <div id="top-bar">
-    <button id="login-btn">Login</button>
+    <button id="login-btn" data-i18n="topbar.login">Login</button>
     <span id="username-display" style="display:none"></span>
-    <button id="logout-btn" style="display:none">Logout</button>
-    <button id="mute-btn">🔊</button>
+    <button id="logout-btn" style="display:none" data-i18n="topbar.logout">Logout</button>
+    <button id="mute-btn" data-i18n-aria-label="topbar.muteAriaLabel" aria-label="Mute sound">🔊</button>
+    <button id="lang-toggle-btn" data-i18n="lang.toggleLabel" data-i18n-aria-label="lang.toggleAriaLabel" aria-label="Switch to German">DE</button>
   </div>
-  
+
   <div id="cookie-banner" class="cookie-banner" style="display:none">
     <div class="cookie-banner-content">
-      <p>This site uses a security widget that requires your consent. <a href="datenschutz.html" target="_blank">Privacy Policy</a></p>
+      <p><span data-i18n="cookie.notice">This site uses a security widget that requires your consent.</span> <a href="datenschutz.html" target="_blank" data-i18n="cookie.privacyLink">Privacy Policy</a></p>
       <div class="cookie-banner-buttons">
-        <button id="cookie-accept" class="cookie-btn cookie-btn--accept">Accept</button>
-        <button id="cookie-decline" class="cookie-btn cookie-btn--decline">Decline</button>
+        <button id="cookie-accept" class="cookie-btn cookie-btn--accept" data-i18n="cookie.accept">Accept</button>
+        <button id="cookie-decline" class="cookie-btn cookie-btn--decline" data-i18n="cookie.decline">Decline</button>
       </div>
     </div>
   </div>
-  
+
   <div id="difficulty-select" class="overlay splash-screen">
     <div class="splash-bg" aria-hidden="true"></div>
     <div class="splash-content">
       <h1 class="splash-title">Arithmo Slayer</h1>
-      <p class="splash-intro">Train your math reflexes, beat the clock, and climb the rankings one correct answer at a time.</p>
+      <p class="splash-intro" data-i18n="splash.intro">Train your math reflexes, beat the clock, and climb the rankings one correct answer at a time.</p>
       <div class="splash-login-row">
-        <button id="splash-login-btn" class="splash-btn splash-btn--secondary">Login / Register</button>
+        <button id="splash-login-btn" class="splash-btn splash-btn--secondary" data-i18n="splash.loginRegister">Login / Register</button>
         <span id="splash-user-greeting" class="splash-greeting"></span>
       </div>
-      <p class="splash-subtitle">Choose your difficulty:</p>
+      <p class="splash-subtitle" data-i18n="splash.chooseDifficulty">Choose your difficulty:</p>
       <section class="splash-leaderboard" aria-live="polite">
         <div class="leaderboard-header">
-          <h2 class="leaderboard-title">Leaderboard</h2>
+          <h2 class="leaderboard-title" data-i18n="leaderboard.title">Leaderboard</h2>
           <select id="leaderboard-year-filter" class="leaderboard-filter">
-            <option value="">All years</option>
+            <option value="" data-i18n="leaderboard.allYears">All years</option>
           </select>
         </div>
-        <p class="leaderboard-note">Showing high scores set in the last 2 weeks.</p>
+        <p class="leaderboard-note" data-i18n="leaderboard.note">Showing high scores set in the last 2 weeks.</p>
         <p id="leaderboard-personal-best" class="leaderboard-personal-best" style="display:none"></p>
         <div id="score-history-chart" class="score-history-chart" style="display:none"></div>
         <p id="leaderboard-profile-prompt" class="leaderboard-profile-prompt" style="display:none"></p>
-        <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none">Complete profile</button>
+        <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none" data-i18n="leaderboard.completeProfile">Complete profile</button>
         <ol id="leaderboard-list" class="leaderboard-list"></ol>
       </section>
       <div id="level-jump-row" class="level-jump-row" style="display:none">
-        <label for="level-jump-select">Jump to a level you've already cleared:</label>
+        <label for="level-jump-select" data-i18n="leaderboard.jumpLabel">Jump to a level you've already cleared:</label>
         <select id="level-jump-select">
-          <option value="">Start from Level 1</option>
+          <option value="" data-i18n="levels.startFromOne">Start from Level 1</option>
         </select>
       </div>
       <div class="splash-diff-buttons">
         <button class="diff-btn splash-diff-btn" data-difficulty="shapes" data-timer="25" data-hearts="9">
-          <span class="diff-label">Shapes</span>
-          <span class="diff-detail">Count the shapes · no score, no end</span>
+          <span class="diff-label" data-i18n="difficulty.shapes.label">Shapes</span>
+          <span class="diff-detail" data-i18n="difficulty.shapes.detail">Count the shapes · no score, no end</span>
         </button>
         <button class="diff-btn splash-diff-btn" data-difficulty="easy" data-timer="15" data-hearts="7">
-          <span class="diff-label">Easy</span>
-          <span class="diff-detail">15 seconds · 7 hearts</span>
+          <span class="diff-label" data-i18n="difficulty.easy.label">Easy</span>
+          <span class="diff-detail" data-i18n="difficulty.easy.detail">15 seconds · 7 hearts</span>
         </button>
         <button class="diff-btn splash-diff-btn" data-difficulty="medium" data-timer="10" data-hearts="5">
-          <span class="diff-label">Medium</span>
-          <span class="diff-detail">10 seconds · 5 hearts</span>
+          <span class="diff-label" data-i18n="difficulty.medium.label">Medium</span>
+          <span class="diff-detail" data-i18n="difficulty.medium.detail">10 seconds · 5 hearts</span>
         </button>
         <button class="diff-btn splash-diff-btn" data-difficulty="hard" data-timer="5" data-hearts="3">
-          <span class="diff-label">Hard</span>
-          <span class="diff-detail">5 seconds · 3 hearts</span>
+          <span class="diff-label" data-i18n="difficulty.hard.label">Hard</span>
+          <span class="diff-detail" data-i18n="difficulty.hard.detail">5 seconds · 3 hearts</span>
         </button>
       </div>
       <p class="splash-legal-links">
-        <a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a>
+        <a href="impressum.html" data-i18n="legal.impressum">Impressum</a> · <a href="datenschutz.html" data-i18n="legal.privacy">Datenschutz</a> ·
+        <a href="cancel.html" data-i18n="legal.cancellation">Cancellation</a> · <a href="terms.html" data-i18n="legal.terms">Terms</a>
       </p>
     </div>
   </div>
 
   <div id="auth-modal" class="overlay" style="display:none">
     <div class="overlay-card">
-      <button id="close-auth">×</button>
+      <button id="close-auth" data-i18n-aria-label="common.close" aria-label="Close">×</button>
       <div id="auth-tabs">
-        <button id="tab-login" class="tab-btn active">Login</button>
-        <button id="tab-register" class="tab-btn">Register</button>
+        <button id="tab-login" class="tab-btn active" data-i18n="auth.tabLogin">Login</button>
+        <button id="tab-register" class="tab-btn" data-i18n="auth.tabRegister">Register</button>
       </div>
       <form id="login-form">
-        <input id="login-username" type="text" placeholder="Username">
-        <input id="login-password" type="password" placeholder="Password">
-        <button type="submit">Login</button>
-        <button type="button" id="forgot-password-link" class="link-btn">Forgot password?</button>
+        <input id="login-username" type="text" placeholder="Username" data-i18n-placeholder="auth.usernamePlaceholder">
+        <input id="login-password" type="password" placeholder="Password" data-i18n-placeholder="auth.passwordPlaceholder">
+        <button type="submit" data-i18n="auth.loginSubmit">Login</button>
+        <button type="button" id="forgot-password-link" class="link-btn" data-i18n="auth.forgotPassword">Forgot password?</button>
         <p id="login-error" class="error-msg"></p>
         <div id="login-verify-resend" style="display:none">
-          <input id="login-resend-email" type="email" placeholder="Your email">
+          <input id="login-resend-email" type="email" placeholder="Your email" data-i18n-placeholder="auth.resendEmailPlaceholder">
           <div id="turnstile-resend" class="turnstile-container"></div>
-          <button type="button" id="login-resend-btn">Resend verification email</button>
+          <button type="button" id="login-resend-btn" data-i18n="auth.resendVerification">Resend verification email</button>
         </div>
       </form>
       <form id="register-form" style="display:none">
-        <input id="reg-username" type="text" placeholder="Username (3-20 chars)">
-        <input id="reg-email" type="email" placeholder="Email">
-        <input id="reg-password" type="password" placeholder="Password (8+ chars)">
-        <input id="reg-first-grade-year" type="number" placeholder="First grade year (optional)">
+        <input id="reg-username" type="text" placeholder="Username (3-20 chars)" data-i18n-placeholder="auth.regUsernamePlaceholder">
+        <input id="reg-email" type="email" placeholder="Email" data-i18n-placeholder="auth.emailPlaceholder">
+        <input id="reg-password" type="password" placeholder="Password (8+ chars)" data-i18n-placeholder="auth.regPasswordPlaceholder">
+        <input id="reg-first-grade-year" type="number" placeholder="First grade year (optional)" data-i18n-placeholder="auth.firstGradeYearPlaceholder">
         <div id="turnstile-register" class="turnstile-container"></div>
         <label class="consent-checkbox">
           <input type="checkbox" id="reg-consent-checkbox">
-          I confirm I am at least 18 years old. If this account will be used by a child, I confirm I am that child's parent/legal guardian and consent to their use of this service.
+          <span data-i18n="auth.consentAdultOrGuardian">I confirm I am at least 18 years old. If this account will be used by a child, I confirm I am that child's parent/legal guardian and consent to their use of this service.</span>
         </label>
-        <button type="submit">Register</button>
+        <button type="submit" data-i18n="auth.registerSubmit">Register</button>
         <p id="register-error" class="error-msg"></p>
       </form>
       <form id="forgot-password-form" style="display:none">
-        <input id="forgot-password-email" type="email" placeholder="Your email">
+        <input id="forgot-password-email" type="email" placeholder="Your email" data-i18n-placeholder="auth.forgotEmailPlaceholder">
         <div id="turnstile-forgot-password" class="turnstile-container"></div>
-        <button type="submit">Send reset link</button>
-        <button type="button" id="back-to-login-link" class="link-btn">Back to login</button>
+        <button type="submit" data-i18n="auth.sendResetLink">Send reset link</button>
+        <button type="button" id="back-to-login-link" class="link-btn" data-i18n="auth.backToLogin">Back to login</button>
         <p id="forgot-password-message" class="error-msg"></p>
       </form>
       <form id="reset-password-form" style="display:none">
-        <input id="reset-new-password" type="password" placeholder="New password (8+ chars)">
-        <input id="reset-confirm-password" type="password" placeholder="Confirm new password">
-        <button type="submit">Reset Password</button>
+        <input id="reset-new-password" type="password" placeholder="New password (8+ chars)" data-i18n-placeholder="auth.regPasswordPlaceholder">
+        <input id="reset-confirm-password" type="password" placeholder="Confirm new password" data-i18n-placeholder="auth.confirmNewPasswordPlaceholder">
+        <button type="submit" data-i18n="auth.resetPasswordSubmit">Reset Password</button>
         <p id="reset-password-message" class="error-msg"></p>
       </form>
     </div>
   </div>
-  
+
   <div id="account-modal" class="overlay" style="display:none">
     <div class="overlay-card">
-      <button id="close-account" class="close-btn">×</button>
+      <button id="close-account" class="close-btn" data-i18n-aria-label="common.close" aria-label="Close">×</button>
       <div id="account-tabs">
-        <button id="tab-account-profile" class="tab-btn active">Profile</button>
-        <button id="tab-account-password" class="tab-btn">Password</button>
-        <button id="tab-account-scores" class="tab-btn">High Scores</button>
-        <button id="tab-account-danger" class="tab-btn">Delete Account</button>
+        <button id="tab-account-profile" class="tab-btn active" data-i18n="account.tabProfile">Profile</button>
+        <button id="tab-account-password" class="tab-btn" data-i18n="account.tabPassword">Password</button>
+        <button id="tab-account-scores" class="tab-btn" data-i18n="account.tabScores">High Scores</button>
+        <button id="tab-account-billing" class="tab-btn" data-i18n="account.tabBilling">Billing</button>
+        <button id="tab-account-danger" class="tab-btn" data-i18n="account.tabDanger">Delete Account</button>
       </div>
 
       <div id="account-profile-panel">
         <form id="account-profile-form">
-          <p>Current email: <strong id="account-current-email-display"></strong></p>
+          <p><span data-i18n="account.currentEmailLabel">Current email:</span> <strong id="account-current-email-display"></strong></p>
           <p id="account-pending-email-note" class="pending-email-note" style="display:none"></p>
-          <input id="account-new-email" type="email" placeholder="New email (optional)">
-          <input id="account-first-grade-year" type="number" placeholder="First grade year (optional)">
-          <input id="account-profile-current-password" type="password" placeholder="Current password (required to change email)">
-          <button type="submit">Save</button>
+          <input id="account-new-email" type="email" placeholder="New email (optional)" data-i18n-placeholder="account.newEmailPlaceholder">
+          <input id="account-first-grade-year" type="number" placeholder="First grade year (optional)" data-i18n-placeholder="auth.firstGradeYearPlaceholder">
+          <input id="account-profile-current-password" type="password" placeholder="Current password (required to change email)" data-i18n-placeholder="account.currentPasswordForEmailPlaceholder">
+          <button type="submit" data-i18n="account.save">Save</button>
           <p id="account-profile-message" class="error-msg"></p>
         </form>
       </div>
 
       <div id="account-password-panel" style="display:none">
         <form id="account-password-form">
-          <input id="account-current-password" type="password" placeholder="Current password">
-          <input id="account-new-password" type="password" placeholder="New password (8+ chars)">
-          <input id="account-confirm-new-password" type="password" placeholder="Confirm new password">
-          <button type="submit">Change Password</button>
+          <input id="account-current-password" type="password" placeholder="Current password" data-i18n-placeholder="account.currentPasswordPlaceholder">
+          <input id="account-new-password" type="password" placeholder="New password (8+ chars)" data-i18n-placeholder="account.newPasswordPlaceholder">
+          <input id="account-confirm-new-password" type="password" placeholder="Confirm new password" data-i18n-placeholder="account.confirmNewPasswordPlaceholder">
+          <button type="submit" data-i18n="account.changePassword">Change Password</button>
           <p id="account-password-message" class="error-msg"></p>
         </form>
       </div>
@@ -198,15 +201,32 @@
         <div id="account-score-history-chart" class="score-history-chart" style="display:none"></div>
       </div>
 
+      <div id="account-billing-panel" style="display:none">
+        <div id="billing-status-display" data-i18n="billing.loading">Loading billing status...</div>
+        <div id="billing-actions" style="display:none">
+          <p id="billing-status-text"></p>
+          <button type="button" id="btn-open-portal" class="splash-btn splash-btn--secondary" style="display:none" data-i18n="billing.managePortal">Manage Subscription</button>
+          <button type="button" id="btn-start-checkout" class="splash-btn splash-btn--secondary" style="display:none" data-i18n="billing.subscribe">Subscribe (€3/3 months)</button>
+          <button type="button" id="btn-cancel-subscription" style="display:none" data-i18n="billing.cancelRenewals">Cancel future renewals</button>
+          <button type="button" id="btn-refresh-billing" data-i18n="billing.refreshStatus">Refresh access status</button>
+          <button type="button" id="btn-recover-gift" data-i18n="billing.retryCodeGrant">Retry pending code grant</button>
+          <div id="billing-redeem-section" style="display:none">
+            <input type="text" id="billing-redeem-code" placeholder="Enter code" data-i18n-placeholder="billing.redeemCodePlaceholder" maxlength="50">
+            <button type="button" id="btn-redeem-code" data-i18n="billing.redeem">Redeem</button>
+            <p id="billing-redeem-message" class="error-msg"></p>
+          </div>
+        </div>
+        <p class="billing-disclosure"><span data-i18n="billing.disclosure">Premium subscription unlocks levels 3-60. Free players can enjoy levels 1-2 anytime.</span> <a href="/terms.html" data-i18n="legal.terms">Terms</a> · <a href="/terms.en.html" data-i18n="legal.termsEnglish">Terms (English)</a></p>
+      </div>
       <div id="account-danger-panel" style="display:none">
         <form id="account-delete-form">
-          <p class="danger-warning">Deleting your account is permanent and cannot be undone. All your scores and profile data will be erased immediately.</p>
-          <input id="account-delete-password" type="password" placeholder="Current password" autocomplete="current-password">
+          <p class="danger-warning" data-i18n="account.dangerWarning">Deleting your account is permanent and cannot be undone. All your scores and profile data will be erased immediately.</p>
+          <input id="account-delete-password" type="password" placeholder="Current password" data-i18n-placeholder="account.deletePasswordPlaceholder" autocomplete="current-password">
           <label class="danger-confirm-check">
             <input type="checkbox" id="account-delete-confirm-checkbox">
-            I understand this cannot be undone.
+            <span data-i18n="account.deleteConfirmCheck">I understand this cannot be undone.</span>
           </label>
-          <button type="submit" id="account-delete-submit" class="danger-btn">Delete my account permanently</button>
+          <button type="submit" id="account-delete-submit" class="danger-btn" data-i18n="account.deleteSubmit">Delete my account permanently</button>
           <p id="account-delete-message" class="error-msg"></p>
         </form>
       </div>
@@ -215,44 +235,72 @@
 
   <div id="auth-status-modal" class="overlay" style="display:none">
     <div class="overlay-card">
-      <button id="close-auth-status" class="close-btn">×</button>
-      <p id="auth-status-message">Working...</p>
+      <button id="close-auth-status" class="close-btn" data-i18n-aria-label="common.close" aria-label="Close">×</button>
+      <p id="auth-status-message" data-i18n="auth.working">Working...</p>
     </div>
   </div>
-  
+
+  <div id="checkout-modal" class="overlay" style="display:none">
+    <div class="overlay-card">
+      <button id="close-checkout" class="close-btn" data-i18n-aria-label="common.close" aria-label="Close">×</button>
+      <h2 data-i18n="checkout.title">Subscribe to Arithmo Slayer Premium</h2>
+      <p data-i18n="checkout.priceLine">€3 every 3 months (€1/month equivalent), including applicable VAT. Renews automatically. Cancel future renewals at any time; access continues until the paid period ends.</p>
+      <p data-i18n="checkout.audienceNote">Subscriptions are for adult purchasers in Germany. Children may play with a parent or guardian's permission.</p>
+      <p class="billing-disclosure" data-i18n="checkout.discontinuationNote">The service may eventually be discontinued. We will inform subscribers in advance about closure and subscription handling. Statutory rights remain unaffected.</p>
+      <form id="checkout-form">
+        <label class="consent-checkbox">
+          <input type="checkbox" id="checkout-adult-confirm">
+          <span data-i18n="checkout.consentAdult">I confirm I am at least 18 years old. Children can play this game with a parent's account.</span>
+        </label>
+        <label class="consent-checkbox">
+          <input type="checkbox" id="checkout-terms-accept">
+          <span data-i18n-html="checkout.consentTermsHtml">I accept the <a href="/terms.en.html" target="_blank">terms of service</a> and <a href="/datenschutz.en.html" target="_blank">privacy policy</a></span>
+        </label>
+        <button type="submit" class="splash-btn" data-i18n="checkout.proceed">Proceed to Checkout</button>
+        <p id="checkout-message" class="error-msg"></p>
+      </form>
+    </div>
+  </div>
+
   <div id="level-clear" class="overlay" style="display:none">
     <div class="overlay-card">
       <h2 id="level-clear-title">Level Clear!</h2>
       <p id="level-clear-score"></p>
-      <button class="diff-btn" id="btn-next-level">Next Level</button>
-      <button class="diff-btn" id="btn-replay-level">Play Same Level Again</button>
-      <button class="diff-btn" id="btn-save-score-return-title" style="display:none">Save Score &amp; Return to Title</button>
+      <button class="diff-btn" id="btn-next-level" data-i18n="overlay.nextLevel">Next Level</button>
+      <button class="diff-btn" id="btn-replay-level" data-i18n="overlay.replayLevel">Play Same Level Again</button>
+      <button class="diff-btn" id="btn-save-score-return-title" style="display:none" data-i18n-html="overlay.saveScoreReturnTitleHtml">Save Score &amp; Return to Title</button>
     </div>
   </div>
 
   <div id="game-over" class="overlay" style="display:none">
     <div class="overlay-card">
-      <h2>Game Over</h2>
+      <h2 data-i18n="overlay.gameOverTitle">Game Over</h2>
       <p id="game-over-score"></p>
-      <button class="diff-btn" id="btn-retry-level">Try This Level Again</button>
-      <button class="diff-btn" id="btn-return-title">Return to Title</button>
+      <button class="diff-btn" id="btn-retry-level" data-i18n="overlay.retryLevel">Try This Level Again</button>
+      <button class="diff-btn" id="btn-return-title" data-i18n="overlay.returnTitle">Return to Title</button>
     </div>
   </div>
 
   <div id="pause-overlay" class="overlay" style="display:none">
     <div class="overlay-card">
-      <h2>Paused</h2>
-      <p>Tap the play area to resume</p>
+      <h2 data-i18n="overlay.pausedTitle">Paused</h2>
+      <p data-i18n="overlay.pausedHint">Tap the play area to resume</p>
     </div>
   </div>
 
   <div id="heal-tip-overlay" class="overlay" style="display:none">
     <div class="overlay-card">
-      <h2>Low on Hearts!</h2>
-      <p>On multiple-choice levels, hold your finger on the <strong>left edge</strong> of the screen while you play to slowly heal your hearts — no tapping required! It only works while you solve problems in your head, so try not to count on your fingers.</p>
-      <button class="diff-btn" id="btn-heal-tip-confirm">Got it!</button>
+      <h2 data-i18n="overlay.healTipTitle">Low on Hearts!</h2>
+      <p data-i18n-html="overlay.healTipBodyHtml">On multiple-choice levels, hold your finger on the <strong>left edge</strong> of the screen while you play to slowly heal your hearts — no tapping required! It only works while you solve problems in your head, so try not to count on your fingers.</p>
+      <button class="diff-btn" id="btn-heal-tip-confirm" data-i18n="overlay.healTipConfirm">Got it!</button>
     </div>
   </div>
+
+  <footer style="display:none; margin-top: 20px; padding: 20px; text-align: center; font-size: 12px; color: #888;">
+    <a href="/cancel.html" style="margin: 0 10px;" data-i18n="footer.cancellation">Cancellation</a>
+    <a href="/terms.html" style="margin: 0 10px;" data-i18n="footer.terms">Terms</a>
+    <a href="/datenschutz.en.html" style="margin: 0 10px;" data-i18n="footer.privacyEn">Privacy (EN)</a>
+  </footer>
 
   <script type="module" src="game/main.js"></script>
 </body>

@@ -1,6 +1,7 @@
 // hud.js — HUD management for Arithmo Slayer
 
 import { Renderer } from './renderer.js';
+import { t } from './i18n.js';
 
 export class HUD {
   constructor(renderer) {
@@ -23,7 +24,7 @@ export class HUD {
   }
 
   draw() {
-    const levelLabel = this._state.isShapesMode ? 'Shapes' : 'Level ' + this._state.level;
+    const levelLabel = this._state.isShapesMode ? t('hud.shapes') : t('hud.level', { level: this._state.level });
     this._renderer.drawHUD(
       this._state.hearts,
       this._state.maxHearts,

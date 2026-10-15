@@ -168,6 +168,12 @@ Added 2026-09-06 (Impressum/Datenschutz were entirely missing before). All of it
 - `POST /api/high-score`
 - `GET /api/leaderboard`
 
+### Public cancellation requests (no login required)
+
+- `POST /api/cancel-requests` — see "Public cancellation requests" under the Billing section
+  below for the full field list, idempotency/validation rules, and the manual
+  `billing-admin cancel-request` operator CLI that is the only thing allowed to act on these.
+
 ## Deployment shape
 
 The dedicated FFM stack now exists under `infra/terraform/sites/ffm/`.
@@ -302,6 +308,328 @@ Start with:
 - `sites/ffm/lambda/handler.py` (`SECRET_KEY` resolution from Secrets Manager)
 - `infra/terraform/sites/ffm/main.tf` (`ffm-ratelimits` table, `jwt-secret-key` secret)
 - read the "CI's AWS IAM permissions are NOT managed in this repo" section above first if you're adding a *new* AWS resource here
+
+### Billing and Stripe integration (pre-launch)
+
+**Status:** Backend, private level delivery, billing UI and infrastructure are implemented. Payment processing and access enforcement are **disabled by default** and are not yet live. Automated and simulated-browser checks do not replace Stripe sandbox testing.
+
+**Legal and tax launch approval was provided by the operator on 2026-10-15.
+Deployment and paid-billing activation still require separate explicit approval.**
+
+Configuration:
+
+- `infra/terraform/sites/ffm/variables.tf` — boolean flags (`access_control_enabled`, `billing_enabled`, `billing_sales_enabled`, `billing_terms_approved`), fixed `grandfather_cutoff`, and Stripe IDs (`stripe_price_id`, `stripe_portal_configuration_id`)
+- `infra/terraform/sites/ffm/main.tf` — optional secret ARN variables (`stripe_secret_key_arn`, `stripe_webhook_secret_arn`) and conditional IAM policy for Secrets Manager access
+- `sites/ffm/lambda/handler.py` — generic secret resolution helpers that populate `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` environment variables from Secrets Manager ARNs before the Flask app imports
+
+**Creating a Stripe TEST product (for local testing):**
+
+1. Log in to your Stripe TEST dashboard (https://dashboard.stripe.com/test/products)
+2. Create a new product:
+   - Name: "Arithmo Slayer Premium"
+   - Type: Standard
+3. Create a price for 3-month billing:
+   - Recurring: Yes
+   - Billing period: Every 3 months
+   - Currency: EUR
+   - Amount: €3.00 (final customer price; determine tax obligations before launch)
+   - Tax behavior: "Inclusive of tax" (so €3.00 is the final price)
+4. Copy the **Price ID** (e.g., `price_1234567890ABC`) and set it in `stripe_price_id` variable
+5. **DO NOT PROCEED TO LIVE** until sandbox tests and legal/compliance review are complete.
+
+**Webhook configuration (TEST mode):**
+
+- Stripe webhook endpoint: `/api/billing/webhook` on an explicitly configured sandbox backend. Do not point test payments at the production game.
+- Pinned webhook API version: `2024-06-20` (configurable in Stripe dashboard per endpoint)
+- Subscription/invoice reads use `2024-06-20`. Checkout creation uses
+  `2025-03-31.basil` to explicitly disable Managed Payments and preserve standard
+  Payments + Billing (operator as merchant of record), regardless of dashboard
+  defaults. Newer invoice webhook formats are re-fetched in the pinned read
+  format before processing.
+  **Decision (2026-10-15):** the operator selected standard Stripe Payments +
+  Billing and will handle taxes. The earlier Managed Payments migration proposal
+  is withdrawn; keep `managed_payments` explicitly `False`. The implementation
+  has been sandbox-tested. Legal/tax approval was provided by the operator on
+  2026-10-15; production configuration and explicit activation approval remain
+  required before launch.
+- Events to configure: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_succeeded`, `invoice.payment_failed`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`
+- Copy the **Signing Secret** and store it in AWS Secrets Manager:
+  ```bash
+  aws secretsmanager create-secret --name ffm/stripe-webhook-secret --secret-string "$WEBHOOK_SIGNING_SECRET" --region eu-central-1
+  ```
+- Set the secret ARN in `stripe_webhook_secret_arn` variable
+
+**Portal configuration (TEST mode):**
+
+- Stripe customer portal allows self-service cancellation and payment method updates
+- Create a configuration in Stripe TEST dashboard (https://dashboard.stripe.com/test/settings/billing/portal)
+- **Important:** Configure portal to allow **cancellation only** — disable subscription upgrades/downgrades to avoid complexity during pre-launch
+- Copy the **Configuration ID** (e.g., `bpc_1234567890ABC`) and set it in `stripe_portal_configuration_id` variable
+
+**Isolated local sandbox:**
+
+The development runner uses Moto (from the existing dev requirements) for in-memory
+AWS data and real Stripe **test** requests. It rejects live secret keys, binds only
+to localhost, and never serves the private curriculum as static files.
+
+In one terminal, authenticate the Stripe CLI to the selected sandbox and keep forwarding running:
+
+```bash
+stripe login
+stripe listen --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_succeeded,invoice.payment_failed,charge.refunded,charge.dispute.created,charge.dispute.closed --forward-to http://127.0.0.1:8766/api/billing/webhook
+```
+
+In a second terminal at the repository root:
+
+```bash
+PYTHONPATH=. .venv/bin/python sites/ffm/scripts/run-stripe-sandbox.py --price-id <test_price_id> --portal-id <test_portal_configuration_id>
+```
+
+Enter the test secret key and the listener's webhook signing secret only at the
+hidden terminal prompts, never in chat, source files, or command-line arguments.
+The runner prints local login details and three single-use access codes.
+Open a fresh browser tab at `http://127.0.0.1:8766/`; do not reuse a page containing
+the earlier simulated fetch hooks. The `sandbox-founder` account has pre-cutoff
+access; `sandbox-player` and `sandbox-gift` start without premium access.
+Use `sandbox-gift` for no-card redemption checks independently of the paying
+account. No real email is sent.
+Only this local runner disables Stripe's additional hosted terms checkbox because
+the terms are not yet publicly deployed at a production URL. The game's age/terms
+consent remains mandatory. Production retains hosted terms consent and requires the
+operator-approved public terms URL (see "Legal/tax approval status" above; operator
+sign-off, not qualified-counsel certification) in Stripe's public business details.
+
+Local data resets on shutdown, but Stripe sandbox subscriptions do not. Cancel
+the test subscriptions before stopping the server. Restarting starts a new local
+dataset. To reconnect a known test subscription after a restart, add
+`--resume-subscription <test_subscription_id>`; the runner restores its game UUID
+mapping to `sandbox-player` and revalidates payment facts against Stripe.
+Gift-code grants are local data and are not recovered by this option, so do not
+restart in the middle of gift validation.
+For a no-network runner check, supply `--offline-check` instead of secrets.
+
+**Legal/tax approval status (2026-10-15):** The operator (Urs Schweigert) provided approval for
+`sites/ffm/static/terms.html`/`terms.en.html` and the billing/payment sections of
+`sites/ffm/static/datenschutz.html`/`datenschutz.en.html`, and separately approved the tax
+approach described above (operator as merchant/seller of record under standard Stripe
+Payments + Billing). This is operator-provided approval, not a certification by
+independently retained qualified legal or tax counsel. It is accepted as the project's
+legal and tax launch sign-off; the historical review questions below are retained for
+traceability, not as additional approval gates. No VAT rate, tax classification,
+invoicing procedure or statutory retention duration was supplied with that approval.
+These details must not be invented or inferred from it. Billing (`billing_enabled`/`billing_sales_enabled`)
+remains disabled; the actual paid launch stays pending further configuration (including
+setting `grandfather_cutoff`) and a separate, explicit launch approval.
+
+**Sandbox test results (recorded 2026-10-15 from the preceding session):** Using the isolated local sandbox runner described
+above against a Stripe TEST backend, the following were exercised and worked as expected:
+checkout for the €3.00 / 3-calendar-month recurring price; gift-code stacking and renewal
+postponement; the cancellation flow preserving access through the end of the already-paid
+period; no-card gift-code redemption independent of a paying account (`sandbox-gift`); and
+the Stripe customer portal (cancel-only configuration). These are functional/sandbox
+verifications, not legal or tax determinations. Full webhook-event and refund coverage
+has not been established by these browser checks.
+
+**Pre-launch checklist:**
+
+- [x] Legal launch sign-off for `sites/ffm/static/terms.html` (German) and `terms.en.html` (English) — operator-provided approval 2026-10-15 (see "Legal/tax approval status" above; not qualified-counsel certification)
+- [x] Legal launch sign-off for billing/payment sections in `sites/ffm/static/datenschutz.html` and `datenschutz.en.html` — operator-provided approval 2026-10-15 (see "Legal/tax approval status" above; not qualified-counsel certification)
+- [x] Tax launch sign-off — operator-provided approval 2026-10-15; specific VAT/invoicing configuration was not supplied
+- [ ] Set the fixed `grandfather_cutoff` timestamp once, in UTC, immediately before the actual paid launch (not a rolling/moving date, not set far in advance) — accounts registered before this timestamp get free access while the service operates
+- [ ] Validate implemented `/api/billing/status`, `/checkout`, `/portal`, `/cancel`, `/redeem`, `/recover`, `/webhook` and gated `/api/levels/<level>` against a sandbox backend
+- [ ] Test the Stripe webhook events actually configured above (`checkout.session.completed`, `customer.subscription.*`, `invoice.paid`/`invoice.payment_succeeded`/`invoice.payment_failed`, `charge.refunded`, `charge.dispute.*`) in TEST mode
+- [x] Manual sandbox testing of checkout, cancellation preserving access, gift-code redemption and the portal — see "Sandbox test results" above
+- [ ] Complete refund and dispute webhook scenarios in an isolated sandbox; do not mark these covered by checkout/cancellation checks alone
+- [ ] Email verification required for account before paid features can be purchased
+- [ ] Ensure billing address collection (collected by Stripe at checkout, not stored as a game-account profile field) matches tax/legal requirements
+- [ ] Confirm Stripe TEST and LIVE keys are separate and never mixed
+- [ ] Do NOT request payment card details via chat/email — Stripe handles all PII
+
+**Historical legal/tax review questions (operator launch sign-off recorded above):**
+
+- **Login-free cancellation:** The public form records a durable request without login or mandatory email verification. An operator reviews identity and processes cancellation through the CLI; it never auto-cancels from emailed claims alone. The operator accepted this design for launch. This repository does not independently determine statutory compliance, including BGB §312k.
+- **Withdrawal rights and consent:** The operator provided legal approval for the present disclosures and flow. No independent determination of service classification, withdrawal rights or waiver requirements is asserted.
+- **Automatic renewal:** The approved implementation uses a three-calendar-month recurring subscription, with cancellation stopping future renewals while preserving paid/gifted access. No independent legal conclusion about renewal restrictions is asserted.
+- **Closure, refunds and retention:** The operator approved the current approach. Exact notice procedures and retention durations are not supplied by this approval and must not be invented in configuration or public disclosures.
+- **Tax and invoicing:** Standard Stripe Payments + Billing is selected, with the operator responsible for applicable taxes and invoicing. The operator supplied tax approval on 2026-10-15. This does not specify a VAT rate, tax status or invoicing configuration. Stripe Managed Payments migration is no longer planned.
+
+The approval record reflects the operator's instructions; it does not claim independent
+legal analysis or tax certification. Remaining release gates are technical configuration,
+operational readiness and separate deployment/paid-activation authorization.
+
+**Phase 1 release preparation (2026-10-15):**
+
+- Automated validation: 218 FFM Python tests and 176 frontend tests passed.
+  Local Python 3.9 emits Boto3 support-deprecation warnings; production uses Python 3.12.
+- FFM Terraform formatting/validation and `git diff --check` passed.
+- Required new sources include billing/access/cancellation modules and tests, the private
+  `app/level_data.json` curriculum, localization modules, and public legal/cancellation pages.
+  Include the relocated `dev-tools/level-fiend-allocator.*` files alongside their old-path
+  deletions. Local build directories, virtual environments, secrets and Terraform state
+  are not release sources.
+- Static deployment excludes JS tests and named development HTML pages. The private
+  curriculum stays in the Lambda package; `dev-tools/` is outside the static upload root.
+  Read-only release hygiene checks found no literal credentials or accidentally included
+  local artifacts in the candidate sources. This is not a comprehensive security audit.
+- Rollback baseline: commit `2513b536320ef9b6ea2d15cf939a07dcfc5d89eb`, deployed successfully
+  by [workflow run 35604398709](https://github.com/UrsSchweigert/DerSchweigert/actions/runs/35604398709)
+  on 2026-09-21. Read-only Lambda inspection on 2026-10-15 confirmed `ffm-api` is active
+  on Python 3.12, with no access/billing flags, cutoff, Stripe IDs or Stripe secret ARNs
+  configured. A non-secret baseline snapshot is stored in the preparing session's artifacts.
+- Phase 2 must keep access enforcement, billing and sales disabled. Restore the previous
+  code/static release and matching configuration if that deployment fails; do not disable
+  email verification or other protections as a rollback shortcut. After paid launch,
+  an emergency sales-off action must preserve cancellation, webhook processing and
+  existing access rather than reverting to the pre-billing code.
+- No commit, push, Terraform apply or production deployment was performed during Phase 1.
+
+**Operator commands and recovery:**
+
+Run against the deliberately selected environment with its AWS credentials, table names,
+JWT secret, Stripe configuration and launch flags already set. Never use production
+credentials for sandbox tests.
+
+```bash
+python -m flask --app sites.ffm.app:create_app billing-admin create-code
+python -m flask --app sites.ffm.app:create_app billing-admin create-code --expires-at 2027-01-01T00:00:00Z
+python -m flask --app sites.ffm.app:create_app billing-admin revoke-code <code_hash>
+python -m flask --app sites.ffm.app:create_app billing-admin reconcile --confirm
+```
+
+Codes grant three calendar months, stack, and do not create subscriptions. Store/distribute
+the returned plaintext code securely; the database retains only its hash. Paid subscribers'
+renewal is postponed to the end of their gifted access. A failed grant can be recovered
+without the original code via the Billing retry button or operator reconciliation.
+Schedule reconciliation and monitor failures; investigate nonzero exits rather than
+assuming webhook delivery succeeded.
+
+For closure, first disable sales and deploy that change, notify subscribers and arrange
+unused-time refunds according to reviewed terms and statutory rights. Then run
+`python -m flask --app sites.ffm.app:create_app billing-admin shutdown --confirm`.
+This command cancels subscriptions for the configured game price and verifies cancellation;
+it does not send notices or issue closure refunds automatically.
+
+The private curriculum is `app/level_data.json`; never sync it to the public static bucket.
+To use the moved allocator locally, serve `sites/ffm/` as the HTTP root and visit
+`/dev-tools/level-fiend-allocator.html`. Do not expose that development server publicly.
+
+**Public cancellation requests (login-free intake, manual operator processing):**
+
+`sites/ffm/static/cancel.html` exposes a permanently visible, no-login, no-mandatory-CAPTCHA
+public form (two-step: review, then "Kündigung jetzt absenden") that `POST`s to
+`/api/cancel-requests` (`app/cancel_requests.py`). This endpoint:
+
+- Never calls Stripe and never looks up/confirms whether any account or email exists (no
+  account enumeration) — it only durably stores the submitted fields plus a server UTC
+  `submitted_at` timestamp under its own `CANCELREQUEST#<uuid>` DynamoDB partition-key prefix
+  (same single table as users/billing state, via `app/cancel_requests_store.py`).
+- Requires a client-generated UUID `idempotency_key`: retrying with the exact same key and
+  payload durably replays the original receipt (HTTP 200, not a duplicate); retrying the same
+  key with *different* details is rejected (HTTP 409 `idempotency_conflict`) rather than
+  silently overwritten or silently resubmitted.
+- Is rate-limited independently (`CANCEL_REQUEST_RATE_LIMIT`, default `5/minute` per source IP)
+  from the auth/email-target limits.
+- Strictly validates `requested_date` as ISO 8601 `YYYY-MM-DD` only (rejects German
+  `DD.MM.YYYY` and invalid calendar dates) and requires at least one of `account_email`,
+  `username`, or `stripe_reference` so an operator has something to review against — but never
+  looks any of them up at submission time.
+- Returns a JSON receipt whose `status` is `submitted` (or `needs_review` for a
+  `requested_date` submission) and whose `message` explicitly states the request was
+  *received*, not that the subscription was canceled.
+- Sends **no email automatically** on submission (avoids an anonymous, unauthenticated
+  endpoint being used to mail-bomb an arbitrary `contact_email`). The client-side JS lets the
+  user download/save the JSON/plaintext receipt immediately instead.
+
+Processing is exclusively manual via `billing-admin cancel-request`:
+
+```bash
+python -m flask --app sites.ffm.app:create_app billing-admin cancel-request list
+python -m flask --app sites.ffm.app:create_app billing-admin cancel-request list --status submitted
+python -m flask --app sites.ffm.app:create_app billing-admin cancel-request show <request_id>
+python -m flask --app sites.ffm.app:create_app billing-admin cancel-request show <request_id> --reveal-pii
+python -m flask --app sites.ffm.app:create_app billing-admin cancel-request process <request_id> \
+  --username <verified_account_username> --confirm-identity-reviewed --confirm
+python -m flask --app sites.ffm.app:create_app billing-admin cancel-request record-manual-outcome <request_id> \
+  --username <verified_account_username> --confirm-identity-reviewed \
+  --outcome fulfilled --effective-date 2025-01-31 --provider-reference <stripe_sub_or_note> --confirm
+python -m flask --app sites.ffm.app:create_app billing-admin cancel-request complete-email <request_id> --confirm
+```
+
+- `list` prints only `request_id`/`status`/`cancellation_type`/`requested_date`/`submitted_at`
+  by default — no emails/username/reason, so routine operator listing doesn't dump PII into
+  shell history or logs. `show --reveal-pii` is the explicit, single-request opt-in to see
+  contact/account email, username, Stripe reference and the free-text reason.
+- `process` is the only code path allowed to call `billing.cancel_future_renewals()` — the
+  **same shared primitive** the authenticated in-app `/api/billing/cancel` button calls — on
+  behalf of a public request. It requires an operator to pass the **exact username** they have
+  manually verified belongs to the requester (never derived automatically from the
+  requester-supplied `account_email`), plus both `--confirm-identity-reviewed` (a human
+  attestation) and `--confirm` (execute). The identity is bound durably and immutably to the
+  request on first successful bind (conditional DynamoDB write); re-running with a *different*
+  username afterwards is rejected.
+- It recovers any pending gift redemption first (so a gift grant is never lost), resolves the
+  account's immutable `stable_id` fresh via `ensure_stable_id(username)` at process time (so a
+  request referencing a since-deleted-and-recreated username attaches to the **current**
+  account, never a stale/old identity's subscription), and reports one of the typed outcomes:
+  `fulfilled` (a live subscription was actually canceled — paid-until/gift access is
+  preserved to its existing end), or `no_subscription` (verified account had no live
+  subscription at process time — this is reported honestly rather than ever being claimed as
+  a successful cancellation of something that didn't exist).
+- `requested_date` submissions are **never** auto-processed against the requested date by
+  `process` — it always refuses (`status` stays `needs_review`) and never silently claims a
+  specific date was honored, because this flow adds **no automatic date scheduling**. Instead,
+  once an operator has manually completed the cancellation out of band (e.g. via the Stripe
+  dashboard/portal, honoring — or explicitly not honoring — the requester's preferred date),
+  they must run `record-manual-outcome` to durably record what was *actually* done. This
+  command never calls Stripe itself; it only requires `--confirm-identity-reviewed` (the same
+  human-identity attestation as `process`), an `--outcome` (`fulfilled` or `no_subscription`),
+  and — for `fulfilled` — a required `--effective-date` plus optional `--provider-reference`
+  and free-text `--note`, so the recorded outcome and acknowledgement email state the actual
+  confirmed date/reference an operator attests to, never a guaranteed match to the requester's
+  originally *requested* date. Like `process`, the reviewed identity/subscription snapshot is
+  bound immutably on first successful bind; rebinding to a different username is rejected.
+- The request's `status` only advances to a terminal state (`fulfilled`/`no_subscription`)
+  *after* `cancel_future_renewals()` has itself durably recorded its result in
+  `billing_store` — never before, and never on a Stripe-call failure. A Stripe/provider
+  failure leaves the request `processing` with no outcome recorded; rerunning the exact same
+  `process` command (same request id, same username) retries safely.
+- `complete-email` is a **separate, explicit, always-manual** step (never automatic) that sends
+  a plain-text outcome acknowledgement to the requester's `contact_email` only after `process`
+  or `record-manual-outcome` has recorded a terminal outcome. Delivery state
+  (`ack_email_status`/`ack_email_error`) is durable and independently retryable: a send failure
+  is recorded as a sanitized exception class/code only (never the raw provider error text,
+  which can embed PII such as the destination address) and is never silently swallowed; simply
+  re-running `complete-email` retries the send. If an email was already sent, re-running
+  `complete-email` without `--resend` is a no-op (prints a skip message) so a routine re-run
+  never sends a redundant duplicate acknowledgement; pass `--resend` to explicitly resend.
+- There is no background worker or scheduled job anywhere in this flow — an operator must run
+  these commands. If the process crashes between `cancel_future_renewals()` succeeding and the
+  request's own status write, `cancel_future_renewals()`'s own idempotent Stripe
+  `cancel_at_period_end` update is safe to re-issue; rerun `process` to reconcile. On any retry,
+  `process`/`record-manual-outcome` act only on the **same subscription snapshot** that was
+  bound to the request on its first successful bind (even if that snapshot was `None`); if the
+  account's current subscription no longer matches that bound snapshot (e.g. a replacement
+  subscription was created in the interim), the command refuses with a manual-review error
+  instead of ever canceling a different, newer subscription than the one originally reviewed.
+- **Operator queue cadence:** this flow has no automatic processing, so outstanding
+  `submitted`/`needs_review` requests only advance when an operator runs `list`/`show` and then
+  `process`/`record-manual-outcome` against them. Define and follow an internal SLA — e.g. a
+  **daily** review of `billing-admin cancel-request list --status submitted` and
+  `--status needs_review` — and always follow up a terminal outcome with `complete-email` so
+  the requester actually receives an outcome acknowledgement; a request that is merely recorded
+  but never reviewed or acknowledged is not "processed."
+- **Known limitation:** "promptly processed" here means promptly *relative to the operator's
+  review cadence*, not automatically at submission time — this flow intentionally does not
+  claim the request was honored at the moment of submission, only that the request itself was
+  durably recorded then. Define and follow an internal SLA/retention policy for how quickly
+  outstanding `submitted`/`needs_review` requests are reviewed.
+- **Timely-notice timestamp:** if any legal/consumer-protection timing requirement (e.g. a
+  cancellation deadline or notice period) must be evaluated for a given request, use the
+  request's **`submitted_at`** timestamp (set once, server-side, at the moment of the original
+  public submission) — **never** the later `process`/`record-manual-outcome` timestamp, which
+  only reflects when an operator happened to review the queue. This code makes **no legal
+  determination or guarantee** about whether any given `submitted_at` satisfies a statutory
+  deadline; that is a legal judgment outside this flow's scope (see the BGB §312k caveat above).
 
 ### Change deployment/infrastructure
 

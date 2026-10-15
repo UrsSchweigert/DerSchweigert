@@ -704,8 +704,28 @@ input[type=number] {
 
 #account-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 16px;
+}
+
+#account-tabs .tab-btn {
+  flex: 1 1 110px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#account-modal .overlay-card {
+  box-sizing: border-box;
+  width: calc(100% - 32px);
+  max-width: 468px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+#account-modal form input {
+  min-width: 0;
 }
 
 .tab-btn {
@@ -984,6 +1004,95 @@ form button:focus {
   outline-offset: 2px;
 }
 
+/* ── Billing UI ──────────────────────────────────────────── */
+#billing-status-display {
+  padding: 12px;
+  text-align: center;
+  color: #a0a0a0;
+}
+
+#billing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#billing-status-text {
+  text-align: center;
+  font-size: 14px;
+  color: #d0d0d0;
+  margin: 0;
+}
+
+#btn-open-portal,
+#btn-start-checkout {
+  width: 100%;
+}
+
+#billing-redeem-section {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+#billing-redeem-code {
+  flex: 1;
+  padding: 8px;
+  background: #1a1a3a;
+  border: 1px solid #6060c0;
+  color: #f0f0f0;
+  font-family: monospace;
+  border-radius: 4px;
+}
+
+#billing-redeem-code:focus {
+  outline: none;
+  border-color: #a0a0ff;
+  box-shadow: 0 0 8px rgba(160, 160, 255, 0.3);
+}
+
+#btn-redeem-code {
+  padding: 8px 16px;
+  background: #404080;
+  border: 1px solid #6060c0;
+  color: #f0f0f0;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+#btn-redeem-code:hover {
+  background: #505090;
+  border-color: #a0a0ff;
+}
+
+.billing-disclosure {
+  font-size: 12px;
+  color: #a0a0a0;
+  margin-top: 12px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.billing-disclosure a {
+  color: #a0c0ff;
+  text-decoration: underline;
+}
+
+#checkout-modal {
+  display: none;
+}
+
+#checkout-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#checkout-form button[type="submit"] {
+  margin-top: 12px;
+}
+
 /* ── Legal pages (impressum, datenschutz) ──────────────────── */
 /* The game's global `html`/`body` rules (top of this file) fix the
    viewport to exactly 100% with overflow:hidden and center a fixed-size
@@ -1080,5 +1189,4 @@ html:has(body.legal-body) {
 .legal-footer-nav a {
   margin: 0 8px;
 }
-
 

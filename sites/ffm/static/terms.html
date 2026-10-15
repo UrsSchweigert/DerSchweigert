@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Allgemeine Geschäftsbedingungen und Datenschutz - Arithmo Slayer</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h2 {
+            margin-top: 1.5em;
+            border-bottom: 2px solid #333;
+            padding-bottom: 0.5em;
+        }
+        h3 {
+            margin-top: 1em;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #332701;
+            border: 1px solid #ffc107;
+            padding: 1em;
+            border-radius: 4px;
+            margin: 1em 0;
+        }
+        .footer-nav {
+            margin-top: 2em;
+            padding-top: 1em;
+            border-top: 1px solid #ccc;
+            text-align: center;
+        }
+        .footer-nav a {
+            margin: 0 1em;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .footer-nav a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body class="legal-body">
+    <div class="container">
+        <h1>Allgemeine Geschäftsbedingungen und Datenschutz – Arithmo Slayer</h1>
+
+        <div class="warning">
+            <strong>Wichtiger Hinweis:</strong> Der Betreiber (Urs Schweigert) hat diese Bedingungen
+            und Datenschutzerklärung am 2026-10-15 freigegeben. Diese Freigabe erfolgt
+            durch den Betreiber selbst und stellt keine Zertifizierung durch unabhängig beauftragte
+            Rechts- oder Steuerberatung dar. Die Dienstleistung befindet sich weiterhin in der
+            Vorlaunchphase; die kostenpflichtige Funktion bleibt deaktiviert, bis Konfiguration und
+            eine gesonderte ausdrückliche Freigabe für den Start vorliegen.
+        </div>
+
+        <h2>1. Zahlungsbedingungen</h2>
+        <p>
+            Arithmo Slayer bietet ein optionales Abonnement an, um Zugriff auf erweiterte Spielstufen
+            freizuschalten. Das Abonnement kostet <strong>3,00 EUR brutto</strong> (je nach Steuerstatus)
+            <strong>alle 3 Kalendermonate</strong> (nicht pro Jahr).
+        </p>
+        <p>
+            Das Abonnement erneuert sich automatisch für jeden neuen Dreimonatszeitraum, es sei denn,
+            Sie kündigen es vor dem Ende des aktuellen Abonnementzeitraums. Geschenkte Abonnements
+            (z. B. 3 Monate ohne Karte) erneuern sich nicht automatisch.
+        </p>
+        <p>
+            Abonnenten, deren Konten <strong>vor dem Marktstart</strong> registriert wurden, erhalten
+            kostenlosen Zugang zu allen Inhalten, solange die Dienstleistung betrieben wird.
+        </p>
+
+        <h3>1.1 Jugendschutz und Erziehungsberechtigte</h3>
+        <p>
+            Arithmo Slayer kann von Kindern gespielt werden. Wenn ein Kind unter 18 Jahren ist,
+            muss ein Erziehungsberechtigter das Abonnement verwalten. Der Erziehungsberechtigte
+            trägt die finanzielle Verantwortung für Zahlungen.
+        </p>
+
+        <h3>1.2 Kündigung und Rückerstattung</h3>
+        <p>
+            Sie können Ihr Abonnement jederzeit über die Kontoeinstellungen oder diese Webseite kündigen.
+            Die Kündigung wird in Ihrem aktuellen Abonnementzeitraum wirksam; Sie verlieren nicht den
+            bereits bezahlten Zugang.
+        </p>
+        <p>
+            Rückerstattungen für nicht genutzte Zeiträume werden nach Überprüfung durch unser
+            Support-Team und Zahlungsanbieter durchgeführt. Wenden Sie sich an uns unter
+            <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>, wenn Sie eine
+            Rückerstattung benötigen. Ihre gesetzlichen Rechte als Verbraucher bleiben von dieser
+            Kulanzregelung unberührt.
+        </p>
+
+        <h3>1.3 Zahlungsmethode und Steuern</h3>
+        <p>
+            Zahlungen erfolgen über Stripe, einen sicheren Zahlungsanbieter. Die Preise sind
+            Bruttopreise und beinhalten alle Steuern, die für Ihren Wohnort gelten.
+        </p>
+        <p>
+            Stripe erhebt bei der Zahlungsabwicklung eine Rechnungsadresse und prüft das
+            Rechnungsland (Deutschland). Diese Rechnungsadresse wird nicht als Profilfeld in Ihrem
+            Spielkonto gespeichert. Nur verifizierte Konten können bezahlte Inhalte erwerben.
+        </p>
+
+        <h2>2. Datenschutz und Zahlungsdaten</h2>
+
+        <h3>2.1 Allgemeine Datenerfassung</h3>
+        <p>
+            Arithmo Slayer erfasst folgende Informationen:
+        </p>
+        <ul>
+            <li>E-Mail-Adresse und Passwort (mit bcrypt gehasht)</li>
+            <li>Spielstand und Bewertungen (serverseitig in der Datenbank gespeichert)</li>
+            <li>Zugriff auf Premium-Inhalte (in der Datenbank gespeichert)</li>
+        </ul>
+
+        <h3>2.2 Zahlungs- und Abonnementdaten</h3>
+        <p>
+            Wenn Sie ein Abonnement erwerben, verarbeitet Stripe (unser Zahlungsdienstleister)
+            direkt Ihre Zahlungsinformationen. Arithmo Slayer speichert die folgenden Informationen:
+        </p>
+        <ul>
+            <li>Stripe-Kundenkennung (eindeutige ID, kein Name oder Karte)</li>
+            <li>Abonnement- und Zahlungsstatus sowie Gültigkeits-/Erneuerungsdaten</li>
+            <li>Kennungen abgeschlossener Stripe-Ereignisse (zur Vermeidung doppelter Verarbeitung)</li>
+        </ul>
+        <p>
+            Die Rechnungsadresse wird von Stripe bei der Zahlungsabwicklung erhoben und zur
+            Prüfung des Rechnungslands verwendet; sie wird nicht als Profilfeld in Ihrem
+            Spielkonto gespeichert.
+        </p>
+        <p>
+            <strong>Kreditkartennummern werden NICHT in Arithmo Slayer gespeichert.</strong>
+            Stripe verwaltet Ihre Zahlungsdaten nach seinen Datenschutzrichtlinien.
+        </p>
+
+        <h3>2.3 Datenspeicherung und Löschung</h3>
+        <p>
+            Ihre Daten werden gespeichert, solange Ihr Konto aktiv ist. Erforderliche
+            Zahlungsunterlagen (personenbezogene Abrechnungsdatensätze, keine anonymisierten
+            Daten) können nach der Kontolöschung für die jeweils geltenden gesetzlichen
+            Aufbewahrungsfristen weiter gespeichert werden; die genaue Dauer und das
+            Löschverfahren sind vor dem kostenpflichtigen Start noch zu prüfen.
+        </p>
+        <p>
+            Sie können Ihr Konto jederzeit über die Kontoeinstellungen löschen.
+            Dadurch werden Spielfortschritt und sonstige personenbezogene Kontodaten entfernt,
+            soweit keine gesetzliche Aufbewahrungspflicht für Zahlungsunterlagen entgegensteht.
+        </p>
+
+        <h3>2.4 Ereignisbenachrichtigungen von Stripe</h3>
+        <p>
+            Arithmo Slayer empfängt automatische Benachrichtigungen von Stripe über:
+        </p>
+        <ul>
+            <li>Zahlungen und Rechnungen (z. B. Rechnungsstellung, erfolgreiche Zahlung)</li>
+            <li>Abonnement-Ereignisse (z. B. Erstellung, Aktualisierung, Kündigung)</li>
+            <li>Rückerstattungen</li>
+            <li>Streitigkeiten oder Rückbuchungen</li>
+        </ul>
+        <p>
+            Diese Daten werden verwendet, um Ihr Abonnement zu verwalten und den Zugriff auf
+            Premium-Inhalte zu steuern. Sie werden nicht an Dritte weitergegeben.
+        </p>
+
+        <h2>3. Kontobeendigung und Haftung</h2>
+        <p>
+            Arithmo Slayer behält sich das Recht vor, Konten oder Dienstleistungen mit
+            angemessener Ankündigung aus legitimen Gründen (z. B. Missbrauch, Sicherheit)
+            einzustellen. Sie können Ihr Konto jederzeit selbst kündigen.
+        </p>
+        <p>
+            Die Dienstleistung wird "wie besehen" angeboten, ohne Garantie für ununterbrochene
+            Verfügbarkeit. Der Dienst kann Updates oder Wartung erfordern.
+        </p>
+
+        <h2>4. Anwendbares Recht</h2>
+        <p>
+            Diese Bedingungen unterliegen deutschem Recht. Für Verbraucher gelten die
+            gesetzlichen Verbraucherschutzbestimmungen des BGB (Bürgerliches Gesetzbuch).
+        </p>
+
+        <h2>5. Kontakt und Beschwerden</h2>
+        <p>
+            Wenn Sie Fragen zu Ihrem Abonnement, Zahlungen oder Datenschutz haben,
+            können Sie uns unter <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>
+            kontaktieren.
+        </p>
+        <p>
+            Für Beschwerde zum Datenschutz können Sie die zuständige Datenschutzbehörde
+            Ihres Bundeslandes kontaktieren.
+        </p>
+
+        <div class="warning">
+            <strong>Freigabestatus:</strong> Der Betreiber hat diese Texte am 2026-10-15
+            freigegeben (Betreiber-Freigabe, keine unabhängige Zertifizierung durch Rechts-
+            oder Steuerberatung). Die Zahlungsfunktionalität bleibt deaktiviert, bis Konfiguration
+            und eine gesonderte ausdrückliche Freigabe für den Start erfolgen.
+        </div>
+
+        <div class="footer-nav">
+            <a href="index.html">← Zurück zur Startseite</a>
+            <a href="terms.en.html">English Version</a>
+        </div>
+    </div>
+</body>
+</html>

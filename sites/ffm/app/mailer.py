@@ -110,6 +110,75 @@ def send_password_reset_email(to_email, username, token):
     )
 
 
+def send_cancel_request_ack_email(to_email, request_id, submitted_at, outcome, outcome_detail=None):
+    """Manual, operator-triggered acknowledgement for a processed public
+    cancellation request (app/cancel_requests.py / billing-admin
+    `cancel-request complete-email`). Never sent automatically on
+    submission — only after a human operator has reviewed the request and
+    run `cancel-request process` or `cancel-request record-manual-outcome`,
+    so this always describes a real, already-recorded outcome rather than
+    an assumption.
+
+    `outcome_detail` is the exact dict durably stored alongside the
+    outcome (see app/cancel_requests_store.py's finalize()/
+    record_manual_outcome()) — this function surfaces its actually-
+    recorded fields (e.g. a manual record's `effective_date`/
+    `provider_reference`, or an automated record's `cancel_at_period_end`)
+    rather than only ever repeating the generic per-outcome text, and it
+    never claims the requester's originally-requested date was honored —
+    only what was actually configured/recorded.
+    """
+    if outcome not in ('fulfilled', 'no_subscription'):
+        # No silent fallback to a vague "Ihre Anfrage wurde bearbeitet."
+        # for an outcome this function doesn't actually know how to
+        # describe truthfully — callers must fix the outcome value
+        # instead of this email quietly saying something non-committal.
+        raise ValueError(f'unknown_outcome: {outcome!r}')
+    detail = outcome_detail or {}
+    detail_lines = []
+    if detail.get('manual'):
+        if detail.get('effective_date'):
+            detail_lines.append(f"Tatsaechlich konfiguriertes Datum: {detail['effective_date']}")
+        if detail.get('provider_reference'):
+            detail_lines.append(f"Referenz: {detail['provider_reference']}")
+        if detail.get('note'):
+            detail_lines.append(f"Anmerkung des Mitarbeiters: {detail['note']}")
+    elif outcome == 'fulfilled':
+        if detail.get('subscription_id'):
+            detail_lines.append(f"Abonnement-Referenz: {detail['subscription_id']}")
+        if 'cancel_at_period_end' in detail:
+            detail_lines.append(
+                'Kuendigung zum Ende des aktuellen Abrechnungszeitraums: '
+                + ('Ja' if detail['cancel_at_period_end'] else 'Nein')
+            )
+    outcome_text = {
+        'fulfilled': (
+            'Ihr Abonnement wurde fuer zukuenftige Verlaengerungen gekuendigt. '
+            'Bereits bezahlter Zugang bleibt bis zum Ende des laufenden Abrechnungszeitraums bestehen.'
+        ),
+        'no_subscription': (
+            'Zum Zeitpunkt der Bearbeitung war fuer die von Ihnen angegebenen Daten kein '
+            'aktives Abonnement vorhanden. Falls Sie glauben, dass dies ein Irrtum ist, '
+            'antworten Sie bitte auf diese E-Mail.'
+        ),
+    }[outcome]
+    if detail_lines:
+        outcome_text = outcome_text + '\n' + '\n'.join(detail_lines)
+    _send(
+        to_email,
+        subject=f"Ihre Kuendigungsanfrage {request_id} wurde bearbeitet",
+        body_text=(
+            f"Hallo,\n\n"
+            f"wir bestaetigen den Abschluss der manuellen Bearbeitung Ihrer am "
+            f"{submitted_at} (UTC) eingereichten Kuendigungsanfrage.\n"
+            f"Antrags-ID: {request_id}\n\n"
+            f"Ergebnis: {outcome_text}\n\n"
+            f"Diese Bestaetigung wurde nach manueller Pruefung durch einen Mitarbeiter "
+            f"versendet, nicht automatisch bei Eingang Ihrer Anfrage.\n"
+        ),
+    )
+
+
 def send_email_change_confirmation(to_email, username, token):
     link = f"{_base_url()}/?confirm_email_token={token}"
     _send(

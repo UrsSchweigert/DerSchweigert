@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 
 class BaseConfig:
@@ -41,6 +42,25 @@ class BaseConfig:
     # needed for the secret value itself.
     TURNSTILE_ENABLED = True
 
+    # Access control and billing configuration
+    ACCESS_CONTROL_ENABLED = os.environ.get('ACCESS_CONTROL_ENABLED', '').lower() in ('true', '1', 'yes')
+    GRANDFATHER_CUTOFF = os.environ.get('GRANDFATHER_CUTOFF', '')  # UTC ISO timestamp
+    BILLING_ENABLED = os.environ.get('BILLING_ENABLED', '').lower() in ('true', '1', 'yes')
+    BILLING_SALES_ENABLED = os.environ.get('BILLING_SALES_ENABLED', '').lower() in ('true', '1', 'yes')
+    STRIPE_PRICE_ID = os.environ.get('STRIPE_PRICE_ID', '')
+    STRIPE_PORTAL_CONFIGURATION_ID = os.environ.get('STRIPE_PORTAL_CONFIGURATION_ID', '')
+    STRIPE_SECRET_KEY = None  # Lazy-loaded from os.environ at runtime if needed
+    STRIPE_WEBHOOK_SECRET = None  # Lazy-loaded from os.environ at runtime if needed
+    BILLING_TERMS_APPROVED = os.environ.get('BILLING_TERMS_APPROVED', '').lower() in ('true', '1', 'yes')
+
+    # Public, unauthenticated /api/cancel-requests submission endpoint
+    # (app/cancel_requests.py). Kept apart from AUTH_RATE_LIMIT/
+    # EMAIL_TARGET_RATE_LIMIT since it has its own distinct abuse profile
+    # (no email target, no auth) — a reasonable per-source-IP bound high
+    # enough for a legitimate user submitting (and reviewing/correcting)
+    # one request, without allowing unbounded anonymous durable writes.
+    CANCEL_REQUEST_RATE_LIMIT = "5/minute"
+
 
 class ProductionConfig(BaseConfig):
     # memory:// cannot share counters across Lambda's concurrent execution
@@ -50,6 +70,11 @@ class ProductionConfig(BaseConfig):
 
 class TestingConfig(BaseConfig):
     TESTING = True
+    ACCESS_CONTROL_ENABLED = False
+    BILLING_ENABLED = False
+    BILLING_SALES_ENABLED = False
+    BILLING_TERMS_APPROVED = False
+    GRANDFATHER_CUTOFF = ''
     SECRET_KEY = "test-secret-key-for-testing-only"  # ONLY override in TestingConfig
     DYNAMODB_USERS_TABLE = 'ffm-users-test'
     DYNAMODB_SCORES_TABLE = 'ffm-scores-test'
@@ -70,3 +95,9 @@ class TestingConfig(BaseConfig):
     # per-test config subclass and monkeypatch captcha.verify_turnstile_token
     # to exercise the enforcement logic itself.
     TURNSTILE_ENABLED = False
+    # Same rationale as AUTH_RATE_LIMIT's test override: high enough that
+    # this test suite's own repeated calls never trip it; a dedicated test
+    # overrides this value down to exercise the real limit for just that
+    # one request cycle (see tests/test_cancel_requests.py).
+    CANCEL_REQUEST_RATE_LIMIT = "1000/minute"
+    CANCEL_REQUEST_RATE_LIMIT = "1000/minute"

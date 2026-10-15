@@ -9,10 +9,13 @@
 // preview it live in the canvas before it's committed — native <select>
 // popups don't reliably fire any event while browsing unclicked options.
 
-import { Renderer, CANVAS_W, GROUND_Y } from './renderer.js';
-import { Hero, Slimeling } from './entities.js';
-import { FIEND_CLASSES, getFiendClass, LEVEL_FIEND_CLASS_ID } from './difficulty-classes.js';
-import { LevelConfig } from './levels.js';
+import { Renderer, CANVAS_W, GROUND_Y } from '../static/game/renderer.js';
+import { Hero, Slimeling } from '../static/game/entities.js';
+import { FIEND_CLASSES, getFiendClass, LEVEL_FIEND_CLASS_ID } from '../static/game/difficulty-classes.js';
+
+const response = await fetch('../app/level_data.json');
+if (!response.ok) throw new Error(`Cannot load private curriculum: ${response.status}`);
+const { levels: LevelConfig } = await response.json();
 
 const FIEND_CAL_X = 560; // fixed on-screen position for the preview fiend
 

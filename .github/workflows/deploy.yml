@@ -35,6 +35,10 @@ jobs:
       - run: SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q --tb=short
         env:
           PYTHONPATH: ${{ github.workspace }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test sites/ffm/static/game/*.test.js
 
   check-secrets:
     runs-on: ubuntu-latest
@@ -257,7 +261,17 @@ jobs:
           aws s3 sync sites/ffm/static/ "s3://$BUCKET/" \
             --delete \
             --cache-control "no-cache, must-revalidate" \
-            --exclude "index.html"
+            --exclude "index.html" \
+            --exclude "*.test.js" \
+            --exclude "game/calibrate.html" \
+            --exclude "game/_dragon_test.html" \
+            --exclude "export-sprites.html"
+          # Excluded keys are not deleted by sync; remove old dev artifacts explicitly.
+          aws s3 rm "s3://$BUCKET/" --recursive \
+            --exclude "*" --include "*.test.js" \
+            --include "game/calibrate.html" --include "game/_dragon_test.html" \
+            --include "export-sprites.html" --include "game/level-fiend-allocator.html" \
+            --include "game/level-fiend-allocator.js"
           aws s3 cp sites/ffm/static/index.html \
             "s3://$BUCKET/index.html" \
             --cache-control "no-cache, no-store, must-revalidate"

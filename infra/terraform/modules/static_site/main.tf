@@ -179,9 +179,9 @@ resource "aws_cloudfront_distribution" "site" {
       cached_methods             = ["GET", "HEAD"]
       viewer_protocol_policy     = "redirect-to-https"
       compress                   = true
-      min_ttl                    = ordered_cache_behavior.value == "/unlock*" ? 0 : null
-      default_ttl                = ordered_cache_behavior.value == "/unlock*" ? 0 : null
-      max_ttl                    = ordered_cache_behavior.value == "/unlock*" ? 0 : null
+      min_ttl                    = var.api_cache_disabled || ordered_cache_behavior.value == "/unlock*" ? 0 : null
+      default_ttl                = var.api_cache_disabled || ordered_cache_behavior.value == "/unlock*" ? 0 : null
+      max_ttl                    = var.api_cache_disabled || ordered_cache_behavior.value == "/unlock*" ? 0 : null
       response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
       forwarded_values {

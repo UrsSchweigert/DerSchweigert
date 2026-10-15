@@ -1,15 +1,28 @@
 // Arithmo Slayer - Levels Tests
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { LevelConfig, generateProblem, chapterForLevel, getFiendWeights, sampleFiendType } from './levels.js';
-
-const TOTAL_LEVELS = 60;
+import { readFileSync } from 'node:fs';
+import { LevelConfig, generateProblem, chapterForLevel, getFiendWeights, sampleFiendType, TOTAL_LEVELS } from './levels.js';
+const _FullLevelConfig = JSON.parse(readFileSync(new URL('../../app/level_data.json', import.meta.url))).levels;
 
 describe('LevelConfig', () => {
-  it('should have exactly 60 entries with valid fields', () => {
-    assert.strictEqual(LevelConfig.length, TOTAL_LEVELS, 'LevelConfig should have 60 entries');
+  it('should have exactly 2 public entries (free levels)', () => {
+    assert.strictEqual(LevelConfig.length, 2, 'Public LevelConfig should have 2 entries');
 
     LevelConfig.forEach((cfg, idx) => {
+      assert.strictEqual(cfg.level, idx + 1, `Level ${idx + 1} should have level=${idx + 1}`);
+      assert.ok(cfg.chapter >= 1 && cfg.chapter <= 4, `Level ${idx + 1} should have chapter 1-4`);
+    });
+  });
+
+  it('should have TOTAL_LEVELS=60', () => {
+    assert.strictEqual(TOTAL_LEVELS, 60, 'TOTAL_LEVELS should be 60');
+  });
+
+  it('full internal config should have exactly 60 entries with valid fields', () => {
+    assert.strictEqual(_FullLevelConfig.length, TOTAL_LEVELS, '_FullLevelConfig should have 60 entries');
+
+    _FullLevelConfig.forEach((cfg, idx) => {
       assert.strictEqual(cfg.level, idx + 1, `Level ${idx + 1} should have level=${idx + 1}`);
       assert.ok(cfg.chapter >= 1 && cfg.chapter <= 4, `Level ${idx + 1} should have chapter 1-4`);
       assert.ok(Array.isArray(cfg.operations) && cfg.operations.length > 0, `Level ${idx + 1} should have non-empty operations array`);
@@ -20,10 +33,10 @@ describe('LevelConfig', () => {
   });
 
   it('should enforce 15-level curriculum blocks', () => {
-    const block1 = LevelConfig.slice(0, 15);
-    const block2 = LevelConfig.slice(15, 30);
-    const block3 = LevelConfig.slice(30, 45);
-    const block4 = LevelConfig.slice(45, 60);
+    const block1 = _FullLevelConfig.slice(0, 15);
+    const block2 = _FullLevelConfig.slice(15, 30);
+    const block3 = _FullLevelConfig.slice(30, 45);
+    const block4 = _FullLevelConfig.slice(45, 60);
 
     assert.ok(block1.every(cfg => cfg.chapter === 1), 'Levels 1-15 should be chapter 1');
     assert.ok(block1.every(cfg => cfg.maxResult <= 20), 'Levels 1-15 should stay in Zahlenraum 20');
@@ -45,7 +58,7 @@ describe('LevelConfig', () => {
 describe('generateProblem', () => {
   it('should return correct math for all 60 levels', () => {
     for (let i = 0; i < TOTAL_LEVELS; i++) {
-      const problem = generateProblem(i, 42);
+      const problem = generateProblem(i, 42, _FullLevelConfig[i]);
 
       const questionMatch = problem.question.match(/^(\d+)\s*([+\-−×÷])\s*(\d+)\s*=\s*\?$/);
       assert.ok(questionMatch, `Level ${i + 1} question should be in format "a OP b = ?", got: ${problem.question}`);
@@ -73,8 +86,8 @@ describe('generateProblem', () => {
 
   it('should return distractors only for multiple-choice levels', () => {
     for (let i = 0; i < TOTAL_LEVELS; i++) {
-      const cfg = LevelConfig[i];
-      const problem = generateProblem(i, 42);
+      const cfg = _FullLevelConfig[i];
+      const problem = generateProblem(i, 42, _FullLevelConfig[i]);
 
       if (cfg.inputMode === 'multiple-choice') {
         assert.ok(Array.isArray(problem.distractors), `Level ${i + 1} should have distractors array`);
@@ -94,9 +107,9 @@ describe('generateProblem', () => {
 
   it('should never produce negative subtraction results', () => {
     for (let idx = 0; idx < TOTAL_LEVELS; idx++) {
-      if (!LevelConfig[idx].operations.includes('-')) continue;
+      if (!_FullLevelConfig[idx].operations.includes('-')) continue;
       for (let seed = 0; seed < 250; seed++) {
-        const p = generateProblem(idx, seed);
+        const p = generateProblem(idx, seed, _FullLevelConfig[idx]);
         if (p.operation === '-') {
           assert.ok(p.answer >= 0, `Level ${idx + 1} seed ${seed} produced negative subtraction: ${p.question} = ${p.answer}`);
         }
@@ -106,9 +119,9 @@ describe('generateProblem', () => {
 
   it('should produce only integer division results', () => {
     for (let idx = 0; idx < TOTAL_LEVELS; idx++) {
-      if (!LevelConfig[idx].operations.includes('/')) continue;
+      if (!_FullLevelConfig[idx].operations.includes('/')) continue;
       for (let seed = 0; seed < 250; seed++) {
-        const p = generateProblem(idx, seed);
+        const p = generateProblem(idx, seed, _FullLevelConfig[idx]);
         if (p.operation === '/') {
           assert.strictEqual(p.answer % 1, 0, `Level ${idx + 1} seed ${seed} produced non-integer division: ${p.question} = ${p.answer}`);
         }
@@ -117,18 +130,18 @@ describe('generateProblem', () => {
   });
 
   it('should have correct waveSize values', () => {
-    LevelConfig.forEach((cfg, i) => {
+    _FullLevelConfig.forEach((cfg, i) => {
       assert.strictEqual(cfg.waveSize, 30, `Level ${i + 1} waveSize ${cfg.waveSize} should be 30`);
     });
-    assert.strictEqual(LevelConfig[0].waveSize, 30, 'Level 1 should have waveSize=30');
-    assert.strictEqual(LevelConfig[14].waveSize, 30, 'Level 15 should have waveSize=30');
-    assert.strictEqual(LevelConfig[59].waveSize, 30, 'Level 60 should have waveSize=30');
+    assert.strictEqual(_FullLevelConfig[0].waveSize, 30, 'Level 1 should have waveSize=30');
+    assert.strictEqual(_FullLevelConfig[14].waveSize, 30, 'Level 15 should have waveSize=30');
+    assert.strictEqual(_FullLevelConfig[59].waveSize, 30, 'Level 60 should have waveSize=30');
   });
 
   it('should produce the same problem for the same seed', () => {
     for (let i = 0; i < TOTAL_LEVELS; i++) {
-      const p1 = generateProblem(i, 12345);
-      const p2 = generateProblem(i, 12345);
+      const p1 = generateProblem(i, 12345, _FullLevelConfig[i]);
+      const p2 = generateProblem(i, 12345, _FullLevelConfig[i]);
 
       assert.strictEqual(p1.question, p2.question, `Level ${i + 1} should produce same question with same seed`);
       assert.strictEqual(p1.answer, p2.answer, `Level ${i + 1} should produce same answer with same seed`);
@@ -142,7 +155,7 @@ describe('fiend composition 50/30/20 rule', () => {
   it('level 1: getFiendWeights(1) has exactly 1 entry with correct type and weight', () => {
     const weights = getFiendWeights(1);
     assert.strictEqual(weights.length, 1, 'Level 1 should have exactly 1 entry');
-    assert.strictEqual(weights[0].type, LevelConfig[0].fiendType, 'Entry type should match LevelConfig[0].fiendType');
+    assert.strictEqual(weights[0].type, _FullLevelConfig[0].fiendType, 'Entry type should match _FullLevelConfig[0].fiendType');
     assert.ok(Math.abs(weights[0].weight - 1.0) < 1e-9, 'Entry weight should be 1.0');
   });
 
@@ -150,9 +163,9 @@ describe('fiend composition 50/30/20 rule', () => {
     const weights = getFiendWeights(2);
     const sum = weights.reduce((s, e) => s + e.weight, 0);
     assert.ok(Math.abs(sum - 1.0) < 1e-9, 'Weights should sum to 1.0');
-    
-    const ownEntry = weights.find(e => e.type === LevelConfig[1].fiendType);
-    assert.ok(ownEntry, 'Should have entry for LevelConfig[1].fiendType');
+
+    const ownEntry = weights.find(e => e.type === _FullLevelConfig[1].fiendType);
+    assert.ok(ownEntry, 'Should have entry for _FullLevelConfig[1].fiendType');
     assert.ok(Math.abs(ownEntry.weight - 0.625) < 1e-9, 'Own type weight should be 0.625');
   });
 
@@ -161,23 +174,23 @@ describe('fiend composition 50/30/20 rule', () => {
     const sum = weights.reduce((s, e) => s + e.weight, 0);
     assert.ok(Math.abs(sum - 1.0) < 1e-9, 'Weights should sum to 1.0');
 
-    const type20 = LevelConfig[19].fiendType;
-    const type19 = LevelConfig[18].fiendType;
-    const type18 = LevelConfig[17].fiendType;
+    const type20 = _FullLevelConfig[19].fiendType;
+    const type19 = _FullLevelConfig[18].fiendType;
+    const type18 = _FullLevelConfig[17].fiendType;
 
     // Check if all three types are distinct
     const distinctTypes = new Set([type20, type19, type18]).size;
-    
+
     if (distinctTypes === 3) {
       // All three are distinct, check 50/30/20 split
       const entry20 = weights.find(e => e.type === type20);
       const entry19 = weights.find(e => e.type === type19);
       const entry18 = weights.find(e => e.type === type18);
-      
+
       assert.ok(entry20, `Should have entry for level 20 type (${type20})`);
       assert.ok(entry19, `Should have entry for level 19 type (${type19})`);
       assert.ok(entry18, `Should have entry for level 18 type (${type18})`);
-      
+
       assert.ok(Math.abs(entry20.weight - 0.5) < 1e-9, `Level 20 type weight should be 0.5, got ${entry20.weight}`);
       assert.ok(Math.abs(entry19.weight - 0.3) < 1e-9, `Level 19 type weight should be 0.3, got ${entry19.weight}`);
       assert.ok(Math.abs(entry18.weight - 0.2) < 1e-9, `Level 18 type weight should be 0.2, got ${entry18.weight}`);
@@ -216,12 +229,12 @@ describe('fiend composition 50/30/20 rule', () => {
 
   it('determinism: sampleFiendType returns consistent results', () => {
     const testCases = [[1, 0], [2, 3], [20, 5], [16, 0], [46, 12]];
-    
+
     for (const [level, spawnIndex] of testCases) {
       const sample1 = sampleFiendType(level, spawnIndex);
       const sample2 = sampleFiendType(level, spawnIndex);
       assert.strictEqual(sample1, sample2, `Level ${level} spawn ${spawnIndex} should be deterministic`);
-      
+
       const validTypes = getFiendWeights(level).map(e => e.type);
       assert.ok(validTypes.includes(sample1), `Level ${level} spawn ${spawnIndex} returned ${sample1}, not in valid types`);
     }
@@ -230,11 +243,11 @@ describe('fiend composition 50/30/20 rule', () => {
   it('distribution: level 20 sample distribution matches weights', () => {
     const weights = getFiendWeights(20);
     const counts = {};
-    
+
     for (const w of weights) {
       counts[w.type] = 0;
     }
-    
+
     const numSamples = 2000;
     for (let i = 0; i < numSamples; i++) {
       const type = sampleFiendType(20, i);
@@ -242,10 +255,10 @@ describe('fiend composition 50/30/20 rule', () => {
         counts[type]++;
       }
     }
-    
+
     for (const w of weights) {
       const observed = counts[w.type] / numSamples;
-      assert.ok(Math.abs(observed - w.weight) < 0.05, 
+      assert.ok(Math.abs(observed - w.weight) < 0.05,
         `Type ${w.type} observed frequency ${observed} should be within 0.05 of weight ${w.weight}`);
     }
   });

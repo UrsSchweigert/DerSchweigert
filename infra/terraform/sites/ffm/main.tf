@@ -121,22 +121,37 @@ module "api" {
   description       = "Math game API for ffm.derschweigert.de"
   lambda_source_dir = "${path.root}/../../../../sites/ffm/lambda"
 
-  environment_variables = {
-    APP_ENV                  = "production"
-    FLASK_ENV                = "production"
-    SECRET_KEY_ARN           = aws_secretsmanager_secret.jwt_secret.arn
-    DYNAMODB_RATELIMIT_TABLE = aws_dynamodb_table.ratelimits.name
-    RATELIMIT_STORAGE_URI    = "dynamodb://${aws_dynamodb_table.ratelimits.name}"
-    SES_SENDER_EMAIL         = "no-reply@ffm.derschweigert.de"
-    SES_CONFIGURATION_SET    = aws_ses_configuration_set.ffm_transactional.name
-    APP_BASE_URL             = "https://ffm.derschweigert.de"
-    TURNSTILE_SECRET_KEY_ARN = data.aws_secretsmanager_secret.turnstile_secret.arn
-  }
+  environment_variables = merge(
+    {
+      APP_ENV                        = "production"
+      FLASK_ENV                      = "production"
+      SECRET_KEY_ARN                 = aws_secretsmanager_secret.jwt_secret.arn
+      DYNAMODB_RATELIMIT_TABLE       = aws_dynamodb_table.ratelimits.name
+      RATELIMIT_STORAGE_URI          = "dynamodb://${aws_dynamodb_table.ratelimits.name}"
+      SES_SENDER_EMAIL               = "no-reply@ffm.derschweigert.de"
+      SES_CONFIGURATION_SET          = aws_ses_configuration_set.ffm_transactional.name
+      APP_BASE_URL                   = "https://ffm.derschweigert.de"
+      TURNSTILE_SECRET_KEY_ARN       = data.aws_secretsmanager_secret.turnstile_secret.arn
+      ACCESS_CONTROL_ENABLED         = var.access_control_enabled ? "true" : "false"
+      GRANDFATHER_CUTOFF             = var.grandfather_cutoff
+      BILLING_ENABLED                = var.billing_enabled ? "true" : "false"
+      BILLING_SALES_ENABLED          = var.billing_sales_enabled ? "true" : "false"
+      BILLING_TERMS_APPROVED         = var.billing_terms_approved ? "true" : "false"
+      STRIPE_PRICE_ID                = var.stripe_price_id
+      STRIPE_PORTAL_CONFIGURATION_ID = var.stripe_portal_configuration_id
+    },
+    var.stripe_secret_key_arn != "" ? { STRIPE_SECRET_KEY_ARN = var.stripe_secret_key_arn } : {},
+    var.stripe_webhook_secret_arn != "" ? { STRIPE_WEBHOOK_SECRET_ARN = var.stripe_webhook_secret_arn } : {},
+  )
 
-  secret_arns = [
-    aws_secretsmanager_secret.jwt_secret.arn,
-    data.aws_secretsmanager_secret.turnstile_secret.arn,
-  ]
+  secret_arns = concat(
+    [
+      aws_secretsmanager_secret.jwt_secret.arn,
+      data.aws_secretsmanager_secret.turnstile_secret.arn,
+    ],
+    var.stripe_secret_key_arn != "" ? [var.stripe_secret_key_arn] : [],
+    var.stripe_webhook_secret_arn != "" ? [var.stripe_webhook_secret_arn] : [],
+  )
 
   tags = local.tags
 }
@@ -157,6 +172,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         "dynamodb:Query",
         "dynamodb:Scan",
         "dynamodb:BatchWriteItem",
+        "dynamodb:ConditionCheckItem",
       ]
       Resource = [
         aws_dynamodb_table.users.arn,
@@ -191,6 +207,26 @@ resource "aws_iam_role_policy" "lambda_ses" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_stripe_secrets" {
+  count = var.stripe_secret_key_arn != "" || var.stripe_webhook_secret_arn != "" ? 1 : 0
+  name  = "ffm-lambda-stripe-secrets-access"
+  role  = module.api.lambda_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "secretsmanager:GetSecretValue",
+      ]
+      Resource = concat(
+        var.stripe_secret_key_arn != "" ? [var.stripe_secret_key_arn] : [],
+        var.stripe_webhook_secret_arn != "" ? [var.stripe_webhook_secret_arn] : [],
+      )
+    }]
+  })
+}
+
 module "site" {
   source = "../../modules/static_site"
 
@@ -210,6 +246,8 @@ module "site" {
     domain_name = "${module.api.rest_api_id}.execute-api.${var.aws_region}.amazonaws.com"
     origin_path = "/prod"
   }
+
+  api_cache_disabled = var.api_cache_disabled
 
   # Overrides the module's same-origin-only default: this site embeds
   # Cloudflare Turnstile (see app/captcha.py, static/game/main.js) to guard

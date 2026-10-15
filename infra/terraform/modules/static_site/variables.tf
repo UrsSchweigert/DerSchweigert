@@ -59,6 +59,12 @@ variable "content_security_policy" {
   default     = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 }
 
+variable "api_cache_disabled" {
+  description = "When true, set /api/* and /unlock* cache TTLs to 0 (no caching); when false, TTLs are null (use default or response headers)"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Common tags applied to all resources"
   type        = map(string)

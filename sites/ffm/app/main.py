@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, make_response, current_app, abort
 import bcrypt
 import sys
 import jwt
+import stripe
 from .models import (
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
     CHANGE_EMAIL_TTL_SECONDS,
@@ -15,6 +16,8 @@ from .models import (
 )
 from .validation import is_valid_int
 from . import mailer
+from . import levels
+from . import entitlements
 
 main_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -35,6 +38,30 @@ def require_auth():
 @main_bp.route('/health', methods=['GET'])
 def health():
     return jsonify({"ok": True}), 200
+
+
+@main_bp.route('/levels/<int:level_num>', methods=['GET'])
+def get_level(level_num):
+    """Deliver premium configuration only after a fresh entitlement check."""
+    cfg = levels.get_level_config(level_num)
+    if not cfg:
+        return jsonify(error='level_not_found'), 404
+    if level_num > 2 and current_app.config['ACCESS_CONTROL_ENABLED']:
+        username = require_auth() if request.headers.get('Authorization') else None
+        allowed, code, status = entitlements.require_level_access(username, level_num)
+        if not allowed:
+            errors = {401: 'registration_required', 403: 'verification_required', 402: 'payment_required'}
+            return jsonify(error=errors[code], access=status), code
+    if request.args.get('include_baseline') != '1':
+        cfg.pop('baseline_score', None)
+    return jsonify(cfg)
+
+
+@main_bp.after_request
+def private_api_response(response):
+    response.headers['Cache-Control'] = 'private, no-store'
+    response.vary.add('Authorization')
+    return response
 
 
 @main_bp.route('/profile', methods=['GET'])
@@ -161,6 +188,16 @@ def delete_account():
     if not bcrypt.checkpw(current_password.encode('utf-8'), user['password_hash'].encode('utf-8')):
         return jsonify({"error": "Invalid current password"}), 401
 
+    from .billing import prepare_account_deletion
+    try:
+        prepare_account_deletion(username)
+    except ValueError as exc:
+        if str(exc) not in {'billing_busy', 'billing_conflict', 'version_mismatch'}:
+            raise
+        return jsonify(error='billing_busy', message='Resolve the pending code redemption before deleting your account.'), 409
+    except stripe.StripeError:
+        current_app.logger.error('Account deletion blocked by Stripe failure')
+        return jsonify(error='billing_provider_unavailable'), 503
     delete_user(username)
 
     # Clear the refresh cookie too, so the deleted session can't be used to
@@ -193,6 +230,10 @@ def submit_score():
     if difficulty not in ("easy", "medium", "hard"):
         return jsonify({"error": "Invalid input"}), 400
 
+    allowed, code, status = entitlements.require_level_access(username, level)
+    if not allowed:
+        return jsonify({"error": "premium_access_required", "access": status}), code
+
     saved, personal_best = put_level_score(username, level, score, difficulty)
     return jsonify({"saved": saved, "personal_best": personal_best}), 200
 
@@ -208,6 +249,14 @@ def submit_high_score():
     score = data.get('score')
     if not is_valid_int(score, min_value=0):
         return jsonify({"error": "Invalid input"}), 400
+
+    if current_app.config.get('ACCESS_CONTROL_ENABLED'):
+        level = data.get('level')
+        if not is_valid_int(level, 1, 60):
+            return jsonify({"error": "level_required"}), 400
+        allowed, code, status = entitlements.require_level_access(username, level)
+        if not allowed:
+            return jsonify({"error": "premium_access_required", "access": status}), code
 
     user = get_user(username)
     first_grade_year = user['first_grade_year'] if user else None

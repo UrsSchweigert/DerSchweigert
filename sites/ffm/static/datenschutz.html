@@ -18,7 +18,7 @@
   <div id="legal-page" class="legal-page">
     <div class="legal-content">
       <h1>Datenschutzerklärung</h1>
-      
+
       <h2>Verantwortlicher</h2>
       <p>
         <strong>Urs Schweigert</strong><br>
@@ -27,7 +27,7 @@
         Deutschland<br>
         E-Mail: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>
       </p>
-      
+
       <h2>Übersicht der Verarbeitung</h2>
       <p>
         Bei der Nutzung von Arithmo Slayer werden folgende personenbezogene Daten verarbeitet:
@@ -39,7 +39,7 @@
         <li><strong>Sicherheitsdaten:</strong> Cloudflare Turnstile Anti-Abuse-Token und Ihre IP-Adresse (zur Brute-Force-Rate-Limiting)</li>
         <li><strong>Session-Cookie:</strong> <code>refresh_token</code> (httpOnly, Secure, SameSite=Strict)</li>
       </ul>
-      
+
       <h2>Rechtsgrundlagen und Zwecke</h2>
       <p>
         <strong>Konto- und Anmeldungsdaten (Art. 6 Abs. 1 lit. b DSGVO — Vertragserfüllung):</strong>
@@ -53,7 +53,7 @@
         <strong>High Scores und Leaderboard-Daten (Art. 6 Abs. 1 lit. b DSGVO — Vertragserfüllung):</strong>
         Diese werden verarbeitet, um die Spielfunktionen und Rankings bereitzustellen.
       </p>
-      
+
       <h2>Empfänger und Auftragsverarbeiter</h2>
       <p>
         <strong>Amazon Web Services (AWS):</strong> Ihre Daten werden in AWS eu-central-1 (Frankfurt) gespeichert und verarbeitet, unter Verwendung von:
@@ -73,7 +73,7 @@
       <p>
         <strong>E-Mail-Versand:</strong> Transaktionale E-Mails (Verifikation, Passwort-Reset, E-Mail-Änderung) werden über AWS SES versendet. Ihre E-Mail-Adresse wird nicht an Dritte weitergegeben und nicht für Marketing-Zwecke verwendet.
       </p>
-      
+
       <h2>Cookies und Tracking</h2>
       <p>
         <strong>Session-Cookie (<code>refresh_token</code>):</strong> Dies ist ein essentieller Cookie zur Verwaltung Ihrer Login-Sitzung. Er ist:
@@ -93,7 +93,7 @@
       <p>
         Wir verwenden <strong>keine Analytics-, Tracking-, Werbe- oder andere nicht-essentiellen Cookies</strong>.
       </p>
-      
+
       <h2>Speicherdauer</h2>
       <p>
         Ihre Daten werden so lange gespeichert, wie Ihr Konto aktiv ist. Bei Löschung Ihres Kontos werden alle damit verbundenen Daten unmittelbar gelöscht (Benutzername, E-Mail, Passwort, Scores, Profil-Einstellungen). Es gibt keine erweiterte Backup-Aufbewahrung oder archivierte Aufbewahrung personenbezogener Daten.
@@ -101,15 +101,56 @@
       <p>
         Rate-Limiting-Daten (IP-Adressen, Anfrage-Zähler) werden automatisch nach kurzer Zeit (Stunden) gelöscht.
       </p>
-      
+
+      <h2>Zahlungs- und Abonnement-Daten (optional)</h2>
+      <p>
+        Wenn Sie ein optionales Abonnement erwerben, werden folgende Daten verarbeitet:
+      </p>
+      <ul>
+        <li><strong>Stripe-Kundenkennung:</strong> Eine eindeutige ID, die Arithmo Slayer von Stripe erhält (kein Name oder Kartendaten)</li>
+        <li><strong>Rechnungsadresse:</strong> Stripe erhebt die Rechnungsadresse; der Server prüft das Rechnungsland für Abonnements in Deutschland. Die Rechnungsadresse wird nicht als Profilfeld im Spielkonto gespeichert.</li>
+        <li><strong>Abonnement- und Zahlungsstatus:</strong> Gültigkeits-/Erneuerungsdatum und Zahlungsstatus</li>
+        <li><strong>Ereigniskennungen:</strong> IDs bereits verarbeiteter Stripe-Ereignisse (nur zur Vermeidung doppelter Verarbeitung, kein vollständiger Rechnungs- oder Zahlungsverlauf)</li>
+      </ul>
+      <p>
+        <strong>Wichtig:</strong> Karten- und Bankkontonummern werden nicht im Spiel gespeichert. Stripe verarbeitet die Zahlungsdaten. Mit Ihrem Spielkonto verknüpfte Zahlungskennungen, Zugriffszeiten und Verarbeitungsprotokolle sind personenbezogene Daten, keine anonymen Daten.
+      </p>
+      <p>
+        <strong>Rechtsgrundlage (Art. 6 Abs. 1 lit. b DSGVO):</strong>
+        Die Verarbeitung ist notwendig zur Erfüllung des Abonnementvertrags (Rechnungsstellung, Zugriffskontrolle auf Premium-Inhalte).
+      </p>
+      <p>
+        <strong>Speicherdauer:</strong>
+        Erforderliche Zahlungsunterlagen können nach der Kontolöschung für die jeweils geltenden gesetzlichen Aufbewahrungsfristen gespeichert werden. Aufbewahrung und Löschverfahren müssen vor dem kostenpflichtigen Start geprüft werden. Dies gilt auch für Zugriffsdaten und Gutschein-Verarbeitungsprotokolle. Die Kontolöschung verhindert weitere Abbuchungen.
+      </p>
+      <p>
+        <strong>Dritte (Stripe):</strong>
+        Stripe verarbeitet Zahlungsinformationen nach den jeweils anwendbaren Bedingungen und Datenschutzhinweisen. Vor dem kostenpflichtigen Start muss der Betreiber die zuständige Stripe-Vertragsgesellschaft, Verarbeitungsvereinbarungen, Sicherungen für internationale Datenübermittlungen und erforderliche Datenschutzhinweise prüfen.
+      </p>
+
+      <h2>Kündigungsanfragen ohne Anmeldung</h2>
+      <p>
+        Wenn Sie das öffentliche Kündigungsformular verwenden, speichern wir Ihre Kontakt-E-Mail,
+        die angegebenen Kontodaten oder Vertragsreferenzen, die gewünschte Kündigungsart und
+        gegebenenfalls das gewünschte Datum sowie Ihre freiwillige Anmerkung. Zusätzlich speichern
+        wir eine Antragskennung, den Eingangszeitpunkt, die manuelle Zuordnung zum Konto,
+        das Bearbeitungsergebnis und den Versandstatus der Ergebnis-E-Mail. Diese Daten dienen
+        der Prüfung, Bearbeitung und Dokumentation Ihrer Kündigungsanfrage.
+      </p>
+      <p>
+        Die Anfrage wird unabhängig vom Spielkonto gespeichert; eine Kontolöschung löscht sie
+        nicht automatisch. Die konkrete Aufbewahrungsdauer und das Löschverfahren für diese
+        Unterlagen müssen vor Veröffentlichung des Formulars festgelegt und rechtlich geprüft werden.
+      </p>
+
       <h2>Kinder und Minderjährige</h2>
       <p>
-        Arithmo Slayer ist für Nutzer ab 18 Jahren gedacht. Bei der Kontoregistrierung müssen Sie bestätigen, dass Sie mindestens 18 Jahre alt sind. Falls Sie beabsichtigen, dass ein Kind Ihr registriertes Konto nutzt, müssen Sie als Erziehungsberechtigte(r) bestätigen, dass Sie das Kind sind und der Nutzung dieses Dienstes zustimmen.
+        Arithmo Slayer richtet sich an Nutzer ab 18 Jahren. Bei der Kontoregistrierung müssen Sie bestätigen, dass Sie mindestens 18 Jahre alt sind. Möchten Sie, dass ein Kind Ihr registriertes Konto nutzt, müssen Sie als Elternteil/Erziehungsberechtigter bestätigen, dass Sie der Elternteil/Erziehungsberechtigte dieses Kindes sind, und der Nutzung des Dienstes durch das Kind zustimmen.
       </p>
       <p>
-        Wenn Sie unter 18 Jahren sind, benötigen Sie das Einverständnis Ihres Erziehungsberechtigten. Eltern und Erziehungsberechtigte, die bemerken, dass Ihr Kind ohne Ihre Zustimmung ein Konto registriert hat, können uns unter <a href="mailto:info@derschweigert.de">info@derschweigert.de</a> kontaktieren, um das Konto löschen zu lassen.
+        Eltern und Erziehungsberechtigte, die bemerken, dass ihr Kind ohne ihre Zustimmung ein Konto registriert hat, können uns unter <a href="mailto:info@derschweigert.de">info@derschweigert.de</a> kontaktieren, um das Konto löschen zu lassen.
       </p>
-      
+
       <h2>Ihre Rechte</h2>
       <p>
         Gemäß der Datenschutz-Grundverordnung (DSGVO) haben Sie folgende Rechte:
@@ -125,7 +166,7 @@
       <p>
         Um diese Rechte auszuüben, schreiben Sie bitte an: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>
       </p>
-      
+
       <h2>Beschwerderecht</h2>
       <p>
         Wenn Sie der Ansicht sind, dass die Verarbeitung Ihrer personenbezogenen Daten gegen die DSGVO verstößt, haben Sie das Recht, sich bei einer Datenschutzbehörde zu beschweren. Die für den Verantwortlichen (Sitz in Bayern) zuständige Aufsichtsbehörde für den nicht-öffentlichen Bereich ist:
@@ -138,21 +179,21 @@
         E-Mail: <a href="mailto:poststelle@lda.bayern.de">poststelle@lda.bayern.de</a> (nur PDF-Anhänge)<br>
         Beschwerden bitte bevorzugt über das <a href="https://www.lda.bayern.de/de/beschwerde.html" target="_blank" rel="noopener">Online-Beschwerdeformular</a> einreichen.
       </p>
-      
+
       <h2>Erhebung beim Betroffenen erforderlich?</h2>
       <p>
         Ja. Zum Betrieb von Arithmo Slayer ist die Angabe einer gültigen E-Mail-Adresse und eines Benutzernamens erforderlich. Diese Daten sind notwendig, um ein Konto zu erstellen und zu authentifizieren. Ohne diese Informationen können Sie sich nicht registrieren. Das optionale Feld "Einschulungsjahr" ist optional und dient nur der Leaderboard-Kategorisierung.
       </p>
-      
+
       <h2>Änderungen dieser Datenschutzerklärung</h2>
       <p>
         Diese Datenschutzerklärung kann von Zeit zu Zeit aktualisiert werden, wenn sich unsere Praktiken oder Anforderungen ändern. Die aktuelle Version wird immer auf dieser Seite verfügbar sein.
       </p>
-      
+
       <hr>
-      
+
       <p class="legal-footer-nav">
-        <a href="index.html">Zurück zum Spiel</a> · 
+        <a href="index.html">Zurück zum Spiel</a> ·
         <a href="impressum.html">Impressum</a> ·
         <a href="datenschutz.en.html">English</a>
       </p>

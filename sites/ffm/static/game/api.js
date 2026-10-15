@@ -2,6 +2,7 @@
 
 const BASE_URL = window.location.origin + '/api';
 let _accessToken = null;
+let _sessionEpoch = 0; // Incremented on login/logout to invalidate stale requests
 
 function parseJwt(token) {
   return JSON.parse(atob(token.split('.')[1]));
@@ -29,6 +30,7 @@ export const api = {
   },
 
   async login(username, password) {
+    const epoch = ++_sessionEpoch;
     const res = await fetch(BASE_URL + '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -39,11 +41,14 @@ export const api = {
     if (!res.ok) {
       throw new Error(data.error || 'Login failed');
     }
+    if (epoch !== _sessionEpoch) throw new Error('Session changed during login. Please try again.');
     _accessToken = data.access_token;
     return data;
   },
 
   async logout() {
+    _sessionEpoch++;
+    _accessToken = null;
     await fetch(BASE_URL + '/auth/logout', {
       method: 'POST',
       credentials: 'include'
@@ -52,6 +57,7 @@ export const api = {
   },
 
   async refresh() {
+    const epoch = _sessionEpoch;
     try {
       const res = await fetch(BASE_URL + '/auth/refresh', {
         method: 'POST',
@@ -59,13 +65,14 @@ export const api = {
       });
       if (res.ok) {
         const data = await res.json();
+        if (epoch !== _sessionEpoch) return false;
         _accessToken = data.access_token;
         return true;
       }
-      _accessToken = null;
+      if (epoch === _sessionEpoch) _accessToken = null;
       return false;
     } catch (err) {
-      _accessToken = null;
+      if (epoch === _sessionEpoch) _accessToken = null;
       return false;
     }
   },
@@ -136,13 +143,23 @@ export const api = {
   },
 
   async _fetch(path, options = {}) {
-    if (_accessToken) {
+    const requestEpoch = _sessionEpoch;
+
+    if (_accessToken && requestEpoch === _sessionEpoch) {
       options.headers = { ...options.headers, 'Authorization': 'Bearer ' + _accessToken };
     }
+
+    // Add cache control if not already present
+    if (!options.headers?.['Cache-Control']) {
+      options.headers = { ...options.headers, 'Cache-Control': 'no-store' };
+    }
+
     let res = await fetch(BASE_URL + path, { credentials: 'include', ...options });
-    if (res.status === 401 && !options._retried) {
+
+    // If session epoch changed (login/logout), don't retry with stale token
+    if (res.status === 401 && !options._retried && requestEpoch === _sessionEpoch) {
       const ok = await this.refresh();
-      if (ok) {
+      if (ok && requestEpoch === _sessionEpoch) {
         return this._fetch(path, { ...options, _retried: true });
       }
     }
@@ -199,15 +216,16 @@ export const api = {
     if (!res.ok) {
       throw new Error(data.error || 'Failed to delete account');
     }
+    _sessionEpoch++;
     _accessToken = null;
     return data;
   },
 
-  async postHighScore(score) {
+  async postHighScore(score, level) {
     const res = await this._fetch('/high-score', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ score })
+      body: JSON.stringify({ score, level })
     });
     return res.json();
   },
@@ -230,6 +248,100 @@ export const api = {
   async getScoreHistory() {
     const res = await this._fetch('/profile/score-history');
     return res.json();
+  },
+
+  async getLevel(n, includeBaseline = false) {
+    const params = new URLSearchParams();
+    if (includeBaseline) params.append('include_baseline', '1');
+    const path = '/levels/' + n + (params.size > 0 ? '?' + params.toString() : '');
+    const res = await this._fetch(path, {
+      headers: { 'Cache-Control': 'no-store' }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err = new Error(data.error || 'Failed to fetch level');
+      err.status = res.status;
+      err.payload = data;
+      throw err;
+    }
+    return data;
+  },
+
+  async getBillingStatus() {
+    const res = await this._fetch('/billing/status', {
+      headers: { 'Cache-Control': 'no-store' }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err = new Error(data.error || 'Failed to fetch billing status');
+      err.status = res.status;
+      err.payload = data;
+      throw err;
+    }
+    return data;
+  },
+
+  async startCheckout(adultConfirmed, termsAccepted) {
+    const res = await this._fetch('/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adult_confirmed: adultConfirmed,
+        terms_accepted: termsAccepted
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err = new Error(data.error || 'Checkout failed');
+      err.status = res.status;
+      err.payload = data;
+      throw err;
+    }
+    return data;
+  },
+
+  async openBillingPortal() {
+    const res = await this._fetch('/billing/portal', {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err = new Error(data.error || 'Failed to open billing portal');
+      err.status = res.status;
+      err.payload = data;
+      throw err;
+    }
+    return data;
+  },
+
+  async redeemCode(code) {
+    const res = await this._fetch('/billing/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err = new Error(data.error || 'Failed to redeem code');
+      err.status = res.status;
+      err.payload = data;
+      throw err;
+    }
+    return data;
+  },
+
+  async cancelSubscription() {
+    const res = await this._fetch('/billing/cancel', {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err = new Error(data.error || 'Failed to cancel subscription');
+      err.status = res.status;
+      err.payload = data;
+      throw err;
+    }
+    return data;
   },
 
   get isLoggedIn() {

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abonnement Kündigung - Arithmo Slayer</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .info-box {
+            background: #e3f2fd;
+            color: #172b4d;
+            border-left: 4px solid #2196F3;
+            padding: 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #332701;
+            border-left: 4px solid #ffc107;
+            padding: 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+        }
+        .cancel-button {
+            display: inline-block;
+            background: #dc3545;
+            color: white;
+            padding: 0.75em 1.5em;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            text-decoration: none;
+            margin: 1em 0;
+        }
+        .cancel-button:hover {
+            background: #c82333;
+        }
+        h2 {
+            margin-top: 1.5em;
+            border-bottom: 2px solid #333;
+            padding-bottom: 0.5em;
+        }
+        .footer-nav {
+            margin-top: 2em;
+            padding-top: 1em;
+            border-top: 1px solid #ccc;
+            text-align: center;
+        }
+        .footer-nav a {
+            margin: 0 1em;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .footer-nav a:hover {
+            text-decoration: underline;
+        }
+        #cancel-request-form label {
+            display: block;
+            margin: 1em 0 0.25em;
+            font-weight: bold;
+        }
+        #cancel-request-form input[type="email"],
+        #cancel-request-form input[type="text"],
+        #cancel-request-form input[type="date"],
+        #cancel-request-form textarea {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            padding: 0.6em;
+            font-size: 1em;
+            border: 1px solid #999;
+            border-radius: 4px;
+        }
+        #cancel-request-form fieldset {
+            margin: 1em 0 0;
+            border: 1px solid #999;
+            border-radius: 4px;
+            padding: 0.75em;
+        }
+        #cancel-request-form fieldset label {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            font-weight: normal;
+            margin: 0.4em 0;
+        }
+        #form-errors {
+            background: #f8d7da;
+            color: #58151c;
+            border-left: 4px solid #dc3545;
+            padding: 0.75em 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+        }
+        #form-errors li {
+            margin: 0.25em 0;
+        }
+        #review-panel dl {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            gap: 0.4em 1em;
+        }
+        #review-panel dt {
+            font-weight: bold;
+        }
+        #review-panel dd {
+            margin: 0;
+            word-break: break-word;
+        }
+        .secondary-button {
+            display: inline-block;
+            background: #6c757d;
+            color: white;
+            padding: 0.75em 1.5em;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 1em 1em 1em 0;
+        }
+        .secondary-button:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body class="legal-body">
+    <div class="container">
+        <h1>Abonnement Kündigung</h1>
+
+        <p>
+            Sie können Ihr Abonnement <strong>ohne Login</strong> formlos kündigen (siehe unten) —
+            oder, falls Sie Zugriff auf Ihr Konto haben, optional direkt und sofort über Ihr Konto.
+        </p>
+
+        <h2 id="public-cancel-heading">Kündigungsanfrage senden (kein Login erforderlich)</h2>
+        <p>
+            Dies ist der empfohlene Weg, wenn Sie sich nicht (mehr) anmelden können oder generell
+            keinen Login verwenden möchten. Es ist <strong>keine</strong> Anmeldung und
+            <strong>keine</strong> vorherige E-Mail-Bestätigung erforderlich. Diese Anfrage löst
+            keine automatische Zahlungs- oder Vertragsänderung aus: Ein Mitarbeiter prüft Ihre
+            Angaben manuell und bearbeitet die Kündigung anschließend persönlich.
+        </p>
+        <div class="warning">
+            <strong>Wichtig:</strong> Nach dem Absenden erhalten Sie den Status
+            „Anfrage erhalten“ — das ist noch <strong>keine</strong> bestätigte Kündigung.
+            Die Bearbeitung erfolgt zeitnah zum Zeitpunkt Ihrer Einreichung, jedoch erst nach
+            manueller Prüfung, nicht automatisch sofort bei Eingang.
+        </div>
+
+        <div id="form-errors" role="alert" hidden></div>
+
+        <form id="cancel-request-form">
+            <label for="contact_email">Kontakt-E-Mail (für eine eventuelle Rückmeldung) *</label>
+            <input type="email" id="contact_email" name="contact_email" maxlength="254"
+                   autocomplete="email" required placeholder="ihre-email@beispiel.de">
+
+            <label for="account_email">Konto-E-Mail (falls abweichend oder bekannt)</label>
+            <input type="email" id="account_email" name="account_email" maxlength="254"
+                   placeholder="konto-email@beispiel.de (optional)">
+
+            <label for="username">Benutzername (falls bekannt)</label>
+            <input type="text" id="username" name="username" maxlength="20" placeholder="optional">
+
+            <label for="stripe_reference">Vertrags-/Zahlungsreferenz (falls bekannt)</label>
+            <input type="text" id="stripe_reference" name="stripe_reference" maxlength="128" placeholder="optional">
+
+            <fieldset>
+                <legend>Kündigungsart</legend>
+                <label>
+                    <input type="radio" name="cancellation_type" value="earliest" checked>
+                    Zum frühestmöglichen Zeitpunkt (regulär)
+                </label>
+                <label>
+                    <input type="radio" name="cancellation_type" value="requested_date">
+                    Zu einem bestimmten Datum (erfordert zusätzliche manuelle Prüfung)
+                </label>
+            </fieldset>
+            <label for="requested_date">Gewünschtes Datum (nur bei obiger Auswahl erforderlich)</label>
+            <input type="date" id="requested_date" name="requested_date">
+
+            <label for="reason">Anmerkung / Grund (optional, max. 2000 Zeichen)</label>
+            <textarea id="reason" name="reason" maxlength="2000" rows="4"
+                      placeholder="Optionale Anmerkung zu Ihrer Kündigungsanfrage"></textarea>
+
+            <p>
+                <button type="button" id="review-button" class="cancel-button">Antrag prüfen</button>
+            </p>
+        </form>
+
+        <div id="review-panel" hidden>
+            <h3>Bitte prüfen Sie Ihre Angaben</h3>
+            <dl>
+                <dt>Kontakt-E-Mail</dt><dd id="review-contact_email"></dd>
+                <dt>Konto-E-Mail</dt><dd id="review-account_email"></dd>
+                <dt>Benutzername</dt><dd id="review-username"></dd>
+                <dt>Referenz</dt><dd id="review-stripe_reference"></dd>
+                <dt>Kündigungsart</dt><dd id="review-cancellation_type"></dd>
+                <dt>Anmerkung</dt><dd id="review-reason"></dd>
+            </dl>
+            <div class="warning">
+                Mit dem Absenden wird noch <strong>keine</strong> Kündigung bestätigt. Ein
+                Mitarbeiter prüft Ihre Identität und Anfrage manuell, bevor etwas verarbeitet wird.
+            </div>
+            <button type="button" id="edit-button" class="secondary-button">Zurück bearbeiten</button>
+            <button type="button" id="submit-button" class="cancel-button">Kündigung jetzt absenden</button>
+        </div>
+
+        <div id="receipt-panel" hidden>
+            <h3>Anfrage erhalten</h3>
+            <p>
+                Status: <strong id="receipt-status"></strong>
+                (noch <strong>keine</strong> bestätigte Kündigung)
+            </p>
+            <p>Antrags-ID: <span id="receipt-request-id"></span></p>
+            <p>Eingereicht am (UTC): <span id="receipt-submitted-at"></span></p>
+            <p id="receipt-message"></p>
+            <a id="download-receipt" class="secondary-button" hidden download>Beleg herunterladen</a>
+        </div>
+
+        <script type="module">
+            import { initCancelRequestForm } from './game/cancel-request.js';
+            initCancelRequestForm(document);
+        </script>
+
+        <h2>Haben Sie Zugriff auf Ihr Konto? (optional, sofortige Kündigung)</h2>
+        <div class="info-box">
+            Falls Sie sich noch in Ihrem Konto anmelden können, können Sie Ihr Abonnement
+            stattdessen optional direkt und sofort technisch über Ihre Kontoeinstellungen kündigen
+            — das ist nicht erforderlich, aber schneller als die formlose Anfrage oben, da hierfür
+            keine manuelle Prüfung durch einen Mitarbeiter nötig ist.
+        </div>
+
+        <a class="cancel-button" href="/?account=billing">Zur Abonnement-Kündigung</a>
+
+        <h3>Schritte zur Kündigung über Ihr Konto</h3>
+        <ol>
+            <li>
+                <strong>Melden Sie sich an:</strong>
+                Klicken Sie auf das Konto-Symbol oben rechts auf der Startseite oder navigieren
+                Sie zu <code>/?account=billing</code>.
+            </li>
+            <li>
+                <strong>Öffnen Sie die Kontoeinstellungen:</strong>
+                Gehen Sie zum Reiter "Billing".
+            </li>
+            <li>
+                <strong>Kündigung einleiten:</strong>
+                Klicken Sie auf den Button "Cancel future renewals".
+            </li>
+            <li>
+                <strong>Bestätigung:</strong>
+                Das System wird Sie bitten, die Kündigung zu bestätigen.
+                Der aktualisierte Status wird im Reiter "Billing" angezeigt.
+            </li>
+        </ol>
+
+        <div class="warning">
+            <strong>Wichtig:</strong> Nach der Kündigung verlieren Sie den Zugriff auf
+            Premium-Level am Ende des aktuellen Abonnementzeitraums. Sie werden nicht
+            sofort belastet, aber die nächste geplante Zahlung wird storniert.
+        </div>
+
+        <h2>Was passiert nach der Kündigung?</h2>
+        <ul>
+            <li>
+                <strong>Aktuelle Zahlung:</strong>
+                Sie behalten Zugriff auf Premium-Inhalte bis zum Ende Ihres aktuellen
+                Dreimonatszeitraums.
+            </li>
+            <li>
+                <strong>Zukünftige Zahlungen:</strong>
+                Keine weiteren Zahlungen werden ausgelöst. Ihr Abonnement läuft am
+                Enddatum aus.
+            </li>
+            <li>
+                <strong>Kostenlose Inhalte:</strong>
+                Sie können weiterhin die kostenlosen Spielstufen spielen.
+            </li>
+            <li>
+                <strong>Daten:</strong>
+                Ihr Spielfortschritt bleibt bestehen, auch nach der Kündigung.
+            </li>
+        </ul>
+
+        <h2>Rückerstattungen</h2>
+        <p>
+            Rückerstattungen für nicht genutzte Zeiträume sind möglich, müssen aber
+            einzeln überprüft und genehmigt werden. Wenden Sie sich an
+            <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>,
+            wenn Sie eine Rückerstattung benötigen. Gesetzliche Rechte bleiben unberührt.
+        </p>
+        <p>
+            <strong>Bitte beachten Sie:</strong> Nicht alle Rückerstattungsanfragen können
+            genehmigt werden. Für detaillierte Informationen konsultieren Sie die
+            <a href="terms.html">Allgemeinen Geschäftsbedingungen</a>.
+        </p>
+
+        <h2>Hilfe und Support</h2>
+        <p>
+            Wenn Sie Probleme bei der Kündigung haben oder Fragen zum Prozess,
+            können Sie sich an <a href="mailto:info@derschweigert.de">info@derschweigert.de</a> wenden.
+        </p>
+        <p>
+            <strong>Hinweis:</strong> Die oben beschriebene formlose Kündigungsanfrage ohne Login
+            wird manuell von einem Mitarbeiter geprüft und bearbeitet; sie kündigt Ihr Abonnement
+            nicht automatisch. Die direkte Kündigung über Ihr Konto (optional, siehe oben) wird
+            dagegen sofort technisch umgesetzt.
+        </p>
+
+        <h2>Häufig gestellte Fragen</h2>
+        <h3>Kann ich mein Abonnement später wieder aktivieren?</h3>
+        <p>
+            Ja. Sie können jederzeit ein neues Abonnement erwerben, nachdem Sie gekündigt haben.
+        </p>
+
+        <h3>Werden meine Daten gelöscht, wenn ich kündige?</h3>
+        <p>
+            Nein. Ihr Spielfortschritt und Ihre Kontodaten bleiben erhalten.
+            Um Ihre Daten zu löschen, müssen Sie Ihr Konto komplett löschen.
+        </p>
+
+        <h3>Wann wird meine letzte Zahlung durchgeführt?</h3>
+        <p>
+            Ihre letzte Zahlung wird am Anfang Ihres aktuellen Abonnementzeitraums verarbeitet.
+            Nach Kündigung erfolgen keine weiteren Zahlungen.
+        </p>
+
+        <h3>Kann ich mein Abonnement pausieren?</h3>
+        <p>
+            Derzeit bieten wir keine Pausierungsfunktion. Sie können kündigen und später
+            erneut abonnieren.
+        </p>
+
+        <div class="footer-nav">
+            <a href="index.html">← Zurück zur Startseite</a>
+            <a href="terms.html">Bedingungen & Datenschutz</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -51,7 +51,7 @@ def _parse_timestamp(value):
 
 def get_user(username):
     """Return user dict or None."""
-    resp = _users().get_item(Key={'pk': f'USER#{username}', 'sk': 'PROFILE'})
+    resp = _users().get_item(Key={'pk': f'USER#{username}', 'sk': 'PROFILE'}, ConsistentRead=True)
     item = resp.get('Item')
     if not item:
         return None
@@ -69,17 +69,22 @@ def get_user(username):
         # (see create_user), so only truly old rows hit this default.
         'email_verified': item.get('email_verified', True),
         'pending_email': item.get('pending_email'),
+        'stable_id': item.get('stable_id'),
+        'grandfathered': item.get('grandfathered', False),
     }
 
 
 def create_user(username, email, password_hash, first_grade_year=None):
-    """Create user + email lock. Raises ValueError('already_exists') if username or email taken."""
+    """Create user + email lock. Raises ValueError('already_exists') if username or email taken.
+    Generates and assigns a stable_id (UUID) to the new user for billing purposes."""
     now = _now()
+    stable_id = str(uuid.uuid4())
     user_item = {
         'pk': f'USER#{username}', 'sk': 'PROFILE',
         'username': username, 'email': email,
         'password_hash': password_hash, 'created_at': now,
         'email_verified': False,
+        'stable_id': stable_id,
     }
     if first_grade_year is not None:
         user_item['first_grade_year'] = first_grade_year
@@ -298,6 +303,49 @@ def update_user_first_grade_year(username, first_grade_year):
         if exc.response['Error']['Code'] != 'ConditionalCheckFailedException':
             raise
 
+
+def ensure_stable_id(username):
+    """Lazily assign an immutable billing identity without reviving deleted users."""
+    from .billing_store import _transaction
+
+    try:
+        response = _users().update_item(
+            Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+            UpdateExpression='SET stable_id = if_not_exists(stable_id, :sid)',
+            ExpressionAttributeValues={':sid': str(uuid.uuid4())},
+            ConditionExpression=Attr('pk').exists(),
+            ReturnValues='ALL_NEW',
+        )
+    except ClientError as exc:
+        if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            return None
+        raise
+    stable_id = response['Attributes']['stable_id']
+    _transaction([
+        {'ConditionCheck': {
+            'TableName': _users().name,
+            'Key': {'pk': f'USER#{username}', 'sk': 'PROFILE'},
+            'ConditionExpression': 'stable_id = :sid',
+            'ExpressionAttributeValues': {':sid': stable_id},
+        }},
+        {'Put': {
+            'TableName': _users().name,
+            'Item': {'pk': f'BILLING#{stable_id}', 'sk': 'MAPPING',
+                     'username': username, 'deleted': False},
+            'ConditionExpression': 'attribute_not_exists(pk) OR (username = :name AND deleted = :no)',
+            'ExpressionAttributeValues': {':name': username, ':no': False},
+        }},
+    ])
+    return stable_id
+
+
+def grandfather_user(username, created_at):
+    _users().update_item(
+        Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+        UpdateExpression='SET grandfathered = :yes',
+        ConditionExpression='created_at = :created AND (attribute_not_exists(email_verified) OR email_verified = :yes)',
+        ExpressionAttributeValues={':yes': True, ':created': created_at},
+    )
 
 # ---------------------------------------------------------------------------
 # Score operations
