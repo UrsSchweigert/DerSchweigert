@@ -24,6 +24,27 @@ def test_homepage_requires_pin_in_production():
     assert response.headers["location"].startswith("/unlock?next=")
 
 
+def test_impressum_is_accessible_without_pin_in_production():
+    # German law (§ 5 DDG) requires the legal notice to be reachable without
+    # any access barrier, even while the rest of the site sits behind the
+    # pre-launch PIN wall.
+    from app.config import get_settings
+    settings = get_settings()
+    settings.app_env = "production"
+    response = client.get("/impressum", follow_redirects=False)
+    assert response.status_code == 200
+    assert "Impressum" in response.text
+
+
+def test_datenschutz_is_accessible_without_pin_in_production():
+    from app.config import get_settings
+    settings = get_settings()
+    settings.app_env = "production"
+    response = client.get("/datenschutz", follow_redirects=False)
+    assert response.status_code == 200
+    assert "Datenschutz" in response.text
+
+
 def test_pin_unlock_redirects_to_homepage():
     from app.config import get_settings
     settings = get_settings()

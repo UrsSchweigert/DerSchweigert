@@ -30,10 +30,18 @@ export class CookieConsent {
     this.hideBanner();
   }
 
-  // Record rejection without loading Turnstile
+  // Record rejection without loading Turnstile.
+  // If Turnstile was already loaded (prior decision was 'accepted'), merely
+  // flipping the stored decision does not stop the already-injected script
+  // from continuing to run/request — a hard reload is the only reliable way
+  // to guarantee no further Turnstile requests are made after revocation.
   decline() {
+    const wasAccepted = this.isAccepted();
     localStorage.setItem(this.STORAGE_KEY, 'declined');
     this.hideBanner();
+    if (wasAccepted) {
+      window.location.reload();
+    }
   }
 
   // Dynamically inject the Turnstile script tag
@@ -62,6 +70,16 @@ export class CookieConsent {
     if (banner) {
       banner.style.display = 'none';
     }
+  }
+
+  // Re-open the banner so the user can review/change a previously made
+  // decision (accept <-> decline), independent of whether one was already
+  // recorded. Accept/decline handlers already behave correctly regardless
+  // of prior state: accept() is a no-op for loading if Turnstile is already
+  // loaded, and decline() reloads the page when revoking a prior acceptance
+  // so Turnstile actually stops running.
+  revisit() {
+    this.showBanner();
   }
 
   // Initialize: show banner if no prior decision, load Turnstile if accepted

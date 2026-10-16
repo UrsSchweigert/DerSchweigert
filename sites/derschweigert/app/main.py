@@ -38,7 +38,12 @@ async def pin_protection(request: Request, call_next):
         return await call_next(request)
 
     path = request.url.path
-    public_paths = {"/health", "/unlock", "/api/admin/verify-pin", "/api/contact"}
+    # Impressum/Datenschutz must stay reachable without the PIN gate: German
+    # law (§ 5 DDG) requires a site's legal notice to be "leicht erkennbar,
+    # unmittelbar erreichbar" (easily recognizable, directly accessible)
+    # without any access barrier, even while the rest of the site is behind
+    # a pre-launch PIN wall.
+    public_paths = {"/health", "/unlock", "/api/admin/verify-pin", "/api/contact", "/impressum", "/datenschutz"}
 
     if settings.app_env == "production" and not path.startswith("/static") and path not in public_paths and not path.startswith("/api/contact"):
         if request.cookies.get(settings.admin_cookie_name) != "1":

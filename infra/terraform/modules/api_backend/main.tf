@@ -69,6 +69,22 @@ resource "aws_lambda_function" "api" {
   }
 
   tags = var.tags
+
+  depends_on = [aws_cloudwatch_log_group.api]
+}
+
+# Lambda auto-creates its log group on first invoke if none exists yet, and
+# that auto-created group never expires ("Never expire" retention) unless a
+# group with the exact matching name (`/aws/lambda/<function_name>`) is
+# pre-created with an explicit retention policy, as done here. This caps
+# application log retention at the approved 30 days; application code must
+# still never log sensitive content (secrets, tokens, full emails/PII)
+# regardless of retention.
+resource "aws_cloudwatch_log_group" "api" {
+  name              = "/aws/lambda/${var.app_name}-api"
+  retention_in_days = var.log_retention_in_days
+
+  tags = var.tags
 }
 
 resource "aws_api_gateway_rest_api" "api" {

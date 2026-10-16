@@ -32,6 +32,12 @@ variable "memory_size" {
   default     = 512
 }
 
+variable "log_retention_in_days" {
+  description = "CloudWatch Logs retention for this Lambda's log group. 30 days by default per the project's approved application-log retention policy; application code must not log sensitive content (secrets, tokens, full emails/PII) regardless of this setting."
+  type        = number
+  default     = 30
+}
+
 variable "environment_variables" {
   description = "Environment variables for the Lambda function"
   type        = map(string)

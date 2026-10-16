@@ -40,6 +40,9 @@ document.getElementById('cookie-accept')?.addEventListener('click', () => {
 document.getElementById('cookie-decline')?.addEventListener('click', () => {
   window.ffmCookieConsent.decline();
 });
+document.getElementById('cookie-settings-link')?.addEventListener('click', () => {
+  window.ffmCookieConsent.revisit();
+});
 
 // --- Loading screen ---
 // Preload every sprite the game can show (hero, dragon/fireball combo

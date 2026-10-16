@@ -25,6 +25,18 @@ provider "aws" {
   region = var.aws_region
 }
 
+# See the matching import block in infra/terraform/sites/ffm/main.tf for
+# the full rationale: `module.api.aws_cloudwatch_log_group.api` targets
+# `/aws/lambda/derschweigert-api`, already auto-created by Lambda itself
+# before this Terraform resource existed, so it must be imported rather
+# than created. NOT YET APPLIED — same CI-IAM caveat (DescribeLogGroups /
+# ListTagsForResource for the import; CreateLogGroup / PutRetentionPolicy /
+# TagResource going forward) has not been checked or run against this ARN.
+import {
+  to = module.api.aws_cloudwatch_log_group.api
+  id = "/aws/lambda/derschweigert-api"
+}
+
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"

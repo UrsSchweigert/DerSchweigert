@@ -354,3 +354,20 @@ def register_billing_commands(app):
             ) from exc
         cancel_store.set_ack_email_state(request_id, 'sent')
         click.echo(f'Acknowledgement email sent for {request_id}.')
+
+    @cancel_request_group.command('legal-hold')
+    @click.argument('request_id')
+    @click.option('--lift', is_flag=True,
+                  help='Lift a previously-set hold instead of setting one.')
+    def cr_legal_hold(request_id, lift):
+        """Suspend (default) or lift (--lift) retention cleanup for one
+        request, independent of its status. A request under hold is never
+        deleted by `flask retention-admin cancel-requests`, however long
+        past its normal 3-years-after-closure cutoff it is, until this
+        command lifts the hold. Does not itself move, process or email the
+        request — purely a cleanup-eligibility flag."""
+        try:
+            cancel_store.set_legal_hold(request_id, hold=not lift)
+        except ValueError as exc:
+            raise click.ClickException(f'Request not found ({exc}).') from exc
+        click.echo(f"Legal hold {'lifted' if lift else 'set'} for {request_id}.")

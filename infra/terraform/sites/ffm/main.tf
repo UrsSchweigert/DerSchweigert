@@ -21,6 +21,25 @@ provider "aws" {
   region = var.aws_region
 }
 
+# The api_backend module's `aws_cloudwatch_log_group.api` (added this
+# session, see its comment in infra/terraform/modules/api_backend/main.tf)
+# targets `/aws/lambda/ffm-api` — a log group that was already auto-created
+# by the Lambda service itself on first invoke, well before this Terraform
+# resource existed. Without this import block, `terraform apply` would try
+# to *create* it and fail with "ResourceAlreadyExistsException". This
+# brings the pre-existing group under Terraform management (applying the
+# intended 30-day retention to it) instead of creating a duplicate.
+# NOT YET APPLIED: this requires both a `terraform apply` against the real
+# backend and (per the CI-IAM warning above) confirming
+# `derschweigert-deploy-scope` grants `logs:CreateLogGroup` /
+# `logs:PutRetentionPolicy` / `logs:TagResource` (plus, for the import
+# itself, `logs:DescribeLogGroups` / `logs:ListTagsForResource`) scoped to
+# this ARN — neither has been verified or run yet.
+import {
+  to = module.api.aws_cloudwatch_log_group.api
+  id = "/aws/lambda/ffm-api"
+}
+
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"
@@ -225,6 +244,42 @@ resource "aws_iam_role_policy" "lambda_stripe_secrets" {
       )
     }]
   })
+}
+
+# Daily retention cleanup (see sites/ffm/README.md "Data retention" and
+# app/retention_admin.py's run_scheduled_cleanup): invokes the *same*
+# existing API Lambda directly, once a day, with a fixed `input` payload
+# that sites/ffm/lambda/handler.py's lambda_handler() recognizes and routes
+# internally (never through apig_wsgi/Flask, and never reachable over
+# HTTP — there is no public endpoint for this). No new Lambda function,
+# role, or DynamoDB permission is needed: the retention worker reuses
+# aws_iam_role_policy.lambda_dynamodb's existing Scan/DeleteItem grant on
+# aws_dynamodb_table.users above.
+resource "aws_cloudwatch_event_rule" "retention_cleanup" {
+  name                = "ffm-retention-cleanup"
+  description         = "Daily purge of expired auth tokens and completed cancellation-request records past their retention cutoff (see sites/ffm/README.md)"
+  schedule_expression = "cron(0 3 * * ? *)" # 03:00 UTC daily — low-traffic window, well clear of any one timezone's peak
+
+  tags = local.tags
+}
+
+resource "aws_cloudwatch_event_target" "retention_cleanup" {
+  rule = aws_cloudwatch_event_rule.retention_cleanup.name
+  arn  = module.api.function_arn
+
+  # Exact fixed payload — NOT the event passthrough default — so the
+  # Lambda receives precisely {"task": "ffm-retention-cleanup"} and
+  # nothing resembling an API Gateway request shape. Must match
+  # sites/ffm/lambda/handler.py's _RETENTION_CLEANUP_TASK exactly.
+  input = jsonencode({ task = "ffm-retention-cleanup" })
+}
+
+resource "aws_lambda_permission" "retention_cleanup" {
+  statement_id  = "AllowEventBridgeRetentionCleanup"
+  action        = "lambda:InvokeFunction"
+  function_name = module.api.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.retention_cleanup.arn
 }
 
 module "site" {

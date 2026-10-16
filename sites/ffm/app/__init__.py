@@ -62,5 +62,7 @@ def create_app(config_class=None):
     app.register_blueprint(cancel_requests_bp)
     from .billing_admin import register_billing_commands
     register_billing_commands(app)
+    from .retention_admin import register_retention_commands
+    register_retention_commands(app)
 
     return app

@@ -151,7 +151,10 @@ def delete_user(username):
     they're keyed by token hash (not username), so finding them would
     require a full table scan, and consume_token already rejects them once
     expired; a token for a deleted account simply becomes unusable in
-    practice since the routes that consume it re-check get_user first."""
+    practice since the routes that consume it re-check get_user first. Any
+    such orphaned token is still physically removed like any other expired
+    token by `flask retention-admin tokens` (see find_expired_tokens /
+    app/retention_admin.py) — it does not need to be deleted here."""
     user = get_user(username)
     if user is None:
         raise ValueError('not_found')
@@ -282,6 +285,57 @@ def consume_token(token, expected_purpose):
         'username': item['username'],
         'new_email': item.get('new_email'),
     }
+
+
+def find_expired_tokens(now=None):
+    """Return every TOKEN# item (any purpose: verify_email / reset_password /
+    change_email) whose `expires_at` is already in the past, i.e. already
+    permanently unusable per consume_token's own expiry check above — never
+    an item that is still redeemable. Used by the retention-admin CLI to
+    physically remove stale rows; does not delete anything itself. A table
+    scan is used deliberately: tokens are keyed by SHA-256 hash (not a
+    queryable attribute like username), so there is no cheaper lookup path,
+    and this is a low-frequency maintenance operation, not a hot request
+    path."""
+    now = now or datetime.now(timezone.utc)
+    kwargs = {'FilterExpression': Attr('pk').begins_with('TOKEN#') & Attr('sk').eq('T')}
+    resp = _users().scan(**kwargs)
+    items = list(resp.get('Items', []))
+    while 'LastEvaluatedKey' in resp:
+        resp = _users().scan(ExclusiveStartKey=resp['LastEvaluatedKey'], **kwargs)
+        items.extend(resp.get('Items', []))
+    return [item for item in items if _parse_timestamp(item['expires_at']) < now]
+
+
+def delete_token_item(pk, expected_expires_at):
+    """Physically remove one TOKEN# item by its exact pk (as returned by
+    find_expired_tokens). Already-consumed tokens are removed immediately
+    by consume_token() itself; this only ever deletes rows that were never
+    consumed and are already expired.
+
+    `pk` must be a `TOKEN#...` key — refused otherwise, since callers pass
+    through scan results and this guards against ever being pointed at an
+    unrelated item by a caller bug. The delete is conditional on
+    `expires_at` still matching the snapshot the caller observed when it
+    decided this token was expired (e.g. from find_expired_tokens): if the
+    item was already removed (raced with consume_token, or a previous
+    cleanup run) the condition fails and this returns False rather than
+    deleting — or recreating — anything. Returns True if this call
+    actually deleted the row, False if it was already gone/changed."""
+    if not pk.startswith('TOKEN#'):
+        raise ValueError('refusing to delete a non-token pk')
+    if _parse_timestamp(expected_expires_at) >= datetime.now(timezone.utc):
+        raise ValueError('refusing to delete an unexpired token')
+    try:
+        _users().delete_item(
+            Key={'pk': pk, 'sk': 'T'},
+            ConditionExpression=Attr('expires_at').eq(expected_expires_at),
+        )
+        return True
+    except ClientError as exc:
+        if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            return False
+        raise
 
 
 def update_user_first_grade_year(username, first_grade_year):

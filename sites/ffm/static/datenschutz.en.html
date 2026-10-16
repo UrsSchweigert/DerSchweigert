@@ -50,13 +50,35 @@
         We use your IP address and Turnstile tokens to prevent brute-force attacks, spam, and abuse.
       </p>
       <p>
+        <strong>Cloudflare Turnstile Script Itself (Art. 6(1)(a) GDPR — Consent):</strong>
+        The Turnstile script is only loaded in your browser after you have agreed to it via our
+        cookie consent banner. You can withdraw this consent at any time, with effect for the
+        future, via "Cookie settings" (Art. 7(3) GDPR).
+      </p>
+      <p>
+        <strong>Payment/Subscription Data and Cancellation Requests (Art. 6(1)(b) GDPR —
+        Contract Performance or Pre-Contractual Step):</strong>
+        This processing serves to administer your subscription or to handle your cancellation
+        request.
+      </p>
+      <p>
+        <strong>Retention of Billing/Financial Records (Art. 6(1)(c) GDPR — Legal
+        Obligation):</strong>
+        Certain billing identifiers and records are retained beyond the end of the contract where
+        statutory retention duties (e.g. commercial and tax law requirements) oblige us to do so.
+      </p>
+      <p>
         <strong>High Scores and Leaderboard Data (Art. 6(1)(b) GDPR — Contract Performance):</strong>
         These are processed to deliver the game's ranking and leaderboard features.
+        <strong>The leaderboard is public</strong>: your username, high score, the first grade
+        year you provided (if any), and the date of your personal best are displayed on the
+        homepage for all visitors to see, even without logging in.
       </p>
 
       <h2>Recipients and Data Processors</h2>
       <p>
-        <strong>Amazon Web Services (AWS):</strong> Your data are stored and processed in AWS eu-central-1 (Frankfurt), using:
+        <strong>Amazon Web Services (AWS):</strong> Your user data and scores are stored and
+        processed in the AWS region eu-central-1 (Frankfurt), using:
       </p>
       <ul>
         <li>DynamoDB (user data, scores)</li>
@@ -65,13 +87,24 @@
         <li>AWS CloudFront (content delivery)</li>
       </ul>
       <p>
+        The Frankfurt region refers to data storage (DynamoDB) and processing by Lambda, as well
+        as email sending via SES. <strong>AWS CloudFront</strong> is architected differently, by
+        design, as a content delivery network: static content may also be served via CloudFront
+        edge locations outside Frankfurt or outside the EU.
+      </p>
+      <p>
         AWS is subject to a standard Data Processing Agreement (DPA) under Art. 28 GDPR. Learn more: <a href="https://aws.amazon.com/compliance/dpa/" target="_blank" rel="noopener">AWS Data Processing Addendum</a>.
       </p>
       <p>
-        <strong>Cloudflare Turnstile:</strong> The anti-abuse system is operated via Cloudflare. Your interaction with the widget, IP address, and potentially other data are transmitted to Cloudflare. The status of a Data Processing Agreement with Cloudflare is currently not definitively confirmed. Cloudflare's anycast network may process data on infrastructure outside the EU. Learn more: <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>.
+        <strong>Cloudflare Turnstile:</strong> The anti-abuse system is operated via Cloudflare. Your interaction with the widget, IP address, and potentially other data are transmitted to Cloudflare. A Data Processing Agreement (DPA) under Art. 28 GDPR is in place for processing by Cloudflare. The exact Cloudflare contracting entity and the specific safeguards that apply for any international data transfers are currently not definitively confirmed and are not asserted here; Cloudflare's anycast network may process data on infrastructure outside the EU. Learn more: <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>.
       </p>
       <p>
-        <strong>Email Delivery:</strong> Transactional emails (verification, password reset, email change) are sent via AWS SES. Your email address is not shared with third parties and is not used for marketing purposes.
+        <strong>Email Delivery:</strong> Transactional emails (verification, password reset, email
+        change) are sent via AWS SES; sending them requires disclosing your email address to our
+        processor AWS (SES), under a Data Processing Agreement (DPA) per Art. 28 GDPR (see
+        "Recipients and Data Processors" above). Beyond this necessary delivery via AWS SES, your
+        email address is not shared with further third parties and is not used for marketing
+        purposes.
       </p>
 
       <h2>Cookies and Tracking</h2>
@@ -88,18 +121,60 @@
         This cookie falls under the exemption in § 25(2) TDDDG (strictly necessary cookies) and does not require explicit consent.
       </p>
       <p>
-        <strong>Cloudflare Turnstile:</strong> The Turnstile script is only loaded after your explicit consent via our cookie consent banner. Without your consent, the script is not loaded.
+        <strong>Cloudflare Turnstile:</strong> The Turnstile script is only loaded after your explicit consent via our cookie consent banner. Without your consent, the script is not loaded. You can revisit and change this decision (accept or decline) anytime via the "Cookie settings" link on the homepage; the prior decision is stored only locally in your browser (<code>localStorage</code>), not on our server.
       </p>
       <p>
         We use <strong>no analytics, tracking, advertising, or other non-essential cookies</strong>.
       </p>
+      <p>
+        In addition to the session cookie, Arithmo Slayer uses the following local browser
+        storage (not on our server):
+      </p>
+      <ul>
+        <li><code>localStorage</code> entry <code>ffm_locale</code>: stores your preferred
+        language (German/English) so the interface loads in that language on your next visit.
+        Persists until you change the language or clear your browser storage.</li>
+        <li><code>localStorage</code> entry <code>ffm_cookie_consent</code>: stores your cookie
+        decision (see above). Persists until you change your decision or clear your browser
+        storage.</li>
+        <li><code>sessionStorage</code> entry <code>pending_level_record</code>: temporarily
+        stores the result of a level you just completed until it has been successfully submitted
+        to our server. Deleted after successful submission, and in any case ends no later than
+        when you close the browser tab/session.</li>
+      </ul>
 
       <h2>Data Retention</h2>
       <p>
-        Your data are retained as long as your account is active. When you delete your account, all associated data are immediately deleted (username, email, password, scores, profile settings). There is no extended backup retention or archival of personal data.
+        Your data are retained as long as your account is active. Deleting your account at any
+        time <strong>immediately</strong> deletes your username, email, password hash, scores,
+        and profile settings. This does not apply to certain billing identifiers and a record of
+        a closed subscription, which may be retained for the reasons described below (see
+        "Payment and Subscription Data").
       </p>
       <p>
-        Rate-limiting data (IP addresses, request counters) are automatically deleted after a short time (hours).
+        Rate-limiting data (IP addresses, request counters) is short-lived: each time window
+        typically ends after a short period, and records are additionally removed automatically
+        via a DynamoDB TTL setting. This TTL deletion runs asynchronously in the background on a
+        best-effort basis, typically within a few days after expiry; it is not instant, and there
+        is no fixed, guaranteed upper bound on how long actual deletion may take.
+      </p>
+      <p>
+        <strong>Verification, Password-Reset, and Email-Change Tokens:</strong> A token is
+        deleted immediately once you successfully redeem it. Unconsumed tokens — whether expired
+        or rejected by a failed redemption attempt — remain until expiry and are then removed by a
+        daily, automated cleanup routine; this routine's goal is deletion no later than 7 days
+        after expiry.
+      </p>
+      <p>
+        <strong>Application Logs:</strong> Technical application logs from our servers (e.g. error
+        and access logs via AWS CloudWatch) are automatically deleted after 30 days per current
+        configuration. These logs are not intended to contain passwords, tokens, or full email
+        addresses; incidental IP addresses or error messages may nonetheless occur.
+      </p>
+      <p>
+        We make no claim here regarding infrastructure-level backups or snapshots of our
+        database, as we do not currently have a definitive picture of whether, or for how long,
+        such backups exist; we assert neither that they exist nor that they do not.
       </p>
 
       <h2>Payment and Subscription Data (Optional)</h2>
@@ -121,11 +196,26 @@
       </p>
       <p>
         <strong>Retention Period:</strong>
-        Required billing records may be retained after account deletion for the applicable statutory retention periods. Retention and deletion procedures must be reviewed before paid launch. Game access data and gift-code processing records are subject to the same review; account deletion prevents future billing.
+        Deleting your account immediately cancels any subscription active at that time, and your
+        access to paid/gifted content ends immediately with no continuation to the end of an
+        already-paid period. Certain billing identifiers and a record that the contract ended are
+        kept as a "tombstone" where statutory retention duties for billing/financial records
+        require it. The exact retention period for these billing/financial records (including
+        logged Stripe events and gift-code redemption records) is not yet finally determined; an
+        automated, schedule-based deletion of these financial/audit records is currently held
+        back for legal reasons (financial/tax records, chargeback evidence).
       </p>
       <p>
         <strong>Third Party (Stripe):</strong>
-        Stripe processes payment information under its applicable terms and privacy policy. Before paid launch, the operator must verify the relevant Stripe contracting entity, processing agreement, international-transfer safeguards, and required privacy disclosures.
+        A Data Processing Agreement (DPA) under Art. 28 GDPR is in place for payment processing
+        via Stripe. However, Stripe does not process the actual payment data exclusively as our
+        processor: for certain purposes (e.g. fraud prevention, Stripe's own compliance with
+        anti-money-laundering and financial-regulatory law, or card network rules), Stripe may,
+        depending on the applicable role, also act as an independent controller; this is governed
+        by Stripe's own applicable terms and privacy policy. The exact Stripe contracting entity
+        and the specific safeguards for any international data transfers are not currently
+        definitively confirmed and are not asserted here; further detail will be added once
+        established.
       </p>
 
       <h2>Cancellation Requests Without Login</h2>
@@ -138,8 +228,10 @@
       </p>
       <p>
         The request is stored separately from your game account; deleting an account does not
-        automatically delete it. The specific retention period and deletion procedure for these
-        records must be established and legally reviewed before publishing the form.
+        automatically delete it. A completed case (status "fulfilled" or "no subscription") is
+        scheduled for deletion 3 years after the end of the calendar year in which it was closed.
+        Still-open requests and cases under a legal hold are not automatically deleted and are
+        retained for as long as necessary.
       </p>
 
       <h2>Children and Minors</h2>

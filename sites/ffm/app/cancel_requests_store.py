@@ -31,6 +31,15 @@ STATUSES = {'submitted', 'needs_review', 'processing', 'fulfilled', 'no_subscrip
 TERMINAL_STATUSES = {'fulfilled', 'no_subscription'}
 
 
+class PurgeConflict(Exception):
+    """Raised by delete_cancel_request when its conditional delete loses a
+    race: the record was modified (reprocessed, re-finalized, or placed
+    under legal hold) since the caller observed it as purgeable. Callers
+    (retention_admin.py's CLI and scheduled worker) must catch this
+    explicitly and count/report it as a skip — it must never be treated
+    as a successful delete, and never silently ignored."""
+
+
 def _now_utc():
     return datetime.now(timezone.utc).isoformat()
 
@@ -66,6 +75,7 @@ def create_cancel_request(request_id, payload_hash, fields, initial_status):
         'reviewed_subscription_id': None, 'reviewed_subscription_id_bound': False,
         'outcome': None, 'outcome_detail': None, 'processed_at': None,
         'ack_email_status': None, 'ack_email_attempted_at': None, 'ack_email_error': None,
+        'legal_hold': False,
     })
     try:
         _users().put_item(Item=item, ConditionExpression=Attr('pk').not_exists())
@@ -196,3 +206,93 @@ def list_cancel_requests(status=None):
         items.extend(response.get('Items', []))
     items.sort(key=lambda item: item['submitted_at'])
     return items
+
+
+def set_legal_hold(request_id, hold):
+    """Explicit operator action: suspend (hold=True) or lift (hold=False)
+    retention cleanup for one request, independent of its status. A
+    request under legal hold is never returned by
+    list_purgeable_cancel_requests below, however long past its normal
+    retention cutoff it is — the hold must be explicitly lifted by an
+    operator before it becomes eligible again.
+
+    The existence check is enforced by the update's own
+    ConditionExpression (not a separate get_item beforehand), because
+    DynamoDB's UpdateItem otherwise silently *creates* a new item when the
+    key doesn't exist yet — a plain check-then-act pre-check can't close
+    that race. Raises ValueError('not_found') if the request doesn't
+    exist; never creates a bare pk/sk/legal_hold row."""
+    try:
+        _users().update_item(
+            Key={'pk': _pk(request_id), 'sk': 'REQUEST'},
+            UpdateExpression='SET legal_hold = :h',
+            ConditionExpression=Attr('pk').exists(),
+            ExpressionAttributeValues={':h': bool(hold)},
+        )
+    except ClientError as exc:
+        if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            raise ValueError('not_found') from exc
+        raise
+
+
+def list_purgeable_cancel_requests(now=None):
+    """Return terminal (fulfilled/no_subscription — i.e. "completed") case
+    records eligible for physical deletion under the approved retention
+    policy: 3 years after the *end of the calendar year* in which the case
+    was closed (processed_at), i.e. eligible starting Jan 1 of
+    `processed_at.year + 4`. Still-open ("submitted"/"needs_review"/
+    "processing") requests are never returned here — unresolved cases are
+    retained indefinitely until an operator actually resolves them, never
+    auto-expired. Requests with `legal_hold` set are also never returned,
+    regardless of age, until the hold is explicitly lifted via
+    set_legal_hold().
+    """
+    now = now or datetime.now(timezone.utc)
+    eligible = []
+    for item in list_cancel_requests():
+        if item['status'] not in TERMINAL_STATUSES:
+            continue
+        if item.get('legal_hold'):
+            continue
+        processed_at = item.get('processed_at')
+        if not processed_at:
+            continue
+        processed_dt = datetime.fromisoformat(processed_at)
+        if processed_dt.tzinfo is None:
+            processed_dt = processed_dt.replace(tzinfo=timezone.utc)
+        cutoff = datetime(processed_dt.year + 4, 1, 1, tzinfo=timezone.utc)
+        if now >= cutoff:
+            eligible.append(item)
+    return eligible
+
+
+def delete_cancel_request(request_id, expected_status, expected_processed_at):
+    """Physically remove one cancellation-request record. Only ever called
+    by the retention-admin CLI/scheduled worker on an id returned by
+    list_purgeable_cancel_requests — never on a still-open request.
+
+    `expected_status`/`expected_processed_at` must be the exact values
+    observed on that listing call, and the delete is conditional on the
+    record still matching that snapshot *and* not (now) under legal hold —
+    closing the race where an operator places a legal hold, or the case
+    gets reprocessed/re-finalized, between listing and deleting. Raises
+    PurgeConflict (never swallowed) if that snapshot no longer matches;
+    the caller must count this as a skip, not a success."""
+    if expected_status not in TERMINAL_STATUSES or not expected_processed_at:
+        raise ValueError('request_not_completed')
+    processed_dt = datetime.fromisoformat(expected_processed_at)
+    if datetime.now(timezone.utc) < datetime(processed_dt.year + 4, 1, 1, tzinfo=timezone.utc):
+        raise ValueError('retention_period_not_elapsed')
+    try:
+        _users().delete_item(
+            Key={'pk': _pk(request_id), 'sk': 'REQUEST'},
+            ConditionExpression=(
+                Attr('status').eq(expected_status)
+                & Attr('processed_at').eq(expected_processed_at)
+                & (Attr('legal_hold').eq(False) | Attr('legal_hold').not_exists())
+            ),
+        )
+    except ClientError as exc:
+        if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            raise PurgeConflict(request_id) from exc
+        raise

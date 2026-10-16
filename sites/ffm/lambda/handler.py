@@ -77,6 +77,27 @@ _resolve_stripe_webhook_secret()
 
 import apig_wsgi
 from app import create_app
+from app.retention_admin import run_scheduled_cleanup
 
 flask_app = create_app()
-lambda_handler = apig_wsgi.make_lambda_handler(flask_app)
+_wsgi_handler = apig_wsgi.make_lambda_handler(flask_app)
+
+#: Exact payload EventBridge's Target `input` is configured with (see
+#: infra/terraform/sites/ffm/main.tf's
+#: aws_cloudwatch_event_target.retention_cleanup). Using a fixed `input`
+#: rather than the default event-passthrough means this Lambda receives
+#: exactly this JSON object for the scheduled trigger — never the normal
+#: EventBridge envelope (which would otherwise have to be told apart from
+#: some *other* future EventBridge rule by its `source`/`detail-type`) and
+#: never anything an API Gateway request could plausibly also send (every
+#: API Gateway AWS_PROXY event always carries `httpMethod`/`requestContext`,
+#: never this key). There is no public HTTP endpoint for this — only
+#: EventBridge's own IAM-authorized `lambda:InvokeFunction` permission
+#: (aws_lambda_permission.retention_cleanup) can invoke this path.
+_RETENTION_CLEANUP_TASK = 'ffm-retention-cleanup'
+
+
+def lambda_handler(event, context):
+    if isinstance(event, dict) and event.get('task') == _RETENTION_CLEANUP_TASK:
+        return run_scheduled_cleanup()
+    return _wsgi_handler(event, context)

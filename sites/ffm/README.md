@@ -109,6 +109,85 @@ Browser
 - Leaderboards are produced by scanning `HIGHSCORE` items, sorting in application code, and then grouping by `first_grade_year`.
 - A third table, `ffm-ratelimits`, backs rate limiting (see next section) and is accessed by `app/ratelimit_storage.py`, not `app/models.py`. It's hash-key-only (`pk`), with `counter` (Number), `expires_at` (Number, epoch seconds — end of the current fixed window), and `ttl` (Number, epoch seconds — DynamoDB TTL attribute for eventual cleanup of stale rows; TTL deletion is best-effort/delayed, so `expires_at` is what actually governs window resets, not the TTL sweep).
 
+### Data retention (operator instructions)
+
+Scope: this section covers the record types whose retention policy the operator has fully
+approved and is now enforced below. **Explicitly out of scope / held back pending legal
+classification and late-webhook safety**: Stripe webhook-event audit rows, billing-state
+redemption tombstones, and gift-code records in `app/billing_store.py` (including the 100
+issued gift codes — their redemption behavior/expiry is unchanged). Nothing described below
+reads, scans or deletes anything under the `BILLING#`/`CODE#` key prefixes. Financial/invoicing
+retention remains unspecified per "Legal/tax approval status" above and must not be invented.
+
+- **Account/game deletion**: unchanged — `DELETE /api/profile` (`models.delete_user`) still
+  immediately and permanently removes the profile, email lock and all score/history items.
+- **Verification/reset/email-change tokens**: already invalid the instant they expire or are
+  used (`models.consume_token` checks `expires_at` and deletes on successful consumption).
+  Tokens that expire *without* being consumed are physically removed **automatically, once a
+  day** by the scheduled cleanup below; `flask --app sites.ffm.app:create_app retention-admin
+  tokens` (dry-run by default; add `--confirm` to actually delete) remains available for an
+  operator to inspect or run on demand between scheduled runs.
+- **Rate-limit counters**: `ffm-ratelimits` already has DynamoDB TTL enabled
+  (`infra/terraform/sites/ffm/main.tf`'s `aws_dynamodb_table.ratelimits`) — cleanup is
+  asynchronous/best-effort by design (standard DynamoDB TTL behavior, typically within 48h of
+  expiry), which is already accurately documented above; no change was needed here.
+- **CloudWatch application logs**: the Lambda's `/aws/lambda/ffm-api` log group now has an
+  explicit 30-day retention policy (`aws_cloudwatch_log_group.api` in
+  `infra/terraform/modules/api_backend/main.tf`, `log_retention_in_days` variable, default 30)
+  instead of the default "never expire". Application code must keep logging only non-sensitive
+  context (see `app/billing.py`/`app/main.py`/`app/auth.py`'s existing `logger.error(...)` /
+  `print(...)` calls, which already log usernames and exception class names only — never
+  passwords, tokens, full Stripe payloads or email contents).
+- **Public cancellation-request cases** (`app/cancel_requests_store.py`): a request is "completed"
+  once it reaches a terminal status (`fulfilled`/`no_subscription`, recorded via `process` or
+  `record-manual-outcome`); "unresolved" (`submitted`/`needs_review`/`processing`) requests are
+  **never** auto-expired — they are retained indefinitely until an operator actually resolves
+  them. A completed case's record becomes eligible for physical deletion 3 years after the end of
+  the calendar year it was closed in (i.e. from Jan 1 of `processed_at.year + 4`), and is then
+  purged by the same daily scheduled cleanup. `flask --app sites.ffm.app:create_app
+  retention-admin cancel-requests` (dry-run by default; add `--confirm` to actually delete)
+  remains available for an operator to inspect or run on demand between scheduled runs.
+- **Legal holds**: `flask --app sites.ffm.app:create_app billing-admin cancel-request legal-hold
+  <request_id>` suspends retention cleanup for one case regardless of age (`--lift` to release
+  it again). Neither the CLI's `retention-admin cancel-requests` nor the scheduled cleanup below
+  ever lists or deletes a request under hold.
+- **Scheduled daily cleanup (automatic, unattended)**: an EventBridge rule
+  (`aws_cloudwatch_event_rule.retention_cleanup` in `infra/terraform/sites/ffm/main.tf`) invokes
+  the *existing* `ffm-api` Lambda directly once a day (`cron(0 3 * * ? *)`, 03:00 UTC) with a
+  fixed `{"task": "ffm-retention-cleanup"}` payload. `sites/ffm/lambda/handler.py`'s
+  `lambda_handler` recognizes that exact payload and routes it internally to
+  `app.retention_admin.run_scheduled_cleanup()` — the same deletion logic the CLI's `--confirm`
+  path uses — instead of to `apig_wsgi`/Flask; everything else (any API Gateway request) is
+  unaffected. **There is no public HTTP endpoint for this** — only EventBridge's own
+  IAM-authorized `lambda:InvokeFunction` permission (`aws_lambda_permission.retention_cleanup`)
+  can trigger it, and no new Lambda function, execution role, or DynamoDB permission was added:
+  it reuses the existing `ffm-api` function and `aws_iam_role_policy.lambda_dynamodb`'s existing
+  `Scan`/`DeleteItem` grant. Both the tokens and cancel-requests purges use a scan via the
+  existing `find_expired_tokens`/`list_purgeable_cancel_requests` pagination (bounded by the
+  low-volume `ffm-users` table at this project's current scale; revisit if that table ever grows
+  enough for a full table scan to become a concern) and a **conditional delete per item** —
+  `models.delete_token_item`/`cancel_requests_store.delete_cancel_request` only delete if the
+  item still matches the snapshot observed when it was listed as eligible (and, for cancel
+  requests, is still not under legal hold) — so a race with `consume_token`, a legal hold set by
+  an operator, or a case getting reprocessed between listing and deleting is detected and
+  reported as a skip, never silently treated as a successful delete. Per-item delete failures
+  and skips are counted and logged (never swallowed); only a failure to list candidates at all
+  (e.g. a DynamoDB outage) propagates out of the run, so Lambda's own invocation-failure/retry
+  handling applies to that case. **NOT YET APPLIED/VERIFIED** — see the Terraform-import and
+  CI-IAM caveats below; this has only been validated with `terraform validate`/`fmt` and targeted
+  pytest runs, not a real `terraform apply` or a live EventBridge invocation.
+- **Safety**: both `retention-admin` CLI commands are dry-run (list-only) by default and require
+  an explicit `--confirm` flag to delete anything, mirroring the existing `billing-admin`
+  commands' pattern — never run `--confirm` against the production environment without first
+  reviewing the dry-run output. The scheduled cleanup above is the one place this policy runs
+  unattended, with no dry-run step; it still relies on the same conditional-delete safety as
+  `--confirm` (never deleting a record that's changed since it was listed as eligible). That
+  daily/automatic/no-dry-run tradeoff, and the Terraform in this section, has not yet been
+  applied against the real backend and must be reviewed by an operator before `terraform apply`
+  is run.
+- Targeted tests: `SECRET_KEY=ci-test-key pytest sites/ffm/tests/test_retention_admin.py
+  sites/ffm/tests/test_lambda_handler.py -q`.
+
 ### Security: rate limiting and JWT secret
 
 - A single shared `flask_limiter.Limiter` instance lives in `app/extensions.py` and is `init_app()`'d once in `app/__init__.py`. **Never instantiate a second `Limiter()` anywhere else** (e.g. in a blueprint file) — a previous version of this code did exactly that in `auth.py`, and that second instance's `@limiter.limit(...)` decorators silently never enforced anything because it was never bound to the real app via `init_app()`. This was only caught by empirically firing repeated requests at `/api/auth/login` and observing that `429` never appeared.
@@ -287,7 +366,9 @@ As of 2026-09-06 the policy is at **v12** and includes, beyond its original ders
 - `FfmAlertsSnsManage` / `FfmAlertsCloudWatchAlarms` (added 2026-09-05, same rollout) — SNS topic/subscription management scoped to `arn:...:sns:eu-central-1:113725432218:ffm-alerts`, and CloudWatch alarm management scoped to `arn:...:cloudwatch:eu-central-1:113725432218:alarm:ffm-ses-*`.
 - **v12 (2026-09-06, `email_forwarding` module for `info@derschweigert.de`):** `S3ReadOnly`/`S3Manage`'s four separate `derschweigert-terraform-state`/`derschweigert-site-*` resource entries were consolidated into a single `arn:aws:s3:::derschweigert-*` (+ `/*`) wildcard — both to fit the new `derschweigert-de-ses-incoming` bucket under the existing statements without adding entries (the policy document was already close to IAM's 6,144-character customer-managed-policy size cap) and because "derschweigert-" is already this account's real bucket-naming convention. `S3Manage` gained `s3:PutLifecycleConfiguration`. `IamRoleForLambda` and `LambdaManage` each gained one resource ARN for the new `derschweigert-de-ses-forwarder-role`/`derschweigert-de-ses-forwarder` function. A new `FfmSesReceiptManage` statement grants `ses:*Receipt*` on `Resource: "*"` (SES receipt-rule-set/rule/active-rule-set APIs, like the other SES v1 identity APIs above, don't support resource-level ARN scoping) — deliberately a substring wildcard rather than enumerating all ~9 individual `Create`/`Delete`/`Describe`/`List`/`Set`/`Reorder`-prefixed action names, again to stay under the size cap. Freed a version slot by deleting `v7`.
 
-Freeing a version slot (the policy sits at the 5-version cap) was done by deleting the then-oldest version each time — `v4` before pushing `v9`, then `v5` before pushing `v10`, then `v7` before pushing `v12`.
+Freeing a version slot (the policy sits at the 5-version cap) was done by deleting the then-oldest version each time — `v4` before pushing `v9`, then `v5` before pushing `v10`, then `v7` before pushing `v12`, then `v8` before pushing `v13`.
+
+- **v13 (2026-10-16, log-group retention import + daily retention-cleanup EventBridge rule):** `infra/terraform/modules/api_backend/main.tf` now also manages `aws_cloudwatch_log_group.api` (`/aws/lambda/<app_name>-api`, 30-day retention) for both `ffm-api` and `derschweigert-api`, imported via each site's top-level `import` block rather than created fresh (both groups were already auto-created by Lambda on first invoke). This needed a new `ApiLambdaLogGroups` statement — `logs:*LogGroup*`/`logs:PutRetentionPolicy`/`logs:*Tag*` scoped to `arn:aws:logs:eu-central-1:113725432218:log-group:/aws/lambda/*-api:*` (substring/prefix wildcards covering `Create`/`Delete`/`Describe`LogGroup(s) and `Tag`/`Untag`/`ListTagsFor`Resource respectively, needed for both the `import` refresh and ordinary apply). `infra/terraform/sites/ffm/main.tf` also adds `aws_cloudwatch_event_rule.retention_cleanup` + `aws_cloudwatch_event_target.retention_cleanup` + `aws_lambda_permission.retention_cleanup`, wiring a daily EventBridge trigger straight to the existing `ffm-api` Lambda (see "Data retention" above) — `lambda:AddPermission` was already covered by the existing `LambdaManage` statement's `ffm-api` resource entry, but a new `FfmRetentionRule` statement was needed for `events:*Rule`/`events:*Target*`/`events:*Tag*` scoped to `arn:aws:events:eu-central-1:113725432218:rule/ffm-retention-cleanup`. Adding these two statements verbatim would have pushed the document past the 6,144-character cap, so this version also shortened several existing statements' `Sid`s (purely cosmetic, e.g. `GitHubContactSecretMetadata` → `GitHubContactSecret`, `IamRoleForLambda` → `IamLambdaRole`; no `Action`/`Resource`/`Effect` changed) and consolidated the `secretsmanager:{List,Un}?Tag*Resource`/`dynamodb:{List,Un}?Tag*Resource` triples already present in `GitHubContactSecret`/`FfmJwtSecret`/`FfmDynamoDb` into the same `*Tag*` substring-wildcard pattern already used by `FfmSesReceiptManage`. No existing grant was narrowed, widened beyond the same action set, or removed — same permissions, more compact syntax. **This policy update has been applied and verified** (`aws iam get-policy` confirms `DefaultVersionId: v13`); it is a prerequisite for this session's `terraform apply`, not a substitute for it.
 
 **Recommendation, not yet done:** bring `derschweigert-deploy-scope` under Terraform management so this can't silently drift out of sync again. Skipped in the 2026-09-05 session to avoid widening the blast radius of an already-eventful production deploy.
 

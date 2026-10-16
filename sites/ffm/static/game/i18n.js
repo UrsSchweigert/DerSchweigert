@@ -94,6 +94,7 @@ const DICTIONARY = {
     en: 'This feature requires the security check script. Please accept cookies in the banner to continue.',
     de: 'Diese Funktion benötigt das Sicherheits-Skript. Bitte akzeptiere die Cookies im Banner, um fortzufahren.',
   },
+  'cookie.settingsLink': { en: 'Cookie settings', de: 'Cookie-Einstellungen' },
 
   // Auth modal — login
   'auth.tabLogin': { en: 'Login', de: 'Anmelden' },

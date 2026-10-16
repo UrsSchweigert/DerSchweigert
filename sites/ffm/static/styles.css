@@ -889,6 +889,23 @@ form button:focus {
   color: #d0e0ff;
 }
 
+.splash-legal-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-family: monospace;
+  font-size: 11px;
+  color: #a0c0ff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.splash-legal-link-btn:hover {
+  color: #d0e0ff;
+}
+
 /* ── Consent checkbox (registration form) ──────────────────── */
 .consent-checkbox {
   display: flex;

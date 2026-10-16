@@ -50,13 +50,36 @@
         Wir verwenden Ihre IP-Adresse und Turnstile-Tokens, um Brute-Force-Angriffe, Spam und Missbrauch zu verhindern.
       </p>
       <p>
+        <strong>Cloudflare Turnstile-Skript selbst (Art. 6 Abs. 1 lit. a DSGVO — Einwilligung):</strong>
+        Das Laden des Turnstile-Skripts im Browser erfolgt nur, nachdem Sie über unser
+        Cookie-Consent-Banner zugestimmt haben. Sie können diese Einwilligung jederzeit mit
+        Wirkung für die Zukunft über „Cookie-Einstellungen“ widerrufen (Art. 7 Abs. 3 DSGVO).
+      </p>
+      <p>
+        <strong>Zahlungs-/Abonnementdaten und Kündigungsanfragen (Art. 6 Abs. 1 lit. b DSGVO —
+        Vertragserfüllung bzw. vorvertragliche Maßnahme):</strong>
+        Die Verarbeitung dient der Abwicklung Ihres Abonnements bzw. der Bearbeitung Ihrer
+        Kündigungsanfrage.
+      </p>
+      <p>
+        <strong>Aufbewahrung von Abrechnungs-/Finanzunterlagen (Art. 6 Abs. 1 lit. c DSGVO —
+        rechtliche Verpflichtung):</strong>
+        Bestimmte Abrechnungskennungen und Belege werden über das Vertragsende hinaus
+        aufbewahrt, soweit uns gesetzliche Aufbewahrungspflichten (z. B. handels- und
+        steuerrechtliche Vorgaben) hierzu verpflichten.
+      </p>
+      <p>
         <strong>High Scores und Leaderboard-Daten (Art. 6 Abs. 1 lit. b DSGVO — Vertragserfüllung):</strong>
         Diese werden verarbeitet, um die Spielfunktionen und Rankings bereitzustellen.
+        <strong>Das Leaderboard ist öffentlich</strong>: Ihr Benutzername, Ihr High Score, das
+        von Ihnen angegebene Einschulungsjahr (sofern hinterlegt) und das Datum Ihrer Bestleistung
+        werden auf der Startseite für alle Besucher sichtbar angezeigt, auch ohne Login.
       </p>
 
       <h2>Empfänger und Auftragsverarbeiter</h2>
       <p>
-        <strong>Amazon Web Services (AWS):</strong> Ihre Daten werden in AWS eu-central-1 (Frankfurt) gespeichert und verarbeitet, unter Verwendung von:
+        <strong>Amazon Web Services (AWS):</strong> Ihre Nutzerdaten und Scores werden in der
+        AWS-Region eu-central-1 (Frankfurt) gespeichert und verarbeitet, unter Verwendung von:
       </p>
       <ul>
         <li>DynamoDB (Nutzerdaten, Scores)</li>
@@ -65,13 +88,20 @@
         <li>AWS CloudFront (Content Delivery)</li>
       </ul>
       <p>
+        Die Region Frankfurt bezieht sich auf die Datenspeicherung (DynamoDB) und die
+        Verarbeitung durch Lambda sowie den Versand über SES. <strong>AWS CloudFront</strong> ist
+        als Content-Delivery-Netzwerk technologiebedingt anders aufgebaut: Statische Inhalte
+        können dabei auch über CloudFront-Edge-Standorte außerhalb von Frankfurt bzw. außerhalb
+        der EU ausgeliefert werden.
+      </p>
+      <p>
         AWS unterliegt einer Standard-Auftragsverarbeitungsvereinbarung (AVV) nach Art. 28 DSGVO. Weitere Informationen: <a href="https://aws.amazon.com/de/compliance/dpa/" target="_blank" rel="noopener">AWS Data Processing Addendum</a>.
       </p>
       <p>
-        <strong>Cloudflare Turnstile:</strong> Das Anti-Abuse-System wird über Cloudflare betrieben. Dabei werden Ihre Interaktion mit dem Widget, Ihre IP-Adresse und möglicherweise weitere Daten an Cloudflare übertragen. Der Status einer Auftragsverarbeitungsvereinbarung mit Cloudflare ist aktuell nicht abschließend bestätigt. Cloudflares Anycast-Netzwerk kann Daten auch auf Infrastruktur außerhalb der EU verarbeiten. Weitere Informationen: <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>.
+        <strong>Cloudflare Turnstile:</strong> Das Anti-Abuse-System wird über Cloudflare betrieben. Dabei werden Ihre Interaktion mit dem Widget, Ihre IP-Adresse und möglicherweise weitere Daten an Cloudflare übertragen. Für die Verarbeitung durch Cloudflare besteht eine Auftragsverarbeitungsvereinbarung (AVV) nach Art. 28 DSGVO. Die genaue vertragsschließende Cloudflare-Gesellschaft sowie die im Einzelfall greifenden Garantien für etwaige internationale Datenübermittlungen sind derzeit nicht abschließend bestätigt und werden hier nicht behauptet; Cloudflares Anycast-Netzwerk kann Daten auch auf Infrastruktur außerhalb der EU verarbeiten. Weitere Informationen: <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>.
       </p>
       <p>
-        <strong>E-Mail-Versand:</strong> Transaktionale E-Mails (Verifikation, Passwort-Reset, E-Mail-Änderung) werden über AWS SES versendet. Ihre E-Mail-Adresse wird nicht an Dritte weitergegeben und nicht für Marketing-Zwecke verwendet.
+        <strong>E-Mail-Versand:</strong> Transaktionale E-Mails (Verifikation, Passwort-Reset, E-Mail-Änderung) werden über AWS SES versendet; Ihre E-Mail-Adresse wird dafür an unseren Auftragsverarbeiter AWS (SES) offengelegt, mit dem eine Auftragsverarbeitungsvereinbarung (AVV) nach Art. 28 DSGVO besteht (siehe oben, „Empfänger und Auftragsverarbeiter“). Über diesen notwendigen Versand durch AWS SES hinaus wird Ihre E-Mail-Adresse nicht an weitere Dritte weitergegeben und nicht für Marketing-Zwecke verwendet.
       </p>
 
       <h2>Cookies und Tracking</h2>
@@ -88,18 +118,35 @@
         Dieser Cookie unterliegt der Ausnahme nach § 25 Abs. 2 TDDDG (streng notwendige Cookies) und erfordert keine explizite Zustimmung.
       </p>
       <p>
-        <strong>Cloudflare Turnstile:</strong> Das Turnstile-Skript wird nur nach Ihrer ausdrücklichen Zustimmung über unser Cookie-Consent-Banner geladen. Ohne Ihre Zustimmung wird das Skript nicht geladen.
+        <strong>Cloudflare Turnstile:</strong> Das Turnstile-Skript wird nur nach Ihrer ausdrücklichen Zustimmung über unser Cookie-Consent-Banner geladen. Ohne Ihre Zustimmung wird das Skript nicht geladen. Sie können Ihre Entscheidung jederzeit über den Link „Cookie-Einstellungen“ auf der Startseite erneut aufrufen und ändern (annehmen oder ablehnen); die bisherige Entscheidung wird dabei nur lokal in Ihrem Browser (<code>localStorage</code>) gespeichert, nicht auf unserem Server.
       </p>
       <p>
         Wir verwenden <strong>keine Analytics-, Tracking-, Werbe- oder andere nicht-essentiellen Cookies</strong>.
       </p>
+      <p>
+        Zusätzlich zum Session-Cookie verwendet Arithmo Slayer folgenden lokalen Speicher in Ihrem Browser (nicht auf unserem Server):
+      </p>
+      <ul>
+        <li><code>localStorage</code>-Eintrag <code>ffm_locale</code>: speichert Ihre bevorzugte Sprache (Deutsch/Englisch), damit die Oberfläche beim nächsten Besuch in dieser Sprache geladen wird. Bleibt bestehen, bis Sie die Sprache ändern oder Ihren Browserspeicher leeren.</li>
+        <li><code>localStorage</code>-Eintrag <code>ffm_cookie_consent</code>: speichert Ihre Cookie-Entscheidung (siehe oben). Bleibt bestehen, bis Sie Ihre Entscheidung ändern oder Ihren Browserspeicher leeren.</li>
+        <li><code>sessionStorage</code>-Eintrag <code>pending_level_record</code>: speichert vorübergehend das Ergebnis eines gerade abgeschlossenen Levels, bis es erfolgreich an unseren Server übermittelt wurde. Wird nach erfolgreicher Übermittlung gelöscht und endet spätestens mit dem Schließen des Browser-Tabs/der Sitzung.</li>
+      </ul>
 
       <h2>Speicherdauer</h2>
       <p>
-        Ihre Daten werden so lange gespeichert, wie Ihr Konto aktiv ist. Bei Löschung Ihres Kontos werden alle damit verbundenen Daten unmittelbar gelöscht (Benutzername, E-Mail, Passwort, Scores, Profil-Einstellungen). Es gibt keine erweiterte Backup-Aufbewahrung oder archivierte Aufbewahrung personenbezogener Daten.
+        Ihre Daten werden so lange gespeichert, wie Ihr Konto aktiv ist. Bei Löschung Ihres Kontos werden Ihr Benutzername, E-Mail, Passwort-Hash, Scores und Profil-Einstellungen unmittelbar gelöscht. Dies gilt nicht für bestimmte Abrechnungskennungen und Belege zu einem beendeten Abonnement, die aus den unten genannten Gründen weiter aufbewahrt werden können (siehe „Zahlungs- und Abonnement-Daten“).
       </p>
       <p>
-        Rate-Limiting-Daten (IP-Adressen, Anfrage-Zähler) werden automatisch nach kurzer Zeit (Stunden) gelöscht.
+        Rate-Limiting-Daten (IP-Adressen, Anfrage-Zähler) sind kurzlebig: Das jeweilige Zeitfenster endet in der Regel nach kurzer Zeit, und die Datensätze werden zusätzlich über eine DynamoDB-TTL-Einstellung automatisch entfernt. Diese TTL-Löschung erfolgt asynchron im Hintergrund und nach bestem Bemühen, typischerweise innerhalb weniger Tage nach Ablauf; es handelt sich nicht um eine sofortige Löschung, und es gibt keine feste, garantierte Obergrenze für die Dauer bis zur tatsächlichen Löschung.
+      </p>
+      <p>
+        <strong>Bestätigungs-, Rücksetz- und E-Mail-Änderungs-Tokens:</strong> Ein Token wird sofort gelöscht, sobald Sie ihn erfolgreich einlösen. Nicht eingelöste, abgelaufene oder bei einem fehlgeschlagenen Einlöseversuch zurückgewiesene Tokens bleiben bis zu ihrem Ablauf bestehen und werden danach über eine täglich automatisiert laufende Löschroutine entfernt; Ziel dieser Routine ist die Löschung spätestens innerhalb von 7 Tagen nach Ablauf.
+      </p>
+      <p>
+        <strong>Anwendungs-Logs:</strong> Technische Anwendungs-Logs unserer Server (z. B. Fehler- und Zugriffsprotokolle über AWS CloudWatch) werden gemäß der aktuellen Konfiguration nach 30 Tagen automatisch gelöscht. Diese Logs sollen keine Passwörter, Tokens oder vollständigen E-Mail-Adressen enthalten; technisch bedingte IP-Adressen oder Fehlermeldungen können jedoch vorkommen.
+      </p>
+      <p>
+        Zu Backups oder Snapshots unserer Datenbank auf Infrastrukturebene treffen wir hier keine Aussage, da uns der genaue Stand (ob und wie lange solche Sicherungen bestehen) derzeit nicht abschließend bekannt ist; wir behaupten weder, dass es sie gibt, noch, dass es sie nicht gibt.
       </p>
 
       <h2>Zahlungs- und Abonnement-Daten (optional)</h2>
@@ -121,11 +168,29 @@
       </p>
       <p>
         <strong>Speicherdauer:</strong>
-        Erforderliche Zahlungsunterlagen können nach der Kontolöschung für die jeweils geltenden gesetzlichen Aufbewahrungsfristen gespeichert werden. Aufbewahrung und Löschverfahren müssen vor dem kostenpflichtigen Start geprüft werden. Dies gilt auch für Zugriffsdaten und Gutschein-Verarbeitungsprotokolle. Die Kontolöschung verhindert weitere Abbuchungen.
+        Löschen Sie Ihr Konto, wird ein zu diesem Zeitpunkt aktives Abonnement sofort gekündigt
+        und Ihr Zugriff auf bezahlte/geschenkte Inhalte endet sofort; es gibt keine Fortführung
+        bis zum Ende eines bereits bezahlten Zeitraums. Bestimmte Abrechnungskennungen und ein
+        Vermerk über den Vertragsabschluss werden als „Tombstone“ weiter gespeichert, soweit
+        gesetzliche Aufbewahrungspflichten für Abrechnungs-/Finanzunterlagen dies erfordern. Die
+        genaue Aufbewahrungsdauer für diese Abrechnungs-/Finanzunterlagen (einschließlich
+        protokollierter Stripe-Ereignisse und Gutschein-Einlösevermerke) ist noch nicht
+        abschließend festgelegt; eine automatisierte, zeitplanbasierte Löschung dieser
+        Finanz-/Prüfdatensätze ist aus rechtlichen Gründen (Finanz-/Steuerunterlagen, Nachweis
+        bei Rückbuchungen) derzeit zurückgestellt.
       </p>
       <p>
         <strong>Dritte (Stripe):</strong>
-        Stripe verarbeitet Zahlungsinformationen nach den jeweils anwendbaren Bedingungen und Datenschutzhinweisen. Vor dem kostenpflichtigen Start muss der Betreiber die zuständige Stripe-Vertragsgesellschaft, Verarbeitungsvereinbarungen, Sicherungen für internationale Datenübermittlungen und erforderliche Datenschutzhinweise prüfen.
+        Für die Zahlungsabwicklung über Stripe besteht eine Auftragsverarbeitungsvereinbarung
+        (AVV) nach Art. 28 DSGVO. Stripe verarbeitet die eigentlichen Zahlungsdaten
+        jedoch nicht ausschließlich als unser Auftragsverarbeiter: Für bestimmte Zwecke
+        (z. B. Betrugsprävention, Erfüllung eigener gesetzlicher Pflichten wie Geldwäsche- und
+        Finanzaufsichtsrecht, oder Kartennetzwerk-Vorgaben) kann Stripe je nach anwendbarer
+        Rolle auch als eigenständig Verantwortlicher handeln; dies richtet sich nach den
+        jeweils anwendbaren Bedingungen und Datenschutzhinweisen von Stripe. Die genaue
+        vertragsschließende Stripe-Gesellschaft sowie die konkreten Garantien für etwaige
+        internationale Datenübermittlungen sind derzeit nicht abschließend bestätigt und werden
+        hier nicht behauptet; ergänzende Angaben folgen, sobald sie feststehen.
       </p>
 
       <h2>Kündigungsanfragen ohne Anmeldung</h2>
@@ -139,8 +204,11 @@
       </p>
       <p>
         Die Anfrage wird unabhängig vom Spielkonto gespeichert; eine Kontolöschung löscht sie
-        nicht automatisch. Die konkrete Aufbewahrungsdauer und das Löschverfahren für diese
-        Unterlagen müssen vor Veröffentlichung des Formulars festgelegt und rechtlich geprüft werden.
+        nicht automatisch. Ein abgeschlossener Fall (Status „erledigt“ oder „kein Abonnement
+        vorhanden“) wird 3 Jahre nach dem Ende des Kalenderjahres, in dem er abgeschlossen wurde,
+        zur Löschung vorgesehen. Noch offene Anfragen und Fälle unter einer gesetzlichen
+        Aufbewahrungssperre werden nicht automatisch gelöscht, sondern so lange aufbewahrt, wie
+        dies erforderlich ist.
       </p>
 
       <h2>Kinder und Minderjährige</h2>
