@@ -97,6 +97,13 @@ locals {
       };
     }
 
+    // Legal pages are uploaded to S3 as impressum.html / datenschutz.html.
+    // Rewrite the public, extensionless URLs so the default S3 behavior
+    // resolves the correct object instead of 403-ing on a missing key.
+    if (uri === '/impressum' || uri === '/datenschutz') {
+      request.uri = uri + '.html';
+    }
+
     return request;
   }
   EOF
