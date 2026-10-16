@@ -901,3 +901,115 @@ def test_authenticated_cancel_route_still_works_after_extraction(client, billing
     resp = client.post('/api/billing/cancel', headers=headers)
     assert resp.status_code == 200
     assert resp.get_json()['access']['cancel_at_period_end'] is True
+
+
+# ============ Locale propagation: submission -> persisted record -> outcome email ============
+#
+# This flow previously had no locale concept at all and its JSON receipt
+# `message` plus the later operator-triggered outcome email were always
+# German-only (found by a read-only audit). These assert: (1) a
+# validated `locale` on submission is reflected in the receipt's own
+# `message`, (2) it's durably persisted on the record and later used for
+# the operator's `complete-email` CLI command -- specifically the locale
+# captured AT SUBMISSION TIME, never whatever locale the operator's own
+# shell/session happens to be in when they run the CLI days later, (3)
+# an invalid/missing locale safely falls back to the pre-existing
+# German-only default, and (4) `locale` is excluded from the idempotency
+# payload hash so it can never spuriously trigger an idempotency_conflict.
+
+def test_submission_with_english_locale_returns_english_receipt_message(client):
+    resp = client.post('/api/cancel-requests', json=_valid_payload(
+        idempotency_key='e0000000-0000-4000-8000-000000000001', locale='en',
+    ))
+    assert resp.status_code == 201
+    data = resp.get_json()
+    assert 'has been received' in data['message']
+    assert 'Anfrage erhalten' not in data['message']
+
+
+def test_submission_with_invalid_locale_falls_back_to_german_receipt_message(client):
+    resp = client.post('/api/cancel-requests', json=_valid_payload(
+        idempotency_key='e0000000-0000-4000-8000-000000000002', locale='fr',
+    ))
+    assert resp.status_code == 201
+    assert 'Anfrage erhalten' in resp.get_json()['message']
+
+
+def test_submission_without_locale_falls_back_to_german_receipt_message(client):
+    resp = client.post('/api/cancel-requests', json=_valid_payload(
+        idempotency_key='e0000000-0000-4000-8000-000000000003',
+    ))
+    assert resp.status_code == 201
+    assert 'Anfrage erhalten' in resp.get_json()['message']
+
+
+def test_submitted_locale_is_persisted_and_used_for_later_operator_outcome_email(
+        client, billing_app, monkeypatch):
+    """The operator may run `complete-email` long after submission, in
+    whatever locale their own shell happens to be in -- the outcome email
+    must still use the ORIGINAL submitter's locale, never the operator's
+    current one."""
+    resp = client.post('/api/cancel-requests', json=_valid_payload(
+        idempotency_key='e0000000-0000-4000-8000-000000000004',
+        contact_email='localeack@example.com', username='localeackuser', locale='en',
+    ))
+    request_id = resp.get_json()['request_id']
+
+    with billing_app.app_context():
+        models.create_user('localeackuser', 'localeackuser@example.com', 'hash', None)
+        models.set_email_verified('localeackuser', True)
+        stable_id = models.ensure_stable_id('localeackuser')
+        cancel_requests_store.start_processing(request_id, 'localeackuser', stable_id, None)
+        cancel_requests_store.finalize(request_id, 'no_subscription', {'outcome': 'no_subscription'})
+
+    captured = {}
+    monkeypatch.setattr(
+        'sites.ffm.app.mailer.send_cancel_request_ack_email',
+        lambda *a, **kw: captured.update(kw),
+    )
+    result = _cli_invoke(billing_app, ['billing-admin', 'cancel-request', 'complete-email',
+                                        request_id, '--confirm'])
+    assert result.exit_code == 0, result.output
+    assert captured.get('language') == 'en'
+
+
+def test_pre_existing_record_without_locale_field_defaults_to_german_for_outcome_email(
+        billing_app, monkeypatch):
+    """Records created before locale propagation existed have no `locale`
+    key at all -- must gracefully default rather than KeyError."""
+    with billing_app.app_context():
+        item, _ = cancel_requests_store.create_cancel_request(
+            'e0000000-0000-4000-8000-000000000005', 'hash-no-locale',
+            {'contact_email': 'legacyack@example.com', 'account_email': None, 'username': 'legacyackuser',
+             'stripe_reference': None, 'cancellation_type': 'earliest', 'requested_date': None, 'reason': None},
+            'submitted',
+        )
+        models.create_user('legacyackuser', 'legacyackuser@example.com', 'hash', None)
+        models.set_email_verified('legacyackuser', True)
+        stable_id = models.ensure_stable_id('legacyackuser')
+        cancel_requests_store.start_processing(item['request_id'], 'legacyackuser', stable_id, None)
+        cancel_requests_store.finalize(item['request_id'], 'no_subscription', {'outcome': 'no_subscription'})
+
+    captured = {}
+    monkeypatch.setattr(
+        'sites.ffm.app.mailer.send_cancel_request_ack_email',
+        lambda *a, **kw: captured.update(kw),
+    )
+    result = _cli_invoke(billing_app, ['billing-admin', 'cancel-request', 'complete-email',
+                                        item['request_id'], '--confirm'])
+    assert result.exit_code == 0, result.output
+    assert captured.get('language') == 'de'
+
+
+def test_locale_is_excluded_from_idempotency_payload_hash(client):
+    """An honest retry of the same substantive request with a different
+    (or newly added) `locale` must replay the same stored receipt, not be
+    treated as a conflicting resubmission -- `locale` is only an email
+    preference, never part of the legally/operationally significant
+    payload."""
+    key = 'e0000000-0000-4000-8000-000000000006'
+    first = client.post('/api/cancel-requests', json=_valid_payload(idempotency_key=key, locale='de'))
+    assert first.status_code == 201
+    second = client.post('/api/cancel-requests', json=_valid_payload(idempotency_key=key, locale='en'))
+    assert second.status_code == 200
+    assert second.get_json()['request_id'] == first.get_json()['request_id']

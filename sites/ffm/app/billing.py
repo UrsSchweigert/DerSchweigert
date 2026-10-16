@@ -6,9 +6,12 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import stripe
+from botocore.exceptions import BotoCoreError, ClientError
 from flask import Blueprint, current_app, jsonify, request
 
-from . import billing_store as store, entitlements, models, stripe_provider as provider
+from . import billing_store as store, entitlements, legal_texts, models, stripe_provider as provider
+from . import contract_confirmation_store as confirmation_store
+from . import mailer
 from .extensions import limiter
 from .main import require_auth
 
@@ -98,12 +101,13 @@ def billing_conflict(error):
         'wrong_identity', 'billing_busy', 'billing_conflict', 'version_mismatch',
         'invalid_price', 'account_deleted', 'duplicate_subscription',
         'gift_period_too_short_for_checkout', 'invalid_subscription', 'subscription_mismatch',
+        'contract_confirmation_pending',
     }
     if code not in allowed:
         raise error
     return jsonify(error=code), 409 if code in {
         'billing_busy', 'billing_conflict', 'version_mismatch', 'duplicate_subscription',
-        'subscription_mismatch',
+        'subscription_mismatch', 'contract_confirmation_pending',
     } else 400
 
 
@@ -136,6 +140,26 @@ def checkout():
     data = request.get_json(silent=True)
     if not isinstance(data, dict) or data.get('adult_confirmed') is not True or data.get('terms_accepted') is not True:
         return jsonify(error='adult_and_terms_confirmation_required'), 400
+    # The two digital-content declarations below are separate, standalone
+    # checkboxes (never bundled with each other or with adult/terms above)
+    # required specifically for Sec. 356 BGB immediate-performance consent
+    # (see app/legal_texts.py). The client only ever sends a version +
+    # language selector, never the declaration text itself -- the actual
+    # text durably recorded/emailed always comes from legal_texts.py, so a
+    # tampered client-supplied string can never be recorded as consent.
+    language = data.get('declarations_language')
+    if language not in legal_texts.SUPPORTED_LANGUAGES:
+        return jsonify(error='invalid_declarations_language'), 400
+    if data.get('declarations_version') != legal_texts.DECLARATIONS_VERSION:
+        # Not "the checkbox has expired" -- an explicit, deterministic
+        # version mismatch: the client is showing outdated declaration
+        # text and must reload before it can be durably recorded as valid
+        # consent to the *current* wording.
+        return jsonify(
+            error='declarations_version_mismatch', current_version=legal_texts.DECLARATIONS_VERSION,
+        ), 409
+    if data.get('immediate_access_confirmed') is not True or data.get('withdrawal_waiver_confirmed') is not True:
+        return jsonify(error='digital_content_declarations_required'), 400
     identity = user['stable_id']
     recover_pending_redemption(identity)
     with billing_lock(identity):
@@ -164,6 +188,15 @@ def checkout():
         if not operation or state.get('checkout_session_id'):
             operation = f'checkout-{secrets.token_hex(16)}'
             state = store.put_billing_state(identity, checkout_operation=operation, checkout_session_id=None)
+        # Bind the exact, server-canonical declaration text/version/language
+        # to this specific checkout operation and this immutable account
+        # identity, with a UTC timestamp -- immutable once written (first
+        # submission for a given operation wins; see
+        # contract_confirmation_store.put_checkout_declarations).
+        confirmation_store.put_checkout_declarations(
+            identity, operation, language, legal_texts.declarations_snapshot(language),
+            adult_confirmed=True, terms_accepted=True,
+        )
         gift_until = state.get('gift_until')
         gift_epoch = int(models._parse_timestamp(gift_until).timestamp()) if gift_until else None
         if gift_epoch and gift_epoch <= int(datetime.now(timezone.utc).timestamp()):
@@ -431,6 +464,90 @@ def _subscription_superseded(state, subscription_id):
     return current['status'] in _LIVE_STATES
 
 
+def _ensure_contract_confirmation(identity, subscription):
+    """Gate the entitlement grant on the approved strict sequence --
+    payment verified (by the caller, before this is invoked) -> durable
+    confirmation snapshot persisted -> SES send accepted -- for brand-new
+    checkout contracts only, and report whether that sequence has now
+    completed so the caller can decide whether to proceed.
+
+    Gating applies only when the subscription carries the
+    `checkout_operation` metadata that `checkout()`/`stripe_provider.
+    create_checkout` attach to every *new* subscription created through
+    the current, declarations-gated checkout flow. Existing legacy
+    subscriptions, renewals, and gift grants created before this feature
+    existed (or through any path that never set that metadata) have no
+    checkout declarations to confirm and are never gated or retried here
+    -- this never fabricates a legacy declaration record and always
+    grandfathers them exactly as before.
+
+    Returns True once the confirmation record exists with
+    `email_status == 'sent'` (caller may proceed to grant access).
+    Returns False when the SES send has not yet succeeded (confirmation
+    just created-but-unsent, or a prior attempt's 'failed' status is
+    being retried here) -- the caller must not grant access or complete
+    the triggering event in that case, so the next webhook redelivery or
+    operator-triggered reconcile attempt retries the send. A transient
+    SES failure is always logged and durably recorded as 'failed' (also
+    retryable via `billing-admin contract-confirmation resend-email`,
+    which only flips the stored status -- the next reconcile here still
+    performs the actual entitlement grant once it observes 'sent').
+    """
+    subscription_id = subscription['id']
+    checkout_operation = subscription.get('metadata', {}).get('checkout_operation')
+    if not checkout_operation:
+        return True  # Legacy/renewal/gift path predating this metadata: grandfathered, never gated.
+    confirmation = confirmation_store.get_contract_confirmation(identity, subscription_id)
+    if not confirmation:
+        declarations = confirmation_store.get_checkout_declarations(identity, checkout_operation)
+        if not declarations:
+            # Should not happen for any subscription created via /checkout
+            # (which always binds declarations before creating the Stripe
+            # session) -- logged for operator investigation rather than
+            # silently fabricating consent that was never actually
+            # recorded. Retryable, same as a send failure below, in case
+            # this is a transient read race rather than real data loss.
+            current_app.logger.error(
+                'Contract confirmation has no matching checkout declarations: identity=%s subscription_id=%s',
+                identity, subscription_id,
+            )
+            return False
+        snapshot = {
+            'contract_reference': legal_texts.contract_reference(subscription_id),
+            'price_and_renewal_summary_de': legal_texts.price_and_renewal_summary('de'),
+            'price_and_renewal_summary_en': legal_texts.price_and_renewal_summary('en'),
+            'withdrawal_instructions_de': legal_texts.withdrawal_instructions_model_form('de'),
+            'withdrawal_instructions_en': legal_texts.withdrawal_instructions_model_form('en'),
+            'declarations': declarations,
+        }
+        confirmation, _created = confirmation_store.create_contract_confirmation(identity, subscription_id, snapshot)
+    if confirmation.get('email_status') == 'sent':
+        return True  # Already sent (this attempt, an earlier one, or an operator CLI resend) -- never resend.
+    username = store.get_billing_username_mapping(identity)
+    user = models.get_user(username) if username else None
+    if not user or not user.get('email'):
+        confirmation_store.set_confirmation_email_state(identity, subscription_id, 'failed', 'no_account_email')
+        current_app.logger.error(
+            'Contract confirmation email cannot be sent (no account email on file): '
+            'identity=%s subscription_id=%s', identity, subscription_id,
+        )
+        return False
+    try:
+        mailer.send_contract_confirmation_email(user['email'], confirmation)
+    except (ClientError, BotoCoreError) as exc:
+        code = exc.response.get('Error', {}).get('Code') if isinstance(exc, ClientError) else None
+        confirmation_store.set_confirmation_email_state(
+            identity, subscription_id, 'failed', f'{type(exc).__name__}:{code or "unknown"}',
+        )
+        current_app.logger.error(
+            'Contract confirmation email send failed: identity=%s subscription_id=%s error=%s',
+            identity, subscription_id, type(exc).__name__,
+        )
+        return False
+    confirmation_store.set_confirmation_email_state(identity, subscription_id, 'sent')
+    return True
+
+
 def reconcile_subscription(identity, subscription_id, event_id=None, owner=None):
     """Re-fetch current provider facts, not potentially stale webhook payloads."""
     subscription = provider.get_subscription(subscription_id)
@@ -457,10 +574,25 @@ def reconcile_subscription(identity, subscription_id, event_id=None, owner=None)
         'cancel_at_period_end': bool(subscription.get('cancel_at_period_end') or subscription.get('cancel_at')),
         'next_payment_at': _iso(subscription.get('trial_end') or subscription['current_period_end']) if renewing else None,
     }
+    if changes['paid_until']:
+        # Server-verified real payment (see _valid_paid_end above). For a
+        # brand-new checkout contract this must durably persist the
+        # confirmation snapshot and get the SES send accepted *before*
+        # provisioning the access grant below (see
+        # _ensure_contract_confirmation's docstring for exactly which
+        # subscriptions are gated vs. grandfathered). On failure here,
+        # the grant is withheld and the event is left incomplete so the
+        # next webhook redelivery or operator reconcile retries the send
+        # -- it is never silently swallowed into a stuck "paid but never
+        # confirmed" state.
+        if not _ensure_contract_confirmation(identity, subscription):
+            raise ValueError('contract_confirmation_pending')
     if event_id:
         store.complete_billing_event(identity, event_id, owner, changes)
     else:
         store.put_billing_state(identity, **changes)
+    if changes['paid_until'] and subscription.get('metadata', {}).get('checkout_operation'):
+        confirmation_store.mark_confirmation_provisioned(identity, subscription_id)
     return changes
 
 
@@ -545,7 +677,7 @@ def webhook():
         process_event(event)
     except ValueError as exc:
         reason = str(exc)
-        retryable = {'billing_busy', 'billing_conflict', 'version_mismatch'}
+        retryable = {'billing_busy', 'billing_conflict', 'version_mismatch', 'contract_confirmation_pending'}
         if reason not in retryable:
             raise
         # Known, allow-listed reason only -- never the raw exception/event payload -- plus

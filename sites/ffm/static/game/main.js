@@ -20,7 +20,7 @@ import { preloadGameAssets } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
 import { getAuthorizedLevelConfig, setCurrentLevelConfig, getCurrentLevelConfig, incrementRequestGeneration, isStripeRedirect, validatePendingRecord } from './access-flow.js';
-import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange } from './i18n.js';
+import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
 
 // Resolves the active locale, translates every data-i18n-* element in the
 // page, and sets <html lang> before anything else runs.
@@ -312,7 +312,17 @@ const closeCheckout = document.getElementById('close-checkout');
 const checkoutForm = document.getElementById('checkout-form');
 const checkoutAdultConfirm = document.getElementById('checkout-adult-confirm');
 const checkoutTermsAccept = document.getElementById('checkout-terms-accept');
+const checkoutImmediateAccessConfirm = document.getElementById('checkout-immediate-access-confirm');
+const checkoutWithdrawalWaiverConfirm = document.getElementById('checkout-withdrawal-waiver-confirm');
 const checkoutMessage = document.getElementById('checkout-message');
+
+// Must match app/legal_texts.py's DECLARATIONS_VERSION exactly. The server
+// is always authoritative (it rejects a stale/mismatched version with
+// declarations_version_mismatch rather than trusting this client constant),
+// so an out-of-sync value here only ever surfaces as a safe rejection
+// asking the purchaser to reload, never as silently-accepted consent to
+// unseen/outdated wording.
+const CHECKOUT_DECLARATIONS_VERSION = 'checkout-declarations-v1-2026-10-16';
 
 const accountModal = document.getElementById('account-modal');
 const closeAccount = document.getElementById('close-account');
@@ -930,12 +940,23 @@ checkoutForm?.addEventListener('submit', async e => {
   e.preventDefault();
   const adultConfirmed = checkoutAdultConfirm?.checked;
   const termsAccepted = checkoutTermsAccept?.checked;
+  const immediateAccessConfirmed = checkoutImmediateAccessConfirm?.checked;
+  const withdrawalWaiverConfirmed = checkoutWithdrawalWaiverConfirm?.checked;
   if (!adultConfirmed || !termsAccepted) {
     checkoutMessage.textContent = t('checkout.confirmAdultAndTerms');
     return;
   }
+  if (!immediateAccessConfirmed || !withdrawalWaiverConfirmed) {
+    checkoutMessage.textContent = t('checkout.confirmDigitalContentDeclarations');
+    return;
+  }
   try {
-    const result = await api.startCheckout(adultConfirmed, termsAccepted);
+    const result = await api.startCheckout(adultConfirmed, termsAccepted, {
+      version: CHECKOUT_DECLARATIONS_VERSION,
+      language: getLocale(),
+      immediateAccessConfirmed,
+      withdrawalWaiverConfirmed
+    });
     if (isStripeRedirect(result.url, 'checkout.stripe.com')) {
       window.location.href = result.url;
     } else {

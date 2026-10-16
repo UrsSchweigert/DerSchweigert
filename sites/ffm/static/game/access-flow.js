@@ -101,7 +101,8 @@ export async function getBillingStatus(api) {
  * Returns redirect URL to Stripe checkout.
  *
  * @param {object} api - API client with _fetch method
- * @param {object} options - { adult_confirmed, terms_accepted }
+ * @param {object} options - { adult_confirmed, terms_accepted, declarations_version,
+ *   declarations_language, immediate_access_confirmed, withdrawal_waiver_confirmed }
  * @returns {Promise<object>} { redirect_url: 'https://...' }
  * @throws {AccessFlowError} On 401/402/403 or network error
  */
@@ -112,6 +113,10 @@ export async function startCheckout(api, options) {
     body: JSON.stringify({
       adult_confirmed: options.adult_confirmed || false,
       terms_accepted: options.terms_accepted || false,
+      declarations_version: options.declarations_version,
+      declarations_language: options.declarations_language,
+      immediate_access_confirmed: options.immediate_access_confirmed || false,
+      withdrawal_waiver_confirmed: options.withdrawal_waiver_confirmed || false,
     })
   });
 

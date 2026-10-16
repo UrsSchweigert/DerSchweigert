@@ -1068,7 +1068,328 @@ python -m flask --app sites.ffm.app:create_app billing-admin cancel-request comp
   determination or guarantee** about whether any given `submitted_at` satisfies a statutory
   deadline; that is a legal judgment outside this flow's scope (see the BGB §312k caveat above).
 
-### Change deployment/infrastructure
+### Digital-content checkout declarations, durable contract confirmation, and public withdrawal intake
+
+`sites/ffm/app/legal_texts.py` is the **single source of truth** for all versioned legal text
+used by this flow: `DECLARATIONS_VERSION`, `SUPPORTED_LANGUAGES` (`de`/`en`), the two checkout
+declaration texts, operator identity/address (sourced from `impressum.html`, never invented),
+price/renewal/tax copy, the withdrawal-instructions text, and the canonical `WITHDRAWAL_STATEMENT`.
+Any change to this file's text requires updating the duplicated frontend copies it is paired
+with (see below) and bumping `DECLARATIONS_VERSION` if the *checkout* declarations themselves
+change in substance.
+
+**New-checkout declarations gate (`/api/billing/checkout`, `app/billing.py`):**
+
+- Checkout now requires, in addition to the pre-existing `adult_confirmed`/`terms_accepted`
+  fields, **two additional, separately-unchecked** digital-content declarations
+  (`immediate_access_confirmed`, `withdrawal_waiver_confirmed`) plus a `declarations_version`
+  and `declarations_language` selector. The client never sends free-text declaration wording —
+  only version/language selectors — so the durably recorded text always comes from the
+  server's own `legal_texts.declarations_snapshot(language)`, never anything client-supplied.
+- Missing/false declarations, an unsupported `declarations_language`, or a stale
+  `declarations_version` all **reject the checkout before any Stripe call or entitlement
+  change** (free-play/other state stays untouched): a stale version is a distinct `409
+  declarations_version_mismatch` (not a blanket 400), and a merely-unchecked box is never
+  reported or treated as "expired" — see `app/billing.py`'s checkout validation and
+  `tests/test_billing.py`'s `_valid_checkout_payload()` helper / negative tests.
+- On acceptance, the exact text, version, language, a server UTC timestamp, and the resolved
+  account `stable_id` + the specific checkout operation/session are durably and immutably bound
+  together (`app/contract_confirmation_store.py`) — a retried checkout with the same payload
+  reuses the same record rather than mutating it.
+- This gate applies **only to new checkouts**. Existing subscriptions, gift/grandfathered
+  access, and renewal invoices are never re-gated or required to re-declare anything — see
+  `reconcile_subscription()` in `app/billing.py`, which calls `_ensure_contract_confirmation()`
+  exactly once per **new** paid subscription (webhook and the `billing-admin reconcile` CLI
+  path both go through this single call site), never on renewal invoices.
+- Frontend: `static/index.html`'s checkout modal has the two new required checkboxes with the
+  verbatim German legal text; `static/game/i18n.js` carries the DE text + a non-binding EN
+  translation plus the new server-error-code translations; `static/game/main.js` has a
+  hardcoded `CHECKOUT_DECLARATIONS_VERSION` constant that **must be kept in sync** with
+  `legal_texts.DECLARATIONS_VERSION` — a comment there explains that staleness only ever causes
+  a safe, explicit server-side `409` rejection, never silent acceptance of an outdated version.
+
+**Durable contract confirmation + email (gates the grant for new checkout contracts only):**
+
+- `app/contract_confirmation_store.py` persists one durable confirmation record per new paid
+  subscription, including the operator's contract reference, the applicable price/level/renewal
+  terms snapshot, applicable-taxes note, the withdrawal-instructions model text, and the exact
+  bound declarations (text/version/language/timestamp) from checkout — **not** a mutable link
+  or a mere Stripe receipt reference.
+- `app/mailer.py` sends this confirmation via SES exactly once per new subscription, in the
+  required order: Stripe payment verified server-side → durable confirmation snapshot
+  persisted → SES send accepted → access/entitlement grant (`paid_until`) recorded, and
+  (once granted) the actual provisioning instant is durably recorded too
+  (`contract_confirmation_store.mark_confirmation_provisioned`). A `(ClientError,
+  BotoCoreError)` from SES is **never swallowed**: it is logged via `current_app.logger.error`
+  and durably recorded as `email_status='failed'` with an error code, and the entitlement grant
+  is **withheld** until a send is accepted — `reconcile_subscription()` raises
+  `ValueError('contract_confirmation_pending')`, which the webhook route maps to the existing
+  `billing_retry_required`/`503` retry pattern so Stripe redelivers the event (and
+  `billing-admin reconcile` likewise reports the identity as requiring retry) until SES
+  succeeds. This gating applies **only** to subscriptions created through the current,
+  declarations-gated `/checkout` flow (identified by the `checkout_operation` metadata
+  `checkout()` attaches); existing legacy subscriptions, renewals, and gift grants that never
+  went through it are never gated, never retried here, and never get a fabricated confirmation
+  record — they are granted access exactly as before. SES acceptance is **not** proof of inbox
+  delivery; `email_status` therefore only ever reflects `sent`/`failed`/`pending`, never a
+  delivery guarantee.
+- Recovery: `billing-admin contract-confirmation resend-email <stable_id_or_reference>
+  --confirm` retries a failed/unsent email without re-running checkout or re-charging anything
+  (mirrors the existing `cancel-request complete-email --resend` retry pattern) — it only flips
+  the stored email status; the next reconcile attempt (webhook redelivery or `billing-admin
+  reconcile`) is what actually performs the grant once it observes `email_status='sent'`.
+- Duplicate webhook deliveries are idempotent (same `EVENT#<id>` sentinel-row pattern already
+  used elsewhere in `billing.py`) and never create a second confirmation record or send a
+  second email for the same subscription event.
+- Retention: new-contract-consent evidence (the checkout declarations snapshot and the
+  contract-confirmation record) is **held with no automatic deletion**, pending financial/legal
+  classification, consistent with the existing retention posture — it is intentionally **not**
+  wired into `retention_admin.py`'s purge logic.
+
+**Public withdrawal ("Vertrag widerrufen") intake — a separate flow from cancellation:**
+
+`sites/ffm/static/widerruf.html` exposes a permanently visible, no-login, no-CAPTCHA public form
+(two-step: review, then "Widerruf jetzt absenden") that `POST`s to `/api/withdrawal-requests`
+(`app/withdrawal_requests.py`/`app/withdrawal_requests_store.py`). This intentionally mirrors
+the proven `cancel_requests` pattern (same idempotency-key semantics, no account enumeration,
+no Stripe call at submission time, manual-only operator processing) but is **not** the same
+flow — it exercises the statutory withdrawal right (§§ 355, 356 BGB), not a mere future-renewal
+cancellation, and `widerruf.html`/`cancel.html` cross-link to each other so users land on the
+right form:
+
+- The withdrawal statement itself is **never free text** — the client only sends a
+  `statement_language` (`de`/`en`) selector plus an explicit `statement_confirmed: true`; the
+  durably recorded/emailed text always comes from the server's own canonical
+  `legal_texts.WITHDRAWAL_STATEMENT`, identical to what the page displays
+  (`static/game/withdrawal-request.js`'s `WITHDRAWAL_STATEMENT` constant must stay in sync).
+- Unlike `cancel_requests`, this flow sends an **immediate** plain-text email receipt at
+  submission time (not deferred to manual operator action) plus mints a one-time, no-login,
+  token-gated downloadable receipt (`GET /api/withdrawal-requests/<id>/receipt?token=...`,
+  SHA-256-hashed token, constant-time comparison, identical generic 404 for "wrong token" and
+  "not found" so neither response leaks whether a given id/token exists). The receipt token is
+  **not re-issued** on an idempotent replay of the same submission — `withdrawal-request.js`'s
+  `renderReceipt()` hides the download link in that case, since the one and only opportunity to
+  retrieve it was the original submission's response.
+- SES failures on the receipt email are recorded (`email_status='failed'`), never swallowed,
+  and never block the durable submission record itself from being created.
+- Submission only ever durably records **that a declaration was received**, never a legal
+  conclusion about whether it was effective — the UI and CLI output both say "Anfrage
+  erhalten"/"received", explicitly not "confirmed"/"processed". Identity is **never**
+  auto-matched: no cancellation or refund is triggered automatically from an unverified
+  submission, and the endpoint never confirms/denies whether a given account/email exists.
+- Operator CLI (`billing-admin withdrawal-request ...`, mirroring `cancel-request`'s shape):
+  `list`, `show [--reveal-pii]`, `process <id> --username <verified> --confirm-identity-reviewed
+  --confirm` (also never auto-cancels/refunds — it only durably records that an operator
+  reviewed and bound the identity; actual cancellation/refund is a separate, explicit operator
+  action), `record-manual-outcome <id> --outcome {fulfilled|no_match|...}
+  --confirm-identity-reviewed` (never calls Stripe itself — records what an operator attests was
+  actually done, e.g. via the existing `billing-admin` refund/cancel commands or the Stripe
+  dashboard directly, since no dedicated "safe" automated refund helper exists for this flow),
+  `complete-email`/`resend-receipt-email --confirm` (retry pattern identical to
+  `cancel-request complete-email`), and `legal-hold <id> --set/--lift` (future-proofs retention
+  review; no purge logic currently reads this flag).
+- **Checkbox-checked is never a blanket rejection reason** — the server rejects only on
+  concretely missing/invalid fields (e.g. no identifying info at all, unsupported language,
+  `statement_confirmed` not `true`), never simply because a checkbox happened to be checked.
+- Withdrawal instructions shown on the page use the operator's real impressum address/email,
+  a reasonable standard 14-day notice period, and explicitly preserve statutory
+  exceptions/`§ 356a`-style carve-outs where currently applicable — phrased generically rather
+  than asserting a specific BGB paragraph number (see Known limitations below).
+- **Retention is deliberately NOT wired into `retention_admin.py`'s existing 3-year purge.**
+  Withdrawal-request records are a *different* class of evidence than routine cancellation
+  requests and are held indefinitely pending an explicit operator/legal retention-policy
+  decision (documented in `withdrawal_requests_store.py`'s module docstring); `legal-hold`
+  exists to flag records for exclusion from any future purge decision once one is made, but no
+  code currently deletes any withdrawal-request record.
+- **All three new transactional emails (contract confirmation, withdrawal receipt, withdrawal
+  outcome) are sent in the SAME language the purchaser/requester actually selected and had
+  durably persisted at the time** (`declarations['language']` for contract confirmation,
+  `statement_language` for both withdrawal emails) — never a hardcoded German default and never
+  a UI/browser-guessed language independent of that persisted selection. The JSON receipt
+  `message` field and the plaintext receipt body (`app/withdrawal_requests.py`'s
+  `_RECEIPT_COPY`) are likewise localized to the requester's own selection. An
+  unrecognized/missing language value safely falls back to German rather than raising or
+  guessing. None of these three emails currently contain any hyperlink to another page (they
+  embed the full durable text inline, per the "mutable link is not sufficient evidence"
+  requirement), so there is no language-mismatched link target to misroute.
+
+**Tests covering this flow:**
+
+- `tests/test_mailer.py` (new) — unit tests asserting each of the three new email functions
+  selects body/subject text matching the persisted language (`de`/`en`), never silently
+  defaults to German when a non-German language was actually selected, and still safely falls
+  back to German (rather than raising) for a missing/unsupported language value.
+- `tests/test_billing.py` — regression-updated for the new required checkout declaration
+  fields (`_valid_checkout_payload()` helper); confirms the pre-existing adult/terms rejection
+  tests are unaffected.
+- `tests/test_contract_confirmation.py` (16 tests) — declaration validation/rejection (missing
+  fields, stale version, unsupported language), rejection never touching entitlements/free-play,
+  exact text/version/language/timestamp binding and its immutability on retry, confirmation
+  creation + SES send exactly once on first paid subscription, duplicate-webhook idempotency,
+  renewal invoices never re-triggering confirmation/email, SES failure recorded as `failed` and
+  withholding the entitlement grant (retryable `503`) until a later attempt's SES send is
+  accepted, `contract-confirmation resend-email` recovery activating the grant on the next
+  reconcile without re-charging, legacy subscriptions without `checkout_operation` metadata and
+  gift/grandfathered paths unaffected (never gated, never fabricated a confirmation record).
+- `tests/test_withdrawal_requests.py` (28 tests) — immediate receipt email + token, no-login/no
+  account-enumeration, canonical (non-client-editable) statement text, missing/invalid field
+  rejections, idempotent replay (and token omission on replay) vs. conflicting-payload rejection,
+  SES failure on the receipt email not swallowed, no-login receipt download (success/wrong
+  token/nonexistent id/missing token all behaving correctly), every CLI subcommand (`process`
+  requires both confirm flags and never auto-cancels/refunds, `record-manual-outcome` never
+  calls Stripe, `complete-email`/`resend-receipt-email` retry semantics reusing the original
+  receipt body (statement/status/references/timestamp) verbatim with only the resend notice
+  appended, `legal-hold` set/lift).
+- `static/game/access-flow.test.js` / `static/game/i18n.test.js` — extended `startCheckout`
+  payload shape, exact DE declaration text, distinct `declarations_version_mismatch` vs.
+  `digital_content_declarations_required` error copy.
+- `static/game/withdrawal-request.test.js` (new) — field validation, secure
+  idempotency-key generation (never `Math.random()`), `submitWithdrawalRequest()` response
+  validation (missing/mismatched fields, non-JSON body), the two-step review/submit DOM wiring,
+  receipt rendering with and without a reissued download link, and markup assertions against
+  `widerruf.html` itself (required field ids, exact statement text, cross-links to/from
+  `cancel.html`).
+
+Run the smallest relevant subset first, e.g.:
+
+```bash
+python -m pytest sites/ffm/tests/test_contract_confirmation.py sites/ffm/tests/test_withdrawal_requests.py sites/ffm/tests/test_billing.py -q
+node --test sites/ffm/static/game/withdrawal-request.test.js sites/ffm/static/game/access-flow.test.js sites/ffm/static/game/i18n.test.js
+```
+
+then the full `pytest sites/ffm/tests/` and `node --test sites/ffm/static/game/*.test.js` before
+considering a cross-cutting billing change complete, since this flow shares locking/idempotency
+primitives and config with the rest of billing.
+
+**Known limitations / open items (flagged for operator follow-up, not silently resolved):**
+
+- The operator specified "§ 356(6) BGB" as the basis for the immediate-access/withdrawal-waiver
+  confirmation; general knowledge of German consumer law more commonly cites § 356 Abs. 5 BGB
+  for this specific digital-content waiver. `legal_texts.py` and the withdrawal-instructions
+  text deliberately use generic "§ 356 BGB" phrasing (consistent with this repo's existing
+  legal-disclaimer pattern elsewhere) rather than asserting one specific paragraph number as
+  fact — an operator/legal reviewer should confirm and, if needed, correct the exact paragraph
+  citation.
+- `CHECKOUT_DECLARATIONS_VERSION` in `main.js` is a **manually synced** JS constant mirroring
+  `legal_texts.DECLARATIONS_VERSION`; this is a deliberate, documented trade-off (the server is
+  always authoritative and safely rejects staleness with an explicit `409`, never silent
+  acceptance) but it is a sync-maintenance burden any future declaration-text change must
+  remember to update in both places.
+- No automated retention/purge exists yet for either contract-confirmation evidence or
+  withdrawal-request records — both are held indefinitely by design pending an explicit
+  operator/legal retention-policy decision, per the requirement not to silently apply the
+  existing 3-year cancel-request purge policy to a different evidence class without approval.
+- Withdrawal-request processing has **no automated refund/cancellation path**: there is no
+  dedicated "safe" automated Stripe refund helper for this flow, so `record-manual-outcome`
+  only durably records what an operator attests was actually done via the existing
+  `billing-admin` refund/cancel tooling or the Stripe dashboard directly — this is the
+  explicitly-approved "operator handling" model, not a gap to be closed by inventing a new
+  automatic-refund code path.
+
+### Locale propagation on pre-existing auth/cancel-request emails
+
+A separate, read-only audit found that the emails *predating* the above feature were not
+locale-aware despite the UI itself already supporting German/English via `static/game/i18n.js`'s
+client-side `ffm_locale`: `send_verification_email`/`send_password_reset_email`/
+`send_email_change_confirmation` were always English-only, and the public cancel-request flow's
+JSON receipt `message` plus its later operator-triggered outcome email
+(`send_cancel_request_ack_email`) were always German-only. This has been fixed by threading an
+explicit, validated `locale` selector through each flow — reusing `app/legal_texts.SUPPORTED_LANGUAGES`
+as the single allowlist everywhere, matching the project's existing JSON-POST-body pattern (no
+new header/CORS mechanism was introduced):
+
+- **Auth-action emails** (`app/auth.py`'s `register`/`resend-verification`/`forgot-password`,
+  `app/main.py`'s `update_email` for the email-change confirmation): the client already sends a
+  JSON body to each of these endpoints, so `static/game/api.js` now adds a `locale: getLocale()`
+  field to each call. The backend validates it against `legal_texts.SUPPORTED_LANGUAGES`,
+  falling back to `'en'` (these functions' pre-existing, unchanged default) for anything
+  missing/invalid — a locale preference is never grounds to reject the request itself. Each
+  email's SPA deep-link (`?verify_token=...`, `?reset_token=...`, `?confirm_email_token=...`)
+  now also carries `&lang=<resolved-locale>`, and `static/game/i18n.js`'s `getLocale()` honors
+  that `?lang=` query param as a one-time, **session-only, non-persisted** override (it never
+  overwrites the user's own stored `ffm_locale` preference), so opening an emailed link reopens
+  the page in the language that was actually selected when the email was triggered — even from a
+  different device/browser than the one that will eventually click the link.
+- **Public cancel-request submission** (`app/cancel_requests.py`): accepts an optional `locale`
+  field (same allowlist, falling back to `'de'`, this flow's pre-existing default). It is
+  durably persisted on the stored record (mirroring how `withdrawal_requests_store.py` gained
+  `statement_language`) and used for both the immediate JSON receipt's `message` and — critically
+  — the *later*, operator-triggered `cancel-request complete-email` outcome email, which always
+  uses the **original submitter's** locale, never whatever locale the operator's own shell
+  happens to be in when they eventually run the CLI. `locale` is deliberately excluded from the
+  idempotency `payload_hash` (it's an email-language preference, not part of the
+  legally/operationally significant payload), so an honest retry that omits or changes it is
+  never treated as a conflicting resubmission. Pre-existing records created before this change
+  have no `locale` key at all and gracefully default to German when read back.
+- `send_cancel_request_ack_email`'s existing German body text keeps its established ASCII-safe
+  spelling convention (e.g. "Kuendigung", not "Kündigung") unchanged — only locale *selection*
+  (German vs. a newly added, properly-accented English translation) was in scope here, not a
+  cosmetic rewrite of the pre-existing German copy.
+- Independently re-verified (not merely taken on an audit's claim) that `app/models.py`'s
+  verification/reset/email-change tokens are opaque `secrets.token_urlsafe(32)` values whose
+  SHA-256 hex digest alone is stored as the DynamoDB item's key — **not** JWTs. (Only the
+  separate login access/refresh tokens, `app/jwt_utils.py`'s `mint_access_token`/
+  `mint_refresh_token`, are actual JWTs; these single-use action tokens are a different,
+  unrelated mechanism.)
+
+**Tests covering this:** `tests/test_mailer.py` (12 new unit tests covering body/subject/link
+language selection and safe fallback for all four functions above), `tests/test_app.py` (7 new
+tests asserting `locale` is actually threaded from the request body to the mailer call's
+`language=` kwarg, with correct fallback for missing/invalid values), `tests/test_cancel_requests.py`
+(6 new tests covering the receipt message, the submission-locale-not-operator-locale guarantee for
+the outcome email, the pre-existing-record-without-`locale` fallback, and payload-hash exclusion),
+and `static/game/i18n.test.js` (4 new tests for the `?lang=` URL override: takes precedence,
+rejects unsupported values, and is never persisted to `localStorage`).
+
+### Welcome/verification email "quick manual" corrections (`app/mailer.py`)
+
+A review of the registration (verification) email's product-manual section found several player
+facts missing and one inaccurate claim. The following was added to `_VERIFICATION_COPY['en']`/
+`['de']` — the welcome email only, not a general rewrite of legal/declaration text (that stays in
+the separate contract-confirmation email):
+
+- Free vs. paid level boundary (levels 1-2 free forever, 3-60 require Premium), cross-checked
+  against `app/entitlements.py`'s actual `level <= 2` gate, not assumed from memory.
+- Price/renewal cadence, worded to match `app/legal_texts.py`'s actual constants (`PRICE_EUR`/
+  `PRICE_EUR_EN`, `BILLING_INTERVAL_MONTHS`) and its existing "all applicable taxes included"
+  phrasing (deliberately not VAT-specific, since the subscriber's jurisdiction/tax regime isn't
+  assumed).
+- Where to manage the subscription or redeem a gift/promo code: the account's Billing section
+  (matches `static/index.html`'s `#billing-redeem-section`).
+- That cancelling only stops future renewals (access already paid for continues to period end),
+  explicitly distinguished from full account deletion (immediate loss of access) — these are two
+  different account actions and must not be conflated.
+- The adult-account/child-use model, phrased to match the actual policy in `static/terms.html` §1.1
+  and `index.html`'s `auth.consentAdultOrGuardian` copy: the *registering* account holder must be
+  18+; a child may only play under a parent's/guardian's own account and consent. This is **not**
+  "18 or a minor with parental permission to register their own account" — there is no such path.
+- That changing your password immediately revokes all other active sessions (`app/models.py`'s
+  `set_password_hash()` bumps `token_version`, invalidating outstanding JWTs tied to the old value).
+- Removed an inaccurate "(last 2 weeks)" leaderboard-window claim and clarified the optional
+  grade-year grouping is for comparing similarly-aged players, not an age check. `app/models.py`'s
+  `get_leaderboard()` is explicitly documented and implemented as **not** filtered by recency (it
+  scans all-time high scores by design, since `achieved_at` reflects a personal best's last
+  improvement, not last-played activity) — the old copy's specific timeframe claim did not match
+  the backend's real behavior. Note: `static/index.html`'s leaderboard UI note ("Showing high
+  scores set in the last 2 weeks.") appears to have the same pre-existing inaccuracy; it was left
+  unchanged here as out of scope for this mailer-focused change and is flagged for separate
+  follow-up.
+- Deliberately **not** added: any "start a free trial" / "contact us about a trial" language — no
+  such general free-trial offering exists anywhere in this codebase.
+- Grandfather-eligibility wording was deliberately **omitted** from this email: the operator's
+  configured cutoff is already in the past for any newly-registering user, so no current/future
+  registrant can ever qualify — there is nothing accurate to tell a new signup about it.
+- Difficulty timings/hearts (Easy 15s/7, Medium 10s/5, Hard 5s/3 — `static/index.html`'s
+  `data-timer`/`data-hearts`), combo-ability thresholds (fireball >5, lightning >10, dragon >20 —
+  `static/game/combo-abilities.js`), and the 60-level count were independently re-verified against
+  source and found already accurate; left unchanged.
+
+**Tests covering this:** `tests/test_mailer.py` (11 new tests) assert the corrected bullets are
+present in both languages, that the price/cadence figures are sourced from `legal_texts.py`'s own
+constants (so a future price change that forgets to update the email fails a test instead of
+silently drifting), that the "last 2 weeks" wording is gone, that "free trial" never appears, that
+the email doesn't duplicate the contract-confirmation email's legal/withdrawal boilerplate, and
+that the free/paid boundary matches `entitlements.py`'s actual gate by inspecting its source.
 
 Start with:
 

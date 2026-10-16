@@ -218,6 +218,45 @@ describe('startCheckout', () => {
       assert.strictEqual(err.statusCode, 402, 'Status should be 402');
     }
   });
+
+  it('sends the digital-content declaration fields in the request body', async () => {
+    let capturedBody = null;
+    const api = {
+      _fetch: async (path, options = {}) => {
+        capturedBody = JSON.parse(options.body);
+        return { ok: true, status: 200, json: async () => ({ redirect_url: 'https://checkout.stripe.com/x' }) };
+      }
+    };
+
+    await startCheckout(api, {
+      adult_confirmed: true,
+      terms_accepted: true,
+      declarations_version: 'checkout-declarations-v1-2026-10-16',
+      declarations_language: 'de',
+      immediate_access_confirmed: true,
+      withdrawal_waiver_confirmed: true
+    });
+
+    assert.strictEqual(capturedBody.declarations_version, 'checkout-declarations-v1-2026-10-16');
+    assert.strictEqual(capturedBody.declarations_language, 'de');
+    assert.strictEqual(capturedBody.immediate_access_confirmed, true);
+    assert.strictEqual(capturedBody.withdrawal_waiver_confirmed, true);
+  });
+
+  it('defaults the digital-content declaration booleans to false when omitted', async () => {
+    let capturedBody = null;
+    const api = {
+      _fetch: async (path, options = {}) => {
+        capturedBody = JSON.parse(options.body);
+        return { ok: true, status: 200, json: async () => ({ redirect_url: 'https://checkout.stripe.com/x' }) };
+      }
+    };
+
+    await startCheckout(api, { adult_confirmed: true, terms_accepted: true });
+
+    assert.strictEqual(capturedBody.immediate_access_confirmed, false);
+    assert.strictEqual(capturedBody.withdrawal_waiver_confirmed, false);
+  });
 });
 
 describe('openBillingPortal', () => {

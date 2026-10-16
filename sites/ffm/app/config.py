@@ -61,6 +61,12 @@ class BaseConfig:
     # one request, without allowing unbounded anonymous durable writes.
     CANCEL_REQUEST_RATE_LIMIT = "5/minute"
 
+    # Public, unauthenticated /api/withdrawal-requests submission endpoint
+    # (app/withdrawal_requests.py). Separate limit from
+    # CANCEL_REQUEST_RATE_LIMIT -- a distinct flow with its own abuse
+    # profile, including a second GET receipt-download route.
+    WITHDRAWAL_REQUEST_RATE_LIMIT = "5/minute"
+
 
 class ProductionConfig(BaseConfig):
     # memory:// cannot share counters across Lambda's concurrent execution
@@ -100,4 +106,5 @@ class TestingConfig(BaseConfig):
     # overrides this value down to exercise the real limit for just that
     # one request cycle (see tests/test_cancel_requests.py).
     CANCEL_REQUEST_RATE_LIMIT = "1000/minute"
-    CANCEL_REQUEST_RATE_LIMIT = "1000/minute"
+    # Same rationale, for the withdrawal-requests flow's own tests.
+    WITHDRAWAL_REQUEST_RATE_LIMIT = "1000/minute"

@@ -71,7 +71,7 @@ def register_and_login(client, username, email, password, first_grade_year=None)
 
     captured = {}
     with patch('sites.ffm.app.mailer.send_verification_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         register_resp = client.post('/api/auth/register', json=payload)
     assert register_resp.status_code == 201
 
@@ -112,7 +112,7 @@ def test_health(client):
 def test_register_success_with_first_grade_year(client):
     captured = {}
     with patch('sites.ffm.app.mailer.send_verification_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         r = client.post('/api/auth/register', json={
             "username": "testuser",
             "email": "test@example.com",
@@ -641,7 +641,7 @@ def test_register_no_longer_returns_access_token(client):
     """POST /api/auth/register should not return access_token directly."""
     captured = {}
     with patch('sites.ffm.app.mailer.send_verification_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         r = client.post('/api/auth/register', json={
             "username": "newuser",
             "email": "new@example.com",
@@ -672,7 +672,7 @@ def test_verify_email_success_allows_login(client):
     """Verifying email should allow login."""
     captured = {}
     with patch('sites.ffm.app.mailer.send_verification_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         register_resp = client.post('/api/auth/register', json={
             "username": "verifytest",
             "email": "verify@example.com",
@@ -703,7 +703,7 @@ def test_verify_email_token_is_single_use(client):
     """Token should be single-use; second verify should fail."""
     captured = {}
     with patch('sites.ffm.app.mailer.send_verification_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         client.post('/api/auth/register', json={
             "username": "singleuse",
             "email": "singleuse@example.com",
@@ -725,7 +725,7 @@ def test_resend_verification_for_unverified_account_sends_new_token(client):
 
     captured = {}
     with patch('sites.ffm.app.mailer.send_verification_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         resend_resp = client.post('/api/auth/resend-verification', json={"email": "resend@example.com"})
     
     assert resend_resp.status_code == 200
@@ -754,7 +754,7 @@ def test_forgot_password_and_reset_password_success(client):
 
     captured = {}
     with patch('sites.ffm.app.mailer.send_password_reset_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         forgot_resp = client.post('/api/auth/forgot-password', json={"email": "reset@example.com"})
     
     assert forgot_resp.status_code == 200
@@ -795,7 +795,7 @@ def test_reset_password_token_is_single_use(client):
     """Reset password token should be single-use."""
     captured = {}
     with patch('sites.ffm.app.mailer.send_password_reset_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         register_and_login(client, "singleusereset", "singleuse_reset@example.com", "password123")
         client.post('/api/auth/forgot-password', json={"email": "singleuse_reset@example.com"})
 
@@ -934,7 +934,7 @@ def test_confirm_email_change_success(client):
 
     captured = {}
     with patch('sites.ffm.app.mailer.send_email_change_confirmation',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         email_resp = client.post('/api/profile/email', json={
             "new_email": "confirmed@example.com",
             "current_password": "password123",
@@ -1073,3 +1073,114 @@ def test_pre_existing_account_without_email_verified_attribute_can_login(client)
     })
     assert r.status_code == 200
     assert "access_token" in r.get_json()
+
+
+# ============ Locale propagation on auth-action emails ============
+#
+# register/resend-verification/forgot-password/update-email previously
+# always sent English-only mail regardless of a client-selected German
+# UI (found by a read-only audit). These assert: (1) a validated
+# `locale` field in the request body is actually threaded through to the
+# `language=` kwarg of the corresponding mailer.send_* call, (2) an
+# invalid/missing locale safely falls back to the pre-existing English
+# default rather than rejecting the request or raising, and (3) no new
+# header/CORS mechanism was introduced -- `locale` travels as an
+# ordinary JSON body field, exactly like the other fields on these
+# already-JSON-POST endpoints.
+
+def test_register_passes_validated_locale_to_verification_email(client):
+    captured = {}
+    with patch('sites.ffm.app.mailer.send_verification_email',
+               side_effect=lambda to_email, username, token, **kwargs: captured.update(kwargs)):
+        r = client.post('/api/auth/register', json={
+            "username": "localeuser", "email": "localeuser@example.com",
+            "password": "TestPass123!", "locale": "de",
+        })
+    assert r.status_code == 201
+    assert captured.get('language') == 'de'
+
+
+def test_register_falls_back_to_english_for_missing_locale(client):
+    captured = {}
+    with patch('sites.ffm.app.mailer.send_verification_email',
+               side_effect=lambda to_email, username, token, **kwargs: captured.update(kwargs)):
+        r = client.post('/api/auth/register', json={
+            "username": "nolocaleuser", "email": "nolocaleuser@example.com",
+            "password": "TestPass123!",
+        })
+    assert r.status_code == 201
+    assert captured.get('language') == 'en'
+
+
+def test_register_falls_back_to_english_for_invalid_locale(client):
+    captured = {}
+    with patch('sites.ffm.app.mailer.send_verification_email',
+               side_effect=lambda to_email, username, token, **kwargs: captured.update(kwargs)):
+        r = client.post('/api/auth/register', json={
+            "username": "badlocaleuser", "email": "badlocaleuser@example.com",
+            "password": "TestPass123!", "locale": "fr",
+        })
+    assert r.status_code == 201
+    assert captured.get('language') == 'en'
+
+
+def test_resend_verification_passes_validated_locale(client):
+    with patch('sites.ffm.app.mailer.send_verification_email',
+               side_effect=lambda to_email, username, token, **kwargs: None):
+        client.post('/api/auth/register', json={
+            "username": "resendlocale", "email": "resendlocale@example.com",
+            "password": "TestPass123!",
+        })
+
+    captured = {}
+    with patch('sites.ffm.app.mailer.send_verification_email',
+               side_effect=lambda to_email, username, token, **kwargs: captured.update(kwargs)):
+        r = client.post('/api/auth/resend-verification', json={
+            "email": "resendlocale@example.com", "locale": "de",
+        })
+    assert r.status_code == 200
+    assert captured.get('language') == 'de'
+
+
+def test_forgot_password_passes_validated_locale(client):
+    with patch('sites.ffm.app.mailer.send_verification_email',
+               side_effect=lambda to_email, username, token, **kwargs: None):
+        client.post('/api/auth/register', json={
+            "username": "forgotlocale", "email": "forgotlocale@example.com",
+            "password": "TestPass123!",
+        })
+
+    captured = {}
+    with patch('sites.ffm.app.mailer.send_password_reset_email',
+               side_effect=lambda to_email, username, token, **kwargs: captured.update(kwargs)):
+        r = client.post('/api/auth/forgot-password', json={
+            "email": "forgotlocale@example.com", "locale": "de",
+        })
+    assert r.status_code == 200
+    assert captured.get('language') == 'de'
+
+
+def test_update_email_passes_validated_locale_to_confirmation_email(client):
+    headers = register_and_login(client, 'emaillocaleuser', 'emaillocaleuser@example.com', 'TestPass123!')
+
+    captured = {}
+    with patch('sites.ffm.app.mailer.send_email_change_confirmation',
+               side_effect=lambda to_email, username, token, **kwargs: captured.update(kwargs)):
+        r = client.post('/api/profile/email', json={
+            "new_email": "newaddr@example.com", "current_password": "TestPass123!", "locale": "de",
+        }, headers=headers)
+    assert r.status_code == 200
+    assert captured.get('language') == 'de'
+
+
+def test_update_email_falls_back_to_english_for_missing_locale(client):
+    headers = register_and_login(client, 'emailnolocaleuser', 'emailnolocaleuser@example.com', 'TestPass123!')
+
+    captured = {}
+    with patch('sites.ffm.app.mailer.send_email_change_confirmation',
+               side_effect=lambda to_email, username, token, **kwargs: captured.update(kwargs)):
+        r = client.post('/api/profile/email', json={
+            "new_email": "newaddr2@example.com", "current_password": "TestPass123!",
+        }, headers=headers)
+    assert r.status_code == 200
+    assert captured.get('language') == 'en'

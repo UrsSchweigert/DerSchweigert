@@ -18,6 +18,7 @@ from .validation import is_valid_int
 from . import mailer
 from . import levels
 from . import entitlements
+from . import legal_texts
 
 main_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -167,8 +168,11 @@ def update_email():
 
     set_pending_email(username, new_email)
     token = create_token(username, 'change_email', CHANGE_EMAIL_TTL_SECONDS, new_email=new_email)
+    locale = data.get('locale')
+    if locale not in legal_texts.SUPPORTED_LANGUAGES:
+        locale = 'en'  # pre-existing default/only behavior before locale propagation
     try:
-        mailer.send_email_change_confirmation(new_email, username, token)
+        mailer.send_email_change_confirmation(new_email, username, token, language=locale)
     except Exception as exc:
         print(f"send_email_change_confirmation failed for {username}: {exc}", file=sys.stderr)
 

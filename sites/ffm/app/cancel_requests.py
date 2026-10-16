@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, current_app, jsonify, request
 
 from . import cancel_requests_store as store
+from . import legal_texts
 from .extensions import limiter
 
 cancel_requests_bp = Blueprint('cancel_requests', __name__, url_prefix='/api/cancel-requests')
@@ -38,6 +39,13 @@ MAX_USERNAME_LEN = 20
 MAX_REFERENCE_LEN = 128
 MAX_REASON_LEN = 2000
 MAX_FUTURE_DAYS = 3 * 365
+
+#: Default locale for this flow's JSON receipt message and the later,
+#: operator-triggered outcome email (app/billing_admin.py's `cancel-
+#: request complete-email`) if the submission doesn't supply a
+#: (validated) `locale` field — matches this flow's long-established
+#: German-only behavior before locale propagation existed.
+_DEFAULT_LOCALE = 'de'
 
 _UUID_RE = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
 _ISO_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -80,7 +88,32 @@ def _canonical_hash(fields):
     return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
 
 
+#: JSON receipt `message` boilerplate, keyed by the submission's own
+#: `locale` field (never a UI/browser default guessed independently of
+#: what was actually submitted) -- 'de' is the fallback for pre-existing
+#: records created before locale propagation existed (no `locale` key at
+#: all) and for any invalid value, matching this flow's long-established
+#: German-only behavior.
+_RECEIPT_MESSAGE = {
+    'de': (
+        'Ihre Kuendigungsanfrage wurde entgegengenommen (Status: "Anfrage erhalten", '
+        'NICHT "Kuendigung bestaetigt"). Ein Mitarbeiter prueft Ihre Anfrage manuell '
+        'und meldet sich bei Bedarf unter der angegebenen Kontakt-E-Mail-Adresse. '
+        'Es wurde noch keine automatische Zahlungs- oder Vertragsaenderung ausgeloest.'
+    ),
+    'en': (
+        'Your cancellation request has been received (status: "request received", '
+        'NOT "cancellation confirmed"). A staff member will manually review your '
+        'request and contact you at the provided contact email address if needed. '
+        'No automatic payment or contract change has been triggered yet.'
+    ),
+}
+
+
 def _receipt(item):
+    locale = item.get('locale')
+    if locale not in _RECEIPT_MESSAGE:
+        locale = _DEFAULT_LOCALE
     return {
         'request_id': item['request_id'],
         'submitted_at': item['submitted_at'],
@@ -92,13 +125,9 @@ def _receipt(item):
         'username': item.get('username'),
         'stripe_reference': item.get('stripe_reference'),
         'reason': item.get('reason'),
-        'message': (
-            'Ihre Kuendigungsanfrage wurde entgegengenommen (Status: "Anfrage erhalten", '
-            'NICHT "Kuendigung bestaetigt"). Ein Mitarbeiter prueft Ihre Anfrage manuell '
-            'und meldet sich bei Bedarf unter der angegebenen Kontakt-E-Mail-Adresse. '
-            'Es wurde noch keine automatische Zahlungs- oder Vertragsaenderung ausgeloest.'
-        ),
+        'message': _RECEIPT_MESSAGE[locale],
     }
+
 
 
 @cancel_requests_bp.after_request
@@ -193,12 +222,24 @@ def submit():
             return jsonify(error='reason_too_long'), 400
         reason = reason or None
 
+    # `locale` is only ever an email-language preference (which language
+    # the later, operator-triggered outcome email — and this receipt's
+    # own `message` — is written in), never a legally binding declaration
+    # like checkout's declarations_language/statement_language, so an
+    # invalid/missing value is silently defaulted here rather than
+    # rejecting the whole submission, and it's deliberately excluded from
+    # the idempotency payload_hash below so an honest retry that happens
+    # to omit/change it isn't treated as a conflicting resubmission.
+    locale = data.get('locale')
+    if locale not in legal_texts.SUPPORTED_LANGUAGES:
+        locale = _DEFAULT_LOCALE
+
     fields = {
         'contact_email': contact_email, 'account_email': account_email, 'username': username,
         'stripe_reference': stripe_reference, 'cancellation_type': cancellation_type,
-        'requested_date': requested_date, 'reason': reason,
+        'requested_date': requested_date, 'reason': reason, 'locale': locale,
     }
-    payload_hash = _canonical_hash(fields)
+    payload_hash = _canonical_hash({k: v for k, v in fields.items() if k != 'locale'})
 
     try:
         item, created = store.create_cancel_request(idempotency_key, payload_hash, fields, initial_status)

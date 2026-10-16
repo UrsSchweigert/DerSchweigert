@@ -1,5 +1,7 @@
 // api.js — JWT auth + score API client for Arithmo Slayer
 
+import { getLocale } from './i18n.js';
+
 const BASE_URL = window.location.origin + '/api';
 let _accessToken = null;
 let _sessionEpoch = 0; // Incremented on login/logout to invalidate stale requests
@@ -10,7 +12,7 @@ function parseJwt(token) {
 
 export const api = {
   async register(username, email, password, firstGradeYear, turnstileToken) {
-    const payload = { username, email, password, turnstile_token: turnstileToken };
+    const payload = { username, email, password, turnstile_token: turnstileToken, locale: getLocale() };
     if (firstGradeYear !== null && firstGradeYear !== undefined && firstGradeYear !== '') {
       payload.first_grade_year = Number(firstGradeYear);
     }
@@ -81,7 +83,7 @@ export const api = {
     const res = await fetch(BASE_URL + '/auth/resend-verification', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, turnstile_token: turnstileToken })
+      body: JSON.stringify({ email, turnstile_token: turnstileToken, locale: getLocale() })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -107,7 +109,7 @@ export const api = {
     const res = await fetch(BASE_URL + '/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, turnstile_token: turnstileToken })
+      body: JSON.stringify({ email, turnstile_token: turnstileToken, locale: getLocale() })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -197,7 +199,7 @@ export const api = {
     const res = await this._fetch('/profile/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ new_email: newEmail, current_password: currentPassword })
+      body: JSON.stringify({ new_email: newEmail, current_password: currentPassword, locale: getLocale() })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -281,13 +283,17 @@ export const api = {
     return data;
   },
 
-  async startCheckout(adultConfirmed, termsAccepted) {
+  async startCheckout(adultConfirmed, termsAccepted, declarations) {
     const res = await this._fetch('/billing/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         adult_confirmed: adultConfirmed,
-        terms_accepted: termsAccepted
+        terms_accepted: termsAccepted,
+        declarations_version: declarations.version,
+        declarations_language: declarations.language,
+        immediate_access_confirmed: declarations.immediateAccessConfirmed,
+        withdrawal_waiver_confirmed: declarations.withdrawalWaiverConfirmed
       })
     });
     const data = await res.json();

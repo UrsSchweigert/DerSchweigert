@@ -56,10 +56,12 @@ def create_app(config_class=None):
     from .main import main_bp
     from .billing import billing_bp
     from .cancel_requests import cancel_requests_bp
+    from .withdrawal_requests import withdrawal_requests_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(billing_bp)
     app.register_blueprint(cancel_requests_bp)
+    app.register_blueprint(withdrawal_requests_bp)
     from .billing_admin import register_billing_commands
     register_billing_commands(app)
     from .retention_admin import register_retention_commands

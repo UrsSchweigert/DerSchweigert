@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vertrag widerrufen - Arithmo Slayer</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .info-box {
+            background: #e3f2fd;
+            color: #172b4d;
+            border-left: 4px solid #2196F3;
+            padding: 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #332701;
+            border-left: 4px solid #ffc107;
+            padding: 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+        }
+        .statement-box {
+            background: #f1f3f5;
+            color: #172b4d;
+            border-left: 4px solid #495057;
+            padding: 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .cancel-button {
+            display: inline-block;
+            background: #dc3545;
+            color: white;
+            padding: 0.75em 1.5em;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            text-decoration: none;
+            margin: 1em 0;
+        }
+        .cancel-button:hover {
+            background: #c82333;
+        }
+        h2 {
+            margin-top: 1.5em;
+            border-bottom: 2px solid #333;
+            padding-bottom: 0.5em;
+        }
+        .footer-nav {
+            margin-top: 2em;
+            padding-top: 1em;
+            border-top: 1px solid #ccc;
+            text-align: center;
+        }
+        .footer-nav a {
+            margin: 0 1em;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .footer-nav a:hover {
+            text-decoration: underline;
+        }
+        #withdrawal-request-form label {
+            display: block;
+            margin: 1em 0 0.25em;
+            font-weight: bold;
+        }
+        #withdrawal-request-form input[type="email"],
+        #withdrawal-request-form input[type="text"],
+        #withdrawal-request-form textarea {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            padding: 0.6em;
+            font-size: 1em;
+            border: 1px solid #999;
+            border-radius: 4px;
+        }
+        #withdrawal-request-form fieldset {
+            margin: 1em 0 0;
+            border: 1px solid #999;
+            border-radius: 4px;
+            padding: 0.75em;
+        }
+        #withdrawal-request-form fieldset label {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            font-weight: normal;
+            margin: 0.4em 0;
+        }
+        #withdrawal-request-form .consent-checkbox {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5em;
+            font-weight: normal;
+        }
+        #form-errors {
+            background: #f8d7da;
+            color: #58151c;
+            border-left: 4px solid #dc3545;
+            padding: 0.75em 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+        }
+        #form-errors li {
+            margin: 0.25em 0;
+        }
+        #review-panel dl {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            gap: 0.4em 1em;
+        }
+        #review-panel dt {
+            font-weight: bold;
+        }
+        #review-panel dd {
+            margin: 0;
+            word-break: break-word;
+        }
+        .secondary-button {
+            display: inline-block;
+            background: #6c757d;
+            color: white;
+            padding: 0.75em 1.5em;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 1em 1em 1em 0;
+        }
+        .secondary-button:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body class="legal-body">
+    <div class="container">
+        <h1>Vertrag widerrufen</h1>
+
+        <p>
+            Hier können Sie Ihren Vertrag über die kostenpflichtigen digitalen Inhalte (Arithmo
+            Slayer Premium-Abonnement) <strong>ohne Login</strong> formlos widerrufen. Dies ist ein
+            eigenständiger, gesetzlicher Widerruf (§§ 355, 356 BGB) und unterscheidet sich von einer
+            bloßen <a href="/cancel.html">Kündigung zukünftiger Verlängerungen</a> — bitte verwenden
+            Sie das richtige Formular für Ihr Anliegen.
+        </p>
+
+        <div class="warning">
+            <strong>Wichtig:</strong> Nach dem Absenden erhalten Sie den Status
+            „Anfrage erhalten" — das ist noch <strong>kein</strong> bestätigter, abgeschlossener
+            Widerruf. Es wird noch keine automatische Zahlungs-, Kündigungs- oder
+            Rückerstattungsmaßnahme ausgelöst. Ein Mitarbeiter prüft Ihre Angaben manuell, bindet
+            sie an ein verifiziertes Konto und entscheidet anschließend über das weitere Vorgehen.
+        </div>
+
+        <div id="form-errors" role="alert" hidden></div>
+
+        <form id="withdrawal-request-form">
+            <label for="contact_email">Kontakt-E-Mail (für die Eingangsbestätigung) *</label>
+            <input type="email" id="contact_email" name="contact_email" maxlength="254"
+                   autocomplete="email" required placeholder="ihre-email@beispiel.de">
+
+            <label for="account_email">Konto-E-Mail (falls abweichend oder bekannt)</label>
+            <input type="email" id="account_email" name="account_email" maxlength="254"
+                   placeholder="konto-email@beispiel.de (optional)">
+
+            <label for="username">Benutzername (falls bekannt)</label>
+            <input type="text" id="username" name="username" maxlength="20" placeholder="optional">
+
+            <label for="stripe_reference">Vertrags-/Zahlungsreferenz (falls bekannt)</label>
+            <input type="text" id="stripe_reference" name="stripe_reference" maxlength="128" placeholder="optional">
+
+            <fieldset>
+                <legend>Sprache der Widerrufserklärung</legend>
+                <label>
+                    <input type="radio" name="statement_language" value="de" checked>
+                    Deutsch
+                </label>
+                <label>
+                    <input type="radio" name="statement_language" value="en">
+                    English
+                </label>
+            </fieldset>
+
+            <div class="statement-box" id="statement-preview-de">„Hiermit widerrufe ich den von mir abgeschlossenen Vertrag über die Bereitstellung der kostenpflichtigen digitalen Inhalte (Arithmo Slayer Premium-Abonnement).“</div>
+            <div class="statement-box" id="statement-preview-en" hidden>“I hereby withdraw from the contract I entered into for the supply of the paid digital content (Arithmo Slayer premium subscription).”</div>
+            <label class="consent-checkbox">
+                <input type="checkbox" id="statement_confirmed">
+                <span>Ich bestätige die obenstehende Widerrufserklärung ausdrücklich.</span>
+            </label>
+
+            <label for="reason">Anmerkung (optional, max. 2000 Zeichen)</label>
+            <textarea id="reason" name="reason" maxlength="2000" rows="4"
+                      placeholder="Optionale Anmerkung zu Ihrem Widerruf"></textarea>
+
+            <p>
+                <button type="button" id="review-button" class="cancel-button">Widerruf prüfen</button>
+            </p>
+        </form>
+
+        <div id="review-panel" hidden>
+            <h3>Bitte prüfen Sie Ihre Angaben</h3>
+            <dl>
+                <dt>Kontakt-E-Mail</dt><dd id="review-contact_email"></dd>
+                <dt>Konto-E-Mail</dt><dd id="review-account_email"></dd>
+                <dt>Benutzername</dt><dd id="review-username"></dd>
+                <dt>Referenz</dt><dd id="review-stripe_reference"></dd>
+                <dt>Sprache</dt><dd id="review-statement_language"></dd>
+                <dt>Erklärung</dt><dd id="review-statement"></dd>
+                <dt>Anmerkung</dt><dd id="review-reason"></dd>
+            </dl>
+            <div class="warning">
+                Mit dem Absenden wird noch <strong>kein</strong> abgeschlossener Widerruf bestätigt.
+                Ein Mitarbeiter prüft Ihre Identität und Erklärung manuell, bevor etwas verarbeitet
+                wird.
+            </div>
+            <button type="button" id="edit-button" class="secondary-button">Zurück bearbeiten</button>
+            <button type="button" id="submit-button" class="cancel-button">Widerruf jetzt absenden</button>
+        </div>
+
+        <div id="receipt-panel" hidden>
+            <h3>Widerrufserklärung erhalten</h3>
+            <p>
+                Status: <strong id="receipt-status"></strong>
+                (noch <strong>kein</strong> abgeschlossener Widerruf)
+            </p>
+            <p>Antrags-ID: <span id="receipt-request-id"></span></p>
+            <p>Eingereicht am (UTC): <span id="receipt-submitted-at"></span></p>
+            <p id="receipt-message"></p>
+            <p>
+                Sie erhalten zusätzlich eine sofortige Bestätigungs-E-Mail (SES-Annahme ist jedoch
+                kein Nachweis des tatsächlichen Posteingangs). Sie können den Beleg auch direkt
+                unten ohne Login herunterladen — bewahren Sie diesen Link auf, er wird aus
+                Sicherheitsgründen nicht erneut angezeigt.
+            </p>
+            <a id="download-receipt" class="secondary-button" hidden download>Beleg herunterladen</a>
+        </div>
+
+        <script type="module">
+            import { initWithdrawalRequestForm } from './game/withdrawal-request.js';
+            initWithdrawalRequestForm(document);
+
+            const deRadio = document.querySelector('input[name="statement_language"][value="de"]');
+            const enRadio = document.querySelector('input[name="statement_language"][value="en"]');
+            const dePreview = document.getElementById('statement-preview-de');
+            const enPreview = document.getElementById('statement-preview-en');
+            function syncPreview() {
+                const isEn = enRadio.checked;
+                dePreview.hidden = isEn;
+                enPreview.hidden = !isEn;
+            }
+            deRadio.addEventListener('change', syncPreview);
+            enRadio.addEventListener('change', syncPreview);
+        </script>
+
+        <h2>Was ist der Unterschied zur Kündigung?</h2>
+        <p>
+            Ein <strong>Widerruf</strong> macht den Vertrag rückwirkend ungültig (soweit gesetzlich
+            noch möglich — siehe unten) und ist ein eigenständiges Verbraucherrecht. Eine
+            <strong><a href="/cancel.html">Kündigung</a></strong> beendet dagegen nur zukünftige
+            Verlängerungen; der bereits bezahlte Zeitraum bleibt davon unberührt. Falls Sie nur
+            keine weiteren Zahlungen mehr wünschen, ist die Kündigung in der Regel der passendere,
+            einfachere Weg.
+        </p>
+
+        <h2>Widerrufsbelehrung</h2>
+        <p>
+            Ihnen steht grundsätzlich ein Widerrufsrecht gemäß § 355 BGB mit einer Frist von 14
+            Tagen zu. Da es sich bei diesem Angebot um die Bereitstellung kostenpflichtiger
+            digitaler Inhalte nicht auf einem körperlichen Datenträger handelt, kann dieses Recht
+            jedoch erlöschen, sobald Sie beim Kauf ausdrücklich zugestimmt haben, dass mit der
+            Bereitstellung vor Ablauf der Widerrufsfrist begonnen wird, und Sie gleichzeitig
+            bestätigt haben, dadurch Ihr Widerrufsrecht zu verlieren (§ 356 BGB). Ob dies in Ihrem
+            konkreten Fall bereits zutrifft, prüft ein Mitarbeiter anhand der durablen, versionierten
+            Aufzeichnung Ihrer damaligen Zustimmung — das Absenden dieses Formulars allein
+            entscheidet darüber nicht.
+        </p>
+        <p>
+            Widerrufsadressat:<br>
+            Urs Schweigert<br>
+            Am Sonnenhang 12<br>
+            85235 Pfaffenhofen a.d. Glonn<br>
+            Deutschland<br>
+            E-Mail: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>
+        </p>
+        <p>
+            Sie können Ihren Widerruf statt über dieses Formular auch formlos (ohne Verwendung
+            eines bestimmten Formulars) per E-Mail an die obige Adresse erklären.
+        </p>
+
+        <h2>Was passiert nach dem Absenden?</h2>
+        <ul>
+            <li>
+                <strong>Keine automatische Aktion:</strong> Ihre Identität wird manuell geprüft,
+                bevor eine Kündigung, Rückerstattung oder sonstige Maßnahme erfolgt.
+            </li>
+            <li>
+                <strong>Keine Kontoverifizierung bei Absenden:</strong> Dieses Formular prüft nicht,
+                ob die angegebenen Daten zu einem echten Konto gehören — das ist bewusst so, um
+                keine Kontoexistenz zu bestätigen oder zu verneinen.
+            </li>
+            <li>
+                <strong>Rückmeldung:</strong> Ein Mitarbeiter meldet sich nach der Prüfung mit dem
+                Ergebnis (z. B. per E-Mail an die oben angegebene Kontakt-E-Mail).
+            </li>
+        </ul>
+
+        <h2>Hilfe und Support</h2>
+        <p>
+            Bei Fragen zum Widerruf wenden Sie sich an
+            <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>.
+        </p>
+
+        <div class="footer-nav">
+            <a href="index.html">← Zurück zur Startseite</a>
+            <a href="cancel.html">Kündigung (zukünftige Verlängerungen)</a>
+            <a href="terms.html">Bedingungen & Datenschutz</a>
+        </div>
+    </div>
+</body>
+</html>

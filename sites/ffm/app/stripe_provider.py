@@ -56,7 +56,11 @@ def create_customer(stable_uuid, email, idempotency_key):
 
 
 def create_checkout(customer_id, stable_uuid, price_id, return_base_url, operation_id, gift_until=None):
-    subscription_data = {'metadata': {'billing_uuid': stable_uuid}}
+    # checkout_operation lets the webhook/reconcile path look back up the
+    # exact versioned declarations durably bound to this checkout attempt
+    # (see app/contract_confirmation_store.py), without trusting anything
+    # from the webhook payload itself.
+    subscription_data = {'metadata': {'billing_uuid': stable_uuid, 'checkout_operation': operation_id}}
     if gift_until is not None:
         if gift_until <= int(datetime.now(timezone.utc).timestamp()) + 48 * 3600:
             raise ValueError('gift_period_too_short_for_checkout')

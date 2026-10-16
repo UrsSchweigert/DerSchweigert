@@ -10,6 +10,9 @@ from flask import current_app
 
 from . import billing, billing_store as store, stripe_provider as provider
 from . import cancel_requests_store as cancel_store
+from . import contract_confirmation_store as confirmation_store
+from . import withdrawal_requests_store as withdrawal_store
+from .withdrawal_requests import receipt_text as _withdrawal_receipt_text
 from . import mailer
 from .models import _users, ensure_stable_id, get_user
 
@@ -340,6 +343,7 @@ def register_billing_commands(app):
             mailer.send_cancel_request_ack_email(
                 item['contact_email'], item['request_id'], item['submitted_at'],
                 item['status'], item.get('outcome_detail'),
+                language=item.get('locale', 'de'),
             )
         except (ClientError, BotoCoreError) as exc:
             # Store only the exception class/code, never the raw exception
@@ -368,6 +372,340 @@ def register_billing_commands(app):
         request — purely a cleanup-eligibility flag."""
         try:
             cancel_store.set_legal_hold(request_id, hold=not lift)
+        except ValueError as exc:
+            raise click.ClickException(f'Request not found ({exc}).') from exc
+        click.echo(f"Legal hold {'lifted' if lift else 'set'} for {request_id}.")
+
+    @admin.group('contract-confirmation')
+    def contract_confirmation_group():
+        """Recovery tooling for the durable contract-confirmation record
+        and email created once per NEW, server-verified-paid subscription
+        (see app/billing.py `_ensure_contract_confirmation`). Never calls
+        Stripe or touches billing state itself -- for a brand-new,
+        declarations-gated contract whose SES send previously failed,
+        the entitlement grant is withheld until the email send succeeds
+        (see app/billing.py `reconcile_subscription`'s
+        `contract_confirmation_pending` gate); `resend-email` below only
+        flips the stored email delivery status to 'sent'/'failed' -- it
+        is the *next* webhook redelivery or `billing-admin reconcile`
+        run that observes 'sent' and actually performs the grant,
+        without charging the subscriber again."""
+
+    @contract_confirmation_group.command('show')
+    @click.argument('stable_id')
+    @click.argument('subscription_id')
+    def cc_show(stable_id, subscription_id):
+        item = confirmation_store.get_contract_confirmation(stable_id, subscription_id)
+        if not item:
+            raise click.ClickException('No contract confirmation found for this identity/subscription.')
+        click.echo(json.dumps(item, indent=2, default=str))
+
+    @contract_confirmation_group.command('resend-email')
+    @click.argument('stable_id')
+    @click.argument('subscription_id')
+    @click.option('--confirm', is_flag=True, required=True, help='Send the confirmation email now.')
+    def cc_resend_email(stable_id, subscription_id, confirm):
+        """Retry a contract-confirmation email whose previous attempt
+        failed (email_status='failed') -- or resend a 'sent' one on
+        request (e.g. the subscriber says they never received it)."""
+        confirmation = confirmation_store.get_contract_confirmation(stable_id, subscription_id)
+        if not confirmation:
+            raise click.ClickException('No contract confirmation found for this identity/subscription.')
+        username = store.get_billing_username_mapping(stable_id)
+        user = get_user(username) if username else None
+        if not user or not user.get('email'):
+            raise click.ClickException(
+                f'No current account email on file for stable_id={stable_id} '
+                '(account may have changed email or been deleted since).'
+            )
+        try:
+            mailer.send_contract_confirmation_email(user['email'], confirmation)
+        except (ClientError, BotoCoreError) as exc:
+            code = exc.response.get('Error', {}).get('Code') if isinstance(exc, ClientError) else None
+            confirmation_store.set_confirmation_email_state(
+                stable_id, subscription_id, 'failed', f'{type(exc).__name__}:{code or "unknown"}',
+            )
+            raise click.ClickException(f'Email send failed ({type(exc).__name__}); retry later.') from exc
+        confirmation_store.set_confirmation_email_state(stable_id, subscription_id, 'sent')
+        click.echo(f'Contract confirmation email resent for {stable_id}/{subscription_id}.')
+
+    @admin.group('withdrawal-request')
+    def withdrawal_request_group():
+        """Manual review and processing of public, unauthenticated
+        withdrawal declarations submitted via /api/withdrawal-requests
+        (see app/withdrawal_requests.py). Nothing here is automatic:
+        identity is only bound after --confirm-identity-reviewed, and no
+        subscription is ever cancelled/refunded without an operator
+        explicitly requesting that specific action on this specific
+        command invocation. A checked declaration checkbox is sufficient
+        evidence of the *statement*, never grounds to auto-action a
+        cancellation/refund against an unverified identity."""
+
+    @withdrawal_request_group.command('list')
+    @click.option('--status', default=None,
+                  type=click.Choice(sorted(withdrawal_store.STATUSES)),
+                  help='Filter by status; omit to list all requests.')
+    def wr_list(status):
+        for item in withdrawal_store.list_withdrawal_requests(status):
+            click.echo(json.dumps({
+                'request_id': item['request_id'], 'status': item['status'],
+                'submitted_at': item['submitted_at'],
+            }))
+
+    @withdrawal_request_group.command('show')
+    @click.argument('request_id')
+    @click.option('--reveal-pii', is_flag=True,
+                  help='Include contact/account email, username, Stripe reference and free-text reason.')
+    def wr_show(request_id, reveal_pii):
+        item = withdrawal_store.get_withdrawal_request(request_id)
+        if not item:
+            raise click.ClickException('Request not found.')
+        safe = {
+            'request_id': item['request_id'], 'status': item['status'],
+            'submitted_at': item['submitted_at'], 'statement_language': item['statement_language'],
+            'reviewed_username': item.get('reviewed_username'), 'reviewed_at': item.get('reviewed_at'),
+            'reviewed_subscription_id': item.get('reviewed_subscription_id'),
+            'outcome': item.get('outcome'), 'outcome_detail': item.get('outcome_detail'),
+            'processed_at': item.get('processed_at'),
+            'receipt_email_status': item.get('receipt_email_status'),
+            'outcome_email_status': item.get('outcome_email_status'),
+        }
+        if reveal_pii:
+            safe.update({
+                'contact_email': item['contact_email'], 'account_email': item.get('account_email'),
+                'username': item.get('username'), 'stripe_reference': item.get('stripe_reference'),
+                'reason': item.get('reason'), 'statement': item['statement_text'],
+            })
+        click.echo(json.dumps(safe, indent=2, default=str))
+
+    @withdrawal_request_group.command('process')
+    @click.argument('request_id')
+    @click.option('--username', required=True,
+                  help='Account username a human operator has manually verified owns this request. '
+                       'Never derived automatically from the account_email the requester supplied.')
+    @click.option('--confirm-identity-reviewed', is_flag=True, required=True,
+                  help='Attests that a human has manually verified this username belongs to the requester.')
+    @click.option('--cancel-subscription-immediately', is_flag=True,
+                  help='Actually stop the bound subscription now (provider.cancel_subscription, '
+                       'immediate=True) — never set automatically; an operator decision per case.')
+    @click.option('--refund-charge-id', default=None,
+                  help='A Stripe charge id to refund via the existing provider.refund_charge helper. '
+                       'Whether/how much to refund (e.g. statutory value compensation under Sec. 357a '
+                       'BGB, or a full refund) is an operator/legal judgment this command does not make '
+                       'for you — pass the amount explicitly with --refund-amount-cents.')
+    @click.option('--refund-amount-cents', type=int, default=None,
+                  help='Required together with --refund-charge-id; the exact amount actually refunded.')
+    @click.option('--note', default=None, help='Optional free-text operator note on what was actually done.')
+    @click.option('--confirm', is_flag=True, required=True, help='Durably record this outcome.')
+    def wr_process(request_id, username, confirm_identity_reviewed, cancel_subscription_immediately,
+                    refund_charge_id, refund_amount_cents, note, confirm):
+        """Bind a manually-reviewed identity to this declaration and
+        record the outcome. Any Stripe action taken (immediate
+        cancellation and/or a refund via the existing, already-reviewed
+        provider.refund_charge wrapper) must be explicitly requested on
+        this exact invocation — this command never infers or assumes
+        what should be done from the declaration alone. If neither flag
+        is passed, this still durably records a 'fulfilled' outcome for
+        the *declaration itself* (it was received and reviewed), with a
+        detail noting no technical action was taken; operators are
+        expected to follow up manually (e.g. in the Stripe dashboard) and
+        can describe exactly what happened with --note or by filing a
+        follow-up `record-manual-outcome`.
+        """
+        if bool(refund_charge_id) != bool(refund_amount_cents is not None):
+            raise click.ClickException('--refund-charge-id and --refund-amount-cents must be used together.')
+        item = withdrawal_store.get_withdrawal_request(request_id)
+        if not item:
+            raise click.ClickException('Request not found.')
+        if item['status'] in withdrawal_store.TERMINAL_STATUSES:
+            click.echo(f"Request is already terminal ('{item['status']}'); nothing to do.")
+            return
+        if item['status'] not in ('submitted', 'processing'):
+            raise click.ClickException(f"Request status is '{item['status']}'; nothing to process.")
+        user = get_user(username)
+        if not user:
+            raise click.ClickException(f'No account found for username "{username}".')
+        stable_id = ensure_stable_id(username)
+        if not stable_id:
+            raise click.ClickException(
+                f'Could not resolve a stable billing identity for "{username}" '
+                '(account may have been deleted since this request was submitted).'
+            )
+        current_subscription_id = (store.get_billing_state(stable_id) or {}).get('subscription_id')
+        try:
+            withdrawal_store.start_processing(request_id, username, stable_id, current_subscription_id)
+        except ValueError as exc:
+            raise click.ClickException(
+                f'Cannot bind identity ({exc}); this request may already be bound to a '
+                'different reviewed username — verify with `show` before retrying.'
+            ) from exc
+        bound = withdrawal_store.get_withdrawal_request(request_id)
+        subscription_id = bound['reviewed_subscription_id']
+        detail = {
+            'subscription_id': subscription_id, 'subscription_canceled_immediately': False,
+            'refund_provider_reference': None, 'note': note,
+        }
+        if cancel_subscription_immediately:
+            if not subscription_id:
+                raise click.ClickException(
+                    'No subscription was bound at review time (reviewed_subscription_id is None); '
+                    'nothing to cancel. Re-run without --cancel-subscription-immediately, or '
+                    'investigate manually and use `record-manual-outcome` instead.'
+                )
+            try:
+                provider.cancel_subscription(subscription_id, immediate=True,
+                                             operation_id=f'withdrawal-{request_id}')
+            except stripe.StripeError as exc:
+                click.echo(
+                    f'Provider call failed: {type(exc).__name__}. Status remains "processing"; '
+                    're-run this exact command to retry.', err=True,
+                )
+                raise click.ClickException('Cancellation not completed; no change was claimed.') from exc
+            detail['subscription_canceled_immediately'] = True
+        if refund_charge_id:
+            try:
+                refund = provider.refund_charge(refund_charge_id, refund_amount_cents,
+                                                operation_id=f'withdrawal-refund-{request_id}')
+            except stripe.StripeError as exc:
+                click.echo(
+                    f'Refund failed: {type(exc).__name__}. Status remains "processing"; '
+                    're-run this exact command to retry.', err=True,
+                )
+                raise click.ClickException('Refund not completed; no change was claimed.') from exc
+            detail['refund_provider_reference'] = refund['id']
+        withdrawal_store.finalize(request_id, 'fulfilled', detail)
+        click.echo(json.dumps({'request_id': request_id, 'status': 'fulfilled', 'detail': detail}))
+
+    @withdrawal_request_group.command('record-manual-outcome')
+    @click.argument('request_id')
+    @click.option('--username', required=True,
+                  help='Account username a human operator has manually verified owns this request.')
+    @click.option('--confirm-identity-reviewed', is_flag=True, required=True,
+                  help='Attests that a human has manually verified this username belongs to the requester.')
+    @click.option('--outcome', required=True, type=click.Choice(sorted(withdrawal_store.TERMINAL_STATUSES)),
+                  help='The outcome exactly as it actually happened — never a guess or intent.')
+    @click.option('--refund-reference', default=None,
+                  help='Stripe refund/charge id or similar reference for a refund actually issued '
+                       'outside this tool (e.g. via the Stripe dashboard).')
+    @click.option('--subscription-canceled', is_flag=True,
+                  help='The bound subscription was actually already cancelled outside this tool.')
+    @click.option('--note', default=None, help='Optional free-text operator note on what was actually done.')
+    @click.option('--confirm', is_flag=True, required=True, help='Durably record this outcome.')
+    def wr_record_manual_outcome(request_id, username, confirm_identity_reviewed, outcome,
+                                  refund_reference, subscription_canceled, note, confirm):
+        """For a declaration an operator has handled entirely manually
+        (e.g. directly in the Stripe dashboard, or because no matching
+        account/contract exists) — never calls Stripe."""
+        item = withdrawal_store.get_withdrawal_request(request_id)
+        if not item:
+            raise click.ClickException('Request not found.')
+        if item['status'] in withdrawal_store.TERMINAL_STATUSES:
+            click.echo(f"Request is already terminal ('{item['status']}'); nothing to do.")
+            return
+        user = get_user(username)
+        if not user:
+            raise click.ClickException(f'No account found for username "{username}".')
+        stable_id = ensure_stable_id(username)
+        if not stable_id:
+            raise click.ClickException(
+                f'Could not resolve a stable billing identity for "{username}" '
+                '(account may have been deleted since this request was submitted).'
+            )
+        detail = {
+            'manual': True, 'recorded_by_username': username,
+            'subscription_canceled_immediately': subscription_canceled,
+            'refund_provider_reference': refund_reference, 'note': note,
+        }
+        try:
+            withdrawal_store.record_manual_outcome(request_id, username, stable_id, outcome, detail)
+        except ValueError as exc:
+            raise click.ClickException(
+                f'Cannot record outcome ({exc}); this request may already be bound to a '
+                'different reviewed username — verify with `show` before retrying.'
+            ) from exc
+        click.echo(json.dumps({'request_id': request_id, 'status': outcome, 'detail': detail}))
+
+    @withdrawal_request_group.command('complete-email')
+    @click.argument('request_id')
+    @click.option('--resend', is_flag=True,
+                  help='Send again even though outcome_email_status is already "sent".')
+    @click.option('--confirm', is_flag=True, required=True, help='Send the final outcome email now.')
+    def wr_complete_email(request_id, resend, confirm):
+        """Send the final-outcome email (separate from the immediate
+        submission receipt email, which was already attempted at
+        submission time — see app/withdrawal_requests.py)."""
+        item = withdrawal_store.get_withdrawal_request(request_id)
+        if not item:
+            raise click.ClickException('Request not found.')
+        if item['status'] not in withdrawal_store.TERMINAL_STATUSES:
+            raise click.ClickException(
+                f"Request status is '{item['status']}'; process it first with 'process' or "
+                "'record-manual-outcome'."
+            )
+        if item.get('outcome_email_status') == 'sent' and not resend:
+            click.echo(
+                f'Outcome email for {request_id} was already sent at '
+                f"{item.get('outcome_email_attempted_at')}; pass --resend to send it again."
+            )
+            return
+        try:
+            mailer.send_withdrawal_request_outcome_email(
+                item['contact_email'], item['request_id'], item['submitted_at'],
+                item['status'], item.get('outcome_detail'), language=item['statement_language'],
+            )
+        except (ClientError, BotoCoreError) as exc:
+            code = exc.response.get('Error', {}).get('Code') if isinstance(exc, ClientError) else None
+            withdrawal_store.set_outcome_email_state(request_id, 'failed', f'{type(exc).__name__}:{code or "unknown"}')
+            raise click.ClickException(f'Email send failed ({type(exc).__name__}); retry this command later.') from exc
+        withdrawal_store.set_outcome_email_state(request_id, 'sent')
+        click.echo(f'Outcome email sent for {request_id}.')
+
+    @withdrawal_request_group.command('resend-receipt-email')
+    @click.argument('request_id')
+    @click.option('--confirm', is_flag=True, required=True, help='Resend the immediate submission receipt email.')
+    def wr_resend_receipt_email(request_id, confirm):
+        """Retry the immediate submission-receipt email (distinct from
+        the final outcome email above) if its earlier attempt failed, or
+        resend it on request (e.g. the requester says they never
+        received it)."""
+        item = withdrawal_store.get_withdrawal_request(request_id)
+        if not item:
+            raise click.ClickException('Request not found.')
+        resend_notice = {
+            'de': 'Dieser Beleg wurde erneut vom Betreiber versendet.',
+            'en': 'This receipt was resent by the operator.',
+        }.get(item['statement_language'], 'Dieser Beleg wurde erneut vom Betreiber versendet.')
+        # Reuse the same canonical receipt body (statement/status/
+        # references/timestamp) the requester originally received at
+        # submission time (app/withdrawal_requests.py `receipt_text()`),
+        # only appending the resend notice -- never substituting a bare
+        # notice for the original receipt content.
+        full_receipt_text = f"{_withdrawal_receipt_text(item)}\n\n{resend_notice}"
+        try:
+            mailer.send_withdrawal_request_receipt_email(
+                item['contact_email'], item['request_id'], item['submitted_at'],
+                item['statement_text'], full_receipt_text, language=item['statement_language'],
+            )
+        except (ClientError, BotoCoreError) as exc:
+            code = exc.response.get('Error', {}).get('Code') if isinstance(exc, ClientError) else None
+            withdrawal_store.set_receipt_email_state(request_id, 'failed', f'{type(exc).__name__}:{code or "unknown"}')
+            raise click.ClickException(f'Email send failed ({type(exc).__name__}); retry this command later.') from exc
+        withdrawal_store.set_receipt_email_state(request_id, 'sent')
+        click.echo(f'Receipt email resent for {request_id}.')
+
+    @withdrawal_request_group.command('legal-hold')
+    @click.argument('request_id')
+    @click.option('--lift', is_flag=True,
+                  help='Lift a previously-set hold instead of setting one.')
+    def wr_legal_hold(request_id, lift):
+        """Suspend (default) or lift (--lift) a hold flag for one request.
+        No purge command currently reads this flag (see
+        app/withdrawal_requests_store.py module docstring: no approved
+        retention period yet for withdrawal declarations) — this exists
+        to future-proof the record shape once a retention policy is
+        approved, without implying one already exists."""
+        try:
+            withdrawal_store.set_legal_hold(request_id, hold=not lift)
         except ValueError as exc:
             raise click.ClickException(f'Request not found ({exc}).') from exc
         click.echo(f"Legal hold {'lifted' if lift else 'set'} for {request_id}.")

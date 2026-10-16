@@ -73,6 +73,7 @@ const DICTIONARY = {
   'legal.impressum': { en: 'Impressum', de: 'Impressum' },
   'legal.privacy': { en: 'Privacy', de: 'Datenschutz' },
   'legal.cancellation': { en: 'Cancellation', de: 'Kündigung' },
+  'legal.withdrawal': { en: 'Withdraw contract', de: 'Vertrag widerrufen' },
   'legal.terms': { en: 'Terms', de: 'AGB' },
   'legal.termsEnglish': { en: 'Terms (English)', de: 'AGB (Englisch)' },
   'legal.privacyEn': { en: 'Privacy (EN)', de: 'Datenschutz (EN)' },
@@ -290,10 +291,26 @@ const DICTIONARY = {
     en: 'I accept the <a href="/terms.en.html" target="_blank">terms of service</a> and <a href="/datenschutz.en.html" target="_blank">privacy policy</a>',
     de: 'Ich akzeptiere die <a href="/terms.html" target="_blank">Nutzungsbedingungen</a> und die <a href="/datenschutz.html" target="_blank">Datenschutzerklärung</a>',
   },
+  // Verbatim, operator-approved digital-content declarations (Sec. 356
+  // BGB) -- the German wording is authoritative and must match
+  // app/legal_texts.py IMMEDIATE_ACCESS_DECLARATION/WITHDRAWAL_WAIVER_DECLARATION
+  // exactly; the English text is a non-binding translation only.
+  'checkout.consentImmediateAccess': {
+    de: 'Ich stimme ausdrücklich zu, dass Urs Schweigert vor Ablauf der Widerrufsfrist mit der Bereitstellung der kostenpflichtigen digitalen Inhalte beginnt.',
+    en: 'I expressly agree that Urs Schweigert begins providing the paid digital content before the withdrawal period has expired. (Non-binding translation; the German wording is authoritative.)',
+  },
+  'checkout.consentWithdrawalWaiver': {
+    de: 'Mir ist bekannt, dass ich durch meine Zustimmung mit Beginn der Bereitstellung mein Widerrufsrecht verliere.',
+    en: 'I am aware that by giving this consent, I lose my right of withdrawal once provision of the content begins. (Non-binding translation; the German wording is authoritative.)',
+  },
   'checkout.proceed': { en: 'Proceed to Checkout', de: 'Weiter zur Kasse' },
   'checkout.confirmAdultAndTerms': {
     en: 'Please confirm you are 18+ and accept the terms.',
     de: 'Bitte bestätige, dass du 18+ bist, und akzeptiere die Bedingungen.',
+  },
+  'checkout.confirmDigitalContentDeclarations': {
+    en: 'Please confirm both digital-content declarations above.',
+    de: 'Bitte bestätige beide Erklärungen zu den digitalen Inhalten oben.',
   },
   'checkout.invalidUrl': { en: 'Invalid checkout URL. Please try again.', de: 'Ungültige Checkout-URL. Bitte versuche es erneut.' },
   'checkout.failed': { en: 'Checkout failed.', de: 'Checkout fehlgeschlagen.' },
@@ -324,6 +341,7 @@ const DICTIONARY = {
 
   // Footer
   'footer.cancellation': { en: 'Cancellation', de: 'Kündigung' },
+  'footer.withdrawal': { en: 'Withdraw contract', de: 'Vertrag widerrufen' },
   'footer.terms': { en: 'Terms', de: 'AGB' },
   'footer.privacyEn': { en: 'Privacy (EN)', de: 'Datenschutz (EN)' },
   'errors.unknownServerError': {
@@ -406,6 +424,18 @@ const SERVER_MESSAGES = {
   adult_and_terms_confirmation_required: {
     en: 'Please confirm you are 18+ and accept the terms.',
     de: 'Bitte bestätige, dass du 18+ bist, und akzeptiere die Bedingungen.',
+  },
+  invalid_declarations_language: {
+    en: 'Could not determine the checkout language. Please reload the page and try again.',
+    de: 'Die Checkout-Sprache konnte nicht ermittelt werden. Bitte lade die Seite neu und versuche es erneut.',
+  },
+  declarations_version_mismatch: {
+    en: 'The checkout terms were updated. Please reload the page and try again.',
+    de: 'Die Checkout-Bedingungen wurden aktualisiert. Bitte lade die Seite neu und versuche es erneut.',
+  },
+  digital_content_declarations_required: {
+    en: 'Please confirm both digital-content declarations above.',
+    de: 'Bitte bestätige beide Erklärungen zu den digitalen Inhalten oben.',
   },
   payment_confirmation_pending: {
     en: 'Payment confirmation pending. Use Refresh access status after confirmation.',
@@ -512,10 +542,30 @@ function detectBrowserLocale() {
   return DEFAULT_LOCALE;
 }
 
+// Auth-action emails (verify/reset-password/confirm-email-change) carry a
+// `?lang=` query param on their link, set server-side from the locale the
+// user had selected when they *triggered* the email (see app/auth.py,
+// app/main.py), so opening the emailed link reopens the page in that same
+// language even if this browser's stored/detected locale differs (e.g. a
+// different device, or the user toggled languages again since). This is
+// deliberately a one-time, non-persisted override for this page load only
+// — it never overwrites the user's own stored `ffm_locale` preference —
+// so clicking an old email link can't silently and permanently flip the
+// language on a shared/returning device.
+function readUrlLocale() {
+  try {
+    if (typeof window === 'undefined' || !window.location) return null;
+    const value = new URLSearchParams(window.location.search).get('lang');
+    return SUPPORTED_LOCALES.includes(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Returns the active locale ('en' or 'de'), resolving it on first access. */
 export function getLocale() {
   if (!currentLocale) {
-    currentLocale = readStoredLocale() || detectBrowserLocale();
+    currentLocale = readUrlLocale() || readStoredLocale() || detectBrowserLocale();
   }
   return currentLocale;
 }

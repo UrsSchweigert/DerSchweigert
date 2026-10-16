@@ -110,7 +110,7 @@
       </div>
       <p class="splash-legal-links">
         <a href="impressum.html" data-i18n="legal.impressum">Impressum</a> · <a href="datenschutz.html" data-i18n="legal.privacy">Datenschutz</a> ·
-        <a href="cancel.html" data-i18n="legal.cancellation">Cancellation</a> · <a href="terms.html" data-i18n="legal.terms">Terms</a> ·
+        <a href="cancel.html" data-i18n="legal.cancellation">Cancellation</a> · <a href="widerruf.html" data-i18n="legal.withdrawal">Withdraw contract</a> · <a href="terms.html" data-i18n="legal.terms">Terms</a> ·
         <button type="button" id="cookie-settings-link" class="splash-legal-link-btn" data-i18n="cookie.settingsLink">Cookie settings</button>
       </p>
     </div>
@@ -257,6 +257,14 @@
           <input type="checkbox" id="checkout-terms-accept">
           <span data-i18n-html="checkout.consentTermsHtml">I accept the <a href="/terms.en.html" target="_blank">terms of service</a> and <a href="/datenschutz.en.html" target="_blank">privacy policy</a></span>
         </label>
+        <label class="consent-checkbox">
+          <input type="checkbox" id="checkout-immediate-access-confirm">
+          <span data-i18n="checkout.consentImmediateAccess">Ich stimme ausdrücklich zu, dass Urs Schweigert vor Ablauf der Widerrufsfrist mit der Bereitstellung der kostenpflichtigen digitalen Inhalte beginnt.</span>
+        </label>
+        <label class="consent-checkbox">
+          <input type="checkbox" id="checkout-withdrawal-waiver-confirm">
+          <span data-i18n="checkout.consentWithdrawalWaiver">Mir ist bekannt, dass ich durch meine Zustimmung mit Beginn der Bereitstellung mein Widerrufsrecht verliere.</span>
+        </label>
         <button type="submit" class="splash-btn" data-i18n="checkout.proceed">Proceed to Checkout</button>
         <p id="checkout-message" class="error-msg"></p>
       </form>
@@ -299,6 +307,7 @@
 
   <footer style="display:none; margin-top: 20px; padding: 20px; text-align: center; font-size: 12px; color: #888;">
     <a href="/cancel.html" style="margin: 0 10px;" data-i18n="footer.cancellation">Cancellation</a>
+    <a href="/widerruf.html" style="margin: 0 10px;" data-i18n="footer.withdrawal">Withdraw contract</a>
     <a href="/terms.html" style="margin: 0 10px;" data-i18n="footer.terms">Terms</a>
     <a href="/datenschutz.en.html" style="margin: 0 10px;" data-i18n="footer.privacyEn">Privacy (EN)</a>
   </footer>

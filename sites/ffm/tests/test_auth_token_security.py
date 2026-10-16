@@ -383,7 +383,7 @@ def test_password_reset_revokes_prior_access_and_refresh_tokens(client):
 
     captured = {}
     with patch('sites.ffm.app.mailer.send_password_reset_email',
-               side_effect=lambda to_email, username, token: captured.__setitem__('token', token)):
+               side_effect=lambda to_email, username, token, **kwargs: captured.__setitem__('token', token)):
         r = client.post('/api/auth/forgot-password', json={"email": "pwreset@example.com"})
     assert r.status_code == 200
 

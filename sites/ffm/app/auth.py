@@ -13,9 +13,30 @@ from .models import (
 from .jwt_utils import mint_access_token, mint_refresh_token, decode_auth_token, InvalidAuthToken, TYPE_REFRESH
 from .validation import is_valid_int
 from . import mailer
+from . import legal_texts
 from .captcha import verify_turnstile_token
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+#: Default locale for the auth-action emails below (verify/resend/forgot-
+#: password) if the request doesn't supply a (validated) `locale` field —
+#: matches these functions' long-established English-only behavior
+#: before locale propagation existed, so a caller that doesn't send
+#: `locale` sees no change in behavior.
+_DEFAULT_EMAIL_LOCALE = 'en'
+
+
+def _resolve_locale(data, default=_DEFAULT_EMAIL_LOCALE):
+    """Validates the client-supplied `locale` (mirrors the client-side
+    `ffm_locale` selector already used for the checkout/withdrawal
+    declarations language — see static/game/i18n.js's getLocale() and
+    app/legal_texts.SUPPORTED_LANGUAGES) against the SAME existing
+    allowlist, falling back to `default` for anything missing/invalid.
+    This is only ever an email-language preference, never a legally
+    binding declaration, so an invalid/missing value is silently
+    defaulted rather than rejecting the request."""
+    value = data.get('locale')
+    return value if value in legal_texts.SUPPORTED_LANGUAGES else default
 
 
 def _email_rate_limit_key():
@@ -76,7 +97,7 @@ def register():
 
     token = create_token(user['username'], 'verify_email', VERIFY_EMAIL_TTL_SECONDS)
     try:
-        mailer.send_verification_email(user['email'], user['username'], token)
+        mailer.send_verification_email(user['email'], user['username'], token, language=_resolve_locale(data))
     except Exception as exc:  # SES failures must not fail registration; the account is already created
         print(f"send_verification_email failed for {user['username']}: {exc}", file=sys.stderr)
 
@@ -165,7 +186,7 @@ def resend_verification():
     if user and not user['email_verified']:
         token = create_token(user['username'], 'verify_email', VERIFY_EMAIL_TTL_SECONDS)
         try:
-            mailer.send_verification_email(user['email'], user['username'], token)
+            mailer.send_verification_email(user['email'], user['username'], token, language=_resolve_locale(data))
         except Exception as exc:
             print(f"send_verification_email failed for {user['username']}: {exc}", file=sys.stderr)
 
@@ -210,7 +231,7 @@ def forgot_password():
     if user:
         token = create_token(user['username'], 'reset_password', RESET_PASSWORD_TTL_SECONDS)
         try:
-            mailer.send_password_reset_email(user['email'], user['username'], token)
+            mailer.send_password_reset_email(user['email'], user['username'], token, language=_resolve_locale(data))
         except Exception as exc:
             print(f"send_password_reset_email failed for {user['username']}: {exc}", file=sys.stderr)
 

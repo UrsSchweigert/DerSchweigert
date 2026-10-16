@@ -54,6 +54,7 @@ beforeEach(() => {
   delete globalThis.localStorage;
   delete globalThis.navigator;
   delete globalThis.document;
+  delete globalThis.window;
 });
 
 afterEach(() => {
@@ -61,6 +62,7 @@ afterEach(() => {
   delete globalThis.localStorage;
   delete globalThis.navigator;
   delete globalThis.document;
+  delete globalThis.window;
 });
 
 describe('locale detection', () => {
@@ -94,6 +96,28 @@ describe('locale detection', () => {
     globalThis.localStorage = makeFakeStorage();
     globalThis.localStorage.setItem('ffm_locale', 'en');
     assert.equal(getLocale(), 'en');
+  });
+
+  it('a `?lang=` URL param overrides stored/browser locale (auth-action email links)', () => {
+    globalThis.window = { location: { search: '?lang=de' } };
+    globalThis.navigator = { languages: ['en-US'] };
+    globalThis.localStorage = makeFakeStorage();
+    globalThis.localStorage.setItem('ffm_locale', 'en');
+    assert.equal(getLocale(), 'de');
+  });
+
+  it('an unsupported `?lang=` value is ignored, falling through to stored/browser locale', () => {
+    globalThis.window = { location: { search: '?lang=fr' } };
+    globalThis.localStorage = makeFakeStorage();
+    globalThis.localStorage.setItem('ffm_locale', 'en');
+    assert.equal(getLocale(), 'en');
+  });
+
+  it('the `?lang=` URL override is session-only and never persisted to localStorage', () => {
+    globalThis.window = { location: { search: '?lang=de' } };
+    globalThis.localStorage = makeFakeStorage();
+    assert.equal(getLocale(), 'de');
+    assert.equal(globalThis.localStorage.getItem('ffm_locale'), null);
   });
 });
 
@@ -187,6 +211,20 @@ describe('t()', () => {
     assert.match(consent, /href="\/datenschutz\.html"/);
     assert.doesNotMatch(consent, /\.en\.html/);
   });
+
+  it('shows the exact, operator-approved German digital-content declarations verbatim', () => {
+    setLocale('de');
+    assert.equal(
+      t('checkout.consentImmediateAccess'),
+      'Ich stimme ausdrücklich zu, dass Urs Schweigert vor Ablauf der Widerrufsfrist mit der ' +
+      'Bereitstellung der kostenpflichtigen digitalen Inhalte beginnt.'
+    );
+    assert.equal(
+      t('checkout.consentWithdrawalWaiver'),
+      'Mir ist bekannt, dass ich durch meine Zustimmung mit Beginn der Bereitstellung mein ' +
+      'Widerrufsrecht verliere.'
+    );
+  });
 });
 
 describe('translateServerMessage()', () => {
@@ -195,6 +233,16 @@ describe('translateServerMessage()', () => {
     assert.equal(translateServerMessage('email_not_verified'), 'Bitte bestätige deine E-Mail-Adresse, bevor du dich anmeldest.');
     setLocale('en');
     assert.equal(translateServerMessage('email_not_verified'), 'Please verify your email before logging in.');
+  });
+
+  it('translates checkout declaration rejection identifiers distinctly (version mismatch vs unchecked box)', () => {
+    setLocale('en');
+    assert.match(translateServerMessage('declarations_version_mismatch'), /updated/i);
+    assert.match(translateServerMessage('digital_content_declarations_required'), /confirm/i);
+    assert.notEqual(
+      translateServerMessage('declarations_version_mismatch'),
+      translateServerMessage('digital_content_declarations_required'),
+    );
   });
 
   it('translates known full-sentence backend messages', () => {

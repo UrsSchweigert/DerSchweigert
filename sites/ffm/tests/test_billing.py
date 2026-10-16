@@ -25,6 +25,7 @@ os.environ['DYNAMODB_RATELIMIT_TABLE'] = 'ffm-ratelimits-test'
 from sites.ffm.app import create_app
 from sites.ffm.app.config import TestingConfig
 from sites.ffm.app import billing_store, models, stripe_provider
+from sites.ffm.app import legal_texts
 from sites.ffm.app.billing import _iso
 from .test_app import register_and_login
 
@@ -95,6 +96,20 @@ _VALID_PRICE = {
     'id': 'price_quarterly', 'active': True, 'currency': 'eur',
     'unit_amount': 300, 'recurring': {'interval': 'month', 'interval_count': 3},
 }
+
+#: Full, currently-valid checkout request body (adult/terms plus the two
+#: versioned digital-content declarations from app/legal_texts.py). Tests
+#: that need to reach past the declarations gate use this instead of
+#: hand-rolling the adult_confirmed/terms_accepted dict, so a future
+#: DECLARATIONS_VERSION bump only needs updating in one place.
+def _valid_checkout_payload(**overrides):
+    payload = {
+        'adult_confirmed': True, 'terms_accepted': True,
+        'declarations_version': legal_texts.DECLARATIONS_VERSION, 'declarations_language': 'de',
+        'immediate_access_confirmed': True, 'withdrawal_waiver_confirmed': True,
+    }
+    payload.update(overrides)
+    return payload
 
 
 def _make_stripe_webhook_signature(payload_str, secret):
@@ -312,7 +327,7 @@ def test_grandfather_cannot_checkout_before_cutoff(client, billing_app):
 
     # Try checkout with grandfather user
     response = client.post('/api/billing/checkout',
-                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          json=_valid_checkout_payload(),
                           headers=headers)
 
     # Should return 409 subscription_not_needed
@@ -2190,7 +2205,7 @@ def test_checkout_allows_recheckout_after_terminal_subscription_same_session(cli
     }
 
     response = client.post('/api/billing/checkout',
-                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          json=_valid_checkout_payload(),
                           headers=headers)
 
     assert response.status_code == 200
@@ -2237,7 +2252,7 @@ def test_checkout_still_blocks_duplicate_when_live_subscription_exists(client, b
     ]
 
     response = client.post('/api/billing/checkout',
-                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          json=_valid_checkout_payload(),
                           headers=headers)
 
     assert response.status_code == 409
@@ -2276,7 +2291,7 @@ def test_checkout_preserves_pending_confirmation_when_subscription_unresolvable(
     }
 
     response = client.post('/api/billing/checkout',
-                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          json=_valid_checkout_payload(),
                           headers=headers)
 
     assert response.status_code == 409
@@ -2324,7 +2339,7 @@ def test_checkout_rejects_session_subscription_for_different_customer(client, bi
     }
 
     response = client.post('/api/billing/checkout',
-                          json={'adult_confirmed': True, 'terms_accepted': True},
+                          json=_valid_checkout_payload(),
                           headers=headers)
 
     assert response.status_code == 409
