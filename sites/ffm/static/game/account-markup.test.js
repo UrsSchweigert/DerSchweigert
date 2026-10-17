@@ -5,10 +5,23 @@ import fs from 'node:fs';
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
-it('lets translated account tabs wrap and keeps the dialog inside the viewport', () => {
+it('lets translated account tabs wrap', () => {
   assert.match(css, /#account-tabs\s*\{[^}]*flex-wrap:\s*wrap;/);
   assert.match(css, /#account-tabs \.tab-btn\s*\{[^}]*flex:\s*1 1 110px;[^}]*min-width:\s*0;/);
-  assert.match(css, /#account-modal \.overlay-card\s*\{[^}]*box-sizing:\s*border-box;[^}]*width:\s*calc\(100% - 32px\);[^}]*max-height:\s*calc\(100dvh - 32px\);[^}]*overflow-y:\s*auto;/);
+});
+
+it('bounds every overlay card to the viewport and lets overflowing content scroll', () => {
+  const card = css.match(/^\.overlay-card\s*\{([^}]*)\}/m)?.[1];
+  assert.ok(card, 'shared overlay card styles must exist');
+  assert.match(card, /box-sizing:\s*border-box;/);
+  assert.match(card, /width:\s*calc\(100% - 32px\);/);
+  assert.match(card, /max-height:\s*calc\(100vh - 32px\);[\s\S]*max-height:\s*calc\(100dvh - 32px\);/);
+  assert.match(card, /overflow-y:\s*auto;/);
+  assert.match(card, /overscroll-behavior:\s*contain;/);
+  assert.match(card, /overflow-wrap:\s*anywhere;/);
+  for (const name of ['auth-modal', 'account-modal', 'checkout-modal', 'auth-status-modal', 'level-clear', 'game-over']) {
+    assert.match(html, new RegExp(`<div id="${name}"[^>]*>\\s*<div class="overlay-card">`), name);
+  }
 });
 
 it('provides a separate panel for every account tab', () => {
