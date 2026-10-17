@@ -1,0 +1,133 @@
+import { it } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+
+const source = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const block = source.slice(source.indexOf("btnResumeGame.addEventListener("),
+  source.indexOf('// Shown once per playthrough'));
+
+function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) {
+  const handlers = {};
+  const element = name => ({
+    style: {}, textContent: '', disabled: false,
+    addEventListener(event, callback) { handlers[name] = callback; },
+  });
+  let submissions = 0;
+  let quits = 0;
+  const context = {
+    paused: false, gameRunning: true,
+    state: { score: 1234, level: 2, isShapesMode: shapes, timerActive: true },
+    api: { isLoggedIn: loggedIn, async postHighScore(score, level) {
+      submissions++;
+      assert.equal(score, 1234);
+      assert.equal(level, 2);
+      await save();
+    } },
+    pauseOverlay: element(), pauseActions: element(), pauseQuitActions: element(),
+    pauseSaveNotice: element(), pauseSaveError: element(),
+    btnResumeGame: element('resume'), btnQuitGame: element('quit'),
+    btnPauseBack: element('back'), btnPauseSave: element('save'), btnPauseDiscard: element('discard'),
+    input: { disable() {}, enable() {} },
+    audio: { pauseBGM() {}, resumeBGM() {} },
+    resetHealHold() {}, activeFiend: null,
+    getCurrentInputMode() { return 'multiple-choice'; },
+    t: key => key,
+    clearPremiumSession() { quits++; context.gameRunning = false; },
+    clearPendingRecord() {},
+    diffSelect: { scrollTop: 100 },
+    async refreshProfileAndLeaderboard() {},
+  };
+  vm.createContext(context);
+  vm.runInContext(block, context);
+  vm.runInContext('pauseGame();', context);
+  return { context, handlers, submissions: () => submissions, quits: () => quits };
+}
+
+it('requires an explicit resume choice; quit confirmation and back keep gameplay paused', () => {
+  const { context, handlers } = setup();
+  assert.equal(context.paused, true);
+  handlers.quit();
+  assert.equal(context.pauseQuitActions.style.display, '');
+  assert.equal(context.paused, true);
+  handlers.back();
+  assert.equal(context.pauseActions.style.display, '');
+  assert.equal(context.paused, true);
+  handlers.resume();
+  assert.equal(context.paused, false);
+  assert.equal(context.pauseOverlay.style.display, 'none');
+  assert.ok(!source.includes("pauseOverlay.addEventListener('click'"));
+  for (const id of ['btn-resume-game', 'btn-quit-game', 'btn-pause-save', 'btn-pause-discard']) {
+    assert.ok(html.includes(`id="${id}"`));
+  }
+});
+
+it('saves the current score once before quitting and blocks duplicate saves', async () => {
+  let resolve;
+  const pending = new Promise(res => { resolve = res; });
+  const { context, handlers, submissions, quits } = setup({ save: () => pending });
+  handlers.quit();
+  const saving = handlers.save();
+  await handlers.save();
+  assert.equal(submissions(), 1);
+  assert.equal(quits(), 0);
+  assert.equal(context.btnPauseDiscard.disabled, true);
+  resolve();
+  await saving;
+  assert.equal(quits(), 1);
+  assert.equal(context.paused, false);
+  assert.equal(context.diffSelect.scrollTop, 0);
+  assert.equal(context.btnPauseSave.disabled, false);
+});
+
+it('keeps the game paused with a visible error if saving fails', async () => {
+  const { context, handlers, quits } = setup({ save: async () => { throw new Error('offline'); } });
+  handlers.quit();
+  await handlers.save();
+  assert.equal(quits(), 0);
+  assert.equal(context.paused, true);
+  assert.equal(context.pauseSaveError.textContent, 'overlay.saveScoreFailed');
+  assert.equal(context.btnPauseSave.disabled, false);
+});
+
+for (const options of [{ loggedIn: false }, { shapes: true }, {}]) {
+  it(`discards without submitting a score for ${JSON.stringify(options)}`, async () => {
+    const { context, handlers, submissions, quits } = setup(options);
+    handlers.quit();
+    if (options.loggedIn === false || options.shapes) {
+      assert.equal(context.btnPauseSave.style.display, 'none');
+      await handlers.save();
+      assert.equal(submissions(), 0);
+    }
+    handlers.discard();
+    assert.equal(submissions(), 0);
+    assert.equal(quits(), 1);
+  });
+}
+
+it('freezes delayed combat during pause and cancels it when quitting', () => {
+  const { context, handlers } = setup();
+  vm.runInContext('scheduleGameplayTimeout(() => { state.score++; }, 300);', context);
+  assert.match(source, /if \(!paused\) advanceGameplayTimers\(dt\);/);
+  assert.equal(context.state.score, 1234);
+  handlers.discard();
+  vm.runInContext('advanceGameplayTimers(1);', context);
+  assert.equal(context.state.score, 1234);
+});
+
+it('runs gameplay timers once and defers newly scheduled timers to later frames', () => {
+  const { context } = setup();
+  vm.runInContext(`
+    scheduleGameplayTimeout(() => {
+      state.score++;
+      scheduleGameplayTimeout(() => { state.score++; }, 100);
+    }, 100);
+    advanceGameplayTimers(0.1);
+  `, context);
+  assert.equal(context.state.score, 1235);
+  vm.runInContext('advanceGameplayTimers(0.1);', context);
+  assert.equal(context.state.score, 1236);
+  vm.runInContext('advanceGameplayTimers(1);', context);
+  assert.equal(context.state.score, 1236);
+});

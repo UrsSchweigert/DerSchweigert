@@ -1,9 +1,70 @@
 import { it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+
+it('starts the title screen at the top without shrinking overflowing content', () => {
+  const screen = css.match(/^\.splash-screen\s*\{([^}]*)\}/m)?.[1];
+  const content = css.match(/^\.splash-content\s*\{([^}]*)\}/m)?.[1];
+  assert.ok(screen);
+  assert.ok(content);
+  assert.match(screen, /justify-content:\s*flex-start;/);
+  assert.match(screen, /overflow-y:\s*auto;/);
+  assert.match(content, /flex-shrink:\s*0;/);
+  assert.match(content, /margin:\s*0 auto;/);
+});
+
+it('keeps the top bar behind and inactive until both account and auth panels close', () => {
+  const helpers = ['setAccountModalVisible', 'setAuthModalVisible', 'updateTopBarModalState'].map(name => {
+    const helper = source.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n\\}`))?.[0];
+    assert.ok(helper, `${name} must exist`);
+    return helper;
+  }).join('\n');
+  const classes = new Set();
+  const context = {
+    accountModal: { style: { display: 'none' } },
+    authModal: { style: { display: 'none' } },
+    topBar: {
+      inert: false,
+      classList: {
+        toggle(name, enabled) {
+          if (enabled) classes.add(name);
+          else classes.delete(name);
+        },
+      },
+    },
+  };
+  vm.runInNewContext(`${helpers}\nsetAccountModalVisible(true);`, context);
+  assert.equal(context.accountModal.style.display, 'flex');
+  assert.equal(context.topBar.inert, true);
+  assert.ok(classes.has('behind-modal'));
+  vm.runInNewContext('setAuthModalVisible(true); setAccountModalVisible(false);', context);
+  assert.equal(context.authModal.style.display, 'flex');
+  assert.equal(context.topBar.inert, true);
+  assert.ok(classes.has('behind-modal'));
+  vm.runInNewContext('setAccountModalVisible(true); setAuthModalVisible(false);', context);
+  assert.equal(context.authModal.style.display, 'none');
+  assert.equal(context.topBar.inert, true);
+  vm.runInNewContext('setAccountModalVisible(false);', context);
+  assert.equal(context.accountModal.style.display, 'none');
+  assert.equal(context.topBar.inert, false);
+  assert.equal(classes.has('behind-modal'), false);
+  vm.runInNewContext('setAuthModalVisible(true);', context);
+  assert.equal(context.topBar.inert, true);
+  vm.runInNewContext('setAuthModalVisible(false);', context);
+  assert.equal(context.topBar.inert, false);
+  assert.equal(classes.has('behind-modal'), false);
+  assert.equal(source.match(/accountModal\.style\.display\s*=/g)?.length, 1,
+    'every opening and closing path must use the shared helper');
+  assert.equal(source.match(/authModal\.style\.display\s*=/g)?.length, 1,
+    'every auth opening and closing path must use the shared helper');
+  assert.match(css, /#top-bar\.behind-modal\s*\{[^}]*z-index:\s*99;[^}]*pointer-events:\s*none;/);
+  assert.match(css, /\.overlay\s*\{[^}]*z-index:\s*100;/);
+});
 
 it('lets translated account tabs wrap', () => {
   assert.match(css, /#account-tabs\s*\{[^}]*flex-wrap:\s*wrap;/);

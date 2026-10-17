@@ -4,6 +4,7 @@ export class AudioEngine {
   constructor() {
     this._ctx = null;
     this._muted = false;
+    this._bgmActive = false;
     this._bgmNodes = [];
     this._bgmTimer = null;
     this._bgmAudio = new Audio(new URL('./background-music.mp3', import.meta.url).href);
@@ -234,6 +235,7 @@ export class AudioEngine {
   startBGM(chapter) {
     this._ensureCtx();
     this.stopBGM();
+    this._bgmActive = true;
     if (this._muted) return;
 
     this._bgmAudio.currentTime = 0;
@@ -241,6 +243,7 @@ export class AudioEngine {
   }
 
   stopBGM() {
+    this._bgmActive = false;
     if (this._bgmTimer) {
       clearTimeout(this._bgmTimer);
       this._bgmTimer = null;
@@ -256,10 +259,12 @@ export class AudioEngine {
   }
 
   pauseBGM() {
+    this._bgmActive = false;
     this._bgmAudio.pause();
   }
 
   resumeBGM() {
+    this._bgmActive = true;
     if (this._muted) return;
     this._bgmAudio.play().catch(() => {});
   }
@@ -271,8 +276,8 @@ export class AudioEngine {
   toggleMute() {
     this._muted = !this._muted;
     if (this._muted) {
-      this.stopBGM();
-    } else {
+      this._bgmAudio.pause();
+    } else if (this._bgmActive) {
       this._bgmAudio.play().catch(() => {});
     }
   }

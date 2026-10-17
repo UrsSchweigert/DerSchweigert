@@ -269,6 +269,15 @@ let state = {
 // --- DOM refs ---
 const canvas = document.getElementById('game');
 const pauseOverlay = document.getElementById('pause-overlay');
+const pauseActions = document.getElementById('pause-actions');
+const pauseQuitActions = document.getElementById('pause-quit-actions');
+const pauseSaveNotice = document.getElementById('pause-save-notice');
+const pauseSaveError = document.getElementById('pause-save-error');
+const btnResumeGame = document.getElementById('btn-resume-game');
+const btnQuitGame = document.getElementById('btn-quit-game');
+const btnPauseSave = document.getElementById('btn-pause-save');
+const btnPauseDiscard = document.getElementById('btn-pause-discard');
+const btnPauseBack = document.getElementById('btn-pause-back');
 const healTipOverlay = document.getElementById('heal-tip-overlay');
 const btnHealTipConfirm = document.getElementById('btn-heal-tip-confirm');
 const levelClearOverlay = document.getElementById('level-clear');
@@ -712,7 +721,7 @@ splashLoginBtn.addEventListener('click', () => {
     });
   } else {
     showAuthForm(loginForm);
-    authModal.style.display = 'flex';
+    setAuthModalVisible(true);
   }
 });
 
@@ -775,10 +784,10 @@ tabRegister.addEventListener('click', () => showAuthForm(registerForm));
 
 loginBtn.addEventListener('click', () => {
   showAuthForm(loginForm);
-  authModal.style.display = 'flex';
+  setAuthModalVisible(true);
 });
 closeAuth.addEventListener('click', () => {
-  authModal.style.display = 'none';
+  setAuthModalVisible(false);
   showAuthForm(loginForm);
 });
 logoutBtn.addEventListener('click', async () => {
@@ -794,7 +803,7 @@ loginForm.addEventListener('submit', async e => {
     const u = document.getElementById('login-username').value;
     const p = document.getElementById('login-password').value;
     await api.login(u, p);
-    authModal.style.display = 'none';
+    setAuthModalVisible(false);
     loginError.textContent = '';
     applyAuthUIState();
     if (new URLSearchParams(location.search).get('account') === 'billing') openBillingPanel();
@@ -970,12 +979,28 @@ checkoutForm?.addEventListener('submit', async e => {
 userDisplay.addEventListener('click', async () => {
   if (!api.isLoggedIn) return;
   showAccountTab(tabAccountProfile, accountProfilePanel);
-  accountModal.style.display = 'flex';
+  setAccountModalVisible(true);
   await populateAccountModal();
 });
 
+function setAccountModalVisible(visible) {
+  accountModal.style.display = visible ? 'flex' : 'none';
+  updateTopBarModalState();
+}
+
+function setAuthModalVisible(visible) {
+  authModal.style.display = visible ? 'flex' : 'none';
+  updateTopBarModalState();
+}
+
+function updateTopBarModalState() {
+  const visible = accountModal.style.display !== 'none' || authModal.style.display !== 'none';
+  topBar.inert = visible;
+  topBar.classList.toggle('behind-modal', visible);
+}
+
 closeAccount.addEventListener('click', () => {
-  accountModal.style.display = 'none';
+  setAccountModalVisible(false);
 });
 
 function showAccountTab(tabBtn, panel) {
@@ -1077,7 +1102,7 @@ function renderBillingStatus(status) {
 }
 
 function openBillingPanel() {
-  accountModal.style.display = 'flex';
+  setAccountModalVisible(true);
   showAccountTab(tabAccountBilling, accountBillingPanel);
 }
 
@@ -1199,11 +1224,11 @@ accountPasswordForm.addEventListener('submit', async e => {
     // request.
     clearPremiumSession();
     await api.logout();
-    accountModal.style.display = 'none';
+    setAccountModalVisible(false);
     applyAuthUIState();
     loginError.textContent = t('auth.passwordChangedPleaseLogIn');
     showAuthForm(loginForm);
-    authModal.style.display = 'flex';
+    setAuthModalVisible(true);
   } catch (err) {
     accountPasswordMessage.classList.remove('success-msg');
     accountPasswordMessage.textContent = translateServerMessage(err.message);
@@ -1239,7 +1264,7 @@ accountDeleteForm.addEventListener('submit', async e => {
   try {
     await api.deleteAccount(password);
     clearPremiumSession();
-    accountModal.style.display = 'none';
+    setAccountModalVisible(false);
     accountDeleteForm.reset();
     accountDeleteSubmit.disabled = true;
     applyAuthUIState();
@@ -1314,6 +1339,7 @@ function resumePendingLevel() {
 }
 
 function clearPremiumSession() {
+  gameplayTimers.length = 0;
   levelRequestGeneration++;
   incrementRequestGeneration();
   setCurrentLevelConfig(null);
@@ -1321,7 +1347,7 @@ function clearPremiumSession() {
   inputDisabled = true;
   state.timerActive = false;
   input.disable();
-  accountModal.style.display = 'none';
+  setAccountModalVisible(false);
   checkoutModal.style.display = 'none';
   diffSelect.style.display = 'flex';
   hideLoadingOverlay();
@@ -1389,7 +1415,7 @@ async function startLevel(levelIndex, includeBaseline = false) {
       hideLoadingOverlay();
       finishStartLevel(levelIndex, cfg, baselineScore);
       clearPendingRecord();
-      accountModal.style.display = 'none';
+      setAccountModalVisible(false);
   } catch (err) {
     hideLoadingOverlay();
     // Only show error if this is still the current generation
@@ -1411,7 +1437,7 @@ function handleLevelConfigError(err, levelIndex) {
   if (err.statusCode === 401) {
     message = t('auth.loginRequiredForPremium');
     showAuthForm(loginForm);
-    authModal.style.display = 'flex';
+    setAuthModalVisible(true);
   } else if (err.statusCode === 402) {
     message = t('auth.subscriptionRequired');
     // Save pending record for L3+ so user can resume after purchasing
@@ -1432,6 +1458,7 @@ function handleLevelConfigError(err, levelIndex) {
 }
 
 function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
+  gameplayTimers.length = 0;
   state.isShapesMode = false;
   currentLevelIndex = levelIndex;
   levelStartScore = state.score;
@@ -1498,6 +1525,7 @@ function startShapesMode() {
 }
 
 function finishStartShapesMode() {
+  gameplayTimers.length = 0;
   currentLevelIndex = 0;
   state.isShapesMode = true;
   levelStartScore = state.score; // stays 0 — this mode never scores
@@ -1589,18 +1617,76 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
-// The pause overlay is a full-screen element stacked on top of the canvas
-// (like the other overlays), so once it's visible it intercepts every
-// click/tap before it can reach the canvas below — the canvas's own click
-// listener above never fires again to resume. Listen on the overlay itself
-// too, so tapping/clicking anywhere on the "Paused" screen resumes play.
-pauseOverlay.addEventListener('click', () => {
-  if (paused) resumeGame();
+btnResumeGame.addEventListener('click', resumeGame);
+btnQuitGame.addEventListener('click', () => {
+  pauseActions.style.display = 'none';
+  pauseQuitActions.style.display = '';
+  const canSave = api.isLoggedIn && !state.isShapesMode;
+  btnPauseSave.style.display = canSave ? '' : 'none';
+  pauseSaveNotice.textContent = canSave ? '' : t(state.isShapesMode
+    ? 'overlay.shapesScoreNotice' : 'overlay.guestScoreNotice');
+  pauseSaveError.textContent = '';
 });
+btnPauseBack.addEventListener('click', () => {
+  pauseQuitActions.style.display = 'none';
+  pauseActions.style.display = '';
+});
+btnPauseDiscard.addEventListener('click', quitPausedGame);
+btnPauseSave.addEventListener('click', async () => {
+  if (btnPauseSave.disabled || !paused || !api.isLoggedIn || state.isShapesMode) return;
+  btnPauseSave.disabled = true;
+  btnPauseDiscard.disabled = true;
+  btnPauseBack.disabled = true;
+  pauseSaveError.textContent = '';
+  try {
+    await api.postHighScore(state.score, state.level);
+    quitPausedGame();
+    await refreshProfileAndLeaderboard();
+  } catch (error) {
+    pauseSaveError.textContent = t('overlay.saveScoreFailed');
+  } finally {
+    btnPauseSave.disabled = false;
+    btnPauseDiscard.disabled = false;
+    btnPauseBack.disabled = false;
+  }
+});
+
+function quitPausedGame() {
+  if (!paused) return;
+  gameplayTimers.length = 0;
+  clearPremiumSession();
+  clearPendingRecord();
+  paused = false;
+  pauseOverlay.style.display = 'none';
+  pauseQuitActions.style.display = 'none';
+  diffSelect.scrollTop = 0;
+}
+
+const gameplayTimers = [];
+
+function scheduleGameplayTimeout(callback, delay) {
+  gameplayTimers.push({ callback, remaining: delay / 1000 });
+}
+
+function advanceGameplayTimers(dt) {
+  const due = [];
+  for (const timer of gameplayTimers) {
+    timer.remaining -= dt;
+    if (timer.remaining <= 0) due.push(timer);
+  }
+  for (const timer of due) {
+    const index = gameplayTimers.indexOf(timer);
+    if (index < 0) continue;
+    gameplayTimers.splice(index, 1);
+    timer.callback();
+  }
+}
 
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
+  pauseActions.style.display = '';
+  pauseQuitActions.style.display = 'none';
   pauseOverlay.style.display = 'flex';
   input.disable();
   audio.pauseBGM();
@@ -1740,7 +1826,7 @@ function handleCorrectAnswer() {
       audio.playLightningCast();
       input.disable();
       inputDisabled = true;
-      setTimeout(() => {
+      scheduleGameplayTimeout(() => {
         fiend.hp = 0;
         fiend.setState('death');
         audio.playLightningHit();
@@ -1749,7 +1835,7 @@ function handleCorrectAnswer() {
         activeFiend = null;
         heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
           hero.setState('idle');
-          setTimeout(() => {
+          scheduleGameplayTimeout(() => {
             if (checkAllDefeated()) triggerWaveClear();
             else { spawnTimer = spawnInterval; inputDisabled = false; }
           }, 300);
@@ -1765,7 +1851,7 @@ function handleCorrectAnswer() {
       audio.playFireballCast();
       input.disable();
       inputDisabled = true;
-      setTimeout(() => {
+      scheduleGameplayTimeout(() => {
         audio.playFireballHit();
         fiend.hit();
 
@@ -1774,7 +1860,7 @@ function handleCorrectAnswer() {
           state.enemiesDefeated++;
           activeFiend = null;
           heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-            setTimeout(() => {
+            scheduleGameplayTimeout(() => {
               if (checkAllDefeated()) triggerWaveClear();
               else { spawnTimer = spawnInterval; inputDisabled = false; }
             }, 300);
@@ -1808,7 +1894,7 @@ function handleCorrectAnswer() {
         input.disable();
         inputDisabled = true;
         heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-          setTimeout(() => {
+          scheduleGameplayTimeout(() => {
             if (checkAllDefeated()) triggerWaveClear();
             else { spawnTimer = spawnInterval; inputDisabled = false; }
           }, 300);
@@ -1842,7 +1928,7 @@ function handleCorrectAnswer() {
         input.disable();
         inputDisabled = true;
         heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-          setTimeout(() => {
+          scheduleGameplayTimeout(() => {
             if (checkAllDefeated()) triggerWaveClear();
             else { spawnTimer = spawnInterval; inputDisabled = false; }
           }, 300);
@@ -1906,7 +1992,7 @@ function handleWrongAnswer() {
     showHealTip();
   }
 
-  setTimeout(() => {
+  scheduleGameplayTimeout(() => {
     if (activeFiend) {
       const p = activeFiend.problem;
       // Shapes problems have no text question (see shapes.js's
@@ -1916,7 +2002,7 @@ function handleWrongAnswer() {
         : `Answer: ${p.answer}`;
       activeFiend.setState('reveal');
 
-      setTimeout(() => {
+      scheduleGameplayTimeout(() => {
         if (activeFiend) {
           if (activeFiend.isElite) {
             const cfg = getCurrentLevelConfig();
@@ -1975,7 +2061,7 @@ function triggerWaveClear() {
   hero._healAura = GAME_CONFIG.healingAuraDuration;
   hud.update(state);
 
-  setTimeout(() => {
+  scheduleGameplayTimeout(() => {
     triggerLevelClear();
   }, 2000);
 }
@@ -2014,6 +2100,7 @@ function triggerLevelClear() {
       await api.postHighScore(state.score, state.level);
       await refreshProfileAndLeaderboard();
       levelClearOverlay.style.display = 'none';
+      audio.stopBGM();
       diffSelect.style.display = 'flex';
       updateHUDLogoutVisibility();
     } catch {
@@ -2024,6 +2111,7 @@ function triggerLevelClear() {
 }
 
 function triggerGameOver() {
+  gameplayTimers.length = 0;
   gameRunning = false;
   resetHealHold();
   input.disable();
@@ -2080,6 +2168,8 @@ function gameLoop(ts) {
   const rawDt = (ts - lastTs) / 1000;
   lastTs = ts;
   const dt = Math.min(rawDt, 0.1);
+
+  if (!paused) advanceGameplayTimers(dt);
 
   if (gameRunning && !paused) {
     updateTimer(dt);
@@ -2249,7 +2339,7 @@ function handleUrlAuthTokens() {
     history.replaceState(null, '', window.location.pathname);
     pendingResetToken = resetToken;
     showAuthForm(resetPasswordForm);
-    authModal.style.display = 'flex';
+    setAuthModalVisible(true);
   }
 }
 
@@ -2303,7 +2393,7 @@ api.refresh()
       if (api.isLoggedIn) openBillingPanel();
       else {
         showAuthForm(loginForm);
-        authModal.style.display = 'flex';
+        setAuthModalVisible(true);
       }
     }
   });

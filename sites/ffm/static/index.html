@@ -293,7 +293,18 @@
   <div id="pause-overlay" class="overlay" style="display:none">
     <div class="overlay-card">
       <h2 data-i18n="overlay.pausedTitle">Paused</h2>
-      <p data-i18n="overlay.pausedHint">Tap the play area to resume</p>
+      <div id="pause-actions">
+        <button class="diff-btn" id="btn-resume-game" data-i18n="overlay.resume">Resume</button>
+        <button class="diff-btn" id="btn-quit-game" data-i18n="overlay.returnTitle">Return to Title</button>
+      </div>
+      <div id="pause-quit-actions" style="display:none">
+        <p data-i18n="overlay.quitScorePrompt">Save your score before leaving?</p>
+        <p id="pause-save-notice"></p>
+        <p id="pause-save-error" class="error-msg" role="alert"></p>
+        <button class="diff-btn" id="btn-pause-save" data-i18n-html="overlay.saveScoreReturnTitleHtml">Save Score &amp; Return to Title</button>
+        <button class="diff-btn" id="btn-pause-discard" data-i18n="overlay.discardScore">Discard Score &amp; Return to Title</button>
+        <button class="diff-btn" id="btn-pause-back" data-i18n="overlay.backToPause">Back</button>
+      </div>
     </div>
   </div>
 

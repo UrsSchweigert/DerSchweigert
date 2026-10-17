@@ -249,6 +249,7 @@ input[type=number] {
 .splash-screen {
   background: #0a0a1a;
   flex-direction: column;
+  justify-content: flex-start;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -281,7 +282,8 @@ input[type=number] {
   width: min(92vw, 520px);
   text-align: center;
   box-sizing: border-box;
-  margin: auto;
+  flex-shrink: 0;
+  margin: 0 auto;
 }
 
 .splash-title {
@@ -467,6 +469,10 @@ input[type=number] {
 }
 
 @media (max-width: 700px) {
+  .splash-screen {
+    padding-top: max(84px, calc(env(safe-area-inset-top) + 84px));
+  }
+
   .splash-content {
     max-width: min(94vw, 460px);
     width: min(94vw, 460px);
@@ -495,12 +501,6 @@ input[type=number] {
   .splash-diff-btn {
     padding-top: 10px;
     padding-bottom: 10px;
-  }
-}
-
-@media (orientation: portrait) and (max-width: 700px) {
-  .splash-screen {
-    padding-top: max(84px, calc(env(safe-area-inset-top) + 84px));
   }
 }
 
@@ -633,6 +633,11 @@ input[type=number] {
   z-index: 200;
   display: flex;
   gap: 8px;
+}
+
+#top-bar.behind-modal {
+  z-index: 99;
+  pointer-events: none;
 }
 
 #top-bar button,

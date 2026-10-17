@@ -327,7 +327,12 @@ const DICTIONARY = {
   'overlay.retryLevel': { en: 'Try This Level Again', de: 'Level erneut versuchen' },
   'overlay.returnTitle': { en: 'Return to Title', de: 'Zurück zum Titel' },
   'overlay.pausedTitle': { en: 'Paused', de: 'Pausiert' },
-  'overlay.pausedHint': { en: 'Tap the play area to resume', de: 'Tippe auf den Spielbereich, um fortzufahren' },
+  'overlay.resume': { en: 'Resume', de: 'Weiterspielen' },
+  'overlay.quitScorePrompt': { en: 'Save your score before leaving?', de: 'Punkte vor dem Verlassen speichern?' },
+  'overlay.discardScore': { en: 'Discard Score & Return to Title', de: 'Punkte verwerfen & zurück zum Titel' },
+  'overlay.backToPause': { en: 'Back', de: 'Zurück' },
+  'overlay.guestScoreNotice': { en: 'Only signed-in players can save scores.', de: 'Nur angemeldete Spieler können Punkte speichern.' },
+  'overlay.shapesScoreNotice': { en: 'Shapes practice does not record scores.', de: 'Beim Formen-Training werden keine Punkte gespeichert.' },
   'overlay.healTipTitle': { en: 'Low on Hearts!', de: 'Wenig Herzen!' },
   'overlay.healTipBodyHtml': {
     en: 'On multiple-choice levels, hold your finger on the <strong>left edge</strong> of the screen while you play to slowly heal your hearts — no tapping required! It only works while you solve problems in your head, so try not to count on your fingers.',

@@ -9,6 +9,7 @@ it('hides the title when a blocked level successfully resumes', () => {
   const fn = source.match(/function finishStartLevel\([\s\S]*?\n\}/)?.[0];
   assert.ok(fn, 'finishStartLevel must exist');
   const context = {
+    gameplayTimers: [],
     state: { score: 0 },
     diffSelect: { style: { display: 'flex' } },
     pauseOverlay: { style: {} },
@@ -36,6 +37,10 @@ it('closes account and checkout dialogs while keeping title controls available a
   const fn = source.match(/function clearPremiumSession\([\s\S]*?\n\}/)?.[0];
   assert.ok(fn, 'clearPremiumSession must exist');
   const context = {
+    gameplayTimers: [],
+    setAccountModalVisible(visible) {
+      context.accountModal.style.display = visible ? 'flex' : 'none';
+    },
     levelRequestGeneration: 0,
     incrementRequestGeneration() {},
     setCurrentLevelConfig() {},
