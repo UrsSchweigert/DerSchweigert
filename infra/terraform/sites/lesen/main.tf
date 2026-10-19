@@ -8,10 +8,11 @@ provider "aws" {
 }
 
 locals {
-  app_name = "lesen"
+  app_name = "derschweigert-lesen"
+  project  = "lesen"
   domain   = "lesen.derschweigert.de"
   tags = {
-    Project   = local.app_name
+    Project   = local.project
     ManagedBy = "terraform"
     Domain    = local.domain
   }

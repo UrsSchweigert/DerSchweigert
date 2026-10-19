@@ -156,7 +156,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   permissions for resources that had existed for a while. See
   [`sites/ffm/README.md`](sites/ffm/README.md)'s "CI's AWS IAM permissions are
   NOT managed in this repo" section for the exact `aws iam` commands to
-  inspect/update it, the 5-versions-per-policy cap, and the current (v12)
+  inspect/update it, the 5-versions-per-policy cap, and the current (v16)
   permission set. It happened again on 2026-09-06: adding the
   `email_forwarding` module (SES receiving + S3 + Lambda forwarder for
   `info@derschweigert.de`) failed CI with `AccessDenied` on
