@@ -10,12 +10,14 @@ app under `sites/`, and shared infrastructure building blocks live under
 sites/
   derschweigert/   # www.derschweigert.de — FastAPI app, templates, static assets, Lambda API, tests
   ffm/              # ffm.derschweigert.de — Arithmo Slayer static game + Flask API
+  lesen/            # lesen.derschweigert.de — standalone reading-practice page
 infra/
   terraform/
     modules/        # shared Terraform modules (static_site, api_backend) used by every site stack
     sites/
       derschweigert/  # root module for derschweigert.de + www
       ffm/            # dedicated FFM stack (static site + API backend)
+      lesen/          # dedicated static-site stack for lesen.derschweigert.de
 requirements.txt      # shared Python dependency baseline
 pytest.ini            # points pytest at sites/derschweigert/tests
 ```
@@ -45,7 +47,7 @@ The app loads `sites/derschweigert/.env` automatically when it starts, so local 
 
 ## Domain / Route53 note
 
-The configured production domains for this project are `derschweigert.de` / `www.derschweigert.de` and `ffm.derschweigert.de`. In Route53, keep the apex + `www` aliases aligned with the derschweigert stack and the `ffm` record aligned with `infra/terraform/sites/ffm`.
+The configured production domains for this project are `derschweigert.de` / `www.derschweigert.de`, `ffm.derschweigert.de`, and `lesen.derschweigert.de`. In Route53, keep the apex + `www` aliases aligned with the derschweigert stack and each subdomain record aligned with its own Terraform stack.
 
 ## Minimal Route53 setup
 
@@ -104,6 +106,10 @@ recommended shape for any real standalone site:
    [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)), pointing at
    `infra/terraform/sites/<name>` and `sites/<name>/{templates,static}`.
 
+The single-page reading practice site at `lesen.derschweigert.de` is deployed
+independently by `deploy-lesen` in the GitHub Actions workflow. Its source page
+is `sites/lesen/static/index.html`.
+
 ### Refactoring live infra safely (moved blocks)
 
 If you ever need to reshuffle resources between root config and modules again
@@ -126,24 +132,25 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
 - **Route53 zone**: `derschweigert.de` hosted zone ID `Z02407051JK3BF2C58UEQ`
   (shared across all subdomains/sites — no need to create a new zone for a new
   subdomain, just add records/aliases in the relevant site's Terraform stack).
-- **CI**: `.github/workflows/deploy.yml` has 5 jobs: `test` (derschweigert
+- **CI**: `.github/workflows/deploy.yml` has 6 jobs: `test` (derschweigert
   pytest), `test-ffm` (ffm pytest, standalone), `check-secrets` (gates deploy
   on AWS secrets being present), `deploy` (derschweigert terraform apply +
   static sync), `deploy-ffm` (ffm terraform apply + Lambda code push + static
-  sync). Triggers are `push` to `main` **and** `pull_request` into `main` —
-  the two test jobs run on both, but the two deploy jobs are additionally
+  sync), and `deploy-lesen` (lesen terraform apply + static sync). Triggers
+  are `push` to `main` **and** `pull_request` into `main` — the two test jobs
+  run on both, but the three deploy jobs are additionally
   gated on `github.ref == 'refs/heads/main'` so they never run for a PR.
   Required GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
   `AWS_SESSION_TOKEN` (optional), `AWS_REGION` (optional, defaults to
   `eu-central-1`), `ROUTE53_ZONE_ID`.
 - **CI's IAM permissions live outside this repo — read this before adding any
-  new AWS resource type.** Both deploy jobs authenticate as IAM user
+  new AWS resource type.** Every deploy job authenticates as IAM user
   `derschweigert-ci-deploy`, whose permissions come from a customer-managed
   policy (`derschweigert-deploy-scope`) that is **hand-maintained in AWS IAM,
   not defined anywhere in `infra/terraform/`.** There is no drift check
   between what a `.tf` file needs and what that policy grants — a `terraform
-  apply` step can be green in a PR's `test`/`test-ffm` jobs and then fail in
-  `deploy`/`deploy-ffm` purely on `AccessDenied`. This bit a 2026-09-05 session
+  apply` step can be green in a PR's `test`/`test-ffm` jobs and then fail in a
+  deploy job purely on `AccessDenied`. This bit a 2026-09-05 session
   hard: `deploy-ffm` had never actually run `terraform apply` before that day,
   and turned out to be missing DynamoDB/Secrets Manager/CloudFront/IAM
   permissions for resources that had existed for a while. See
@@ -169,11 +176,13 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
 - **Security response headers**: the shared `static_site` module
   (`infra/terraform/modules/static_site/main.tf`) provisions a CloudFront
   response-headers policy (CSP, HSTS, X-Frame-Options, nosniff,
-  referrer-policy) applied to every site that uses this module — both
-  derschweigert and ffm get it automatically. The default CSP
+  referrer-policy) applied to every site that uses this module — derschweigert,
+  ffm, and lesen get it automatically. The default CSP
   (`var.content_security_policy`) assumes same-origin-only assets with no
   external CDNs/fonts and allows inline `style="..."` attributes but not
   inline `<script>`; override the variable per-site if that stops being true.
+  The lesen page is self-contained with inline JavaScript, so its stack allows
+  inline scripts without relaxing the CSP for external sources.
   FFM does exactly this in `infra/terraform/sites/ffm/main.tf` (`module
   "site"`'s `content_security_policy`), adding `https://challenges.cloudflare.com`
   to `script-src`/`frame-src` for the Cloudflare Turnstile CAPTCHA widget (see
@@ -204,4 +213,3 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   Lambda non-functional until the very next step overwrites it — see
   `sites/ffm/README.md`'s "Deployment shape" section for the full trade-off
   and the fix if it's ever worth removing.
-

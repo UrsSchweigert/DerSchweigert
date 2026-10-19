@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#edf6f0">
+    <title>Buchstabenzeit | Lese&uuml;bung</title>
+    <style>
+        :root {
+            --ink: #223e35;
+            --muted: #61716a;
+            --green: #28694e;
+            --paper: #fcfdfa;
+            --line: #d5e1d8;
+            --coral: #b84937;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            color: var(--ink);
+            background: var(--paper);
+            font-family: "Avenir Next", Avenir, "Trebuchet MS", sans-serif;
+            letter-spacing: 0;
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        button:focus-visible,
+        input:focus-visible {
+            outline: 3px solid #c16a19;
+            outline-offset: 4px;
+        }
+
+        button:disabled {
+            cursor: default;
+            opacity: .5;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        header {
+            border-bottom: 1px solid var(--line);
+        }
+
+        .header-inner {
+            max-width: 1040px;
+            margin: auto;
+            padding: 23px 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-mark {
+            width: 36px;
+            height: 36px;
+            flex: none;
+        }
+
+        .brand {
+            font-family: Georgia, serif;
+            font-size: 25px;
+            font-weight: bold;
+        }
+
+        .header-note {
+            margin-left: auto;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--muted);
+        }
+
+        main {
+            max-width: 1040px;
+            margin: auto;
+            padding: 46px 28px 32px;
+        }
+
+        h1 {
+            font-family: Georgia, serif;
+            font-size: 38px;
+            line-height: 1.15;
+            margin: 0 0 32px;
+            font-weight: normal;
+        }
+
+        h2,
+        legend {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        fieldset {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            min-width: 0;
+        }
+
+        legend {
+            padding: 0;
+            margin-bottom: 16px;
+        }
+
+        .setup-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.6fr) minmax(230px, 1fr);
+            gap: 48px;
+        }
+
+        .letter-group+.letter-group {
+            margin-top: 32px;
+        }
+
+        .letters {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 9px;
+        }
+
+        .letter {
+            min-height: 52px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: white;
+            color: var(--ink);
+            font-size: 25px;
+            transition: background .15s, border-color .15s;
+        }
+
+        .letter[aria-pressed="true"] {
+            background: #dcefe2;
+            border-color: var(--green);
+            color: #174b33;
+            box-shadow: inset 0 -3px 0 #28694e;
+        }
+
+        .letter:hover {
+            border-color: var(--green);
+        }
+
+        .selection-count {
+            color: var(--muted);
+            font-weight: normal;
+            margin-left: 8px;
+            font-size: 13px;
+        }
+
+        .deck-options {
+            border-left: 1px solid var(--line);
+            padding-left: 36px;
+        }
+
+        .patterns {
+            display: grid;
+            gap: 9px;
+        }
+
+        .pattern {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            padding: 13px 14px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .pattern:has(input:checked) {
+            border-color: var(--green);
+            background: #edf6f0;
+        }
+
+        input[type="radio"] {
+            accent-color: var(--green);
+            width: 17px;
+            height: 17px;
+            margin: 0;
+            flex: none;
+        }
+
+        .pattern strong {
+            font-size: 20px;
+            min-width: 50px;
+        }
+
+        .pattern span {
+            font-size: 12px;
+            color: var(--muted);
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .number-label {
+            display: block;
+            font-size: 16px;
+            font-weight: 700;
+            margin: 28px 0 12px;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 12px 14px;
+            background: white;
+            color: var(--ink);
+            font-size: 20px;
+        }
+
+        .setup-bottom {
+            border-top: 1px solid var(--line);
+            margin-top: 36px;
+            padding-top: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .error {
+            margin: 0;
+            color: #a32c24;
+            font-size: 14px;
+        }
+
+        .primary,
+        .action,
+        .quiet {
+            border-radius: 6px;
+            padding: 14px 22px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-weight: 700;
+            border: 1px solid transparent;
+        }
+
+        .primary {
+            background: var(--green);
+            color: white;
+        }
+
+        .primary:hover {
+            background: #1b523b;
+        }
+
+        .quiet {
+            background: transparent;
+            color: var(--ink);
+            border-color: var(--line);
+            padding: 10px 14px;
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex: none;
+        }
+
+        .practice-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .practice-top h1 {
+            margin: 0;
+            font-size: 30px;
+        }
+
+        .practice-inner {
+            max-width: 660px;
+            margin: auto;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--muted);
+            margin: 0 0 12px;
+        }
+
+        .stats strong {
+            color: var(--ink);
+        }
+
+        progress {
+            display: block;
+            appearance: none;
+            width: 100%;
+            height: 7px;
+            border: none;
+            background: #e4eae4;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        progress::-webkit-progress-bar {
+            background: #e4eae4;
+        }
+
+        progress::-webkit-progress-value {
+            background: var(--green);
+            transition: width .2s;
+        }
+
+        progress::-moz-progress-bar {
+            background: var(--green);
+        }
+
+        .reading-card {
+            position: relative;
+            height: 290px;
+            border: 1px solid #cbded1;
+            border-radius: 8px;
+            background: #edf6f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .reading-card::before,
+        .reading-card::after {
+            content: "";
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            border: 1px solid #ccdfd1;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .reading-card::before {
+            top: -32px;
+            left: -32px;
+        }
+
+        .reading-card::after {
+            bottom: -32px;
+            right: -32px;
+        }
+
+        #syllable {
+            font-family: "Trebuchet MS", sans-serif;
+            font-weight: normal;
+            font-size: 100px;
+            line-height: 1.1;
+            margin: 0;
+            padding: 16px;
+        }
+
+        .review-label {
+            position: absolute;
+            top: 18px;
+            left: 20px;
+            color: var(--green);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-top: 20px;
+        }
+
+        .action {
+            min-height: 58px;
+            font-size: 16px;
+        }
+
+        .retry {
+            border-color: #e3b7ad;
+            background: #fff2ec;
+            color: var(--coral);
+        }
+
+        .retry:hover {
+            background: #ffe5da;
+        }
+
+        .correct {
+            background: var(--green);
+            color: white;
+        }
+
+        .correct:hover {
+            background: #1b523b;
+        }
+
+        .feedback {
+            text-align: center;
+            color: var(--muted);
+            font-size: 14px;
+            min-height: 40px;
+            margin: 18px 0 0;
+        }
+
+        .complete {
+            text-align: center;
+            padding: 35px 0;
+        }
+
+        .complete-mark {
+            display: inline-flex;
+            background: #dcefe2;
+            color: var(--green);
+            border-radius: 50%;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .complete-mark svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        .complete h1 {
+            margin-bottom: 16px;
+        }
+
+        .complete p {
+            color: var(--muted);
+            margin-bottom: 30px;
+        }
+
+        .complete-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        footer {
+            max-width: 1040px;
+            padding: 20px 28px 28px;
+            margin: auto;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        @media (max-width: 680px) {
+            .header-inner {
+                padding: 18px 20px;
+            }
+
+            .header-note {
+                display: none;
+            }
+
+            main {
+                padding: 30px 20px 20px;
+            }
+
+            h1 {
+                font-size: 30px;
+                margin-bottom: 26px;
+            }
+
+            .setup-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+
+            .deck-options {
+                border-left: 0;
+                border-top: 1px solid var(--line);
+                padding: 24px 0 0;
+            }
+
+            .letters {
+                gap: 7px;
+            }
+
+            .letter {
+                min-height: 46px;
+                font-size: 23px;
+            }
+
+            .setup-bottom {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .reading-card {
+                height: 260px;
+            }
+
+            .practice-top h1 {
+                font-size: 25px;
+            }
+
+            .action {
+                padding: 14px 10px;
+                gap: 7px;
+                font-size: 14px;
+            }
+
+            .stats {
+                font-size: 13px;
+                gap: 8px;
+            }
+
+            footer {
+                padding-left: 20px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                transition: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-inner">
+            <svg class="brand-mark" viewBox="0 0 36 36" aria-hidden="true">
+                <rect x="2" y="7" width="24" height="27" rx="4" fill="#e9b49f" />
+                <rect x="9" y="2" width="25" height="28" rx="4" fill="#28694e" /><text x="21.5" y="23"
+                    text-anchor="middle" font-family="Georgia, serif" font-size="24" fill="white">a</text>
+            </svg>
+            <span class="brand">Buchstabenzeit</span><span class="header-note">Lese&uuml;bung</span>
+        </div>
+    </header>
+    <main>
+        <section id="setup" aria-labelledby="setup-title">
+            <h1 id="setup-title">Lesen lernen, Karte f&uuml;r Karte.</h1>
+            <form id="setup-form">
+                <div class="setup-grid">
+                    <div>
+                        <fieldset class="letter-group">
+                            <legend>Konsonanten <span id="consonant-count" class="selection-count"></span></legend>
+                            <div class="letters" id="consonants"></div>
+                        </fieldset>
+                        <fieldset class="letter-group">
+                            <legend>Vokale <span id="vowel-count" class="selection-count"></span></legend>
+                            <div class="letters" id="vowels"></div>
+                        </fieldset>
+                    </div>
+                    <div class="deck-options">
+                        <fieldset>
+                            <legend>Buchstabenfolge</legend>
+                            <div class="patterns">
+                                <label class="pattern"><input type="radio" name="pattern" value="CV"
+                                        checked><strong>ma</strong><span>Konsonant + Vokal</span></label>
+                                <label class="pattern"><input type="radio" name="pattern"
+                                        value="VC"><strong>am</strong><span>Vokal + Konsonant</span></label>
+                                <label class="pattern"><input type="radio" name="pattern"
+                                        value="CVC"><strong>mam</strong><span>Konsonant + Vokal +
+                                        Konsonant</span></label>
+                            </div>
+                        </fieldset>
+                        <label for="card-count" class="number-label">Anzahl der Karten</label>
+                        <input id="card-count" type="number" min="1" max="200" step="1" value="10" required>
+                    </div>
+                </div>
+                <div class="setup-bottom">
+                    <p id="setup-error" class="error" role="alert"></p>
+                    <button class="primary" type="submit">Lesen starten <svg class="icon" viewBox="0 0 24 24"
+                            aria-hidden="true">
+                            <path d="M5 12h14m-6-6 6 6-6 6" />
+                        </svg></button>
+                </div>
+            </form>
+        </section>
+        <section id="practice" aria-labelledby="practice-title" hidden>
+            <div class="practice-top">
+                <h1 id="practice-title">Deine Lesekarten</h1><button id="finish-early" class="quiet" type="button"><svg
+                        class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m12 19-7-7 7-7m-7 7h14" />
+                    </svg>Auswahl</button>
+            </div>
+            <div class="practice-inner">
+                <div class="stats"><span><strong id="cleared">0</strong> geschafft</span><span><strong
+                            id="remaining">10</strong> offen</span><span><strong id="total">10</strong> insgesamt</span>
+                </div>
+                <progress id="progress" value="0" max="10" aria-label="Geschaffte Karten"></progress>
+                <div class="reading-card"><span id="review-label" class="review-label" hidden>Noch einmal</span>
+                    <p id="syllable" aria-live="polite" aria-atomic="true"></p>
+                </div>
+                <div class="actions">
+                    <button id="retry" class="action retry" type="button"><svg class="icon" viewBox="0 0 24 24"
+                            aria-hidden="true">
+                            <path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7" />
+                        </svg>Noch &uuml;ben</button>
+                    <button id="correct" class="action correct" type="button"><svg class="icon" viewBox="0 0 24 24"
+                            aria-hidden="true">
+                            <path d="m5 12 4 4L19 6" />
+                        </svg>Richtig gelesen</button>
+                </div>
+                <p id="feedback" class="feedback" role="status"></p>
+            </div>
+        </section>
+        <section id="complete" class="complete" aria-labelledby="complete-title" hidden>
+            <div class="complete-mark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m5 12 4 4L19 6" />
+                </svg></div>
+            <h1 id="complete-title" tabindex="-1">Alle Karten geschafft!</h1>
+            <p id="complete-summary"></p>
+            <div class="complete-actions"><button id="again" class="primary" type="button"><svg class="icon"
+                        viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7" />
+                    </svg>Neue Runde</button><button id="change-letters" class="quiet" type="button">Buchstaben
+                    &auml;ndern</button></div>
+        </section>
+    </main>
+    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</footer>
+    <script>
+        'use strict';
+        const consonants = new Set(['m', 's', 't', 'p', 'n']);
+        const vowels = new Set(['a', 'e', 'o']);
+        const byId = id => document.getElementById(id);
+        let queue = [];
+        let total = 0;
+        let cleared = 0;
+        let attempts = 0;
+
+        function updateSelectionCounts() {
+            byId('consonant-count').textContent = `${consonants.size} ausgew\u00e4hlt`;
+            byId('vowel-count').textContent = `${vowels.size} ausgew\u00e4hlt`;
+        }
+
+        function buildLetters(containerId, alphabet, selected) {
+            for (const letter of alphabet) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'letter';
+                button.textContent = letter;
+                button.setAttribute('aria-label', letter);
+                button.setAttribute('aria-pressed', String(selected.has(letter)));
+                button.addEventListener('click', () => {
+                    if (selected.has(letter)) selected.delete(letter);
+                    else selected.add(letter);
+                    button.setAttribute('aria-pressed', String(selected.has(letter)));
+                    byId('setup-error').textContent = '';
+                    updateSelectionCounts();
+                });
+                byId(containerId).append(button);
+            }
+        }
+
+        function shuffle(items) {
+            const shuffled = [...items];
+            for (let index = shuffled.length - 1; index > 0; index--) {
+                const other = Math.floor(Math.random() * (index + 1));
+                [shuffled[index], shuffled[other]] = [shuffled[other], shuffled[index]];
+            }
+            return shuffled;
+        }
+
+        function showScreen(screen) {
+            for (const name of ['setup', 'practice', 'complete']) byId(name).hidden = name !== screen;
+        }
+
+        function renderCard() {
+            byId('cleared').textContent = cleared;
+            byId('remaining').textContent = queue.length;
+            byId('total').textContent = total;
+            byId('progress').max = total;
+            byId('progress').value = cleared;
+            if (!queue.length) {
+                showScreen('complete');
+                byId('complete-summary').textContent = `${total} ${total === 1 ? 'Karte' : 'Karten'} in ${attempts} ${attempts === 1 ? 'Versuch' : 'Versuchen'} richtig gelesen.`;
+                byId('complete-title').focus();
+                return;
+            }
+            byId('syllable').textContent = queue[0].text;
+            byId('review-label').hidden = queue[0].misses === 0;
+        }
+
+        function startDeck() {
+            const countInput = byId('card-count');
+            if (!countInput.reportValidity()) return;
+            if (!consonants.size || !vowels.size) {
+                byId('setup-error').textContent = 'Bitte w\u00e4hle mindestens einen Konsonanten und einen Vokal aus.';
+                return;
+            }
+            const pattern = document.querySelector('input[name="pattern"]:checked').value;
+            let combinations = [''];
+            for (const slot of pattern) {
+                const letters = slot === 'C' ? consonants : vowels;
+                combinations = combinations.flatMap(prefix => [...letters].map(letter => prefix + letter));
+            }
+            total = Number(countInput.value);
+            queue = [];
+            while (queue.length < total) {
+                const batch = shuffle(combinations).slice(0, total - queue.length);
+                queue.push(...batch.map(text => ({ text, misses: 0 })));
+            }
+            const uppercaseFirst = Math.random() < 0.5;
+            queue = shuffle(queue.map((card, index) => ({
+                ...card,
+                text: (index % 2 === 0) === uppercaseFirst
+                    ? card.text[0].toUpperCase() + card.text.slice(1)
+                    : card.text
+            })));
+            cleared = 0;
+            attempts = 0;
+            byId('feedback').textContent = '';
+            byId('setup-error').textContent = '';
+            showScreen('practice');
+            renderCard();
+            byId('correct').focus();
+        }
+
+        function markCard(correct) {
+            if (!queue.length || byId('practice').hidden) return;
+            const card = queue.shift();
+            attempts++;
+            if (correct) {
+                cleared++;
+                byId('feedback').textContent = 'Karte geschafft.';
+            } else {
+                card.misses++;
+                queue.push(card);
+                byId('feedback').textContent = queue.length === 1 ? 'Versuch es noch einmal.' : 'Diese Karte kommt am Ende noch einmal dran.';
+            }
+            renderCard();
+        }
+
+        function returnToSetup() {
+            showScreen('setup');
+            document.querySelector('#setup button').focus();
+        }
+
+        buildLetters('consonants', 'bcdfghjklmnpqrstvwxyz', consonants);
+        buildLetters('vowels', 'aeiou', vowels);
+        updateSelectionCounts();
+        byId('setup-form').addEventListener('submit', event => { event.preventDefault(); startDeck(); });
+        byId('retry').addEventListener('click', () => markCard(false));
+        byId('correct').addEventListener('click', () => markCard(true));
+        byId('finish-early').addEventListener('click', returnToSetup);
+        byId('change-letters').addEventListener('click', returnToSetup);
+        byId('again').addEventListener('click', startDeck);
+    </script>
+</body>
+
+</html>

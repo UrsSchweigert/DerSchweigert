@@ -313,3 +313,92 @@ jobs:
           sleep 10
           curl -sf https://ffm.derschweigert.de/ > /dev/null
           curl -sf https://ffm.derschweigert.de/api/health | grep '"ok":true'
+
+  deploy-lesen:
+    needs: [check-secrets]
+    runs-on: ubuntu-latest
+    if: |
+      github.ref == 'refs/heads/main' &&
+      needs.check-secrets.outputs.has_secrets == 'true'
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION || 'eu-central-1' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      TF_VAR_route53_zone_id: ${{ secrets.ROUTE53_ZONE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set deployment target
+        run: echo "Deploy target - lesen.derschweigert.de"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Provision infrastructure with Terraform
+        run: |
+          terraform -chdir=infra/terraform/sites/lesen init -upgrade -reconfigure
+          terraform -chdir=infra/terraform/sites/lesen apply -auto-approve
+
+      - name: Upload static site files
+        run: |
+          BUCKET=$(terraform -chdir=infra/terraform/sites/lesen output -raw site_bucket)
+          aws s3 sync sites/lesen/static/ "s3://$BUCKET/" \
+            --delete \
+            --cache-control "no-cache, must-revalidate" \
+            --exclude "index.html"
+          aws s3 cp sites/lesen/static/index.html \
+            "s3://$BUCKET/index.html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Verify Route53 alias points to the Terraform CloudFront distribution
+        run: |
+          DIST_ID=$(terraform -chdir=infra/terraform/sites/lesen output -raw cloudfront_distribution_id)
+          CF_DOMAIN=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.DomainName' --output text)
+
+          python3 - "$TF_VAR_route53_zone_id" "$CF_DOMAIN" <<'PY'
+          import json
+          import subprocess
+          import sys
+
+          zone_id, cf_domain = sys.argv[1], sys.argv[2]
+          result = subprocess.check_output([
+              "aws", "route53", "list-resource-record-sets",
+              "--hosted-zone-id", zone_id,
+              "--output", "json"
+          ], text=True)
+          rrset = json.loads(result)
+          host = "lesen.derschweigert.de"
+          target = next(
+              (
+                  record.get("AliasTarget", {}).get("DNSName")
+                  for record in rrset.get("ResourceRecordSets", [])
+                  if record.get("Name") == f"{host}." and record.get("Type") == "A"
+              ),
+              None,
+          )
+          if target is None:
+              raise SystemExit(f"Missing Route53 A alias for {host}")
+          print(f"{host} -> {target}")
+          if target.rstrip(".").lower() != cf_domain.rstrip(".").lower():
+              raise SystemExit(f"Route53 alias mismatch for {host}: expected {cf_domain}, got {target}")
+          PY
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DIST_ID=$(terraform -chdir=infra/terraform/sites/lesen output -raw cloudfront_distribution_id)
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+
+      - name: Smoke test
+        run: |
+          sleep 10
+          curl -sf https://lesen.derschweigert.de/ | grep -q '<title>Buchstabenzeit'
