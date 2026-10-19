@@ -7,6 +7,22 @@
     <meta name="theme-color" content="#edf6f0">
     <title>Buchstabenzeit | Lese&uuml;bung</title>
     <style>
+        @font-face {
+            font-family: Andika;
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url("fonts/andika-latin-regular.woff2") format("woff2");
+        }
+
+        @font-face {
+            font-family: Andika;
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url("fonts/andika-latin-bold.woff2") format("woff2");
+        }
+
         :root {
             --ink: #223e35;
             --muted: #61716a;
@@ -24,7 +40,7 @@
             margin: 0;
             color: var(--ink);
             background: var(--paper);
-            font-family: "Avenir Next", Avenir, "Trebuchet MS", sans-serif;
+            font-family: Andika, "Trebuchet MS", sans-serif;
             letter-spacing: 0;
         }
 
@@ -369,7 +385,7 @@
         }
 
         #syllable {
-            font-family: "Trebuchet MS", sans-serif;
+            font-family: Andika, "Trebuchet MS", sans-serif;
             font-weight: normal;
             font-size: 100px;
             line-height: 1.1;
