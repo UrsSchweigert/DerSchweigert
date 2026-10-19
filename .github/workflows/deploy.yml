@@ -347,6 +347,17 @@ jobs:
       - name: Provision infrastructure with Terraform
         run: |
           terraform -chdir=infra/terraform/sites/lesen init -upgrade -reconfigure
+          BUCKET_TAINTED=$(terraform -chdir=infra/terraform/sites/lesen state pull | jq -r '
+            [
+              .resources[]?
+              | select(.module == "module.site" and .type == "aws_s3_bucket" and .name == "site")
+              | .instances[]?
+              | .status
+            ] | any(. == "tainted")
+          ')
+          if [ "$BUCKET_TAINTED" = "true" ]; then
+            terraform -chdir=infra/terraform/sites/lesen untaint module.site.aws_s3_bucket.site
+          fi
           terraform -chdir=infra/terraform/sites/lesen apply -auto-approve
 
       - name: Upload static site files
