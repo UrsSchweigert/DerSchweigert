@@ -70,39 +70,6 @@
             display: none !important;
         }
 
-        header {
-            border-bottom: 1px solid var(--line);
-        }
-
-        .header-inner {
-            max-width: 1040px;
-            margin: auto;
-            padding: 23px 28px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .brand-mark {
-            width: 36px;
-            height: 36px;
-            flex: none;
-        }
-
-        .brand {
-            font-family: Georgia, serif;
-            font-size: 25px;
-            font-weight: bold;
-        }
-
-        .header-note {
-            margin-left: auto;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: var(--muted);
-        }
-
         main {
             max-width: 1040px;
             margin: auto;
@@ -488,14 +455,6 @@
         }
 
         @media (max-width: 680px) {
-            .header-inner {
-                padding: 18px 20px;
-            }
-
-            .header-note {
-                display: none;
-            }
-
             main {
                 padding: 30px 20px 20px;
             }
@@ -580,40 +539,9 @@
                 var(--paper);
         }
 
-        header {
-            border-bottom-color: rgba(7, 89, 183, .12);
-            background: rgba(255, 255, 255, .86);
-        }
-
-        .header-inner,
         main,
         footer {
             max-width: 1120px;
-        }
-
-        .header-inner {
-            padding-top: 14px;
-            padding-bottom: 14px;
-            gap: 14px;
-        }
-
-        .brand-mark {
-            width: 72px;
-            height: 72px;
-            object-fit: contain;
-            flex: none;
-        }
-
-        .brand {
-            font-family: Andika, "Trebuchet MS", sans-serif;
-            color: var(--blue);
-            font-size: 23px;
-            letter-spacing: -.5px;
-        }
-
-        .header-note {
-            font-weight: 700;
-            letter-spacing: 1.2px;
         }
 
         main {
@@ -844,11 +772,6 @@
         }
 
         @media (max-width: 680px) {
-            .header-inner {
-                padding-top: 12px;
-                padding-bottom: 12px;
-            }
-
             main {
                 padding: 18px 20px 20px;
             }
@@ -888,17 +811,11 @@
 </head>
 
 <body>
-    <header>
-        <div class="header-inner">
-            <img class="brand-mark" src="images/buchstabenzeit-logo.png" alt="">
-            <span class="brand">Buchstabenzeit</span><span class="header-note">Lese&uuml;bung</span>
-        </div>
-    </header>
     <main>
         <section id="setup" aria-labelledby="setup-title">
             <div class="setup-intro">
                 <div class="intro-copy">
-                    <p class="eyebrow">Deine kleine Lesezeit</p>
+                    <p class="eyebrow">Buchstabenzeit</p>
                     <h1 id="setup-title">Lesen lernen, Karte f&uuml;r Karte.</h1>
                     <p class="intro-description">Stelle deine Buchstabenkarten zusammen und lies in deinem eigenen Tempo. Jeder kleine Schritt z&auml;hlt!</p>
                 </div>
