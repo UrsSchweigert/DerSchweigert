@@ -379,6 +379,24 @@
             margin-top: 20px;
         }
 
+        .speak-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
+        }
+
+        .speak-button {
+            color: var(--blue);
+            background: #f0faff;
+            border-color: var(--line);
+            font-size: 15px;
+        }
+
+        .speak-button:hover {
+            background: #e1f4ff;
+            border-color: var(--blue);
+        }
+
         .action {
             min-height: 58px;
             font-size: 16px;
@@ -874,6 +892,15 @@
                 <div class="reading-card"><span id="review-label" class="review-label" hidden>Noch einmal</span>
                     <p id="syllable" aria-live="polite" aria-atomic="true"></p>
                 </div>
+                <div class="speak-row">
+                    <button id="speak-card" class="quiet speak-button" type="button">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                            <path d="M15.5 8.5a5 5 0 0 1 0 7m3-10a9 9 0 0 1 0 13" />
+                        </svg>
+                        Auf Deutsch anh&ouml;ren
+                    </button>
+                </div>
                 <div class="actions">
                     <button id="retry" class="action retry" type="button"><svg class="icon" viewBox="0 0 24 24"
                             aria-hidden="true">
@@ -1001,6 +1028,7 @@
 
         function markCard(correct) {
             if (!queue.length || byId('practice').hidden) return;
+            window.speechSynthesis?.cancel();
             const card = queue.shift();
             attempts++;
             if (correct) {
@@ -1014,7 +1042,36 @@
             renderCard();
         }
 
+        function speakCard() {
+            if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+                byId('feedback').textContent = 'Die Vorlesefunktion wird von diesem Browser nicht unterst\u00fctzt.';
+                return;
+            }
+
+            const germanVoices = window.speechSynthesis.getVoices()
+                .filter(voice => voice.lang.toLowerCase().startsWith('de'));
+            const voice = germanVoices.find(candidate => candidate.lang.toLowerCase() === 'de-de')
+                || germanVoices[0];
+            if (!voice) {
+                byId('feedback').textContent = 'Keine deutsche Stimme verf\u00fcgbar. Bitte aktiviere eine deutsche Sprachausgabe auf deinem Ger\u00e4t.';
+                return;
+            }
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(byId('syllable').textContent);
+            utterance.lang = 'de-DE';
+            utterance.voice = voice;
+            utterance.rate = 0.8;
+            utterance.onerror = event => {
+                if (event.error !== 'canceled' && event.error !== 'interrupted') {
+                    byId('feedback').textContent = 'Die deutsche Aussprache konnte nicht abgespielt werden.';
+                }
+            };
+            window.speechSynthesis.speak(utterance);
+        }
+
         function returnToSetup() {
+            window.speechSynthesis?.cancel();
             showScreen('setup');
             document.querySelector('#setup button').focus();
         }
@@ -1025,6 +1082,7 @@
         byId('setup-form').addEventListener('submit', event => { event.preventDefault(); startDeck(); });
         byId('retry').addEventListener('click', () => markCard(false));
         byId('correct').addEventListener('click', () => markCard(true));
+        byId('speak-card').addEventListener('click', speakCard);
         byId('finish-early').addEventListener('click', returnToSetup);
         byId('change-letters').addEventListener('click', returnToSetup);
         byId('again').addEventListener('click', startDeck);
