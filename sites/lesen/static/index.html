@@ -1213,19 +1213,19 @@
                 return;
             }
 
-            const germanVoices = window.speechSynthesis.getVoices()
-                .filter(voice => voice.lang.toLowerCase().startsWith('de'));
-            const voice = germanVoices.find(candidate => candidate.lang.toLowerCase() === 'de-de')
-                || germanVoices[0];
-            if (!voice) {
+            // The voice list loads asynchronously (empty on first call in iOS Safari), so only
+            // warn once it is populated and contains no German voice.
+            const voices = window.speechSynthesis.getVoices();
+            if (voices.length && !voices.some(voice => voice.lang.toLowerCase().replace('_', '-').startsWith('de'))) {
                 byId('feedback').textContent = 'Keine deutsche Stimme verf\u00fcgbar. Bitte aktiviere eine deutsche Sprachausgabe auf deinem Ger\u00e4t.';
                 return;
             }
 
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(byId('syllable').textContent);
+            // Set only the language, not a specific voice: the system then uses the German voice
+            // configured on the device instead of e.g. iOS novelty voices that appear first in the list.
             utterance.lang = 'de-DE';
-            utterance.voice = voice;
             utterance.rate = 0.8;
             utterance.onerror = event => {
                 if (event.error !== 'canceled' && event.error !== 'interrupted') {
@@ -1243,6 +1243,7 @@
 
         buildLetters('consonants', 'bcdfghjklmnpqrstvwxyzß', consonants);
         buildLetters('vowels', 'aeiouäöü', vowels);
+        window.speechSynthesis?.getVoices();
         updateSelectionCounts();
         updateWordLengthVisibility();
         document.querySelectorAll('input[name="pattern"]').forEach(input => {
