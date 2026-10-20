@@ -692,7 +692,20 @@
         }
 
         input[type="number"] {
-            border-radius: 12px;
+            border-radius: 14px;
+        }
+
+        .word-length-control {
+            margin-top: 18px;
+        }
+
+        .word-length-control .number-label {
+            margin: 0 0 8px;
+        }
+
+        .word-length-control input {
+            max-width: 140px;
+            min-height: 52px;
         }
 
         .setup-bottom {
@@ -859,18 +872,20 @@
                                         checked><strong>ma</strong><span>Konsonant + Vokal</span></label>
                                 <label class="pattern"><input type="radio" name="pattern"
                                         value="VC"><strong>am</strong><span>Vokal + Konsonant</span></label>
-                                <label class="pattern"><input type="radio" name="pattern"
-                                        value="CVC"><strong>mam</strong><span>Konsonant + Vokal +
-                                        Konsonant</span></label>
+                                <label class="pattern"><input type="radio" name="pattern" value="WORDS"><strong>Wörter</strong><span>Echte Wörter bis X Buchstaben</span></label>
                             </div>
                         </fieldset>
+                        <div id="word-length-control" class="word-length-control" hidden>
+                            <label for="word-length" class="number-label">Maximale Wortlänge</label>
+                            <input id="word-length" type="number" min="2" max="8" step="1" value="4" required>
+                        </div>
                         <label for="card-count" class="number-label">Anzahl der Karten</label>
                         <input id="card-count" type="number" min="1" max="200" step="1" value="10" required>
                     </div>
                 </div>
                 <div class="setup-bottom">
                     <p id="setup-error" class="error" role="alert"></p>
-                    <button class="primary" type="submit">Lesen starten <svg class="icon" viewBox="0 0 24 24"
+                    <button id="start-button" class="primary" type="submit"><span id="start-label">Lesen starten</span> <svg class="icon" viewBox="0 0 24 24"
                             aria-hidden="true">
                             <path d="M5 12h14m-6-6 6 6-6 6" />
                         </svg></button>
@@ -927,7 +942,7 @@
                     &auml;ndern</button></div>
         </section>
     </main>
-    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</footer>
+    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a></small></footer>
     <script>
         'use strict';
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
@@ -937,6 +952,8 @@
         let total = 0;
         let cleared = 0;
         let attempts = 0;
+        let germanWordsPromise = null;
+        let deckStarting = false;
 
         function updateSelectionCounts() {
             byId('consonant-count').textContent = `${consonants.size} ausgew\u00e4hlt`;
@@ -971,8 +988,46 @@
             return shuffled;
         }
 
+        function shuffleWithoutAdjacentCards(cards) {
+            const remaining = new Map();
+            for (const card of cards) {
+                const key = card.text.toLowerCase();
+                const group = remaining.get(key) || { cards: [], count: 0 };
+                group.cards.push(card);
+                group.count++;
+                remaining.set(key, group);
+            }
+
+            const result = [];
+            let previous = null;
+            while (result.length < cards.length) {
+                let candidates = [...remaining.entries()]
+                    .filter(([key, group]) => group.count > 0 && key !== previous);
+                if (!candidates.length) {
+                    candidates = [...remaining.entries()].filter(([, group]) => group.count > 0);
+                }
+                let highestCount = 0;
+                for (const [, group] of candidates) highestCount = Math.max(highestCount, group.count);
+                const [key, group] = shuffle(candidates.filter(([, candidate]) => candidate.count === highestCount))[0];
+                result.push(group.cards.pop());
+                group.count--;
+                previous = key;
+            }
+            return result;
+        }
+
         function showScreen(screen) {
             for (const name of ['setup', 'practice', 'complete']) byId(name).hidden = name !== screen;
+        }
+
+        function updateCardFontSize(text) {
+            const card = byId('syllable');
+            const context = document.createElement('canvas').getContext('2d');
+            const computedStyle = window.getComputedStyle(card);
+            context.font = `${computedStyle.fontWeight} 100px ${computedStyle.fontFamily}`;
+            const textWidth = context.measureText(text).width;
+            const availableWidth = card.parentElement.clientWidth - 48;
+            card.style.fontSize = `${Math.min(100, 100 * availableWidth / textWidth)}px`;
         }
 
         function renderCard() {
@@ -988,10 +1043,60 @@
                 return;
             }
             byId('syllable').textContent = queue[0].text;
+            updateCardFontSize(queue[0].text);
             byId('review-label').hidden = queue[0].misses === 0;
         }
 
-        function startDeck() {
+        async function loadGermanWords() {
+            if (!germanWordsPromise) {
+                germanWordsPromise = fetch('words-de.json')
+                    .then(response => {
+                        if (!response.ok) throw new Error('Wörterliste nicht verfügbar');
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (!data || typeof data.source !== 'string' || typeof data.license !== 'string'
+                            || !Array.isArray(data.words) || !data.words.every(word => typeof word === 'string')) {
+                            throw new Error('Ungültige Wörterliste');
+                        }
+                        return data.words;
+                    })
+                    .catch(error => {
+                        germanWordsPromise = null;
+                        throw error;
+                    });
+            }
+            return germanWordsPromise;
+        }
+
+        function updateWordLengthVisibility() {
+            const wordMode = document.querySelector('input[name="pattern"]:checked').value === 'WORDS';
+            byId('word-length-control').hidden = !wordMode;
+        }
+
+        function setStartLoading(loading) {
+            const button = byId('start-button');
+            button.disabled = loading;
+            button.setAttribute('aria-busy', String(loading));
+            byId('start-label').textContent = loading ? 'Wörter werden geladen …' : 'Lesen starten';
+        }
+
+        function capitalizeFirst(text) {
+            const first = text[0] === '\u00df' ? '\u1e9e' : text[0].toUpperCase();
+            return first + text.slice(1);
+        }
+
+        function buildCombinations(pattern, consonantLetters, vowelLetters) {
+            let combinations = [''];
+            for (const slot of pattern) {
+                const letters = slot === 'C' ? consonantLetters : vowelLetters;
+                combinations = combinations.flatMap(prefix => letters.map(letter => prefix + letter));
+            }
+            return combinations;
+        }
+
+        async function startDeck() {
+            if (deckStarting) return;
             const countInput = byId('card-count');
             if (!countInput.reportValidity()) return;
             if (!consonants.size || !vowels.size) {
@@ -999,33 +1104,93 @@
                 return;
             }
             const pattern = document.querySelector('input[name="pattern"]:checked').value;
-            let combinations = [''];
-            for (const slot of pattern) {
-                const letters = slot === 'C' ? consonants : vowels;
-                combinations = combinations.flatMap(prefix => [...letters].map(letter => prefix + letter));
+            const wordLengthInput = byId('word-length');
+            if (pattern === 'WORDS' && !wordLengthInput.reportValidity()) return;
+
+            const selectedConsonants = [...consonants];
+            const selectedVowels = [...vowels];
+            const allowedLetters = new Set([...selectedConsonants, ...selectedVowels]);
+            const requestedTotal = Number(countInput.value);
+            const maxLength = Number(wordLengthInput.value);
+            let words = [];
+            if (pattern === 'WORDS') {
+                deckStarting = true;
+                setStartLoading(true);
+                try {
+                    words = await loadGermanWords();
+                } catch {
+                    byId('setup-error').textContent = 'Die Wörterliste konnte nicht geladen werden. Bitte versuche es erneut.';
+                    return;
+                } finally {
+                    deckStarting = false;
+                    setStartLoading(false);
+                }
             }
-            total = Number(countInput.value);
+
+            const combinations = buildCombinations(pattern === 'WORDS' ? 'CVC' : pattern, selectedConsonants, selectedVowels);
+            total = requestedTotal;
             queue = [];
-            while (queue.length < total) {
-                const batch = shuffle(combinations).slice(0, total - queue.length);
-                queue.push(...batch.map(text => ({ text, misses: 0 })));
+            let noMatchingWords = false;
+            if (pattern === 'WORDS') {
+                const eligibleBySpelling = new Map();
+                for (const word of words) {
+                    const key = word.toLowerCase();
+                    const letters = [...key];
+                    if (letters.length > 0 && letters.length <= maxLength
+                        && letters.every(letter => allowedLetters.has(letter)) && !eligibleBySpelling.has(key)) {
+                        eligibleBySpelling.set(key, word);
+                    }
+                }
+                const eligibleWords = [...eligibleBySpelling.values()];
+                if (maxLength >= 4 && eligibleWords.length === 0) {
+                    byId('setup-error').textContent = 'Keine passenden Wörter gefunden. Wähle mehr Buchstaben oder eine andere Wortlänge.';
+                    return;
+                }
+
+                const wordCards = [];
+                if (maxLength <= 3) {
+                    wordCards.push(...shuffle(eligibleWords).slice(0, total).map(text => ({ text, misses: 0 })));
+                } else {
+                    const shuffledWords = shuffle(eligibleWords);
+                    while (wordCards.length < total) {
+                        wordCards.push(...shuffle(shuffledWords).slice(0, total - wordCards.length)
+                            .map(text => ({ text, misses: 0 })));
+                    }
+                }
+
+                const patternCards = [];
+                while (maxLength <= 3 && wordCards.length + patternCards.length < total) {
+                    const batchSize = Math.min(combinations.length, total - wordCards.length - patternCards.length);
+                    patternCards.push(...shuffle(combinations).slice(0, batchSize));
+                }
+                const uppercaseFirst = Math.random() < 0.5;
+                const capitalizedPatterns = patternCards.map((text, index) => ({
+                    text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(text) : text,
+                    misses: 0
+                }));
+                queue = shuffleWithoutAdjacentCards([...wordCards, ...capitalizedPatterns]);
+                noMatchingWords = eligibleWords.length === 0;
+            } else {
+                while (queue.length < total) {
+                    const batch = shuffle(combinations).slice(0, total - queue.length);
+                    queue.push(...batch.map(text => ({ text, misses: 0 })));
+                }
+                const uppercaseFirst = Math.random() < 0.5;
+                queue = shuffle(queue.map((card, index) => ({
+                    ...card,
+                    text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(card.text) : card.text
+                })));
             }
-            const uppercaseFirst = Math.random() < 0.5;
-            queue = shuffle(queue.map((card, index) => ({
-                ...card,
-                text: (index % 2 === 0) === uppercaseFirst
-                    ? card.text[0].toUpperCase() + card.text.slice(1)
-                    : card.text
-            })));
             cleared = 0;
             attempts = 0;
-            byId('feedback').textContent = '';
+            byId('feedback').textContent = noMatchingWords
+                ? 'Keine passenden Wörter gefunden – hier kommen Silbenmuster.'
+                : '';
             byId('setup-error').textContent = '';
             showScreen('practice');
             renderCard();
             byId('correct').focus();
         }
-
         function markCard(correct) {
             if (!queue.length || byId('practice').hidden) return;
             window.speechSynthesis?.cancel();
@@ -1076,9 +1241,16 @@
             document.querySelector('#setup button').focus();
         }
 
-        buildLetters('consonants', 'bcdfghjklmnpqrstvwxyz', consonants);
-        buildLetters('vowels', 'aeiou', vowels);
+        buildLetters('consonants', 'bcdfghjklmnpqrstvwxyzß', consonants);
+        buildLetters('vowels', 'aeiouäöü', vowels);
         updateSelectionCounts();
+        updateWordLengthVisibility();
+        document.querySelectorAll('input[name="pattern"]').forEach(input => {
+            input.addEventListener('change', updateWordLengthVisibility);
+        });
+        window.addEventListener('resize', () => {
+            if (queue.length) updateCardFontSize(queue[0].text);
+        });
         byId('setup-form').addEventListener('submit', event => { event.preventDefault(); startDeck(); });
         byId('retry').addEventListener('click', () => markCard(false));
         byId('correct').addEventListener('click', () => markCard(true));

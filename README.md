@@ -108,7 +108,10 @@ recommended shape for any real standalone site:
 
 The single-page reading practice site at `lesen.derschweigert.de` is deployed
 independently by `deploy-lesen` in the GitHub Actions workflow. Its source page
-is `sites/lesen/static/index.html`.
+is `sites/lesen/static/index.html`. The word mode loads
+`sites/lesen/static/words-de.json` (CC BY-SA 4.0, see `words-de-LICENSE.txt`),
+which is regenerated with `python3 sites/lesen/tools/build_wordlist.py`;
+add child-inappropriate words to `sites/lesen/tools/blocklist-de.txt`.
 
 ### Refactoring live infra safely (moved blocks)
 

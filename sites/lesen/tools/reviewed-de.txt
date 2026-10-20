@@ -1,0 +1,414 @@
+# Child-friendly opt-in vocabulary, manually reviewed, 2026-10-20.
+# Capitalized entries are noun LEMMAS. Only their attested Wiktionary
+# nominative singular/plural forms may be included.
+# Lowercase entries are EXACT word forms.
+# The frequency-source top 20,000 is always an additional requirement.
+# Ambiguous common verb/adjective forms take precedence over noun forms.
+
+Abbild Abdruck Abend Abfahrt Abfall Abflug Abfluss Abhang Abitur
+Ablauf Abreise Absage Absatz Abschied Absender Absicht Abstand
+Abteil Abwasch Achse Achtung Acker Adler Adresse Affe Ahnung Akku
+Aktion Akzent Album All Alltag Alpe Alphabet Alter Ameise Ampel
+Amt Amulett Ananas Anblick Andenken Anfang Anfänger Angabe Angebot
+Angel Anhang Anhänger Anker Ankunft Anlage Anlass Anliegen Anmut
+Anruf Anrufer Ansage Ansager Anschein Ansehen Ansicht Anstand Anstieg
+Anteil Antenne Antike Antrag Antrieb Antwort Anwesen Anzahl Anzeige Anzug
+Apfel Apotheke App Apparat Appetit Applaus April Aquarium Arbeit Arbeiter
+Arche Archiv Arena Argument Arm Armband Art Artikel Arzt Asche Ast
+Asteroid Atelier Atem Atemzug Athlet Atlas Atmung Aufbau Auffahrt
+Aufgabe Auflage Aufnahme Aufruf Aufsatz Aufsicht Aufstieg Auftrag Auftritt
+Aufwand Aufzug Auge August Ausblick Ausdauer Ausdruck Ausfahrt Ausflug
+Ausgabe Ausgang Aushilfe Auskunft Ausland Ausnahme Ausrede Aussage
+Ausschau Aussehen Aussicht Auster Auswahl Ausweg Ausweis Auszeit Auto
+Autobahn Automat Autor Autorin Autotür Baby Bach Backbord Backe
+Badehose Bad Bahn Bahnhof Balance Balken Balkon Ball Ballett Ballon
+Banane Band Bank Bankett Banner Bargeld Baron Baronin Barriere Bart
+Baseball Basis Bass Batterie Bau Bauch Bauer Baum Baumhaus Becher
+Becken Bedarf Beere Befinden Begabung Beginn Begriff Behälter Beifall
+Bein Beispiel Beistand Beitrag Bekannte Beleg Bemühung Benehmen Benzin
+Berater Beratung Bereich Berg Bericht Beruf Berufung Bescheid Besen
+Besitz Besitzer Bestand Besteck Besuch Besucher Beton Betrag Betreff
+Betreuer Betrieb Bett Bettchen Beuge Beule Beutel Bewegung Beweis
+Bewerb Bewerber Bewohner Bezirk Bezug Biber Biene Bild Bildung Billard
+Binde Bindung Bingo Biologie Birne Bisschen Bissen Bitte Blase Blatt
+Blech Blei Bleibe Blende Blick Blitz Block Blog Blume Bluse Blüte
+Bock Boden Bogen Bohne Bohrer Bolzen Bonbon Bonus Boot Bord Bote
+Bowlen Bowling Box Brache Branche Braten Brauch Braut Brei Breite
+Bremse Brett Brief Brille Brise Brocken Bronze Brosche Brot Bruder
+Brunnen Brötchen Brücke Brühe Bub Bube Buch Buche Bucht Buckel Bude
+Budget Buffet Bug Bund Burg Burger Bursche Bus Busch Butler Butter
+Bäcker Bäckerei Bär Börse Bücherei Büffel Bügel Bühne Bündel Bürger
+Büro Bürste Cabrio Camp Campus Canyon Cello Cent Center Champion
+Chance Charme Chef Chefin Chefkoch Chemie Chemiker Chili Chip Chor
+Clique Clown Club Coach Cockpit Code Cola College Comic Computer
+Cookie Couch Courage Cousin Cousine Cover Creme Crew Cracker Cupcake
+Curry Dach Daheim Dame Damm Dampf Dank Datei Daten Datum Dauer
+Daumen Deck Decke Deckel Delfin Delphin Denkmal Deo Design Designer
+Dessert Detail Detektiv Deutsch Dezember Dialekt Dialog Diamant Dichter
+Diener Dienerin Dienst Dienstag Diesel Ding Diner Dinner Dino Diplom
+Direktor Disco Diskette Distanz Doktor Dokument Dollar Dom Domino
+Donner Donut Dorf Dorn Dose Drache Drachen Draht Drama Dreh Drehbuch
+Drehung Dreieck Drittel Druck Drucker Duft Dunkel Durst Dusche Dutzend
+Dünger Ebene Echo Ecke Effekt Ehe Ehefrau Ehemann Ehepaar Ehering
+Ehre Ehrgeiz Ei Eiche Eifer Eigentum Eile Eimer Einblick Eindruck
+Einfahrt Einfall Einfluss Eingang Einheit Einhorn Einigung Einkauf
+Einklang Einnahme Einsicht Einstieg Eintopf Eintrag Eintritt Einwand
+Einzug Eis Eiscreme Eisen Eistee Elch Elefant Eleganz Element Elf Elfe
+Ellbogen Elle Eltern Emotion Empfang Ende Energie Enge Engel
+Englisch Enkel Enkelin Ente Entwurf Erbe Erbin Erbse Erdbeere Erdboden
+Erde Erdnuss Ereignis Erfinder Erfolg Ergebnis Erhalt Erholung Erlebnis
+Ernte Ersatz Ertrag Erwerb Erwägung Erzähler Esel Espe Esse Essen
+Essig Etage Etikett Eule Euro Event Ewigkeit Examen Exemplar Experte
+Expertin Express Extra Fabrik Fach Fachmann Fackel Faden Fahne Fahrer
+Fahrrad Fahrt Fahrzeug Fakt Faktor Falke Fall Falte Familie Fan Fang
+Fantasie Farbe Farm Farmer Faser Fass Fassade Fassung Favorit Fax
+Februar Feder Fee Fehler Feier Feiertag Feige Feld Fell Fels Felsen
+Fenster Ferien Ferkel Ferne Fernglas Ferse Fest Festival Festland
+Festmahl Fett Figur Filiale Film Filmstar Filter Finale Finanz Finger
+Firma Fisch Fischer Flagge Flamme Flanke Flasche Fleck Flecken Fleisch
+Flicken Fliege Flieger Floh Flosse Floß Flug Flugbahn Flugzeug Flur
+Fluss Fläche Flöte Flügel Fohlen Fokus Folge Form Formel Formular
+Forscher Foto Fotograf Fracht Frachter Frack Frage Frau Frauchen
+Freigabe Freiheit Freiraum Freitag Freizeit Freude Freund Freundin
+Friede Frieden Frische Friseur Frist Frisur Fritte Frosch Frost Frucht
+Fräulein Frühe Frühjahr Frühling Fuchs Fuhre Fund Funk Funke Funken
+Funktion Futter Fuß Fußball Fußboden Fußspur Fächer Fähre Fährte
+Führung Fülle Fürsorge Fürst Fürstin Gabe Gabel Gag Gage Gala Galaxie
+Galerie Gans Garage Garantie Garten Gas Gasse Gassi Gast Gasthaus
+Gatte Gattin Gebiet Gebirge Gebiss Gebot Gebrauch Geburt Gebäck
+Gebäude Gebühr Gebüsch Gedanke Gedanken Gedicht Geduld Gefallen
+Gefolge Gefährt Gefährte Gefäß Gefühl Gegend Gehalt Gehirn Gehör
+Geier Geige Geiger Geist Gelb Geld Gelege Gelände Geländer Gemahl
+Gemahlin Gemeinde Gemurmel Gemälde Gemüse Gemüt Gen Genesung Genie
+Genuss Genüge Gepäck Gerede Gericht Geruch Gerät Geräusch Gesang
+Geschenk Geschick Geschirr Geschäft Geschöpf Geselle Gesetz Gesicht
+Gespenst Gespräch Gespür Gestalt Geste Getreide Getriebe Getränk
+Gewand Gewebe Gewicht Gewinn Gewinner Gewissen Gewitter Gewässer
+Geysir Gießen Gipfel Gips Giraffe Gitarre Gitter Glanz Glas Glatze
+Glaube Gleis Glocke Gläschen Glück Gold Golf Gong Gorilla Gott
+Graben Grad Graf Gral Gramm Greif Grenze Grieche Griff Grill Grille
+Grinsen Grips Großteil Grube Grund Gruppe Gruß Gräfin Größe Grün
+Gründer Gummi Gurke Gurt Gärtner Göttin Gürtel Güte Haar Hacke Hafen
+Hahn Hai Haken Halbzeit Hall Halle Hals Halsband Halt Haltung Hammer
+Hamster Hand Handbuch Handel Handlung Handtuch Handvoll Handwerk Handy
+Hang Hangar Happen Harmonie Haube Hauch Haufen Haupt Hase Haus
+Hausfrau Haushalt Haustier Haustür Haut Hebamme Hebel Heck Heft Heide
+Heilung Heim Heimat Heimweg Heimweh Heirat Heizung Hektar Held Heldin
+Helfer Helm Hemd Hengst Herbst Herd Herde Herkunft Herr Herrchen
+Herrin Herz Herzchen Herzog Herzogin Heu Hexe Hexer Hexerei Hilfe
+Himmel Hingabe Hinsicht Hinweis Hirsch Hirte Hit Hitze Hobby Hochzeit
+Hocke Hocker Hockey Hof Hoffnung Hoheit Holz Honig Honorar Horizont
+Horn Hose Hotel Huf Hufe Huhn Hummer Humor Hund Hunger Hupe Hut
+Hähnchen Hälfte Händchen Händler Häschen Häuschen Höhe Höhle Hörer
+Hüfte Hügel Hühnchen Hülle Hündchen Hündin Hüter Hütte Ideal Idee Idol
+Illusion Imbiss Impuls Inhaber Inhalt Initiale Insekt Insel Instinkt
+Institut Internat Internet Irrtum Jacht Jacke Jackett Jade Jaguar Jahr
+Jahrbuch Jahrgang Januar Jazz Jeans Jeep Jet Job Joghurt
+Jojo Joker Journal Jubel Jubiläum Jugend Juli Junge Junges Juni Junior
+Juwel Juwelier Kabel Kabine Kaffee Kahn Kaiser Kaiserin Kakao Kalb
+Kalender Kalorie Kamel Kamera Kamerad Kamin Kamm Kammer Kanal
+Kandidat Kanister Kanne Kante Kantine Kanu Kapelle Kapitel Kapitän
+Kappe Kapsel Kapuze Karaoke Karat Karneval Karo Karotte Karren Karriere
+Karte Karton Kasper Kasse Kassette Kassier Kasten Katalog Kater Katze
+Kauf Kaufhaus Kaufmann Kaugummi Kauz Kavalier Kaviar Kehle Kehre Keks
+Kelch Keller Kellner Kenntnis Kerl Kern Kerze Kessel Ketchup Kette
+Kichern Kiefer Kilo Kind Kindchen Kindheit Kinn Kino Kirsche Kissen
+Kiste Kitt Kittel Kitzel Klammer Klamotte Klang Klappe Klapper Klarheit
+Klasse Klatsch Klaue Klavier Kleber Kleid Kleidung Klemme Klempner
+Klick Klima Klingel Klippe Kloster Klotz Klub Klumpen Knabe Knack
+Knappe Knete Knick Knicks Knie Knochen Knopf Knoten Knöchel Knüller
+Kobold Kobra Koch Koffer Kohl Kohle Kojote Kollege Kollegin Kolonie
+Kolonne Kolumne Kombi Komet Komfort Komiker Komitee Komma Kommode
+Kompass Komödie Konsole Kontakt Kontext Konto Konzept Konzern Konzert
+Kopf Kopie Korb Korn Korridor Kosmos Kost Kosten Kostüm Krabbe Krach
+Kraft Kragen Kralle Kram Kran Kranz Krater Kratzer Kraut Krawatte
+Kreide Kreis Kreuz Kreuzung Kristall Kritik Kritiker Krokodil Krone
+Krug Krähe Krönung Kröte Krümel Kuchen Kuckuck Kugel Kuh Kulisse
+Kultur Kumpel Kunde Kundin Kunst Kupfer Kuppel Kupplung Kur Kurier
+Kurs Kurve Kusine Kuss Kutsche Kutscher Käfer Käfig Kälte Käse
+Kästchen Kätzchen Käufer Köchin König Königin Köpfchen Körper Küche
+Kühle Kühler Küken Künstler Kürbis Kürze Küsschen Küste Labor Lache
+Lacher Lachs Lack Lade Laden Ladung Lage Lager Laken Lama Lamm
+Lampe Land Landhaus Landung Lappen Laptop Lasagne Last Laster Laterne
+Latte Lauf Laufbahn Laune Laus Laute Lava Leben Leber Leck Leder
+Leere Legende Lehm Lehne Lehrbuch Lehre Lehrer Lehrerin Lehrling Leib
+Leihe Leine Leinen Leinwand Leiste Leistung Leiter Leiterin Leitung
+Lektion Lenkrad Leopard Leser Leuchte Leute Lexikon Licht Lichtung
+Liebe Liebling Lied Liege Lift Liga Limit Limo Limonade Linde Linie
+Linse Lippe List Liste Liter Lizenz Lob Lobby Loch Locke Loft
+Logbuch Loge Logik Logo Lohn Lok Lokal Lorbeer Los Lot Lotterie
+Lotto Luft Luftraum Luke Lumpen Lunge Lupe Lutscher Luxus Lächeln
+Länderei Länge Läufer Löffel Lösung Löwe Lücke Magazin Magen Magie
+Magier Magnet Mahl Mahlzeit Mai Mail Mailbox Mais Majestät Mal Maler
+Malerei Mama Mami Mandel Manier Maniküre Mann Mantel Mappe Marathon
+Marke Markt Marmor Mars Marsch Masche Maschine Maske Masse Mast
+Match Material Materie Mathe Matratze Matrose Matte Mauer Maul
+Maultier Maulwurf Maus Maximum Mayo Maß Medaille Meer Mehl Mehrheit
+Meile Meinung Meister Meldung Melodie Melone Memo Menge Mensch Mentor
+Menü Merkmal Messe Metall Metapher Meteorit Meter Methode Miene Miete
+Mieter Mieze Mikro Mikrofon Milch Milde Million Minimum Minister Minus
+Minute Mischung Mitglied Mithilfe Mittag Mitte Mittel Mittwoch Mix
+Mixer Mode Model Modell Moderne Moment Monat Mond Monitor Montag
+Moor Moos Moped Mops Morgen Motel Motiv Motor Motorrad Motto Muffin
+Mumm Mund Murmel Mus Muschel Muse Museum Musical Musik Musiker Muskel
+Muster Mut Mutter Mutti Mädchen Mädel Männchen Märchen März Mäuschen
+Möbel Möwe Mücke Mühe Mühle Müll Müller Münze Müsli Mütze Nachbar
+Nachname Nacht Nachteil Nachtrag Nachweis Nacken Nadel Nagel Nahrung
+Naht Name Nanny Nase Nation Natur Nebel Neffe Neige Neigung Nerv Nest
+Netz Netzwerk Neugier Neujahr Neuling Neustart Nichte Niesen Niet Niete
+Nikolaus Niveau Norden Nordpol Norm Note Notiz November Nudel Null
+Nummer Nuss Nähe Oberteil Obhut Objekt Objektiv Obst Ochse Ofen Ohr
+Ohrring Oktober Olive Omelett Oma Omi Onkel Opa Oper Option Orakel
+Orange Orbit Orden Ordner Ordnung Organ Orgel Original Ort Osten
+Ostern Ostküste Ozean Paar Packung Paket Palast Palme Panda Panne
+Panther Papa Papagei Papi Papier Paprika Parade Paradies Parfum Parfüm
+Park Parkhaus Partie Partikel Partner Party Pass Passage Passwort
+Pasta Pastete Pate Pause Pech Pelle Pelz Pension Perle Person
+Personal Perücke Pfad Pfahl Pfand Pfanne Pfeffer Pfeife Pfennig Pferd
+Pfiff Pfirsich Pflanze Pflaster Pflege Pfleger Pflicht Pfote Pfund
+Pharao Phase Physik Physiker Phänomen Piano Picknick Piep Piepton Pier
+Pilot Pilz Pin Pinguin Pinsel Pirat Pizza Pizzeria Plakat Plan Plane
+Planet Plantage Planung Plastik Platte Platz Plus Poesie Poet Pointe
+Pokal Polo Pommes Pony Pool Pop Popcorn Popmusik Portal Portier
+Portion Porträt Position Post Postamt Postbote Posten Poster Pracht
+Praline Preis Premiere Presse Prinz Prinzip Prise Probe Problem
+Produkt Profi Profil Profit Programm Projekt Protein Proviant Provinz
+Prozent Prämie Präsenz Prüfung Publikum Puck Pudding Pudel Puder Pulli
+Pullover Puls Pulver Pumpe Punkt Pupille Puppe Puste Putz Putzfrau
+Puzzle Pyjama Pyramide Päckchen Pärchen Püppchen Qualität Quark Quartier
+Quatsch Quell Quelle Quittung Quote Rabatt Rabe Rachen Rad Radar Radio
+Radius Rahmen Rampe Rand Rang Rasen Rast Rat Rate Rathaus Ratte Raum
+Rauschen Reaktion Rechner Rechnung Recht Rede Redner Reflex Regal
+Regel Regen Regie Region Register Reh Reibe Reich Reichtum Reif Reife
+Reifen Reihe Reinheit Reis Reise Reisende Reiter Reklame Rekord Rektor
+Rennbahn Rente Rentner Reporter Requisit Reserve Residenz Respekt Rest
+Resultat Revier Rezept Rhythmus Richtung Riegel Riemen Riese Riff Rind
+Ring Rippchen Rippe Riss Ritt Ritter Roboter Rock Rockstar Rodeo Rohr
+Rolle Roller Rollo Roman Romantik Romanze Rose Rosine Ross Rost Rot
+Route Routine Rubin Ruck Rucksack Rudel Ruder Ruf Ruhe Ruhm Ruine
+Rummel Rumpf Runde Rutsch Rutsche Rätsel Röhre Römer Rübe Rücken
+Rückflug Rückkehr Rückruf Rücksitz Rückweg Rührei Saal Saat Sache Saft
+Saga Sage Sahne Saison Salami Salat Salbe Salon Salz Same Samen
+Sammler Sammlung Samstag Samt Sand Sandwich Sardine Satellit Sattel
+Satz Sauce Sause Scanner Schach Schacht Schaf Schal Schale Schalter
+Schatten Schatz Schau Schaufel Schaukel Schaum Scheck Scheibe Schein
+Schenkel Scherbe Schere Scherz Scheune Schicht Schiene Schiff Schild
+Schimmel Schimmer Schinken Schirm Schlaf Schlamm Schlange Schlauch
+Schleier Schleife Schleim Schleppe Schließe Schlips Schlitz Schloss
+Schlucht Schluck Schlupf Schluss Schmied Schmiede Schminke Schmuck
+Schmutz Schnabel Schnalle Schneck Schnecke Schnee Schneide Schnitt
+Schnitte Schnur Schopf Schoss Schoß Schrank Schraube Schrein Schrift
+Schritt Schrott Schub Schubs Schuh Schule Schultag Schulter Schuppe
+Schuppen Schuster Schutz Schwager Schwamm Schwan Schwarm Schwefel
+Schwein Schweiß Schwelle Schwinge Schwung Schäfer Schüler Schürze
+Schüssel See Seemann Segel Segen Sehne Seide Seife Seil Seite Sekretär
+Sekunde Semester Seminar Sender Sendung Senf Senior Senke Sensor Serie
+Sessel Set Seufzer Shampoo Shorts Show Shrimp Shuttle Sicht Sieb
+Siedler Siedlung Sieg Siegel Sieger Signal Signatur Silber Sims Sinn
+Sirene Sirup Sitte Sitz Sitzung Skala Ski Skipper Skorpion Skulptur
+Smiley Snack Socke Soda Sofa Software Sohn Solo Sommer Sonne Sonde Song
+Sonntag Sorge Sorte Sound Souvenir Soße Spalt Spalte Spanne Spatz
+Spaß Speck Speicher Speise Spende Spender Spezies Spiegel Spiel Spieler
+Spinat Spind Spinne Spitz Spitze Splitter Spore Sporn Sport Sportler
+Sprache Sprecher Springer Spruch Sprung Spur Spüle Staat Stab Stadion
+Stadium Stadt Stadtrat Staffel Stahl Stall Stamm Stand Standard
+Standort Stange Stapel Star Start Station Statue Status Stau Staub
+Staunen Steak Stecker Steig Steige Stein Stelle Stempel Stern Steuer
+Stick Stiefel Stiege Stiel Stier Stift Stiftung Stil Stille Stimme
+Stimmung Stirn Stock Stoff Stolz Stopfen Stopp Strahl Strand Strang
+Strass Strauß Straße Strebe Strecke Streich Streife Streifen Streuner
+Strich Strick Stroh Strom Strudel Struktur Strumpf Strömung Student
+Studie Studio Studium Stufe Stuhl Stumpf Stunde Stute Stärke Stör Stück
+Stütze Suche Suite Summe Summer Sumpf Suppe Sushi Symbol System Szene
+Sänger Sängerin Säule Süden Süße Tablett Tafel Taft Tag Tagebuch Taille
+Takt Talent Talisman Tang Tango Tank Tantchen Tante Tanz Tasche Tasse
+Tastatur Taste Tatsache Tau Taube Taucher Taufe Tausch Taxi Team
+Technik Teddy Teddybär Tee Teich Teig Teil Teilchen Telefon Teleskop
+Teller Tempel Tempo Tennis Teppich Termin Terrasse Test Text Theater
+Theke Thema Theorie These Thron Tick Ticket Tiefe Tier Tierarzt
+Tierheim Tiger Tinte Tipp Tisch Titan Titel Toast Toaster Tochter
+Toilette Toleranz Tomate Ton Tonband Tonfall Tonne Top Topf Tor Torte
+Tour Tourist Tournee Trab Tracht Trage Trainer Training Traktor Trank
+Tratsch Traube Traum Trauung Treff Treffen Treffer Trend Treppe Tresen
+Tresor Treue Trick Triumph Trockner Troll Trommel Trompete Tropf
+Tropfen Trophäe Trost Trotz Trubel Truhe Trumpf Truthahn Träger Träumer
+Tuch Tugend Tunnel Turm Turner Turnier Tänzer Tänzerin Täubchen
+Törtchen Tür Türe Tüte Ufer Ufo Uhr Uhrzeit Umarmung Umfang Umfeld
+Umfrage Umgang Umgebung Umhang Umkreis Umlauf Umsatz Umschlag Umstand
+Umweg Umwelt Umzug Unfug Uni Uniform Union Unkraut Unmenge Unruh Unruhe
+Unschuld Unsinn Update Urkunde Urlaub Ursache Ursprung Vanille Variante
+Vase Vater Vati Veilchen Ventil Veranda Verband Verbot Verbund Verdeck
+Verehrer Verein Verkauf Verkehr Verlag Verlass Verlaub Verlauf Verleger
+Verleih Verlobte Vermögen Vernunft Vers Versehen Version Verstand
+Versteck Versuch Vertrag Vertrieb Verzicht Verzug Vetter Video Vieh
+Viertel Villa Vitamin Vogel Volk Vollgas Vollmond Volt Vorbild Vorfahr
+Vorgang Vorhaben Vorhang Vorlage Vorliebe Vormund Vorname Vorort
+Vorrang Vorrat Vorsatz Vorsicht Vorsitz Vorstadt Vorstand Vorteil
+Vortrag Vorzug Vulkan Waage Wache Wachs Wachstum Wade Waffel Wahl
+Wahrheit Waise Wal Wald Wall Walzer Wand Wandel Wanderer Wange Wanne
+Wanze Wappen Ware Warnung Waschbär Wasser Watt Weber Webseite Website
+Wechsel Weck Wecker Weg Weibchen Weiche Weide Weilchen Weile Weise
+Weisheit Weite Weizen Weiß Welle Welpe Welt Weltall Weltraum Wende
+Wendung Werbung Werft Werk Werkzeug Wert Wesen Weste Westen Wette
+Wetter Wicht Wickel Wiege Wiese Wiesel Wikinger Wild Wildnis Wille
+Wind Winde Windel Wink Winkel Winter Wirbel Wirkung Wirt Wisch Wissen
+Witz Witzbold Woche Wohl Wohnheim Wohnsitz Wohnung Wolf Wolke Wolle
+Wort Wortwahl Wuchs Wucht Wunder Wunsch Wurf Wurm Wurmloch Wurst
+Wurzel Wächter Währung Wärme Wärter Wäsche Würde Würfel Wüste Yacht
+Yoga Zahl Zahlung Zahn Zahnarzt Zahnfee Zange Zar Zauber Zauberei
+Zauberer Zauberin Zaum Zaun Zebra Zeh Zehe Zeichen Zeile Zeit Zeitlang
+Zeitplan Zeitraum Zeitung Zelle Zelt Zement Zentrale Zentrum Zepter
+Zettel Zeug Zeuge Zeugin Zeugnis Zeugs Ziege Ziegel Ziel Zimmer Zimt
+Zins Zirkel Zirkus Zitat Zitrone Zofe Zoll Zone Zoo Zoom Zucker Zufall
+Zug Zugabe Zugang Zuhause Zuhörer Zukunft Zunge Zusage Zustand Zutat
+Zutritt Zweck Zweig Zwerg Zwiebel Zwilling Zwinge Zyklus Zylinder Zügel
+Zündung Äffchen Änderung Ära Ärmel Ärztin Äußeres Öffnung Öl Übergabe
+Übergang Überrest Übersee Übung
+
+# Exact non-noun forms. Short words reviewed individually, not generated.
+ab ach ade ah aha ahoi alle allem allen aller alles allzu als also alt alte
+alten alter altes am an anders ans arm arme armen armer armes atme auf aufs
+auch aua aus außen außer bald baue bauen baut baute bauten begann
+beginne beginnt begann behalten behalte behält bei beide beiden beider
+beim beinahe beinahe bereit bereits besagte besagten besser bessere besseren
+besten besteht besteht bestimmt beste besser bewahre bewegen bewegt bezahlen
+bezahle bezahlt biete bieten bietet bin bis bisher bist bitte blau blaue blauen
+bleib bleibe bleiben bleibt blieb blieben bloß blühen blüht brach brav brave
+brauche brauchen braucht brachte brachten breit breite breiten brenne brennen
+brennt bring bringe bringen bringt bunt bunte bunten bunter da dabei dadurch
+dadurch dafür dagegen daher dahin damals damit danach daneben daran darauf
+daraus darin darum darunter darüber das dass dasselbe dazu dazwischen dein
+deine deinem deinen deiner deines dem den denn dennoch der deren deshalb
+dessen die dies diese diesem diesen dieser dieses dir direkt doch dort dorther
+dorthin dortige dran drauf draußen drei dreimal drin drinnen dritte dritten
+drüben du dünn dünne dünnen durch durfte durften darf darfst dürfen dürft
+eben ebenso echt echte echten eckig edel edle edlen egal eher ehren ehrt
+eigen eigene eigenen eigentlich eile eilen eilt ein eine einem einen
+einer eines einfach einzige einzigen einzeln einzelne einzelnen elf endlich
+eng enge engen entdecken entdecke entdeckt entlang entfernt entfernen
+er erblickt ergibt ergeben erhalten erhält erhalte erkenne erkennen erkennt
+erkläre erklären erklärt erlaubt erlauben erlaube erlebt erleben erlebe
+erscheint erst erste ersten erstes erstaunt erzähl erzähle erzählen erzählt
+es esse essen esst etwa etwas euch euer eure eurem euren eurer eures ewig
+fahre fahren fahrt fair falle fallen fallt falls fand fanden fang fange fangen
+fangt fast faul fehle fehlen fehlt fein feine feinen ferner fern feste festen
+fest feucht fielen fiel finde finden findest findet fing fit flach flache
+flachen flog flogen floh flog fliege fliegen fliegt flott flog folge folgen
+folgt fordere fordern fordert frage fragen fragt frech freie freien frei
+freu freue freuen freut freundlich froh frohe frohen früh frühe frühen früher
+fühle fühlen fühlt führe führen führt fünf fünfte fünfzig für fürs gab gaben
+ganz ganze ganzen gar gebe geben gebt geboren gebraucht gebaut gedacht
+gefallen gefällt gefallen gegangen gegeben geh gehe gehen geht gehören
+gehöre gehört geholt geklappt gekommen gelernt geliebt gelesen gemacht
+gemein gemeint gemerkt genau genauso genug genommen geöffnet geraten
+gerade gern gerne gerufen gesagt gesammelt geschafft geschenkt geschickt
+geschrieben gesehen gesetzt gespannt gespielt gesungen getan getragen
+getrennt getroffen gewohnt gezeigt gib gibt gibst gilt ging gingen glatt
+gleich gleiche gleichen glitzert golden goldene groß große großen grüner
+grüne grünen grün grüßt grüße grüßen guck gucke gucken guckt gut gute guten
+guter gutes gäbe hält halten halte haltet halb halbe halben hallo hast hat
+habe haben habt hatte hatten hätte hätten häng hänge hängen hängt hart harte
+harten hebe heben hebt heiß heiße heißen heißt helfe helfen hell helle hellen
+her heraus herein herum herunter hervor herüber heute heut hier hierher
+hierhin hieß hilft hin hinauf hinaus hinein hinten hinter hinunter hinüber
+hoch hohe hohen hohes hole holen holt hoffe hoffen hofft hoppla hopp hör
+höre hören hört huch huhu hurra häkeln häkelt hüpfe hüpfen hüpft ich ihm ihn
+ihnen ihr ihre ihrem ihren ihrer ihres immer im in indem innen ins ist isst
+ja jaja je jede jedem jeden jeder jedes jedoch jemand jetzt juhu kann kannst
+kauft kauf kaufe kaufen kein keine keinem keinen keiner keines kenne kennen
+kennt klar klare klaren klein kleine kleinen klettern klettert klopft klug
+kluge klugen kam kamen käme komme kommen komm kommt konnte konnten könnte
+könnten können könnt kräftig kühl kühle kühlen kurz kurze kurzen kürzer küss
+küsse küssen küsst lächle lächeln lächelt lach lache lachen lacht lade laden
+ladet lädt lag lagen lang lange langen langer langsam lass lasse lassen
+lasst las lass lasen lasse laufe laufen lauft läuft laut laute lauten lauter
+leb lebe leben lebt lege legen legt leicht leichte leichten leise leisen
+leihe leihen leiht leite leiten leitet lenk lenke lenken lenkt lern lerne
+lernen lernt lese lesen lest lesen lesend liest letzt letzte letzten letztes
+leuchte leuchten leuchtet lieb liebe lieben lieber liebt lief liefen liege
+liegen liegt lies ließ ließen links linke linken lobe loben lobt los löse
+lösen löst mach mache machen macht mag magst male malen malt man manche
+manchem manchen mancher manches mal mehr mein meine meinem meinen meiner
+meines meist meiste meisten melde melden meldet merke merken merkt mich
+mir mische mischen mischt mit mitten mochte mochten morgen muss musst
+musste mussten müssen müsst müde müden müdes möglich möge mögen mögt möchte
+möchten nach nachher nahm nah nahe nahen nahmen naja nanu nass nasse nassen
+natürlich neben nein nehme nehmen nehmt nennt nenn nenne nennen nett nette
+netten neu neue neuen neuer neues neun neunte nicht nichts nie niemand nimm
+nimmt noch nun nur nö ob oben oder oft oh ohne okay olivgrün ordne ordnen
+ordnet paar packe packen packt passe passen passt perfekt pflanze pflanzen
+pflanzt pflege pflegen pflegt prima pro probiere probieren prüfen prüfe prüft pur quer
+radeln radelt rase rasen rast rate raten ratet rauf raus recht rechte rechten
+rechts rede reden redet rege regen regt reich reiche reichen reicht reif reife
+reifen rein reine reinen reise reisen reist reite reiten reitet renn renne
+rennen rennt rieche riechen riecht rief riesig rolle rollen rollt rosa rosarot
+rot rote roten rufe rufen ruft ruhe ruhen ruht rund runde runden räume räumen
+räumt rücke rücken rückt rühre rühren rührt rückwärts sagte sag sage sagen
+sagt sah sahen sammle sammeln sammelt sanft saß saßen satt sauber saubere
+schade schaffe schaffen schafft schau schaue schauen schaut scheine scheinen
+scheint schenke schenken schenkt schicke schicken schickt schiebe schieben
+schiebt schief schlafe schlafen schlaft schläft schlau schleiche schleichen
+schlicht schloss schlossen schmal schmale schmecke schmecken schmeckt
+schnell schnellere schneller schneit schneide schneiden schneidet schreibe
+schreiben schreibt schrieb schrieben schräg schön schöne schönen schwach
+schwache schwarz schwarze schwebe schweben schwebt schwer schwere schweren
+schwimme schwimmen schwimmt sechs sechste sehe sehen sehr seht sei seid
+seien sein seine seinem seinen seiner seines seit selber selbst selten
+setze setzen setzt sich sicher sie siehe sieben siebte siehst sieht sind
+sing singe singen singt sitze sitzen sitzt so sobald sogar solch solche
+solchem solchen solcher soll sollen sollst sollt sollte sollten somit sonst
+sorge sorgen sorgt sowie sowohl spare sparen spart spät späte späten
+spaziere spiel spiele spielen spielt spitze spreche sprechen sprecht
+spricht springe springen springt spüre spüren spürt stark starke starken
+statt staune staunen staunt stehe stehen steht steige steigen steigt stelle
+stellen stellt stetig still stille stillen stimme stimmen stimmt stoppe
+stoppen stoppt strahle strahlen strahlt stricke stricken strickt suche
+suchen sucht super süß süße süßen täglich tanze tanzen tanzt tapfer teile
+teilen teilt tief tiefe tiefen tja toll tolle tollen trage tragen tragt trägt
+traf trafen trat traten traue trauen traut treffe treffen trefft treu treue
+treuen trinke trinken trinkt tritt trotzdem trocken trockene tue tun tust
+tut träume träumen träumt übe üben übt über überall übrig übrigen um ums
+umher umso unten unter unterwegs und uns unser unsere unserem unseren
+unserer unseres ungefähr ungefähr uralt verbinde verbinden verbindet
+verdient verdienen vergesse vergessen vergiss vergisst vergleiche vergeben
+verlasse verlassen verlässt verloren vermisse vermissen vermisst versuche
+versuchen versucht verstehe verstehen versteht verstecke verstecken
+versteckt verteile verteilen verteilt verwende verwenden verwendet viele
+vielem vielen vieler vieles viel vielleicht vier vierte vierzig vom von
+vor vorbei vorher vorne vorn vors vorm vorüber vorsichtig vorwärts wach
+wache wachen wachsen wächst wächst wahr wahre wahren war waren wart
+warm warme warmen warum warte warten wartet was wasche waschen wascht
+wechseln wechselt weck wecke wecken weckt weder weg wegen weich weiche
+weichen weil weiß weiße weißen weise weisen weit weiter weitere weiteren
+welch welche welchem welchen welcher welches wem wen wenig wenige wenigen
+weniger wenn wer werde werden werdet wert wertvoll weshalb wie wieder
+wieso wieviel will willst willkommen winke winken winkt wir wird wirst
+wissen wo wobei wofür wohin wohl wohne wohnen wohnt wollte wollten
+wollen wollt wozu wunderbar wünsche wünschen wünscht wäre wären wärst
+wärmer während würde würden würdest zehn zehnte zeige zeigen zeigt
+zeichne zeichnen zeichnet zeitig zähle zählen zählt zieh ziehe ziehen zieht
+ziemlich zu zuerst zugleich zum zur zurück zusammen zwei zweite zweimal
+zwanzig zwischen zwölf äh ähnlich älter ältere älteren äußerst öfter
+öffne öffnen öffnet öfters
+
+# Reviewed noun/verb/adjective homographs, prefer common lowercase usage.
+abhängen abreisen absagen altem altern angaben angeln anrufen ansehen
+arbeiten aufrufen ausreden aussagen backen beginnen belegen besitzen
+besuchen betonen beugen beweisen bewerben binden bitten blasen blenden
+bowlen boxen braten bremsen buchen bügeln bürgen dauern decken denken
+donnern drehen drucken drücken duschen enden erben ernten erwerben
+feiern filmen fischen flicken fliegen füllen futtern gebissen geboten
+gehalten gelegen gewinnen gießen glauben graben greifen grillen grinsen
+gründen hacken hämmern heiraten hocken hupen hüten irren kichern klingeln
+klammern klappen klappern klauen knacken knien kochen kosten krähen
+kreisen kreuzen lagern landen lehnen lehren leisten listen locken lüften
+mauern meistern messen mieten morgens murmeln neigen nerven niesen
+ordnen paaren parken pennen pfeifen piepen planen posten pressen proben
+pumpen punkten putzen rasten regeln reiben ringen rudern rutschen
+sausen schätzen scheren scherzen schöpfen schubsen segeln senken siegen
+sinnen spalten spannen speisen spenden spiegeln spinnen spülen starten
+stärken steuern stiften stopfen stören streben strecken strömen stützen
+summen tanken tasten taufen tauschen täuschen testen trommeln vereinen
+verboten verkaufen vögeln wandeln weiden weiten wenden werten wetten
+wickeln wiegen winden wischen würfeln zahlen zaubern zelten zeugen zielen
+zimmern zusagen zügeln zwingen
