@@ -3,7 +3,8 @@
   "appName": "Buchstabenzeit",
   "webDir": "www",
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
   },
   "server": {
     "androidScheme": "https"

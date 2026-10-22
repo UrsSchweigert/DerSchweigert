@@ -902,6 +902,65 @@
             justify-content: flex-end;
             margin-top: 14px;
         }
+
+        .about-dialog {
+            padding: 22px;
+            border: none;
+            border-radius: 14px;
+            max-width: 360px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            color: var(--ink);
+        }
+
+        .about-dialog::backdrop {
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .about-dialog h2 {
+            margin: 0 0 2px;
+            font-size: 18px;
+            color: var(--blue);
+        }
+
+        .about-dialog h3 {
+            margin: 16px 0 4px;
+            font-size: 14px;
+        }
+
+        .about-dialog p,
+        .about-dialog li {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--muted);
+        }
+
+        .about-dialog ul {
+            margin: 4px 0 0;
+            padding-left: 18px;
+        }
+
+        .about-version {
+            margin: 0 0 8px;
+            font-size: 12px;
+        }
+
+        .about-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+
+        .link-button {
+            background: none;
+            border: none;
+            color: var(--blue);
+            text-decoration: underline;
+            cursor: pointer;
+            font: inherit;
+            padding: 0;
+        }
     </style>
 </head>
 
@@ -1019,8 +1078,24 @@
                 <button id="confirm-end-yes" class="primary" type="button">Beenden</button>
             </div>
         </dialog>
+        <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
+            <h2 id="about-title">Über Buchstabenzeit</h2>
+            <p class="about-version">Version 1.0</p>
+            <p>Buchstabenzeit ist eine begleitete Leseübung. Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
+            <h3>Datenschutz</h3>
+            <p>Diese App sammelt keine persönlichen Daten, hat keine Benutzerkonten, keine Werbung und keine Analyse. Sie funktioniert vollständig offline und benötigt keine Internetverbindung.</p>
+            <p>Das Vorlesen nutzt die auf dem Gerät installierte Sprachausgabe (Text-to-Speech). Diese ist ein separater Dienst des Geräts; welche Daten sie verarbeitet, bestimmt die Geräteeinstellung, nicht diese App. Buchstabenzeit fordert nur lokal installierte Stimmen an und sendet dafür keine Daten ins Internet.</p>
+            <h3>Inhalte &amp; Lizenzen</h3>
+            <ul>
+                <li>Wortliste: FrequencyWords &amp; Wiktionary, CC BY-SA 4.0 &ndash; <a href="words-de-LICENSE.txt">Lizenz</a></li>
+                <li>Schriftart: Andika, SIL Open Font License 1.1 &ndash; <a href="fonts/OFL.txt">Lizenz</a></li>
+            </ul>
+            <div class="about-actions">
+                <button id="about-close" class="primary" type="button" autofocus>Schlie&szlig;en</button>
+            </div>
+        </dialog>
     </main>
-    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small></footer>
+    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button">&Uuml;ber &amp; Datenschutz</button></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         window.__speech = createSpeechAdapter();
@@ -1333,15 +1408,23 @@
         const App = window.Capacitor?.Plugins?.App;
         if (App) {
             App.addListener('backButton', () => {
-                const dlg = byId('confirm-end');
-                if (dlg.open) { dlg.close(); return; }
-                if (!byId('practice').hidden) { dlg.showModal(); return; }
+                const openDialog = document.querySelector('dialog[open]');
+                if (openDialog) { openDialog.close(); return; }
+                if (!byId('practice').hidden) { byId('confirm-end').showModal(); return; }
                 if (!byId('complete').hidden) { returnToSetup(); return; }
                 App.exitApp();
             });
+            App.addListener('appStateChange', state => {
+                if (!state.isActive) window.__speech?.cancel();
+            });
         }
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) window.__speech?.cancel();
+        });
         byId('confirm-end-yes').addEventListener('click', () => { byId('confirm-end').close(); returnToSetup(); });
         byId('confirm-end-no').addEventListener('click', () => byId('confirm-end').close());
+        byId('open-about').addEventListener('click', () => byId('about-dialog').showModal());
+        byId('about-close').addEventListener('click', () => byId('about-dialog').close());
     </script>
 </body>
 
