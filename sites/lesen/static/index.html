@@ -224,6 +224,40 @@
             font-size: 14px;
         }
 
+        .adult-note {
+            margin-top: 28px;
+            padding: 16px 20px;
+            background-color: rgba(88, 113, 138, 0.08);
+            border-radius: 6px;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .adult-note summary {
+            cursor: pointer;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 12px;
+            user-select: none;
+        }
+
+        .adult-note summary:hover {
+            color: var(--blue);
+        }
+
+        .adult-note p {
+            margin: 12px 0;
+            line-height: 1.5;
+        }
+
+        .adult-note p:first-of-type {
+            margin-top: 0;
+        }
+
+        .adult-note p:last-of-type {
+            margin-bottom: 0;
+        }
+
         .primary,
         .action,
         .quiet {
@@ -890,6 +924,12 @@
                             <path d="M5 12h14m-6-6 6 6-6 6" />
                         </svg></button>
                 </div>
+                <details class="adult-note">
+                    <summary>Hinweise für Erwachsene</summary>
+                    <p>Buchstabenzeit ist eine begleitete Leseübung: Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
+                    <p>Das Vorlesen ist eine optionale Hilfe. Es benötigt eine auf dem Gerät installierte deutsche Sprachausgabe und funktioniert offline nur, wenn eine passende Stimme vorhanden ist. Bei sehr kurzen Buchstabenfolgen kann die Aussprache vom natürlichen Klang abweichen.</p>
+                    <p>Die Übung lässt sich jederzeit vollständig ohne Ton nutzen.</p>
+                </details>
             </form>
         </section>
         <section id="practice" aria-labelledby="practice-title" hidden>
@@ -942,7 +982,7 @@
                     &auml;ndern</button></div>
         </section>
     </main>
-    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a></small></footer>
+    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         window.__speech = createSpeechAdapter();
