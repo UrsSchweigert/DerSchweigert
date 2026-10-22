@@ -943,6 +943,11 @@
         </section>
     </main>
     <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a></small></footer>
+    <script type="module">
+        import { createSpeechAdapter } from './speech-adapter.js';
+        window.__speech = createSpeechAdapter();
+        window.__speech.warm();
+    </script>
     <script>
         'use strict';
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
@@ -1193,7 +1198,7 @@
         }
         function markCard(correct) {
             if (!queue.length || byId('practice').hidden) return;
-            window.speechSynthesis?.cancel();
+            window.__speech?.cancel();
             const card = queue.shift();
             attempts++;
             if (correct) {
@@ -1208,42 +1213,35 @@
         }
 
         function speakCard() {
-            if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+            const speech = window.__speech;
+            if (!speech || !speech.isSupported()) {
                 byId('feedback').textContent = 'Die Vorlesefunktion wird von diesem Browser nicht unterst\u00fctzt.';
                 return;
             }
 
             // The voice list loads asynchronously (empty on first call in iOS Safari), so only
             // warn once it is populated and contains no German voice.
-            const voices = window.speechSynthesis.getVoices();
-            if (voices.length && !voices.some(voice => voice.lang.toLowerCase().replace('_', '-').startsWith('de'))) {
+            if (speech.voiceStatus('de') === 'none') {
                 byId('feedback').textContent = 'Keine deutsche Stimme verf\u00fcgbar. Bitte aktiviere eine deutsche Sprachausgabe auf deinem Ger\u00e4t.';
                 return;
             }
 
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(byId('syllable').textContent);
-            // Set only the language, not a specific voice: the system then uses the German voice
-            // configured on the device instead of e.g. iOS novelty voices that appear first in the list.
-            utterance.lang = 'de-DE';
-            utterance.rate = 0.8;
-            utterance.onerror = event => {
-                if (event.error !== 'canceled' && event.error !== 'interrupted') {
-                    byId('feedback').textContent = 'Die deutsche Aussprache konnte nicht abgespielt werden.';
-                }
-            };
-            window.speechSynthesis.speak(utterance);
+            speech.speak({
+                text: byId('syllable').textContent,
+                lang: 'de-DE',
+                rate: 0.8,
+                onError: () => { byId('feedback').textContent = 'Die deutsche Aussprache konnte nicht abgespielt werden.'; }
+            });
         }
 
         function returnToSetup() {
-            window.speechSynthesis?.cancel();
+            window.__speech?.cancel();
             showScreen('setup');
             document.querySelector('#setup button').focus();
         }
 
         buildLetters('consonants', 'bcdfghjklmnpqrstvwxyzß', consonants);
         buildLetters('vowels', 'aeiouäöü', vowels);
-        window.speechSynthesis?.getVoices();
         updateSelectionCounts();
         updateWordLengthVisibility();
         document.querySelectorAll('input[name="pattern"]').forEach(input => {
