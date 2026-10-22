@@ -1,0 +1,20 @@
+{
+  "name": "buchstabenzeit-android",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Capacitor Android shell for the Buchstabenzeit offline reading app. Wraps the shared web source in sites/lesen/static as bundled, offline-first assets. The website deploys separately from static/ and is unaffected by this project.",
+  "type": "module",
+  "scripts": {
+    "copy-assets": "node scripts/copy-assets.mjs",
+    "sync": "npm run copy-assets && cap sync android",
+    "build:debug": "npm run sync && cd android && ./gradlew assembleDebug",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "6.2.1",
+    "@capacitor/core": "6.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "6.2.1"
+  }
+}

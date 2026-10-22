@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TTS Offline Spike Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 2rem;
+      max-width: 600px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .button-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1.5rem 0;
+    }
+
+    button {
+      padding: 0.75rem 1.25rem;
+      background: #007aff;
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #0051d5;
+    }
+
+    button:focus {
+      outline: 2px solid #0051d5;
+      outline-offset: 2px;
+    }
+
+    button:active {
+      background: #003d99;
+    }
+
+    .results {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-top: 2rem;
+      min-height: 100px;
+    }
+
+    .results-title {
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #333;
+    }
+
+    .result-item {
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+      background: #f9f9f9;
+      border-left: 3px solid #007aff;
+      border-radius: 0.25rem;
+    }
+
+    .result-item.error {
+      border-left-color: #ff3b30;
+      background: #ffe5e5;
+    }
+
+    .result-item.success {
+      border-left-color: #34c759;
+      background: #e5ffe5;
+    }
+
+    .timestamp {
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 0.25rem;
+    }
+
+    .voice-item {
+      background: #f0f0f0;
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      border-radius: 0.25rem;
+      font-size: 0.9rem;
+    }
+
+    .label {
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>TextToSpeech Offline Plugin Spike</h1>
+  <p>
+    Test page for offline-only TTS functionality. This page detects the native
+    Android plugin and falls back to browser Web Speech API if unavailable.
+  </p>
+
+  <div class="button-group">
+    <button id="initBtn" aria-label="Initialize TextToSpeech engine">
+      Init
+    </button>
+    <button id="listBtn" aria-label="List offline voices for German">
+      List offline voices
+    </button>
+    <button id="speakBtn" aria-label="Speak German text 'Mama'">
+      Speak "Mama"
+    </button>
+    <button id="stopBtn" aria-label="Stop speech">Stop</button>
+  </div>
+
+  <div class="results" aria-live="polite" aria-label="Test results and status" id="results">
+    <div class="results-title">Results:</div>
+    <div class="result-item">Ready to test. Press "Init" to begin.</div>
+  </div>
+
+  <script type="module">
+    import { selectOfflineVoices } from "./speech-offline-filter.mjs";
+
+    const resultsDiv = document.getElementById("results");
+    const initBtn = document.getElementById("initBtn");
+    const listBtn = document.getElementById("listBtn");
+    const speakBtn = document.getElementById("speakBtn");
+    const stopBtn = document.getElementById("stopBtn");
+
+    let ttsPlugin = null;
+    let isNative = false;
+    let webSynthesisUtterance = null;
+
+    function appendResult(message, type = "info") {
+      const item = document.createElement("div");
+      item.className = `result-item ${type}`;
+      const timestamp = new Date().toLocaleTimeString("de-DE");
+      item.innerHTML = `<div class="timestamp">${timestamp}</div><div>${message}</div>`;
+      resultsDiv.appendChild(item);
+      resultsDiv.scrollTop = resultsDiv.scrollHeight;
+    }
+
+    function clearResults() {
+      resultsDiv.innerHTML = '<div class="results-title">Results:</div>';
+    }
+
+    // Detect native plugin
+    if (window.Capacitor?.Plugins?.OfflineTts) {
+      ttsPlugin = window.Capacitor.Plugins.OfflineTts;
+      isNative = true;
+      appendResult("✓ Native OfflineTts plugin detected", "success");
+    } else {
+      appendResult(
+        "⚠ Native plugin not available; using Web Speech API fallback",
+        "info"
+      );
+    }
+
+    // Initialize TTS
+    initBtn.addEventListener("click", async () => {
+      clearResults();
+      appendResult("Initializing TTS...");
+
+      if (isNative) {
+        try {
+          const result = await ttsPlugin.initialize();
+          if (result.status === "ready") {
+            const langAvail = result.languageAvailable
+              ? "German available"
+              : "German NOT available";
+            appendResult(
+              `✓ TTS initialized successfully. ${langAvail}`,
+              "success"
+            );
+          } else {
+            appendResult("✗ TTS initialization failed", "error");
+          }
+        } catch (err) {
+          appendResult(`✗ Error: ${err.message}`, "error");
+        }
+      } else {
+        // Web Speech API is always "available"
+        appendResult("✓ Web Speech API ready (fallback mode)", "success");
+      }
+    });
+
+    // List offline voices
+    listBtn.addEventListener("click", async () => {
+      clearResults();
+      appendResult("Listing offline voices for de-DE...");
+
+      if (isNative) {
+        try {
+          const result = await ttsPlugin.listOfflineVoices({
+            lang: "de-DE",
+          });
+          if (result.voices && result.voices.length > 0) {
+            const offlineVoices = selectOfflineVoices(result.voices, "de-DE");
+            appendResult(
+              `✓ Found ${result.voices.length} total voices, ${offlineVoices.length} suitable for offline use (${result.suitableCount} reported by plugin)`,
+              "success"
+            );
+            result.voices.forEach((voice) => {
+              const isOffline = !voice.networkRequired && !voice.notInstalled;
+              const statusIcon = isOffline ? "✓" : "✗";
+              const voiceHtml = `
+                <div class="voice-item">
+                  ${statusIcon} <strong>${voice.name}</strong><br />
+                  Locale: ${voice.locale} | Network: ${voice.networkRequired} | Missing: ${voice.notInstalled}
+                </div>
+              `;
+              resultsDiv.innerHTML += voiceHtml;
+            });
+          } else {
+            appendResult("⚠ No voices found", "info");
+          }
+        } catch (err) {
+          appendResult(`✗ Error: ${err.message}`, "error");
+        }
+      } else {
+        // Web Speech API fallback
+        appendResult(
+          "⚠ Web Speech API does not expose voice list metadata",
+          "info"
+        );
+        appendResult(
+          "Note: Web Speech API voices are typically online-capable and cannot be filtered for offline use.",
+          "info"
+        );
+      }
+    });
+
+    // Speak
+    speakBtn.addEventListener("click", async () => {
+      clearResults();
+      appendResult('Speaking "Mama"...');
+
+      if (isNative) {
+        try {
+          await ttsPlugin.speak({
+            text: "Mama",
+            lang: "de-DE",
+            rate: 0.8,
+          });
+          appendResult('✓ "Mama" played successfully', "success");
+        } catch (err) {
+          appendResult(`✗ Error: ${err.message}`, "error");
+        }
+      } else {
+        // Web Speech API fallback
+        if (!webSynthesisUtterance) {
+          webSynthesisUtterance = new SpeechSynthesisUtterance();
+        }
+        webSynthesisUtterance.text = "Mama";
+        webSynthesisUtterance.lang = "de-DE";
+        webSynthesisUtterance.rate = 0.8;
+
+        webSynthesisUtterance.onstart = () => {
+          appendResult("Web Speech API: speaking...", "info");
+        };
+
+        webSynthesisUtterance.onend = () => {
+          appendResult("✓ Web Speech API: playback complete", "success");
+        };
+
+        webSynthesisUtterance.onerror = (event) => {
+          appendResult(
+            `✗ Web Speech API error: ${event.error}`,
+            "error"
+          );
+        };
+
+        speechSynthesis.cancel();
+        speechSynthesis.speak(webSynthesisUtterance);
+
+        // Check for German voice availability
+        const voices = speechSynthesis.getVoices();
+        const germanVoices = voices.filter((v) => v.lang.startsWith("de"));
+        if (germanVoices.length === 0) {
+          appendResult("⚠ No German voice installed in Web Speech API", "info");
+        }
+      }
+    });
+
+    // Stop
+    stopBtn.addEventListener("click", async () => {
+      clearResults();
+
+      if (isNative) {
+        try {
+          await ttsPlugin.stop();
+          appendResult("✓ TTS stopped", "success");
+        } catch (err) {
+          appendResult(`✗ Error: ${err.message}`, "error");
+        }
+      } else {
+        speechSynthesis.cancel();
+        appendResult("✓ Web Speech API playback stopped", "success");
+      }
+    });
+  </script>
+</body>
+</html>
