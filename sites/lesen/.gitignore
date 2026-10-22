@@ -6,3 +6,4 @@ www/
 local.properties
 *.keystore
 *.jks
+keystore.properties
