@@ -1,0 +1,132 @@
+# Releasing Buchstabenzeit for Android
+
+This document describes how to turn a known-good source revision into a valid,
+versioned, signed Android App Bundle (`.aab`) for Google Play. The website
+(`lesen.derschweigert.de`) deploys separately and is unaffected by this process.
+
+All commands run from `sites/lesen/`. Nothing secret is ever committed.
+
+## Prerequisites (local)
+
+- Node.js 18+ and npm.
+- JDK 17 (e.g. `brew install openjdk@17`).
+- Android SDK command-line tools with `platform-tools`, `platforms;android-34`,
+  `build-tools;34.0.0`, and `android/local.properties` pointing at the SDK
+  (`sdk.dir=/path/to/Android/sdk`). `local.properties` is gitignored.
+
+## One-time: create your upload keystore
+
+Google Play uses **Play App Signing**: Google holds the real *app signing key*;
+you hold an *upload key*. Generate the upload keystore once and keep it (and its
+passwords) safe and backed up — losing it means you must reset the upload key with
+Google support.
+
+```bash
+keytool -genkeypair -v \
+  -keystore buchstabenzeit-upload.jks \
+  -alias buchstabenzeit \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Store it **outside** the repo (the repo ignores `*.jks` and `keystore.properties`
+anyway). Then create `sites/lesen/android/keystore.properties` (gitignored):
+
+```properties
+storeFile=/absolute/path/to/buchstabenzeit-upload.jks
+storePassword=... 
+keyAlias=buchstabenzeit
+keyPassword=...
+```
+
+Alternatively, set `BZ_KEYSTORE_FILE`, `BZ_KEYSTORE_PASSWORD`, `BZ_KEY_ALIAS`,
+`BZ_KEY_PASSWORD` as environment variables (used by CI via encrypted secrets).
+
+If no keystore is configured, `build:release` **fails loudly** instead of
+producing a silently unsigned bundle.
+
+## Versioning
+
+`versionCode` must **strictly increase** for every Play upload; `versionName` is
+the human-readable version. They default to `1` / `1.0` and are overridden per
+release without editing `build.gradle`:
+
+```bash
+# via Gradle properties
+./gradlew bundleRelease -PbzVersionCode=2 -PbzVersionName=1.1
+# or via environment variables
+BZ_VERSION_CODE=2 BZ_VERSION_NAME=1.1 npm run build:release
+```
+
+Keep a simple log (commit message or a table below) of: git revision, versionName,
+versionCode, date, and release notes.
+
+## Release steps (local)
+
+1. Choose a known-good commit on `android-app` and check it out.
+2. `npm run restore`         # clean, locked dependency install (npm ci)
+3. `npm test`                # shared JS logic tests
+4. `npm run build:debug`     # optional: sanity debug build
+5. `BZ_VERSION_CODE=<n> BZ_VERSION_NAME=<x.y> npm run build:release`
+6. The signed bundle is at:
+   `android/app/build/outputs/bundle/release/app-release.aab`
+7. Verify it is signed:
+   `jarsigner -verify -verbose -certs android/app/build/outputs/bundle/release/app-release.aab`
+8. Upload the `.aab` to the Play Console (internal testing first). Test an
+   **upgrade** over the previous build, not just a clean install.
+
+## Release record
+
+| Date | Git revision | versionName | versionCode | targetSdk | Track | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| 2026-10-22 | f29830f | 1.1 | 2 | 36 | Internal testing | First internal testing release. Signed with the upload key; Play App Signing enabled. Supersedes an earlier versionCode 1 (targetSdk 34) build that Play rejected for the API-36 requirement. |
+
+## Reproducing a past release
+
+A release is reproducible from: the recorded **git revision** + the locked
+`package-lock.json` + the recorded **versionCode/versionName** + your upload
+keystore. Check out the revision, `npm ci`, and run `build:release` with the same
+version inputs.
+
+## Continuous integration (GitHub Actions)
+
+`.github/workflows/android-release.yml` builds a signed `.aab` **on demand only**
+(manual `workflow_dispatch` with `versionName`/`versionCode` inputs, or an
+`android-v*` tag). It is separate from the website `deploy.yml` and never runs on
+a website deploy or ordinary push. It uploads the `.aab` as a build artifact and
+does **not** publish to Google Play (v1 publication stays manual and owner-approved).
+
+Add these repository **secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `BZ_KEYSTORE_BASE64` | `base64 -i buchstabenzeit-upload.jks` (the upload keystore, base64-encoded) |
+| `BZ_KEYSTORE_PASSWORD` | keystore store password |
+| `BZ_KEY_ALIAS` | key alias (e.g. `buchstabenzeit`) |
+| `BZ_KEY_PASSWORD` | key password |
+
+Without `BZ_KEYSTORE_BASE64` the workflow fails early with a clear message; the
+decoded keystore is removed from the runner after the build.
+
+## Play App Signing, credentials & account ownership
+
+- **Play App Signing**: let Google manage the *app signing key*. You upload
+  bundles signed with your *upload key*; Google re-signs with the app signing key.
+  This means a lost upload key can be **reset** via Play Console support without
+  bricking the app — but still keep the upload key safe.
+- **Backups**: store the upload keystore and its passwords in a password manager /
+  secure backup, in at least two locations. Losing both the key and the ability to
+  reset it would block future updates.
+- **Account ownership**: the Google Play developer account (and its payments
+  profile) is owned by the app owner. Document who holds the account, billing, and
+  the upload keystore. Consider a standalone package identity suitable for transfer
+  (the app id `de.derschweigert.buchstabenzeit` is already independent of any
+  individual).
+- **Never commit** the keystore, `keystore.properties`, passwords, or CI secrets.
+
+## What stays out of source control
+
+- The upload keystore (`*.jks`) and `keystore.properties` (passwords).
+- `local.properties` (local SDK path).
+- Play Console account credentials.
+
+See also `../ANDROID-PLAN.md` (§4.D, §6) for policy and distribution context.

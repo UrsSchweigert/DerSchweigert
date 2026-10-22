@@ -1,0 +1,97 @@
+apply plugin: 'com.android.application'
+
+// --- Release signing & versioning (see RELEASING.md) ---
+// Credentials are NEVER committed. Provide them via a gitignored
+// android/keystore.properties, or via BZ_KEYSTORE_* environment variables (CI).
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def ksStoreFile = keystoreProperties['storeFile'] ?: System.getenv('BZ_KEYSTORE_FILE')
+def ksStorePassword = keystoreProperties['storePassword'] ?: System.getenv('BZ_KEYSTORE_PASSWORD')
+def ksKeyAlias = keystoreProperties['keyAlias'] ?: System.getenv('BZ_KEY_ALIAS')
+def ksKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('BZ_KEY_PASSWORD')
+def hasReleaseSigning = ksStoreFile != null && ksStorePassword != null && ksKeyAlias != null && ksKeyPassword != null
+
+// Version is overridable per release without editing this file:
+//   ./gradlew bundleRelease -PbzVersionCode=2 -PbzVersionName=1.1
+// or via BZ_VERSION_CODE / BZ_VERSION_NAME env vars. Defaults preserve 1 / "1.0".
+def resolvedVersionCode = (project.findProperty('bzVersionCode') ?: System.getenv('BZ_VERSION_CODE') ?: '1').toString().toInteger()
+def resolvedVersionName = (project.findProperty('bzVersionName') ?: System.getenv('BZ_VERSION_NAME') ?: '1.0').toString()
+
+// Fail loudly rather than emit a silently unsigned release bundle.
+gradle.taskGraph.whenReady { graph ->
+    def buildingRelease = graph.allTasks.any { t ->
+        t.project.path == project.path && (t.name == 'bundleRelease' || t.name == 'assembleRelease')
+    }
+    if (buildingRelease && !hasReleaseSigning) {
+        throw new GradleException(
+            "Release build requires signing credentials. Provide android/keystore.properties " +
+            "or BZ_KEYSTORE_* environment variables. See sites/lesen/RELEASING.md.")
+    }
+}
+
+android {
+    namespace "de.derschweigert.buchstabenzeit"
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "de.derschweigert.buchstabenzeit"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(ksStoreFile)
+                storePassword ksStorePassword
+                keyAlias ksKeyAlias
+                keyPassword ksKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig hasReleaseSigning ? signingConfigs.release : null
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

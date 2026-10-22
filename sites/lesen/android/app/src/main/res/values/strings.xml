@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Buchstabenzeit</string>
+    <string name="title_activity_main">Buchstabenzeit</string>
+    <string name="package_name">de.derschweigert.buchstabenzeit</string>
+    <string name="custom_url_scheme">de.derschweigert.buchstabenzeit</string>
+</resources>

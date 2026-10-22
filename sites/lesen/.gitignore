@@ -1,0 +1,9 @@
+# Project-level ignores. The Capacitor-generated android/.gitignore already
+# excludes build/, .gradle/, local.properties, copied web assets, and generated
+# config, so the native android/ project (incl. our plugin) IS tracked.
+node_modules/
+www/
+local.properties
+*.keystore
+*.jks
+keystore.properties
