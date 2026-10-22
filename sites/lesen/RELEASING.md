@@ -76,9 +76,9 @@ versionCode, date, and release notes.
 
 ## Release record
 
-| Date | Git revision | versionName | versionCode | Notes |
-| --- | --- | ---: | ---: | --- |
-| _tbd_ | _tbd_ | 1.0 | 1 | First internal test build |
+| Date | Git revision | versionName | versionCode | targetSdk | Track | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| 2026-10-22 | f29830f | 1.1 | 2 | 36 | Internal testing | First internal testing release. Signed with the upload key; Play App Signing enabled. Supersedes an earlier versionCode 1 (targetSdk 34) build that Play rejected for the API-36 requirement. |
 
 ## Reproducing a past release
 
