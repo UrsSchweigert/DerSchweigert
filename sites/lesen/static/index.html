@@ -1213,25 +1213,19 @@
         }
 
         function speakCard() {
-            const speech = window.__speech;
-            if (!speech || !speech.isSupported()) {
-                byId('feedback').textContent = 'Die Vorlesefunktion wird von diesem Browser nicht unterst\u00fctzt.';
-                return;
-            }
-
-            // The voice list loads asynchronously (empty on first call in iOS Safari), so only
-            // warn once it is populated and contains no German voice.
-            if (speech.voiceStatus('de') === 'none') {
-                byId('feedback').textContent = 'Keine deutsche Stimme verf\u00fcgbar. Bitte aktiviere eine deutsche Sprachausgabe auf deinem Ger\u00e4t.';
-                return;
-            }
-
-            speech.speak({
-                text: byId('syllable').textContent,
-                lang: 'de-DE',
-                rate: 0.8,
-                onError: () => { byId('feedback').textContent = 'Die deutsche Aussprache konnte nicht abgespielt werden.'; }
-            });
+          const speech = window.__speech;
+          if (!speech) {
+            byId('feedback').textContent = 'Die Vorlesefunktion wird von diesem Browser nicht unterst\u00fctzt.';
+            return;
+          }
+          speech.speak({
+            text: byId('syllable').textContent,
+            lang: 'de-DE',
+            rate: 0.8,
+            onUnsupported: () => { byId('feedback').textContent = 'Die Vorlesefunktion wird von diesem Browser nicht unterst\u00fctzt.'; },
+            onNoVoice: () => { byId('feedback').textContent = 'Keine deutsche Stimme verf\u00fcgbar. Bitte aktiviere eine deutsche Sprachausgabe auf deinem Ger\u00e4t.'; },
+            onError: () => { byId('feedback').textContent = 'Die deutsche Aussprache konnte nicht abgespielt werden.'; }
+          });
         }
 
         function returnToSetup() {

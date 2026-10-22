@@ -78,7 +78,18 @@ export function createBrowserSpeechAdapter(win = window) {
       win.speechSynthesis?.cancel();
     },
 
-    speak({ text, lang, rate, onError }) {
+    speak({ text, lang, rate, onUnsupported, onNoVoice, onError }) {
+      if (!this.isSupported()) {
+        onUnsupported?.();
+        return;
+      }
+      
+      const prefix = String(lang).split('-')[0].toLowerCase();
+      if (this.voiceStatus(prefix) === 'none') {
+        onNoVoice?.();
+        return;
+      }
+
       this.cancel();
       const utterance = new win.SpeechSynthesisUtterance(text);
       utterance.lang = lang;
@@ -98,13 +109,75 @@ export function createBrowserSpeechAdapter(win = window) {
 }
 
 /**
+ * Create a native (Capacitor) speech adapter using offline TTS plugin.
+ * @param {Object} plugin - The OfflineTts plugin from Capacitor.
+ * @returns {Object} Adapter with kind, isSupported, warm, cancel, speak.
+ */
+export function createNativeSpeechAdapter(plugin) {
+  let initPromise = null;
+
+  return {
+    kind: 'native',
+
+    isSupported() {
+      return true;
+    },
+
+    async warm() {
+      try {
+        if (!initPromise) {
+          initPromise = plugin.initialize();
+        }
+        await initPromise;
+      } catch (e) {
+        // Ignore initialization errors during warm
+      }
+    },
+
+    async cancel() {
+      try {
+        await plugin.stop();
+      } catch (e) {
+        // Ignore cancel errors
+      }
+    },
+
+    async speak({ text, lang, rate, onUnsupported, onNoVoice, onError }) {
+      try {
+        if (!initPromise) {
+          initPromise = plugin.initialize();
+        }
+        const init = await initPromise;
+        if (!init || init.status !== 'ready') {
+          onNoVoice?.();
+          return;
+        }
+
+        const list = await plugin.listOfflineVoices({ lang });
+        if (!list || !list.suitableCount) {
+          onNoVoice?.();
+          return;
+        }
+
+        await plugin.speak({ text, lang, rate });
+      } catch (e) {
+        onError?.();
+      }
+    }
+  };
+}
+
+/**
  * Factory for the appropriate speech adapter.
  * B1: Returns browser adapter.
- * B2: Will detect native speech and return native adapter.
+ * B2: Detects native speech and returns native adapter if available.
  * @param {Window} [win=window] - Window object (for testing).
  * @returns {Object} Speech adapter.
  */
 export function createSpeechAdapter(win = window) {
-  // B2 will add: if (isNativeAndroidAvailable) return createNativeAndroidAdapter();
+  const plugin = win.Capacitor?.Plugins?.OfflineTts;
+  if (plugin) {
+    return createNativeSpeechAdapter(plugin);
+  }
   return createBrowserSpeechAdapter(win);
 }

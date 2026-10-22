@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { browserVoiceStatus, selectBrowserVoice, createBrowserSpeechAdapter, createSpeechAdapter } from '../static/speech-adapter.js';
+import { browserVoiceStatus, selectBrowserVoice, createBrowserSpeechAdapter, createSpeechAdapter, createNativeSpeechAdapter } from '../static/speech-adapter.js';
 
 test('selectBrowserVoice', async t => {
   await t.test('no German voices returns null', () => {
@@ -267,13 +267,12 @@ test('createBrowserSpeechAdapter', async t => {
     assert.equal(capturedUtterance.voice, germanVoice, 'utterance.voice should be set to the German voice');
   });
 
-  await t.test('speak does not set utterance.voice when only English voices available', () => {
-    let capturedUtterance = null;
+  await t.test('speak calls onNoVoice when only English voices available', () => {
     const fakeWindow = {
       speechSynthesis: {
         cancel: () => {},
         getVoices: () => [{ name: 'David', lang: 'en-US', localService: true }],
-        speak: (u) => { capturedUtterance = u; }
+        speak: (u) => {}
       },
       SpeechSynthesisUtterance: function(text) {
         this.text = text;
@@ -284,13 +283,14 @@ test('createBrowserSpeechAdapter', async t => {
       }
     };
     const adapter = createBrowserSpeechAdapter(fakeWindow);
+    let onNoVoiceCalled = false;
     adapter.speak({
       text: 'test',
       lang: 'de-DE',
       rate: 0.8,
-      onError: () => {}
+      onNoVoice: () => { onNoVoiceCalled = true; }
     });
-    assert.equal(capturedUtterance.voice, null, 'utterance.voice should not be set when no German voice found');
+    assert.equal(onNoVoiceCalled, true, 'onNoVoice should be called when no German voice found');
   });
 });
 
@@ -306,5 +306,232 @@ test('createSpeechAdapter', async t => {
     assert.equal(typeof adapter.cancel, 'function');
     assert.equal(typeof adapter.warm, 'function');
     assert.equal(typeof adapter.voiceStatus, 'function');
+  });
+
+  await t.test('returns kind "native" when Capacitor.Plugins.OfflineTts is present', () => {
+    const fakePlugin = {
+      initialize: async () => ({ status: 'ready' }),
+      listOfflineVoices: async () => ({ voices: [], suitableCount: 0 }),
+      speak: async () => {},
+      stop: async () => {}
+    };
+    const adapter = createSpeechAdapter({
+      Capacitor: {
+        Plugins: {
+          OfflineTts: fakePlugin
+        }
+      }
+    });
+    assert.equal(adapter.kind, 'native');
+  });
+
+  await t.test('returns kind "browser" when Capacitor is absent', () => {
+    const adapter = createSpeechAdapter({
+      speechSynthesis: {},
+      SpeechSynthesisUtterance: function() {}
+    });
+    assert.equal(adapter.kind, 'browser');
+  });
+});
+
+test('Browser adapter speak with outcome callbacks', async t => {
+  await t.test('calls onUnsupported when not supported', async () => {
+    const unsupportedWindow = {};
+    const adapter = createBrowserSpeechAdapter(unsupportedWindow);
+    let onUnsupportedCalled = false;
+    await adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8,
+      onUnsupported: () => { onUnsupportedCalled = true; }
+    });
+    assert.equal(onUnsupportedCalled, true);
+  });
+
+  await t.test('calls onNoVoice when no German voices available', async () => {
+    const fakeWindow = {
+      speechSynthesis: {
+        cancel: () => {},
+        getVoices: () => [{ name: 'David', lang: 'en-US' }]
+      },
+      SpeechSynthesisUtterance: function() {
+        this.lang = null;
+        this.rate = null;
+        this.voice = null;
+        this.onerror = null;
+      }
+    };
+    const adapter = createBrowserSpeechAdapter(fakeWindow);
+    let onNoVoiceCalled = false;
+    adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8,
+      onNoVoice: () => { onNoVoiceCalled = true; }
+    });
+    assert.equal(onNoVoiceCalled, true);
+  });
+
+  await t.test('calls speechSynthesis.speak when German voice is available', async () => {
+    let speakCalled = false;
+    const germanVoice = { name: 'Anna', lang: 'de-DE', localService: true };
+    const fakeWindow = {
+      speechSynthesis: {
+        cancel: () => {},
+        getVoices: () => [germanVoice],
+        speak: () => { speakCalled = true; }
+      },
+      SpeechSynthesisUtterance: function(text) {
+        this.text = text;
+        this.lang = null;
+        this.rate = null;
+        this.voice = null;
+        this.onerror = null;
+      }
+    };
+    const adapter = createBrowserSpeechAdapter(fakeWindow);
+    let utteranceVoice = null;
+    fakeWindow.speechSynthesis.speak = (u) => {
+      utteranceVoice = u.voice;
+      speakCalled = true;
+    };
+    adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8,
+      onNoVoice: () => {}
+    });
+    assert.equal(speakCalled, true);
+    assert.equal(utteranceVoice, germanVoice);
+  });
+});
+
+test('Native adapter speak with outcome callbacks', async t => {
+  await t.test('calls onNoVoice when listOfflineVoices returns suitableCount 0', async () => {
+    const fakePlugin = {
+      initialize: async () => ({ status: 'ready', languageAvailable: true }),
+      listOfflineVoices: async () => ({ voices: [], suitableCount: 0 }),
+      speak: async () => {},
+      stop: async () => {}
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    let onNoVoiceCalled = false;
+    await adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8,
+      onNoVoice: () => { onNoVoiceCalled = true; }
+    });
+    assert.equal(onNoVoiceCalled, true);
+  });
+
+  await t.test('calls plugin.speak when suitableCount >= 1', async () => {
+    let pluginSpeakCalled = false;
+    const fakePlugin = {
+      initialize: async () => ({ status: 'ready', languageAvailable: true }),
+      listOfflineVoices: async () => ({ voices: ['voice1'], suitableCount: 1 }),
+      speak: async () => { pluginSpeakCalled = true; },
+      stop: async () => {}
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    await adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8
+    });
+    assert.equal(pluginSpeakCalled, true);
+  });
+
+  await t.test('calls onError when plugin.speak rejects', async () => {
+    const fakePlugin = {
+      initialize: async () => ({ status: 'ready', languageAvailable: true }),
+      listOfflineVoices: async () => ({ voices: ['voice1'], suitableCount: 1 }),
+      speak: async () => { throw new Error('speak failed'); },
+      stop: async () => {}
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    let onErrorCalled = false;
+    await adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8,
+      onError: () => { onErrorCalled = true; }
+    });
+    assert.equal(onErrorCalled, true);
+  });
+
+  await t.test('calls onNoVoice when initialize status is not ready', async () => {
+    const fakePlugin = {
+      initialize: async () => ({ status: 'error', languageAvailable: false }),
+      listOfflineVoices: async () => ({ voices: [], suitableCount: 0 }),
+      speak: async () => {},
+      stop: async () => {}
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    let onNoVoiceCalled = false;
+    await adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8,
+      onNoVoice: () => { onNoVoiceCalled = true; }
+    });
+    assert.equal(onNoVoiceCalled, true);
+  });
+
+  await t.test('caches initialize promise so it runs only once', async () => {
+    let initCallCount = 0;
+    const fakePlugin = {
+      initialize: async () => {
+        initCallCount++;
+        return { status: 'ready', languageAvailable: true };
+      },
+      listOfflineVoices: async () => ({ voices: ['voice1'], suitableCount: 1 }),
+      speak: async () => {},
+      stop: async () => {}
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    
+    // First call
+    await adapter.speak({ text: 'test1', lang: 'de-DE', rate: 0.8 });
+    assert.equal(initCallCount, 1);
+    
+    // Second call should reuse cached promise
+    await adapter.speak({ text: 'test2', lang: 'de-DE', rate: 0.8 });
+    assert.equal(initCallCount, 1, 'initialize should only be called once');
+  });
+
+  await t.test('warm calls initialize and caches the promise', async () => {
+    let initCallCount = 0;
+    const fakePlugin = {
+      initialize: async () => {
+        initCallCount++;
+        return { status: 'ready', languageAvailable: true };
+      },
+      listOfflineVoices: async () => ({ voices: ['voice1'], suitableCount: 1 }),
+      speak: async () => {},
+      stop: async () => {}
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    
+    // Warm should start initialization
+    await adapter.warm();
+    assert.equal(initCallCount, 1);
+    
+    // Speak should reuse the cached promise
+    await adapter.speak({ text: 'test', lang: 'de-DE', rate: 0.8 });
+    assert.equal(initCallCount, 1, 'initialize should only be called once total');
+  });
+
+  await t.test('cancel calls plugin.stop without throwing', async () => {
+    let stopCalled = false;
+    const fakePlugin = {
+      initialize: async () => ({ status: 'ready' }),
+      listOfflineVoices: async () => ({ voices: [], suitableCount: 0 }),
+      speak: async () => {},
+      stop: async () => { stopCalled = true; }
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    await adapter.cancel();
+    assert.equal(stopCalled, true);
   });
 });
