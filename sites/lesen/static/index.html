@@ -946,6 +946,22 @@
             font-size: 12px;
         }
 
+        .about-x {
+            position: sticky;
+            top: 0;
+            float: right;
+            width: 40px;
+            height: 40px;
+            margin: -8px -8px 0 8px;
+            border: none;
+            border-radius: 50%;
+            background: #e9f4ff;
+            color: var(--blue);
+            font-size: 26px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
         .about-actions {
             display: flex;
             justify-content: flex-end;
@@ -1079,6 +1095,7 @@
             </div>
         </dialog>
         <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
+            <button id="about-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
             <h2 id="about-title">Über Buchstabenzeit</h2>
             <p class="about-version">Version 1.0</p>
             <p>Buchstabenzeit ist eine begleitete Leseübung. Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
@@ -1092,11 +1109,11 @@
             </ul>
             <p><a href="datenschutz.html">Vollst&auml;ndige Datenschutzerkl&auml;rung</a></p>
             <div class="about-actions">
-                <button id="about-close" class="primary" type="button" autofocus>Schlie&szlig;en</button>
+                <button id="about-close" class="primary" type="button">Schlie&szlig;en</button>
             </div>
         </dialog>
     </main>
-    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button">&Uuml;ber &amp; Datenschutz</button> &middot; <a href="datenschutz.html">Datenschutzerkl&auml;rung</a></footer>
+    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button" hidden>&Uuml;ber &amp; Datenschutz</button><a id="privacy-link" href="datenschutz.html">Datenschutzerkl&auml;rung</a></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         window.__speech = createSpeechAdapter();
@@ -1406,6 +1423,11 @@
         byId('change-letters').addEventListener('click', returnToSetup);
         byId('again').addEventListener('click', startDeck);
 
+        // The packaged Android app shows the in-app "Über & Datenschutz" dialog; the website links the hosted policy.
+        if (window.Capacitor?.isNativePlatform?.()) {
+            byId('open-about').hidden = false;
+            byId('privacy-link').hidden = true;
+        }
         const App = window.Capacitor?.Plugins?.App;
         if (App) {
             App.addListener('backButton', () => {
@@ -1424,7 +1446,13 @@
         });
         byId('confirm-end-yes').addEventListener('click', () => { byId('confirm-end').close(); returnToSetup(); });
         byId('confirm-end-no').addEventListener('click', () => byId('confirm-end').close());
-        byId('open-about').addEventListener('click', () => byId('about-dialog').showModal());
+        byId('open-about').addEventListener('click', () => {
+            const dlg = byId('about-dialog');
+            dlg.showModal();
+            dlg.scrollTop = 0;
+            byId('about-x').focus({ preventScroll: true });
+        });
+        byId('about-x').addEventListener('click', () => byId('about-dialog').close());
         byId('about-close').addEventListener('click', () => byId('about-dialog').close());
     </script>
 </body>
