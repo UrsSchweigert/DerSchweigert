@@ -15,32 +15,10 @@ def lambda_handler(event, context):
         return _handle_unlock_page(event)
 
     if route == "/api/contact":
-        if method != "POST":
-            return _respond(405, {"detail": "Method not allowed"})
-        body = json.loads(event.get("body") or "{}")
-        name = str(body.get("name", "")).strip()
-        email = str(body.get("email", "")).strip()
-        message = str(body.get("message", "")).strip()
-
-        if not name or "@" not in email or not message:
-            return _respond(400, {"detail": "Missing required fields"})
-
-        if len(name) > 200 or len(email) > 320 or len(message) > 10_000:
-            return _respond(400, {"detail": "Message is too long"})
-
-        try:
-            token = _get_github_token()
-            _create_github_issue(
-                token=token,
-                repository=os.getenv("GITHUB_CONTACT_REPOSITORY", "UrsSchweigert/DerSchweigert"),
-                name=name,
-                email=email,
-                message=message,
-            )
-        except (HTTPError, URLError, ValueError, RuntimeError):
-            return _respond(502, {"detail": "Ihre Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut."})
-
-        return _respond(200, {"ok": True, "message": "Vielen Dank. Ihre Nachricht wurde gesendet."})
+        # Contact form retired
+        if method == "GET":
+            return _respond_html(410, "<h1>410 Gone</h1><p>Contact form is no longer available.</p>")
+        return _respond(410, {"detail": "Contact API no longer available"})
 
     if route == "/api/admin/verify-pin":
         if method != "POST":

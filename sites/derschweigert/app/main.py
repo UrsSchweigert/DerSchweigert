@@ -43,9 +43,10 @@ async def pin_protection(request: Request, call_next):
     # unmittelbar erreichbar" (easily recognizable, directly accessible)
     # without any access barrier, even while the rest of the site is behind
     # a pre-launch PIN wall.
-    public_paths = {"/health", "/unlock", "/api/admin/verify-pin", "/api/contact", "/impressum", "/datenschutz"}
+    public_paths = {"/health", "/unlock", "/api/admin/verify-pin", "/contact", "/api/contact", "/impressum", "/datenschutz"}
 
-    if settings.app_env == "production" and not path.startswith("/static") and path not in public_paths and not path.startswith("/api/contact"):
+    # Apply PIN protection only if explicitly enabled
+    if settings.pin_protection_enabled and settings.app_env == "production" and not path.startswith("/static") and path not in public_paths:
         if request.cookies.get(settings.admin_cookie_name) != "1":
             redirect_to = f"/unlock?next={quote(path or '/')}"
             return RedirectResponse(url=redirect_to, status_code=307)
@@ -169,11 +170,6 @@ def service_page(slug: str) -> HTMLResponse:
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
-@app.get("/contact", response_class=HTMLResponse)
-def contact_page() -> HTMLResponse:
-    return HTMLResponse((TEMPLATES_DIR / "contact.html").read_text(encoding="utf-8"))
-
-
 @app.get("/impressum", response_class=HTMLResponse)
 def impressum_page() -> HTMLResponse:
     return HTMLResponse((TEMPLATES_DIR / "impressum.html").read_text(encoding="utf-8"))
@@ -210,12 +206,11 @@ def verify_pin(payload: dict):
     return response
 
 
+@app.get("/contact", response_class=HTMLResponse)
+def contact_page() -> HTMLResponse:
+    raise HTTPException(status_code=410, detail="Contact form no longer available")
+
+
 @app.post("/api/contact")
 def submit_contact(payload: dict):
-    name = str(payload.get("name", "")).strip()
-    email = str(payload.get("email", "")).strip()
-    message = str(payload.get("message", "")).strip()
-    if not name or not email or not message:
-        raise HTTPException(status_code=400, detail="Missing required fields")
-
-    return {"ok": True, "message": "Thanks — I will get back to you soon."}
+    raise HTTPException(status_code=410, detail="Contact API no longer available")

@@ -9,3 +9,9 @@ variable "route53_zone_id" {
   type        = string
   default     = "Z02407051JK3BF2C58UEQ"
 }
+
+variable "pin_protection_enabled" {
+  description = "Enable the retained homepage PIN gate"
+  type        = bool
+  default     = false
+}

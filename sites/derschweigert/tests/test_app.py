@@ -33,19 +33,23 @@ class TagBalanceChecker(HTMLParser):
         return len(self.errors) == 0
 
 
-def test_homepage_renders_in_dev_mode():
+def test_homepage_renders_public_by_default():
+    """Homepage should be accessible without PIN when PIN_PROTECTION_ENABLED=false (default)."""
     from app.config import get_settings
     settings = get_settings()
-    settings.app_env = "development"
+    settings.app_env = "production"
+    settings.pin_protection_enabled = False
     response = client.get("/")
     assert response.status_code == 200
     assert "DerSchweigert" in response.text or "Urs Schweigert" in response.text
 
 
-def test_homepage_requires_pin_in_production():
+def test_homepage_requires_pin_when_protection_enabled():
+    """Homepage should require PIN when PIN_PROTECTION_ENABLED=true."""
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "production"
+    settings.pin_protection_enabled = True
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 307
     assert response.headers["location"].startswith("/unlock?next=")
@@ -73,10 +77,11 @@ def test_datenschutz_is_accessible_without_pin_in_production():
 
 
 def test_homepage_projects_focus_and_structure():
-    """Verify homepage has project cards, Android app, contact link, and valid HTML structure."""
+    """Verify homepage has project cards, Android app, contact mailto, and valid HTML structure."""
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "development"
+    settings.pin_protection_enabled = False
     response = client.get("/")
     assert response.status_code == 200
     html = response.text
@@ -105,9 +110,11 @@ def test_homepage_projects_focus_and_structure():
         assert 'loading="lazy"' in image_markup.group()
         assert 'decoding="async"' in image_markup.group()
     
-    # Verify contact visibility
+    # Verify contact mailto is visible, not form link
     assert "info@derschweigert.de" in html
-    assert 'href="/contact"' in html
+    assert 'href="mailto:info@derschweigert.de"' in html
+    # Contact form link should not be present
+    assert 'href="/contact"' not in html
     
     # Verify HTML structure is balanced
     parser = TagBalanceChecker()
@@ -125,30 +132,31 @@ def test_pin_unlock_redirects_to_homepage():
     assert "ams_pin=1" in response.headers.get("set-cookie", "")
 
 
-def test_contact_form_accepts_payload():
+def test_contact_page_returns_410():
+    """Contact form is no longer available."""
+    response = client.get("/contact")
+    assert response.status_code == 410
+
+
+def test_contact_api_returns_410():
+    """Contact API is retired."""
     payload = {
         "name": "Test User",
         "email": "test@example.com",
         "message": "I need a website for my small business.",
     }
     response = client.post("/api/contact", json=payload)
-    assert response.status_code == 200
-    body = response.json()
-    assert body["ok"] is True
-
-
-def test_contact_form_rejects_missing_fields():
-    response = client.post("/api/contact", json={"name": "Only name"})
-    assert response.status_code == 400
+    assert response.status_code == 410
 
 
 def test_admin_pin_requires_cookie():
+    """Admin page requires valid PIN cookie even when protection disabled."""
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "production"
+    settings.pin_protection_enabled = False
     response = client.get("/admin", follow_redirects=False)
-    assert response.status_code == 307
-    assert response.headers["location"].startswith("/unlock?next=")
+    assert response.status_code == 403
 
 
 def test_invalid_pin_is_rejected():

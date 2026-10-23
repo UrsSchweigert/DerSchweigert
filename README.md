@@ -167,15 +167,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   `ses:DescribeReceiptRuleSet` even though the same `terraform apply` had
   already succeeded locally under root credentials — a reminder that a
   clean local apply proves nothing about whether CI can do the same.
-- **PIN lock**: production traffic to derschweigert.de/www is gated by a
-  CloudFront Function (`derschweigert-pin-lock`) requiring an `ams_pin=1`
-  cookie, except for a small allowlist of public paths (`/health`, `/unlock`,
-  `/static/*`, `/api/*`, `/contact`, `/impressum`, `/datenschutz`). FFM now
-  has its own stack, so its access policy should be treated independently from
-  the derschweigert PIN lock. The PIN value itself is defined in `module "api"`'s
-  `environment_variables` in `infra/terraform/sites/derschweigert/main.tf` —
-  treat it like any other credential when changing it (don't casually paste it
-  into chat/commits).
+- **PIN lock (optional, disabled by default)**: production traffic to derschweigert.de/www can be optionally gated by a PIN. The feature is controlled by two independent configuration points: (1) **FastAPI layer**: set `PIN_PROTECTION_ENABLED` environment variable (default `false`) locally or in `sites/derschweigert/.env`; (2) **CloudFront layer**: set the Terraform variable `pin_protection_enabled` (default `false`) in `infra/terraform/sites/derschweigert/variables.tf` or via CI using `TF_VAR_pin_protection_enabled` environment variable (sourced from repo variable `DERSCHWEIGERT_PIN_PROTECTION_ENABLED` in the deploy workflow). When enabled, traffic is gated by an `ams_pin=1` cookie, except for a small allowlist of public paths (`/health`, `/unlock`, `/static/*`, `/impressum`, `/datenschutz`). FFM has its own stack, so its access policy is independent. The PIN value itself is defined in `module "api"`'s `environment_variables` in `infra/terraform/sites/derschweigert/main.tf` — treat it like any other credential when changing it (don't paste into chat/commits). The contact form (`/contact` GET and `/api/contact` POST) has been retired and returns 410 Gone; contact links in templates route to `mailto:info@derschweigert.de` instead.
 - **Security response headers**: the shared `static_site` module
   (`infra/terraform/modules/static_site/main.tf`) provisions a CloudFront
   response-headers policy (CSP, HSTS, X-Frame-Options, nosniff,

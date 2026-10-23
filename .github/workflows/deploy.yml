@@ -68,6 +68,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       TF_VAR_route53_zone_id: ${{ secrets.ROUTE53_ZONE_ID }}
+      TF_VAR_pin_protection_enabled: ${{ vars.DERSCHWEIGERT_PIN_PROTECTION_ENABLED || 'false' }}
     steps:
       - uses: actions/checkout@v4
 

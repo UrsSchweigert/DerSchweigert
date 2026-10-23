@@ -52,6 +52,13 @@ The CI/CD pipeline in `.github/workflows/deploy.yml` automatically injects
 `TF_VAR_admin_visits_token` from the `FFM_ADMIN_VISITS_TOKEN` GitHub secret.
 A preflight validation step fails the deployment if this secret is missing.
 
+CI also needs DynamoDB lifecycle permissions for `ffm-visits`. On
+2026-10-23, the existing managed policy reached IAM's 6,144-character limit.
+The CI user therefore has an additional inline policy, `ffm-visits-lifecycle`,
+with the existing table lifecycle actions scoped only to
+`arn:aws:dynamodb:eu-central-1:113725432218:table/ffm-visits`.
+The existing managed policy remains at v17; its previous default was preserved.
+
 ## arithmoslayer.de migration
 
 GoDaddy remains the registrar. `domain.tf` manages a separate Route 53 zone;

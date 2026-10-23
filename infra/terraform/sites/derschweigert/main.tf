@@ -62,6 +62,15 @@ locals {
     var uri = request.uri || '/';
     var headers = request.headers || {};
     var host = headers.host && headers.host.value ? headers.host.value.toLowerCase() : '';
+    var pinProtectionEnabled = ${var.pin_protection_enabled};
+
+    if (uri === '/contact' || uri === '/contact.html') {
+      return {
+        statusCode: 410,
+        statusDescription: 'Gone',
+        headers: { 'cache-control': { value: 'no-store' } }
+      };
+    }
 
     var hasPinCookie = false;
     var cookies = request.cookies || {};
@@ -86,7 +95,7 @@ locals {
 
     var isPublicPath = uri === '/health' || uri === '/unlock' || uri === '/favicon.ico' || uri.startsWith('/static/') || uri.startsWith('/api/') || uri === '/contact' || uri === '/impressum' || uri === '/datenschutz';
 
-    if (!isPublicPath && !hasPinCookie) {
+    if (pinProtectionEnabled && !isPublicPath && !hasPinCookie) {
       return {
         statusCode: 302,
         statusDescription: 'Found',

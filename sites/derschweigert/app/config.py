@@ -20,6 +20,7 @@ class Settings(BaseModel):
     domain: str = Field(default_factory=lambda: os.getenv("APP_DOMAIN", "derschweigert.de"))
     canonical_host: str = Field(default_factory=lambda: os.getenv("CANONICAL_HOST", "www." + os.getenv("APP_DOMAIN", "derschweigert.de")))
     site_url: str = Field(default_factory=lambda: os.getenv("SITE_URL", "https://" + os.getenv("CANONICAL_HOST", "www." + os.getenv("APP_DOMAIN", "derschweigert.de"))))
+    pin_protection_enabled: bool = Field(default_factory=lambda: os.getenv("PIN_PROTECTION_ENABLED", "false").lower() == "true")
     cors_origins: list[str] = Field(default_factory=lambda: [
         o.strip()
         for o in os.getenv(
