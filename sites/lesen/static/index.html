@@ -1096,7 +1096,7 @@
             </div>
         </dialog>
     </main>
-    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button">&Uuml;ber &amp; Datenschutz</button> &middot; <a href="datenschutz.html">Datenschutzerkl&auml;rung</a></footer>
+    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button" hidden>&Uuml;ber &amp; Datenschutz</button><a id="privacy-link" href="datenschutz.html">Datenschutzerkl&auml;rung</a></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         window.__speech = createSpeechAdapter();
@@ -1406,6 +1406,11 @@
         byId('change-letters').addEventListener('click', returnToSetup);
         byId('again').addEventListener('click', startDeck);
 
+        // The packaged Android app shows the in-app "Über & Datenschutz" dialog; the website links the hosted policy.
+        if (window.Capacitor?.isNativePlatform?.()) {
+            byId('open-about').hidden = false;
+            byId('privacy-link').hidden = true;
+        }
         const App = window.Capacitor?.Plugins?.App;
         if (App) {
             App.addListener('backButton', () => {
