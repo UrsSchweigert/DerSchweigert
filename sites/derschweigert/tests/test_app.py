@@ -1,9 +1,36 @@
 from fastapi.testclient import TestClient
+from html.parser import HTMLParser
+from pathlib import Path
+import re
 
 from app.main import app
 
 
 client = TestClient(app)
+
+
+class TagBalanceChecker(HTMLParser):
+    """Verify HTML tags are balanced."""
+    def __init__(self):
+        super().__init__()
+        self.stack = []
+        self.errors = []
+    
+    def handle_starttag(self, tag, attrs):
+        if tag not in ['br', 'hr', 'img', 'input', 'meta', 'link']:
+            self.stack.append(tag)
+    
+    def handle_endtag(self, tag):
+        if tag not in ['br', 'hr', 'img', 'input', 'meta', 'link']:
+            if not self.stack or self.stack[-1] != tag:
+                self.errors.append(f"Mismatched closing tag: {tag}")
+            else:
+                self.stack.pop()
+    
+    def check_balanced(self):
+        if self.stack:
+            self.errors.append(f"Unclosed tags: {self.stack}")
+        return len(self.errors) == 0
 
 
 def test_homepage_renders_in_dev_mode():
@@ -43,6 +70,49 @@ def test_datenschutz_is_accessible_without_pin_in_production():
     response = client.get("/datenschutz", follow_redirects=False)
     assert response.status_code == 200
     assert "Datenschutz" in response.text
+
+
+def test_homepage_projects_focus_and_structure():
+    """Verify homepage has project cards, Android app, contact link, and valid HTML structure."""
+    from app.config import get_settings
+    settings = get_settings()
+    settings.app_env = "development"
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+    
+    # Verify three projects are present with valid links
+    assert "landhauscheck.com" in html
+    assert 'href="https://landhauscheck.com"' in html
+    assert "Buchstabenzeit" in html
+    assert "Android-Lernapp" in html
+    assert "Arithmoslayer" in html
+    assert 'href="https://arithmoslayer.de"' in html
+
+    # Verify all project artwork is present, referenced, and dimensioned.
+    assets_dir = Path(__file__).resolve().parents[1] / "static" / "projects"
+    for asset_name in ("landhauscheck.webp", "buchstabenzeit.webp", "arithmoslayer.webp"):
+        assert (assets_dir / asset_name).is_file()
+        assert f'/static/projects/{asset_name}' in html
+    for asset_name in ("landhauscheck.webp", "buchstabenzeit.webp", "arithmoslayer.webp"):
+        image_markup = re.search(
+            rf'<img[^>]+src="/static/projects/{re.escape(asset_name)}"[^>]*>',
+            html,
+        )
+        assert image_markup, f"Missing markup for {asset_name}"
+        assert re.search(r'\bwidth="\d+"', image_markup.group())
+        assert re.search(r'\bheight="\d+"', image_markup.group())
+        assert 'loading="lazy"' in image_markup.group()
+        assert 'decoding="async"' in image_markup.group()
+    
+    # Verify contact visibility
+    assert "info@derschweigert.de" in html
+    assert 'href="/contact"' in html
+    
+    # Verify HTML structure is balanced
+    parser = TagBalanceChecker()
+    parser.feed(html)
+    assert parser.check_balanced(), f"HTML structure errors: {parser.errors}"
 
 
 def test_pin_unlock_redirects_to_homepage():

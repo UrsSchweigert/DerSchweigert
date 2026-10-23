@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, make_response, current_app, abort
 import bcrypt
 import sys
 import stripe
+import hmac
 from .jwt_utils import decode_auth_token, InvalidAuthToken, TYPE_ACCESS
 from .models import (
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
@@ -19,6 +20,7 @@ from . import mailer
 from . import levels
 from . import entitlements
 from . import legal_texts
+from . import visits
 
 main_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -306,3 +308,59 @@ def score_history():
 
     history = get_score_history(username)
     return jsonify({"history": history}), 200
+
+
+@main_bp.route('/visit', methods=['POST'])
+def record_visit():
+    """Record a unique visitor. Fire-and-forget endpoint, no auth required.
+
+    Returns 204 on success, 503 on botocore error. Errors are logged
+    but not exposed to client (to prevent information leakage).
+    """
+    from botocore.exceptions import ClientError, BotoCoreError
+
+    try:
+        visits.record_visit()
+        return '', 204
+    except (ClientError, BotoCoreError) as e:
+        current_app.logger.error(f"Error recording visit: {e}")
+        return jsonify({"error": "service_unavailable"}), 503
+
+
+def _constant_time_compare(a, b):
+    """Compare two strings in constant time to prevent timing attacks."""
+    return hmac.compare_digest(a, b) if isinstance(a, str) and isinstance(b, str) else False
+
+
+@main_bp.route('/admin/visits', methods=['GET'])
+def admin_visits():
+    """Get daily unique visitor counts. Requires Bearer token auth.
+
+    Returns daily aggregates and total (daily-unique page-loads, not people).
+    """
+    from botocore.exceptions import ClientError, BotoCoreError
+
+    token = current_app.config.get('ADMIN_VISITS_TOKEN', '')
+
+    if not token:
+        abort(403, description="Admin visits endpoint not configured")
+
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        abort(403, description="Unauthorized")
+
+    provided_token = auth_header[7:]
+
+    if not _constant_time_compare(provided_token, token):
+        abort(403, description="Unauthorized")
+
+    try:
+        data = visits.get_all_daily_unique_visits()
+        return jsonify({
+            "daily_counts": data['daily_counts'],
+            "total": data['total'],
+            "note": "total is sum of daily-unique counts (daily-unique page-loads, not unique people)",
+        }), 200
+    except (ClientError, BotoCoreError) as e:
+        current_app.logger.error(f"Error fetching admin visits: {e}")
+        abort(500, description="Internal server error")

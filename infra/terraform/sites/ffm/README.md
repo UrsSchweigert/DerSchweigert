@@ -8,8 +8,9 @@ The stack currently provisions:
 - `../../modules/static_site` for the static game frontend (includes a
   CloudFront response-headers policy for security headers)
 - `../../modules/api_backend` for the Flask `/api/*` backend
-- DynamoDB tables `ffm-users`, `ffm-scores`, and `ffm-ratelimits` (rate-limit
-  counters; see `sites/ffm/app/ratelimit_storage.py`)
+- DynamoDB tables `ffm-users`, `ffm-scores`, `ffm-ratelimits` (rate-limit
+  counters; see `sites/ffm/app/ratelimit_storage.py`), and `ffm-visits`
+  (anonymous daily visitor counts)
 - a Secrets Manager secret (`ffm/jwt-secret-key`) holding the JWT signing key,
   passed to the Lambda as `SECRET_KEY_ARN`
 
@@ -28,6 +29,28 @@ permissions for new resource types.
 
 For the application-level system overview, see
 [`sites/ffm/README.md`](../../../../sites/ffm/README.md).
+
+## Visits Analytics Configuration
+
+The `FFM_ADMIN_VISITS_TOKEN` secret is required for the visits analytics
+API and must be set in GitHub Actions secrets before deployment.
+
+**Local development / testing:**
+Set the environment variable before running Terraform locally:
+```bash
+export TF_VAR_admin_visits_token="your-secret-token"
+terraform -chdir=infra/terraform/sites/ffm plan
+```
+
+**⚠️ Important:** When running Terraform locally, ensure that all existing
+production billing repository variables are preserved. If testing with
+non-production values, make a separate checkout or use `terraform plan`
+(never `apply`) to avoid modifying production state.
+
+**GitHub Actions:**
+The CI/CD pipeline in `.github/workflows/deploy.yml` automatically injects
+`TF_VAR_admin_visits_token` from the `FFM_ADMIN_VISITS_TOKEN` GitHub secret.
+A preflight validation step fails the deployment if this secret is missing.
 
 ## arithmoslayer.de migration
 

@@ -85,3 +85,9 @@ variable "stripe_webhook_secret_arn" {
   type        = string
   default     = ""
 }
+
+variable "admin_visits_token" {
+  description = "Admin authentication token for visits analytics endpoint (from FFM_ADMIN_VISITS_TOKEN GitHub secret, or TF_VAR_admin_visits_token env var locally)"
+  type        = string
+  sensitive   = true
+}

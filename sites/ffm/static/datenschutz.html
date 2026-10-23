@@ -37,6 +37,7 @@
         <li><strong>Optionales Profil-Feld:</strong> Einschulungsjahr (für Leaderboard-Kategorisierung, kein Geburtstag)</li>
         <li><strong>Nutzungsdaten:</strong> High Scores und Spielverlauf</li>
         <li><strong>Sicherheitsdaten:</strong> Cloudflare Turnstile Anti-Abuse-Token und Ihre IP-Adresse (zur Brute-Force-Rate-Limiting)</li>
+        <li><strong>Pseudonyme Besucherzähler:</strong> tägliche gehashte Besucherfingerpints zur Seitenladeaufschätzung (keine rohen IP/User-Agent gespeichert, für Nutzungsstatistiken, keine Cookies)</li>
         <li><strong>Session-Cookie:</strong> <code>refresh_token</code> (httpOnly, Secure, SameSite=Strict)</li>
       </ul>
 
@@ -48,6 +49,10 @@
       <p>
         <strong>Sicherheits- und Anti-Abuse-Daten (Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse):</strong>
         Wir verwenden Ihre IP-Adresse und Turnstile-Tokens, um Brute-Force-Angriffe, Spam und Missbrauch zu verhindern.
+      </p>
+      <p>
+        <strong>Pseudonyme Besucherzähler (Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse):</strong>
+        Zur Aufschätzung täglicher Seitenaufrufe berechnen wir täglich einen gesalzenen, rotierenden Hash aus Ihrer IP-Adresse und Ihrem User-Agent — nur dieser berechnete Hash wird in unserem Besucherzähler gespeichert, niemals Ihre tatsächliche IP-Adresse oder User-Agent-Zeichenfolge. Dieser Hash ändert sich täglich (unterschiedliches Salz pro Tag), wodurch er pseudonym ist und das Tracking über Tage hinweg verhindert wird. Dies dient zur Schätzung eindeutiger täglicher Seitenladeaufrufe und zur Erfassung von Nutzungsstatistiken der Anwendung — nicht zur Identifizierung tatsächlicher Personen oder zur Messung von Spielaktivitäten. Gespeicherte Einträge werden etwa 400 Tage nach ihrer Erstellung durch die asynchrone TTL-Richtlinie von DynamoDB automatisch gelöscht. Es werden keine Cookies, localStorage oder sessionStorage für diesen Zweck verwendet.
       </p>
       <p>
         <strong>Cloudflare Turnstile-Skript selbst (Art. 6 Abs. 1 lit. a DSGVO — Einwilligung):</strong>

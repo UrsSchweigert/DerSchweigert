@@ -147,10 +147,12 @@ module "api" {
       SECRET_KEY_ARN                 = aws_secretsmanager_secret.jwt_secret.arn
       DYNAMODB_RATELIMIT_TABLE       = aws_dynamodb_table.ratelimits.name
       RATELIMIT_STORAGE_URI          = "dynamodb://${aws_dynamodb_table.ratelimits.name}"
+      DYNAMODB_VISITS_TABLE          = aws_dynamodb_table.visits.name
       SES_SENDER_EMAIL               = "no-reply@ffm.derschweigert.de"
       SES_CONFIGURATION_SET          = aws_ses_configuration_set.ffm_transactional.name
       APP_BASE_URL                   = "https://ffm.derschweigert.de"
       TURNSTILE_SECRET_KEY_ARN       = data.aws_secretsmanager_secret.turnstile_secret.arn
+      ADMIN_VISITS_TOKEN             = var.admin_visits_token
       ACCESS_CONTROL_ENABLED         = var.access_control_enabled ? "true" : "false"
       GRANDFATHER_CUTOFF             = var.grandfather_cutoff
       BILLING_ENABLED                = var.billing_enabled ? "true" : "false"
@@ -197,6 +199,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         aws_dynamodb_table.users.arn,
         aws_dynamodb_table.scores.arn,
         aws_dynamodb_table.ratelimits.arn,
+        aws_dynamodb_table.visits.arn,
       ]
     }]
   })
@@ -377,6 +380,34 @@ resource "aws_dynamodb_table" "ratelimits" {
 
   ttl {
     attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = local.tags
+}
+
+# Stores anonymous visit counts. Each record uses a daily-rotating salted
+# hash of IP+User-Agent as the visitor identifier (never raw IP/UA), and
+# tracks date for daily unique visitor counts. TTL expires records after
+# ~400 days. Legitimate interest Art. 6(1)(f) GDPR for analytics.
+resource "aws_dynamodb_table" "visits" {
+  name         = "ffm-visits"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "date"
+  range_key    = "visitor"
+
+  attribute {
+    name = "date"
+    type = "S"
+  }
+
+  attribute {
+    name = "visitor"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expires_at"
     enabled        = true
   }
 

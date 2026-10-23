@@ -37,6 +37,7 @@
         <li><strong>Optional Profile Field:</strong> first grade year (for leaderboard categorization, not a birthdate)</li>
         <li><strong>Usage Data:</strong> high scores and gameplay history</li>
         <li><strong>Security Data:</strong> Cloudflare Turnstile anti-abuse token and your IP address (for brute-force rate limiting)</li>
+        <li><strong>Pseudonymous Visit Counters:</strong> daily hashed visitor fingerprints for page-load estimation (no raw IP/User-Agent stored, for usage analytics, no cookies)</li>
         <li><strong>Session Cookie:</strong> <code>refresh_token</code> (httpOnly, Secure, SameSite=Strict)</li>
       </ul>
 
@@ -48,6 +49,10 @@
       <p>
         <strong>Security and Anti-Abuse Data (Art. 6(1)(f) GDPR — Legitimate Interest):</strong>
         We use your IP address and Turnstile tokens to prevent brute-force attacks, spam, and abuse.
+      </p>
+      <p>
+        <strong>Pseudonymous Visit Counters (Art. 6(1)(f) GDPR — Legitimate Interest):</strong>
+        To estimate daily page visitors, we compute a salted, rotating hash daily from your IP address and User-Agent hash — only this computed hash is stored in our visitor counter, never your actual IP address or User-Agent string. This hash changes daily (different salt each day), making it pseudonymous and preventing tracking across days. This serves to count estimated unique page-loads per day and gather usage statistics about the application, not to identify actual people or measure gameplay. Stored records are automatically deleted approximately 400 days after creation via DynamoDB's asynchronous TTL policy. No cookies, localStorage, or sessionStorage are used for this purpose.
       </p>
       <p>
         <strong>Cloudflare Turnstile Script Itself (Art. 6(1)(a) GDPR — Consent):</strong>

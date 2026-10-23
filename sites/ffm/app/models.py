@@ -32,6 +32,10 @@ def _scores():
     return _ddb().Table(os.environ.get('DYNAMODB_SCORES_TABLE', 'ffm-scores'))
 
 
+def _visits():
+    return _ddb().Table(os.environ.get('DYNAMODB_VISITS_TABLE', 'ffm-visits'))
+
+
 def _int_or_none(val):
     return int(val) if val is not None else None
 

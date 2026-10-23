@@ -323,6 +323,12 @@
     <a href="/datenschutz.en.html" style="margin: 0 10px;" data-i18n="footer.privacyEn">Privacy (EN)</a>
   </footer>
 
+  <script>
+    // Fire-and-forget unique visitor tracking (cookieless, page-load estimate)
+    fetch('/api/visit', { method: 'POST' })
+      .then(resp => { if (!resp.ok) console.warn('[visit] HTTP ' + resp.status); })
+      .catch(err => console.warn('[visit] ' + (err.message || err)));
+  </script>
   <script type="module" src="game/main.js"></script>
 </body>
 </html>

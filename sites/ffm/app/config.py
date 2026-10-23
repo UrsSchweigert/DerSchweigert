@@ -24,6 +24,8 @@ class BaseConfig:
     DYNAMODB_USERS_TABLE = os.environ.get('DYNAMODB_USERS_TABLE', 'ffm-users')
     DYNAMODB_SCORES_TABLE = os.environ.get('DYNAMODB_SCORES_TABLE', 'ffm-scores')
     DYNAMODB_RATELIMIT_TABLE = os.environ.get('DYNAMODB_RATELIMIT_TABLE', 'ffm-ratelimits')
+    DYNAMODB_VISITS_TABLE = os.environ.get('DYNAMODB_VISITS_TABLE', 'ffm-visits')
+    ADMIN_VISITS_TOKEN = os.environ.get('ADMIN_VISITS_TOKEN', '')
     SES_SENDER_EMAIL = os.environ.get('SES_SENDER_EMAIL', 'no-reply@ffm.derschweigert.de')
     # SES configuration set that tags every outgoing email so CloudWatch can
     # track Send/Bounce/Complaint/Reject counts and the alarms in
@@ -85,6 +87,8 @@ class TestingConfig(BaseConfig):
     DYNAMODB_USERS_TABLE = 'ffm-users-test'
     DYNAMODB_SCORES_TABLE = 'ffm-scores-test'
     DYNAMODB_RATELIMIT_TABLE = 'ffm-ratelimits-test'
+    DYNAMODB_VISITS_TABLE = 'ffm-visits-test'
+    ADMIN_VISITS_TOKEN = 'test-admin-token'
     # High enough that the functional test suite (which calls /auth/login
     # and /auth/register many times from the same test-client IP) never
     # trips it; the real 10/minute limit is covered by a dedicated test
