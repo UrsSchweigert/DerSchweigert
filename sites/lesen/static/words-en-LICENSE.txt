@@ -1,0 +1,59 @@
+Buchstabenzeit: reviewed English reading vocabulary
+========================================================
+
+words-en.json and the reviewed vocabulary adaptation are licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+Full legal code is reproduced below. Redistribution, including commercial
+redistribution, and adaptation are permitted with attribution and an
+indication of changes. No endorsement by source authors is implied.
+
+Frequency source:
+Hermit Dave, FrequencyWords, English 2018 list, derived from OpenSubtitles2018.
+https://github.com/hermitdave/FrequencyWords
+Revision: 525f9b560de45753a5ea01069454e72e9aa541c6
+Input: https://raw.githubusercontent.com/hermitdave/FrequencyWords/525f9b560de45753a5ea01069454e72e9aa541c6/content/2018/en/en_50k.txt
+License statement (CC BY 4.0 for CONTENT, MIT only for CODE):
+https://github.com/hermitdave/FrequencyWords/blob/525f9b560de45753a5ea01069454e72e9aa541c6/README.md#license
+Original OpenSubtitles corpus: https://opus.nlpl.eu/OpenSubtitles2018.php
+
+Changes by the Buchstabenzeit project, 2026-10-26:
+Use only the first 5,000 ranked source tokens; filter to 2-8 lowercase
+English letters; require a manually reviewed opt-in vocabulary; remove
+names and non-dictionary words; veto blocklisted forms; deduplicate and
+sort alphabetically.
+This is a deliberately conservative reading vocabulary, not a complete
+English dictionary. Common words were manually reviewed. Safety filtering
+cannot resolve all possible contextual meanings.
+
+Rebuild (Python 3.9+, standard library; no packages needed):
+  python3 sites/lesen/tools/build_wordlist_en.py
+Pinned downloads and SHA-256 hashes are in that script. Cached sources live
+in sites/lesen/tools/.cache/ (ignored by Git). Subsequent runs work offline.
+Review policy is in tools/reviewed-en.txt and tools/blocklist-en.txt.
+The JSON, this attribution, and those review inputs are regenerated or kept
+alongside the build script; distribute this attribution with the JSON.
+
+--- Full CC BY 4.0 legal code ---
+
+MIT License
+
+Copyright (c) 2016 Hermit Dave
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
