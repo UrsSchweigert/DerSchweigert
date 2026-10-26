@@ -85,17 +85,27 @@ const DE = {
   'dialog.about.privacy_text': 'Diese App sammelt keine persönlichen Daten, hat keine Benutzerkonten, keine Werbung und keine Analyse. Sie funktioniert vollständig offline und benötigt keine Internetverbindung.',
   'dialog.about.tts_privacy': 'Das Vorlesen nutzt die auf dem Gerät installierte Sprachausgabe (Text-to-Speech). Diese ist ein separater Dienst des Geräts; welche Daten sie verarbeitet, bestimmt die Geräteeinstellung, nicht diese App. Buchstabenzeit fordert nur lokal installierte Stimmen an und sendet dafür keine Daten ins Internet.',
   'dialog.about.licenses': 'Inhalte & Lizenzen',
-  'dialog.about.wordlist': 'Wortliste: FrequencyWords & Wiktionary, CC BY-SA 4.0 – Lizenz',
-  'dialog.about.font': 'Schriftart: Andika, SIL Open Font License 1.1 – Lizenz',
+  'dialog.about.wordlist': 'Wortliste: FrequencyWords & Wiktionary, CC BY-SA 4.0 – ',
+  'dialog.about.font': 'Schriftart: Andika, SIL Open Font License 1.1 – ',
   
   // Pluralization support
   'unit.card': 'Karte',
   'unit.cards': 'Karten',
   'unit.attempt': 'Versuch',
   'unit.attempts': 'Versuche',
+  'unit.attempts_dat': 'Versuchen',
   'unit.selected': 'ausgewählt',
   'unit.in_flop': 'im Flop Training',
   'unit.in': 'in',
+
+  // About dialog license link (used as anchor text for license links)
+  'dialog.about.license_link': 'Lizenz',
+
+  // Fallback feedback when no matching words are found for the Words pattern
+  'feedback.pattern_fallback': 'Keine passenden Wörter gefunden – hier kommen Silbenmuster.',
+
+  // Suffix for the completion summary sentence ("{cards} in {attempts} richtig gelesen.")
+  'complete.summary_suffix': 'richtig gelesen.',
 };
 
 /**

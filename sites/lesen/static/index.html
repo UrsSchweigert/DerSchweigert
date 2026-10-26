@@ -1115,9 +1115,9 @@
             </div>
             <div class="setup-intro">
                 <div class="intro-copy">
-                    <p class="eyebrow">Buchstabenzeit</p>
+                    <p class="eyebrow" id="app-title">Buchstabenzeit</p>
                     <h1 id="setup-title">Lesen lernen, Karte f&uuml;r Karte.</h1>
-                    <p class="intro-description">Stelle deine Buchstabenkarten zusammen und lies in deinem eigenen Tempo. Jeder kleine Schritt z&auml;hlt!</p>
+                    <p class="intro-description" id="setup-intro">Stelle deine Buchstabenkarten zusammen und lies in deinem eigenen Tempo. Jeder kleine Schritt z&auml;hlt!</p>
                 </div>
                 <img class="hero-logo" src="images/buchstabenzeit-logo.png" alt="Buchstabenzeit: eine Eule liest ein Buch">
             </div>
@@ -1125,38 +1125,38 @@
                 <div class="setup-grid">
                     <div>
                         <fieldset class="letter-group">
-                            <legend>Konsonanten <span id="consonant-count" class="selection-count"></span></legend>
+                            <legend><span id="legend-consonants">Konsonanten</span> <span id="consonant-count" class="selection-count"></span></legend>
                             <div class="letters" id="consonants"></div>
                         </fieldset>
                         <fieldset class="letter-group">
-                            <legend>Vokale <span id="vowel-count" class="selection-count"></span></legend>
+                            <legend><span id="legend-vowels">Vokale</span> <span id="vowel-count" class="selection-count"></span></legend>
                             <div class="letters" id="vowels"></div>
                         </fieldset>
                         <fieldset class="letter-group">
-                            <legend>Besonderheiten <span id="specials-count" class="selection-count"></span></legend>
+                            <legend><span id="legend-specials">Besonderheiten</span> <span id="specials-count" class="selection-count"></span></legend>
                             <div class="letters" id="specials"></div>
                         </fieldset>
                     </div>
                     <div class="deck-options">
                         <fieldset>
-                            <legend>Buchstabenfolge</legend>
+                            <legend id="pattern-legend">Buchstabenfolge</legend>
                             <div class="patterns">
                                 <label class="pattern"><input type="radio" name="pattern" value="CV"
-                                        checked><strong>ma</strong><span>Konsonant + Vokal</span></label>
+                                        checked><strong>ma</strong><span id="pattern-cv-desc">Konsonant + Vokal</span></label>
                                 <label class="pattern"><input type="radio" name="pattern"
-                                        value="VC"><strong>am</strong><span>Vokal + Konsonant</span></label>
-                                <label class="pattern" id="words-mode-label"><input type="radio" name="pattern" value="WORDS"><strong>Wörter</strong><span><span id="words-match-count">0</span> Wörter passen</span></label>
-                                <label class="pattern" id="flop-mode-label"><input type="radio" name="pattern" value="FLOP"><strong>Flop Training</strong><span>Die schwierigsten Karten</span></label>
+                                        value="VC"><strong>am</strong><span id="pattern-vc-desc">Vokal + Konsonant</span></label>
+                                <label class="pattern" id="words-mode-label"><input type="radio" name="pattern" value="WORDS"><strong id="pattern-words-label">Wörter</strong><span><span id="words-match-count">0</span> <span id="words-mode-desc">Wörter passen</span></span></label>
+                                <label class="pattern" id="flop-mode-label"><input type="radio" name="pattern" value="FLOP"><strong id="pattern-flop-label">Flop Training</strong><span id="pattern-flop-desc">Die schwierigsten Karten</span></label>
                             </div>
                             <p id="words-mode-disabled-note" class="words-mode-note" hidden>Mind. 10 Wörter erforderlich</p>
                             <p id="flop-mode-disabled-note" class="words-mode-note" hidden>Noch kein passender Kartenverlauf vorhanden</p>
                         </fieldset>
                         <div id="word-length-control" class="word-length-control" hidden>
-                            <label for="word-length" class="number-label">Maximale Wortlänge</label>
+                            <label for="word-length" class="number-label" id="word-length-label">Maximale Wortlänge</label>
                             <input id="word-length" type="number" min="2" max="8" step="1" value="4" required>
                         </div>
                         <div id="card-count-control">
-                            <label for="card-count" class="number-label">Anzahl der Karten</label>
+                            <label for="card-count" class="number-label" id="card-count-label">Anzahl der Karten</label>
                             <input id="card-count" type="number" min="1" max="200" step="1" value="10" required>
                         </div>
                         <p id="flop-mode-size-note" class="words-mode-note" hidden></p>
@@ -1182,11 +1182,11 @@
                 <h1 id="practice-title">Deine Lesekarten</h1><button id="finish-early" class="quiet" type="button"><svg
                         class="icon" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="m12 19-7-7 7-7m-7 7h14" />
-                    </svg>Auswahl</button>
+                    </svg><span id="finish-early-label">Auswahl</span></button>
             </div>
             <div class="practice-inner">
-                <div class="stats"><span><strong id="cleared">0</strong> geschafft</span><span><strong
-                            id="remaining">10</strong> offen</span><span><strong id="total">10</strong> insgesamt</span>
+                <div class="stats"><span><strong id="cleared">0</strong> <span id="stats-cleared-label">geschafft</span></span><span><strong
+                            id="remaining">10</strong> <span id="stats-remaining-label">offen</span></span><span><strong id="total">10</strong> <span id="stats-total-label">insgesamt</span></span>
                 </div>
                 <progress id="progress" value="0" max="10" aria-label="Geschaffte Karten"></progress>
                 <div class="reading-card"><span id="review-label" class="review-label" hidden>Noch einmal</span>
@@ -1198,18 +1198,18 @@
                             <path d="M11 5 6 9H3v6h3l5 4V5Z" />
                             <path d="M15.5 8.5a5 5 0 0 1 0 7m3-10a9 9 0 0 1 0 13" />
                         </svg>
-                        Vorlesen
+                        <span id="speak-card-label">Vorlesen</span>
                     </button>
                 </div>
                 <div class="actions">
                     <button id="retry" class="action retry" type="button"><svg class="icon" viewBox="0 0 24 24"
                             aria-hidden="true">
                             <path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7" />
-                        </svg>Noch &uuml;ben</button>
+                        </svg><span id="retry-label">Noch &uuml;ben</span></button>
                     <button id="correct" class="action correct" type="button"><svg class="icon" viewBox="0 0 24 24"
                             aria-hidden="true">
                             <path d="m5 12 4 4L19 6" />
-                        </svg>Richtig gelesen</button>
+                        </svg><span id="correct-label">Richtig gelesen</span></button>
                 </div>
                 <p id="feedback" class="feedback" role="status"></p>
             </div>
@@ -1223,12 +1223,12 @@
             <div class="complete-actions"><button id="again" class="primary" type="button"><svg class="icon"
                         viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7" />
-                    </svg>Neue Runde</button><button id="change-letters" class="quiet" type="button">Buchstaben
-                    &auml;ndern</button></div>
+                    </svg><span id="again-label">Neue Runde</span></button><button id="change-letters" class="quiet" type="button"><span id="change-letters-label">Buchstaben
+                    &auml;ndern</span></button></div>
         </section>
         <dialog id="confirm-end" class="confirm-dialog" aria-labelledby="confirm-end-title">
             <h2 id="confirm-end-title">Übung beenden?</h2>
-            <p>Möchtest du die aktuelle Übung beenden und zur Auswahl zurückkehren?</p>
+            <p id="confirm-end-text">Möchtest du die aktuelle Übung beenden und zur Auswahl zurückkehren?</p>
             <div class="confirm-actions">
                 <button id="confirm-end-no" class="quiet" type="button" autofocus>Weiter üben</button>
                 <button id="confirm-end-yes" class="primary" type="button">Beenden</button>
@@ -1237,8 +1237,8 @@
         <dialog id="tts-disclaimer-dialog" class="about-dialog" aria-labelledby="tts-disclaimer-title">
             <button id="tts-disclaimer-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
             <h2 id="tts-disclaimer-title">Hinweis zum Vorlesen</h2>
-            <p>Das Vorlesen nutzt die Sprachausgabe deines Ger&auml;ts. Klang und Verf&uuml;gbarkeit h&auml;ngen von den Barrierefreiheits- bzw. Sprachausgabe-Einstellungen deines Ger&auml;ts ab.</p>
-            <p>Da die Silben teils keine echten W&ouml;rter sind, kann die Aussprache ungew&ouml;hnlich klingen.</p>
+            <p id="tts-disclaimer-text">Das Vorlesen nutzt die Sprachausgabe deines Ger&auml;ts. Klang und Verf&uuml;gbarkeit h&auml;ngen von den Barrierefreiheits- bzw. Sprachausgabe-Einstellungen deines Ger&auml;ts ab.</p>
+            <p id="tts-disclaimer-extra">Da die Silben teils keine echten W&ouml;rter sind, kann die Aussprache ungew&ouml;hnlich klingen.</p>
             <div class="about-actions">
                 <button id="tts-disclaimer-close" class="primary" type="button">Verstanden</button>
             </div>
@@ -1246,15 +1246,15 @@
         <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
             <button id="about-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
             <h2 id="about-title">Über Buchstabenzeit</h2>
-            <p class="about-version">Version 1.0</p>
-            <p>Buchstabenzeit ist eine begleitete Leseübung. Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
-            <h3>Datenschutz</h3>
-            <p>Diese App sammelt keine persönlichen Daten, hat keine Benutzerkonten, keine Werbung und keine Analyse. Sie funktioniert vollständig offline und benötigt keine Internetverbindung.</p>
-            <p>Das Vorlesen nutzt die auf dem Gerät installierte Sprachausgabe (Text-to-Speech). Diese ist ein separater Dienst des Geräts; welche Daten sie verarbeitet, bestimmt die Geräteeinstellung, nicht diese App. Buchstabenzeit fordert nur lokal installierte Stimmen an und sendet dafür keine Daten ins Internet.</p>
-            <h3>Inhalte &amp; Lizenzen</h3>
+            <p class="about-version" id="about-version">Version 1.0</p>
+            <p id="about-intro">Buchstabenzeit ist eine begleitete Leseübung. Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
+            <h3 id="about-privacy-heading">Datenschutz</h3>
+            <p id="about-privacy-text">Diese App sammelt keine persönlichen Daten, hat keine Benutzerkonten, keine Werbung und keine Analyse. Sie funktioniert vollständig offline und benötigt keine Internetverbindung.</p>
+            <p id="about-tts-privacy">Das Vorlesen nutzt die auf dem Gerät installierte Sprachausgabe (Text-to-Speech). Diese ist ein separater Dienst des Geräts; welche Daten sie verarbeitet, bestimmt die Geräteeinstellung, nicht diese App. Buchstabenzeit fordert nur lokal installierte Stimmen an und sendet dafür keine Daten ins Internet.</p>
+            <h3 id="about-licenses-heading">Inhalte &amp; Lizenzen</h3>
             <ul>
-                <li>Wortliste: FrequencyWords &amp; Wiktionary, CC BY-SA 4.0 &ndash; <a href="words-de-LICENSE.txt">Lizenz</a></li>
-                <li>Schriftart: Andika, SIL Open Font License 1.1 &ndash; <a href="fonts/OFL.txt">Lizenz</a></li>
+                <li><span id="about-wordlist-text">Wortliste: FrequencyWords &amp; Wiktionary, CC BY-SA 4.0 &ndash; </span><a id="about-wordlist-link" href="words-de-LICENSE.txt">Lizenz</a></li>
+                <li><span id="about-font-text">Schriftart: Andika, SIL Open Font License 1.1 &ndash; </span><a id="about-font-link" href="fonts/OFL.txt">Lizenz</a></li>
             </ul>
             <p><a href="datenschutz.html">Vollst&auml;ndige Datenschutzerkl&auml;rung</a></p>
             <div class="about-actions">
@@ -1302,49 +1302,103 @@
 
         function setLanguage(lang) {
             currentLanguage = lang;
-            
+            document.documentElement.lang = lang;
+
             // Update language button states
             document.querySelectorAll('.lang-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.lang === lang);
             });
-            
-            // Re-render all text on the current screen
+
+            // Re-render all current on-screen text (and the text of hidden
+            // screens/dialogs, so it is ready the next time they are shown).
             updateAllText();
         }
 
+        function tr(key) {
+            return t(currentLanguage, key);
+        }
+
         function updateAllText() {
-            // This will be called to re-render text based on current language
-            // For now, we just update the visible elements
             updateSetupScreenText();
             updatePracticeScreenText();
             updateCompleteScreenText();
+            updateDialogText();
         }
 
         function updateSetupScreenText() {
-            byId('setup-title').textContent = t(currentLanguage, 'setup.title');
-            // Note: The intro-description and other static HTML strings are in the HTML,
-            // and we keep them in German (de) as the default per acceptance criteria
+            byId('app-title').textContent = tr('app.title');
+            byId('setup-title').textContent = tr('setup.title');
+            byId('setup-intro').textContent = tr('setup.intro');
+
+            byId('legend-consonants').textContent = tr('setup.consonants');
+            byId('legend-vowels').textContent = tr('setup.vowels');
+            byId('legend-specials').textContent = tr('setup.specials');
+
+            byId('pattern-legend').textContent = tr('setup.pattern');
+            byId('pattern-cv-desc').textContent = tr('setup.pattern.cv');
+            byId('pattern-vc-desc').textContent = tr('setup.pattern.vc');
+            byId('pattern-words-label').textContent = tr('setup.pattern.words');
+            byId('words-mode-desc').textContent = tr('setup.pattern.words_desc');
+            byId('pattern-flop-label').textContent = tr('setup.pattern.flop');
+            byId('pattern-flop-desc').textContent = tr('setup.pattern.flop_desc');
+            byId('words-mode-disabled-note').textContent = tr('setup.warning.min_words');
+            byId('flop-mode-disabled-note').textContent = tr('setup.warning.no_history');
+
+            byId('word-length-label').textContent = tr('setup.wordlength');
+            byId('card-count-label').textContent = tr('setup.cardcount');
+
+            setStartLoading(byId('start-button').disabled);
+
+            updateSelectionCounts();
         }
 
         function updatePracticeScreenText() {
-            byId('practice-title').textContent = t(currentLanguage, 'practice.title');
+            byId('practice-title').textContent = tr('practice.title');
+            byId('finish-early-label').textContent = tr('practice.button.finish');
+            byId('stats-cleared-label').textContent = tr('practice.stats.cleared');
+            byId('stats-remaining-label').textContent = tr('practice.stats.remaining');
+            byId('stats-total-label').textContent = tr('practice.stats.total');
+            byId('review-label').textContent = tr('practice.review_label');
+            byId('speak-card-label').textContent = tr('practice.button.speak');
+            byId('retry-label').textContent = tr('practice.button.retry');
+            byId('correct-label').textContent = tr('practice.button.correct');
+            updateFlopModeStatus();
         }
 
         function updateCompleteScreenText() {
-            byId('complete-title').textContent = t(currentLanguage, 'complete.title');
+            byId('complete-title').textContent = tr('complete.title');
+            byId('again-label').textContent = tr('complete.button.again');
+            byId('change-letters-label').textContent = tr('complete.button.change');
         }
 
-        // Initialize language buttons
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
-            });
-        });
+        function updateDialogText() {
+            byId('confirm-end-title').textContent = tr('dialog.confirm_end.title');
+            byId('confirm-end-text').textContent = tr('dialog.confirm_end.text');
+            byId('confirm-end-no').textContent = tr('dialog.confirm_end.cancel');
+            byId('confirm-end-yes').textContent = tr('dialog.confirm_end.confirm');
+
+            byId('tts-disclaimer-title').textContent = tr('dialog.tts_disclaimer.title');
+            byId('tts-disclaimer-text').textContent = tr('dialog.tts_disclaimer.text');
+            byId('tts-disclaimer-extra').textContent = tr('dialog.tts_disclaimer.extra');
+            byId('tts-disclaimer-close').textContent = tr('dialog.tts_disclaimer.close');
+
+            byId('about-title').textContent = tr('dialog.about.title');
+            byId('about-version').textContent = tr('dialog.about.version');
+            byId('about-intro').textContent = tr('dialog.about.intro');
+            byId('about-privacy-heading').textContent = tr('dialog.about.privacy');
+            byId('about-privacy-text').textContent = tr('dialog.about.privacy_text');
+            byId('about-tts-privacy').textContent = tr('dialog.about.tts_privacy');
+            byId('about-licenses-heading').textContent = tr('dialog.about.licenses');
+            byId('about-wordlist-text').textContent = tr('dialog.about.wordlist');
+            byId('about-font-text').textContent = tr('dialog.about.font');
+            byId('about-wordlist-link').textContent = tr('dialog.about.license_link');
+            byId('about-font-link').textContent = tr('dialog.about.license_link');
+        }
 
         function updateSelectionCounts() {
-            byId('consonant-count').textContent = `${consonants.size} ausgew\u00e4hlt`;
-            byId('vowel-count').textContent = `${vowels.size} ausgew\u00e4hlt`;
-            byId('specials-count').textContent = `${specials.size} ausgew\u00e4hlt`;
+            byId('consonant-count').textContent = `${consonants.size} ${tr('unit.selected')}`;
+            byId('vowel-count').textContent = `${vowels.size} ${tr('unit.selected')}`;
+            byId('specials-count').textContent = `${specials.size} ${tr('unit.selected')}`;
             updateWordMatchCount();
             updateFlopModeStatus();
         }
@@ -1409,7 +1463,7 @@
                 flopLabel.style.opacity = '1';
                 flopLabel.style.cursor = 'pointer';
                 disabledNote.hidden = true;
-                sizeNote.textContent = `${flopDeck.length} ${flopDeck.length === 1 ? 'Karte' : 'Karten'} im Flop Training`;
+                sizeNote.textContent = `${flopDeck.length} ${tr(flopDeck.length === 1 ? 'unit.card' : 'unit.cards')} ${tr('unit.in_flop')}`;
             } else {
                 flopRadio.disabled = true;
                 flopLabel.style.opacity = '0.5';
@@ -1533,7 +1587,7 @@
             byId('progress').value = cleared;
             if (!queue.length) {
                 showScreen('complete');
-                byId('complete-summary').textContent = `${total} ${total === 1 ? 'Karte' : 'Karten'} in ${attempts} ${attempts === 1 ? 'Versuch' : 'Versuchen'} richtig gelesen.`;
+                byId('complete-summary').textContent = `${total} ${tr(total === 1 ? 'unit.card' : 'unit.cards')} ${tr('unit.in')} ${attempts} ${tr(attempts === 1 ? 'unit.attempt' : 'unit.attempts_dat')} ${tr('complete.summary_suffix')}`;
                 byId('complete-title').focus();
                 playStarRain();
                 return;
@@ -1576,7 +1630,7 @@
             const button = byId('start-button');
             button.disabled = loading;
             button.setAttribute('aria-busy', String(loading));
-            byId('start-label').textContent = loading ? 'Wörter werden geladen …' : 'Lesen starten';
+            byId('start-label').textContent = loading ? tr('setup.start_loading') : tr('setup.start');
         }
 
         function capitalizeFirst(text) {
@@ -1598,7 +1652,7 @@
             const countInput = byId('card-count');
             if (!countInput.reportValidity()) return;
             if (!consonants.size || !vowels.size) {
-                byId('setup-error').textContent = 'Bitte w\u00e4hle mindestens einen Konsonanten und einen Vokal aus.';
+                byId('setup-error').textContent = tr('setup.error.selection');
                 return;
             }
             const pattern = document.querySelector('input[name="pattern"]:checked').value;
@@ -1617,7 +1671,7 @@
                 try {
                     words = await loadGermanWords();
                 } catch {
-                    byId('setup-error').textContent = 'Die Wörterliste konnte nicht geladen werden. Bitte versuche es erneut.';
+                    byId('setup-error').textContent = tr('setup.error.wordlist');
                     return;
                 } finally {
                     deckStarting = false;
@@ -1638,7 +1692,7 @@
                 const flopCardTexts = currentFlopDeck();
 
                 if (flopCardTexts.length === 0) {
-                    byId('setup-error').textContent = 'Keine Flop-Karten verf\u00fcgbar.';
+                    byId('setup-error').textContent = tr('setup.error.no_flop');
                     updateFlopModeStatus();
                     return;
                 }
@@ -1657,7 +1711,7 @@
                 }
                 const eligibleWords = [...eligibleBySpelling.values()];
                 if (maxLength >= 4 && eligibleWords.length === 0) {
-                    byId('setup-error').textContent = 'Keine passenden Wörter gefunden. Wähle mehr Buchstaben oder eine andere Wortlänge.';
+                    byId('setup-error').textContent = tr('setup.error.no_words');
                     return;
                 }
 
@@ -1698,7 +1752,7 @@
             cleared = 0;
             attempts = 0;
             byId('feedback').textContent = noMatchingWords
-                ? 'Keine passenden Wörter gefunden – hier kommen Silbenmuster.'
+                ? tr('feedback.pattern_fallback')
                 : '';
             byId('setup-error').textContent = '';
             showScreen('practice');
@@ -1717,11 +1771,11 @@
             
             if (correct) {
                 cleared++;
-                byId('feedback').textContent = 'Karte geschafft.';
+                byId('feedback').textContent = tr('feedback.card_done');
             } else {
                 card.misses++;
                 queue.push(card);
-                byId('feedback').textContent = queue.length === 1 ? 'Versuch es noch einmal.' : 'Diese Karte kommt am Ende noch einmal dran.';
+                byId('feedback').textContent = queue.length === 1 ? tr('feedback.try_again') : tr('feedback.try_later');
             }
             renderCard();
         }
@@ -1733,16 +1787,16 @@
             byId('tts-disclaimer-dialog').showModal();
           }
           if (!speech) {
-            byId('feedback').textContent = 'Die Vorlesefunktion wird von diesem Browser nicht unterst\u00fctzt.';
+            byId('feedback').textContent = tr('feedback.tts_unsupported');
             return;
           }
           speech.speak({
             text: byId('syllable').textContent,
             lang: 'de-DE',
             rate: 0.8,
-            onUnsupported: () => { byId('feedback').textContent = 'Die Vorlesefunktion wird von diesem Browser nicht unterst\u00fctzt.'; },
-            onNoVoice: () => { byId('feedback').textContent = 'Keine deutsche Stimme verf\u00fcgbar. Bitte aktiviere eine deutsche Sprachausgabe auf deinem Ger\u00e4t.'; },
-            onError: () => { byId('feedback').textContent = 'Die deutsche Aussprache konnte nicht abgespielt werden.'; }
+            onUnsupported: () => { byId('feedback').textContent = tr('feedback.tts_unsupported'); },
+            onNoVoice: () => { byId('feedback').textContent = tr('feedback.tts_no_voice'); },
+            onError: () => { byId('feedback').textContent = tr('feedback.tts_error'); }
           });
         }
 
@@ -1758,6 +1812,10 @@
         buildLetters('specials', ['ä', 'ö', 'ü', 'au', 'ei', 'ie', 'eu'], specials);
         updateSelectionCounts();
         updatePatternControls();
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+        });
+        setLanguage(currentLanguage);
         document.querySelectorAll('input[name="pattern"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });
