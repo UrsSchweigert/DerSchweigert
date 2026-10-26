@@ -7,6 +7,7 @@
  */
 
 const CARD_STATS_KEY = "buchstabenzeit:card-stats";
+const LANGUAGE_KEY = "buchstabenzeit:language";
 
 /**
  * Create a storage wrapper around an injectable store.
@@ -52,3 +53,41 @@ export function createStorage(store) {
     },
   };
 }
+
+/**
+ * Read the stored language from an injectable store.
+ * Valid languages are 'de' and 'en'. Invalid or missing values default to 'de'.
+ * @param {{getItem: (key: string) => string|null, setItem: (key: string, value: string) => void}|null|undefined} store
+ * @returns {string} The stored language ('de' or 'en'), or 'de' if none stored or invalid
+ */
+export function readLanguage(store) {
+  if (!store || typeof store.getItem !== "function") {
+    return "de";
+  }
+  try {
+    const value = store.getItem(LANGUAGE_KEY);
+    if (value === "en" || value === "de") {
+      return value;
+    }
+    return "de";
+  } catch {
+    return "de";
+  }
+}
+
+/**
+ * Write the language to an injectable store.
+ * @param {{getItem: (key: string) => string|null, setItem: (key: string, value: string) => void}|null|undefined} store
+ * @param {string} lang - The language to store ('de' or 'en')
+ */
+export function writeLanguage(store, lang) {
+  if (!store || typeof store.setItem !== "function") {
+    return;
+  }
+  try {
+    store.setItem(LANGUAGE_KEY, lang);
+  } catch {
+    // Ignore storage failures
+  }
+}
+

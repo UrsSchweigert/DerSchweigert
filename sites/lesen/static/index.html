@@ -1268,7 +1268,7 @@
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards } from './scoring.mjs';
-        import { createStorage } from './storage.mjs';
+        import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
         import { t } from './i18n.mjs';
         
         window.__speech = createSpeechAdapter();
@@ -1283,6 +1283,8 @@
     <!-- Must be a module: module scripts run in order after parsing, so window.__storage, __sounds and __scoring (set above) exist first. -->
     <script type="module">
         'use strict';
+        import { readLanguage, writeLanguage } from './storage.mjs';
+        
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
         const specials = new Set();
@@ -1296,10 +1298,11 @@
         let stats = window.__storage.read();
         let currentPattern = 'CV';
         let isInFlopMode = false;
-        let currentLanguage = 'de';
+        let currentLanguage = readLanguage(window.localStorage);
 
         function setLanguage(lang) {
             currentLanguage = lang;
+            writeLanguage(window.localStorage, lang);
             document.documentElement.lang = lang;
             document.title = tr('app.title_full');
 
