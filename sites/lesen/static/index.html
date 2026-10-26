@@ -1399,6 +1399,8 @@
             byId('about-wordlist-link').textContent = tr('dialog.about.license_link');
             byId('about-font-link').textContent = tr('dialog.about.license_link');
             byId('about-privacy-link').textContent = tr('dialog.about.privacy_link');
+            // Update privacy policy link based on current language
+            byId('about-privacy-link').href = currentLanguage === 'en' ? 'datenschutz-en.html' : 'datenschutz.html';
             byId('about-close-label').textContent = tr('dialog.about.close');
         }
 
