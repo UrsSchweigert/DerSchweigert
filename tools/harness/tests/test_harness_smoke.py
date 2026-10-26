@@ -80,3 +80,13 @@ def test_real_browser_check_separates_the_fixed_and_the_broken_page(tmp_path, co
         assert (r.returncode == 0) is expect_ok, r.stdout
     finally:
         shutil.rmtree(d, ignore_errors=True)
+
+
+def test_status_can_be_limited_to_one_plan():
+    from harness import status
+    report = {"plans": [{"plan_id": "a"}, {"plan_id": "b"}], "phases": [{"plan_id": "a"}, {"plan_id": "b"}], "requirements": [{"plan_id": "b"}],
+              "budgets": {"a": 1, "b": 2}, "issues": [{"issue_id": "x", "plan_id": "a"}, {"issue_id": "y", "plan_id": "b"}],
+              "queue": [{"issue_id": "x"}, {"issue_id": "y"}], "blockers": [], "failures": [], "evidence": [], "workers": [{"issue": "y"}], "human_tasks": []}
+    out = status.filter_plan(report, "b")
+    assert [p["plan_id"] for p in out["plans"]] == ["b"] and out["budgets"] == {"b": 2}
+    assert [i["issue_id"] for i in out["issues"]] == ["y"] and out["queue"] == [{"issue_id": "y"}] and out["workers"] == [{"issue": "y"}]

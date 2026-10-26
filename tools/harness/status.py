@@ -54,6 +54,21 @@ def build_report(home: Optional[str] = None, now: Optional[float] = None) -> Dic
     return report
 
 
+def filter_plan(report: Dict[str, Any], plan_id: str) -> Dict[str, Any]:
+    """Only one plan's phases, requirements, issues, workers and budget. Runner, isolation and events stay: they are not per plan."""
+    ids = {i["issue_id"] for i in report["issues"] if i.get("plan_id") == plan_id}
+    out = dict(report)
+    for key in ("plans", "phases", "requirements"):
+        out[key] = [r for r in report[key] if r.get("plan_id") == plan_id]
+    out["budgets"] = {k: v for k, v in report["budgets"].items() if k == plan_id}
+    out["issues"] = [r for r in report["issues"] if r["issue_id"] in ids]
+    for key in ("queue", "blockers", "failures", "evidence"):
+        out[key] = [r for r in report[key] if r["issue_id"] in ids]
+    out["workers"] = [r for r in report["workers"] if r["issue"] in ids]
+    out["human_tasks"] = [t for t in report["human_tasks"] if set(t.get("issue_ids") or [t.get("issue_id")]) & ids] if report["human_tasks"] and isinstance(report["human_tasks"][0], dict) else report["human_tasks"]
+    return out
+
+
 def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
     for row in store.list_plans():
         pid, ver = row["plan_id"], row["version"]
@@ -107,7 +122,7 @@ def _issues(store: Store, report: Dict[str, Any], now: float) -> None:
         state = store.state("issue", iid)
         open_tasks = [t["task_id"] for t in tasks if iid in t["payload"].get("issue_ids", [t["issue_id"]]) and t["state"] in ("Requested", "Acknowledged", "Submitted", "Validated")]
         unmet = [d for d in i["deps"] if store.state("issue", d) != "Done"]
-        report["issues"].append({"issue_id": iid, "phase": i["phase_id"], "state": state, "transient_failures": i["transient_failures"],
+        report["issues"].append({"issue_id": iid, "plan_id": i.get("plan_id"), "phase": i["phase_id"], "state": state, "transient_failures": i["transient_failures"],
                                  "repair_failures": i["repair_failures"], "blocked_reason": i["blocked_reason"]})
         report["queue"].append({"issue_id": iid, "state": state, "phase": i["phase_id"], "depends_on": i["deps"], "unmet_dependencies": unmet,
                                 "not_before": i["not_before"] or None, "branch": i["branch"], "head": i["head_rev"] or None, "pr": i["pr"]})

@@ -118,6 +118,7 @@ Optional extras: `harness sync PLAN_ID` creates a requirements issue, milestones
 
 ```sh
 harness status                    # plan, phases, queue, workers, blockers, tasks, budgets
+harness status --plan bugfixes-001-md   # only that plan's phases, issues and workers
 harness status --json             # the same, machine-readable
 harness issue p1-stars-animation  # everything about one issue: scope, attempts, evidence, history (add --json)
 ```

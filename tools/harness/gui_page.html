@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf" content="__CSRF__">
+<meta name="refresh" content="__REFRESH__">
+<title>Harness</title>
+<style nonce="__NONCE__">
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1d2330; --mute:#5d6678; --line:#dde1e8; --ok:#1a7f4b; --warn:#b26a00; --bad:#b3261e; --info:#1f5fbf; --ink2:#2b3447; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--bg); }
+  header { position:sticky; top:0; z-index:5; background:var(--ink2); color:#fff; padding:10px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+  header h1 { font-size:16px; margin:0 8px 0 0; }
+  header .grow { flex:1; }
+  main { max-width:1200px; margin:0 auto; padding:16px 20px 60px; }
+  h2 { font-size:15px; margin:22px 0 8px; color:var(--ink2); }
+  .badge { display:inline-block; padding:2px 9px; border-radius:11px; font-size:12px; font-weight:600; background:#e8ebf1; color:var(--ink2); white-space:nowrap; }
+  .Done,.ok,.alive,.A,.Completed,.verified { background:#dff3e8; color:var(--ok); }
+  .Executing,.In-Progress,.In-Review,.Active,.Running,.Approved { background:#dce9fb; color:var(--info); }
+  .Blocked,.bad,.Cancelled,.Failed,.stale,.B,.INVALID { background:#fbe0de; color:var(--bad); }
+  .Paused,.warn,.Ready,.Requested,.Refining,.Eligible { background:#fdeccc; color:var(--warn); }
+  header .badge { background:#3b4660; color:#fff; }
+  header .badge.ok { background:#1f7a4d; } header .badge.bad { background:#a8322b; } header .badge.warn { background:#9a6200; }
+  button { font:inherit; border:1px solid var(--line); background:#fff; padding:5px 12px; border-radius:6px; cursor:pointer; color:var(--ink); }
+  button:hover { border-color:#9aa4b8; } button.primary { background:var(--info); color:#fff; border-color:var(--info); }
+  button.danger { color:var(--bad); border-color:#e3b3af; } button:disabled { opacity:.5; cursor:default; }
+  header button { background:#3b4660; color:#fff; border-color:#566280; } header button.danger { color:#ffb4ae; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .card h3 { margin:0 0 6px; font-size:13px; color:var(--mute); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+  .big { font-size:22px; font-weight:650; }
+  .mute { color:var(--mute); } .small { font-size:12px; }
+  .bar { height:8px; border-radius:4px; background:#e8ebf1; overflow:hidden; margin:6px 0; }
+  .bar > span { display:block; height:100%; background:var(--ok); }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  th,td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:12px; color:var(--mute); background:#fafbfc; font-weight:600; }
+  tr:last-child td { border-bottom:0; } tr.click { cursor:pointer; } tr.click:hover { background:#f3f6fb; }
+  .task { border-left:4px solid var(--warn); }
+  .task .opts { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
+  .task .opt { display:flex; gap:8px; align-items:flex-start; }
+  .task textarea, .task input { width:100%; font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+  .fail { font-size:12px; background:#fff6f5; border:1px solid #f0cfcc; border-radius:6px; padding:5px 8px; margin:4px 0; }
+  .chips span { margin:2px 4px 2px 0; }
+  .drawer { position:fixed; top:0; right:0; bottom:0; width:min(620px,100%); background:#fff; border-left:1px solid var(--line); box-shadow:-6px 0 18px rgba(0,0,0,.12); z-index:9; overflow:auto; padding:16px 20px 40px; }
+  .drawer h2 { margin-top:0; } .drawer ul { margin:2px 0 8px 18px; padding:0; }
+  .hidden { display:none; } .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink2); color:#fff; padding:8px 16px; border-radius:8px; z-index:20; max-width:80%; }
+  #banner { background:#fbe0de; color:var(--bad); padding:8px 20px; font-weight:600; }
+  code { background:#eef0f4; padding:1px 5px; border-radius:4px; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="banner" class="hidden">Connection lost. Is `harness gui` still running?</div>
+<header>
+  <h1>Harness</h1>
+  <span id="h-plan" class="badge">loading</span>
+  <span id="h-state" class="badge"></span>
+  <span id="h-tier" class="badge"></span>
+  <span id="h-runner" class="badge"></span>
+  <span class="grow"></span>
+  <span id="h-updated" class="small"></span>
+  <button id="b-refresh">Refresh</button>
+  <button id="b-pause" class="hidden">Pause</button>
+  <button id="b-pausenow" class="hidden">Pause now</button>
+  <button id="b-cancel" class="hidden danger">Cancel plan</button>
+</header>
+<main>
+  <div id="resume-hint" class="card hidden"></div>
+
+  <section id="tasks-section" class="hidden">
+    <h2>Needs you</h2>
+    <div id="tasks"></div>
+  </section>
+
+  <h2>Overview</h2>
+  <div class="grid" id="overview"></div>
+
+  <h2>Phases</h2>
+  <div class="grid" id="phases"></div>
+
+  <h2>Workers running</h2>
+  <div id="workers"></div>
+
+  <h2>Issues</h2>
+  <div id="issues"></div>
+
+  <h2>Requirements</h2>
+  <div class="chips" id="reqs"></div>
+
+  <h2>Recent activity</h2>
+  <div id="events"></div>
+
+  <p class="small mute" id="notes"></p>
+</main>
+
+<aside id="drawer" class="drawer hidden"></aside>
+<div id="toast" class="hidden"></div>
+
+<script nonce="__NONCE__">
+"use strict";
+// Every piece of data is inserted with textContent. Nothing from the store is ever parsed as HTML.
+const CSRF = document.querySelector('meta[name=csrf]').content;
+const REFRESH = Math.max(3, parseInt(document.querySelector('meta[name=refresh]').content, 10) || 10);
+let status = null, tasks = [], openIssue = null, taskSig = "";
+
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v; else if (k === "onclick") n.addEventListener("click", v); else if (v !== null && v !== undefined) n.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k.nodeType ? k : document.createTextNode(String(k)));
+  return n;
+}
+const badge = (text, cls) => el("span", {class: "badge " + String(cls || text).replace(/\s+/g, "-")}, text);
+const $ = id => document.getElementById(id);
+function fill(id, ...kids) { const n = $(id); n.replaceChildren(...kids.flat().filter(Boolean)); }
+function fmt(s) { if (s === null || s === undefined) return "-"; s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? `${h}h ${m}m` : m ? `${m}m ${s % 60}s` : `${s}s`; }
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add("hidden"), 5000); }
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json", "X-Harness-Token": CSRF}, body: JSON.stringify(body)};
+  const r = await fetch(path, opts);
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* non-JSON error */ }
+  if (!r.ok) throw new Error(data.error || ("request failed: " + r.status));
+  return data;
+}
+
+async function refresh() {
+  try {
+    [status, tasks] = await Promise.all([api("/api/status"), api("/api/tasks")]);
+    $("banner").classList.add("hidden");
+    render();
+    if (openIssue) showIssue(openIssue, true);
+  } catch (e) {
+    $("banner").classList.remove("hidden");
+  }
+}
+
+function plan() { return (status.plans || []).slice(-1)[0]; }
+
+function render() {
+  const p = plan(), s = status;
+  $("h-plan").textContent = p ? `${p.plan_id} v${p.version}` : "no plan";
+  const st = $("h-state"); st.textContent = p ? p.state : ""; st.className = "badge " + (p ? p.state : "");
+  const t = $("h-tier"); t.textContent = "Tier " + s.isolation.tier; t.className = "badge " + (s.isolation.tier === "A" ? "ok" : "bad"); t.title = s.isolation.reason;
+  const r = $("h-runner"); const alive = s.runner.status === "alive";
+  r.textContent = s.runner.status === "none" ? "runner: not running" : (alive ? "runner: alive" : "runner: stale");
+  r.className = "badge " + (alive ? "ok" : (s.runner.status === "none" ? "" : "bad"));
+  $("h-updated").textContent = "updated " + new Date().toLocaleTimeString();
+  const running = p && p.state === "Executing";
+  $("b-pause").classList.toggle("hidden", !running || p.pause_requested);
+  $("b-pausenow").classList.toggle("hidden", !running);
+  $("b-cancel").classList.toggle("hidden", !(p && ["Executing", "Paused", "Approved"].includes(p.state)));
+  const hint = $("resume-hint");
+  hint.classList.toggle("hidden", !(p && (p.state === "Paused" || p.pause_requested)));
+  if (p && p.state === "Paused") hint.replaceChildren(el("b", {}, "Paused. "), p.paused_reason || "", " To continue, run ", el("code", {}, `harness resume ${p.plan_id}`), " in a terminal.");
+  else if (p && p.pause_requested) hint.replaceChildren(el("b", {}, "Pause requested. "), "Finishing the workers in flight, then stopping.");
+  renderTasks(); renderOverview(); renderPhases(); renderWorkers(); renderIssues(); renderReqs(); renderEvents();
+  $("notes").textContent = ["usage: " + s.usage].concat(s.limitations.map(x => "limitation: " + x)).join("  |  ");
+}
+
+function renderOverview() {
+  const s = status, p = plan(), counts = {};
+  for (const i of s.issues) counts[i.state] = (counts[i.state] || 0) + 1;
+  const b = p ? s.budgets[p.plan_id] : null;
+  const cards = [];
+  cards.push(el("div", {class: "card"}, el("h3", {}, "Issues"), el("div", {class: "big"}, `${counts.Done || 0} / ${s.issues.length} done`),
+    el("div", {class: "chips"}, Object.entries(counts).map(([k, v]) => el("span", {}, badge(`${k} ${v}`, k))))));
+  if (b) {
+    const w = b.wall_clock_s;
+    cards.push(el("div", {class: "card"}, el("h3", {}, "Run time"), el("div", {class: "big"}, w.used === null ? "not started" : fmt(w.used)),
+      el("div", {class: "small mute"}, "limit " + fmt(w.limit)), el("div", {class: "bar"}, el("span", {style: `width:${w.used ? Math.min(100, w.used / w.limit * 100) : 0}%`}))));
+    const pr = b.pull_requests;
+    cards.push(el("div", {class: "card"}, el("h3", {}, "Pull requests"), el("div", {class: "big"}, `${pr.used} / ${pr.limit}`),
+      el("div", {class: "bar"}, el("span", {style: `width:${Math.min(100, pr.used / pr.limit * 100)}%`}))));
+    cards.push(el("div", {class: "card"}, el("h3", {}, "Tokens and cost"), el("div", {class: "big mute"}, "unavailable"), el("div", {class: "small mute"}, "the runtime reports none")));
+  }
+  cards.push(el("div", {class: "card"}, el("h3", {}, "Open questions"), el("div", {class: "big"}, String(s.human_tasks.length)),
+    el("div", {class: "small mute"}, s.pending_sync.length ? `${s.pending_sync.length} GitHub sync pending` : "nothing pending sync")));
+  fill("overview", cards);
+}
+
+function renderPhases() {
+  const s = status, p = plan();
+  fill("phases", (s.phases || []).filter(x => !p || x.plan_id === p.plan_id).map(ph => {
+    const total = Object.values(ph.issues).reduce((a, b) => a + b, 0), done = ph.issues.Done || 0;
+    return el("div", {class: "card"}, el("div", {class: "row"}, el("b", {}, ph.phase), badge(ph.state)),
+      el("div", {class: "bar"}, el("span", {style: `width:${total ? done / total * 100 : 0}%`})),
+      el("div", {class: "small mute"}, total ? `${done} of ${total} issues done` : "no issues yet"),
+      ph.depends_on.length ? el("div", {class: "small mute"}, "after " + ph.depends_on.join(", ")) : null,
+      el("div", {class: "small mute"}, "requirements " + ph.requirements.join(", ")));
+  }));
+}
+
+function renderWorkers() {
+  const w = status.workers;
+  if (!w.length) { fill("workers", el("div", {class: "card mute"}, "No worker is running.")); return; }
+  const rows = w.map(k => el("tr", {class: "click", onclick: () => showIssue(k.issue)}, el("td", {}, k.attempt_id), el("td", {}, k.role), el("td", {}, k.issue),
+    el("td", {}, `${k.tier || "-"} / ${k.model || "-"}`), el("td", {}, fmt(k.elapsed_s)), el("td", {}, k.last_activity_age_s === null ? "-" : fmt(k.last_activity_age_s) + " ago"),
+    el("td", {}, k.lease_expires_in_s < 0 ? badge("expired", "bad") : fmt(k.lease_expires_in_s)), el("td", {}, String(k.retries))));
+  fill("workers", el("table", {}, el("tr", {}, ["Attempt", "Role", "Issue", "Tier / model", "Elapsed", "Last output", "Lease", "Retries"].map(h => el("th", {}, h))), rows));
+}
+
+function renderIssues() {
+  const q = status.queue, byIssue = {};
+  for (const i of status.issues) byIssue[i.issue_id] = i;
+  const rows = q.map(i => {
+    const meta = byIssue[i.issue_id] || {};
+    const wait = i.unmet_dependencies.length ? "waiting on " + i.unmet_dependencies.join(", ") : "";
+    const note = meta.blocked_reason ? meta.blocked_reason.slice(0, 140) : wait;
+    return el("tr", {class: "click", onclick: () => showIssue(i.issue_id)}, el("td", {}, i.phase), el("td", {}, el("b", {}, i.issue_id)), el("td", {}, badge(i.state)),
+      el("td", {}, i.pr ? "#" + i.pr : "-"), el("td", {class: "small mute"}, note));
+  });
+  fill("issues", rows.length ? el("table", {}, el("tr", {}, ["Phase", "Issue", "State", "PR", "Note"].map(h => el("th", {}, h))), rows) : el("div", {class: "card mute"}, "No issues loaded. Run import-issues."));
+}
+
+function renderReqs() {
+  fill("reqs", (status.requirements || []).map(r => el("span", {title: r.title}, badge(`${r.id} ${r.coverage}`, r.coverage === "verified" ? "verified" : r.coverage.startsWith("implemented") ? "Active" : r.coverage === "in progress" ? "Running" : "")))));
+}
+
+function renderEvents() {
+  const ev = (status.events || []).slice().reverse();
+  fill("events", ev.length ? el("table", {}, el("tr", {}, ["Time", "Event", "Issue", "Details"].map(h => el("th", {}, h))),
+    ev.map(e => el("tr", {}, el("td", {class: "small"}, new Date(e.ts * 1000).toLocaleTimeString()), el("td", {}, e.type), el("td", {}, e.issue_id || "-"),
+      el("td", {class: "small mute"}, Object.entries(e.data || {}).filter(([k]) => k !== "issue").map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join("  ").slice(0, 160))))) : el("div", {class: "card mute"}, "Nothing yet."));
+}
+
+// ---- tasks ---------------------------------------------------------------------------------------------------------
+function renderTasks() {
+  $("tasks-section").classList.toggle("hidden", !tasks.length);
+  const sig = JSON.stringify(tasks.map(t => [t.task_id, t.state, t.round]));
+  if (sig === taskSig) return;           // keep what the user is typing when nothing changed
+  taskSig = sig;
+  fill("tasks", tasks.map(taskCard));
+}
+
+function taskCard(t) {
+  const box = el("div", {class: "card task"});
+  box.append(el("div", {class: "row"}, el("b", {}, t.task_id), badge(t.kind), badge(t.state), el("span", {class: "small mute"}, `owner ${t.owner} | waiting ${fmt(t.age_s)}`)));
+  box.append(el("p", {}, t.why));
+  if (t.kind !== "decision") {
+    box.append(el("p", {}, t.request), el("p", {class: "small"}, "Answer this one in a terminal: ", el("code", {}, `harness respond ${t.task_id} ...`), el("br"), "Respond with " + JSON.stringify(t.response_format)));
+    return box;
+  }
+  box.append(el("p", {class: "small mute"}, "This is the harness asking you, not a reviewer or a worker. It stopped by itself and needs your call."));
+  for (const f of t.evidence) box.append(el("div", {class: "fail"}, `${f.kind} (${f.class}, ${f.role}): ${f.detail || ""}`));
+  const note = el("textarea", {rows: "2", placeholder: "Optional hint for the worker (used by 'give guidance and retry')"});
+  const opts = el("div", {class: "opts"});
+  t.options.forEach((o, idx) => {
+    const go = el("button", {class: idx === 0 ? "primary" : (o === "cancel the issue" ? "danger" : ""), onclick: async ev => {
+      if (o === "cancel the issue" && !confirm("Cancel this issue? Work that depends on it will not run.")) return;
+      ev.target.disabled = true;
+      try {
+        const r = await api("/api/respond", {task_id: t.task_id, option: o, guidance: note.value});
+        toast(r.status === "resolved" ? `Answered: ${o}` : "Not accepted: " + (r.reason || r.status));
+        taskSig = ""; refresh();
+      } catch (e) { toast(e.message); ev.target.disabled = false; }
+    }}, o);
+    opts.append(el("div", {class: "opt"}, el("div", {style: "min-width:190px"}, go), el("div", {class: "small mute"}, t.option_help[o] || "")));
+  });
+  box.append(opts, note);
+  return box;
+}
+
+// ---- issue detail --------------------------------------------------------------------------------------------------
+function list(title, items) { return items && items.length ? [el("h3", {class: "mute small"}, title), el("ul", {}, items.map(x => el("li", {}, String(x))))] : []; }
+
+async function showIssue(id, quiet) {
+  openIssue = id;
+  let d;
+  try { d = await api("/api/issue/" + encodeURIComponent(id)); } catch (e) { if (!quiet) toast(e.message); return; }
+  const i = d.issue, dr = $("drawer");
+  dr.classList.remove("hidden");
+  dr.replaceChildren(
+    el("div", {class: "row"}, el("button", {onclick: () => { openIssue = null; dr.classList.add("hidden"); }}, "Close"), badge(d.state), d.previous_state ? el("span", {class: "small mute"}, "was " + d.previous_state) : null),
+    el("h2", {}, i.issue_id), el("p", {}, i.title),
+    el("p", {class: "small mute"}, `phase ${i.phase_id} | requirements ${i.requirement_ids.join(", ")} | parallel-safe ${i.parallel_safe}`),
+    el("p", {class: "small"}, `branch ${i.branch} | head ${(i.head_rev || "-").slice(0, 12)} | pull request ${i.pr || "-"} | failures: transient ${i.transient_failures}, repair ${i.repair_failures}`),
+    i.blocked_reason ? el("div", {class: "fail"}, "Blocked: " + i.blocked_reason) : null,
+    list("Outcomes", i.outcomes), list("Acceptance criteria", i.acceptance_criteria), list("Non-goals", i.non_goals), list("Code anchors", i.code_anchors),
+    list("Depends on", i.deps), list("Validation commands", i.validation_commands),
+    d.attempts.length ? [el("h3", {class: "mute small"}, "Attempts"), el("table", {}, el("tr", {}, ["Attempt", "Role", "Tier / model", "Outcome"].map(h => el("th", {}, h))),
+      d.attempts.map(a => el("tr", {}, el("td", {}, a.attempt_id), el("td", {}, a.role), el("td", {}, `${a.tier || "-"} / ${a.model || "-"}`), el("td", {}, (a.outcome || "running") + (a.failure_kind ? ` (${a.failure_kind})` : "")))))] : [],
+    d.evidence.length ? [el("h3", {class: "mute small"}, "Evidence"), el("table", {}, el("tr", {}, ["Kind", "Verdict", "Head", "Valid"].map(h => el("th", {}, h))),
+      d.evidence.map(e => el("tr", {}, el("td", {}, e.kind), el("td", {}, e.verdict), el("td", {}, e.head_rev.slice(0, 12)), el("td", {}, e.valid ? "yes" : "no"))))] : [],
+    d.human_tasks.length ? [el("h3", {class: "mute small"}, "Human tasks"), el("ul", {}, d.human_tasks.map(t => el("li", {}, `${t.task_id} [${t.kind}] ${t.state}: ${t.why}`)))] : [],
+    d.journal.length ? [el("h3", {class: "mute small"}, "History"), el("ul", {}, d.journal.map(j => el("li", {}, `${new Date(j.ts * 1000).toLocaleTimeString()}  ${j.from_state || "(new)"} -> ${j.to_state} by ${j.actor}`)))] : []);
+}
+
+// ---- header actions ------------------------------------------------------------------------------------------------
+async function act(path, body, okMsg) { try { await api(path, body); toast(okMsg); refresh(); } catch (e) { toast(e.message); } }
+$("b-refresh").addEventListener("click", refresh);
+$("b-pause").addEventListener("click", () => act("/api/pause", {plan_id: plan().plan_id, now: false}, "Pause requested"));
+$("b-pausenow").addEventListener("click", () => { if (confirm("Cancel the workers in flight and pause now? Their issues go back to Ready.")) act("/api/pause", {plan_id: plan().plan_id, now: true}, "Pausing now"); });
+$("b-cancel").addEventListener("click", () => {
+  const id = plan().plan_id;
+  const typed = prompt("Cancelling is permanent: the plan cannot be resumed.\nType the plan ID to confirm:\n" + id);
+  if (typed === id) act("/api/cancel", {plan_id: id, confirm: id, drain: false}, "Plan cancelled"); else if (typed !== null) toast("Plan ID did not match. Nothing was cancelled.");
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") { openIssue = null; $("drawer").classList.add("hidden"); } });
+refresh();
+setInterval(refresh, REFRESH * 1000);
+</script>
+</body>
+</html>

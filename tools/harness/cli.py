@@ -350,6 +350,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ish.add_argument("issue_id")
     ish.add_argument("--json", action="store_true")
     s = sub.add_parser("status", help="read-only status")
+    s.add_argument("--plan", help="show only this plan, e.g. bugfixes-001-md")
     s.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
@@ -360,6 +361,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         if args.cmd == "status":
             report = status_report(args.home)
+            if args.plan:
+                if args.plan not in {p["plan_id"] for p in report["plans"]}:
+                    print("no plan %r; known: %s" % (args.plan, ", ".join(p["plan_id"] for p in report["plans"])), file=sys.stderr)
+                    return 2
+                report = status.filter_plan(report, args.plan)
             print(json.dumps(report, indent=2, sort_keys=True, default=str) if args.json else status.render(report))
             return 0
         if args.cmd == "plan":
