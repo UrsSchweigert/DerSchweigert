@@ -1,0 +1,6 @@
+# Advisory only: GitHub does not require these reviews without branch protection (see docs/harness/decisions.md).
+* @UrsSchweigert
+/.github/ @UrsSchweigert
+/tools/harness/ @UrsSchweigert
+/docs/harness/ @UrsSchweigert
+/infra/ @UrsSchweigert

@@ -1,0 +1,202 @@
+"""Tier A worker isolation: a locked-down Docker container, a verification probe, and a signed attestation.
+
+Tier A is reported only when a fresh, signed attestation exists and the image it covers is unchanged.
+Known limit: container egress is not restricted, so a worker can reach the network. The only credential
+a worker holds is the Copilot-only token, which has no repository access.
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import time
+from typing import Any, Dict, List, Mapping, Optional
+
+from . import plans
+
+IMAGE = "harness-worker:1"
+ATTESTATION_TTL_S = 24 * 3600
+WORKER_UID = 10001
+COPILOT_TOKEN_ENV = "COPILOT_GITHUB_TOKEN"
+
+_CREDENTIAL_NAME = re.compile(r"(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL|PRIVATE_KEY|^GH_|^GITHUB_|^SSH_AUTH_SOCK$|^AWS_|^BLENDERMCP_|^HARNESS_)", re.I)
+
+
+def scrub_env(env: Mapping[str, str]) -> Dict[str, str]:
+    """Environment handed to a worker process. Credential-like and harness variables are removed."""
+    return {k: v for k, v in env.items() if not _CREDENTIAL_NAME.search(k)}
+
+
+def _docker(args: List[str], timeout: int = 120, env: Optional[Dict[str, str]] = None, input_text: Optional[str] = None):
+    return subprocess.run(["docker"] + args, capture_output=True, text=True, timeout=timeout, env=env, input=input_text)
+
+
+def docker_available() -> bool:
+    if not shutil.which("docker"):
+        return False
+    try:
+        return _docker(["info", "--format", "{{.ServerVersion}}"], timeout=15).returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def image_id(image: str = IMAGE) -> Optional[str]:
+    try:
+        out = _docker(["image", "inspect", "--format", "{{.Id}}", image], timeout=15)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
+
+
+def build_image(context: Optional[str] = None) -> str:
+    context = context or os.path.join(os.path.dirname(__file__), "worker")
+    out = _docker(["build", "-q", "-t", IMAGE, context], timeout=900)
+    if out.returncode != 0:
+        raise RuntimeError("image build failed: " + out.stderr.strip()[-300:])
+    return out.stdout.strip()
+
+
+def docker_args(workdir: str, command: List[str], pass_env: Optional[List[str]] = None, memory: str = "2g", cpus: str = "2",
+                pids: int = 512, image: str = IMAGE, name: Optional[str] = None) -> List[str]:
+    """Arguments for `docker run`. Only `workdir` is mounted. Env vars listed in `pass_env` are forwarded by name, never by value."""
+    args = [
+        "run", "--rm", "--init",
+        "--user", "%d:%d" % (WORKER_UID, WORKER_UID),
+        "--read-only",
+        "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges",
+        "--memory", memory, "--cpus", cpus, "--pids-limit", str(pids),
+        "--tmpfs", "/tmp:rw,exec,size=256m",
+        "--tmpfs", "/home/worker:rw,exec,uid=%d,gid=%d,size=512m" % (WORKER_UID, WORKER_UID),
+        "-v", "%s:/work:rw" % os.path.realpath(workdir),
+        "-w", "/work",
+    ]
+    if name:
+        args += ["--name", name]
+    for name in pass_env or []:
+        args += ["-e", name]
+    return args + [image] + command
+
+
+def run_worker(workdir: str, command: List[str], copilot_token_file: str, timeout: int = 1800) -> subprocess.CompletedProcess:
+    """Run a command in the sandbox. The Copilot token travels in the docker client's environment, not its arguments."""
+    with open(copilot_token_file) as fh:
+        token = fh.read().strip()
+    env = scrub_env(os.environ)
+    env[COPILOT_TOKEN_ENV] = token
+    return _docker(docker_args(workdir, command, [COPILOT_TOKEN_ENV]), timeout=timeout, env=env)
+
+
+# -- verification -------------------------------------------------------------
+
+PROBE_SCRIPT = r"""
+chk() { if eval "$2"; then echo "$1=pass"; else echo "$1=fail"; fi; }
+chk non_root '[ "$(id -u)" != 0 ]'
+chk no_host_credentials_in_env '[ -z "${GH_TOKEN:-}${GITHUB_TOKEN:-}${GH_NEW_TOKEN:-}${AWS_SECRET_ACCESS_KEY:-}" ]'
+chk no_copilot_token_unless_passed '[ -z "${COPILOT_GITHUB_TOKEN:-}" ]'
+chk store_path_absent '[ ! -e "$STORE_PATH" ]'
+chk host_home_absent '[ ! -e /Users ] && [ ! -e /host_mnt ] && [ ! -e /home/worker/.config/gh ]'
+chk no_ssh_agent '[ -z "${SSH_AUTH_SOCK:-}" ]'
+chk no_docker_socket '[ ! -e /var/run/docker.sock ]'
+chk rootfs_read_only '! touch /usr/probe 2>/dev/null && ! touch /etc/probe 2>/dev/null'
+chk workdir_writable 'touch /work/probe_ok'
+chk no_capabilities 'grep -q "^CapEff:[[:space:]]*0000000000000000" /proc/self/status'
+chk no_new_privileges 'grep -q "^NoNewPrivs:[[:space:]]*1" /proc/self/status'
+chk copilot_installed 'command -v copilot >/dev/null'
+"""
+
+REQUIRED_CHECKS = [
+    "non_root", "no_host_credentials_in_env", "no_copilot_token_unless_passed", "store_path_absent", "host_home_absent",
+    "no_ssh_agent", "no_docker_socket", "rootfs_read_only", "workdir_writable", "no_capabilities", "no_new_privileges",
+    "copilot_installed",
+]
+
+
+def work_root() -> str:
+    """Parent for worker directories. Docker Desktop shares /Users but not every temp location, and the store must stay out of it."""
+    root = os.environ.get("HARNESS_WORK_ROOT") or os.path.join(os.path.expanduser("~"), ".local", "share", "derschweigert-harness-work")
+    os.makedirs(root, mode=0o700, exist_ok=True)
+    return root
+
+
+def new_workdir(prefix: str = "work-") -> str:
+    """A fresh directory a worker may write to. Mode 0777 because the container user is not the host user."""
+    path = tempfile.mkdtemp(prefix=prefix, dir=work_root())
+    os.chmod(path, 0o777)
+    return path
+
+
+def probe(store_home: str, image: str = IMAGE) -> Dict[str, Any]:
+    """Launch the real sandbox with hostile host canaries and report which guarantees hold."""
+    if not docker_available():
+        return {"ok": False, "reason": "docker is not available", "checks": {}}
+    iid = image_id(image)
+    if iid is None:
+        return {"ok": False, "reason": "worker image %s is not built" % image, "checks": {}}
+    work = new_workdir("probe-")
+    try:
+        host_env = scrub_env(os.environ)
+        # Canaries: credential-looking host variables that the launcher must not forward.
+        host_env.update({"GH_TOKEN": "canary", "GITHUB_TOKEN": "canary", "GH_NEW_TOKEN": "canary", "SSH_AUTH_SOCK": "/tmp/canary.sock"})
+        args = docker_args(work, ["sh", "-c", PROBE_SCRIPT], pass_env=None, image=image)
+        args[args.index(image):args.index(image)] = ["-e", "STORE_PATH=" + os.path.realpath(store_home)]
+        out = _docker(args, timeout=120, env=host_env)
+        checks = {m.group(1): m.group(2) == "pass" for m in re.finditer(r"^(\w+)=(pass|fail)$", out.stdout, re.M)}
+        missing = [c for c in REQUIRED_CHECKS if c not in checks]
+        failed = sorted(c for c, ok in checks.items() if not ok) + ["missing:" + c for c in missing]
+        host_file = os.path.exists(os.path.join(work, "probe_ok"))
+        if not host_file:
+            failed.append("worker_writes_not_visible_on_host")
+        return {"ok": not failed and out.returncode == 0, "image_id": iid, "checks": checks, "failed": failed,
+                "reason": "all checks passed" if not failed and out.returncode == 0 else "failed: %s %s" % (failed, out.stderr.strip()[-200:])}
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def attestation_path(store_home: str) -> str:
+    return os.path.join(store_home, "isolation.json")
+
+
+def _sign(key: bytes, doc: Dict[str, Any]) -> str:
+    body = {k: v for k, v in doc.items() if k != "signature"}
+    return hmac.new(key, plans.canonical(body), hashlib.sha256).hexdigest()
+
+
+def write_attestation(store_home: str, key: bytes, result: Dict[str, Any], now: Optional[float] = None) -> Dict[str, Any]:
+    if not result.get("ok"):
+        raise RuntimeError("refusing to attest a failed probe: %s" % result.get("reason"))
+    doc = {"tier": "A", "checked_at": now if now is not None else time.time(), "image_id": result["image_id"],
+           "checks": result["checks"], "signature": ""}
+    doc["signature"] = _sign(key, doc)
+    path = attestation_path(store_home)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        json.dump(doc, fh, sort_keys=True)
+    return doc
+
+
+def current_tier(store_home: str, key: Optional[bytes], now: Optional[float] = None,
+                 image_lookup=None) -> Dict[str, str]:
+    """Tier A only with a valid signed attestation that is fresh and still matches the built image. Otherwise Tier B."""
+    path = attestation_path(store_home)
+    if key is None or not os.path.exists(path):
+        return {"tier": "B", "reason": "no isolation attestation: run `harness isolation verify`"}
+    try:
+        with open(path) as fh:
+            doc = json.load(fh)
+        if not hmac.compare_digest(str(doc.get("signature", "")), _sign(key, doc)):
+            return {"tier": "B", "reason": "isolation attestation signature is invalid"}
+        if doc.get("tier") != "A" or not all(doc.get("checks", {}).get(c) for c in REQUIRED_CHECKS):
+            return {"tier": "B", "reason": "isolation attestation does not cover every required check"}
+        if (now if now is not None else time.time()) - float(doc["checked_at"]) > ATTESTATION_TTL_S:
+            return {"tier": "B", "reason": "isolation attestation expired: rerun `harness isolation verify`"}
+        if (image_lookup or image_id)() != doc.get("image_id"):
+            return {"tier": "B", "reason": "worker image changed or missing since verification"}
+    except (OSError, ValueError, TypeError):
+        return {"tier": "B", "reason": "isolation attestation is unreadable"}
+    return {"tier": "A", "reason": "verified Docker worker sandbox (egress not restricted)"}
