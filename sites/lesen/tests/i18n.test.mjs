@@ -226,16 +226,10 @@ test("tts: English error hint references English pronunciation", () => {
 
 test("tts: word-list filename follows language pattern", async () => {
   // German uses words-de.json, English uses words-en.json
-  // This verifies the language code pattern is consistent
-  const { getTtsLanguageCode } = await import("../static/storage.mjs");
-  
-  // English should start with 'en'
-  const enCode = getTtsLanguageCode('en');
-  assert.ok(enCode.startsWith('en'), "English TTS code should start with 'en'");
-  
-  // German should start with 'de'
-  const deCode = getTtsLanguageCode('de');
-  assert.ok(deCode.startsWith('de'), "German TTS code should start with 'de'");
+  const { getWordListFilename } = await import("../static/storage.mjs");
+
+  assert.strictEqual(getWordListFilename('en'), 'words-en.json');
+  assert.strictEqual(getWordListFilename('de'), 'words-de.json');
 });
 
 test("tts: getTtsLanguageCode is consistent with language switching", async () => {
@@ -248,5 +242,65 @@ test("tts: getTtsLanguageCode is consistent with language switching", async () =
     assert.strictEqual(code, expected[lang], 
       `switching to ${lang} should produce TTS code ${expected[lang]}, got ${code}`);
   }
+});
+
+test("language selection: voice code, specials set and word-list filename all match per language", async () => {
+  const { getTtsLanguageCode, getWordListFilename } = await import("../static/storage.mjs");
+  const { getSoundsForLanguage } = await import("../static/sounds.mjs");
+
+  const expectations = {
+    de: {
+      langPrefix: 'de-',
+      filename: 'words-de.json',
+      specials: ["ä", "ö", "ü", "au", "ei", "ie", "eu"],
+    },
+    en: {
+      langPrefix: 'en-',
+      filename: 'words-en.json',
+      specials: ["sh", "ch", "th", "oo", "ee", "ai", "ou"],
+    },
+  };
+
+  for (const [lang, expected] of Object.entries(expectations)) {
+    const langCode = getTtsLanguageCode(lang);
+    const filename = getWordListFilename(lang);
+    const { specials } = getSoundsForLanguage(lang);
+
+    assert.ok(
+      langCode.startsWith(expected.langPrefix),
+      `${lang} voice code '${langCode}' should start with '${expected.langPrefix}'`,
+    );
+    assert.strictEqual(filename, expected.filename, `${lang} word-list filename mismatch`);
+    assert.deepStrictEqual([...specials], expected.specials, `${lang} specials set mismatch`);
+  }
+});
+
+test("language selection: switching in either direction updates voice code, specials and word list together", async () => {
+  const { getTtsLanguageCode, getWordListFilename } = await import("../static/storage.mjs");
+  const { getSoundsForLanguage } = await import("../static/sounds.mjs");
+
+  function selectionFor(lang) {
+    return {
+      langCode: getTtsLanguageCode(lang),
+      filename: getWordListFilename(lang),
+      specials: [...getSoundsForLanguage(lang).specials],
+    };
+  }
+
+  // de -> en
+  let current = selectionFor('de');
+  assert.ok(current.langCode.startsWith('de-'));
+  current = selectionFor('en');
+  assert.ok(current.langCode.startsWith('en-'), "switching de->en should produce an en- voice code");
+  assert.strictEqual(current.filename, 'words-en.json', "switching de->en should load the English word list");
+  assert.ok(current.specials.includes('sh'), "switching de->en should load English specials");
+  assert.ok(!current.specials.includes('ä'), "switching de->en must not keep German specials");
+
+  // en -> de
+  current = selectionFor('de');
+  assert.ok(current.langCode.startsWith('de-'), "switching en->de should produce a de- voice code");
+  assert.strictEqual(current.filename, 'words-de.json', "switching en->de should load the German word list");
+  assert.ok(current.specials.includes('ä'), "switching en->de should load German specials");
+  assert.ok(!current.specials.includes('sh'), "switching en->de must not keep English specials");
 });
 
