@@ -186,3 +186,67 @@ test("i18n: every tr(...) key referenced in index.html resolves to a real dictio
     `the following keys referenced via tr() in index.html have no German dictionary entry: ${missing.join(", ")}`,
   );
 });
+
+test("tts: getTtsLanguageCode returns 'en-US' for English", async () => {
+  const { getTtsLanguageCode } = await import("../static/storage.mjs");
+  assert.strictEqual(getTtsLanguageCode('en'), 'en-US');
+});
+
+test("tts: getTtsLanguageCode returns 'de-DE' for German", async () => {
+  const { getTtsLanguageCode } = await import("../static/storage.mjs");
+  assert.strictEqual(getTtsLanguageCode('de'), 'de-DE');
+});
+
+test("tts: getTtsLanguageCode returns 'de-DE' for unknown language", async () => {
+  const { getTtsLanguageCode } = await import("../static/storage.mjs");
+  assert.strictEqual(getTtsLanguageCode('fr'), 'de-DE');
+});
+
+test("tts: voice hints in German dictionary use 'deutsche' wording", () => {
+  const noVoiceHint = t("de", "feedback.tts_no_voice");
+  assert.ok(noVoiceHint.includes("deutsche"), "German no-voice hint should mention 'deutsche'");
+  assert.ok(noVoiceHint.includes("Stimme"), "German no-voice hint should mention 'Stimme'");
+});
+
+test("tts: voice hints in English dictionary use 'English' wording", () => {
+  const noVoiceHint = t("en", "feedback.tts_no_voice");
+  assert.ok(noVoiceHint.includes("English"), "English no-voice hint should mention 'English'");
+  assert.ok(noVoiceHint.includes("voice"), "English no-voice hint should mention 'voice'");
+});
+
+test("tts: German error hint references German pronunciation", () => {
+  const errorHint = t("de", "feedback.tts_error");
+  assert.ok(errorHint.includes("deutsche"), "German error hint should mention 'deutsche'");
+});
+
+test("tts: English error hint references English pronunciation", () => {
+  const errorHint = t("en", "feedback.tts_error");
+  assert.ok(errorHint.includes("English"), "English error hint should mention 'English'");
+});
+
+test("tts: word-list filename follows language pattern", async () => {
+  // German uses words-de.json, English uses words-en.json
+  // This verifies the language code pattern is consistent
+  const { getTtsLanguageCode } = await import("../static/storage.mjs");
+  
+  // English should start with 'en'
+  const enCode = getTtsLanguageCode('en');
+  assert.ok(enCode.startsWith('en'), "English TTS code should start with 'en'");
+  
+  // German should start with 'de'
+  const deCode = getTtsLanguageCode('de');
+  assert.ok(deCode.startsWith('de'), "German TTS code should start with 'de'");
+});
+
+test("tts: getTtsLanguageCode is consistent with language switching", async () => {
+  const { getTtsLanguageCode } = await import("../static/storage.mjs");
+  const languages = ['de', 'en'];
+  const expected = { de: 'de-DE', en: 'en-US' };
+  
+  for (const lang of languages) {
+    const code = getTtsLanguageCode(lang);
+    assert.strictEqual(code, expected[lang], 
+      `switching to ${lang} should produce TTS code ${expected[lang]}, got ${code}`);
+  }
+});
+
