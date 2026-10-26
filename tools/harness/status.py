@@ -1,0 +1,196 @@
+"""Read-only status: business state and live execution state, with unavailable metrics labeled as such."""
+from __future__ import annotations
+
+import os
+import sqlite3
+import time
+from typing import Any, Dict, List, Optional
+
+from . import approval, telemetry
+from .approval import AuthorizationError, plan_entity
+from .store import Store, default_home
+
+HEARTBEAT_STALE_FACTOR = 3
+
+
+def _safe(fn, default):
+    try:
+        return fn()
+    except sqlite3.OperationalError:
+        return default
+
+
+def build_report(home: Optional[str] = None, now: Optional[float] = None) -> Dict[str, Any]:
+    home = home or default_home()
+    now = time.time() if now is None else now
+    report: Dict[str, Any] = {
+        "store": home, "now": now, "isolation": {"tier": "B", "reason": "store not initialized"}, "run_permitted": False,
+        "plans": [], "phases": [], "requirements": [], "queue": [], "blockers": [], "workers": [], "runner": {"status": "none"},
+        "expired_leases": [], "claims": [], "pending_sync": [], "failures": [], "evidence": [], "human_tasks": [], "budgets": {},
+        "metrics": telemetry.metrics_report(), "events": [], "journal": [], "entities": [], "issues": [],
+        "usage": "unavailable: the runtime reports no per-attempt token or cost data to the harness",
+        "limitations": ["branch protection: by convention only, not enforced by GitHub"],
+    }
+    if not os.path.exists(os.path.join(home, "harness.sqlite")):
+        report["note"] = "store not initialized"
+        return report
+    store = Store(home, readonly=True)
+    try:
+        iso = approval.detect_isolation(store)
+        report["isolation"], report["run_permitted"] = iso, iso["tier"] == "A"
+        _plans(store, report, now)
+        _issues(store, report, now)
+        _workers(store, report, now)
+        _tasks(store, report, now)
+        report["pending_sync"] = store.pending_sync()
+        report["claims"] = store.active_claims()
+        report["entities"] = store.entity_states()
+        report["journal"] = store.journal(10)
+        report["events"] = _safe(lambda: telemetry.recent(store, 15), [])
+        report["event_count"] = _safe(lambda: telemetry.count(store), 0)
+    finally:
+        store.close()
+    return report
+
+
+def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
+    for row in store.list_plans():
+        pid, ver = row["plan_id"], row["version"]
+        try:
+            approval.verify_approval(store, pid, ver)
+            appr = "valid"
+        except AuthorizationError as exc:
+            appr = "none" if "no approval record" in str(exc) else "INVALID: %s" % exc
+        plan = store.get_plan(pid, ver)["plan"]
+        run = _safe(lambda: store.get_run(pid), {})
+        budgets = plan["policy"]["budgets"]
+        elapsed = now - run["started_at"] if run.get("started_at") else None
+        report["plans"].append({"plan_id": pid, "version": ver, "state": store.state("plan", plan_entity(pid, ver)), "digest": row["digest"][:12],
+                                "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested"))})
+        report["budgets"][pid] = {
+            "wall_clock_s": {"limit": budgets["run_wall_clock_s"], "used": elapsed,
+                             "remaining": max(budgets["run_wall_clock_s"] - elapsed, 0) if elapsed is not None else None},
+            "pull_requests": {"limit": budgets["pull_requests_per_run"], "used": run.get("prs", 0),
+                              "remaining": budgets["pull_requests_per_run"] - run.get("prs", 0)},
+            "tokens_and_cost": telemetry.UNAVAILABLE}
+        issues = [i for i in _safe(lambda: store.list_issues(pid), [])]
+        for ph in plan["phases"]:
+            mine = [i for i in issues if i["phase_id"] == ph["id"]]
+            counts: Dict[str, int] = {}
+            for i in mine:
+                st = store.state("issue", i["issue_id"]) or "Inbox"
+                counts[st] = counts.get(st, 0) + 1
+            report["phases"].append({"plan_id": pid, "phase": ph["id"], "state": store.state("phase", "%s/%s" % (plan_entity(pid, ver), ph["id"])) or "Planned",
+                                     "depends_on": ph["dependencies"], "issues": counts, "requirements": ph["requirements"]})
+        phase_state = {p["phase"]: p["state"] for p in report["phases"] if p["plan_id"] == pid}
+        for req in plan["requirements"]:
+            owners = [i for i in issues if req["id"] in i["requirement_ids"]]
+            states = [store.state("issue", i["issue_id"]) for i in owners]
+            host = next((p["id"] for p in plan["phases"] if req["id"] in p["requirements"]), None)
+            if host and phase_state.get(host) == "Done":
+                cov = "verified"
+            elif states and all(s == "Done" for s in states):
+                cov = "implemented, phase not validated"
+            elif states:
+                cov = "in progress"
+            else:
+                cov = "no issue yet"
+            report["requirements"].append({"plan_id": pid, "id": req["id"], "title": req["title"], "phase": host, "coverage": cov})
+
+
+def _issues(store: Store, report: Dict[str, Any], now: float) -> None:
+    tasks = _safe(store.human_tasks, [])
+    for i in _safe(store.list_issues, []):
+        iid = i["issue_id"]
+        state = store.state("issue", iid)
+        open_tasks = [t["task_id"] for t in tasks if iid in t["payload"].get("issue_ids", [t["issue_id"]]) and t["state"] in ("Requested", "Acknowledged", "Submitted", "Validated")]
+        unmet = [d for d in i["deps"] if store.state("issue", d) != "Done"]
+        report["issues"].append({"issue_id": iid, "phase": i["phase_id"], "state": state, "transient_failures": i["transient_failures"],
+                                 "repair_failures": i["repair_failures"], "blocked_reason": i["blocked_reason"]})
+        report["queue"].append({"issue_id": iid, "state": state, "phase": i["phase_id"], "depends_on": i["deps"], "unmet_dependencies": unmet,
+                                "not_before": i["not_before"] or None, "branch": i["branch"], "head": i["head_rev"] or None, "pr": i["pr"]})
+        if state == "Blocked":
+            report["blockers"].append({"issue_id": iid, "reason": i["blocked_reason"], "unmet_dependencies": unmet, "human_tasks": open_tasks,
+                                       "owned": bool(unmet or open_tasks or i.get("cancelled"))})
+        if i["last_failures"]:
+            report["failures"].append({"issue_id": iid, "recent": i["last_failures"][-3:]})
+        ev = {k: [dict(verdict=e["verdict"], head=e["head_rev"][:12], base=e["base_rev"][:12]) for e in _safe(lambda k=k: store.evidence(iid, k), [])][-1:]
+              for k in ("checks", "review", "manual", "merge", "integrated")}
+        report["evidence"].append({"issue_id": iid, "checks": ev["checks"], "review": ev["review"], "manual": ev["manual"],
+                                   "integration": {"merged": ev["merge"], "integrated_checks": ev["integrated"]}})
+
+
+def _workers(store: Store, report: Dict[str, Any], now: float) -> None:
+    heartbeat = 30
+    plans = [store.get_plan(r["plan_id"], r["version"])["plan"] for r in store.list_plans()]
+    if plans:
+        heartbeat = plans[-1]["policy"]["budgets"]["heartbeat_s"]
+    for c in store.active_claims():
+        meta = _safe(lambda c=c: store.get_attempt(c["attempt_id"]), None) or {}
+        issue = store.get_issue(c["issue_id"]) or {}
+        row = {"attempt_id": c["attempt_id"], "run_id": c["attempt_id"], "role": meta.get("role"), "issue": c["issue_id"], "branch": issue.get("branch"),
+               "revision": issue.get("head_rev") or None, "elapsed_s": now - meta["started_at"] if meta.get("started_at") else None,
+               "retries": issue.get("transient_failures", 0) + issue.get("repair_failures", 0), "tier": meta.get("tier"), "model": meta.get("model"),
+               "last_activity_age_s": now - meta["last_activity"] if meta.get("last_activity") else None,
+               "lease_expires_in_s": c["expires_at"] - now, "runner": c["runner_id"],
+               "latest_outcome": next((a.get("outcome") for a in reversed(store.list_attempts(c["issue_id"])) if a.get("outcome")), None)}
+        report["workers"].append(row)
+        if c["expires_at"] < now:
+            report["expired_leases"].append({"attempt_id": c["attempt_id"], "expired_s_ago": now - c["expires_at"], "runner": c["runner_id"]})
+    runners = _safe(lambda: store.docs("runner"), [])
+    if runners:
+        last = max(runners, key=lambda r: r["last_tick"])
+        age = now - last["last_tick"]
+        report["runner"] = {"status": "alive" if age <= heartbeat * HEARTBEAT_STALE_FACTOR else "stale: no scheduling pass recently",
+                            "runner_id": last["_key"], "last_heartbeat_age_s": age, "heartbeat_interval_s": heartbeat, "active_attempts": last.get("active", [])}
+
+
+def _tasks(store: Store, report: Dict[str, Any], now: float) -> None:
+    notified = _safe(lambda: store.docs("notified"), [])
+    for t in _safe(store.human_tasks, []):
+        p = t["payload"]
+        if t["state"] in ("Resolved", "Cancelled"):
+            continue
+        reminders = len([n for n in notified if n["_key"].startswith(t["task_id"] + ":") and ":reminder:" in n["_key"]])
+        report["human_tasks"].append({"task_id": t["task_id"], "kind": p["kind"], "state": t["state"], "owner": p["owner"], "secondary_owner": p.get("secondary_owner"),
+                                      "affected_issues": p["issue_ids"], "age_s": now - p.get("requested_at", t["created_at"]), "deadline": p.get("deadline"),
+                                      "round": p.get("round", 1), "reminders_sent": reminders, "why": p["why"][:160]})
+
+
+def render(report: Dict[str, Any]) -> str:
+    out: List[str] = []
+    w = out.append
+    w("store: %s" % report["store"])
+    w("isolation: Tier %s (%s). run %s" % (report["isolation"]["tier"], report["isolation"]["reason"], "permitted" if report["run_permitted"] else "refused"))
+    r = report["runner"]
+    w("runner: %s" % (r["status"] if r["status"] == "none" else "%s (%s, last heartbeat %.0fs ago)" % (r["status"], r["runner_id"], r["last_heartbeat_age_s"])))
+    for p in report["plans"]:
+        w("plan %s v%d  %s  digest %s  approval %s%s" % (p["plan_id"], p["version"], p["state"], p["digest"], p["approval"], "  PAUSED: " + p["paused_reason"] if p["paused_reason"] else ""))
+        b = report["budgets"].get(p["plan_id"], {})
+        if b:
+            w("  budgets: wall-clock %s of %ss, pull requests %d of %d, tokens and cost %s" % (
+                "%.0f" % b["wall_clock_s"]["used"] if b["wall_clock_s"]["used"] is not None else "not started", b["wall_clock_s"]["limit"],
+                b["pull_requests"]["used"], b["pull_requests"]["limit"], b["tokens_and_cost"]))
+    for ph in report["phases"]:
+        w("  phase %s %s  issues %s  deps %s" % (ph["phase"], ph["state"], ph["issues"] or "none", ",".join(ph["depends_on"]) or "-"))
+    for rq in report["requirements"]:
+        w("  requirement %s: %s (%s)" % (rq["id"], rq["coverage"], rq["phase"]))
+    for q in report["queue"]:
+        w("issue %s %s  phase %s%s" % (q["issue_id"], q["state"], q["phase"], "  waiting on " + ",".join(q["unmet_dependencies"]) if q["unmet_dependencies"] else ""))
+    for b in report["blockers"]:
+        w("blocked %s: %s  tasks %s  owned %s" % (b["issue_id"], b["reason"][:100], b["human_tasks"] or "-", b["owned"]))
+    for k in report["workers"]:
+        w("worker %s %s on %s branch %s elapsed %s retries %d tier %s model %s lease %.0fs" % (
+            k["attempt_id"], k["role"], k["issue"], k["branch"], "%.0fs" % k["elapsed_s"] if k["elapsed_s"] is not None else "?", k["retries"], k["tier"], k["model"], k["lease_expires_in_s"]))
+    for e in report["expired_leases"]:
+        w("EXPIRED LEASE %s (%.0fs ago)" % (e["attempt_id"], e["expired_s_ago"]))
+    for t in report["human_tasks"]:
+        w("human task %s [%s] %s owner %s age %.0fh reminders %d issues %s" % (t["task_id"], t["kind"], t["state"], t["owner"], t["age_s"] / 3600, t["reminders_sent"], ",".join(t["affected_issues"])))
+    for o in report["pending_sync"]:
+        w("pending sync %s (%s) %s" % (o["op_key"], o["status"], o["last_error"] or ""))
+    w("usage: " + report["usage"])
+    for text in report["limitations"]:
+        w("limitation: " + text)
+    if report.get("note"):
+        w(report["note"])
+    return "\n".join(out)

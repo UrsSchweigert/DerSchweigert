@@ -1,0 +1,24 @@
+{
+  "phases": [
+    {
+      "id": "P1",
+      "outcomes": ["Fixture foundation"],
+      "requirements": ["F1.1", "F1.2"],
+      "path_allowlist": ["tools/harness/fixtures/"],
+      "non_goals": ["Product changes"],
+      "dependencies": [],
+      "exit_criteria": ["Fixture checks pass"],
+      "validation": ["python3 -m pytest tools/harness/tests -q"]
+    },
+    {
+      "id": "P2",
+      "outcomes": ["Fixture follow-up"],
+      "requirements": ["F2.1"],
+      "path_allowlist": ["tools/harness/fixtures/"],
+      "non_goals": ["Product changes"],
+      "dependencies": ["P1"],
+      "exit_criteria": ["Fixture checks pass"],
+      "validation": ["python3 -m pytest tools/harness/tests -q"]
+    }
+  ]
+}
