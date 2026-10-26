@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { createStorage } from "../static/storage.mjs";
+import { recordAttempt, selectFlopDeck, flopCandidateCards } from "../static/scoring.mjs";
 
 /** Minimal in-memory stand-in for localStorage. */
 function createFakeStore() {
@@ -66,4 +67,25 @@ test("storage: handles missing store gracefully", () => {
     stats["Card C"] = { correct_count: 1, incorrect_count: 0 };
     storage.write(stats);
   });
+});
+
+test("storage: persists the +3 flop weight end-to-end", () => {
+  const store = createFakeStore();
+  const storage = createStorage(store);
+
+  const practice = storage.read();
+  recordAttempt(practice, "ta", false, { flop: false });
+  recordAttempt(practice, "am", true, { flop: false });
+  storage.write(practice);
+
+  const setupStats = createStorage(store).read();
+  const deck = selectFlopDeck(setupStats, flopCandidateCards(setupStats, ["t", "m", "a"]));
+  assert.deepStrictEqual(deck, ["ta"]);
+
+  const flopStats = createStorage(store).read();
+  recordAttempt(flopStats, deck[0], true, { flop: true });
+  createStorage(store).write(flopStats);
+
+  const persisted = createStorage(store).read();
+  assert.deepStrictEqual(persisted["ta"], { correct_count: 3, incorrect_count: 1 });
 });

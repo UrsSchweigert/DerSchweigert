@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { recordAttempt, selectFlopDeck } from "../static/scoring.mjs";
+import { recordAttempt, selectFlopDeck, flopCandidateCards } from "../static/scoring.mjs";
 
 test("recordAttempt: adds +1 to correct_count on correct answer in normal mode", () => {
   const stats = {};
@@ -139,4 +139,49 @@ test("selectFlopDeck: filters by allowedCards", () => {
   const deck = selectFlopDeck(stats, allowedCards);
   assert.ok(deck.includes("Card A") || deck.includes("Card B"));
   assert.ok(!deck.includes("Card C"));
+});
+
+test("flopCandidateCards: keeps history cards spelled with the selected sounds", () => {
+  const stats = {
+    ta: { correct_count: 1, incorrect_count: 1 },
+    am: { correct_count: 1, incorrect_count: 0 },
+    Hut: { correct_count: 0, incorrect_count: 1 },
+  };
+  const candidates = flopCandidateCards(stats, new Set(["t", "m", "a"]));
+  assert.deepStrictEqual(candidates.sort(), ["am", "ta"]);
+});
+
+test("flopCandidateCards: matches regardless of card casing", () => {
+  const stats = { Ta: { correct_count: 0, incorrect_count: 1 } };
+  assert.deepStrictEqual(flopCandidateCards(stats, ["t", "a"]), ["Ta"]);
+});
+
+test("flopCandidateCards: supports multi-character specials", () => {
+  const stats = {
+    sau: { correct_count: 0, incorrect_count: 1 },
+    sei: { correct_count: 0, incorrect_count: 1 },
+  };
+  assert.deepStrictEqual(flopCandidateCards(stats, ["s", "au"]), ["sau"]);
+});
+
+test("flopCandidateCards: ignores cards using unselected sounds", () => {
+  const stats = { mö: { correct_count: 0, incorrect_count: 1 } };
+  assert.deepStrictEqual(flopCandidateCards(stats, ["m", "a", "e"]), []);
+  assert.deepStrictEqual(flopCandidateCards(stats, ["m", "ö"]), ["mö"]);
+});
+
+test("flopCandidateCards: returns an empty list without stats or sounds", () => {
+  assert.deepStrictEqual(flopCandidateCards({}, ["a"]), []);
+  assert.deepStrictEqual(flopCandidateCards(null, ["a"]), []);
+  assert.deepStrictEqual(flopCandidateCards({ ta: { correct_count: 1, incorrect_count: 0 } }, []), []);
+});
+
+test("selectFlopDeck: deck built from history is min(ceil(10%), 30) and never empty", () => {
+  const stats = {};
+  for (let index = 0; index < 15; index++) {
+    stats[`t${index}`] = { correct_count: index, incorrect_count: 15 - index };
+  }
+  const deck = selectFlopDeck(stats, Object.keys(stats));
+  assert.strictEqual(deck.length, Math.min(Math.ceil(15 * 0.1), 30));
+  assert.ok(deck.length > 0);
 });

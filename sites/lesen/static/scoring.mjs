@@ -27,6 +27,61 @@ export function recordAttempt(stats, key, correct, { flop } = {}) {
 }
 
 /**
+ * Decide whether a card text can be spelled with the given sounds.
+ *
+ * Sounds may be single letters ("t", "a") or multi-character specials
+ * ("au", "ei"), so the text is matched by walking every possible split
+ * instead of checking character by character.
+ *
+ * @param {string} text - Card text (any casing)
+ * @param {Set<string>|readonly string[]} allowedSounds - Selected sounds
+ * @returns {boolean} true when the text is fully covered by the sounds
+ */
+function isSpellableWith(text, allowedSounds) {
+  const sounds = allowedSounds instanceof Set ? allowedSounds : new Set(allowedSounds);
+  if (!text || sounds.size === 0) {
+    return false;
+  }
+  const letters = [...text.toLowerCase()];
+  let longestSound = 1;
+  for (const sound of sounds) {
+    longestSound = Math.max(longestSound, [...sound].length);
+  }
+
+  const reachable = new Array(letters.length + 1).fill(false);
+  reachable[0] = true;
+  for (let index = 0; index < letters.length; index++) {
+    if (!reachable[index]) continue;
+    for (let length = 1; length <= longestSound && index + length <= letters.length; length++) {
+      if (sounds.has(letters.slice(index, index + length).join(""))) {
+        reachable[index + length] = true;
+      }
+    }
+  }
+  return reachable[letters.length];
+}
+
+/**
+ * Collect the card texts from the recorded history that match the current
+ * sound selection.
+ *
+ * Stats are keyed by card text (e.g. "ta", "Am", "Hut"), so Flop Training
+ * candidates have to be derived from the history itself rather than from
+ * freshly generated combinations.
+ *
+ * @param {object} stats - A map of card text to { correct_count, incorrect_count }
+ * @param {Set<string>|readonly string[]} allowedSounds - Selected consonants,
+ *   vowels and specials
+ * @returns {string[]} Card texts usable with the current selection
+ */
+export function flopCandidateCards(stats, allowedSounds) {
+  if (!stats || typeof stats !== "object") {
+    return [];
+  }
+  return Object.keys(stats).filter((text) => isSpellableWith(text, allowedSounds));
+}
+
+/**
  * Select cards for Flop Training (focused practice on weak cards).
  * 
  * Algorithm:
