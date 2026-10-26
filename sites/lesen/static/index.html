@@ -1266,7 +1266,7 @@
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
-        import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible } from './sounds.mjs';
+        import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards } from './scoring.mjs';
         import { createStorage } from './storage.mjs';
         import { t } from './i18n.mjs';
@@ -1275,7 +1275,7 @@
         window.__speech.warm();
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
-        window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible };
+        window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible, tokenizeWord };
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards };
         window.__storage = createStorage(window.localStorage);
         window.__i18n = { t };
@@ -1721,9 +1721,10 @@
 
             const selectedConsonants = [...consonants];
             const selectedVowels = [...vowels, ...specials];
-            const allowedLetters = new Set([...consonants, ...vowels]);
             const requestedTotal = Number(countInput.value);
             const maxLength = Number(wordLengthInput.value);
+            const { getSoundsForLanguage } = window.__sounds;
+            const allSpecials = getSoundsForLanguage(currentLanguage).specials;
             let words = [];
             if (pattern === 'WORDS') {
                 deckStarting = true;
@@ -1763,12 +1764,14 @@
                 total = flopCardTexts.length;
                 queue = shuffle(flopCardTexts).map(text => ({ text, misses: 0 }));
             } else if (pattern === 'WORDS') {
+                const { tokenizeWord } = window.__sounds;
+                const allowedUnits = new Set([...consonants, ...vowels, ...specials]);
                 const eligibleBySpelling = new Map();
                 for (const word of words) {
                     const key = word.toLowerCase();
-                    const letters = [...key];
-                    if (letters.length > 0 && letters.length <= maxLength
-                        && letters.every(letter => allowedLetters.has(letter)) && !eligibleBySpelling.has(key)) {
+                    const units = tokenizeWord(key, allSpecials);
+                    if (units.length > 0 && key.length <= maxLength
+                        && units.every(unit => allowedUnits.has(unit)) && !eligibleBySpelling.has(key)) {
                         eligibleBySpelling.set(key, word);
                     }
                 }
