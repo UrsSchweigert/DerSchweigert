@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 import subprocess
 import time
 
-from . import approval, assets, humantasks, isolation, plans, runner, schemas, status, workrecord
+from . import approval, assets, humantasks, investigate, isolation, plans, runner, schemas, status, workrecord
 from .github import GhCli, GitHubError
 from .approval import AuthorizationError, plan_entity
 from .store import Store, default_home
@@ -136,6 +136,55 @@ def runner_command(args) -> int:
         store.close()
 
 
+def investigate_command(args) -> int:
+    store = Store(args.home)
+    try:
+        iso = approval.detect_isolation(store)
+        if iso["tier"] != "A":
+            raise runner.RunRefused("investigate refused, Tier B: %s. Run `isolation verify` first" % iso["reason"])
+        root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+        clone = runner.trusted_clone(store.home, root, "main")
+        from .adapter import CopilotCliAdapter
+        adapter = CopilotCliAdapter(store.home, clone.path, "main")
+        probe = adapter.probe()
+        if not probe["available"]:
+            raise runner.RunRefused("the Copilot CLI sandbox adapter is unavailable: %s" % probe["reason"])
+        policy = plans.DEFAULT_POLICY
+        tiers = policy["model_tiers"]
+        candidates = sorted({m for v in tiers.values() for m in ([v] if isinstance(v, str) else v)})
+        available = runner.cached_models(adapter, store.home, candidates)
+        base = os.path.basename(args.requirements)
+        out = args.out or os.path.join(os.path.dirname(os.path.abspath(args.requirements)), base + "_plan")
+        interactive = not args.non_interactive and sys.stdin.isatty()
+        print("Starting the investigator (Ctrl+C stops it safely). Progress lines follow.", flush=True)
+        inv = investigate.Investigator(adapter, clone, policy, available, tier=args.tier, max_rounds=args.max_rounds, timeout=args.timeout,
+                                       log=lambda m: print(m, flush=True))
+        try:
+            result = inv.run(args.requirements, out, answers_file=args.answers, interactive=interactive, force=args.force)
+        except investigate.Aborted:
+            print("stopped. Your answers so far are saved: run the same command to continue")
+            return 130
+        if result["status"] == "needs_answers":
+            print("The investigator needs answers. See %s, then rerun with --answers FILE" % result["file"])
+            return 3
+        if result["status"] == "failed":
+            print("No valid draft after %d attempts. Problems:\n  - %s\nThe last rejected draft is in %s/rejected-draft.json" % (
+                result["attempts"], "\n  - ".join(result["problems"][:10]), out))
+            return 1
+        print("Draft written to %s: %d phases, %d issues (tier %s, model %s)" % (out, result["phases"], result["issues"], result["tier"], result["model"]))
+        for a in result["assumptions"]:
+            print("  assumption: " + a)
+        for f in result["flags"]:
+            print("  needs a human merge: " + f)
+        print("Review %s/investigation-report.md, then:\n  harness plan --requirements %s --phases %s/phases.json" % (out, args.requirements, out))
+        return 0
+    except (runner.RunRefused, investigate.InvestigationError) as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
 def responder_ids() -> List[str]:
     """Identities established by trusted code: the OS account and, when gh is authenticated, the GitHub login."""
     ids = [getpass.getuser()]
@@ -245,6 +294,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     ii.add_argument("plan_id")
     ii.add_argument("file")
     ii.add_argument("--version", type=int)
+    iv = sub.add_parser("investigate", help="draft phases and issues from requirements with the investigator (asks you questions when needed)")
+    iv.add_argument("--requirements", required=True)
+    iv.add_argument("--out", help="output directory (default: <requirements>_plan next to the requirements file)")
+    iv.add_argument("--tier", choices=["low", "standard", "strong"], default="standard")
+    iv.add_argument("--max-rounds", type=int, default=3, help="how many times the investigator may ask questions")
+    iv.add_argument("--non-interactive", action="store_true", help="write questions.md and stop instead of asking in the terminal")
+    iv.add_argument("--answers", help="JSON file mapping question id to answer, to continue a non-interactive run")
+    iv.add_argument("--timeout", type=float, default=1200.0, help="seconds per investigator attempt")
+    iv.add_argument("--force", action="store_true", help="replace an existing phases.json and issues.json")
     rp = sub.add_parser("respond", help="answer a human task through the trusted local command")
     rp.add_argument("task_id")
     rp.add_argument("--option")
@@ -284,6 +342,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         if args.cmd in ("run", "resume", "cancel", "import-issues"):
             return runner_command(args)
+        if args.cmd == "investigate":
+            return investigate_command(args)
         if args.cmd in ("respond", "tasks", "sync-tasks"):
             return task_command(args)
         if args.cmd == "assets":

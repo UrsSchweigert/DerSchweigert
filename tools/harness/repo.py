@@ -46,6 +46,9 @@ class Repo:
     def diff_text(self, branch: str, limit: int = 60000) -> str:
         raise NotImplementedError
 
+    def path_exists(self, path: str) -> bool:
+        raise NotImplementedError
+
     def export(self, rev: str, dest: str) -> None:
         raise NotImplementedError
 
@@ -99,6 +102,10 @@ class GitRepo(Repo):
             add, dele = line.split("\t")[:2]
             total += (int(add) if add.isdigit() else 0) + (int(dele) if dele.isdigit() else 0)
         return total
+
+    def path_exists(self, path: str) -> bool:
+        """Does a file or directory exist at the base revision?"""
+        return self._exec("cat-file", "-e", "%s:%s" % (self.base, path.strip("/"))).returncode == 0
 
     def diff_text(self, branch: str, limit: int = 60000) -> str:
         return self._git("diff", self.merge_base(branch), "refs/heads/" + branch)[:limit]

@@ -54,6 +54,9 @@ class FakeRepo(Repo):
     def diff_text(self, branch, limit=60000):
         return "diff of " + branch
 
+    def path_exists(self, path):
+        return path.strip("/") in getattr(self, "existing", set())
+
     def rebase(self, branch):
         self.rebased.append(branch)
         b = self.branches[branch]

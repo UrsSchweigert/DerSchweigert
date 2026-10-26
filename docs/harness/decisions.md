@@ -74,6 +74,14 @@ GitHub cannot enforce protection on this repository, so the harness and the owne
 * `status` reports "branch protection: by convention only" so the gap stays visible.
 * Upgrading the plan or making the repository public would turn these into enforced rules. The probe detects that automatically.
 
+## Investigator pass (added after Stage 5, 2026-10-26)
+
+* `harness investigate` automates the investigator role: real Copilot CLI in the Tier A sandbox, interactive questions (or `--non-interactive` plus `--answers`), code-side validation, and a report. It never approves or writes to GitHub.
+* Deliberate deviation from the default role mapping: the investigator starts on `standard` instead of `low`, because drafting a whole plan is not a small bounded task and one approval rests on it. A rejected draft moves up a tier on evidence. `--tier low` restores the default.
+* Escalation matching now also matches by file name for entries without a directory, so `sites/lesen/package.json` counts as `package.json`. Before this, nested dependency manifests would have bypassed the escalation rule. `build.gradle`, `settings.gradle` and `AndroidManifest.xml` (Android build and permissions) were added to the default escalation paths.
+* Adapter fix found by the live test: the CLI refused to read `/work/task.json` for some models because it lies outside the starting directory. Workers now run with `--allow-all-paths`, which is safe only because the container is the boundary.
+* Verified live: the real investigator produced a plan for a small throwaway app that passed all validation rules.
+
 ## Stage 5: Human Tasks, Monitoring, and Delivery (built 2026-10-26)
 
 * Human tasks (`decision`, `asset`, `manual_test`) carry the reason, request, response format, resolution criteria, options, owner, secondary owner, and deadline. They block dependent issues (manual tests do not block an issue that is In Review). Notifications are deduplicated per task round and survive restarts. Reminders: after 24 h, at most 3. Escalation to the secondary owner at 72 h. Silence changes nothing.
