@@ -133,12 +133,138 @@ const DE = {
 };
 
 /**
+ * English translation dictionary.
+ * Contains all user-visible strings from the application in English.
+ */
+const EN = {
+  // Brand and main headings
+  'app.title': 'Buchstabenzeit',
+  'setup.title': 'Learn to read, card by card.',
+  'setup.intro': 'Assemble your letter cards and read at your own pace. Every small step counts!',
+  'practice.title': 'Your reading cards',
+  'complete.title': 'All cards completed!',
+  
+  // Setup form labels
+  'setup.consonants': 'Consonants',
+  'setup.vowels': 'Vowels',
+  'setup.specials': 'Special characters',
+  'setup.pattern': 'Letter sequence',
+  'setup.pattern.cv': 'Consonant + Vowel',
+  'setup.pattern.vc': 'Vowel + Consonant',
+  'setup.pattern.words': 'Words',
+  'setup.pattern.words_desc': 'Matching words',
+  'setup.pattern.flop': 'Flop Training',
+  'setup.pattern.flop_desc': 'The trickiest cards',
+  'setup.wordlength': 'Maximum word length',
+  'setup.cardcount': 'Number of cards',
+  'setup.start': 'Start reading',
+  'setup.start_loading': 'Loading words …',
+  
+  // Setup validation messages
+  'setup.error.selection': 'Please select at least one consonant and one vowel.',
+  'setup.error.wordlist': 'The word list could not be loaded. Please try again.',
+  'setup.error.no_flop': 'No flop cards available.',
+  'setup.error.no_words': 'No matching words found. Select more letters or a different word length.',
+  'setup.warning.min_words': 'Minimum 10 words required',
+  'setup.warning.no_history': 'No matching card history available yet',
+  
+  // Practice screen
+  'practice.stats.cleared': 'completed',
+  'practice.stats.remaining': 'remaining',
+  'practice.stats.total': 'total',
+  'practice.review_label': 'Review',
+  'practice.button.finish': 'Selection',
+  'practice.button.speak': 'Read aloud',
+  'practice.button.retry': 'Practice more',
+  'practice.button.correct': 'Read correctly',
+  
+  // Feedback messages
+  'feedback.card_done': 'Card completed.',
+  'feedback.try_again': 'Try again.',
+  'feedback.try_later': 'This card will come up again at the end.',
+  'feedback.tts_unsupported': 'Text-to-speech is not supported by this browser.',
+  'feedback.tts_no_voice': 'No English voice available. Please enable an English voice in your device settings.',
+  'feedback.tts_error': 'Could not play the English pronunciation.',
+  
+  // Complete screen
+  'complete.button.again': 'New round',
+  'complete.button.change': 'Change letters',
+  
+  // Confirm end dialog
+  'dialog.confirm_end.title': 'End practice?',
+  'dialog.confirm_end.text': 'Do you want to end the current practice and return to the selection?',
+  'dialog.confirm_end.cancel': 'Continue practicing',
+  'dialog.confirm_end.confirm': 'End',
+  
+  // TTS disclaimer dialog
+  'dialog.tts_disclaimer.title': 'About read aloud',
+  'dialog.tts_disclaimer.text': 'Read aloud uses your device\'s text-to-speech feature. Sound quality and availability depend on your device\'s accessibility settings.',
+  'dialog.tts_disclaimer.extra': 'Since the syllables are not always real words, the pronunciation may sound unusual.',
+  'dialog.tts_disclaimer.close': 'Got it',
+  
+  // About dialog
+  'dialog.about.title': 'About Buchstabenzeit',
+  'dialog.about.version': 'Version 1.0',
+  'dialog.about.intro': 'Buchstabenzeit is guided reading practice. An adult chooses the cards, guides the child through reading, and marks the answers.',
+  'dialog.about.privacy': 'Privacy',
+  'dialog.about.privacy_text': 'This app collects no personal data, has no user accounts, no ads, and no analytics. It works completely offline and requires no internet connection.',
+  'dialog.about.tts_privacy': 'Read aloud uses your device\'s installed text-to-speech feature. This is a separate service from your device; what data it processes is determined by your device settings, not by this app. Buchstabenzeit only requests locally installed voices and does not send any data to the internet.',
+  'dialog.about.licenses': 'Content & Licenses',
+  'dialog.about.wordlist': 'Word list: FrequencyWords & Wiktionary, CC BY-SA 4.0 – ',
+  'dialog.about.font': 'Font: Andika, SIL Open Font License 1.1 – ',
+  
+  // Pluralization support
+  'unit.card': 'card',
+  'unit.cards': 'cards',
+  'unit.attempt': 'attempt',
+  'unit.attempts': 'attempts',
+  'unit.attempts_dat': 'attempts',
+  'unit.selected': 'selected',
+  'unit.in_flop': 'in flop training',
+  'unit.in': 'in',
+
+  // About dialog license link (used as anchor text for license links)
+  'dialog.about.license_link': 'License',
+
+  // About dialog full privacy policy link
+  'dialog.about.privacy_link': 'Full privacy policy',
+
+  // About dialog close button
+  'dialog.about.close': 'Close',
+
+  // Document title shown in the browser tab
+  'app.title_full': 'Buchstabenzeit | Reading Practice',
+
+  // Fallback feedback when no matching words are found for the Words pattern
+  'feedback.pattern_fallback': 'No matching words found – here come syllable patterns.',
+
+  // Suffix for the completion summary sentence ("{cards} in {attempts} richtig gelesen.")
+  'complete.summary_suffix': 'read correctly.',
+
+  // Setup screen: adult guidance note (details/summary block)
+  'setup.adult_note.summary': 'Tips for adults',
+  'setup.adult_note.text_1': 'Buchstabenzeit is guided reading practice: An adult chooses the cards, guides the child through reading, and marks the answers.',
+  'setup.adult_note.text_2': 'Read aloud is optional help. It requires an English voice installed on your device and works offline only if a matching voice is available. With very short letter sequences, the pronunciation may differ from natural speech.',
+  'setup.adult_note.text_3': 'The practice works completely without sound.',
+
+  // Footer
+  'footer.tagline': 'Buchstabenzeit · Every day a little bit further.',
+  'footer.wordlist_prefix': 'Word list: ',
+  'footer.wordlist_license': 'FrequencyWords & Wiktionary, CC BY-SA 4.0',
+  'footer.separator': ' · ',
+  'footer.font_prefix': 'Font: ',
+  'footer.font_license': 'Andika (SIL Open Font License 1.1)',
+  'footer.about_button': 'Legal & Privacy',
+};
+
+/**
  * Language-specific dictionaries.
- * Currently only contains German (de).
- * Future expansions would add 'en', 'fr', etc.
+ * Currently contains German (de) and English (en).
+ * Future expansions would add 'fr', etc.
  */
 const dictionaries = {
   de: DE,
+  en: EN,
 };
 
 /**
@@ -160,4 +286,5 @@ export function t(lang, key) {
   return dictionary[key] ?? key;
 }
 
+export { DE, EN };
 export default { t };

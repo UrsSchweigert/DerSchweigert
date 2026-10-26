@@ -1,6 +1,20 @@
 import test from "node:test";
 import assert from "node:assert";
-import { t } from "../static/i18n.mjs";
+import { t, DE, EN } from "../static/i18n.mjs";
+
+test("i18n: every key present in 'de' has a corresponding 'en' entry", () => {
+  // Get all keys from the German dictionary
+  const deKeys = Object.keys(DE);
+  
+  // Check that EN dictionary has all the same keys
+  const missingInEn = deKeys.filter(key => !(key in EN));
+  
+  assert.deepStrictEqual(
+    missingInEn,
+    [],
+    `the following keys from German dictionary are missing in English dictionary: ${missingInEn.join(", ")}`,
+  );
+});
 
 test("i18n: t() returns the translated string for a valid German key", () => {
   assert.strictEqual(t("de", "setup.title"), "Lesen lernen, Karte für Karte.");
@@ -14,8 +28,13 @@ test("i18n: t() falls back to the key itself if not found", () => {
 });
 
 test("i18n: t() falls back to the key for unsupported languages", () => {
-  assert.strictEqual(t("en", "setup.title"), "setup.title");
+  assert.strictEqual(t("fr", "setup.title"), "setup.title");
   assert.strictEqual(t("fr", "practice.title"), "practice.title");
+});
+
+test("i18n: t() returns English translations for 'en' language", () => {
+  assert.strictEqual(t("en", "setup.title"), "Learn to read, card by card.");
+  assert.strictEqual(t("en", "practice.title"), "Your reading cards");
 });
 
 test("i18n: German dictionary covers setup form strings", () => {
