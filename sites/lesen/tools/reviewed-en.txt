@@ -1,0 +1,18 @@
+# Child-friendly opt-in vocabulary, manually reviewed, 2026-10-26.
+# All lowercase entries are EXACT word forms.
+# The frequency-source top 5,000 is always an additional requirement.
+# Only common, safe, early-reading words are included.
+
+a about after all and are at back be been before being big bird
+blue book boy but by can came cat come cut day did dog down
+each eat even eyes face far feel find first fish for found from fun
+gave girl go goes going good got had hand has have he her here
+hers him his home house how i if in into is it jump just keep kind
+know last left let like line live long look made man many me mice
+more most move much must my name never new no not now of off on
+only or other our out over play put ran read ride right run said
+same saw say see she show side small some sun take tell ten than that
+the them then these they this time to today too tree two up us use
+very walk want was we went were what when where which who will with
+yes you young
+

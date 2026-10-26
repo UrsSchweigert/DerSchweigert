@@ -1266,7 +1266,7 @@
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
-        import { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible } from './sounds.mjs';
+        import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards } from './scoring.mjs';
         import { createStorage } from './storage.mjs';
         import { t } from './i18n.mjs';
@@ -1275,7 +1275,7 @@
         window.__speech.warm();
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
-        window.__sounds = { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible };
+        window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible };
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards };
         window.__storage = createStorage(window.localStorage);
         window.__i18n = { t };
@@ -1291,7 +1291,7 @@
         let total = 0;
         let cleared = 0;
         let attempts = 0;
-        let germanWordsPromise = null;
+        let wordPromises = { de: null, en: null };
         let deckStarting = false;
         let stats = window.__storage.read();
         let currentPattern = 'CV';
@@ -1308,9 +1308,43 @@
                 btn.classList.toggle('active', btn.dataset.lang === lang);
             });
 
+            // Reset selected letters and rebuild them for the new language
+            const sounds = window.__sounds.getSoundsForLanguage(lang);
+            consonants.clear();
+            vowels.clear();
+            specials.clear();
+            
+            // Set some reasonable defaults for the new language
+            if (lang === 'en') {
+                // English defaults: common starting letters
+                for (const letter of ['m', 's', 't', 'b', 'c']) {
+                    consonants.add(letter);
+                }
+                for (const letter of ['a', 'e', 'o']) {
+                    vowels.add(letter);
+                }
+            } else {
+                // German defaults
+                for (const letter of ['m', 's', 't', 'p', 'n']) {
+                    consonants.add(letter);
+                }
+                for (const letter of ['a', 'e', 'o']) {
+                    vowels.add(letter);
+                }
+            }
+            
+            // Clear and rebuild the letter buttons
+            byId('consonants').innerHTML = '';
+            byId('vowels').innerHTML = '';
+            byId('specials').innerHTML = '';
+            buildLetters('consonants', sounds.consonants, consonants);
+            buildLetters('vowels', sounds.vowels, vowels);
+            buildLetters('specials', sounds.specials, specials);
+
             // Re-render all current on-screen text (and the text of hidden
             // screens/dialogs, so it is ready the next time they are shown).
             updateAllText();
+            updateSelectionCounts();
         }
 
         function tr(key) {
@@ -1423,16 +1457,16 @@
         }
 
         async function updateWordMatchCount() {
-            if (!germanWordsPromise) {
+            if (!wordPromises[currentLanguage]) {
                 try {
-                    germanWordsPromise = loadGermanWords();
+                    wordPromises[currentLanguage] = loadWordsForLanguage(currentLanguage);
                 } catch {
                     return;
                 }
             }
             
             try {
-                const words = await germanWordsPromise;
+                const words = await wordPromises[currentLanguage];
                 const { countMatchingWords, isWordsModeEligible } = window.__sounds;
                 const wordLength = Number(byId('word-length').value);
                 const matchCount = countMatchingWords(words, { consonants: [...consonants], vowels: [...vowels] }, wordLength);
@@ -1616,26 +1650,27 @@
             byId('review-label').hidden = queue[0].misses === 0;
         }
 
-        async function loadGermanWords() {
-            if (!germanWordsPromise) {
-                germanWordsPromise = fetch('words-de.json')
-                    .then(response => {
-                        if (!response.ok) throw new Error('Wörterliste nicht verfügbar');
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (!data || typeof data.source !== 'string' || typeof data.license !== 'string'
-                            || !Array.isArray(data.words) || !data.words.every(word => typeof word === 'string')) {
-                            throw new Error('Ungültige Wörterliste');
-                        }
-                        return data.words;
-                    })
-                    .catch(error => {
-                        germanWordsPromise = null;
-                        throw error;
-                    });
-            }
-            return germanWordsPromise;
+        async function loadWordsForLanguage(lang) {
+            const filename = lang === 'en' ? 'words-en.json' : 'words-de.json';
+            const promise = fetch(filename)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(lang === 'en' ? 'Word list not available' : 'Wörterliste nicht verfügbar');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (!data || typeof data.source !== 'string' || typeof data.license !== 'string'
+                        || !Array.isArray(data.words) || !data.words.every(word => typeof word === 'string')) {
+                        throw new Error(lang === 'en' ? 'Invalid word list' : 'Ungültige Wörterliste');
+                    }
+                    return data.words;
+                })
+                .catch(error => {
+                    wordPromises[lang] = null;
+                    throw error;
+                });
+            return promise;
         }
 
         function updatePatternControls() {
@@ -1688,7 +1723,10 @@
                 deckStarting = true;
                 setStartLoading(true);
                 try {
-                    words = await loadGermanWords();
+                    if (!wordPromises[currentLanguage]) {
+                        wordPromises[currentLanguage] = loadWordsForLanguage(currentLanguage);
+                    }
+                    words = await wordPromises[currentLanguage];
                 } catch {
                     byId('setup-error').textContent = tr('setup.error.wordlist');
                     return;
@@ -1826,11 +1864,6 @@
             document.querySelector('#setup button').focus();
         }
 
-        buildLetters('consonants', 'bcdfghjklmnpqrstvwxyzß', consonants);
-        buildLetters('vowels', 'aeiou', vowels);
-        buildLetters('specials', ['ä', 'ö', 'ü', 'au', 'ei', 'ie', 'eu'], specials);
-        updateSelectionCounts();
-        updatePatternControls();
         document.querySelectorAll('.lang-btn').forEach(btn => {
             btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
         });

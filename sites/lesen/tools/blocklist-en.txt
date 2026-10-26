@@ -1,0 +1,77 @@
+# Defense in depth: case-insensitive shell-style patterns, one per line.
+# All source words also require the reviewed opt-in vocabulary. This is NOT
+# a stand-alone guarantee that arbitrary subtitle vocabulary is child-safe.
+
+# Sexual content, anatomy, exploitation, vulgarities
+*sex*
+*porn*
+*erotic*
+*orgasm*
+*orgy*
+*penis*
+*vagina*
+*vulva*
+*genital*
+*breast*
+*boob*
+*nipple*
+*dick*
+*pussy*
+*fuck*
+*shit*
+*ass*
+*naked*
+*strip*
+*rape*
+
+# Violence, weapons, death, threats, crime
+*murder*
+*kill*
+*die*
+*dead*
+*death*
+*gun*
+*bomb*
+*war*
+*fight*
+*stab*
+*blood*
+*wound*
+*hurt*
+*torture*
+*terror*
+*rape*
+*steal*
+*rob*
+*thief*
+
+# Drugs, alcohol, smoking, gambling
+*drug*
+*cocaine*
+*heroin*
+*weed*
+*pot*
+*meth*
+*alcohol*
+*beer*
+*wine*
+*whiskey*
+*vodka*
+*smoke*
+*cigarette*
+*cigar*
+*gambling*
+*casino*
+
+# Slurs and strong profanity
+*ass*
+*bastard*
+*bitch*
+*damn*
+*hell*
+*devil*
+*demon*
+*racist*
+*racist*
+piss*
+

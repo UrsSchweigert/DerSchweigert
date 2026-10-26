@@ -6,17 +6,46 @@
  */
 
 /** German consonant alphabet shown as individually selectable letters. */
-export const CONSONANTS = Object.freeze([..."bcdfghjklmnpqrstvwxyzß"]);
+const CONSONANTS_DE = Object.freeze([..."bcdfghjklmnpqrstvwxyzß"]);
 
 /** German vowel alphabet shown as individually selectable letters. */
-export const VOWELS = Object.freeze([..."aeiou"]);
+const VOWELS_DE = Object.freeze([..."aeiou"]);
 
 /**
  * German "special" sounds: umlauts and the common diphthongs. These are not
  * plain single letters (diphthongs are two characters), but they behave like
  * extra vowel-slot fillers when building CV/VC-style letter combinations.
  */
-export const SPECIALS = Object.freeze(["ä", "ö", "ü", "au", "ei", "ie", "eu"]);
+const SPECIALS_DE = Object.freeze(["ä", "ö", "ü", "au", "ei", "ie", "eu"]);
+
+/** English consonant alphabet shown as individually selectable letters. */
+const CONSONANTS_EN = Object.freeze([..."bcdfghjklmnpqrstvwxyz"]);
+
+/** English vowel alphabet shown as individually selectable letters. */
+const VOWELS_EN = Object.freeze([..."aeiou"]);
+
+/**
+ * English "special" sounds: common consonant digraphs and vowel digraphs/diphthongs.
+ * These behave like extra vowel-slot fillers when building CV/VC-style letter combinations.
+ */
+const SPECIALS_EN = Object.freeze(["sh", "ch", "th", "oo", "ee", "ai", "ou"]);
+
+/**
+ * Get language-specific consonants, vowels, and specials.
+ * @param {string} lang language code ('de' or 'en')
+ * @returns {{consonants: readonly string[], vowels: readonly string[], specials: readonly string[]}}
+ */
+export function getSoundsForLanguage(lang) {
+  if (lang === 'en') {
+    return { consonants: CONSONANTS_EN, vowels: VOWELS_EN, specials: SPECIALS_EN };
+  }
+  return { consonants: CONSONANTS_DE, vowels: VOWELS_DE, specials: SPECIALS_DE };
+}
+
+// Export defaults for German (backward compatibility)
+export const CONSONANTS = CONSONANTS_DE;
+export const VOWELS = VOWELS_DE;
+export const SPECIALS = SPECIALS_DE;
 
 /** Number of distinct eligible words required to unlock Words Mode. */
 export const WORDS_MODE_THRESHOLD = 10;
