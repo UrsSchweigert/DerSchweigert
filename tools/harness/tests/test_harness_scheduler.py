@@ -5,6 +5,9 @@ from harness.store import Store
 from harness_doubles import Env
 
 
+LONG_BUDGETS = {"lease_s": 10**7, "run_wall_clock_s": 10**8, "worker_timeout_s": 10**7, "inactivity_timeout_s": 10**7}
+
+
 def done(env, *ids):
     return lambda: all(env.state(i) == "Done" for i in ids)
 
@@ -204,3 +207,71 @@ def test_authorization_tamper_pauses_execution(tmp_path):
     assert env.store.active_claims() == []
     with pytest.raises(approval.AuthorizationError):
         env.sched.start(env.clock())
+
+
+# -- pause ------------------------------------------------------------------------------------------------------------
+
+def test_graceful_pause_lets_the_active_worker_finish_then_stops_and_resume_continues(tmp_path):
+    from harness import runner
+    env = Env(tmp_path, issues=[("a", "P1", ["F1.1"]), ("b", "P1", ["F1.2"])], budgets=dict(LONG_BUDGETS))
+    env.adapter.script("a", "implementer", "busy")
+    env.start()
+    env.tick()
+    assert env.sched.active_attempts() == ["a#1"]
+    assert runner.request_pause(env.store, "fx", 1) == "Executing"  # a worker is active, so the pause is only requested
+    env.tick()
+    assert env.store.state("plan", "fx@v1") == "Executing" and env.sched.active_attempts() == ["a#1"]
+    assert not [r for r in env.adapter.started if r.issue_id == "b"]  # nothing new starts while pausing
+    env.sched.handles["a#1"]["handle"].step = "ok"
+    events = env.tick()
+    assert env.store.state("plan", "fx@v1") == "Paused" and any(e["event"] == "paused" for e in events)
+    assert env.state("a") == "In Review"
+    assert env.tick() == []  # a paused plan schedules nothing
+    env.sched.start(env.clock())
+    assert env.store.state("plan", "fx@v1") == "Executing" and not env.store.get_run("fx").get("pause_requested")
+    env.run_until(lambda: env.state("a") == "Done" and env.state("b") == "Done")
+
+
+def test_pause_now_cancels_active_workers_and_requeues_their_issues(tmp_path):
+    from harness import runner
+    env = Env(tmp_path, budgets=dict(LONG_BUDGETS))
+    env.adapter.script("i1", "implementer", "busy")
+    env.start()
+    env.tick()
+    runner.request_pause(env.store, "fx", 1, now_flag=True)
+    env.tick()
+    assert env.store.state("plan", "fx@v1") == "Paused" and "i1#1" in env.adapter.cancelled
+    assert env.state("i1") == "Ready" and env.store.active_claims() == []
+    env.sched.start(env.clock())
+    env.run_until(lambda: env.state("i1") == "Done")
+
+
+def test_pausing_an_idle_plan_is_immediate(tmp_path):
+    from harness import runner
+    env = Env(tmp_path)
+    env.start()
+    assert runner.request_pause(env.store, "fx", 1) == "Paused"
+    assert env.store.state("plan", "fx@v1") == "Paused"
+
+
+def test_only_a_running_plan_can_be_paused(tmp_path):
+    import pytest as _pytest
+    from harness import runner
+    env = Env(tmp_path)
+    with _pytest.raises(runner.RunRefused, match="Approved"):
+        runner.request_pause(env.store, "fx", 1)
+
+
+def test_status_and_cli_report_a_requested_pause(tmp_path, capsys):
+    from harness import cli, runner, status
+    env = Env(tmp_path, budgets=dict(LONG_BUDGETS))
+    env.adapter.script("i1", "implementer", "busy")
+    env.start()
+    env.tick()
+    assert cli.main(["--home", env.store.home, "pause", "fx"]) == 0
+    assert "pause requested" in capsys.readouterr().out
+    assert "PAUSE REQUESTED" in status.render(status.build_report(env.store.home, env.clock()))
+    assert cli.main(["--home", env.store.home, "pause", "fx", "--now"]) == 0
+    env.tick()
+    assert "PAUSED" in status.render(status.build_report(env.store.home, env.clock()))
+    assert cli.main(["--home", env.store.home, "pause", "fx"]) == 2  # already paused

@@ -363,3 +363,38 @@ def test_a_failed_refresh_is_reported_not_ignored(remote_world, tmp_path):
     gh.prs[100] = {"title": "t", "head": "harness/i1", "base": "main", "state": "open", "sha": ""}
     with pytest.raises(GitHubError, match="could not refresh"):
         pub.merge({"issue_id": "i1"}, 100, "abc")
+
+
+def test_a_reviewer_workdir_is_checked_out_at_the_branch_under_review(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    open(os.path.join(src, "f.txt"), "w").write("base\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    trusted = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", src, trusted)
+    git(src, "checkout", "-q", "-b", "harness/i1")
+    open(os.path.join(src, "new.txt"), "w").write("implemented\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "work")
+    git(str(tmp_path), "--git-dir", trusted, "fetch", "-q", src, "+refs/heads/harness/i1:refs/heads/harness/i1")
+    reviewed = git(src, "rev-parse", "HEAD")
+    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    reviewer = a._prepare(WorkRequest("i1#2", 1, "i1", "reviewer", "strong", None, {}, "harness/i1"))
+    implementer = a._prepare(WorkRequest("i1#3", 1, "i1", "implementer", "standard", None, {}, "harness/i1"))
+    assert git(os.path.join(reviewer, "repo"), "rev-parse", "HEAD") == reviewed and os.path.exists(os.path.join(reviewer, "repo", "new.txt"))
+    assert not os.path.exists(os.path.join(implementer, "repo", "new.txt"))  # implementers still start from main
+    prompt = open(os.path.join(reviewer, "prompt.txt")).read()
+    assert "reviewed_head" in prompt and "checked out at the head under review" in prompt
+
+
+@pytest.mark.parametrize("role,allowed", [("implementer", '"outcome": "done"'), ("reviewer", '"outcome": "approve"'), ("refiner", '"outcome": "ready"')])
+def test_each_role_is_told_its_own_outcome_values(role, allowed):
+    prompt = build_prompt(WorkRequest("a#1", 1, "i", role, "standard", None, {}, "b"))
+    assert allowed in prompt
+    if role == "reviewer":
+        assert '"approve" or "changes_requested"' in prompt and '"outcome": "done"' not in prompt
+    if role == "refiner":
+        assert 'exactly "ready"' in prompt

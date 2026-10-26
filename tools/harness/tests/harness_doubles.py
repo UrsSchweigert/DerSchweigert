@@ -71,12 +71,15 @@ class FakeRepo(Repo):
 class FakeChecker(Checker):
     def __init__(self):
         self.calls = []
+        self.commands_run = []
         self.fail_commands = set()
         self.fail_next = 0
+        self.fail_calls = set()  # 1-based call numbers that fail, to fail only after a merge
 
     def run(self, issue_id, head_rev, commands):
         self.calls.append((issue_id, head_rev))
-        failing = self.fail_next > 0 or any(c in self.fail_commands for c in commands)
+        self.commands_run.append(list(commands))
+        failing = self.fail_next > 0 or any(c in self.fail_commands for c in commands) or len(self.calls) in self.fail_calls
         if self.fail_next > 0:
             self.fail_next -= 1
         return [{"command": c, "exit_code": 1 if failing else 0} for c in commands]
@@ -140,7 +143,9 @@ class FakeAdapter(Adapter):
             result.update(outcome=verdict, revision="someone-elses-head" if step == "wrong_revision" else self.repo.branch_head(branch),
                           risks=["finding"] if verdict != "approve" else [])
         elif req.role == "refiner":
-            result["outcome"] = "ready"
+            result["outcome"] = "needs_input" if step == "needs_input" else "not_sure" if step == "not_sure" else "ready"
+            if step in ("needs_input", "not_sure"):
+                result["blockers"] = ["The spec does not say whether the disclaimer repeats after a reload."]
         return Poll("finished", now, result, None)
 
     def cancel(self, h):

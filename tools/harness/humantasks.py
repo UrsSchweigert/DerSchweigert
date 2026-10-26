@@ -2,6 +2,7 @@
 and automatic release of the work that waits on them. Silence never moves a task forward."""
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence
@@ -13,7 +14,16 @@ from .store import Store
 KINDS = ("asset", "decision", "manual_test")
 OPEN_STATES = ("Requested", "Acknowledged", "Submitted", "Validated")
 TRUSTED_SOURCES = ("local", "github")
-DECISION_OPTIONS = ["refine the scope", "supply guidance or an asset", "accept a different approach", "cancel the issue"]
+DECISION_OPTIONS = ["retry as is", "give guidance and retry", "refine the scope", "cancel the issue"]
+OPTION_HELP = {
+    "retry as is": "Run the next step again with no changes. Choose this when the cause looks like a fluke or a fault in the harness or its tools.",
+    "give guidance and retry": "Retry, and pass your hint to the worker with --guidance \"...\". Choose this when you know what the worker got wrong.",
+    "refine the scope": "Send the issue back to be re-planned before another attempt. Choose this when the issue itself is unclear or too big.",
+    "cancel the issue": "Drop this issue. Work that depends on it will not run.",
+    # Labels used by tasks raised before the wording was clarified.
+    "supply guidance or an asset": "Retry, optionally with your hint (--guidance). The 'asset' part only matters for tasks that ask for a file.",
+    "accept a different approach": "Retry, optionally with your hint (--guidance).",
+}
 MANUAL_FIELDS = ("build_ref", "commit", "environment", "device_or_browser", "preconditions", "test_data", "steps", "expected", "evidence_required")
 MAX_ARTIFACT_BYTES = 50 * 1024 * 1024
 
@@ -150,6 +160,9 @@ def respond(store: Store, task_id: str, *, responder_ids: Iterable[str], source:
     task = _open_task(store, task_id)
     _check_source(task, responder_ids, source)
     p = task["payload"]
+    option = str(answers.get("option", "")).strip()
+    if p["kind"] == "decision" and option.isdigit() and 1 <= int(option) <= len(p["options"]):
+        answers = dict(answers, option=p["options"][int(option) - 1])  # a number picks the option from the list
     store.transition("human_task", task_id, "Submitted", "responder", {"by": sorted(_norm(responder_ids))[:3]}, now=now)
     problem = _validate_content(store, task, answers, artifacts)
     if problem is None and p["kind"] == "asset":
@@ -211,7 +224,8 @@ def _release(store: Store, task: Dict[str, Any], outcome: str, answers: Dict[str
             if option == "cancel the issue":
                 issue["cancelled"] = True
             else:
-                issue["guidance"] = (issue.get("guidance", []) + [answers.get("guidance", option)])[-5:]
+                if str(answers.get("guidance", "")).strip():
+                    issue["guidance"] = (issue.get("guidance", []) + [str(answers["guidance"]).strip()])[-5:]
                 issue["blocked_reason"] = ""
                 issue["transient_failures"] = issue["repair_failures"] = 0
                 if state == "Blocked":
@@ -313,3 +327,23 @@ def tick_tasks(store: Store, notifier: Notifier, now: float, budgets: Dict[str, 
         if p.get("deadline") and now > p["deadline"] and notify_once(store, notifier, "%s:r%d:deadline" % (tid, rnd), p["owner"], "deadline passed", summary(task), task, now):
             events.append({"event": "task_deadline_passed", "task": tid})
     return events
+
+
+def render_task(task: Dict[str, Any]) -> str:
+    """A task a human can answer without reading anything else: what happened, what each option does, and the exact command."""
+    p, tid = task["payload"], task["task_id"]
+    out = ["%s  [%s] %s  owner %s  issues %s" % (tid, p["kind"], task["state"], p["owner"], ", ".join(p["issue_ids"])), "  Why: " + p["why"]]
+    if p["kind"] == "decision":
+        out.append("  This is the harness asking you, not a request from a reviewer or a worker. It stopped by itself and needs your call.")
+        extra = p.get("extra", {})
+        for f in extra.get("evidence", [])[-3:]:
+            out.append("  Failure: %s (%s, %s) %s" % (f.get("kind"), f.get("class"), f.get("role"), str(f.get("detail", ""))[:160]))
+        out.append("  Options:")
+        for n, o in enumerate(p["options"], 1):
+            out.append("    %d) %s: %s" % (n, o, extra.get("option_help", {}).get(o) or OPTION_HELP.get(o, "")))
+        out.append("  Answer with, for example:")
+        out.append("    harness respond %s --option 1" % tid)
+        out.append("    harness respond %s --option 2 --guidance \"what the worker should do differently\"" % tid)
+    else:
+        out += ["  Request: " + p["request"], "  Respond with: " + json.dumps(p["response_format"], sort_keys=True), "  Done when: " + p["resolution_criteria"]]
+    return "\n".join(out)

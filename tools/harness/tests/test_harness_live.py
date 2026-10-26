@@ -128,3 +128,74 @@ def test_real_investigator_drafts_a_valid_plan_for_a_small_app(tmp_path, monkeyp
     assert os.path.isdir(os.path.join(out, "history", "rev-1"))
     by_req = {r: p["id"] for p in phases for r in p["requirements"]}
     assert by_req["1.1"] != by_req["1.2"]
+
+
+def test_real_reviewer_reports_the_head_it_reviewed(tmp_path):
+    """Regression: a real reviewer must echo reviewed_head, and its repo copy must be at that head."""
+    src = tmp_path / "src"
+    src.mkdir()
+    run = lambda *a: subprocess.run(["git"] + list(a), cwd=str(src), env=ENV, check=True, capture_output=True, text=True)  # noqa: E731
+    run("init", "-q", "-b", "main")
+    (src / "greet.js").write_text("export const greet = (n) => 'Hello ' + n;\n")
+    run("add", "-A")
+    run("commit", "-q", "-m", "init")
+    trusted = tmp_path / "trusted.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(src), str(trusted)], check=True, env=ENV)
+    run("checkout", "-q", "-b", "harness/rev1")
+    (src / "greet.js").write_text("export const greet = (n) => 'Hello ' + n + '!';\n")
+    run("add", "-A")
+    run("commit", "-q", "-m", "exclaim")
+    head = run("rev-parse", "HEAD").stdout.strip()
+    subprocess.run(["git", "--git-dir", str(trusted), "fetch", "-q", str(src), "+refs/heads/harness/rev1:refs/heads/harness/rev1"], check=True, env=ENV)
+    home = default_home()
+    adapter = CopilotCliAdapter(home, str(trusted))
+    diff = run("diff", "main", "harness/rev1").stdout
+    packet = {"issue_id": "rev1", "phase_id": "P1", "requirement_ids": ["1.1"], "role": "reviewer", "tier": "standard", "outcomes": ["greeting ends with !"],
+              "acceptance_criteria": ["greet('A') returns 'Hello A!'"], "non_goals": [], "code_anchors": ["greet.js"], "dependencies": [],
+              "validation_commands": [], "path_allowlist": ["./"], "untrusted_data": json.dumps({"diff": diff}), "reviewed_head": head}
+    handle = adapter.start(WorkRequest("rev1#1", 1, "rev1", "reviewer", "standard", "claude-sonnet-5", packet, "harness/rev1"))
+    deadline = time.time() + 240
+    poll = adapter.poll(handle, time.time())
+    while poll.state == "running" and time.time() < deadline:
+        time.sleep(3)
+        poll = adapter.poll(handle, time.time())
+    try:
+        assert poll.state == "finished" and poll.error is None, poll
+        schemas.validate(poll.result, schemas.WORKER_RESULT, "result")
+        assert poll.result["revision"] == head, poll.result
+        assert poll.result["outcome"] in ("approve", "changes_requested")
+    finally:
+        adapter.cleanup(handle)
+
+
+def test_real_refiner_answers_ready_when_only_an_anchor_changed_and_a_new_file_is_planned(tmp_path):
+    """Regression for a blocked first run: a refiner must accept anchors that name files the task will create."""
+    src = tmp_path / "src"
+    src.mkdir()
+    run = lambda *a: subprocess.run(["git"] + list(a), cwd=str(src), env=ENV, check=True, capture_output=True, text=True)  # noqa: E731
+    run("init", "-q", "-b", "main")
+    (src / "index.html").write_text("<html><body><button id='speak'>Read Out Loud</button></body></html>\n")
+    run("add", "-A")
+    run("commit", "-q", "-m", "init")
+    trusted = tmp_path / "trusted.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(src), str(trusted)], check=True, env=ENV)
+    home = default_home()
+    adapter = CopilotCliAdapter(home, str(trusted))
+    packet = {"issue_id": "tts", "phase_id": "P1", "requirement_ids": ["3.1"], "role": "refiner", "tier": "low",
+              "outcomes": ["A one-time notice is shown the first time Read Out Loud is used in a session"],
+              "acceptance_criteria": ["session-flags.mjs exports shouldShowNotice(flags) and markShown(flags)"], "non_goals": [],
+              "code_anchors": ["index.html", "session-flags.mjs"], "dependencies": [], "validation_commands": ["node --test tests/session-flags.test.mjs"],
+              "path_allowlist": ["./"],
+              "untrusted_data": json.dumps({"changed_since_refinement": ["index.html"], "anchors_that_do_not_exist_yet": ["session-flags.mjs"]})}
+    handle = adapter.start(WorkRequest("tts#1", 1, "tts", "refiner", "low", "claude-haiku-4.5", packet, "harness/tts"))
+    deadline = time.time() + 240
+    poll = adapter.poll(handle, time.time())
+    while poll.state == "running" and time.time() < deadline:
+        time.sleep(3)
+        poll = adapter.poll(handle, time.time())
+    try:
+        assert poll.state == "finished" and poll.error is None, poll
+        schemas.validate(poll.result, schemas.WORKER_RESULT, "result")
+        assert poll.result["outcome"] == "ready", poll.result
+    finally:
+        adapter.cleanup(handle)

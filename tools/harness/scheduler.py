@@ -15,7 +15,6 @@ from .repo import Repo
 from .store import StaleLease, Store
 
 OPEN_TASK_STATES = ("Requested", "Acknowledged", "Submitted", "Validated")
-DECISION_OPTIONS = ["refine the scope", "supply guidance or an asset", "accept a different approach", "cancel the issue"]
 ACTIVE_ISSUE_STATES = ("Refining", "Ready", "In Progress", "In Review")
 
 
@@ -77,6 +76,8 @@ class Scheduler:
         run = self.store.get_run(self.plan_id)
         run.setdefault("started_at", now)
         run.pop("paused_reason", None)
+        run.pop("pause_requested", None)
+        run.pop("pause_now", None)
         run["cancel_requested"] = run.get("cancel_requested", False)
         self.store.put_run(self.plan_id, run)
 
@@ -108,6 +109,11 @@ class Scheduler:
         if run.get("cancel_requested") and run.get("drain") and self.store.state("plan", self.entity) == "Executing":
             self._cancel(now, drain=True)
         if self.store.state("plan", self.entity) != "Executing":
+            return self.events
+        if run.get("pause_requested"):
+            # Finished workers were handled above. Pause now, or once the workers in flight are done. Nothing new starts meanwhile.
+            if run.get("pause_now") or not self.handles:
+                self._pause("paused by the operator", now)
             return self.events
         self._reconcile_blocked(now)
         if self.notifier is not None:
@@ -240,10 +246,11 @@ class Scheduler:
         created = humantasks.request_task(
             self.store, task_id=task_id, kind="decision", issue_ids=[issue["issue_id"]], owner=self.owner, secondary_owner=self.secondary_owner, now=now,
             why="Issue %s is blocked: %s" % (issue["issue_id"], issue.get("blocked_reason", "")[:200]),
-            request="Choose how to proceed. The failure evidence and the attempts made are attached.",
-            response_format={"required": ["option"], "optional": ["guidance"]}, options=DECISION_OPTIONS,
+            request="The harness stopped working on this issue by itself and needs your call. Read the reason and the failures, then pick what happens next.",
+            response_format={"required": ["option"], "optional": ["guidance"]}, options=humantasks.DECISION_OPTIONS,
             resolution_criteria="Any listed option resolves the task. The issue resumes (or stays cancelled) accordingly.",
-            extra={"reason": issue.get("blocked_reason", ""), "evidence": issue["last_failures"], "attempts": attempts}, block_issues=False)
+            extra={"reason": issue.get("blocked_reason", ""), "evidence": issue["last_failures"], "attempts": attempts,
+                   "option_help": {o: humantasks.OPTION_HELP[o] for o in humantasks.DECISION_OPTIONS}}, block_issues=False)
         if created:
             self._emit("decision_task", task=task_id, issue=issue["issue_id"], owner=self.owner, why=why)
             return task_id
@@ -334,8 +341,23 @@ class Scheduler:
 
     def _on_refiner(self, meta, h, result, now) -> None:
         issue = self.store.get_issue(meta["issue_id"])
+        if result["outcome"] == "needs_input":
+            # A real question for the owner, with the refiner's reasons, not a failure.
+            reasons = [b for b in result["blockers"] if b] or [result["next_action"]]
+            self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"outcome": "needs_input"})
+            self.handles.pop(meta["attempt_id"], None)
+            meta.update(outcome="Succeeded", finished_at=now)
+            self.store.put_attempt(meta)
+            issue["last_failures"].append({"attempt": meta["attempt_id"], "role": "refiner", "kind": "needs_input", "class": "human",
+                                           "detail": "; ".join(reasons)[:400]})
+            issue["blocked_reason"] = "the refiner needs your input: %s" % "; ".join(reasons)[:300]
+            self.store.put_issue(issue)
+            self._emit("refiner_needs_input", issue=issue["issue_id"])
+            self._block(issue, now)
+            return
         if result["outcome"] != "ready":
-            self._record_failure(meta, "schema_invalid", now, "refiner did not report ready")
+            self._record_failure(meta, "schema_invalid", now, "refiner outcome was %r (blockers: %s; next: %s)" % (
+                result["outcome"], "; ".join(result["blockers"])[:200], str(result["next_action"])[:120]))
             return
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {})
         self.handles.pop(meta["attempt_id"], None)
@@ -449,7 +471,16 @@ class Scheduler:
             return
         self.store.add_evidence(iid, "merge", issue["head_rev"], self.repo.base_head(), "merged",
                                 {"mode": merged.get("mode"), "simulated": bool(merged.get("simulated"))}, now)
-        post = self.checker.run(iid, self.repo.base_head(), self._phase(issue)["validation"])
+        self._post_merge(issue, now)
+
+    def _post_merge(self, issue: Dict[str, Any], now: float) -> None:
+        """Rerun the issue's own checks on the merged base. Phase-wide checks may depend on issues that are not built yet, so they run
+        only when the phase is validated. The commands are the ones that passed before the merge."""
+        iid = issue["issue_id"]
+        before = self._valid(iid, "checks", issue["head_rev"])
+        detail = json.loads(before["detail"]) if before else {}
+        commands = [r["command"] for r in detail.get("results", [])] or issue["validation_commands"] or self._phase(issue)["validation"]
+        post = self.checker.run(iid, self.repo.base_head(), commands)
         failed = [c for c in post if c["exit_code"] != 0]
         self.store.add_evidence(iid, "integrated", issue["head_rev"], self.repo.base_head(), "fail" if failed else "pass", {"results": post}, now)
         if failed:
@@ -492,9 +523,34 @@ class Scheduler:
                     continue
                 if role == "reviewer" and self._valid(issue["issue_id"], "review", issue["head_rev"]) is not None:
                     continue
+                if role == "implementer" and state == "Ready" and self._resume_in_review(issue, now):
+                    continue
                 if role == "implementer" and state == "Ready" and self._stale_anchors(issue, now):
                     continue
                 self._launch(issue, role, now)
+
+    def _resume_in_review(self, issue: Dict[str, Any], now: float) -> bool:
+        """Idempotent recovery: work that is already done and evidenced is not redone. If the branch still sits at the head whose checks
+        passed and a pull request exists, go straight back to review instead of asking a worker to implement it again."""
+        if not issue.get("head_rev") or not (issue.get("pr") or issue.get("pr_simulated")):
+            return False
+        passed = self._valid(issue["issue_id"], "checks", issue["head_rev"])
+        try:
+            same_head = self.repo.branch_head(issue["branch"]) == issue["head_rev"]
+        except Exception:
+            return False
+        if passed is None or passed["verdict"] != "pass" or not same_head:
+            return False
+        merged = self._valid(issue["issue_id"], "merge", issue["head_rev"])
+        self.store.transition("issue", issue["issue_id"], "In Progress", self.runner_id, {"resumed": True}, now=now)
+        self.store.transition("issue", issue["issue_id"], "In Review", self.runner_id, {"resumed": True, "head": issue["head_rev"]}, now=now)
+        if merged is not None:
+            # Already merged: never merge twice. Only the post-merge checks are left.
+            self._emit("resumed_after_merge", issue=issue["issue_id"], head=issue["head_rev"])
+            self._post_merge(issue, now)
+            return True
+        self._emit("resumed_review", issue=issue["issue_id"], head=issue["head_rev"])
+        return True
 
     def _stale_anchors(self, issue: Dict[str, Any], now: float) -> bool:
         """Refinement freshness: if the base moved under a code anchor or dependency contract, refine again instead of dispatching."""
@@ -514,12 +570,23 @@ class Scheduler:
         phase = self._phase(issue)
         data: Any = {}
         evidence = [f for f in issue["last_failures"] if f["class"] != failures.TRANSIENT]  # infrastructure noise is not evidence
-        if role == "implementer" and evidence:
-            data = {"previous_failures": evidence[-3:]}
+        if role == "implementer" and [f for f in evidence if f["role"] != "reviewer"]:
+            data = {"previous_failures": [f for f in evidence if f["role"] != "reviewer"][-3:]}
+        own = [f for f in evidence if f["role"] == role]
         if role in ("implementer", "refiner") and issue.get("guidance"):
             data = dict(data, human_guidance=issue["guidance"])
         if role == "reviewer":
             data = {"diff": self.repo.diff_text(issue["branch"]), "checks": (self._valid(issue["issue_id"], "checks", issue["head_rev"]) or {}).get("detail")}
+            if own:
+                data["your_previous_verdict_was_rejected"] = own[-2:]  # a retry must differ, and this tells the reviewer why
+        if role == "refiner":
+            base = self.repo.base_head()
+            changed = self.repo.changed_paths(issue["base_rev"], base) if issue.get("base_rev") and issue["base_rev"] != base else []
+            watched = issue["code_anchors"] + issue["contract_paths"]
+            data = {"changed_since_refinement": [p for p in changed if any(p == w or p.startswith(w.rstrip("/") + "/") for w in watched)][:50],
+                    "anchors_that_do_not_exist_yet": [w for w in watched if not self.repo.path_exists(w)]}
+            if own:
+                data["your_previous_answer_was_rejected"] = own[-2:]
         return {
             "issue_id": issue["issue_id"], "phase_id": issue["phase_id"], "requirement_ids": issue["requirement_ids"], "role": role, "tier": tier,
             "outcomes": issue["outcomes"], "acceptance_criteria": issue["acceptance_criteria"], "non_goals": issue["non_goals"],
@@ -558,6 +625,8 @@ class Scheduler:
             self._block(issue, now)
             return
         packet["untrusted_data"] = broker.sanitize_untrusted(packet["untrusted_data"])
+        if role == "reviewer":
+            packet["reviewed_head"] = issue["head_rev"]  # trusted value, outside the untrusted data block
         lease = self.store.claim(issue["issue_id"], self.runner_id, now, budgets["lease_s"])
         if role == "implementer":
             if self.store.state("issue", issue["issue_id"]) == "Ready":

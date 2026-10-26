@@ -18,9 +18,17 @@ infra/
       derschweigert/  # root module for derschweigert.de + www
       ffm/            # dedicated FFM stack (static site + API backend)
       lesen/          # dedicated static-site stack for lesen.derschweigert.de
+tools/
+  harness/          # development harness: plans, approves, and runs AI-built work (see tools/harness/README.md)
+docs/
+  harness/          # harness spec, security model, state machines, and decisions
 requirements.txt      # shared Python dependency baseline
-pytest.ini            # points pytest at sites/derschweigert/tests
+pytest.ini            # points pytest at sites/derschweigert/tests and tools/harness/tests
 ```
+
+## Development harness
+
+`tools/harness/` is a stage-gated harness that turns a requirements file into reviewed, merged pull requests: an investigator drafts a plan, you approve it once, and sandboxed AI workers build it issue by issue. Every merge to `main` deploys to production. Start with the manual: [`tools/harness/README.md`](tools/harness/README.md).
 
 ## Local development (derschweigert.de)
 

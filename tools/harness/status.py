@@ -67,7 +67,8 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
         budgets = plan["policy"]["budgets"]
         elapsed = now - run["started_at"] if run.get("started_at") else None
         report["plans"].append({"plan_id": pid, "version": ver, "state": store.state("plan", plan_entity(pid, ver)), "digest": row["digest"][:12],
-                                "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested"))})
+                                "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested")),
+                                "pause_requested": bool(run.get("pause_requested"))})
         report["budgets"][pid] = {
             "wall_clock_s": {"limit": budgets["run_wall_clock_s"], "used": elapsed,
                              "remaining": max(budgets["run_wall_clock_s"] - elapsed, 0) if elapsed is not None else None},
@@ -166,7 +167,7 @@ def render(report: Dict[str, Any]) -> str:
     r = report["runner"]
     w("runner: %s" % (r["status"] if r["status"] == "none" else "%s (%s, last heartbeat %.0fs ago)" % (r["status"], r["runner_id"], r["last_heartbeat_age_s"])))
     for p in report["plans"]:
-        w("plan %s v%d  %s  digest %s  approval %s%s" % (p["plan_id"], p["version"], p["state"], p["digest"], p["approval"], "  PAUSED: " + p["paused_reason"] if p["paused_reason"] else ""))
+        w("plan %s v%d  %s  digest %s  approval %s%s" % (p["plan_id"], p["version"], p["state"], p["digest"], p["approval"], "  PAUSED: " + p["paused_reason"] if p["paused_reason"] and p["state"] == "Paused" else ("  PAUSE REQUESTED, finishing active work" if p["pause_requested"] else "")))
         b = report["budgets"].get(p["plan_id"], {})
         if b:
             w("  budgets: wall-clock %s of %ss, pull requests %d of %d, tokens and cost %s" % (

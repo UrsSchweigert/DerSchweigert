@@ -123,6 +123,11 @@ def runner_command(args) -> int:
             raise runner.RunRefused("unknown plan %s" % args.plan_id)
         version = latest["plan"]["version"]
         root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+        if args.cmd == "pause":
+            result = runner.request_pause(store, args.plan_id, version, args.now)
+            print("plan %s v%d: %s" % (args.plan_id, version, "paused" if result == "Paused" else
+                  "pause requested. %s. The run stops by itself, then `resume` continues" % ("active workers are being cancelled" if args.now else "waiting for active workers to finish")))
+            return 0
         if args.cmd == "cancel":
             print("plan %s v%d: %s" % (args.plan_id, version, runner.request_cancel(store, args.plan_id, version, args.drain)))
             return 0
@@ -214,12 +219,8 @@ def task_command(args) -> int:
     store = Store(args.home)
     try:
         if args.cmd == "tasks":
-            for t in store.human_tasks():
-                if t["state"] in humantasks.OPEN_STATES:
-                    p = t["payload"]
-                    print("%s [%s] %s owner %s issues %s\n  why: %s\n  request: %s\n  respond with: %s\n  done when: %s" % (
-                        t["task_id"], p["kind"], t["state"], p["owner"], ",".join(p["issue_ids"]), p["why"], p["request"],
-                        json.dumps(p["response_format"], sort_keys=True), p["resolution_criteria"]))
+            open_tasks = [t for t in store.human_tasks() if t["state"] in humantasks.OPEN_STATES]
+            print("\n\n".join(humantasks.render_task(t) for t in open_tasks) or "no open tasks")
             return 0
         if args.cmd == "sync-tasks":
             repo = args.repo or detect_repo()
@@ -299,6 +300,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     rs.add_argument("--interval", type=float, default=30.0)
     rs.add_argument("--max-ticks", type=int)
     rs.add_argument("--repo")
+    pz = sub.add_parser("pause", help="pause a running plan: finish the workers in flight, start nothing new, then stop")
+    pz.add_argument("plan_id")
+    pz.add_argument("--version", type=int)
+    pz.add_argument("--now", action="store_true", help="cancel the workers in flight instead of waiting for them")
     cn = sub.add_parser("cancel", help="stop scheduling and terminate or drain active work")
     cn.add_argument("plan_id")
     cn.add_argument("--version", type=int)
@@ -362,7 +367,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             result = plan_command(store, args.requirements, args.phases, args.plan_id, args.fixture, args.dry_run)
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
-        if args.cmd in ("run", "resume", "cancel", "import-issues"):
+        if args.cmd in ("run", "resume", "cancel", "import-issues", "pause"):
             return runner_command(args)
         if args.cmd == "investigate":
             return investigate_command(args)

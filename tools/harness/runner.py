@@ -167,3 +167,19 @@ def request_cancel(store: Store, plan_id: str, version: int, drain: bool) -> str
             store.transition("plan", entity, "Cancelled", "operator", {"drain": drain})
             return "Cancelled"
     return state
+
+
+def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = False) -> str:
+    """Ask a running scheduler to pause: stop starting work, wait for active workers (or cancel them with now_flag), then stop.
+    With no active work the plan is paused here. Returns the plan state."""
+    entity = approval.plan_entity(plan_id, version)
+    state = store.state("plan", entity)
+    if state != "Executing":
+        raise RunRefused("only a running plan can be paused (plan is %s)" % state)
+    run = store.get_run(plan_id)
+    run.update(pause_requested=True, pause_now=bool(now_flag), paused_reason="paused by the operator")
+    store.put_run(plan_id, run)
+    if not store.active_claims():
+        store.transition("plan", entity, "Paused", "operator", {"reason": "paused by the operator"})
+        return "Paused"
+    return state

@@ -58,7 +58,7 @@ def test_dry_run_demonstration_of_scheduling_escalation_status_and_recovery(tmp_
     # 4. The owner answers. The blocked issue resumes by itself and the plan finishes.
     env.checker.fail_commands = set()
     res = humantasks.respond(env.store, "decision-gated-1", responder_ids=["owner"], source="local", now=env.clock(),
-                             answers={"option": "supply guidance or an asset", "guidance": "gated-check was misconfigured"})
+                             answers={"option": "give guidance and retry", "guidance": "gated-check was misconfigured"})
     assert res["status"] == "resolved" and res["released"] == ["gated"]
     env.run_until(lambda: env.store.state("plan", "fx@v1") == "Completed", advance=30, limit=100)
     final = status.build_report(env.store.home, env.clock())

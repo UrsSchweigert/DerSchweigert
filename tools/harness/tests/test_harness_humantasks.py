@@ -21,7 +21,7 @@ def make_task(env, task_id="t1", issue="i1", kind="decision", **kw):
 
 
 def respond(env, task_id="t1", who=("alice",), source="local", answers=None, **kw):
-    return humantasks.respond(env.store, task_id, responder_ids=who, source=source, answers=answers or {"option": "supply guidance or an asset"},
+    return humantasks.respond(env.store, task_id, responder_ids=who, source=source, answers=answers or {"option": "give guidance and retry"},
                               now=env.clock(), **kw)
 
 
@@ -174,7 +174,7 @@ def test_missing_artifacts_and_asset_without_validator_fail_closed(tmp_path):
 
 def test_decision_options_resume_the_right_work(tmp_path):
     env = Env(tmp_path, issues=[("a", "P1", ["F1.1"]), ("b", "P1", ["F1.2"]), ("c", "P1", ["F1.1"])])
-    for iid, option, expected in (("a", "supply guidance or an asset", "Ready"), ("b", "refine the scope", "Refining")):
+    for iid, option, expected in (("a", "give guidance and retry", "Ready"), ("b", "refine the scope", "Refining")):
         make_task(env, task_id="t-" + iid, issue=iid)
         res = respond(env, task_id="t-" + iid, answers={"option": option, "guidance": "use the helper"})
         assert res["status"] == "resolved" and res["released"] == [iid] and env.state(iid) == expected
@@ -201,7 +201,7 @@ def test_blocked_work_resumes_automatically_after_the_answer(tmp_path):
     [task] = env.store.human_tasks("i1")
     env.checker.fail_next = 0  # the human's guidance fixed the cause
     res = humantasks.respond(env.store, task["task_id"], responder_ids=["owner"], source="local", now=env.clock(),
-                             answers={"option": "supply guidance or an asset", "guidance": "the check needed a fixture"})
+                             answers={"option": "give guidance and retry", "guidance": "the check needed a fixture"})
     assert res["released"] == ["i1"] and env.store.get_issue("i1")["repair_failures"] == 0
     env.run_until(lambda: env.state("i1") == "Done")
     assert "the check needed a fixture" in [r for r in env.adapter.started if r.role == "implementer"][-1].packet["untrusted_data"]
@@ -246,3 +246,58 @@ def test_tasks_are_mirrored_as_github_issues_idempotently_and_comments_never_res
     assert state(env) == "Requested"
     with pytest.raises(workrecord.approval.AuthorizationError, match="Tier B"):
         workrecord.sync_human_tasks(gh, env.store, "fx", ["x"], dry_run=False)
+
+
+# -- decision tasks that explain themselves ---------------------------------------------------------------------------------
+
+def test_a_number_picks_the_option_from_the_list(tmp_path):
+    env = Env(tmp_path)
+    make_task(env)
+    res = humantasks.respond(env.store, "t1", responder_ids=["alice"], source="local", answers={"option": "2"}, now=env.clock())
+    assert res["status"] == "resolved" and env.state("i1") == "Ready"
+    env2 = Env(tmp_path / "b")
+    make_task(env2)
+    bad = humantasks.respond(env2.store, "t1", responder_ids=["alice"], source="local", answers={"option": "9"}, now=env2.clock())
+    assert bad["status"] == "invalid"
+
+
+def test_retry_without_guidance_adds_no_guidance_text(tmp_path):
+    env = Env(tmp_path)
+    make_task(env)
+    humantasks.respond(env.store, "t1", responder_ids=["alice"], source="local", answers={"option": "1"}, now=env.clock())
+    assert not env.store.get_issue("i1").get("guidance")  # the option label must never leak into the worker's instructions
+
+
+def test_tasks_raised_with_the_old_labels_can_still_be_answered(tmp_path):
+    env = Env(tmp_path)
+    make_task(env, options=["refine the scope", "supply guidance or an asset", "accept a different approach", "cancel the issue"])
+    res = humantasks.respond(env.store, "t1", responder_ids=["alice"], source="local", answers={"option": "supply guidance or an asset"}, now=env.clock())
+    assert res["status"] == "resolved" and env.state("i1") == "Ready"
+    assert "supply guidance or an asset" in humantasks.OPTION_HELP and "asset" in humantasks.OPTION_HELP["supply guidance or an asset"]
+
+
+def test_a_scheduler_decision_task_explains_what_happened_and_each_option(tmp_path):
+    env = Env(tmp_path, budgets=dict(lease_s=10**7, run_wall_clock_s=10**8, worker_timeout_s=10**7, inactivity_timeout_s=10**7))
+    env.checker.fail_next = 99
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Blocked")
+    [task] = env.store.human_tasks("i1")
+    text = humantasks.render_task(task)
+    assert "harness asking you, not a request from a reviewer or a worker" in text
+    assert "Failure: checks_failed (deterministic, coordinator)" in text or "Failure: checks_failed" in text
+    for label in humantasks.DECISION_OPTIONS:
+        assert label in text
+    assert "1) retry as is: Run the next step again" in text and "harness respond %s --option 1" % task["task_id"] in text and "--guidance" in text
+    assert task["payload"]["extra"]["option_help"]["cancel the issue"].startswith("Drop this issue")
+
+
+def test_the_tasks_command_prints_the_explained_task(tmp_path, capsys):
+    env = Env(tmp_path)
+    make_task(env)
+    from harness import cli
+    assert cli.main(["--home", env.store.home, "tasks"]) == 0
+    out = capsys.readouterr().out
+    assert "t1  [decision] Requested" in out and "Options:" in out and "harness respond t1 --option 1" in out
+    humantasks.respond(env.store, "t1", responder_ids=["alice"], source="local", answers={"option": "1"}, now=env.clock())
+    cli.main(["--home", env.store.home, "tasks"])
+    assert "no open tasks" in capsys.readouterr().out

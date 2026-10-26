@@ -58,7 +58,7 @@ def test_exhausted_repair_budget_blocks_and_raises_a_decision_task(tmp_path):
     assert len([a for a in attempts if a["role"] == "implementer"]) == 3  # one attempt plus two repairs
     [task] = env.store.human_tasks("i1")
     assert task["kind"] == "decision" and task["owner"] == "owner" and task["state"] == "Requested"
-    assert task["payload"]["options"] == ["refine the scope", "supply guidance or an asset", "accept a different approach", "cancel the issue"]
+    assert task["payload"]["options"] == ["retry as is", "give guidance and retry", "refine the scope", "cancel the issue"]
     assert [a["class"] for a in task["payload"]["extra"]["attempts"]] == ["deterministic"] * 3
     assert all(e["kind"] == "checks_failed" for e in task["payload"]["extra"]["evidence"])
     # Other eligible work continues: a second issue is still scheduled.
