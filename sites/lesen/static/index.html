@@ -464,8 +464,51 @@
         }
 
         .complete {
+            position: relative;
             text-align: center;
             padding: 35px 0;
+            overflow: hidden;
+        }
+
+        .star-rain {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .star-rain .star {
+            position: absolute;
+            top: -10%;
+            width: 16px;
+            height: 16px;
+            color: var(--yellow);
+            opacity: 0;
+            animation-name: star-fall;
+            animation-timing-function: ease-in;
+            animation-fill-mode: forwards;
+        }
+
+        @keyframes star-fall {
+            0% {
+                opacity: 0;
+                transform: translateY(0) rotate(0deg) scale(.6);
+            }
+
+            12% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(260px) rotate(220deg) scale(1);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .star-rain {
+                display: none;
+            }
         }
 
         .complete-mark {
@@ -1243,6 +1286,38 @@
             card.style.fontSize = `${Math.min(100, 100 * availableWidth / textWidth)}px`;
         }
 
+        let starRainTimeout = null;
+        function playStarRain() {
+            const host = byId('complete');
+            const previous = host.querySelector('.star-rain');
+            if (previous) previous.remove();
+            if (starRainTimeout) clearTimeout(starRainTimeout);
+            if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+            const container = document.createElement('div');
+            container.className = 'star-rain';
+            container.setAttribute('aria-hidden', 'true');
+            const starPath = 'M12 2 14.6 9H22L15.8 13.5 18.2 21 12 16.7 5.8 21 8.2 13.5 2 9H9.4Z';
+            const count = 14;
+            for (let i = 0; i < count; i++) {
+                const star = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                star.setAttribute('viewBox', '0 0 24 24');
+                star.classList.add('star');
+                const size = 12 + Math.random() * 10;
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                star.style.animationDelay = `${(Math.random() * 0.4).toFixed(2)}s`;
+                star.style.animationDuration = `${(1 + Math.random() * 0.8).toFixed(2)}s`;
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', starPath);
+                path.setAttribute('fill', 'currentColor');
+                star.appendChild(path);
+                container.appendChild(star);
+            }
+            host.appendChild(container);
+            starRainTimeout = setTimeout(() => { container.remove(); starRainTimeout = null; }, 2200);
+        }
+
         function renderCard() {
             byId('cleared').textContent = cleared;
             byId('remaining').textContent = queue.length;
@@ -1253,6 +1328,7 @@
                 showScreen('complete');
                 byId('complete-summary').textContent = `${total} ${total === 1 ? 'Karte' : 'Karten'} in ${attempts} ${attempts === 1 ? 'Versuch' : 'Versuchen'} richtig gelesen.`;
                 byId('complete-title').focus();
+                playStarRain();
                 return;
             }
             byId('syllable').textContent = queue[0].text;
