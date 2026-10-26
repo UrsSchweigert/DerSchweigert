@@ -171,6 +171,18 @@
             background: #edf6f0;
         }
 
+        .pattern:has(input:disabled) {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .words-mode-note {
+            font-size: 13px;
+            color: var(--muted);
+            margin: 8px 0 0 0;
+            padding-left: 35px;
+        }
+
         input[type="radio"] {
             accent-color: var(--green);
             width: 17px;
@@ -1082,6 +1094,10 @@
                             <legend>Vokale <span id="vowel-count" class="selection-count"></span></legend>
                             <div class="letters" id="vowels"></div>
                         </fieldset>
+                        <fieldset class="letter-group">
+                            <legend>Besonderheiten <span id="specials-count" class="selection-count"></span></legend>
+                            <div class="letters" id="specials"></div>
+                        </fieldset>
                     </div>
                     <div class="deck-options">
                         <fieldset>
@@ -1091,8 +1107,9 @@
                                         checked><strong>ma</strong><span>Konsonant + Vokal</span></label>
                                 <label class="pattern"><input type="radio" name="pattern"
                                         value="VC"><strong>am</strong><span>Vokal + Konsonant</span></label>
-                                <label class="pattern"><input type="radio" name="pattern" value="WORDS"><strong>Wörter</strong><span>Echte Wörter bis X Buchstaben</span></label>
+                                <label class="pattern" id="words-mode-label"><input type="radio" name="pattern" value="WORDS"><strong>Wörter</strong><span><span id="words-match-count">0</span> Wörter passen</span></label>
                             </div>
+                            <p id="words-mode-disabled-note" class="words-mode-note" hidden>Mind. 10 Wörter erforderlich</p>
                         </fieldset>
                         <div id="word-length-control" class="word-length-control" hidden>
                             <label for="word-length" class="number-label">Maximale Wortlänge</label>
@@ -1206,14 +1223,19 @@
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
+        import { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible } from './sounds.mjs';
+        
         window.__speech = createSpeechAdapter();
         window.__speech.warm();
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
+        
+        window.__sounds = { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible };
     </script>
     <script>
         'use strict';
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
+        const specials = new Set();
         const byId = id => document.getElementById(id);
         let queue = [];
         let total = 0;
@@ -1225,6 +1247,48 @@
         function updateSelectionCounts() {
             byId('consonant-count').textContent = `${consonants.size} ausgew\u00e4hlt`;
             byId('vowel-count').textContent = `${vowels.size} ausgew\u00e4hlt`;
+            byId('specials-count').textContent = `${specials.size} ausgew\u00e4hlt`;
+            updateWordMatchCount();
+        }
+
+        async function updateWordMatchCount() {
+            if (!germanWordsPromise) {
+                try {
+                    germanWordsPromise = loadGermanWords();
+                } catch {
+                    return;
+                }
+            }
+            
+            try {
+                const words = await germanWordsPromise;
+                const { countMatchingWords, isWordsModeEligible } = window.__sounds;
+                const wordLength = Number(byId('word-length').value);
+                const matchCount = countMatchingWords(words, { consonants: [...consonants], vowels: [...vowels] }, wordLength);
+                byId('words-match-count').textContent = matchCount;
+                
+                const wordsRadio = document.querySelector('input[name="pattern"][value="WORDS"]');
+                const wordsLabel = byId('words-mode-label');
+                const disabledNote = byId('words-mode-disabled-note');
+                const isEligible = isWordsModeEligible(matchCount);
+                
+                if (isEligible) {
+                    wordsRadio.disabled = false;
+                    wordsLabel.style.opacity = '1';
+                    wordsLabel.style.cursor = 'pointer';
+                    disabledNote.hidden = true;
+                } else {
+                    wordsRadio.disabled = true;
+                    wordsLabel.style.opacity = '0.5';
+                    wordsLabel.style.cursor = 'default';
+                    disabledNote.hidden = false;
+                    if (wordsRadio.checked) {
+                        document.querySelector('input[name="pattern"][value="CV"]').checked = true;
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating word match count:', error);
+            }
         }
 
         function buildLetters(containerId, alphabet, selected) {
@@ -1408,8 +1472,8 @@
             if (pattern === 'WORDS' && !wordLengthInput.reportValidity()) return;
 
             const selectedConsonants = [...consonants];
-            const selectedVowels = [...vowels];
-            const allowedLetters = new Set([...selectedConsonants, ...selectedVowels]);
+            const selectedVowels = [...vowels, ...specials];
+            const allowedLetters = new Set([...consonants, ...vowels]);
             const requestedTotal = Number(countInput.value);
             const maxLength = Number(wordLengthInput.value);
             let words = [];
@@ -1534,12 +1598,14 @@
         }
 
         buildLetters('consonants', 'bcdfghjklmnpqrstvwxyzß', consonants);
-        buildLetters('vowels', 'aeiouäöü', vowels);
+        buildLetters('vowels', 'aeiou', vowels);
+        buildLetters('specials', ['ä', 'ö', 'ü', 'au', 'ei', 'ie', 'eu'], specials);
         updateSelectionCounts();
         updateWordLengthVisibility();
         document.querySelectorAll('input[name="pattern"]').forEach(input => {
             input.addEventListener('change', updateWordLengthVisibility);
         });
+        byId('word-length').addEventListener('change', updateWordMatchCount);
         window.addEventListener('resize', () => {
             if (queue.length) updateCardFontSize(queue[0].text);
         });
