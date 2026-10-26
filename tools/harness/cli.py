@@ -341,11 +341,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     i.add_argument("action", choices=["build", "verify", "status"])
     q = sub.add_parser("probe", help="read-only GitHub capability probe")
     q.add_argument("--repo")
+    ish = sub.add_parser("issue", help="show everything about one issue (read-only)")
+    ish.add_argument("issue_id")
+    ish.add_argument("--json", action="store_true")
     s = sub.add_parser("status", help="read-only status")
     s.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
     try:
+        if args.cmd == "issue":
+            detail = status.issue_detail(args.home, args.issue_id)
+            print(json.dumps(detail, indent=2, sort_keys=True, default=str) if args.json else status.render_issue(detail))
+            return 0
         if args.cmd == "status":
             report = status_report(args.home)
             print(json.dumps(report, indent=2, sort_keys=True, default=str) if args.json else status.render(report))

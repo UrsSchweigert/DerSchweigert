@@ -1,4 +1,6 @@
 import json
+
+import pytest
 import os
 
 from harness import cli, humantasks, status, telemetry
@@ -139,3 +141,41 @@ def test_status_marks_requirements_verified_when_the_phase_is_done(tmp_path):
     env.run_until(lambda: env.store.state("plan", "fx@v1") == "Completed")
     r = status.build_report(env.store.home, env.clock())
     assert {q["coverage"] for q in r["requirements"]} == {"verified"} and r["plans"][0]["state"] == "Completed"
+
+
+# -- one issue in detail ---------------------------------------------------------------------------------------------
+
+def test_issue_detail_shows_scope_attempts_evidence_and_history(tmp_path, capsys):
+    env = Env(tmp_path, budgets=LONG)
+    env.checker.fail_next = 1
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    d = status.issue_detail(env.store.home, "i1")
+    assert d["state"] == "Done" and d["issue"]["requirement_ids"] == ["F1.1", "F1.2"]
+    assert [a["role"] for a in d["attempts"]] == ["implementer", "implementer", "reviewer"] and d["attempts"][0]["failure_kind"] == "checks_failed"
+    assert {e["kind"] for e in d["evidence"]} >= {"checks", "review", "merge", "integrated"} and any(not e["valid"] or e["verdict"] == "fail" for e in d["evidence"])
+    assert [j["to_state"] for j in d["journal"]][-1] == "Done" and "In Review" in [j["to_state"] for j in d["journal"]]
+    text = status.render_issue(d)
+    for fragment in ("issue i1  [Done]", "requirements F1.1, F1.2", "attempts:", "i1#1 implementer", "checks_failed", "evidence:", "history:", "Ready -> In Progress"):
+        assert fragment in text, fragment
+    assert cli.main(["--home", env.store.home, "issue", "i1", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "Done"
+    assert cli.main(["--home", env.store.home, "issue", "i1"]) == 0 and "issue i1" in capsys.readouterr().out
+
+
+def test_issue_detail_is_read_only_and_explains_unknown_ids(tmp_path, capsys):
+    env = Env(tmp_path, budgets=LONG)
+    before = env.store.journal(200)
+    with pytest.raises(KeyError, match="unknown issue 'nope' \\(known: i1\\)"):
+        status.issue_detail(env.store.home, "nope")
+    assert cli.main(["--home", env.store.home, "issue", "nope"]) == 2 and "unknown issue" in capsys.readouterr().err
+    assert env.store.journal(200) == before
+
+
+def test_issue_detail_includes_human_tasks(tmp_path):
+    env = Env(tmp_path, budgets=LONG)
+    env.checker.fail_next = 99
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Blocked")
+    d = status.issue_detail(env.store.home, "i1")
+    assert d["human_tasks"][0]["kind"] == "decision" and "BLOCKED" in status.render_issue(d) and "human task decision-i1-1" in status.render_issue(d)

@@ -1,6 +1,7 @@
 """Read-only status: business state and live execution state, with unavailable metrics labeled as such."""
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import time
@@ -193,4 +194,63 @@ def render(report: Dict[str, Any]) -> str:
         w("limitation: " + text)
     if report.get("note"):
         w(report["note"])
+    return "\n".join(out)
+
+
+def issue_detail(home: Optional[str], issue_id: str) -> Dict[str, Any]:
+    """Everything the store knows about one issue: scope, state, attempts, evidence, human tasks, and its journal. Read-only."""
+    home = home or default_home()
+    if not os.path.exists(os.path.join(home, "harness.sqlite")):
+        raise KeyError("store not initialized")
+    store = Store(home, readonly=True)
+    try:
+        issue = store.get_issue(issue_id)
+        if issue is None:
+            known = ", ".join(i["issue_id"] for i in store.list_issues()) or "none"
+            raise KeyError("unknown issue %r (known: %s)" % (issue_id, known))
+        attempts = store.list_attempts(issue_id)
+        for a in attempts:
+            a.pop("packet_digest", None)
+        journal = [dict(r, evidence=r["evidence"]) for r in store.cx.execute(
+            "SELECT ts, actor, from_state, to_state, evidence FROM journal WHERE machine='issue' AND entity=? ORDER BY seq", (issue_id,))]
+        return {
+            "issue": issue, "state": store.state("issue", issue_id), "previous_state": store.previous_state("issue", issue_id),
+            "attempts": attempts, "claims": store.active_claims_for(issue_id),
+            "evidence": [dict(e, detail=json.loads(e["detail"])) for e in store.evidence(issue_id, valid_only=False)],
+            "human_tasks": [{"task_id": t["task_id"], "kind": t["kind"], "state": t["state"], "owner": t["owner"], "why": t["payload"]["why"]}
+                            for t in store.human_tasks() if issue_id in t["payload"].get("issue_ids", [t["issue_id"]])],
+            "journal": journal,
+        }
+    finally:
+        store.close()
+
+
+def render_issue(d: Dict[str, Any]) -> str:
+    i = d["issue"]
+    out: List[str] = []
+    w = out.append
+    w("issue %s  [%s]%s" % (i["issue_id"], d["state"], "  (was %s)" % d["previous_state"] if d["previous_state"] else ""))
+    w("title: %s" % i["title"])
+    w("phase %s, requirements %s, parallel-safe %s" % (i["phase_id"], ", ".join(i["requirement_ids"]), i["parallel_safe"]))
+    for label, key in (("outcomes", "outcomes"), ("acceptance criteria", "acceptance_criteria"), ("non-goals", "non_goals"), ("code anchors", "code_anchors"),
+                       ("contract paths", "contract_paths"), ("depends on", "deps"), ("validation commands", "validation_commands")):
+        if i.get(key):
+            w("%s:" % label)
+            out.extend("  - " + str(v) for v in i[key])
+    w("branch %s, base %s, head %s, pull request %s" % (i["branch"], i["base_rev"][:12] or "-", i["head_rev"][:12] or "-", i["pr"] or "-"))
+    w("failures: transient %d, repair %d%s" % (i["transient_failures"], i["repair_failures"], "  BLOCKED: " + i["blocked_reason"] if i["blocked_reason"] else ""))
+    for f in i["last_failures"]:
+        w("  - %s (%s, %s): %s" % (f["kind"], f["class"], f["role"], f["detail"][:140]))
+    if d["attempts"]:
+        w("attempts:")
+        out.extend("  %s %s tier %s model %s -> %s %s" % (a["attempt_id"], a["role"], a.get("tier"), a.get("model"), a.get("outcome") or "running",
+                                                          ("(%s)" % a["failure_kind"]) if a.get("failure_kind") else "") for a in d["attempts"])
+    if d["evidence"]:
+        w("evidence:")
+        out.extend("  %s %s head %s base %s%s" % (e["kind"], e["verdict"], e["head_rev"][:12], e["base_rev"][:12], "" if e["valid"] else "  (invalidated)") for e in d["evidence"])
+    for t in d["human_tasks"]:
+        w("human task %s [%s] %s owner %s: %s" % (t["task_id"], t["kind"], t["state"], t["owner"], t["why"][:120]))
+    if d["journal"]:
+        w("history:")
+        out.extend("  %s  %s -> %s by %s" % (time.strftime("%H:%M:%S", time.localtime(j["ts"])), j["from_state"] or "(new)", j["to_state"], j["actor"]) for j in d["journal"])
     return "\n".join(out)

@@ -42,6 +42,7 @@ harness run 20261026-improvements-md
 # 6. Watch.
 harness status
 harness status --json
+harness issue p1-stars-animation          # everything about one issue: scope, attempts, evidence, history (add --json)
 
 # 7. Answer human tasks.
 harness tasks
