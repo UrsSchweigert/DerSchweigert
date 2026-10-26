@@ -8,9 +8,10 @@ import random
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from . import approval, broker, failures, humantasks, models, plans, schemas, telemetry
+from . import approval, broker, failures, humantasks, models, plans, schemas, smoke, telemetry
 from .adapter import Adapter, WorkRequest
 from .checks import Checker, Publisher
+from .github import GitHubError
 from .repo import Repo
 from .store import StaleLease, Store
 
@@ -31,6 +32,17 @@ def new_issue(issue_id: str, plan_id: str, phase_id: str, requirement_ids: List[
     return issue
 
 
+TRANSIENT_GITHUB = ("rate limit", "timeout", "timed out", "502", "503", "504", "connection", "temporar", "reset by peer", "could not resolve")
+
+
+def _publish_kind(exc: Exception) -> str:
+    """A rejected push is a deterministic problem with the branch. Anything else from GitHub is treated as infrastructure."""
+    text = str(exc).lower()
+    if any(k in text for k in ("behind its remote", "non-fast-forward", "fast-forward", "stale info", "rejected")):
+        return "push_rejected"
+    return "infra"
+
+
 def digest_of(packet: Dict[str, Any]) -> str:
     """Packet digest excludes the tier, so a retry must change content or tier to count as different."""
     body = {k: v for k, v in packet.items() if k != "tier"}
@@ -42,7 +54,8 @@ class Scheduler:
                  publisher: Publisher, *, clock: Callable[[], float] = time.time, rng: Callable[[], float] = random.random,
                  isolation_override: Optional[Dict[str, str]] = None, available_models: Optional[List[str]] = None,
                  runner_id: str = "runner-1", owner: str = "owner", secondary_owner: Optional[str] = None,
-                 notifier: Optional[humantasks.Notifier] = None):
+                 notifier: Optional[humantasks.Notifier] = None, smoke_rules: Optional[List[Dict[str, Any]]] = None):
+        self.smoke_rules = smoke.load_rules() if smoke_rules is None else smoke_rules  # trusted browser checks, see smoke.json
         self.store, self.plan_id, self.version = store, plan_id, version
         self.adapter, self.repo, self.checker, self.publisher = adapter, repo, checker, publisher
         self.clock, self.rng, self.iso, self.available_models = clock, rng, isolation_override, available_models
@@ -73,6 +86,12 @@ class Scheduler:
         state = self.store.state("plan", self.entity)
         if state in ("Approved", "Paused"):
             self.store.transition("plan", self.entity, "Executing", self.runner_id, {"resumed_from": state}, now=now)
+        for issue in self.store.list_issues(self.plan_id):
+            if issue.get("head_rev") and not self.repo.pinned(issue["issue_id"]):
+                try:
+                    self.repo.pin_good(issue["issue_id"], issue["head_rev"])  # heads recorded before pinning existed
+                except Exception:
+                    pass
         run = self.store.get_run(self.plan_id)
         run.setdefault("started_at", now)
         run.pop("paused_reason", None)
@@ -129,6 +148,13 @@ class Scheduler:
     # -- lease loss and polling ----------------------------------------------
 
     def _fence_expired(self, now: float) -> None:
+        # An attempt fenced while a replacement was being claimed keeps an empty outcome in its record. Bring the record in line.
+        for meta in self.store.list_attempts():
+            if not meta.get("outcome") and meta["attempt_id"] not in self.handles:
+                state = self.store.state("attempt", meta["attempt_id"])
+                if state in ("Fenced", "Failed", "TimedOut", "Cancelled", "Succeeded"):
+                    meta.update(outcome=state, finished_at=now)
+                    self.store.put_attempt(meta)
         for attempt_id in self.store.recover(now, self.runner_id):
             h = self.handles.pop(attempt_id, None)
             if h:
@@ -204,7 +230,7 @@ class Scheduler:
         meta.update(outcome=outcome, failure_kind=kind, failure_class=fclass, detail=detail, finished_at=now)
         self.store.put_attempt(meta)
         issue = self.store.get_issue(issue_id)
-        issue["last_failures"].append({"attempt": attempt_id, "role": meta["role"], "kind": kind, "class": fclass, "detail": detail[:500]})
+        issue["last_failures"].append({"attempt": attempt_id, "role": meta["role"], "kind": kind, "class": fclass, "detail": detail[:1500]})
         issue["last_failures"] = issue["last_failures"][-6:]
         budgets = self._plan()["policy"]["budgets"]
         decision = failures.decide(fclass, issue, budgets, now, self.rng)
@@ -272,6 +298,20 @@ class Scheduler:
     def _phase(self, issue: Dict[str, Any]) -> Dict[str, Any]:
         return next(p for p in self._plan()["phases"] if p["id"] == issue["phase_id"])
 
+    def _check_commands(self, issue: Dict[str, Any], changed_paths: List[str]) -> List[str]:
+        """The issue's own commands plus the trusted browser checks that apply to the files it changed. A worker cannot opt out."""
+        base = issue["validation_commands"] or self._phase(issue)["validation"]
+        return smoke.merge(base, smoke.commands_for(changed_paths, self.smoke_rules))
+
+    @staticmethod
+    def _failure_summary(failed: List[Dict[str, Any]], limit: int = 1200) -> str:
+        """Which commands failed and, where known, why: the end of their output. This is what a repair attempt is told."""
+        parts = []
+        for c in failed:
+            tail = str(c.get("output", "")).strip()
+            parts.append("%s (exit %s)%s" % (c["command"], c["exit_code"], (": " + tail) if tail else ""))
+        return "; ".join(parts)[:limit]
+
     def _on_implementer(self, meta, h, result, now) -> None:
         issue = self.store.get_issue(meta["issue_id"])
         policy = self._plan()["policy"]
@@ -297,19 +337,28 @@ class Scheduler:
             self._record_failure(meta, "diff_too_large", now, "diff exceeds %d lines" % policy["diff_size_cap"])
             return
         base = self.repo.base_head()
-        checks = self.checker.run(issue["issue_id"], head, issue["validation_commands"] or self._phase(issue)["validation"])
+        checks = self.checker.run(issue["issue_id"], head, self._check_commands(issue, paths))
         failed = [c for c in checks if c["exit_code"] != 0]
         self.store.add_evidence(issue["issue_id"], "checks", head, base, "fail" if failed else "pass", {"results": checks}, now)
         if failed:
-            self._record_failure(meta, "checks_failed", now, "failing: %s" % [c["command"] for c in failed])
+            self._record_failure(meta, "checks_failed", now, "failing: %s" % self._failure_summary(failed))
             return
         run = self.store.get_run(self.plan_id)
         if run.get("prs", 0) >= self._plan()["policy"]["budgets"]["pull_requests_per_run"]:
             self._pause("pull request budget exhausted", now)
             return
+        try:
+            pr = self.publisher.open_pr(issue, issue["branch"], head)
+        except (GitHubError, broker.BrokerRejected) as exc:
+            # A publishing problem fails this attempt. It must never take the whole run down.
+            self._record_failure(meta, _publish_kind(exc), now, "publishing the branch failed: %s" % str(exc)[:300])
+            return
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"revision": head})
         self.handles.pop(meta["attempt_id"], None)
-        pr = self.publisher.open_pr(issue, issue["branch"], head)
+        try:
+            self.repo.pin_good(issue["issue_id"], head)
+        except Exception:
+            pass  # without a pin, a repair attempt simply starts from the base branch
         run["prs"] = run.get("prs", 0) + 1
         self.store.put_run(self.plan_id, run)
         issue.update(head_rev=head, base_rev=base, patch_id=self.repo.patch_id(issue["branch"]), pr=pr.get("number"), pr_simulated=bool(pr.get("simulated")))
@@ -318,6 +367,7 @@ class Scheduler:
         self.store.put_issue(issue)
         self.store.transition("issue", issue["issue_id"], "In Review", self.runner_id, {"head": head, "base": base, "pr": pr.get("number")}, now=now)
         self._emit("in_review", issue=issue["issue_id"], head=head)
+        self._emit("pr_opened", issue=issue["issue_id"], pr=pr.get("number"), simulated=bool(pr.get("simulated")))
 
     def _on_reviewer(self, meta, h, result, now) -> None:
         issue = self.store.get_issue(meta["issue_id"])
@@ -372,7 +422,7 @@ class Scheduler:
         """A failure found by trusted code on an issue already In Review: invalidate evidence and send it back for repair."""
         self.store.invalidate_evidence(issue["issue_id"], kind)
         fclass = failures.classify(kind)
-        issue["last_failures"].append({"attempt": None, "role": "coordinator", "kind": kind, "class": fclass, "detail": detail[:500]})
+        issue["last_failures"].append({"attempt": None, "role": "coordinator", "kind": kind, "class": fclass, "detail": detail[:1500]})
         decision = failures.decide(fclass, issue, self._plan()["policy"]["budgets"], now, self.rng)
         self._emit("issue_failure", issue=issue["issue_id"], kind=kind, action=decision["action"])
         if decision["action"] == "block":
@@ -449,14 +499,24 @@ class Scheduler:
                 return
             # Clean rebase: the review verdict carries over to the new head, but checks must be rerun on the new base.
             old_head = issue["head_rev"]
+            try:
+                # The pull request head must equal the commit the evidence is bound to, or GitHub refuses the merge.
+                self.publisher.update_branch(issue, branch, old_head, rr.head)
+            except (GitHubError, broker.BrokerRejected) as exc:
+                self._emit("publish_failed", issue=iid, error=str(exc)[:200])
+                return  # the local rebase is idempotent, so the next pass retries
+            try:
+                self.repo.pin_good(iid, rr.head)
+            except Exception:
+                pass
             issue.update(head_rev=rr.head, base_rev=base)
             self.store.put_issue(issue)
             self.store.add_evidence(iid, "review", rr.head, base, "approve", {"carried_from": old_head, "patch_id": rr.patch_id}, now)
-            checks = self.checker.run(iid, rr.head, issue["validation_commands"] or self._phase(issue)["validation"])
+            checks = self.checker.run(iid, rr.head, self._check_commands(issue, self.repo.branch_changed_paths(branch)))
             failed = [c for c in checks if c["exit_code"] != 0]
             self.store.add_evidence(iid, "checks", rr.head, base, "fail" if failed else "pass", {"results": checks, "rerun": "new base"}, now)
             if failed:
-                self._issue_failure(issue, "checks_failed", "checks fail on the new base: %s" % [c["command"] for c in failed], now)
+                self._issue_failure(issue, "checks_failed", "checks fail on the new base: %s" % self._failure_summary(failed), now)
                 return
         reasons = self.merge_gate(issue)
         if reasons:
@@ -466,11 +526,28 @@ class Scheduler:
                 self.store.put_issue(issue)
                 self._block(issue, now)
             return
-        merged = self.publisher.merge(issue, issue.get("pr"), issue["head_rev"])
+        try:
+            merged = self.publisher.merge(issue, issue.get("pr"), issue["head_rev"])
+        except (GitHubError, broker.BrokerRejected) as exc:
+            text = str(exc).lower()
+            transient = any(k in text for k in TRANSIENT_GITHUB)
+            self._emit("merge_failed", issue=iid, error=str(exc)[:200], transient=transient)
+            if not transient:
+                self._issue_failure(issue, "merge_conflict", "GitHub refused the merge: %s" % str(exc)[:300], now)
+                return
+            issue["merge_retries"] = issue.get("merge_retries", 0) + 1
+            if issue["merge_retries"] >= 5:
+                issue["blocked_reason"] = "GitHub kept failing to merge: %s" % str(exc)[:200]
+                self.store.put_issue(issue)
+                self._block(issue, now)
+            else:
+                self.store.put_issue(issue)
+            return
         if not merged.get("merged"):
             return
         self.store.add_evidence(iid, "merge", issue["head_rev"], self.repo.base_head(), "merged",
                                 {"mode": merged.get("mode"), "simulated": bool(merged.get("simulated"))}, now)
+        self._emit("merged", issue=iid, pr=issue.get("pr"), head=issue["head_rev"][:12], simulated=bool(merged.get("simulated")))
         self._post_merge(issue, now)
 
     def _post_merge(self, issue: Dict[str, Any], now: float) -> None:
@@ -484,7 +561,7 @@ class Scheduler:
         failed = [c for c in post if c["exit_code"] != 0]
         self.store.add_evidence(iid, "integrated", issue["head_rev"], self.repo.base_head(), "fail" if failed else "pass", {"results": post}, now)
         if failed:
-            issue["blocked_reason"] = "integrated checks fail after merge: %s" % [c["command"] for c in failed]
+            issue["blocked_reason"] = "integrated checks fail after merge: %s" % self._failure_summary(failed, 600)
             self.store.put_issue(issue)
             self._block(issue, now)
             return
@@ -627,6 +704,9 @@ class Scheduler:
         packet["untrusted_data"] = broker.sanitize_untrusted(packet["untrusted_data"])
         if role == "reviewer":
             packet["reviewed_head"] = issue["head_rev"]  # trusted value, outside the untrusted data block
+        if role == "implementer" and issue.get("head_rev") and self.repo.pinned(issue["issue_id"]) == issue["head_rev"]:
+            # A repair builds on the work that already has a pull request, so its push is a fast-forward of the same branch.
+            packet["resume_from"] = "harness-good/" + issue["issue_id"]
         lease = self.store.claim(issue["issue_id"], self.runner_id, now, budgets["lease_s"])
         if role == "implementer":
             if self.store.state("issue", issue["issue_id"]) == "Ready":
@@ -675,7 +755,8 @@ class Scheduler:
     def _validate_phase(self, ph: Dict[str, Any], mine: List[Dict[str, Any]], ent: str, now: float) -> None:
         covered = {r for i in mine if self.store.state("issue", i["issue_id"]) == "Done" for r in i["requirement_ids"]}
         gaps = sorted(set(ph["requirements"]) - covered)
-        results = self.checker.run("phase-" + ph["id"], self.repo.base_head(), ph["validation"]) if not gaps else []
+        commands = smoke.merge(ph["validation"], smoke.commands_for_allowlist(ph["path_allowlist"], self.smoke_rules))
+        results = self.checker.run("phase-" + ph["id"], self.repo.base_head(), commands) if not gaps else []
         failed = [c["command"] for c in results if c["exit_code"] != 0]
         if gaps or failed:
             self.store.transition("phase", ent, "Active", self.runner_id, {"gaps": gaps, "failed_exit_criteria": failed}, now=now)
@@ -717,6 +798,9 @@ class Scheduler:
         run["paused_reason"] = reason
         self.store.put_run(self.plan_id, run)
         self._emit("paused", reason=reason)
+
+    def pause_for(self, reason: str) -> None:
+        self._pause(reason, self.clock())
 
     def request_cancel(self, drain: bool = False) -> None:
         run = self.store.get_run(self.plan_id)

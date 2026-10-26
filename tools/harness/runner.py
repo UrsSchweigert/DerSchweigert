@@ -131,14 +131,24 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
     return Scheduler(store, plan_id, version, adapter, clone, SandboxChecker(clone, token), publisher, available_models=available, owner=owner, notifier=notifier)
 
 
-def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit) -> int:
-    """Foreground and restartable. Stopping it leaves leases to expire, and `resume` reconciles from the store."""
+def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit, max_errors: int = 3) -> int:
+    """Foreground and restartable. Stopping it leaves leases to expire, and `resume` reconciles from the store.
+    An unexpected error in one pass is reported and retried. Repeated errors pause the plan instead of killing the process."""
     sched.start()
-    ticks = 0
+    ticks = errors = 0
     try:
         while True:
-            for event in sched.tick():
-                emit(event)
+            try:
+                for event in sched.tick():
+                    emit(event)
+                errors = 0
+            except Exception as exc:  # noqa: BLE001 - one bad pass must not end the run
+                errors += 1
+                emit({"event": "tick_error", "error": "%s: %s" % (type(exc).__name__, str(exc)[:200]), "consecutive": errors})
+                if errors >= max_errors:
+                    sched.pause_for("repeated internal errors: %s" % str(exc)[:160])
+                    emit({"event": "stopped", "plan_state": sched.store.state("plan", sched.entity), "reason": "repeated errors"})
+                    return 1
             ticks += 1
             state = sched.store.state("plan", sched.entity)
             if state != "Executing":

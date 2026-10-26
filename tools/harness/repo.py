@@ -52,6 +52,12 @@ class Repo:
     def fast_forward_base(self, head: str) -> None:
         raise NotImplementedError
 
+    def pin_good(self, issue_id: str, head: str) -> None:
+        raise NotImplementedError
+
+    def pinned(self, issue_id: str) -> Optional[str]:
+        raise NotImplementedError
+
     def export(self, rev: str, dest: str) -> None:
         raise NotImplementedError
 
@@ -111,6 +117,17 @@ class GitRepo(Repo):
         if self._exec("merge-base", "--is-ancestor", self.base, head).returncode != 0:
             raise GitError("%s is not a fast-forward of %s" % (head[:12], self.base))
         self._git("update-ref", "refs/heads/" + self.base, head)
+
+    def pin_good(self, issue_id: str, head: str) -> None:
+        """Keep the last good head (checked, pull request open) reachable under harness-good/<issue>. A repair attempt starts from it,
+        and it survives later fetches that move the issue branch."""
+        if self._exec("cat-file", "-e", head + "^{commit}").returncode != 0:
+            raise GitError("commit %s is not in the harness clone" % head[:12])
+        self._git("update-ref", "refs/heads/harness-good/" + issue_id, head)
+
+    def pinned(self, issue_id: str) -> Optional[str]:
+        out = self._exec("rev-parse", "--verify", "--quiet", "refs/heads/harness-good/" + issue_id)
+        return out.stdout.strip() if out.returncode == 0 else None
 
     def path_exists(self, path: str) -> bool:
         """Does a file or directory exist at the base revision?"""

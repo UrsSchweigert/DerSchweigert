@@ -57,6 +57,13 @@ class FakeRepo(Repo):
     def path_exists(self, path):
         return path.strip("/") in getattr(self, "existing", set())
 
+    def pin_good(self, issue_id, head):
+        self.pins = getattr(self, "pins", {})
+        self.pins[issue_id] = head
+
+    def pinned(self, issue_id):
+        return getattr(self, "pins", {}).get(issue_id)
+
     def rebase(self, branch):
         self.rebased.append(branch)
         b = self.branches[branch]
@@ -74,6 +81,7 @@ class FakeChecker(Checker):
         self.commands_run = []
         self.fail_commands = set()
         self.fail_next = 0
+        self.outputs = {}  # command -> output tail reported when it fails
         self.fail_calls = set()  # 1-based call numbers that fail, to fail only after a merge
 
     def run(self, issue_id, head_rev, commands):
@@ -82,7 +90,7 @@ class FakeChecker(Checker):
         failing = self.fail_next > 0 or any(c in self.fail_commands for c in commands) or len(self.calls) in self.fail_calls
         if self.fail_next > 0:
             self.fail_next -= 1
-        return [{"command": c, "exit_code": 1 if failing else 0} for c in commands]
+        return [dict({"command": c, "exit_code": 1 if failing else 0}, **({"output": self.outputs[c]} if failing and c in self.outputs else {})) for c in commands]
 
 
 class FakeHandle:

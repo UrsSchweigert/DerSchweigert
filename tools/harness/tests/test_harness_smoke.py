@@ -1,0 +1,82 @@
+import os
+import shutil
+import subprocess
+
+import pytest
+
+from harness import isolation, smoke
+from harness.tests.harness_doubles import Env
+
+RULES = [{"name": "page", "paths": ["sites/lesen/static/"], "command": "node smoke.mjs ."}]
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+
+def test_rule_applies_only_to_files_under_its_paths():
+    assert smoke.commands_for(["sites/lesen/static/index.html"], RULES) == ["node smoke.mjs ."]
+    assert smoke.commands_for(["sites/lesen/static/a/b.mjs", "x.py"], RULES) == ["node smoke.mjs ."]
+    assert smoke.commands_for(["sites/lesen/package.json", "tools/x.py"], RULES) == []
+
+
+def test_phase_allowlist_overlap_in_either_direction():
+    assert smoke.commands_for_allowlist(["sites/lesen/"], RULES) == ["node smoke.mjs ."]
+    assert smoke.commands_for_allowlist(["sites/lesen/static/index.html"], RULES) == ["node smoke.mjs ."]
+    assert smoke.commands_for_allowlist(["tools/"], RULES) == []
+
+
+def test_merge_does_not_duplicate():
+    assert smoke.merge(["a", "node smoke.mjs ."], ["node smoke.mjs .", "b"]) == ["a", "node smoke.mjs .", "b"]
+
+
+def test_shipped_rules_load():
+    assert smoke.load_rules()
+
+
+def test_smoke_runs_before_and_after_merge_for_changed_files_it_covers(tmp_path):
+    env = Env(tmp_path, issues=[], allowlist=("src/",))
+    env.sched.smoke_rules = [{"name": "any", "paths": ["src/"], "command": "node smoke.mjs ."}]
+    env.add_issue("i1", "P1", ["F1.1"], validation_commands=["unit"])
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    assert env.checker.commands_run[0] == ["unit", "node smoke.mjs ."]
+    assert env.checker.commands_run[1] == ["unit", "node smoke.mjs ."]
+
+
+def test_smoke_is_skipped_for_files_no_rule_covers(tmp_path):
+    env = Env(tmp_path, issues=[], allowlist=("src/",))
+    env.sched.smoke_rules = RULES
+    env.add_issue("i1", "P1", ["F1.1"], validation_commands=["unit"])
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    assert all(c == ["unit"] for c in env.checker.commands_run[:2])
+
+
+def test_a_failing_browser_check_blocks_and_its_output_reaches_the_repair_attempt(tmp_path):
+    env = Env(tmp_path, issues=[], allowlist=("src/",))
+    env.sched.smoke_rules = [{"name": "any", "paths": ["src/"], "command": "node smoke.mjs ."}]
+    env.add_issue("i1", "P1", ["F1.1"], validation_commands=["unit"])
+    env.checker.fail_commands = {"node smoke.mjs ."}
+    env.checker.outputs["node smoke.mjs ."] = "FAIL: the specials group has 0 letter buttons"
+    env.start()
+    env.run_until(lambda: any("0 letter buttons" in (f.get("detail") or "") for f in env.store.get_issue("i1").get("last_failures", [])))
+
+
+@pytest.mark.skipif(not (isolation.docker_available() and isolation.image_id()), reason="needs the worker image")
+@pytest.mark.parametrize("commit,expect_ok", [("849c734", True), ("d9c092e", False)])
+def test_real_browser_check_separates_the_fixed_and_the_broken_page(tmp_path, commit, expect_ok):
+    probe = subprocess.run(["docker", "run", "--rm", isolation.IMAGE, "sh", "-c", "ls /opt/pw-browsers"], capture_output=True, text=True)
+    if probe.returncode != 0 or "chromium" not in probe.stdout:
+        pytest.skip("image has no browser")
+    if subprocess.run(["git", "cat-file", "-e", commit], cwd=ROOT, capture_output=True).returncode != 0:
+        pytest.skip("commit not available")
+    d = os.path.join(os.path.expanduser("~"), ".cache", "harness-smoke-test-" + commit)  # must be under a Docker-shared path
+    shutil.rmtree(d, ignore_errors=True)
+    os.makedirs(d)
+    try:
+        archive = subprocess.run(["git", "archive", commit, "sites/lesen/static"], cwd=ROOT, capture_output=True, check=True)
+        subprocess.run(["tar", "-x", "-C", d], input=archive.stdout, check=True)
+        subprocess.run(["chmod", "-R", "a+rX", d], check=True)
+        r = subprocess.run(["docker", "run", "--rm", "--cap-drop", "ALL", "--read-only", "--tmpfs", "/tmp:rw,size=256m", "--user", "10001", "-v", d + ":/w:ro", "-w", "/w",
+                            isolation.IMAGE, "node", "/opt/harness/smoke/lesen.mjs", "."], capture_output=True, text=True, timeout=240)
+        assert (r.returncode == 0) is expect_ok, r.stdout
+    finally:
+        shutil.rmtree(d, ignore_errors=True)

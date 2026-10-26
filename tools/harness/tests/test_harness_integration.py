@@ -404,3 +404,174 @@ def test_a_confused_refiner_failure_keeps_its_reason_and_the_retry_is_not_a_dupl
     refiners = [r for r in env.adapter.started if r.role == "refiner"]
     assert len(refiners) == 2 and "your_previous_answer_was_rejected" in refiners[1].packet["untrusted_data"]
     assert "your_previous_answer_was_rejected" not in refiners[0].packet["untrusted_data"]
+
+
+# -- publishing problems fail an attempt, never the run; repairs continue the pushed branch; rebased branches are published -------------
+
+from harness.broker import BrokerRejected  # noqa: E402
+from harness.checks import DryRunPublisher  # noqa: E402
+from harness.github import GitHubError  # noqa: E402
+
+
+class FlakyPublisher(DryRunPublisher):
+    """TEST DOUBLE: a publisher that fails on demand with the errors GitHub or git would raise."""
+
+    def __init__(self, repo=None):
+        super().__init__(repo)
+        self.open_errors, self.merge_errors, self.update_errors = [], [], []
+
+    def open_pr(self, issue, branch, head_rev):
+        if self.open_errors:
+            raise self.open_errors.pop(0)
+        return super().open_pr(issue, branch, head_rev)
+
+    def merge(self, issue, pr, head_rev):
+        if self.merge_errors:
+            raise self.merge_errors.pop(0)
+        return super().merge(issue, pr, head_rev)
+
+    def update_branch(self, issue, branch, old_head, new_head):
+        if self.update_errors:
+            raise self.update_errors.pop(0)
+        super().update_branch(issue, branch, old_head, new_head)
+
+
+def flaky_env(tmp_path, **kw):
+    env = Env(tmp_path, issues=[("i1", "P1", ["F1.1", "F1.2"])], budgets=dict(LONG_BUDGETS), **kw)
+    env.publisher = env.sched.publisher = FlakyPublisher()
+    return env
+
+
+def test_a_rejected_push_fails_the_attempt_and_the_run_carries_on(tmp_path):
+    """Regression: 'push of harness/x failed: behind its remote' used to crash the whole run."""
+    env = flaky_env(tmp_path)
+    env.publisher.open_errors = [GitHubError("push of harness/i1 failed: ! [rejected] harness/i1 -> harness/i1 (non-fast-forward) behind its remote")]
+    env.start()
+    env.tick()
+    env.tick()  # must not raise
+    first = env.store.get_attempt("i1#1")
+    assert first["failure_kind"] == "push_rejected" and first["failure_class"] == "deterministic" and first["outcome"] == "Failed"
+    assert env.store.state("attempt", "i1#1") == "Failed"  # the store agrees with the attempt record
+    assert env.store.get_issue("i1")["repair_failures"] == 1
+    env.run_until(lambda: env.state("i1") == "Done")
+
+
+def test_other_github_errors_while_publishing_are_transient_and_retried(tmp_path):
+    env = flaky_env(tmp_path)
+    env.publisher.open_errors = [GitHubError("HTTP 502 Bad Gateway")]
+    env.start()
+    env.run_until(lambda: env.store.get_issue("i1")["transient_failures"] == 1)
+    assert env.store.get_attempt("i1#1")["failure_class"] == "transient"
+    env.run_until(lambda: env.state("i1") == "Done", advance=60)
+
+
+def test_a_broker_refusal_while_publishing_is_handled_too(tmp_path):
+    env = flaky_env(tmp_path)
+    env.publisher.open_errors = [BrokerRejected("pushes are limited to harness/<issue>-<slug> branches")]
+    env.start()
+    env.tick()
+    env.tick()
+    assert env.store.get_attempt("i1#1")["outcome"] == "Failed"
+
+
+def test_github_refusing_a_merge_sends_the_issue_back_for_repair(tmp_path):
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [GitHubError("HTTP 405: Pull Request is not mergeable")]
+    env.start()
+    events = env.run_until(lambda: any(e["event"] == "merge_failed" for e in env.sched.events), limit=40)
+    assert env.state("i1") == "In Progress" or env.state("i1") == "Ready"
+    assert env.store.get_issue("i1")["last_failures"][-1]["kind"] == "merge_conflict"
+    env.run_until(lambda: env.state("i1") == "Done")
+
+
+def test_a_transient_merge_error_is_retried_and_five_in_a_row_block_with_a_task(tmp_path):
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [GitHubError("HTTP 503 Service Unavailable")] * 2
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    assert env.store.get_issue("i1")["merge_retries"] == 2
+    env2 = flaky_env(tmp_path / "b")
+    env2.publisher.merge_errors = [GitHubError("HTTP 502 Bad Gateway")] * 20
+    env2.start()
+    env2.run_until(lambda: env2.state("i1") == "Blocked")
+    assert "kept failing to merge" in env2.store.get_issue("i1")["blocked_reason"] and len(env2.store.human_tasks("i1")) == 1
+
+
+def test_a_branch_rebased_by_the_harness_is_published_before_the_merge(tmp_path):
+    """Regression: the merge is bound to the rebased head, which GitHub only knows if it was pushed."""
+    env = flaky_env(tmp_path)
+    env.adapter.script("i1", "reviewer", "hang")
+    env.start()
+    env.run_until(lambda: any(r.role == "reviewer" for r in env.adapter.started))
+    old_head = env.store.get_issue("i1")["head_rev"]
+    env.repo.advance_base(["docs/elsewhere.md"])
+    next(h["handle"] for h in env.sched.handles.values() if h["handle"].req.role == "reviewer").step = "ok"
+    env.run_until(lambda: env.state("i1") == "Done")
+    update = next(i for i in env.publisher.intents if i["action"] == "update_branch")
+    merge = next(i for i in env.publisher.intents if i["action"] == "merge_pr")
+    assert update["old"] == old_head and update["new"] == merge["head"] != old_head
+    assert env.publisher.intents.index(update) < env.publisher.intents.index(merge)
+    assert env.repo.pinned("i1") == merge["head"]
+
+
+def test_a_failed_branch_publication_is_retried_without_merging(tmp_path):
+    env = flaky_env(tmp_path)
+    env.adapter.script("i1", "reviewer", "hang")
+    env.start()
+    env.run_until(lambda: any(r.role == "reviewer" for r in env.adapter.started))
+    env.repo.advance_base(["docs/elsewhere.md"])
+    env.publisher.update_errors = [GitHubError("publishing the rebased harness/i1 failed: stale info")]
+    next(h["handle"] for h in env.sched.handles.values() if h["handle"].req.role == "reviewer").step = "ok"
+    events = env.run_until(lambda: any(e["event"] == "publish_failed" for e in env.sched.events), limit=30)
+    assert not [i for i in env.publisher.intents if i["action"] == "merge_pr"]
+    env.run_until(lambda: env.state("i1") == "Done")
+
+
+def test_a_repair_attempt_continues_the_branch_that_already_has_a_pull_request(tmp_path):
+    """Regression: a repair used to start from main, so its push diverged from the pushed branch and was rejected."""
+    env = flaky_env(tmp_path)
+    env.adapter.verdicts["i1"] = ["changes_requested", "approve"]
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    implementers = [r for r in env.adapter.started if r.role == "implementer"]
+    assert len(implementers) == 2
+    assert "resume_from" not in implementers[0].packet and implementers[1].packet["resume_from"] == "harness-good/i1"
+    assert env.repo.pinned("i1") == env.store.get_issue("i1")["head_rev"]
+
+
+def test_start_pins_heads_recorded_before_pinning_existed(tmp_path):
+    env = flaky_env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["head_rev"] = "abc123"
+    env.store.put_issue(issue)
+    assert env.repo.pinned("i1") is None
+    env.start()
+    assert env.repo.pinned("i1") == "abc123"
+
+
+# -- the run output names each step, including the pull request and the merge ---------------------------------------------
+
+def test_the_run_reports_when_a_pull_request_is_opened_and_merged(tmp_path):
+    env = flaky_env(tmp_path)
+    env.start()
+    events = env.run_until(lambda: env.state("i1") == "Done")
+    names = [e["event"] for e in events]
+    assert names.index("pr_opened") < names.index("in_review") + 2 and names.index("in_review") < names.index("review") < names.index("merged") < names.index("done")
+    merged = next(e for e in events if e["event"] == "merged")
+    assert merged["issue"] == "i1" and merged["head"] == env.store.get_issue("i1")["head_rev"][:12] and merged["simulated"] is True
+
+
+def test_an_attempt_fenced_while_its_replacement_was_claimed_stops_showing_as_running(tmp_path):
+    """Regression: after a crash, the abandoned attempt kept an empty outcome and showed as 'running' forever."""
+    env = Env(tmp_path, issues=[("i1", "P1", ["F1.1", "F1.2"])], budgets={"lease_s": 30})
+    env.adapter.script("i1", "implementer", "busy")
+    env.start()
+    env.tick()
+    assert env.store.get_attempt("i1#1")["outcome"] == ""
+    # The runner dies. A new claim for the same issue fences the old attempt in the store only.
+    env.clock.advance(500)
+    env.store.claim("i1", "runner-2", env.clock(), 30)
+    assert env.store.state("attempt", "i1#1") == "Fenced" and env.store.get_attempt("i1#1")["outcome"] == ""
+    env.sched.handles.clear()
+    env.sched.tick(env.clock())
+    assert env.store.get_attempt("i1#1")["outcome"] == "Fenced"

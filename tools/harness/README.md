@@ -169,6 +169,15 @@ A result for an older commit is rejected as stale, and `inconclusive` stays open
 
 To see tasks on GitHub as well, run `harness sync-tasks PLAN_ID` (mirrors open tasks as issues and mentions you).
 
+## Browser smoke check
+
+Unit tests cannot catch wiring between scripts, so changes under `sites/lesen/static/` also get a real-browser check. A headless Chromium in the worker image opens the page, checks that the letter groups render, the word counter reacts, a full practice session runs, statistics are saved, and the landscape layout fits. Any console error or failed request fails it.
+
+* Rules live in `tools/harness/smoke.json` (changed paths → command). The scripts are baked into the image (`worker/smoke/`), so workers cannot edit or skip them.
+* The check runs with the issue's own commands: before review, after a rebase, after the merge, and at phase validation. A failure goes back to the worker with the end of the output.
+* After rebuilding the image (`isolation build`) run `isolation verify`. The probe now also checks that the browser is present.
+* To try it by hand: `docker run --rm --user 10001 -v <repo-dir>:/w:ro -w /w harness-worker:1 node /opt/harness/smoke/lesen.mjs .` (the directory must be inside a Docker-shared path, such as your home folder).
+
 ## Command reference
 
 Every command is `harness <command>`. Add `--home DIR` before the command to use another store folder.

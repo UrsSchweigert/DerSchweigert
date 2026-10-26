@@ -5,6 +5,7 @@ Credentials come from the broker token file and reach git and gh only through th
 from __future__ import annotations
 
 import os
+import re
 import stat
 import subprocess
 import tempfile
@@ -50,6 +51,18 @@ def push_branch(clone_path: str, remote: str, branch: str, token_file: Optional[
         raise GitHubError("push of %s failed: %s" % (name, proc.stderr.strip()[-200:]))
 
 
+def push_rebased(clone_path: str, remote: str, branch: str, expected_old: str, token_file: Optional[str]) -> None:
+    """Replace a harness branch the harness itself rebased. The push succeeds only if the remote still has exactly the commit that
+    was reviewed (force-with-lease), so nothing a person or another process pushed can be overwritten."""
+    name = check_branch_target(branch)
+    if not re.fullmatch(r"[0-9a-f]{40}", expected_old or ""):
+        raise BrokerRejected("expected remote head must be a full commit id")
+    proc = git_with_token(["push", "--force-with-lease=refs/heads/%s:%s" % (name, expected_old), remote, "refs/heads/%s:refs/heads/%s" % (name, name)],
+                          clone_path, token_file)
+    if proc.returncode != 0:
+        raise GitHubError("publishing the rebased %s failed: %s" % (name, proc.stderr.strip()[-200:]))
+
+
 class GitHubPublisher(Publisher):
     """Not exercised against live GitHub during setup. Tier B forbids remote writes, so it is covered with a local remote and a test double."""
 
@@ -64,6 +77,9 @@ class GitHubPublisher(Publisher):
             body = "Harness-managed pull request for issue `%s`. Requirements: %s. Head `%s`." % (issue["issue_id"], ", ".join(issue["requirement_ids"]), head_rev)
             number = with_retries(lambda: self.client.create_pr(title, body, branch, self.base), sleep=self.sleep)
         return {"number": number, "simulated": False}
+
+    def update_branch(self, issue: Dict[str, Any], branch: str, old_head: str, new_head: str) -> None:
+        push_rebased(self.clone_path, self.remote, branch, old_head, self.token_file)
 
     def merge(self, issue: Dict[str, Any], pr: Any, head_rev: str) -> Dict[str, Any]:
         if not pr:

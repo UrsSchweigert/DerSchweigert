@@ -10,7 +10,7 @@ TRANSIENT, DETERMINISTIC, POLICY, SYSTEMIC = "transient", "deterministic", "poli
 KIND_CLASS = {
     "infra": TRANSIENT, "network": TRANSIENT, "rate_limit": TRANSIENT, "runtime_crash": TRANSIENT, "lease_lost": TRANSIENT,
     "checks_failed": DETERMINISTIC, "review_findings": DETERMINISTIC, "schema_invalid": DETERMINISTIC,
-    "merge_conflict": DETERMINISTIC, "patch_changed": DETERMINISTIC, "integrated_checks_failed": DETERMINISTIC,
+    "merge_conflict": DETERMINISTIC, "push_rejected": DETERMINISTIC, "patch_changed": DETERMINISTIC, "integrated_checks_failed": DETERMINISTIC,
     "scope_violation": POLICY, "escalation_path": POLICY, "approval": POLICY, "permission": POLICY,
     "protected_branch": POLICY, "diff_too_large": POLICY,
     "isolation": SYSTEMIC, "credentials": SYSTEMIC, "budget": SYSTEMIC,

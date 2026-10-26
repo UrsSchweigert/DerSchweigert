@@ -442,3 +442,128 @@ def test_a_mode_only_change_in_the_worker_copy_is_not_committed(tmp_path, monkey
     repo = os.path.join(a._prepare(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "harness/i1")), "repo")
     os.chmod(os.path.join(repo, "tool.sh"), 0o644)  # an accidental chmod by the worker or a tool
     assert git(repo, "status", "--porcelain") == "" and git(repo, "config", "core.fileMode") == "false"
+
+
+# -- continuing the pushed branch, publishing a rebased one, and surviving a bad pass -------------------------------------------------
+
+def test_a_repair_workdir_starts_from_the_last_good_head_and_pushes_as_a_fast_forward(tmp_path, monkeypatch):
+    from harness.repo import GitRepo, GitError
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    open(os.path.join(src, "f.txt"), "w").write("base\\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    trusted = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", src, trusted)
+    git(src, "checkout", "-q", "-b", "harness/i1")
+    open(os.path.join(src, "first.txt"), "w").write("first attempt\\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "first")
+    good = git(src, "rev-parse", "HEAD")
+    git(str(tmp_path), "--git-dir", trusted, "fetch", "-q", src, "+refs/heads/harness/i1:refs/heads/harness/i1")
+    repo = GitRepo(trusted)
+    repo.pin_good("i1", good)
+    assert repo.pinned("i1") == good
+    # A later attempt moves the issue branch elsewhere, as fetching a diverged worker branch does. The pin keeps the good head reachable.
+    git(src, "checkout", "-q", "main")
+    git(src, "checkout", "-q", "-B", "harness/i1")
+    open(os.path.join(src, "other.txt"), "w").write("diverged\\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "diverged")
+    git(str(tmp_path), "--git-dir", trusted, "fetch", "-q", src, "+refs/heads/harness/i1:refs/heads/harness/i1")
+    assert repo.branch_head("harness/i1") != good and repo.pinned("i1") == good
+    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    repair = a._prepare(WorkRequest("i1#4", 1, "i1", "implementer", "standard", None, {"resume_from": "harness-good/i1"}, "harness/i1"))
+    repo_dir = os.path.join(repair, "repo")
+    assert git(repo_dir, "rev-parse", "HEAD") == good and os.path.exists(os.path.join(repo_dir, "first.txt"))
+    open(os.path.join(repo_dir, "fix.txt"), "w").write("repair\\n")
+    git(repo_dir, "add", "-A")
+    git(repo_dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "repair")
+    new = git(repo_dir, "rev-parse", "HEAD")
+    assert subprocess.run(["git", "merge-base", "--is-ancestor", good, new], cwd=repo_dir, env=ENV).returncode == 0  # a fast-forward of the pushed head
+    # Names that are not pins are ignored, and reviewers and first attempts are unaffected.
+    for packet, role in (({"resume_from": "../../etc"}, "implementer"), ({"resume_from": "harness-good/i1"}, "reviewer"), ({}, "implementer")):
+        w = a._prepare(WorkRequest("i1#5", 1, "i1", role, "standard", None, packet, "harness/i1"))
+        assert not os.path.exists(os.path.join(w, "repo", "first.txt")) or role == "reviewer"
+    with pytest.raises(GitError):
+        repo.pin_good("i2", "0" * 40)
+    assert repo.pinned("i2") is None
+
+
+def test_a_rebased_branch_is_pushed_only_if_the_remote_still_has_the_reviewed_commit(remote_world, tmp_path):
+    from harness.publisher import push_rebased
+    origin, clone = remote_world
+    git(clone, "checkout", "-q", "harness/i1")
+    open(os.path.join(clone, "w.txt"), "w").write("w\\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "work")
+    push_branch(clone, origin, "harness/i1", None)
+    reviewed = git(clone, "rev-parse", "HEAD")
+    git(clone, "commit", "-q", "--amend", "-m", "rebased")  # same content, new commit: what a rebase produces
+    rebased = git(clone, "rev-parse", "HEAD")
+    assert rebased != reviewed
+    push_rebased(clone, origin, "harness/i1", reviewed, None)
+    assert git(clone, "--git-dir", origin, "rev-parse", "harness/i1") == rebased
+    # The remote moved after the review (someone else pushed): the lease protects it and nothing is overwritten.
+    other = str(tmp_path / "other")
+    git(str(tmp_path), "clone", "-q", origin, other)
+    git(other, "checkout", "-q", "harness/i1")
+    open(os.path.join(other, "theirs.txt"), "w").write("t\\n")
+    git(other, "add", "-A")
+    git(other, "-c", "user.name=o", "-c", "user.email=o@o", "commit", "-q", "-m", "theirs")
+    git(other, "push", "-q", "origin", "harness/i1")
+    git(clone, "commit", "-q", "--amend", "-m", "rebased again")
+    with pytest.raises(GitHubError, match="failed"):
+        push_rebased(clone, origin, "harness/i1", rebased, None)
+    assert git(other, "rev-parse", "HEAD") == git(clone, "--git-dir", origin, "rev-parse", "harness/i1")
+    for bad_branch in ("main", "feature/x"):
+        with pytest.raises(BrokerRejected):
+            push_rebased(clone, origin, bad_branch, rebased, None)
+    with pytest.raises(BrokerRejected, match="full commit id"):
+        push_rebased(clone, origin, "harness/i1", "abc", None)
+
+
+class _Quiet:
+    """TEST DOUBLE for a scheduler: scripted tick results, and a recorded pause."""
+
+    def __init__(self, *script):
+        import types
+        self.script, self.paused = list(script), None
+        self.entity = "p@v1"
+        self.store = types.SimpleNamespace(state=lambda machine, entity: "Paused" if self.paused else "Executing")
+
+    def start(self):
+        pass
+
+    def tick(self):
+        step = self.script.pop(0) if self.script else []
+        if isinstance(step, Exception):
+            raise step
+        return step
+
+    def pause_for(self, reason):
+        self.paused = reason
+
+
+def test_one_bad_pass_is_reported_and_the_run_carries_on():
+    events = []
+    sched = _Quiet(RuntimeError("boom"), [{"event": "ok"}], [])
+    assert runner.run_loop(sched, 0, 3, events.append) == 0
+    assert [e["event"] for e in events] == ["tick_error", "ok", "max_ticks_reached"]
+    assert events[0]["error"] == "RuntimeError: boom" and events[0]["consecutive"] == 1
+
+
+def test_repeated_errors_pause_the_plan_instead_of_killing_the_process():
+    events = []
+    sched = _Quiet(RuntimeError("a"), RuntimeError("b"), RuntimeError("c"), [])
+    assert runner.run_loop(sched, 0, None, events.append) == 1
+    assert sched.paused and "repeated internal errors" in sched.paused and events[-1]["event"] == "stopped"
+    assert [e["consecutive"] for e in events if e["event"] == "tick_error"] == [1, 2, 3]
+
+
+def test_a_success_resets_the_error_count():
+    events = []
+    sched = _Quiet(RuntimeError("a"), RuntimeError("b"), [], RuntimeError("c"), RuntimeError("d"), [])
+    assert runner.run_loop(sched, 0, 6, events.append) == 0 and sched.paused is None

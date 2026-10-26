@@ -108,12 +108,13 @@ chk workdir_writable 'touch /work/probe_ok'
 chk no_capabilities 'grep -q "^CapEff:[[:space:]]*0000000000000000" /proc/self/status'
 chk no_new_privileges 'grep -q "^NoNewPrivs:[[:space:]]*1" /proc/self/status'
 chk copilot_installed 'command -v copilot >/dev/null'
+chk smoke_tool '[ -f /opt/harness/smoke/lesen.mjs ] && ls -d /opt/pw-browsers/chromium* >/dev/null 2>&1 && node -e "require(\"playwright\")" >/dev/null 2>&1'
 """
 
 REQUIRED_CHECKS = [
     "non_root", "no_host_credentials_in_env", "no_copilot_token_unless_passed", "store_path_absent", "host_home_absent",
     "no_ssh_agent", "no_docker_socket", "rootfs_read_only", "workdir_writable", "no_capabilities", "no_new_privileges",
-    "copilot_installed",
+    "copilot_installed", "smoke_tool",
 ]
 
 

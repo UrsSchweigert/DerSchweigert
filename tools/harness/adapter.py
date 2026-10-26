@@ -116,6 +116,12 @@ class CopilotCliAdapter(Adapter):
             probe = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/" + req.branch], capture_output=True)
             if probe.returncode == 0:
                 start = "refs/remotes/origin/" + req.branch
+        resume = str(req.packet.get("resume_from", ""))
+        if req.role == "implementer" and re.fullmatch(r"harness-good/[a-z0-9][a-z0-9-]*", resume):
+            # A repair continues the work that already has a pull request, not a fresh copy of the base branch.
+            probe = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/" + resume], capture_output=True)
+            if probe.returncode == 0:
+                start = "refs/remotes/origin/" + resume
         subprocess.run(["git", "-C", repo, "checkout", "--quiet", "-B", req.branch, start], check=True, capture_output=True)
         # The widened permissions below must not show up as changes. Git would otherwise record executable files as "mode changed".
         subprocess.run(["git", "-C", repo, "config", "core.fileMode", "false"], check=True, capture_output=True)

@@ -86,6 +86,9 @@ GitHub cannot enforce protection on this repository, so the harness and the owne
 ## Fixes found before the first real run (2026-10-26)
 
 * Role mapping changed by the owner on 2026-10-26: implementers start on `low` (Haiku) and reviewers on `standard` (Sonnet), instead of the spec default of `standard` for both. Failed checks or review findings still escalate an implementer one tier. The mapping is in code (`models.ROLE_TIER`), not in the approval digest, so it applies to the approved plan without re-approval.
+* A repair attempt continues the branch that already has a pull request: the last good head is pinned in the harness clone (`harness-good/<issue>`) and the worker starts from it, so its push is a fast-forward. Previously it started from the base branch, diverged, and its push was rejected.
+* The harness now publishes a branch it rebased itself with `--force-with-lease`, bound to the exact commit that was reviewed, because GitHub refuses a merge whose commit is not the pull request head. This is the one place the harness force-pushes. It applies only to `harness/*` branches, and the push fails if anyone else moved the branch.
+* Publishing and merge errors from GitHub fail an attempt, or are retried, instead of ending the run. An unexpected error in a scheduling pass is reported and retried, and three in a row pause the plan.
 * `run --dry-run` used to mark real issues Done and could complete the real plan, so a rehearsal consumed the run. It now runs on a throwaway copy of the store (`rehearsal-<time>/`, kept for inspection) and never touches the real state.
 * A merge never advanced the harness's own copy of `main`. Later issues built on a base without earlier work, and post-merge checks ran on stale code. A real merge now fetches `main` from the remote into the clone, and a rehearsal merge fast-forwards the throwaway clone.
 * Known limit: the harness only merges through its own publisher. If a human merges a harness PR on GitHub, the scheduler does not notice. A `human-merges` policy therefore stops at review and needs the issue to be closed another way.
@@ -120,6 +123,10 @@ GitHub cannot enforce protection on this repository, so the harness and the owne
 * Verified on this machine: the Copilot CLI ran inside the sandbox with only the Copilot token, created a file in the task directory, and could not see the store, `gh`, or any host credential.
 * Known limits: egress is unrestricted, so a worker can reach the network and could exfiltrate the task directory or the Copilot-only token. Anything with the same OS user can still change the attestation key, so the attestation is evidence of the last probe and is not tamper-proof against the operator. The broker token is broader than the harness needs. Docker Desktop's VM is the isolation boundary.
 * Rotation: renew `copilot.token` before 2026-11-25. Rebuild the image and rerun `isolation verify` after any Dockerfile change.
+
+## Browser smoke check
+
+After PR #26 broke production (a classic script read `window.__storage` before the module script set it) the harness gained a browser-level gate. The worker image carries Playwright Chromium and `smoke/lesen.mjs`; `smoke.json` maps changed paths to it. It is appended to an issue's validation commands (pre-merge, rebase rerun, post-merge, phase validation) and the isolation probe requires it. Failing output tails are included in repair feedback. Verified: passes on `849c734`, fails on the broken `d9c092e`. Limit: it covers the lesen web page only.
 
 ## Consequences
 
