@@ -1174,6 +1174,15 @@
                 <button id="confirm-end-yes" class="primary" type="button">Beenden</button>
             </div>
         </dialog>
+        <dialog id="tts-disclaimer-dialog" class="about-dialog" aria-labelledby="tts-disclaimer-title">
+            <button id="tts-disclaimer-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
+            <h2 id="tts-disclaimer-title">Hinweis zum Vorlesen</h2>
+            <p>Das Vorlesen nutzt die Sprachausgabe deines Ger&auml;ts. Klang und Verf&uuml;gbarkeit h&auml;ngen von den Barrierefreiheits- bzw. Sprachausgabe-Einstellungen deines Ger&auml;ts ab.</p>
+            <p>Da die Silben teils keine echten W&ouml;rter sind, kann die Aussprache ungew&ouml;hnlich klingen.</p>
+            <div class="about-actions">
+                <button id="tts-disclaimer-close" class="primary" type="button">Verstanden</button>
+            </div>
+        </dialog>
         <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
             <button id="about-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
             <h2 id="about-title">Über Buchstabenzeit</h2>
@@ -1196,8 +1205,10 @@
     <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button" hidden>&Uuml;ber &amp; Datenschutz</button><a id="privacy-link" href="datenschutz.html">Datenschutzerkl&auml;rung</a></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
+        import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
         window.__speech = createSpeechAdapter();
         window.__speech.warm();
+        window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
     </script>
     <script>
         'use strict';
@@ -1498,6 +1509,10 @@
 
         function speakCard() {
           const speech = window.__speech;
+          if (window.__consumeTtsDisclaimerFlag?.()) {
+            // Shown once per session; speech playback below is not delayed by this.
+            byId('tts-disclaimer-dialog').showModal();
+          }
           if (!speech) {
             byId('feedback').textContent = 'Die Vorlesefunktion wird von diesem Browser nicht unterst\u00fctzt.';
             return;
@@ -1567,6 +1582,8 @@
         });
         byId('about-x').addEventListener('click', () => byId('about-dialog').close());
         byId('about-close').addEventListener('click', () => byId('about-dialog').close());
+        byId('tts-disclaimer-x').addEventListener('click', () => byId('tts-disclaimer-dialog').close());
+        byId('tts-disclaimer-close').addEventListener('click', () => byId('tts-disclaimer-dialog').close());
     </script>
 </body>
 
