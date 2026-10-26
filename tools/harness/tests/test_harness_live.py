@@ -3,6 +3,7 @@
 Runs the real Copilot CLI in the Tier A sandbox against a throwaway repository, then inspects the result with
 the real GitRepo and the real sandbox checker. It spends a small amount of Copilot usage and writes nothing to GitHub.
 """
+import json
 import os
 import subprocess
 import time
@@ -80,3 +81,40 @@ def test_real_blender_builds_a_valid_procedural_asset(tmp_path):
     entry = {"path": "assets/cube.glb", "checksum": sha256_file(str(out)), "request_id": "live", "issue": "i1", "source": "procedural", "author": "harness",
              "license": "CC0-1.0", "attribution": "", "tool": "blender", "date": "2026-10-26"}
     assert validate_entry(str(tmp_path), entry, {"assets": plans.DEFAULT_POLICY["assets"]}, "model3d") == []
+
+
+def test_real_investigator_drafts_a_valid_plan_for_a_small_app(tmp_path, monkeypatch):
+    """Real Copilot CLI in the Tier A sandbox. It may ask a question, which is answered automatically."""
+    from harness import plans, runner
+    from harness.adapter import CopilotCliAdapter
+    from harness.investigate import Investigator, validate_draft
+
+    app = tmp_path / "app"
+    (app / "src").mkdir(parents=True)
+    (app / "tests").mkdir()
+    (app / "src" / "greet.js").write_text("export function greet(name) { return 'Hello ' + name; }\n")
+    (app / "tests" / "greet.test.mjs").write_text("import test from 'node:test';\nimport assert from 'node:assert';\n"
+                                                  "import { greet } from '../src/greet.js';\ntest('greet', () => assert.equal(greet('A'), 'Hello A'));\n")
+    (app / "package.json").write_text('{"type": "module", "scripts": {"test": "node --test tests/*.test.mjs"}}\n')
+    run = lambda *a: subprocess.run(["git"] + list(a), cwd=str(app), env=ENV, check=True, capture_output=True)  # noqa: E731
+    run("init", "-q", "-b", "main")
+    run("add", "-A")
+    run("commit", "-q", "-m", "init")
+    req = tmp_path / "requirements.md"
+    req.write_text("| ID | Requirement | Description |\n| :--- | :--- | :--- |\n"
+                   "| **1.1** | **Polite greeting** | greet() ends with an exclamation mark. |\n"
+                   "| **1.2** | **Shout option** | greet(name, {shout: true}) returns upper case. |\n")
+    home = default_home()
+    clone = runner.trusted_clone(str(tmp_path / "home"), str(app))
+    adapter = CopilotCliAdapter(home, clone.path, "main")
+    assert adapter.probe()["available"]
+    policy = plans.DEFAULT_POLICY
+    inv = Investigator(adapter, clone, policy, None, ask=lambda q: "Use your best judgment.", tier="low", max_attempts=4, timeout=600)
+    monkeypatch.chdir(tmp_path)
+    out = str(tmp_path / "plan")
+    result = inv.run(str(req), out)
+    assert result["status"] == "ok", result
+    phases = json.load(open(os.path.join(out, "phases.json")))["phases"]
+    issues = json.load(open(os.path.join(out, "issues.json")))["issues"]
+    assert validate_draft({"phases": phases, "issues": issues}, plans.parse_requirements(str(req)), clone, policy) == []
+    assert {r for p in phases for r in p["requirements"]} == {"1.1", "1.2"}

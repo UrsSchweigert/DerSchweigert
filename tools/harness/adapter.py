@@ -98,7 +98,7 @@ class CopilotCliAdapter(Adapter):
                 shutil.rmtree(work, ignore_errors=True)
         return {"available": True, "reason": "sandbox, image, and token present", "models": models}
 
-    def _prepare(self, req: WorkRequest) -> str:
+    def _prepare(self, req: WorkRequest, prompt: Optional[str] = None) -> str:
         work = isolation.new_workdir("w-%s-" % re.sub(r"\W+", "_", req.attempt_id)[:30])
         repo = os.path.join(work, "repo")
         subprocess.run(["git", "-c", "core.hooksPath=" + os.devnull, "clone", "--quiet", "--no-hardlinks", self.source_repo, repo],
@@ -107,7 +107,7 @@ class CopilotCliAdapter(Adapter):
         with open(os.path.join(work, "task.json"), "w") as fh:
             json.dump(dict(req.packet, attempt_id=req.attempt_id, epoch=req.epoch), fh, indent=2)
         with open(os.path.join(work, "prompt.txt"), "w") as fh:
-            fh.write(build_prompt(req))
+            fh.write(prompt or build_prompt(req))
         # The container user differs from the host user, so everything must be writable.
         for root, dirs, files in os.walk(work):
             for n in dirs + files:
@@ -117,12 +117,12 @@ class CopilotCliAdapter(Adapter):
                     pass
         return work
 
-    def start(self, req: WorkRequest) -> _Handle:
-        work = self._prepare(req)
-        name = "harness-" + re.sub(r"[^A-Za-z0-9_.-]", "_", req.attempt_id)
+    def start(self, req: WorkRequest, prompt: Optional[str] = None) -> _Handle:
+        work = self._prepare(req, prompt)
+        name = "harness-%s-%s" % (re.sub(r"[^A-Za-z0-9_.-]", "_", req.attempt_id), os.urandom(3).hex())
         model = ["--model", req.model] if req.model else []
         script = ("cd /work/repo && git config user.name harness && git config user.email harness@localhost && "
-                  "copilot -p \"$(cat /work/prompt.txt)\" %s --allow-all-tools --no-ask-user --silent; echo $? > /work/exit_code" % " ".join(model))
+                  "copilot -p \"$(cat /work/prompt.txt)\" %s --allow-all-tools --allow-all-paths --no-ask-user; echo $? > /work/exit_code" % " ".join(model))
         args = isolation.docker_args(work, ["sh", "-c", script], pass_env=[isolation.COPILOT_TOKEN_ENV], name=name)
         with open(self.token_file) as fh:
             env = isolation.scrub_env(os.environ)
@@ -142,20 +142,29 @@ class CopilotCliAdapter(Adapter):
         if handle.proc.poll() is None:
             return Poll("running", handle.last_activity, None, None)
         text = "\n".join(handle.tail)
-        path = os.path.join(handle.workdir, "result.json")
         if handle.cancelled:
             return Poll("finished", handle.last_activity, None, {"kind": "cancelled"})
-        if re.search(r"rate limit|429", text, re.I):
+        try:
+            with open(os.path.join(handle.workdir, "result.json")) as fh:
+                return Poll("finished", handle.last_activity, json.load(fh), None)
+        except (OSError, ValueError):
+            pass
+        # No result: classify from evidence. Token counts in the usage summary must not look like an error code.
+        if re.search(r"rate limit|HTTP 429|\b429 Too Many", text, re.I):
             return Poll("finished", handle.last_activity, None, {"kind": "rate_limit"})
-        if re.search(r"authentication|not authorized|401|bad credentials", text, re.I):
+        if re.search(r"authentication|not authorized|HTTP 401|bad credentials", text, re.I):
             return Poll("finished", handle.last_activity, None, {"kind": "credentials"})
         if handle.proc.returncode != 0:
             return Poll("finished", handle.last_activity, None, {"kind": "runtime_crash"})
-        try:
-            with open(path) as fh:
-                return Poll("finished", handle.last_activity, json.load(fh), None)
-        except (OSError, ValueError):
-            return Poll("finished", handle.last_activity, None, {"kind": "schema_invalid", "detail": "no valid result.json"})
+        return Poll("finished", handle.last_activity, None, {"kind": "schema_invalid", "detail": "no valid result.json"})
+
+    def describe(self, handle: _Handle) -> str:
+        """The latest worker action (lines starting with a bullet), else the latest output line, for progress display."""
+        lines = [l.strip() for l in handle.tail if l.strip()]
+        for line in reversed(lines):
+            if line.startswith("●"):
+                return line[:100]
+        return lines[-1][:100] if lines else ""
 
     def cancel(self, handle: _Handle) -> None:
         handle.cancelled = True

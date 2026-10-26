@@ -14,8 +14,12 @@ All commands: `PYTHONPATH=tools python3 -m harness <command>` from the repositor
 ## Workflow
 
 ```sh
+# 0. Let the investigator study the app and draft the phases and issues. It asks you questions in the terminal when it is blocked.
+harness investigate --requirements uploads/20261026_improvements
+#    writes uploads/20261026_improvements_plan/{phases.json,issues.json,investigation-report.md}. Read the report before going on.
+
 # 1. Submit requirements. Without --phases the plan stays Draft and lists what is missing.
-harness plan --requirements uploads/20261026_improvements --phases phases.json
+harness plan --requirements uploads/20261026_improvements --phases uploads/20261026_improvements_plan/phases.json
 harness plan --requirements uploads/20261026_improvements --phases phases.json --dry-run   # preview only
 
 # 2. Approve once. Needs an interactive terminal: type the first 12 characters of the digest.
@@ -25,8 +29,8 @@ harness approve 20261026-improvements
 harness sync 20261026-improvements --dry-run
 harness sync 20261026-improvements
 
-# 4. Supply refined implementation issues (the investigator pass is not automated yet).
-harness import-issues 20261026-improvements issues.json
+# 4. Load the refined implementation issues the investigator drafted (you can edit the file first).
+harness import-issues 20261026-improvements uploads/20261026_improvements_plan/issues.json
 
 # 5. Run. Foreground and restartable. --dry-run uses real workers but records PRs and merges instead of making them.
 harness run 20261026-improvements --dry-run
@@ -49,6 +53,15 @@ harness resume 20261026-improvements
 ```
 
 `harness` above stands for `PYTHONPATH=tools python3 -m harness`.
+
+### The investigator (`investigate`)
+
+Needs a verified sandbox (`isolation verify`). It runs the real Copilot CLI in the container, reads the repository, and either asks you up to 5 questions per round (3 rounds at most) or returns a plan. Code then checks the plan: every requirement covered, no cycles, allowlists that avoid harness-protected paths, anchors that exist, safe validation commands. A rejected draft is sent back with the problems, on a stronger model. Nothing is approved or written to GitHub.
+
+* Answer prompts with a number (picks an option), text, Enter (let the investigator decide), or `quit` (stop, answers are kept, rerun to continue).
+* No terminal, or you prefer files: add `--non-interactive`. It writes `questions.md` and exits with code 3. Put your answers in a JSON file such as `{"q1": "web only"}` and rerun with `--answers answers.json`.
+* Useful options: `--out DIR`, `--tier low|standard|strong` (default standard), `--max-rounds N`, `--timeout SECONDS`, `--force` (replace an existing draft).
+* Exit codes: 0 draft written, 1 no valid draft (see `rejected-draft.json`), 2 refused, 3 needs answers, 130 stopped.
 
 Issue file shape for `import-issues`: a list of objects with `issue_id`, `phase_id`, `requirement_ids`, `outcomes`, `acceptance_criteria`, `non_goals`, `code_anchors`, and optionally `title`, `contract_paths`, `deps`, `validation_commands`, `parallel_safe`.
 

@@ -533,7 +533,7 @@ class Scheduler:
         budgets = policy["budgets"]
         attempts = self.store.list_attempts(issue["issue_id"])
         last_impl = next((a for a in reversed(attempts) if a["role"] == "implementer"), None)
-        touches = any(a.startswith(e) for a in issue["code_anchors"] for e in policy["escalation_paths"])
+        touches = any(broker.is_escalation(a, policy["escalation_paths"]) for a in issue["code_anchors"])
         last_kind = (issue["last_failures"][-1]["kind"] if issue["last_failures"] else None)
         tier = models.choose_tier(role, implementer_tier=issue.get("implementer_tier"), previous_tier=(last_impl or {}).get("tier"),
                                   previous_failure_kind=last_kind, touches_escalation_path=touches,

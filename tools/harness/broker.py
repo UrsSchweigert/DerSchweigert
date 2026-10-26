@@ -91,6 +91,12 @@ def assert_store_unreachable(worktree: str, store_home: str) -> None:
         raise BrokerRejected("worker worktree and private store overlap")
 
 
+def is_escalation(path: str, escalation: Sequence[str]) -> bool:
+    """Prefix or exact match, plus file-name match for entries without a directory, so sites/x/package.json counts as package.json."""
+    p = os.path.normpath(path).replace(os.sep, "/")
+    return any(p.startswith(e) or p == e or ("/" not in e and os.path.basename(p) == e) for e in escalation)
+
+
 def check_changed_paths(changed: Sequence[str], allowlist: Sequence[str], escalation: Sequence[str]) -> Dict[str, List[str]]:
     """Classify a worker diff. Anything in `rejected` or `out_of_scope` blocks the work. `escalate` needs a human task."""
     result: Dict[str, List[str]] = {"rejected": [], "out_of_scope": [], "escalate": []}
@@ -102,7 +108,7 @@ def check_changed_paths(changed: Sequence[str], allowlist: Sequence[str], escala
             result["rejected"].append(raw)
         elif not any(path.startswith(a) for a in allowlist):
             result["out_of_scope"].append(raw)
-        elif any(path.startswith(e) or path == e for e in escalation):
+        elif is_escalation(path, escalation):
             result["escalate"].append(raw)
     return result
 

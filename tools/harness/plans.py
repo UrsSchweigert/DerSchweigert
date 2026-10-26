@@ -19,7 +19,7 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "authorized_operations": list(ALLOWED_OPERATIONS),
     "escalation_paths": [
         ".github/workflows/", "tools/harness/", "docs/harness/", ".github/CODEOWNERS",
-        "package.json", "package-lock.json", "requirements.txt", "infra/", "migrations/",
+        "package.json", "package-lock.json", "requirements.txt", "build.gradle", "settings.gradle", "AndroidManifest.xml", "infra/", "migrations/",
     ],
     "merge_policy": "autonomous-when-all-gates-pass",
     "budgets": {
