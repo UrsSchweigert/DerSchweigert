@@ -398,3 +398,47 @@ def test_each_role_is_told_its_own_outcome_values(role, allowed):
         assert '"approve" or "changes_requested"' in prompt and '"outcome": "done"' not in prompt
     if role == "refiner":
         assert 'exactly "ready"' in prompt
+
+
+def test_preparing_a_worker_folder_keeps_executable_files_executable_and_the_tree_clean(tmp_path, monkeypatch):
+    """Regression for a blocked first run: widening permissions made git record executable files as changed, which the scope check rejected."""
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(os.path.join(src, "scripts"))
+    git(src, "init", "-q", "-b", "main")
+    for name, mode in (("scripts/run.sh", 0o755), ("gradlew", 0o755), ("app.js", 0o644)):
+        path = os.path.join(src, name)
+        open(path, "w").write("x\n")
+        os.chmod(path, mode)
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    trusted = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", src, trusted)
+    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    work = a._prepare(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "harness/i1"))
+    repo = os.path.join(work, "repo")
+    assert os.stat(os.path.join(repo, "gradlew")).st_mode & 0o111 and os.stat(os.path.join(repo, "scripts", "run.sh")).st_mode & 0o111  # still executable
+    assert os.stat(os.path.join(repo, "app.js")).st_mode & 0o666 == 0o666                                                                # but writable by the container
+    assert git(repo, "status", "--porcelain") == ""
+    open(os.path.join(repo, "new.js"), "w").write("n\n")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "work")
+    changed = git(repo, "diff", "--name-only", "main", "HEAD").split()
+    assert changed == ["new.js"]  # only what the worker really changed, not the three executable files
+
+
+def test_a_mode_only_change_in_the_worker_copy_is_not_committed(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    open(os.path.join(src, "tool.sh"), "w").write("x\n")
+    os.chmod(os.path.join(src, "tool.sh"), 0o755)
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    trusted = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", src, trusted)
+    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    repo = os.path.join(a._prepare(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "harness/i1")), "repo")
+    os.chmod(os.path.join(repo, "tool.sh"), 0o644)  # an accidental chmod by the worker or a tool
+    assert git(repo, "status", "--porcelain") == "" and git(repo, "config", "core.fileMode") == "false"

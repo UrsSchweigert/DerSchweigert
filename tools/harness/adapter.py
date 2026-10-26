@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import threading
@@ -116,15 +117,21 @@ class CopilotCliAdapter(Adapter):
             if probe.returncode == 0:
                 start = "refs/remotes/origin/" + req.branch
         subprocess.run(["git", "-C", repo, "checkout", "--quiet", "-B", req.branch, start], check=True, capture_output=True)
+        # The widened permissions below must not show up as changes. Git would otherwise record executable files as "mode changed".
+        subprocess.run(["git", "-C", repo, "config", "core.fileMode", "false"], check=True, capture_output=True)
         with open(os.path.join(work, "task.json"), "w") as fh:
             json.dump(dict(req.packet, attempt_id=req.attempt_id, epoch=req.epoch), fh, indent=2)
         with open(os.path.join(work, "prompt.txt"), "w") as fh:
             fh.write(prompt or build_prompt(req))
-        # The container user differs from the host user, so everything must be writable.
+        # The container user differs from the host user, so everything must be writable. Add write bits and keep the rest, so
+        # executable files stay executable.
         for root, dirs, files in os.walk(work):
             for n in dirs + files:
+                path = os.path.join(root, n)
+                if os.path.islink(path):
+                    continue
                 try:
-                    os.chmod(os.path.join(root, n), 0o777 if n in dirs else 0o666)
+                    os.chmod(path, 0o777 if os.path.isdir(path) else (stat.S_IMODE(os.stat(path).st_mode) | 0o666))
                 except OSError:
                     pass
         return work
