@@ -1283,7 +1283,7 @@
     <!-- Must be a module: module scripts run in order after parsing, so window.__storage, __sounds and __scoring (set above) exist first. -->
     <script type="module">
         'use strict';
-        import { readLanguage, writeLanguage } from './storage.mjs';
+        import { readLanguage, writeLanguage, getTtsLanguageCode, getWordListFilename } from './storage.mjs';
         
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
@@ -1660,7 +1660,7 @@
         }
 
         async function loadWordsForLanguage(lang) {
-            const filename = lang === 'en' ? 'words-en.json' : 'words-de.json';
+            const filename = getWordListFilename(lang);
             const promise = fetch(filename)
                 .then(response => {
                     if (!response.ok) {
@@ -1861,7 +1861,7 @@
           }
           speech.speak({
             text: byId('syllable').textContent,
-            lang: 'de-DE',
+            lang: getTtsLanguageCode(currentLanguage),
             rate: 0.8,
             onUnsupported: () => { byId('feedback').textContent = tr('feedback.tts_unsupported'); },
             onNoVoice: () => { byId('feedback').textContent = tr('feedback.tts_no_voice'); },

@@ -91,3 +91,22 @@ export function writeLanguage(store, lang) {
   }
 }
 
+/**
+ * Get the TTS language code for the given language.
+ * Returns 'en-US' for English and 'de-DE' for German.
+ * @param {string} lang - The language code ('de' or 'en')
+ * @returns {string} The TTS language code
+ */
+export function getTtsLanguageCode(lang) {
+  return lang === 'en' ? 'en-US' : 'de-DE';
+}
+
+/**
+ * Get the word-list JSON filename for the given language.
+ * Returns 'words-en.json' for English and 'words-de.json' for German.
+ * @param {string} lang - The language code ('de' or 'en')
+ * @returns {string} The word-list filename to fetch
+ */
+export function getWordListFilename(lang) {
+  return lang === 'en' ? 'words-en.json' : 'words-de.json';
+}
