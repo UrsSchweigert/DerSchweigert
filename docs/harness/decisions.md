@@ -80,7 +80,15 @@ GitHub cannot enforce protection on this repository, so the harness and the owne
 * Deliberate deviation from the default role mapping: the investigator starts on `standard` instead of `low`, because drafting a whole plan is not a small bounded task and one approval rests on it. A rejected draft moves up a tier on evidence. `--tier low` restores the default.
 * Escalation matching now also matches by file name for entries without a directory, so `sites/lesen/package.json` counts as `package.json`. Before this, nested dependency manifests would have bypassed the escalation rule. `build.gradle`, `settings.gradle` and `AndroidManifest.xml` (Android build and permissions) were added to the default escalation paths.
 * Adapter fix found by the live test: the CLI refused to read `/work/task.json` for some models because it lies outside the starting directory. Workers now run with `--allow-all-paths`, which is safe only because the container is the boundary.
-* Verified live: the real investigator produced a plan for a small throwaway app that passed all validation rules.
+* `--feedback` / `--feedback-file` revise an existing draft: the investigator receives the current draft and the owner's accumulated feedback, which overrides its earlier assumptions. The replaced draft is archived under `history/rev-N/`, and an invalid revision never replaces the current draft.
+* Verified live: the real investigator produced a plan for a small throwaway app that passed all validation rules, and then revised it according to feedback.
+
+## Fixes found before the first real run (2026-10-26)
+
+* `run --dry-run` used to mark real issues Done and could complete the real plan, so a rehearsal consumed the run. It now runs on a throwaway copy of the store (`rehearsal-<time>/`, kept for inspection) and never touches the real state.
+* A merge never advanced the harness's own copy of `main`. Later issues built on a base without earlier work, and post-merge checks ran on stale code. A real merge now fetches `main` from the remote into the clone, and a rehearsal merge fast-forwards the throwaway clone.
+* Known limit: the harness only merges through its own publisher. If a human merges a harness PR on GitHub, the scheduler does not notice. A `human-merges` policy therefore stops at review and needs the issue to be closed another way.
+* Known side effect: this repository deploys to production when `main` changes (`deploy.yml`), so every autonomous merge of a `sites/lesen` change publishes it.
 
 ## Stage 5: Human Tasks, Monitoring, and Delivery (built 2026-10-26)
 

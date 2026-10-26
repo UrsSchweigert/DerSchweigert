@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import sqlite3
 import subprocess
 import time
 from typing import Any, Dict, List, Optional
@@ -86,6 +88,24 @@ def cached_models(adapter: CopilotCliAdapter, home: str, candidates: List[str]) 
     return probe["models"]
 
 
+def make_rehearsal(home: str) -> str:
+    """A throwaway copy of the store for `--dry-run`, so a rehearsal never marks real issues Done or uses up the real plan."""
+    dest = os.path.join(home, "rehearsal-%d" % int(time.time()))
+    os.makedirs(dest, mode=0o700)
+    src, dst = sqlite3.connect(os.path.join(home, "harness.sqlite")), sqlite3.connect(os.path.join(dest, "harness.sqlite"))
+    try:
+        src.backup(dst)
+    finally:
+        src.close()
+        dst.close()
+    os.chmod(os.path.join(dest, "harness.sqlite"), 0o600)
+    for name in ("approval.key", "isolation.json", "models.json", "copilot.token"):
+        if os.path.exists(os.path.join(home, name)):
+            shutil.copyfile(os.path.join(home, name), os.path.join(dest, name))
+            os.chmod(os.path.join(dest, name), 0o600)
+    return dest
+
+
 def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dry_run: bool, remote_url: Optional[str],
                     repo_slug: Optional[str], owner: str) -> Scheduler:
     home = store.home
@@ -101,7 +121,7 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
     candidates = sorted({m for v in tiers.values() for m in ([v] if isinstance(v, str) else v)})
     available = cached_models(adapter, home, candidates)
     if dry_run:
-        publisher = DryRunPublisher()
+        publisher = DryRunPublisher(clone)
     else:
         publisher = GitHubPublisher(GhCli(repo_slug, token_file=broker_token), clone.path, remote_url, "main", broker_token)
     notifier = TerminalNotifier(lambda m: print(m, file=sys.stderr, flush=True))

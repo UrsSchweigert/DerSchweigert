@@ -38,6 +38,8 @@ PROMPT = """You are the investigator in an automated development harness. Read /
 
 Study the application in /work/repo before planning: code, tests, CI, and how each channel (web, Android) is built. For every requirement decide what already exists, what is missing, and what is ambiguous. Change nothing that matters: the repository copy is thrown away.
 
+If task.json contains current_draft and owner_feedback, you are REVISING the owner's current plan. The feedback is authoritative and overrides your earlier assumptions. Apply every piece of it, keep ids, wording and structure unchanged wherever the feedback does not require a change, and return the complete revised plan (form B). Ask questions (form A) only if the feedback itself is ambiguous. Record each interpretation you make under assumptions.
+
 Write /work/result.json in exactly one of two forms.
 
 A) Questions, only when a sound plan is impossible without the owner and the code cannot tell you:
@@ -289,7 +291,7 @@ class Investigator:
     # -- the pass ----------------------------------------------------------------------------------------
 
     def run(self, requirements_path: str, out_dir: str, *, answers_file: Optional[str] = None, interactive: bool = True,
-            force: bool = False) -> Dict[str, Any]:
+            force: bool = False, feedback: Sequence[str] = ()) -> Dict[str, Any]:
         reqs = plans.parse_requirements(requirements_path)
         if not reqs:
             raise InvestigationError("no requirement IDs found in %s (expected table rows like | **1.1** | **Title** |)" % requirements_path)
@@ -297,12 +299,22 @@ class Investigator:
         if _protected(rel):
             raise InvestigationError("output directory %s is inside a harness-protected location" % rel)
         targets = [os.path.join(out_dir, n) for n in ("phases.json", "issues.json")]
-        if not force and any(os.path.exists(t) for t in targets):
-            raise InvestigationError("phases.json or issues.json already exists in %s (use --force to replace)" % out_dir)
+        feedback = [f.strip() for f in feedback if f and f.strip()]
+        current: Optional[Dict[str, Any]] = None
+        if feedback:
+            current = self._current_draft(out_dir)
+            for f in feedback:
+                if len(f) > 4000:
+                    raise InvestigationError("each piece of feedback must be under 4000 characters")
+                assert_no_secrets(f, "feedback")
+        elif not force and any(os.path.exists(t) for t in targets):
+            raise InvestigationError("phases.json or issues.json already exists in %s (use --force to start over, or --feedback to revise it)" % out_dir)
         with open(requirements_path, encoding="utf-8") as fh:
             text = fh.read()
         assert_no_secrets(text, "requirements")
         state = self._load(out_dir, hashlib.sha256(text.encode()).hexdigest())
+        if feedback:
+            state["feedback"] = state.get("feedback", []) + feedback
         if answers_file:
             with open(answers_file, encoding="utf-8") as fh:
                 supplied = json.load(fh)
@@ -319,6 +331,8 @@ class Investigator:
         transient = 0
         for attempt in range(1, self.max_attempts + 1):
             packet = {"requirements": text, "requirement_ids": [r["id"] for r in reqs], "answers": state["answers"], "previous_problems": problems[:20]}
+            if current is not None:
+                packet.update(current_draft=current, owner_feedback=state["feedback"])
             route, poll = self._invoke(attempt, tier, packet)
             if poll.error:
                 kind = poll.error.get("kind", "runtime_crash")
@@ -372,6 +386,37 @@ class Investigator:
                 json.dump({"problems": problems, "draft": last_bad}, fh, indent=2)
         return {"status": "failed", "problems": problems, "attempts": self.max_attempts}
 
+    @staticmethod
+    def _current_draft(out_dir: str) -> Dict[str, Any]:
+        try:
+            with open(os.path.join(out_dir, "phases.json")) as fh:
+                phases = json.load(fh)["phases"]
+            with open(os.path.join(out_dir, "issues.json")) as fh:
+                issues = json.load(fh)["issues"]
+        except (OSError, ValueError, KeyError):
+            raise InvestigationError("there is no draft to revise in %s: run without --feedback first" % out_dir)
+        try:
+            with open(os.path.join(out_dir, "investigation.json")) as fh:
+                assumptions = json.load(fh).get("assumptions", [])
+        except (OSError, ValueError):
+            assumptions = []
+        return {"phases": phases, "issues": issues, "assumptions": assumptions}
+
+    @staticmethod
+    def _archive(out_dir: str) -> Optional[str]:
+        """Keep the replaced draft so a revision can always be compared with, or rolled back to, what came before."""
+        existing = [n for n in ("phases.json", "issues.json", "investigation-report.md") if os.path.exists(os.path.join(out_dir, n))]
+        if not existing:
+            return None
+        n = 1
+        while os.path.exists(os.path.join(out_dir, "history", "rev-%d" % n)):
+            n += 1
+        dest = os.path.join(out_dir, "history", "rev-%d" % n)
+        os.makedirs(dest)
+        for name in existing:
+            shutil.copyfile(os.path.join(out_dir, name), os.path.join(dest, name))
+        return dest
+
     def _ask_all(self, state: Dict[str, Any], out_dir: str) -> bool:
         while state["pending"]:
             q = state["pending"][0]
@@ -398,6 +443,7 @@ class Investigator:
 
     def _write(self, out_dir: str, reqs: List[Dict[str, str]], draft: Dict[str, Any], state: Dict[str, Any], route: Dict[str, Any]) -> Dict[str, Any]:
         os.makedirs(out_dir, exist_ok=True)
+        archived = self._archive(out_dir)
         plan = plans.build_plan("draft", 1, reqs, draft["phases"], self.policy)
         flags = escalation_flags(draft, self.policy)
         outputs = {"phases.json": {"phases": draft["phases"]}, "issues.json": {"issues": draft["issues"]}}
@@ -411,8 +457,9 @@ class Investigator:
         with open(os.path.join(out_dir, "investigation-report.md"), "w") as fh:
             fh.write(report)
         state["pending"] = []
+        state["assumptions"] = draft.get("assumptions", [])
         self._save(out_dir, state)
-        return {"status": "ok", "phases": len(draft["phases"]), "issues": len(draft["issues"]), "flags": flags, "assumptions": draft.get("assumptions", []),
+        return {"status": "ok", "archived": archived, "phases": len(draft["phases"]), "issues": len(draft["issues"]), "flags": flags, "assumptions": draft.get("assumptions", []),
                 "model": route["model"], "tier": route["tier"], "dir": out_dir}
 
     @staticmethod
@@ -432,6 +479,8 @@ class Investigator:
             out += ["## Assumptions the investigator made", ""] + ["- " + a for a in draft["assumptions"]] + [""]
         if state["answers"]:
             out += ["## Your answers", ""] + ["- **%s** %s -> %s" % (a["id"], a["question"], a["answer"]) for a in state["answers"]] + [""]
+        if state.get("feedback"):
+            out += ["## Your feedback (applied in this revision)", ""] + ["- " + f for f in state["feedback"]] + [""]
         if flags:
             out += ["## Needs a human merge (escalation paths)", ""] + ["- " + f for f in flags] + [""]
         if draft.get("notes"):

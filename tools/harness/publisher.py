@@ -69,4 +69,10 @@ class GitHubPublisher(Publisher):
         if not pr:
             raise BrokerRejected("no pull request to merge for %s" % issue["issue_id"])
         merged = with_retries(lambda: self.client.merge_pr(pr, head_rev), sleep=self.sleep)
+        if merged:
+            # Pull the merge into the harness's clone, so later issues and the post-merge checks see it.
+            proc = git_with_token(["fetch", "--quiet", "--no-tags", self.remote, "+refs/heads/%s:refs/heads/%s" % (self.base, self.base)],
+                                  self.clone_path, self.token_file)
+            if proc.returncode != 0:
+                raise GitHubError("merged, but could not refresh the base branch: %s" % proc.stderr.strip()[-200:])
         return {"merged": bool(merged), "mode": "checks-on-current-base", "simulated": False}

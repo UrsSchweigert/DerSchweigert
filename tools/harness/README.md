@@ -32,9 +32,12 @@ harness sync 20261026-improvements
 # 4. Load the refined implementation issues the investigator drafted (you can edit the file first).
 harness import-issues 20261026-improvements uploads/20261026_improvements_plan/issues.json
 
-# 5. Run. Foreground and restartable. --dry-run uses real workers but records PRs and merges instead of making them.
-harness run 20261026-improvements --dry-run
-harness run 20261026-improvements
+# 5. Run. Foreground and restartable.
+harness run 20261026-improvements-md
+#    --dry-run is a rehearsal: real workers, real checks, real reviews, but pull requests and merges are only recorded.
+#    It runs on a throwaway copy of your state (the path is printed, watch it with: harness --home THAT_PATH status),
+#    so your real plan and issues are untouched. Merges are rehearsed by moving the harness's own copy of main, so later
+#    phases build on earlier ones. It costs the same Copilot usage as a real run, so rehearse only if you want a safety net.
 
 # 6. Watch.
 harness status
@@ -60,7 +63,13 @@ Needs a verified sandbox (`isolation verify`). It runs the real Copilot CLI in t
 
 * Answer prompts with a number (picks an option), text, Enter (let the investigator decide), or `quit` (stop, answers are kept, rerun to continue).
 * No terminal, or you prefer files: add `--non-interactive`. It writes `questions.md` and exits with code 3. Put your answers in a JSON file such as `{"q1": "web only"}` and rerun with `--answers answers.json`.
-* Useful options: `--out DIR`, `--tier low|standard|strong` (default standard), `--max-rounds N`, `--timeout SECONDS`, `--force` (replace an existing draft).
+* **Challenging the draft:** read `investigation-report.md` (especially "Assumptions the investigator made"), then tell it what to change:
+  ```sh
+  harness investigate --requirements FILE --feedback "Umlauts stay in Vowels. Specials are only au, ei, ie, eu." --feedback "English: ship the full word list, not a starter set."
+  harness investigate --requirements FILE --feedback-file my-notes.txt
+  ```
+  The investigator gets your current `phases.json` and `issues.json` plus your feedback, treats the feedback as authoritative, changes only what it requires, and returns a complete revised plan. The same checks apply. Your previous version is kept in `history/rev-N/`, feedback accumulates over revisions, and the report lists it. A revision that fails validation never replaces your current draft. You can also edit `phases.json` and `issues.json` by hand. Rerun `plan --dry-run` afterwards to check them.
+* Useful options: `--out DIR`, `--tier low|standard|strong` (default standard), `--max-rounds N`, `--timeout SECONDS`, `--force` (start over instead of revising).
 * Exit codes: 0 draft written, 1 no valid draft (see `rejected-draft.json`), 2 refused, 3 needs answers, 130 stopped.
 
 Issue file shape for `import-issues`: a list of objects with `issue_id`, `phase_id`, `requirement_ids`, `outcomes`, `acceptance_criteria`, `non_goals`, `code_anchors`, and optionally `title`, `contract_paths`, `deps`, `validation_commands`, `parallel_safe`.

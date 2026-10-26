@@ -49,6 +49,9 @@ class Repo:
     def path_exists(self, path: str) -> bool:
         raise NotImplementedError
 
+    def fast_forward_base(self, head: str) -> None:
+        raise NotImplementedError
+
     def export(self, rev: str, dest: str) -> None:
         raise NotImplementedError
 
@@ -102,6 +105,12 @@ class GitRepo(Repo):
             add, dele = line.split("\t")[:2]
             total += (int(add) if add.isdigit() else 0) + (int(dele) if dele.isdigit() else 0)
         return total
+
+    def fast_forward_base(self, head: str) -> None:
+        """Move the base branch of this harness-owned clone to `head`, which must already contain it. Used to rehearse merges locally."""
+        if self._exec("merge-base", "--is-ancestor", self.base, head).returncode != 0:
+            raise GitError("%s is not a fast-forward of %s" % (head[:12], self.base))
+        self._git("update-ref", "refs/heads/" + self.base, head)
 
     def path_exists(self, path: str) -> bool:
         """Does a file or directory exist at the base revision?"""

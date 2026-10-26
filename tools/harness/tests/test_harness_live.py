@@ -118,3 +118,13 @@ def test_real_investigator_drafts_a_valid_plan_for_a_small_app(tmp_path, monkeyp
     issues = json.load(open(os.path.join(out, "issues.json")))["issues"]
     assert validate_draft({"phases": phases, "issues": issues}, plans.parse_requirements(str(req)), clone, policy) == []
     assert {r for p in phases for r in p["requirements"]} == {"1.1", "1.2"}
+
+    # Revise with feedback: the real investigator receives the current draft and the owner's decision.
+    again = inv.run(str(req), out, feedback=["Put requirement 1.2 (shout option) into its own phase P2 that depends on P1, with its own issue."])
+    assert again["status"] == "ok", again
+    phases = json.load(open(os.path.join(out, "phases.json")))["phases"]
+    issues = json.load(open(os.path.join(out, "issues.json")))["issues"]
+    assert validate_draft({"phases": phases, "issues": issues}, plans.parse_requirements(str(req)), clone, policy) == []
+    assert os.path.isdir(os.path.join(out, "history", "rev-1"))
+    by_req = {r: p["id"] for p in phases for r in p["requirements"]}
+    assert by_req["1.1"] != by_req["1.2"]

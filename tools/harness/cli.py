@@ -9,6 +9,7 @@ import re
 import sys
 from typing import Any, Dict, List, Optional
 
+import shutil
 import subprocess
 import time
 
@@ -110,7 +111,13 @@ def isolation_command(action: str, home: Optional[str]) -> int:
 
 def runner_command(args) -> int:
     store = Store(args.home)
+    rehearsal = None
     try:
+        if args.cmd in ("run", "resume") and args.dry_run:
+            rehearsal = runner.make_rehearsal(store.home)
+            store.close()
+            store = Store(rehearsal)
+            print("DRY RUN on a throwaway copy of your state: %s\n  your real plan and issues are untouched. Watch it with:\n  harness --home %s status" % (rehearsal, rehearsal), flush=True)
         latest = store.get_plan(args.plan_id, args.version)
         if latest is None:
             raise runner.RunRefused("unknown plan %s" % args.plan_id)
@@ -160,7 +167,11 @@ def investigate_command(args) -> int:
         inv = investigate.Investigator(adapter, clone, policy, available, tier=args.tier, max_rounds=args.max_rounds, timeout=args.timeout,
                                        log=lambda m: print(m, flush=True))
         try:
-            result = inv.run(args.requirements, out, answers_file=args.answers, interactive=interactive, force=args.force)
+            feedback = list(args.feedback)
+            if args.feedback_file:
+                with open(args.feedback_file, encoding="utf-8") as fh:
+                    feedback.append(fh.read())
+            result = inv.run(args.requirements, out, answers_file=args.answers, interactive=interactive, force=args.force, feedback=feedback)
         except investigate.Aborted:
             print("stopped. Your answers so far are saved: run the same command to continue")
             return 130
@@ -172,6 +183,8 @@ def investigate_command(args) -> int:
                 result["attempts"], "\n  - ".join(result["problems"][:10]), out))
             return 1
         print("Draft written to %s: %d phases, %d issues (tier %s, model %s)" % (out, result["phases"], result["issues"], result["tier"], result["model"]))
+        if result.get("archived"):
+            print("The previous version is kept in %s" % result["archived"])
         for a in result["assumptions"]:
             print("  assumption: " + a)
         for f in result["flags"]:
@@ -302,7 +315,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     iv.add_argument("--non-interactive", action="store_true", help="write questions.md and stop instead of asking in the terminal")
     iv.add_argument("--answers", help="JSON file mapping question id to answer, to continue a non-interactive run")
     iv.add_argument("--timeout", type=float, default=1200.0, help="seconds per investigator attempt")
-    iv.add_argument("--force", action="store_true", help="replace an existing phases.json and issues.json")
+    iv.add_argument("--force", action="store_true", help="start over: replace an existing phases.json and issues.json")
+    iv.add_argument("--feedback", action="append", default=[], help="revise the existing draft: tell the investigator what to change or reconsider (repeatable)")
+    iv.add_argument("--feedback-file", help="text file with feedback for revising the existing draft")
     rp = sub.add_parser("respond", help="answer a human task through the trusted local command")
     rp.add_argument("task_id")
     rp.add_argument("--option")

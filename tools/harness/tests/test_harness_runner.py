@@ -102,10 +102,13 @@ def test_token_never_appears_in_push_errors(remote_world, tmp_path):
     assert "ghp_" not in str(exc.value)
 
 
-def test_publisher_opens_one_pull_request_and_merges_bound_to_the_head(remote_world):
+def test_publisher_opens_one_pull_request_and_merges_bound_to_the_head(remote_world, tmp_path):
     origin, clone = remote_world
+    bare = str(tmp_path / "trusted.git")  # the harness clone is bare, like in production
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", clone, "+refs/heads/harness/i1:refs/heads/harness/i1")
     gh = FakeGitHub()
-    pub = GitHubPublisher(gh, clone, origin, "main", None, sleep=lambda s: None)
+    pub = GitHubPublisher(gh, bare, origin, "main", None, sleep=lambda s: None)
     issue = {"issue_id": "i1", "title": "T", "requirement_ids": ["F1.1"]}
     head = git(clone, "rev-parse", "harness/i1")
     first = pub.open_pr(issue, "harness/i1", head)
@@ -278,3 +281,85 @@ def test_trusted_clone_tracks_the_base_branch(tmp_path):
             repo = runner.trusted_clone(home, src)
             first = repo.base_head()
     assert runner.trusted_clone(home, src).base_head() == git(src, "rev-parse", "main") != first
+
+
+# -- rehearsals must not touch real state, and merges must move the base ---------------------------------------------
+
+def test_rehearsal_is_a_separate_copy_of_the_state(tmp_path):
+    store = make_plan(tmp_path)
+    store.put_issue(__import__("harness.scheduler", fromlist=["new_issue"]).new_issue("i1", "fx", "P1", ["F1.1"]))
+    for s in ("Refining", "Ready"):
+        store.transition("issue", "i1", s, "t")
+    (tmp_path / "home" / "isolation.json").write_text("{}")
+    (tmp_path / "home" / "copilot.token").write_text("tok")
+    path = runner.make_rehearsal(store.home)
+    assert os.path.dirname(path) == store.home
+    copy = Store(path)
+    assert copy.state("plan", "fx@v1") == "Approved" and copy.state("issue", "i1") == "Ready"
+    assert approval.verify_approval(copy, "fx", 1)["plan_id"] == "fx"  # the signed approval still verifies
+    copy.transition("issue", "i1", "In Progress", "rehearsal")
+    copy.cx.execute("UPDATE entities SET state='Completed' WHERE machine='plan'")
+    assert store.state("issue", "i1") == "Ready" and store.state("plan", "fx@v1") == "Approved"  # the real store is untouched
+    for name in ("approval.key", "isolation.json", "copilot.token", "harness.sqlite"):
+        assert oct(os.stat(os.path.join(path, name)).st_mode & 0o777) == "0o600"
+
+
+def test_dry_run_merge_advances_the_clone_so_later_work_sees_earlier_work(tmp_path):
+    from harness.checks import DryRunPublisher
+    from harness.repo import GitRepo, GitError
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    open(os.path.join(src, "a"), "w").write("a")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "a")
+    clone = str(tmp_path / "clone.git")
+    git(str(tmp_path), "clone", "-q", "--bare", src, clone)
+    repo = GitRepo(clone)
+    before = repo.base_head()
+    work = str(tmp_path / "w")
+    git(str(tmp_path), "clone", "-q", clone, work)
+    git(work, "checkout", "-q", "-b", "harness/i1")
+    open(os.path.join(work, "b"), "w").write("b")
+    git(work, "add", "-A")
+    git(work, "commit", "-q", "-m", "b")
+    head = repo.fetch_branch(work, "harness/i1")
+    pub = DryRunPublisher(repo)
+    assert pub.merge({"issue_id": "i1"}, None, head)["simulated"] is True
+    assert repo.base_head() == head != before
+    assert repo.path_exists("b")  # the next worker's clone of main now contains the earlier work
+    with pytest.raises(GitError, match="not a fast-forward"):
+        repo.fast_forward_base(before)  # the base can only move forward
+    assert pub.repo is repo and DryRunPublisher().repo is None
+
+
+def test_a_real_merge_refreshes_the_harness_clone_from_the_remote(remote_world, tmp_path):
+    origin, clone = remote_world
+    bare = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    # Someone (GitHub) merges new work into main on the remote.
+    open(os.path.join(clone, "merged.txt"), "w").write("m")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "merged on github")
+    git(clone, "push", "-q", "origin", "HEAD:main")
+    new_main = git(clone, "rev-parse", "HEAD")
+    gh = FakeGitHub()
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", clone, "+refs/heads/harness/i1:refs/heads/harness/i1")
+    pub = GitHubPublisher(gh, bare, origin, "main", None, sleep=lambda s: None)
+    issue = {"issue_id": "i1", "title": "T", "requirement_ids": ["F1.1"]}
+    pr = pub.open_pr(issue, "harness/i1", git(clone, "rev-parse", "harness/i1"))["number"]
+    from harness.repo import GitRepo
+    assert GitRepo(bare).base_head() != new_main
+    assert pub.merge(issue, pr, git(clone, "rev-parse", "harness/i1"))["merged"] is True
+    assert GitRepo(bare).base_head() == new_main  # integrated checks and later issues now see the merged work
+
+
+def test_a_failed_refresh_is_reported_not_ignored(remote_world, tmp_path):
+    origin, clone = remote_world
+    bare = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    gh = FakeGitHub()
+    pub = GitHubPublisher(gh, bare, str(tmp_path / "gone.git"), "main", None, sleep=lambda s: None)
+    gh.prs[100] = {"title": "t", "head": "harness/i1", "base": "main", "state": "open", "sha": ""}
+    with pytest.raises(GitHubError, match="could not refresh"):
+        pub.merge({"issue_id": "i1"}, 100, "abc")

@@ -484,3 +484,85 @@ def test_container_names_are_unique_per_start(tmp_path, monkeypatch):
         names.append(h.name)
         a.cleanup(h)
     assert names[0] != names[1] and all(n.startswith("harness-investigate_1-") for n in names)
+
+
+# -- revising a draft with the owner's feedback ----------------------------------------------------------------------
+
+def revised(**changes):
+    d = good_draft()
+    d["assumptions"] = ["umlauts stay in Vowels"]
+    for k, v in changes.items():
+        d[k] = v
+    return d
+
+
+def test_feedback_revises_the_existing_draft_and_keeps_the_old_one(out):
+    first = FakeInvestigatorAdapter(good_draft())
+    run(make(first), out)
+    adapter = FakeInvestigatorAdapter(revised())
+    res = run(make(adapter), out, feedback=["Umlauts stay in Vowels. Specials are only au, ei, ie, eu."])
+    assert res["status"] == "ok" and res["archived"].endswith(os.path.join("history", "rev-1"))
+    packet = adapter.packets[0]
+    assert packet["owner_feedback"] == ["Umlauts stay in Vowels. Specials are only au, ei, ie, eu."]
+    assert [p["id"] for p in packet["current_draft"]["phases"]] == ["P1", "P2"] and len(packet["current_draft"]["issues"]) == 3
+    assert "REVISING" in adapter.prompts[0] and "authoritative" in adapter.prompts[0]
+    assert sorted(os.listdir(res["archived"])) == ["investigation-report.md", "issues.json", "phases.json"]
+    report = open(os.path.join(out, "investigation-report.md")).read()
+    assert "Your feedback" in report and "Umlauts stay in Vowels" in report
+
+
+def test_feedback_accumulates_across_revisions_and_sees_earlier_assumptions(out):
+    run(make(FakeInvestigatorAdapter(good_draft())), out)
+    run(make(FakeInvestigatorAdapter(revised())), out, feedback=["first point"])
+    adapter = FakeInvestigatorAdapter(revised())
+    res = run(make(adapter), out, feedback=["second point"])
+    assert adapter.packets[0]["owner_feedback"] == ["first point", "second point"]
+    assert adapter.packets[0]["current_draft"]["assumptions"] == ["umlauts stay in Vowels"]
+    assert res["archived"].endswith("rev-2") and os.path.isdir(os.path.join(out, "history", "rev-1"))
+
+
+def test_feedback_needs_an_existing_draft(out):
+    adapter = FakeInvestigatorAdapter(good_draft())
+    with pytest.raises(InvestigationError, match="no draft to revise"):
+        run(make(adapter), out, feedback=["change something"])
+    assert adapter.packets == []
+
+
+def test_blank_feedback_is_ignored_and_does_not_overwrite(out):
+    run(make(FakeInvestigatorAdapter(good_draft())), out)
+    with pytest.raises(InvestigationError, match="--feedback to revise"):
+        run(make(FakeInvestigatorAdapter(good_draft())), out, feedback=["  ", ""])
+
+
+def test_feedback_is_checked_for_secrets_and_size(out):
+    run(make(FakeInvestigatorAdapter(good_draft())), out)
+    adapter = FakeInvestigatorAdapter(good_draft())
+    with pytest.raises(broker.BrokerRejected):
+        run(make(adapter), out, feedback=["use key ghp_" + "a" * 30])
+    with pytest.raises(InvestigationError, match="4000"):
+        run(make(adapter), out, feedback=["x" * 5000])
+    assert adapter.packets == []
+
+
+def test_an_invalid_revision_never_replaces_the_current_draft(out):
+    run(make(FakeInvestigatorAdapter(good_draft())), out)
+    before = open(os.path.join(out, "phases.json")).read()
+    bad = mutate(lambda d: d["issues"][0].update(deps=["core-b"]))
+    res = run(make(FakeInvestigatorAdapter(*[bad] * 4), max_attempts=3), out, feedback=["break things"])
+    assert res["status"] == "failed"
+    assert open(os.path.join(out, "phases.json")).read() == before and not os.path.exists(os.path.join(out, "history"))
+
+
+def test_revision_can_ask_a_question_when_the_feedback_is_ambiguous(out):
+    run(make(FakeInvestigatorAdapter(good_draft())), out)
+    adapter = FakeInvestigatorAdapter(questions("q1"), revised())
+    res = run(make(adapter, ask=lambda q: "the second one"), out, feedback=["fix the thing"])
+    assert res["status"] == "ok" and adapter.packets[1]["answers"][0]["answer"] == "the second one"
+    assert adapter.packets[1]["owner_feedback"] == ["fix the thing"]
+
+
+def test_cli_feedback_options_exist(tmp_path, capsys):
+    f = tmp_path / "fb.txt"
+    f.write_text("change it")
+    rc = cli.main(["--home", str(tmp_path / "h"), "investigate", "--requirements", REQ, "--feedback", "a", "--feedback-file", str(f)])
+    assert rc == 2 and "Tier B" in capsys.readouterr().err  # reaches the sandbox check, so the options parsed

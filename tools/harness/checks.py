@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from . import isolation
 from .repo import Repo
@@ -55,8 +55,10 @@ class DryRunPublisher(Publisher):
 
     simulated = True
 
-    def __init__(self) -> None:
+    def __init__(self, repo: Optional[Repo] = None) -> None:
+        """With a repo, a rehearsal merge advances that harness-owned clone so later work builds on earlier work. Nothing remote is touched."""
         self.intents: List[Dict[str, Any]] = []
+        self.repo = repo
 
     def open_pr(self, issue, branch, head_rev):
         self.intents.append({"action": "open_pr", "issue": issue["issue_id"], "branch": branch, "head": head_rev})
@@ -64,4 +66,6 @@ class DryRunPublisher(Publisher):
 
     def merge(self, issue, pr, head_rev):
         self.intents.append({"action": "merge_pr", "issue": issue["issue_id"], "head": head_rev})
+        if self.repo is not None:
+            self.repo.fast_forward_base(head_rev)
         return {"merged": True, "mode": "checks-on-current-base", "simulated": True}
