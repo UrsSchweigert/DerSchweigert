@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { createStorage } from "../static/storage.mjs";
+import { createStorage, readLanguage, writeLanguage } from "../static/storage.mjs";
 import { recordAttempt, selectFlopDeck, flopCandidateCards } from "../static/scoring.mjs";
 
 /** Minimal in-memory stand-in for localStorage. */
@@ -89,3 +89,53 @@ test("storage: persists the +3 flop weight end-to-end", () => {
   const persisted = createStorage(store).read();
   assert.deepStrictEqual(persisted["ta"], { correct_count: 3, incorrect_count: 1 });
 });
+
+test("language: a fake store with no prior value yields 'de'", () => {
+  const store = createFakeStore();
+  const lang = readLanguage(store);
+  assert.strictEqual(lang, "de");
+});
+
+test("language: writing 'en' then reading returns 'en'", () => {
+  const store = createFakeStore();
+  writeLanguage(store, "en");
+  const lang = readLanguage(store);
+  assert.strictEqual(lang, "en");
+});
+
+test("language: writing 'de' then reading returns 'de'", () => {
+  const store = createFakeStore();
+  writeLanguage(store, "de");
+  const lang = readLanguage(store);
+  assert.strictEqual(lang, "de");
+});
+
+test("language: an invalid stored value falls back to 'de'", () => {
+  const store = createFakeStore();
+  store.setItem("buchstabenzeit:language", "fr");
+  const lang = readLanguage(store);
+  assert.strictEqual(lang, "de");
+});
+
+test("language: null store returns 'de'", () => {
+  const lang = readLanguage(null);
+  assert.strictEqual(lang, "de");
+});
+
+test("language: undefined store returns 'de'", () => {
+  const lang = readLanguage(undefined);
+  assert.strictEqual(lang, "de");
+});
+
+test("language: writeLanguage handles null store gracefully", () => {
+  assert.doesNotThrow(() => {
+    writeLanguage(null, "en");
+  });
+});
+
+test("language: writeLanguage handles undefined store gracefully", () => {
+  assert.doesNotThrow(() => {
+    writeLanguage(undefined, "en");
+  });
+});
+
