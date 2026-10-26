@@ -1108,15 +1108,20 @@
                                 <label class="pattern"><input type="radio" name="pattern"
                                         value="VC"><strong>am</strong><span>Vokal + Konsonant</span></label>
                                 <label class="pattern" id="words-mode-label"><input type="radio" name="pattern" value="WORDS"><strong>Wörter</strong><span><span id="words-match-count">0</span> Wörter passen</span></label>
+                                <label class="pattern" id="flop-mode-label"><input type="radio" name="pattern" value="FLOP"><strong>Flop Training</strong><span>Die schwierigsten Karten</span></label>
                             </div>
                             <p id="words-mode-disabled-note" class="words-mode-note" hidden>Mind. 10 Wörter erforderlich</p>
+                            <p id="flop-mode-disabled-note" class="words-mode-note" hidden>Noch kein passender Kartenverlauf vorhanden</p>
                         </fieldset>
                         <div id="word-length-control" class="word-length-control" hidden>
                             <label for="word-length" class="number-label">Maximale Wortlänge</label>
                             <input id="word-length" type="number" min="2" max="8" step="1" value="4" required>
                         </div>
-                        <label for="card-count" class="number-label">Anzahl der Karten</label>
-                        <input id="card-count" type="number" min="1" max="200" step="1" value="10" required>
+                        <div id="card-count-control">
+                            <label for="card-count" class="number-label">Anzahl der Karten</label>
+                            <input id="card-count" type="number" min="1" max="200" step="1" value="10" required>
+                        </div>
+                        <p id="flop-mode-size-note" class="words-mode-note" hidden></p>
                     </div>
                 </div>
                 <div class="setup-bottom">
@@ -1224,12 +1229,16 @@
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible } from './sounds.mjs';
+        import { recordAttempt, selectFlopDeck, flopCandidateCards } from './scoring.mjs';
+        import { createStorage } from './storage.mjs';
         
         window.__speech = createSpeechAdapter();
         window.__speech.warm();
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible };
+        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards };
+        window.__storage = createStorage(window.localStorage);
     </script>
     <script>
         'use strict';
@@ -1243,12 +1252,16 @@
         let attempts = 0;
         let germanWordsPromise = null;
         let deckStarting = false;
+        let stats = window.__storage.read();
+        let currentPattern = 'CV';
+        let isInFlopMode = false;
 
         function updateSelectionCounts() {
             byId('consonant-count').textContent = `${consonants.size} ausgew\u00e4hlt`;
             byId('vowel-count').textContent = `${vowels.size} ausgew\u00e4hlt`;
             byId('specials-count').textContent = `${specials.size} ausgew\u00e4hlt`;
             updateWordMatchCount();
+            updateFlopModeStatus();
         }
 
         async function updateWordMatchCount() {
@@ -1289,6 +1302,40 @@
             } catch (error) {
                 console.error('Error updating word match count:', error);
             }
+        }
+
+        function currentFlopDeck() {
+            const { selectFlopDeck, flopCandidateCards } = window.__scoring;
+            const allowedSounds = new Set([...consonants, ...vowels, ...specials]);
+            return selectFlopDeck(stats, flopCandidateCards(stats, allowedSounds));
+        }
+
+        function updateFlopModeStatus() {
+            const flopDeck = currentFlopDeck();
+            const hasQualifyingHistory = flopDeck.length > 0;
+
+            const flopRadio = document.querySelector('input[name="pattern"][value="FLOP"]');
+            const flopLabel = byId('flop-mode-label');
+            const disabledNote = byId('flop-mode-disabled-note');
+            const sizeNote = byId('flop-mode-size-note');
+
+            if (hasQualifyingHistory) {
+                flopRadio.disabled = false;
+                flopLabel.style.opacity = '1';
+                flopLabel.style.cursor = 'pointer';
+                disabledNote.hidden = true;
+                sizeNote.textContent = `${flopDeck.length} ${flopDeck.length === 1 ? 'Karte' : 'Karten'} im Flop Training`;
+            } else {
+                flopRadio.disabled = true;
+                flopLabel.style.opacity = '0.5';
+                flopLabel.style.cursor = 'default';
+                disabledNote.hidden = false;
+                sizeNote.textContent = '';
+                if (flopRadio.checked) {
+                    document.querySelector('input[name="pattern"][value="CV"]').checked = true;
+                }
+            }
+            updatePatternControls();
         }
 
         function buildLetters(containerId, alphabet, selected) {
@@ -1433,9 +1480,11 @@
             return germanWordsPromise;
         }
 
-        function updateWordLengthVisibility() {
-            const wordMode = document.querySelector('input[name="pattern"]:checked').value === 'WORDS';
-            byId('word-length-control').hidden = !wordMode;
+        function updatePatternControls() {
+            const pattern = document.querySelector('input[name="pattern"]:checked').value;
+            byId('word-length-control').hidden = pattern !== 'WORDS';
+            byId('card-count-control').hidden = pattern === 'FLOP';
+            byId('flop-mode-size-note').hidden = pattern !== 'FLOP';
         }
 
         function setStartLoading(loading) {
@@ -1491,11 +1540,27 @@
                 }
             }
 
-            const combinations = buildCombinations(pattern === 'WORDS' ? 'CVC' : pattern, selectedConsonants, selectedVowels);
+            const combinations = pattern === 'FLOP'
+                ? []
+                : buildCombinations(pattern === 'WORDS' ? 'CVC' : pattern, selectedConsonants, selectedVowels);
             total = requestedTotal;
             queue = [];
             let noMatchingWords = false;
-            if (pattern === 'WORDS') {
+            currentPattern = pattern;
+            isInFlopMode = pattern === 'FLOP';
+            
+            if (pattern === 'FLOP') {
+                const flopCardTexts = currentFlopDeck();
+
+                if (flopCardTexts.length === 0) {
+                    byId('setup-error').textContent = 'Keine Flop-Karten verf\u00fcgbar.';
+                    updateFlopModeStatus();
+                    return;
+                }
+
+                total = flopCardTexts.length;
+                queue = shuffle(flopCardTexts).map(text => ({ text, misses: 0 }));
+            } else if (pattern === 'WORDS') {
                 const eligibleBySpelling = new Map();
                 for (const word of words) {
                     const key = word.toLowerCase();
@@ -1560,6 +1625,11 @@
             window.__speech?.cancel();
             const card = queue.shift();
             attempts++;
+            
+            const { recordAttempt } = window.__scoring;
+            recordAttempt(stats, card.text, correct, { flop: isInFlopMode });
+            window.__storage.write(stats);
+            
             if (correct) {
                 cleared++;
                 byId('feedback').textContent = 'Karte geschafft.';
@@ -1593,6 +1663,7 @@
 
         function returnToSetup() {
             window.__speech?.cancel();
+            updateFlopModeStatus();
             showScreen('setup');
             document.querySelector('#setup button').focus();
         }
@@ -1601,9 +1672,9 @@
         buildLetters('vowels', 'aeiou', vowels);
         buildLetters('specials', ['ä', 'ö', 'ü', 'au', 'ei', 'ie', 'eu'], specials);
         updateSelectionCounts();
-        updateWordLengthVisibility();
+        updatePatternControls();
         document.querySelectorAll('input[name="pattern"]').forEach(input => {
-            input.addEventListener('change', updateWordLengthVisibility);
+            input.addEventListener('change', updatePatternControls);
         });
         byId('word-length').addEventListener('change', updateWordMatchCount);
         window.addEventListener('resize', () => {
