@@ -1240,7 +1240,8 @@
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards };
         window.__storage = createStorage(window.localStorage);
     </script>
-    <script>
+    <!-- Must be a module: module scripts run in order after parsing, so window.__storage, __sounds and __scoring (set above) exist first. -->
+    <script type="module">
         'use strict';
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
