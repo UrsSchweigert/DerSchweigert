@@ -717,6 +717,40 @@
             filter: drop-shadow(0 12px 16px rgba(15, 84, 139, .14));
         }
 
+        .language-control {
+            position: absolute;
+            top: 20px;
+            right: 28px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .language-control button {
+            min-width: 44px;
+            min-height: 44px;
+            padding: 8px 12px;
+            border: 2px solid var(--line);
+            border-radius: 8px;
+            background: var(--paper);
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .language-control button:hover {
+            border-color: var(--blue);
+            background: #e6f5ff;
+        }
+
+        .language-control button.active {
+            border-color: var(--blue);
+            background: var(--blue);
+            color: white;
+        }
+
         h2,
         legend {
             color: var(--blue);
@@ -1075,6 +1109,10 @@
 <body>
     <main>
         <section id="setup" aria-labelledby="setup-title">
+            <div class="language-control">
+                <button id="lang-de" class="lang-btn active" data-lang="de">DE</button>
+                <button id="lang-en" class="lang-btn" data-lang="en">EN</button>
+            </div>
             <div class="setup-intro">
                 <div class="intro-copy">
                     <p class="eyebrow">Buchstabenzeit</p>
@@ -1231,6 +1269,7 @@
         import { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards } from './scoring.mjs';
         import { createStorage } from './storage.mjs';
+        import { t } from './i18n.mjs';
         
         window.__speech = createSpeechAdapter();
         window.__speech.warm();
@@ -1239,6 +1278,7 @@
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible };
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards };
         window.__storage = createStorage(window.localStorage);
+        window.__i18n = { t };
     </script>
     <!-- Must be a module: module scripts run in order after parsing, so window.__storage, __sounds and __scoring (set above) exist first. -->
     <script type="module">
@@ -1256,6 +1296,50 @@
         let stats = window.__storage.read();
         let currentPattern = 'CV';
         let isInFlopMode = false;
+        let currentLanguage = 'de';
+
+        const { t } = window.__i18n;
+
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            
+            // Update language button states
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.lang === lang);
+            });
+            
+            // Re-render all text on the current screen
+            updateAllText();
+        }
+
+        function updateAllText() {
+            // This will be called to re-render text based on current language
+            // For now, we just update the visible elements
+            updateSetupScreenText();
+            updatePracticeScreenText();
+            updateCompleteScreenText();
+        }
+
+        function updateSetupScreenText() {
+            byId('setup-title').textContent = t(currentLanguage, 'setup.title');
+            // Note: The intro-description and other static HTML strings are in the HTML,
+            // and we keep them in German (de) as the default per acceptance criteria
+        }
+
+        function updatePracticeScreenText() {
+            byId('practice-title').textContent = t(currentLanguage, 'practice.title');
+        }
+
+        function updateCompleteScreenText() {
+            byId('complete-title').textContent = t(currentLanguage, 'complete.title');
+        }
+
+        // Initialize language buttons
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+            });
+        });
 
         function updateSelectionCounts() {
             byId('consonant-count').textContent = `${consonants.size} ausgew\u00e4hlt`;
