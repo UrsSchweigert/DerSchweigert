@@ -1108,8 +1108,10 @@
                                 <label class="pattern"><input type="radio" name="pattern"
                                         value="VC"><strong>am</strong><span>Vokal + Konsonant</span></label>
                                 <label class="pattern" id="words-mode-label"><input type="radio" name="pattern" value="WORDS"><strong>Wörter</strong><span><span id="words-match-count">0</span> Wörter passen</span></label>
+                                <label class="pattern" id="flop-mode-label"><input type="radio" name="pattern" value="FLOP"><strong>Flop Training</strong><span>Die schwierigsten Karten</span></label>
                             </div>
                             <p id="words-mode-disabled-note" class="words-mode-note" hidden>Mind. 10 Wörter erforderlich</p>
+                            <p id="flop-mode-disabled-note" class="words-mode-note" hidden>Noch keine Kartenverlauf vorhanden</p>
                         </fieldset>
                         <div id="word-length-control" class="word-length-control" hidden>
                             <label for="word-length" class="number-label">Maximale Wortlänge</label>
@@ -1224,12 +1226,16 @@
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible } from './sounds.mjs';
+        import { recordAttempt, selectFlopDeck } from './scoring.mjs';
+        import { createStorage } from './storage.mjs';
         
         window.__speech = createSpeechAdapter();
         window.__speech.warm();
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, countMatchingWords, isWordsModeEligible };
+        window.__scoring = { recordAttempt, selectFlopDeck };
+        window.__storage = createStorage(window.localStorage);
     </script>
     <script>
         'use strict';
@@ -1243,12 +1249,16 @@
         let attempts = 0;
         let germanWordsPromise = null;
         let deckStarting = false;
+        let stats = window.__storage.read();
+        let currentPattern = 'CV';
+        let isInFlopMode = false;
 
         function updateSelectionCounts() {
             byId('consonant-count').textContent = `${consonants.size} ausgew\u00e4hlt`;
             byId('vowel-count').textContent = `${vowels.size} ausgew\u00e4hlt`;
             byId('specials-count').textContent = `${specials.size} ausgew\u00e4hlt`;
             updateWordMatchCount();
+            updateFlopModeStatus();
         }
 
         async function updateWordMatchCount() {
@@ -1288,6 +1298,36 @@
                 }
             } catch (error) {
                 console.error('Error updating word match count:', error);
+            }
+        }
+
+        function updateFlopModeStatus() {
+            const stats = window.__storage.read();
+            const selectedConsonants = [...consonants];
+            const selectedVowels = [...vowels, ...specials];
+            const allowedLetters = new Set([...consonants, ...vowels]);
+            
+            const { selectFlopDeck } = window.__scoring;
+            const flopDeck = selectFlopDeck(stats, [...allowedLetters]);
+            const hasQualifyingHistory = flopDeck.length > 0;
+            
+            const flopRadio = document.querySelector('input[name="pattern"][value="FLOP"]');
+            const flopLabel = byId('flop-mode-label');
+            const disabledNote = byId('flop-mode-disabled-note');
+            
+            if (hasQualifyingHistory) {
+                flopRadio.disabled = false;
+                flopLabel.style.opacity = '1';
+                flopLabel.style.cursor = 'pointer';
+                disabledNote.hidden = true;
+            } else {
+                flopRadio.disabled = true;
+                flopLabel.style.opacity = '0.5';
+                flopLabel.style.cursor = 'default';
+                disabledNote.hidden = false;
+                if (flopRadio.checked) {
+                    document.querySelector('input[name="pattern"][value="CV"]').checked = true;
+                }
             }
         }
 
@@ -1495,7 +1535,21 @@
             total = requestedTotal;
             queue = [];
             let noMatchingWords = false;
-            if (pattern === 'WORDS') {
+            currentPattern = pattern;
+            isInFlopMode = pattern === 'FLOP';
+            
+            if (pattern === 'FLOP') {
+                const { selectFlopDeck } = window.__scoring;
+                const flopCardTexts = selectFlopDeck(stats, [...allowedLetters]);
+                
+                if (flopCardTexts.length === 0) {
+                    byId('setup-error').textContent = 'Keine Flop-Karten verfügbar.';
+                    return;
+                }
+                
+                const numCards = Math.min(flopCardTexts.length, requestedTotal);
+                queue = shuffle(flopCardTexts.slice(0, numCards)).map(text => ({ text, misses: 0 }));
+            } else if (pattern === 'WORDS') {
                 const eligibleBySpelling = new Map();
                 for (const word of words) {
                     const key = word.toLowerCase();
@@ -1560,6 +1614,11 @@
             window.__speech?.cancel();
             const card = queue.shift();
             attempts++;
+            
+            const { recordAttempt } = window.__scoring;
+            recordAttempt(stats, card.text, correct, { flop: isInFlopMode });
+            window.__storage.write(stats);
+            
             if (correct) {
                 cleared++;
                 byId('feedback').textContent = 'Karte geschafft.';
