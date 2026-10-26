@@ -82,31 +82,64 @@ export function buildCombinations(pattern, consonantLetters, vowelLetters) {
 }
 
 /**
+ * Tokenize a lowercase word left to right into sound units.
+ * At each position, a special from the specials list is taken first if the
+ * word continues with it, otherwise one character is taken.
+ *
+ * @param {string} word lowercase word to tokenize
+ * @param {readonly string[]} specials special multi-character sounds to recognize
+ * @returns {string[]} array of sound units
+ */
+export function tokenizeWord(word, specials) {
+  const units = [];
+  let pos = 0;
+  while (pos < word.length) {
+    let matched = false;
+    // Try to match specials first (longest to shortest would be more correct, but task doesn't specify)
+    for (const special of specials) {
+      if (word.startsWith(special, pos)) {
+        units.push(special);
+        pos += special.length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      // No special matched, take one character
+      units.push(word[pos]);
+      pos++;
+    }
+  }
+  return units;
+}
+
+/**
  * Count distinct real words (case-insensitively, by spelling) that are
- * usable with a given letter selection: every character in the word must be
- * an allowed letter, and the word's length must be within `maxLength`.
+ * usable with a given letter selection: every sound unit in the word must be
+ * an allowed letter or special, and the word's length must be within `maxLength`.
  *
  * This mirrors the eligibility check used to build Words Mode decks, so it
  * can drive a live "X words available" counter on the setup screen.
  *
  * @param {readonly string[]} words candidate word list (any casing)
- * @param {{consonants: readonly string[], vowels: readonly string[]}} selection
- *   currently selected single-character consonants and vowels (specials are
- *   not part of real-word matching: real words are spelled with plain
- *   letters, not diphthong "slots")
+ * @param {{consonants: readonly string[], vowels: readonly string[], specials?: readonly string[]}} selection
+ *   currently selected single-character consonants and vowels, and optional multi-character specials
  * @param {number} maxLength maximum word length (inclusive)
+ * @param {readonly string[]} allSpecials all available specials for tokenization (optional; uses selection.specials if omitted)
  * @returns {number} count of distinct eligible words
  */
-export function countMatchingWords(words, selection, maxLength) {
-  const allowedLetters = new Set([...selection.consonants, ...selection.vowels]);
+export function countMatchingWords(words, selection, maxLength, allSpecials) {
+  const specials = selection.specials || [];
+  const tokenizerSpecials = allSpecials || specials;
+  const allowedUnits = new Set([...selection.consonants, ...selection.vowels, ...specials]);
   const seen = new Set();
   let count = 0;
   for (const word of words) {
     const key = word.toLowerCase();
     if (seen.has(key)) continue;
-    const letters = [...key];
+    const units = tokenizeWord(key, tokenizerSpecials);
     const eligible =
-      letters.length > 0 && letters.length <= maxLength && letters.every((letter) => allowedLetters.has(letter));
+      units.length > 0 && key.length <= maxLength && units.every((unit) => allowedUnits.has(unit));
     if (eligible) {
       seen.add(key);
       count++;
