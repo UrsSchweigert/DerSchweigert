@@ -101,11 +101,35 @@ const DE = {
   // About dialog license link (used as anchor text for license links)
   'dialog.about.license_link': 'Lizenz',
 
+  // About dialog full privacy policy link
+  'dialog.about.privacy_link': 'Vollständige Datenschutzerklärung',
+
+  // About dialog close button
+  'dialog.about.close': 'Schließen',
+
+  // Document title shown in the browser tab
+  'app.title_full': 'Buchstabenzeit | Leseübung',
+
   // Fallback feedback when no matching words are found for the Words pattern
   'feedback.pattern_fallback': 'Keine passenden Wörter gefunden – hier kommen Silbenmuster.',
 
   // Suffix for the completion summary sentence ("{cards} in {attempts} richtig gelesen.")
   'complete.summary_suffix': 'richtig gelesen.',
+
+  // Setup screen: adult guidance note (details/summary block)
+  'setup.adult_note.summary': 'Hinweise für Erwachsene',
+  'setup.adult_note.text_1': 'Buchstabenzeit ist eine begleitete Leseübung: Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.',
+  'setup.adult_note.text_2': 'Das Vorlesen ist eine optionale Hilfe. Es benötigt eine auf dem Gerät installierte deutsche Sprachausgabe und funktioniert offline nur, wenn eine passende Stimme vorhanden ist. Bei sehr kurzen Buchstabenfolgen kann die Aussprache vom natürlichen Klang abweichen.',
+  'setup.adult_note.text_3': 'Die Übung lässt sich jederzeit vollständig ohne Ton nutzen.',
+
+  // Footer
+  'footer.tagline': 'Buchstabenzeit · Jeden Tag ein kleines Stück weiter.',
+  'footer.wordlist_prefix': 'Wortliste: ',
+  'footer.wordlist_license': 'FrequencyWords & Wiktionary, CC BY-SA 4.0',
+  'footer.separator': ' · ',
+  'footer.font_prefix': 'Schrift: ',
+  'footer.font_license': 'Andika (SIL Open Font License 1.1)',
+  'footer.about_button': 'Rechtliches & Datenschutz',
 };
 
 /**

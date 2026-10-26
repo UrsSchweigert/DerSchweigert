@@ -1170,10 +1170,10 @@
                         </svg></button>
                 </div>
                 <details class="adult-note">
-                    <summary>Hinweise für Erwachsene</summary>
-                    <p>Buchstabenzeit ist eine begleitete Leseübung: Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
-                    <p>Das Vorlesen ist eine optionale Hilfe. Es benötigt eine auf dem Gerät installierte deutsche Sprachausgabe und funktioniert offline nur, wenn eine passende Stimme vorhanden ist. Bei sehr kurzen Buchstabenfolgen kann die Aussprache vom natürlichen Klang abweichen.</p>
-                    <p>Die Übung lässt sich jederzeit vollständig ohne Ton nutzen.</p>
+                    <summary id="adult-note-summary">Hinweise für Erwachsene</summary>
+                    <p id="adult-note-text-1">Buchstabenzeit ist eine begleitete Leseübung: Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
+                    <p id="adult-note-text-2">Das Vorlesen ist eine optionale Hilfe. Es benötigt eine auf dem Gerät installierte deutsche Sprachausgabe und funktioniert offline nur, wenn eine passende Stimme vorhanden ist. Bei sehr kurzen Buchstabenfolgen kann die Aussprache vom natürlichen Klang abweichen.</p>
+                    <p id="adult-note-text-3">Die Übung lässt sich jederzeit vollständig ohne Ton nutzen.</p>
                 </details>
             </form>
         </section>
@@ -1256,13 +1256,13 @@
                 <li><span id="about-wordlist-text">Wortliste: FrequencyWords &amp; Wiktionary, CC BY-SA 4.0 &ndash; </span><a id="about-wordlist-link" href="words-de-LICENSE.txt">Lizenz</a></li>
                 <li><span id="about-font-text">Schriftart: Andika, SIL Open Font License 1.1 &ndash; </span><a id="about-font-link" href="fonts/OFL.txt">Lizenz</a></li>
             </ul>
-            <p><a href="datenschutz.html">Vollst&auml;ndige Datenschutzerkl&auml;rung</a></p>
+            <p><a id="about-privacy-link" href="datenschutz.html">Vollst&auml;ndige Datenschutzerkl&auml;rung</a></p>
             <div class="about-actions">
-                <button id="about-close" class="primary" type="button">Schlie&szlig;en</button>
+                <button id="about-close" class="primary" type="button"><span id="about-close-label">Schlie&szlig;en</span></button>
             </div>
         </dialog>
     </main>
-    <footer>Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.<br><small>Wortliste: <a href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a> &middot; Schrift: <a href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button">Rechtliches &amp; Datenschutz</button></footer>
+    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><small><span id="footer-wordlist-prefix">Wortliste: </span><a id="footer-wordlist-link" href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a><span id="footer-separator"> &middot; </span><span id="footer-font-prefix">Schrift: </span><a id="footer-font-link" href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
@@ -1301,6 +1301,7 @@
         function setLanguage(lang) {
             currentLanguage = lang;
             document.documentElement.lang = lang;
+            document.title = tr('app.title_full');
 
             // Update language button states
             document.querySelectorAll('.lang-btn').forEach(btn => {
@@ -1321,6 +1322,7 @@
             updatePracticeScreenText();
             updateCompleteScreenText();
             updateDialogText();
+            updateFooterText();
         }
 
         function updateSetupScreenText() {
@@ -1344,6 +1346,11 @@
 
             byId('word-length-label').textContent = tr('setup.wordlength');
             byId('card-count-label').textContent = tr('setup.cardcount');
+
+            byId('adult-note-summary').textContent = tr('setup.adult_note.summary');
+            byId('adult-note-text-1').textContent = tr('setup.adult_note.text_1');
+            byId('adult-note-text-2').textContent = tr('setup.adult_note.text_2');
+            byId('adult-note-text-3').textContent = tr('setup.adult_note.text_3');
 
             setStartLoading(byId('start-button').disabled);
 
@@ -1391,6 +1398,18 @@
             byId('about-font-text').textContent = tr('dialog.about.font');
             byId('about-wordlist-link').textContent = tr('dialog.about.license_link');
             byId('about-font-link').textContent = tr('dialog.about.license_link');
+            byId('about-privacy-link').textContent = tr('dialog.about.privacy_link');
+            byId('about-close-label').textContent = tr('dialog.about.close');
+        }
+
+        function updateFooterText() {
+            byId('footer-tagline').textContent = tr('footer.tagline');
+            byId('footer-wordlist-prefix').textContent = tr('footer.wordlist_prefix');
+            byId('footer-wordlist-link').textContent = tr('footer.wordlist_license');
+            byId('footer-separator').textContent = tr('footer.separator');
+            byId('footer-font-prefix').textContent = tr('footer.font_prefix');
+            byId('footer-font-link').textContent = tr('footer.font_license');
+            byId('footer-about-label').textContent = tr('footer.about_button');
         }
 
         function updateSelectionCounts() {

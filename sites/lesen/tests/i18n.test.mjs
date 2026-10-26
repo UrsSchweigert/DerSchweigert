@@ -136,3 +136,34 @@ test("i18n: key fallback returns the exact key for missing translations", () => 
   const key = "some.missing.key.with.dots";
   assert.strictEqual(t("de", key), key);
 });
+
+test("i18n: every tr(...) key referenced in index.html resolves to a real dictionary entry", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { fileURLToPath } = await import("node:url");
+  const path = await import("node:path");
+
+  const htmlPath = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../static/index.html",
+  );
+  const html = await readFile(htmlPath, "utf8");
+
+  // Find every key used via tr('...') in the page's inline language-switch
+  // script. If an element is wired up to re-render on language change but
+  // its key is missing from the dictionary, t() would silently fall back
+  // to the key itself, so this guards against that gap.
+  const keyPattern = /\btr\(\s*'([^']+)'\s*\)/g;
+  const keys = new Set();
+  for (const match of html.matchAll(keyPattern)) {
+    keys.add(match[1]);
+  }
+
+  assert.ok(keys.size > 0, "expected to find at least one tr(...) call in index.html");
+
+  const missing = [...keys].filter((key) => t("de", key) === key);
+  assert.deepStrictEqual(
+    missing,
+    [],
+    `the following keys referenced via tr() in index.html have no German dictionary entry: ${missing.join(", ")}`,
+  );
+});
