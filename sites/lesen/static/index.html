@@ -1467,9 +1467,15 @@
             
             try {
                 const words = await wordPromises[currentLanguage];
-                const { countMatchingWords, isWordsModeEligible } = window.__sounds;
+                const { countMatchingWords, isWordsModeEligible, getSoundsForLanguage } = window.__sounds;
                 const wordLength = Number(byId('word-length').value);
-                const matchCount = countMatchingWords(words, { consonants: [...consonants], vowels: [...vowels] }, wordLength);
+                const allSpecials = getSoundsForLanguage(currentLanguage).specials;
+                const matchCount = countMatchingWords(
+                    words,
+                    { consonants: [...consonants], vowels: [...vowels], specials: [...specials] },
+                    wordLength,
+                    allSpecials,
+                );
                 byId('words-match-count').textContent = matchCount;
                 
                 const wordsRadio = document.querySelector('input[name="pattern"][value="WORDS"]');

@@ -6,6 +6,7 @@ import {
   SPECIALS,
   WORDS_MODE_THRESHOLD,
   buildCombinations,
+  tokenizeWord,
   countMatchingWords,
   isWordsModeEligible,
 } from "../static/sounds.mjs";
@@ -90,6 +91,63 @@ test("countMatchingWords: ignores empty words", () => {
 test("countMatchingWords: returns 0 for an empty word list", () => {
   const selection = { consonants: ["m"], vowels: ["a"] };
   assert.strictEqual(countMatchingWords([], selection, 4), 0);
+});
+
+test("tokenizeWord: splits a plain word into single-character units when no specials apply", () => {
+  assert.deepStrictEqual(tokenizeWord("oma", SPECIALS), ["o", "m", "a"]);
+});
+
+test("tokenizeWord: takes a special left to right as soon as the word continues with it", () => {
+  assert.deepStrictEqual(tokenizeWord("sau", SPECIALS), ["s", "au"]);
+});
+
+test("tokenizeWord: recognizes 'ie' as a single unit within a longer word", () => {
+  assert.deepStrictEqual(tokenizeWord("tier", SPECIALS), ["t", "ie", "r"]);
+});
+
+test("tokenizeWord: an umlaut is its own unit, distinct from the plain vowel", () => {
+  assert.deepStrictEqual(tokenizeWord("bär", SPECIALS), ["b", "ä", "r"]);
+});
+
+test("tokenizeWord: with an empty specials list every character is its own unit", () => {
+  assert.deepStrictEqual(tokenizeWord("sau", []), ["s", "a", "u"]);
+});
+
+test("countMatchingWords: 'sau' does not match when a,u,s are selected but no special is selected", () => {
+  const selection = { consonants: ["s"], vowels: ["a", "u"], specials: [] };
+  assert.strictEqual(countMatchingWords(["sau"], selection, 4, SPECIALS), 0);
+});
+
+test("countMatchingWords: 'sau' matches once the 'au' special is also selected", () => {
+  const selection = { consonants: ["s"], vowels: ["a", "u"], specials: ["au"] };
+  assert.strictEqual(countMatchingWords(["sau"], selection, 4, SPECIALS), 1);
+});
+
+test("countMatchingWords: 'Tier' does not match with i,e,t,r selected but 'ie' unselected", () => {
+  const selection = { consonants: ["t", "r"], vowels: ["i", "e"], specials: [] };
+  assert.strictEqual(countMatchingWords(["Tier"], selection, 4, SPECIALS), 0);
+});
+
+test("countMatchingWords: 'Tier' matches once 'ie' is selected as a special", () => {
+  const selection = { consonants: ["t", "r"], vowels: ["i", "e"], specials: ["ie"] };
+  assert.strictEqual(countMatchingWords(["Tier"], selection, 4, SPECIALS), 1);
+});
+
+test("countMatchingWords: a word with umlaut 'ä' does not match unless 'ä' is selected, even with 'a' selected", () => {
+  const selection = { consonants: ["b", "r"], vowels: ["a"], specials: [] };
+  assert.strictEqual(countMatchingWords(["bär"], selection, 4, SPECIALS), 0);
+  const withUmlaut = { consonants: ["b", "r"], vowels: ["a"], specials: ["ä"] };
+  assert.strictEqual(countMatchingWords(["bär"], withUmlaut, 4, SPECIALS), 1);
+});
+
+test("countMatchingWords: specials-aware matching is case-insensitive and deduplicates by lowercase spelling", () => {
+  const selection = { consonants: ["s"], vowels: ["a", "u"], specials: ["au"] };
+  assert.strictEqual(countMatchingWords(["Sau", "sau", "SAU"], selection, 4, SPECIALS), 1);
+});
+
+test("countMatchingWords: an empty selection (including empty specials) matches zero words", () => {
+  const selection = { consonants: [], vowels: [], specials: [] };
+  assert.strictEqual(countMatchingWords(["sau", "oma", "tier"], selection, 4, SPECIALS), 0);
 });
 
 test("isWordsModeEligible: exact threshold of 10 is eligible", () => {
