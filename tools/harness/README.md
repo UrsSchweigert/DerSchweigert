@@ -40,7 +40,7 @@ Words used throughout:
 | Issue | One small piece of work in a phase. Lives in the harness store, not on GitHub. |
 | Attempt | One worker run on an issue (implementer, reviewer, or refiner). Each has a lease that expires after 90 seconds without a heartbeat. |
 | Evidence | Test and review results, each tied to the exact commit and base they were produced on. Stale evidence does not count. |
-| Tier | The model strength: `low` (Haiku), `standard` (Sonnet), `strong` (Opus). Escalation happens only after failures. |
+| Tier | The model strength: `low` (Haiku), `standard` (Sonnet), `strong` (Opus). Implementers start on `low` and reviewers on `standard`. Escalation (low to standard to strong) happens only after failed checks or review findings, and a reviewer is never below its implementer's tier and always a different model. |
 | Human task | A question the harness asks you: a decision, an asset, or a manual test. |
 
 What an issue goes through: a **refiner** re-checks it if the code under it changed, an **implementer** builds it in a throwaway copy of the repository, the harness runs the issue's own check commands, an **independent reviewer** (a different model) reviews the diff, the harness opens a pull request and merges it when every gate passes, and it reruns the checks on the merged `main`. Only then is the issue Done. A phase is Done when all its issues are Done and its exit checks pass.

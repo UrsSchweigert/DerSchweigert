@@ -9,7 +9,7 @@ ALL = ["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"
 
 def test_default_tier_per_role():
     assert [models.choose_tier(r) for r in ("investigator", "refiner", "implementer", "reviewer", "integrator")] == \
-        ["low", "low", "standard", "standard", "low"]
+        ["low", "low", "low", "standard", "low"]
 
 
 def test_escalation_only_on_evidence():
@@ -66,9 +66,9 @@ def test_scheduler_applies_tiers_and_records_them(tmp_path):
     env.start()
     env.run_until(lambda: env.state("i1") == "Done")
     attempts = {a["role"]: a for a in env.store.list_attempts("i1")}
-    assert attempts["implementer"]["tier"] == "standard" and attempts["implementer"]["model"] == "claude-sonnet-5"
-    assert attempts["reviewer"]["model"] != attempts["implementer"]["model"] and attempts["reviewer"]["independent"] is True
-    assert models.TIERS.index(attempts["reviewer"]["tier"]) >= models.TIERS.index("standard")
+    assert attempts["implementer"]["tier"] == "low" and attempts["implementer"]["model"] == "claude-haiku-4.5"
+    assert attempts["reviewer"]["tier"] == "standard" and attempts["reviewer"]["model"] == "claude-sonnet-5"
+    assert attempts["reviewer"]["independent"] is True
 
 
 def test_scheduler_without_model_routing_reports_it(tmp_path):
@@ -87,7 +87,9 @@ def test_failed_checks_escalate_the_repair_attempt_on_evidence_only(tmp_path):
     env.start()
     env.run_until(lambda: env.state("i1") == "Done")
     impl = [a for a in env.store.list_attempts("i1") if a["role"] == "implementer"]
-    assert [a["tier"] for a in impl] == ["standard", "strong"]
+    assert [a["tier"] for a in impl] == ["low", "standard"]  # haiku first, then sonnet because the checks failed
+    review = next(a for a in env.store.list_attempts("i1") if a["role"] == "reviewer")
+    assert review["model"] != impl[-1]["model"] and models.TIERS.index(review["tier"]) >= models.TIERS.index("standard")  # independent, never below the implementer
 
 
 def test_infrastructure_retry_does_not_escalate(tmp_path):
@@ -96,7 +98,7 @@ def test_infrastructure_retry_does_not_escalate(tmp_path):
     env.start()
     env.run_until(lambda: env.state("i1") == "Done", advance=60)
     impl = [a for a in env.store.list_attempts("i1") if a["role"] == "implementer"]
-    assert [a["tier"] for a in impl] == ["standard", "standard"]
+    assert [a["tier"] for a in impl] == ["low", "low"]
 
 
 def test_escalation_path_work_uses_strong(tmp_path):

@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 TIERS = ("low", "standard", "strong")
-ROLE_TIER = {"investigator": "low", "refiner": "low", "implementer": "standard", "reviewer": "standard", "integrator": "low"}
+ROLE_TIER = {"investigator": "low", "refiner": "low", "implementer": "low", "reviewer": "standard", "integrator": "low"}
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
 
 
