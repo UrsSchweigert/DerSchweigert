@@ -11,6 +11,7 @@ LONG = {"lease_s": 10**7, "run_wall_clock_s": 10**8, "worker_timeout_s": 10**7, 
 @pytest.mark.parametrize("kind,expected", [
     ("infra", "transient"), ("network", "transient"), ("rate_limit", "transient"), ("runtime_crash", "transient"), ("lease_lost", "transient"),
     ("checks_failed", "deterministic"), ("review_findings", "deterministic"), ("schema_invalid", "deterministic"), ("merge_conflict", "deterministic"),
+    ("check_configuration", "configuration"),
     ("scope_violation", "policy"), ("escalation_path", "policy"), ("approval", "policy"), ("permission", "policy"), ("protected_branch", "policy"),
     ("isolation", "systemic"), ("credentials", "systemic"), ("budget", "systemic"),
     ("something_new", "deterministic"),
@@ -35,9 +36,10 @@ def test_transient_and_repair_budgets_are_separate(tmp_path):
     env.adapter.script("i1", "implementer", "error:infra", "error:infra", "error:infra")
     env.checker.fail_next = 2
     env.start()
-    env.run_until(lambda: env.state("i1") == "Done", advance=700)
+    env.run_until(lambda: env.state("i1") == "Blocked", advance=700)
     issue = env.store.get_issue("i1")
     assert issue["transient_failures"] == 3 and issue["repair_failures"] == 2
+    assert "identical check failure repeated" in issue["blocked_reason"]
 
 
 def test_exhausted_transient_budget_blocks_with_an_owner(tmp_path):
@@ -49,17 +51,31 @@ def test_exhausted_transient_budget_blocks_with_an_owner(tmp_path):
     assert [t["state"] for t in env.store.human_tasks("i1")] == ["Requested"]
 
 
+def test_validation_configuration_failure_blocks_without_repair_dispatch(tmp_path):
+    env = Env(tmp_path)
+    env.checker.run = lambda issue_id, head_rev, commands: [
+        {"command": commands[0], "exit_code": 127, "kind": "configuration", "output": "command not found"}
+    ]
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Blocked")
+    issue = env.store.get_issue("i1")
+    assert issue["repair_failures"] == 0
+    assert len([a for a in env.store.list_attempts("i1") if a["role"] == "implementer"]) == 1
+    assert "validation configuration failure" in issue["blocked_reason"]
+
+
 def test_exhausted_repair_budget_blocks_and_raises_a_decision_task(tmp_path):
     env = Env(tmp_path)
     env.checker.fail_next = 99
     env.start()
     env.run_until(lambda: env.state("i1") == "Blocked")
     attempts = env.store.list_attempts("i1")
-    assert len([a for a in attempts if a["role"] == "implementer"]) == 3  # one attempt plus two repairs
+    assert len([a for a in attempts if a["role"] == "implementer"]) == 2  # the repeated command-and-error signature stops early
     [task] = env.store.human_tasks("i1")
     assert task["kind"] == "decision" and task["owner"] == "owner" and task["state"] == "Requested"
-    assert task["payload"]["options"] == ["retry as is", "give guidance and retry", "refine the scope", "cancel the issue"]
-    assert [a["class"] for a in task["payload"]["extra"]["attempts"]] == ["deterministic"] * 3
+    assert task["payload"]["options"] == ["retry as is", "give guidance and retry", "extend retry budget and retry",
+                                          "refine the scope", "cancel the issue"]
+    assert [a["class"] for a in task["payload"]["extra"]["attempts"]] == ["deterministic"] * 2
     assert all(e["kind"] == "checks_failed" for e in task["payload"]["extra"]["evidence"])
     # Other eligible work continues: a second issue is still scheduled.
     assert env.store.active_claims() == []

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import shlex
 import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
@@ -25,7 +26,7 @@ def new_issue(issue_id: str, plan_id: str, phase_id: str, requirement_ids: List[
     issue = {
         "issue_id": issue_id, "plan_id": plan_id, "phase_id": phase_id, "requirement_ids": requirement_ids,
         "title": fields.pop("title", issue_id), "outcomes": [], "acceptance_criteria": [], "non_goals": [], "code_anchors": [],
-        "contract_paths": [], "deps": [], "validation_commands": [], "parallel_safe": False, "base_rev": "", "branch": "harness/" + issue_id,
+        "contract_paths": [], "deps": [], "validation_commands": [], "working_directory": "", "parallel_safe": False, "base_rev": "", "branch": "harness/" + issue_id,
         "head_rev": "", "patch_id": "", "pr": None, "transient_failures": 0, "repair_failures": 0, "strong_attempts": 0,
         "not_before": 0.0, "last_failures": [], "implementer_model": None, "implementer_tier": None, "blocked_reason": "",
     }
@@ -326,7 +327,14 @@ class Scheduler:
         issue["last_failures"].append({"attempt": attempt_id, "role": meta["role"], "kind": kind, "class": fclass, "detail": detail[:1500]})
         issue["last_failures"] = issue["last_failures"][-6:]
         budgets = self._plan()["policy"]["budgets"]
+        failure_signature = failures.signature(kind, evidence if evidence is not None else detail)
+        signatures = issue.setdefault("failure_signatures", {})
+        repeated_check_failure = kind in ("checks_failed", "check_configuration") and failure_signature in signatures
+        signatures[failure_signature] = signatures.get(failure_signature, 0) + 1
+        issue["last_failures"][-1]["signature"] = failure_signature
         decision = failures.decide(fclass, issue, budgets, now, self.rng)
+        if repeated_check_failure:
+            decision = {"action": "block", "reason": "identical check failure repeated without changed command or inputs"}
         self._emit("attempt_failed", attempt=attempt_id, issue=issue_id, kind=kind, failure_class=fclass, action=decision["action"])
         state = self.store.state("issue", issue_id)
         if decision["action"] == "pause":
@@ -408,7 +416,14 @@ class Scheduler:
     def _check_commands(self, issue: Dict[str, Any], changed_paths: List[str]) -> List[str]:
         """The issue's own commands plus the trusted browser checks that apply to the files it changed. A worker cannot opt out."""
         base = issue["validation_commands"] or self._phase(issue)["validation"]
-        return smoke.merge(base, smoke.commands_for(changed_paths, self.smoke_rules))
+        directory = issue.get("working_directory") or self._phase(issue).get("working_directory", ".")
+        return self._with_working_directory(smoke.merge(base, smoke.commands_for(changed_paths, self.smoke_rules)), directory)
+
+    @staticmethod
+    def _with_working_directory(commands: List[str], directory: str) -> List[str]:
+        if directory == ".":
+            return list(commands)
+        return ["cd /work/%s && %s" % (shlex.quote(directory.rstrip("/")), command) for command in commands]
 
     def _refresh_base(self, issue, now, meta=None) -> bool:
         try:
@@ -482,7 +497,9 @@ class Scheduler:
         failed = [c for c in checks if c["exit_code"] != 0]
         self.store.add_evidence(issue["issue_id"], "checks", head, base, "fail" if failed else "pass", {"results": checks}, now)
         if failed:
-            self._record_failure(meta, "checks_failed", now, "failing: %s" % self._failure_summary(failed))
+            kind = "check_configuration" if any(c.get("kind") == "configuration" for c in failed) else "checks_failed"
+            self._record_failure(meta, kind, now, "failing: %s" % self._failure_summary(failed),
+                                 evidence={"head": head, "results": failed})
             return
         run = self.store.get_run(self.plan_id)
         if run.get("prs", 0) >= self._plan()["policy"]["budgets"]["pull_requests_per_run"]:
@@ -620,6 +637,11 @@ class Scheduler:
                 reasons.append("no passing manual test bound to the current head (manual tests never replace automated checks)")
         if not policy["merge_policy"].startswith("autonomous"):
             reasons.append("merge policy requires a human merge")
+        client = getattr(self.publisher, "client", None)
+        if client is not None:
+            protection = client.merge_protection(getattr(self.publisher, "base", "main"))
+            if not protection.get("safe"):
+                reasons.extend("GitHub rule: " + rule for rule in protection.get("blocking_rules", [protection.get("reason", "unverified rules")]))
         return reasons
 
     def _integrate_ready(self, now: float) -> None:
@@ -860,7 +882,8 @@ class Scheduler:
             "issue_id": issue["issue_id"], "phase_id": issue["phase_id"], "requirement_ids": issue["requirement_ids"], "role": role, "tier": tier,
             "outcomes": issue["outcomes"], "acceptance_criteria": issue["acceptance_criteria"], "non_goals": issue["non_goals"],
             "code_anchors": issue["code_anchors"], "dependencies": issue["deps"],
-            "validation_commands": issue["validation_commands"] or phase["validation"], "path_allowlist": phase["path_allowlist"],
+            "validation_commands": issue["validation_commands"] or phase["validation"],             "working_directory": issue.get("working_directory") or phase.get("working_directory", "."),
+            "path_allowlist": phase["path_allowlist"],
             "untrusted_data": json.dumps(data, sort_keys=True),
         }
 
@@ -955,6 +978,7 @@ class Scheduler:
             self._phase_checked(ph, ent, covered, gaps, [], now)
             return
         base = self.repo.base_head()
+        commands = self._with_working_directory(commands, ph.get("working_directory", "."))
         self._start_checks("phase:" + ph["id"], "phase-" + ph["id"], base, base, commands,
                            lambda results, when: self._phase_checked(ph, ent, covered, [], results, when, base))
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import threading
@@ -75,6 +76,48 @@ class SandboxChecker(Checker):
             raise
         return _CheckHandle(work, commands)
 
+    def preflight(self, head_rev: str, checks: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+        """Check commands in the same image, mount, and /work-rooted container used for execution."""
+        work = isolation.new_workdir("preflight-")
+        results: List[Dict[str, Any]] = []
+        try:
+            self.repo.export(head_rev, work)
+            for check in checks:
+                directory = check.get("working_directory", ".")
+                if (not directory or os.path.isabs(directory) or "\\" in directory
+                        or ".." in directory.split("/")):
+                    results.append({"command": check["command"], "working_directory": directory,
+                                    "kind": "configuration", "exit_code": 2,
+                                    "output": "working directory must be repository-relative"})
+                    continue
+                target = os.path.realpath(os.path.join(work, directory))
+                if os.path.commonpath([os.path.realpath(work), target]) != os.path.realpath(work) or not os.path.isdir(target):
+                    results.append({"command": check["command"], "working_directory": directory,
+                                    "kind": "configuration", "exit_code": 2,
+                                    "output": "working directory does not exist inside the repository"})
+                    continue
+                absolute_paths = sorted(set(re.findall(r"(?<![A-Za-z0-9._-])(/[^ \t\r\n;&|<>\"']+)", check["command"])))
+                path_check = ("for p in %s; do test -e \"$p\" || { echo \"HARNESS_CONFIG_ERROR: missing absolute path $p\"; exit 126; }; done; " %
+                              " ".join(shlex.quote(path) for path in absolute_paths)) if absolute_paths else ""
+                command = "cd %s || { echo 'HARNESS_CONFIG_ERROR: invalid working directory'; exit 126; }; %s%s" % (
+                    shlex.quote("/work/" + directory if directory != "." else "/work"), path_check, check["command"])
+                args = isolation.docker_args(work, ["timeout", "--kill-after=5", str(self.timeout), "sh", "-c", command])
+                try:
+                    out = isolation._docker(args, timeout=self.timeout + 15)
+                    code = out.returncode
+                    text = (out.stdout + out.stderr)[-OUTPUT_TAIL:]
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    code, text = 124, str(exc)
+                config_error = ("HARNESS_CONFIG_ERROR:" in text or code == 127
+                                or "command not found" in text.lower() or "not found" in text.lower()
+                                or "no such file or directory" in text.lower())
+                results.append({"command": check["command"], "working_directory": directory, "exit_code": code,
+                                "kind": "configuration" if config_error else ("pass" if code == 0 else "check"),
+                                "output": output_tail(text)})
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        return results
+
     def poll(self, handle: _CheckHandle) -> Optional[List[Dict[str, Any]]]:
         if handle.cancelled:
             raise RuntimeError("check job was cancelled")
@@ -108,6 +151,8 @@ class SandboxChecker(Checker):
             result.update(exit_code=124, output="the command timed out after %d seconds" % self.timeout)
         elif code != 0:
             result["output"] = output_tail(handle.tail)
+            if code == 127 or re.search(r"command not found|not found|no such file or directory|not a directory", handle.tail, re.I):
+                result["kind"] = "configuration"
         handle.proc.stdout.close()
         handle.proc = None
         handle.results.append(result)

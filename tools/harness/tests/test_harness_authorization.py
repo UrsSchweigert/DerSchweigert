@@ -71,6 +71,16 @@ def test_approve_then_run_check(store):
     assert approval.authorize_run(store, "fx", 1, isolation_override=TIER_A)["digest"] == record["digest"]
 
 
+def test_cli_approval_gate_requires_preflight_bound_to_the_plan(store):
+    proposed(store)
+    with pytest.raises(approval.AuthorizationError, match="not been preflighted"):
+        approval.approve(store, "fx", None, "owner", yes, require_preflight=True)
+    stored = store.get_plan("fx")
+    store.put_doc("check_preflight", "fx@v1", {"digest": stored["digest"], "head": "a" * 40, "results": []})
+    record = approval.approve(store, "fx", None, "owner", yes, require_preflight=True)
+    assert record["digest"] == stored["digest"]
+
+
 def test_run_refused_in_tier_b(store):
     proposed(store)
     approval.approve(store, "fx", None, "owner", yes)
@@ -259,8 +269,15 @@ def test_cli_dry_run_plan_and_status_json(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["note"] == "store not initialized"
 
 
-def test_cli_approve_refuses_without_terminal(tmp_path, capsys):
+def test_cli_approve_refuses_without_terminal(tmp_path, capsys, monkeypatch):
     home = str(tmp_path / "h")
+    def preflight_plan(store, plan_id, version, repo_root, issue_docs=None):
+        stored = store.get_plan(plan_id, version)
+        record = {"digest": stored["digest"], "head": "a" * 40, "results": []}
+        store.put_doc("check_preflight", approval.plan_entity(plan_id, stored["plan"]["version"]), record)
+        return record
+
+    monkeypatch.setattr(cli, "preflight_plan", preflight_plan)
     cli.main(["--home", home, "plan", "--requirements", REQ, "--phases", PHASES, "--fixture", "--plan-id", "fx"])
     capsys.readouterr()
     assert cli.main(["--home", home, "approve", "fx"]) == 2

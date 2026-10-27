@@ -49,6 +49,13 @@ DEFAULT_POLICY: Dict[str, Any] = {
 }
 
 _REQ_ROW = re.compile(r"^\|\s*\*\*([A-Za-z]*\d+(?:\.\d+)*)\*\*\s*\|\s*\*\*(.+?)\*\*\s*\|")
+_COMMAND_DENY = re.compile(r"(\bcurl\b|\bwget\b|\bssh\b|\bscp\b|\bsudo\b|\brm\s+-[a-z]*r[a-z]*f?\s+/|\bgit\s+push\b|\bgh\s|\bdocker\b|\bnpm\s+publish\b|\bnpx\b)", re.I)
+
+
+def command_problem(command: str) -> Optional[str]:
+    if _COMMAND_DENY.search(command):
+        return "command uses a prohibited network, privilege, container, or publishing tool"
+    return None
 
 
 def parse_requirements(path: str) -> List[Dict[str, str]]:
@@ -121,6 +128,13 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
         for pa in p["path_allowlist"]:
             if pa.startswith("/") or ".." in pa.split("/"):
                 problems.append("phase %s: unsafe path %s" % (p["id"], pa))
+        for command in p["validation"]:
+            problem = command_problem(command)
+            if problem:
+                problems.append("phase %s: validation %r: %s" % (p["id"], command, problem))
+        working_directory = p.get("working_directory", ".")
+        if not working_directory or os.path.isabs(working_directory) or "\\" in working_directory or ".." in working_directory.split("/"):
+            problems.append("phase %s: working_directory must be repository-relative and stay inside the repository" % p["id"])
     for r in sorted(req_ids - covered):
         problems.append("requirement %s is not covered by any phase" % r)
     if _has_cycle(plan["phases"]):

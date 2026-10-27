@@ -202,9 +202,29 @@ def test_blocked_work_resumes_automatically_after_the_answer(tmp_path):
     env.checker.fail_next = 0  # the human's guidance fixed the cause
     res = humantasks.respond(env.store, task["task_id"], responder_ids=["owner"], source="local", now=env.clock(),
                              answers={"option": "give guidance and retry", "guidance": "the check needed a fixture"})
-    assert res["released"] == ["i1"] and env.store.get_issue("i1")["repair_failures"] == 0
+    assert res["released"] == ["i1"] and env.store.get_issue("i1")["repair_failures"] == 2
     env.run_until(lambda: env.state("i1") == "Done")
     assert "the check needed a fixture" in [r for r in env.adapter.started if r.role == "implementer"][-1].packet["untrusted_data"]
+
+
+def test_human_retry_does_not_reset_cumulative_budget_and_override_is_explicit(tmp_path):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["repair_failures"] = 3
+    env.store.put_issue(issue)
+    make_task(env)
+    response = respond(env, answers={"option": "retry as is"})
+    assert response["released"] == []
+    assert env.state("i1") == "Blocked"
+    assert env.store.get_issue("i1")["repair_failures"] == 3
+
+    env.sched._ensure_decision_task(env.store.get_issue("i1"), env.clock(), "budget remains exhausted")
+    task = next(t for t in env.store.human_tasks("i1") if t["state"] == "Requested")
+    response = humantasks.respond(env.store, task["task_id"], responder_ids=["owner"], source="local",
+                                  answers={"option": "extend retry budget and retry"}, now=env.clock())
+    issue = env.store.get_issue("i1")
+    assert response["released"] == ["i1"]
+    assert issue["repair_failures"] == 3 and issue["repair_budget_override"] == 1
 
 
 def test_unrelated_work_continues_while_a_task_waits(tmp_path):

@@ -106,6 +106,7 @@ Guards:
 * `InReview` requires a PR plus focused and required check results bound to the current head revision, rerun on top of the current base.
 * `InReview` returns to `InProgress` only while repair budget remains for the failure class. A clean rebase that keeps the patch identity unchanged keeps the review verdict, and any other change invalidates all evidence.
 * `Done` requires a merge in dependency order, integrated checks passing, and review and test evidence that is not stale. An open PR or existing code never qualifies.
+* External reconciliation may satisfy these guards only with PR, merge, CI, and review evidence fetched from GitHub and recorded with the operator identity. Missing review evidence is a blocker; agent evidence is never synthesized.
 * `Blocked` requires an unmet dependency or an open human task. A budget-exhausted or policy-failed issue gets a decision task raised at the moment it blocks. Unrelated work continues.
 
 ## Human Task

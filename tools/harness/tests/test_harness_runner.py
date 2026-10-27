@@ -95,6 +95,54 @@ def test_sandbox_check_restart_cleanup_uses_saved_metadata(sandbox_process):
     assert removed == [["rm", "-f", handle.name]] and not os.path.exists(handle.workdir)
 
 
+def test_preflight_uses_checker_image_repository_root_and_relative_working_directory(tmp_path, monkeypatch):
+    from harness.checks import SandboxChecker
+
+    class ExportRepo:
+        def export(self, head, work):
+            os.makedirs(os.path.join(work, "project", "tests"))
+
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    calls = []
+
+    def docker(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, "ok", "")
+
+    monkeypatch.setattr(isolation, "_docker", docker)
+    checker = SandboxChecker(ExportRepo(), "unused")
+    results = checker.preflight("head", [{"command": "node --test tests/*.test.mjs", "working_directory": "project"}])
+
+    assert results[0]["kind"] == "pass"
+    assert "-w" in calls[0] and calls[0][calls[0].index("-w") + 1] == "/work"
+    assert "cd /work/project" in calls[0][-1]
+
+
+def test_preflight_rejects_missing_absolute_paths_and_working_directories(tmp_path, monkeypatch):
+    from harness.checks import SandboxChecker
+
+    class ExportRepo:
+        def export(self, head, work):
+            os.makedirs(os.path.join(work, "project"))
+
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    calls = []
+
+    def docker(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 126, "", "HARNESS_CONFIG_ERROR: missing absolute path /missing/file")
+
+    monkeypatch.setattr(isolation, "_docker", docker)
+    checker = SandboxChecker(ExportRepo(), "unused")
+    results = checker.preflight("head", [
+        {"command": "test -f /missing/file", "working_directory": "project"},
+        {"command": "node --test", "working_directory": "missing"},
+    ])
+
+    assert [r["kind"] for r in results] == ["configuration", "configuration"]
+    assert len(calls) == 1
+
+
 # -- the Stage 4 demonstration ------------------------------------------------------------------
 
 def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):
@@ -137,20 +185,48 @@ def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):
     (True, ["ci"], False, False),
 ])
 def test_github_merge_protection_requires_strict_enforced_checks(strict, contexts, enforced, safe):
-    response = {"required_status_checks": {"strict": strict, "contexts": contexts}, "enforce_admins": {"enabled": enforced}}
+    rules = [{"type": "pull_request", "parameters": {"required_approving_review_count": 0}}]
+    if contexts:
+        rules.append({"type": "required_status_checks", "parameters": {
+            "strict_required_status_checks_policy": strict,
+            "required_status_checks": [{"context": name} for name in contexts]}})
+    response = {"required_status_checks": {"strict": strict, "contexts": contexts},
+                "required_pull_request_reviews": {"required_approving_review_count": 0},
+                "enforce_admins": {"enabled": enforced}}
     calls = []
+
     def request(args):
         calls.append(args)
+        if args[1].startswith("repos/owner/repo/rules/"):
+            return json.dumps(rules)
         return json.dumps(response)
+
     client = GhCli("owner/repo", runner=request)
     assert client.merge_protection("main")["safe"] is safe
-    assert calls == [["api", "repos/owner/repo/branches/main/protection"]]
+    assert calls == [["api", "repos/owner/repo/rules/branches/main"],
+                     ["api", "repos/owner/repo/branches/main/protection"]]
 
 
 def test_github_merge_protection_fails_closed_when_unreadable():
     def denied(args):
         raise GitHubError("permission denied")
     assert GhCli("owner/repo", runner=denied).merge_protection("main")["safe"] is False
+
+
+def test_github_merge_protection_reports_ruleset_only_approval_blocker():
+    def request(args):
+        if "rules/branches" in args[1]:
+            return json.dumps([
+                {"type": "required_status_checks", "parameters": {
+                    "strict_required_status_checks_policy": True, "required_status_checks": [{"context": "test"}]}},
+                {"type": "pull_request", "parameters": {"required_approving_review_count": 1}},
+            ])
+        raise GitHubError("HTTP 404")
+
+    protection = GhCli("owner/repo", runner=request).merge_protection("main")
+    assert not protection["safe"]
+    assert protection["required_checks"] == ["test"]
+    assert protection["blocking_rules"] == ["ruleset requires 1 approving review(s)"]
 
 
 @pytest.mark.parametrize("response,merged", [({"merged": True}, True), ({"merged": False}, False), ({}, False), (None, False)])
@@ -321,7 +397,7 @@ def test_status_reports_issues_and_tasks(tmp_path):
     env.start()
     env.run_until(lambda: env.state("i1") == "Blocked")
     report = cli.status_report(env.store.home)
-    assert report["issues"][0]["state"] == "Blocked" and report["issues"][0]["repair_failures"] == 3
+    assert report["issues"][0]["state"] == "Blocked" and report["issues"][0]["repair_failures"] == 2
     assert report["human_tasks"][0]["owner"] == "owner"
 
 

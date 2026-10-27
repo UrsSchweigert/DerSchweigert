@@ -49,8 +49,8 @@ At most 5 questions, asked once. Decide everything else yourself and record it u
 B) A plan:
 {"status": "plan", "phases": [...], "issues": [...], "assumptions": ["..."], "notes": "..."}
 
-Phase object, exact keys, all lists of strings except id: id, outcomes, requirements, path_allowlist, non_goals, dependencies, exit_criteria, validation.
-Issue object, exact keys: issue_id, phase_id, requirement_ids, title, outcomes, acceptance_criteria, non_goals, code_anchors, contract_paths, deps, validation_commands, parallel_safe (true or false).
+Phase object, exact keys: id, outcomes, requirements, path_allowlist, non_goals, dependencies, exit_criteria, validation, optional working_directory.
+Issue object, exact keys: issue_id, phase_id, requirement_ids, title, outcomes, acceptance_criteria, non_goals, code_anchors, contract_paths, deps, validation_commands, optional working_directory, parallel_safe (true or false).
 
 Rules:
 - Phase ids look like P1, P2. Issue ids are lowercase letters, digits, and dashes (for example flop-training-logic).
@@ -59,7 +59,7 @@ Rules:
 - Every phase has at least one issue, and every requirement in a phase is covered by an issue in that phase. An issue covers part of one phase, uses only requirement ids from that phase, and is small enough for one worker session (a diff well under 800 lines).
 - code_anchors are existing files or directories the issue reads or changes, or new paths under the phase allowlist. contract_paths are files other issues depend on. deps list issue ids that must finish first and must not point at a later phase.
 - Mark parallel_safe true only when the issue touches files no other issue touches.
-- validation and validation_commands run from the repository root inside a node:22 container with git and python3, with no network and no installed project dependencies. Use commands that really work there, for example: cd sites/lesen && node --test tests/*.test.mjs. Never use curl, wget, ssh, sudo, docker, npx, gh, or git push.
+- Checks run inside the approved checker image from /work, the mounted repository root. Set working_directory to a repository-relative directory when needed; never hard-code a container path such as /work/repo. Do not rely on network access or installed project dependencies. Never use curl, wget, ssh, sudo, docker, npx, gh, or git push.
 - Changes to dependency manifests, workflow files, Android permissions or build files, and infrastructure need a human to merge. Avoid them unless a requirement truly needs them, and say so in notes.
 - Where a requirement affects both the web app and the Android app, say which paths cover each.
 - Keep every string under 2000 characters. Do not include credentials.
@@ -124,6 +124,9 @@ def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], re
         for cmd in p["validation"]:
             if COMMAND_DENY.search(cmd):
                 problems.append("phase %s: validation command %r is not allowed" % (p["id"], cmd))
+        wd = p.get("working_directory", ".")
+        if not wd or os.path.isabs(wd) or "\\" in wd or ".." in wd.split("/"):
+            problems.append("phase %s: working_directory must be repository-relative" % p["id"])
     by_phase = {p["id"]: p for p in phases}
     closure: Dict[str, set] = {}
 
@@ -168,6 +171,9 @@ def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], re
         for cmd in i.get("validation_commands", []):
             if COMMAND_DENY.search(cmd):
                 problems.append("issue %s: validation command %r is not allowed" % (iid, cmd))
+        wd = i.get("working_directory", ".")
+        if not wd or os.path.isabs(wd) or "\\" in wd or ".." in wd.split("/"):
+            problems.append("issue %s: working_directory must be repository-relative" % iid)
         for d in i.get("deps", []):
             dep = issue_by_id.get(d)
             if dep is None:
