@@ -28,7 +28,7 @@ const DE = {
   'setup.pattern.vc': 'Vokal + Konsonant',
   'setup.pattern.words': 'Wörter',
   'setup.pattern.words_desc': 'Wörter passen',
-  'setup.pattern.flop': 'Flop Training',
+  'setup.pattern.flop': 'Flops',
   'setup.pattern.flop_desc': 'Die schwierigsten Karten',
   'setup.wordlength': 'Maximale Wortlänge',
   'setup.cardcount': 'Anzahl der Karten',
@@ -95,7 +95,7 @@ const DE = {
   'unit.attempts': 'Versuche',
   'unit.attempts_dat': 'Versuchen',
   'unit.selected': 'ausgewählt',
-  'unit.in_flop': 'im Flop Training',
+  'unit.in_flop': 'in Flops',
   'unit.in': 'in',
 
   // About dialog license link (used as anchor text for license links)
@@ -148,7 +148,7 @@ const EN = {
   'setup.pattern.vc': 'Vowel + Consonant',
   'setup.pattern.words': 'Words',
   'setup.pattern.words_desc': 'Matching words',
-  'setup.pattern.flop': 'Flop Training',
+  'setup.pattern.flop': 'Flops',
   'setup.pattern.flop_desc': 'The trickiest cards',
   'setup.wordlength': 'Maximum word length',
   'setup.cardcount': 'Number of cards',
@@ -215,7 +215,7 @@ const EN = {
   'unit.attempts': 'attempts',
   'unit.attempts_dat': 'attempts',
   'unit.selected': 'selected',
-  'unit.in_flop': 'in flop training',
+  'unit.in_flop': 'in Flops',
   'unit.in': 'in',
 
   // About dialog license link (used as anchor text for license links)
