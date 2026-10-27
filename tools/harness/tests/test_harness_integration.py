@@ -41,6 +41,21 @@ def test_dependency_contract_change_also_refreshes(tmp_path):
     assert any(e["event"] == "refresh_needed" for e in env.tick())
 
 
+def test_merge_gate_reports_effective_github_rule_blockers(tmp_path):
+    from harness_fakes import FakeGitHub
+
+    env = Env(tmp_path)
+    client = FakeGitHub()
+    client.merge_protection = lambda base: {
+        "safe": False, "reason": "ruleset requires approval",
+        "blocking_rules": ["ruleset requires 1 approving review(s)"], "required_checks": ["test"],
+    }
+    env.publisher.client = client
+    env.repo.set_branch("harness/i1", ["src/i1.py"])
+    reasons = env.sched.merge_gate(env.store.get_issue("i1"))
+    assert "GitHub rule: ruleset requires 1 approving review(s)" in reasons
+
+
 def test_unrelated_base_change_does_not_refresh(tmp_path):
     env = Env(tmp_path, issues=[])
     env.add_issue("i1", "P1", ["F1.1"], code_anchors=["src/core/"])
@@ -368,12 +383,13 @@ def test_blocked_issue_with_a_pull_request_and_passing_checks_resumes_review_wit
     implementers_before = len([r for r in env.adapter.started if r.role == "implementer"])
     issue = env.store.get_issue("i1")
     assert issue["head_rev"] and (issue["pr"] or issue.get("pr_simulated")) and env.store.evidence("i1", "checks")
-    # The owner answers the decision task: the issue returns to Ready.
+    # Budget exhaustion cannot be cleared by a routine human retry; an explicit extension is required.
     [task] = env.store.human_tasks("i1")
     from harness import humantasks
     res = humantasks.respond(env.store, task["task_id"], responder_ids=["owner"], source="local", now=env.clock(),
-                             answers={"option": "give guidance and retry", "guidance": "reviewer bug fixed"})
+                             answers={"option": "extend retry budget and retry", "guidance": "reviewer bug fixed"})
     assert res["released"] == ["i1"] and env.state("i1") == "Ready"
+    assert env.store.get_issue("i1")["repair_failures"] == 3
     env.adapter.scripts["i1", "reviewer"] = []
     events = env.tick()
     assert any(e["event"] == "resumed_review" for e in events)

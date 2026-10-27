@@ -14,10 +14,11 @@ from .store import Store
 KINDS = ("asset", "decision", "manual_test")
 OPEN_STATES = ("Requested", "Acknowledged", "Submitted", "Validated")
 TRUSTED_SOURCES = ("local", "github")
-DECISION_OPTIONS = ["retry as is", "give guidance and retry", "refine the scope", "cancel the issue"]
+DECISION_OPTIONS = ["retry as is", "give guidance and retry", "extend retry budget and retry", "refine the scope", "cancel the issue"]
 OPTION_HELP = {
     "retry as is": "Run the next step again with no changes. Choose this when the cause looks like a fluke or a fault in the harness or its tools.",
     "give guidance and retry": "Retry, and pass your hint to the worker with --guidance \"...\". Choose this when you know what the worker got wrong.",
+    "extend retry budget and retry": "Authorize one additional attempt in the exhausted retry class. This override is recorded and does not reset prior failures.",
     "refine the scope": "Send the issue back to be re-planned before another attempt. Choose this when the issue itself is unclear or too big.",
     "cancel the issue": "Drop this issue. Work that depends on it will not run.",
     # Labels used by tasks raised before the wording was clarified.
@@ -226,10 +227,25 @@ def _release(store: Store, task: Dict[str, Any], outcome: str, answers: Dict[str
             else:
                 if str(answers.get("guidance", "")).strip():
                     issue["guidance"] = (issue.get("guidance", []) + [str(answers["guidance"]).strip()])[-5:]
-                issue["blocked_reason"] = ""
-                issue["transient_failures"] = issue["repair_failures"] = 0
-                if state == "Blocked":
-                    store.transition("issue", iid, "Refining" if option == "refine the scope" else "Ready", "coordinator", {"task": task["task_id"]}, now=now)
+                plan = store.get_plan(issue["plan_id"])
+                budgets = plan["plan"]["policy"]["budgets"] if plan else {"repair_attempts": 0, "transient_retries": 0}
+                repair_exhausted = issue.get("repair_failures", 0) > budgets["repair_attempts"] + issue.get("repair_budget_override", 0)
+                transient_exhausted = issue.get("transient_failures", 0) > budgets["transient_retries"] + issue.get("transient_budget_override", 0)
+                exhausted = repair_exhausted or transient_exhausted
+                if option == "extend retry budget and retry":
+                    if transient_exhausted:
+                        issue["transient_budget_override"] = issue.get("transient_budget_override", 0) + 1
+                    else:
+                        issue["repair_budget_override"] = issue.get("repair_budget_override", 0) + 1
+                    exhausted = False
+                if exhausted:
+                    issue["blocked_reason"] = "retry budget exhausted; choose the explicit budget extension to authorize another attempt"
+                else:
+                    issue["blocked_reason"] = ""
+                if state == "Blocked" and not exhausted:
+                    store.transition("issue", iid, "Refining" if option == "refine the scope" else "Ready", "coordinator",
+                                     {"task": task["task_id"], "retry_budget_override": issue.get("repair_budget_override", 0) +
+                                      issue.get("transient_budget_override", 0)}, now=now)
                     released.append(iid)
         elif p["kind"] == "asset":
             issue["assets"] = issue.get("assets", []) + [os.path.basename(a) for a in artifacts]
@@ -248,8 +264,27 @@ def _release(store: Store, task: Dict[str, Any], outcome: str, answers: Dict[str
                                                "detail": str(answers.get("notes", ""))[:300]})
                 issue["repair_failures"] = issue.get("repair_failures", 0) + 1
                 if state == "In Review":
-                    store.transition("issue", iid, "In Progress", "coordinator", {"reason": "manual test failed", "task": task["task_id"]}, now=now)
-                    released.append(iid)
+                    plan = store.get_plan(issue["plan_id"])
+                    budgets = plan["plan"]["policy"]["budgets"] if plan else {"repair_attempts": 0}
+                    limit = budgets["repair_attempts"] + issue.get("repair_budget_override", 0)
+                    if issue["repair_failures"] > limit:
+                        issue["blocked_reason"] = "repair budget exhausted after a failed manual test"
+                        store.transition("issue", iid, "Blocked", "coordinator",
+                                         {"reason": issue["blocked_reason"], "task": task["task_id"]}, now=now)
+                        n = len(store.human_tasks(iid)) + 1
+                        request_task(
+                            store, task_id="decision-%s-%d" % (iid, n), kind="decision", issue_ids=[iid],
+                            owner=p["owner"], secondary_owner=p.get("secondary_owner"), now=now,
+                            why="Issue %s exhausted its repair budget after a failed manual test." % iid,
+                            request="Choose whether to cancel the issue or explicitly extend the retry budget.",
+                            response_format={"required": ["option"], "optional": ["guidance"]},
+                            options=DECISION_OPTIONS, resolution_criteria="The decision is recorded and the issue resumes only within budget.",
+                            extra={"reason": issue["blocked_reason"], "evidence": issue["last_failures"],
+                                   "option_help": {o: OPTION_HELP[o] for o in DECISION_OPTIONS}}, block_issues=False)
+                    else:
+                        store.transition("issue", iid, "In Progress", "coordinator",
+                                         {"reason": "manual test failed", "task": task["task_id"]}, now=now)
+                        released.append(iid)
             else:
                 released.append(iid)
         store.put_issue(issue)

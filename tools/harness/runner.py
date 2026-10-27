@@ -24,7 +24,8 @@ from .store import Store
 MODEL_CACHE_TTL_S = 24 * 3600
 ISSUE_SCHEMA = {
     "issue_id": str, "phase_id": str, "requirement_ids": [str], "title?": str, "outcomes": [str], "acceptance_criteria": [str],
-    "non_goals": [str], "code_anchors": [str], "contract_paths?": [str], "deps?": [str], "validation_commands?": [str], "parallel_safe?": bool,
+    "non_goals": [str], "code_anchors": [str], "contract_paths?": [str], "deps?": [str], "validation_commands?": [str],
+    "working_directory?": str, "parallel_safe?": bool,
 }
 
 
@@ -45,13 +46,21 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
     added = []
     for doc in docs:
         schemas.validate(doc, ISSUE_SCHEMA, "issue")
+        working_directory = doc.get("working_directory", ".")
+        if (not working_directory or os.path.isabs(working_directory) or "\\" in working_directory
+                or ".." in working_directory.split("/")):
+            raise RunRefused("issue %s working_directory must stay inside the repository" % doc["issue_id"])
+        for command in doc.get("validation_commands", []):
+            problem = plans.command_problem(command)
+            if problem:
+                raise RunRefused("issue %s validation command is not allowed: %s" % (doc["issue_id"], problem))
         phase = phases.get(doc["phase_id"])
         if phase is None or not doc["requirement_ids"] or not set(doc["requirement_ids"]) <= set(phase["requirements"]):
             raise RunRefused("issue %s must reference one approved phase and its requirement IDs" % doc["issue_id"])
         if store.get_issue(doc["issue_id"]):
             continue
         extra = {k: doc[k] for k in ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
-                                      "validation_commands", "parallel_safe") if k in doc}
+                                      "validation_commands", "working_directory", "parallel_safe") if k in doc}
         store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev, **extra))
         for state in ("Refining", "Ready"):
             store.transition("issue", doc["issue_id"], state, "import")
@@ -123,7 +132,11 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
     if dry_run:
         publisher = DryRunPublisher(clone)
     else:
-        publisher = GitHubPublisher(GhCli(repo_slug, token_file=broker_token), clone.path, remote_url, "main", broker_token)
+        client = GhCli(repo_slug, token_file=broker_token)
+        protection = client.merge_protection("main")
+        if not protection["safe"]:
+            raise RunRefused("run refused by effective GitHub rules for main: %s" % protection["reason"])
+        publisher = GitHubPublisher(client, clone.path, remote_url, "main", broker_token)
     notifier = TerminalNotifier(lambda m: print(m, file=sys.stderr, flush=True))
     if not dry_run:
         from .workrecord import GitHubNotifier

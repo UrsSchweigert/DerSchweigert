@@ -23,6 +23,7 @@ Provide commands equivalent to these operations using the repository's toolchain
 * `resume`: Recover interrupted execution from GitHub and runtime state, not chat history.
 * `respond`: Validate a human-task response and resume eligible dependent work.
 * `cancel`: Stop scheduling and safely terminate or drain active work.
+* `reconcile-completion`: Verify merged PR and CI evidence for work completed outside the runner, then record it through normal issue transitions.
 
 Command rules:
 
@@ -63,6 +64,14 @@ GitHub is the durable business record. Reuse one appropriate GitHub Project, or 
 * Make partial remote writes recoverable and retries idempotent. Surface pending synchronization instead of claiming success.
 * Back off on rate limits and secondary rate limits, honoring `Retry-After`.
 * Do not create competing local progress documents.
+
+### Validation and external completion
+
+* Validation commands run in the actual worker-check image with the repository mounted at `/work`. An optional `working_directory` is repository-relative; absolute or escaping working directories are invalid.
+* Before plan approval, the CLI runs phase validation commands in that image and stores results bound to the plan digest and source revision. Configuration errors such as missing executables, invalid directories, or nonexistent absolute paths prevent approval. Issue-specific command overrides are preflighted before issue import.
+* Configuration failures stop the issue and raise an operator task; they are not implementation defects. Identical command-and-error signatures on an unchanged revision stop retries. Repair usage remains cumulative; an operator must select the explicit one-attempt budget extension to go beyond the configured repair budget.
+* Before dispatch and immediately before merge, read effective branch rules and classic protection. Report concrete blockers and fail closed when rules cannot be verified.
+* `reconcile-completion` may record work performed outside the runner only after fetching the PR, head and merge commits, required check results, and available review evidence from GitHub. It journals the operator and source references, uses legal issue transitions, and never creates agent review evidence. Phase and plan completion remain subject to their ordinary validation and lifecycle rules.
 
 ### Authority
 

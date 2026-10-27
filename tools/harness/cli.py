@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -13,9 +14,11 @@ import shutil
 import subprocess
 import time
 
-from . import approval, assets, humantasks, investigate, isolation, plans, runner, schemas, status, workrecord
+from . import approval, assets, humantasks, investigate, isolation, plans, reconcile, runner, schemas, status, workrecord
 from .github import GhCli, GitHubError
 from .approval import AuthorizationError, plan_entity
+from .checks import SandboxChecker
+from .repo import GitRepo
 from .store import Store, default_home
 
 
@@ -90,6 +93,45 @@ def broker_token_file(home: Optional[str]) -> Optional[str]:
     return path if os.path.exists(path) else None
 
 
+def preflight_checks(store: Store, repo_root: str, checks: List[Dict[str, str]], key: str) -> Dict[str, Any]:
+    """Run approved check definitions in the worker image before approval or issue import."""
+    repo = GitRepo(repo_root, "main")
+    head = repo.base_head()
+    checker = SandboxChecker(repo, os.path.join(store.home, "copilot.token"))
+    results = checker.preflight(head, checks)
+    record = {"head": head, "results": results, "checked_at": time.time()}
+    store.put_doc("check_preflight_result", key, record)
+    return record
+
+
+def preflight_plan(store: Store, plan_id: str, version: Optional[int], repo_root: str,
+                   issue_docs: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    stored = store.get_plan(plan_id, version)
+    if stored is None:
+        raise AuthorizationError("unknown plan %s" % plan_id)
+    plan = stored["plan"]
+    checks = [{"command": command, "working_directory": phase.get("working_directory", ".")}
+              for phase in plan["phases"] for command in phase["validation"]]
+    phases = {phase["id"]: phase for phase in plan["phases"]}
+    for issue in issue_docs or []:
+        schemas.validate(issue, runner.ISSUE_SCHEMA, "issue")
+        phase = phases.get(issue.get("phase_id"), {})
+        for command in issue.get("validation_commands") or []:
+            checks.append({"command": command, "working_directory": issue.get("working_directory") or phase.get("working_directory", ".")})
+    for check in checks:
+        problem = plans.command_problem(check["command"])
+        if problem:
+            raise runner.RunRefused("validation command %r is not allowed: %s" % (check["command"], problem))
+    key = plan_entity(plan_id, plan["version"])
+    result = preflight_checks(store, repo_root, checks, key)
+    result["digest"] = stored["digest"]
+    if issue_docs is not None:
+        result["issue_digest"] = hashlib.sha256(plans.canonical(issue_docs)).hexdigest()
+        result["issue_docs"] = issue_docs
+    store.put_doc("check_preflight", key, result)
+    return result
+
+
 def isolation_command(action: str, home: Optional[str]) -> int:
     home = home or default_home()
     if action == "build":
@@ -132,6 +174,44 @@ def runner_command(args) -> int:
             print("plan %s v%d: %s" % (args.plan_id, version, runner.request_cancel(store, args.plan_id, version, args.drain)))
             return 0
         if args.cmd == "import-issues":
+            stored = store.get_plan(args.plan_id, version)
+            if stored is None:
+                raise runner.RunRefused("unknown plan %s" % args.plan_id)
+            with open(args.file, encoding="utf-8") as fh:
+                issue_docs = json.load(fh)
+            issue_docs = issue_docs["issues"] if isinstance(issue_docs, dict) else issue_docs
+            phases = {p["id"]: p for p in stored["plan"]["phases"]}
+            proof = store.get_doc("check_preflight", plan_entity(args.plan_id, version)) or {}
+            issue_digest = hashlib.sha256(plans.canonical(issue_docs)).hexdigest()
+            if proof.get("issue_digest") and proof["issue_digest"] != issue_digest:
+                raise runner.RunRefused("issue definitions differ from the checks preflighted before approval")
+            if not proof.get("issue_digest"):
+                overrides = []
+                for issue in issue_docs:
+                    phase = phases.get(issue.get("phase_id"), {})
+                    commands_differ = bool(issue.get("validation_commands") and
+                                           issue["validation_commands"] != phase.get("validation"))
+                    directory_differ = bool(issue.get("working_directory") and
+                                            issue["working_directory"] != phase.get("working_directory", "."))
+                    if commands_differ or directory_differ:
+                        overrides.append(issue["issue_id"])
+                if overrides:
+                    raise runner.RunRefused("issue-specific validation commands must be included with `harness plan --issues` before approval: %s" %
+                                            ", ".join(overrides))
+            checks = []
+            for issue in issue_docs:
+                phase = phases.get(issue.get("phase_id"), {})
+                commands = issue.get("validation_commands") or phase.get("validation", [])
+                for command in commands:
+                    problem = plans.command_problem(command)
+                    if problem:
+                        raise runner.RunRefused("issue %s validation command is not allowed: %s" % (issue.get("issue_id"), problem))
+                    checks.append({"command": command, "working_directory": issue.get("working_directory") or phase.get("working_directory", ".")})
+            preflight = preflight_checks(store, root, checks, plan_entity(args.plan_id, version) + ":issues")
+            config_errors = [r for r in preflight["results"] if r["kind"] == "configuration"]
+            if config_errors:
+                raise runner.RunRefused("validation configuration errors prevent issue import: %s" %
+                                        "; ".join("%s: %s" % (r["command"], r.get("output", "")) for r in config_errors[:3]))
             base = subprocess.run(["git", "-C", root, "rev-parse", "main"], capture_output=True, text=True).stdout.strip()
             print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base)) or "nothing new")
             return 0
@@ -274,6 +354,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p = sub.add_parser("plan", help="build a plan from requirements")
     p.add_argument("--requirements", required=True)
     p.add_argument("--phases", help="JSON file with the phase definitions")
+    p.add_argument("--issues", help="issue definitions to include in pre-approval check preflight")
     p.add_argument("--plan-id")
     p.add_argument("--fixture", action="store_true", help="mark the plan as a test fixture")
     p.add_argument("--dry-run", action="store_true")
@@ -346,6 +427,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     i.add_argument("action", choices=["build", "verify", "status"])
     q = sub.add_parser("probe", help="read-only GitHub capability probe")
     q.add_argument("--repo")
+    rc = sub.add_parser("reconcile-completion", help="verify and record work completed outside the harness")
+    rc.add_argument("issue_id")
+    rc.add_argument("--pr", type=int, required=True)
+    rc.add_argument("--sha", required=True, help="full PR head SHA")
+    rc.add_argument("--repo", help="GitHub owner/name")
     ish = sub.add_parser("issue", help="show everything about one issue (read-only)")
     ish.add_argument("issue_id")
     ish.add_argument("--json", action="store_true")
@@ -385,8 +471,25 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd == "plan":
             store = None if args.dry_run and not os.path.exists(os.path.join(args.home or default_home(), "harness.sqlite")) else Store(args.home)
             result = plan_command(store, args.requirements, args.phases, args.plan_id, args.fixture, args.dry_run)
+            if store is not None and not args.dry_run and result.get("state") == "Proposed" and args.phases:
+                issue_path = args.issues
+                if issue_path is None:
+                    sibling = os.path.join(os.path.dirname(os.path.abspath(args.phases)), "issues.json")
+                    issue_path = sibling if os.path.isfile(sibling) else None
+                issue_docs = None
+                if issue_path:
+                    with open(issue_path, encoding="utf-8") as fh:
+                        issue_docs = json.load(fh)
+                    issue_docs = issue_docs["issues"] if isinstance(issue_docs, dict) else issue_docs
+                root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+                if not root:
+                    raise runner.RunRefused("cannot locate the repository root for validation preflight")
+                preflight = preflight_plan(store, result["plan_id"], result.get("version"), root, issue_docs)
+                config_errors = [r for r in preflight["results"] if r["kind"] == "configuration"]
+                if config_errors:
+                    result["preflight_errors"] = config_errors
             print(json.dumps(result, indent=2, sort_keys=True))
-            return 0
+            return 2 if result.get("preflight_errors") else 0
         if args.cmd in ("run", "resume", "cancel", "import-issues", "pause"):
             return runner_command(args)
         if args.cmd == "investigate":
@@ -401,6 +504,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd == "probe":
             print(json.dumps(GhCli(args.repo or detect_repo(), token_file=broker_token_file(args.home)).capabilities(), indent=2, sort_keys=True))
             return 0
+        if args.cmd == "reconcile-completion":
+            store = Store(args.home)
+            try:
+                result = reconcile.reconcile_completion(store, GhCli(args.repo or detect_repo(), token_file=broker_token_file(args.home)),
+                                                        args.issue_id, args.pr, args.sha, getpass.getuser())
+                print(json.dumps(result, indent=2, sort_keys=True))
+                return 0
+            finally:
+                store.close()
         if args.cmd == "sync":
             repo = args.repo or detect_repo()
             store = Store(args.home)
@@ -408,9 +520,23 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(json.dumps(report, indent=2, sort_keys=True))
             return 1 if report["pending"] else 0
         store = Store(args.home)
-        record = approval.approve(store, args.plan_id, args.version, getpass.getuser(), terminal_confirm)
+        root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+        if not root:
+            raise runner.RunRefused("cannot locate the repository root for validation preflight")
+        approved_plan = store.get_plan(args.plan_id, args.version)
+        if approved_plan is None:
+            raise runner.RunRefused("unknown plan %s" % args.plan_id)
+        key = plan_entity(args.plan_id, approved_plan["plan"]["version"])
+        previous = store.get_doc("check_preflight", key) or {}
+        preflight = preflight_plan(store, args.plan_id, args.version, root, previous.get("issue_docs"))
+        config_errors = [r for r in preflight["results"] if r["kind"] == "configuration"]
+        if config_errors:
+            raise AuthorizationError("validation configuration errors must be fixed before approval: %s" %
+                                     "; ".join("%s: %s" % (r["command"], r.get("output", "")) for r in config_errors[:3]))
+        record = approval.approve(store, args.plan_id, args.version, getpass.getuser(), terminal_confirm, require_preflight=True)
         print("approved %s v%d digest %s" % (record["plan_id"], record["version"], record["digest"][:12]))
         return 0
-    except (AuthorizationError, schemas.SchemaError, GitHubError, humantasks.TaskError, RuntimeError, OSError, KeyError) as exc:
+    except (runner.RunRefused, AuthorizationError, reconcile.ReconciliationError, schemas.SchemaError, GitHubError, humantasks.TaskError,
+            RuntimeError, OSError, KeyError) as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2

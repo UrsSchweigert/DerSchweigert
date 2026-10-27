@@ -83,6 +83,9 @@ class Client:
     def merge_protection(self, base: str) -> Dict[str, Any]:
         return {"safe": False, "reason": "the client cannot verify strict branch protection"}
 
+    def completion_evidence(self, number: int, required_checks: List[str]) -> Dict[str, Any]:
+        raise NotImplementedError
+
     def capabilities(self) -> Dict[str, Any]:
         raise NotImplementedError
 
@@ -190,22 +193,111 @@ class GhCli(Client):
                              "-f", "merge_method=" + method])
         return isinstance(result, dict) and result.get("merged") is True
 
+    def completion_evidence(self, number: int, required_checks: List[str]) -> Dict[str, Any]:
+        pr = self._json(["api", "repos/%s/pulls/%d" % (self.repo, number)])
+        if not isinstance(pr, dict):
+            raise GitHubError("pull request response is invalid")
+        merge_sha = (pr.get("merge_commit_sha") or "").lower()
+        head = pr.get("head") or {}
+        base = pr.get("base") or {}
+        if not merge_sha:
+            raise GitHubError("pull request has no merge commit")
+        runs = self._json(["api", "repos/%s/commits/%s/check-runs" % (self.repo, merge_sha), "-f", "per_page=100"])
+        statuses = self._json(["api", "repos/%s/commits/%s/status" % (self.repo, merge_sha)])
+        reviews = self._json(["api", "repos/%s/pulls/%d/reviews" % (self.repo, number), "-f", "per_page=100"])
+        check_runs = (runs or {}).get("check_runs", [])
+        status_contexts = (statuses or {}).get("statuses", [])
+        conclusions: Dict[str, str] = {}
+        for check in check_runs:
+            if check.get("status") == "completed":
+                conclusions[check.get("name", "")] = check.get("conclusion", "")
+        for status in status_contexts:
+            conclusions[status.get("context", "")] = status.get("state", "")
+        missing = [name for name in required_checks if conclusions.get(name) not in ("success",)]
+        if missing:
+            raise GitHubError("required checks are missing or not successful on merge commit: %s" % ", ".join(missing))
+        if not required_checks:
+            raise GitHubError("effective branch rules do not provide required checks to verify")
+        author = ((pr.get("user") or {}).get("login") or "").lower()
+        latest_reviews: Dict[str, Dict[str, Any]] = {}
+        for review in reviews or []:
+            user = ((review.get("user") or {}).get("login") or "").lower()
+            if user:
+                latest_reviews[user] = review
+        approvals = [{"login": user, "submitted_at": review.get("submitted_at"), "state": review.get("state")}
+                     for user, review in latest_reviews.items() if user != author and review.get("state") == "APPROVED"]
+        return {
+            "number": pr["number"], "state": pr.get("state"), "merged": bool(pr.get("merged_at")),
+            "merged_at": pr.get("merged_at"), "merge_commit_sha": merge_sha,
+            "head_sha": ((head.get("sha") or "")).lower(), "head_ref": head.get("ref", ""),
+            "head_repository": ((head.get("repo") or {}).get("full_name") or ""),
+            "base_sha": ((base.get("sha") or "")).lower(), "base_ref": base.get("ref", ""),
+            "author": author, "approvals": approvals,
+            "checks": [{"name": name, "conclusion": conclusion} for name, conclusion in sorted(conclusions.items())],
+            "required_checks": list(required_checks),
+        }
+
     def merge_protection(self, base: str) -> Dict[str, Any]:
+        blockers: List[str] = []
+        try:
+            rules = self._json(["api", "repos/%s/rules/branches/%s" % (self.repo, quote(base, safe=""))])
+        except RateLimited:
+            raise
+        except GitHubError as exc:
+            return {"safe": False, "reason": "cannot verify effective branch rules: %s" % str(exc)[:160],
+                    "blocking_rules": ["effective branch rules unavailable"], "required_checks": []}
+        if not isinstance(rules, list):
+            return {"safe": False, "reason": "effective branch rules response is invalid",
+                    "blocking_rules": ["invalid effective branch rules response"], "required_checks": []}
         try:
             protection = self._json(["api", "repos/%s/branches/%s/protection" % (self.repo, quote(base, safe=""))])
         except RateLimited:
             raise
         except GitHubError as exc:
-            return {"safe": False, "reason": "cannot verify branch protection: %s" % str(exc)[:160]}
-        if not isinstance(protection, dict):
-            return {"safe": False, "reason": "branch protection response is invalid"}
-        checks = protection.get("required_status_checks") or {}
-        strict = checks.get("strict") is True
-        required = bool(checks.get("contexts") or checks.get("checks"))
-        enforced = (protection.get("enforce_admins") or {}).get("enabled") is True
-        safe = strict and required and enforced
-        return {"safe": safe, "reason": "strict required checks enforced for administrators" if safe else
-                "strict required checks enforced for administrators are required for autonomous merges"}
+            if "404" not in str(exc):
+                return {"safe": False, "reason": "cannot verify classic branch protection: %s" % str(exc)[:160],
+                        "blocking_rules": ["classic branch protection could not be read"], "required_checks": []}
+            protection = None
+
+        required_checks: List[str] = []
+        has_strict_checks = False
+        has_pull_request_rule = False
+        for rule in rules:
+            rule_type = rule.get("type")
+            params = rule.get("parameters") or {}
+            if rule_type == "required_status_checks":
+                required_checks.extend(c.get("context", "") for c in (params.get("required_status_checks") or []) if c.get("context"))
+                has_strict_checks = params.get("strict_required_status_checks_policy") is True
+            elif rule_type == "pull_request":
+                has_pull_request_rule = True
+                approvals = int(params.get("required_approving_review_count", 0) or 0)
+                if approvals:
+                    blockers.append("ruleset requires %d approving review(s)" % approvals)
+
+        if protection is not None and not isinstance(protection, dict):
+            return {"safe": False, "reason": "classic branch protection response is invalid",
+                    "blocking_rules": ["invalid classic branch protection response"], "required_checks": []}
+        classic_checks = (protection or {}).get("required_status_checks") or {}
+        if classic_checks:
+            required_checks.extend(classic_checks.get("contexts") or [])
+            required_checks.extend(c.get("context", "") for c in classic_checks.get("checks", []) if c.get("context"))
+            has_strict_checks = has_strict_checks or classic_checks.get("strict") is True
+        if protection:
+            has_pull_request_rule = has_pull_request_rule or bool(protection.get("required_pull_request_reviews"))
+            approvals = int((protection.get("required_pull_request_reviews") or {}).get("required_approving_review_count", 0) or 0)
+            if approvals:
+                blockers.append("classic branch protection requires %d approving review(s)" % approvals)
+            if (protection.get("enforce_admins") or {}).get("enabled") is not True:
+                blockers.append("classic branch protection is not enforced for administrators")
+        required_checks = sorted(set(required_checks))
+        if not required_checks:
+            blockers.append("no required status checks are configured")
+        if not has_strict_checks:
+            blockers.append("required status checks do not require the branch to be up to date")
+        if not has_pull_request_rule:
+            blockers.append("pull requests are not required")
+        return {"safe": not blockers, "reason": "; ".join(blockers) if blockers else "effective rules permit verified autonomous merges",
+                "blocking_rules": blockers, "required_checks": required_checks}
 
     def capabilities(self) -> Dict[str, Any]:
         """Read-only probe. Mutations are never called, so sub-issue support is inferred from the GraphQL schema."""

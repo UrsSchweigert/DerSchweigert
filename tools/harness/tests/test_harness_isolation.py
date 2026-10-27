@@ -100,6 +100,8 @@ def test_tier_a_unlocks_real_plan_approval(tmp_path, monkeypatch):
     isolation.write_attestation(store.home, key, OK)
     monkeypatch.setattr(isolation, "image_id", lambda image=isolation.IMAGE: "sha256:abc")
     assert approval.detect_isolation(store)["tier"] == "A"
+    plan = store.get_plan("real")
+    store.put_doc("check_preflight", "real@v1", {"digest": plan["digest"], "head": "a" * 40, "results": []})
     assert approval.approve(store, "real", None, "owner", lambda p, d: True)["plan_id"] == "real"
     assert approval.authorize_run(store, "real", 1)["plan_id"] == "real"
     # Tampering with the plan after approval still blocks `run` even in Tier A.

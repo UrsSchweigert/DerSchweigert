@@ -53,7 +53,7 @@ def plan_entity(plan_id: str, version: int) -> str:
 
 
 def approve(store: Store, plan_id: str, version: Optional[int], approver: str,
-            confirm: Callable[[Dict[str, Any], str], bool]) -> Dict[str, Any]:
+            confirm: Callable[[Dict[str, Any], str], bool], *, require_preflight: bool = False) -> Dict[str, Any]:
     """Record human approval. `confirm` is the trusted human interaction and receives the plan and digest."""
     stored = store.get_plan(plan_id, version)
     if stored is None:
@@ -69,6 +69,14 @@ def approve(store: Store, plan_id: str, version: Optional[int], approver: str,
     iso = detect_isolation(store)
     if not plan.get("fixture") and iso["tier"] != "A":
         raise AuthorizationError("Tier B permits approval of fixture plans only: %s" % iso["reason"])
+    if require_preflight or not plan.get("fixture"):
+        preflight = store.get_doc("check_preflight", plan_entity(plan_id, plan["version"]))
+        if not preflight or preflight.get("digest") != digest or not preflight.get("head"):
+            raise AuthorizationError("validation checks have not been preflighted for this exact plan version")
+        config_errors = [r for r in preflight.get("results", []) if r.get("kind") == "configuration"]
+        if config_errors:
+            raise AuthorizationError("validation configuration errors must be fixed before approval: %s" %
+                                     "; ".join("%s: %s" % (r["command"], r.get("output", "")) for r in config_errors[:3]))
     if not confirm(plan, digest):
         raise AuthorizationError("approval declined")
     record = {

@@ -57,6 +57,7 @@ PHASE = {
     "dependencies": [str],
     "exit_criteria": [str],
     "validation": [str],
+    "working_directory?": str,
 }
 
 POLICY = {
@@ -91,6 +92,7 @@ TASK_PACKET = {
     "code_anchors": [str],
     "dependencies": [str],
     "validation_commands": [str],
+    "working_directory?": str,
     "path_allowlist": [str],
     "untrusted_data": str,
 }

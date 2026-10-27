@@ -21,6 +21,7 @@ class FakeGitHub(Client):
         self.search_blind = False    # simulate search index lag
         self.prs = {}
         self.pr_sha = {}
+        self.completion = {}
 
     def _maybe_limit(self):
         if self.rate_limits:
@@ -98,7 +99,11 @@ class FakeGitHub(Client):
         return {"repo": self.repo, "native_sub_issues": self.native, "projects": "unavailable: test double"}
 
     def merge_protection(self, base):
-        return {"safe": True, "reason": "test double: strict required checks enforced for administrators"}
+        return {"safe": True, "reason": "test double: strict required checks enforced for administrators",
+                "required_checks": ["ci"], "blocking_rules": []}
+
+    def completion_evidence(self, number, required_checks):
+        return dict(self.completion, number=number, required_checks=list(required_checks))
 
     # Test helpers that act as other GitHub users.
     def edit_as(self, number, user, new_body):

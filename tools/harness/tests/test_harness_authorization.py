@@ -71,6 +71,16 @@ def test_approve_then_run_check(store):
     assert approval.authorize_run(store, "fx", 1, isolation_override=TIER_A)["digest"] == record["digest"]
 
 
+def test_cli_approval_gate_requires_preflight_bound_to_the_plan(store):
+    proposed(store)
+    with pytest.raises(approval.AuthorizationError, match="not been preflighted"):
+        approval.approve(store, "fx", None, "owner", yes, require_preflight=True)
+    stored = store.get_plan("fx")
+    store.put_doc("check_preflight", "fx@v1", {"digest": stored["digest"], "head": "a" * 40, "results": []})
+    record = approval.approve(store, "fx", None, "owner", yes, require_preflight=True)
+    assert record["digest"] == stored["digest"]
+
+
 def test_run_refused_in_tier_b(store):
     proposed(store)
     approval.approve(store, "fx", None, "owner", yes)

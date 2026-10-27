@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import random
+import hashlib
+import json
 from typing import Any, Callable, Dict, List, Optional
 
 TRANSIENT, DETERMINISTIC, POLICY, SYSTEMIC = "transient", "deterministic", "policy", "systemic"
@@ -9,12 +11,26 @@ TRANSIENT, DETERMINISTIC, POLICY, SYSTEMIC = "transient", "deterministic", "poli
 # Evidence kinds observed by trusted code mapped to a failure class.
 KIND_CLASS = {
     "infra": TRANSIENT, "network": TRANSIENT, "rate_limit": TRANSIENT, "runtime_crash": TRANSIENT, "lease_lost": TRANSIENT,
-    "checks_failed": DETERMINISTIC, "review_findings": DETERMINISTIC, "schema_invalid": DETERMINISTIC,
+    "checks_failed": DETERMINISTIC, "check_configuration": "configuration", "review_findings": DETERMINISTIC, "schema_invalid": DETERMINISTIC,
     "merge_conflict": DETERMINISTIC, "push_rejected": DETERMINISTIC, "patch_changed": DETERMINISTIC, "integrated_checks_failed": DETERMINISTIC,
     "scope_violation": POLICY, "escalation_path": POLICY, "approval": POLICY, "permission": POLICY,
     "protected_branch": POLICY, "diff_too_large": POLICY,
     "isolation": SYSTEMIC, "credentials": SYSTEMIC, "budget": SYSTEMIC,
 }
+CONFIGURATION = "configuration"
+
+
+def signature(kind: str, evidence: Any) -> str:
+    """Stable identity for a trusted failure, including the exact command and observed result."""
+    if isinstance(evidence, dict) and isinstance(evidence.get("results"), list):
+        evidence = dict(evidence)
+        evidence["results"] = [
+            {"command": r.get("command", ""), "exit_code": r.get("exit_code"),
+             "output": " ".join(str(r.get("output", "")).casefold().split())}
+            for r in evidence["results"] if isinstance(r, dict)
+        ]
+    payload = json.dumps({"kind": kind, "evidence": evidence}, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def classify(kind: str, prior_timeout_same_packet: bool = False) -> str:
@@ -40,15 +56,17 @@ def decide(failure_class: str, issue: Dict[str, Any], budgets: Dict[str, Any], n
         return {"action": "pause"}
     if failure_class == POLICY:
         return {"action": "block", "reason": "policy failure"}
+    if failure_class == CONFIGURATION:
+        return {"action": "block", "reason": "validation configuration failure"}
     if failure_class == TRANSIENT:
         issue["transient_failures"] = issue.get("transient_failures", 0) + 1
-        if issue["transient_failures"] > budgets["transient_retries"]:
+        if issue["transient_failures"] > budgets["transient_retries"] + issue.get("transient_budget_override", 0):
             return {"action": "block", "reason": "transient retry budget exhausted"}
         delay = backoff_delay(issue["transient_failures"], rng=rng)
         issue["not_before"] = now + delay
         return {"action": "retry", "delay": delay}
     issue["repair_failures"] = issue.get("repair_failures", 0) + 1
-    if issue["repair_failures"] > budgets["repair_attempts"]:
+    if issue["repair_failures"] > budgets["repair_attempts"] + issue.get("repair_budget_override", 0):
         return {"action": "block", "reason": "repair budget exhausted"}
     return {"action": "retry", "delay": 0.0, "must_change_input": True}
 
