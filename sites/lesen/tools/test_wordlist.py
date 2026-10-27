@@ -6,12 +6,21 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import re
 import unittest
 
 TOOLS = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("build_wordlist", TOOLS / "build_wordlist.py")
 BUILDER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILDER)
+ENGLISH_ORIGIN_WORDS = frozenset("""
+    team teams job jobs party partys chef chefs handy handys keks app computer
+    show shows hobby hobbys event trend start test tests top fan fans hit hits
+    set song songs okay super fair jazz jeans jet jets jeep joker software
+    shampoo shorts shrimp shrimps shuttle snack snacks design designer cookie
+    cover crew crews cracker cupcake cupcakes club clubs clique clown clowns
+    coach cockpit code codes cola college comic comics burger
+""".split())
 
 
 class WordlistTests(unittest.TestCase):
@@ -42,11 +51,22 @@ class WordlistTests(unittest.TestCase):
                           "Sex", "Mord", "Koks", "Scheiße", "Fuck", "John", "Mike"}
                          & set(self.words))
 
+    def test_english_origin_words_are_excluded(self):
+        normalized_words = {word.casefold() for word in self.words}
+        reviewed = {word.casefold() for line in (TOOLS / "reviewed-de.txt").read_text(encoding="utf-8").splitlines()
+                    if not line.lstrip().startswith("#") for word in line.split()}
+        patterns = {line.partition("#")[0].strip().casefold() for line in
+                    (TOOLS / "blocklist-de.txt").read_text(encoding="utf-8").splitlines()}
+
+        self.assertFalse(ENGLISH_ORIGIN_WORDS & normalized_words)
+        self.assertFalse(ENGLISH_ORIGIN_WORDS & reviewed)
+        self.assertTrue(ENGLISH_ORIGIN_WORDS <= patterns)
+
     def test_safety_veto(self):
         patterns = [line.partition("#")[0].strip().lower() for line in
                     (TOOLS / "blocklist-de.txt").read_text(encoding="utf-8").splitlines()]
-        self.assertFalse([w for w in self.words if any(
-            p and fnmatch.fnmatchcase(w.lower(), p) for p in patterns)])
+        veto = re.compile("|".join(fnmatch.translate(pattern) for pattern in patterns if pattern))
+        self.assertFalse([word for word in self.words if veto.match(word.lower())])
 
     def test_letter_selection(self):
         letters = set("maostne")

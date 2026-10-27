@@ -13,7 +13,7 @@ Amt Amulett Ananas Anblick Andenken Anfang Anfänger Angabe Angebot
 Angel Anhang Anhänger Anker Ankunft Anlage Anlass Anliegen Anmut
 Anruf Anrufer Ansage Ansager Anschein Ansehen Ansicht Anstand Anstieg
 Anteil Antenne Antike Antrag Antrieb Antwort Anwesen Anzahl Anzeige Anzug
-Apfel Apotheke App Apparat Appetit Applaus April Aquarium Arbeit Arbeiter
+Apfel Apotheke Apparat Appetit Applaus April Aquarium Arbeit Arbeiter
 Arche Archiv Arena Argument Arm Armband Art Artikel Arzt Asche Ast
 Asteroid Atelier Atem Atemzug Athlet Atlas Atmung Aufbau Auffahrt
 Aufgabe Auflage Aufnahme Aufruf Aufsatz Aufsicht Aufstieg Auftrag Auftritt
@@ -36,14 +36,14 @@ Bock Boden Bogen Bohne Bohrer Bolzen Bonbon Bonus Boot Bord Bote
 Bowlen Bowling Box Brache Branche Braten Brauch Braut Brei Breite
 Bremse Brett Brief Brille Brise Brocken Bronze Brosche Brot Bruder
 Brunnen Brötchen Brücke Brühe Bub Bube Buch Buche Bucht Buckel Bude
-Budget Buffet Bug Bund Burg Burger Bursche Bus Busch Butler Butter
+Budget Buffet Bug Bund Burg Bursche Bus Busch Butler Butter
 Bäcker Bäckerei Bär Börse Bücherei Büffel Bügel Bühne Bündel Bürger
 Büro Bürste Cabrio Camp Campus Canyon Cello Cent Center Champion
-Chance Charme Chef Chefin Chefkoch Chemie Chemiker Chili Chip Chor
-Clique Clown Club Coach Cockpit Code Cola College Comic Computer
-Cookie Couch Courage Cousin Cousine Cover Creme Crew Cracker Cupcake
+Chance Charme Chefin Chefkoch Chemie Chemiker Chili Chip Chor
+
+Couch Courage Cousin Cousine Creme
 Curry Dach Daheim Dame Damm Dampf Dank Datei Daten Datum Dauer
-Daumen Deck Decke Deckel Delfin Delphin Denkmal Deo Design Designer
+Daumen Deck Decke Deckel Delfin Delphin Denkmal Deo
 Dessert Detail Detektiv Deutsch Dezember Dialekt Dialog Diamant Dichter
 Diener Dienerin Dienst Dienstag Diesel Ding Diner Dinner Dino Diplom
 Direktor Disco Diskette Distanz Doktor Dokument Dollar Dom Domino
@@ -58,9 +58,9 @@ Ellbogen Elle Eltern Emotion Empfang Ende Energie Enge Engel
 Englisch Enkel Enkelin Ente Entwurf Erbe Erbin Erbse Erdbeere Erdboden
 Erde Erdnuss Ereignis Erfinder Erfolg Ergebnis Erhalt Erholung Erlebnis
 Ernte Ersatz Ertrag Erwerb Erwägung Erzähler Esel Espe Esse Essen
-Essig Etage Etikett Eule Euro Event Ewigkeit Examen Exemplar Experte
+Essig Etage Etikett Eule Euro Ewigkeit Examen Exemplar Experte
 Expertin Express Extra Fabrik Fach Fachmann Fackel Faden Fahne Fahrer
-Fahrrad Fahrt Fahrzeug Fakt Faktor Falke Fall Falte Familie Fan Fang
+Fahrrad Fahrt Fahrzeug Fakt Faktor Falke Fall Falte Familie Fang
 Fantasie Farbe Farm Farmer Faser Fass Fassade Fassung Favorit Fax
 Februar Feder Fee Fehler Feier Feiertag Feige Feld Fell Fels Felsen
 Fenster Ferien Ferkel Ferne Fernglas Ferse Fest Festival Festland
@@ -90,27 +90,27 @@ Graben Grad Graf Gral Gramm Greif Grenze Grieche Griff Grill Grille
 Grinsen Grips Großteil Grube Grund Gruppe Gruß Gräfin Größe Grün
 Gründer Gummi Gurke Gurt Gärtner Göttin Gürtel Güte Haar Hacke Hafen
 Hahn Hai Haken Halbzeit Hall Halle Hals Halsband Halt Haltung Hammer
-Hamster Hand Handbuch Handel Handlung Handtuch Handvoll Handwerk Handy
+Hamster Hand Handbuch Handel Handlung Handtuch Handvoll Handwerk
 Hang Hangar Happen Harmonie Haube Hauch Haufen Haupt Hase Haus
 Hausfrau Haushalt Haustier Haustür Haut Hebamme Hebel Heck Heft Heide
 Heilung Heim Heimat Heimweg Heimweh Heirat Heizung Hektar Held Heldin
 Helfer Helm Hemd Hengst Herbst Herd Herde Herkunft Herr Herrchen
 Herrin Herz Herzchen Herzog Herzogin Heu Hexe Hexer Hexerei Hilfe
-Himmel Hingabe Hinsicht Hinweis Hirsch Hirte Hit Hitze Hobby Hochzeit
+Himmel Hingabe Hinsicht Hinweis Hirsch Hirte Hitze Hochzeit
 Hocke Hocker Hockey Hof Hoffnung Hoheit Holz Honig Honorar Horizont
 Horn Hose Hotel Huf Hufe Huhn Hummer Humor Hund Hunger Hupe Hut
 Hähnchen Hälfte Händchen Händler Häschen Häuschen Höhe Höhle Hörer
 Hüfte Hügel Hühnchen Hülle Hündchen Hündin Hüter Hütte Ideal Idee Idol
 Illusion Imbiss Impuls Inhaber Inhalt Initiale Insekt Insel Instinkt
 Institut Internat Internet Irrtum Jacht Jacke Jackett Jade Jaguar Jahr
-Jahrbuch Jahrgang Januar Jazz Jeans Jeep Jet Job Joghurt
-Jojo Joker Journal Jubel Jubiläum Jugend Juli Junge Junges Juni Junior
+Jahrbuch Jahrgang Januar Joghurt
+Jojo Journal Jubel Jubiläum Jugend Juli Junge Junges Juni Junior
 Juwel Juwelier Kabel Kabine Kaffee Kahn Kaiser Kaiserin Kakao Kalb
 Kalender Kalorie Kamel Kamera Kamerad Kamin Kamm Kammer Kanal
 Kandidat Kanister Kanne Kante Kantine Kanu Kapelle Kapitel Kapitän
 Kappe Kapsel Kapuze Karaoke Karat Karneval Karo Karotte Karren Karriere
 Karte Karton Kasper Kasse Kassette Kassier Kasten Katalog Kater Katze
-Kauf Kaufhaus Kaufmann Kaugummi Kauz Kavalier Kaviar Kehle Kehre Keks
+Kauf Kaufhaus Kaufmann Kaugummi Kauz Kavalier Kaviar Kehle Kehre
 Kelch Keller Kellner Kenntnis Kerl Kern Kerze Kessel Ketchup Kette
 Kichern Kiefer Kilo Kind Kindchen Kindheit Kinn Kino Kirsche Kissen
 Kiste Kitt Kittel Kitzel Klammer Klamotte Klang Klappe Klapper Klarheit
@@ -162,7 +162,7 @@ Ohrring Oktober Olive Omelett Oma Omi Onkel Opa Oper Option Orakel
 Orange Orbit Orden Ordner Ordnung Organ Orgel Original Ort Osten
 Ostern Ostküste Ozean Paar Packung Paket Palast Palme Panda Panne
 Panther Papa Papagei Papi Papier Paprika Parade Paradies Parfum Parfüm
-Park Parkhaus Partie Partikel Partner Party Pass Passage Passwort
+Park Parkhaus Partie Partikel Partner Pass Passage Passwort
 Pasta Pastete Pate Pause Pech Pelle Pelz Pension Perle Person
 Personal Perücke Pfad Pfahl Pfand Pfanne Pfeffer Pfeife Pfennig Pferd
 Pfiff Pfirsich Pflanze Pflaster Pflege Pfleger Pflicht Pfote Pfund
@@ -203,16 +203,16 @@ Schuppen Schuster Schutz Schwager Schwamm Schwan Schwarm Schwefel
 Schwein Schweiß Schwelle Schwinge Schwung Schäfer Schüler Schürze
 Schüssel See Seemann Segel Segen Sehne Seide Seife Seil Seite Sekretär
 Sekunde Semester Seminar Sender Sendung Senf Senior Senke Sensor Serie
-Sessel Set Seufzer Shampoo Shorts Show Shrimp Shuttle Sicht Sieb
+Sessel Seufzer Sicht Sieb
 Siedler Siedlung Sieg Siegel Sieger Signal Signatur Silber Sims Sinn
 Sirene Sirup Sitte Sitz Sitzung Skala Ski Skipper Skorpion Skulptur
-Smiley Snack Socke Soda Sofa Software Sohn Solo Sommer Sonne Sonde Song
+Smiley Socke Soda Sofa Sohn Solo Sommer Sonne Sonde
 Sonntag Sorge Sorte Sound Souvenir Soße Spalt Spalte Spanne Spatz
 Spaß Speck Speicher Speise Spende Spender Spezies Spiegel Spiel Spieler
 Spinat Spind Spinne Spitz Spitze Splitter Spore Sporn Sport Sportler
 Sprache Sprecher Springer Spruch Sprung Spur Spüle Staat Stab Stadion
 Stadium Stadt Stadtrat Staffel Stahl Stall Stamm Stand Standard
-Standort Stange Stapel Star Start Station Statue Status Stau Staub
+Standort Stange Stapel Star Station Statue Status Stau Staub
 Staunen Steak Stecker Steig Steige Stein Stelle Stempel Stern Steuer
 Stick Stiefel Stiege Stiel Stier Stift Stiftung Stil Stille Stimme
 Stimmung Stirn Stock Stoff Stolz Stopfen Stopp Strahl Strand Strang
@@ -222,14 +222,14 @@ Studie Studio Studium Stufe Stuhl Stumpf Stunde Stute Stärke Stör Stück
 Stütze Suche Suite Summe Summer Sumpf Suppe Sushi Symbol System Szene
 Sänger Sängerin Säule Süden Süße Tablett Tafel Taft Tag Tagebuch Taille
 Takt Talent Talisman Tang Tango Tank Tantchen Tante Tanz Tasche Tasse
-Tastatur Taste Tatsache Tau Taube Taucher Taufe Tausch Taxi Team
+Tastatur Taste Tatsache Tau Taube Taucher Taufe Tausch Taxi
 Technik Teddy Teddybär Tee Teich Teig Teil Teilchen Telefon Teleskop
-Teller Tempel Tempo Tennis Teppich Termin Terrasse Test Text Theater
+Teller Tempel Tempo Tennis Teppich Termin Terrasse Text Theater
 Theke Thema Theorie These Thron Tick Ticket Tiefe Tier Tierarzt
 Tierheim Tiger Tinte Tipp Tisch Titan Titel Toast Toaster Tochter
-Toilette Toleranz Tomate Ton Tonband Tonfall Tonne Top Topf Tor Torte
+Toilette Toleranz Tomate Ton Tonband Tonfall Tonne Topf Tor Torte
 Tour Tourist Tournee Trab Tracht Trage Trainer Training Traktor Trank
-Tratsch Traube Traum Trauung Treff Treffen Treffer Trend Treppe Tresen
+Tratsch Traube Traum Trauung Treff Treffen Treffer Treppe Tresen
 Tresor Treue Trick Triumph Trockner Troll Trommel Trompete Tropf
 Tropfen Trophäe Trost Trotz Trubel Truhe Trumpf Truthahn Träger Träumer
 Tuch Tugend Tunnel Turm Turner Turnier Tänzer Tänzerin Täubchen
@@ -290,7 +290,7 @@ er erblickt ergibt ergeben erhalten erhält erhalte erkenne erkennen erkennt
 erkläre erklären erklärt erlaubt erlauben erlaube erlebt erleben erlebe
 erscheint erst erste ersten erstes erstaunt erzähl erzähle erzählen erzählt
 es esse essen esst etwa etwas euch euer eure eurem euren eurer eures ewig
-fahre fahren fahrt fair falle fallen fallt falls fand fanden fang fange fangen
+fahre fahren fahrt falle fallen fallt falls fand fanden fang fange fangen
 fangt fast faul fehle fehlen fehlt fein feine feinen ferner fern feste festen
 fest feucht fielen fiel finde finden findest findet fing fit flach flache
 flachen flog flogen floh flog fliege fliegen fliegt flott flog folge folgen
@@ -335,7 +335,7 @@ musste mussten müssen müsst müde müden müdes möglich möge mögen mögt m�
 möchten nach nachher nahm nah nahe nahen nahmen naja nanu nass nasse nassen
 natürlich neben nein nehme nehmen nehmt nennt nenn nenne nennen nett nette
 netten neu neue neuen neuer neues neun neunte nicht nichts nie niemand nimm
-nimmt noch nun nur nö ob oben oder oft oh ohne okay olivgrün ordne ordnen
+nimmt noch nun nur nö ob oben oder oft oh ohne olivgrün ordne ordnen
 ordnet paar packe packen packt passe passen passt perfekt pflanze pflanzen
 pflanzt pflege pflegen pflegt prima pro probiere probieren prüfen prüfe prüft pur quer
 radeln radelt rase rasen rast rate raten ratet rauf raus recht rechte rechten
@@ -363,7 +363,7 @@ spricht springe springen springt spüre spüren spürt stark starke starken
 statt staune staunen staunt stehe stehen steht steige steigen steigt stelle
 stellen stellt stetig still stille stillen stimme stimmen stimmt stoppe
 stoppen stoppt strahle strahlen strahlt stricke stricken strickt suche
-suchen sucht super süß süße süßen täglich tanze tanzen tanzt tapfer teile
+suchen sucht süß süße süßen täglich tanze tanzen tanzt tapfer teile
 teilen teilt tief tiefe tiefen tja toll tolle tollen trage tragen tragt trägt
 traf trafen trat traten traue trauen traut treffe treffen trefft treu treue
 treuen trinke trinken trinkt tritt trotzdem trocken trockene tue tun tust
