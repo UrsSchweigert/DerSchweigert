@@ -33,11 +33,15 @@ export function recordAttempt(stats, key, correct, { flop } = {}) {
  * ("au", "ei"), so the text is matched by walking every possible split
  * instead of checking character by character.
  *
+ * When the allowedSounds set contains the 'xx' sentinel, a 2-letter substring
+ * with identical characters (e.g., 'll') is considered reachable alongside
+ * literal multi-character sounds.
+ *
  * @param {string} text - Card text (any casing)
  * @param {Set<string>|readonly string[]} allowedSounds - Selected sounds
  * @returns {boolean} true when the text is fully covered by the sounds
  */
-function isSpellableWith(text, allowedSounds) {
+export function isSpellableWith(text, allowedSounds) {
   const sounds = allowedSounds instanceof Set ? allowedSounds : new Set(allowedSounds);
   if (!text || sounds.size === 0) {
     return false;
@@ -45,13 +49,21 @@ function isSpellableWith(text, allowedSounds) {
   const letters = [...text.toLowerCase()];
   let longestSound = 1;
   for (const sound of sounds) {
-    longestSound = Math.max(longestSound, [...sound].length);
+    if (sound !== 'xx') { // Skip the sentinel when calculating longestSound
+      longestSound = Math.max(longestSound, [...sound].length);
+    }
   }
 
+  const hasXxSentinel = sounds.has('xx');
   const reachable = new Array(letters.length + 1).fill(false);
   reachable[0] = true;
   for (let index = 0; index < letters.length; index++) {
     if (!reachable[index]) continue;
+    // Try doubled letters if 'xx' is selected
+    if (hasXxSentinel && index + 2 <= letters.length && letters[index] === letters[index + 1]) {
+      reachable[index + 2] = true;
+    }
+    // Try regular sounds
     for (let length = 1; length <= longestSound && index + length <= letters.length; length++) {
       if (sounds.has(letters.slice(index, index + length).join(""))) {
         reachable[index + length] = true;
