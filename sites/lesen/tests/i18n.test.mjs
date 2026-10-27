@@ -252,7 +252,7 @@ test("language selection: voice code, specials set and word-list filename all ma
     de: {
       langPrefix: 'de-',
       filename: 'words-de.json',
-      specials: ["ä", "ö", "ü", "au", "ei", "ie", "eu"],
+      specials: ["ä", "ö", "ü", "au", "ei", "ie", "eu", "sch", "ch", "st", "ai", "xx"],
     },
     en: {
       langPrefix: 'en-',
@@ -303,4 +303,3 @@ test("language selection: switching in either direction updates voice code, spec
   assert.ok(current.specials.includes('ä'), "switching en->de should load German specials");
   assert.ok(!current.specials.includes('sh'), "switching en->de must not keep English specials");
 });
-
