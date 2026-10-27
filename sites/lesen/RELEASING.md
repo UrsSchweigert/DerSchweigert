@@ -79,7 +79,7 @@ versionCode, date, and release notes.
 | Date | Git revision | versionName | versionCode | targetSdk | Track | Notes |
 | --- | --- | ---: | ---: | ---: | --- | --- |
 | 2026-10-22 | f29830f | 1.1 | 2 | 36 | Internal testing | First internal testing release. Signed with the upload key; Play App Signing enabled. Supersedes an earlier versionCode 1 (targetSdk 34) build that Play rejected for the API-36 requirement. |
-| 2026-10-27 | b503c3d | 1.2 | 3 | 36 | Local build (not uploaded) | English UI and content (word list, sounds, voice), Flop Training, sound-unit word matching, English title "Letter time". Signed `.aab` and sideload `.apk`. |
+| 2026-10-27 | b503c3d | 1.3 | 4 | 36 | Local build (not uploaded) | English UI and content (word list, sounds, voice), Flop Training, sound-unit word matching, English title "Letter time". Signed `.aab` and sideload `.apk`. versionCode 3 (1.2) was already used on Play. |
 
 ## Reproducing a past release
 
