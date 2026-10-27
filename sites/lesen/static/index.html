@@ -1262,7 +1262,7 @@
             </div>
         </dialog>
     </main>
-    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><small><span id="footer-wordlist-prefix">Wortliste: </span><a id="footer-wordlist-link" href="words-de-LICENSE.txt">FrequencyWords &amp; Wiktionary, CC BY-SA 4.0</a><span id="footer-separator"> &middot; </span><span id="footer-font-prefix">Schrift: </span><a id="footer-font-link" href="fonts/OFL.txt">Andika (SIL Open Font License 1.1)</a></small><br><button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button></footer>
+    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
@@ -1443,11 +1443,6 @@
 
         function updateFooterText() {
             byId('footer-tagline').textContent = tr('footer.tagline');
-            byId('footer-wordlist-prefix').textContent = tr('footer.wordlist_prefix');
-            byId('footer-wordlist-link').textContent = tr('footer.wordlist_license');
-            byId('footer-separator').textContent = tr('footer.separator');
-            byId('footer-font-prefix').textContent = tr('footer.font_prefix');
-            byId('footer-font-link').textContent = tr('footer.font_license');
             byId('footer-about-label').textContent = tr('footer.about_button');
         }
 

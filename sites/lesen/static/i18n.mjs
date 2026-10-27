@@ -124,11 +124,6 @@ const DE = {
 
   // Footer
   'footer.tagline': 'Buchstabenzeit · Jeden Tag ein kleines Stück weiter.',
-  'footer.wordlist_prefix': 'Wortliste: ',
-  'footer.wordlist_license': 'FrequencyWords & Wiktionary, CC BY-SA 4.0',
-  'footer.separator': ' · ',
-  'footer.font_prefix': 'Schrift: ',
-  'footer.font_license': 'Andika (SIL Open Font License 1.1)',
   'footer.about_button': 'Rechtliches & Datenschutz',
 };
 
@@ -249,11 +244,6 @@ const EN = {
 
   // Footer
   'footer.tagline': 'Buchstabenzeit · Every day a little bit further.',
-  'footer.wordlist_prefix': 'Word list: ',
-  'footer.wordlist_license': 'FrequencyWords & Wiktionary, CC BY-SA 4.0',
-  'footer.separator': ' · ',
-  'footer.font_prefix': 'Font: ',
-  'footer.font_license': 'Andika (SIL Open Font License 1.1)',
   'footer.about_button': 'Legal & Privacy',
 };
 
