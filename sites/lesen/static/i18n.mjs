@@ -133,7 +133,7 @@ const DE = {
  */
 const EN = {
   // Brand and main headings
-  'app.title': 'Buchstabenzeit',
+  'app.title': 'Letter time',
   'setup.title': 'Learn to read, card by card.',
   'setup.intro': 'Assemble your letter cards and read at your own pace. Every small step counts!',
   'practice.title': 'Your reading cards',
@@ -198,9 +198,9 @@ const EN = {
   'dialog.tts_disclaimer.close': 'Got it',
   
   // About dialog
-  'dialog.about.title': 'About Buchstabenzeit',
+  'dialog.about.title': 'About Letter time',
   'dialog.about.version': 'Version 1.0',
-  'dialog.about.intro': 'Buchstabenzeit is guided reading practice. An adult chooses the cards, guides the child through reading, and marks the answers.',
+  'dialog.about.intro': 'Letter time is guided reading practice. An adult chooses the cards, guides the child through reading, and marks the answers.',
   'dialog.about.privacy': 'Privacy',
   'dialog.about.privacy_text': 'This app collects no personal data, has no user accounts, no ads, and no analytics. It works completely offline and requires no internet connection.',
   'dialog.about.tts_privacy': 'Read aloud uses your device\'s installed text-to-speech feature. This is a separate service from your device; what data it processes is determined by your device settings, not by this app. Buchstabenzeit only requests locally installed voices and does not send any data to the internet.',
@@ -228,7 +228,7 @@ const EN = {
   'dialog.about.close': 'Close',
 
   // Document title shown in the browser tab
-  'app.title_full': 'Buchstabenzeit | Reading Practice',
+  'app.title_full': 'Letter time | Reading Practice',
 
   // Fallback feedback when no matching words are found for the Words pattern
   'feedback.pattern_fallback': 'No matching words found – here come syllable patterns.',
@@ -238,12 +238,12 @@ const EN = {
 
   // Setup screen: adult guidance note (details/summary block)
   'setup.adult_note.summary': 'Tips for adults',
-  'setup.adult_note.text_1': 'Buchstabenzeit is guided reading practice: An adult chooses the cards, guides the child through reading, and marks the answers.',
+  'setup.adult_note.text_1': 'Letter time is guided reading practice: An adult chooses the cards, guides the child through reading, and marks the answers.',
   'setup.adult_note.text_2': 'Read aloud is optional help. It requires an English voice installed on your device and works offline only if a matching voice is available. With very short letter sequences, the pronunciation may differ from natural speech.',
   'setup.adult_note.text_3': 'The practice works completely without sound.',
 
   // Footer
-  'footer.tagline': 'Buchstabenzeit · Every day a little bit further.',
+  'footer.tagline': 'Letter time · Every day a little bit further.',
   'footer.about_button': 'Legal & Privacy',
 };
 
