@@ -6,12 +6,13 @@ import hashlib
 import json
 import random
 import time
+import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 from . import approval, broker, failures, humantasks, models, plans, schemas, smoke, telemetry
 from .adapter import Adapter, WorkRequest
 from .checks import Checker, Publisher
-from .github import GitHubError
+from .github import BaseChanged, GitHubError
 from .repo import Repo
 from .store import StaleLease, Store
 
@@ -61,6 +62,7 @@ class Scheduler:
         self.clock, self.rng, self.iso, self.available_models = clock, rng, isolation_override, available_models
         self.runner_id, self.owner, self.secondary_owner, self.notifier = runner_id, owner, secondary_owner, notifier
         self.handles: Dict[str, Dict[str, Any]] = {}
+        self.check_runs: Dict[str, Dict[str, Any]] = {}
         self.events: List[Dict[str, Any]] = []
 
     # -- plan and policy ------------------------------------------------------
@@ -114,6 +116,9 @@ class Scheduler:
             self._cancel(now, drain=run.get("drain", False))
             if self.store.state("plan", self.entity) != "Executing":
                 return self.events
+        if run.get("pause_requested") and run.get("pause_now"):
+            self._pause("paused by the operator", now)
+            return self.events
         try:
             approval.authorize_run(self.store, self.plan_id, self.version, self.iso)
         except approval.AuthorizationError as exc:
@@ -123,15 +128,18 @@ class Scheduler:
         if now - run.get("started_at", now) > budgets["run_wall_clock_s"]:
             self._pause("run wall-clock budget exhausted", now)
             return self.events
+        self._recover_checks(now)
         self._fence_expired(now)
         self._poll(now, budgets)
+        self._poll_checks()
+        now = max(now, self.clock())
         if run.get("cancel_requested") and run.get("drain") and self.store.state("plan", self.entity) == "Executing":
             self._cancel(now, drain=True)
         if self.store.state("plan", self.entity) != "Executing":
             return self.events
         if run.get("pause_requested"):
             # Finished workers were handled above. Pause now, or once the workers in flight are done. Nothing new starts meanwhile.
-            if run.get("pause_now") or not self.handles:
+            if run.get("pause_now") or not (self.handles or self._has_checks()):
                 self._pause("paused by the operator", now)
             return self.events
         self._reconcile_blocked(now)
@@ -156,23 +164,26 @@ class Scheduler:
                     meta.update(outcome=state, finished_at=now)
                     self.store.put_attempt(meta)
         for attempt_id in self.store.recover(now, self.runner_id):
-            h = self.handles.pop(attempt_id, None)
-            if h:
-                self.adapter.cancel(h["handle"])
+            self._drop(attempt_id)
             meta = self.store.get_attempt(attempt_id)
             if meta and not meta.get("outcome"):
                 self._record_failure(meta, "lease_lost", now, "lease expired, worker fenced", outcome="Fenced", already_final=True)
 
     def _poll(self, now: float, budgets: Dict[str, Any]) -> None:
         for attempt_id, h in list(self.handles.items()):
+            now = max(now, self.clock())
             meta = self.store.get_attempt(attempt_id)
+            try:
+                self.store.heartbeat(attempt_id, h["epoch"], now, budgets["lease_s"])
+            except StaleLease:
+                self._drop(attempt_id)
+                continue
+            meta.update(last_heartbeat=now)
+            self.store.put_attempt(meta)
+            if h.get("checking"):
+                continue
             poll = self.adapter.poll(h["handle"], now)
             if poll.state == "running":
-                try:
-                    self.store.heartbeat(attempt_id, h["epoch"], now, budgets["lease_s"])
-                except StaleLease:
-                    self._drop(attempt_id)
-                    continue
                 meta.update(last_heartbeat=now, last_activity=poll.last_activity)
                 self.store.put_attempt(meta)
                 if now - h["started_at"] > budgets["worker_timeout_s"]:
@@ -185,11 +196,92 @@ class Scheduler:
             self._on_finished(meta, h, poll, now)
 
     def _drop(self, attempt_id: str) -> None:
+        self._cancel_checks(attempt_id)
         h = self.handles.pop(attempt_id, None)
         if h:
             self.adapter.cancel(h["handle"])
 
+    # -- required-check jobs -------------------------------------------------
+
+    def _has_checks(self, issue_id: Optional[str] = None) -> bool:
+        jobs = self.store.get_run(self.plan_id).get("checks", {}).values()
+        return any(issue_id is None or job["issue_id"] == issue_id for job in jobs)
+
+    def _forget_check(self, key: str, job_id: Optional[str]) -> None:
+        if self.check_runs.get(key, {}).get("job_id") == job_id:
+            self.check_runs.pop(key, None)
+        run = self.store.get_run(self.plan_id)
+        if run.setdefault("checks", {}).get(key, {}).get("job_id") == job_id:
+            run["checks"].pop(key, None)
+        self.store.put_run(self.plan_id, run)
+
+    def _start_checks(self, key, issue_id, head, base, commands, done, attempt_id=None) -> None:
+        if key in self.store.get_run(self.plan_id).get("checks", {}):
+            return
+        handle = self.checker.start(issue_id, head, commands)
+        job_id = uuid.uuid4().hex
+        self.check_runs[key] = {"handle": handle, "done": done, "attempt_id": attempt_id, "job_id": job_id}
+        now = self.clock()
+        run = self.store.get_run(self.plan_id)
+        run.setdefault("checks", {})[key] = {
+            "issue_id": issue_id, "head_rev": head, "base_rev": base, "runner": self.runner_id,
+            "attempt_id": attempt_id, "job_id": job_id, "lease_until": now + self._plan()["policy"]["budgets"]["lease_s"],
+            "recovery": self.checker.recovery_data(handle),
+        }
+        self.store.put_run(self.plan_id, run)
+        self._poll_check(key)
+
+    def _poll_check(self, key: str) -> None:
+        job = self.check_runs.get(key)
+        if job is None:
+            return
+        if not self._check_job_live(key, job):
+            return
+        results = self.checker.poll(job["handle"])
+        now = self.clock()
+        if not self._check_job_live(key, job):
+            return
+        if results is None:
+            run = self.store.get_run(self.plan_id)
+            run["checks"][key]["lease_until"] = now + self._plan()["policy"]["budgets"]["lease_s"]
+            self.store.put_run(self.plan_id, run)
+            return
+        self._forget_check(key, job["job_id"])
+        job["done"](results, now)
+
+    def _check_job_live(self, key: str, job: Dict[str, Any]) -> bool:
+        saved = self.store.get_run(self.plan_id).get("checks", {}).get(key, {})
+        now = self.clock()
+        if saved.get("job_id") == job["job_id"] and saved.get("lease_until", 0) > now:
+            return True
+        self.checker.cancel(job["handle"])
+        self._forget_check(key, job["job_id"])
+        if job["attempt_id"] in self.handles:
+            self._record_failure(self.store.get_attempt(job["attempt_id"]), "lease_lost", now, "required-check job was fenced")
+        self._emit("checks_fenced", check=key)
+        return False
+
+    def _poll_checks(self) -> None:
+        for key in list(self.check_runs):
+            if self.store.state("plan", self.entity) != "Executing":
+                return
+            self._poll_check(key)
+
+    def _cancel_checks(self, attempt_id: Optional[str] = None) -> None:
+        for key, job in list(self.check_runs.items()):
+            if attempt_id is None or job["attempt_id"] == attempt_id:
+                self.checker.cancel(job["handle"])
+                self._forget_check(key, job["job_id"])
+
+    def _recover_checks(self, now: float) -> None:
+        for key, job in list(self.store.get_run(self.plan_id).get("checks", {}).items()):
+            if key not in self.check_runs and job["lease_until"] <= now:
+                self.checker.recover(job.get("recovery", {}))
+                self._forget_check(key, job.get("job_id"))
+                self._emit("checks_abandoned", issue=job["issue_id"], head=job["head_rev"])
+
     def _on_finished(self, meta: Dict[str, Any], h: Dict[str, Any], poll, now: float) -> None:
+        now = max(now, self.clock())
         if poll.error:
             kind = poll.error.get("kind", "runtime_crash")
             if kind == "cancelled":
@@ -221,6 +313,7 @@ class Scheduler:
                             for a in self.store.list_attempts(issue_id))
         fclass = failures.classify(kind, prior_timeout)
         outcome = outcome or ("TimedOut" if kind in ("timeout", "inactivity") else "Failed")
+        self._cancel_checks(attempt_id)
         h = self.handles.pop(attempt_id, None)
         if not already_final and h:
             try:
@@ -298,10 +391,35 @@ class Scheduler:
     def _phase(self, issue: Dict[str, Any]) -> Dict[str, Any]:
         return next(p for p in self._plan()["phases"] if p["id"] == issue["phase_id"])
 
+    def _authorize_operations(self, issue, operations, now, meta=None, epoch=None) -> bool:
+        try:
+            approval.authorize_operations(self.store, self.plan_id, self.version, operations, self.iso,
+                                          attempt_id=meta["attempt_id"] if meta else None, epoch=epoch, now=self.clock())
+        except approval.AuthorizationError as exc:
+            if meta:
+                self._record_failure(meta, "permission", self.clock(), str(exc))
+            else:
+                issue["blocked_reason"] = "authorization: %s" % exc
+                self.store.put_issue(issue)
+                self._block(issue, now)
+            return False
+        return True
+
     def _check_commands(self, issue: Dict[str, Any], changed_paths: List[str]) -> List[str]:
         """The issue's own commands plus the trusted browser checks that apply to the files it changed. A worker cannot opt out."""
         base = issue["validation_commands"] or self._phase(issue)["validation"]
         return smoke.merge(base, smoke.commands_for(changed_paths, self.smoke_rules))
+
+    def _refresh_base(self, issue, now, meta=None) -> bool:
+        try:
+            self.publisher.refresh_base()
+        except GitHubError as exc:
+            if meta:
+                self._record_failure(meta, "infra", self.clock(), str(exc))
+            else:
+                self._pause("could not refresh the trusted base: %s" % str(exc)[:200], self.clock())
+            return False
+        return True
 
     @staticmethod
     def _failure_summary(failed: List[Dict[str, Any]], limit: int = 1200) -> str:
@@ -315,14 +433,26 @@ class Scheduler:
     def _on_implementer(self, meta, h, result, now) -> None:
         issue = self.store.get_issue(meta["issue_id"])
         policy = self._plan()["policy"]
+        if not self._refresh_base(issue, now, meta):
+            return
         src = self.adapter.source_path(h["handle"])
         try:
-            if src and hasattr(self.repo, "fetch_branch"):
+            if src and hasattr(self.repo, "fetch_branch") and not h.get("imported"):
                 self.repo.fetch_branch(src, issue["branch"])
+            h["imported"] = True
             head = self.repo.branch_head(issue["branch"])
         except Exception as exc:  # the worker may not have produced a branch at all
             self._record_failure(meta, "schema_invalid", now, "no usable branch: %s" % exc)
             return
+        base = self.repo.base_head()
+        rebased = not self.repo.is_ancestor(base, head)
+        h["rebased"] = h.get("rebased", False) or rebased
+        if rebased:
+            rebase = self.repo.rebase(issue["branch"])
+            if rebase.conflict:
+                self._record_failure(meta, "merge_conflict", now, "implementation conflicts with the current base")
+                return
+            head = rebase.head
         paths = self.repo.branch_changed_paths(issue["branch"])  # trusted view, never the worker's claim
         cls = broker.check_changed_paths(paths, self._phase(issue)["path_allowlist"], policy["escalation_paths"])
         if cls["rejected"] or cls["out_of_scope"]:
@@ -336,8 +466,19 @@ class Scheduler:
         if self.repo.numstat(issue["branch"]) > policy["diff_size_cap"]:
             self._record_failure(meta, "diff_too_large", now, "diff exceeds %d lines" % policy["diff_size_cap"])
             return
-        base = self.repo.base_head()
-        checks = self.checker.run(issue["issue_id"], head, self._check_commands(issue, paths))
+        h["checking"] = True
+        self._start_checks("implementation:" + issue["issue_id"], issue["issue_id"], head, base, self._check_commands(issue, paths),
+                           lambda checks, when: self._implementation_checked(meta, h, result, head, base, checks, when), meta["attempt_id"])
+
+    def _implementation_checked(self, meta, h, result, head, base, checks, now) -> None:
+        issue = self.store.get_issue(meta["issue_id"])
+        if not self._refresh_base(issue, now, meta):
+            return
+        now = max(now, self.clock())
+        if base != self.repo.base_head() or head != self.repo.branch_head(issue["branch"]):
+            self._emit("checks_stale", issue=issue["issue_id"], head=head)
+            self._on_implementer(meta, h, result, now)
+            return
         failed = [c for c in checks if c["exit_code"] != 0]
         self.store.add_evidence(issue["issue_id"], "checks", head, base, "fail" if failed else "pass", {"results": checks}, now)
         if failed:
@@ -347,12 +488,17 @@ class Scheduler:
         if run.get("prs", 0) >= self._plan()["policy"]["budgets"]["pull_requests_per_run"]:
             self._pause("pull request budget exhausted", now)
             return
+        if not self._authorize_operations(issue, ["pushes", "pull_requests"], now, meta, h["epoch"]):
+            return
         try:
+            if h.get("rebased") and issue.get("pr"):
+                self.publisher.update_branch(issue, issue["branch"], issue["head_rev"], head)
             pr = self.publisher.open_pr(issue, issue["branch"], head)
         except (GitHubError, broker.BrokerRejected) as exc:
             # A publishing problem fails this attempt. It must never take the whole run down.
             self._record_failure(meta, _publish_kind(exc), now, "publishing the branch failed: %s" % str(exc)[:300])
             return
+        now = max(now, self.clock())
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"revision": head})
         self.handles.pop(meta["attempt_id"], None)
         try:
@@ -447,9 +593,11 @@ class Scheduler:
         head, base = issue["head_rev"], self.repo.base_head()
         policy = self._plan()["policy"]
         try:
-            approval.authorize_run(self.store, self.plan_id, self.version, self.iso)
+            approval.authorize_operations(self.store, self.plan_id, self.version, ["eligible_merges"], self.iso)
         except approval.AuthorizationError as exc:
             reasons.append("authorization: %s" % exc)
+        if not self.repo.is_ancestor(base, head):
+            reasons.append("tested head does not contain the current base")
         checks = self._valid(issue["issue_id"], "checks", head, base)
         if checks is None:
             reasons.append("no passing checks bound to the current head on the current base")
@@ -476,7 +624,13 @@ class Scheduler:
 
     def _integrate_ready(self, now: float) -> None:
         for issue in self.store.list_issues(self.plan_id):
-            if self.store.state("issue", issue["issue_id"]) != "In Review" or self.store.active_claims_for(issue["issue_id"]):
+            if self.store.state("plan", self.entity) != "Executing":
+                return
+            if (self.store.state("issue", issue["issue_id"]) != "In Review" or self.store.active_claims_for(issue["issue_id"])
+                    or self._has_checks(issue["issue_id"])):
+                continue
+            if self._valid(issue["issue_id"], "merge", issue["head_rev"]) is not None:
+                self._post_merge(issue, max(now, self.clock()))
                 continue
             if self._valid(issue["issue_id"], "review", issue["head_rev"]) is None:
                 continue  # waiting for a review
@@ -487,8 +641,12 @@ class Scheduler:
         review = self._valid(iid, "review", issue["head_rev"])
         if review["verdict"] != "approve":
             return
+        if not self._authorize_operations(issue, ["eligible_merges"], now):
+            return
+        if not self._refresh_base(issue, now):
+            return
         base = self.repo.base_head()
-        if base != issue["base_rev"]:
+        if base != issue["base_rev"] or not self.repo.is_ancestor(base, issue["head_rev"]):
             before = issue["patch_id"]
             rr = self.repo.rebase(branch)
             if rr.conflict:
@@ -499,6 +657,8 @@ class Scheduler:
                 return
             # Clean rebase: the review verdict carries over to the new head, but checks must be rerun on the new base.
             old_head = issue["head_rev"]
+            if not self._authorize_operations(issue, ["pushes"], now):
+                return
             try:
                 # The pull request head must equal the commit the evidence is bound to, or GitHub refuses the merge.
                 self.publisher.update_branch(issue, branch, old_head, rr.head)
@@ -512,12 +672,11 @@ class Scheduler:
             issue.update(head_rev=rr.head, base_rev=base)
             self.store.put_issue(issue)
             self.store.add_evidence(iid, "review", rr.head, base, "approve", {"carried_from": old_head, "patch_id": rr.patch_id}, now)
-            checks = self.checker.run(iid, rr.head, self._check_commands(issue, self.repo.branch_changed_paths(branch)))
-            failed = [c for c in checks if c["exit_code"] != 0]
-            self.store.add_evidence(iid, "checks", rr.head, base, "fail" if failed else "pass", {"results": checks, "rerun": "new base"}, now)
-            if failed:
-                self._issue_failure(issue, "checks_failed", "checks fail on the new base: %s" % self._failure_summary(failed), now)
-                return
+        if self._valid(iid, "checks", issue["head_rev"], base) is None:
+            head = issue["head_rev"]
+            self._start_checks("rebase:" + iid, iid, head, base, self._check_commands(issue, self.repo.branch_changed_paths(branch)),
+                               lambda checks, when: self._rebase_checked(iid, head, base, checks, when))
+            return
         reasons = self.merge_gate(issue)
         if reasons:
             self._emit("merge_refused", issue=iid, reasons=reasons)
@@ -526,9 +685,19 @@ class Scheduler:
                 self.store.put_issue(issue)
                 self._block(issue, now)
             return
+        if not self._authorize_operations(issue, ["eligible_merges"], now):
+            return
         try:
             merged = self.publisher.merge(issue, issue.get("pr"), issue["head_rev"])
-        except (GitHubError, broker.BrokerRejected) as exc:
+        except BaseChanged as exc:
+            self._emit("base_changed", issue=iid, reason=str(exc))
+            return
+        except broker.BrokerRejected as exc:
+            issue["blocked_reason"] = "merge policy: %s" % str(exc)[:300]
+            self.store.put_issue(issue)
+            self._block(issue, now)
+            return
+        except GitHubError as exc:
             text = str(exc).lower()
             transient = any(k in text for k in TRANSIENT_GITHUB)
             self._emit("merge_failed", issue=iid, error=str(exc)[:200], transient=transient)
@@ -550,6 +719,18 @@ class Scheduler:
         self._emit("merged", issue=iid, pr=issue.get("pr"), head=issue["head_rev"][:12], simulated=bool(merged.get("simulated")))
         self._post_merge(issue, now)
 
+    def _rebase_checked(self, issue_id, head, base, checks, now) -> None:
+        issue = self.store.get_issue(issue_id)
+        if head != issue["head_rev"] or base != self.repo.base_head() or head != self.repo.branch_head(issue["branch"]):
+            self._emit("checks_stale", issue=issue_id, head=head)
+            return
+        failed = [check for check in checks if check["exit_code"] != 0]
+        self.store.add_evidence(issue_id, "checks", head, base, "fail" if failed else "pass", {"results": checks, "rerun": "new base"}, now)
+        if failed:
+            self._issue_failure(issue, "checks_failed", "checks fail on the new base: %s" % self._failure_summary(failed), now)
+            return
+        self._integrate(issue, now)
+
     def _post_merge(self, issue: Dict[str, Any], now: float) -> None:
         """Rerun the issue's own checks on the merged base. Phase-wide checks may depend on issues that are not built yet, so they run
         only when the phase is validated. The commands are the ones that passed before the merge."""
@@ -557,9 +738,17 @@ class Scheduler:
         before = self._valid(iid, "checks", issue["head_rev"])
         detail = json.loads(before["detail"]) if before else {}
         commands = [r["command"] for r in detail.get("results", [])] or issue["validation_commands"] or self._phase(issue)["validation"]
-        post = self.checker.run(iid, self.repo.base_head(), commands)
+        base = self.repo.base_head()
+        self._start_checks("integrated:" + iid, iid, base, base, commands,
+                           lambda checks, when: self._integrated_checked(iid, issue["head_rev"], base, checks, when))
+
+    def _integrated_checked(self, iid, head, base, post, now) -> None:
+        issue = self.store.get_issue(iid)
+        if head != issue["head_rev"] or base != self.repo.base_head():
+            self._emit("checks_stale", issue=iid, head=base)
+            return
         failed = [c for c in post if c["exit_code"] != 0]
-        self.store.add_evidence(iid, "integrated", issue["head_rev"], self.repo.base_head(), "fail" if failed else "pass", {"results": post}, now)
+        self.store.add_evidence(iid, "integrated", head, base, "fail" if failed else "pass", {"results": post}, now)
         if failed:
             issue["blocked_reason"] = "integrated checks fail after merge: %s" % self._failure_summary(failed, 600)
             self.store.put_issue(issue)
@@ -589,9 +778,12 @@ class Scheduler:
     def _ready_to_work(self, issue: Dict[str, Any], now: float) -> bool:
         phase_state = self.store.state("phase", "%s/%s" % (self.entity, issue["phase_id"]))
         return (issue["not_before"] <= now and not self._unmet_deps(issue) and phase_state in ("Active",)
-                and not self.store.active_claims_for(issue["issue_id"]) and self._concurrency_ok(issue))
+            and not self.store.active_claims_for(issue["issue_id"]) and not self._has_checks(issue["issue_id"]) and self._concurrency_ok(issue))
 
     def _dispatch(self, now: float) -> None:
+        run = self.store.get_run(self.plan_id)
+        if self.store.state("plan", self.entity) != "Executing" or run.get("pause_requested") or run.get("cancel_requested"):
+            return
         issues = self.store.list_issues(self.plan_id)
         for role, states in (("reviewer", ("In Review",)), ("implementer", ("Ready", "In Progress")), ("refiner", ("Refining",))):
             for issue in issues:
@@ -673,6 +865,8 @@ class Scheduler:
         }
 
     def _launch(self, issue: Dict[str, Any], role: str, now: float) -> None:
+        if role == "implementer" and not self._authorize_operations(issue, ["isolated_branches", "commits"], now):
+            return
         policy = self._plan()["policy"]
         budgets = policy["budgets"]
         attempts = self.store.list_attempts(issue["issue_id"])
@@ -707,6 +901,7 @@ class Scheduler:
         if role == "implementer" and issue.get("head_rev") and self.repo.pinned(issue["issue_id"]) == issue["head_rev"]:
             # A repair builds on the work that already has a pull request, so its push is a fast-forward of the same branch.
             packet["resume_from"] = "harness-good/" + issue["issue_id"]
+        now = max(now, self.clock())
         lease = self.store.claim(issue["issue_id"], self.runner_id, now, budgets["lease_s"])
         if role == "implementer":
             if self.store.state("issue", issue["issue_id"]) == "Ready":
@@ -756,7 +951,17 @@ class Scheduler:
         covered = {r for i in mine if self.store.state("issue", i["issue_id"]) == "Done" for r in i["requirement_ids"]}
         gaps = sorted(set(ph["requirements"]) - covered)
         commands = smoke.merge(ph["validation"], smoke.commands_for_allowlist(ph["path_allowlist"], self.smoke_rules))
-        results = self.checker.run("phase-" + ph["id"], self.repo.base_head(), commands) if not gaps else []
+        if gaps:
+            self._phase_checked(ph, ent, covered, gaps, [], now)
+            return
+        base = self.repo.base_head()
+        self._start_checks("phase:" + ph["id"], "phase-" + ph["id"], base, base, commands,
+                           lambda results, when: self._phase_checked(ph, ent, covered, [], results, when, base))
+
+    def _phase_checked(self, ph, ent, covered, gaps, results, now, base=None) -> None:
+        if base is not None and base != self.repo.base_head():
+            self._emit("checks_stale", phase=ph["id"], head=base)
+            return
         failed = [c["command"] for c in results if c["exit_code"] != 0]
         if gaps or failed:
             self.store.transition("phase", ent, "Active", self.runner_id, {"gaps": gaps, "failed_exit_criteria": failed}, now=now)
@@ -774,6 +979,7 @@ class Scheduler:
     # -- pause, cancel ----------------------------------------------------------
 
     def _release_all(self, now: float, outcome: str) -> None:
+        self._cancel_checks()
         for attempt_id, h in list(self.handles.items()):
             if h["handle"] is not None:
                 self.adapter.cancel(h["handle"])
@@ -808,7 +1014,7 @@ class Scheduler:
         self.store.put_run(self.plan_id, run)
 
     def _cancel(self, now: float, drain: bool) -> None:
-        if drain and self.handles:
+        if drain and (self.handles or self._has_checks()):
             return  # stop scheduling, let active workers finish
         self._release_all(now, "Cancelled")
         humantasks.cancel_for_issues(self.store, [i["issue_id"] for i in self.store.list_issues(self.plan_id)], now)

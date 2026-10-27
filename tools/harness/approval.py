@@ -9,10 +9,11 @@ import datetime
 import hashlib
 import hmac
 import os
-from typing import Any, Callable, Dict, Optional
+import time
+from typing import Any, Callable, Dict, Optional, Sequence
 
 from . import isolation, plans, schemas
-from .store import Store
+from .store import StaleLease, Store
 
 
 class AuthorizationError(Exception):
@@ -119,4 +120,26 @@ def authorize_run(store: Store, plan_id: str, version: int, isolation_override: 
     state = store.state("plan", plan_entity(plan_id, version))
     if state not in ("Approved", "Executing") + (("Paused",) if allow_paused else ()):
         raise AuthorizationError("plan is %s, not Approved or Executing" % state)
+    return record
+
+
+def authorize_operations(store: Store, plan_id: str, version: int, operations: Sequence[str],
+                         isolation_override: Optional[Dict[str, str]] = None, *, attempt_id: Optional[str] = None,
+                         epoch: Optional[int] = None, now: Optional[float] = None, dry_run: bool = False) -> Dict[str, Any]:
+    """Authorize a mutation against the signed policy and, for worker actions, its current lease."""
+    if attempt_id is not None:
+        try:
+            store.validate_lease(attempt_id, epoch, time.time() if now is None else now)
+        except StaleLease as exc:
+            raise AuthorizationError("stale lease: %s" % exc) from exc
+    if dry_run:
+        record = verify_approval(store, plan_id, version)
+        state = store.state("plan", plan_entity(plan_id, version))
+        if state not in ("Approved", "Executing"):
+            raise AuthorizationError("plan is %s, not Approved or Executing" % state)
+    else:
+        record = authorize_run(store, plan_id, version, isolation_override)
+    for operation in operations:
+        if operation not in record["authorized_operations"]:
+            raise AuthorizationError("%s is not authorized by the approval" % operation)
     return record

@@ -50,6 +50,10 @@ REQ = {"request_id": "r1", "issue_id": "i1", "purpose": "a crate", "asset_class"
 # -- request policy ---------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("change,fragment", [
+    ({"request_id": "../../../escaped-canary"}, "request_id"),
+    ({"request_id": "/tmp/escaped-canary"}, "request_id"),
+    ({"request_id": "..\\escaped-canary"}, "request_id"),
+    ({"request_id": ""}, "request_id"),
     ({"asset_class": "weapon"}, "not defined"),
     ({"format": "obj"}, "not allowed for model3d"),
     ({"output_path": "../escape.glb"}, "inside assets/"),
@@ -159,7 +163,7 @@ def test_probe_with_a_working_binary(fake_blender):
 
 
 def test_scripts_are_screened_and_blender_gets_a_clean_environment(tmp_path, fake_blender, monkeypatch):
-    runner = BlenderCli(fake_blender[0])
+    runner = BlenderCli(fake_blender[0], reviewed_scripts=[REQ["script"]])
     for bad in ("import os", "open('x')", "bpy.ops.wm.save_mainfile()", "exec('1')", "from subprocess import run", "__import__('os')"):
         assert runner.run_script("import bpy\n" + bad, str(tmp_path / "o.glb"))["ok"] is False
     monkeypatch.setenv("GH_TOKEN", "canary")
@@ -171,6 +175,16 @@ def test_scripts_are_screened_and_blender_gets_a_clean_environment(tmp_path, fak
     assert not {"GH_TOKEN", "AWS_SECRET_ACCESS_KEY"} & set(names)
 
 
+def test_unreviewed_host_script_never_starts_blender(tmp_path, fake_blender, monkeypatch):
+    runner = BlenderCli(fake_blender[0])
+    def forbidden_run(*args, **kwargs):
+        raise AssertionError("an unreviewed script reached the host process")
+    monkeypatch.setattr(assets.subprocess, "run", forbidden_run)
+    result = runner.run_script(REQ["script"], str(tmp_path / "unreviewed.glb"))
+    assert result["ok"] is False and "review" in result["reason"].lower()
+    assert not (tmp_path / "unreviewed.glb").exists()
+
+
 # -- the service ---------------------------------------------------------------------------------------
 
 def service(env, tmp_path, runner=None, policy=None):
@@ -179,9 +193,48 @@ def service(env, tmp_path, runner=None, policy=None):
     return AssetService(env.store, "fx", policy or POLICY, str(root), runner, owner="alice", secondary_owner="bob"), root
 
 
+@pytest.mark.parametrize("relative", ["assets", "assets/scripts", "assets/crate.glb", "assets/manifest.json", "assets/manifest.json.tmp"])
+def test_asset_symlinks_are_rejected_before_writing(tmp_path, fake_blender, relative):
+    env = Env(tmp_path)
+    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0], reviewed_scripts=[REQ["script"]]))
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = root / relative
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(outside if relative in ("assets", "assets/scripts") else outside / "canary")
+    result = svc.handle(REQ, env.clock())
+    assert result["status"] == "rejected"
+    assert list(outside.iterdir()) == []
+
+
+def test_asset_validation_rejects_paths_outside_the_repository(tmp_path):
+    root = tmp_path / "repo"
+    root.mkdir()
+    entry = entry_for(str(tmp_path), "outside.glb", glb())
+    entry["path"] = "../outside.glb"
+    problems = validate_entry(str(root), entry, POLICY, "model3d")
+    assert problems and any("path" in problem.lower() for problem in problems)
+
+
+def test_human_asset_rechecks_output_paths_before_copying(tmp_path):
+    env = Env(tmp_path)
+    svc, root = service(env, tmp_path)
+    svc.handle(REQ, env.clock())
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "assets").symlink_to(outside)
+    supplied = tmp_path / "supplied.glb"
+    supplied.write_bytes(glb())
+    result = humantasks.respond(env.store, "asset-r1", responder_ids=["alice"], source="local", now=env.clock(),
+                               answers={"source": "self-made", "license": "CC0-1.0", "author": "Alice"},
+                               artifacts=[str(supplied)], asset_handler=svc.accept_human_asset)
+    assert result["status"] == "invalid"
+    assert list(outside.iterdir()) == []
+
+
 def test_procedural_asset_is_delivered_with_a_complete_manifest(tmp_path, fake_blender):
     env = Env(tmp_path)
-    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0]))
+    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0], reviewed_scripts=[REQ["script"]]))
     res = svc.handle(REQ, env.clock())
     assert res["status"] == "delivered" and res["source"] == "procedural"
     [entry] = svc.manifest()["entries"]
@@ -239,7 +292,7 @@ def test_validation_failing_twice_raises_a_task(tmp_path, fake_blender):
     env = Env(tmp_path, issues=[("i1", "P1", ["F1.1"])])
     tight = json.loads(json.dumps(POLICY))
     tight["assets"]["classes"]["model3d"]["max_triangles"] = 5  # the double always produces 12 triangles
-    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0]), tight)
+    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0], reviewed_scripts=[REQ["script"]]), tight)
     first = svc.handle(REQ, env.clock())
     assert first["status"] == "validation_failed" and not (root / "assets/crate.glb").exists() and env.store.human_tasks() == []
     second = svc.handle(REQ, env.clock())
@@ -249,7 +302,7 @@ def test_validation_failing_twice_raises_a_task(tmp_path, fake_blender):
 
 def test_repository_assets_are_reused_only_with_provenance(tmp_path, fake_blender):
     env = Env(tmp_path, issues=[("i1", "P1", ["F1.1"]), ("i2", "P1", ["F1.2"])])
-    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0]))
+    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0], reviewed_scripts=[REQ["script"]]))
     svc.handle(REQ, env.clock())
     reuse = dict(REQ, request_id="r2", issue_id="i2", output_path="assets/crate-copy.glb", existing_path="assets/crate.glb", source="repository")
     res = svc.handle(reuse, env.clock())
@@ -280,7 +333,7 @@ def test_visual_fit_can_require_a_human_with_the_asset_attached(tmp_path, fake_b
     env = Env(tmp_path, issues=[("i1", "P1", ["F1.1"])])
     p = json.loads(json.dumps(POLICY))
     p["assets"]["visual_fit_needs_human"] = True
-    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0]), p)
+    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0], reviewed_scripts=[REQ["script"]]), p)
     res = svc.handle(REQ, env.clock())
     task_id = res["review_task"]
     task = env.store.get_human_task(task_id)
@@ -295,7 +348,7 @@ def test_visual_fit_can_require_a_human_with_the_asset_attached(tmp_path, fake_b
 
 def broker_env(tmp_path, fake_blender, authorized=True):
     env = Env(tmp_path, issues=[("i1", "P1", ["F1.1"])])
-    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0]))
+    svc, root = service(env, tmp_path, BlenderCli(fake_blender[0], reviewed_scripts=[REQ["script"]]))
     lease = env.store.claim("worker", "r", now=env.clock())
     env.store.start(lease.attempt_id, lease.epoch, env.clock())
     b = Broker(env.store, None, "fx", 1, ["owner"], isolation=TIER_A, assets=svc)

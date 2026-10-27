@@ -37,6 +37,22 @@ def test_scrub_env_is_shared_with_the_broker():
     assert isolation.scrub_env({"PATH": "/bin", "GH_TOKEN": "x", "COPILOT_GITHUB_TOKEN": "x"}) == {"PATH": "/bin"}
 
 
+def test_async_worker_keeps_credentials_out_of_arguments(tmp_path, monkeypatch):
+    token = tmp_path / "copilot.token"
+    token.write_text("copilot-only-secret")
+    monkeypatch.setenv("GH_TOKEN", "host-secret")
+    calls = []
+    def launch(args, **kwargs):
+        calls.append((args, kwargs))
+        return "process"
+    monkeypatch.setattr(isolation.subprocess, "Popen", launch)
+    assert isolation.start_worker(str(tmp_path), ["check"], str(token), name="harness-check-test") == "process"
+    args, kwargs = calls[0]
+    assert args[:2] == ["docker", "run"] and "--name" in args
+    assert "copilot-only-secret" not in " ".join(args) and "host-secret" not in " ".join(args)
+    assert kwargs["env"][isolation.COPILOT_TOKEN_ENV] == "copilot-only-secret" and "GH_TOKEN" not in kwargs["env"]
+
+
 # -- attestation --------------------------------------------------------------
 
 def test_attestation_grants_tier_a_only_when_valid(tmp_path):
@@ -98,6 +114,8 @@ def test_status_shows_isolation_tier(tmp_path):
     store = Store(str(tmp_path / "home"))
     report = cli.status_report(store.home)
     assert report["isolation"]["tier"] == "B" and report["run_permitted"] is False
+    assert any("verified strict required checks" in limit for limit in report["limitations"])
+    assert not any("by convention" in limit for limit in report["limitations"])
 
 
 # -- real container (skipped without Docker and the built image) -------------

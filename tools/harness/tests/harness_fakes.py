@@ -97,6 +97,9 @@ class FakeGitHub(Client):
     def capabilities(self):
         return {"repo": self.repo, "native_sub_issues": self.native, "projects": "unavailable: test double"}
 
+    def merge_protection(self, base):
+        return {"safe": True, "reason": "test double: strict required checks enforced for administrators"}
+
     # Test helpers that act as other GitHub users.
     def edit_as(self, number, user, new_body):
         self.issues[number]["body"] = new_body

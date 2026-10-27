@@ -126,23 +126,12 @@ class Broker:
         except schemas.SchemaError as exc:
             raise BrokerRejected("invalid proposal: %s" % exc)
         assert_no_secrets(proposal, "proposal")
+        action = proposal["action"]
         try:
-            self._store.validate_lease(proposal["attempt_id"], proposal["epoch"], now)
-        except StaleLease as exc:
-            raise BrokerRejected("stale lease: %s" % exc)
-        try:
-            record = approval.verify_approval(self._store, self.plan_id, self.version)
+            approval.authorize_operations(self._store, self.plan_id, self.version, [ACTION_OPERATION[action]], self._isolation,
+                                          attempt_id=proposal["attempt_id"], epoch=proposal["epoch"], now=now, dry_run=dry_run)
         except approval.AuthorizationError as exc:
             raise BrokerRejected("approval check failed: %s" % exc)
-        state = self._store.state("plan", approval.plan_entity(self.plan_id, self.version))
-        if state not in ("Approved", "Executing"):
-            raise BrokerRejected("plan is %s" % state)
-        iso = self._isolation or approval.detect_isolation(self._store)
-        if iso["tier"] != "A" and not dry_run:
-            raise BrokerRejected("writes refused, Tier B: %s" % iso["reason"])
-        action = proposal["action"]
-        if ACTION_OPERATION[action] not in record["authorized_operations"]:
-            raise BrokerRejected("%s is not authorized by the approval" % ACTION_OPERATION[action])
         self._now = now
         handler = getattr(self, "_do_" + action, None)
         if handler is None:

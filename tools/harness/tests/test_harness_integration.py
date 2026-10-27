@@ -1,6 +1,6 @@
 import pytest
 
-from harness import approval
+from harness import approval, plans
 from harness_doubles import Env
 
 
@@ -111,7 +111,50 @@ def test_checks_failing_on_the_new_base_send_the_issue_back(tmp_path):
     assert "new base" in env.store.get_issue("i1")["last_failures"][-1]["detail"]
 
 
+def test_remote_refresh_failure_prevents_merge(tmp_path):
+    from harness.github import GitHubError
+    env = Env(tmp_path)
+    env.start()
+    hold_review(env)
+    def failed_refresh():
+        raise GitHubError("cannot refresh remote main")
+    env.publisher.refresh_base = failed_refresh
+    release_review(env)
+    env.tick()
+    assert env.store.state("plan", "fx@v1") == "Paused"
+    assert not [intent for intent in env.publisher.intents if intent["action"] == "merge_pr"]
+
+
+def test_incorrect_legacy_base_metadata_does_not_skip_revalidation(tmp_path):
+    env = Env(tmp_path)
+    env.start()
+    hold_review(env)
+    env.repo.advance_base(["src/parallel.py"])
+    issue = env.store.get_issue("i1")
+    issue["base_rev"] = env.repo.base_head()
+    env.store.put_issue(issue)
+    release_review(env)
+    env.run_until(lambda: env.state("i1") == "Done")
+    assert env.repo.rebased == ["harness/i1"]
+    assert env.store.evidence("i1", "checks")[-1]["head_rev"].endswith("+r")
+
+
 # -- Evidence and integration ------------------------------------------------------
+
+@pytest.mark.parametrize("operation", ["isolated_branches", "commits", "pushes", "pull_requests", "eligible_merges"])
+def test_scheduler_enforces_approved_operations(tmp_path, operation):
+    operations = [allowed for allowed in plans.ALLOWED_OPERATIONS if allowed != operation]
+    env = Env(tmp_path, authorized_operations=operations)
+    env.start()
+    for _ in range(6):
+        env.tick()
+    assert env.state("i1") == "Blocked"
+    assert operation in env.store.get_issue("i1")["blocked_reason"]
+    actions = [intent["action"] for intent in env.publisher.intents]
+    assert actions == (["open_pr"] if operation == "eligible_merges" else [])
+    if operation in ("isolated_branches", "commits"):
+        assert env.adapter.started == []
+
 
 def test_failed_checks_never_open_a_pull_request(tmp_path):
     env = Env(tmp_path)

@@ -12,6 +12,7 @@ import struct
 import subprocess
 import tempfile
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 from . import humantasks, schemas, telemetry
@@ -37,6 +38,26 @@ class AssetError(Exception):
     pass
 
 
+def asset_path(root: str, relative: str) -> str:
+    """Resolve a repository asset path without following untrusted symlinks."""
+    if not isinstance(relative, str) or not relative or "\\" in relative or "\0" in relative:
+        raise AssetError("invalid asset path")
+    path = Path(relative)
+    if path.is_absolute() or ".." in path.parts or not path.parts:
+        raise AssetError("asset path must stay inside the repository")
+    base = Path(root).resolve()
+    candidate = base
+    for part in path.parts:
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise AssetError("asset path contains a symlink: %s" % relative)
+    try:
+        candidate.resolve().relative_to(base)
+    except (ValueError, RuntimeError) as exc:
+        raise AssetError("asset path must stay inside the repository") from exc
+    return str(candidate)
+
+
 def sha256_file(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -47,7 +68,7 @@ def sha256_file(path: str) -> str:
 
 # -- request validation ----------------------------------------------------------------
 
-def validate_request(policy: Dict[str, Any], req: Dict[str, Any]) -> List[str]:
+def validate_request(policy: Dict[str, Any], req: Dict[str, Any], root: Optional[str] = None) -> List[str]:
     """Reject requests that the policy does not allow before any source is tried."""
     a = policy["assets"]
     try:
@@ -56,6 +77,8 @@ def validate_request(policy: Dict[str, Any], req: Dict[str, Any]) -> List[str]:
     except (schemas.SchemaError, BrokerRejected) as exc:
         return [str(exc)]
     problems: List[str] = []
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", req["request_id"]):
+        problems.append("request_id must be a bounded identifier, not a path")
     cls = a["classes"].get(req["asset_class"])
     if cls is None:
         return ["asset class %r is not defined by the policy" % req["asset_class"]]
@@ -77,6 +100,15 @@ def validate_request(policy: Dict[str, Any], req: Dict[str, Any]) -> List[str]:
     lib = req.get("library") or {}
     if lib.get("license") and lib["license"] not in a["allowed_licenses"]:
         problems.append("license %r is not allowed (allowed: %s)" % (lib["license"], a["allowed_licenses"]))
+    if root is not None and not problems:
+        relatives = [req["output_path"], str(Path(a["output_dir"]) / "manifest.json"),
+                     str(Path(a["output_dir"]) / "manifest.json.tmp"),
+                     str(Path(a["output_dir"]) / "scripts" / (req["request_id"] + ".py"))]
+        for relative in relatives:
+            try:
+                asset_path(root, relative)
+            except AssetError as exc:
+                problems.append(str(exc))
     return problems
 
 
@@ -147,7 +179,10 @@ def gltf_stats(path: str) -> Dict[str, Any]:
 def validate_entry(root: str, entry: Dict[str, Any], policy: Dict[str, Any], asset_class: str) -> List[str]:
     """All checks are code, never an agent's opinion. Anything that cannot be verified fails closed."""
     a, cls, fails = policy["assets"], policy["assets"]["classes"][asset_class], []
-    path = os.path.join(root, entry["path"])
+    try:
+        path = asset_path(root, entry["path"])
+    except AssetError as exc:
+        return [str(exc)]
     if not os.path.isfile(path):
         return ["asset file does not exist: %s" % entry["path"]]
     ext = path.rsplit(".", 1)[-1].lower()
@@ -231,8 +266,9 @@ def _mcp_entry_present() -> bool:
 class BlenderCli(BlenderRunner):
     """Headless `blender --background --factory-startup`. It never opens the unauthenticated MCP socket."""
 
-    def __init__(self, binary: str = "blender"):
+    def __init__(self, binary: str = "blender", *, reviewed_scripts: Sequence[str] = ()):
         self.binary = shutil.which(binary) or (binary if os.path.isfile(binary) else None)
+        self._reviewed_scripts = frozenset(reviewed_scripts)
 
     def probe(self) -> Dict[str, Any]:
         """Read-only. Connecting to the MCP port sends nothing."""
@@ -254,6 +290,8 @@ class BlenderCli(BlenderRunner):
         return info
 
     def run_script(self, script: str, output_file: str, timeout: int = 300) -> Dict[str, Any]:
+        if script not in self._reviewed_scripts:
+            return {"ok": False, "reason": "host-side procedural scripts require trusted human review; provide the generated asset instead"}
         problems = screen_script(script)
         if problems:
             return {"ok": False, "reason": "script rejected: %s" % problems}
@@ -288,7 +326,7 @@ class AssetService:
 
     @property
     def manifest_path(self) -> str:
-        return os.path.join(self.root, self.policy["assets"]["output_dir"], "manifest.json")
+        return asset_path(self.root, str(Path(self.policy["assets"]["output_dir"]) / "manifest.json"))
 
     def manifest(self) -> Dict[str, Any]:
         try:
@@ -302,7 +340,7 @@ class AssetService:
         doc["entries"] = [e for e in doc["entries"] if e["request_id"] != entry["request_id"]] + [entry]
         doc["entries"].sort(key=lambda e: e["path"])
         os.makedirs(os.path.dirname(self.manifest_path), exist_ok=True)
-        tmp = self.manifest_path + ".tmp"
+        tmp = asset_path(self.root, str(Path(self.policy["assets"]["output_dir"]) / "manifest.json.tmp"))
         with open(tmp, "w") as fh:
             json.dump(doc, fh, indent=2, sort_keys=True)
         os.replace(tmp, self.manifest_path)
@@ -310,7 +348,7 @@ class AssetService:
     def _entry(self, req: Dict[str, Any], source: str, tool: str, **kw: Any) -> Dict[str, Any]:
         path = os.path.normpath(req["output_path"])
         lib = req.get("library") or {}
-        entry = {"path": path, "checksum": sha256_file(os.path.join(self.root, path)), "request_id": req["request_id"], "issue": req["issue_id"],
+        entry = {"path": path, "checksum": sha256_file(asset_path(self.root, path)), "request_id": req["request_id"], "issue": req["issue_id"],
                  "source": source, "source_id": lib.get("source_id", ""), "url": lib.get("url", ""), "author": lib.get("author", "harness"),
                  "license": lib.get("license", "CC0-1.0" if source == "procedural" else ""), "attribution": lib.get("attribution", ""),
                  "tool": tool, "tool_version": "", "generator": req.get("generator", ""), "script_ref": "", "prompt": req.get("prompt", ""),
@@ -319,7 +357,7 @@ class AssetService:
         return entry
 
     def handle(self, req: Dict[str, Any], now: float) -> Dict[str, Any]:
-        problems = validate_request(self.policy, req)
+        problems = validate_request(self.policy, req, self.root)
         if problems:
             telemetry.emit(self.store, "asset_rejected", issue_id=req.get("issue_id", ""), data={"problems": problems}, now=now)
             return {"status": "rejected", "problems": problems}
@@ -367,8 +405,8 @@ class AssetService:
     def _discard(self, req: Dict[str, Any], source: str) -> None:
         if source == "procedural":
             try:
-                os.remove(os.path.join(self.root, os.path.normpath(req["output_path"])))
-            except OSError:
+                os.remove(asset_path(self.root, req["output_path"]))
+            except (OSError, AssetError):
                 pass
 
     def _repository(self, req, tried):
@@ -378,7 +416,11 @@ class AssetService:
             return None
         norm = os.path.normpath(existing)
         out_dir = os.path.normpath(self.policy["assets"]["output_dir"])
-        full = os.path.join(self.root, norm)
+        try:
+            full = asset_path(self.root, existing)
+        except AssetError as exc:
+            tried.append({"source": "repository", "reason": str(exc)})
+            return None
         if os.path.isabs(norm) or norm.startswith("..") or not (norm + os.sep).startswith(out_dir + os.sep) or not os.path.isfile(full):
             tried.append({"source": "repository", "reason": "named file is not an asset inside %s" % out_dir})
             return None
@@ -395,15 +437,16 @@ class AssetService:
         if self.runner is None or not self.runner.probe().get("available"):
             tried.append({"source": "procedural", "reason": "Blender is unavailable"})
             return None
-        out = os.path.join(self.root, os.path.normpath(req["output_path"]))
+        out = asset_path(self.root, req["output_path"])
+        script_ref = str(Path(self.policy["assets"]["output_dir"]) / "scripts" / (req["request_id"] + ".py"))
+        script_path = asset_path(self.root, script_ref)
         os.makedirs(os.path.dirname(out), exist_ok=True)
         res = self.runner.run_script(req["script"], out)
         if not res["ok"]:
             tried.append({"source": "procedural", "reason": res["reason"]})
             return None
-        script_ref = os.path.join(self.policy["assets"]["output_dir"], "scripts", req["request_id"] + ".py")
-        os.makedirs(os.path.join(self.root, os.path.dirname(script_ref)), exist_ok=True)
-        with open(os.path.join(self.root, script_ref), "w") as fh:
+        os.makedirs(os.path.dirname(script_path), exist_ok=True)
+        with open(script_path, "w") as fh:
             fh.write(req["script"])
         return self._entry(req, "procedural", "blender", tool_version=res.get("tool_version", ""), script_ref=script_ref)
 
@@ -443,10 +486,10 @@ class AssetService:
     def accept_human_asset(self, task: Dict[str, Any], answers: Dict[str, Any], artifacts: Sequence[str]) -> Optional[str]:
         """Validator for a human-supplied asset. Returns a problem string, or None after copying the file and writing the manifest."""
         req = task["payload"]["extra"]["request"]
-        problems = validate_request(self.policy, dict(req, source="repository"))
+        problems = validate_request(self.policy, dict(req, source="repository"), self.root)
         if problems:
             return problems[0]
-        dest = os.path.join(self.root, os.path.normpath(req["output_path"]))
+        dest = asset_path(self.root, req["output_path"])
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(artifacts[0], dest)
         entry = self._entry(dict(req, library={"license": answers["license"], "author": answers["author"], "url": answers.get("url", ""),

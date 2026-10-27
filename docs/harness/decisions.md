@@ -1,12 +1,29 @@
 ---
 title: Harness Decisions
 description: Stage 1 output recording the stack, runtime, isolation tier, capability matrix, and policy overrides for the incremental development harness
-ms.date: 2026-10-26
+ms.date: 2026-10-27
 ---
 
 ## Overview
 
 Produced by Stage 1 of `setup-project-harness`. Later stages read this file instead of asking again. Status is **chosen** (user answered) or **assumed** (spec default).
+
+## Security hardening (2026-10-27)
+
+These decisions supersede the earlier convention-only merge and blocklist-only
+host-script policies. Historical capability probes below have not been rerun
+against production during this change.
+
+* Broker and scheduler mutations share signed-operation authorization, including worker lease fencing where applicable. A signature does not grant operations absent from its permission list.
+* Asset IDs are path-free, and outputs, manifests, scripts, repository assets, and human uploads reject traversal and symlink escapes. Host-side Blender refuses scripts that trusted code has not explicitly reviewed and allowlisted exactly; unreviewed requests use human assets instead.
+* Checks bind to actual head/base ancestry, not saved labels. Remote base refreshes precede validation and integration. Clean unchanged-patch rebases can retain review, but must rerun checks.
+* Autonomous merges require readable classic strict required status checks with at least one required check, enforced for administrators. Ruleset-only and merge-queue protection are not independently verified. An exact reviewed SHA and a truthful merge API result are required. No GitHub settings are changed automatically.
+* All four check stages use persisted start/poll/cancel jobs with separate ownership tokens and leases. Implementation leases remain live during checks. Revision changes invalidate pending results; pause, cancellation, timeout, and restart clean up named containers and cannot turn abandoned work into a pass.
+* Verification uses offline regressions, temporary Git remotes, and real local subprocesses. Live GitHub protection, Docker cleanup, and Blender execution have not been revalidated for this change. Production runs and GitHub settings were not altered.
+
+Follow the [upgrade procedure](../../tools/harness/README.md#upgrading-safely)
+before resuming existing work. Changing signed permissions requires a new
+approved plan version, not an in-place policy edit.
 
 ## Requirement Source
 
@@ -33,8 +50,8 @@ Produced by Stage 1 of `setup-project-harness`. Later stages read this file inst
 | Approval mechanism      | Local terminal confirmation by the repository owner, signed record (spec default)                | assumed |
 | State store             | SQLite at `~/.local/state/derschweigert-harness/` (outside worker-writable paths)                | assumed |
 | Notification channel    | Terminal plus GitHub issue mention                                                              | chosen  |
-| Merge policy            | Autonomous merge per spec default, only when all merge gates pass and no escalation path is touched. GitHub branch protection is unavailable on the free plan, so it is applied by convention (see Branch Protection by Convention). Autonomous merge is possible only while Tier A is attested | chosen  |
-| Blender for assets      | Wanted. Blender 5.2.3 is now installed, so procedural assets run through the headless runner (`blender --background --factory-startup`). Human tasks remain the fallback | chosen  |
+| Merge policy            | Autonomous merge only when all gates pass, Tier A is attested, and strict server-side required checks are verified. The historical free-plan protection gap now blocks autonomous merging | chosen  |
+| Blender for assets      | Wanted. Headless host execution requires an exact trusted script-review allowlist. Human asset tasks remain the default for unreviewed procedural requests | chosen  |
 | Asset sources / licenses| Existing repo assets, CC0 (Poly Haven), procedural scripts. CC0 only. Paid generation budget 0   | assumed |
 | Budgets, concurrency    | Spec defaults                                                                                   | assumed |
 | Protected paths         | `tools/harness/`, `docs/harness/`, `.github/`, `infra/`, workflows, approval records. `.github/CODEOWNERS` added (advisory, not enforced) | assumed |
@@ -49,7 +66,7 @@ Produced by Stage 1 of `setup-project-harness`. Later stages read this file inst
 | `gh` auth, scopes, permissions          | Yes      | Logged in as repo owner, scopes `gist read:org read:project repo workflow`, admin on repo | None |
 | GitHub Projects                         | Yes      | `has_projects: true`, `gh project list` returns 1 project, probe reports available | Sync does not write Project fields yet. Issue labels and links carry the state until it does |
 | Native sub-issues and dependencies      | Sub-issues: yes (schema) | Stage 3 probe: GraphQL `Mutation.addSubIssue` exists. Mutation itself never called. Dependencies not probed | Sync uses native sub-issues when the schema has them, otherwise explicit links. Phase dependencies are explicit links |
-| Branch protection and merge queue       | No       | HTTP 403: private repo on a free plan                                    | Cannot be enforced. Applied by convention, reported as a standing limitation |
+| Branch protection and merge queue       | No       | Historical probe: HTTP 403, private repo on a free plan                   | Autonomous merge is blocked until strict required checks can be verified |
 | CODEOWNERS                              | Yes (advisory) | `.github/CODEOWNERS` assigns every path to the owner               | GitHub does not require the review without branch protection. Convention only |
 | Container / devcontainer / separate account | Yes     | Docker 29.2.1. Image `harness-worker:1` (node 22, Copilot CLI 1.0.103). Probe passes 12 of 12 checks | Container egress is not restricted (known limit) |
 | Notification channel                    | Yes      | Terminal and GitHub mentions via `gh`                                    | None                                                                     |
@@ -62,17 +79,19 @@ Produced by Stage 1 of `setup-project-harness`. Later stages read this file inst
 
 Command: `PYTHONPATH=tools python3 -m harness probe`. Findings for `UrsSchweigert/DerSchweigert`: private, issues enabled, admin permission, token scopes `gist read:org repo workflow` at probe time (Projects then unavailable; after the scope refresh the probe reports available), branch protection and rulesets unavailable (free plan), native sub-issues present in the GraphQL schema. A dry-run `sync` of the fixture plan printed five intended creates and mutated nothing (0 issues and 0 milestones afterwards).
 
-## Branch Protection by Convention
+## Server-enforced merge precondition
 
-GitHub cannot enforce protection on this repository, so the harness and the owner follow these rules. They are enforced only by trusted harness code, never by GitHub, and a human with admin rights can still bypass them.
+The 2026-10-26 implementation allowed convention-only protection because the
+repository's plan returned HTTP 403 for protection settings. That exemption was
+removed on 2026-10-27: fetching the latest base alone cannot prevent an external
+merge between the final fetch and the merge API call.
 
-* Nothing is pushed to `main`. Workers push only to branches named `harness/<issue>-<slug>`, never with force. The broker rejects any other target.
-* Every change reaches `main` through a pull request. The harness merges only when every merge gate passes (head-bound checks and independent review, no stale evidence, no escalation path touched).
-* Changes to escalation paths and to `tools/harness/`, `docs/harness/` and `.github/` are never merged autonomously. They need a human task, and a worker diff touching the harness paths is rejected outright.
-* `.github/CODEOWNERS` records the owner for every path as documentation of intent.
-* The human owner follows the same flow and avoids pushing directly to `main` or force-pushing.
-* `status` reports "branch protection: by convention only" so the gap stays visible.
-* Upgrading the plan or making the repository public would turn these into enforced rules. The probe detects that automatically.
+The publisher now requires strict required status checks enforced for
+administrators, plus at least one configured required check. If protection is
+unavailable or unreadable, autonomous merging stops with a decision task. An
+owner must provide a verifiable protection configuration before retrying; the
+harness does not change subscription plans, repository visibility, or rules.
+Scope, review, escalation-path, and exact-head checks remain mandatory.
 
 ## Investigator pass (added after Stage 5, 2026-10-26)
 
@@ -97,12 +116,25 @@ GitHub cannot enforce protection on this repository, so the harness and the owne
 ## Stage 5: Human Tasks, Monitoring, and Delivery (built 2026-10-26)
 
 * Human tasks (`decision`, `asset`, `manual_test`) carry the reason, request, response format, resolution criteria, options, owner, secondary owner, and deadline. They block dependent issues (manual tests do not block an issue that is In Review). Notifications are deduplicated per task round and survive restarts. Reminders: after 24 h, at most 3. Escalation to the secondary owner at 72 h. Silence changes nothing.
-* Responses come only from `python3 -m harness respond` (identity from the OS account and the authenticated `gh` login) or an authenticated GitHub interaction passed in by trusted code. Impostors, bots, and untrusted sources cannot move a task. GitHub comments are notifications only. Credential-like content in a response is refused.
+* Responses come from `python3 -m harness respond` or the local dashboard (identity from the OS account and the authenticated `gh` login), or an authenticated GitHub interaction passed in by trusted code. Impostors, bots, and untrusted sources cannot move a task. GitHub comments are notifications only. Credential-like content in a response is refused.
 * Manual GUI tests follow a validation policy (`manual_testing.allowed_reasons`), name the exact head, are bound to it, and become stale when the head moves. A pass adds evidence but never replaces automated checks. A fail returns the issue for repair. Inconclusive stays open.
 * Assets: policy added to the plan (`assets`, covered by the approval digest). Source order: repository, CC0 library, procedural, AI. CC0 library search and AI generation are not available (no MCP chain, no provider), so those steps record why and fall through. Deterministic validation covers format, size, triangles, bounding box, texture size, license, attribution, checksum, absolute paths, embedded scripts, and credentials. Failing twice, no allowed source, or no Blender raises an asset task. Manifest: `assets/manifest.json` with scripts in `assets/scripts/`.
-* The Blender runner is headless and host-side. Scripts are screened (a blocklist, so only defense in depth) and run with a scrubbed environment and `--factory-startup`. Blender is not inside the Docker sandbox, so a malicious script that passes the screen would run with your privileges. Treat procedural scripts from workers as untrusted until reviewed, or leave `procedural` out of `allowed_sources`.
+* The Blender runner is headless and host-side. As of 2026-10-27, exact trusted script review is required before execution. Screening, a scrubbed environment, and `--factory-startup` remain defense in depth. Blender is not inside the Docker sandbox, so even reviewed scripts run with the operator's privileges.
 * Telemetry: sanitized structured events with plan, phase, issue, attempt, and run ids, kept 14 days and pruned on every pass. `status` and `status --json` show phases, requirement coverage, queue, blockers, workers, runner health, expired leases, pending sync, failures, evidence, human tasks, budgets, and metrics. Tokens, cost, and generation credits are labeled unavailable.
-* A dashboard was not built. `status` is the monitoring interface.
+* Initially `status` was the only monitoring interface. The local dashboard added on 2026-10-27 reuses the same SQLite reports and coordinator controls, rather than creating another source of truth.
+
+### Local Dashboard Added 2026-10-27
+
+* Use the Python standard-library HTTP server, vanilla JavaScript, and locally vendored Lucide icons. No runtime frontend dependencies, external CDN, or second state store are required.
+* Bind only to loopback. Validate Host, Origin, browser request metadata, and mutation tokens; use nonce CSP and a fixed static allowlist. This trusts the local OS account and is not remote-user authentication.
+* Monitor plans, phases, requirements, issue evidence, workers, asynchronous checks, budgets, human tasks, activity, and coordinator output. Support approved start/resume/recovery, pause/cancel, typed decisions, revision-bound manual results, and validated uploads.
+* Keep approval and sandbox verification in the terminal. Exact plan-ID confirmation and version checks protect launch/cancel. Dashboard launch can merge and deploy; no real runner or production action was used for browser verification.
+* Coordinators survive dashboard closure. Managed-process and log ownership are instance-local, and duplicate detection does not provide a cross-dashboard singleton lock. GUI-only dry runs are not supported.
+* Verify HTTP contracts with temporary stores and fake launchers. Browser checks use disposable data, including mobile layout, read-only controls, draft/file retention, stale manual results, decisions, uploads, and pause/cancel requests. Persistent browser end-to-end tests remain future work.
+
+The [test optimization analysis](test-optimization.md) records measured overlap
+and runtime opportunities. No existing tests were removed, and parallel testing
+was evaluated without changing dependency manifests or CI defaults.
 
 ## Stage 4: Scheduler and Runtime Adapter (built 2026-10-26)
 

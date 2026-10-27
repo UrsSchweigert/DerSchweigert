@@ -1,9 +1,14 @@
 """Required-check runner and the remote publisher. Dry-run publishing records intents and writes nothing."""
 from __future__ import annotations
 
+import os
+import re
 import shutil
 import subprocess
-from typing import Any, Dict, List, Optional
+import threading
+import time
+import uuid
+from typing import Any, Callable, Dict, List, Optional
 
 from . import isolation
 from .repo import Repo
@@ -25,36 +30,134 @@ class Checker:
     def run(self, issue_id: str, head_rev: str, commands: List[str]) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
+    def start(self, issue_id: str, head_rev: str, commands: List[str]) -> Any:
+        return self.run(issue_id, head_rev, commands)
+
+    def poll(self, handle: Any) -> Optional[List[Dict[str, Any]]]:
+        return handle
+
+    def cancel(self, handle: Any) -> None:
+        pass
+
+    def recovery_data(self, handle: Any) -> Dict[str, Any]:
+        return {}
+
+    def recover(self, data: Dict[str, Any]) -> None:
+        pass
+
+
+class _CheckHandle:
+    def __init__(self, workdir: str, commands: List[str]):
+        self.workdir, self.commands = workdir, list(commands)
+        self.name = "harness-check-" + uuid.uuid4().hex
+        self.proc: Optional[subprocess.Popen] = None
+        self.reader: Optional[threading.Thread] = None
+        self.tail = ""
+        self.started_at = 0.0
+        self.timed_out = False
+        self.cancelled = False
+        self.results: List[Dict[str, Any]] = []
+
 
 class SandboxChecker(Checker):
-    """Exports the revision from the trusted clone and runs each command in the Tier A container."""
+    """Exports a trusted revision and polls bounded, cancellable Tier A commands."""
 
-    def __init__(self, repo: Repo, token_file: str, timeout: int = 900):
+    def __init__(self, repo: Repo, token_file: str, timeout: int = 900, *, clock: Callable[[], float] = time.monotonic):
         self.repo, self.token_file, self.timeout = repo, token_file, timeout
+        self.clock = clock
 
-    def run(self, issue_id: str, head_rev: str, commands: List[str]) -> List[Dict[str, Any]]:
+    def start(self, issue_id: str, head_rev: str, commands: List[str]) -> _CheckHandle:
         work = isolation.new_workdir("checks-")
         try:
             self.repo.export(head_rev, work)
-            results = []
-            for cmd in commands:
-                try:
-                    proc = isolation.run_worker(work, ["sh", "-c", cmd], self.token_file, timeout=self.timeout)
-                    result: Dict[str, Any] = {"command": cmd, "exit_code": proc.returncode}
-                    if proc.returncode != 0:
-                        result["output"] = output_tail((proc.stdout or "") + "\n" + (proc.stderr or ""))
-                    results.append(result)
-                except subprocess.TimeoutExpired:
-                    results.append({"command": cmd, "exit_code": 124, "output": "the command timed out after %d seconds" % self.timeout})
-            return results
-        finally:
+        except Exception:
             shutil.rmtree(work, ignore_errors=True)
+            raise
+        return _CheckHandle(work, commands)
+
+    def poll(self, handle: _CheckHandle) -> Optional[List[Dict[str, Any]]]:
+        if handle.cancelled:
+            raise RuntimeError("check job was cancelled")
+        if len(handle.results) == len(handle.commands):
+            shutil.rmtree(handle.workdir, ignore_errors=True)
+            return handle.results
+        command = handle.commands[len(handle.results)]
+        if handle.proc is None:
+            handle.tail, handle.timed_out = "", False
+            wrapped = ["timeout", "--kill-after=5", str(self.timeout), "sh", "-c", command]
+            handle.proc = isolation.start_worker(handle.workdir, wrapped, self.token_file, name=handle.name)
+            handle.started_at = self.clock()
+            proc = handle.proc
+
+            def pump():
+                for chunk in iter(lambda: proc.stdout.read(4096), ""):
+                    handle.tail = (handle.tail + chunk)[-OUTPUT_TAIL:]
+
+            handle.reader = threading.Thread(target=pump, daemon=True)
+            handle.reader.start()
+            return None
+        code = handle.proc.poll()
+        if code is None and self.clock() - handle.started_at >= self.timeout:
+            isolation.cancel_worker(handle.name, handle.proc)
+            handle.timed_out = True
+            code = handle.proc.returncode
+        if code is None or handle.reader.is_alive():
+            return None
+        result: Dict[str, Any] = {"command": command, "exit_code": 124 if handle.timed_out else code}
+        if handle.timed_out or code in (124, 137):
+            result.update(exit_code=124, output="the command timed out after %d seconds" % self.timeout)
+        elif code != 0:
+            result["output"] = output_tail(handle.tail)
+        handle.proc.stdout.close()
+        handle.proc = None
+        handle.results.append(result)
+        if len(handle.results) == len(handle.commands):
+            shutil.rmtree(handle.workdir, ignore_errors=True)
+            return handle.results
+        return None
+
+    def cancel(self, handle: _CheckHandle) -> None:
+        if handle.cancelled:
+            return
+        handle.cancelled = True
+        if handle.proc is not None:
+            isolation.cancel_worker(handle.name, handle.proc)
+            handle.reader.join(timeout=1)
+            handle.proc.stdout.close()
+        shutil.rmtree(handle.workdir, ignore_errors=True)
+
+    def recovery_data(self, handle: _CheckHandle) -> Dict[str, Any]:
+        return {"container": handle.name, "workdir": handle.workdir}
+
+    def recover(self, data: Dict[str, Any]) -> None:
+        name, work = data.get("container", ""), data.get("workdir", "")
+        root = os.path.realpath(isolation.work_root())
+        if (not re.fullmatch(r"harness-check-[0-9a-f]{32}", name) or not work
+                or not os.path.basename(work).startswith("checks-")
+                or os.path.commonpath([root, os.path.realpath(work)]) != root):
+            raise RuntimeError("invalid abandoned check metadata")
+        isolation.cancel_worker(name)
+        shutil.rmtree(work, ignore_errors=True)
+
+    def run(self, issue_id: str, head_rev: str, commands: List[str]) -> List[Dict[str, Any]]:
+        handle = self.start(issue_id, head_rev, commands)
+        try:
+            while True:
+                results = self.poll(handle)
+                if results is not None:
+                    return results
+                time.sleep(0.05)
+        finally:
+            self.cancel(handle)
 
 
 class Publisher:
     """Opens pull requests and merges them. A merge is bound to the head revision that the evidence covers."""
 
     simulated = False
+
+    def refresh_base(self) -> None:
+        """Refresh the trusted base before validation or integration. Rehearsals have no remote to refresh."""
 
     def open_pr(self, issue: Dict[str, Any], branch: str, head_rev: str) -> Dict[str, Any]:
         raise NotImplementedError

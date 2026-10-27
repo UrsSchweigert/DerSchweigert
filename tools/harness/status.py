@@ -30,7 +30,7 @@ def build_report(home: Optional[str] = None, now: Optional[float] = None) -> Dic
         "expired_leases": [], "claims": [], "pending_sync": [], "failures": [], "evidence": [], "human_tasks": [], "budgets": {},
         "metrics": telemetry.metrics_report(), "events": [], "journal": [], "entities": [], "issues": [],
         "usage": "unavailable: the runtime reports no per-attempt token or cost data to the harness",
-        "limitations": ["branch protection: by convention only, not enforced by GitHub"],
+        "limitations": ["branch protection: autonomous merge is blocked without verified strict required checks enforced for administrators"],
     }
     if not os.path.exists(os.path.join(home, "harness.sqlite")):
         report["note"] = "store not initialized"
@@ -97,7 +97,7 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
             for i in mine:
                 st = store.state("issue", i["issue_id"]) or "Inbox"
                 counts[st] = counts.get(st, 0) + 1
-            report["phases"].append({"plan_id": pid, "phase": ph["id"], "state": store.state("phase", "%s/%s" % (plan_entity(pid, ver), ph["id"])) or "Planned",
+            report["phases"].append({"plan_id": pid, "version": ver, "phase": ph["id"], "state": store.state("phase", "%s/%s" % (plan_entity(pid, ver), ph["id"])) or "Planned",
                                      "depends_on": ph["dependencies"], "issues": counts, "requirements": ph["requirements"]})
         phase_state = {p["phase"]: p["state"] for p in report["phases"] if p["plan_id"] == pid}
         for req in plan["requirements"]:
@@ -112,7 +112,7 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
                 cov = "in progress"
             else:
                 cov = "no issue yet"
-            report["requirements"].append({"plan_id": pid, "id": req["id"], "title": req["title"], "phase": host, "coverage": cov})
+            report["requirements"].append({"plan_id": pid, "version": ver, "id": req["id"], "title": req["title"], "phase": host, "coverage": cov})
 
 
 def _issues(store: Store, report: Dict[str, Any], now: float) -> None:

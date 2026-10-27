@@ -172,7 +172,7 @@ def request_cancel(store: Store, plan_id: str, version: int, drain: bool) -> str
     run = store.get_run(plan_id)
     run.update(cancel_requested=True, drain=drain)
     store.put_run(plan_id, run)
-    if not store.active_claims():
+    if not store.active_claims() and not run.get("checks"):
         if state in ("Approved", "Executing", "Paused", "Draft", "Proposed"):
             store.transition("plan", entity, "Cancelled", "operator", {"drain": drain})
             return "Cancelled"
@@ -189,7 +189,7 @@ def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = Fal
     run = store.get_run(plan_id)
     run.update(pause_requested=True, pause_now=bool(now_flag), paused_reason="paused by the operator")
     store.put_run(plan_id, run)
-    if not store.active_claims():
+    if not store.active_claims() and not run.get("checks"):
         store.transition("plan", entity, "Paused", "operator", {"reason": "paused by the operator"})
         return "Paused"
     return state
