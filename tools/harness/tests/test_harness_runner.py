@@ -8,7 +8,7 @@ from harness import adapter as adapter_mod
 from harness import approval, cli, isolation, runner
 from harness.adapter import CopilotCliAdapter, WorkRequest, build_prompt
 from harness.broker import BrokerRejected
-from harness.github import GitHubError
+from harness.github import GhCli, GitHubError
 from harness.publisher import GitHubPublisher, push_branch
 from harness.scheduler import Scheduler
 from harness.store import Store
@@ -22,6 +22,77 @@ LONG = {"lease_s": 10**7, "run_wall_clock_s": 10**8, "worker_timeout_s": 10**7, 
 
 def git(cwd, *args):
     return subprocess.run(["git"] + list(args), cwd=cwd, env=ENV, check=True, capture_output=True, text=True).stdout.strip()
+
+
+@pytest.fixture
+def sandbox_process(tmp_path, monkeypatch):
+    import sys
+    from harness.checks import SandboxChecker
+    from harness_doubles import Clock
+
+    class ExportRepo:
+        def export(self, head, work):
+            assert head == "tested-head" and os.path.isdir(work)
+
+    calls = []
+    def start(work, command, token, *, name):
+        calls.append((work, command, name))
+        return subprocess.Popen([sys.executable, "-c", "import sys; sys.stdin.readline(); print('x' * 3000 + 'failure'); sys.exit(7)"],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    removed = []
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    monkeypatch.setattr(isolation, "start_worker", start)
+    monkeypatch.setattr(isolation, "_docker", lambda args, **kwargs: removed.append(args))
+    clock = Clock()
+    checker = SandboxChecker(ExportRepo(), "unused-token", timeout=10, clock=clock)
+    handle = checker.start("issue", "tested-head", ["approved-check"])
+    try:
+        yield checker, handle, clock, calls, removed
+    finally:
+        checker.cancel(handle)
+
+
+def test_sandbox_checks_poll_without_blocking_and_bound_output(sandbox_process):
+    checker, handle, clock, calls, removed = sandbox_process
+    assert checker.poll(handle) is None and handle.proc.poll() is None
+    assert calls[0][1] == ["timeout", "--kill-after=5", "10", "sh", "-c", "approved-check"]
+    handle.proc.stdin.write("finish\n")
+    handle.proc.stdin.close()
+    handle.proc.wait(timeout=5)
+    handle.reader.join(timeout=5)
+    result = checker.poll(handle)
+    assert result[0]["exit_code"] == 7 and result[0]["output"].endswith("failure")
+    assert len(result[0]["output"]) <= 1200 and not os.path.exists(handle.workdir)
+
+
+def test_sandbox_check_timeout_removes_the_container_and_process(sandbox_process):
+    checker, handle, clock, calls, removed = sandbox_process
+    assert checker.poll(handle) is None
+    clock.advance(11)
+    checker.poll(handle)
+    handle.reader.join(timeout=5)
+    result = checker.poll(handle)
+    assert result[0]["exit_code"] == 124 and "timed out" in result[0]["output"]
+    assert ["rm", "-f", handle.name] in removed and not os.path.exists(handle.workdir)
+
+
+def test_sandbox_check_cancel_removes_the_container_and_process(sandbox_process):
+    checker, handle, clock, calls, removed = sandbox_process
+    checker.poll(handle)
+    proc = handle.proc
+    checker.cancel(handle)
+    assert proc.poll() is not None and not os.path.exists(handle.workdir)
+    assert ["rm", "-f", handle.name] in removed
+    with pytest.raises(RuntimeError, match="cancelled"):
+        checker.poll(handle)
+
+
+def test_sandbox_check_restart_cleanup_uses_saved_metadata(sandbox_process):
+    checker, handle, clock, calls, removed = sandbox_process
+    saved = checker.recovery_data(handle)
+    checker.recover(saved)
+    assert removed == [["rm", "-f", handle.name]] and not os.path.exists(handle.workdir)
 
 
 # -- the Stage 4 demonstration ------------------------------------------------------------------
@@ -58,6 +129,35 @@ def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):
 
 
 # -- publishing -------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("strict,contexts,enforced,safe", [
+    (True, ["ci"], True, True),
+    (False, ["ci"], True, False),
+    (True, [], True, False),
+    (True, ["ci"], False, False),
+])
+def test_github_merge_protection_requires_strict_enforced_checks(strict, contexts, enforced, safe):
+    response = {"required_status_checks": {"strict": strict, "contexts": contexts}, "enforce_admins": {"enabled": enforced}}
+    calls = []
+    def request(args):
+        calls.append(args)
+        return json.dumps(response)
+    client = GhCli("owner/repo", runner=request)
+    assert client.merge_protection("main")["safe"] is safe
+    assert calls == [["api", "repos/owner/repo/branches/main/protection"]]
+
+
+def test_github_merge_protection_fails_closed_when_unreadable():
+    def denied(args):
+        raise GitHubError("permission denied")
+    assert GhCli("owner/repo", runner=denied).merge_protection("main")["safe"] is False
+
+
+@pytest.mark.parametrize("response,merged", [({"merged": True}, True), ({"merged": False}, False), ({}, False), (None, False)])
+def test_github_merge_uses_the_api_result(response, merged):
+    client = GhCli("owner/repo", runner=lambda args: json.dumps(response))
+    assert client.merge_pr(123, "a" * 40) is merged
+
 
 @pytest.fixture
 def remote_world(tmp_path):
@@ -109,17 +209,55 @@ def test_publisher_opens_one_pull_request_and_merges_bound_to_the_head(remote_wo
     git(str(tmp_path), "--git-dir", bare, "fetch", "-q", clone, "+refs/heads/harness/i1:refs/heads/harness/i1")
     gh = FakeGitHub()
     pub = GitHubPublisher(gh, bare, origin, "main", None, sleep=lambda s: None)
-    issue = {"issue_id": "i1", "title": "T", "requirement_ids": ["F1.1"]}
     head = git(clone, "rev-parse", "harness/i1")
+    issue = {"issue_id": "i1", "title": "T", "requirement_ids": ["F1.1"], "base_rev": git(clone, "rev-parse", "main")}
     first = pub.open_pr(issue, "harness/i1", head)
     again = pub.open_pr(issue, "harness/i1", head)
     assert first["number"] == again["number"] == 100 and len(gh.prs) == 1 and gh.prs[100]["base"] == "main"
     gh.prs[100]["sha"] = head
     with pytest.raises(GitHubError, match="modified"):
         pub.merge(issue, 100, "deadbeef")  # evidence for a different head cannot merge
-    assert pub.merge(issue, 100, head) == {"merged": True, "mode": "checks-on-current-base", "simulated": False}
+    assert pub.merge(issue, 100, head) == {"merged": True, "mode": "strict-required-checks", "simulated": False}
     with pytest.raises(BrokerRejected):
         pub.merge(issue, None, head)
+
+
+def test_publisher_refuses_a_remote_base_change_before_merging(remote_world, tmp_path):
+    origin, clone = remote_world
+    bare = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", clone, "+refs/heads/harness/i1:refs/heads/harness/i1")
+    gh = FakeGitHub()
+    pub = GitHubPublisher(gh, bare, origin, sleep=lambda seconds: None)
+    head = git(clone, "rev-parse", "harness/i1")
+    issue = {"issue_id": "i1", "requirement_ids": ["F1.1"], "base_rev": head}
+    pull_request = pub.open_pr(issue, "harness/i1", head)["number"]
+    with open(os.path.join(clone, "external.txt"), "w") as stream:
+        stream.write("external merge\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "external merge")
+    git(clone, "push", "-q", "origin", "HEAD:main")
+    before = gh.mutations
+    with pytest.raises(GitHubError, match="base.*changed"):
+        pub.merge(issue, pull_request, head)
+    assert gh.mutations == before and gh.prs[pull_request]["state"] == "open"
+
+
+def test_publisher_refuses_unverified_server_protection(remote_world, tmp_path):
+    origin, clone = remote_world
+    bare = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", clone, "+refs/heads/harness/i1:refs/heads/harness/i1")
+    gh = FakeGitHub()
+    gh.merge_protection = lambda base: {"safe": False, "reason": "strict required checks are absent"}
+    pub = GitHubPublisher(gh, bare, origin, sleep=lambda seconds: None)
+    head = git(clone, "rev-parse", "harness/i1")
+    issue = {"issue_id": "i1", "requirement_ids": ["F1.1"], "base_rev": head}
+    pull_request = pub.open_pr(issue, "harness/i1", head)["number"]
+    before = gh.mutations
+    with pytest.raises(BrokerRejected, match="protection"):
+        pub.merge(issue, pull_request, head)
+    assert gh.mutations == before
 
 
 # -- runner and CLI ------------------------------------------------------------------------------
@@ -337,16 +475,21 @@ def test_a_real_merge_refreshes_the_harness_clone_from_the_remote(remote_world, 
     origin, clone = remote_world
     bare = str(tmp_path / "trusted.git")
     git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
-    # Someone (GitHub) merges new work into main on the remote.
+    old_main = git(str(tmp_path), "--git-dir", bare, "rev-parse", "main")
     open(os.path.join(clone, "merged.txt"), "w").write("m")
     git(clone, "add", "-A")
     git(clone, "commit", "-q", "-m", "merged on github")
-    git(clone, "push", "-q", "origin", "HEAD:main")
     new_main = git(clone, "rev-parse", "HEAD")
     gh = FakeGitHub()
+    original_merge = gh.merge_pr
+    def merge_and_advance_remote(number, head):
+        result = original_merge(number, head)
+        git(clone, "push", "-q", "origin", "HEAD:main")
+        return result
+    gh.merge_pr = merge_and_advance_remote
     git(str(tmp_path), "--git-dir", bare, "fetch", "-q", clone, "+refs/heads/harness/i1:refs/heads/harness/i1")
     pub = GitHubPublisher(gh, bare, origin, "main", None, sleep=lambda s: None)
-    issue = {"issue_id": "i1", "title": "T", "requirement_ids": ["F1.1"]}
+    issue = {"issue_id": "i1", "title": "T", "requirement_ids": ["F1.1"], "base_rev": old_main}
     pr = pub.open_pr(issue, "harness/i1", git(clone, "rev-parse", "harness/i1"))["number"]
     from harness.repo import GitRepo
     assert GitRepo(bare).base_head() != new_main

@@ -1,7 +1,7 @@
 ---
 title: Harness State Machines
 description: States, transitions, and guards for plans, phases, implementation issues, human tasks, and execution attempts
-ms.date: 2026-10-26
+ms.date: 2026-10-27
 ---
 
 ## Overview
@@ -161,3 +161,13 @@ Guards:
 * `Fenced`, `TimedOut`, and `Failed` attempts carry a failure class (transient, deterministic, or policy) assigned by code from evidence. Transient failures consume the transient retry budget, deterministic failures consume the repair budget, and policy failures consume none and block the issue. The coordinator reconciles GitHub and branch state before scheduling a replacement attempt.
 * A replacement attempt whose task-packet digest and model tier match a failed attempt is rejected.
 * The broker rejects privileged writes from any attempt that is not `Claimed` or `Running` with the current epoch.
+
+## Required Check Jobs
+
+Checks are persisted coordinator jobs, not additional issue states.
+
+* An implementer remains `Running` while its pre-review checks are pending. The scheduler renews its lease without polling the finished worker again. Rebase and integrated checks keep the issue `In Review`; phase checks keep the phase `Validating`.
+* Every job records its tested head, base, unique ownership token, lease deadline, and container cleanup metadata. Results from a replaced or expired owner are fenced. A changed revision context discards results and triggers fresh validation.
+* Graceful pause and cancellation with `--drain` wait for active check jobs, including jobs without worker claims. Immediate stops cancel named containers and remove their work directories.
+* A check timeout records exit code 124. Commands have an in-container deadline as well as a coordinator timeout, so losing the runner cannot leave a command running indefinitely.
+* After a restart, a new coordinator waits for unexpired ownership before cleaning up abandoned jobs and rerunning checks. A recorded merge resumes at integrated checks and is not merged again. Missing results never advance an issue or phase.

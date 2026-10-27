@@ -83,13 +83,35 @@ def docker_args(workdir: str, command: List[str], pass_env: Optional[List[str]] 
     return args + [image] + command
 
 
-def run_worker(workdir: str, command: List[str], copilot_token_file: str, timeout: int = 1800) -> subprocess.CompletedProcess:
-    """Run a command in the sandbox. The Copilot token travels in the docker client's environment, not its arguments."""
+def _worker_env(copilot_token_file: str) -> Dict[str, str]:
     with open(copilot_token_file) as fh:
         token = fh.read().strip()
     env = scrub_env(os.environ)
     env[COPILOT_TOKEN_ENV] = token
-    return _docker(docker_args(workdir, command, [COPILOT_TOKEN_ENV]), timeout=timeout, env=env)
+    return env
+
+
+def start_worker(workdir: str, command: List[str], copilot_token_file: str, *, name: str) -> subprocess.Popen:
+    args = docker_args(workdir, command, [COPILOT_TOKEN_ENV], name=name)
+    return subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                            env=_worker_env(copilot_token_file))
+
+
+def cancel_worker(name: str, proc: Optional[subprocess.Popen] = None) -> None:
+    try:
+        _docker(["rm", "-f", name], timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    finally:
+        if proc is not None:
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait(timeout=5)
+
+
+def run_worker(workdir: str, command: List[str], copilot_token_file: str, timeout: int = 1800) -> subprocess.CompletedProcess:
+    """Run a command in the sandbox. The Copilot token travels in the docker client's environment, not its arguments."""
+    return _docker(docker_args(workdir, command, [COPILOT_TOKEN_ENV]), timeout=timeout, env=_worker_env(copilot_token_file))
 
 
 # -- verification -------------------------------------------------------------

@@ -36,11 +36,18 @@ class FakeRepo(Repo):
         lo, hi = int(old[4:]), int(new[4:])
         return sorted({p for r in range(lo + 1, hi + 1) for p in self.history.get(r, [])})
 
-    def set_branch(self, name, paths, lines=10, head=None, patch="patch-1"):
-        self.branches[name] = {"head": head or "head-%s-%d" % (name, len(self.rebased) + self.rev), "paths": paths, "lines": lines, "patch": patch}
+    def set_branch(self, name, paths, lines=10, head=None, patch="patch-1", base=None):
+        self.branches[name] = {"head": head or "head-%s-%d" % (name, len(self.rebased) + self.rev), "paths": paths, "lines": lines,
+                               "patch": patch, "base": base or self.base_head()}
 
     def branch_head(self, branch):
         return self.branches[branch]["head"]
+
+    def is_ancestor(self, ancestor, head):
+        if ancestor == head:
+            return True
+        branch = next((record for record in self.branches.values() if record["head"] == head), None)
+        return bool(branch and ancestor.startswith("base") and int(ancestor[4:]) <= int(branch["base"][4:]))
 
     def branch_changed_paths(self, branch):
         return list(self.branches[branch]["paths"])
@@ -70,6 +77,7 @@ class FakeRepo(Repo):
         if self.rebase_conflict:
             return RebaseResult(True, b["head"], b["patch"])
         b["head"] += "+r"
+        b["base"] = self.base_head()
         if self.rebase_new_patch:
             b["patch"] += "-changed"
         return RebaseResult(False, b["head"], b["patch"])
@@ -126,6 +134,7 @@ class FakeAdapter(Adapter):
         self.started.append(req)
         h = FakeHandle(req, self.clock())
         h.step = step
+        h.base_rev = self.repo.base_head()
         return h
 
     def poll(self, h, now):
@@ -140,7 +149,8 @@ class FakeAdapter(Adapter):
             return Poll("finished", now, {"attempt_id": req.attempt_id}, None)
         branch = req.branch
         if req.role == "implementer":
-            self.repo.set_branch(branch, self.impl_paths.get(req.issue_id, ["src/%s.py" % req.issue_id]), self.impl_lines.get(req.issue_id, 10))
+            self.repo.set_branch(branch, self.impl_paths.get(req.issue_id, ["src/%s.py" % req.issue_id]), self.impl_lines.get(req.issue_id, 10),
+                                 base=h.base_rev)
         result = {"attempt_id": req.attempt_id, "epoch": req.epoch, "outcome": "done", "changed_files": [], "revision": "",
                   "checks": [], "risks": [], "blockers": [], "next_action": "review"}
         if req.role == "implementer":
@@ -177,7 +187,7 @@ class Env:
     """An approved plan, Tier A attestation override, and a scheduler wired to doubles."""
 
     def __init__(self, tmp_path, issues=None, allowlist=("src/",), merge_policy=None, available_models=("claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"),
-                 budgets=None, phases=None):
+                 budgets=None, phases=None, authorized_operations=None):
         self.store = Store(str(tmp_path / "home"))
         phases = phases or [
             {"id": "P1", "outcomes": ["one"], "requirements": ["F1.1", "F1.2"], "path_allowlist": list(allowlist), "non_goals": ["x"],
@@ -190,6 +200,8 @@ class Env:
         policy = json.loads(json.dumps(plans.DEFAULT_POLICY))
         if merge_policy:
             policy["merge_policy"] = merge_policy
+        if authorized_operations is not None:
+            policy["authorized_operations"] = list(authorized_operations)
         policy["budgets"].update(budgets or {})
         plan = plans.build_plan("fx", 1, plans.parse_requirements(REQ), phases, policy, fixture=True)
         assert not plans.validate_plan(plan)

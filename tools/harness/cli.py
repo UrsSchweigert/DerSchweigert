@@ -352,9 +352,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     s = sub.add_parser("status", help="read-only status")
     s.add_argument("--plan", help="show only this plan, e.g. bugfixes-001-md")
     s.add_argument("--json", action="store_true")
+    dashboard = sub.add_parser("gui", help="monitor and manage the harness in a local browser")
+    dashboard.add_argument("--host", choices=["127.0.0.1", "localhost"], default="127.0.0.1")
+    dashboard.add_argument("--port", type=int, default=8765, help="loopback port, or 0 to choose an available port")
+    dashboard.add_argument("--refresh", type=int, default=5, help="refresh interval in seconds")
+    dashboard.add_argument("--read-only", action="store_true")
+    dashboard.add_argument("--no-browser", action="store_true")
+    dashboard.add_argument("--repo", help="GitHub owner/name for GUI-launched runs")
     args = ap.parse_args(argv)
 
     try:
+        if args.cmd == "gui":
+            from . import gui
+            try:
+                return gui.serve(args.home, host=args.host, port=args.port, refresh=args.refresh, read_only=args.read_only,
+                                 open_browser=not args.no_browser, repo=args.repo)
+            except ValueError as exc:
+                raise RuntimeError(str(exc)) from exc
         if args.cmd == "issue":
             detail = status.issue_detail(args.home, args.issue_id)
             print(json.dumps(detail, indent=2, sort_keys=True, default=str) if args.json else status.render_issue(detail))

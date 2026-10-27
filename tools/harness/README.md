@@ -1,4 +1,10 @@
-# Harness manual
+---
+title: Harness manual
+description: Operating, verifying, and safely upgrading the incremental development harness
+ms.date: 2026-10-27
+---
+
+## Overview
 
 The harness plans, approves, and runs phased development work on this repository. You describe what you want in a requirements file. An investigator drafts a plan, you approve it once, and AI workers then build it issue by issue inside a Docker sandbox. Trusted Python code (not the AI) decides what is allowed, what counts as done, and when something is merged.
 
@@ -15,11 +21,12 @@ This manual is for the person operating the harness. Design and requirements are
 7. [Where things live](#where-things-live)
 8. [Troubleshooting](#troubleshooting)
 9. [Safety, limits, and known gaps](#safety-limits-and-known-gaps)
-10. [Maintaining the harness](#maintaining-the-harness)
+10. [Upgrading safely](#upgrading-safely)
+11. [Maintaining the harness](#maintaining-the-harness)
 
 ## How it works
 
-```
+```text
 requirements file
       |  investigate        an AI reads the repo, asks you questions, drafts phases.json + issues.json
       v
@@ -80,6 +87,14 @@ harness status              # first lines should say: Tier A ... run permitted
 
 If `status` says Tier B, the sandbox is not verified and `run`, `investigate`, and real GitHub writes refuse to work.
 
+Real merges also require classic GitHub branch protection on the base: strict
+up-to-date status checks, at least one required check, and enforcement for
+administrators. The broker identity must be able to read those settings.
+Missing, unreadable, or weaker protection blocks the merge. Ruleset-only or
+merge-queue configurations are not independently verified by this implementation
+and do not substitute for this precondition. The harness never changes GitHub
+protection settings itself.
+
 ## Quick start
 
 Replace the file name with your requirements file.
@@ -117,6 +132,7 @@ Optional extras: `harness sync PLAN_ID` creates a requirements issue, milestones
 **Watch progress**
 
 ```sh
+harness gui                       # local monitoring and management, opens the browser
 harness status                    # plan, phases, queue, workers, blockers, tasks, budgets
 harness status --plan bugfixes-001-md   # only that plan's phases, issues and workers
 harness status --json             # the same, machine-readable
@@ -124,6 +140,45 @@ harness issue p1-stars-animation  # everything about one issue: scope, attempts,
 ```
 
 Reading `status`: `Ready` waits to start, `In Progress` has a worker, `In Review` has a pull request awaiting review or merge, `Blocked` needs a dependency or a human task, `Done` is merged and checked on `main`. The `worker` lines show who is running and for how long. Token and cost figures show as unavailable, because the runtime does not report them.
+
+**Local dashboard**
+
+Without the alias, run `PYTHONPATH=tools python3 -m harness gui` from the
+repository root. The default address is `http://127.0.0.1:8765`; use `--port 0`
+for a free port and `--no-browser` to print the address without opening it.
+Choose a different port if 8765 is already occupied.
+
+```sh
+harness --home /path/to/state gui --read-only --port 0 --no-browser
+```
+
+Monitor shows the selected plan's latest version, phases, coverage, budgets,
+workers, check jobs, leases, and blockers. Issues supports search, filters, and
+revision-bound evidence inspection. Tasks accepts decisions, manual-test
+results, and asset uploads. Activity shows events and output from runners
+started by this dashboard instance. Live refresh defaults to five seconds;
+`--refresh` accepts 3-60 seconds.
+
+Start, Resume, and Recover launch the trusted coordinator, not a worker command
+from the browser. A valid existing signed approval and current Tier A
+attestation are required. Launch and cancellation require the exact plan ID;
+the server rejects a changed plan version. Approval, plan creation, issue
+import, isolation verification, and dry-run rehearsal remain terminal commands.
+Starting an approved run can merge to `main` and deploy production.
+
+Closing the browser or dashboard does not stop a launched coordinator. Use
+Pause or Cancel and wait for the coordinator to acknowledge the request. A
+reopened dashboard still reads persisted state, but managed process details
+and log tails belong to the instance that launched them. Healthy external
+runner heartbeats block duplicate launch; do not start several dashboard
+instances against one store as a cross-process locking mechanism.
+
+The dashboard binds only to IPv4 loopback. Do not expose it through a proxy,
+tunnel, port forwarding, or shared remote desktop. It trusts the local OS
+account; browser request protections are not multi-user authentication. Use
+`--read-only` to disable mutation routes. Reading an uninitialized store does
+not create it. Browser uploads are limited to 10 MiB and still pass the existing
+asset policy, path, format, provenance, and checksum validation.
 
 **Pause, resume, stop**
 
@@ -135,6 +190,14 @@ harness cancel PLAN_ID          # permanent: the plan cannot be resumed. --drain
 ```
 
 Ctrl+C in the `run` terminal also stops the loop. It is safe: leases expire, workers are fenced, nothing is marked done by absence, and `resume` carries on. Afterwards check `docker ps | grep harness` and remove leftovers with `docker rm -f NAME`.
+
+Checks before review, after rebasing, after merging, and at phase validation are
+polled jobs. Long commands do not hold up scheduler heartbeats. Graceful pause
+and cancellation with `--drain` wait for active checks; immediate stops cancel
+their named containers and remove their work directories. Each check command
+has a 900-second default deadline, also enforced inside the container if the
+runner exits. On resume, expired saved check jobs are cleaned up and rerun;
+their missing results never count as a pass.
 
 Restart the run after you change harness code, because a running process keeps its old code in memory.
 
@@ -193,6 +256,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `resume PLAN_ID` | Continue a paused or interrupted run | same as `run` |
 | `pause PLAN_ID` | Stop after current work (graceful) | `--now` |
 | `cancel PLAN_ID` | Stop for good | `--drain` |
+| `gui` | Local monitoring and management | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--repo OWNER/NAME` |
 | `status` | Everything at a glance (read-only) | `--json` |
 | `issue ID` | One issue in detail (read-only) | `--json` |
 | `tasks` | Open human tasks, explained | none |
@@ -221,6 +285,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | Approval signing key, tokens, sandbox attestation, model cache | the same folder: `approval.key`, `broker.token`, `copilot.token`, `isolation.json`, `models.json` |
 | The harness's own copy of the repository | `~/.local/state/derschweigert-harness/trusted-clone.git` (a bare clone; worker branches are inspected here) |
 | Rehearsal copies of your state | `~/.local/state/derschweigert-harness/rehearsal-<time>/` (safe to delete) |
+| Output from GUI-launched coordinators | `gui-runners/` inside the selected state folder; private per-launch log files |
 | Throwaway worker folders | `~/.local/share/derschweigert-harness-work/` (cleaned automatically) |
 | Investigator output | `<requirements file>_plan/`: `phases.json`, `issues.json`, `investigation-report.md`, `investigation.json`, `history/` |
 | Pull requests and branches | GitHub, branches named `harness/<issue-id>` |
@@ -253,30 +318,60 @@ What is enforced:
 
 * Workers run in a locked-down container (non-root, read-only root filesystem, no capabilities, resource limits) and see only their task folder. They never hold GitHub write credentials, the approval key, or the store. Only the harness broker writes to GitHub, and it checks every action against the approved plan.
 * Approval is bound to a digest of the scope and policy. A changed plan, a forged approval, or an expired sandbox attestation stops execution.
-* Evidence is bound to exact commits. A merge is bound to the reviewed commit. Reviews come from a different model than the implementer.
+* The broker and scheduler enforce the signed `authorized_operations` list. Branch creation, commits, pushes, pull requests, and eligible merges cannot inherit permissions omitted from the approval.
+* Evidence is bound to exact commits and actual base ancestry. Remote base changes trigger rebasing and fresh checks; only an unchanged patch can retain its review. GitHub must report the exact reviewed head as merged.
+* Real merges require verified strict required checks enforced for administrators, preventing an external base change between the final fetch and the merge from bypassing validation.
+* Asset request identifiers cannot contain paths. Outputs, manifests, scripts, existing assets, and human-upload destinations are checked for traversal and symlink escapes.
 * Nothing is merged for escalation paths, out-of-scope changes, failed checks, or stale evidence.
 
 What is not, honestly:
 
-* Branch protection is not enforced by GitHub on this plan. It is applied by convention: workers push only to `harness/*` branches, never force, and change `main` only through pull requests.
+* A repository whose plan cannot provide the required server-side protection cannot use autonomous merging. Convention alone is insufficient; unverifiable protection is a blocker, not an exemption.
 * The worker sandbox has open outbound network access. A worker could send out its task folder or its Copilot-only token.
 * `broker.token` is a broad classic token. Treat the store folder as sensitive.
-* Blender runs on your machine, not in the sandbox. Worker-written Blender scripts are only screened by a blocklist.
+* Blender runs on your machine, not in the sandbox. Host execution refuses scripts unless trusted code explicitly allowlists the exact reviewed script through `BlenderCli(reviewed_scripts=...)`. Worker requests cannot grant that permission. The blocklist remains defense in depth, not isolation; prefer submitting the generated asset through a human task.
 * The individual work issues are not mirrored to GitHub: they exist only in the harness store, so use `status` and the pull requests for progress. GitHub Project fields are not synced.
 * If a person merges a harness pull request on GitHub, the harness does not notice.
 * Token and cost usage per attempt is unavailable, because the runtime reports none.
-* There is no dashboard. `status` is the monitoring interface.
+* The local dashboard is not a remote administration service. It has no separate user authentication, persistent process registry, or cross-dashboard singleton lock.
 * Phase-wide exit checks run only when a phase is validated. Each issue is checked with its own commands.
+
+## Upgrading safely
+
+1. Pause the existing run and confirm its process has stopped before replacing
+  harness code. An already-running process retains its old permissions and
+  execution paths. Back up the stopped store, including its approval key.
+2. Run the offline suite with an interpreter that has pytest installed:
+  `HARNESS_LIVE=0 python3 -m pytest tools/harness/tests -q`.
+  Temporary Git remotes and local subprocess tests do not require GitHub writes.
+3. Verify Tier A isolation and the server-side merge precondition before
+  resuming. No rollout step automatically edits GitHub settings or production
+  state. Live GitHub, Docker, and Blender verification remains a separate gate.
+4. Resume the approved plan. The harness verifies actual ancestry rather than
+  trusting saved `base_rev` metadata. A stale base causes fresh checks, and
+  expired pending check jobs are discarded and rerun. Recorded merges resume
+  at post-merge checks instead of merging a second time.
+5. Treat newly surfaced permission, protection, or script-review blockers as
+  decisions for the owner. Do not edit signed policy or evidence in the store
+  to suppress them. Changed scope or permissions require a newly approved plan
+  version; unreviewed procedural requests can be resolved with a human asset.
 
 ## Maintaining the harness
 
 ```sh
-python3 -m pytest -q                                   # the whole suite, including the harness (about 12 seconds)
+HARNESS_LIVE=0 python3 -m pytest tools/harness/tests -q # offline harness suite
+python3 -m pytest -q                                  # root-configured site and harness tests
 HARNESS_LIVE=1 python3 -m pytest tools/harness/tests/test_harness_live.py   # real Copilot CLI and Blender; spends a little usage
 ```
 
 Test doubles (`harness_doubles.py`, `harness_fakes.py`) exist only for fault injection and are labeled as doubles. Bugs found against the real runtime should get a live test, because several of the real-run bugs so far (reviewer, post-merge checks, refiner) were invisible to the doubles.
 
+The [test optimization analysis](../../docs/harness/test-optimization.md)
+records serial and two-worker timings, line-coverage overlap, and specific
+consolidation candidates. Matching coverage is not permission to remove a test.
+GUI HTTP contracts are automated; browser interaction checks currently require
+separate end-to-end verification.
+
 After changing the worker image, rerun `harness isolation build` and `harness isolation verify`. After changing harness code while a run is active, restart the run. Record decisions and limits in [decisions.md](../../docs/harness/decisions.md).
 
-Code map: `cli.py` (commands), `investigate.py` (investigator), `plans.py` and `approval.py` (plan, digest, approval), `scheduler.py` (the loop, gates, failures), `adapter.py` and `isolation.py` (runtime and sandbox), `publisher.py` and `github.py` (GitHub), `humantasks.py`, `assets.py`, `status.py`, `store.py` (SQLite state), `machines.py` (state machines).
+Code map: `cli.py` (commands), `gui.py`, `gui_page.html`, and `gui_page.js` (local dashboard), `investigate.py` (investigator), `plans.py` and `approval.py` (plan, digest, approval), `scheduler.py` (the loop, gates, failures), `adapter.py` and `isolation.py` (runtime and sandbox), `publisher.py` and `github.py` (GitHub), `humantasks.py`, `assets.py`, `status.py`, `store.py` (SQLite state), `machines.py` (state machines).

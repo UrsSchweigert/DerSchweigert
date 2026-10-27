@@ -11,9 +11,14 @@ import re
 import subprocess
 import time
 from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import quote
 
 
 class GitHubError(Exception):
+    pass
+
+
+class BaseChanged(GitHubError):
     pass
 
 
@@ -74,6 +79,9 @@ class Client:
 
     def merge_pr(self, number: int, sha: str, method: str = "squash") -> bool:
         raise NotImplementedError
+
+    def merge_protection(self, base: str) -> Dict[str, Any]:
+        return {"safe": False, "reason": "the client cannot verify strict branch protection"}
 
     def capabilities(self) -> Dict[str, Any]:
         raise NotImplementedError
@@ -178,8 +186,26 @@ class GhCli(Client):
 
     def merge_pr(self, number: int, sha: str, method: str = "squash") -> bool:
         """The merge is bound to `sha`: GitHub refuses it if the head moved after the evidence was collected."""
-        self._run(["api", "-X", "PUT", "repos/%s/pulls/%d/merge" % (self.repo, number), "-f", "sha=" + sha, "-f", "merge_method=" + method])
-        return True
+        result = self._json(["api", "-X", "PUT", "repos/%s/pulls/%d/merge" % (self.repo, number), "-f", "sha=" + sha,
+                             "-f", "merge_method=" + method])
+        return isinstance(result, dict) and result.get("merged") is True
+
+    def merge_protection(self, base: str) -> Dict[str, Any]:
+        try:
+            protection = self._json(["api", "repos/%s/branches/%s/protection" % (self.repo, quote(base, safe=""))])
+        except RateLimited:
+            raise
+        except GitHubError as exc:
+            return {"safe": False, "reason": "cannot verify branch protection: %s" % str(exc)[:160]}
+        if not isinstance(protection, dict):
+            return {"safe": False, "reason": "branch protection response is invalid"}
+        checks = protection.get("required_status_checks") or {}
+        strict = checks.get("strict") is True
+        required = bool(checks.get("contexts") or checks.get("checks"))
+        enforced = (protection.get("enforce_admins") or {}).get("enabled") is True
+        safe = strict and required and enforced
+        return {"safe": safe, "reason": "strict required checks enforced for administrators" if safe else
+                "strict required checks enforced for administrators are required for autonomous merges"}
 
     def capabilities(self) -> Dict[str, Any]:
         """Read-only probe. Mutations are never called, so sub-issue support is inferred from the GraphQL schema."""

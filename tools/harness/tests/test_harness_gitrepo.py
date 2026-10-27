@@ -6,6 +6,7 @@ import subprocess
 import pytest
 
 from harness.repo import GitRepo
+from harness_doubles import Env
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="git is required")
 
@@ -89,6 +90,23 @@ def test_changed_paths_between_base_revisions(world):
     old = repo.base_head()
     commit(trusted, "api/schema.json", "{}\n", "contract")
     assert repo.changed_paths(old, repo.base_head()) == ["api/schema.json"]
+
+
+def test_implementation_checks_run_on_the_actual_current_base(world, tmp_path):
+    trusted, worker, repo = world
+    env = Env(tmp_path / "scheduler", issues=[])
+    env.sched.repo = repo
+    env.add_issue("i1", "P1", ["F1.1", "F1.2"], base_rev=repo.base_head())
+    env.adapter.source_path = lambda handle: worker if handle.req.role == "implementer" else None
+    env.start()
+    env.tick()
+    commit(trusted, "src/parallel.py", "parallel = True\n", "parallel issue merged")
+    commit(worker, "src/new.py", "implemented = True\n", "implementation")
+    env.tick()
+    checks = env.store.evidence("i1", "checks")[-1]
+    assert checks["base_rev"] == repo.base_head()
+    actual_base = git(trusted, "merge-base", checks["head_rev"], checks["base_rev"])
+    assert actual_base == checks["base_rev"]
 
 
 def test_hooks_in_the_trusted_clone_do_not_run(world, tmp_path):

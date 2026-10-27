@@ -2,10 +2,198 @@ import pytest
 
 from harness import approval
 from harness.store import Store
-from harness_doubles import Env
+from harness_doubles import Env, FakeChecker
 
 
 LONG_BUDGETS = {"lease_s": 10**7, "run_wall_clock_s": 10**8, "worker_timeout_s": 10**7, "inactivity_timeout_s": 10**7}
+
+
+class PendingChecker(FakeChecker):
+    def __init__(self):
+        super().__init__()
+        self.held = True
+        self.pending = []
+        self.cancelled = []
+        self.recovered = []
+
+    def start(self, issue_id, head_rev, commands):
+        handle = (issue_id, head_rev, commands)
+        self.pending.append(handle)
+        return handle
+
+    def poll(self, handle):
+        return None if self.held else super().run(*handle)
+
+    def cancel(self, handle):
+        self.cancelled.append(handle)
+
+    def recovery_data(self, handle):
+        return {"check": len(self.pending)}
+
+    def recover(self, data):
+        self.recovered.append(data)
+
+    def run(self, *args):
+        pytest.fail("the scheduler must not run checks synchronously")
+
+
+def pending_checks(env):
+    env.checker = PendingChecker()
+    env.sched.checker = env.checker
+    env.start()
+    env.tick()
+    env.tick()
+
+
+def test_pending_checks_renew_the_implementer_lease(tmp_path):
+    env = Env(tmp_path)
+    pending_checks(env)
+    for _ in range(6):
+        env.tick(30)
+        env.store.validate_lease("i1#1", 1, env.clock())
+    assert env.state("i1") == "In Progress"
+    assert len(env.checker.pending) == 1 and not env.publisher.intents
+    env.checker.held = False
+    env.run_until(lambda: env.state("i1") == "Done")
+
+
+@pytest.mark.parametrize("action", ["pause", "cancel"])
+def test_immediate_stop_cancels_pending_checks(tmp_path, action):
+    from harness import runner
+    env = Env(tmp_path)
+    pending_checks(env)
+    if action == "pause":
+        runner.request_pause(env.store, "fx", 1, now_flag=True)
+    else:
+        env.sched.request_cancel()
+    env.tick()
+    assert env.store.state("plan", "fx@v1") == ("Paused" if action == "pause" else "Cancelled")
+    assert env.checker.cancelled == env.checker.pending
+    assert not env.store.active_claims() and not env.publisher.intents
+    assert env.state("i1") == "Ready"
+
+
+def test_graceful_stop_waits_for_pending_checks(tmp_path):
+    env = Env(tmp_path)
+    pending_checks(env)
+    env.sched.request_cancel(drain=True)
+    env.tick()
+    assert env.store.state("plan", "fx@v1") == "Executing"
+    env.checker.held = False
+    env.tick()
+    assert env.store.state("plan", "fx@v1") == "Cancelled"
+    assert env.state("i1") == "In Review" and not env.checker.cancelled
+    assert not [request for request in env.adapter.started if request.role == "reviewer"]
+
+
+def pending_stage(env, stage):
+    if stage == "implementation":
+        pending_checks(env)
+        return
+    env.start()
+    env.run_until(lambda: env.state("i1") == ("Done" if stage == "phase" else "In Review"))
+    if stage == "rebase":
+        env.repo.advance_base(["src/parallel.py"])
+    env.checker = PendingChecker()
+    env.sched.checker = env.checker
+    env.tick()
+    assert env.store.get_run("fx")["checks"]
+
+
+@pytest.mark.parametrize("stage", ["implementation", "rebase", "integrated", "phase"])
+def test_pending_check_results_require_the_same_revision_context(tmp_path, stage):
+    env = Env(tmp_path)
+    pending_stage(env, stage)
+    old_base = env.repo.base_head()
+    env.repo.advance_base(["src/new-base.py"])
+    env.checker.held = False
+    env.tick()
+    assert len(env.checker.pending) >= 2
+    assert any(event["event"] == "checks_stale" for event in env.sched.events)
+    if stage == "phase":
+        assert env.store.state("phase", "fx@v1/P1") == "Done"
+    else:
+        kind = "integrated" if stage == "integrated" else "checks"
+        assert env.store.evidence("i1", kind)[-1]["base_rev"] != old_base
+
+
+@pytest.mark.parametrize("stage", ["implementation", "rebase", "integrated", "phase"])
+def test_restart_reclaims_pending_checks_after_expiry(tmp_path, stage):
+    from harness.scheduler import Scheduler
+    from harness_doubles import FakeAdapter, TIER_A
+    env = Env(tmp_path)
+    pending_stage(env, stage)
+    checker = PendingChecker()
+    checker.held = False
+    adapter = FakeAdapter(env.repo, env.clock)
+    env.checker, env.adapter = checker, adapter
+    env.sched = Scheduler(env.store, "fx", 1, adapter, env.repo, checker, env.publisher, clock=env.clock,
+                          isolation_override=TIER_A, available_models=["claude-haiku-4.5", "claude-sonnet-5"], runner_id="runner-2")
+    env.sched.start()
+    env.tick(5)
+    assert not checker.pending and not adapter.started
+    env.tick(200)
+    assert checker.recovered == [{"check": 1}]
+    env.run_until(lambda: env.store.state("phase", "fx@v1/P1") == "Done")
+    assert len([intent for intent in env.publisher.intents if intent["action"] == "merge_pr"]) == 1
+    assert not env.store.get_run("fx")["checks"]
+
+
+def test_replaced_check_job_cannot_publish_or_delete_its_replacement(tmp_path):
+    env = Env(tmp_path)
+    pending_checks(env)
+    run = env.store.get_run("fx")
+    run["checks"]["implementation:i1"]["job_id"] = "replacement-job"
+    env.store.put_run("fx", run)
+    env.checker.held = False
+    env.tick()
+    assert not env.publisher.intents
+    assert env.store.get_run("fx")["checks"]["implementation:i1"]["job_id"] == "replacement-job"
+    assert env.checker.cancelled
+
+
+@pytest.mark.parametrize("stage", ["rebase", "integrated", "phase"])
+def test_pause_now_cancels_coordinator_checks_without_worker_claims(tmp_path, stage):
+    from harness import runner
+    env = Env(tmp_path)
+    pending_stage(env, stage)
+    assert not env.store.active_claims()
+    assert runner.request_pause(env.store, "fx", 1, now_flag=True) == "Executing"
+    env.tick()
+    assert env.store.state("plan", "fx@v1") == "Paused"
+    assert env.checker.cancelled == env.checker.pending and not env.store.get_run("fx")["checks"]
+    env.checker.held = False
+    env.sched.start()
+    env.run_until(lambda: env.store.state("phase", "fx@v1/P1") == "Done")
+    assert len([intent for intent in env.publisher.intents if intent["action"] == "merge_pr"]) == 1
+
+
+def test_refresh_pause_stops_the_remaining_dispatch_pass(tmp_path):
+    from harness.github import GitHubError
+    env = Env(tmp_path)
+    env.start()
+    env.run_until(lambda: env.state("i1") == "In Review")
+    env.add_issue("waiting", "P1", ["F1.1"])
+    def failed_refresh():
+        raise GitHubError("remote unavailable")
+    env.publisher.refresh_base = failed_refresh
+    env.tick()
+    assert env.store.state("plan", "fx@v1") == "Paused"
+    assert env.state("waiting") == "Ready" and not env.store.human_tasks("waiting")
+    assert not [request for request in env.adapter.started if request.issue_id == "waiting"]
+
+
+def test_new_reviewer_lease_uses_the_current_clock(tmp_path):
+    env = Env(tmp_path)
+    def slow_diff(branch, limit=60000):
+        env.clock.advance(120)
+        return "reviewed diff"
+    env.repo.diff_text = slow_diff
+    env.start()
+    env.run_until(lambda: env.state("i1") == "In Review")
+    request = env.adapter.started[-1]
+    assert request.role == "reviewer"
+    env.store.validate_lease(request.attempt_id, request.epoch, env.clock())
 
 
 def done(env, *ids):

@@ -13,7 +13,8 @@ from typing import Any, Dict, Optional
 
 from .broker import BrokerRejected, check_branch_target
 from .checks import Publisher
-from .github import Client, GitHubError, with_retries
+from .github import BaseChanged, Client, GitHubError, with_retries
+from .repo import GitRepo
 
 ASKPASS = "#!/bin/sh\ncase \"$1\" in Username*) echo x-access-token ;; *) echo \"$HARNESS_GIT_TOKEN\" ;; esac\n"
 
@@ -81,14 +82,24 @@ class GitHubPublisher(Publisher):
     def update_branch(self, issue: Dict[str, Any], branch: str, old_head: str, new_head: str) -> None:
         push_rebased(self.clone_path, self.remote, branch, old_head, self.token_file)
 
+    def refresh_base(self) -> None:
+        proc = git_with_token(["fetch", "--quiet", "--no-tags", self.remote, "+refs/heads/%s:refs/heads/%s" % (self.base, self.base)],
+                              self.clone_path, self.token_file)
+        if proc.returncode != 0:
+            raise GitHubError("could not refresh the base branch: %s" % proc.stderr.strip()[-200:])
+
     def merge(self, issue: Dict[str, Any], pr: Any, head_rev: str) -> Dict[str, Any]:
         if not pr:
             raise BrokerRejected("no pull request to merge for %s" % issue["issue_id"])
+        self.refresh_base()
+        if not issue.get("base_rev"):
+            raise BrokerRejected("no tested base revision for %s" % issue["issue_id"])
+        if GitRepo(self.clone_path, self.base).base_head() != issue["base_rev"]:
+            raise BaseChanged("base branch changed after validation; rebase and rerun checks")
+        protection = with_retries(lambda: self.client.merge_protection(self.base), sleep=self.sleep)
+        if not protection.get("safe"):
+            raise BrokerRejected("branch protection is not verified: %s" % protection.get("reason", "unknown"))
         merged = with_retries(lambda: self.client.merge_pr(pr, head_rev), sleep=self.sleep)
         if merged:
-            # Pull the merge into the harness's clone, so later issues and the post-merge checks see it.
-            proc = git_with_token(["fetch", "--quiet", "--no-tags", self.remote, "+refs/heads/%s:refs/heads/%s" % (self.base, self.base)],
-                                  self.clone_path, self.token_file)
-            if proc.returncode != 0:
-                raise GitHubError("merged, but could not refresh the base branch: %s" % proc.stderr.strip()[-200:])
-        return {"merged": bool(merged), "mode": "checks-on-current-base", "simulated": False}
+            self.refresh_base()
+        return {"merged": bool(merged), "mode": "strict-required-checks", "simulated": False}

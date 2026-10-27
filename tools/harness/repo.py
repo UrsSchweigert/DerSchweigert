@@ -28,6 +28,9 @@ class Repo:
     def branch_head(self, branch: str) -> str:
         raise NotImplementedError
 
+    def is_ancestor(self, ancestor: str, head: str) -> bool:
+        raise NotImplementedError
+
     def changed_paths(self, old: str, new: str) -> List[str]:
         raise NotImplementedError
 
@@ -95,6 +98,12 @@ class GitRepo(Repo):
 
     def branch_head(self, branch: str) -> str:
         return self._git("rev-parse", "refs/heads/" + branch).strip()
+
+    def is_ancestor(self, ancestor: str, head: str) -> bool:
+        result = self._exec("merge-base", "--is-ancestor", ancestor, head)
+        if result.returncode not in (0, 1):
+            raise GitError("could not verify revision ancestry: %s" % result.stderr.strip()[:200])
+        return result.returncode == 0
 
     def merge_base(self, branch: str) -> str:
         return self._git("merge-base", self.base, "refs/heads/" + branch).strip()
