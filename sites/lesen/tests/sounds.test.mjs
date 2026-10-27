@@ -14,7 +14,7 @@ import {
 test("alphabets: CONSONANTS, VOWELS and SPECIALS are the expected German sets", () => {
   assert.deepStrictEqual(CONSONANTS, [..."bcdfghjklmnpqrstvwxyzß"]);
   assert.deepStrictEqual(VOWELS, [..."aeiou"]);
-  assert.deepStrictEqual(SPECIALS, ["ä", "ö", "ü", "au", "ei", "ie", "eu"]);
+  assert.deepStrictEqual(SPECIALS, ["ä", "ö", "ü", "au", "ei", "ie", "eu", "sch", "ch", "st", "ai", "xx"]);
 });
 
 test("buildCombinations: CV pattern with single-letter consonants/vowels (existing behaviour)", () => {
@@ -37,7 +37,7 @@ test("buildCombinations: specials merged into the vowel slot act as vowel-slot f
   const result = buildCombinations("CV", ["m"], vowelsWithSpecials);
   assert.deepStrictEqual(
     result.sort(),
-    ["ma", "me", "mi", "mo", "mu", "mä", "mö", "mü", "mau", "mei", "mie", "meu"].sort(),
+    ["ma", "me", "mi", "mo", "mu", "mä", "mö", "mü", "mau", "mei", "mie", "meu", "msch", "mch", "mst", "mai", "mxx"].sort(),
   );
 });
 
@@ -165,4 +165,70 @@ test("isWordsModeEligible: above threshold is eligible", () => {
 
 test("isWordsModeEligible: zero is not eligible", () => {
   assert.strictEqual(isWordsModeEligible(0), false);
+});
+
+test("tokenizeWord: recognizes 'sch' as a single unit before 'ch'", () => {
+  assert.deepStrictEqual(tokenizeWord("schon", SPECIALS), ["sch", "o", "n"]);
+});
+
+test("tokenizeWord: recognizes 'st' as a single unit", () => {
+  assert.deepStrictEqual(tokenizeWord("stein", SPECIALS), ["st", "ei", "n"]);
+});
+
+test("tokenizeWord: recognizes 'ai' as a single unit", () => {
+  assert.deepStrictEqual(tokenizeWord("mais", SPECIALS), ["m", "ai", "s"]);
+});
+
+test("tokenizeWord: recognizes 'ch' as a single unit when not preceded by 's'", () => {
+  assert.deepStrictEqual(tokenizeWord("chop", SPECIALS), ["ch", "o", "p"]);
+});
+
+test("tokenizeWord: treats doubled letters as a single unit when 'xx' is in specials", () => {
+  assert.deepStrictEqual(tokenizeWord("ball", SPECIALS), ["b", "a", "ll"]);
+});
+
+test("tokenizeWord: treats multiple doubled letters correctly", () => {
+  assert.deepStrictEqual(tokenizeWord("bälle", SPECIALS), ["b", "ä", "ll", "e"]);
+});
+
+test("tokenizeWord: doubled letter takes precedence over single characters", () => {
+  assert.deepStrictEqual(tokenizeWord("alle", SPECIALS), ["a", "ll", "e"]);
+});
+
+test("tokenizeWord: does not create doubled units for different adjacent letters", () => {
+  assert.deepStrictEqual(tokenizeWord("ball", []), ["b", "a", "l", "l"]);
+});
+
+test("tokenizeWord: handles consecutive doubled pairs (e.g., 'aa' followed by 'bb')", () => {
+  assert.deepStrictEqual(tokenizeWord("aabb", SPECIALS), ["aa", "bb"]);
+});
+
+test("countMatchingWords: 'ball' does not match with b,a,l selected but 'xx' unselected", () => {
+  const selection = { consonants: ["b"], vowels: ["a"], specials: [] };
+  assert.strictEqual(countMatchingWords(["ball"], selection, 4, SPECIALS), 0);
+});
+
+test("countMatchingWords: 'ball' matches once 'xx' is selected", () => {
+  const selection = { consonants: ["b"], vowels: ["a"], specials: ["xx"] };
+  assert.strictEqual(countMatchingWords(["ball"], selection, 4, SPECIALS), 1);
+});
+
+test("countMatchingWords: 'bälle' matches with ä and 'xx' selected", () => {
+  const selection = { consonants: ["b"], vowels: ["e"], specials: ["ä", "xx"] };
+  assert.strictEqual(countMatchingWords(["bälle"], selection, 5, SPECIALS), 1);
+});
+
+test("countMatchingWords: 'schon' matches with sch and s,o,n selected", () => {
+  const selection = { consonants: ["s", "n"], vowels: ["o"], specials: ["sch"] };
+  assert.strictEqual(countMatchingWords(["schon"], selection, 5, SPECIALS), 1);
+});
+
+test("countMatchingWords: 'mais' matches with ai selected", () => {
+  const selection = { consonants: ["m", "s"], vowels: ["i"], specials: ["ai"] };
+  assert.strictEqual(countMatchingWords(["mais"], selection, 4, SPECIALS), 1);
+});
+
+test("countMatchingWords: 'stein' matches with st and ei selected", () => {
+  const selection = { consonants: ["s", "t", "n"], vowels: ["i"], specials: ["st", "ei"] };
+  assert.strictEqual(countMatchingWords(["stein"], selection, 5, SPECIALS), 1);
 });

@@ -12,11 +12,18 @@ const CONSONANTS_DE = Object.freeze([..."bcdfghjklmnpqrstvwxyzß"]);
 const VOWELS_DE = Object.freeze([..."aeiou"]);
 
 /**
- * German "special" sounds: umlauts and the common diphthongs. These are not
- * plain single letters (diphthongs are two characters), but they behave like
- * extra vowel-slot fillers when building CV/VC-style letter combinations.
+ * German "special" sounds: umlauts, common diphthongs, consonant digraphs, and
+ * a sentinel for doubled letters. These are not plain single letters, but they
+ * behave like extra vowel or consonant-slot fillers when building letter combinations.
+ *
+ * Order note: 'sch' must come before 'ch' in the list so that when tokenizeWord
+ * iterates left-to-right, it tries 'sch' first. This ensures that words like
+ * "schon" split into ["sch", "o", "n"] rather than ["s", "ch", "o", "n"].
+ * The 'xx' sentinel at the end represents "any doubled letter" and is handled
+ * specially by tokenizeWord and countMatchingWords to match two identical
+ * adjacent characters as a single sound unit.
  */
-const SPECIALS_DE = Object.freeze(["ä", "ö", "ü", "au", "ei", "ie", "eu"]);
+const SPECIALS_DE = Object.freeze(["ä", "ö", "ü", "au", "ei", "ie", "eu", "sch", "ch", "st", "ai", "xx"]);
 
 /** English consonant alphabet shown as individually selectable letters. */
 const CONSONANTS_EN = Object.freeze([..."bcdfghjklmnpqrstvwxyz"]);
@@ -86,6 +93,10 @@ export function buildCombinations(pattern, consonantLetters, vowelLetters) {
  * At each position, a special from the specials list is taken first if the
  * word continues with it, otherwise one character is taken.
  *
+ * When the specials list contains the 'xx' sentinel, two identical adjacent
+ * letters are treated as a single unit (e.g., 'll' -> 'll'), in addition to
+ * matching literal specials.
+ *
  * @param {string} word lowercase word to tokenize
  * @param {readonly string[]} specials special multi-character sounds to recognize
  * @returns {string[]} array of sound units
@@ -93,17 +104,31 @@ export function buildCombinations(pattern, consonantLetters, vowelLetters) {
 export function tokenizeWord(word, specials) {
   const units = [];
   let pos = 0;
+  const hasXxSentinel = specials.includes('xx');
+  
   while (pos < word.length) {
     let matched = false;
-    // Try to match specials first (longest to shortest would be more correct, but task doesn't specify)
-    for (const special of specials) {
-      if (word.startsWith(special, pos)) {
-        units.push(special);
-        pos += special.length;
-        matched = true;
-        break;
+    
+    // Check if we have a doubled letter at the current position (only if 'xx' is in specials)
+    if (hasXxSentinel && pos + 1 < word.length && word[pos] === word[pos + 1]) {
+      units.push(word[pos] + word[pos + 1]);
+      pos += 2;
+      matched = true;
+    }
+    
+    // Try to match specials (but skip 'xx' sentinel itself)
+    if (!matched) {
+      for (const special of specials) {
+        if (special === 'xx') continue; // Skip the sentinel itself
+        if (word.startsWith(special, pos)) {
+          units.push(special);
+          pos += special.length;
+          matched = true;
+          break;
+        }
       }
     }
+    
     if (!matched) {
       // No special matched, take one character
       units.push(word[pos]);
@@ -117,6 +142,10 @@ export function tokenizeWord(word, specials) {
  * Count distinct real words (case-insensitively, by spelling) that are
  * usable with a given letter selection: every sound unit in the word must be
  * an allowed letter or special, and the word's length must be within `maxLength`.
+ *
+ * When the selection includes the 'xx' sentinel, a tokenized doubled-letter
+ * unit (e.g., 'll') is considered allowed even if 'xx' itself is not literally
+ * in the allowedUnits set.
  *
  * This mirrors the eligibility check used to build Words Mode decks, so it
  * can drive a live "X words available" counter on the setup screen.
@@ -132,14 +161,24 @@ export function countMatchingWords(words, selection, maxLength, allSpecials) {
   const specials = selection.specials || [];
   const tokenizerSpecials = allSpecials || specials;
   const allowedUnits = new Set([...selection.consonants, ...selection.vowels, ...specials]);
+  const hasXxSentinel = specials.includes('xx');
   const seen = new Set();
   let count = 0;
   for (const word of words) {
     const key = word.toLowerCase();
     if (seen.has(key)) continue;
     const units = tokenizeWord(key, tokenizerSpecials);
-    const eligible =
-      units.length > 0 && key.length <= maxLength && units.every((unit) => allowedUnits.has(unit));
+    let eligible = units.length > 0 && key.length <= maxLength;
+    if (eligible) {
+      for (const unit of units) {
+        // Accept the unit if it's in allowedUnits, or if it's a doubled letter and 'xx' is selected
+        const isDoubledLetter = unit.length === 2 && unit[0] === unit[1];
+        if (!allowedUnits.has(unit) && !(isDoubledLetter && hasXxSentinel)) {
+          eligible = false;
+          break;
+        }
+      }
+    }
     if (eligible) {
       seen.add(key);
       count++;

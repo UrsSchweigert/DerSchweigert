@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { recordAttempt, selectFlopDeck, flopCandidateCards } from "../static/scoring.mjs";
+import { recordAttempt, selectFlopDeck, flopCandidateCards, isSpellableWith } from "../static/scoring.mjs";
 
 test("recordAttempt: adds +1 to correct_count on correct answer in normal mode", () => {
   const stats = {};
@@ -184,4 +184,39 @@ test("selectFlopDeck: deck built from history is min(ceil(10%), 30) and never em
   const deck = selectFlopDeck(stats, Object.keys(stats));
   assert.strictEqual(deck.length, Math.min(Math.ceil(15 * 0.1), 30));
   assert.ok(deck.length > 0);
+});
+
+test("isSpellableWith: 'ball' can be spelled with b,a,l even without 'xx'", () => {
+  const allowedSounds = new Set(["b", "a", "l"]);
+  assert.strictEqual(isSpellableWith("ball", allowedSounds), true);
+});
+
+test("isSpellableWith: 'ball' can be spelled with just b,a,l,xx", () => {
+  const allowedSounds = new Set(["b", "a", "xx"]);
+  assert.strictEqual(isSpellableWith("ball", allowedSounds), true);
+});
+
+test("isSpellableWith: 'balle' can be spelled with b,a,l,e,xx", () => {
+  const allowedSounds = new Set(["b", "a", "e", "xx"]);
+  assert.strictEqual(isSpellableWith("balle", allowedSounds), true);
+});
+
+test("isSpellableWith: 'aabb' can be spelled with a,b,xx", () => {
+  const allowedSounds = new Set(["a", "b", "xx"]);
+  assert.strictEqual(isSpellableWith("aabb", allowedSounds), true);
+});
+
+test("isSpellableWith: 'bälle' can be spelled with b,ä,e,xx", () => {
+  const allowedSounds = new Set(["b", "ä", "e", "xx"]);
+  assert.strictEqual(isSpellableWith("bälle", allowedSounds), true);
+});
+
+test("isSpellableWith: 'schon' can be spelled with s,c,h,o,n or with sch special", () => {
+  const allowedSounds = new Set(["s", "c", "h", "o", "n"]);
+  assert.strictEqual(isSpellableWith("schon", allowedSounds), true);
+});
+
+test("isSpellableWith: 'stein' can be spelled with s,t,e,i,n", () => {
+  const allowedSounds = new Set(["s", "t", "e", "i", "n"]);
+  assert.strictEqual(isSpellableWith("stein", allowedSounds), true);
 });
