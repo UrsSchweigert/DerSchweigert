@@ -15,12 +15,14 @@ KINDS = ("asset", "decision", "manual_test")
 OPEN_STATES = ("Requested", "Acknowledged", "Submitted", "Validated")
 TRUSTED_SOURCES = ("local", "github")
 DECISION_OPTIONS = ["retry as is", "give guidance and retry", "extend retry budget and retry", "refine the scope", "cancel the issue"]
+APPLY_SPLIT = "apply the proposed split"  # offered only when a validated split was proposed for the issue
 OPTION_HELP = {
     "retry as is": "Run the next step again with no changes. Choose this when the cause looks like a fluke or a fault in the harness or its tools.",
     "give guidance and retry": "Retry, and pass your hint to the worker with --guidance \"...\". Choose this when you know what the worker got wrong.",
     "extend retry budget and retry": "Authorize one additional attempt in the exhausted retry class. This override is recorded and does not reset prior failures.",
     "refine the scope": "Send the issue back to be re-planned before another attempt. Choose this when the issue itself is unclear or too big.",
-    "cancel the issue": "Drop this issue. Work that depends on it will not run.",
+    "cancel the issue": "Drop this issue and every issue that depends on it, because they can no longer run. A phase left with requirements that no finished issue covers pauses the plan until you import replacements.",
+    APPLY_SPLIT: "Replace this issue with the proposed issues listed above. Nothing is applied until you choose this option. The harness checks the proposal again, then cancels this issue and makes the work that depended on it wait for the new issues instead.",
     # Labels used by tasks raised before the wording was clarified.
     "supply guidance or an asset": "Retry, optionally with your hint (--guidance). The 'asset' part only matters for tasks that ask for a file.",
     "accept a different approach": "Retry, optionally with your hint (--guidance).",
@@ -223,8 +225,12 @@ def _release(store: Store, task: Dict[str, Any], outcome: str, answers: Dict[str
         if p["kind"] == "decision":
             option = answers["option"]
             if option == "cancel the issue":
-                issue["cancelled"] = True
+                cancel_issue(store, iid, now)
+                continue  # cancel_issue wrote the issues itself, so the stale copy above must not be saved over them
+            if option == APPLY_SPLIT:
+                issue["split_approved"] = True  # the scheduler re-checks the proposal and applies it
             else:
+                issue["proposed_split"], issue["split_approved"] = None, False
                 if str(answers.get("guidance", "")).strip():
                     issue["guidance"] = (issue.get("guidance", []) + [str(answers["guidance"]).strip()])[-5:]
                 plan = store.get_plan(issue["plan_id"])
@@ -289,6 +295,34 @@ def _release(store: Store, task: Dict[str, Any], outcome: str, answers: Dict[str
                 released.append(iid)
         store.put_issue(issue)
     return released
+
+
+def cancel_issue(store: Store, issue_id: str, now: float, reason: str = "cancelled by the owner") -> List[str]:
+    """Cancel an issue and, transitively, the open work that depends on it, because that work can no longer run. Returns the ids cancelled."""
+    root = store.get_issue(issue_id)
+    if root is None:
+        return []
+    docs = {i["issue_id"]: i for i in store.list_issues(root["plan_id"])}
+    parent, queue = {issue_id: None}, [issue_id]
+    while queue:
+        current = queue.pop(0)
+        for other, doc in docs.items():
+            if current in doc["deps"] and other not in parent:
+                parent[other] = current
+                queue.append(other)
+    cancelled = []
+    for iid, source in parent.items():
+        if store.state("issue", iid) not in ("Refining", "Ready", "Blocked"):
+            continue  # finished work stays finished, and nothing claimed or in review can depend on an unfinished issue
+        doc = store.get_issue(iid)
+        doc.update(cancelled=True, consult_pending=False, analysis_pending=False, proposed_split=None, split_approved=False,
+                   blocked_reason=reason if source is None else "depends on cancelled issue %s" % source)
+        store.transition("issue", iid, "Cancelled", "coordinator", {"reason": doc["blocked_reason"]}, now=now)
+        store.put_issue(doc)
+        cancelled.append(iid)
+    cancel_for_issues(store, cancelled, now)
+    telemetry.emit(store, "issue_cancelled", issue_id=issue_id, data={"cancelled": cancelled}, now=now)
+    return cancelled
 
 
 def cancel_for_issues(store: Store, issue_ids: Iterable[str], now: float) -> List[str]:
@@ -373,6 +407,17 @@ def render_task(task: Dict[str, Any]) -> str:
         extra = p.get("extra", {})
         for f in extra.get("evidence", [])[-3:]:
             out.append("  Failure: %s (%s, %s) %s" % (f.get("kind"), f.get("class"), f.get("role"), str(f.get("detail", ""))[:160]))
+        analysis = extra.get("analysis")
+        if analysis:
+            out.append("  Strong analysis recommends %s: %s" % (analysis["recommendation"], str(analysis["root_cause"])[:400]))
+            for part in analysis.get("parts", []):
+                out.append("    proposed issue %s: %s (%s%s)" % (part["issue_id"], part["title"], ", ".join(part["requirement_ids"]),
+                                                             "; after " + ", ".join(part["deps"]) if part.get("deps") else ""))
+            if analysis.get("file"):
+                out.append("  The proposed issues are in %s. They are checked but not applied." % analysis["file"])
+            if analysis.get("guidance"):
+                out.append("  Suggested guidance: " + str(analysis["guidance"])[:300])
+            out.extend("  Needs your decision: " + str(q)[:200] for q in analysis.get("questions", []))
         out.append("  Options:")
         for n, o in enumerate(p["options"], 1):
             out.append("    %d) %s: %s" % (n, o, extra.get("option_help", {}).get(o) or OPTION_HELP.get(o, "")))

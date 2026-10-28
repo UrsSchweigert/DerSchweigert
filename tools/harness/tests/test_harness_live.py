@@ -199,3 +199,106 @@ def test_real_refiner_answers_ready_when_only_an_anchor_changed_and_a_new_file_i
         assert poll.result["outcome"] == "ready", poll.result
     finally:
         adapter.cleanup(handle)
+
+
+# -- the stuck-report, delegation, analysis, and usage paths ---------------------------------------------------
+
+MODELS = ["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"]
+
+
+def _trusted_clone(tmp_path, files):
+    src = tmp_path / "src"
+    src.mkdir()
+    run = lambda *a: subprocess.run(["git"] + list(a), cwd=str(src), env=ENV, check=True, capture_output=True, text=True)  # noqa: E731
+    run("init", "-q", "-b", "main")
+    for name, text in files.items():
+        (src / name).parent.mkdir(parents=True, exist_ok=True)
+        (src / name).write_text(text)
+    run("add", "-A")
+    run("commit", "-q", "-m", "init")
+    trusted = tmp_path / "trusted.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(src), str(trusted)], check=True, env=ENV)
+    return str(trusted)
+
+
+def _packet(role, tier, issue_id, data, **fields):
+    packet = {"issue_id": issue_id, "phase_id": "P1", "requirement_ids": ["R1", "R2"], "role": role, "tier": tier, "outcomes": ["o"],
+              "acceptance_criteria": ["a"], "non_goals": [], "code_anchors": ["src/"], "dependencies": [], "validation_commands": [],
+              "path_allowlist": ["src/"], "untrusted_data": json.dumps(data)}
+    packet.update(fields)
+    schemas.validate(packet, schemas.TASK_PACKET)
+    return packet
+
+
+def _finish(adapter, handle, timeout=300):
+    deadline = time.time() + timeout
+    poll = adapter.poll(handle, time.time())
+    while poll.state == "running" and time.time() < deadline:
+        time.sleep(3)
+        poll = adapter.poll(handle, time.time())
+    assert poll.state == "finished" and poll.error is None, poll
+    schemas.validate(poll.result, schemas.WORKER_RESULT, "result")
+    return poll.result
+
+
+def test_real_implementer_reports_an_impossible_task_as_stuck(tmp_path):
+    """A real implementer must say it is stuck, and the harness must read that as stuck rather than done."""
+    from harness.scheduler import Scheduler
+    trusted = _trusted_clone(tmp_path, {"src/answer.txt": "maybe\n"})
+    adapter = CopilotCliAdapter(default_home(), trusted)
+    packet = _packet("implementer", "low", "stuck1", {}, outcomes=["src/answer.txt contains exactly the word yes"],
+                     acceptance_criteria=["src/answer.txt contains exactly the word yes", "src/answer.txt contains exactly the word no"],
+                     code_anchors=["src/answer.txt"], validation_commands=["test -f src/answer.txt"])
+    handle = adapter.start(WorkRequest("stuck1#1", 1, "stuck1", "implementer", "low", "claude-haiku-4.5", packet, "harness/stuck1"))
+    try:
+        result = _finish(adapter, handle)
+        assert Scheduler._stuck_reason(result) is not None, result
+    finally:
+        adapter.cleanup(handle)
+        isolation.subprocess.run(["docker", "rm", "-f", handle.name], capture_output=True)
+
+
+def test_real_delegator_returns_a_decision_that_trusted_code_accepts(tmp_path):
+    from harness import models, plans
+    trusted = _trusted_clone(tmp_path, {"src/app.js": "export const run = () => 1;\n"})
+    adapter = CopilotCliAdapter(default_home(), trusted)
+    data = {"stuck_report": "The helper this task depends on does not exist anywhere in the repository.", "previous_failures": [],
+            "attempts": [{"role": "implementer", "model": "claude-haiku-4.5", "tier": "low", "outcome": "Failed", "failure_kind": "worker_blocked"}],
+            "model_options": models.model_options(plans.DEFAULT_POLICY["model_tiers"], MODELS), "strong_attempts_remaining": 1}
+    packet = _packet("delegator", "standard", "deleg1", data, outcomes=["src/app.js exports a run function that uses the helper in src/helper.js"])
+    handle = adapter.start(WorkRequest("deleg1#1", 1, "deleg1", "delegator", "standard", "claude-sonnet-5", packet, "harness/deleg1"))
+    try:
+        result = _finish(adapter, handle)
+        decision = result["decision"]
+        assert decision["diagnosis"].strip() and decision["action"] in ("retry", "ask_owner"), result
+        if decision.get("model_choice"):
+            models.resolve_choice(decision["model_choice"], plans.DEFAULT_POLICY["model_tiers"], MODELS, strong_used=0, strong_budget=1)
+        reported = adapter.usage(handle)
+        assert reported["size_estimate"]["input_tokens"] > 0
+        print("\nagent usage_estimate:", result.get("usage_estimate"), "\nruntime usage lines:", reported["runtime_lines"])
+    finally:
+        adapter.cleanup(handle)
+        isolation.subprocess.run(["docker", "rm", "-f", handle.name], capture_output=True)
+
+
+def test_real_strong_analyst_returns_an_analysis_that_trusted_code_accepts(tmp_path):
+    """Spends strong-tier usage. Whatever the model recommends, every rule the harness applies to a split must hold."""
+    from harness import models, plans, splits
+    trusted = _trusted_clone(tmp_path, {"src/app.js": "export const run = () => 1;\n", "src/theme.js": "export const theme = {};\n"})
+    adapter = CopilotCliAdapter(default_home(), trusted)
+    data = {"stuck_report": "The task covers storage, import and export, and a settings screen, which is too much for one session.",
+            "delegator_diagnosis": "Too large for one session. Consider splitting it.", "previous_failures": [], "attempts": [],
+            "model_options": models.model_options(plans.DEFAULT_POLICY["model_tiers"], MODELS),
+            "split_rules": {"parts": "2 to 6", "diff_size_cap": 800, "requirement_ids": ["R1", "R2"], "original_dependencies": [], "existing_issue_ids": ["big1"]}}
+    packet = _packet("analyst", "strong", "big1", data, outcomes=["A settings screen with persistence", "Import and export of settings as a file"],
+                     acceptance_criteria=["Settings persist across reloads", "Settings can be exported and imported"])
+    handle = adapter.start(WorkRequest("big1#1", 1, "big1", "analyst", "strong", "claude-opus-5", packet, "harness/big1"))
+    try:
+        result = _finish(adapter, handle, timeout=600)
+        original = {"issue_id": "big1", "requirement_ids": ["R1", "R2"], "deps": []}
+        problems = splits.validate_analysis(result["analysis"], original, {"path_allowlist": ["src/"]}, {"big1"}, GitRepo(trusted))
+        assert problems == [], (problems, result["analysis"])
+        print("\nanalysis recommendation:", result["analysis"]["recommendation"], "\nagent usage_estimate:", result.get("usage_estimate"))
+    finally:
+        adapter.cleanup(handle)
+        isolation.subprocess.run(["docker", "rm", "-f", handle.name], capture_output=True)

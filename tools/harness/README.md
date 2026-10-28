@@ -1,7 +1,7 @@
 ---
 title: Harness manual
 description: Operating, verifying, and safely upgrading the incremental development harness
-ms.date: 2026-10-27
+ms.date: 2026-10-28
 ---
 
 ## Overview
@@ -45,14 +45,97 @@ Words used throughout:
 | Plan | Phases, their allowed file paths, and the policy (budgets, merge rules). Locked by a digest when you approve. |
 | Phase | A demonstrable step (P1, P2, ...) that may only change files on its path allowlist. Phases run in dependency order. |
 | Issue | One small piece of work in a phase. Lives in the harness store, not on GitHub. |
-| Attempt | One worker run on an issue (implementer, reviewer, or refiner). Each has a lease that expires after 90 seconds without a heartbeat. |
+| Attempt | One worker run on an issue (implementer, reviewer, refiner, or the delegating agent when a worker is stuck). Each has a lease that expires after 90 seconds without a heartbeat. |
 | Evidence | Test and review results, each tied to the exact commit and base they were produced on. Stale evidence does not count. |
-| Tier | The model strength: `low` (Haiku), `standard` (Sonnet), `strong` (Opus). Implementers start on `low` and reviewers on `standard`. Escalation (low to standard to strong) happens only after failed checks or review findings, and a reviewer is never below its implementer's tier and always a different model. |
+| Model choice | The delegating investigator picks a concrete model for each task's implementer, reviewer, and refiner, with a reason balancing cost and quality. |
+| Model tier | An approved relative cost band: `low` (Haiku), `standard` (Sonnet), `strong` (Opus). These bands describe the model menu and bound repair escalation; they do not assign models to roles on newly investigated tasks. |
 | Human task | A question the harness asks you: a decision, an asset, or a manual test. |
 
 What an issue goes through: a **refiner** re-checks it if the code under it changed, an **implementer** builds it in a throwaway copy of the repository, the harness runs the issue's own check commands, an **independent reviewer** (a different model) reviews the diff, the harness opens a pull request and merges it when every gate passes, and it reruns the checks on the merged `main`. Only then is the issue Done. A phase is Done when all its issues are Done and its exit checks pass.
 
 **Every merge to `main` deploys to production.** This repository's deploy workflow runs on `main`, so each autonomous merge of a `sites/lesen` change goes live. Keep that in mind when you approve a plan.
+
+### Model selection
+
+During `investigate`, the planning agent receives the runtime-probed model menu
+and the approved implementation budget. It chooses models per issue using task
+complexity, uncertainty, risk, and available tests, then writes `model_choices`
+with a `model` and `reason` for each worker role. Choices and reasons appear in
+the investigation report and are recorded on dispatched attempts.
+
+A straightforward, well-tested task can use an inexpensive model; a difficult
+task can start with a more capable one without first paying for a failed cheap
+attempt. An independent reviewer may be cheaper than its implementer when the
+task warrants it. A different reviewer model is required whenever another
+approved model is available. The runtime cannot prove model independence when
+model routing is unavailable, and the harness reports that limitation.
+
+Trusted code rejects unknown or unavailable choices, empty reasons, and choices
+that exceed the strong implementation-attempt budget. Failed checks or review
+findings retain the existing bounded repair escalation; an initial reviewer
+choice that now matches the repaired implementer is rerouted independently.
+Infrastructure failures alone do not justify an upgrade. No extra routing-agent
+call is added per worker.
+
+Cost bands are policy estimates, not live prices. Token usage and actual cost
+remain unavailable. Existing imported issues without `model_choices` keep the
+legacy role mapping; existing issues and running coordinators are not rewritten.
+The `investigate --tier` option selects the planning agent only. Changing the
+approved model menu or budgets still requires renewed plan approval.
+
+### When a worker is stuck
+
+An implementer that cannot complete its task sets its outcome to `blocked` and
+lists what it tried in `blockers`. A `done` outcome that still lists blockers
+counts the same way, and an unrecognized outcome fails as an invalid result.
+The harness never publishes, checks, or merges a stuck attempt. The report is a
+request for direction, not evidence.
+
+The issue then goes to the delegating agent (role `delegator`, read-only, on the
+`standard` tier) instead of repeating the attempt, at most
+`delegator_consults_per_issue` times per issue (default 1). It reads the stuck
+report, the attempt history, and the model menu, and returns one decision:
+
+* `retry`, with optional guidance for the next attempt and an optional model choice with a reason. Trusted code applies the planning checks (approved, available, reason present, strong budget), and the choice carries over to later retries.
+* `ask_owner`, with a diagnosis of what you must decide, for example how to split the task. The issue goes to the strong analysis below when one is available, and then blocks with a decision task that shows the diagnosis.
+
+An unusable decision, or a consultation that fails for a reason other than a
+transient one, becomes a decision task for you. Neither a stuck report nor a
+consultation spends repair budget, and a second stuck report on the same issue
+goes to the strong analysis below and then to you, not back to the delegating
+agent. Plans approved before this change carry no consultation budget, so their
+stuck reports skip the consultation until you approve a new plan version. Failed checks and review findings keep the repair budget and tier
+escalation and do not trigger a consultation. Each consultation is one extra AI
+call.
+
+#### Strong analysis and split proposals
+
+Before a stuck issue reaches you, a strong-tier model (role `analyst`, read-only,
+up to `analyses_per_issue` times per issue, default 1) studies the repository and
+the history. It runs after the delegating agent chooses `ask_owner`, or after a
+second stuck report. It reports a root cause and one recommendation: `split`,
+`retry` with guidance, or `needs_owner` with the decisions you must make.
+
+For a split, the model proposes 2 to 6 issues. Trusted code checks that every
+requirement of the original is covered, ids are new, anchors stay inside the
+phase path allowlist or exist, commands pass the deny list, dependencies are
+other parts or the original's, and there are no cycles or credentials. A valid
+proposal is saved in the private store under `analyses/` in the format
+`import-issues` reads, and the decision task and `harness issue` show it. An
+unusable analysis is discarded and you receive the delegating agent's diagnosis
+instead.
+
+The analysis is advice until you act on it. Nothing is imported or restarted on its
+own, and you still choose an option on the decision task. When it proposes a split,
+the task gains a sixth option, `apply the proposed split`. Choosing it makes the
+harness check the proposal again against the current state (ids still new, anchors
+valid, models still available), then create the parts, point the issues that
+depended on the original at all of the parts, and cancel the original. If the check
+fails now, you get a new decision task that says why. Parts carry the models the
+analyst chose for them, and the original's own models are not copied. The analysis
+costs one strong-model call and does not use the strong implementation-attempt
+budget. It is skipped when the budget is zero, the runtime offers no approved
+strong model, or model routing is unavailable.
 
 ## One-time setup
 
@@ -139,7 +222,7 @@ harness status --json             # the same, machine-readable
 harness issue p1-stars-animation  # everything about one issue: scope, attempts, evidence, history (add --json)
 ```
 
-Reading `status`: `Ready` waits to start, `In Progress` has a worker, `In Review` has a pull request awaiting review or merge, `Blocked` needs a dependency or a human task, `Done` is merged and checked on `main`. The `worker` lines show who is running and for how long. Token and cost figures show as unavailable, because the runtime does not report them.
+Reading `status`: `Ready` waits to start, `In Progress` has a worker, `In Review` has a pull request awaiting review or merge, `Blocked` needs a dependency or a human task, `Done` is merged and checked on `main`, and `Cancelled` was dropped by you or replaced by a split. The `worker` lines show who is running and for how long. Token and cost figures are estimates and are labeled by source, see [Token and cost estimates](#token-and-cost-estimates).
 
 **Local dashboard**
 
@@ -203,6 +286,24 @@ Restart the run after you change harness code, because a running process keeps i
 
 **Rehearse without side effects.** `run --dry-run` uses real workers, checks, and reviews but only records pull requests and merges. It works on a throwaway copy of your state (the path is printed; watch it with `harness --home THAT_PATH status`), so your real plan is untouched. It costs the same AI usage as a real run, so use it only if you want a safety net.
 
+### Token and cost estimates
+
+The runtime reports no token or cost data, so the harness records estimates and labels each one by where it came from:
+
+* An agent estimate: every worker, including the investigator, adds a rough `usage_estimate` of the tokens it read and wrote. It is the agent's own unverified account, and a malformed one is ignored.
+* Size only: the harness counts the prompt and task file it sent and the result it got back. This is a lower bound, because it cannot see the files the agent read.
+* Runtime lines: output lines that mention tokens, usage, or premium requests are kept as text with the attempt (see `harness issue ID --json`). The format is unverified and a worker writes to the same stream, so they are stored but not parsed.
+
+An attempt's figure is its agent estimate when it gave one, otherwise the size-only lower bound. Failed attempts count too. `harness status` shows totals for the plan and for each model, `harness issue` shows each attempt, and the dashboard footer and attempts table show the same. The figures never limit anything: budgets still use attempts, wall-clock time, and pull requests.
+
+The harness cannot know your prices, so cost stays unavailable until you add `model-prices.json` to the store folder:
+
+```json
+{"unit": "USD", "models": {"claude-haiku-4.5": {"per_million_input": 1.0, "per_million_output": 5.0}, "claude-sonnet-5": {"per_attempt": 1}}}
+```
+
+Each model takes `per_million_input`, `per_million_output`, and `per_attempt` (for request-based billing). Use your own numbers and unit. Models without a price are listed as unpriced and left out of the total, and an invalid file is reported and ignored.
+
 ## Human tasks and decisions
 
 The harness asks you things through tasks. `harness tasks` lists the open ones with everything you need, and `harness status` shows how many are waiting. Silence never counts as an answer: reminders go out after 24 hours (at most 3), and after 72 hours the secondary owner is notified.
@@ -214,7 +315,11 @@ The harness asks you things through tasks. `harness tasks` lists the open ones w
 | 1 | retry as is | The next step runs again with no changes. Use it when the cause looks like a fluke or a harness fault. |
 | 2 | give guidance and retry | Same, and your hint goes to the worker. |
 | 3 | refine the scope | The issue goes back to be re-planned. Use it when the issue itself is unclear or too big. |
-| 4 | cancel the issue | The issue is dropped. Work that depends on it will not run. |
+| 4 | cancel the issue | The issue is dropped, and so is every issue that depends on it, because they can no longer run. They show as `Cancelled`. |
+| 5 | extend retry budget and retry | One more attempt in the exhausted retry class, recorded as an override. |
+| 6 | apply the proposed split | Offered only when the strong analysis proposed a split. Replaces the issue with the proposed ones. |
+
+A phase whose issues are all finished or cancelled, but whose requirements are not all covered by a finished issue, cannot complete. The plan pauses and says which requirements are uncovered. Import issues that cover them with `import-issues`, then `resume`.
 
 ```sh
 harness respond TASK_ID --option 1
@@ -271,9 +376,9 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 
 `investigate` details: answer prompts with a number to pick an option, with text, with Enter to let the investigator decide, or `quit` to stop (your answers are saved). Without a terminal use `--non-interactive`, put answers in a JSON file like `{"q1": "web only"}`, and rerun with `--answers FILE`. A rejected draft is retried with the problems and a stronger model. `--feedback` revises your existing draft, treats your feedback as authoritative, keeps the old version in `history/rev-N/`, and never replaces your draft with an invalid one.
 
-**Issue file format** for `import-issues`: a list of objects with `issue_id`, `phase_id`, `requirement_ids`, `outcomes`, `acceptance_criteria`, `non_goals`, `code_anchors`, and optionally `title`, `contract_paths`, `deps`, `validation_commands`, `parallel_safe`. The investigator writes these for you.
+**Issue file format** for `import-issues`: a list of objects with `issue_id`, `phase_id`, `requirement_ids`, `outcomes`, `acceptance_criteria`, `non_goals`, `code_anchors`, and optionally `title`, `contract_paths`, `deps`, `validation_commands`, `parallel_safe`, `model_choices`. The investigator writes these for you, including concrete models and reasons for `implementer`, `reviewer`, and `refiner`. Older issue files may omit `model_choices`.
 
-**Defaults** (all part of the approved plan): 2 workers at once, only for issues marked parallel-safe (otherwise one at a time); 2 automatic repair attempts and 3 transient retries per issue; 30 minute worker limit and 10 minute inactivity limit; 8 hour run limit; 20 pull requests per run; at most 1 strong-tier attempt per issue; autonomous merge only when every gate passes and no escalation path is touched.
+**Defaults** (all part of the approved plan): 2 workers at once, only for issues marked parallel-safe (otherwise one at a time); 2 automatic repair attempts and 3 transient retries per issue; 30 minute worker limit and 10 minute inactivity limit; 8 hour run limit; 20 pull requests per run; at most 1 strong-tier implementation attempt per issue; at most 1 delegating-agent consultation per issue; autonomous merge only when every gate passes and no escalation path is touched.
 
 **Merge gates** (code checks all of these): approval digest valid, checks passed on the current head and base, independent review approved for that head, changes only inside the phase path allowlist, no escalation paths touched, diff under the size cap, and, where required, a passing manual test. Escalation paths always need a human: workflow files, the harness itself (`tools/harness/`, `docs/harness/`, `.github/`), dependency manifests (including nested `package.json` and lockfiles), Android build and permission files, infrastructure, and migrations.
 
@@ -284,6 +389,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | All state (plans, issues, attempts, evidence, tasks, journal, events) | `~/.local/state/derschweigert-harness/harness.sqlite` (read with `status` and `issue`; do not edit by hand) |
 | Approval signing key, tokens, sandbox attestation, model cache | the same folder: `approval.key`, `broker.token`, `copilot.token`, `isolation.json`, `models.json` |
 | The harness's own copy of the repository | `~/.local/state/derschweigert-harness/trusted-clone.git` (a bare clone; worker branches are inspected here) |
+| Proposed splits from the strong analysis, and your optional price file | `analyses/` and `model-prices.json` in the same folder |
 | Rehearsal copies of your state | `~/.local/state/derschweigert-harness/rehearsal-<time>/` (safe to delete) |
 | Output from GUI-launched coordinators | `gui-runners/` inside the selected state folder; private per-launch log files |
 | Throwaway worker folders | `~/.local/share/derschweigert-harness-work/` (cleaned automatically) |
@@ -332,7 +438,7 @@ What is not, honestly:
 * Blender runs on your machine, not in the sandbox. Host execution refuses scripts unless trusted code explicitly allowlists the exact reviewed script through `BlenderCli(reviewed_scripts=...)`. Worker requests cannot grant that permission. The blocklist remains defense in depth, not isolation; prefer submitting the generated asset through a human task.
 * The individual work issues are not mirrored to GitHub: they exist only in the harness store, so use `status` and the pull requests for progress. GitHub Project fields are not synced.
 * If a person merges a harness pull request on GitHub, the harness does not notice.
-* Token and cost usage per attempt is unavailable, because the runtime reports none.
+* Token and cost figures are estimates. The runtime reports no usage, so each attempt records the agent's own estimate and a lower bound from prompt and file sizes. `status`, `issue`, and the dashboard label every figure by source, and nothing enforces them. Cost appears only if you add prices.
 * The local dashboard is not a remote administration service. It has no separate user authentication, persistent process registry, or cross-dashboard singleton lock.
 * Phase-wide exit checks run only when a phase is validated. Each issue is checked with its own commands.
 

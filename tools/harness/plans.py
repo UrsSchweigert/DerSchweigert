@@ -23,7 +23,8 @@ DEFAULT_POLICY: Dict[str, Any] = {
     ],
     "merge_policy": "autonomous-when-all-gates-pass",
     "budgets": {
-        "concurrent_workers": 2, "repair_attempts": 2, "strong_attempts_per_issue": 1, "transient_retries": 3,
+        "concurrent_workers": 2, "repair_attempts": 2, "strong_attempts_per_issue": 1, "transient_retries": 3, "delegator_consults_per_issue": 1,
+        "analyses_per_issue": 1,
         "worker_timeout_s": 1800, "inactivity_timeout_s": 600, "heartbeat_s": 30, "lease_s": 90,
         "run_wall_clock_s": 28800, "pull_requests_per_run": 20, "github_write_retries": 5,
         "human_reminder_after_s": 86400, "human_reminders_max": 3, "human_escalation_after_s": 259200,

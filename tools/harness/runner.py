@@ -9,7 +9,7 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
-from . import approval, plans, schemas
+from . import approval, models, plans, schemas
 import sys
 
 from .adapter import CopilotCliAdapter
@@ -25,7 +25,7 @@ MODEL_CACHE_TTL_S = 24 * 3600
 ISSUE_SCHEMA = {
     "issue_id": str, "phase_id": str, "requirement_ids": [str], "title?": str, "outcomes": [str], "acceptance_criteria": [str],
     "non_goals": [str], "code_anchors": [str], "contract_paths?": [str], "deps?": [str], "validation_commands?": [str],
-    "working_directory?": str, "parallel_safe?": bool,
+    "working_directory?": str, "parallel_safe?": bool, "model_choices?": schemas.MODEL_CHOICES,
 }
 
 
@@ -46,6 +46,12 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
     added = []
     for doc in docs:
         schemas.validate(doc, ISSUE_SCHEMA, "issue")
+        for role, choice in doc.get("model_choices", {}).items():
+            try:
+                models.resolve_choice(choice, plan["policy"]["model_tiers"], None,
+                                      strong_budget=plan["policy"]["budgets"]["strong_attempts_per_issue"] if role == "implementer" else 1)
+            except ValueError as exc:
+                raise RunRefused("issue %s %s model choice: %s" % (doc["issue_id"], role, exc)) from exc
         working_directory = doc.get("working_directory", ".")
         if (not working_directory or os.path.isabs(working_directory) or "\\" in working_directory
                 or ".." in working_directory.split("/")):
@@ -60,7 +66,7 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         if store.get_issue(doc["issue_id"]):
             continue
         extra = {k: doc[k] for k in ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
-                                      "validation_commands", "working_directory", "parallel_safe") if k in doc}
+                                      "validation_commands", "working_directory", "parallel_safe", "model_choices") if k in doc}
         store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev, **extra))
         for state in ("Refining", "Ready"):
             store.transition("issue", doc["issue_id"], state, "import")

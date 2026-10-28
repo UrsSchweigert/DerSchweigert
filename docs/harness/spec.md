@@ -231,7 +231,7 @@ Model choice is an execution-policy setting, so the approval digest covers it. P
 * Route to a cheaper tier only when the task packet is small, bounded, and its output is schema-validated.
 * Record the model and tier for every attempt in the journal.
 * When the runtime has no model routing, run every role on the single available model, record "model routing unavailable" in `docs/harness/decisions.md`, and show it in `status`. Do not pretend the tiers apply.
-* Report usage per role and per tier where the runtime supplies it. Label it unavailable otherwise and never estimate it.
+* Report usage per role and per tier where the runtime supplies it. Where it does not, record estimates, label each by its source (an agent's own estimate, or a size-based lower bound), never use them for limits, and show cost only from prices the owner supplies.
 
 ## Human Tasks and Manual Testing
 
@@ -311,7 +311,7 @@ The interface shows:
 * Each worker's role, issue, run ID, branch, revision, elapsed time, retry count, last activity, and latest outcome
 * Runner health, heartbeats, expired leases, pending synchronization, failures, validation evidence, review state, and integration state
 * Human requests, owners, age, deadlines, and affected work
-* Actual usage and costs where available, configured budgets, and remaining allowance. Label unavailable metrics as unavailable and never invent token counts or prices.
+* Actual usage and costs where available, configured budgets, and remaining allowance. Label unavailable metrics as unavailable, label estimates as estimates with their source, and never invent prices.
 
 Telemetry rules:
 

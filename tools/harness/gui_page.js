@@ -30,6 +30,12 @@
   }
   const shortened = value => value ? String(value).slice(0, 12) : "-";
   const formatTime = timestamp => timestamp ? new Date(timestamp * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit"}) : "-";
+  function tokensText(attempt) {
+    const estimate = attempt.usage?.agent_estimate || attempt.usage?.size_estimate;
+    if (!estimate) return "-";
+    const count = value => value >= 1e6 ? (value / 1e6).toFixed(1) + "M" : value >= 1e3 ? (value / 1e3).toFixed(1) + "k" : String(value);
+    return `~${count(estimate.input_tokens)} in / ~${count(estimate.output_tokens)} out (${attempt.usage.agent_estimate ? "agent estimate" : "size only"})`;
+  }
   function duration(seconds) {
     if (seconds === null || seconds === undefined || !Number.isFinite(Number(seconds))) return "-";
     const value = Math.max(0, Math.round(seconds));
@@ -106,6 +112,8 @@
     byId("mode-badge").hidden = !snapshot.read_only; byId("issue-count").textContent = issues.length;
     byId("task-count").textContent = tasks.length; byId("task-count").hidden = !tasks.length;
     byId("updated-time").textContent = "Updated " + formatTime(snapshot.now);
+    const total = snapshot.usage_detail?.total, measured = total && total.counts.agent_estimate + total.counts.size_estimate > 0;
+    byId("usage-note").textContent = "Tokens and cost: " + (measured ? snapshot.usage : "unavailable"); byId("usage-note").title = snapshot.usage || "";
     const failedRun = snapshot.managed_runs.find(job => job.plan_id === selectedPlan && !job.running && job.exit_code !== 0);
     const notice = plan?.paused_reason && plan.state === "Paused" ? plan.paused_reason : plan?.cancel_requested && plan.state === "Executing" ? "Cancellation requested; waiting for the runner to finish." : plan?.pause_requested ? "Pause requested; active execution is draining." : failedRun ? `Runner exited with code ${failedRun.exit_code}.` : "";
     byId("plan-notice").textContent = notice; byId("plan-notice").hidden = !notice;
@@ -201,6 +209,7 @@
       element("p", {}, task.why), element("p", {class: "muted"}, task.request), element("p", {class: "small muted"}, `Owner ${task.owner} / ${duration(task.age_s)} waiting / ${task.issue_ids.join(", ")}`));
     for (const failure of task.evidence || task.extra?.evidence || []) card.append(element("div", {class: "failure"}, `${failure.kind} (${failure.class}): ${failure.detail || ""}`));
     if (task.kind === "manual_test") card.append(element("details", {class: "evidence"}, element("summary", {}, "Test context"), element("pre", {class: "log"}, JSON.stringify(task.extra, null, 2))));
+    if (task.extra?.analysis) card.append(element("details", {class: "evidence", open: ""}, element("summary", {}, "Strong analysis"), element("pre", {class: "log"}, JSON.stringify(task.extra.analysis, null, 2))));
     const form = element("form"), known = new Set(), add = (name, label, options = {}) => {
       known.add(name);
       const input = options.multiline ? element("textarea", {name, rows: 3, required: options.required}) : element("input", {name, type: "text", required: options.required});
@@ -294,7 +303,7 @@
       children.push(element("h3", {}, "Evidence"));
       if (!detail.evidence.length) children.push(element("p", {class: "muted"}, "No evidence."));
       for (const evidence of detail.evidence.slice().reverse()) children.push(element("details", {class: "evidence"}, element("summary", {}, element("strong", {}, evidence.kind), badge(evidence.verdict), element("span", {class: "mono muted"}, shortened(evidence.head_rev)), badge(evidence.valid ? "Current" : "Invalidated", evidence.valid ? "" : "warning")), element("pre", {class: "log"}, JSON.stringify(evidence.detail, null, 2))));
-      if (detail.attempts.length) children.push(element("h3", {}, "Attempts"), table(["Attempt", "Role", "Model", "Outcome"], detail.attempts.map(attempt => element("tr", {}, element("td", {}, attempt.attempt_id), element("td", {}, attempt.role), element("td", {}, attempt.model || attempt.tier || "-"), element("td", {}, badge(attempt.outcome || "Running"))))));
+      if (detail.attempts.length) children.push(element("h3", {}, "Attempts"), table(["Attempt", "Role", "Model", "Outcome", "Est. tokens"], detail.attempts.map(attempt => element("tr", {}, element("td", {}, attempt.attempt_id), element("td", {}, attempt.role), element("td", {}, attempt.model || attempt.tier || "-"), element("td", {}, badge(attempt.outcome || "Running")), element("td", {class: "small muted"}, tokensText(attempt))))));
       if (detail.human_tasks.length) children.push(element("h3", {}, "Human tasks"), element("ul", {}, detail.human_tasks.map(task => element("li", {}, task.task_id + " / " + task.state + ": " + task.why))));
       if (detail.journal.length) children.push(element("h3", {}, "History"), element("ul", {}, detail.journal.map(entry => element("li", {}, `${formatTime(entry.ts)} / ${entry.from_state || "New"} -> ${entry.to_state} / ${entry.actor}`))));
       fill("issue-detail", children); icons();

@@ -181,7 +181,7 @@ def test_decision_options_resume_the_right_work(tmp_path):
     assert env.store.get_issue("a")["guidance"] == ["use the helper"]
     make_task(env, task_id="t-c", issue="c")
     respond(env, task_id="t-c", answers={"option": "cancel the issue"})
-    assert env.state("c") == "Blocked" and env.store.get_issue("c")["cancelled"] is True
+    assert env.state("c") == "Cancelled" and env.store.get_issue("c")["cancelled"] is True
 
 
 def test_cancelled_issue_does_not_get_a_replacement_task(tmp_path):

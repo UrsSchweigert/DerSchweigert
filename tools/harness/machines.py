@@ -28,12 +28,13 @@ MACHINES = {
     },
     "issue": {
         "Inbox": {"Refining"},
-        "Refining": {"Ready", "Blocked"},
-        "Ready": {"In Progress", "Refining", "Blocked"},
+        "Refining": {"Ready", "Blocked", "Cancelled"},
+        "Ready": {"In Progress", "Refining", "Blocked", "Cancelled"},
         "In Progress": {"In Review", "Ready", "Blocked"},
         "In Review": {"In Progress", "Done", "Blocked"},
-        "Blocked": {"Refining", "Ready"},
+        "Blocked": {"Refining", "Ready", "Cancelled"},
         "Done": set(),
+        "Cancelled": set(),
     },
     "human_task": {
         "Requested": {"Acknowledged", "Submitted", "Cancelled"},

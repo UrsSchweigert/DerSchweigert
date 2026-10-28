@@ -48,6 +48,16 @@ def validate(doc: Any, schema: Dict[str, Any], name: str = "document") -> Any:
 
 REQUIREMENT = {"id": str, "title": str, "source": str}
 
+MODEL_CHOICE = {"model": str, "reason": str}
+MODEL_CHOICES = {"implementer?": MODEL_CHOICE, "reviewer?": MODEL_CHOICE, "refiner?": MODEL_CHOICE}
+DELEGATOR_DECISION = {"action": ("retry", "ask_owner"), "diagnosis": str, "guidance?": str, "model_choice?": MODEL_CHOICE}
+SPLIT_ISSUE = {
+    "issue_id": str, "requirement_ids": [str], "title": str, "outcomes": [str], "acceptance_criteria": [str], "non_goals": [str],
+    "code_anchors": [str], "contract_paths?": [str], "deps?": [str], "validation_commands?": [str], "working_directory?": str,
+    "parallel_safe?": bool, "model_choices?": MODEL_CHOICES,
+}
+ANALYSIS = {"root_cause": str, "recommendation": ("split", "retry", "needs_owner"), "split?": [SPLIT_ISSUE], "guidance?": str, "questions?": [str]}
+
 PHASE = {
     "id": str,
     "outcomes": [str],
@@ -84,7 +94,7 @@ TASK_PACKET = {
     "issue_id": str,
     "phase_id": str,
     "requirement_ids": [str],
-    "role": ("investigator", "refiner", "implementer", "reviewer", "integrator"),
+    "role": ("investigator", "refiner", "implementer", "reviewer", "integrator", "delegator", "analyst"),
     "tier": ("low", "standard", "strong"),
     "outcomes": [str],
     "acceptance_criteria": [str],
@@ -118,6 +128,9 @@ WORKER_RESULT = {
     "risks": [str],
     "blockers": [str],
     "next_action": str,
+    "decision?": DELEGATOR_DECISION,
+    "analysis?": ANALYSIS,
+    "usage_estimate?": dict,
 }
 
 APPROVAL_RECORD = {

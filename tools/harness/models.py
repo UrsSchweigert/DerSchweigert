@@ -1,10 +1,13 @@
-"""Model routing: tier per role, evidence-only escalation, independent reviewer, and the no-routing fallback."""
+"""Delegated model choices, bounded legacy routing, and independent review."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from . import schemas
+
 TIERS = ("low", "standard", "strong")
-ROLE_TIER = {"investigator": "low", "refiner": "low", "implementer": "low", "reviewer": "standard", "integrator": "low"}
+ROLE_TIER = {"investigator": "low", "refiner": "low", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
+             "analyst": "strong"}
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
 
 
@@ -48,6 +51,58 @@ def accept_tier_request(requested: str, current: str, *, previous_failure_kind: 
 def _candidates(tier: str, policy_tiers: Dict[str, Any]) -> List[str]:
     value = policy_tiers.get(tier, [])
     return [value] if isinstance(value, str) else list(value)
+
+
+def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], available: list[str] | None,
+                   avoid: str | None = None, *, strong_used: int = 0, strong_budget: int = 1) -> dict[str, Any]:
+    """Validate a delegator's concrete model choice without substituting a role default."""
+    schemas.validate(choice, schemas.MODEL_CHOICE, "model_choice")
+    reason = choice["reason"].strip()
+    if not reason or len(reason) > 2000:
+        raise ValueError("model choice needs a non-empty reason under 2000 characters")
+    selected = choice["model"]
+    tier = next((band for band in TIERS if selected in _candidates(band, policy_tiers)), None)
+    if tier is None:
+        raise ValueError("model %r is not configured in the approved policy" % selected)
+    if tier == "strong" and strong_used >= strong_budget:
+        raise ValueError("strong attempt budget exhausted")
+    note = "delegator chose %s: %s" % (selected, reason)
+    if available is None:
+        return {"model": None, "tier": tier, "routing": False,
+                "note": note + "; model routing unavailable: runtime default model used"}
+    if selected not in available:
+        raise ValueError("selected model %r is not available" % selected)
+    if selected == avoid:
+        alternatives = {model for band in TIERS for model in _candidates(band, policy_tiers)
+                        if model in available and model != avoid}
+        if alternatives:
+            raise ValueError("reviewer must use an independent model when one is available")
+        note += "; reviewer shares the implementer's model: no different model available"
+    return {"model": selected, "tier": tier, "routing": True, "note": note}
+
+
+def available_in_tier(tier: str, policy_tiers: dict[str, Any], available: list[str] | None) -> list[str]:
+    """Approved models of one tier that the runtime offers. Empty when model routing is unavailable."""
+    return [m for m in _candidates(tier, policy_tiers) if available is not None and m in available]
+
+
+def model_options(policy_tiers: dict[str, Any], available: list[str] | None) -> list[dict[str, str]]:
+    """Expose probed models and approved relative cost bands to the delegator."""
+    return [{"model": candidate, "relative_cost": band} for band in TIERS
+            for candidate in _candidates(band, policy_tiers) if available is not None and candidate in available]
+
+
+def validate_choices(choices: dict[str, Any], policy_tiers: dict[str, Any], available: list[str] | None,
+                     *, strong_budget: int = 1, require: bool = False) -> None:
+    """Check a task's delegation decisions against the model menu and implementation budget."""
+    schemas.validate(choices, schemas.MODEL_CHOICES, "model_choices")
+    if require and available is not None:
+        missing = {"implementer", "reviewer", "refiner"} - set(choices)
+        if missing:
+            raise ValueError("model_choices missing decisions for %s" % ", ".join(sorted(missing)))
+    for role, choice in choices.items():
+        avoid = choices.get("implementer", {}).get("model") if role == "reviewer" else None
+        resolve_choice(choice, policy_tiers, available, avoid, strong_budget=strong_budget if role == "implementer" else 1)
 
 
 def resolve_model(tier: str, policy_tiers: Dict[str, Any], available: Optional[List[str]], avoid: Optional[str] = None) -> Dict[str, Any]:
