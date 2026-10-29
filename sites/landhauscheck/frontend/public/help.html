@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hilfe – Landhauscheck</title>
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue-deep:    #0D47A1;
+      --blue-royal:   #1565C0;
+      --blue-bright:  #29B6F6;
+      --glass-bg:     rgba(255,255,255,0.13);
+      --glass-border: rgba(255,255,255,0.24);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      min-height: 100dvh;
+      background: transparent;
+      color: #fff;
+      padding: 1.5rem;
+      padding-bottom: 3rem;
+    }
+    /* Fixed gradient in ::before so backdrop-filter composites correctly on iOS/Safari */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background:
+        radial-gradient(ellipse at 15% 15%, var(--blue-bright) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 85%, #0A257A   0%, transparent 50%),
+        radial-gradient(ellipse at 85% 15%, var(--blue-bright) 0%, transparent 45%),
+        radial-gradient(ellipse at 15% 85%, var(--blue-deep)   0%, transparent 45%)
+        #d0e4f7;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      margin-bottom: 1.75rem;
+      flex-wrap: wrap;
+    }
+    .logo {
+      width: 2.8rem;
+      height: 2.8rem;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      flex: 1;
+      min-width: 0;
+    }
+    header h1 span { opacity: 0.65; font-weight: 400; }
+
+    .headerActions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .back {
+      color: rgba(255,255,255,0.85);
+      text-decoration: none;
+      font-size: 0.83rem;
+      padding: 0.42rem 0.85rem;
+      border-radius: 10px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .back:hover { background: rgba(255,255,255,0.22); }
+
+    /* ── Language switcher ───────────────────────────────────────────────── */
+    .langSwitcher {
+      display: flex;
+      gap: 0.2rem;
+    }
+    .langSwitcher button {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 7px;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.42rem;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: background 0.15s, color 0.15s;
+    }
+    .langSwitcher button.active,
+    .langSwitcher button:hover {
+      background: rgba(255,255,255,0.28);
+      color: #fff;
+    }
+
+    /* ── Sections ────────────────────────────────────────────────────────── */
+    .sections {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    .section {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 18px;
+      padding: 1.2rem 1.3rem;
+    }
+
+    .section__icon {
+      font-size: 1.65rem;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+      user-select: none;
+    }
+
+    .section__content { flex: 1; min-width: 0; }
+
+    .section__title {
+      font-size: 0.97rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      letter-spacing: -0.01em;
+    }
+
+    .section__body {
+      font-size: 0.84rem;
+      line-height: 1.65;
+      color: rgba(255,255,255,0.82);
+    }
+
+    .section__body ul {
+      padding-left: 1.1rem;
+      margin-top: 0.3rem;
+    }
+    .section__body li { margin-bottom: 0.2rem; }
+
+    .section__body a {
+      color: #90CAF9;
+      text-decoration: none;
+    }
+    .section__body a:hover { text-decoration: underline; }
+
+    .section__body .tip {
+      display: flex;
+      align-items: baseline;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+      font-size: 0.79rem;
+      color: rgba(255,255,255,0.58);
+      font-style: italic;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.72rem;
+      opacity: 0.42;
+    }
+    footer a { color: inherit; }
+
+    @media (max-width: 520px) {
+      body { padding: 0.75rem; padding-bottom: 2.5rem; }
+      .section { padding: 1rem 1rem; border-radius: 14px; }
+      .section__icon { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img class="logo" src="/logo.png" alt="Landhauscheck">
+    <h1>Landhauscheck <span id="hdr-sub">· Hilfe</span></h1>
+    <div class="headerActions">
+      <div class="langSwitcher">
+        <button onclick="switchLang('de')" data-lang="de">DE</button>
+        <button onclick="switchLang('en')" data-lang="en">EN</button>
+        <button onclick="switchLang('pt')" data-lang="pt">PT</button>
+      </div>
+      <a class="back" href="/" id="back-link">← Zurück</a>
+    </div>
+  </header>
+
+  <div class="sections" id="sections" aria-live="polite"></div>
+
+  <footer>
+    landhauscheck.com ·
+    <a href="/impressum.html" id="ft-impressum">Impressum</a> ·
+    <a href="/datenschutz.html" id="ft-datenschutz">Datenschutz</a>
+  </footer>
+
+  <script>
+  'use strict';
+
+  // ⚠️  i18n: Keep all three language blocks in sync when making text changes.
+  var dict = {
+    de: {
+      hdrSub:       '· Hilfe',
+      back:         '← Zurück',
+      impressum:    'Impressum',
+      datenschutz:  'Datenschutz',
+      sections: [
+        {
+          icon: '📡',
+          title: 'Standort einstellen',
+          body: 'Landhauscheck verwendet deinen Standort, um lokale Echtzeit-Daten zu laden. Du hast zwei Möglichkeiten:' +
+                '<ul>' +
+                  '<li><strong>GPS:</strong> Tippe auf „Standort automatisch ermitteln". Der Browser fragt einmalig nach der Erlaubnis.</li>' +
+                  '<li><strong>Manuell:</strong> Gib eine Adresse, Stadt oder Postleitzahl ein und wähle ein Ergebnis aus der Liste.</li>' +
+                '</ul>' +
+                '<div class="tip">💡 Den Standort jederzeit über 📍 im App-Footer oder über „Standort ändern" in der Diagnose-Konsole neu setzen.</div>'
+        },
+        {
+          icon: '🕐',
+          title: 'Uhr & Wetter',
+          body: 'Das Uhr-Widget zeigt die aktuelle Uhrzeit, eine <strong>5-Stunden-Wettervorhersage</strong> (Temperatur, Niederschlag, Wind) und die aktuelle <strong>Mondphase</strong>.' +
+                '<div class="tip">💡 Auf die Uhr tippen öffnet die Diagnose-Konsole mit System- und Standortinfos.</div>'
+        },
+        {
+          icon: '🚦',
+          title: 'Verkehrskarte',
+          body: 'Die Karte zeigt Echtzeit-Staus in deiner Umgebung. Über die Symbol-Tabs oben wechselst du zu weiteren Inhalten:' +
+                '<ul>' +
+                  '<li><strong>⛽ Tankstellen:</strong> Die 4 günstigsten Zapfsäulen (Diesel & E10) in der Nähe – Preise nur in Deutschland via Tankerkönig. Außerhalb von Deutschland werden Tankstellen ohne Preise angezeigt.</li>' +
+                  '<li><strong>⚡ E-Ladestationen:</strong> Nächste Elektro-Ladepunkte weltweit via Google Places.</li>' +
+                  '<li><strong>🚻 Toiletten:</strong> Öffentliche WCs, Cafés, Restaurants und Tankstellen mit Toiletten in der Nähe.</li>' +
+                  '<li><strong>🏧 Geldautomaten:</strong> Nächste Geldautomaten weltweit.</li>' +
+                '</ul>' +
+                '<div class="tip">💡 Auf einen Eintrag tippen öffnet eine Routenberechnung (zu Fuß oder mit dem Auto).</div>'
+        },
+        {
+          icon: '🚌',
+          title: 'Busverbindungen',
+          body: 'Zeigt Bushaltestellen in deiner Nähe mit den <strong>nächsten Abfahrtszeiten in Echtzeit</strong> (via HERE Transit). Die Liste aktualisiert sich automatisch alle 30 Minuten.' +
+                '<div class="tip">💡 Auf eine Haltestelle tippen öffnet eine Karte mit Fußwegführung vom aktuellen Standort zur Haltestelle.</div>'
+        },
+        {
+          icon: '🚆',
+          title: 'Bahnhöfe',
+          body: 'Zeigt Bahnhöfe in der Nähe mit den nächsten Abfahrten (DB-Daten, monatlich aktualisiert). Für Standorte außerhalb Deutschlands wird auf Google Places zurückgegriffen.' +
+                '<div class="tip">💡 Auf einen Bahnhof tippen öffnet eine Karte mit Navigationsroute (Auto) vom aktuellen Standort zum Bahnhof.</div>'
+        },
+        {
+          icon: '📍',
+          title: 'Sehenswürdigkeiten & Orte',
+          body: 'Zeigt interessante <strong>Restaurants, Unterhaltungsangebote und Einkaufsmöglichkeiten</strong> in der Nähe (via Google Places). Die Liste aktualisiert sich alle 2 Stunden und ist bis zu 6 Monate auf dem Server zwischengespeichert.' +
+                '<div class="tip">💡 Auf einen Eintrag tippen öffnet eine Fußwegkarte zum jeweiligen Ort.</div>'
+        },
+        {
+          icon: '🗑️',
+          title: 'Abfallkalender',
+          body: 'Zeigt die nächsten Abholtermine für Restmüll, Bioabfall, Papier und Wertstoffe für deinen Standort basierend auf ICS-Kalenderdateien.' +
+                '<br><br>Gibt es noch <strong>keinen Kalender für deinen Standort</strong>? Du kannst über den Upload-Button in der Widget-Ecke eine eigene ICS-Datei beisteuern. Die Datei wird automatisch geprüft und nach Freigabe in die App aufgenommen.' +
+                '<div class="tip">💡 ICS-Kalender für deinen Ort bekommst du häufig direkt beim Landkreis oder der zuständigen Entsorgungsgesellschaft.</div>'
+        },
+        {
+          icon: '🔔',
+          title: 'Abfall-Erinnerungen',
+          body: 'Aktiviere Abfall-Erinnerungen über das 🔔-Symbol im App-Footer. Landhauscheck erinnert dich um <strong>17:00 Uhr</strong> (erste Meldung) und um <strong>20:00 Uhr</strong> (Erinnerung), wenn am nächsten Tag eine Abholung für deinen Standort geplant ist.' +
+                '<br><br><strong>Android (Chrome/Edge):</strong>' +
+                '<ol>' +
+                  '<li>Tippe auf 🔔 im Footer und erlaube Benachrichtigungen.</li>' +
+                  '<li>Fertig – Benachrichtigungen funktionieren auch wenn die Seite geschlossen ist.</li>' +
+                '</ol>' +
+                '<strong>iPhone / iPad (iOS 16.4+):</strong>' +
+                '<ol>' +
+                  '<li>Öffne Landhauscheck in <strong>Safari</strong> und füge sie zum Home-Bildschirm hinzu (Teilen-Symbol → „Zum Home-Bildschirm").</li>' +
+                  '<li>Öffne die App vom Home-Bildschirm, tippe auf 🔔 und erlaube Benachrichtigungen.</li>' +
+                  '<li>Tippe direkt danach auf das 📅-Symbol im Footer – Landhauscheck fügt alle Abholtermine in deinen Kalender ein.</li>' +
+                  '<li>iOS erinnert dich künftig automatisch um <strong>17:00 Uhr</strong> per Kalender-Benachrichtigung – unabhängig davon ob die App geöffnet ist.</li>' +
+                '</ol>' +
+                '<div class="tip">💡 Auf iOS senden In-App-Benachrichtigungen nur wenn die App um 17:00/20:00 geöffnet ist. Der Kalender-Import (📅) ist die zuverlässige Alternative: native iOS-Benachrichtigungen, immer pünktlich.</div>'
+        },
+        {
+          icon: '⚙️',
+          title: 'Sprache & Einstellungen',
+          body: 'Die App ist auf <strong>Deutsch, Englisch und Português</strong> verfügbar. Wechsle die Sprache über die Schaltflächen <strong>[DE | EN | PT]</strong> im App-Footer.' +
+                '<br><br>Für Nutzer in den <strong>USA</strong> werden Temperaturen in °F und Entfernungen in Meilen angezeigt – automatisch anhand des ermittelten Landes.' +
+                '<div class="tip">💡 Den Standort jederzeit über 📍 im Footer zurücksetzen, um einen neuen Ort zu wählen.</div>'
+        },
+        {
+          icon: '🔒',
+          title: 'Datenschutz',
+          body: 'Dein Standort wird <strong>nicht gespeichert</strong>. Er wird bei jeder Anfrage an externe Dienste (Google Maps, HERE Technologies, Open-Meteo u.&thinsp;a.) übermittelt, um die jeweiligen Daten abzurufen. Es gibt kein Nutzer-Konto und kein Tracking über Sitzungen hinweg.' +
+                '<br><br>Details findest du in der <a href="/datenschutz.html">Datenschutzerklärung</a>.'
+        }
+      ]
+    },
+
+    en: {
+      hdrSub:       '· Help',
+      back:         '← Back',
+      impressum:    'Imprint',
+      datenschutz:  'Privacy',
+      sections: [
+        {
+          icon: '📡',
+          title: 'Setting your location',
+          body: 'Landhauscheck uses your location to load local real-time data. You have two options:' +
+                '<ul>' +
+                  '<li><strong>GPS:</strong> Tap "Detect location automatically". The browser asks for permission once.</li>' +
+                  '<li><strong>Manual:</strong> Enter an address, city or postcode and select a result from the list.</li>' +
+                '</ul>' +
+                '<div class="tip">💡 Change your location at any time via 📍 in the app footer or via "Change location" in the diagnostics console.</div>'
+        },
+        {
+          icon: '🕐',
+          title: 'Clock & Weather',
+          body: 'The clock widget shows the current time, a <strong>5-hour weather forecast</strong> (temperature, precipitation, wind) and the current <strong>moon phase</strong>.' +
+                '<div class="tip">💡 Tap the clock to open the diagnostics console with system and location details.</div>'
+        },
+        {
+          icon: '🚦',
+          title: 'Traffic map',
+          body: 'The map shows real-time traffic in your area. Switch between additional data using the icon tabs at the top:' +
+                '<ul>' +
+                  '<li><strong>⛽ Fuel stations:</strong> The 4 cheapest stations (diesel & petrol) nearby – prices only in Germany via Tankerkönig. Outside Germany, stations are shown without prices.</li>' +
+                  '<li><strong>⚡ EV chargers:</strong> Nearest electric charging points worldwide via Google Places.</li>' +
+                  '<li><strong>🚻 Restrooms:</strong> Public toilets, cafés, restaurants and petrol stations with restrooms nearby.</li>' +
+                  '<li><strong>🏧 ATMs:</strong> Nearest cash machines worldwide.</li>' +
+                '</ul>' +
+                '<div class="tip">💡 Tap any entry to open a route (walking or driving directions).</div>'
+        },
+        {
+          icon: '🚌',
+          title: 'Bus connections',
+          body: 'Shows bus stops near you with <strong>real-time departure times</strong> (via HERE Transit). The list refreshes automatically every 30 minutes.' +
+                '<div class="tip">💡 Tap a stop to open a map with walking directions from your location to the stop.</div>'
+        },
+        {
+          icon: '🚆',
+          title: 'Train stations',
+          body: 'Shows nearby train stations with the next departures (DB data, updated monthly). For locations outside Germany, Google Places is used as a fallback.' +
+                '<div class="tip">💡 Tap a station to open a map with driving directions from your location to the station.</div>'
+        },
+        {
+          icon: '📍',
+          title: 'Points of interest',
+          body: 'Shows nearby <strong>restaurants, entertainment and shopping</strong> (via Google Places). The list refreshes every 2 hours and is cached on the server for up to 6 months.' +
+                '<div class="tip">💡 Tap any entry to open a walking route to that place.</div>'
+        },
+        {
+          icon: '🗑️',
+          title: 'Waste calendar',
+          body: 'Shows the next collection dates for general waste, organic waste, paper and recyclables for your location based on ICS calendar files.' +
+                '<br><br>Is there <strong>no calendar for your location yet</strong>? Use the upload button in the widget corner to contribute your own ICS file. It will be automatically checked and included after review.' +
+                '<div class="tip">💡 ICS waste calendars are often available from your local council or waste management authority.</div>'
+        },
+        {
+          icon: '🔔',
+          title: 'Waste reminders',
+          body: 'Enable waste collection reminders via the 🔔 button in the app footer. Landhauscheck notifies you at <strong>17:00</strong> (first alert) and <strong>20:00</strong> (reminder) on days when a collection is scheduled for your location the next day.' +
+                '<br><br><strong>Android (Chrome / Edge):</strong>' +
+                '<ol>' +
+                  '<li>Tap 🔔 in the footer and allow notifications.</li>' +
+                  '<li>Done – notifications work even when the page is closed.</li>' +
+                '</ol>' +
+                '<strong>iPhone / iPad (iOS 16.4+):</strong>' +
+                '<ol>' +
+                  '<li>Open Landhauscheck in <strong>Safari</strong> and add it to your Home Screen (Share → "Add to Home Screen").</li>' +
+                  '<li>Open the app from the Home Screen, tap 🔔 and allow notifications.</li>' +
+                  '<li>Immediately after, tap the 📅 button in the footer – Landhauscheck adds all collection dates to your Calendar.</li>' +
+                  '<li>iOS will then remind you at <strong>17:00</strong> via a native Calendar alert – whether the app is open or not.</li>' +
+                '</ol>' +
+                '<div class="tip">💡 On iOS, in-app notifications only fire when the app is open at 17:00 / 20:00. The Calendar import (📅) is the reliable alternative: native iOS alerts, always on time.</div>'
+        },
+        {
+          icon: '⚙️',
+          title: 'Language & settings',
+          body: 'The app is available in <strong>German, English and Portuguese</strong>. Switch language using the <strong>[DE | EN | PT]</strong> buttons in the app footer.' +
+                '<br><br>For users in the <strong>USA</strong>, temperatures are shown in °F and distances in miles – automatically detected by country.' +
+                '<div class="tip">💡 Reset your location at any time via 📍 in the footer to pick a new place.</div>'
+        },
+        {
+          icon: '🔒',
+          title: 'Privacy',
+          body: 'Your location is <strong>not stored</strong>. It is sent with each request to external services (Google Maps, HERE Technologies, Open-Meteo etc.) to fetch the relevant data. There is no user account and no cross-session tracking.' +
+                '<br><br>Full details in the <a href="/datenschutz.html">Privacy Policy</a>.'
+        }
+      ]
+    },
+
+    pt: {
+      hdrSub:       '· Ajuda',
+      back:         '← Voltar',
+      impressum:    'Aviso Legal',
+      datenschutz:  'Privacidade',
+      sections: [
+        {
+          icon: '📡',
+          title: 'Definir a localização',
+          body: 'O Landhauscheck utiliza a sua localização para carregar dados locais em tempo real. Tem duas opções:' +
+                '<ul>' +
+                  '<li><strong>GPS:</strong> Toque em "Detectar localização automaticamente". O browser pede permissão uma única vez.</li>' +
+                  '<li><strong>Manual:</strong> Introduza um endereço, cidade ou código postal e seleccione um resultado da lista.</li>' +
+                '</ul>' +
+                '<div class="tip">💡 Altere a localização em qualquer altura através de 📍 no rodapé da app ou em "Alterar localização" na consola de diagnóstico.</div>'
+        },
+        {
+          icon: '🕐',
+          title: 'Relógio e tempo',
+          body: 'O widget do relógio mostra a hora actual, uma <strong>previsão meteorológica de 5 horas</strong> (temperatura, precipitação, vento) e a <strong>fase da lua</strong> actual.' +
+                '<div class="tip">💡 Toque no relógio para abrir a consola de diagnóstico com informações do sistema e localização.</div>'
+        },
+        {
+          icon: '🚦',
+          title: 'Mapa de tráfego',
+          body: 'O mapa mostra o tráfego em tempo real na sua área. Alterne entre dados adicionais com os separadores de ícones no topo:' +
+                '<ul>' +
+                  '<li><strong>⛽ Postos de combustível:</strong> Os 4 postos mais baratos (gasóleo e gasolina) – preços apenas na Alemanha via Tankerkönig. Fora da Alemanha, são mostrados os postos sem preços.</li>' +
+                  '<li><strong>⚡ Postos de carregamento:</strong> Pontos de carregamento eléctrico próximos em todo o mundo via Google Places.</li>' +
+                  '<li><strong>🚻 Casas de banho:</strong> Instalações sanitárias públicas, cafés, restaurantes e postos de combustível com WC próximos.</li>' +
+                  '<li><strong>🏧 Multibanco:</strong> Caixas automáticos próximos em todo o mundo.</li>' +
+                '</ul>' +
+                '<div class="tip">💡 Toque num item para abrir rotas (a pé ou de carro).</div>'
+        },
+        {
+          icon: '🚌',
+          title: 'Ligações de autocarro',
+          body: 'Mostra paragens de autocarro próximas com <strong>horários de partida em tempo real</strong> (via HERE Transit). A lista actualiza-se automaticamente de 30 em 30 minutos.' +
+                '<div class="tip">💡 Toque numa paragem para abrir um mapa com indicações a pé da sua localização até à paragem.</div>'
+        },
+        {
+          icon: '🚆',
+          title: 'Estações de comboio',
+          body: 'Mostra estações de comboio próximas com as próximas partidas (dados DB, actualizados mensalmente). Para localizações fora da Alemanha, é utilizado o Google Places como alternativa.' +
+                '<div class="tip">💡 Toque numa estação para abrir um mapa com indicações de condução da sua localização até à estação.</div>'
+        },
+        {
+          icon: '📍',
+          title: 'Pontos de interesse',
+          body: 'Mostra <strong>restaurantes, entretenimento e compras</strong> próximos (via Google Places). A lista actualiza-se a cada 2 horas e é guardada em cache no servidor até 6 meses.' +
+                '<div class="tip">💡 Toque num item para abrir uma rota a pé até ao local.</div>'
+        },
+        {
+          icon: '🗑️',
+          title: 'Calendário de resíduos',
+          body: 'Mostra as próximas datas de recolha de resíduos gerais, orgânicos, papel e recicláveis para a sua localização com base em ficheiros de calendário ICS.' +
+                '<br><br>Ainda <strong>não existe calendário para a sua localização</strong>? Utilize o botão de upload no canto do widget para contribuir com o seu próprio ficheiro ICS. Será verificado automaticamente e incluído após revisão.' +
+                '<div class="tip">💡 Os calendários ICS de resíduos estão frequentemente disponíveis na câmara municipal ou na entidade de gestão de resíduos local.</div>'
+        },
+        {
+          icon: '🔔',
+          title: 'Lembretes de recolha',
+          body: 'Active lembretes de recolha de resíduos através do botão 🔔 no rodapé da app. O Landhauscheck avisa-o às <strong>17:00</strong> (primeiro alerta) e às <strong>20:00</strong> (lembrete) quando há uma recolha programada para a sua localização no dia seguinte.' +
+                '<br><br><strong>Android (Chrome / Edge):</strong>' +
+                '<ol>' +
+                  '<li>Toque em 🔔 no rodapé e permita as notificações.</li>' +
+                  '<li>Pronto – as notificações funcionam mesmo com a página fechada.</li>' +
+                '</ol>' +
+                '<strong>iPhone / iPad (iOS 16.4+):</strong>' +
+                '<ol>' +
+                  '<li>Abra o Landhauscheck no <strong>Safari</strong> e adicione ao ecrã principal (Partilhar → "Adicionar ao ecrã principal").</li>' +
+                  '<li>Abra a app a partir do ecrã principal, toque em 🔔 e permita as notificações.</li>' +
+                  '<li>De seguida toque no botão 📅 no rodapé – o Landhauscheck adiciona todas as datas de recolha ao seu Calendário.</li>' +
+                  '<li>O iOS irá lembrá-lo às <strong>17:00</strong> com uma notificação nativa do Calendário – independentemente de a app estar aberta.</li>' +
+                '</ol>' +
+                '<div class="tip">💡 No iOS, as notificações da app só chegam quando a app está aberta às 17:00 / 20:00. A importação de Calendário (📅) é a alternativa fiável: alertas nativos do iOS, sempre a horas.</div>'
+        },
+        {
+          icon: '⚙️',
+          title: 'Idioma e definições',
+          body: 'A app está disponível em <strong>alemão, inglês e português</strong>. Mude o idioma com os botões <strong>[DE | EN | PT]</strong> no rodapé da app.' +
+                '<br><br>Para utilizadores nos <strong>EUA</strong>, as temperaturas são apresentadas em °F e as distâncias em milhas – detectadas automaticamente pelo país.' +
+                '<div class="tip">💡 Redefina a sua localização a qualquer momento através de 📍 no rodapé para escolher um novo local.</div>'
+        },
+        {
+          icon: '🔒',
+          title: 'Privacidade',
+          body: 'A sua localização <strong>não é guardada</strong>. É enviada com cada pedido a serviços externos (Google Maps, HERE Technologies, Open-Meteo, etc.) para obter os dados relevantes. Não existe conta de utilizador nem rastreio entre sessões.' +
+                '<br><br>Detalhes completos na <a href="/datenschutz.html">Política de Privacidade</a>.'
+        }
+      ]
+    }
+  };
+
+  function detectLang() {
+    var stored = localStorage.getItem('lhc_lang');
+    if (stored && dict[stored]) return stored;
+    var browser = (navigator.language || 'de').split('-')[0];
+    return dict[browser] ? browser : 'de';
+  }
+
+  var currentLang = detectLang();
+
+  function render(lang) {
+    var t = dict[lang] || dict.de;
+    document.documentElement.lang = lang;
+    document.title = 'Hilfe – Landhauscheck';
+
+    document.getElementById('hdr-sub').textContent   = t.hdrSub;
+    document.getElementById('back-link').textContent = t.back;
+    document.getElementById('ft-impressum').textContent  = t.impressum;
+    document.getElementById('ft-datenschutz').textContent = t.datenschutz;
+
+    document.querySelectorAll('.langSwitcher button').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
+    });
+
+    var container = document.getElementById('sections');
+    container.innerHTML = t.sections.map(function(s) {
+      return '<div class="section">' +
+               '<div class="section__icon">' + s.icon + '</div>' +
+               '<div class="section__content">' +
+                 '<div class="section__title">' + s.title + '</div>' +
+                 '<div class="section__body">' + s.body + '</div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+  }
+
+  function switchLang(lang) {
+    localStorage.setItem('lhc_lang', lang);
+    currentLang = lang;
+    render(lang);
+  }
+
+  render(currentLang);
+  </script>
+</body>
+</html>

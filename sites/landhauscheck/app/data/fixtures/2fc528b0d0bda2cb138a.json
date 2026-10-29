@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "url": "https://transit.router.hereapi.com/v8/stations?in=47.7632%2C8.8376%3Br%3D750&apikey=ki9Kf0W6jqbeZMi2H_nwREkLM39ay4bfQj1H4MEqT2o",
+    "method": "GET",
+    "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
+  },
+  "status": 200,
+  "body": {
+    "stations": [
+      {
+        "place": {
+          "name": "Singen (Htw), H.-Weber-Platz",
+          "type": "station",
+          "location": {
+            "lat": 47.762893,
+            "lng": 8.838327
+          },
+          "id": "55793_41265"
+        }
+      },
+      {
+        "place": {
+          "name": "Singen (Htw), T.-Hanloser-Str.",
+          "type": "station",
+          "location": {
+            "lat": 47.76296,
+            "lng": 8.836278
+          },
+          "id": "55793_46333"
+        }
+      },
+      {
+        "place": {
+          "name": "Singen Theodor-Hanloser-Str.",
+          "type": "station",
+          "location": {
+            "lat": 47.76296,
+            "lng": 8.836278
+          },
+          "id": "107634_569161"
+        }
+      },
+      {
+        "place": {
+          "name": "Singen Ekkehardschule",
+          "type": "station",
+          "location": {
+            "lat": 47.761913,
+            "lng": 8.836889
+          },
+          "id": "107634_568976"
+        }
+      },
+      {
+        "place": {
+          "name": "Singen (Htw), Ekkehardschule",
+          "type": "station",
+          "location": {
+            "lat": 47.761849,
+            "lng": 8.836916
+          },
+          "id": "55793_46296"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Impressum – Landhauscheck</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100dvh;display:grid;place-items:center;padding:1.5rem;
+      font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+      background:radial-gradient(ellipse 70% 60% at 15% 10%,#0D47A1 0%,transparent 60%),
+        radial-gradient(ellipse 60% 55% at 85% 90%,#1565C0 0%,transparent 60%),#d0e4f7;
+      color:#1c1c1e}
+    .card{width:100%;max-width:480px;background:rgba(255,255,255,.72);
+      backdrop-filter:blur(28px) saturate(1.8);border:1px solid rgba(255,255,255,.55);
+      border-radius:22px;padding:2rem 2.4rem;box-shadow:0 8px 40px rgba(13,71,161,.18)}
+    h1{font-size:1.4rem;font-weight:700;margin-bottom:1.2rem;color:#1c1c1e}
+    p,address{font-size:.93rem;line-height:1.7;color:#3a3a3c;font-style:normal}
+    .back{display:inline-block;margin-top:1.4rem;font-size:.88rem;color:#1565C0;text-decoration:none}
+    .langSwitcher{position:absolute;top:1.2rem;right:1.4rem;display:flex;gap:.25rem}
+    .langSwitcher button{background:none;border:1px solid rgba(21,101,192,.3);border-radius:5px;
+      color:#6e6e73;font-size:.68rem;font-weight:600;padding:.12rem .38rem;cursor:pointer;
+      letter-spacing:.04em;transition:color .15s,border-color .15s,background .15s}
+    .langSwitcher button:hover{color:#1565C0;border-color:#1565C0}
+    .langSwitcher button.active{color:#1565C0;border-color:#1565C0;background:rgba(21,101,192,.08)}
+    .card{position:relative}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <!-- ⚠️ i18n: update all 3 languages in the script below when changing any text -->
+    <div class="langSwitcher">
+      <button onclick="switchLang('de')" data-lang="de">DE</button>
+      <button onclick="switchLang('en')" data-lang="en">EN</button>
+      <button onclick="switchLang('pt')" data-lang="pt">PT</button>
+    </div>
+    <h1 data-i18n="title"></h1>
+    <address data-i18n="address"></address>
+    <a class="back" href="/" data-i18n="back"></a>
+  </div>
+  <script>
+    // ⚠️ i18n: keep all three language blocks in sync when making text changes
+    var dict = {
+      de: {
+        title: "Impressum",
+        address: "Urs Schweigert<br>Am Sonnenhang 12<br>85235 Pfaffenhofen an der Glonn<br>Deutschland<br><br>E-Mail: surf _ barber _ 0q (ät) icloud dot com",
+        back: "← Zurück"
+      },
+      en: {
+        title: "Imprint",
+        address: "Urs Schweigert<br>Am Sonnenhang 12<br>85235 Pfaffenhofen an der Glonn<br>Germany<br><br>E-Mail: surf _ barber _ 0q (at) icloud dot com",
+        back: "← Back"
+      },
+      pt: {
+        title: "Aviso Legal",
+        address: "Urs Schweigert<br>Am Sonnenhang 12<br>85235 Pfaffenhofen an der Glonn<br>Alemanha<br><br>E-Mail: surf _ barber _ 0q (em) icloud dot com",
+        back: "← Voltar"
+      }
+    };
+
+    function detectLang() {
+      var stored = localStorage.getItem("lhc_lang");
+      if (stored && dict[stored]) return stored;
+      var browser = (navigator.language || "de").split("-")[0];
+      return dict[browser] ? browser : "de";
+    }
+
+    function applyLang(lang) {
+      var t = dict[lang] || dict.de;
+      document.documentElement.lang = lang;
+      document.querySelectorAll("[data-i18n]").forEach(function(el) {
+        el.innerHTML = t[el.getAttribute("data-i18n")] || "";
+      });
+      document.querySelectorAll(".langSwitcher button").forEach(function(btn) {
+        btn.classList.toggle("active", btn.getAttribute("data-lang") === lang);
+      });
+      document.title = t.title + " – Landhauscheck";
+    }
+
+    function switchLang(lang) {
+      localStorage.setItem("lhc_lang", lang);
+      applyLang(lang);
+    }
+
+    applyLang(detectLang());
+  </script>
+</body>
+</html>

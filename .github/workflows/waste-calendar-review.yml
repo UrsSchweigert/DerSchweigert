@@ -1,0 +1,53 @@
+name: Waste Calendar Auto-Review
+
+# Triggered whenever a PR touches ICS files in the waste data directory.
+# Only runs for branches opened by the contribution endpoint (waste/*).
+# The review agent validates, normalises and—if all checks pass—merges the PR.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'sites/landhauscheck/app/data/waste/**.ics'
+
+permissions:
+  contents: write        # push normalisation commits back to the PR branch
+  pull-requests: write   # post reviews
+
+jobs:
+  review:
+    name: Review & auto-merge waste calendar
+    runs-on: ubuntu-latest
+
+    # Only act on the bot's own PR branches — human PRs go through normal review.
+    if: >
+      startsWith(github.head_ref, 'waste/contrib-') ||
+      startsWith(github.head_ref, 'waste/update-') ||
+      startsWith(github.head_ref, 'waste/expire-')
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          # Use the PAT so that pushes (normalisation commits) are allowed
+          # and the review/merge API calls carry full repo scope.
+          token: ${{ secrets.GH_WASTE_PAT }}
+          fetch-depth: 0    # need full history for git diff against base
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run review agent
+        id: review
+        env:
+          GH_TOKEN: ${{ secrets.GH_WASTE_PAT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        # Exit 0 = approved (and merged).  Exit 1 = changes requested.
+        # Exit 2 = script-level error (see logs).
+        run: python sites/landhauscheck/scripts/review_waste_pr.py

@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Landhauscheck · Statistiken</title>
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue-deep:   #0D47A1;
+      --blue-royal:  #1565C0;
+      --blue-bright: #29B6F6;
+      --glass-bg:    rgba(255,255,255,0.12);
+      --glass-border:rgba(255,255,255,0.22);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      min-height: 100dvh;
+      background:
+        radial-gradient(ellipse at 15% 15%, var(--blue-bright) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 85%, #0A257A 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 15%, var(--blue-bright) 0%, transparent 45%),
+        radial-gradient(ellipse at 15% 85%, var(--blue-deep) 0%, transparent 45%)
+        #d0e4f7;
+      color: #fff;
+      padding: 1.5rem;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+    }
+    .logo {
+      width: 3.2rem;
+      height: 3.2rem;
+      object-fit: contain;
+      mix-blend-mode: multiply;
+      filter: brightness(0) invert(1);
+    }
+    header h1 { font-size: 1.35rem; font-weight: 600; flex: 1; }
+    header h1 span { opacity: 0.7; font-weight: 400; }
+    .back {
+      color: rgba(255,255,255,0.85);
+      text-decoration: none;
+      font-size: 0.88rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 10px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(12px);
+      transition: background 0.15s;
+    }
+    .back:hover { background: rgba(255,255,255,0.22); }
+
+    /* ── Devmode badge ───────────────────────────────────────────────────── */
+    .devmode-badge {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      background: rgba(251, 191, 36, 0.18);
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      color: #fde68a;
+      border-radius: 10px;
+      padding: 0.35rem 0.75rem;
+      backdrop-filter: blur(12px);
+      white-space: nowrap;
+      order: 10;        /* push to new row */
+      flex-basis: 100%; /* full width on its own row */
+    }
+    .devmode-badge.visible { display: flex; }
+    .devmode-badge__clear {
+      background: rgba(251, 191, 36, 0.25);
+      border: 1px solid rgba(251, 191, 36, 0.5);
+      color: #fde68a;
+      border-radius: 6px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.72rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .devmode-badge__clear:hover { background: rgba(251, 191, 36, 0.4); }
+
+    /* ── Cards ───────────────────────────────────────────────────────────── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 18px;
+      padding: 1.25rem 1.1rem;
+    }
+    .card__label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      opacity: 0.65;
+      margin-bottom: 0.45rem;
+    }
+    .card__value {
+      font-size: 2.1rem;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .card__sub {
+      font-size: 0.72rem;
+      opacity: 0.55;
+      margin-top: 0.35rem;
+    }
+
+    /* ── Sections ────────────────────────────────────────────────────────── */
+    .section {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 18px;
+      padding: 1.2rem 1.3rem;
+      margin-bottom: 1.4rem;
+    }
+    .section h2 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.6;
+      margin-bottom: 1.1rem;
+      font-weight: 600;
+    }
+
+    /* ── Charts ──────────────────────────────────────────────────────────── */
+    .chart-wrap { position: relative; height: 220px; }
+
+    /* ── Tables ──────────────────────────────────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 420px; }
+    .tbl th {
+      text-align: left;
+      padding: 0.35rem 0.55rem;
+      opacity: 0.55;
+      font-weight: 500;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      border-bottom: 1px solid rgba(255,255,255,0.18);
+      white-space: nowrap;
+    }
+    .tbl td {
+      padding: 0.38rem 0.55rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      vertical-align: middle;
+    }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl .r { text-align: right; font-variant-numeric: tabular-nums; }
+    .ok  { color: #7EE8A2; }
+    .err { color: #FF6B6B; }
+
+    /* ── Provider badges ─────────────────────────────────────────────────── */
+    .prov { display:inline-block; font-size:0.62rem; padding:0.1rem 0.35rem;
+            border-radius:5px; font-weight:600; margin:0 1px; }
+    .prov-google  { background:rgba(66,133,244,0.35);  color:#90CAF9; }
+    .prov-here    { background:rgba(0,184,122,0.30);   color:#80CBC4; }
+    .prov-meteo   { background:rgba(255,167,38,0.30);  color:#FFD54F; }
+
+    /* ── Mobile ──────────────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      body { padding: 0.75rem; }
+      .cards { grid-template-columns: repeat(2, 1fr); gap: 0.65rem; }
+      .card { padding: 0.9rem 0.75rem; border-radius: 14px; }
+      .card__value { font-size: 1.6rem; }
+      .section { padding: 0.9rem 0.85rem; border-radius: 14px; }
+      header h1 { font-size: 1.05rem; }
+      .logo { font-size: 2.1rem; }
+      #user-map { height: 220px; }
+      .chart-wrap { height: 180px; }
+    }
+
+    /* ── States ──────────────────────────────────────────────────────────── */
+    #loading {
+      text-align: center;
+      opacity: 0.6;
+      padding: 5rem;
+      font-size: 1.05rem;
+    }
+    #error-msg {
+      display: none;
+      text-align: center;
+      color: #FF6B6B;
+      padding: 2.5rem;
+    }
+    .refresh-note {
+      text-align: center;
+      font-size: 0.72rem;
+      opacity: 0.45;
+      margin-top: -0.8rem;
+      margin-bottom: 1.4rem;
+    }
+
+    /* ── Map ─────────────────────────────────────────────────────────────── */
+    #user-map {
+      height: 320px;
+      border-radius: 12px;
+      overflow: hidden;
+      filter: saturate(0.7) brightness(0.85);
+    }
+    .map-device-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+
+    /* ── External APIs table ─────────────────────────────────────────────── */
+    .api-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .api-badge.google  { background: rgba(66,133,244,0.35); color:#90CAF9; }
+    .api-badge.here    { background: rgba(0,184,122,0.30);  color:#80CBC4; }
+    .api-badge.openmet { background: rgba(255,167,38,0.30); color:#FFD54F; }
+    .api-badge.db      { background: rgba(200,0,50,0.30);   color:#EF9A9A; }
+    .api-badge.osm     { background: rgba(126,212,232,0.30);color:#80DEEA; }
+    .api-badge.github  { background: rgba(180,180,180,0.25);color:#E0E0E0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="/logo.png" class="logo" alt="Landhauscheck">
+  <h1>Landhauscheck · <span>Statistiken</span></h1>
+  <div id="devmode-badge" class="devmode-badge">
+    👤 Dein Traffic wird nicht gezählt
+    <button class="devmode-badge__clear" onclick="clearDevmode()">Zurücksetzen</button>
+  </div>
+  <a href="/" class="back">← App</a>
+</header>
+
+<div id="loading">Lade Daten…</div>
+<div id="error-msg"></div>
+
+<div id="content" style="display:none">
+
+  <div class="cards">
+    <div class="card">
+      <div class="card__label">Anfragen gesamt</div>
+      <div class="card__value" id="c-total">—</div>
+      <div class="card__sub" id="c-since">seit —</div>
+    </div>
+    <div class="card">
+      <div class="card__label">Fehlerrate</div>
+      <div class="card__value" id="c-errrate">—</div>
+      <div class="card__sub" id="c-errors">— Fehler</div>
+    </div>
+    <div class="card">
+      <div class="card__label">Nutzer gesamt</div>
+      <div class="card__value" id="c-sessions">—</div>
+      <div class="card__sub">eindeutige Sessions <span id="c-bots" style="opacity:0.5"></span></div>
+    </div>
+    <div class="card">
+      <div class="card__label">Aktiv (30&thinsp;min)</div>
+      <div class="card__value" id="c-active">—</div>
+      <div class="card__sub">aktive Nutzer</div>
+    </div>
+    <div class="card">
+      <div class="card__label">Endpunkte aktiv</div>
+      <div class="card__value" id="c-endpoints">—</div>
+      <div class="card__sub">eindeutige Pfade</div>
+    </div>
+    <div class="card">
+      <div class="card__label">Stand</div>
+      <div class="card__value" id="c-time" style="font-size:1.3rem;padding-top:0.3rem">—</div>
+      <div class="card__sub" id="c-date">—</div>
+    </div>
+    <div class="card">
+      <div class="card__label">Google APIs</div>
+      <div class="card__value" id="c-google">—</div>
+      <div class="card__sub">Aufrufe gesamt</div>
+    </div>
+    <div class="card">
+      <div class="card__label">HERE APIs</div>
+      <div class="card__value" id="c-here">—</div>
+      <div class="card__sub">Aufrufe gesamt</div>
+    </div>
+    <div class="card">
+      <div class="card__label">Open-Meteo</div>
+      <div class="card__value" id="c-meteo">—</div>
+      <div class="card__sub">Aufrufe gesamt</div>
+    </div>
+    <div class="card">
+      <div class="card__label">Abfall-Kalender</div>
+      <div class="card__value" id="c-waste-cals">—</div>
+      <div class="card__sub">verfügbare Gebiete</div>
+    </div>
+    <div class="card">
+      <div class="card__label">Kalender-Beiträge</div>
+      <div class="card__value" id="c-waste-contribs">—</div>
+      <div class="card__sub">Einsendungen gesamt</div>
+    </div>
+  </div>
+
+  <p class="refresh-note">Aktualisiert alle 30 Sekunden · Zähler seit letztem Lambda-Kaltstart</p>
+
+  <!-- sessions per day chart -->
+  <div class="section" id="sec-sessions-day" style="display:none">
+    <h2>Neue Nutzer pro Tag</h2>
+    <div class="chart-wrap"><canvas id="chart-sessions-day"></canvas></div>
+  </div>
+
+  <!-- daily chart — only shown when CloudWatch data is available -->
+  <div class="section" id="sec-day" style="display:none">
+    <h2>Anfragen pro Tag (letzte 7&thinsp;Tage)</h2>
+    <div class="chart-wrap"><canvas id="chart-day"></canvas></div>
+  </div>
+
+  <div class="section" id="sec-ep" style="display:none">
+    <h2>Endpunkte nach Aufrufhäufigkeit</h2>
+    <div class="chart-wrap"><canvas id="chart-ep"></canvas></div>
+  </div>
+
+  <div id="sec-ep-empty" style="padding:1.2rem 0;opacity:0.55;text-align:center;font-size:0.9rem">
+    Noch keine API-Aufrufe seit dem letzten Lambda-Kaltstart.
+  </div>
+
+  <div class="section" id="sec-ep-table" style="display:none">
+    <h2>Endpunkt-Details</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead>
+        <tr>
+          <th>Pfad</th>
+          <th class="r">Aufrufe</th>
+          <th class="r">Fehler</th>
+          <th class="r">Fehler&nbsp;%</th>
+          <th class="r">Ø&nbsp;ms</th>
+        </tr>
+      </thead>
+      <tbody id="ep-table"></tbody>
+    </table></div>
+  </div>
+
+  <!-- recent errors -->
+  <div class="section" id="sec-errors" style="display:none">
+    <h2>Letzte Fehler</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead>
+        <tr>
+          <th>Zeit</th>
+          <th>Pfad</th>
+          <th class="r">Status</th>
+          <th class="r">ms</th>
+        </tr>
+      </thead>
+      <tbody id="errors-table"></tbody>
+    </table></div>
+  </div>
+
+  <!-- user location map -->
+  <div class="section" id="sec-map" style="display:none">
+    <h2>Nutzer-Standorte (annähernd, IP-basiert)</h2>
+    <div id="user-map"></div>
+  </div>
+
+  <!-- sessions table -->
+  <div class="section" id="sec-sessions" style="display:none">
+    <h2>Sessions (neueste zuerst)</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Erstkontakt</th>
+          <th>Zuletzt</th>
+          <th class="r">Aufrufe</th>
+          <th>Status</th>
+          <th>Standort</th>
+          <th class="r">Google</th>
+          <th class="r">HERE</th>
+          <th class="r">Meteo</th>
+          <th>Browser / Gerät</th>
+        </tr>
+      </thead>
+      <tbody id="sessions-table"></tbody>
+    </table></div>
+  </div>
+
+  <div class="section">
+    <h2>Letzte Anfragen</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead>
+        <tr>
+          <th>Zeit</th>
+          <th>Pfad</th>
+          <th class="r">Status</th>
+          <th class="r">ms</th>
+        </tr>
+      </thead>
+      <tbody id="recent-table"></tbody>
+    </table></div>
+  </div>
+
+  <!-- API request budget per user -->
+  <div class="section">
+    <h2>API-Anfragen pro Nutzer (Transparenz)</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead>
+        <tr>
+          <th>Widget</th>
+          <th>Quelle</th>
+          <th class="r">Beim Laden</th>
+          <th class="r">Intervall</th>
+          <th class="r">Anfragen&nbsp;/&nbsp;Stunde</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Gesundheit</td><td style="font-size:0.78rem">Lambda /health</td><td class="r">1</td><td class="r">—</td><td class="r">0</td></tr>
+        <tr><td>Abfall</td><td style="font-size:0.78rem">AWB / StaDa</td><td class="r">1</td><td class="r">60 min</td><td class="r">2</td></tr>
+        <tr><td>Abfall — Beitrag</td><td style="font-size:0.78rem">GitHub API (nur bei Upload)</td><td class="r">0</td><td class="r">—</td><td class="r">0</td></tr>
+        <tr><td>Feiertage</td><td style="font-size:0.78rem">Feiertage API</td><td class="r">1</td><td class="r">—</td><td class="r">0</td></tr>
+        <tr><td>Uhr &amp; Wetter</td><td style="font-size:0.78rem">Open-Meteo</td><td class="r">1</td><td class="r">60 min</td><td class="r">2</td></tr>
+        <tr><td>Karte — Tankstellen</td><td style="font-size:0.78rem">Tankerkönig</td><td class="r">1</td><td class="r">5 min</td><td class="r">12</td></tr>
+        <tr><td>Karte — Ladepunkte</td><td style="font-size:0.78rem">HERE EV</td><td class="r">1</td><td class="r">5 min</td><td class="r">12</td></tr>
+        <tr><td>Nächste Bahnhöfe</td><td style="font-size:0.78rem">HERE Transit</td><td class="r">0</td><td class="r">bei Aktivierung</td><td class="r">≤1</td></tr>
+        <tr><td>Abfahrten</td><td style="font-size:0.78rem">DB/ÖBB</td><td class="r">1</td><td class="r">30 min</td><td class="r">2</td></tr>
+        <tr><td>Bus</td><td style="font-size:0.78rem">HERE Transit</td><td class="r">1</td><td class="r">30 min (Haltest.: 60 min)</td><td class="r">1</td></tr>
+        <tr><td>Öffentliche Toiletten</td><td style="font-size:0.78rem">OSM Overpass + Google</td><td class="r">1</td><td class="r">30 min</td><td class="r">2</td></tr>
+        <tr><td>In der Nähe (POI)</td><td style="font-size:0.78rem">Google Places</td><td class="r">1</td><td class="r">120 min</td><td class="r">1</td></tr>
+        <tr style="font-weight:700;border-top:1px solid rgba(255,255,255,0.2)">
+          <td colspan="2"><strong>Gesamt</strong></td>
+          <td class="r"><strong>10</strong></td>
+          <td class="r">—</td>
+          <td class="r"><strong>~33</strong></td>
+        </tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:0.72rem;opacity:0.45;margin-top:0.75rem">
+      Die Karte-Widgets stellen 24 der 33 stündlichen Anfragen — das liegt an ihrem 5-Minuten-Aktualisierungsintervall für Echtzeit-Verkehrs- und Ladedaten. ÖPNV-Haltestellen werden bis zu 60 Minuten gecacht; Bahnhofs-Abfahrten erst beim Öffnen des Tabs geladen.
+    </p>
+  </div>
+
+  <!-- external APIs reference -->
+  <div class="section">
+    <h2>Externe API-Endpunkte</h2>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead>
+        <tr><th>Anbieter</th><th>Endpunkt</th><th>Zweck</th><th>Widget</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="api-badge google">Google</span></td><td style="font-size:0.74rem;word-break:break-all">places.googleapis.com/v1/places:searchNearby</td><td style="font-size:0.78rem">POI + öffentliche Toiletten in der Nähe</td><td style="font-size:0.78rem">In der Nähe, Toiletten</td></tr>
+        <tr><td><span class="api-badge google">Google</span></td><td style="font-size:0.74rem;word-break:break-all">places.googleapis.com/v1/places:searchNearby</td><td style="font-size:0.78rem">Bahnhöfe außerhalb DE (Fallback)</td><td style="font-size:0.78rem">Nächste Bahnhöfe</td></tr>
+        <tr><td><span class="api-badge google">Google</span></td><td style="font-size:0.74rem;word-break:break-all">maps.googleapis.com/maps/api/geocode/json</td><td style="font-size:0.78rem">Adresse → Koordinaten</td><td style="font-size:0.78rem">Standort-Picker</td></tr>
+        <tr><td><span class="api-badge google">Google</span></td><td style="font-size:0.74rem;word-break:break-all">maps.googleapis.com/maps/api/js</td><td style="font-size:0.78rem">Karte + Traffic-Layer</td><td style="font-size:0.78rem">Karte</td></tr>
+        <tr><td><span class="api-badge here">HERE</span></td><td style="font-size:0.74rem;word-break:break-all">transit.router.hereapi.com/v8/stations</td><td style="font-size:0.78rem">ÖPNV-Stationen in der Nähe (Lambda-Key)</td><td style="font-size:0.78rem">Nächste Bahnhöfe</td></tr>
+        <tr><td><span class="api-badge here">HERE</span></td><td style="font-size:0.74rem;word-break:break-all">transit.router.hereapi.com/v8/departures</td><td style="font-size:0.78rem">Echtzeitabfahrten (Lambda-Key)</td><td style="font-size:0.78rem">Nächste Bahnhöfe, Busverbindungen</td></tr>
+        <tr><td><span class="api-badge openmet">Open-Meteo</span></td><td style="font-size:0.74rem;word-break:break-all">api.open-meteo.com/v1/forecast</td><td style="font-size:0.78rem">Stündliche Wettervorhersage</td><td style="font-size:0.78rem">Uhr / Wetter</td></tr>
+        <tr><td><span class="api-badge db">DB StaDa</span></td><td style="font-size:0.74rem;word-break:break-all">apis.deutschebahn.com/db-api-marketplace/…/station-data/v2</td><td style="font-size:0.78rem">Monatlicher Snapshot aller DB-Bahnhöfe</td><td style="font-size:0.78rem">Nächste Bahnhöfe (Snapshot)</td></tr>
+        <tr><td><span class="api-badge osm">BigDataCloud</span></td><td style="font-size:0.74rem;word-break:break-all">api.bigdatacloud.net/data/reverse-geocode-client</td><td style="font-size:0.78rem">Koordinaten → Land/Bundesland (schlüssellos)</td><td style="font-size:0.78rem">Feiertage, Kalender</td></tr>
+        <tr><td><span class="api-badge osm">ip-api.com</span></td><td style="font-size:0.74rem;word-break:break-all">ip-api.com/json/{ip}</td><td style="font-size:0.78rem">IP → Stadt/Land (nur Statistik, nicht gespeichert)</td><td style="font-size:0.78rem">Stats-Karte</td></tr>
+        <tr><td><span class="api-badge github">GitHub</span></td><td style="font-size:0.74rem;word-break:break-all">api.github.com/repos/…/pulls</td><td style="font-size:0.78rem">Kalender-Einsendung als Pull Request</td><td style="font-size:0.78rem">Abfall – Kalender hochladen</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+</div><!-- #content -->
+
+<script>
+'use strict';
+
+// Known bot / infrastructure user-agents — excluded from human session counts
+const BOT_UA = [
+  'amazon cloudfront', 'googlebot', 'bingbot', 'yandexbot', 'baiduspider',
+  'slurp', 'duckduckbot', 'facebot', 'ia_archiver', 'semrushbot', 'ahrefsbot',
+  'python-requests', 'python-urllib', 'curl/', 'wget/', 'go-http-client',
+  'axios/', 'node-fetch', 'uptimerobot', 'pingdom', 'statuspage',
+];
+function isBot(ua) {
+  if (!ua) return false;
+  const lower = ua.toLowerCase();
+  return BOT_UA.some(p => lower.includes(p));
+}
+
+const CHART_BASE = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: {
+      ticks: { color: 'rgba(255,255,255,0.65)', font: { size: 11 } },
+      grid:  { color: 'rgba(255,255,255,0.10)' },
+    },
+    y: {
+      ticks: { color: 'rgba(255,255,255,0.65)', font: { size: 11 } },
+      grid:  { color: 'rgba(255,255,255,0.10)' },
+    },
+  },
+};
+
+let chartDay         = null;
+let chartEp          = null;
+let chartSessionsDay = null;
+let leafletMap       = null;
+let leafletMarkers   = [];
+
+function $(id) { return document.getElementById(id); }
+
+function fmt(n) { return Number(n).toLocaleString('de-DE'); }
+
+function renderCards(d) {
+  $('c-total').textContent     = fmt(d.total_requests);
+  $('c-errrate').textContent   = d.error_rate + '\u2009%';
+  $('c-errors').textContent    = fmt(d.total_errors) + ' Fehler';
+  $('c-endpoints').textContent = d.endpoints.length;
+  const allSessions  = d.sessions ?? [];
+  const botSessions  = allSessions.filter(s => isBot(s.ua));
+  const realSessions = allSessions.filter(s => !isBot(s.ua));
+  $('c-sessions').textContent  = fmt(realSessions.length);
+  $('c-bots').textContent      = botSessions.length > 0 ? `+ ${botSessions.length} Bot` : '';
+  $('c-active').textContent    = fmt(d.sessions_active ?? 0);
+  $('c-google').textContent    = fmt((d.provider_totals || {})['Google'] ?? 0);
+  $('c-here').textContent      = fmt((d.provider_totals || {})['HERE']   ?? 0);
+  $('c-meteo').textContent     = fmt((d.provider_totals || {})['Open-Meteo'] ?? 0);
+  $('c-waste-cals').textContent     = fmt(d.waste_calendar_count ?? 0);
+  $('c-waste-contribs').textContent = fmt(d.waste_contributions_total ?? 0);
+
+  const asOf  = new Date(d.as_of);
+  const since = new Date(d.started_at);
+  $('c-time').textContent = asOf.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  $('c-date').textContent  = asOf.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+  $('c-since').textContent = 'seit ' + since.toLocaleString('de-DE', {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function renderSessionsDayChart(byDay) {
+  if (!byDay || byDay.length === 0) return;
+  $('sec-sessions-day').style.display = '';
+  const labels = byDay.map(r => r.day);
+  const data   = byDay.map(r => r.new_sessions);
+  if (chartSessionsDay) {
+    chartSessionsDay.data.labels = labels;
+    chartSessionsDay.data.datasets[0].data = data;
+    chartSessionsDay.update();
+    return;
+  }
+  chartSessionsDay = new Chart($('chart-sessions-day'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: 'rgba(126,232,162,0.55)',
+        borderColor: '#7EE8A2',
+        borderWidth: 1,
+        borderRadius: 5,
+      }],
+    },
+    options: CHART_BASE,
+  });
+}
+
+function renderSessionsTable(sessions) {
+  if (!sessions || sessions.length === 0) return;
+  $('sec-sessions').style.display = '';
+  const tbody = $('sessions-table');
+  tbody.innerHTML = '';
+  const realSessions = sessions.filter(s => !isBot(s.ua));
+  const botSessions  = sessions.filter(s => isBot(s.ua));
+  realSessions.forEach(s => {
+    const activeDot = s.active
+      ? '<span class="ok" title="aktiv">●</span> aktiv'
+      : '<span style="opacity:0.4">●</span> inaktiv';
+    const ua = s.ua
+      .replace(/.*Chrome\/([\d]+).*/,          'Chrome $1')
+      .replace(/.*Firefox\/([\d]+).*/,         'Firefox $1')
+      .replace(/.*Version\/([\d]+).*Safari.*/, 'Safari $1')
+      .replace(/.*Edg\/([\d]+).*/,             'Edge $1')
+      .substring(0, 40);
+    const loc = s.city ? `${s.city}, ${s.country}` : (s.country || '—');
+    const prov = s.providers || {};
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td style="font-family:monospace;font-size:0.78rem;opacity:0.7">${s.id}</td>` +
+      `<td style="font-size:0.78rem;opacity:0.65;white-space:nowrap">${s.first_seen.replace('T',' ').slice(0,16)}</td>` +
+      `<td style="font-size:0.78rem;opacity:0.65;white-space:nowrap">${s.last_seen}</td>` +
+      `<td class="r">${fmt(s.hits)}</td>` +
+      `<td style="font-size:0.78rem;white-space:nowrap">${activeDot}</td>` +
+      `<td style="font-size:0.76rem;opacity:0.75;white-space:nowrap">${loc}</td>` +
+      `<td class="r" style="font-size:0.76rem;opacity:0.65">${prov['Google'] ? fmt(prov['Google']) : '—'}</td>` +
+      `<td class="r" style="font-size:0.76rem;opacity:0.65">${prov['HERE']   ? fmt(prov['HERE'])   : '—'}</td>` +
+      `<td class="r" style="font-size:0.76rem;opacity:0.65">${prov['Open-Meteo'] ? fmt(prov['Open-Meteo']) : '—'}</td>` +
+      `<td style="font-size:0.76rem;opacity:0.75;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.ua}">${ua}</td>`;
+    tbody.appendChild(tr);
+  });
+  // Add a summary row for bot/crawler sessions
+  if (botSessions.length > 0) {
+    const totalBotHits = botSessions.reduce((sum, s) => sum + (s.hits || 0), 0);
+    const botNames = [...new Set(botSessions.map(s =>
+      s.ua.replace(/amazon cloudfront/i, 'CloudFront')
+           .replace(/googlebot.*/i, 'Googlebot')
+           .replace(/python-requests.*/i, 'python-requests')
+           .replace(/curl\/[\d.]+/i, 'curl')
+           .substring(0, 30)
+    ))].join(', ');
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'opacity:0.4;font-style:italic';
+    tr.innerHTML =
+      `<td colspan="4" style="font-size:0.76rem;padding-top:0.6rem">` +
+      `${botSessions.length} Bot/Crawler-Session(s) ausgeblendet` +
+      ` · ${fmt(totalBotHits)} Aufrufe · ${botNames}</td>` +
+      `<td colspan="4"></td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderErrors(errorLog) {
+  const tbody = $('errors-table');
+  if (!errorLog || errorLog.length === 0) return;
+  $('sec-errors').style.display = '';
+  tbody.innerHTML = '';
+  [...errorLog].reverse().slice(0, 30).forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td style="opacity:0.65;white-space:nowrap;font-size:0.78rem">${r.ts}</td>` +
+      `<td style="font-size:0.76rem;word-break:break-all">${r.path}</td>` +
+      `<td class="r err">${r.status}</td>` +
+      `<td class="r" style="opacity:0.65">${r.ms}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderDayChart(byDay) {
+  if (!byDay || byDay.length === 0) return;
+  $('sec-day').style.display = '';
+  const labels = byDay.map(r => r.day);
+  const data   = byDay.map(r => r.hits);
+  if (chartDay) {
+    chartDay.data.labels = labels;
+    chartDay.data.datasets[0].data = data;
+    chartDay.update();
+    return;
+  }
+  chartDay = new Chart($('chart-day'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: 'rgba(41,182,246,0.55)',
+        borderColor: '#29B6F6',
+        borderWidth: 1,
+        borderRadius: 5,
+      }],
+    },
+    options: CHART_BASE,
+  });
+}
+
+function renderEpChart(endpoints) {
+  const top = endpoints.filter(e => e.path.startsWith('/api')).slice(0, 10);
+  if (!top.length) {
+    $('sec-ep').style.display = 'none';
+    $('sec-ep-empty').style.display = '';
+    return;
+  }
+  $('sec-ep').style.display = '';
+  $('sec-ep-empty').style.display = 'none';
+
+  const labels = top.map(e => e.path.replace('/api/v1/', ''));
+  const data   = top.map(e => e.hits);
+
+  const opts = {
+    ...CHART_BASE,
+    indexAxis: 'y',
+    scales: {
+      ...CHART_BASE.scales,
+      y: {
+        ...CHART_BASE.scales.y,
+        ticks: { color: 'rgba(255,255,255,0.65)', font: { size: 10 } },
+      },
+    },
+  };
+
+  if (chartEp) {
+    chartEp.data.labels = labels;
+    chartEp.data.datasets[0].data = data;
+    chartEp.update();
+    return;
+  }
+  chartEp = new Chart($('chart-ep'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: 'rgba(21,101,192,0.65)',
+        borderColor: '#1565C0',
+        borderWidth: 1,
+        borderRadius: 5,
+      }],
+    },
+    options: opts,
+  });
+}
+
+function renderEpTable(endpoints) {
+  const rows = endpoints.filter(e => e.path.startsWith('/api'));
+  $('sec-ep-table').style.display = rows.length ? '' : 'none';
+  const tbody = $('ep-table');
+  tbody.innerHTML = '';
+  rows.forEach(e => {
+    const tr = document.createElement('tr');
+    const errCls = e.errors > 0 ? 'err' : 'ok';
+    tr.innerHTML =
+      `<td style="font-size:0.78rem;word-break:break-all">${e.path}</td>` +
+      `<td class="r">${fmt(e.hits)}</td>` +
+      `<td class="r ${errCls}">${e.errors}</td>` +
+      `<td class="r ${errCls}">${e.error_rate}\u2009%</td>` +
+      `<td class="r" style="opacity:0.75">${e.avg_ms}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderRecent(recent) {
+  const tbody = $('recent-table');
+  tbody.innerHTML = '';
+  const rows = [...recent].reverse().slice(0, 40);
+  rows.forEach(r => {
+    const cls = r.status >= 400 ? 'err' : 'ok';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td style="opacity:0.65;white-space:nowrap;font-size:0.78rem">${r.ts}</td>` +
+      `<td style="font-size:0.76rem;word-break:break-all">${r.path}</td>` +
+      `<td class="r ${cls}">${r.status}</td>` +
+      `<td class="r" style="opacity:0.65">${r.ms}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderMap(locations) {
+  // Filter out sessions where geo lookup hasn't completed yet (lat/lon null)
+  const valid = (locations || []).filter(loc => loc.lat != null && loc.lon != null);
+  $('sec-map').style.display = '';
+  if (valid.length === 0) {
+    $('user-map').style.display = 'none';
+    let ph = document.getElementById('map-placeholder');
+    if (!ph) {
+      ph = document.createElement('p');
+      ph.id = 'map-placeholder';
+      ph.style.cssText = 'text-align:center;opacity:0.6;padding:2rem 0;font-size:0.9rem';
+      ph.textContent = 'Noch keine Standortdaten verfügbar — werden mit neuen Sitzungen ergänzt.';
+      $('user-map').parentNode.insertBefore(ph, $('user-map').nextSibling);
+    }
+    return;
+  }
+  $('user-map').style.display = '';
+  const ph2 = document.getElementById('map-placeholder');
+  if (ph2) ph2.remove();
+
+  if (!leafletMap) {
+    leafletMap = L.map('user-map', { zoomControl: true, attributionControl: false })
+      .setView([48.5, 11.0], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+    }).addTo(leafletMap);
+  }
+
+  // Clear old markers
+  leafletMarkers.forEach(m => m.remove());
+  leafletMarkers = [];
+
+  // Aggregate by ~10km grid cell — track unique devices + total hits
+  const cells = {};
+  valid.forEach(loc => {
+    const key = `${parseFloat(loc.lat).toFixed(1)},${parseFloat(loc.lon).toFixed(1)}`;
+    if (!cells[key]) cells[key] = {
+      lat: loc.lat, lon: loc.lon,
+      city: loc.city, country: loc.country,
+      devices: 0, hits: 0,
+    };
+    cells[key].devices += 1;          // each entry is one unique session/device
+    cells[key].hits += loc.hits || 1;
+  });
+
+  Object.values(cells).forEach(cell => {
+    // Circle size driven by unique device count
+    const r = Math.max(8, Math.min(40, 8 + Math.sqrt(cell.devices) * 7));
+    const label = cell.devices === 1
+      ? '1 Gerät'
+      : `${cell.devices} Geräte`;
+    const circle = L.circleMarker([cell.lat, cell.lon], {
+      radius: r,
+      color: '#29B6F6',
+      fillColor: '#1565C0',
+      fillOpacity: 0.55,
+      weight: 2,
+    }).bindPopup(
+      `<b>${cell.city || '?'}</b><br>${cell.country || ''}<br>` +
+      `<b>${label}</b><br>${cell.hits} Aufrufe gesamt`
+    );
+    // Show device count as a permanent label on the circle
+    circle.bindTooltip(String(cell.devices), {
+      permanent: true,
+      direction: 'center',
+      className: 'map-device-label',
+    });
+    circle.addTo(leafletMap);
+    leafletMarkers.push(circle);
+  });
+
+  if (leafletMarkers.length > 0) {
+    const group = L.featureGroup(leafletMarkers);
+    leafletMap.fitBounds(group.getBounds().pad(0.3));
+  }
+}
+
+function safe(name, fn) {
+  try { fn(); } catch (e) { console.error('[stats] ' + name + ':', e); }
+}
+
+async function load() {
+  try {
+    const pinMatch = document.cookie.match(/(?:^|; )lhc_pin=([^;]*)/);
+    const pin = pinMatch ? decodeURIComponent(pinMatch[1]) : '';
+    const res = await fetch('/api/v1/admin/stats', {
+      headers: { 'X-Stats-Pin': pin }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const d = await res.json();
+
+    safe('renderCards',           () => renderCards(d));
+    safe('renderSessionsDayChart',() => renderSessionsDayChart(d.sessions_by_day));
+    safe('renderSessionsTable',   () => renderSessionsTable(d.sessions));
+    safe('renderErrors',          () => renderErrors(d.error_log));
+    safe('renderDayChart',        () => renderDayChart(d.by_day));
+    safe('renderEpChart',         () => renderEpChart(d.endpoints));
+    safe('renderEpTable',         () => renderEpTable(d.endpoints));
+    safe('renderMap',             () => renderMap(d.locations || []));
+    safe('renderRecent',          () => renderRecent(d.recent));
+
+    $('loading').style.display = 'none';
+    $('content').style.display = '';
+    $('error-msg').style.display = 'none';
+  } catch (e) {
+    $('loading').style.display = 'none';
+    $('error-msg').style.display = '';
+    $('error-msg').textContent = 'Fehler beim Laden der Statistiken: ' + e.message;
+  }
+}
+
+load();
+setInterval(load, 30_000);
+
+// ── Devmode badge ──────────────────────────────────────────────────────────
+(function initDevmodeBadge() {
+  if (/(?:^|; )lhc_devmode=1/.test(document.cookie)) {
+    document.getElementById('devmode-badge').classList.add('visible');
+  }
+})();
+
+async function clearDevmode() {
+  const pinMatch = document.cookie.match(/(?:^|; )lhc_pin=([^;]*)/);
+  const pin = pinMatch ? decodeURIComponent(pinMatch[1]) : '';
+  try {
+    const res = await fetch('/api/v1/admin/clear-devmode', {
+      method: 'POST',
+      headers: { 'X-Stats-Pin': pin },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    location.reload();
+  } catch (e) {
+    alert('Fehler beim Zurücksetzen: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>

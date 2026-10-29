@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unterstützen – Landhauscheck</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100dvh;display:grid;place-items:center;padding:1.5rem;
+      font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+      background:radial-gradient(ellipse 70% 60% at 15% 10%,#0D47A1 0%,transparent 60%),
+        radial-gradient(ellipse 60% 55% at 85% 90%,#1565C0 0%,transparent 60%),#d0e4f7;
+      color:#1c1c1e}
+    .card{width:100%;max-width:520px;background:rgba(255,255,255,.72);
+      backdrop-filter:blur(28px) saturate(1.8);border:1px solid rgba(255,255,255,.55);
+      border-radius:22px;padding:2rem 2.4rem;box-shadow:0 8px 40px rgba(13,71,161,.18);
+      position:relative}
+    h1{font-size:1.4rem;font-weight:700;margin-bottom:.5rem;color:#1c1c1e}
+    .subtitle{font-size:.93rem;line-height:1.7;color:#3a3a3c;margin-bottom:1.4rem}
+    .back{display:inline-block;margin-top:1.4rem;font-size:.88rem;color:#1565C0;text-decoration:none}
+    /* ── Lang switcher ─────────────────────────────────────────────────── */
+    .langSwitcher{position:absolute;top:1.2rem;right:1.4rem;display:flex;gap:.25rem}
+    .langSwitcher button{background:none;border:1px solid rgba(21,101,192,.3);border-radius:5px;
+      color:#6e6e73;font-size:.68rem;font-weight:600;padding:.12rem .38rem;cursor:pointer;
+      letter-spacing:.04em;transition:color .15s,border-color .15s,background .15s}
+    .langSwitcher button:hover{color:#1565C0;border-color:#1565C0}
+    .langSwitcher button.active{color:#1565C0;border-color:#1565C0;background:rgba(21,101,192,.08)}
+    /* ── Stages ────────────────────────────────────────────────────────── */
+    .stage{display:none}
+    .stage--active{display:block}
+    /* ── PayPal button ───────────────────────────────────────────────── */
+    .paypal-wrap{margin-top:1.4rem;display:flex;flex-direction:column;align-items:flex-start;gap:.85rem}
+    .paypal-btn{display:inline-flex;align-items:center;gap:.55rem;padding:.7rem 1.5rem;
+      background:#0070ba;color:#fff;border-radius:24px;text-decoration:none;
+      font-size:1rem;font-weight:700;letter-spacing:.01em;transition:background .15s}
+    .paypal-btn:hover{background:#005ea6}
+    .paypal-btn svg{flex-shrink:0}
+    /* ── Feature-request form ──────────────────────────────────────────── */
+    .thanks-banner{background:rgba(21,101,192,.10);border:1px solid rgba(21,101,192,.25);
+      border-radius:12px;padding:1rem 1.2rem;margin-bottom:1.4rem;font-size:.93rem;line-height:1.6}
+    .form-group{display:flex;flex-direction:column;gap:.3rem;margin-bottom:.9rem}
+    label{font-size:.82rem;font-weight:600;color:#3a3a3c;letter-spacing:.02em}
+    input[type=text],input[type=email],textarea{
+      width:100%;padding:.55rem .75rem;border:1px solid rgba(21,101,192,.3);
+      border-radius:10px;font-size:.92rem;font-family:inherit;color:#1c1c1e;
+      background:rgba(255,255,255,.65);outline:none;
+      transition:border-color .15s,box-shadow .15s;resize:vertical}
+    input[type=text]:focus,input[type=email]:focus,textarea:focus{
+      border-color:#1565C0;box-shadow:0 0 0 3px rgba(21,101,192,.15)}
+    textarea{min-height:120px}
+    .submit-btn{margin-top:.5rem;padding:.65rem 1.6rem;
+      background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;
+      border:none;border-radius:12px;font-size:.95rem;font-weight:600;
+      cursor:pointer;transition:opacity .15s;letter-spacing:.02em}
+    .submit-btn:hover{opacity:.9}
+    .submit-btn:disabled{opacity:.6;cursor:not-allowed}
+    .skip-link{margin-top:.8rem;display:inline-block;font-size:.82rem;color:#6e6e73;cursor:pointer;
+      text-decoration:underline;text-underline-offset:2px}
+    /* ── Success message ───────────────────────────────────────────────── */
+    .success-icon{font-size:2.8rem;margin-bottom:.6rem}
+    .success-msg{font-size:.93rem;line-height:1.7;color:#3a3a3c}
+    /* ── Error note ────────────────────────────────────────────────────── */
+    .error-note{margin-top:.6rem;font-size:.82rem;color:#c0392b;display:none}
+    .optional-label{font-size:.75rem;font-weight:400;color:#6e6e73;margin-left:.3rem}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="langSwitcher">
+      <button onclick="switchLang('de')" data-lang="de">DE</button>
+      <button onclick="switchLang('en')" data-lang="en">EN</button>
+      <button onclick="switchLang('pt')" data-lang="pt">PT</button>
+    </div>
+
+    <!-- ── Stage 1: Donate prompt ───────────────────────────────────────── -->
+    <div id="stage-donate" class="stage">
+      <h1 data-i18n="title"></h1>
+      <p class="subtitle" data-i18n="intro"></p>
+
+      <div class="paypal-wrap">
+        <a class="paypal-btn" href="https://paypal.me/Schweigert" target="_blank" rel="noopener" data-i18n-href="paypalLink">
+          <!-- PayPal "P" mark -->
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106z" fill="#fff"/>
+          </svg>
+          <span data-i18n="paypalBtn"></span>
+        </a>
+        <span class="skip-link" onclick="showStage('stage-request')" data-i18n="alreadyDonated"></span>
+      </div>
+
+      <a class="back" href="/" data-i18n="back"></a>
+    </div>
+
+    <!-- ── Stage 2: Feature-request form ───────────────────────────────── -->
+    <div id="stage-request" class="stage">
+      <h1 data-i18n="requestTitle"></h1>
+      <div class="thanks-banner" data-i18n="thanksBanner"></div>
+
+      <form id="featureForm" novalidate>
+        <div class="form-group">
+          <label for="req-name" data-i18n="labelName"></label>
+          <input id="req-name" type="text" name="name" maxlength="100" required />
+        </div>
+        <div class="form-group">
+          <label for="req-email">
+            <span data-i18n="labelEmail"></span>
+            <span class="optional-label" data-i18n="labelOptional"></span>
+          </label>
+          <input id="req-email" type="email" name="email" maxlength="254"
+                 placeholder="you@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="req-feature" data-i18n="labelFeature"></label>
+          <textarea id="req-feature" name="feature" maxlength="2000" required></textarea>
+        </div>
+        <button type="submit" class="submit-btn" id="submitBtn" data-i18n="submitBtn"></button>
+        <div class="error-note" id="errorNote" aria-live="polite" data-i18n="submitError"></div>
+      </form>
+
+      <span class="skip-link" onclick="showStage('stage-success-skip')" data-i18n="skipLink"></span>
+    </div>
+
+    <!-- ── Stage 3a: Success after form submit ──────────────────────────── -->
+    <div id="stage-success" class="stage">
+      <div class="success-icon">🎉</div>
+      <h1 data-i18n="successTitle"></h1>
+      <p class="success-msg" data-i18n="successMsg"></p>
+      <a class="back" href="/" data-i18n="back"></a>
+    </div>
+
+    <!-- ── Stage 3b: Skip (donated but no request) ──────────────────────── -->
+    <div id="stage-success-skip" class="stage">
+      <div class="success-icon">❤️</div>
+      <h1 data-i18n="skipTitle"></h1>
+      <p class="success-msg" data-i18n="skipMsg"></p>
+      <a class="back" href="/" data-i18n="back"></a>
+    </div>
+  </div>
+
+  <script>
+    // ── i18n dictionary ─────────────────────────────────────────────────────
+    var dict = {
+      de: {
+        title: "Landhauscheck unterstützen ❤️",
+        intro: "Landhauscheck ist kostenlos und werbefrei. Wenn du die App nützlich findest, freue ich mich sehr über eine kleine Spende. Als Dankeschön kannst du einen Feature-Wunsch einreichen – ich werde ihn nach besten Kräften umsetzen.",
+        requestTitle: "Vielen Dank für deine Spende! 🙏",
+        thanksBanner: "Deine Unterstützung bedeutet mir sehr viel. Du kannst jetzt einen Feature-Wunsch einreichen – er wird auf Best-Effort-Basis berücksichtigt.",
+        labelName: "Dein Name",
+        labelEmail: "Deine E-Mail",
+        labelOptional: "(optional)",
+        labelFeature: "Was soll ich verbessern oder hinzufügen?",
+        submitBtn: "Wunsch einreichen",
+        submitError: "Es ist ein Fehler aufgetreten. Bitte versuche es später erneut.",
+        skipLink: "Kein Wunsch – einfach so spenden",
+        successTitle: "Wunsch eingereicht!",
+        successMsg: "Deinen Feature-Wunsch habe ich erhalten. Ich melde mich, sobald es Neuigkeiten gibt. Vielen herzlichen Dank!",
+        skipTitle: "Danke für deine Unterstützung!",
+        skipMsg: "Du machst Landhauscheck besser – einfach so. Das bedeutet mir sehr viel. ❤️",
+        paypalBtn: "Mit PayPal.me spenden",
+        alreadyDonated: "Ich habe bereits gespendet →",
+        back: "← Zurück zur App"
+      },
+      en: {
+        title: "Support Landhauscheck ❤️",
+        intro: "Landhauscheck is free and ad-free. If you find it useful, a small donation would mean a lot. As a thank-you, you can submit a feature request – I'll do my best to implement it.",
+        requestTitle: "Thank you for your donation! 🙏",
+        thanksBanner: "Your support means a lot to me. You can now submit a feature request – it will be considered on a best-effort basis.",
+        labelName: "Your name",
+        labelEmail: "Your email",
+        labelOptional: "(optional)",
+        labelFeature: "What should I improve or add?",
+        submitBtn: "Submit request",
+        submitError: "Something went wrong. Please try again later.",
+        skipLink: "No request – just donating",
+        successTitle: "Request submitted!",
+        successMsg: "I've received your feature request and will be in touch when there's news. Thank you so much!",
+        skipTitle: "Thank you for your support!",
+        skipMsg: "You're making Landhauscheck better, just like that. It means a lot. ❤️",
+        paypalBtn: "Send via PayPal.me",
+        alreadyDonated: "I've already donated →",
+        back: "← Back to the app"
+      },
+      pt: {
+        title: "Apoiar o Landhauscheck ❤️",
+        intro: "O Landhauscheck é gratuito e sem publicidade. Se achar útil, uma pequena doação ficaria muito bem. Como agradecimento, podes enviar um pedido de funcionalidade – farei o meu melhor para o implementar.",
+        requestTitle: "Muito obrigado pela tua doação! 🙏",
+        thanksBanner: "O teu apoio significa muito para mim. Podes agora enviar um pedido de funcionalidade – será considerado na medida do possível.",
+        labelName: "O teu nome",
+        labelEmail: "O teu e-mail",
+        labelOptional: "(opcional)",
+        labelFeature: "O que devo melhorar ou adicionar?",
+        submitBtn: "Enviar pedido",
+        submitError: "Ocorreu um erro. Por favor, tenta mais tarde.",
+        skipLink: "Sem pedido – só doação",
+        successTitle: "Pedido enviado!",
+        successMsg: "Recebi o teu pedido de funcionalidade e entrarei em contacto quando houver novidades. Muito obrigado!",
+        skipTitle: "Obrigado pelo teu apoio!",
+        skipMsg: "Estás a tornar o Landhauscheck melhor, assim mesmo. Significa muito. ❤️",
+        paypalBtn: "Enviar via PayPal.me",
+        alreadyDonated: "Já doei →",
+        back: "← Voltar à aplicação"
+      }
+    };
+
+    // ── Language detection / persistence ────────────────────────────────────
+    var currentLang = (function () {
+      var stored = localStorage.getItem('lang');
+      if (stored && dict[stored]) return stored;
+      var nav = (navigator.language || 'de').slice(0, 2).toLowerCase();
+      return dict[nav] ? nav : 'de';
+    })();
+
+    function switchLang(lang) {
+      if (!dict[lang]) return;
+      currentLang = lang;
+      localStorage.setItem('lang', lang);
+      applyTranslations();
+    }
+
+    function applyTranslations() {
+      var d = dict[currentLang];
+      document.querySelectorAll('[data-i18n]').forEach(function (el) {
+        var key = el.getAttribute('data-i18n');
+        if (d[key] !== undefined) el.textContent = d[key];
+      });
+      // Update lang switcher active state
+      document.querySelectorAll('.langSwitcher button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-lang') === currentLang);
+      });
+    }
+
+    // ── Stage routing ────────────────────────────────────────────────────────
+    function showStage(id) {
+      document.querySelectorAll('.stage').forEach(function (el) {
+        el.classList.remove('stage--active');
+      });
+      var target = document.getElementById(id);
+      if (target) target.classList.add('stage--active');
+    }
+
+    // paypal.me link — no JS needed; button is a plain <a> in the HTML.
+
+    // ── Feature-request form submission ──────────────────────────────────────
+    document.getElementById('featureForm').addEventListener('submit', function (evt) {
+      evt.preventDefault();
+      var d = dict[currentLang];
+      var name = document.getElementById('req-name').value.trim();
+      var email = document.getElementById('req-email').value.trim();
+      var feature = document.getElementById('req-feature').value.trim();
+
+      // Client-side required checks (server validates as well)
+      if (!name || !feature) return;
+
+      // If email left blank, use a server-readable placeholder so the field is
+      // not empty but does not expose a missing address.
+      var effectiveEmail = email || 'not-provided@placeholder.local';
+
+      var btn = document.getElementById('submitBtn');
+      var errNote = document.getElementById('errorNote');
+      btn.disabled = true;
+      btn.textContent = '…';
+      errNote.style.display = 'none';
+
+      fetch('/api/v1/feature-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, email: effectiveEmail, feature: feature })
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function () {
+          showStage('stage-success');
+        })
+        .catch(function () {
+          btn.disabled = false;
+          btn.textContent = d.submitBtn;
+          errNote.textContent = d.submitError;
+          errNote.style.display = 'block';
+        });
+    });
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+    (function () {
+      applyTranslations();
+
+      // Route based on ?thanks=1 query param — sent back by PayPal after donation
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('thanks') === '1') {
+        showStage('stage-request');
+      } else {
+        showStage('stage-donate');
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-basic_webapp}
+      POSTGRES_USER: ${POSTGRES_USER:-app_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app_user} -d ${POSTGRES_DB:-basic_webapp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
+
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/backend.Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://app_user:app_password@postgres:5432/basic_webapp
+      WATCHFILES_FORCE_POLLING: "true"
+      # ── Dev fixture cache ─────────────────────────────────────────────────
+      # off    — real API calls (default)
+      # on     — serve pre-recorded fixtures; fail loudly on fixture miss
+      # record — make real calls AND save responses as fixtures (seed mode)
+      #
+      # Override at runtime:  DEV_CACHE_MODE=record docker-compose up --build
+      DEV_CACHE_MODE: ${DEV_CACHE_MODE:-off}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    volumes:
+      - ../:/app
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ../
+      dockerfile: docker/frontend.Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      # Frontend JS runs in the browser, so API calls must use host-reachable URL.
+      VITE_API_BASE_URL: http://localhost:8000
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      - backend
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"

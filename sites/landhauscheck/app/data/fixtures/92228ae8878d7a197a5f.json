@@ -1,0 +1,1456 @@
+{
+  "meta": {
+    "url": "https://places.googleapis.com/v1/places:searchNearby",
+    "method": "POST",
+    "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
+  },
+  "status": 200,
+  "body": {
+    "places": [
+      {
+        "id": "ChIJ_Q7ygkt9mkcRjNvntSce5-E",
+        "location": {
+          "latitude": 47.754134,
+          "longitude": 8.852682999999999
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "displayName": {
+          "text": "Aral",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 23,
+                "minute": 59,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "primaryType": "gas_station",
+        "shortFormattedAddress": "Fittingstraße 99, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJgdgs0hV9mkcRrPg4kgR5bRo",
+        "location": {
+          "latitude": 47.7648,
+          "longitude": 8.8316
+        },
+        "regularOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 7,
+                "minute": 0
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 10:00 PM",
+            "Tuesday: 6:00 AM – 10:00 PM",
+            "Wednesday: 6:00 AM – 10:00 PM",
+            "Thursday: 6:00 AM – 10:00 PM",
+            "Friday: 6:00 AM – 10:00 PM",
+            "Saturday: 6:00 AM – 10:00 PM",
+            "Sunday: 7:00 AM – 10:00 PM"
+          ],
+          "nextOpenTime": "2026-04-05T05:00:00Z"
+        },
+        "displayName": {
+          "text": "JET",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 7,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 10:00 PM",
+            "Tuesday: 6:00 AM – 10:00 PM",
+            "Wednesday: 6:00 AM – 10:00 PM",
+            "Thursday: 6:00 AM – 10:00 PM",
+            "Friday: 6:00 AM – 10:00 PM",
+            "Saturday: 6:00 AM – 10:00 PM",
+            "Sunday: 7:00 AM – 10:00 PM"
+          ],
+          "nextOpenTime": "2026-04-05T05:00:00Z"
+        },
+        "primaryType": "gas_station",
+        "shortFormattedAddress": "Hohenkrähenstraße 12, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJne7CtDB9mkcRP6p44A8dpOY",
+        "location": {
+          "latitude": 47.7640495,
+          "longitude": 8.8485591
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "displayName": {
+          "text": "Esso",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 23,
+                "minute": 59,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "primaryType": "gas_station",
+        "shortFormattedAddress": "Radolfzeller Str. 28, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJz3QKV5Z9mkcRh2evR82iB6w",
+        "location": {
+          "latitude": 47.7612297,
+          "longitude": 8.7923566
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "displayName": {
+          "text": "Tank in Tankstelle Hägele OHG BFT Tankstelle",
+          "languageCode": "de"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 23,
+                "minute": 59,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "primaryType": "gas_station",
+        "shortFormattedAddress": "Gewerbestraße 1, Hilzingen-Twielfeld"
+      },
+      {
+        "id": "ChIJibZC1GSHmkcRwhR3imve_v8",
+        "location": {
+          "latitude": 47.736542,
+          "longitude": 8.7880685
+        },
+        "regularOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 5,
+                "minute": 0
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 5,
+                "minute": 0
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 5,
+                "minute": 0
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 5,
+                "minute": 0
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 5,
+                "minute": 0
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 5:00 AM – 10:00 PM",
+            "Tuesday: 5:00 AM – 10:00 PM",
+            "Wednesday: 5:00 AM – 10:00 PM",
+            "Thursday: 5:00 AM – 10:00 PM",
+            "Friday: 5:00 AM – 10:00 PM",
+            "Saturday: 6:00 AM – 10:00 PM",
+            "Sunday: 8:00 AM – 10:00 PM"
+          ],
+          "nextOpenTime": "2026-04-05T06:00:00Z"
+        },
+        "displayName": {
+          "text": "TotalEnergies Tankstelle",
+          "languageCode": "de"
+        },
+        "currentOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 5,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 5,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 5,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 5,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 5,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 5:00 AM – 10:00 PM",
+            "Tuesday: 5:00 AM – 10:00 PM",
+            "Wednesday: 5:00 AM – 10:00 PM",
+            "Thursday: 5:00 AM – 10:00 PM",
+            "Friday: 5:00 AM – 10:00 PM",
+            "Saturday: 6:00 AM – 10:00 PM",
+            "Sunday: 8:00 AM – 10:00 PM"
+          ],
+          "nextOpenTime": "2026-04-05T06:00:00Z"
+        },
+        "primaryType": "gas_station",
+        "shortFormattedAddress": "Kornblumenweg 43, Gottmadingen"
+      },
+      {
+        "id": "ChIJ6aJNdUp9mkcRncBhv2RljWQ",
+        "location": {
+          "latitude": 47.757763399999995,
+          "longitude": 8.853285
+        },
+        "regularOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 9,
+                "minute": 0
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 10:00 PM",
+            "Tuesday: 6:00 AM – 10:00 PM",
+            "Wednesday: 6:00 AM – 10:00 PM",
+            "Thursday: 6:00 AM – 10:00 PM",
+            "Friday: 6:00 AM – 10:00 PM",
+            "Saturday: 6:00 AM – 10:00 PM",
+            "Sunday: 9:00 AM – 10:00 PM"
+          ],
+          "nextOpenTime": "2026-04-05T07:00:00Z"
+        },
+        "displayName": {
+          "text": "MTB Tankstelle",
+          "languageCode": "de"
+        },
+        "currentOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 9,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 10:00 PM",
+            "Tuesday: 6:00 AM – 10:00 PM",
+            "Wednesday: 6:00 AM – 10:00 PM",
+            "Thursday: 6:00 AM – 10:00 PM",
+            "Friday: 6:00 AM – 10:00 PM",
+            "Saturday: 6:00 AM – 10:00 PM",
+            "Sunday: 9:00 AM – 10:00 PM"
+          ],
+          "nextOpenTime": "2026-04-05T07:00:00Z"
+        },
+        "primaryType": "gas_station",
+        "shortFormattedAddress": "Güterstraße 11, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJUxVeh-5imkcR3dB4cHjUdoM",
+        "location": {
+          "latitude": 47.7610579,
+          "longitude": 8.891974099999999
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "displayName": {
+          "text": "E-Center Singen Unter den Tannen",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 1,
+                "hour": 0,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 0,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 23,
+                "minute": 59,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Closed",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ],
+          "specialDays": [
+            {
+              "date": {
+                "year": 2026,
+                "month": 4,
+                "day": 6
+              }
+            }
+          ],
+          "nextCloseTime": "2026-04-05T22:00:00Z"
+        },
+        "primaryType": "gas_station",
+        "shortFormattedAddress": "Unter den Tannen 3, Singen (Hohentwiel)-Überlingen am Ried"
+      },
+      {
+        "id": "ChIJQ9Pqq1d9mkcRtQMOaKwKZpc",
+        "location": {
+          "latitude": 47.7427591,
+          "longitude": 8.8432449
+        },
+        "regularOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 7,
+                "minute": 0
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 10:00 PM",
+            "Tuesday: 6:00 AM – 10:00 PM",
+            "Wednesday: 6:00 AM – 10:00 PM",
+            "Thursday: 6:00 AM – 10:00 PM",
+            "Friday: 6:00 AM – 10:00 PM",
+            "Saturday: 7:00 AM – 10:00 PM",
+            "Sunday: 8:00 AM – 10:00 PM"
+          ],
+          "nextOpenTime": "2026-04-05T06:00:00Z"
+        },
+        "displayName": {
+          "text": "Eni Service Station",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 7,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 10:00 PM",
+            "Tuesday: 6:00 AM – 10:00 PM",
+            "Wednesday: 6:00 AM – 10:00 PM",
+            "Thursday: 6:00 AM – 10:00 PM",
+            "Friday: 6:00 AM – 10:00 PM",
+            "Saturday: 7:00 AM – 10:00 PM",
+            "Sunday: 8:00 AM – 10:00 PM"
+          ],
+          "nextOpenTime": "2026-04-05T06:00:00Z"
+        },
+        "primaryType": "gas_station",
+        "shortFormattedAddress": "Rielasinger Str. 139, Singen (Hohentwiel)"
+      }
+    ]
+  }
+}

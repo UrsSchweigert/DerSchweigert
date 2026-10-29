@@ -1,0 +1,469 @@
+{
+  "meta": {
+    "url": "https://places.googleapis.com/v1/places:searchNearby",
+    "method": "POST",
+    "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
+  },
+  "status": 200,
+  "body": {
+    "places": [
+      {
+        "id": "ChIJN0i8Srt9mkcR0c9oIAZKH-I",
+        "types": [
+          "shopping_mall",
+          "department_store",
+          "store",
+          "point_of_interest",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.760248000000004,
+          "longitude": 8.8415546
+        },
+        "rating": 4.3,
+        "userRatingCount": 3656,
+        "displayName": {
+          "text": "CANO Singen",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJy31yaip9mkcRTb6ID45cQAI",
+        "types": [
+          "supermarket",
+          "discount_supermarket",
+          "bakery",
+          "grocery_store",
+          "food_store",
+          "store",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.753208,
+          "longitude": 8.846748
+        },
+        "rating": 4.2,
+        "userRatingCount": 2291,
+        "displayName": {
+          "text": "Kaufland Singen (Hohentwiel)",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJL4jDujh9mkcRPZ-h2aSGckI",
+        "types": [
+          "department_store",
+          "store",
+          "point_of_interest",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7600305,
+          "longitude": 8.8392413
+        },
+        "rating": 3.9,
+        "userRatingCount": 1623,
+        "displayName": {
+          "text": "TK Maxx",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJPQ2jZkt9mkcRE_1qPf2ADPE",
+        "types": [
+          "fast_food_restaurant",
+          "chicken_restaurant",
+          "hamburger_restaurant",
+          "american_restaurant",
+          "restaurant",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.753892699999994,
+          "longitude": 8.8538052
+        },
+        "rating": 4.1,
+        "userRatingCount": 3595,
+        "displayName": {
+          "text": "Kentucky Fried Chicken",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJ2ccZikt9mkcRrt6VQfLCru0",
+        "types": [
+          "home_improvement_store",
+          "hardware_store",
+          "home_goods_store",
+          "building_materials_store",
+          "store",
+          "point_of_interest",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7541485,
+          "longitude": 8.8508338
+        },
+        "rating": 4.3,
+        "userRatingCount": 4062,
+        "displayName": {
+          "text": "OBI Markt Singen",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJHxRF_rl9mkcRtrKgeeIFSt0",
+        "types": [
+          "sporting_goods_store",
+          "sportswear_store",
+          "bicycle_store",
+          "clothing_store",
+          "store",
+          "service",
+          "manufacturer",
+          "point_of_interest",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.760248000000004,
+          "longitude": 8.8415546
+        },
+        "rating": 4.2,
+        "userRatingCount": 506,
+        "displayName": {
+          "text": "DECATHLON Singen",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJewXak0Z9mkcRHyCVpQ1rypE",
+        "types": [
+          "supermarket",
+          "discount_supermarket",
+          "grocery_store",
+          "food_store",
+          "store",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.754709999999996,
+          "longitude": 8.8393
+        },
+        "rating": 4.1,
+        "userRatingCount": 1542,
+        "displayName": {
+          "text": "Lidl",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJReWWzEB9mkcR7aXS_3UKeBY",
+        "types": [
+          "movie_theater",
+          "point_of_interest",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7583333,
+          "longitude": 8.838611100000001
+        },
+        "rating": 4.3,
+        "userRatingCount": 2280,
+        "displayName": {
+          "text": "Cineplex Singen",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJ_Q7ygkt9mkcRjNvntSce5-E",
+        "types": [
+          "gas_station",
+          "supermarket",
+          "grocery_store",
+          "food_store",
+          "store",
+          "service",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.754134,
+          "longitude": 8.852682999999999
+        },
+        "rating": 3.5,
+        "userRatingCount": 161,
+        "displayName": {
+          "text": "Aral",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJ8eHqohR9mkcROFCjtb_NXlw",
+        "types": [
+          "museum",
+          "tourist_attraction",
+          "art_museum",
+          "point_of_interest",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7613754,
+          "longitude": 8.8276463
+        },
+        "rating": 4.6,
+        "userRatingCount": 954,
+        "displayName": {
+          "text": "MAC - Museum Art & Cars",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJI8XlKTR9mkcRqKtJXIngH6I",
+        "types": [
+          "supermarket",
+          "grocery_store",
+          "food_store",
+          "store",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.761372400000006,
+          "longitude": 8.852328
+        },
+        "rating": 4.1,
+        "userRatingCount": 1120,
+        "displayName": {
+          "text": "REWE",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJIaR-pnN9mkcRgoY2cN0h9So",
+        "types": [
+          "brewery",
+          "beer_garden",
+          "german_restaurant",
+          "european_restaurant",
+          "bar",
+          "service",
+          "manufacturer",
+          "restaurant",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7607802,
+          "longitude": 8.839253099999999
+        },
+        "rating": 4.5,
+        "userRatingCount": 792,
+        "displayName": {
+          "text": "Barfüßer Hausbrauerei Singen",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJgdgs0hV9mkcRrPg4kgR5bRo",
+        "types": [
+          "gas_station",
+          "book_store",
+          "coffee_shop",
+          "cafe",
+          "bistro",
+          "supermarket",
+          "grocery_store",
+          "food_store",
+          "store",
+          "service",
+          "restaurant",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7648,
+          "longitude": 8.8316
+        },
+        "rating": 4.4,
+        "userRatingCount": 699,
+        "displayName": {
+          "text": "JET",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJ09_q3Q59mkcRUo5UeLI7vSs",
+        "types": [
+          "supermarket",
+          "discount_supermarket",
+          "grocery_store",
+          "food_store",
+          "store",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.763094699999996,
+          "longitude": 8.8385704
+        },
+        "rating": 3.8,
+        "userRatingCount": 453,
+        "displayName": {
+          "text": "Lidl",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJuxQNsgF9mkcR8Kb0v70GMpo",
+        "types": [
+          "vietnamese_restaurant",
+          "meal_delivery",
+          "food_delivery",
+          "service",
+          "japanese_restaurant",
+          "restaurant",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7687832,
+          "longitude": 8.8376383
+        },
+        "rating": 4.6,
+        "userRatingCount": 937,
+        "displayName": {
+          "text": "Monavi Garten",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJLWsg7z59mkcRV054HB5QQk0",
+        "types": [
+          "clothing_store",
+          "sportswear_store",
+          "womens_clothing_store",
+          "sporting_goods_store",
+          "store",
+          "point_of_interest",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7628194,
+          "longitude": 8.8376954
+        },
+        "rating": 4.3,
+        "userRatingCount": 365,
+        "displayName": {
+          "text": "New Yorker",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJy0OEbQiHmkcR470pMLuADMo",
+        "types": [
+          "asian_restaurant",
+          "vietnamese_restaurant",
+          "sushi_restaurant",
+          "barbecue_restaurant",
+          "japanese_restaurant",
+          "restaurant",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7497742,
+          "longitude": 8.8430827
+        },
+        "rating": 4.8,
+        "userRatingCount": 332,
+        "displayName": {
+          "text": "VI O-MA Restaurant Chill & Grill, Sushi & Tapas - Singen ( Hohentwiel )",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJE0-s60d9mkcRBSaFKf1Q3Rc",
+        "types": [
+          "wholesaler",
+          "grocery_store",
+          "food_store",
+          "store",
+          "manufacturer",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7580889,
+          "longitude": 8.8414991
+        },
+        "rating": 3.4,
+        "userRatingCount": 116,
+        "displayName": {
+          "text": "Nestlé Germany AG Maggi-Singen",
+          "languageCode": "en"
+        }
+      },
+      {
+        "id": "ChIJN5Du-lB9mkcRijWdBjgwfJA",
+        "types": [
+          "asian_grocery_store",
+          "confectionery",
+          "supermarket",
+          "grocery_store",
+          "food_store",
+          "store",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7594205,
+          "longitude": 8.8398764
+        },
+        "rating": 4.5,
+        "userRatingCount": 331,
+        "displayName": {
+          "text": "go asia Supermarkt - Singen",
+          "languageCode": "de"
+        }
+      },
+      {
+        "id": "ChIJp7QEEz99mkcR80THLSf0yvU",
+        "types": [
+          "turkish_restaurant",
+          "fast_food_restaurant",
+          "bar_and_grill",
+          "bar",
+          "restaurant",
+          "point_of_interest",
+          "food",
+          "establishment"
+        ],
+        "location": {
+          "latitude": 47.7611583,
+          "longitude": 8.8373583
+        },
+        "rating": 4.4,
+        "userRatingCount": 1903,
+        "displayName": {
+          "text": "Restaurant Bosporus",
+          "languageCode": "de"
+        }
+      }
+    ]
+  }
+}

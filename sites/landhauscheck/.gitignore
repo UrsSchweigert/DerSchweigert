@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Generated at deploy time by scripts/deploy.sh from the GitHub releases API
+frontend/public/releases.json
+
+# Local env / local database
+.env
+.env.local
+local-dev.db
+
+# Build artifacts produced by scripts/deploy.sh
+build/
+*-lambda.zip
