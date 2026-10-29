@@ -570,8 +570,10 @@ class Scheduler:
             self.store.put_issue(issue)
             self._record_failure(meta, "escalation_path", now, "escalation paths changed: %s" % cls["escalate"])
             return
-        if self.repo.numstat(issue["branch"]) > policy["diff_size_cap"]:
-            self._record_failure(meta, "diff_too_large", now, "diff exceeds %d lines" % policy["diff_size_cap"])
+        size = self.repo.numstat_diff(issue["branch"])
+        if size["added"] > policy["diff_size_cap"]:
+            self._record_failure(meta, "diff_too_large", now, "diff adds %d lines (cap %d); %d lines removed" % (
+                size["added"], policy["diff_size_cap"], size["removed"]))
             return
         h["checking"] = True
         self._start_checks("implementation:" + issue["issue_id"], issue["issue_id"], head, base, self._check_commands(issue, paths),

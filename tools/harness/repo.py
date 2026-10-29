@@ -40,6 +40,10 @@ class Repo:
     def numstat(self, branch: str) -> int:
         raise NotImplementedError
 
+    def numstat_diff(self, branch: str) -> Dict[str, int]:
+        """Added and removed lines separately: the review cap counts additions, not deletions."""
+        return {"added": self.numstat(branch), "removed": 0}
+
     def patch_id(self, branch: str) -> str:
         raise NotImplementedError
 
@@ -115,11 +119,16 @@ class GitRepo(Repo):
         return self.changed_paths(self.merge_base(branch), "refs/heads/" + branch)
 
     def numstat(self, branch: str) -> int:
-        total = 0
+        parts = self.numstat_diff(branch)
+        return parts["added"] + parts["removed"]
+
+    def numstat_diff(self, branch: str) -> Dict[str, int]:
+        added = removed = 0
         for line in self._git("diff", "--numstat", self.merge_base(branch), "refs/heads/" + branch).splitlines():
             add, dele = line.split("\t")[:2]
-            total += (int(add) if add.isdigit() else 0) + (int(dele) if dele.isdigit() else 0)
-        return total
+            added += int(add) if add.isdigit() else 0
+            removed += int(dele) if dele.isdigit() else 0
+        return {"added": added, "removed": removed}
 
     def fast_forward_base(self, head: str) -> None:
         """Move the base branch of this harness-owned clone to `head`, which must already contain it. Used to rehearse merges locally."""

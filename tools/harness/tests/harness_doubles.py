@@ -36,9 +36,10 @@ class FakeRepo(Repo):
         lo, hi = int(old[4:]), int(new[4:])
         return sorted({p for r in range(lo + 1, hi + 1) for p in self.history.get(r, [])})
 
-    def set_branch(self, name, paths, lines=10, head=None, patch="patch-1", base=None):
+    def set_branch(self, name, paths, lines=10, head=None, patch="patch-1", base=None, added=None, removed=None):
         self.branches[name] = {"head": head or "head-%s-%d" % (name, len(self.rebased) + self.rev), "paths": paths, "lines": lines,
-                               "patch": patch, "base": base or self.base_head()}
+                               "patch": patch, "base": base or self.base_head(),
+                               "added": lines if added is None else added, "removed": 0 if removed is None else removed}
 
     def branch_head(self, branch):
         return self.branches[branch]["head"]
@@ -54,6 +55,10 @@ class FakeRepo(Repo):
 
     def numstat(self, branch):
         return self.branches[branch]["lines"]
+
+    def numstat_diff(self, branch):
+        record = self.branches[branch]
+        return {"added": record.get("added", record["lines"]), "removed": record.get("removed", 0)}
 
     def patch_id(self, branch):
         return self.branches[branch]["patch"]
@@ -118,6 +123,8 @@ class FakeAdapter(Adapter):
         self.cancelled = []
         self.impl_paths = {}      # issue_id -> paths the implementer "changes"
         self.impl_lines = {}
+        self.impl_added = {}       # issue_id -> lines added, when it differs from impl_lines
+        self.impl_removed = {}     # issue_id -> lines removed
         self.verdicts = {}        # issue_id -> list of 'approve'/'changes_requested'
         self.decisions = {}       # issue_id -> delegator decisions, the last one repeats
         self.analyses = {}        # issue_id -> analyst analyses, the last one repeats
@@ -163,7 +170,7 @@ class FakeAdapter(Adapter):
         branch = req.branch
         if req.role == "implementer":
             self.repo.set_branch(branch, self.impl_paths.get(req.issue_id, ["src/%s.py" % req.issue_id]), self.impl_lines.get(req.issue_id, 10),
-                                 base=h.base_rev)
+                                 base=h.base_rev, added=self.impl_added.get(req.issue_id), removed=self.impl_removed.get(req.issue_id))
         result = {"attempt_id": req.attempt_id, "epoch": req.epoch, "outcome": "done", "changed_files": [], "revision": "",
                   "checks": [], "risks": [], "blockers": [], "next_action": "review"}
         if req.role == "implementer":
