@@ -408,6 +408,34 @@ account; browser request protections are not multi-user authentication. Use
 not create it. Asset uploads are limited to 10 MiB and still pass the existing
 asset policy, path, format, provenance, and checksum validation.
 
+**Remote dashboard (operator override)**
+
+`harness remote` is an explicit, opt-in exception for when you need the dashboard
+while away from the machine. It does not re-bind the dashboard: it runs a second
+loopback-only service that sits in front of the GUI, adds the PIN gate the
+dashboard deliberately lacks, and forwards a fixed allowlist of routes while
+rewriting the loopback `Host`/`Origin` metadata the GUI requires.
+
+```sh
+export HARNESS_GUI_PIN='a-long-random-pin'   # or pass --pin
+harness remote --port 8443                   # stays loopback-only
+cloudflared tunnel --url http://127.0.0.1:8443
+```
+
+Then open the Cloudflare Tunnel URL, enter the PIN, and use the dashboard.
+Sessions are signed cookies (HttpOnly, SameSite=Strict, Secure behind the
+tunnel) that expire after 12 hours by default (`--session-hours`). Five wrong
+PINs lock the address out for 15 minutes. The relay only proxies the GUI's
+known GET/POST routes to the fixed `--upstream` URL, enforces the 16 MiB body
+cap, and never logs bodies, tokens, or the PIN.
+
+This weakens the default posture: anyone with the PIN and tunnel URL can reach
+the dashboard, and dashboard approval can merge to production. Prefer the
+strongest tunnel access layer you have (for example Cloudflare Access in
+addition to the PIN), keep the machine's store folder private, and stop the
+relay when you are back. The dashboard itself remains loopback-only and is
+never exposed directly.
+
 **Pause, resume, stop**
 
 ```sh
@@ -525,6 +553,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `pause PLAN_ID` | Stop after current work (graceful) | `--now` |
 | `cancel PLAN_ID` | Stop for good | `--drain` |
 | `gui` | Local monitoring and management | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--repo OWNER/NAME` |
+| `remote` | PIN-locked loopback relay that proxies the local GUI for a tunnel (operator override) | `--upstream URL` (http://127.0.0.1:8765), `--host 127.0.0.1\|localhost`, `--port` (8443, or 0), `--pin`, `--session-hours` (12) |
 | `status` | Everything at a glance (read-only) | `--json` |
 | `issue ID` | One issue in detail (read-only) | `--json` |
 | `tasks` | Open human tasks, explained | none |
@@ -602,7 +631,7 @@ What is not, honestly:
 * The individual work issues are not mirrored to GitHub: they exist only in the harness store, so use `status` and the pull requests for progress. GitHub Project fields are not synced.
 * If a person merges a harness pull request on GitHub, the harness does not notice.
 * Token and cost figures are estimates. The runtime reports no usage, so each attempt records the agent's own estimate and a lower bound from prompt and file sizes. `status`, `issue`, and the dashboard label every figure by source, and nothing enforces them. Cost appears only if you add prices.
-* The local dashboard is not a remote administration service. It has no separate user authentication, persistent process registry, or cross-dashboard singleton lock.
+* The local dashboard is not a remote administration service. It has no separate user authentication, persistent process registry, or cross-dashboard singleton lock. `harness remote` is a documented operator override: a loopback-only, PIN-locked relay that proxies the dashboard for a tunnel. It is not the default posture.
 * Phase-wide exit checks run only when a phase is validated. Each issue is checked with its own commands.
 
 ## Upgrading safely

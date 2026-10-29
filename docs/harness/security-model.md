@@ -69,6 +69,18 @@ service. It binds only to IPv4 loopback and trusts the operator's OS account.
 Do not publish it through a proxy, tunnel, or port forwarding. Other processes
 that can access the local account and port are not isolated from it.
 
+* Operator override: `harness remote` is an explicit exception. It is a separate
+  loopback-only relay that sits in front of the dashboard, requires a PIN, and
+  forwards only the dashboard's fixed route allowlist to the fixed loopback
+  upstream while rewriting the loopback Host/Origin the dashboard checks. The
+  dashboard itself is never re-bound or exposed directly. The relay weakens the
+  default posture (the PIN and tunnel are the only barriers), so it must keep
+  its own controls: constant-time PIN comparison, per-address rate limiting and
+  lockout, signed HttpOnly/SameSite/Strict session cookies, a 16 MiB body cap,
+  no body/token/PIN logging, and no forwarding of arbitrary URLs. Prefer an
+  additional tunnel access layer (for example Cloudflare Access) and stop the
+  relay when remote access is no longer needed.
+
 * Validate the Host header on all routes. Mutation requests also require a per-server random token, same-origin browser metadata, and JSON content with a bounded length. Read-only mode rejects all mutation requests.
 * Serve only fixed HTML, JavaScript, and icon routes. Use a nonce-based Content Security Policy, frame denial, no-store responses, and no referrer. Render store content as text, never HTML. Icons are vendored locally from Lucide 0.468.0; the dashboard requires no CDN.
 * Resolve task identity from the OS account and authenticated `gh` login, never a browser-supplied identity. Reuse the existing owner, delegate, stale-revision, and secret-content checks. Only the reviewed-plan approval described under Policy and Approval Protection may create an approval record through HTTP; no other route may write approval state.
