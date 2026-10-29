@@ -44,6 +44,8 @@ MERGE_PENDING = ("in progress", "queued", "waiting for status", "expected \u2014
 MERGE_PENDING_LIMIT = 40
 MAX_DECISION_TEXT = 2000
 HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result"}
+# A worker's own question is triaged before the owner sees it. Budget and policy failures are decided by trusted code.
+QUESTION_KINDS = ("needs_input",)
 
 
 def _publish_kind(exc: Exception) -> str:
@@ -399,9 +401,35 @@ class Scheduler:
             self.store.transition("issue", issue["issue_id"], "Blocked", self.runner_id, {"reason": issue["blocked_reason"]}, now=now)
         self._ensure_decision_task(issue, now, "raised when the issue blocked")
 
+    def _schedule_triage(self, issue: Dict[str, Any], now: float) -> bool:
+        """Triage every question before the owner sees it, independent of the retry and analysis budgets.
+
+        Bounded per distinct question, not by money: one triage for each question that would otherwise reach the
+        owner, and never a second one straight after an analyst attempt. `_on_analyst` raises the task afterwards
+        with the root cause and the precise questions attached.
+        """
+        reason = (issue.get("blocked_reason") or "")[:200]
+        if not reason or issue.get("analysis_pending") or issue.get("triage_for") == reason:
+            return False
+        if not any(f.get("kind") in QUESTION_KINDS for f in (issue.get("last_failures") or [])[-1:]):
+            return False  # budgets and policy are decided by trusted code, not by a model
+        attempts = self.store.list_attempts(issue["issue_id"])
+        if attempts and attempts[-1]["role"] == "analyst":
+            return False  # triage just answered; a second pass would only repeat it
+        if self.store.state("issue", issue["issue_id"]) == "Blocked":
+            self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id,
+                                  {"reason": "triage before the owner is asked"}, now=now)
+        issue["triage_for"] = reason
+        issue["analysis_pending"] = True
+        self.store.put_issue(issue)
+        self._emit("triage_scheduled", issue=issue["issue_id"], reason=reason)
+        return True
+
     def _ensure_decision_task(self, issue: Dict[str, Any], now: float, why: str) -> Optional[str]:
         open_tasks = [t for t in self.store.human_tasks(issue["issue_id"]) if t["state"] in humantasks.OPEN_STATES]
         if open_tasks or self._unmet_deps(issue) or issue.get("cancelled") or issue.get("split_approved"):
+            return None
+        if self._schedule_triage(issue, now):
             return None
         n = len(self.store.human_tasks(issue["issue_id"])) + 1
         task_id = "decision-%s-%d" % (issue["issue_id"], n)

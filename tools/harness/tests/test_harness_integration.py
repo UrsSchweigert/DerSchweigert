@@ -422,19 +422,42 @@ def stale_issue_env(tmp_path, **script):
     return env
 
 
-def test_a_refiner_that_needs_the_owner_raises_a_decision_task_with_its_reasons(tmp_path):
+def test_a_refiner_question_is_triaged_before_the_owner_sees_it(tmp_path):
     env = stale_issue_env(tmp_path)
     env.adapter.script("i1", "refiner", "needs_input")
     env.start()
     events = env.run_until(lambda: env.state("i1") == "Blocked")
     assert any(e["event"] == "refiner_needs_input" for e in events)
+    assert any(e["event"] == "triage_scheduled" for e in events)
     issue = env.store.get_issue("i1")
-    assert "whether the disclaimer repeats after a reload" in issue["blocked_reason"] and issue["repair_failures"] == 0
+    assert issue["repair_failures"] == 0 and "the strong analysis recommends needs_owner" in issue["blocked_reason"]
     [task] = env.store.human_tasks("i1")
     from harness import humantasks
     text = humantasks.render_task(task)
-    assert "whether the disclaimer repeats after a reload" in text and "needs_input" in text  # the owner can decide with real information
+    assert "whether the disclaimer repeats after a reload" in text  # the refiner's reason survives the triage
+    assert "two modules that cannot be changed together" in text  # and the owner reads the root cause, not the raw failure
+    assert [r.role for r in env.adapter.started] == ["refiner", "analyst"]
     assert env.store.get_attempt("i1#1")["outcome"] == "Succeeded"  # a valid answer, not a failure
+
+
+def test_triage_runs_whatever_the_analysis_budget_says(tmp_path):
+    env = Env(tmp_path, issues=[], budgets=dict(LONG_BUDGETS, analyses_per_issue=0))
+    env.add_issue("i1", "P1", ["F1.1"], code_anchors=["src/index.html", "src/new-module.js"], contract_paths=["src/new-module.js"])
+    env.repo.existing = {"src/index.html"}
+    env.repo.advance_base(["src/index.html"])  # makes the issue stale, so the refiner runs
+    env.adapter.script("i1", "refiner", "needs_input")
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Blocked")
+    assert "analyst" in [r.role for r in env.adapter.started]
+
+
+def test_triage_does_not_repeat_straight_after_the_analyst_answered(tmp_path):
+    env = stale_issue_env(tmp_path)
+    env.adapter.script("i1", "refiner", "needs_input")
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Blocked")
+    assert [r.role for r in env.adapter.started].count("analyst") == 1
+    assert len(env.store.human_tasks("i1")) == 1
 
 
 def test_a_refiner_is_told_what_changed_and_which_anchors_are_new_files(tmp_path):

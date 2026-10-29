@@ -110,7 +110,8 @@ class SandboxChecker(Checker):
                     code, text = 124, str(exc)
                 config_error = ("HARNESS_CONFIG_ERROR:" in text or code == 127
                                 or "command not found" in text.lower() or "not found" in text.lower()
-                                or "no such file or directory" in text.lower())
+                                or "no such file or directory" in text.lower()
+                                or "could not find" in text.lower() or "cannot find module" in text.lower())
                 results.append({"command": check["command"], "working_directory": directory, "exit_code": code,
                                 "kind": "configuration" if config_error else ("pass" if code == 0 else "check"),
                                 "output": output_tail(text)})
@@ -151,7 +152,7 @@ class SandboxChecker(Checker):
             result.update(exit_code=124, output="the command timed out after %d seconds" % self.timeout)
         elif code != 0:
             result["output"] = output_tail(handle.tail)
-            if code == 127 or re.search(r"command not found|not found|no such file or directory|not a directory", handle.tail, re.I):
+            if code == 127 or re.search(r"command not found|not found|no such file or directory|not a directory|could not find|cannot find module", handle.tail, re.I):
                 result["kind"] = "configuration"
         handle.proc.stdout.close()
         handle.proc = None

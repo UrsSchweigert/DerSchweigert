@@ -455,6 +455,8 @@ The harness asks you things through tasks. `harness tasks` lists the open ones w
 
 Before you answer, the [human-task-triage agent](../../.github/agents/human-task-triage.agent.md) can take the task over. It reads the open tasks, decides whether the cause is a harness fault it can reproduce, fixes and tests it, re-drives the blocked work, and hands you only the questions that need your intent: scope, budget, credentials, licenses, and manual device or visual checks. It may answer or acknowledge a task for you only when you approve it in that conversation; the trusted local command resolves the OS account and the `gh` login, so it cannot tell the agent apart from you. That limit is an instruction to the agent, not runtime enforcement.
 
+A worker's own question (`needs_input` from the refiner) is triaged by the harness itself before you see a decision task: the `analyst` role runs first, whatever `analyses_per_issue`, `strong_attempts_per_issue`, the repair budget, or the transient budget say. You then get the root cause and its questions instead of a raw failure. Budget and policy failures are not triaged; trusted code decides those. Without an available strong model the launch is refused and you are asked directly, as before.
+
 **Decision tasks** are raised by the harness itself when an issue is blocked (budget used up, a policy failure, or a refiner that needs your input). It is not a request from a reviewer or a worker. Each task shows the reason, the recent failures, and these options:
 
 | # | Option | What happens |
