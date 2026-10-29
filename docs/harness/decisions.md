@@ -201,10 +201,16 @@ After PR #26 broke production (a classic script read `window.__storage` before t
 
 A refiner stopped issue `coverage-core` with a human question because its validation command, `node --test tests/coverage.test.mjs`, named a file that was neither in the repository nor inside phase P3's path allowlist, so no worker could ever create it. The harness had already run exactly that command three times at preflight (v1, v2, v3) and recorded `Could not find 'tests/coverage.test.mjs'`, exit 1 — but classified it as an ordinary failed check. The classifier looked for `not found`, and Node writes `Could not find`. Import therefore went ahead, and the owner was asked a question that a script could have answered.
 
-* `plans.command_paths_problem` now refuses, before approval and at `import-issues`, any validation command that names a path which does not exist at the base revision and is not inside the phase allowlist. Glob tokens and absolute paths are treated separately. This is deterministic and costs nothing.
+* `plans.command_paths_problem` now refuses, before approval and at `import-issues`, any validation command that names a path which does not exist at the base revision and is not inside the phase allowlist. Glob tokens and absolute paths are treated separately. This is deterministic and costs nothing. The effective allowlist is the phase's own plus those of every phase it transitively depends on (`cli.phase_allowlists`): P10 runs `node tools/build_books.mjs --check` and P3 creates that file, so comparing against P10's own list alone was too strict.
 * The configuration classifier also matches Node's `Could not find` and `Cannot find module`.
 * A worker's own question (`needs_input`) is now triaged by the `analyst` role before the owner sees a decision task, independent of `analyses_per_issue`, `strong_attempts_per_issue`, and the repair and transient budgets. It is bounded per distinct question, never twice in a row after an analyst attempt, and it does not cover budget or policy failures: trusted code decides those and a model would only add cost. When no strong model is available the launch is refused and the owner is asked as before, so the guarantee degrades to the old behaviour rather than to silence.
 * Limit: this triage is a harness role, not the `human-task-triage` chat agent in `.github/agents/`. A VS Code custom agent cannot be triggered by a harness event; the harness only launches sandboxed workers through `adapter.py`.
+
+### Repairing an already imported issue
+
+`runner.import_issues` skips an issue id that already exists (`if store.get_issue(...): continue`), and `import-issues` refuses issue docs whose digest differs from the preflight proof. A new plan version therefore does **not** correct an imported issue: it preflights the corrected docs, then skips the row. The only defined mechanism that replaces a broken issue is the analyst's validated split (option `apply the proposed split`), which needs two or more parts and rewires dependents.
+
+For `coverage-core` the operator amended the row directly with the public store API: `validation_commands` set to `node --test tests/books.test.mjs` (the issue's own code anchor, inside the P3 allowlist), `blocked_reason`, `triage_for`, `analysis_pending` and `analysis` cleared, then `Blocked` → `Ready`. Task `decision-coverage-core-1` was cancelled first. This is operator surgery on trusted state, not a supported command; the missing piece is an owner-facing way to amend an imported issue definition.
 
 ## Consequences
 
