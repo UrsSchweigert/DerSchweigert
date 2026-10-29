@@ -8,7 +8,7 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import schemas
+from . import models, schemas
 
 ALLOWED_OPERATIONS = [
     "issue_project_updates", "isolated_branches", "commits", "pushes", "pull_requests", "eligible_merges", "asset_requests",
@@ -23,11 +23,13 @@ DEFAULT_POLICY: Dict[str, Any] = {
     ],
     "merge_policy": "autonomous-when-all-gates-pass",
     "budgets": {
-        "concurrent_workers": 2, "repair_attempts": 2, "strong_attempts_per_issue": 1, "transient_retries": 3,
+        "concurrent_workers": 2, "repair_attempts": 2, "strong_attempts_per_issue": 1, "transient_retries": 3, "delegator_consults_per_issue": 1,
+        "analyses_per_issue": 1,
         "worker_timeout_s": 1800, "inactivity_timeout_s": 600, "heartbeat_s": 30, "lease_s": 90,
         "run_wall_clock_s": 28800, "pull_requests_per_run": 20, "github_write_retries": 5,
         "human_reminder_after_s": 86400, "human_reminders_max": 3, "human_escalation_after_s": 259200,
     },
+    "model_sources": ["copilot"],
     "model_tiers": {"low": ["claude-haiku-4.5"], "standard": ["claude-sonnet-5"], "strong": ["claude-opus-5", "claude-opus-4.8"]},
     "diff_size_cap": 800,
     "assets": {
@@ -101,6 +103,17 @@ def changed_phases(old: Dict[str, Any], new: Dict[str, Any]) -> List[str]:
     return sorted(pid for pid in b if a.get(pid) != b[pid])
 
 
+def with_model_sources(policy: Optional[Dict[str, Any]], sources: Optional[List[str]],
+                       catalog: Optional[Dict[str, Dict[str, List[str]]]] = None) -> Dict[str, Any]:
+    """Bind the chosen model sources into a policy. The picker menu is derived from them, so approval covers both."""
+    policy = copy.deepcopy(policy or DEFAULT_POLICY)
+    chosen = list(dict.fromkeys(sources or policy.get("model_sources") or []))
+    if chosen:  # a policy without sources keeps its explicit tiers, so older plans still build
+        policy["model_sources"] = chosen
+        policy["model_tiers"] = models.menu_for(chosen, catalog)
+    return policy
+
+
 def validate_plan(plan: Dict[str, Any]) -> List[str]:
     """Return semantic problems. An empty list means the plan may move from Draft to Proposed."""
     schemas.validate(plan, schemas.PLAN, "plan")
@@ -142,6 +155,15 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
     bad_ops = set(plan["policy"]["authorized_operations"]) - set(ALLOWED_OPERATIONS)
     if bad_ops:
         problems.append("policy authorizes operations that plan approval cannot grant: %s" % sorted(bad_ops))
+    sources = plan["policy"].get("model_sources")
+    if sources is not None:
+        unknown = sorted(set(sources) - set(models.SOURCES))
+        if not sources:
+            problems.append("policy.model_sources is empty: choose at least one of %s" % ", ".join(models.SOURCES))
+        elif unknown:
+            problems.append("policy.model_sources has unknown sources: %s" % unknown)
+        elif any(not plan["policy"]["model_tiers"].get(tier) for tier in models.TIERS):
+            problems.append("policy.model_tiers has an empty tier for the chosen model sources %s" % sources)
     return problems
 
 
@@ -164,13 +186,14 @@ def _has_cycle(phases: List[Dict[str, Any]]) -> bool:
 
 
 def build_plan(plan_id: str, version: int, requirements: List[Dict[str, str]], phases: Optional[List[Dict[str, Any]]],
-               policy: Optional[Dict[str, Any]] = None, fixture: bool = False) -> Dict[str, Any]:
+               policy: Optional[Dict[str, Any]] = None, fixture: bool = False, model_sources: Optional[List[str]] = None,
+               catalog: Optional[Dict[str, Dict[str, List[str]]]] = None) -> Dict[str, Any]:
     plan = {
         "plan_id": plan_id,
         "version": version,
         "requirements": requirements,
         "phases": copy.deepcopy(phases or []),
-        "policy": copy.deepcopy(policy or DEFAULT_POLICY),
+        "policy": with_model_sources(policy, model_sources, catalog),
     }
     if fixture:
         plan["fixture"] = True

@@ -1,10 +1,39 @@
-"""Model routing: tier per role, evidence-only escalation, independent reviewer, and the no-routing fallback."""
+"""Delegated model choices, bounded legacy routing, and independent review."""
 from __future__ import annotations
 
+import json
+import os
 from typing import Any, Dict, List, Optional
 
+from . import schemas
+
 TIERS = ("low", "standard", "strong")
-ROLE_TIER = {"investigator": "low", "refiner": "low", "implementer": "low", "reviewer": "standard", "integrator": "low"}
+
+# Sources the picker menu can draw from. A plan records the chosen ones, so the menu is bound by its approval digest.
+SOURCES = ("copilot", "deepseek", "local")
+
+# Candidate ids per source and tier. Availability is still probed: ids this runtime rejects are dropped from the menu.
+# A store-level model_catalog.json can replace any source/tier list when a runtime uses different ids.
+MODEL_CATALOG: Dict[str, Dict[str, List[str]]] = {
+    "copilot": {
+        "low": ["claude-haiku-4.5"],
+        "standard": ["claude-sonnet-5"],
+        "strong": ["claude-opus-5", "claude-opus-4.8"],
+    },
+    "deepseek": {
+        "low": ["deepseek/deepseek-v4-flash"],
+        "standard": ["deepseek/deepseek-v4-flash"],
+        "strong": ["deepseek/deepseek-v4-pro"],
+    },
+    "local": {
+        "low": ["ollama-models/qwen3.5:4b", "ollama-models/qwen3:4b", "ollama-models/llama3.2:3b", "ollama-models/phi:latest"],
+        "standard": ["ollama-models/gemma4:12b", "ollama-models/qwen3-local:8k"],
+        "strong": ["ollama-models/gemma4:cloud"],
+    },
+}
+CATALOG_FILE = "model_catalog.json"
+ROLE_TIER = {"investigator": "low", "refiner": "low", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
+             "analyst": "strong"}
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
 
 
@@ -48,6 +77,91 @@ def accept_tier_request(requested: str, current: str, *, previous_failure_kind: 
 def _candidates(tier: str, policy_tiers: Dict[str, Any]) -> List[str]:
     value = policy_tiers.get(tier, [])
     return [value] if isinstance(value, str) else list(value)
+
+
+def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], available: list[str] | None,
+                   avoid: str | None = None, *, strong_used: int = 0, strong_budget: int = 1) -> dict[str, Any]:
+    """Validate a delegator's concrete model choice without substituting a role default."""
+    schemas.validate(choice, schemas.MODEL_CHOICE, "model_choice")
+    reason = choice["reason"].strip()
+    if not reason or len(reason) > 2000:
+        raise ValueError("model choice needs a non-empty reason under 2000 characters")
+    selected = choice["model"]
+    tier = next((band for band in TIERS if selected in _candidates(band, policy_tiers)), None)
+    if tier is None:
+        raise ValueError("model %r is not configured in the approved policy" % selected)
+    if tier == "strong" and strong_used >= strong_budget:
+        raise ValueError("strong attempt budget exhausted")
+    note = "delegator chose %s: %s" % (selected, reason)
+    if available is None:
+        return {"model": None, "tier": tier, "routing": False,
+                "note": note + "; model routing unavailable: runtime default model used"}
+    if selected not in available:
+        raise ValueError("selected model %r is not available" % selected)
+    if selected == avoid:
+        alternatives = {model for band in TIERS for model in _candidates(band, policy_tiers)
+                        if model in available and model != avoid}
+        if alternatives:
+            raise ValueError("reviewer must use an independent model when one is available")
+        note += "; reviewer shares the implementer's model: no different model available"
+    return {"model": selected, "tier": tier, "routing": True, "note": note}
+
+
+def load_catalog(home: Optional[str] = None) -> Dict[str, Dict[str, List[str]]]:
+    """The built-in catalog, with every source/tier that a store-level model_catalog.json replaces."""
+    catalog = {source: {tier: list(ids) for tier, ids in tiers.items()} for source, tiers in MODEL_CATALOG.items()}
+    path = os.path.join(home, CATALOG_FILE) if home else None
+    if path and os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            custom = json.load(fh)
+        schemas.validate(custom, {source + "?": {tier + "?": [str] for tier in TIERS} for source in SOURCES}, "model_catalog")
+        if not custom:
+            raise ValueError("model_catalog.json names no source")
+        for source, tiers in custom.items():
+            catalog[source].update({tier: list(ids) for tier, ids in tiers.items()})
+    return catalog
+
+
+def menu_for(sources: List[str], catalog: Optional[Dict[str, Dict[str, List[str]]]] = None) -> Dict[str, List[str]]:
+    """The picker menu for the chosen sources: each tier unions their candidates in the order the sources were given."""
+    chosen = list(dict.fromkeys(sources or []))
+    if not chosen:
+        raise ValueError("at least one model source is required; choose from %s" % ", ".join(SOURCES))
+    unknown = [source for source in chosen if source not in SOURCES]
+    if unknown:
+        raise ValueError("unknown model source(s) %s; choose from %s" % (", ".join(unknown), ", ".join(SOURCES)))
+    catalog = catalog or load_catalog()
+    menu: Dict[str, List[str]] = {}
+    for tier in TIERS:
+        ids: List[str] = []
+        for source in chosen:
+            ids.extend(model for model in catalog[source][tier] if model not in ids)
+        menu[tier] = ids
+    return menu
+
+
+def available_in_tier(tier: str, policy_tiers: dict[str, Any], available: list[str] | None) -> list[str]:
+    """Approved models of one tier that the runtime offers. Empty when model routing is unavailable."""
+    return [m for m in _candidates(tier, policy_tiers) if available is not None and m in available]
+
+
+def model_options(policy_tiers: dict[str, Any], available: list[str] | None) -> list[dict[str, str]]:
+    """Expose probed models and approved relative cost bands to the delegator."""
+    return [{"model": candidate, "relative_cost": band} for band in TIERS
+            for candidate in _candidates(band, policy_tiers) if available is not None and candidate in available]
+
+
+def validate_choices(choices: dict[str, Any], policy_tiers: dict[str, Any], available: list[str] | None,
+                     *, strong_budget: int = 1, require: bool = False) -> None:
+    """Check a task's delegation decisions against the model menu and implementation budget."""
+    schemas.validate(choices, schemas.MODEL_CHOICES, "model_choices")
+    if require and available is not None:
+        missing = {"implementer", "reviewer", "refiner"} - set(choices)
+        if missing:
+            raise ValueError("model_choices missing decisions for %s" % ", ".join(sorted(missing)))
+    for role, choice in choices.items():
+        avoid = choices.get("implementer", {}).get("model") if role == "reviewer" else None
+        resolve_choice(choice, policy_tiers, available, avoid, strong_budget=strong_budget if role == "implementer" else 1)
 
 
 def resolve_model(tier: str, policy_tiers: Dict[str, Any], available: Optional[List[str]], avoid: Optional[str] = None) -> Dict[str, Any]:

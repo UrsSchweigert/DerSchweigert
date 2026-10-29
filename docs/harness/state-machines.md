@@ -56,7 +56,7 @@ stateDiagram-v2
     [*] --> Planned
     Planned --> Eligible: dependencies Done and plan Executing
     Eligible --> Active: refinement begins
-    Active --> Validating: all issues Done
+    Active --> Validating: all issues Done or Cancelled, and every requirement covered by a Done issue
     Validating --> Active: coverage gaps found
     Validating --> Done: exit criteria and coverage verified
     Active --> Blocked: blocker recorded
@@ -95,7 +95,11 @@ stateDiagram-v2
     InReview --> Blocked: blocker recorded
     Blocked --> Refining: blocker resolved
     Blocked --> Ready: blocker resolved and scope unchanged
+    Refining --> Cancelled: owner cancels, or work it depends on was cancelled
+    Ready --> Cancelled: owner cancels, or work it depends on was cancelled
+    Blocked --> Cancelled: owner cancels, or applies a split
     Done --> [*]
+    Cancelled --> [*]
 ```
 
 Guards:
@@ -108,6 +112,7 @@ Guards:
 * `Done` requires a merge in dependency order, integrated checks passing, and review and test evidence that is not stale. An open PR or existing code never qualifies.
 * External reconciliation may satisfy these guards only with PR, merge, CI, and review evidence fetched from GitHub and recorded with the operator identity. Missing review evidence is a blocker; agent evidence is never synthesized.
 * `Blocked` requires an unmet dependency or an open human task. A budget-exhausted or policy-failed issue gets a decision task raised at the moment it blocks. Unrelated work continues.
+* `Cancelled` is terminal. Cancelling an issue also cancels every issue that depends on it. An issue replaced by an owner-approved split is cancelled with `superseded_by` naming its parts, and its dependents are rewired to those parts. A phase left with requirements that no `Done` issue covers pauses the plan instead of validating.
 
 ## Human Task
 

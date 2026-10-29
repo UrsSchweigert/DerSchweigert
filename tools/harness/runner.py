@@ -9,7 +9,7 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
-from . import approval, plans, schemas
+from . import approval, models, plans, schemas
 import sys
 
 from .adapter import CopilotCliAdapter
@@ -25,7 +25,7 @@ MODEL_CACHE_TTL_S = 24 * 3600
 ISSUE_SCHEMA = {
     "issue_id": str, "phase_id": str, "requirement_ids": [str], "title?": str, "outcomes": [str], "acceptance_criteria": [str],
     "non_goals": [str], "code_anchors": [str], "contract_paths?": [str], "deps?": [str], "validation_commands?": [str],
-    "working_directory?": str, "parallel_safe?": bool,
+    "working_directory?": str, "parallel_safe?": bool, "model_choices?": schemas.MODEL_CHOICES,
 }
 
 
@@ -46,6 +46,12 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
     added = []
     for doc in docs:
         schemas.validate(doc, ISSUE_SCHEMA, "issue")
+        for role, choice in doc.get("model_choices", {}).items():
+            try:
+                models.resolve_choice(choice, plan["policy"]["model_tiers"], None,
+                                      strong_budget=plan["policy"]["budgets"]["strong_attempts_per_issue"] if role == "implementer" else 1)
+            except ValueError as exc:
+                raise RunRefused("issue %s %s model choice: %s" % (doc["issue_id"], role, exc)) from exc
         working_directory = doc.get("working_directory", ".")
         if (not working_directory or os.path.isabs(working_directory) or "\\" in working_directory
                 or ".." in working_directory.split("/")):
@@ -60,7 +66,7 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         if store.get_issue(doc["issue_id"]):
             continue
         extra = {k: doc[k] for k in ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
-                                      "validation_commands", "working_directory", "parallel_safe") if k in doc}
+                                      "validation_commands", "working_directory", "parallel_safe", "model_choices") if k in doc}
         store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev, **extra))
         for state in ("Refining", "Ready"):
             store.transition("issue", doc["issue_id"], state, "import")
@@ -81,10 +87,10 @@ def trusted_clone(home: str, source_repo: str, base: str = "main", remote: Optio
     return repo
 
 
-def cached_models(adapter: CopilotCliAdapter, home: str, candidates: List[str]) -> Optional[List[str]]:
+def cached_models(adapter: CopilotCliAdapter, home: str, candidates: List[str], force: bool = False) -> Optional[List[str]]:
     """Models the runtime accepts. Probing costs a call per model, so the result is cached for a day."""
     path = os.path.join(home, "models.json")
-    if os.path.exists(path):
+    if os.path.exists(path) and not force:
         with open(path) as fh:
             doc = json.load(fh)
         if time.time() - doc["checked_at"] < MODEL_CACHE_TTL_S and set(doc["candidates"]) == set(candidates):
@@ -95,6 +101,29 @@ def cached_models(adapter: CopilotCliAdapter, home: str, candidates: List[str]) 
     with open(path, "w") as fh:
         json.dump({"checked_at": time.time(), "candidates": candidates, "models": probe["models"]}, fh)
     return probe["models"]
+
+
+def cached_probe(home: str) -> Optional[Dict[str, Any]]:
+    """The last cached probe result, without calling the runtime."""
+    try:
+        with open(os.path.join(home, "models.json")) as fh:
+            doc = json.load(fh)
+    except (OSError, ValueError, KeyError):
+        return None
+    return {"checked_at": doc.get("checked_at"), "candidates": list(doc.get("candidates") or []), "available": list(doc.get("models") or [])}
+
+
+def probe_menu(home: str, sources: List[str], repo_root: str = "", *, refresh: bool = False,
+               catalog: Optional[Dict[str, Dict[str, List[str]]]] = None) -> Dict[str, Any]:
+    """Probe the candidate ids of the chosen model sources and report what this runtime accepts."""
+    catalog = catalog or models.load_catalog(home)
+    menu = models.menu_for(sources, catalog)
+    candidates = sorted({model for ids in menu.values() for model in ids})
+    adapter = CopilotCliAdapter(home, repo_root or home, "main")
+    available = cached_models(adapter, home, candidates, force=refresh) if candidates else []
+    return {"sources": list(sources), "menu": menu, "candidates": candidates, "available": list(available or []),
+            "reachable": available is not None, "reason": "" if available is not None else adapter.probe().get("reason", ""),
+            "checked_at": time.time()}
 
 
 def make_rehearsal(home: str) -> str:

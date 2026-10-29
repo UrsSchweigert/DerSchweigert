@@ -1,12 +1,40 @@
 ---
 title: Harness Decisions
 description: Stage 1 output recording the stack, runtime, isolation tier, capability matrix, and policy overrides for the incremental development harness
-ms.date: 2026-10-27
+ms.date: 2026-10-28
 ---
 
 ## Overview
 
 Produced by Stage 1 of `setup-project-harness`. Later stages read this file instead of asking again. Status is **chosen** (user answered) or **assumed** (spec default).
+
+## Delegated Model Selection (2026-10-28)
+
+The owner's choice supersedes the fixed role-to-tier mapping for newly
+investigated tasks. Historical role assignments below remain the compatibility
+fallback for existing imported issues without model choices.
+
+* The investigator acts as the delegating agent. It receives the probed, approved model menu and implementation budget, then chooses a concrete model and a task-specific cost/quality reason for implementation, refinement, and review.
+* Model tiers remain policy cost bands and repair-escalation limits, not mandatory role assignments. A difficult task may start with a more capable implementer; a straightforward review may use a cheaper independent model.
+* Strict schemas and trusted code validate model IDs, availability, reasons, independent review, and the strong implementation-attempt budget. Choices cannot change authorized operations, approved paths, check gates, or merge policy.
+* Failed checks and review findings retain bounded evidence-based repair escalation. Infrastructure retries retain any previous justified upgrade. If a repair or a delegator retry moves the implementer onto the originally selected reviewer model, independent review is rerouted and recorded. A delegator retry spends no repair budget, so reviewer independence is checked against the implementer model in use rather than against the repair counter.
+* `harness start` is a guided wrapper over the existing commands, not a new execution path: it reuses `investigate`, `plan`, `approve`, `import-issues`, `run`, and `gui`, asks before every irreversible step, and infers the pending steps from the store so a rerun resumes. It never approves for the owner; the digest is still typed in a real terminal, and a non-interactive stdin stops with instructions instead of guessing.
+* The owner selects the model sources the picker may draw from with `--model-source` on `investigate` and `plan` (`copilot`, `deepseek`, `local`; repeatable and combinable, default `copilot`). The policy records the sources and the derived tier menu, so the approval digest covers the menu, and `harness models` shows which candidate ids this runtime accepts. A store-level `model_catalog.json` can replace a source/tier list when a runtime uses other ids; it is read when a plan is built and never alters an approved plan. The dashboard shows the catalog and probes it on demand; probing runs only when the owner clicks, one probe at a time, at most once a minute, and is refused in `--read-only` mode, because it spends a sandboxed runtime call per candidate.
+* Planning reports and attempt records preserve the choices and reasons. Selection is part of the existing planning pass, without another routing-agent call for every worker. Measured model quality is unavailable; cost categories are qualitative policy estimates, and token figures are estimates (see Cancelling, splits, and usage estimates below).
+* An implementer's `blocked` outcome, or a `done` outcome that still lists blockers, is recorded as a reported failure (`worker_blocked`). It is never published, checked, or merged, and it spends no repair budget. Before this change the implementer's outcome and blockers were ignored, so a worker that said it could not finish could still reach Done if checks and review passed.
+* A stuck report triggers one read-only consultation of the delegating agent (`delegator_consults_per_issue`, default 1, part of the approved budgets). It returns `retry` with optional guidance and model choice, or `ask_owner` with a diagnosis. Trusted code validates model, availability, reason, credentials, and the strong-attempt budget, and a failed or unusable consultation becomes the existing owner decision task without spending repair budget. The delegator only recommends a split. The strong analysis below proposes a validated one, and the owner can apply it.
+* Plans approved before this change have no consultation or analysis budget, so stuck reports go straight to the owner. Failed checks and review findings do not trigger a consultation.
+* A strong-tier `analyst` (read-only, `analyses_per_issue`, default 1, absent budgets count as zero) studies a stuck issue after the delegating agent chooses `ask_owner` or after a second stuck report. It reports a root cause and recommends `split`, `retry`, or `needs_owner`. Split proposals are validated by trusted code (requirement coverage, new ids, path allowlist or existing anchors, command deny list, sibling dependencies, no cycles, no credentials) and saved for `import-issues` under `analyses/` in the private store.
+* The analysis is advice until the owner acts: it does not restart work, spend repair budget, or change any issue. The analysis is skipped without budget, an approved available strong model, or model routing.
+
+## Cancelling, splits, and usage estimates (2026-10-28)
+
+* Issues gain a terminal `Cancelled` state, reachable from `Refining`, `Ready`, and `Blocked`. Before this, cancelling only set a flag and left the issue `Blocked`, so its phase never completed and its dependents waited silently until the wall-clock budget paused the run. Cancelling now also cancels every issue that depends on the cancelled one, because those issues can no longer run, and cancels their open tasks. A cancel recorded before this change is settled on the next scheduling pass.
+* A phase whose issues are all `Done` or `Cancelled`, but whose requirements are not all covered by a `Done` issue, pauses the plan with the uncovered requirements named. The owner imports issues that cover them and resumes. Before this, such a phase flapped between `Active` and `Validating` on every pass while the plan stayed `Executing`.
+* A decision task whose issue has a validated proposed split gains a sixth option, `apply the proposed split`. Choosing it only records the approval. The scheduler then validates the proposal again against the current state, creates the parts (resumable after an interruption), rewires dependents to all parts, and cancels the original with `superseded_by`. A proposal that no longer validates returns to the owner as a new task. Parts carry the analyst's per-part model choices, validated like planning choices, and not the original's.
+* The spec's "never estimate usage" is replaced by: record estimates, name the source, never enforce them. Each attempt keeps the agent's own `usage_estimate`, a size-based lower bound from the prompt, task, and result files, and any output lines that mention usage (stored, not parsed, because the format is unverified and the agent writes to the same stream). Totals by plan, model, and role appear in `status`, `issue`, and the dashboard. Cost is shown only from an owner-written `model-prices.json`, because the harness cannot know prices and Copilot may bill by request rather than by token.
+* Not verified against the real runtime: Docker was not running and the store had no `copilot.token` on 2026-10-28, so no worker could start. Opt-in live tests for the stuck report, the delegator decision, and the strong analysis were added and print the runtime's real usage output; they have not been run.
+* Existing imported issues and running coordinators are not rewritten. Model routing unavailable remains an explicit fallback. This change uses offline tests and does not run paid agents, change the production store, approve a plan, or contact GitHub.
 
 ## Security hardening (2026-10-27)
 
@@ -142,7 +170,7 @@ was evaluated without changing dependency manifests or CI defaults.
 
 * Adapter: `CopilotCliAdapter` runs the real Copilot CLI 1.0.103 in the Tier A sandbox (`--allow-all-tools --no-ask-user --silent`), one container per attempt, killed by name on cancel or timeout. Verified live: `HARNESS_LIVE=1 python3 -m pytest tools/harness/tests/test_harness_live.py` ran a real implementer task, and trusted code fetched the branch, inspected it with `GitRepo`, and ran the check in the sandbox.
 * Models (probed, the CLI has no listing command): `low` = `claude-haiku-4.5`, `standard` = `claude-sonnet-5`, `strong` = `claude-opus-5` then `claude-opus-4.8`. Models that the CLI rejected: `claude-sonnet-4.5`, `claude-sonnet-4.6`, `claude-opus-4.5`, `gpt-5.4`. Only one model per low and standard tier is available, so the independent reviewer of a standard implementer runs on the next tier up. The attempt records say so. Model availability is cached for 24 hours in `models.json`.
-* Usage per role and tier is unavailable: the harness runs the CLI in silent mode and gets no usage data. `status` labels it.
+* Usage per role and tier is not reported by the runtime. The harness now records labeled estimates (see Cancelling, splits, and usage estimates). Worker runs do not pass `--silent`, so usage lines may already be present in the output. The format has not been observed.
 * Trusted git: workers push nothing. Their branches are fetched into a bare clone owned by the harness (`trusted-clone.git`), and every inspection, patch-id, rebase and export runs there with hooks, system config and global config disabled.
 * Remote publishing (`GitHubPublisher`: push `harness/*` branches without force, open one PR, merge bound to the reviewed commit SHA) is implemented but has only been exercised against a local remote and a test double. It has not run against live GitHub.
 * Not automated: creating implementation issues from phases (the investigator pass). `import-issues` accepts refined issues, validated against the approved plan. `run` refuses when no issues exist.

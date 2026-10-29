@@ -222,7 +222,8 @@ Work goes stale when its inputs change underneath it. Code detects each case det
 
 Model choice is an execution-policy setting, so the approval digest covers it. Pick the cheapest tier that the task packet supports and move up only on evidence.
 
-* Define three tiers in the policy: `low`, `standard`, and `strong`. Map each tier to a concrete model in `docs/harness/decisions.md`, because the available models depend on the runtime.
+* Define three tiers in the policy: `low`, `standard`, and `strong`. Map each tier to concrete models in `docs/harness/decisions.md`, because the available models depend on the runtime.
+* The owner chooses which model sources the tier menu may draw from (`copilot`, `deepseek`, `local`), and the policy records the chosen sources with the derived menu so approval covers both. A source is a candidate list, not a promise: an id the runtime rejects never reaches the menu.
 * Default role mapping: investigator and refiner use `low`, the implementer uses `standard`, the reviewer uses `standard`, and the integrator uses `low` because its merge, check, and sync steps are deterministic code.
 * The reviewer never runs below the implementer's tier and uses a different model from the implementer when one is available.
 * Escalate by evidence. Move one tier up for a repair attempt only after a failed check or review finding on the previous attempt. Use `strong` for work touching an escalation path. An agent's request for a stronger model is a proposal that the coordinator accepts only on these grounds.
@@ -231,7 +232,7 @@ Model choice is an execution-policy setting, so the approval digest covers it. P
 * Route to a cheaper tier only when the task packet is small, bounded, and its output is schema-validated.
 * Record the model and tier for every attempt in the journal.
 * When the runtime has no model routing, run every role on the single available model, record "model routing unavailable" in `docs/harness/decisions.md`, and show it in `status`. Do not pretend the tiers apply.
-* Report usage per role and per tier where the runtime supplies it. Label it unavailable otherwise and never estimate it.
+* Report usage per role and per tier where the runtime supplies it. Where it does not, record estimates, label each by its source (an agent's own estimate, or a size-based lower bound), never use them for limits, and show cost only from prices the owner supplies.
 
 ## Human Tasks and Manual Testing
 
@@ -311,7 +312,7 @@ The interface shows:
 * Each worker's role, issue, run ID, branch, revision, elapsed time, retry count, last activity, and latest outcome
 * Runner health, heartbeats, expired leases, pending synchronization, failures, validation evidence, review state, and integration state
 * Human requests, owners, age, deadlines, and affected work
-* Actual usage and costs where available, configured budgets, and remaining allowance. Label unavailable metrics as unavailable and never invent token counts or prices.
+* Actual usage and costs where available, configured budgets, and remaining allowance. Label unavailable metrics as unavailable, label estimates as estimates with their source, and never invent prices.
 
 Telemetry rules:
 
