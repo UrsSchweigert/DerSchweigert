@@ -37,6 +37,26 @@ const SMALL_VOWELS = SMALL.vowels;
 const CV_POOL = buildCombinations("CV", SMALL_CONSONANTS, SMALL_VOWELS);
 const VC_POOL = buildCombinations("VC", SMALL_CONSONANTS, SMALL_VOWELS);
 
+/** The deck builder the setup screen used before the pattern merge. */
+function legacyDeck(pattern, total, random) {
+  const pool = buildCombinations(pattern, CONSONANTS, [...VOWELS, ...SPECIALS]);
+  const queue = [];
+  while (queue.length < total) {
+    const batch = shuffleWith(pool, random).slice(0, total - queue.length);
+    queue.push(...batch);
+  }
+  return queue;
+}
+
+function shuffleWith(items, random) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index--) {
+    const other = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[other]] = [shuffled[other], shuffled[index]];
+  }
+  return shuffled;
+}
+
 const SUBS = ["ma", "am", "mam", "ama"];
 
 test("buildPatternDeck: no checked sub-pattern yields an empty deck", () => {
@@ -64,6 +84,26 @@ test("buildPatternDeck: only 'am' reproduces the VC deck multiset", () => {
   assert.strictEqual(deck.length, vcPool.length);
   assert.deepStrictEqual(sorted(deck), sorted(vcPool));
   assert.strictEqual(new Set(deck).size, deck.length);
+});
+
+test("buildPatternDeck: a partial 'ma'/'am' deck matches the legacy CV/VC deck for the same card count", () => {
+  for (const [sub, code] of [["ma", "CV"], ["am", "VC"]]) {
+    const legacy = legacyDeck(code, 10, seededRandom(101));
+    const deck = buildPatternDeck([sub], CONSONANTS, [...VOWELS, ...SPECIALS], 10, seededRandom(101));
+    assert.strictEqual(deck.length, 10);
+    assert.deepStrictEqual(sorted(deck), sorted(legacy), `${sub} should sample the ${code} pool like the old deck`);
+  }
+});
+
+test("buildPatternDeck: a deck longer than the pool repeats the pool like the legacy deck", () => {
+  const pool = buildCombinations("CV", CONSONANTS, [...VOWELS, ...SPECIALS]);
+  const count = pool.length + 26;
+  const deck = buildPatternDeck(["ma"], CONSONANTS, [...VOWELS, ...SPECIALS], count, seededRandom(103));
+  assert.strictEqual(deck.length, count);
+  assert.deepStrictEqual(sorted(deck.slice(0, pool.length)), sorted(pool), "the whole pool is dealt before anything repeats");
+  const counts = [...occurrences(deck).values()];
+  assert.strictEqual(counts.length, pool.length, "every pool card is used");
+  assert.deepStrictEqual(sorted(counts), sorted([...Array(26).fill(2), ...Array(pool.length - 26).fill(1)]));
 });
 
 test("buildPatternDeck: 'ma'/'am' use the same CV/VC combinations as buildCombinations", () => {
