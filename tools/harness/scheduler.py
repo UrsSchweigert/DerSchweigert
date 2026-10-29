@@ -12,7 +12,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from . import approval, broker, failures, humantasks, models, plans, schemas, smoke, splits, telemetry, usage
+from . import approval, broker, descope, failures, humantasks, models, plans, schemas, smoke, splits, telemetry, usage
 from .adapter import Adapter, WorkRequest
 from .checks import Checker, Publisher
 from .github import BaseChanged, GitHubError
@@ -1316,7 +1316,11 @@ class Scheduler:
                 states = [self.store.state("issue", i["issue_id"]) for i in mine]
                 if all(s in ("Done", "Cancelled") for s in states):
                     covered = {r for i, s in zip(mine, states) if s == "Done" for r in i["requirement_ids"]}
-                    gaps = sorted(set(ph["requirements"]) - covered)
+                    deferred = descope.deferred_requirements(self.store, self.plan_id, self.version)
+                    gaps = sorted(set(ph["requirements"]) - covered - deferred)
+                    if deferred & set(ph["requirements"]):
+                        self._emit("phase_deferred_requirements", phase=ph["id"],
+                                   deferred=sorted(deferred & set(ph["requirements"])))
                     if gaps:
                         self._stall_phase(ph, gaps, [i["issue_id"] for i, s in zip(mine, states) if s == "Cancelled"], now)
                         return
@@ -1333,7 +1337,8 @@ class Scheduler:
 
     def _validate_phase(self, ph: Dict[str, Any], mine: List[Dict[str, Any]], ent: str, now: float) -> None:
         covered = {r for i in mine if self.store.state("issue", i["issue_id"]) == "Done" for r in i["requirement_ids"]}
-        gaps = sorted(set(ph["requirements"]) - covered)
+        deferred = descope.deferred_requirements(self.store, self.plan_id, self.version)
+        gaps = sorted(set(ph["requirements"]) - covered - deferred)
         commands = smoke.merge(ph["validation"], smoke.commands_for_allowlist(ph["path_allowlist"], self.smoke_rules))
         if gaps:
             self._phase_checked(ph, ent, covered, gaps, [], now)

@@ -106,6 +106,42 @@ A proper question is answerable in one line per item and cheap to read:
 * For manual and asset tasks keep the harness's own structured format (exact
   revision, required evidence, response format). Those stay owner answers.
 
+## Descoping: make the plan end without losing the requirement
+
+A plan that never finishes delivers nothing. When the cause of a block is that the work is too large,
+too vague, or too expensive for this plan, reduce scope in the smallest increment that lets the plan
+continue, and put the removed scope on record.
+
+The ladder, smallest first:
+
+1. **One acceptance criterion.** Drop or postpone a single criterion of an issue while the issue still
+   delivers its requirement's core. State which criterion and why in the report.
+2. **One issue becomes parts.** Use the existing split path (`apply the proposed split` when the analyst
+   proposed one). Nothing is lost: the parts carry the requirement.
+3. **One requirement is deferred.** `harness defer PLAN REQ --reason "..." --followup ISSUE_ID`.
+   It only works inside the envelope the owner approved (`policy.descope`); without `allow_deferral` the
+   command refuses, and that refusal is the answer, not a reason to work around it.
+
+Rules that do not move:
+
+* Every deferral names the follow-up issue that still owns the work, and a reason the owner can read in
+  one line. `harness defer PLAN --list` is the record; `status` prints it too.
+* NEVER defer a requirement listed in `forbidden_requirements`, and never touch policy, budgets, path
+  allowlists, the security model, or the approval digest.
+* NEVER cancel an issue to make a phase look complete. Cancelling leaves a requirement uncovered, which
+  pauses the plan; deferring is the supported way to give up scope.
+* Prefer the smallest rung. Three deferred requirements are a scope decision; three dropped criteria are
+  a detail.
+
+## Restoring the scope after completion
+
+When a plan reaches `Completed` with deferrals, the work is not done: it is ordered. Run
+`harness restore PLAN`. It writes `<plan>-restore-<n>` with one issue per deferred requirement, each
+depending on the one before it, so the scope comes back one increment at a time. Report the draft to the
+owner with the issue order; the owner approves it like any plan, so never approve or start it yourself.
+
+Do not restore while the original plan is still running: finish and report first, then propose the wave.
+
 ## Hard boundaries
 
 * NEVER run `harness respond` (including `--ack`), and never post an answer on a

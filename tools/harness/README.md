@@ -457,6 +457,13 @@ Before you answer, the [human-task-triage agent](../../.github/agents/human-task
 
 A worker's own question (`needs_input` from the refiner) is triaged by the harness itself before you see a decision task: the `analyst` role runs first, whatever `analyses_per_issue`, `strong_attempts_per_issue`, the repair budget, or the transient budget say. You then get the root cause and its questions instead of a raw failure. Budget and policy failures are not triaged; trusted code decides those. Without an available strong model the launch is refused and you are asked directly, as before.
 
+**Descoping.** A plan that cannot finish delivers nothing, so a requirement may be deferred to a named
+follow-up issue: `harness defer PLAN REQ --reason "..." --followup ISSUE_ID`, and `harness defer PLAN --list`
+shows what was deferred. The plan policy decides how far that may go (`policy.descope`), and that policy is
+inside the approval digest. A deferred requirement no longer blocks its phase, so the plan can complete.
+Afterwards `harness restore PLAN` writes `<plan>-restore-1` with one issue per deferred requirement, chained
+so the scope returns one increment at a time; you approve that plan like any other.
+
 **Decision tasks** are raised by the harness itself when an issue is blocked (budget used up, a policy failure, or a refiner that needs your input). It is not a request from a reviewer or a worker. Each task shows the reason, the recent failures, and these options:
 
 | # | Option | What happens |

@@ -80,6 +80,7 @@ POLICY = {
     "diff_size_cap": int,
     "assets?": dict,
     "manual_testing?": dict,
+    "descope?": dict,
 }
 
 PLAN = {
