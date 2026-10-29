@@ -3,7 +3,7 @@
     {
       "name": "lesen page in a real browser",
       "paths": ["sites/lesen/static/"],
-      "command": "node /opt/harness/smoke/lesen.mjs ."
+      "command": "node /opt/harness/smoke/lesen.mjs /work"
     }
   ]
 }

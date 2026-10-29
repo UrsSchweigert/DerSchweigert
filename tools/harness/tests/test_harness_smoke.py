@@ -90,3 +90,14 @@ def test_status_can_be_limited_to_one_plan():
     out = status.filter_plan(report, "b")
     assert [p["plan_id"] for p in out["plans"]] == ["b"] and out["budgets"] == {"b": 2}
     assert [i["issue_id"] for i in out["issues"]] == ["y"] and out["queue"] == [{"issue_id": "y"}] and out["workers"] == [{"issue": "y"}]
+
+
+def test_the_real_rule_names_the_repository_root_absolutely():
+    """A phase may set a working_directory, and every command is prefixed with `cd /work/<dir> &&`.
+    A relative argument would therefore resolve against that subdirectory; the script wants the repo root."""
+    rules = smoke.load_rules()
+    assert rules, "smoke.json has no rules"
+    for rule in rules:
+        command = rule["command"]
+        assert " /work" in command and " ." not in command, (
+            "smoke rule %r must pass an absolute repository root, not '.': %r" % (rule["name"], command))
