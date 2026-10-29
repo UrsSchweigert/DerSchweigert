@@ -11,12 +11,25 @@ import {
   buildPatternDeck,
 } from "../static/sounds.mjs";
 
+const SITE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const TEST_SOURCE = fileURLToPath(import.meta.url);
+
 const sorted = (items) => [...items].sort();
 
 function occurrences(items) {
   const counts = new Map();
   for (const item of items) counts.set(item, (counts.get(item) || 0) + 1);
   return counts;
+}
+
+/** Assert that `actual` is a cut of `pool`: no card outside it, no over-use. */
+function assertCutOfPool(actual, pool, message) {
+  const available = occurrences(pool);
+  for (const [card, count] of occurrences(actual)) {
+    const inPool = available.get(card) || 0;
+    assert.ok(inPool > 0, `${message}: "${card}" is not part of the expected pool`);
+    assert.ok(count <= inPool, `${message}: "${card}" appears ${count} times but the pool holds ${inPool}`);
+  }
 }
 
 /** Deterministic mulberry32 RNG so deck assertions are reproducible. */
@@ -31,37 +44,160 @@ function seededRandom(seed) {
   };
 }
 
-const SMALL = { consonants: ["m", "s"], vowels: ["a", "o"] };
-const SMALL_CONSONANTS = SMALL.consonants;
-const SMALL_VOWELS = SMALL.vowels;
-const CV_POOL = buildCombinations("CV", SMALL_CONSONANTS, SMALL_VOWELS);
-const VC_POOL = buildCombinations("VC", SMALL_CONSONANTS, SMALL_VOWELS);
-
-/** The deck builder the setup screen used before the pattern merge. */
-function legacyDeck(pattern, total, random) {
-  const pool = buildCombinations(pattern, CONSONANTS, [...VOWELS, ...SPECIALS]);
-  const queue = [];
-  while (queue.length < total) {
-    const batch = shuffleWith(pool, random).slice(0, total - queue.length);
-    queue.push(...batch);
-  }
-  return queue;
-}
-
-function shuffleWith(items, random) {
-  const shuffled = [...items];
-  for (let index = shuffled.length - 1; index > 0; index--) {
-    const other = Math.floor(random() * (index + 1));
-    [shuffled[index], shuffled[other]] = [shuffled[other], shuffled[index]];
-  }
-  return shuffled;
-}
-
+const VOWEL_SLOTS = [...VOWELS, ...SPECIALS];
+const SMALL_CONSONANTS = ["m", "s"];
+const SMALL_VOWELS = ["a", "o"];
 const SUBS = ["ma", "am", "mam", "ama"];
+const SUB_PATTERN_CODES = { ma: "CV", am: "VC", mam: "CVC", ama: "VCV" };
 
-test("buildPatternDeck: no checked sub-pattern yields an empty deck", () => {
+/** Expected pools derived from buildCombinations, never copied by hand. */
+function expectedPools(patternIds, consonants, vowels) {
+  const pools = new Map();
+  for (const pattern of patternIds) {
+    pools.set(pattern, buildCombinations(SUB_PATTERN_CODES[pattern], consonants, vowels));
+  }
+  return pools;
+}
+
+test("buildPatternDeck: 'ma' reproduces the CV pool and 'am' the VC pool", () => {
+  for (const [sub, code] of [["ma", "CV"], ["am", "VC"]]) {
+    const pool = buildCombinations(code, CONSONANTS, VOWEL_SLOTS);
+    const deck = buildPatternDeck([sub], CONSONANTS, VOWEL_SLOTS, pool.length, seededRandom(7));
+    assert.strictEqual(deck.length, pool.length);
+    assert.deepStrictEqual(sorted(deck), sorted(pool), `${sub} should be a permutation of the ${code} pool`);
+    assert.strictEqual(new Set(deck).size, deck.length, `${sub} should not repeat a card`);
+  }
+});
+
+test("buildPatternDeck: a partial 'ma'/'am' deck is a repeat-free cut of the CV/VC pool", () => {
+  for (const [sub, code] of [["ma", "CV"], ["am", "VC"]]) {
+    const pool = buildCombinations(code, CONSONANTS, VOWEL_SLOTS);
+    const deck = buildPatternDeck([sub], CONSONANTS, VOWEL_SLOTS, 10, seededRandom(101));
+    assert.strictEqual(deck.length, 10);
+    assert.strictEqual(new Set(deck).size, deck.length, `${sub} should not repeat before the pool is exhausted`);
+    assertCutOfPool(deck, pool, `${sub} partial deck`);
+  }
+});
+
+test("buildPatternDeck: 'mam' yields only three-letter cards and 'ma'+'am' only two-letter cards", () => {
+  const cvcPool = buildCombinations("CVC", SMALL_CONSONANTS, SMALL_VOWELS);
+  const cvc = buildPatternDeck(["mam"], SMALL_CONSONANTS, SMALL_VOWELS, cvcPool.length, seededRandom(5));
+  assert.strictEqual(cvc.length, cvcPool.length);
+  for (const card of cvc) assert.strictEqual(card.length, 3, `${card} is not a three-letter card`);
+  assert.deepStrictEqual(sorted(cvc), sorted(cvcPool), "'mam' should be a permutation of the CVC pool");
+
+  const vcv = buildPatternDeck(["ama"], SMALL_CONSONANTS, SMALL_VOWELS, 8, seededRandom(5));
+  assert.strictEqual(vcv.length, 8);
+  for (const card of vcv) assert.strictEqual(card.length, 3, `${card} is not a three-letter card`);
+  assert.deepStrictEqual(
+    sorted(vcv),
+    sorted(buildCombinations("VCV", SMALL_CONSONANTS, SMALL_VOWELS)),
+    "'ama' should be a permutation of the VCV pool",
+  );
+
+  const twoLetter = buildPatternDeck(["ma", "am"], SMALL_CONSONANTS, SMALL_VOWELS, 8, seededRandom(5));
+  assert.strictEqual(twoLetter.length, 8);
+  for (const card of twoLetter) assert.strictEqual(card.length, 2, `${card} is not a two-letter card`);
+  const cvAndVc = [
+    ...buildCombinations("CV", SMALL_CONSONANTS, SMALL_VOWELS),
+    ...buildCombinations("VC", SMALL_CONSONANTS, SMALL_VOWELS),
+  ];
+  assert.deepStrictEqual(sorted(twoLetter), sorted(cvAndVc));
+});
+
+test("buildPatternDeck: all four patterns produce the union pool without duplicate card text", () => {
+  const pools = expectedPools(SUBS, SMALL_CONSONANTS, SMALL_VOWELS);
+  const union = [...pools.values()].flat();
+  const deck = buildPatternDeck(SUBS, SMALL_CONSONANTS, SMALL_VOWELS, union.length, seededRandom(13));
+
+  assert.strictEqual(deck.length, union.length);
+  assert.strictEqual(new Set(deck).size, deck.length, "every card text appears at most once");
+  assert.deepStrictEqual(sorted(deck), sorted(union), "the deck is exactly the union of the checked pools");
+});
+
+test("buildPatternDeck: interleaves the patterns and starts with two different ones", () => {
+  const origin = new Map();
+  for (const [pattern, cards] of expectedPools(SUBS, SMALL_CONSONANTS, SMALL_VOWELS)) {
+    for (const card of cards) origin.set(card, pattern);
+  }
+  const deck = buildPatternDeck(SUBS, SMALL_CONSONANTS, SMALL_VOWELS, 24, seededRandom(19));
+
+  assert.strictEqual(deck.length, 24);
+  assert.notStrictEqual(origin.get(deck[0]), origin.get(deck[1]), "the first two cards must come from different patterns");
+  for (let index = 1; index < deck.length; index++) {
+    assert.notStrictEqual(
+      origin.get(deck[index]),
+      origin.get(deck[index - 1]),
+      `cards ${index - 1} and ${index} share a pattern`,
+    );
+  }
+});
+
+test("buildPatternDeck: a count above the pool size repeats the whole pool and returns exactly count cards", () => {
+  const pool = buildCombinations("CV", SMALL_CONSONANTS, SMALL_VOWELS);
+  const count = pool.length + 3;
+  const deck = buildPatternDeck(["ma"], SMALL_CONSONANTS, SMALL_VOWELS, count, seededRandom(103));
+
+  assert.strictEqual(deck.length, count);
+  assert.deepStrictEqual(sorted(deck.slice(0, pool.length)), sorted(pool), "the whole pool is dealt before anything repeats");
+  const counts = [...occurrences(deck).values()];
+  assert.strictEqual(counts.length, pool.length, "every pool card is used");
+  assert.deepStrictEqual(
+    sorted(counts),
+    sorted([...Array(count - pool.length).fill(2), ...Array(pool.length * 2 - count).fill(1)]),
+  );
+});
+
+test("buildPatternDeck: an empty pattern selection yields an empty deck", () => {
   assert.deepStrictEqual(buildPatternDeck([], SMALL_CONSONANTS, SMALL_VOWELS, 10), []);
   assert.deepStrictEqual(buildPatternDeck(new Set(), SMALL_CONSONANTS, SMALL_VOWELS, 10), []);
+});
+
+test("setup guard: an empty sub-pattern selection disables start and reports the missing selection", async () => {
+  const htmlSource = await readFile(path.join(SITE_ROOT, "static", "index.html"), "utf8");
+
+  assert.match(
+    htmlSource,
+    /function selectedSubPatterns\(\)\s*\{\s*return \[\.\.\.document\.querySelectorAll\('input\[name="subpattern"\]:checked'\)\]/,
+    "the guard must read the checked sub-patterns",
+  );
+  assert.match(
+    htmlSource,
+    /const missingSubPattern = pattern === 'PATTERNS' && selectedSubPatterns\(\)\.length === 0;/,
+    "the guard must treat an empty sub-pattern selection as missing",
+  );
+  assert.match(
+    htmlSource,
+    /byId\('start-button'\)\.disabled = startLoading \|\| missingSubPattern;/,
+    "the missing selection must disable the start button",
+  );
+  assert.match(
+    htmlSource,
+    /byId\('setup-error'\)\.textContent = tr\('setup\.error\.no_pattern'\);/,
+    "the missing selection must be reported to the player",
+  );
+});
+
+test("buildPatternDeck: the same seed yields the same deck and a different seed another one", () => {
+  const first = buildPatternDeck(["ma"], CONSONANTS, VOWELS, 10, seededRandom(31));
+  const second = buildPatternDeck(["ma"], CONSONANTS, VOWELS, 10, seededRandom(31));
+  const third = buildPatternDeck(["ma"], CONSONANTS, VOWELS, 10, seededRandom(37));
+
+  assert.deepStrictEqual(first, second, "the same seed produces the same deck");
+  assert.notDeepStrictEqual(first, third, "a different seed produces a different deck");
+  assert.notDeepStrictEqual(first, buildCombinations("CV", CONSONANTS, VOWELS).slice(0, 10), "the deck is not simply the pool order");
+});
+
+test("buildPatternDeck: duplicate sub-pattern ids do not duplicate cards", () => {
+  const pool = buildCombinations("CV", SMALL_CONSONANTS, SMALL_VOWELS);
+  const deck = buildPatternDeck(["ma", "ma"], SMALL_CONSONANTS, SMALL_VOWELS, pool.length, seededRandom(41));
+  assert.strictEqual(deck.length, pool.length);
+  assert.deepStrictEqual(sorted(deck), sorted(pool));
+});
+
+test("buildPatternDeck: specials fill the vowel slot like the setup screen does", () => {
+  const deck = buildPatternDeck(["ma"], ["m"], ["a", "au"], 2, seededRandom(43));
+  assert.deepStrictEqual(sorted(deck), ["ma", "mau"]);
 });
 
 test("buildPatternDeck: a count of 0 or less yields an empty deck", () => {
@@ -70,145 +206,31 @@ test("buildPatternDeck: a count of 0 or less yields an empty deck", () => {
   assert.deepStrictEqual(buildPatternDeck(["ma"], SMALL_CONSONANTS, SMALL_VOWELS, Number.NaN), []);
 });
 
-test("buildPatternDeck: only 'ma' reproduces the CV deck multiset", () => {
-  const cvPool = buildCombinations("CV", CONSONANTS, [...VOWELS, ...SPECIALS]);
-  const deck = buildPatternDeck(["ma"], CONSONANTS, [...VOWELS, ...SPECIALS], cvPool.length, seededRandom(7));
-  assert.strictEqual(deck.length, cvPool.length);
-  assert.deepStrictEqual(sorted(deck), sorted(cvPool));
-  assert.strictEqual(new Set(deck).size, deck.length);
-});
-
-test("buildPatternDeck: only 'am' reproduces the VC deck multiset", () => {
-  const vcPool = buildCombinations("VC", CONSONANTS, [...VOWELS, ...SPECIALS]);
-  const deck = buildPatternDeck(["am"], CONSONANTS, [...VOWELS, ...SPECIALS], vcPool.length, seededRandom(11));
-  assert.strictEqual(deck.length, vcPool.length);
-  assert.deepStrictEqual(sorted(deck), sorted(vcPool));
-  assert.strictEqual(new Set(deck).size, deck.length);
-});
-
-test("buildPatternDeck: a partial 'ma'/'am' deck matches the legacy CV/VC deck for the same card count", () => {
-  for (const [sub, code] of [["ma", "CV"], ["am", "VC"]]) {
-    const legacy = legacyDeck(code, 10, seededRandom(101));
-    const deck = buildPatternDeck([sub], CONSONANTS, [...VOWELS, ...SPECIALS], 10, seededRandom(101));
-    assert.strictEqual(deck.length, 10);
-    assert.deepStrictEqual(sorted(deck), sorted(legacy), `${sub} should sample the ${code} pool like the old deck`);
-  }
-});
-
-test("buildPatternDeck: a deck longer than the pool repeats the pool like the legacy deck", () => {
-  const pool = buildCombinations("CV", CONSONANTS, [...VOWELS, ...SPECIALS]);
-  const count = pool.length + 26;
-  const deck = buildPatternDeck(["ma"], CONSONANTS, [...VOWELS, ...SPECIALS], count, seededRandom(103));
-  assert.strictEqual(deck.length, count);
-  assert.deepStrictEqual(sorted(deck.slice(0, pool.length)), sorted(pool), "the whole pool is dealt before anything repeats");
-  const counts = [...occurrences(deck).values()];
-  assert.strictEqual(counts.length, pool.length, "every pool card is used");
-  assert.deepStrictEqual(sorted(counts), sorted([...Array(26).fill(2), ...Array(pool.length - 26).fill(1)]));
-});
-
-test("buildPatternDeck: 'ma'/'am' use the same CV/VC combinations as buildCombinations", () => {
-  const cv = buildPatternDeck(["ma"], SMALL_CONSONANTS, SMALL_VOWELS, CV_POOL.length, seededRandom(3));
-  const vc = buildPatternDeck(["am"], SMALL_CONSONANTS, SMALL_VOWELS, VC_POOL.length, seededRandom(3));
-  assert.deepStrictEqual(sorted(cv), sorted(CV_POOL));
-  assert.deepStrictEqual(sorted(vc), sorted(VC_POOL));
-});
-
-test("buildPatternDeck: 'mam' maps to CVC and 'ama' to VCV", () => {
-  const cvcPool = buildCombinations("CVC", SMALL_CONSONANTS, SMALL_VOWELS);
-  const vcvPool = buildCombinations("VCV", SMALL_CONSONANTS, SMALL_VOWELS);
-
-  const cvc = buildPatternDeck(["mam"], SMALL_CONSONANTS, SMALL_VOWELS, cvcPool.length, seededRandom(5));
-  const vcv = buildPatternDeck(["ama"], SMALL_CONSONANTS, SMALL_VOWELS, vcvPool.length, seededRandom(5));
-
-  assert.deepStrictEqual(sorted(cvc), sorted(cvcPool));
-  assert.deepStrictEqual(sorted(vcv), sorted(vcvPool));
-  for (const card of cvc) assert.strictEqual(card.length, 3);
-  for (const card of vcv) assert.strictEqual(card.length, 3);
-});
-
-test("buildPatternDeck: all four sub-patterns yield two- and three-letter cards without duplicates", () => {
-  const deck = buildPatternDeck(SUBS, SMALL_CONSONANTS, SMALL_VOWELS, 24, seededRandom(13));
-  assert.strictEqual(deck.length, 24);
-  assert.strictEqual(new Set(deck).size, deck.length, "every card text appears at most once");
-  assert.ok(deck.some((card) => card.length === 2), "the deck contains two-letter cards");
-  assert.ok(deck.some((card) => card.length === 3), "the deck contains three-letter cards");
-
-  const allowed = new Set([
-    ...buildCombinations("CV", SMALL_CONSONANTS, SMALL_VOWELS),
-    ...buildCombinations("VC", SMALL_CONSONANTS, SMALL_VOWELS),
-    ...buildCombinations("CVC", SMALL_CONSONANTS, SMALL_VOWELS),
-    ...buildCombinations("VCV", SMALL_CONSONANTS, SMALL_VOWELS),
-  ]);
-  for (const card of deck) assert.ok(allowed.has(card), `${card} does not come from any checked pattern`);
-});
-
-test("buildPatternDeck: interleaves sub-patterns instead of concatenating them", () => {
-  const deck = buildPatternDeck(["ma", "am"], SMALL_CONSONANTS, SMALL_VOWELS, 12, seededRandom(17));
-  assert.strictEqual(deck.length, 12);
-  const cvSet = new Set(CV_POOL);
-  const vcSet = new Set(VC_POOL);
-  deck.forEach((card, index) => {
-    const expected = index % 2 === 0 ? cvSet : vcSet;
-    assert.ok(expected.has(card), `card ${index} (${card}) is not interleaved as expected`);
-  });
-});
-
-test("buildPatternDeck: no two neighbouring cards share a sub-pattern while both still have cards", () => {
-  const deck = buildPatternDeck(SUBS, SMALL_CONSONANTS, SMALL_VOWELS, 24, seededRandom(19));
-  const origin = new Map();
-  for (const [sub, code] of [["ma", "CV"], ["am", "VC"], ["mam", "CVC"], ["ama", "VCV"]]) {
-    for (const card of buildCombinations(code, SMALL_CONSONANTS, SMALL_VOWELS)) origin.set(card, sub);
-  }
-  for (let index = 1; index < deck.length; index++) {
-    assert.notStrictEqual(origin.get(deck[index]), origin.get(deck[index - 1]), `cards ${index - 1} and ${index} share a sub-pattern`);
-  }
-});
-
-test("buildPatternDeck: a short pool is repeated to reach the requested count", () => {
-  const deck = buildPatternDeck(["ma"], ["m", "s"], ["a"], 5, seededRandom(23));
-  assert.strictEqual(deck.length, 5);
-  for (const card of deck) assert.ok(["ma", "sa"].includes(card));
-  assert.deepStrictEqual(sorted([...occurrences(deck).values()]), [2, 3]);
-  assert.deepStrictEqual(sorted([...new Set(deck)]), ["ma", "sa"]);
-});
-
-test("buildPatternDeck: repeats only after the whole pool was dealt", () => {
-  const deck = buildPatternDeck(["ma"], SMALL_CONSONANTS, SMALL_VOWELS, 6, seededRandom(29));
-  assert.strictEqual(deck.length, 6);
-  for (const card of deck) assert.ok(CV_POOL.includes(card));
-  assert.deepStrictEqual(sorted([...occurrences(deck).values()]), [1, 1, 2, 2]);
-});
-
-test("buildPatternDeck: shuffles the deck deterministically for a given RNG", () => {
-  const pool = buildCombinations("CV", CONSONANTS, VOWELS);
-  const first = buildPatternDeck(["ma"], CONSONANTS, VOWELS, 10, seededRandom(31));
-  const second = buildPatternDeck(["ma"], CONSONANTS, VOWELS, 10, seededRandom(31));
-  const third = buildPatternDeck(["ma"], CONSONANTS, VOWELS, 10, seededRandom(37));
-
-  assert.deepStrictEqual(first, second, "the same seed produces the same deck");
-  assert.notDeepStrictEqual(first, third, "a different seed produces a different deck");
-  assert.notDeepStrictEqual(first, pool.slice(0, 10), "the deck is not simply the pool order");
-});
-
-test("buildPatternDeck: duplicate sub-pattern ids do not duplicate cards", () => {
-  const deck = buildPatternDeck(["ma", "ma"], SMALL_CONSONANTS, SMALL_VOWELS, CV_POOL.length, seededRandom(41));
-  assert.strictEqual(deck.length, CV_POOL.length);
-  assert.deepStrictEqual(sorted(deck), sorted(CV_POOL));
-});
-
-test("buildPatternDeck: specials fill the vowel slot like the setup screen does", () => {
-  const deck = buildPatternDeck(["ma"], ["m"], ["a", "au"], 2, seededRandom(43));
-  assert.deepStrictEqual(sorted(deck), ["ma", "mau"]);
-});
-
 test("buildPatternDeck: throws on an unknown sub-pattern", () => {
   assert.throws(() => buildPatternDeck(["cx"], SMALL_CONSONANTS, SMALL_VOWELS, 5), /Unknown sub-pattern/);
 });
 
+test("patterns.test.mjs imports the production builder and reimplements none of it", async () => {
+  const source = await readFile(TEST_SOURCE, "utf8");
+
+  assert.match(
+    source,
+    /import \{[^}]*\bbuildPatternDeck\b[^}]*\} from "\.\.\/static\/sounds\.mjs";/,
+    "the test must import buildPatternDeck from sounds.mjs",
+  );
+  assert.ok(
+    !/function\s+\w*shuffle\w*\s*\(/i.test(source),
+    "the test must not reimplement the production shuffle",
+  );
+  assert.ok(
+    !/function\s+buildCombinations\s*\(/.test(source),
+    "the test must not reimplement buildCombinations",
+  );
+});
+
 test("buildCombinations lives only in sounds.mjs and index.html uses the imported module", async () => {
-  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const soundsSource = await readFile(path.join(root, "static", "sounds.mjs"), "utf8");
-  const htmlSource = await readFile(path.join(root, "static", "index.html"), "utf8");
+  const soundsSource = await readFile(path.join(SITE_ROOT, "static", "sounds.mjs"), "utf8");
+  const htmlSource = await readFile(path.join(SITE_ROOT, "static", "index.html"), "utf8");
 
   assert.strictEqual(
     (soundsSource.match(/function buildCombinations\b/g) || []).length,
@@ -224,8 +246,7 @@ test("buildCombinations lives only in sounds.mjs and index.html uses the importe
 });
 
 test("setup markup: one PATTERNS radio with ma/am/mam/ama checkboxes", async () => {
-  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const htmlSource = await readFile(path.join(root, "static", "index.html"), "utf8");
+  const htmlSource = await readFile(path.join(SITE_ROOT, "static", "index.html"), "utf8");
   const markup = htmlSource.split("<script")[0];
 
   assert.strictEqual((markup.match(/<input[^>]*name="pattern"/g) || []).length, 3, "expected PATTERNS, WORDS and FLOP radios");
@@ -238,5 +259,4 @@ test("setup markup: one PATTERNS radio with ma/am/mam/ama checkboxes", async () 
   }
   assert.match(markup, /name="subpattern" value="ma"\s+checked/);
   assert.match(markup, /name="subpattern" value="am"\s+checked/);
-  assert.match(htmlSource, /tr\('setup\.error\.no_pattern'\)/);
 });
