@@ -581,6 +581,21 @@ def test_required_checks_that_never_finish_block_with_their_own_reason(tmp_path,
     assert issue["last_failures"] == [] and issue["repair_failures"] == 0
 
 
+def test_resume_needs_no_worker_branch_when_the_pinned_head_is_the_checked_one(tmp_path):
+    """Regression: the harness clone fetches the base branch only, so branch_head raises for every worker branch and a
+    finished issue could never resume into review - it fell through to a new implementation and hit the strong budget."""
+    env = Env(tmp_path, issues=[("i1", "P1", ["F1.1"])], budgets=dict(LONG_BUDGETS))
+    issue = env.store.get_issue("i1")
+    issue.update(head_rev="abc", pr=5)
+    env.store.add_evidence("i1", "checks", "abc", env.repo.base_head(), "pass", {}, env.clock())
+    assert env.state("i1") == "Ready" and "harness/i1" not in env.repo.branches  # the branch is not in the clone
+    env.repo.pin_good("i1", "def")
+    assert env.sched._resume_in_review(issue, env.clock()) is False  # the pinned head is not the checked one
+    env.repo.pin_good("i1", "abc")
+    assert env.sched._resume_in_review(issue, env.clock()) is True
+    assert env.state("i1") == "In Review"
+
+
 def test_a_branch_rebased_by_the_harness_is_published_before_the_merge(tmp_path):
     """Regression: the merge is bound to the rebased head, which GitHub only knows if it was pushed."""
     env = flaky_env(tmp_path)

@@ -1073,7 +1073,9 @@ class Scheduler:
         try:
             same_head = self.repo.branch_head(issue["branch"]) == issue["head_rev"]
         except Exception:
-            return False
+            # The harness clone fetches the base branch only, so the worker's branch usually is not in it. The pinned
+            # harness-good ref records the head the checks passed on, and the merge is bound to that same sha.
+            same_head = self.repo.pinned(issue["issue_id"]) == issue["head_rev"]
         if passed is None or passed["verdict"] != "pass" or not same_head:
             return False
         merged = self._valid(issue["issue_id"], "merge", issue["head_rev"])
