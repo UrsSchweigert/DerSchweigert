@@ -13,6 +13,8 @@ on:
 
 permissions:
   contents: read
+  # Read-only on pull request metadata, for the changed-file list behind the site gates below.
+  pull-requests: read
 
 jobs:
   # Which sites a change touches. Required checks make a skipped job awkward, and a workflow that never starts leaves its
@@ -37,14 +39,21 @@ jobs:
         run: |
           set -euo pipefail
           ffm=false; lesen=false; site=false
-          changed=""
+          changed=""; listed=true
           if [ -n "${PR:-}" ]; then
-            changed="$(gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" --jq '.[].filename' || true)"
+            # The files endpoint pages through every file, so nothing is truncated.
+            changed="$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/files?per_page=100" \
+                        --jq '.[][] | .filename' 2>/dev/null)" || listed=false
           elif [ -n "${BASE:-}" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ]; then
-            changed="$(gh api "repos/$REPO/compare/$BASE...$HEAD_SHA" --jq '.files[].filename' || true)"
+            compared="$(gh api "repos/$REPO/compare/$BASE...$HEAD_SHA" 2>/dev/null)" || listed=false
+            changed="$(printf '%s' "$compared" | jq -r '.files[]?.filename' 2>/dev/null)" || listed=false
+            # GitHub caps a compare at 300 files; a truncated list says nothing about the rest.
+            if printf '%s' "$compared" | jq -e '(.files | length) >= 300' >/dev/null 2>&1; then listed=false; fi
+          else
+            listed=false
           fi
-          if [ -z "$changed" ]; then
-            echo "::notice::no changed paths could be listed; treating every site as changed"
+          if [ "$listed" != true ] || [ -z "$changed" ]; then
+            echo "::warning::could not list every changed path; treating every site as changed"
             ffm=true; lesen=true; site=true
           else
             while IFS= read -r path; do
