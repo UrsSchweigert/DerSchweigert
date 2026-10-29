@@ -227,6 +227,22 @@ def test_human_retry_does_not_reset_cumulative_budget_and_override_is_explicit(t
     assert issue["repair_failures"] == 3 and issue["repair_budget_override"] == 1
 
 
+def test_an_answered_question_no_longer_shows_up_as_evidence(tmp_path):
+    env = Env(tmp_path, budgets=LONG)
+    issue = env.store.get_issue("i1")
+    issue["last_failures"] = [
+        {"attempt": "i1#1", "role": "refiner", "kind": "needs_input", "class": "human", "detail": "which test file?"},
+        {"attempt": "i1#2", "role": "implementer", "kind": "diff_too_large", "class": "policy", "detail": "diff exceeds 800 lines"},
+    ]
+    issue["blocked_reason"] = "the refiner needs your input: which test file?"
+    env.store.put_issue(issue)
+    env.store.transition("issue", "i1", "Blocked", "coordinator", {}, now=env.clock())
+    make_task(env)
+    respond(env, answers={"option": "give guidance and retry", "guidance": "use tests/books.test.mjs"})
+    kinds = [f["kind"] for f in env.store.get_issue("i1")["last_failures"]]
+    assert kinds == ["diff_too_large"]  # the answered question is gone, the live failure stays
+
+
 def test_unrelated_work_continues_while_a_task_waits(tmp_path):
     env = Env(tmp_path, issues=[("a", "P1", ["F1.1"]), ("b", "P1", ["F1.2"])])
     make_task(env, issue="a")

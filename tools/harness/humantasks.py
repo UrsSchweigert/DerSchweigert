@@ -249,6 +249,7 @@ def _release(store: Store, task: Dict[str, Any], outcome: str, answers: Dict[str
                 else:
                     issue["blocked_reason"] = ""
                 if state == "Blocked" and not exhausted:
+                    answered_questions(issue)
                     store.transition("issue", iid, "Refining" if option == "refine the scope" else "Ready", "coordinator",
                                      {"task": task["task_id"], "retry_budget_override": issue.get("repair_budget_override", 0) +
                                       issue.get("transient_budget_override", 0)}, now=now)
@@ -295,6 +296,15 @@ def _release(store: Store, task: Dict[str, Any], outcome: str, answers: Dict[str
                 released.append(iid)
         store.put_issue(issue)
     return released
+
+
+def answered_questions(issue: Dict[str, Any]) -> None:
+    """Drop `needs_input` failures whose question the owner has now answered.
+
+    They stay in the journal, but they must not keep appearing as evidence on the next decision task: an
+    answered question is history, not a live blocker.
+    """
+    issue["last_failures"] = [f for f in issue.get("last_failures", []) if f.get("kind") != "needs_input"]
 
 
 def cancel_issue(store: Store, issue_id: str, now: float, reason: str = "cancelled by the owner") -> List[str]:

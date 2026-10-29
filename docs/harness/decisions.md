@@ -218,6 +218,14 @@ A refiner stopped issue `coverage-core` with a human question because its valida
 * A worker's own question (`needs_input`) is now triaged by the `analyst` role before the owner sees a decision task, independent of `analyses_per_issue`, `strong_attempts_per_issue`, and the repair and transient budgets. It is bounded per distinct question, never twice in a row after an analyst attempt, and it does not cover budget or policy failures: trusted code decides those and a model would only add cost. When no strong model is available the launch is refused and the owner is asked as before, so the guarantee degrades to the old behaviour rather than to silence.
 * Limit: this triage is a harness role, not the `human-task-triage` chat agent in `.github/agents/`. A VS Code custom agent cannot be triggered by a harness event; the harness only launches sandboxed workers through `adapter.py`.
 
+### Answered questions are not evidence
+
+A decision task lists the issue's last six failures. After the owner answered a `needs_input` question and the
+issue moved on, that entry stayed in the list and reappeared on the next task, where it read like a live
+blocker for a cause that had already been fixed (`decision-coverage-core-3` showed two such entries).
+`humantasks.answered_questions` now drops `needs_input` entries when a decision response releases the issue.
+They remain in the journal; only the evidence shown to the owner and the next worker is cleaned.
+
 ### Repairing an already imported issue
 
 `runner.import_issues` skips an issue id that already exists (`if store.get_issue(...): continue`), and `import-issues` refuses issue docs whose digest differs from the preflight proof. A new plan version therefore does **not** correct an imported issue: it preflights the corrected docs, then skips the row. The only defined mechanism that replaces a broken issue is the analyst's validated split (option `apply the proposed split`), which needs two or more parts and rewires dependents.
