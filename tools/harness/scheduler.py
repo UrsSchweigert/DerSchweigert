@@ -804,20 +804,32 @@ class Scheduler:
         self._emit("analysis_ready", issue=issue["issue_id"], attempt=meta["attempt_id"], recommendation=analysis["recommendation"], parts=len(parts))
         self._block(issue, now)
 
-    def _issue_failure(self, issue: Dict[str, Any], kind: str, detail: str, now: float) -> None:
-        """A failure found by trusted code on an issue already In Review: invalidate evidence and send it back for repair."""
-        self.store.invalidate_evidence(issue["issue_id"], kind)
+    def _issue_failure(self, issue: Dict[str, Any], kind: str, detail: str, now: float, *, invalidate_evidence: bool = True) -> None:
+        """A failure found by trusted code on an issue already In Review: retire the evidence it implicates and send it back.
+
+        A failure that says nothing about the code (GitHub refusing a merge) passes `invalidate_evidence=False`: the review
+        and checks stand, the issue parks in Ready, and `_resume_in_review` takes it back to review for another merge. When
+        evidence is retired the work itself is in question, so the issue returns to In Progress for a repair attempt."""
+        if invalidate_evidence:
+            self.store.invalidate_evidence(issue["issue_id"], kind)
         fclass = failures.classify(kind)
         issue["last_failures"].append({"attempt": None, "role": "coordinator", "kind": kind, "class": fclass, "detail": detail[:1500]})
         decision = failures.decide(fclass, issue, self._plan()["policy"]["budgets"], now, self.rng)
-        self._emit("issue_failure", issue=issue["issue_id"], kind=kind, action=decision["action"])
+        self._emit("issue_failure", issue=issue["issue_id"], kind=kind, action=decision["action"],
+                   evidence_kept=not invalidate_evidence)
         if decision["action"] == "block":
             issue["blocked_reason"] = "%s: %s" % (decision["reason"], detail[:200])
             self.store.put_issue(issue)
             self._block(issue, now)
             return
         self.store.put_issue(issue)
-        self.store.transition("issue", issue["issue_id"], "In Progress", self.runner_id, {"reason": kind}, now=now)
+        if invalidate_evidence:
+            self.store.transition("issue", issue["issue_id"], "In Progress", self.runner_id, {"reason": kind}, now=now)
+        else:
+            # In Review has no edge to Ready, so step through In Progress. Ready lets the resume path rebuild review from
+            # the evidence that was kept instead of spending a model attempt on work that is already done.
+            self.store.transition("issue", issue["issue_id"], "In Progress", self.runner_id, {"reason": kind}, now=now)
+            self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"reason": kind, "evidence_kept": True}, now=now)
 
     # -- integration: drift, staleness, merge gate ------------------------------
 
@@ -958,7 +970,9 @@ class Scheduler:
             transient = any(k in text for k in TRANSIENT_GITHUB)
             self._emit("merge_failed", issue=iid, error=str(exc)[:200], transient=transient)
             if not transient:
-                self._issue_failure(issue, "merge_conflict", "GitHub refused the merge: %s" % str(exc)[:300], now)
+                # GitHub refusing a merge is about the branch, not the code: the review and checks still stand.
+                self._issue_failure(issue, "merge_conflict", "GitHub refused the merge: %s" % str(exc)[:300], now,
+                                    invalidate_evidence=False)
                 return
             issue["merge_retries"] = issue.get("merge_retries", 0) + 1
             if issue["merge_retries"] >= 5:
