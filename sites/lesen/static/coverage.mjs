@@ -77,6 +77,18 @@ function unitReadable(unit, rules) {
 }
 
 /**
+ * Whether one word token is readable under precomputed selection rules.
+ * @param {string} token lowercased word token
+ * @param {{allowed: Set<string>, doubledAllowed: boolean}} rules selection rules
+ * @param {string} lang language code ('de' or 'en')
+ * @returns {boolean} true when the token has units and all of them are readable
+ */
+function tokenReadable(token, rules, lang) {
+  const units = unitsOf(token, lang);
+  return units.length > 0 && units.every((unit) => unitReadable(unit, rules));
+}
+
+/**
  * Whether a single sound unit is allowed by a selection.
  *
  * A two-character unit of identical letters (e.g. "ll") counts as allowed
@@ -116,6 +128,45 @@ export function classifyWord(word, selection, lang = "de") {
 }
 
 /**
+ * Distinct sound units a text needs, in order of first appearance.
+ *
+ * This is what a sentence needs to become readable: every listed unit must be
+ * allowed by a selection. Punctuation, digits and casing are ignored, and the
+ * same tokenizer as Words Mode decides the units.
+ *
+ * @param {string} text raw text
+ * @param {string} [lang] language code ('de' or 'en')
+ * @returns {string[]} distinct units, in order of first appearance
+ */
+export function sentenceUnits(text, lang = "de") {
+  const units = [];
+  for (const token of wordTokens(text)) {
+    for (const unit of unitsOf(token, lang)) {
+      if (!units.includes(unit)) units.push(unit);
+    }
+  }
+  return units;
+}
+
+/**
+ * Classify a whole sentence against a selection.
+ *
+ * `readable` is true only when the sentence has at least one word and every
+ * unit of every word is allowed; `missing` lists the distinct units the
+ * selection lacks, in order of first appearance.
+ *
+ * @param {string} text raw text
+ * @param {{consonants?: Iterable<string>, vowels?: Iterable<string>, specials?: Iterable<string>}} selection
+ * @param {string} [lang] language code ('de' or 'en')
+ * @returns {{readable: boolean, missing: string[]}} classification
+ */
+export function classifySentence(text, selection, lang = "de") {
+  const rules = selectionRules(selection);
+  const missing = sentenceUnits(text, lang).filter((unit) => !unitReadable(unit, rules));
+  return { readable: wordTokens(text).length > 0 && missing.length === 0, missing };
+}
+
+/**
  * Token and type coverage of a text for a selection, as fractions in [0, 1].
  *
  * Token coverage is readable tokens ÷ all tokens; type coverage is readable
@@ -138,7 +189,7 @@ export function coverageOfTypes(text, selection, lang = "de") {
   const readableTypes = new Set();
   for (const token of tokens) {
     types.add(token);
-    const readable = unitsOf(token, lang).every((unit) => unitReadable(unit, rules));
+    const readable = tokenReadable(token, rules, lang);
     if (readable) {
       readableTokens++;
       readableTypes.add(token);
@@ -170,8 +221,7 @@ export function readableSentenceShare(sentences, selection, lang = "de") {
   for (const entry of pool) {
     const text = typeof entry === "string" ? entry : entry && entry.text;
     const tokens = wordTokens(text);
-    const fullyReadable = tokens.length > 0
-      && tokens.every((token) => unitsOf(token, lang).every((unit) => unitReadable(unit, rules)));
+    const fullyReadable = tokens.length > 0 && tokens.every((token) => tokenReadable(token, rules, lang));
     if (fullyReadable) readable++;
   }
   return readable / pool.length;
