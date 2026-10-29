@@ -16,7 +16,7 @@ import time
 from collections import namedtuple
 from typing import Any, Dict, List, Optional
 
-from . import isolation, usage as usage_mod
+from . import isolation, models, providers, usage as usage_mod
 
 WorkRequest = namedtuple("WorkRequest", "attempt_id epoch issue_id role tier model packet branch")
 Poll = namedtuple("Poll", "state last_activity result error")
@@ -107,25 +107,48 @@ class CopilotCliAdapter(Adapter):
         self.store_home, self.source_repo, self.base = store_home, source_repo, base
         self.token_file = os.path.join(store_home, "copilot.token")
 
+    def provider_for(self, model_id: str) -> Optional[Dict[str, str]]:
+        """The BYOK environment for this model id, when its source has a configured provider profile."""
+        catalog = models.load_catalog(self.store_home)
+        return providers.env_for(self.store_home, models.source_for(model_id, catalog), model_id)
+
+    def _credential(self, candidates: Optional[List[str]]) -> tuple:
+        """(token file or None, reason). A Copilot id needs the token; a BYOK id needs only its profile."""
+        has_token = os.path.exists(self.token_file)
+        if candidates:
+            uncovered = [m for m in candidates if self.provider_for(m) is None]
+            if uncovered and not has_token:
+                return None, "copilot.token is missing and no provider profile covers: " + ", ".join(uncovered[:3])
+        elif not has_token and not providers.load(self.store_home):
+            return None, "copilot.token is missing from the store and no provider profile is configured"
+        return (self.token_file if has_token else None), ""
+
     def probe(self, candidates: Optional[List[str]] = None) -> Dict[str, Any]:
         if not isolation.docker_available():
             return {"available": False, "reason": "docker is not available", "models": None}
         if isolation.image_id() is None:
             return {"available": False, "reason": "worker image is not built", "models": None}
-        if not os.path.exists(self.token_file):
-            return {"available": False, "reason": "copilot.token is missing from the store", "models": None}
-        models = None
+        token_file, problem = self._credential(candidates)
+        if problem:
+            return {"available": False, "reason": problem, "models": None}
+        accepted = None
         if candidates:
             work = isolation.new_workdir("models-")
             try:
-                models = []
+                accepted = []
                 for m in candidates:
-                    res = isolation.run_worker(work, ["copilot", "-p", "reply OK", "--model", m, "--silent"], self.token_file, timeout=120)
-                    if "is not available" not in (res.stdout + res.stderr):
-                        models.append(m)
+                    provider = self.provider_for(m)
+                    res = isolation.run_worker(work, ["copilot", "-p", "reply OK", "--model", m, "--silent"],
+                                               token_file, timeout=120, provider=provider)
+                    output = res.stdout + res.stderr
+                    # BYOK failures (bad key, unreachable endpoint) surface as a non-zero exit, not as the
+                    # Copilot "model is not available" sentence, so both conditions count as not accepted.
+                    if res.returncode == 0 and "is not available" not in output:
+                        accepted.append(m)
             finally:
                 shutil.rmtree(work, ignore_errors=True)
-        return {"available": True, "reason": "sandbox, image, and token present", "models": models}
+        reason = "sandbox and image present; token and/or provider profile configured"
+        return {"available": True, "reason": reason, "models": accepted}
 
     def _prepare(self, req: WorkRequest, prompt: Optional[str] = None) -> str:
         work = isolation.new_workdir("w-%s-" % re.sub(r"\W+", "_", req.attempt_id)[:30])
@@ -170,10 +193,12 @@ class CopilotCliAdapter(Adapter):
         model = ["--model", req.model] if req.model else []
         script = ("cd /work/repo && git config user.name harness && git config user.email harness@localhost && "
                   "copilot -p \"$(cat /work/prompt.txt)\" %s --allow-all-tools --allow-all-paths --no-ask-user; echo $? > /work/exit_code" % " ".join(model))
-        args = isolation.docker_args(work, ["sh", "-c", script], pass_env=[isolation.COPILOT_TOKEN_ENV], name=name)
-        with open(self.token_file) as fh:
-            env = isolation.scrub_env(os.environ)
-            env[isolation.COPILOT_TOKEN_ENV] = fh.read().strip()
+        provider = self.provider_for(req.model) if req.model else None
+        # A BYOK attempt needs no GitHub token at all; a Copilot attempt needs no provider profile.
+        token_file = None if provider else self.token_file
+        args = isolation.docker_args(work, ["sh", "-c", script],
+                                     pass_env=isolation.pass_env_names(token_file, provider), name=name)
+        env = isolation.worker_env_for_attempt(token_file, provider)
         proc = subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
         handle = _Handle(req, work, proc, name)
 

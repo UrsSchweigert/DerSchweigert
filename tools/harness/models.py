@@ -20,9 +20,11 @@ MODEL_CATALOG: Dict[str, Dict[str, List[str]]] = {
         "standard": ["claude-sonnet-5"],
         "strong": ["claude-opus-5", "claude-opus-4.8"],
     },
+    # Real DeepSeek API model names (BYOK). The `deepseek/` prefix is the source marker; the part after it
+    # is the name sent to the provider, so these must stay valid wire names.
     "deepseek": {
-        "low": ["deepseek/deepseek-v4-flash"],
-        "standard": ["deepseek/deepseek-v4-flash"],
+        "low": ["deepseek/deepseek-flash"],
+        "standard": ["deepseek/deepseek-flash"],
         "strong": ["deepseek/deepseek-v4-pro"],
     },
     "local": {
@@ -120,6 +122,15 @@ def load_catalog(home: Optional[str] = None) -> Dict[str, Dict[str, List[str]]]:
         for source, tiers in custom.items():
             catalog[source].update({tier: list(ids) for tier, ids in tiers.items()})
     return catalog
+
+
+def source_for(model_id: str, catalog: Dict[str, Dict[str, List[str]]]) -> Optional[str]:
+    """Which source a catalog id belongs to. Ids are unique across sources, so the first match wins."""
+    for source, tiers in catalog.items():
+        for ids in tiers.values():
+            if model_id in ids:
+                return source
+    return None
 
 
 def menu_for(sources: List[str], catalog: Optional[Dict[str, Dict[str, List[str]]]] = None) -> Dict[str, List[str]]:

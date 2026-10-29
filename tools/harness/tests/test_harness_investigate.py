@@ -709,16 +709,16 @@ def test_the_picker_offers_only_the_chosen_sources(out):
     draft = good_draft()
     for issue in draft["issues"]:
         issue["model_choices"] = {
-            "implementer": {"model": "deepseek/deepseek-v4-flash", "reason": "Bounded work with reliable automated checks."},
+            "implementer": {"model": "deepseek/deepseek-flash", "reason": "Bounded work with reliable automated checks."},
             "reviewer": {"model": "deepseek/deepseek-v4-pro", "reason": "Independent review on the stronger model."},
-            "refiner": {"model": "deepseek/deepseek-v4-flash", "reason": "Only compares known code anchors."},
+            "refiner": {"model": "deepseek/deepseek-flash", "reason": "Only compares known code anchors."},
         }
     adapter = FakeInvestigatorAdapter(draft)
-    available = ["deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro", "claude-haiku-4.5"]
+    available = ["deepseek/deepseek-flash", "deepseek/deepseek-v4-pro", "claude-haiku-4.5"]
     inv = Investigator(adapter, repo(), policy, available, sleep=lambda s: None, ask=lambda q: "yes")
     assert run(inv, out)["status"] == "ok"
     offered = {option["model"] for option in adapter.packets[0]["model_options"]}
-    assert offered == {"deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro"}  # an available copilot model stays out
+    assert offered == {"deepseek/deepseek-flash", "deepseek/deepseek-v4-pro"}  # an available copilot model stays out
     with open(os.path.join(out, "phases.json")) as fh:
         assert json.load(fh)["model_sources"] == ["deepseek", "local"]
     result = cli.plan_command(None, REQ, os.path.join(out, "phases.json"), plan_id="d", fixture=True, dry_run=True)

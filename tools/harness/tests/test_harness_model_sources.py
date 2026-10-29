@@ -29,7 +29,7 @@ def test_the_default_policy_is_the_copilot_menu():
 def test_sources_combine_into_one_menu_without_duplicates():
     menu = models.menu_for(["deepseek", "local"])
     assert menu["strong"] == ["deepseek/deepseek-v4-pro", "ollama-models/gemma4:cloud"]
-    assert menu["low"][0] == "deepseek/deepseek-v4-flash" and "ollama-models/qwen3:4b" in menu["low"]
+    assert menu["low"][0] == "deepseek/deepseek-flash" and "ollama-models/qwen3:4b" in menu["low"]
     assert models.menu_for(["deepseek", "deepseek"]) == models.menu_for(["deepseek"])
     assert models.menu_for(["local", "deepseek"])["strong"] == ["ollama-models/gemma4:cloud", "deepseek/deepseek-v4-pro"]  # source order
 

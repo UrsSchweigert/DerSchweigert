@@ -423,13 +423,19 @@
       byId("model-sources").dataset.ready = "true";
     }
     const probe = state.probe, checkedAt = probe?.checked_at || state.cache?.checked_at;
-    const available = new Set(state.probing ? [] : (probe?.available || state.cache?.available || []));
+    // Two evidence sources, each a positive list from a different candidate set. Union them:
+    // an empty probe result must not hide ids a previous probe accepted ([] is truthy in JS),
+    // and an id is only "rejected" when some probe actually asked about it.
+    const evidence = state.probing ? [] : [probe, state.cache].filter(Boolean);
+    const available = new Set(evidence.flatMap((result) => result.available || []));
+    const asked = new Set(evidence.flatMap((result) => result.candidates || []));
     byId("models-checked").textContent = state.probing ? "Probing..." : checkedAt ? "Checked " + formatTime(checkedAt) : "Never probed";
     const rows = [];
     for (const source of sources) for (const tier of ["low", "standard", "strong"]) for (const id of (state.catalog?.[source]?.[tier] || [])) {
-      const accepted = available.has(id);
+      const accepted = available.has(id), rejected = !accepted && asked.has(id);
       rows.push(element("tr", {}, element("td", {}, source), element("td", {}, tier), element("td", {class: "mono small"}, id),
-        element("td", {}, badge(accepted ? "accepted" : "rejected", accepted ? "positive" : "negative"))));
+        element("td", {}, badge(accepted ? "accepted" : rejected ? "rejected" : "not probed",
+          accepted ? "positive" : rejected ? "negative" : ""))));
     }
     fill("models-table", rows.length ? table(["Source", "Tier", "Model", "This runtime"], rows) : empty("No candidate ids in the catalog."));
     const button = byId("probe-models"), wait = state.probe_after_s || 0;

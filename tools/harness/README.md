@@ -103,9 +103,38 @@ reviewer on them. Keep two distinct models available per plan if you want an
 independent reviewer.
 
 Verified on GitHub Copilot CLI 1.0.103 in the worker image: only the four
-`copilot` ids above are accepted (`auto` also works but is not a menu entry).
-The built-in `deepseek` and `local` ids are rejected, so those sources need a
-runtime that exposes them; use the catalog file for the ids it does accept.
+`copilot` ids above are accepted by GitHub's own routing (`auto` also works but
+is not a menu entry). A `deepseek` or `local` id is accepted only once that
+source has a **provider profile** (below); without one the probe rejects it.
+
+### BYOK provider profiles
+
+The worker runtime is fixed, but it can be pointed at an OpenAI-compatible
+endpoint with the `COPILOT_PROVIDER_*` variables it documents (`copilot help
+providers`). The harness stores one profile per source and gives it to a worker
+only for attempts that use that source:
+
+```sh
+# the key is read from an environment variable, never from the command line
+DEEPSEEK_API_KEY=sk-... harness providers set deepseek --api-key-env DEEPSEEK_API_KEY
+harness providers show      # the key is redacted
+harness providers rm deepseek
+harness models --source deepseek --refresh   # proves the endpoint and key work
+```
+
+* Profiles live in `<store>/providers.json`, mode `0600`, and follow the same
+  rule as `copilot.token`: the value travels in the docker client's
+  environment and is forwarded by *name* into the sandbox.
+* A BYOK attempt needs no GitHub token; a `copilot` attempt needs no profile.
+  A plan that mixes both forwards both.
+* The wire model is the part of the id after the source prefix, so
+  `deepseek/deepseek-flash` is sent to the provider as `deepseek-flash`.
+* `providers set` defaults to the source's known endpoint
+  (`https://api.deepseek.com` for `deepseek`); pass `--base-url` to override,
+  for example `https://api.deepseek.com/v1` or a local Ollama
+  (`http://127.0.0.1:11434/v1`).
+* A probe treats a non-zero exit as "not accepted", so a wrong key or an
+  unreachable endpoint shows up as a rejected id rather than a silent pass.
 
 The dashboard's **Models** view lists the same catalog per source and tier and
 probes on demand. A probe runs in the background, one at a time, at most once a
