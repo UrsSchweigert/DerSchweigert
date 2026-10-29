@@ -71,10 +71,11 @@ jobs:
                 infra/*) ffm=true; lesen=true; site=true ;;
               esac
             done <<< "$changed"
-            # A workflow change has to exercise every job, or the pipeline itself goes unverified.
+            # A workflow change runs every test job so the pipeline itself is exercised, but it does not deploy a site
+            # whose files did not change: a CI tweak must not apply terraform to three sites.
             if grep -Eq '^\.github/workflows/' <<< "$changed"; then
-              echo "::notice::the workflow changed; treating every site as changed"
-              ffm_tests=true; ffm=true; lesen=true; site=true
+              echo "::notice::the workflow changed; running every test job"
+              ffm_tests=true
             fi
           fi
           echo "changed -> ffm_tests=$ffm_tests deploy ffm=$ffm lesen=$lesen site=$site"
