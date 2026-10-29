@@ -22,3 +22,6 @@ sites/ffm/private-codes/
 *.tfplan
 **/*.tfplan
 infra/terraform/lambda.zip
+
+# Local editor workspace files
+*.code-workspace
