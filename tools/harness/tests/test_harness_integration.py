@@ -736,3 +736,18 @@ def test_an_attempt_fenced_while_its_replacement_was_claimed_stops_showing_as_ru
     env.sched.handles.clear()
     env.sched.tick(env.clock())
     assert env.store.get_attempt("i1#1")["outcome"] == "Fenced"
+
+
+def test_the_task_packet_carries_the_intent_and_the_requirement_titles(tmp_path):
+    """A worker must see why the work exists, not only the criteria it is judged by."""
+    env = Env(tmp_path)
+    plan = env.sched._plan()
+    plan["intent"] = "Children should practise reading whole sentences."
+    env.sched._plan = lambda: plan
+    packet = env.sched._packet(env.store.get_issue("i1"), "implementer", "low")
+    assert packet["intent"].startswith("Children should practise")
+    assert packet["requirement_context"] == [{"id": "F1.1", "title": "Fixture alpha"}, {"id": "F1.2", "title": "Fixture beta"}]
+    assert packet["phase_context"]["outcomes"] == ["one"] and packet["phase_context"]["exit_criteria"] == ["ok"]
+    from harness.adapter import build_prompt, WorkRequest
+    prompt = build_prompt(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "harness/i1"))
+    assert "plan's intent" in prompt and "titles of the requirements" in prompt

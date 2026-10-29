@@ -81,6 +81,7 @@ POLICY = {
     "assets?": dict,
     "manual_testing?": dict,
     "descope?": dict,
+    "auto_answer?": dict,
 }
 
 PLAN = {
@@ -90,9 +91,13 @@ PLAN = {
     "phases": [PHASE],
     "policy": POLICY,
     "fixture?": bool,
+    "intent?": str,
 }
 
 TASK_PACKET = {
+    "intent?": str,
+    "requirement_context?": [{"id": str, "title": str}],
+    "phase_context?": {"id": str, "outcomes": [str], "non_goals": [str], "exit_criteria": [str], "dependencies": [str]},
     "issue_id": str,
     "phase_id": str,
     "requirement_ids": [str],
