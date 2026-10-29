@@ -1,6 +1,6 @@
 import pytest
 
-from harness import approval, plans
+from harness import approval, plans, scheduler
 from harness_doubles import Env
 
 
@@ -554,6 +554,46 @@ def test_a_transient_merge_error_is_retried_and_five_in_a_row_block_with_a_task(
     env2.start()
     env2.run_until(lambda: env2.state("i1") == "Blocked")
     assert "kept failing to merge" in env2.store.get_issue("i1")["blocked_reason"] and len(env2.store.human_tasks("i1")) == 1
+
+
+def test_a_merge_held_up_by_a_running_required_check_waits_instead_of_failing(tmp_path):
+    """Regression: a 405 for 'Required status check ... is in progress' was read as a deterministic merge conflict,
+    which spent the repair budget and then demanded a second strong attempt the plan's budget forbids."""
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [
+        GitHubError('gh: Repository rule violations found\n\nRequired status check "test-ffm" is in progress.\n (HTTP 405)')]
+    env.start()
+    events = env.run_until(lambda: env.state("i1") == "Done")
+    issue = env.store.get_issue("i1")
+    assert any(e["event"] == "merge_pending" for e in events)
+    assert issue["merge_pending"] == 0  # cleared once the merge went through
+    assert issue["last_failures"] == [] and issue["repair_failures"] == 0
+
+
+def test_required_checks_that_never_finish_block_with_their_own_reason(tmp_path, monkeypatch):
+    monkeypatch.setattr(scheduler, "MERGE_PENDING_LIMIT", 2)
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [GitHubError('Required status check "test-ffm" is in progress. (HTTP 405)')] * 10
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Blocked")
+    issue = env.store.get_issue("i1")
+    assert "required checks did not finish" in issue["blocked_reason"]
+    assert issue["last_failures"] == [] and issue["repair_failures"] == 0
+
+
+def test_resume_needs_no_worker_branch_when_the_pinned_head_is_the_checked_one(tmp_path):
+    """Regression: the harness clone fetches the base branch only, so branch_head raises for every worker branch and a
+    finished issue could never resume into review - it fell through to a new implementation and hit the strong budget."""
+    env = Env(tmp_path, issues=[("i1", "P1", ["F1.1"])], budgets=dict(LONG_BUDGETS))
+    issue = env.store.get_issue("i1")
+    issue.update(head_rev="abc", pr=5)
+    env.store.add_evidence("i1", "checks", "abc", env.repo.base_head(), "pass", {}, env.clock())
+    assert env.state("i1") == "Ready" and "harness/i1" not in env.repo.branches  # the branch is not in the clone
+    env.repo.pin_good("i1", "def")
+    assert env.sched._resume_in_review(issue, env.clock()) is False  # the pinned head is not the checked one
+    env.repo.pin_good("i1", "abc")
+    assert env.sched._resume_in_review(issue, env.clock()) is True
+    assert env.state("i1") == "In Review"
 
 
 def test_a_branch_rebased_by_the_harness_is_published_before_the_merge(tmp_path):
