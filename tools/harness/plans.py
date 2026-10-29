@@ -220,7 +220,8 @@ def _has_cycle(phases: List[Dict[str, Any]]) -> bool:
 
 def build_plan(plan_id: str, version: int, requirements: List[Dict[str, str]], phases: Optional[List[Dict[str, Any]]],
                policy: Optional[Dict[str, Any]] = None, fixture: bool = False, model_sources: Optional[List[str]] = None,
-               catalog: Optional[Dict[str, Dict[str, List[str]]]] = None) -> Dict[str, Any]:
+               catalog: Optional[Dict[str, Dict[str, List[str]]]] = None,
+               intent: Optional[str] = None) -> Dict[str, Any]:
     plan = {
         "plan_id": plan_id,
         "version": version,
@@ -230,4 +231,6 @@ def build_plan(plan_id: str, version: int, requirements: List[Dict[str, str]], p
     }
     if fixture:
         plan["fixture"] = True
+    if intent and intent.strip():
+        plan["intent"] = " ".join(intent.split())[:2000]
     return plan

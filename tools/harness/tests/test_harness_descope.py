@@ -83,3 +83,45 @@ def test_restore_refuses_when_nothing_was_deferred(tmp_path):
     env = Env(tmp_path)
     with pytest.raises(descope.DescopeError):
         descope.restore_draft(env.store, "fx")
+
+
+# -- answering without the owner ------------------------------------------------------------------
+
+def auto_env(tmp_path, monkeypatch, analyses=None, emergency_topics=None, **envelope):
+    from harness import plans
+    monkeypatch.setitem(plans.DEFAULT_POLICY, "descope", dict({"allow_deferral": True, "require_followup": True}, **envelope))
+    auto = {"enabled": True, "triage_all_blocks": True}
+    if emergency_topics:
+        auto["emergency_topics"] = emergency_topics
+    monkeypatch.setitem(plans.DEFAULT_POLICY, "auto_answer", auto)
+    env = Env(tmp_path, issues=[])
+    env.add_issue("i1", "P1", ["F1.1"])
+    env.adapter.script("i1", "implementer", "blocked")
+    env.adapter.decisions["i1"] = [{"action": "ask_owner", "diagnosis": "This needs a decision."}]
+    if analyses:
+        env.adapter.analyses["i1"] = list(analyses)
+    return env
+
+
+def test_a_retry_recommendation_is_applied_without_asking(tmp_path, monkeypatch):
+    env = auto_env(tmp_path, monkeypatch, analyses=[{"root_cause": "The task is feasible.", "recommendation": "retry", "guidance": "use src/x.py"}])
+    env.start()
+    events = env.run_until(lambda: any(e["event"] == "answered_without_owner" for e in env.sched.events) or env.state("i1") == "Done", limit=40)
+    assert not env.store.human_tasks("i1")  # no question reached a human
+    assert any(e.get("action") == "retry" for e in events if e.get("event") == "answered_without_owner")
+
+
+def test_a_needs_owner_analysis_is_descoped_instead_of_asking(tmp_path, monkeypatch):
+    env = auto_env(tmp_path, monkeypatch, analyses=[{"root_cause": "Only a human can decide this.", "recommendation": "needs_owner", "questions": ["which?"]}])
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Cancelled", limit=40)
+    assert not env.store.human_tasks("i1")
+    assert [d["requirement_id"] for d in descope.deferrals(env.store, "fx", 1)] == ["F1.1"]
+    assert descope.deferrals(env.store, "fx", 1)[0]["followup_issue"] == "restore-F1-1"
+
+
+def test_an_emergency_still_reaches_the_owner(tmp_path, monkeypatch):
+    env = auto_env(tmp_path, monkeypatch, emergency_topics=["helper"])
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Blocked", limit=40)
+    assert env.store.human_tasks("i1")  # the emergency is the one thing that is asked

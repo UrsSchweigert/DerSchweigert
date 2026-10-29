@@ -28,7 +28,7 @@ def _slug(path: str) -> str:
 
 def plan_command(store: Optional[Store], requirements: str, phases_path: Optional[str] = None,
                  plan_id: Optional[str] = None, fixture: bool = False, dry_run: bool = False,
-                 model_sources: Optional[List[str]] = None) -> Dict[str, Any]:
+                 model_sources: Optional[List[str]] = None, intent: Optional[str] = None) -> Dict[str, Any]:
     """Build a plan from requirements. Without phases the plan stays Draft and lists what is missing."""
     reqs = plans.parse_requirements(requirements)
     phases = None
@@ -43,7 +43,7 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
     version = latest["plan"]["version"] + 1 if latest else 1
     catalog = models.load_catalog(store.home) if store else None
     plan = plans.build_plan(plan_id, version, reqs, phases, fixture=fixture, model_sources=model_sources or draft_sources,
-                            catalog=catalog)
+                            catalog=catalog, intent=intent)
     digest = plans.plan_digest(plan)
     result: Dict[str, Any] = {"plan_id": plan_id, "version": version, "digest": digest, "requirements": len(reqs), "dry_run": dry_run,
                               "model_sources": plan["policy"].get("model_sources")}
@@ -508,6 +508,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--phases", help="JSON file with the phase definitions")
     p.add_argument("--issues", help="issue definitions to include in pre-approval check preflight")
     p.add_argument("--plan-id")
+    p.add_argument("--intent", help="one short paragraph on why this plan exists; every worker reads it")
     p.add_argument("--fixture", action="store_true", help="mark the plan as a test fixture")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--model-source", action="append", choices=list(models.SOURCES),

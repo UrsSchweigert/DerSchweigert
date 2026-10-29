@@ -197,6 +197,17 @@ was evaluated without changing dependency manifests or CI defaults.
 
 After PR #26 broke production (a classic script read `window.__storage` before the module script set it) the harness gained a browser-level gate. The worker image carries Playwright Chromium and `smoke/lesen.mjs`; `smoke.json` maps changed paths to it. It is appended to an issue's validation commands (pre-merge, rebase rerun, post-merge, phase validation) and the isolation probe requires it. Failing output tails are included in repair feedback. Verified: passes on `849c734`, fails on the broken `d9c092e`. Limit: it covers the lesen web page only.
 
+## Every worker sees the intent (2026-10-29)
+
+A task packet used to carry the issue's outcomes, criteria, non-goals, anchors and the phrase
+`requirement_ids` — identifiers without titles — and nothing about why the work exists. A worker could
+satisfy every criterion and still miss the point.
+
+The packet now carries `intent` (one paragraph, set with `harness plan --intent "..."`, part of the plan
+digest), `requirement_context` (id and title of each requirement the issue serves) and `phase_context`
+(the phase's outcomes, non-goals and exit criteria). The worker prompt tells the model to read them first
+and let them decide what a good solution is, not only the acceptance criteria.
+
 ## Descoping, and restoring the scope afterwards (2026-10-29)
 
 A plan that cannot finish delivers nothing. `descope.py` lets the triage agent (or the owner) defer a

@@ -47,6 +47,12 @@ HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "
 # A worker's own question is triaged before the owner sees it. Budget and policy failures are decided by trusted code.
 QUESTION_KINDS = ("needs_input",)
 
+# A human is contacted only for these. Everything else is answered by the harness: triage decides, the
+# descope envelope bounds what it may give up, and the reasons are recorded.
+EMERGENCY_TOPICS = ("credential", "secret", "token", "password", "production", "deploy", "licence", "license",
+                    "payment", "invoice", "legal", "gdpr", "contract", "physical device")
+
+
 
 def _publish_kind(exc: Exception) -> str:
     """A rejected push is a deterministic problem with the branch. Anything else from GitHub is treated as infrastructure."""
@@ -401,6 +407,20 @@ class Scheduler:
             self.store.transition("issue", issue["issue_id"], "Blocked", self.runner_id, {"reason": issue["blocked_reason"]}, now=now)
         self._ensure_decision_task(issue, now, "raised when the issue blocked")
 
+    def _auto_answer(self) -> Dict[str, Any]:
+        """The owner's standing instruction: answer questions here unless it is an emergency."""
+        cfg = dict((self._plan().get("policy") or {}).get("auto_answer") or {})
+        cfg.setdefault("enabled", False)
+        cfg.setdefault("triage_all_blocks", False)
+        cfg.setdefault("emergency_topics", list(EMERGENCY_TOPICS))
+        return cfg
+
+    def _is_emergency(self, issue: Dict[str, Any]) -> bool:
+        topics = [str(t).lower() for t in self._auto_answer().get("emergency_topics") or []]
+        text = " ".join([str(issue.get("blocked_reason") or "")] +
+                        [str(f.get("detail") or "") + " " + str(f.get("kind") or "") for f in (issue.get("last_failures") or [])[-3:]]).lower()
+        return any(topic in text for topic in topics)
+
     def _schedule_triage(self, issue: Dict[str, Any], now: float) -> bool:
         """Triage every question before the owner sees it, independent of the retry and analysis budgets.
 
@@ -411,8 +431,12 @@ class Scheduler:
         reason = (issue.get("blocked_reason") or "")[:200]
         if not reason or issue.get("analysis_pending") or issue.get("triage_for") == reason:
             return False
-        if not any(f.get("kind") in QUESTION_KINDS for f in (issue.get("last_failures") or [])[-1:]):
-            return False  # budgets and policy are decided by trusted code, not by a model
+        last = (issue.get("last_failures") or [])[-1:]
+        if not self._auto_answer().get("triage_all_blocks"):
+            if not any(f.get("kind") in QUESTION_KINDS for f in last):
+                return False  # budgets and policy are decided by trusted code, not by a model
+        if self._auto_answer().get("enabled") and self._is_emergency(issue):
+            return False  # an emergency still goes to the owner
         attempts = self.store.list_attempts(issue["issue_id"])
         if attempts and attempts[-1]["role"] == "analyst":
             return False  # triage just answered; a second pass would only repeat it
@@ -833,7 +857,57 @@ class Scheduler:
         issue["blocked_reason"] = "the strong analysis recommends %s: %s" % (analysis["recommendation"], analysis["root_cause"][:250])
         self.store.put_issue(issue)
         self._emit("analysis_ready", issue=issue["issue_id"], attempt=meta["attempt_id"], recommendation=analysis["recommendation"], parts=len(parts))
+        if self._auto_answer().get("enabled") and not self._is_emergency(issue) and self._apply_analysis(issue, analysis, now):
+            return
         self._block(issue, now)
+
+    def _to_ready(self, issue: Dict[str, Any], reason: str, now: float) -> None:
+        """The analyst usually finishes while the issue is still Ready, so only a Blocked issue needs a transition."""
+        if self.store.state("issue", issue["issue_id"]) != "Ready":
+            self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"reason": reason}, now=now)
+
+    def _apply_analysis(self, issue: Dict[str, Any], analysis: Dict[str, Any], now: float) -> bool:
+        """Act on the analysis instead of asking the owner, while the answer stays inside the approved envelope."""
+        recommendation = analysis["recommendation"]
+        if recommendation == "retry":
+            if str(analysis.get("guidance", "")).strip():
+                issue["guidance"] = (issue.get("guidance", []) + [analysis["guidance"].strip()])[-5:]
+            issue["blocked_reason"] = ""
+            self.store.put_issue(issue)
+            self._to_ready(issue, "answered by the analysis: retry with its guidance", now)
+            self._emit("answered_without_owner", issue=issue["issue_id"], action="retry")
+            return True
+        if recommendation == "split" and issue.get("proposed_split"):
+            issue["split_approved"] = True
+            issue["blocked_reason"] = ""
+            self.store.put_issue(issue)
+            self._to_ready(issue, "answered by the analysis: apply the proposed split", now)
+            self._emit("answered_without_owner", issue=issue["issue_id"], action="split")
+            return True
+        if recommendation == "needs_owner":
+            return self._descope_instead_of_asking(issue, analysis, now)
+        return False
+
+    def _descope_instead_of_asking(self, issue: Dict[str, Any], analysis: Dict[str, Any], now: float) -> bool:
+        """The analysis says only a human can decide. Rather than ask, defer the requirement and keep going.
+
+        The plan policy still bounds this: without an approved descope envelope nothing is deferred and the
+        owner is asked after all.
+        """
+        try:
+            for requirement in issue["requirement_ids"]:
+                descope.defer(self.store, self.plan_id, requirement,
+                              reason="answered without the owner: %s" % analysis["root_cause"][:400],
+                              followup_issue="restore-%s" % requirement.replace(".", "-"),
+                              actor=self.runner_id, version=self.version, now=now)
+        except descope.DescopeError:
+            return False  # outside the envelope: the owner is asked, which is the point of the envelope
+        issue["blocked_reason"] = ""
+        self.store.put_issue(issue)
+        humantasks.cancel_issue(self.store, issue["issue_id"], now, "descoped without the owner")
+        self._emit("answered_without_owner", issue=issue["issue_id"], action="defer",
+                   requirements=list(issue["requirement_ids"]))
+        return True
 
     def _issue_failure(self, issue: Dict[str, Any], kind: str, detail: str, now: float, *, invalidate_evidence: bool = True) -> None:
         """A failure found by trusted code on an issue already In Review: retire the evidence it implicates and send it back.
@@ -1196,6 +1270,11 @@ class Scheduler:
             if own:
                 data["your_previous_answer_was_rejected"] = own[-2:]
         return {
+            "intent": (self._plan().get("intent") or "").strip(),
+            "requirement_context": [{"id": rid, "title": next((r["title"] for r in self._plan()["requirements"] if r["id"] == rid), "")}
+                                    for rid in issue["requirement_ids"]],
+            "phase_context": {"id": phase["id"], "outcomes": phase["outcomes"], "non_goals": phase["non_goals"],
+                              "exit_criteria": phase["exit_criteria"], "dependencies": phase["dependencies"]},
             "issue_id": issue["issue_id"], "phase_id": issue["phase_id"], "requirement_ids": issue["requirement_ids"], "role": role, "tier": tier,
             "outcomes": issue["outcomes"], "acceptance_criteria": issue["acceptance_criteria"], "non_goals": issue["non_goals"],
             "code_anchors": issue["code_anchors"], "dependencies": issue["deps"],
