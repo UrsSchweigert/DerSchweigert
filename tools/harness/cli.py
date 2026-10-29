@@ -630,6 +630,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     dashboard.add_argument("--read-only", action="store_true")
     dashboard.add_argument("--no-browser", action="store_true")
     dashboard.add_argument("--repo", help="GitHub owner/name for GUI-launched runs")
+    rm = sub.add_parser("remote", help="PIN-locked loopback relay that proxies the local GUI for a tunnel")
+    rm.add_argument("--upstream", default="http://127.0.0.1:8765", help="the loopback harness GUI URL")
+    rm.add_argument("--host", choices=["127.0.0.1", "localhost"], default="127.0.0.1")
+    rm.add_argument("--port", type=int, default=8443, help="loopback port, or 0 to choose an available port")
+    rm.add_argument("--pin", help="override HARNESS_GUI_PIN")
+    rm.add_argument("--session-hours", type=float, default=12.0, help="signed session lifetime in hours")
     args = ap.parse_args(argv)
 
     try:
@@ -638,6 +644,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             try:
                 return gui.serve(args.home, host=args.host, port=args.port, refresh=args.refresh, read_only=args.read_only,
                                  open_browser=not args.no_browser, repo=args.repo)
+            except ValueError as exc:
+                raise RuntimeError(str(exc)) from exc
+        if args.cmd == "remote":
+            from . import remote
+            try:
+                return remote.serve(args.upstream, host=args.host, port=args.port, pin=args.pin,
+                                    session_hours=args.session_hours)
             except ValueError as exc:
                 raise RuntimeError(str(exc)) from exc
         if args.cmd == "issue":
