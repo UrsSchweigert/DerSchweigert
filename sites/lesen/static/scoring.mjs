@@ -1,9 +1,12 @@
 /**
- * Card scoring and Flop Training deck selection logic.
+ * Card scoring, Flop Training and deck assembly logic.
  *
  * recordAttempt updates card stats based on correctness and mode.
  * selectFlopDeck selects the worst-performing cards for focused practice.
+ * buildSentenceOnlyDeck and buildMixedDeck assemble practice decks from the
+ * committed sentence pool and word cards.
  */
+import { readableSentenceCards } from "./sentences/cards.mjs";
 
 /**
  * Record an attempt on a card and update the stats map.
@@ -134,4 +137,155 @@ export function selectFlopDeck(stats, allowedCards) {
   const count = Math.min(Math.max(bottomPercent, 1), 30);
 
   return sorted.slice(0, count);
+}
+
+/**
+ * Deterministic pseudo-random generator (mulberry32).
+ *
+ * Deck tests pin a seed instead of stubbing `Math.random`, so the same seed
+ * always yields the same shuffle and the same card order.
+ *
+ * @param {number} seed any integer
+ * @returns {() => number} random source in [0, 1)
+ */
+export function createSeededRandom(seed) {
+  let state = Number(seed) >>> 0;
+  return function random() {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Read the text of a pool entry, card or plain string.
+ * @param {string|{text?: string}|null|undefined} entry
+ * @returns {string} the text, or "" when the entry carries none
+ */
+function cardTextOf(entry) {
+  if (typeof entry === "string") return entry;
+  if (entry && typeof entry.text === "string") return entry.text;
+  return "";
+}
+
+/**
+ * Turn a requested deck size into a usable limit.
+ * @param {number} count requested size; non-finite means "everything"
+ * @returns {number} a non-negative integer, or Infinity
+ */
+function deckLimit(count) {
+  if (count === undefined || count === null) return Infinity;
+  const numeric = Number(count);
+  if (!Number.isFinite(numeric)) return Infinity;
+  return Math.max(0, Math.floor(numeric));
+}
+
+/**
+ * Resolve the random source of a deck call.
+ * @param {(() => number)|undefined} random explicit random source
+ * @param {number|undefined} seed optional seed
+ * @returns {() => number} the random source to use
+ */
+function deckRandom(random, seed) {
+  if (typeof random === "function") return random;
+  if (seed !== undefined && seed !== null) return createSeededRandom(seed);
+  return Math.random;
+}
+
+/**
+ * Shuffle a copy of the items with an injectable random source.
+ * @param {any[]} items items to shuffle
+ * @param {() => number} random random source in [0, 1)
+ * @returns {any[]} a shuffled copy
+ */
+function shuffleWith(items, random) {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index--) {
+    const other = Math.floor(random() * (index + 1));
+    [result[index], result[other]] = [result[other], result[index]];
+  }
+  return result;
+}
+
+/**
+ * Build a sentence-only deck from the committed sentence pool.
+ *
+ * Only sentences the current selection can read in full are eligible, so a
+ * deck can never contain a sentence the child cannot read. Duplicate texts are
+ * dropped, the readable sentences are shuffled and the deck is cut to `count`.
+ * An empty or missing pool, an empty selection or `count` of 0 all yield an
+ * empty deck instead of an error.
+ *
+ * @param {Array<string|{text?: string}>} pool sentence pool of the language
+ * @param {{consonants?: Iterable<string>, vowels?: Iterable<string>, specials?: Iterable<string>}} selection
+ * @param {string} [lang] language code ('de' or 'en')
+ * @param {{count?: number, seed?: number, random?: () => number}} [options]
+ *   `count` defaults to every readable sentence; `seed` pins the shuffle
+ * @returns {Array<{text: string, kind: "sentence", misses: number}>} the deck
+ */
+export function buildSentenceOnlyDeck(pool, selection, lang = "de", { count, seed, random } = {}) {
+  const limit = deckLimit(count);
+  if (limit === 0) return [];
+
+  const cards = [];
+  const seen = new Set();
+  for (const entry of readableSentenceCards(pool, selection, lang)) {
+    const text = cardTextOf(entry);
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    cards.push({ text, kind: "sentence", misses: 0 });
+  }
+
+  const deck = shuffleWith(cards, deckRandom(random, seed));
+  return limit === Infinity ? deck : deck.slice(0, limit);
+}
+
+/**
+ * Build a mixed deck that interleaves sentence and word cards.
+ *
+ * Sentences are filtered to the ones the current selection reads in full,
+ * exactly like {@link buildSentenceOnlyDeck}. Both kinds are shuffled with the
+ * same random source and then alternate strictly, starting with the kind the
+ * seed picks. Cards are never grouped: when one kind runs out the deck ends,
+ * so a mixed deck only contains as many cards as the scarcer kind allows.
+ * A missing pool, an empty selection or no word cards yield an empty deck.
+ *
+ * @param {Array<string|{text?: string}>} pool sentence pool of the language
+ * @param {{consonants?: Iterable<string>, vowels?: Iterable<string>, specials?: Iterable<string>}} selection
+ * @param {string} [lang] language code ('de' or 'en')
+ * @param {Array<string|{text?: string}>} wordCards readable word cards
+ * @param {{count?: number, seed?: number, random?: () => number}} [options]
+ * @returns {Array<{text: string, kind: "word"|"sentence", misses: number}>} the deck
+ */
+export function buildMixedDeck(pool, selection, lang = "de", wordCards = [], { count, seed, random } = {}) {
+  const limit = deckLimit(count);
+  if (limit === 0) return [];
+
+  const rng = deckRandom(random, seed);
+  const sentences = buildSentenceOnlyDeck(pool, selection, lang, { random: rng });
+
+  const words = [];
+  const seen = new Set();
+  for (const entry of Array.isArray(wordCards) ? wordCards : []) {
+    const text = cardTextOf(entry);
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    words.push({ text, kind: "word", misses: 0 });
+  }
+  const shuffledWords = shuffleWith(words, rng);
+
+  const pairs = Math.min(sentences.length, shuffledWords.length);
+  if (pairs === 0) return [];
+  const size = Math.min(limit, pairs * 2);
+  const startsWithSentence = rng() < 0.5;
+
+  const deck = [];
+  for (let index = 0; index < size; index++) {
+    const takeSentence = (index % 2 === 0) === startsWithSentence;
+    const source = takeSentence ? sentences : shuffledWords;
+    deck.push(source[Math.floor(index / 2)]);
+  }
+  return deck;
 }

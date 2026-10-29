@@ -1290,6 +1290,16 @@
                     </div>
                     <div class="deck-options">
                         <fieldset>
+                            <legend id="deck-legend">Deck</legend>
+                            <div class="patterns">
+                                <label class="pattern" id="deck-letters-label"><input type="radio" name="deck" value="LETTERS"
+                                        checked><strong id="deck-letters-title">Buchstaben &amp; W&ouml;rter</strong><span
+                                        id="deck-letters-desc">Nach Buchstabenfolge</span></label>
+                                <label class="pattern" id="deck-sentences-label"><input type="radio" name="deck" value="SENTENCES"><strong id="deck-sentences-title">Nur S&auml;tze</strong><span id="deck-sentences-desc">Ganze S&auml;tze lesen</span></label>
+                                <label class="pattern" id="deck-mixed-label"><input type="radio" name="deck" value="MIXED"><strong id="deck-mixed-title">Gemischt</strong><span id="deck-mixed-desc">W&ouml;rter und S&auml;tze im Wechsel</span></label>
+                            </div>
+                        </fieldset>
+                        <fieldset>
                             <legend id="pattern-legend">Buchstabenfolge</legend>
                             <div class="patterns">
                                 <div class="pattern pattern-card" id="patterns-mode-label">
@@ -1436,7 +1446,7 @@
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
-        import { recordAttempt, selectFlopDeck, flopCandidateCards } from './scoring.mjs';
+        import { recordAttempt, selectFlopDeck, flopCandidateCards, buildSentenceOnlyDeck, buildMixedDeck } from './scoring.mjs';
         import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
         import { readableSentenceCards, buildSentenceDeck, createSentenceSelection } from './sentences/cards.mjs';
         import { t } from './i18n.mjs';
@@ -1446,7 +1456,7 @@
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
-        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards };
+        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildSentenceOnlyDeck, buildMixedDeck };
         window.__sentences = { readableSentenceCards, buildSentenceDeck, createSentenceSelection };
         window.__storage = createStorage(window.localStorage);
         window.__i18n = { t };
@@ -1553,6 +1563,13 @@
             byId('legend-specials').textContent = tr('setup.specials');
 
             byId('pattern-legend').textContent = tr('setup.pattern');
+            byId('deck-legend').textContent = tr('setup.deck');
+            byId('deck-letters-title').textContent = tr('setup.deck.letters');
+            byId('deck-letters-desc').textContent = tr('setup.deck.letters_desc');
+            byId('deck-sentences-title').textContent = tr('setup.deck.sentences');
+            byId('deck-sentences-desc').textContent = tr('setup.deck.sentences_desc');
+            byId('deck-mixed-title').textContent = tr('setup.deck.mixed');
+            byId('deck-mixed-desc').textContent = tr('setup.deck.mixed_desc');
             byId('pattern-patterns-label').textContent = tr('setup.pattern.patterns');
             byId('pattern-patterns-desc').textContent = tr('setup.pattern.patterns_desc');
             byId('subpattern-ma-label').textContent = tr('setup.pattern.sub.ma');
@@ -1691,7 +1708,8 @@
         function updateCardCountVisibility() {
             const checked = document.querySelector('input[name="pattern"]:checked');
             const pattern = checked ? checked.value : 'PATTERNS';
-            byId('card-count-control').hidden = pattern === 'FLOP' || sentenceSelection.count() > 0;
+            const manualSentences = selectedDeckMode() === 'LETTERS' && sentenceSelection.count() > 0;
+            byId('card-count-control').hidden = (selectedDeckMode() === 'LETTERS' && pattern === 'FLOP') || manualSentences;
         }
 
         /**
@@ -1978,13 +1996,20 @@
             return [...document.querySelectorAll('input[name="subpattern"]:checked')].map(input => input.value);
         }
 
+        /** The chosen deck kind: 'LETTERS', 'SENTENCES' or 'MIXED'. */
+        function selectedDeckMode() {
+            const checked = document.querySelector('input[name="deck"]:checked');
+            return checked ? checked.value : 'LETTERS';
+        }
+
         /**
          * Whether the pattern deck is blocked by a missing sub-pattern.
          * Chosen sentence cards form their own deck, so they need none.
          */
         function updateStartButtonState() {
             const checkedPattern = document.querySelector('input[name="pattern"]:checked');
-            const pattern = checkedPattern ? checkedPattern.value : 'PATTERNS';
+            const usesPatterns = selectedDeckMode() === 'LETTERS';
+            const pattern = usesPatterns && checkedPattern ? checkedPattern.value : 'NONE';
             const missingSubPattern = pattern === 'PATTERNS' && selectedSubPatterns().length === 0;
             if (missingSubPattern && sentenceSelection.count() > 0) {
                 byId('start-button').disabled = startLoading;
@@ -1996,13 +2021,18 @@
         function updatePatternControls() {
             const checkedPattern = document.querySelector('input[name="pattern"]:checked');
             const pattern = checkedPattern ? checkedPattern.value : 'PATTERNS';
-            byId('word-length-control').hidden = pattern !== 'WORDS';
+            const deckMode = selectedDeckMode();
+            const usesPatterns = deckMode === 'LETTERS';
+            byId('word-length-control').hidden = deckMode === 'SENTENCES'
+                || (usesPatterns && pattern !== 'WORDS');
             updateCardCountVisibility();
-            byId('flop-mode-size-note').hidden = pattern !== 'FLOP';
+            byId('flop-mode-size-note').hidden = !usesPatterns || pattern !== 'FLOP';
 
             // Chosen sentence cards are practised instead of the pattern deck,
-            // so they do not need a sub-pattern.
-            const missingSubPattern = pattern === 'PATTERNS'
+            // so they do not need a sub-pattern. The sentence-only and mixed
+            // decks never use the pattern selection at all.
+            const missingSubPattern = usesPatterns
+                && pattern === 'PATTERNS'
                 && selectedSubPatterns().length === 0
                 && sentenceSelection.count() === 0;
             updateStartButtonState();
@@ -2028,10 +2058,45 @@
             return first + text.slice(1);
         }
 
+        /**
+         * Word-list entries that the current selection reads in full and that
+         * fit the maximum length. The first spelling of a word wins, matching
+         * the Words mode deck.
+         * @param {string[]} words word list of the active language
+         * @param {number} maxLength maximum word length
+         * @returns {string[]} readable words
+         */
+        function readableWordList(words, maxLength) {
+            const { tokenizeWord, getSoundsForLanguage } = window.__sounds;
+            const allowedUnits = new Set([...consonants, ...vowels, ...specials]);
+            const hasXxSentinel = specials.has('xx');
+            const allSpecials = getSoundsForLanguage(currentLanguage).specials;
+            const eligibleBySpelling = new Map();
+            for (const word of words) {
+                const key = word.toLowerCase();
+                const units = tokenizeWord(key, allSpecials);
+                let eligible = units.length > 0 && key.length <= maxLength;
+                if (eligible) {
+                    for (const unit of units) {
+                        const isDoubledLetter = unit.length === 2 && unit[0] === unit[1];
+                        if (!allowedUnits.has(unit) && !(isDoubledLetter && hasXxSentinel)) {
+                            eligible = false;
+                            break;
+                        }
+                    }
+                }
+                if (eligible && !eligibleBySpelling.has(key)) {
+                    eligibleBySpelling.set(key, word);
+                }
+            }
+            return [...eligibleBySpelling.values()];
+        }
+
         async function startDeck() {
             if (deckStarting) return;
             const countInput = byId('card-count');
-            const chosenSentences = sentenceSelection.texts();
+            const deckMode = selectedDeckMode();
+            const chosenSentences = deckMode === 'LETTERS' ? sentenceSelection.texts() : [];
             if (!consonants.size || !vowels.size) {
                 byId('setup-error').textContent = tr('setup.error.selection');
                 return;
@@ -2039,9 +2104,10 @@
             const checkedPattern = document.querySelector('input[name="pattern"]:checked');
             const pattern = checkedPattern ? checkedPattern.value : 'PATTERNS';
             const wordLengthInput = byId('word-length');
-            if (pattern === 'WORDS' && !wordLengthInput.reportValidity()) return;
-            const subPatterns = pattern === 'PATTERNS' ? selectedSubPatterns() : [];
-            if (!chosenSentences.length && pattern === 'PATTERNS' && subPatterns.length === 0) {
+            const needsWordLength = deckMode === 'MIXED' || (deckMode === 'LETTERS' && pattern === 'WORDS');
+            if (needsWordLength && !wordLengthInput.reportValidity()) return;
+            const subPatterns = deckMode === 'LETTERS' && pattern === 'PATTERNS' ? selectedSubPatterns() : [];
+            if (deckMode === 'LETTERS' && !chosenSentences.length && pattern === 'PATTERNS' && subPatterns.length === 0) {
                 updatePatternControls();
                 return;
             }
@@ -2083,15 +2149,53 @@
                 return;
             }
 
+            // A sentence-only deck draws random readable sentences from the
+            // committed pool, limited by the card-count input.
+            if (deckMode === 'SENTENCES') {
+                if (!countInput.reportValidity()) return;
+                const requestedTotal = Number(countInput.value);
+                deckStarting = true;
+                setStartLoading(true);
+                try {
+                    const pool = await loadSentencePool(currentLanguage);
+                    const deck = window.__scoring.buildSentenceOnlyDeck(
+                        pool,
+                        currentSelection(),
+                        currentLanguage,
+                        { count: requestedTotal },
+                    );
+                    if (deck.length === 0) {
+                        byId('setup-error').textContent = tr('setup.error.no_sentences');
+                        return;
+                    }
+                    total = deck.length;
+                    queue = deck;
+                    cleared = 0;
+                    attempts = 0;
+                    currentPattern = 'SENTENCES';
+                    isInFlopMode = false;
+                    byId('feedback').textContent = '';
+                    byId('setup-error').textContent = '';
+                    showScreen('practice');
+                    renderCard();
+                    byId('correct').focus();
+                } catch {
+                    byId('setup-error').textContent = tr('setup.error.sentencepool');
+                } finally {
+                    deckStarting = false;
+                    setStartLoading(false);
+                }
+                return;
+            }
+
             const selectedConsonants = [...consonants];
             const selectedVowels = [...vowels, ...specials];
             if (!countInput.reportValidity()) return;
             const requestedTotal = Number(countInput.value);
             const maxLength = Number(wordLengthInput.value);
-            const { getSoundsForLanguage, buildCombinations, buildPatternDeck } = window.__sounds;
-            const allSpecials = getSoundsForLanguage(currentLanguage).specials;
+            const { buildCombinations, buildPatternDeck } = window.__sounds;
             let words = [];
-            if (pattern === 'WORDS') {
+            if (deckMode === 'MIXED' || (deckMode === 'LETTERS' && pattern === 'WORDS')) {
                 deckStarting = true;
                 setStartLoading(true);
                 try {
@@ -2108,16 +2212,16 @@
                 }
             }
 
-            const combinations = pattern === 'WORDS'
+            const combinations = deckMode === 'LETTERS' && pattern === 'WORDS'
                 ? buildCombinations('CVC', selectedConsonants, selectedVowels)
                 : [];
             total = requestedTotal;
             queue = [];
             let noMatchingWords = false;
-            currentPattern = pattern;
-            isInFlopMode = pattern === 'FLOP';
-            
-            if (pattern === 'FLOP') {
+            currentPattern = deckMode === 'MIXED' ? 'MIXED' : pattern;
+            isInFlopMode = deckMode === 'LETTERS' && pattern === 'FLOP';
+
+            if (deckMode === 'LETTERS' && pattern === 'FLOP') {
                 const flopCardTexts = currentFlopDeck();
 
                 if (flopCardTexts.length === 0) {
@@ -2128,29 +2232,8 @@
 
                 total = flopCardTexts.length;
                 queue = shuffle(flopCardTexts).map(text => ({ text, misses: 0 }));
-            } else if (pattern === 'WORDS') {
-                const { tokenizeWord } = window.__sounds;
-                const allowedUnits = new Set([...consonants, ...vowels, ...specials]);
-                const hasXxSentinel = specials.has('xx');
-                const eligibleBySpelling = new Map();
-                for (const word of words) {
-                    const key = word.toLowerCase();
-                    const units = tokenizeWord(key, allSpecials);
-                    let eligible = units.length > 0 && key.length <= maxLength;
-                    if (eligible) {
-                      for (const unit of units) {
-                        const isDoubledLetter = unit.length === 2 && unit[0] === unit[1];
-                        if (!allowedUnits.has(unit) && !(isDoubledLetter && hasXxSentinel)) {
-                          eligible = false;
-                          break;
-                        }
-                      }
-                    }
-                    if (eligible && !eligibleBySpelling.has(key)) {
-                        eligibleBySpelling.set(key, word);
-                    }
-                }
-                const eligibleWords = [...eligibleBySpelling.values()];
+            } else if (deckMode === 'LETTERS' && pattern === 'WORDS') {
+                const eligibleWords = readableWordList(words, maxLength);
                 if (maxLength >= 4 && eligibleWords.length === 0) {
                     byId('setup-error').textContent = tr('setup.error.no_words');
                     return;
@@ -2179,6 +2262,39 @@
                 }));
                 queue = shuffleWithoutAdjacentCards([...wordCards, ...capitalizedPatterns]);
                 noMatchingWords = eligibleWords.length === 0;
+            } else if (deckMode === 'MIXED') {
+                // A mixed deck interleaves readable words and readable
+                // sentences; both kinds are drawn from the current selection.
+                const eligibleWords = readableWordList(words, maxLength);
+                if (eligibleWords.length === 0) {
+                    byId('setup-error').textContent = tr('setup.error.no_words');
+                    return;
+                }
+                deckStarting = true;
+                setStartLoading(true);
+                let pool;
+                try {
+                    pool = await loadSentencePool(currentLanguage);
+                } catch {
+                    byId('setup-error').textContent = tr('setup.error.sentencepool');
+                    return;
+                } finally {
+                    deckStarting = false;
+                    setStartLoading(false);
+                }
+                queue = window.__scoring.buildMixedDeck(
+                    pool,
+                    currentSelection(),
+                    currentLanguage,
+                    eligibleWords,
+                    { count: total },
+                );
+                if (queue.length === 0) {
+                    byId('setup-error').textContent = tr('setup.error.no_mixed');
+                    return;
+                }
+                total = queue.length;
+                noMatchingWords = false;
             } else {
                 const deck = buildPatternDeck(subPatterns, selectedConsonants, selectedVowels, total, Math.random);
                 const uppercaseFirst = Math.random() < 0.5;
@@ -2249,6 +2365,9 @@
             btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
         });
         setLanguage(currentLanguage);
+        document.querySelectorAll('input[name="deck"]').forEach(input => {
+            input.addEventListener('change', updatePatternControls);
+        });
         document.querySelectorAll('input[name="pattern"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });

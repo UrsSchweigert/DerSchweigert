@@ -23,6 +23,13 @@ const DE = {
   'setup.consonants': 'Konsonanten',
   'setup.vowels': 'Vokale',
   'setup.specials': 'Besonderheiten',
+  'setup.deck': 'Deck',
+  'setup.deck.letters': 'Buchstaben & Wörter',
+  'setup.deck.letters_desc': 'Nach Buchstabenfolge',
+  'setup.deck.sentences': 'Nur Sätze',
+  'setup.deck.sentences_desc': 'Ganze Sätze lesen',
+  'setup.deck.mixed': 'Gemischt',
+  'setup.deck.mixed_desc': 'Wörter und Sätze im Wechsel',
   'setup.pattern': 'Buchstabenfolge',
   'setup.pattern.patterns': 'Muster',
   'setup.pattern.patterns_desc': 'Silbenmuster kombinieren',
@@ -53,6 +60,7 @@ const DE = {
   'setup.sentences.clear': 'Auswahl leeren',
   'setup.error.sentencepool': 'Die Satzliste konnte nicht geladen werden. Bitte versuche es erneut.',
   'setup.error.no_sentences': 'Keine passenden Sätze gefunden. Wähle mehr Buchstaben.',
+  'setup.error.no_mixed': 'Keine passenden Wörter und Sätze gefunden. Wähle mehr Buchstaben.',
   
   // Practice screen
   'practice.stats.cleared': 'geschafft',
@@ -154,6 +162,13 @@ const EN = {
   'setup.consonants': 'Consonants',
   'setup.vowels': 'Vowels',
   'setup.specials': 'Special characters',
+  'setup.deck': 'Deck',
+  'setup.deck.letters': 'Letters & words',
+  'setup.deck.letters_desc': 'By letter sequence',
+  'setup.deck.sentences': 'Sentences only',
+  'setup.deck.sentences_desc': 'Read whole sentences',
+  'setup.deck.mixed': 'Mixed',
+  'setup.deck.mixed_desc': 'Words and sentences alternating',
   'setup.pattern': 'Letter sequence',
   'setup.pattern.patterns': 'Patterns',
   'setup.pattern.patterns_desc': 'Combine syllable patterns',
@@ -184,6 +199,7 @@ const EN = {
   'setup.sentences.clear': 'Clear selection',
   'setup.error.sentencepool': 'The sentence list could not be loaded. Please try again.',
   'setup.error.no_sentences': 'No matching sentences found. Select more letters.',
+  'setup.error.no_mixed': 'No matching words and sentences found. Select more letters.',
   
   // Practice screen
   'practice.stats.cleared': 'completed',
