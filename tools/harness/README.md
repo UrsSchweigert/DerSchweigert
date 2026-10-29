@@ -331,6 +331,9 @@ The button does not build images, change credentials, or start a live run.
    scope-and-policy record as terminal approval. Changed versions, revised
    drafts, unresolved questions, or validation configuration errors block
    approval. Approved workspaces cannot be revised; create a new workspace.
+   Dashboard approval authenticates this browser session, not a distinct
+   person: it is the owner's own-machine path. Use `harness approve` in a
+   terminal when an approval must not be delegable.
 6. Click **Import approved issues**. Once it succeeds, select the new plan
    in the sidebar and use **Start run** when ready. Approval and import do
    not start workers or perform merges.

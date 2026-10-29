@@ -356,7 +356,7 @@ Use these values unless `docs/harness/decisions.md` overrides them. All are conf
 | Diagnostic event retention            | 14 days                                                                                             |
 | Autonomous merge                      | Only when every merge gate passes and no escalation path is touched                                 |
 | State store                           | SQLite file outside worker-writable paths                                                           |
-| Approval mechanism                    | Local terminal confirmation by the repository owner, written as a signed approval record            |
+| Approval mechanism                    | Trusted local confirmation by the repository owner, written as a signed approval record: terminal by default, or the dashboard's reviewed-plan approval with a typed digest prefix and current Tier A |
 
 ## Required Tests
 
