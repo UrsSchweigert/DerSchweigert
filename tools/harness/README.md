@@ -453,6 +453,8 @@ Each model takes `per_million_input`, `per_million_output`, and `per_attempt` (f
 
 The harness asks you things through tasks. `harness tasks` lists the open ones with everything you need, and `harness status` shows how many are waiting. Silence never counts as an answer: reminders go out after 24 hours (at most 3), and after 72 hours the secondary owner is notified.
 
+Before you answer, the [human-task-triage agent](../../.github/agents/human-task-triage.agent.md) can take the task over. It reads the open tasks, decides whether the cause is a harness fault it can reproduce, fixes and tests it, re-drives the blocked work, and hands you only the questions that need your intent: scope, budget, credentials, licenses, and manual device or visual checks. It may answer or acknowledge a task for you only when you approve it in that conversation; the trusted local command resolves the OS account and the `gh` login, so it cannot tell the agent apart from you. That limit is an instruction to the agent, not runtime enforcement.
+
 **Decision tasks** are raised by the harness itself when an issue is blocked (budget used up, a policy failure, or a refiner that needs your input). It is not a request from a reviewer or a worker. Each task shows the reason, the recent failures, and these options:
 
 | # | Option | What happens |
