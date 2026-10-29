@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import time
 
-from . import approval, assets, humantasks, investigate, isolation, models, plans, reconcile, runner, schemas, status, workrecord
+from . import approval, assets, humantasks, investigate, isolation, models, plans, providers, reconcile, runner, schemas, status, workrecord
 from .github import GhCli, GitHubError
 from .approval import AuthorizationError, plan_entity
 from .checks import SandboxChecker
@@ -232,6 +232,47 @@ def runner_command(args) -> int:
         return 2
     finally:
         store.close()
+
+
+def providers_command(args) -> int:
+    """Show, set, or remove a BYOK provider profile. The key is never echoed and never passed as an argument."""
+    home = args.home or default_home()
+    if args.action == "show":
+        profiles = providers.redacted(home)
+        if not profiles:
+            print("no provider profiles in %s" % providers.path(home))
+            return 0
+        print(json.dumps(profiles, indent=2, sort_keys=True))
+        return 0
+    source = (args.source or "").strip()
+    if source not in models.SOURCES:
+        print("error: choose a source from %s" % ", ".join(models.SOURCES), file=sys.stderr)
+        return 2
+    if source == "copilot":
+        print("error: copilot uses copilot.token, not a provider profile", file=sys.stderr)
+        return 2
+    if args.action == "rm":
+        removed = providers.remove(home, source)
+        print("removed %s" % source if removed else "no profile for %s" % source)
+        return 0
+    if args.api_key_env:
+        key = os.environ.get(args.api_key_env, "").strip()
+        if not key:
+            print("error: %s is empty or unset" % args.api_key_env, file=sys.stderr)
+            return 2
+    else:
+        if not sys.stdin.isatty():
+            print("error: pass --api-key-env VAR, or run in a terminal to be prompted", file=sys.stderr)
+            return 2
+        key = getpass.getpass("API key for %s (not echoed): " % source).strip()
+    try:
+        cfg = providers.save(home, source, api_key=key, base_url=args.base_url, kind=args.type)
+    except (ValueError, OSError) as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 2
+    print("saved %s -> %s (%s), key %s" % (source, cfg["baseUrl"], cfg["type"],
+                                           providers.redacted(home).get(source, {}).get("apiKey", "")))
+    return 0
 
 
 def models_command(args) -> int:
@@ -473,6 +514,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     asx.add_argument("action", choices=["probe"])
     i = sub.add_parser("isolation", help="Tier A worker sandbox: build the image, verify it, or show the tier")
     i.add_argument("action", choices=["build", "verify", "status"])
+    pv = sub.add_parser("providers", help="manage BYOK provider profiles (endpoint and key) for non-Copilot sources")
+    pv.add_argument("action", choices=["show", "set", "rm"])
+    pv.add_argument("source", nargs="?", help="model source, e.g. deepseek")
+    pv.add_argument("--base-url", help="API endpoint; defaults to the known URL for the source")
+    pv.add_argument("--type", default="openai", choices=["openai", "azure", "anthropic"], help="provider wire type")
+    pv.add_argument("--api-key-env", help="read the key from this environment variable instead of prompting")
     md = sub.add_parser("models", help="show the picker menu per source and which models this runtime accepts")
     md.add_argument("--source", action="append", choices=list(models.SOURCES), help="source to show (repeatable; default all)")
     md.add_argument("--refresh", action="store_true", help="probe again instead of using the cached result")
@@ -556,6 +603,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         if args.cmd == "isolation":
             return isolation_command(args.action, args.home)
+        if args.cmd == "providers":
+            return providers_command(args)
         if args.cmd == "models":
             return models_command(args)
         if args.cmd == "probe":
