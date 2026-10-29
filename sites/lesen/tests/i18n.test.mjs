@@ -43,8 +43,12 @@ test("i18n: German dictionary covers setup form strings", () => {
     "setup.vowels",
     "setup.specials",
     "setup.pattern",
-    "setup.pattern.cv",
-    "setup.pattern.vc",
+    "setup.pattern.patterns",
+    "setup.pattern.patterns_desc",
+    "setup.pattern.sub.ma",
+    "setup.pattern.sub.am",
+    "setup.pattern.sub.mam",
+    "setup.pattern.sub.ama",
     "setup.pattern.words",
     "setup.pattern.flop",
     "setup.wordlength",
@@ -59,12 +63,41 @@ test("i18n: German dictionary covers setup form strings", () => {
   }
 });
 
+test("i18n: pattern mode keys exist in both languages and the old CV/VC keys are gone", () => {
+  const patternKeys = [
+    "setup.pattern.patterns",
+    "setup.pattern.patterns_desc",
+    "setup.pattern.sub.ma",
+    "setup.pattern.sub.am",
+    "setup.pattern.sub.mam",
+    "setup.pattern.sub.ama",
+    "setup.error.no_pattern",
+  ];
+
+  for (const key of patternKeys) {
+    assert.ok(!(t("de", key) === key), `${key} should have a German translation`);
+    assert.ok(!(t("en", key) === key), `${key} should have an English translation`);
+  }
+
+  assert.strictEqual(t("de", "setup.pattern.patterns"), "Muster");
+  assert.strictEqual(t("en", "setup.pattern.patterns"), "Patterns");
+  for (const key of ["setup.pattern.sub.ma", "setup.pattern.sub.am", "setup.pattern.sub.mam", "setup.pattern.sub.ama"]) {
+    assert.strictEqual(t("de", key), t("en", key));
+  }
+
+  assert.ok(!("setup.pattern.cv" in DE), "setup.pattern.cv should be removed from the German dictionary");
+  assert.ok(!("setup.pattern.vc" in DE), "setup.pattern.vc should be removed from the German dictionary");
+  assert.ok(!("setup.pattern.cv" in EN), "setup.pattern.cv should be removed from the English dictionary");
+  assert.ok(!("setup.pattern.vc" in EN), "setup.pattern.vc should be removed from the English dictionary");
+});
+
 test("i18n: German dictionary covers error messages", () => {
   const errorKeys = [
     "setup.error.selection",
     "setup.error.wordlist",
     "setup.error.no_flop",
     "setup.error.no_words",
+    "setup.error.no_pattern",
   ];
   
   for (const key of errorKeys) {

@@ -89,6 +89,89 @@ export function buildCombinations(pattern, consonantLetters, vowelLetters) {
 }
 
 /**
+ * Sub-patterns offered on the setup screen, mapped to the letter-slot
+ * sequence understood by {@link buildCombinations}.
+ */
+const SUB_PATTERN_CODES = Object.freeze({
+  ma: "CV",
+  am: "VC",
+  mam: "CVC",
+  ama: "VCV",
+});
+
+/** Fisher–Yates shuffle of a copy of `items`, using the supplied RNG. */
+function shuffleItems(items, random) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index--) {
+    const other = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[other]] = [shuffled[other], shuffled[index]];
+  }
+  return shuffled;
+}
+
+/**
+ * Build a practice deck from any checked subset of the setup sub-patterns
+ * "ma" (CV), "am" (VC), "mam" (CVC) and "ama" (VCV).
+ *
+ * Every sub-pattern contributes its {@link buildCombinations} pool. The pools
+ * are de-duplicated by card text (also across sub-patterns), shuffled, then
+ * dealt round-robin so the sub-patterns are interleaved rather than
+ * concatenated. Once every pool is exhausted the pools are reshuffled and
+ * dealt again, so a short pool is repeated until `count` cards exist. The
+ * deck is cut to exactly `count` cards.
+ *
+ * Capitalisation is a presentation concern and is not applied here; cards are
+ * returned exactly as built by {@link buildCombinations}.
+ *
+ * @param {Iterable<string>} patterns checked sub-patterns, e.g. ["ma", "am"]
+ * @param {readonly string[]} [consonantLetters] letters usable in 'C' slots
+ * @param {readonly string[]} [vowelLetters] letters (and/or specials) usable
+ *   in 'V' slots
+ * @param {number} count requested number of cards; 0 or less yields []
+ * @param {() => number} [rng] random source in [0, 1); injectable for tests
+ * @returns {string[]} de-duplicated, interleaved, shuffled deck of `count`
+ *   cards (empty when no patterns or no positive count is given)
+ */
+export function buildPatternDeck(patterns, consonantLetters = CONSONANTS, vowelLetters = VOWELS, count = 0, rng = Math.random) {
+  const total = Math.floor(Number(count));
+  if (!patterns || !Number.isFinite(total) || total <= 0) return [];
+
+  const patternList = typeof patterns === "string" ? [patterns] : patterns;
+  const seen = new Set();
+  const pools = [];
+  for (const pattern of patternList) {
+    const code = SUB_PATTERN_CODES[pattern];
+    if (!code) throw new Error(`Unknown sub-pattern: ${pattern}`);
+    const cards = [];
+    for (const text of buildCombinations(code, consonantLetters, vowelLetters)) {
+      if (seen.has(text)) continue;
+      seen.add(text);
+      cards.push(text);
+    }
+    if (cards.length) pools.push({ cards: shuffleItems(cards, rng), cursor: 0 });
+  }
+  if (!pools.length) return [];
+
+  const deck = [];
+  while (deck.length < total) {
+    let dealt = false;
+    for (const pool of pools) {
+      if (deck.length >= total) break;
+      if (pool.cursor >= pool.cards.length) continue;
+      deck.push(pool.cards[pool.cursor++]);
+      dealt = true;
+    }
+    if (!dealt) {
+      for (const pool of pools) {
+        pool.cards = shuffleItems(pool.cards, rng);
+        pool.cursor = 0;
+      }
+    }
+  }
+  return deck;
+}
+
+/**
  * Tokenize a lowercase word left to right into sound units.
  * At each position, a special from the specials list is taken first if the
  * word continues with it, otherwise one character is taken.
