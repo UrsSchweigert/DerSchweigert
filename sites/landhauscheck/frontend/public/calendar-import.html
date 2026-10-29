@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kalender-Import – Landhauscheck</title>
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue-deep:    #0D47A1;
+      --blue-bright:  #29B6F6;
+      --glass-bg:     rgba(255,255,255,0.13);
+      --glass-border: rgba(255,255,255,0.24);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      min-height: 100dvh;
+      color: #fff;
+      padding: 1.5rem;
+      padding-bottom: 3rem;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background:
+        radial-gradient(ellipse at 15% 15%, var(--blue-bright) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 85%, #0A257A 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 15%, var(--blue-bright) 0%, transparent 45%),
+        radial-gradient(ellipse at 15% 85%, var(--blue-deep) 0%, transparent 45%)
+        #d0e4f7;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      margin-bottom: 1.75rem;
+      flex-wrap: wrap;
+    }
+    .logo {
+      width: 2.8rem; height: 2.8rem;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.25rem; font-weight: 600; flex: 1; min-width: 0; }
+    header h1 span { opacity: 0.65; font-weight: 400; }
+
+    .headerActions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+
+    .back {
+      color: rgba(255,255,255,0.85);
+      text-decoration: none;
+      font-size: 0.83rem;
+      padding: 0.42rem 0.85rem;
+      border-radius: 10px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      white-space: nowrap;
+    }
+    .back:hover { background: rgba(255,255,255,0.22); }
+
+    .langSwitcher { display: flex; gap: 0.2rem; }
+    .langSwitcher button {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 7px;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.42rem;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+    }
+    .langSwitcher button.active,
+    .langSwitcher button:hover { background: rgba(255,255,255,0.28); color: #fff; }
+
+    .container { max-width: 640px; margin: 0 auto; }
+
+    /* ── Platform tabs ─────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 1.2rem;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      padding: 0.45rem 1rem;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      color: rgba(255,255,255,0.72);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: background 0.14s, color 0.14s;
+    }
+    .tab-btn.active, .tab-btn:hover {
+      background: rgba(255,255,255,0.28);
+      color: #fff;
+    }
+
+    /* ── Instruction cards ─────────────────────────────────────────────── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 18px;
+      padding: 1.3rem 1.4rem;
+      margin-bottom: 1rem;
+    }
+    .card__title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .card__body {
+      font-size: 0.84rem;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.85);
+    }
+    .card__body ol {
+      padding-left: 1.3rem;
+      margin-top: 0.5rem;
+    }
+    .card__body li { margin-bottom: 0.3rem; }
+    .card__body strong { color: #fff; }
+
+    .tip {
+      margin-top: 0.75rem;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.55);
+      font-style: italic;
+      line-height: 1.5;
+    }
+
+    /* ── Action buttons ────────────────────────────────────────────────── */
+    .actions { display: flex; flex-direction: column; gap: 0.65rem; margin-top: 1.25rem; }
+
+    .action-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      padding: 0.9rem 1.1rem;
+      border-radius: 14px;
+      border: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.16);
+      color: #fff;
+      text-decoration: none;
+      font-family: var(--font);
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: background 0.14s;
+    }
+    .action-btn:hover, .action-btn:active { background: rgba(255,255,255,0.28); }
+    .action-btn.primary {
+      background: rgba(41, 182, 246, 0.35);
+      border-color: rgba(41, 182, 246, 0.55);
+    }
+    .action-btn.primary:hover { background: rgba(41, 182, 246, 0.5); }
+    .action-btn__icon { font-size: 1.5rem; flex-shrink: 0; line-height: 1; }
+    .action-btn__label { font-weight: 600; }
+    .action-btn__hint { font-size: 0.73rem; color: rgba(255,255,255,0.62); margin-top: 0.1rem; }
+
+    /* ── No-location warning ───────────────────────────────────────────── */
+    #no-location-warning {
+      display: none;
+      background: rgba(255,120,0,0.18);
+      border: 1px solid rgba(255,160,0,0.4);
+      border-radius: 14px;
+      padding: 1rem 1.2rem;
+      font-size: 0.84rem;
+      line-height: 1.6;
+      margin-bottom: 1.25rem;
+    }
+
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.72rem;
+      opacity: 0.42;
+    }
+    footer a { color: inherit; }
+
+    @media (max-width: 520px) {
+      body { padding: 0.75rem; padding-bottom: 2.5rem; }
+      .card { padding: 1rem; border-radius: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img class="logo" src="/logo.png" alt="Landhauscheck">
+    <h1>Landhauscheck <span id="hdr-sub"></span></h1>
+    <div class="headerActions">
+      <a href="/" class="back" id="back-btn"></a>
+      <div class="langSwitcher">
+        <button onclick="switchLang('de')" data-lang="de">DE</button>
+        <button onclick="switchLang('en')" data-lang="en">EN</button>
+        <button onclick="switchLang('pt')" data-lang="pt">PT</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Warning shown when no lat/lng params present -->
+    <div id="no-location-warning"></div>
+
+    <!-- Platform tabs -->
+    <div class="tabs" id="tabs">
+      <button class="tab-btn" data-tab="ios" onclick="showTab('ios')">📱 iPhone / iPad</button>
+      <button class="tab-btn" data-tab="android" onclick="showTab('android')">🤖 Android</button>
+      <button class="tab-btn" data-tab="macos" onclick="showTab('macos')">🖥 macOS</button>
+      <button class="tab-btn" data-tab="other" onclick="showTab('other')">💻 Windows / Other</button>
+    </div>
+
+    <!-- iOS panel -->
+    <div class="panel" id="panel-ios">
+      <div class="card">
+        <div class="card__title" id="ios-title"></div>
+        <div class="card__body">
+          <ol id="ios-steps"></ol>
+          <p class="tip" id="ios-tip"></p>
+        </div>
+        <div class="actions">
+          <a id="ios-import-btn" href="#" class="action-btn primary" target="_self">
+            <span class="action-btn__icon">📥</span>
+            <span>
+              <div class="action-btn__label" id="ios-import-label"></div>
+              <div class="action-btn__hint" id="ios-import-hint"></div>
+            </span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Android panel -->
+    <div class="panel" id="panel-android">
+      <div class="card">
+        <div class="card__title" id="android-title"></div>
+        <div class="card__body">
+          <ol id="android-steps"></ol>
+          <p class="tip" id="android-tip"></p>
+        </div>
+        <div class="actions">
+          <a id="android-import-btn" href="#" class="action-btn primary" download="abfuhrkalender.ics">
+            <span class="action-btn__icon">📥</span>
+            <span>
+              <div class="action-btn__label" id="android-import-label"></div>
+              <div class="action-btn__hint" id="android-import-hint"></div>
+            </span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- macOS panel -->
+    <div class="panel" id="panel-macos">
+      <div class="card">
+        <div class="card__title" id="macos-title"></div>
+        <div class="card__body">
+          <ol id="macos-steps"></ol>
+          <p class="tip" id="macos-tip"></p>
+        </div>
+        <div class="actions">
+          <a id="macos-webcal-btn" href="#" class="action-btn primary">
+            <span class="action-btn__icon">🗓️</span>
+            <span>
+              <div class="action-btn__label" id="macos-webcal-label"></div>
+              <div class="action-btn__hint" id="macos-webcal-hint"></div>
+            </span>
+          </a>
+          <a id="macos-download-btn" href="#" class="action-btn" download="abfuhrkalender.ics">
+            <span class="action-btn__icon">📥</span>
+            <span>
+              <div class="action-btn__label" id="macos-download-label"></div>
+              <div class="action-btn__hint" id="macos-download-hint"></div>
+            </span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Windows / Other panel -->
+    <div class="panel" id="panel-other">
+      <div class="card">
+        <div class="card__title" id="other-title"></div>
+        <div class="card__body">
+          <ol id="other-steps"></ol>
+          <p class="tip" id="other-tip"></p>
+        </div>
+        <div class="actions">
+          <a id="other-download-btn" href="#" class="action-btn primary" download="abfuhrkalender.ics">
+            <span class="action-btn__icon">📥</span>
+            <span>
+              <div class="action-btn__label" id="other-download-label"></div>
+              <div class="action-btn__hint" id="other-download-hint"></div>
+            </span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/impressum.html">Impressum</a> ·
+    <a href="/datenschutz.html">Datenschutz</a>
+  </footer>
+
+  <script>
+    // ── Translations ─────────────────────────────────────────────────────────
+    const T = {
+      de: {
+        hdrSub: '· Kalender-Import',
+        back: '← Zurück',
+        noLocation: '⚠️ Kein Standort übergeben. Bitte kehre zur App zurück und tippe erneut auf 📅.',
+        ios: {
+          title: '📱 iPhone / iPad — Abholtermine importieren',
+          steps: [
+            'Tippe unten auf <strong>„Kalender importieren"</strong>.',
+            'Safari öffnet die .ics-Datei und zeigt <strong>„Zum Kalender hinzufügen"</strong> an.',
+            'Tippe auf <strong>„Alle hinzufügen"</strong> — fertig.',
+            'Du erhältst ab sofort Erinnerungen um <strong>17:00 Uhr</strong> am Vorabend jeder Abholung.',
+          ],
+          tip: '💡 Die Erinnerungen kommen aus der iOS Kalender-App — unabhängig davon, ob Landhauscheck geöffnet ist.',
+          importLabel: 'Kalender importieren',
+          importHint: 'Öffnet die .ics-Datei in Safari → „Zum Kalender hinzufügen"',
+        },
+        android: {
+          title: '🤖 Android — Abholtermine importieren',
+          steps: [
+            'Tippe auf <strong>„Kalender herunterladen"</strong>.',
+            'Öffne die heruntergeladene <strong>.ics-Datei</strong> aus der Benachrichtigungsleiste oder dem Downloads-Ordner.',
+            'Wähle <strong>Google Kalender</strong> (oder deine Kalender-App).',
+            'Tippe auf <strong>„Importieren"</strong>.',
+            'Du erhältst ab sofort Erinnerungen um <strong>17:00 Uhr</strong> am Vorabend jeder Abholung.',
+          ],
+          tip: '💡 Alternativ: Google Kalender → Einstellungen → Importieren → .ics-Datei auswählen.',
+          importLabel: 'Kalender herunterladen',
+          importHint: '.ics-Datei → in Google Kalender oder anderer App importieren',
+        },
+        macos: {
+          title: '🖥 macOS — Abholtermine hinzufügen',
+          steps: [
+            '<strong>Abonnieren (empfohlen)</strong>: Tippe auf „Kalender abonnieren" — die Kalender-App öffnet sich direkt und der Kalender bleibt automatisch aktuell.',
+            '<strong>Oder einmalig importieren</strong>: Lade die .ics-Datei herunter, öffne sie und bestätige den Import in der Kalender-App.',
+          ],
+          tip: '💡 Beim Abonnieren per webcal:// werden VALARM-Erinnerungen auf macOS vollständig unterstützt.',
+          webcalLabel: '🗓️ Kalender abonnieren (webcal)',
+          webcalHint: 'Öffnet Kalender.app direkt — bleibt automatisch aktuell',
+          downloadLabel: '📥 .ics-Datei herunterladen',
+          downloadHint: 'Einmaliger Import in Kalender.app, Google Kalender oder Outlook',
+        },
+        other: {
+          title: '💻 Windows / Andere — Abholtermine importieren',
+          steps: [
+            'Lade die <strong>.ics-Datei</strong> herunter.',
+            '<strong>Outlook</strong>: Datei → Öffnen & Exportieren → Importieren/Exportieren → iCalendar-Datei importieren.',
+            '<strong>Google Kalender</strong>: Einstellungen → Importieren → .ics-Datei auswählen.',
+            '<strong>Thunderbird</strong>: Kalender → Ereignisse und Aufgaben → Importieren.',
+          ],
+          tip: '💡 Erinnerungen werden um 17:00 Uhr am Vorabend jeder Abholung ausgelöst.',
+          downloadLabel: '.ics-Datei herunterladen',
+          downloadHint: 'Für Outlook, Google Kalender, Thunderbird und andere',
+        },
+      },
+      en: {
+        hdrSub: '· Calendar Import',
+        back: '← Back',
+        noLocation: '⚠️ No location provided. Please go back to the app and tap 📅 again.',
+        ios: {
+          title: '📱 iPhone / iPad — Import collection dates',
+          steps: [
+            'Tap <strong>"Import calendar"</strong> below.',
+            'Safari opens the .ics file and shows <strong>"Add to Calendar"</strong>.',
+            'Tap <strong>"Add All"</strong> — done.',
+            'You will now receive reminders at <strong>17:00</strong> the evening before each collection.',
+          ],
+          tip: '💡 Reminders come from the iOS Calendar app — regardless of whether Landhauscheck is open.',
+          importLabel: 'Import calendar',
+          importHint: 'Opens the .ics file in Safari → "Add to Calendar"',
+        },
+        android: {
+          title: '🤖 Android — Import collection dates',
+          steps: [
+            'Tap <strong>"Download calendar"</strong>.',
+            'Open the downloaded <strong>.ics file</strong> from the notification bar or Downloads folder.',
+            'Choose <strong>Google Calendar</strong> (or your calendar app).',
+            'Tap <strong>"Import"</strong>.',
+            'You will now receive reminders at <strong>17:00</strong> the evening before each collection.',
+          ],
+          tip: '💡 Alternative: Google Calendar → Settings → Import → select the .ics file.',
+          importLabel: 'Download calendar',
+          importHint: '.ics file → import into Google Calendar or another app',
+        },
+        macos: {
+          title: '🖥 macOS — Add collection dates',
+          steps: [
+            '<strong>Subscribe (recommended)</strong>: Tap "Subscribe to calendar" — Calendar.app opens directly and stays up to date automatically.',
+            '<strong>Or one-time import</strong>: Download the .ics file, open it and confirm the import in Calendar.app.',
+          ],
+          tip: '💡 Subscribing via webcal:// fully supports VALARM reminders on macOS.',
+          webcalLabel: '🗓️ Subscribe to calendar (webcal)',
+          webcalHint: 'Opens Calendar.app directly — stays up to date automatically',
+          downloadLabel: '📥 Download .ics file',
+          downloadHint: 'One-time import into Calendar.app, Google Calendar or Outlook',
+        },
+        other: {
+          title: '💻 Windows / Other — Import collection dates',
+          steps: [
+            'Download the <strong>.ics file</strong>.',
+            '<strong>Outlook</strong>: File → Open & Export → Import/Export → Import an iCalendar file.',
+            '<strong>Google Calendar</strong>: Settings → Import → select .ics file.',
+            '<strong>Thunderbird</strong>: Calendar → Events & Tasks → Import.',
+          ],
+          tip: '💡 Reminders will fire at 17:00 the evening before each collection.',
+          downloadLabel: 'Download .ics file',
+          downloadHint: 'For Outlook, Google Calendar, Thunderbird and others',
+        },
+      },
+      pt: {
+        hdrSub: '· Importar Calendário',
+        back: '← Voltar',
+        noLocation: '⚠️ Localização não fornecida. Por favor volte à app e toque em 📅 novamente.',
+        ios: {
+          title: '📱 iPhone / iPad — Importar datas de recolha',
+          steps: [
+            'Toque em <strong>\"Importar calendário\"</strong> abaixo.',
+            'O Safari abre o ficheiro .ics e mostra <strong>\"Adicionar ao Calendário\"</strong>.',
+            'Toque em <strong>\"Adicionar tudo\"</strong> — concluído.',
+            'Receberá lembretes às <strong>17:00</strong> na véspera de cada recolha.',
+          ],
+          tip: '💡 Os lembretes vêm da app Calendário do iOS — independentemente de o Landhauscheck estar aberto.',
+          importLabel: 'Importar calendário',
+          importHint: 'Abre o ficheiro .ics no Safari → "Adicionar ao Calendário"',
+        },
+        android: {
+          title: '🤖 Android — Importar datas de recolha',
+          steps: [
+            'Toque em <strong>\"Transferir calendário\"</strong>.',
+            'Abra o ficheiro <strong>.ics</strong> transferido a partir da barra de notificações ou da pasta de transferências.',
+            'Escolha o <strong>Google Calendar</strong> (ou a sua app de calendário).',
+            'Toque em <strong>\"Importar\"</strong>.',
+            'Receberá lembretes às <strong>17:00</strong> na véspera de cada recolha.',
+          ],
+          tip: '💡 Alternativa: Google Calendar → Definições → Importar → seleccionar o ficheiro .ics.',
+          importLabel: 'Transferir calendário',
+          importHint: 'Ficheiro .ics → importar no Google Calendar ou outra app',
+        },
+        macos: {
+          title: '🖥 macOS — Adicionar datas de recolha',
+          steps: [
+            '<strong>Subscrever (recomendado)</strong>: Toque em "Subscrever calendário" — a app Calendário abre directamente e fica actualizada automaticamente.',
+            '<strong>Ou importação única</strong>: Transfira o ficheiro .ics, abra-o e confirme a importação na app Calendário.',
+          ],
+          tip: '💡 A subscrição via webcal:// suporta totalmente os lembretes VALARM no macOS.',
+          webcalLabel: '🗓️ Subscrever calendário (webcal)',
+          webcalHint: 'Abre a app Calendário directamente — actualiza-se automaticamente',
+          downloadLabel: '📥 Transferir ficheiro .ics',
+          downloadHint: 'Importação única no Calendário, Google Calendar ou Outlook',
+        },
+        other: {
+          title: '💻 Windows / Outros — Importar datas de recolha',
+          steps: [
+            'Transfira o <strong>ficheiro .ics</strong>.',
+            '<strong>Outlook</strong>: Ficheiro → Abrir e Exportar → Importar/Exportar → Importar ficheiro iCalendar.',
+            '<strong>Google Calendar</strong>: Definições → Importar → seleccionar ficheiro .ics.',
+            '<strong>Thunderbird</strong>: Calendário → Eventos e Tarefas → Importar.',
+          ],
+          tip: '💡 Os lembretes disparam às 17:00 na véspera de cada recolha.',
+          downloadLabel: 'Transferir ficheiro .ics',
+          downloadHint: 'Para Outlook, Google Calendar, Thunderbird e outros',
+        },
+      },
+    };
+
+    // ── URL params ────────────────────────────────────────────────────────────
+    const params  = new URLSearchParams(window.location.search);
+    const lat     = params.get('lat');
+    const lng     = params.get('lng');
+    const apiBase = params.get('base') || window.location.origin;
+    const icsUrl  = (lat && lng)
+      ? `${apiBase}/api/v1/waste/calendar.ics?lat=${lat}&lng=${lng}`
+      : null;
+    const webcalUrl = icsUrl ? icsUrl.replace(/^https?:/, 'webcal:') : null;
+
+    let currentLang = params.get('lang') || navigator.language?.slice(0, 2) || 'de';
+    if (!['de', 'en', 'pt'].includes(currentLang)) currentLang = 'de';
+
+    // ── Platform detection ───────────────────────────────────────────────────
+    function detectPlatform() {
+      const ua = navigator.userAgent;
+      if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+      if (/Android/.test(ua)) return 'android';
+      if (/Mac OS X/.test(ua) && !/Mobile/.test(ua)) return 'macos';
+      return 'other';
+    }
+
+    let currentTab = detectPlatform();
+
+    // ── Render ───────────────────────────────────────────────────────────────
+    function render() {
+      const t = T[currentLang];
+
+      document.documentElement.lang = currentLang;
+      document.getElementById('hdr-sub').textContent = t.hdrSub;
+      document.getElementById('back-btn').textContent = t.back;
+
+      // No-location warning
+      const warn = document.getElementById('no-location-warning');
+      if (!icsUrl) {
+        warn.style.display = 'block';
+        warn.textContent = t.noLocation;
+      } else {
+        warn.style.display = 'none';
+      }
+
+      // Active lang button
+      document.querySelectorAll('.langSwitcher button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === currentLang);
+      });
+
+      // ── iOS ──
+      document.getElementById('ios-title').textContent = t.ios.title;
+      const iosSteps = document.getElementById('ios-steps');
+      iosSteps.innerHTML = t.ios.steps.map(s => `<li>${s}</li>`).join('');
+      document.getElementById('ios-tip').innerHTML = t.ios.tip;
+      document.getElementById('ios-import-label').textContent = t.ios.importLabel;
+      document.getElementById('ios-import-hint').textContent  = t.ios.importHint;
+      const iosBtn = document.getElementById('ios-import-btn');
+      // On iOS: target="_self" so Safari opens in the same window — it will
+      // show "Add to Calendar" sheet before navigating away from this page.
+      iosBtn.href = icsUrl || '#';
+      iosBtn.setAttribute('target', '_self');
+      if (icsUrl) iosBtn.removeAttribute('disabled');
+
+      // ── Android ──
+      document.getElementById('android-title').textContent = t.android.title;
+      const androidSteps = document.getElementById('android-steps');
+      androidSteps.innerHTML = t.android.steps.map(s => `<li>${s}</li>`).join('');
+      document.getElementById('android-tip').innerHTML = t.android.tip;
+      document.getElementById('android-import-label').textContent = t.android.importLabel;
+      document.getElementById('android-import-hint').textContent  = t.android.importHint;
+      document.getElementById('android-import-btn').href = icsUrl || '#';
+
+      // ── macOS ──
+      document.getElementById('macos-title').textContent = t.macos.title;
+      const macosSteps = document.getElementById('macos-steps');
+      macosSteps.innerHTML = t.macos.steps.map(s => `<li>${s}</li>`).join('');
+      document.getElementById('macos-tip').innerHTML = t.macos.tip;
+      document.getElementById('macos-webcal-label').textContent    = t.macos.webcalLabel;
+      document.getElementById('macos-webcal-hint').textContent     = t.macos.webcalHint;
+      document.getElementById('macos-download-label').textContent  = t.macos.downloadLabel;
+      document.getElementById('macos-download-hint').textContent   = t.macos.downloadHint;
+      document.getElementById('macos-webcal-btn').href   = webcalUrl || '#';
+      document.getElementById('macos-download-btn').href = icsUrl    || '#';
+
+      // ── Other ──
+      document.getElementById('other-title').textContent = t.other.title;
+      const otherSteps = document.getElementById('other-steps');
+      otherSteps.innerHTML = t.other.steps.map(s => `<li>${s}</li>`).join('');
+      document.getElementById('other-tip').innerHTML = t.other.tip;
+      document.getElementById('other-download-label').textContent = t.other.downloadLabel;
+      document.getElementById('other-download-hint').textContent  = t.other.downloadHint;
+      document.getElementById('other-download-btn').href = icsUrl || '#';
+
+      showTab(currentTab);
+    }
+
+    function showTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      const panel = document.getElementById('panel-' + tab);
+      const btn   = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+      if (panel) panel.classList.add('active');
+      if (btn)   btn.classList.add('active');
+    }
+
+    function switchLang(lang) {
+      currentLang = lang;
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>

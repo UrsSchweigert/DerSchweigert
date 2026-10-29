@@ -1,7 +1,8 @@
 # DerSchweigert
 
-Monorepo for the sites hosted under `derschweigert.de`. Each subdomain has its own
-app under `sites/`, and shared infrastructure building blocks live under
+Monorepo for the sites hosted under `derschweigert.de`, plus `landhauscheck.com`
+(which predates the monorepo and keeps its own domain). Each site has its own app
+under `sites/`, and shared infrastructure building blocks live under
 `infra/terraform/modules/`.
 
 ## Repository structure
@@ -11,6 +12,7 @@ sites/
   derschweigert/   # www.derschweigert.de — FastAPI app, templates, static assets, Lambda API, tests
   ffm/              # ffm.derschweigert.de — Arithmo Slayer static game + Flask API
   lesen/            # lesen.derschweigert.de — standalone reading-practice page
+  landhauscheck/    # landhauscheck.com — React/Vite SPA + FastAPI Lambda (own domain, eu-west-1)
 infra/
   terraform/
     modules/        # shared Terraform modules (static_site, api_backend) used by every site stack
@@ -18,6 +20,8 @@ infra/
       derschweigert/  # root module for derschweigert.de + www
       ffm/            # dedicated FFM stack (static site + API backend)
       lesen/          # dedicated static-site stack for lesen.derschweigert.de
+      landhauscheck/  # prod stack for landhauscheck.com (own CloudFront/API/Lambda, eu-west-1)
+      landhauscheck-dev/ # dev stack for dev.landhauscheck.com
 tools/
   harness/          # development harness: plans, approves, and runs AI-built work (see tools/harness/README.md)
 docs/
@@ -120,6 +124,25 @@ is `sites/lesen/static/index.html`. The word mode loads
 `sites/lesen/static/words-de.json` (CC BY-SA 4.0, see `words-de-LICENSE.txt`),
 which is regenerated with `python3 sites/lesen/tools/build_wordlist.py`;
 add child-inappropriate words to `sites/lesen/tools/blocklist-de.txt`.
+
+### landhauscheck.com (pre-monorepo stack)
+
+`sites/landhauscheck/` was migrated out of a standalone repository. Unlike the
+other sites, its Terraform is **not** built on the shared `static_site` /
+`api_backend` modules: porting it onto them would have replaced its live
+CloudFront distribution, ACM certificate, REST/HTTP API and S3 buckets, so the
+stack was moved as-is to preserve resource addresses. Consequences worth knowing:
+
+- Region is **eu-west-1** (the other sites are eu-central-1); it is a per-stack
+  variable, so nothing forces the two to match.
+- IaC is **OpenTofu** (`tofu`, 1.11.5) — the state was created by it. The
+  `deploy-lhc` job installs OpenTofu rather than Terraform.
+- State keys are `landhauscheck/prod/terraform.tfstate` and
+  `landhauscheck/dev/terraform.tfstate` in the shared bucket.
+- The Lambda deploys as a **zip** built by `sites/landhauscheck/scripts/deploy.sh`
+  (the other sites' module zips their source); Terraform sets
+  `ignore_changes = [s3_key]` so infrastructure-only applies never revert code.
+- It keeps its own domain (`landhauscheck.com` + `www`) in its own Route53 zone.
 
 ### Refactoring live infra safely (moved blocks)
 

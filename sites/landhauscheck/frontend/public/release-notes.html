@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Landhauscheck · Neuigkeiten</title>
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue-deep:    #0D47A1;
+      --blue-royal:   #1565C0;
+      --blue-bright:  #29B6F6;
+      --glass-bg:     rgba(255,255,255,0.12);
+      --glass-border: rgba(255,255,255,0.22);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      min-height: 100dvh;
+      background: transparent;
+      color: #fff;
+      padding: 1.5rem;
+    }
+    /* Fixed gradient in ::before so backdrop-filter composites correctly on iOS/Safari */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background:
+        radial-gradient(ellipse at 15% 15%, var(--blue-bright) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 85%, #0A257A 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 15%, var(--blue-bright) 0%, transparent 45%),
+        radial-gradient(ellipse at 15% 85%, var(--blue-deep) 0%, transparent 45%)
+        #d0e4f7;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .logo {
+      width: 3.2rem;
+      height: 3.2rem;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+    }
+    header h1 { font-size: 1.35rem; font-weight: 600; flex: 1; }
+    header h1 span { opacity: 0.7; font-weight: 400; }
+    .back {
+      color: rgba(255,255,255,0.85);
+      text-decoration: none;
+      font-size: 0.88rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 10px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: background 0.15s;
+    }
+    .back:hover { background: rgba(255,255,255,0.22); }
+
+    #loading {
+      text-align: center;
+      opacity: 0.6;
+      padding: 5rem;
+      font-size: 1.05rem;
+    }
+    #error-msg {
+      display: none;
+      text-align: center;
+      color: #FF6B6B;
+      padding: 2.5rem;
+      font-size: 0.95rem;
+    }
+
+    .releases { display: flex; flex-direction: column; gap: 1.25rem; }
+
+    .release {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 18px;
+      padding: 1.4rem 1.5rem;
+    }
+    .release__header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .release__tag {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .release__name {
+      font-size: 0.88rem;
+      opacity: 0.7;
+    }
+    .release__date {
+      margin-left: auto;
+      font-size: 0.75rem;
+      opacity: 0.5;
+      font-variant-numeric: tabular-nums;
+    }
+    .release__badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.12rem 0.45rem;
+      border-radius: 5px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(41,182,246,0.3);
+      color: #90CAF9;
+      border: 1px solid rgba(41,182,246,0.35);
+    }
+    .release__badge--pre {
+      background: rgba(255,167,38,0.25);
+      color: #FFD54F;
+      border-color: rgba(255,167,38,0.3);
+    }
+
+    /* Render GitHub markdown-ish body */
+    .release__body {
+      font-size: 0.88rem;
+      line-height: 1.65;
+      color: rgba(255,255,255,0.88);
+    }
+    .release__body h1,
+    .release__body h2,
+    .release__body h3 {
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      opacity: 0.55;
+      margin: 1rem 0 0.4rem;
+    }
+    .release__body ul,
+    .release__body ol {
+      padding-left: 1.2rem;
+      margin: 0.3rem 0;
+    }
+    .release__body li { margin-bottom: 0.25rem; }
+    .release__body p  { margin-bottom: 0.5rem; }
+    .release__body a  { color: #90CAF9; }
+    .release__body code {
+      font-family: ui-monospace, "SF Mono", monospace;
+      font-size: 0.82em;
+      background: rgba(255,255,255,0.1);
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+    }
+    .release__body hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      margin: 0.75rem 0;
+    }
+
+    .release__gh-link {
+      display: inline-block;
+      margin-top: 0.9rem;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.5);
+      text-decoration: none;
+    }
+    .release__gh-link:hover { color: rgba(255,255,255,0.85); }
+
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.72rem;
+      opacity: 0.4;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 0.75rem; }
+      .release { padding: 1rem 1rem; border-radius: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img class="logo" src="/logo.png" alt="Landhauscheck">
+    <h1>Landhauscheck <span>· Neuigkeiten</span></h1>
+    <a class="back" href="/">← Zurück</a>
+  </header>
+
+  <div id="loading">Lade Release-Notes…</div>
+  <div id="error-msg">Release-Notes konnten nicht geladen werden.<br>
+    <a href="https://github.com/UrsSchweigert/BasicWebApp/releases" target="_blank" rel="noopener" style="color:#90CAF9">
+      Auf GitHub ansehen →
+    </a>
+  </div>
+  <div class="releases" id="releases" style="display:none"></div>
+
+  <footer>landhauscheck.com · <a href="/impressum.html" style="color:inherit">Impressum</a></footer>
+
+  <script>
+  'use strict';
+
+  // Simple GitHub Flavoured Markdown → HTML (headings, lists, code, bold, italic, links, hr)
+  function mdToHtml(text) {
+    if (!text) return '';
+    const lines = text.split('\n');
+    const out = [];
+    let inUl = false, inOl = false;
+
+    function closeList() {
+      if (inUl) { out.push('</ul>'); inUl = false; }
+      if (inOl) { out.push('</ol>'); inOl = false; }
+    }
+
+    function inlineFormat(s) {
+      return s
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    }
+
+    for (let raw of lines) {
+      const line = raw.trimEnd();
+      const hm = line.match(/^(#{1,3})\s+(.*)/);
+      const ulm = line.match(/^[-*]\s+(.*)/);
+      const olm = line.match(/^\d+\.\s+(.*)/);
+
+      if (hm) {
+        closeList();
+        const lvl = hm[1].length;
+        out.push(`<h${lvl}>${inlineFormat(hm[2])}</h${lvl}>`);
+      } else if (ulm) {
+        if (!inUl) { closeList(); out.push('<ul>'); inUl = true; }
+        out.push(`<li>${inlineFormat(ulm[1])}</li>`);
+      } else if (olm) {
+        if (!inOl) { closeList(); out.push('<ol>'); inOl = true; }
+        out.push(`<li>${inlineFormat(olm[1])}</li>`);
+      } else if (/^---+$/.test(line)) {
+        closeList();
+        out.push('<hr>');
+      } else if (line.trim() === '') {
+        closeList();
+      } else {
+        closeList();
+        out.push(`<p>${inlineFormat(line)}</p>`);
+      }
+    }
+    closeList();
+    return out.join('\n');
+  }
+
+  function fmtDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  async function load() {
+    const $loading  = document.getElementById('loading');
+    const $error    = document.getElementById('error-msg');
+    const $releases = document.getElementById('releases');
+
+    try {
+      // releases.json is generated at deploy time by deploy.sh via GitHub API
+      // Field names follow GitHub REST API: tag_name, published_at, prerelease, html_url
+      const res = await fetch('/releases.json?v=' + Date.now());
+      if (!res.ok) throw new Error(`releases.json ${res.status}`);
+      const releases = await res.json();
+
+      if (!releases.length) {
+        $loading.textContent = 'Noch keine Releases vorhanden.';
+        return;
+      }
+
+      const html = releases.map(r => {
+        const badge = r.prerelease
+          ? '<span class="release__badge release__badge--pre">Pre-release</span>'
+          : '<span class="release__badge">Release</span>';
+        const bodyHtml = mdToHtml(r.body || '');
+        return `
+          <div class="release">
+            <div class="release__header">
+              <span class="release__tag">${escHtml(r.tag_name)}</span>
+              ${badge}
+              <span class="release__name">${escHtml(r.name || '')}</span>
+              <span class="release__date">${fmtDate(r.published_at)}</span>
+            </div>
+            <div class="release__body">${bodyHtml || '<p style="opacity:0.5">Keine Beschreibung.</p>'}</div>
+            <a class="release__gh-link" href="${escHtml(r.html_url)}" target="_blank" rel="noopener">
+              Auf GitHub ansehen →
+            </a>
+          </div>`;
+      }).join('');
+
+      $releases.innerHTML = html;
+      $loading.style.display  = 'none';
+      $releases.style.display = 'flex';
+    } catch (e) {
+      console.error(e);
+      $loading.style.display = 'none';
+      $error.style.display   = 'block';
+    }
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  load();
+  </script>
+</body>
+</html>

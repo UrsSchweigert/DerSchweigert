@@ -1,0 +1,25 @@
+# Copy this file to terraform.tfvars and fill in your real values.
+# NEVER commit terraform.tfvars to git — it contains secrets.
+
+aws_region   = "eu-central-1"
+app_name     = "basicwebapp"
+environment  = "prod"
+
+# Your HERE Maps API key
+here_api_key = "your_here_api_key_here"
+
+# DB StaDa (OpenStation) API credentials — get from DB API Marketplace
+db_stada_client_id = "your_db_stada_client_id"
+db_stada_api_key   = "your_db_stada_api_key"
+google_maps_api_key = "your_google_maps_api_key"
+
+# Choose a strong password for the RDS database (min 8 characters)
+db_password  = "change_me_before_applying"
+
+# Optional overrides (defaults are fine for a small personal deployment):
+# db_username           = "app_user"
+# db_name               = "basic_webapp"
+# backend_image_tag     = "latest"
+# backend_cpu           = 256
+# backend_memory        = 512
+# backend_desired_count = 1

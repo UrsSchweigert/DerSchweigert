@@ -1,0 +1,29 @@
+# Copy this file to terraform.tfvars and fill in your real values.
+# NEVER commit terraform.tfvars to git — it contains secrets.
+# Use the same API key values as production (production keys work for dev).
+
+aws_region   = "eu-west-1"
+app_name     = "basicwebapp-dev"
+environment  = "dev"
+domain_name  = "dev.landhauscheck.com"
+
+stats_pin         = "3009"
+
+# HERE Maps API keys (same as production)
+here_api_key         = "your_here_server_api_key"
+here_browser_api_key = "your_here_browser_api_key"
+
+# DB StaDa (OpenStation) API credentials
+db_stada_client_id = "your_db_stada_client_id"
+db_stada_api_key   = "your_db_stada_api_key"
+
+# Google Maps API keys
+google_maps_api_key         = "your_google_maps_server_api_key"
+google_maps_browser_api_key = "your_google_maps_browser_api_key"
+
+# Tankerkönig (Germany fuel prices) — leave empty if not needed
+tankerkoenig_api_key = ""
+
+# Jira Cloud API token — feature-request integration. Generate at:
+# https://id.atlassian.com/manage-profile/security/api-tokens
+jira_api_key = ""

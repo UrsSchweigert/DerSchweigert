@@ -1,0 +1,15 @@
+{
+  "name": "landhauscheck-e2e",
+  "version": "1.0.0",
+  "description": "Playwright E2E tests for Landhauscheck widgets",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:local": "BASE_URL=http://localhost:5173 playwright test",
+    "test:prod": "BASE_URL=https://landhauscheck.com playwright test",
+    "test:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0"
+  }
+}

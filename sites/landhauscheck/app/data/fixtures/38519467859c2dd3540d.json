@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "url": "https://maps.googleapis.com/maps/api/geocode/json?address=M%C3%A4gdebergstrasse+5%2C+Singen+Hohentwiel&key=AIzaSyAakvTPGT30Qr2Na0Un3nOQ3pcJin5_nLc",
+    "method": "GET",
+    "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
+  },
+  "status": 200,
+  "body": {
+    "results": [
+      {
+        "address_components": [
+          {
+            "long_name": "5",
+            "short_name": "5",
+            "types": [
+              "street_number"
+            ]
+          },
+          {
+            "long_name": "Mägdebergstraße",
+            "short_name": "Mägdebergstraße",
+            "types": [
+              "route"
+            ]
+          },
+          {
+            "long_name": "Singen (Hohentwiel)",
+            "short_name": "Singen (Hohentwiel)",
+            "types": [
+              "locality",
+              "political"
+            ]
+          },
+          {
+            "long_name": "Konstanz",
+            "short_name": "KN",
+            "types": [
+              "administrative_area_level_3",
+              "political"
+            ]
+          },
+          {
+            "long_name": "Freiburg",
+            "short_name": "Freiburg",
+            "types": [
+              "administrative_area_level_2",
+              "political"
+            ]
+          },
+          {
+            "long_name": "Baden-Württemberg",
+            "short_name": "BW",
+            "types": [
+              "administrative_area_level_1",
+              "political"
+            ]
+          },
+          {
+            "long_name": "Germany",
+            "short_name": "DE",
+            "types": [
+              "country",
+              "political"
+            ]
+          },
+          {
+            "long_name": "78224",
+            "short_name": "78224",
+            "types": [
+              "postal_code"
+            ]
+          }
+        ],
+        "formatted_address": "Mägdebergstraße 5, 78224 Singen (Hohentwiel), Germany",
+        "geometry": {
+          "location": {
+            "lat": 47.7708489,
+            "lng": 8.8280534
+          },
+          "location_type": "ROOFTOP",
+          "viewport": {
+            "northeast": {
+              "lat": 47.7721298302915,
+              "lng": 8.829449580291502
+            },
+            "southwest": {
+              "lat": 47.7694318697085,
+              "lng": 8.826751619708498
+            }
+          }
+        },
+        "navigation_points": [
+          {
+            "location": {
+              "latitude": 47.7707699,
+              "longitude": 8.8281082
+            }
+          }
+        ],
+        "place_id": "ChIJMywxcRp9mkcRWhmYTDGaCOo",
+        "types": [
+          "street_address",
+          "subpremise"
+        ]
+      }
+    ],
+    "status": "OK"
+  }
+}

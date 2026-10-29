@@ -1,0 +1,9 @@
+{
+  "Pfaffenhofen": { "lat": 48.3137, "lng": 11.1646 },
+  "Dietramszell": { "lat": 47.8894, "lng": 11.4967 },
+  "Singen am Hohentwiel": {
+    "lat": 47.7598,
+    "lng": 8.8440,
+    "aliases": ["Mägdebergstraße", "Mägdebergstrasse"]
+  }
+}

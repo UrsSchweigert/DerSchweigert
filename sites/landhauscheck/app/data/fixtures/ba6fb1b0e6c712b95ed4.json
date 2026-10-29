@@ -1,0 +1,1343 @@
+{
+  "meta": {
+    "url": "https://places.googleapis.com/v1/places:searchNearby",
+    "method": "POST",
+    "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
+  },
+  "status": 200,
+  "body": {
+    "places": [
+      {
+        "id": "ChIJt8wHubZimkcRVV7vN7yk9V0",
+        "location": {
+          "latitude": 47.75374720000001,
+          "longitude": 8.8625892
+        },
+        "regularOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 1,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 1,
+                "hour": 18,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 2,
+                "hour": 18,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 3,
+                "hour": 18,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 4,
+                "hour": 18,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 5,
+                "hour": 18,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 9,
+                "minute": 0
+              },
+              "close": {
+                "day": 6,
+                "hour": 13,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 8:00 AM – 6:00 PM",
+            "Tuesday: 8:00 AM – 6:00 PM",
+            "Wednesday: 8:00 AM – 6:00 PM",
+            "Thursday: 8:00 AM – 6:00 PM",
+            "Friday: 8:00 AM – 6:00 PM",
+            "Saturday: 9:00 AM – 1:00 PM",
+            "Sunday: Closed"
+          ],
+          "nextOpenTime": "2026-04-06T06:00:00Z"
+        },
+        "displayName": {
+          "text": "Audi Zentrum Singen | Gohm + Graf Hardenberg GmbH",
+          "languageCode": "de"
+        },
+        "currentOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 2,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 2,
+                "hour": 18,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              },
+              "close": {
+                "day": 3,
+                "hour": 18,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              },
+              "close": {
+                "day": 4,
+                "hour": 18,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              },
+              "close": {
+                "day": 5,
+                "hour": 18,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 9,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 13,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Closed",
+            "Tuesday: 8:00 AM – 6:00 PM",
+            "Wednesday: 8:00 AM – 6:00 PM",
+            "Thursday: 8:00 AM – 6:00 PM",
+            "Friday: 8:00 AM – 6:00 PM",
+            "Saturday: 9:00 AM – 1:00 PM",
+            "Sunday: Closed"
+          ],
+          "specialDays": [
+            {
+              "date": {
+                "year": 2026,
+                "month": 4,
+                "day": 6
+              }
+            }
+          ],
+          "nextOpenTime": "2026-04-07T06:00:00Z"
+        },
+        "primaryType": "car_dealer",
+        "shortFormattedAddress": "Hochwaldstraße 20, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJv1yEYyfDj0cRCPw37qMSLZM",
+        "location": {
+          "latitude": 47.7541249,
+          "longitude": 8.8527556
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 10:00 PM",
+            "Tuesday: 6:00 AM – 10:00 PM",
+            "Wednesday: 6:00 AM – 10:00 PM",
+            "Thursday: 6:00 AM – 10:00 PM",
+            "Friday: 6:00 AM – 10:00 PM",
+            "Saturday: 6:00 AM – 10:00 PM",
+            "Sunday: 6:00 AM – 10:00 PM"
+          ],
+          "nextCloseTime": "2026-04-05T20:00:00Z"
+        },
+        "displayName": {
+          "text": "Aral pulse Charging Station",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 0,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              },
+              "close": {
+                "day": 1,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 2,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              },
+              "close": {
+                "day": 3,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              },
+              "close": {
+                "day": 4,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              },
+              "close": {
+                "day": 5,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 22,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 10:00 PM",
+            "Tuesday: 6:00 AM – 10:00 PM",
+            "Wednesday: 6:00 AM – 10:00 PM",
+            "Thursday: 6:00 AM – 10:00 PM",
+            "Friday: 6:00 AM – 10:00 PM",
+            "Saturday: 6:00 AM – 10:00 PM",
+            "Sunday: 6:00 AM – 10:00 PM"
+          ],
+          "nextCloseTime": "2026-04-05T20:00:00Z"
+        },
+        "primaryType": "electric_vehicle_charging_station",
+        "shortFormattedAddress": "Fittingstraße 99, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJobPvuEZ9mkcRvqMGrQIt828",
+        "location": {
+          "latitude": 47.755915699999996,
+          "longitude": 8.8388029
+        },
+        "regularOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 1,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 1,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 2,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 3,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 4,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 5,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 8,
+                "minute": 0
+              },
+              "close": {
+                "day": 6,
+                "hour": 20,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 8:00 AM – 8:00 PM",
+            "Tuesday: 8:00 AM – 8:00 PM",
+            "Wednesday: 8:00 AM – 8:00 PM",
+            "Thursday: 8:00 AM – 8:00 PM",
+            "Friday: 8:00 AM – 8:00 PM",
+            "Saturday: 8:00 AM – 8:00 PM",
+            "Sunday: Closed"
+          ],
+          "nextOpenTime": "2026-04-06T06:00:00Z"
+        },
+        "displayName": {
+          "text": "ALDI SÜD Charging Station",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": false,
+          "periods": [
+            {
+              "open": {
+                "day": 1,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              },
+              "close": {
+                "day": 1,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 2,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              },
+              "close": {
+                "day": 3,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              },
+              "close": {
+                "day": 4,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              },
+              "close": {
+                "day": 5,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 8,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 8:00 AM – 8:00 PM",
+            "Tuesday: 8:00 AM – 8:00 PM",
+            "Wednesday: 8:00 AM – 8:00 PM",
+            "Thursday: 8:00 AM – 8:00 PM",
+            "Friday: 8:00 AM – 8:00 PM",
+            "Saturday: 8:00 AM – 8:00 PM",
+            "Sunday: Closed"
+          ],
+          "nextOpenTime": "2026-04-06T06:00:00Z"
+        },
+        "primaryType": "electric_vehicle_charging_station",
+        "shortFormattedAddress": "Wehrdstraße 6, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJux5QKWWHmkcRLhN81GFu92o",
+        "location": {
+          "latitude": 47.736497199999995,
+          "longitude": 8.7870762
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "displayName": {
+          "text": "EnBW Charging Station",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 23,
+                "minute": 59,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "primaryType": "electric_vehicle_charging_station",
+        "shortFormattedAddress": "Kornblumenweg 41, Gottmadingen"
+      },
+      {
+        "id": "ChIJg2fCrIt8mkcRagUCnIO287o",
+        "location": {
+          "latitude": 47.8006807,
+          "longitude": 8.825241799999999
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 0,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 1,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 2,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 3,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 4,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 5,
+                "hour": 20,
+                "minute": 0
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0
+              },
+              "close": {
+                "day": 6,
+                "hour": 20,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 8:00 PM",
+            "Tuesday: 6:00 AM – 8:00 PM",
+            "Wednesday: 6:00 AM – 8:00 PM",
+            "Thursday: 6:00 AM – 8:00 PM",
+            "Friday: 6:00 AM – 8:00 PM",
+            "Saturday: 6:00 AM – 8:00 PM",
+            "Sunday: 6:00 AM – 8:00 PM"
+          ],
+          "nextCloseTime": "2026-04-05T18:00:00Z"
+        },
+        "displayName": {
+          "text": "Aldi Süd Charging Station",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 0,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 1,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              },
+              "close": {
+                "day": 1,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 6
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 2,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              },
+              "close": {
+                "day": 2,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 7
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 3,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              },
+              "close": {
+                "day": 3,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 8
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 4,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              },
+              "close": {
+                "day": 4,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 9
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 5,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              },
+              "close": {
+                "day": 5,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 10
+                }
+              }
+            },
+            {
+              "open": {
+                "day": 6,
+                "hour": 6,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 20,
+                "minute": 0,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: 6:00 AM – 8:00 PM",
+            "Tuesday: 6:00 AM – 8:00 PM",
+            "Wednesday: 6:00 AM – 8:00 PM",
+            "Thursday: 6:00 AM – 8:00 PM",
+            "Friday: 6:00 AM – 8:00 PM",
+            "Saturday: 6:00 AM – 8:00 PM",
+            "Sunday: 6:00 AM – 8:00 PM"
+          ],
+          "nextCloseTime": "2026-04-05T18:00:00Z"
+        },
+        "primaryType": "electric_vehicle_charging_station",
+        "shortFormattedAddress": "Hohenkräher Brühl 27, Mühlhausen-Ehingen"
+      },
+      {
+        "id": "ChIJczRu-JNimkcRnBHbSK73Flk",
+        "location": {
+          "latitude": 47.7516057,
+          "longitude": 8.8860169
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "displayName": {
+          "text": "EnBW Charging Station",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 23,
+                "minute": 59,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "primaryType": "electric_vehicle_charging_station",
+        "shortFormattedAddress": "Marie-Curie-Straße 2, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJo9kVubZimkcRFUoJMIHdxYI",
+        "location": {
+          "latitude": 47.753747499999996,
+          "longitude": 8.8633151
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "displayName": {
+          "text": "EnBW Charging Station",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 23,
+                "minute": 59,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "primaryType": "electric_vehicle_charging_station",
+        "shortFormattedAddress": "Hochwaldstraße 20, Singen (Hohentwiel)"
+      },
+      {
+        "id": "ChIJ20eavpVimkcR_p3B2JcfzaU",
+        "location": {
+          "latitude": 47.7529468,
+          "longitude": 8.881923900000002
+        },
+        "regularOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "displayName": {
+          "text": "CITYWATT Charging Station",
+          "languageCode": "en"
+        },
+        "currentOpeningHours": {
+          "openNow": true,
+          "periods": [
+            {
+              "open": {
+                "day": 0,
+                "hour": 0,
+                "minute": 0,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 5
+                }
+              },
+              "close": {
+                "day": 6,
+                "hour": 23,
+                "minute": 59,
+                "truncated": true,
+                "date": {
+                  "year": 2026,
+                  "month": 4,
+                  "day": 11
+                }
+              }
+            }
+          ],
+          "weekdayDescriptions": [
+            "Monday: Open 24 hours",
+            "Tuesday: Open 24 hours",
+            "Wednesday: Open 24 hours",
+            "Thursday: Open 24 hours",
+            "Friday: Open 24 hours",
+            "Saturday: Open 24 hours",
+            "Sunday: Open 24 hours"
+          ]
+        },
+        "primaryType": "electric_vehicle_charging_station",
+        "shortFormattedAddress": "Gottlieb-Daimler-Straße 16, Singen (Hohentwiel)"
+      }
+    ]
+  }
+}

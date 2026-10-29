@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banner Preview — landhauscheck</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+    background:
+      radial-gradient(ellipse at 12% 12%, rgba(13,  71, 161, 0.85) 0%, transparent 52%),
+      radial-gradient(ellipse at 88% 82%, rgba(21, 101, 192, 0.80) 0%, transparent 52%),
+      radial-gradient(ellipse at 88% 12%, rgba(41, 182, 246, 0.65) 0%, transparent 48%),
+      radial-gradient(ellipse at 12% 88%, rgba(10,  37, 122, 0.75) 0%, transparent 48%),
+      radial-gradient(ellipse at 50% 50%, rgba(187,222,251, 0.55) 0%, transparent 68%),
+      #d0e4f7;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Banner: directly on background, no card */
+  .appBanner {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 22px 8px 16px;
+  }
+
+  .appBanner__logo {
+    width: 68px;
+    height: 68px;
+    flex-shrink: 0;
+    mix-blend-mode: multiply;
+    filter: drop-shadow(0 3px 10px rgba(10,50,160,0.28));
+    object-fit: contain;
+  }
+
+  .appBanner__text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .appBanner__name {
+    font-size: 1.65rem;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    color: #1d1d1f;
+    line-height: 1;
+  }
+
+  .appBanner__sub {
+    font-size: 0.78rem;
+    font-weight: 300;
+    letter-spacing: 0.20em;
+    color: rgba(0,0,0,0.42);
+  }
+
+  /* Language picker sits at bottom of page */
+  .langRow {
+    display: flex;
+    gap: 6px;
+    padding: 10px 0 4px;
+    justify-content: center;
+  }
+  .langBtn {
+    font: 500 0.65rem/1 -apple-system, sans-serif;
+    letter-spacing: 0.05em;
+    padding: 4px 9px;
+    border-radius: 20px;
+    border: 1px solid rgba(0,0,0,0.18);
+    background: rgba(255,255,255,0.30);
+    cursor: pointer;
+    color: #1d1d1f;
+  }
+  .langBtn.active {
+    background: rgba(0,0,0,0.11);
+    border-color: rgba(0,0,0,0.28);
+  }
+
+  .phone {
+    width: 390px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 36px;
+    padding: 0 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .fakeCard {
+    height: 110px;
+    background: rgba(255,255,255,0.22);
+    border: 1px solid rgba(255,255,255,0.50);
+    border-radius: 20px;
+    backdrop-filter: blur(16px);
+  }
+  .fakeCards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="appBanner">
+    <img class="appBanner__logo" src="sites/landhauscheck/frontend/public/logo.png" alt="L">
+    <div class="appBanner__text">
+      <span class="appBanner__name">landhauscheck</span>
+      <span class="appBanner__sub" id="sub">alles nah</span>
+    </div>
+  </div>
+  <div class="fakeCards">
+    <div class="fakeCard"></div>
+    <div class="fakeCard"></div>
+    <div class="fakeCard"></div>
+    <div class="fakeCard"></div>
+  </div>
+  <div class="langRow">
+    <button class="langBtn active" onclick="setLang('de')">DE</button>
+    <button class="langBtn" onclick="setLang('en')">EN</button>
+    <button class="langBtn" onclick="setLang('pt')">PT</button>
+  </div>
+</div>
+
+<script>
+  var subs = { de: 'alles nah', en: 'all nearby', pt: 'tudo perto' };
+  function setLang(l) {
+    document.getElementById('sub').textContent = subs[l];
+    document.querySelectorAll('.langBtn').forEach(function(b) {
+      b.classList.toggle('active', b.textContent.toLowerCase() === l);
+    });
+  }
+</script>
+</body>
+</html>

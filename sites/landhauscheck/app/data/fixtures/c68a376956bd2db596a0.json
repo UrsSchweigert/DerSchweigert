@@ -1,0 +1,124 @@
+{
+  "meta": {
+    "url": "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=47.7632&longitude=8.8376&localityLanguage=en",
+    "method": "GET",
+    "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
+  },
+  "status": 200,
+  "body": {
+    "latitude": 47.7632,
+    "lookupSource": "coordinates",
+    "longitude": 8.8376,
+    "localityLanguageRequested": "en",
+    "continent": "Europe",
+    "continentCode": "EU",
+    "countryName": "Germany",
+    "countryCode": "DE",
+    "principalSubdivision": "Baden-Wurttemberg",
+    "principalSubdivisionCode": "DE-BW",
+    "city": "Singen",
+    "locality": "Singen",
+    "postcode": "78224",
+    "plusCode": "8FVCQR7Q+72",
+    "localityInfo": {
+      "administrative": [
+        {
+          "name": "Germany",
+          "description": "country in central Europe",
+          "isoName": "Germany",
+          "order": 3,
+          "adminLevel": 2,
+          "isoCode": "DE",
+          "wikidataId": "Q183",
+          "geonameId": 2921044
+        },
+        {
+          "name": "Baden-Wurttemberg",
+          "description": "state in the southwest of the Federal Republic of Germany",
+          "isoName": "Baden-Wurttemberg",
+          "order": 4,
+          "adminLevel": 4,
+          "isoCode": "DE-BW",
+          "wikidataId": "Q985",
+          "geonameId": 2953481
+        },
+        {
+          "name": "Freiburg Government Region",
+          "description": "administrative subdivision and region of Baden-Württemberg, Germany",
+          "order": 5,
+          "adminLevel": 5,
+          "wikidataId": "Q8167",
+          "geonameId": 2925180
+        },
+        {
+          "name": "Konstanz",
+          "description": "district in Baden-Württemberg, Germany",
+          "order": 8,
+          "adminLevel": 6,
+          "wikidataId": "Q8206",
+          "geonameId": 2885678
+        },
+        {
+          "name": "Singen",
+          "description": "town in Baden-Württemberg in southern Germany",
+          "order": 11,
+          "adminLevel": 8,
+          "wikidataId": "Q6979",
+          "geonameId": 2831924
+        },
+        {
+          "name": "Singen (Hohentwiel) VVG",
+          "description": "agreed administrative community in the district Landkreis Konstanz, Baden-Württemberg, Germany",
+          "order": 12,
+          "adminLevel": 7,
+          "wikidataId": "Q9378615"
+        }
+      ],
+      "informative": [
+        {
+          "name": "Europe",
+          "description": "terrestrial continent located in north-western Eurasia",
+          "isoName": "Europe",
+          "order": 1,
+          "isoCode": "EU",
+          "wikidataId": "Q46",
+          "geonameId": 6255148
+        },
+        {
+          "name": "Europe/Berlin",
+          "description": "time zone",
+          "order": 2
+        },
+        {
+          "name": "region Hochrhein-Bodensee",
+          "description": "region in south-west Germany: districts of Lörrach, Waldshut and Constance",
+          "order": 6,
+          "wikidataId": "Q314775",
+          "geonameId": 12077018
+        },
+        {
+          "name": "Konstanz",
+          "description": "federal electoral district of Germany",
+          "order": 7,
+          "wikidataId": "Q1008316"
+        },
+        {
+          "name": "Singen",
+          "order": 9,
+          "wikidataId": "Q1804626"
+        },
+        {
+          "name": "Hegau",
+          "description": "landscape in southern Germany",
+          "order": 10,
+          "wikidataId": "Q692712"
+        },
+        {
+          "name": "78224",
+          "description": "postal code",
+          "order": 13
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,33 @@
+# Node
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Python
+__pycache__
+**/__pycache__
+**/*.pyc
+.venv
+venv
+.pytest_cache
+
+# Terraform state / secrets / deploy artifacts
+.terraform
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+build
+*-lambda.zip
+
+# Git
+.git
+.github
+
+# E2E test artifacts
+e2e/test-results
+e2e/playwright-report
+e2e/node_modules
+
+# Misc
+*.log
+.DS_Store

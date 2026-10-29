@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Datenschutz – Landhauscheck</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100dvh;display:grid;place-items:start center;padding:1.5rem;
+      font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+      background:radial-gradient(ellipse 70% 60% at 15% 10%,#0D47A1 0%,transparent 60%),
+        radial-gradient(ellipse 60% 55% at 85% 90%,#1565C0 0%,transparent 60%),#d0e4f7;
+      color:#1c1c1e}
+    .card{width:100%;max-width:560px;margin:1.5rem auto;background:rgba(255,255,255,.72);
+      backdrop-filter:blur(28px) saturate(1.8);border:1px solid rgba(255,255,255,.55);
+      border-radius:22px;padding:2rem 2.4rem;box-shadow:0 8px 40px rgba(13,71,161,.18);
+      position:relative}
+    h1{font-size:1.4rem;font-weight:700;margin-bottom:1rem;color:#1c1c1e}
+    h2{font-size:1rem;font-weight:600;margin:1.2rem 0 .3rem;color:#1c1c1e}
+    p,li{font-size:.9rem;line-height:1.7;color:#3a3a3c}
+    ul{margin:.3rem 0 .6rem 1.2rem}
+    .back{display:inline-block;margin-top:1.4rem;font-size:.88rem;color:#1565C0;text-decoration:none}
+    .note{font-size:.8rem;color:#6e6e73;margin-top:1.4rem}
+    .langSwitcher{position:absolute;top:1.2rem;right:1.4rem;display:flex;gap:.25rem}
+    .langSwitcher button{background:none;border:1px solid rgba(21,101,192,.3);border-radius:5px;
+      color:#6e6e73;font-size:.68rem;font-weight:600;padding:.12rem .38rem;cursor:pointer;
+      letter-spacing:.04em;transition:color .15s,border-color .15s,background .15s}
+    .langSwitcher button:hover{color:#1565C0;border-color:#1565C0}
+    .langSwitcher button.active{color:#1565C0;border-color:#1565C0;background:rgba(21,101,192,.08)}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <!-- ⚠️ i18n: update all 3 languages in the script below when changing any text -->
+    <div class="langSwitcher">
+      <button onclick="switchLang('de')" data-lang="de">DE</button>
+      <button onclick="switchLang('en')" data-lang="en">EN</button>
+      <button onclick="switchLang('pt')" data-lang="pt">PT</button>
+    </div>
+
+    <h1 data-i18n="title"></h1>
+
+    <h2 data-i18n="h_responsible"></h2>
+    <p data-i18n="p_responsible"></p>
+
+    <h2 data-i18n="h_data"></h2>
+    <p data-i18n="p_data1"></p>
+    <p data-i18n="p_data2"></p>
+    <ul data-i18n="ul_services"></ul>
+    <p data-i18n="p_data3"></p>
+
+    <h2 data-i18n="h_consent"></h2>
+    <p data-i18n="p_consent"></p>
+
+    <h2 data-i18n="h_rights"></h2>
+    <p data-i18n="p_rights"></p>
+
+    <p class="note" data-i18n="note"></p>
+    <a class="back" href="/" data-i18n="back"></a>
+  </div>
+  <script>
+    // ⚠️ i18n: keep all three language blocks in sync when making text changes
+    var dict = {
+      de: {
+        pageTitle: "Datenschutz – Landhauscheck",
+        title: "Datenschutzerklärung",
+        h_responsible: "Verantwortlicher",
+        p_responsible: "Urs Schweigert, Am Sonnenhang 12, 85235 Pfaffenhofen an der Glonn",
+        h_data: "Verarbeitete Daten",
+        p_data1: "Zur Anzeige lokaler Inhalte wird ausschließlich der eingegebene oder per GPS ermittelte Standort (Koordinaten) verwendet. Es werden keine Namen, E-Mail-Adressen oder sonstige personenbezogene Daten erhoben.",
+        p_data2: "Die Koordinaten werden an folgende Drittdienste übertragen:",
+        ul_services: "<li><strong>Google Maps Platform</strong> – Karte, Ortssuche, Geocodierung (USA; EU-US DPF zertifiziert)<\/li><li><strong>HERE Technologies</strong> – ÖPNV-Abfahrten und Routenberechnung (NL)<\/li><li><strong>Open-Meteo</strong> – Wetterdaten (CH; keine Cookies, keine Speicherung)<\/li>",
+        p_data3: "Der Server (AWS Irland) speichert technische Zugriffsdaten für max. 7 Tage. Nutzungsstatistiken werden anonymisiert gespeichert (kein Rückschluss auf Personen).",
+        h_consent: "Einwilligung &amp; Widerruf",
+        p_consent: "Rechtsgrundlage: Art. 6 Abs. 1 lit. a DSGVO (Einwilligung). Sie können Ihre Einwilligung jederzeit widerrufen, indem Sie die Websitedaten für landhauscheck.com in Ihren Browser-Einstellungen löschen.",
+        h_rights: "Ihre Rechte",
+        p_rights: "Sie haben das Recht auf Auskunft, Berichtigung und Löschung (Art. 15–17 DSGVO) sowie das Recht auf Beschwerde beim Bayerischen Landesamt für Datenschutzaufsicht, Ansbach. Kontakt: per Post an o.g. Adresse.",
+        note: "Stand: April 2026",
+        back: "← Zurück"
+      },
+      en: {
+        pageTitle: "Privacy Policy – Landhauscheck",
+        title: "Privacy Policy",
+        h_responsible: "Data Controller",
+        p_responsible: "Urs Schweigert, Am Sonnenhang 12, 85235 Pfaffenhofen an der Glonn, Germany",
+        h_data: "Data Processed",
+        p_data1: "To display local content, only the location entered by the user or determined via GPS (coordinates) is used. No names, e-mail addresses or other personal data are collected.",
+        p_data2: "The coordinates are transmitted to the following third-party services:",
+        ul_services: "<li><strong>Google Maps Platform</strong> – Maps, place search, geocoding (USA; EU-US DPF certified)<\/li><li><strong>HERE Technologies</strong> – Public transit departures and routing (NL)<\/li><li><strong>Open-Meteo</strong> – Weather data (CH; no cookies, no storage)<\/li>",
+        p_data3: "The server (AWS Ireland) stores technical access data for a maximum of 7 days. Usage statistics are stored anonymously (no personal identification possible).",
+        h_consent: "Consent &amp; Withdrawal",
+        p_consent: "Legal basis: Art. 6(1)(a) GDPR (consent). You may withdraw your consent at any time by clearing the site data for landhauscheck.com in your browser settings.",
+        h_rights: "Your Rights",
+        p_rights: "You have the right to access, rectification and erasure of your data (Art. 15–17 GDPR) as well as the right to lodge a complaint with the Bavarian State Office for Data Protection Supervision (BayLDA), Ansbach. Contact: by post to the address above.",
+        note: "Last updated: April 2026",
+        back: "← Back"
+      },
+      pt: {
+        pageTitle: "Política de Privacidade – Landhauscheck",
+        title: "Política de Privacidade",
+        h_responsible: "Responsável pelo Tratamento",
+        p_responsible: "Urs Schweigert, Am Sonnenhang 12, 85235 Pfaffenhofen an der Glonn, Alemanha",
+        h_data: "Dados Tratados",
+        p_data1: "Para apresentar conteúdo local, utiliza-se exclusivamente a localização introduzida pelo utilizador ou determinada por GPS (coordenadas). Não são recolhidos nomes, endereços de e-mail ou outros dados pessoais.",
+        p_data2: "As coordenadas são transmitidas aos seguintes serviços de terceiros:",
+        ul_services: "<li><strong>Google Maps Platform</strong> – Mapas, pesquisa de locais, geocodificação (EUA; certificado EU-US DPF)<\/li><li><strong>HERE Technologies</strong> – Horários de transportes públicos e encaminhamento (NL)<\/li><li><strong>Open-Meteo</strong> – Dados meteorológicos (CH; sem cookies, sem armazenamento)<\/li>",
+        p_data3: "O servidor (AWS Irlanda) armazena dados técnicos de acesso por um máximo de 7 dias. As estatísticas de utilização são armazenadas de forma anónima (sem possibilidade de identificação pessoal).",
+        h_consent: "Consentimento &amp; Revogação",
+        p_consent: "Base jurídica: Art. 6.º, n.º 1, al. a) do RGPD (consentimento). Pode revogar o seu consentimento a qualquer momento eliminando os dados do site landhauscheck.com nas definições do seu browser.",
+        h_rights: "Os Seus Direitos",
+        p_rights: "Tem o direito de acesso, rectificação e apagamento dos seus dados (Art. 15.º–17.º do RGPD), bem como o direito de apresentar reclamação junto da autoridade de controlo competente. Contacto: por correio para a morada acima indicada.",
+        note: "Actualizado: Abril de 2026",
+        back: "← Voltar"
+      }
+    };
+
+    function detectLang() {
+      var stored = localStorage.getItem("lhc_lang");
+      if (stored && dict[stored]) return stored;
+      var browser = (navigator.language || "de").split("-")[0];
+      return dict[browser] ? browser : "de";
+    }
+
+    function applyLang(lang) {
+      var t = dict[lang] || dict.de;
+      document.documentElement.lang = lang;
+      document.title = t.pageTitle;
+      document.querySelectorAll("[data-i18n]").forEach(function(el) {
+        el.innerHTML = t[el.getAttribute("data-i18n")] || "";
+      });
+      document.querySelectorAll(".langSwitcher button").forEach(function(btn) {
+        btn.classList.toggle("active", btn.getAttribute("data-lang") === lang);
+      });
+    }
+
+    function switchLang(lang) {
+      localStorage.setItem("lhc_lang", lang);
+      applyLang(lang);
+    }
+
+    applyLang(detectLang());
+  </script>
+</body>
+</html>

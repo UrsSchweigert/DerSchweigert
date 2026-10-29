@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>landhauscheck · stats</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(160deg, #1450c4 0%, #0e1f8c 60%, #30a8fc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+    }
+
+    .gate {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 48px 40px;
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.2);
+      width: min(340px, 90vw);
+    }
+
+    .logo {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      mix-blend-mode: multiply;
+      filter: brightness(0) invert(1);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: #fff;
+      margin-top: 4px;
+    }
+
+    .sub {
+      font-size: 0.8rem;
+      font-weight: 300;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.6);
+      text-transform: lowercase;
+      margin-bottom: 20px;
+    }
+
+    input[type="password"] {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 1.5rem;
+      letter-spacing: 0.3em;
+      text-align: center;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-text-security: disc;
+    }
+
+    input[type="password"]::placeholder {
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.2em;
+    }
+
+    input[type="password"]:focus {
+      border-color: rgba(255,255,255,0.7);
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #1450c4;
+      background: #fff;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:hover  { opacity: 0.92; }
+    button:active { transform: scale(0.98); }
+
+    .error {
+      font-size: 0.82rem;
+      color: rgba(255, 120, 120, 0.95);
+      min-height: 1.2em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="gate">
+    <img src="/logo.png" class="logo" alt="L">
+    <h1>landhauscheck</h1>
+    <p class="sub">stats · zugangscode</p>
+    <form id="form">
+      <input type="password" id="pin" inputmode="numeric" maxlength="6"
+             placeholder="· · · ·" autocomplete="off">
+      <button type="submit">Weiter</button>
+    </form>
+    <p id="error" class="error"></p>
+  </div>
+
+  <script>
+    // PIN validation is performed server-side via POST /api/v1/admin/verify-pin.
+    // The PIN value is never hard-coded in this file.
+    document.getElementById('form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var pin = document.getElementById('pin').value.trim();
+      var errEl = document.getElementById('error');
+      errEl.textContent = '';
+
+      try {
+        var res = await fetch('/api/v1/admin/verify-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: pin })
+        });
+
+        if (res.ok) {
+          // Set lhc_pin for 30 days. Not HttpOnly so stats.html JS can read it
+          // and forward it as the X-Stats-Pin header for the API call.
+          var expires30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString();
+          document.cookie = 'lhc_pin=' + encodeURIComponent(pin)
+            + '; path=/; expires=' + expires30 + '; SameSite=Strict; Secure';
+          // Set lhc_devmode for 1 year so the middleware skips tracking for the developer.
+          // Not HttpOnly so the stats.html badge JS can also read it.
+          var expires1yr = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+          document.cookie = 'lhc_devmode=1; path=/; expires=' + expires1yr + '; SameSite=Strict; Secure';
+          window.location.href = '/stats.html';
+        } else {
+          errEl.textContent = 'Falscher Code – bitte erneut versuchen.';
+          document.getElementById('pin').value = '';
+          document.getElementById('pin').focus();
+        }
+      } catch (err) {
+        errEl.textContent = 'Verbindungsfehler – bitte erneut versuchen.';
+      }
+    });
+  </script>
+</body>
+</html>
