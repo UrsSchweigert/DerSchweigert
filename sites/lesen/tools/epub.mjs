@@ -218,7 +218,61 @@ function decodeHref(href) {
   return value;
 }
 
-const NAMED_ENTITIES = { lt: "<", gt: ">", quot: '"', apos: "'", amp: "&" };
+const NAMED_ENTITIES = {
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  amp: "&",
+  // Whitespace and invisible characters that must be decoded before
+  // normalization so they can be collapsed or removed correctly.
+  nbsp: "\u00a0",
+  shy: "\u00ad",
+  // Typographic punctuation commonly used in the source books.
+  mdash: "\u2014",
+  ndash: "\u2013",
+  hellip: "\u2026",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201c",
+  rdquo: "\u201d",
+  bdquo: "\u201e",
+  sbquo: "\u201a",
+  laquo: "\u00ab",
+  raquo: "\u00bb",
+  copy: "\u00a9",
+  reg: "\u00ae",
+  trade: "\u2122",
+  deg: "\u00b0",
+  middot: "\u00b7",
+  plusmn: "\u00b1",
+  times: "\u00d7",
+  divide: "\u00f7",
+  // Latin-1 letters (German and common European names in the corpus).
+  Auml: "\u00c4",
+  Ouml: "\u00d6",
+  Uuml: "\u00dc",
+  auml: "\u00e4",
+  ouml: "\u00f6",
+  uuml: "\u00fc",
+  szlig: "\u00df",
+  Aring: "\u00c5",
+  aring: "\u00e5",
+  AElig: "\u00c6",
+  aelig: "\u00e6",
+  Eacute: "\u00c9",
+  eacute: "\u00e9",
+  Egrave: "\u00c8",
+  egrave: "\u00e8",
+  Aacute: "\u00c1",
+  aacute: "\u00e1",
+  Ccedil: "\u00c7",
+  ccedil: "\u00e7",
+  Ntilde: "\u00d1",
+  ntilde: "\u00f1",
+  Oacute: "\u00d3",
+  oacute: "\u00f3",
+};
 
 /** Decode the common XML character references in a single pass. */
 function decodeEntities(text) {
@@ -365,7 +419,10 @@ function buildNavTitles(byName, packageDir, manifest) {
  *
  * @param {Buffer|Uint8Array} bytes  raw EPUB (ZIP) bytes.
  * @param {{ inflate?: (compressed: Uint8Array) => Uint8Array }} [options]
- * @returns {{ metadata: {title: string, language: string, creator: string, date: string}, documents: Array<{path: string, title: string, xhtml: string}> }}
+ * @returns {{ metadata: {title: string, language: string, creator: string, date: string}, documents: Array<{path: string, title: string, xhtml: string, navigation: boolean}> }}
+ *   `navigation` is true for table-of-contents pages named by the package
+ *   metadata (manifest `properties="nav"` or a navigation title such as
+ *   "Inhalt"/"Contents"); those documents carry no reading text.
  */
 export function parsePackage(bytes, { inflate } = {}) {
   const { entries, packagePath } = openEpub(bytes, { inflate });
@@ -394,6 +451,23 @@ export function parsePackage(bytes, { inflate } = {}) {
   const navTitles = buildNavTitles(byName, packageDir, manifest);
   const ncxTitles = buildNcxTitles(byName, packageDir, manifest);
 
+  // Navigation pages are identified from the package metadata only: the
+  // manifest item carrying `properties="nav"`, and any spine document whose
+  // navigation title is a table-of-contents title. Document bodies are never
+  // inspected for headings, so a chapter that happens to contain an
+  // "Inhalt" section is still read.
+  const navigationPaths = new Set();
+  for (const item of manifest.values()) {
+    if (item.properties.toLowerCase().split(/\s+/).includes("nav")) {
+      navigationPaths.add(normalizePath(joinPath(packageDir, decodeHref(item.href))));
+    }
+  }
+  for (const titles of [navTitles, ncxTitles]) {
+    for (const [path, title] of titles) {
+      if (TOC_TITLES.has(normalizeTitle(title))) navigationPaths.add(path);
+    }
+  }
+
   const documents = [];
   for (const ref of parseSpine(xml)) {
     const item = manifest.get(ref.idref);
@@ -410,7 +484,7 @@ export function parsePackage(bytes, { inflate } = {}) {
     if (!title) title = firstHeading(xhtml);
     if (!title) title = String(documents.length + 1);
 
-    documents.push({ path, title, xhtml });
+    documents.push({ path, title, xhtml, navigation: navigationPaths.has(path) });
   }
 
   if (documents.length === 0) {
@@ -418,4 +492,317 @@ export function parsePackage(bytes, { inflate } = {}) {
   }
 
   return { metadata, documents };
+}
+
+// ============================================================================
+// Text extraction
+// ============================================================================
+//
+// Converts one spine document's XHTML into reading blocks. A block is either
+// `prose` (one paragraph) or `verse` (one or more lines, produced by `<br/>`
+// or by a verse container such as `.poem`/`.stanza`). Every block carries
+// `sentences`; sentence segmentation happens here and nowhere else.
+
+/** Invisible characters removed by normalization (never letters). */
+const INVISIBLE_CHARS_RE = /[\u00ad\u200b\u200c\u200d\u2060\ufeff]/g;
+
+/** Block-level elements that end a paragraph. */
+const BLOCK_TAGS = new Set(["p", "div", "li", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6"]);
+
+/** Elements whose content is never part of the reading text. */
+const SKIP_TAGS = new Set(["head", "title", "script", "style", "nav", "link", "meta"]);
+
+/** Class names that mark a verse container. */
+const VERSE_CONTAINER_CLASSES = new Set(["poem", "stanza", "verse", "poetry"]);
+
+/** Elements that separate words without ending the paragraph (table cells). */
+const WORD_SEPARATOR_TAGS = new Set(["td", "th"]);
+
+/** Navigation titles that mark a table-of-contents page. */
+const TOC_TITLES = new Set(["inhalt", "inhaltsverzeichnis", "contents", "table of contents", "index"]);
+
+/** Title abbreviations that stand before a name and never end a sentence. */
+const TITLE_ABBREVIATIONS = new Set([
+  "hr", "fr", "dr", "mr", "mrs", "ms", "st", "prof", "nr", "bd", "etc", "usw", "ca", "bzw", "vgl",
+]);
+
+/** Abbreviations that are also ordinary words: they only suppress before lowercase. */
+const WORD_ABBREVIATIONS = new Set(["herr", "frau"]);
+
+/** Single letters used inside spaced abbreviations such as "z. B." and "u. a.". */
+const SINGLE_LETTER_ABBREVIATIONS = new Set(["z", "u", "d", "h", "b", "a", "j", "n", "s", "m", "o"]);
+
+/** Closing quote/bracket characters absorbed into a finished sentence. */
+const CLOSING_MARKS = new Set(["\u201c", "\u201d", "\u2018", "\u2019", "\u00ab", "\u00bb", "\u203a", "\u2039", '"', "'", ")", "]", "}"]);
+
+/**
+ * Collapse whitespace without dropping a letter: remove invisible characters
+ * (soft hyphen, zero-width spaces, BOM), then turn every run of whitespace
+ * (including non-breaking spaces and source line breaks) into a single space.
+ */
+export function collapseWhitespace(text) {
+  return String(text)
+    .replace(INVISIBLE_CHARS_RE, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Decode entities, then normalise whitespace. The full text pipeline. */
+export function normalizeText(text) {
+  return collapseWhitespace(decodeEntities(text));
+}
+
+function isDigitChar(ch) {
+  return ch >= "0" && ch <= "9";
+}
+
+function isLetterChar(ch) {
+  return /[A-Za-z\u00c0-\u024f]/.test(ch);
+}
+
+function isUpperChar(ch) {
+  return isLetterChar(ch) && ch === ch.toUpperCase();
+}
+
+/** Index of the first letter or digit after the period at `text[i]`, skipping punctuation. */
+function nextWordStart(text, i) {
+  let k = i + 1;
+  while (k < text.length && !isLetterChar(text[k]) && !isDigitChar(text[k])) k++;
+  return k;
+}
+
+/**
+ * True when the period at `text[i]` belongs to an abbreviation, not a sentence
+ * end. Only a known abbreviation suppresses the split: "Dr. Hoffmann" stays
+ * whole, while a full word such as "Herr" in "sagte Herr. Dann" does not.
+ */
+function isAbbreviationPeriod(text, i) {
+  let j = i - 1;
+  while (j >= 0 && isLetterChar(text[j])) j--;
+  const word = text.slice(j + 1, i);
+  if (!word) return false;
+  const lower = word.toLowerCase();
+  const next = nextWordStart(text, i);
+  if (TITLE_ABBREVIATIONS.has(lower)) return next < text.length;
+  if (WORD_ABBREVIATIONS.has(lower)) {
+    // "Herr Müller" is a title, "sagte Herr. Dann" ends a sentence: only a
+    // lowercase continuation keeps these words from closing the sentence.
+    return next < text.length && !isUpperChar(text[next]);
+  }
+  if (lower.length === 1 && SINGLE_LETTER_ABBREVIATIONS.has(lower)) {
+    // Only treat a lone letter as an abbreviation when another word follows,
+    // which is how "z. B.", "u. a." and "d. h." are written.
+    return next < text.length && isLetterChar(text[next]);
+  }
+  return false;
+}
+
+/**
+ * Split text into sentences. Sentences end after `.`, `!` or `?` plus an
+ * optional closing quote/bracket, but a period only splits before an uppercase
+ * letter, a digit or the end of the text, never after a known abbreviation and
+ * never inside a number such as `3.5`; a dash-led dialogue line stays one
+ * sentence. This is the single source of segmentation for the reading app.
+ */
+export function splitSentences(text) {
+  const source = String(text);
+  const trimmed = source.trim();
+  if (!trimmed) return [];
+  // A dialogue line that begins with an em/en dash is a single utterance.
+  if (trimmed.startsWith("\u2014") || trimmed.startsWith("\u2013")) {
+    return [trimmed];
+  }
+
+  const out = [];
+  let buf = "";
+  const n = source.length;
+  for (let i = 0; i < n; i++) {
+    const ch = source[i];
+    buf += ch;
+    if (ch !== "." && ch !== "!" && ch !== "?") continue;
+    // A period inside a number (e.g. 3.5) never ends a sentence.
+    if (ch === "." && i > 0 && i + 1 < n && isDigitChar(source[i - 1]) && isDigitChar(source[i + 1])) continue;
+    // A period after a known abbreviation never ends a sentence.
+    if (ch === "." && isAbbreviationPeriod(source, i)) continue;
+    // A period ends a sentence only when a new one starts after it: an
+    // uppercase letter, a digit, or the end of the text.
+    if (ch === ".") {
+      const next = nextWordStart(source, i);
+      if (next < n && !isUpperChar(source[next]) && !isDigitChar(source[next])) continue;
+    }
+
+    let j = i + 1;
+    while (j < n && (CLOSING_MARKS.has(source[j]) || source[j] === ".")) {
+      buf += source[j];
+      j++;
+    }
+    const sentence = buf.trim();
+    if (sentence) out.push(sentence);
+    buf = "";
+    i = j - 1;
+  }
+  const tail = buf.trim();
+  if (tail) out.push(tail);
+  return out;
+}
+
+function hasClass(attrs, name) {
+  const value = (attrs && attrs["class"]) || "";
+  return value.toLowerCase().split(/\s+/).includes(name);
+}
+
+/** True when the element is Project Gutenberg boilerplate or a printer imprint. */
+function isBoilerplateElement(attrs) {
+  const id = ((attrs && attrs["id"]) || "").toLowerCase();
+  if (id === "pg-header" || id === "pg-footer") return true;
+  return hasClass(attrs, "printer");
+}
+
+function isVerseContainer(attrs) {
+  const value = (attrs && attrs["class"]) || "";
+  const classes = value.toLowerCase().split(/\s+/);
+  return classes.some((name) => VERSE_CONTAINER_CLASSES.has(name));
+}
+
+/** Normalise a navigation title for comparison with {@link TOC_TITLES}. */
+function normalizeTitle(title) {
+  return normalizeText(title)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const TOKEN_RE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<!DOCTYPE[^>]*>|<\?[\s\S]*?\?>|<\/?[A-Za-z][\w:.-]*[^>]*>|[^<]+/g;
+
+/** Parse a single `<tag>` token into its name, flags and attributes. */
+function parseTag(token) {
+  const closing = token[1] === "/";
+  const inner = token.slice(closing ? 2 : 1, -1).trim();
+  const selfClosing = /\/\s*$/.test(inner);
+  const withoutSlash = inner.replace(/\/\s*$/, "").trim();
+  const name = withoutSlash.split(/\s+/)[0].toLowerCase();
+  const attrs = {};
+  const attrRe = /([A-Za-z_:][\w:.-]*)\s*=\s*("([^"]*)"|'([^']*)')/g;
+  let match;
+  while ((match = attrRe.exec(withoutSlash))) {
+    attrs[match[1].toLowerCase()] = match[3] !== undefined ? match[3] : match[4];
+  }
+  return { name, closing, selfClosing, attrs };
+}
+
+/** Build a block from accumulated raw text (with `\u0000` line markers). */
+function makeBlock(raw, verse) {
+  if (verse) {
+    const lines = raw.split("\u0000").map(collapseWhitespace).filter((line) => line.length > 0);
+    if (lines.length === 0) return null;
+    const sentences = [];
+    for (const line of lines) sentences.push(...splitSentences(line));
+    return { kind: "verse", lines, text: lines.join(" "), sentences };
+  }
+  const text = collapseWhitespace(raw);
+  if (!text) return null;
+  return { kind: "prose", paragraphs: [text], text, sentences: splitSentences(text) };
+}
+
+/**
+ * Convert one XHTML document into reading blocks.
+ *
+ * Removes Project Gutenberg header/footer elements, `<nav>` blocks and
+ * printer imprints, then groups the remaining content into prose paragraphs
+ * and verse lines, each with its sentences. A document the package marks as a
+ * navigation page yields no blocks; no document is dropped for its headings.
+ *
+ * @param {string} xhtml  one spine document's XHTML.
+ * @param {{ navigation?: boolean }} [options]  `navigation` marks a
+ *   table-of-contents page, which carries no reading text.
+ * @returns {{ blocks: Array<object>, paragraphs: number, sentences: number }}
+ *   `paragraphs` counts prose paragraphs plus verse lines; `sentences` counts
+ *   every sentence across all blocks.
+ */
+export function extractBlocks(xhtml, { navigation = false } = {}) {
+  const html = String(xhtml);
+  if (navigation) {
+    return { blocks: [], paragraphs: 0, sentences: 0 };
+  }
+
+  const blocks = [];
+  const verseStack = [];
+  let buf = "";
+  let hasBr = false;
+  let skip = 0;
+
+  const flush = () => {
+    const verse = hasBr || verseStack.some(Boolean);
+    const block = makeBlock(buf, verse);
+    if (block) blocks.push(block);
+    buf = "";
+    hasBr = false;
+  };
+
+  const re = new RegExp(TOKEN_RE.source, "g");
+  let token;
+  while ((token = re.exec(html))) {
+    const matched = token[0];
+    if (matched[0] !== "<") {
+      if (skip === 0) buf += decodeEntities(matched);
+      continue;
+    }
+    if (matched.startsWith("<!--") || matched.startsWith("<!") || matched.startsWith("<?")) continue;
+
+    const tag = parseTag(matched);
+
+    if (skip > 0) {
+      if (!tag.selfClosing && !tag.closing) skip++;
+      else if (tag.closing) skip--;
+      continue;
+    }
+
+    if (tag.name === "br") {
+      buf += "\u0000";
+      hasBr = true;
+      continue;
+    }
+
+    // Table cells separate words without ending the paragraph.
+    if (WORD_SEPARATOR_TAGS.has(tag.name)) {
+      buf += " ";
+      continue;
+    }
+
+    if (tag.closing) {
+      if (BLOCK_TAGS.has(tag.name)) {
+        flush();
+        verseStack.pop();
+      } else {
+        verseStack.pop();
+      }
+      continue;
+    }
+
+    if (SKIP_TAGS.has(tag.name) || isBoilerplateElement(tag.attrs)) {
+      if (!tag.selfClosing) skip++;
+      continue;
+    }
+
+    if (tag.selfClosing) continue;
+
+    const verse = isVerseContainer(tag.attrs);
+    if (BLOCK_TAGS.has(tag.name)) {
+      flush();
+      verseStack.push(verse);
+    } else {
+      verseStack.push(verse);
+    }
+  }
+  flush();
+
+  let paragraphs = 0;
+  let sentences = 0;
+  for (const block of blocks) {
+    paragraphs += block.kind === "prose" ? block.paragraphs.length : block.lines.length;
+    sentences += block.sentences.length;
+  }
+
+  return { blocks, paragraphs, sentences };
 }
