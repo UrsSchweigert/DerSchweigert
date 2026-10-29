@@ -17,7 +17,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from . import approval, assets, humantasks, runner, status
+from . import approval, assets, gui_workflow, humantasks, runner, status
+from .broker import BrokerRejected, assert_no_secrets
 from .store import Store, default_home
 
 MAX_BODY = 16 * 1024 * 1024
@@ -43,6 +44,7 @@ class GuiServer(ThreadingHTTPServer):
         self.repo_slug = None
         self.launcher = subprocess.Popen
         self.processes: dict[str, dict] = {}
+        self.preparations: dict[str, subprocess.Popen] = {}
         super().__init__(("127.0.0.1", port), GuiHandler)
         self.allowed_hosts = {"127.0.0.1:%d" % self.server_port, "localhost:%d" % self.server_port}
         self.allowed_origins = {"http://" + host for host in self.allowed_hosts}
@@ -62,9 +64,16 @@ class GuiServer(ThreadingHTTPServer):
     def snapshot(self, selected: str = "") -> dict:
         report = status.build_report(str(self.home), self.clock())
         report["checks"] = []
+        report["archived_issues"] = []
+        report["isolation_verification"] = {"job": None, "output": ""}
         if (self.home / "harness.sqlite").is_file():
             store = Store(str(self.home), readonly=True)
             try:
+                for process in tuple(self.preparations.values()):
+                    process.poll()
+                report["isolation_verification"] = gui_workflow.maintenance_detail(store)
+                report["archived_issues"] = [doc["issue_id"] for doc in store.docs("gui_archive")
+                                             if doc["archived"] and store.state("issue", doc["issue_id"]) == "Done"]
                 for plan_id in {plan["plan_id"] for plan in report["plans"]}:
                     for key, job in store.get_run(plan_id).get("checks", {}).items():
                         report["checks"].append({
@@ -109,6 +118,13 @@ class GuiServer(ThreadingHTTPServer):
         return value
 
     def action(self, path: str, body: dict) -> dict:
+        if path.startswith("/api/workflow/") or path in ("/api/archive", "/api/isolation/verify"):
+            with self.actions:
+                store = Store(str(self.home))
+                try:
+                    return self.workflow_action(store, path, body)
+                finally:
+                    store.close()
         if path not in ("/api/pause", "/api/cancel", "/api/respond", "/api/resume"):
             raise KeyError("unknown action")
         if not (self.home / "harness.sqlite").is_file():
@@ -138,6 +154,120 @@ class GuiServer(ThreadingHTTPServer):
                 return {"status": state, "plan_id": plan_id, "version": version}
             finally:
                 store.close()
+
+    def workflow_action(self, store: Store, path: str, body: dict) -> dict:
+        if path == "/api/isolation/verify":
+            self.require_idle_preparation(store)
+            record = {"job": {"id": secrets.token_hex(8), "kind": "isolation", "state": "running"}}
+            return self.launch_preparation(store, record)
+        if path == "/api/workflow/preview":
+            return {"requirements": gui_workflow.requirements_from_markdown(body.get("markdown"))}
+        if path == "/api/workflow/create":
+            return gui_workflow.create(store, body)
+        if path == "/api/archive":
+            issue_ids = body.get("issue_ids")
+            archived = self.flag(body, "archived")
+            if not isinstance(issue_ids, list) or not issue_ids or any(not isinstance(i, str) for i in issue_ids):
+                raise ValueError("select at least one completed issue")
+            with store.tx():
+                for issue_id in issue_ids:
+                    if store.get_issue(issue_id) is None:
+                        raise KeyError("issue not found")
+                    if archived and store.state("issue", issue_id) != "Done":
+                        raise runner.RunRefused("only Done issues can be archived")
+                for issue_id in issue_ids:
+                    store.put_doc("gui_archive", issue_id, {"issue_id": issue_id, "archived": archived})
+            return {"status": "archived" if archived else "restored"}
+        kind = path.removeprefix("/api/workflow/")
+        if kind not in gui_workflow.KINDS + ("approve",):
+            raise KeyError("unknown workflow action")
+        record = gui_workflow.workspace(store, body.get("workspace_id", ""))
+        job = record["job"]
+        if job and job["state"] == "running":
+            process = self.preparations.get(job["id"])
+            if (process is not None and process.poll() is not None
+                    or process is None and not gui_workflow.job_alive(job)):
+                record = gui_workflow.workspace(store, record["workspace_id"])
+                if record["job"]["state"] == "running":
+                    record["job"].update(state="failed", error="preparation exited without recording a result; see output")
+                    store.put_doc("gui_workspace", record["workspace_id"], record)
+            else:
+                raise runner.RunRefused("a preparation job is already running; wait for its result")
+        if approval.detect_isolation(store)["tier"] != "A":
+            raise approval.AuthorizationError("current Tier A isolation verification is required")
+        current = store.get_plan(record["plan_id"])
+        if kind in ("approve", "import"):
+            if (not current or type(body.get("version")) is not int or current["plan"]["version"] != body["version"]
+                    or body.get("digest") != current["digest"]):
+                raise runner.RunRefused("the plan changed; review it again")
+            gui_workflow.assert_review_current(store, record, current)
+        if kind == "approve":
+            digest = current["digest"]
+            if body.get("confirm") != digest[:12]:
+                raise ValueError("type the first 12 characters of the reviewed plan digest")
+            identities = self.identities()
+            if not identities:
+                raise approval.AuthorizationError("no local approver identity is available")
+            approval.approve(store, record["plan_id"], current["plan"]["version"], identities[0],
+                             lambda plan, actual: actual == digest, require_preflight=True)
+            return {"status": "approved"}
+        if kind == "import":
+            approval.authorize_run(store, record["plan_id"], current["plan"]["version"])
+        if current and kind in ("plan", "investigate") and store.state(
+                "plan", approval.plan_entity(record["plan_id"], current["plan"]["version"])) not in ("Draft", "Proposed"):
+            raise runner.RunRefused("approved or executing workspaces cannot be revised; create a new workspace")
+        feedback, answers = body.get("feedback", ""), body.get("answers", {})
+        if not isinstance(feedback, str) or len(feedback) > 4000:
+            raise ValueError("feedback must be text of at most 4000 characters")
+        if not isinstance(answers, dict) or any(not isinstance(k, str) or not isinstance(v, str) or not v.strip()
+                                                for k, v in answers.items()):
+            raise ValueError("answers must map question IDs to nonempty text")
+        if kind == "investigate" and answers and not feedback:
+            feedback = record.get("revision_feedback", "")
+        if kind == "investigate" and feedback:
+            record["revision_feedback"] = feedback
+        assert_no_secrets({"feedback": feedback, "answers": answers}, "investigation input")
+        self.require_idle_preparation(store)
+        record["job"] = {"id": secrets.token_hex(8), "kind": kind, "state": "running",
+                         "feedback": feedback, "answers": answers,
+                         "version": body.get("version"), "digest": body.get("digest")}
+        return self.launch_preparation(store, record, record["workspace_id"])
+
+    def require_idle_preparation(self, store: Store) -> None:
+        for process in tuple(self.preparations.values()):
+            process.poll()
+        records = store.docs("gui_workspace") + store.docs("gui_maintenance")
+        if any(record["job"] and gui_workflow.job_alive(record["job"]) for record in records):
+            raise runner.RunRefused("another preparation job is running; wait for its result")
+
+    def launch_preparation(self, store: Store, record: dict, workspace_id: str = "") -> dict:
+        kind, key = ("gui_workspace", workspace_id) if workspace_id else ("gui_maintenance", "isolation")
+        record["job"]["started_at"] = time.time()
+        store.put_doc(kind, key, record)
+        directory = gui_workflow.job_directory(store, workspace_id)
+        directory.mkdir(mode=0o700, exist_ok=True)
+        log_path = directory / (record["job"]["id"] + ".log")
+        command = [sys.executable, "-m", "harness.gui_workflow", "--home", str(self.home),
+                   "--job", record["job"]["id"]]
+        command.extend(["--workspace", workspace_id] if workspace_id else ["--maintenance"])
+        environment = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1]),
+                           PYTHONDONTWRITEBYTECODE="1", PYTHONUNBUFFERED="1")
+        try:
+            with log_path.open("x", encoding="utf-8") as output:
+                log_path.chmod(0o600)
+                process = self.launcher(command, cwd=str(self.repo_root), env=environment, stdin=subprocess.DEVNULL,
+                                        stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
+        except OSError as exc:
+            record["job"].update(state="failed", error=str(exc))
+            store.put_doc(kind, key, record)
+            raise
+        self.preparations[record["job"]["id"]] = process
+        with store.tx():
+            latest = store.get_doc(kind, key)
+            if latest["job"]["id"] == record["job"]["id"]:
+                latest["job"]["pid"] = process.pid
+                store.put_doc(kind, key, latest)
+        return {"status": "starting", "workspace_id": workspace_id}
 
     def start_run(self, store: Store, plan: dict, body: dict) -> dict:
         plan_id, version = plan["plan_id"], plan["version"]
@@ -270,12 +400,27 @@ class GuiHandler(BaseHTTPRequestHandler):
                 self._send(200, self.server.tasks(parse_qs(target.query).get("plan", [""])[0]))
             elif target.path == "/api/log":
                 self._send(200, self.server.log_tail(parse_qs(target.query).get("plan", [""])[0]))
+            elif target.path == "/api/workflow":
+                for process in tuple(self.server.preparations.values()):
+                    process.poll()
+                if not (self.server.home / "harness.sqlite").is_file():
+                    self._send(200, {"workspaces": []})
+                else:
+                    store = Store(str(self.server.home), readonly=True)
+                    try:
+                        workspace_id = parse_qs(target.query).get("workspace", [""])[0]
+                        self._send(200, gui_workflow.detail(store, workspace_id) if workspace_id else
+                                   {"workspaces": [gui_workflow.visible_record(record) for record in store.docs("gui_workspace")]})
+                    finally:
+                        store.close()
             elif target.path.startswith("/api/issue/"):
                 self._send(200, status.issue_detail(str(self.server.home), unquote(target.path.removeprefix("/api/issue/"))))
             else:
                 self._send(404, {"error": "not found"})
         except KeyError:
-            self._send(404, {"error": "issue not found"})
+            self._send(404, {"error": "issue or workspace not found"})
+        except ValueError as exc:
+            self._send(400, {"error": str(exc)})
         except (OSError, sqlite3.Error):
             self._send(503, {"error": "the harness store could not be read"})
 
@@ -298,7 +443,7 @@ class GuiHandler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise ValueError("the request must be a JSON object")
             self._send(200, self.server.action(urlsplit(self.path).path, body))
-        except (ValueError, UnicodeDecodeError) as exc:
+        except (ValueError, UnicodeDecodeError, BrokerRejected) as exc:
             self._send(400, {"error": str(exc)})
         except approval.AuthorizationError as exc:
             self._send(403, {"error": str(exc)})

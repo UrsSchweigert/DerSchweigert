@@ -1,7 +1,7 @@
 ---
+name: android-phase-a-entry
 description: "Milestone entry prompt for Buchstabenzeit Android Phase A: self-contained Capacitor Android offline feasibility and optional offline device TTS, preserving the website. Runs as the Android orchestrator."
-name: "Android Phase A entry"
-agent: "android-orchestrator"
+disable-model-invocation: true
 argument-hint: "Optional: device/model/billing constraints to apply before starting Phase A"
 ---
 Commence **Phase A only** of [ANDROID-PLAN.md](../../sites/lesen/ANDROID-PLAN.md):

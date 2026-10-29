@@ -60,14 +60,17 @@ def command_problem(command: str) -> Optional[str]:
 
 def parse_requirements(path: str) -> List[Dict[str, str]]:
     """Extract stable requirement IDs from table rows like `| **1.1** | **Title** | ...`."""
-    source = os.path.basename(path)
-    reqs, seen = [], set()
     with open(path, encoding="utf-8") as fh:
-        for line in fh:
-            m = _REQ_ROW.match(line)
-            if m and m.group(1) not in seen:
-                seen.add(m.group(1))
-                reqs.append({"id": m.group(1), "title": m.group(2).strip(), "source": source})
+        return requirements_from_table(fh.read(), os.path.basename(path))
+
+
+def requirements_from_table(text: str, source: str) -> List[Dict[str, str]]:
+    reqs, seen = [], set()
+    for line in text.splitlines():
+        m = _REQ_ROW.match(line)
+        if m and m.group(1) not in seen:
+            seen.add(m.group(1))
+            reqs.append({"id": m.group(1), "title": m.group(2).strip(), "source": source})
     return reqs
 
 
