@@ -524,6 +524,10 @@ def serve(home: str | None = None, *, host: str = "127.0.0.1", port: int = 8765,
           read_only: bool = False, open_browser: bool = True, repo: str | None = None) -> int:
     dashboard = make_server(home, host=host, port=port, refresh=refresh, read_only=read_only)
     dashboard.repo_slug = repo
+    return serve_server(dashboard, open_browser=open_browser)
+
+
+def serve_server(dashboard: GuiServer, *, open_browser: bool = True) -> int:
     with dashboard:
         print("Harness GUI: " + dashboard.url, flush=True)
         if open_browser:

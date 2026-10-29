@@ -246,9 +246,39 @@ def test_cli_exposes_the_local_dashboard_without_initializing_a_store(tmp_path, 
     calls = []
     monkeypatch.setattr(gui, "serve", lambda home, **kwargs: calls.append((home, kwargs)) or 0)
     home = str(tmp_path / "unused")
-    assert cli.main(["--home", home, "gui", "--port", "9988", "--read-only", "--no-browser"]) == 0
+    assert cli.main(["--home", home, "gui", "--port", "9988", "--read-only", "--no-browser", "--no-tunnel"]) == 0
     assert calls[0][1]["port"] == 9988 and calls[0][1]["read_only"] and not calls[0][1]["open_browser"]
     assert not (tmp_path / "unused").exists()
+
+
+def test_cli_gui_auto_starts_the_remote_dashboard_when_configured(tmp_path, monkeypatch):
+    from harness import cli, remote
+
+    class FakeGui:
+        repo_slug = None
+        url = "http://127.0.0.1:9988"
+
+    class FakeDashboard:
+        started = stopped = 0
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            FakeDashboard.started += 1
+            return "https://harness.example"
+
+        def stop(self):
+            FakeDashboard.stopped += 1
+
+    monkeypatch.setenv("HARNESS_GUI_PIN", "3009")
+    monkeypatch.setattr(cli, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(gui, "make_server", lambda *args, **kwargs: FakeGui())
+    monkeypatch.setattr(gui, "serve_server", lambda dashboard, **kwargs: 0)
+    monkeypatch.setattr(remote, "RemoteDashboard", FakeDashboard)
+
+    assert cli.main(["--home", str(tmp_path / "home"), "gui", "--no-browser"]) == 0
+    assert FakeDashboard.started == 1 and FakeDashboard.stopped == 1
 
 
 def new_workspace(server, text="# Wishes\n\nKeep offline support.\n\n- Add a search box\n- Show matches"):

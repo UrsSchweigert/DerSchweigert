@@ -1,5 +1,6 @@
 import http.client
 import json
+import os
 import threading
 from urllib.parse import urlencode
 
@@ -116,3 +117,52 @@ def test_remote_requires_a_pin_and_loopback_binding(tmp_path):
         remote.make_server("http://127.0.0.1:8765", port=0, pin="")
     with pytest.raises(ValueError, match="loopback"):
         remote.make_server("http://127.0.0.1:8765", host="0.0.0.0", port=0, pin="secret")
+
+
+def test_remote_loads_harness_keys_from_app_env_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("HARNESS_TEST_KEY", raising=False)
+    monkeypatch.delenv("APP_SECRET_KEY", raising=False)
+    env_file = tmp_path / "sites" / "derschweigert" / ".env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("APP_SECRET_KEY=do-not-import\nHARNESS_TEST_KEY=loaded\n")
+    remote.load_harness_env(tmp_path)
+    assert os.environ["HARNESS_TEST_KEY"] == "loaded"
+    assert "APP_SECRET_KEY" not in os.environ
+
+
+def test_remote_env_file_never_overrides_the_real_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_GUI_PIN", "real-pin")
+    env_file = tmp_path / "sites" / "derschweigert" / ".env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("HARNESS_GUI_PIN=3009\n")
+    remote.load_harness_env(tmp_path)
+    assert os.environ["HARNESS_GUI_PIN"] == "real-pin"
+
+
+def test_tunnel_command_named_and_quick():
+    relay_url = "http://127.0.0.1:8443"
+    assert remote.tunnel_command(relay_url, "harness") == [
+        "cloudflared", "tunnel", "--no-autoupdate", "run", "--url", relay_url, "harness"]
+    assert remote.tunnel_command(relay_url, "") == [
+        "cloudflared", "tunnel", "--no-autoupdate", "--url", relay_url]
+
+
+def test_tunnel_command_localhostrun_and_ngrok():
+    relay_url = "http://127.0.0.1:8443"
+    assert remote.tunnel_command(relay_url, "", "localhostrun") == [
+        "ssh", "-o", "StrictHostKeyChecking=accept-new", "-o", "ExitOnForwardFailure=yes",
+        "-R", "80:127.0.0.1:8443", "nokey@localhost.run"]
+    assert remote.tunnel_command(relay_url, "", "ngrok") == ["ngrok", "http", relay_url]
+
+
+def test_public_url_is_extracted_from_tunnel_output():
+    assert remote._public_url_in("Connect to https://abc123.lhr.life or https://abc123.lhr.life") == "https://abc123.lhr.life"
+    assert remote._public_url_in("https://random-words.trycloudflare.com") == "https://random-words.trycloudflare.com"
+    assert remote._public_url_in("no url here") is None
+
+
+def test_remote_dashboard_requires_a_pin(tmp_path, monkeypatch):
+    monkeypatch.delenv("HARNESS_GUI_PIN", raising=False)
+    dashboard = remote.RemoteDashboard(tmp_path, str(tmp_path / "home"))
+    with pytest.raises(ValueError, match="PIN"):
+        dashboard.start()

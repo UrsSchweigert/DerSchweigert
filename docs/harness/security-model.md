@@ -73,11 +73,15 @@ that can access the local account and port are not isolated from it.
   loopback-only relay that sits in front of the dashboard, requires a PIN, and
   forwards only the dashboard's fixed route allowlist to the fixed loopback
   upstream while rewriting the loopback Host/Origin the dashboard checks. The
-  dashboard itself is never re-bound or exposed directly. The relay weakens the
-  default posture (the PIN and tunnel are the only barriers), so it must keep
-  its own controls: constant-time PIN comparison, per-address rate limiting and
-  lockout, signed HttpOnly/SameSite/Strict session cookies, a 16 MiB body cap,
-  no body/token/PIN logging, and no forwarding of arbitrary URLs. Prefer an
+  dashboard itself is never re-bound or exposed directly. When `HARNESS_GUI_PIN`
+  is set in the git-ignored `sites/derschweigert/.env`, `harness gui`, `run`,
+  and `resume` auto-start the relay plus the configured tunnel provider
+  (`cloudflared`, `localhostrun`, or `ngrok`); `--no-tunnel` or
+  `HARNESS_NO_TUNNEL=1` opts out. The relay weakens the default posture (the PIN
+  and tunnel are the only barriers), so it must keep its own controls:
+  constant-time PIN comparison, per-address rate limiting and lockout, signed
+  HttpOnly/SameSite/Strict session cookies, a 16 MiB body cap, no
+  body/token/PIN logging, and no forwarding of arbitrary URLs. Prefer an
   additional tunnel access layer (for example Cloudflare Access) and stop the
   relay when remote access is no longer needed.
 
