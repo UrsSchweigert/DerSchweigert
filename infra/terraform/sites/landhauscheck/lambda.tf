@@ -103,6 +103,11 @@ resource "aws_lambda_permission" "apigw" {
     # resource still looks unchanged (same function name and ARN). Without
     # this, every replacement left API Gateway unable to invoke the function:
     # CloudFront returned 500 with no Lambda invocation and no error log.
+    #
+    # Deliberately the whole resource: referencing individual attributes does
+    # NOT work, because a replacement keeps those attribute values unchanged.
+    # The cost is that an in-place update (e.g. rotating an env var) also
+    # deletes and recreates this permission within the same apply.
     replace_triggered_by = [aws_lambda_function.backend]
   }
 }
