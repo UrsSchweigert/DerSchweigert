@@ -585,6 +585,19 @@ def test_a_merge_held_up_by_a_running_required_check_waits_instead_of_failing(tm
     assert issue["last_failures"] == [] and issue["repair_failures"] == 0
 
 
+def test_a_plural_required_checks_message_also_waits(tmp_path):
+    """Regression: GitHub words the same refusal as '2 of 2 required status checks are in progress', which slipped past a
+    matcher that only knew 'is in progress' - three such refusals in a row exhausted the repair budget on a live issue."""
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [
+        GitHubError('gh: Repository rule violations found\n\n2 of 2 required status checks are in progress.\n (HTTP 405)')]
+    env.start()
+    events = env.run_until(lambda: env.state("i1") == "Done")
+    issue = env.store.get_issue("i1")
+    assert any(e["event"] == "merge_pending" for e in events)
+    assert issue["last_failures"] == [] and issue["repair_failures"] == 0
+
+
 def test_required_checks_that_never_finish_block_with_their_own_reason(tmp_path, monkeypatch):
     monkeypatch.setattr(scheduler, "MERGE_PENDING_LIMIT", 2)
     env = flaky_env(tmp_path)
