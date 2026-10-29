@@ -14,7 +14,7 @@ import shutil
 import time
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from . import failures, models, plans, schemas
+from . import failures, models, plans, schemas, usage
 from .adapter import WorkRequest
 from .broker import ALWAYS_PROTECTED, BrokerRejected, assert_no_secrets, is_escalation
 from .repo import Repo
@@ -50,9 +50,12 @@ B) A plan:
 {"status": "plan", "phases": [...], "issues": [...], "assumptions": ["..."], "notes": "..."}
 
 Phase object, exact keys: id, outcomes, requirements, path_allowlist, non_goals, dependencies, exit_criteria, validation, optional working_directory.
-Issue object, exact keys: issue_id, phase_id, requirement_ids, title, outcomes, acceptance_criteria, non_goals, code_anchors, contract_paths, deps, validation_commands, optional working_directory, parallel_safe (true or false).
+Issue object, exact keys: issue_id, phase_id, requirement_ids, title, outcomes, acceptance_criteria, non_goals, code_anchors, contract_paths, deps, validation_commands, optional working_directory, parallel_safe (true or false), model_choices.
+model_choices maps implementer, reviewer, and refiner to {"model": "an exact model id from model_options", "reason": "the task-specific cost and quality tradeoff"}. Omit model_choices only when model_options is empty because model routing is unavailable.
 
 Rules:
+- You are the delegating agent: choose the model for each role on each issue, not a fixed model tier per role. Use only task.json model_options. Their relative_cost bands are advisory cost categories, not role assignments or live prices. Prefer an inexpensive model for bounded, well-tested work; pay for deeper reasoning up front when uncertainty, interacting components, or risk justify it. Explain each choice using the actual task and available validation.
+- Choose an independent reviewer with a different model from the implementer whenever another model is available. The reviewer may be cheaper when the diff is straightforward and tests are reliable. Respect model_budget: do not choose a strong implementation model when strong_implementation_attempts_per_issue is zero. Existing evidence-based repair escalation may override the initial choices after a quality failure.
 - Phase ids look like P1, P2. Issue ids are lowercase letters, digits, and dashes (for example flop-training-logic).
 - Every requirement id from task.json appears in at least one phase. Each phase delivers a demonstrable increment, ordered by dependency and risk. Dependencies list phase ids and must not form a cycle.
 - path_allowlist holds repository-relative prefixes. Directories end with "/". Be tight: only what the phase must change, including its tests. Never include .github/, tools/harness/, docs/harness/, or the repository root.
@@ -63,6 +66,7 @@ Rules:
 - Changes to dependency manifests, workflow files, Android permissions or build files, and infrastructure need a human to merge. Avoid them unless a requirement truly needs them, and say so in notes.
 - Where a requirement affects both the web app and the Android app, say which paths cover each.
 - Keep every string under 2000 characters. Do not include credentials.
+- Either form may also carry "usage_estimate": {"input_tokens": n, "output_tokens": n, "basis": "how you estimated"}, your rough estimate of the tokens you read and wrote. Do not spend effort measuring it.
 """
 
 
@@ -147,6 +151,11 @@ def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], re
     covered: Dict[str, set] = {p["id"]: set() for p in phases}
     for i in issues:
         iid = i["issue_id"]
+        try:
+            models.validate_choices(i.get("model_choices", {}), policy["model_tiers"], None,
+                                    strong_budget=policy["budgets"]["strong_attempts_per_issue"])
+        except ValueError as exc:
+            problems.append("issue %s: %s" % (iid, exc))
         if not ISSUE_ID.match(iid):
             problems.append("issue id %r must be lowercase letters, digits, and dashes" % iid)
         phase = by_phase.get(i["phase_id"])
@@ -237,6 +246,8 @@ class Investigator:
         self.ask, self.tier, self.max_rounds, self.max_attempts = ask, tier, max_rounds, max_attempts
         self.timeout, self.inactivity, self.poll_interval, self.heartbeat = timeout, inactivity, poll_interval, heartbeat
         self.clock, self.sleep, self.log = clock, sleep, log
+        self.usage_log: List[Dict[str, Any]] = []
+        self._last_usage: Dict[str, Any] = {}
 
     # -- state ---------------------------------------------------------------------------------------
 
@@ -256,6 +267,8 @@ class Investigator:
 
     def _save(self, out_dir: str, state: Dict[str, Any]) -> None:
         os.makedirs(out_dir, exist_ok=True)
+        if self.usage_log:
+            state["usage"] = self.usage_log
         tmp = self._state_path(out_dir) + ".tmp"
         with open(tmp, "w") as fh:
             json.dump(state, fh, indent=2, sort_keys=True)
@@ -265,6 +278,8 @@ class Investigator:
 
     def _invoke(self, attempt: int, tier: str, packet: Dict[str, Any]):
         route = models.resolve_model(tier, self.policy["model_tiers"], self.models)
+        if route["routing"] and route["model"] is None:
+            raise InvestigationError("no configured planning model is available")
         req = WorkRequest("investigate#%d" % attempt, 1, "investigate", "investigator", route["tier"], route["model"], packet, "harness/investigate")
         prompt = PROMPT
         self.log("investigator attempt %d: tier %s, model %s. Reading the repository can take a few minutes." % (attempt, route["tier"], route["model"] or "default"))
@@ -291,6 +306,10 @@ class Investigator:
             self.adapter.cancel(handle)
             raise
         finally:
+            try:
+                self._last_usage = self.adapter.usage(handle) if hasattr(self.adapter, "usage") else {}
+            except Exception:  # noqa: BLE001 - a missing file only means no size estimate
+                self._last_usage = {}
             if hasattr(self.adapter, "cleanup"):
                 self.adapter.cleanup(handle)
 
@@ -319,6 +338,7 @@ class Investigator:
             text = fh.read()
         assert_no_secrets(text, "requirements")
         state = self._load(out_dir, hashlib.sha256(text.encode()).hexdigest())
+        self.usage_log = list(state.get("usage", []))
         if feedback:
             state["feedback"] = state.get("feedback", []) + feedback
         if answers_file:
@@ -336,10 +356,18 @@ class Investigator:
         tier = self.tier
         transient = 0
         for attempt in range(1, self.max_attempts + 1):
-            packet = {"requirements": text, "requirement_ids": [r["id"] for r in reqs], "answers": state["answers"], "previous_problems": problems[:20]}
+            packet = {"requirements": text, "requirement_ids": [r["id"] for r in reqs], "answers": state["answers"], "previous_problems": problems[:20],
+                      "model_options": models.model_options(self.policy["model_tiers"], self.models),
+                      "model_budget": {"strong_implementation_attempts_per_issue": self.policy["budgets"]["strong_attempts_per_issue"]}}
             if current is not None:
                 packet.update(current_draft=current, owner_feedback=state["feedback"])
             route, poll = self._invoke(attempt, tier, packet)
+            recorded = dict(self._last_usage)
+            agent = usage.clean_estimate(poll.result.pop("usage_estimate", None)) if isinstance(poll.result, dict) else None
+            if agent:
+                recorded["agent_estimate"] = agent
+            if recorded:
+                self.usage_log.append({"attempt": attempt, "tier": route["tier"], "model": route["model"], "usage": recorded})
             if poll.error:
                 kind = poll.error.get("kind", "runtime_crash")
                 if kind == "credentials":
@@ -380,6 +408,12 @@ class Investigator:
                 problems = ["a plan needs phases and issues"]
             else:
                 problems = validate_draft(draft, reqs, self.repo, self.policy)
+                for issue in draft["issues"]:
+                    try:
+                        models.validate_choices(issue.get("model_choices", {}), self.policy["model_tiers"], self.models,
+                                                strong_budget=self.policy["budgets"]["strong_attempts_per_issue"], require=True)
+                    except ValueError as exc:
+                        problems.append("issue %s: %s" % (issue["issue_id"], exc))
             if problems:
                 self.log("draft rejected: %d problem(s)" % len(problems))
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
@@ -452,14 +486,16 @@ class Investigator:
         archived = self._archive(out_dir)
         plan = plans.build_plan("draft", 1, reqs, draft["phases"], self.policy)
         flags = escalation_flags(draft, self.policy)
-        outputs = {"phases.json": {"phases": draft["phases"]}, "issues.json": {"issues": draft["issues"]}}
+        sources = self.policy.get("model_sources")
+        outputs = {"phases.json": dict({"phases": draft["phases"]}, **({"model_sources": sources} if sources else {})),
+                   "issues.json": {"issues": draft["issues"]}}
         for name, doc in outputs.items():
             tmp = os.path.join(out_dir, name + ".tmp")
             with open(tmp, "w") as fh:
                 json.dump(doc, fh, indent=2)
                 fh.write("\n")
             os.replace(tmp, os.path.join(out_dir, name))
-        report = self._report(reqs, draft, state, flags, route, plans.plan_digest(plan))
+        report = self._report(reqs, draft, dict(state, usage=self.usage_log), flags, route, plans.plan_digest(plan))
         with open(os.path.join(out_dir, "investigation-report.md"), "w") as fh:
             fh.write(report)
         state["pending"] = []
@@ -481,6 +517,11 @@ class Investigator:
             out += ["- `%s` %s (%s)%s" % (i["issue_id"], i.get("title", ""), ", ".join(i["requirement_ids"]), " parallel-safe" if i.get("parallel_safe") else "")
                     for i in draft["issues"] if i["phase_id"] == p["id"]]
             out.append("")
+            choices = [(issue["issue_id"], role, choice) for issue in draft["issues"] for role, choice in issue.get("model_choices", {}).items()]
+            if choices:
+                out += ["## Model choices", "", "The delegating investigator selected these models for each task's cost and quality needs.", ""]
+                out += ["- `%s` %s: `%s`. %s" % (issue_id, role, choice["model"], choice["reason"]) for issue_id, role, choice in choices]
+                out.append("")
         if draft.get("assumptions"):
             out += ["## Assumptions the investigator made", ""] + ["- " + a for a in draft["assumptions"]] + [""]
         if state["answers"]:
@@ -491,4 +532,10 @@ class Investigator:
             out += ["## Needs a human merge (escalation paths)", ""] + ["- " + f for f in flags] + [""]
         if draft.get("notes"):
             out += ["## Notes", "", draft["notes"], ""]
+        rows = [{"role": "investigator", "model": e["model"], "usage": e["usage"]} for e in state.get("usage", [])]
+        summary = usage.summarize(rows, {"status": "unavailable", "reason": "", "models": {}})
+        if usage.has_data(summary):
+            c = summary["counts"]
+            out += ["## Usage (estimate)", "", "%s over %d attempts (%d agent estimates, %d size-only lower bounds). The runtime reports no usage, so these figures come from the agents' own accounts or from prompt size." % (
+                usage.short(summary), summary["attempts"], c["agent_estimate"], c["size_estimate"]), ""]
         return "\n".join(out)

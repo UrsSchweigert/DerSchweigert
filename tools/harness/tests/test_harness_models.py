@@ -7,6 +7,36 @@ POLICY = {"low": ["claude-haiku-4.5"], "standard": ["claude-sonnet-5"], "strong"
 ALL = ["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"]
 
 
+def test_delegator_selects_a_concrete_model_with_a_cost_quality_reason():
+    choice = {"model": "claude-opus-4.8", "reason": "Cross-module correctness needs deeper reasoning before implementation."}
+    route = models.resolve_choice(choice, POLICY, ALL)
+    assert route["model"] == "claude-opus-4.8" and route["tier"] == "strong"
+    assert route["routing"] is True and choice["reason"] in route["note"]
+
+
+@pytest.mark.parametrize("choice, available, message", [
+    ({"model": "unapproved-model", "reason": "Cheap"}, ALL, "configured"),
+    ({"model": "claude-haiku-4.5", "reason": "Cheap"}, ["claude-sonnet-5"], "available"),
+    ({"model": "claude-haiku-4.5", "reason": "  "}, ALL, "reason"),
+])
+def test_delegator_cannot_choose_an_unusable_model(choice, available, message):
+    with pytest.raises(ValueError, match=message):
+        models.resolve_choice(choice, POLICY, available)
+
+
+def test_delegator_cannot_bypass_the_strong_attempt_budget():
+    choice = {"model": "claude-opus-5", "reason": "Difficult repair"}
+    with pytest.raises(ValueError, match="budget"):
+        models.resolve_choice(choice, POLICY, ALL, strong_used=1, strong_budget=1)
+
+
+def test_delegator_can_choose_a_cheaper_independent_reviewer():
+    choice = {"model": "claude-haiku-4.5", "reason": "Small, test-covered diff needs only a focused review."}
+    assert models.resolve_choice(choice, POLICY, ALL, avoid="claude-sonnet-5")["model"] == "claude-haiku-4.5"
+    with pytest.raises(ValueError, match="independent"):
+        models.resolve_choice(choice, POLICY, ALL, avoid="claude-haiku-4.5")
+
+
 def test_default_tier_per_role():
     assert [models.choose_tier(r) for r in ("investigator", "refiner", "implementer", "reviewer", "integrator")] == \
         ["low", "low", "low", "standard", "low"]
@@ -69,6 +99,74 @@ def test_scheduler_applies_tiers_and_records_them(tmp_path):
     assert attempts["implementer"]["tier"] == "low" and attempts["implementer"]["model"] == "claude-haiku-4.5"
     assert attempts["reviewer"]["tier"] == "standard" and attempts["reviewer"]["model"] == "claude-sonnet-5"
     assert attempts["reviewer"]["independent"] is True
+
+
+def test_scheduler_uses_task_specific_models_instead_of_role_tiers(tmp_path):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {
+        "implementer": {"model": "claude-sonnet-5", "reason": "Interacting requirements justify a more capable implementation model."},
+        "reviewer": {"model": "claude-haiku-4.5", "reason": "A small diff with reliable tests permits an inexpensive review."},
+    }
+    env.store.put_issue(issue)
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    attempts = {attempt["role"]: attempt for attempt in env.store.list_attempts("i1")}
+    assert attempts["implementer"]["model"] == "claude-sonnet-5"
+    assert attempts["reviewer"]["model"] == "claude-haiku-4.5"
+    assert attempts["reviewer"]["independent"] is True
+    for role, attempt in attempts.items():
+        assert attempt["routing_source"] == "delegator"
+        assert issue["model_choices"][role]["reason"] in attempt["routing_note"]
+
+
+@pytest.mark.parametrize("model, available, used, message", [
+    ("unapproved-model", ALL, 0, "configured"),
+    ("claude-haiku-4.5", ["claude-sonnet-5"], 0, "available"),
+    ("claude-opus-5", ALL, 1, "budget"),
+])
+def test_scheduler_blocks_invalid_delegation_before_starting_a_worker(tmp_path, model, available, used, message):
+    env = Env(tmp_path, available_models=available)
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {"implementer": {"model": model, "reason": "Task-specific cost and quality decision."}}
+    issue["strong_attempts"] = used
+    env.store.put_issue(issue)
+    env.start()
+    env.tick()
+    assert env.store.list_attempts("i1") == []
+    assert message in env.store.get_issue("i1")["blocked_reason"]
+
+
+def test_delegated_choices_keep_evidence_based_repairs_and_independent_review(tmp_path):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {
+        "implementer": {"model": "claude-haiku-4.5", "reason": "A bounded change with strong test coverage."},
+        "reviewer": {"model": "claude-sonnet-5", "reason": "Independent review of the implementation."},
+    }
+    env.store.put_issue(issue)
+    env.checker.fail_next = 1
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    attempts = env.store.list_attempts("i1")
+    implementations = [attempt for attempt in attempts if attempt["role"] == "implementer"]
+    assert [attempt["model"] for attempt in implementations] == ["claude-haiku-4.5", "claude-sonnet-5"]
+    assert implementations[-1]["routing_source"] == "evidence"
+    review = next(attempt for attempt in attempts if attempt["role"] == "reviewer")
+    assert review["model"] != implementations[-1]["model"] and review["independent"] is True
+
+
+def test_infrastructure_retry_keeps_a_previous_evidence_based_upgrade(tmp_path):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {"implementer": {"model": "claude-haiku-4.5", "reason": "Initially a small, well-tested change."}}
+    env.store.put_issue(issue)
+    env.adapter.script("i1", "implementer", "ok", "error:infra", "ok")
+    env.checker.fail_next = 1
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done", advance=60)
+    implementations = [attempt for attempt in env.store.list_attempts("i1") if attempt["role"] == "implementer"]
+    assert [attempt["model"] for attempt in implementations] == ["claude-haiku-4.5", "claude-sonnet-5", "claude-sonnet-5"]
 
 
 def test_scheduler_without_model_routing_reports_it(tmp_path):

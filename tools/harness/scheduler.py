@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
+import re
 import shlex
 import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from . import approval, broker, failures, humantasks, models, plans, schemas, smoke, telemetry
+from . import approval, broker, failures, humantasks, models, plans, schemas, smoke, splits, telemetry, usage
 from .adapter import Adapter, WorkRequest
 from .checks import Checker, Publisher
 from .github import BaseChanged, GitHubError
@@ -28,13 +30,16 @@ def new_issue(issue_id: str, plan_id: str, phase_id: str, requirement_ids: List[
         "title": fields.pop("title", issue_id), "outcomes": [], "acceptance_criteria": [], "non_goals": [], "code_anchors": [],
         "contract_paths": [], "deps": [], "validation_commands": [], "working_directory": "", "parallel_safe": False, "base_rev": "", "branch": "harness/" + issue_id,
         "head_rev": "", "patch_id": "", "pr": None, "transient_failures": 0, "repair_failures": 0, "strong_attempts": 0,
-        "not_before": 0.0, "last_failures": [], "implementer_model": None, "implementer_tier": None, "blocked_reason": "",
+        "not_before": 0.0, "last_failures": [], "implementer_model": None, "implementer_tier": None, "model_choices": {}, "blocked_reason": "",
+        "consults": 0, "consult_pending": False, "delegator_guidance": [], "analyses": 0, "analysis_pending": False, "analysis": None,
     }
     issue.update(fields)
     return issue
 
 
 TRANSIENT_GITHUB = ("rate limit", "timeout", "timed out", "502", "503", "504", "connection", "temporar", "reset by peer", "could not resolve")
+MAX_DECISION_TEXT = 2000
+HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result"}
 
 
 def _publish_kind(exc: Exception) -> str:
@@ -143,6 +148,8 @@ class Scheduler:
             if run.get("pause_now") or not (self.handles or self._has_checks()):
                 self._pause("paused by the operator", now)
             return self.events
+        self._settle_cancelled(now)
+        self._apply_approved_splits(now)
         self._reconcile_blocked(now)
         if self.notifier is not None:
             for event in humantasks.tick_tasks(self.store, self.notifier, now, budgets):
@@ -281,8 +288,24 @@ class Scheduler:
                 self._forget_check(key, job.get("job_id"))
                 self._emit("checks_abandoned", issue=job["issue_id"], head=job["head_rev"])
 
+    def _record_usage(self, meta: Dict[str, Any], h: Dict[str, Any], result: Any) -> None:
+        """Keep the estimates for this attempt. They are advice for the owner and can never fail the attempt."""
+        recorded: Dict[str, Any] = {}
+        if hasattr(self.adapter, "usage") and h.get("handle") is not None:
+            try:
+                recorded.update(self.adapter.usage(h["handle"]) or {})
+            except Exception:  # noqa: BLE001 - a missing or unreadable file only means no estimate
+                pass
+        agent = usage.clean_estimate(result.pop("usage_estimate", None)) if isinstance(result, dict) else None
+        if agent:
+            recorded["agent_estimate"] = agent
+        if recorded:
+            meta["usage"] = recorded
+            self.store.put_attempt(meta)
+
     def _on_finished(self, meta: Dict[str, Any], h: Dict[str, Any], poll, now: float) -> None:
         now = max(now, self.clock())
+        self._record_usage(meta, h, poll.result)
         if poll.error:
             kind = poll.error.get("kind", "runtime_crash")
             if kind == "cancelled":
@@ -298,7 +321,8 @@ class Scheduler:
         except schemas.SchemaError as exc:
             self._record_failure(meta, "schema_invalid", now, str(exc))
             return
-        handler = {"implementer": self._on_implementer, "reviewer": self._on_reviewer, "refiner": self._on_refiner}.get(meta["role"])
+        handler = {"implementer": self._on_implementer, "reviewer": self._on_reviewer, "refiner": self._on_refiner,
+                   "delegator": self._on_delegator, "analyst": self._on_analyst}.get(meta["role"])
         if handler is None:
             self._record_failure(meta, "schema_invalid", now, "unsupported role %s" % meta["role"])
             return
@@ -332,10 +356,16 @@ class Scheduler:
         repeated_check_failure = kind in ("checks_failed", "check_configuration") and failure_signature in signatures
         signatures[failure_signature] = signatures.get(failure_signature, 0) + 1
         issue["last_failures"][-1]["signature"] = failure_signature
-        decision = failures.decide(fclass, issue, budgets, now, self.rng)
+        decision = {"action": "block", "reason": HELPER_FAILURE[meta["role"]]} if (
+            meta["role"] in HELPER_FAILURE and fclass in (failures.DETERMINISTIC, failures.POLICY, failures.CONFIGURATION)
+        ) else failures.decide(fclass, issue, budgets, now, self.rng)  # a failed helper must not spend the implementer's repair budget
+        if fclass == failures.REPORTED and decision["action"] == "block" and self._schedule_analysis(issue):
+            decision = {"action": "analyze"}
         if repeated_check_failure:
             decision = {"action": "block", "reason": "identical check failure repeated without changed command or inputs"}
         self._emit("attempt_failed", attempt=attempt_id, issue=issue_id, kind=kind, failure_class=fclass, action=decision["action"])
+        if decision["action"] == "analyze":
+            self._emit("analysis_scheduled", issue=issue_id, trigger="stuck_report")
         state = self.store.state("issue", issue_id)
         if decision["action"] == "pause":
             self._requeue(issue, state, now)
@@ -357,6 +387,9 @@ class Scheduler:
 
     def _block(self, issue: Dict[str, Any], now: float) -> None:
         """Block an issue and raise its decision task in the same step, so it always has an owner."""
+        if issue.get("consult_pending") or issue.get("analysis_pending"):
+            issue["consult_pending"] = issue["analysis_pending"] = False  # the owner decides what happens next
+            self.store.put_issue(issue)
         state = self.store.state("issue", issue["issue_id"])
         if state in ("Ready", "In Progress", "In Review", "Refining"):
             self.store.transition("issue", issue["issue_id"], "Blocked", self.runner_id, {"reason": issue["blocked_reason"]}, now=now)
@@ -364,21 +397,28 @@ class Scheduler:
 
     def _ensure_decision_task(self, issue: Dict[str, Any], now: float, why: str) -> Optional[str]:
         open_tasks = [t for t in self.store.human_tasks(issue["issue_id"]) if t["state"] in humantasks.OPEN_STATES]
-        if open_tasks or self._unmet_deps(issue) or issue.get("cancelled"):
+        if open_tasks or self._unmet_deps(issue) or issue.get("cancelled") or issue.get("split_approved"):
             return None
         n = len(self.store.human_tasks(issue["issue_id"])) + 1
         task_id = "decision-%s-%d" % (issue["issue_id"], n)
         attempts = [{"attempt": a["attempt_id"], "role": a["role"], "tier": a.get("tier"), "class": a.get("failure_class"), "kind": a.get("failure_kind")}
                     for a in self.store.list_attempts(issue["issue_id"])]
+        options = humantasks.DECISION_OPTIONS + ([humantasks.APPLY_SPLIT] if issue.get("proposed_split") else [])
+        extra = {"reason": issue.get("blocked_reason", ""), "evidence": issue["last_failures"], "attempts": attempts,
+                 "option_help": {o: humantasks.OPTION_HELP[o] for o in options}}
+        if issue.get("analysis"):
+            extra["analysis"] = issue["analysis"]
         created = humantasks.request_task(
             self.store, task_id=task_id, kind="decision", issue_ids=[issue["issue_id"]], owner=self.owner, secondary_owner=self.secondary_owner, now=now,
             why="Issue %s is blocked: %s" % (issue["issue_id"], issue.get("blocked_reason", "")[:200]),
             request="The harness stopped working on this issue by itself and needs your call. Read the reason and the failures, then pick what happens next.",
-            response_format={"required": ["option"], "optional": ["guidance"]}, options=humantasks.DECISION_OPTIONS,
+            response_format={"required": ["option"], "optional": ["guidance"]}, options=options,
             resolution_criteria="Any listed option resolves the task. The issue resumes (or stays cancelled) accordingly.",
-            extra={"reason": issue.get("blocked_reason", ""), "evidence": issue["last_failures"], "attempts": attempts,
-                   "option_help": {o: humantasks.OPTION_HELP[o] for o in humantasks.DECISION_OPTIONS}}, block_issues=False)
+            extra=extra, block_issues=False)
         if created:
+            if issue.get("analysis"):
+                issue["analysis"] = None  # a later block must not show an old analysis
+                self.store.put_issue(issue)
             self._emit("decision_task", task=task_id, issue=issue["issue_id"], owner=self.owner, why=why)
             return task_id
         return None
@@ -445,7 +485,27 @@ class Scheduler:
             parts.append("%s (exit %s)%s" % (c["command"], c["exit_code"], (": " + tail) if tail else ""))
         return "; ".join(parts)[:limit]
 
+    @staticmethod
+    def _stuck_reason(result: Dict[str, Any]) -> Optional[str]:
+        """The implementer's own account that it could not finish. Either a blocked outcome or a leftover blocker counts."""
+        blockers = [b.strip() for b in result["blockers"] if b.strip()]
+        if result["outcome"] == "done" and not blockers:
+            return None
+        reason = "; ".join(blockers) if blockers else "no reason given (next action: %s)" % str(result["next_action"])[:100]
+        try:
+            broker.assert_no_secrets(reason, "worker report")
+        except broker.BrokerRejected:
+            return "the worker's report was withheld because it looked like a credential"
+        return reason[:400]
+
     def _on_implementer(self, meta, h, result, now) -> None:
+        if result["outcome"] not in ("done", "blocked", "needs_input"):
+            self._record_failure(meta, "schema_invalid", now, "implementer outcome was %r" % result["outcome"][:60])
+            return
+        stuck = self._stuck_reason(result)
+        if stuck is not None:
+            self._record_failure(meta, "worker_blocked", now, stuck)
+            return
         issue = self.store.get_issue(meta["issue_id"])
         policy = self._plan()["policy"]
         if not self._refresh_base(issue, now, meta):
@@ -580,6 +640,165 @@ class Scheduler:
         self.store.put_issue(issue)
         self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"base": issue["base_rev"]}, now=now)
         self._emit("refined", issue=issue["issue_id"])
+
+    def _on_delegator(self, meta, h, result, now) -> None:
+        """Apply the delegating agent's decision after trusted code checks it. It can steer a retry or hand the question to the owner."""
+        issue = self.store.get_issue(meta["issue_id"])
+        policy = self._plan()["policy"]
+        decision = result.get("decision")
+        try:
+            if decision is None:
+                raise ValueError("the result has no decision")
+            if not decision["diagnosis"].strip():
+                raise ValueError("the decision needs a diagnosis")
+            if max(len(decision["diagnosis"]), len(decision.get("guidance", ""))) > MAX_DECISION_TEXT:
+                raise ValueError("decision text is too long")
+            broker.assert_no_secrets(decision, "decision")
+            choice = decision.get("model_choice")
+            if choice and decision["action"] != "retry":
+                raise ValueError("a model choice only applies to a retry")
+            if choice:
+                models.resolve_choice(choice, policy["model_tiers"], self.available_models, strong_used=issue["strong_attempts"],
+                                      strong_budget=policy["budgets"]["strong_attempts_per_issue"])
+        except (ValueError, broker.BrokerRejected) as exc:
+            self._record_failure(meta, "schema_invalid", now, "delegator decision rejected: %s" % exc)
+            return
+        self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"decision": decision["action"]})
+        self.handles.pop(meta["attempt_id"], None)
+        meta.update(outcome="Succeeded", finished_at=now, decision=decision)
+        self.store.put_attempt(meta)
+        issue["consult_pending"] = False
+        if decision["action"] == "ask_owner":
+            issue["last_failures"].append({"attempt": meta["attempt_id"], "role": "delegator", "kind": "delegator_escalation", "class": "human",
+                                           "detail": decision["diagnosis"][:400]})
+            issue["last_failures"] = issue["last_failures"][-6:]
+            issue["blocked_reason"] = "the delegating agent asks for your decision: %s" % decision["diagnosis"][:300]
+            self.store.put_issue(issue)
+            if self._schedule_analysis(issue):
+                self.store.put_issue(issue)
+                self._emit("analysis_scheduled", issue=issue["issue_id"], trigger="delegator")
+                return
+            self._emit("delegator_escalated", issue=issue["issue_id"], attempt=meta["attempt_id"])
+            self._block(issue, now)
+            return
+        if choice:
+            issue["model_choices"] = dict(issue.get("model_choices") or {}, implementer=choice)  # sticky, so later retries keep the pick
+        if decision.get("guidance", "").strip():
+            issue["delegator_guidance"] = (issue.get("delegator_guidance", []) + [decision["guidance"].strip()])[-3:]
+        self.store.put_issue(issue)
+        self._emit("delegator_retry", issue=issue["issue_id"], attempt=meta["attempt_id"], model=choice["model"] if choice else None)
+
+    def _schedule_analysis(self, issue: Dict[str, Any]) -> bool:
+        """A strong analysis needs budget and a strong model that the runtime offers. Without both, the owner is asked directly."""
+        policy = self._plan()["policy"]
+        if issue.get("analyses", 0) >= policy["budgets"].get("analyses_per_issue", 0):
+            return False
+        if not models.available_in_tier("strong", policy["model_tiers"], self.available_models):
+            return False
+        issue["analyses"] = issue.get("analyses", 0) + 1
+        issue["analysis_pending"] = True
+        return True
+
+    def _write_split(self, issue: Dict[str, Any], parts: List[Dict[str, Any]]) -> str:
+        """The validated parts in the format `import-issues` reads, kept in the private store for the owner to review."""
+        folder = os.path.join(self.store.home, "analyses")
+        os.makedirs(folder, mode=0o700, exist_ok=True)
+        path = os.path.join(folder, "%s-%d.json" % (re.sub(r"[^A-Za-z0-9_.-]", "_", issue["issue_id"]), issue["analyses"]))
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as fh:
+            json.dump({"issues": [dict(part, phase_id=issue["phase_id"]) for part in parts]}, fh, indent=2)
+            fh.write("\n")
+        return path
+
+    def _check_part_models(self, parts: List[Dict[str, Any]]) -> None:
+        policy = self._plan()["policy"]
+        for p in parts:
+            models.validate_choices(p.get("model_choices", {}), policy["model_tiers"], self.available_models,
+                                    strong_budget=policy["budgets"]["strong_attempts_per_issue"])
+
+    def _settle_cancelled(self, now: float) -> None:
+        """A cancel recorded before Cancelled existed left the issue Blocked with a flag. Finish it and drop the work that depends on it."""
+        for issue in self.store.list_issues(self.plan_id):
+            if issue.get("cancelled") and self.store.state("issue", issue["issue_id"]) in ("Refining", "Ready", "Blocked"):
+                humantasks.cancel_issue(self.store, issue["issue_id"], now)
+
+    def _apply_approved_splits(self, now: float) -> None:
+        for issue in self.store.list_issues(self.plan_id):
+            if issue.get("split_approved") and self.store.state("issue", issue["issue_id"]) == "Blocked":
+                self._apply_split(issue, now)
+
+    def _apply_split(self, issue: Dict[str, Any], now: float) -> None:
+        """The owner approved the proposal. Check it again against the current state, then replace the issue with its parts."""
+        parts = issue.get("proposed_split") or []
+        made_before = {p["issue_id"] for p in parts if (self.store.get_issue(p["issue_id"]) or {}).get("split_of") == issue["issue_id"]}
+        known = {i["issue_id"] for i in self.store.list_issues()} - made_before  # parts from an interrupted apply are not collisions
+        problems = splits.validate_split(parts, issue, self._phase(issue), known, self.repo) if parts else ["there is no proposed split"]
+        try:
+            self._check_part_models(parts)
+        except ValueError as exc:
+            problems.append(str(exc))
+        if problems:
+            issue.update(split_approved=False, proposed_split=None, blocked_reason="the approved split no longer validates: %s" % "; ".join(problems[:4]))
+            self.store.put_issue(issue)
+            self._emit("split_rejected", issue=issue["issue_id"], problems=len(problems))
+            self._ensure_decision_task(issue, now, "the approved split no longer validated")
+            return
+        ids, base = [p["issue_id"] for p in parts], self.repo.base_head()
+        for p in parts:
+            if self.store.get_issue(p["issue_id"]) is None:
+                fields = {k: p[k] for k in ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
+                                            "validation_commands", "working_directory", "parallel_safe", "model_choices") if k in p}
+                self.store.put_issue(new_issue(p["issue_id"], self.plan_id, issue["phase_id"], p["requirement_ids"], base_rev=base,
+                                               split_of=issue["issue_id"], **fields))
+        for part_id in ids:
+            # put_issue and the transitions commit separately, so a crash can leave a part with no state row or in Refining.
+            # Advance only forward, so a part that already started is never reset.
+            state = self.store.state("issue", part_id)
+            if state in (None, "Inbox"):
+                self.store.transition("issue", part_id, "Refining", self.runner_id, {"split_of": issue["issue_id"]}, now=now)
+                state = "Refining"
+            if state == "Refining":
+                self.store.transition("issue", part_id, "Ready", self.runner_id, {"split_of": issue["issue_id"]}, now=now)
+        for other in self.store.list_issues(self.plan_id):
+            if issue["issue_id"] in other["deps"]:
+                other["deps"] = list(dict.fromkeys(d for dep in other["deps"] for d in (ids if dep == issue["issue_id"] else [dep])))
+                self.store.put_issue(other)
+        issue.update(superseded_by=ids, proposed_split=None, split_approved=False, cancelled=True, blocked_reason="replaced by %s" % ", ".join(ids))
+        self.store.put_issue(issue)
+        self.store.transition("issue", issue["issue_id"], "Cancelled", self.runner_id, {"superseded_by": ids}, now=now)
+        self._emit("split_applied", issue=issue["issue_id"], parts=len(ids))
+
+    def _on_analyst(self, meta, h, result, now) -> None:
+        """Give the owner the strong analysis and any validated split. It is advice: nothing is applied or restarted."""
+        issue = self.store.get_issue(meta["issue_id"])
+        analysis = result.get("analysis")
+        try:
+            if analysis is None:
+                raise ValueError("the result has no analysis")
+            known = {i["issue_id"] for i in self.store.list_issues()}
+            problems = splits.validate_analysis(analysis, issue, self._phase(issue), known, self.repo)
+            if problems:
+                raise ValueError("; ".join(problems[:4]))
+            self._check_part_models(analysis.get("split", []))
+        except ValueError as exc:
+            self._record_failure(meta, "schema_invalid", now, "analysis rejected: %s" % exc)
+            return
+        parts = analysis.get("split", [])
+        summary = {"recommendation": analysis["recommendation"], "root_cause": analysis["root_cause"], "guidance": analysis.get("guidance", ""),
+                   "questions": analysis.get("questions", []), "file": self._write_split(issue, parts) if parts else None,
+                   "parts": [{"issue_id": p["issue_id"], "title": p["title"], "requirement_ids": p["requirement_ids"], "deps": p.get("deps", [])} for p in parts]}
+        self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"recommendation": analysis["recommendation"]})
+        self.handles.pop(meta["attempt_id"], None)
+        meta.update(outcome="Succeeded", finished_at=now, analysis=summary)
+        self.store.put_attempt(meta)
+        issue["analysis_pending"] = False
+        issue["analysis"] = summary
+        issue["proposed_split"] = parts or None
+        issue["last_failures"].append({"attempt": meta["attempt_id"], "role": "analyst", "kind": "analysis", "class": "human", "detail": analysis["root_cause"][:400]})
+        issue["last_failures"] = issue["last_failures"][-6:]
+        issue["blocked_reason"] = "the strong analysis recommends %s: %s" % (analysis["recommendation"], analysis["root_cause"][:250])
+        self.store.put_issue(issue)
+        self._emit("analysis_ready", issue=issue["issue_id"], attempt=meta["attempt_id"], recommendation=analysis["recommendation"], parts=len(parts))
+        self._block(issue, now)
 
     def _issue_failure(self, issue: Dict[str, Any], kind: str, detail: str, now: float) -> None:
         """A failure found by trusted code on an issue already In Review: invalidate evidence and send it back for repair."""
@@ -807,11 +1026,18 @@ class Scheduler:
         if self.store.state("plan", self.entity) != "Executing" or run.get("pause_requested") or run.get("cancel_requested"):
             return
         issues = self.store.list_issues(self.plan_id)
-        for role, states in (("reviewer", ("In Review",)), ("implementer", ("Ready", "In Progress")), ("refiner", ("Refining",))):
+        for role, states in (("reviewer", ("In Review",)), ("delegator", ("Ready",)), ("analyst", ("Ready",)), ("implementer", ("Ready", "In Progress")),
+                             ("refiner", ("Refining",))):
             for issue in issues:
                 state = self.store.state("issue", issue["issue_id"])
                 if state not in states or not self._ready_to_work(issue, now):
                     continue
+                if role == "delegator" and not issue.get("consult_pending"):
+                    continue
+                if role == "analyst" and not issue.get("analysis_pending"):
+                    continue
+                if role == "implementer" and (issue.get("consult_pending") or issue.get("analysis_pending")):
+                    continue  # a helper answers first
                 if role == "reviewer" and self._valid(issue["issue_id"], "review", issue["head_rev"]) is not None:
                     continue
                 if role == "implementer" and state == "Ready" and self._resume_in_review(issue, now):
@@ -857,6 +1083,26 @@ class Scheduler:
         self._emit("refresh_needed", issue=issue["issue_id"], paths=hit)
         return True
 
+    def _history_data(self, issue: Dict[str, Any], evidence: List[Dict[str, Any]]) -> Dict[str, Any]:
+        return {
+            "stuck_report": next((f["detail"] for f in reversed(issue["last_failures"]) if f["kind"] == "worker_blocked"), ""),
+            "previous_failures": [f for f in evidence if f["role"] not in ("reviewer", "delegator", "analyst")][-3:],
+            "attempts": [{"role": a["role"], "model": a.get("model"), "tier": a.get("tier"), "outcome": a.get("outcome"), "failure_kind": a.get("failure_kind")}
+                         for a in self.store.list_attempts(issue["issue_id"])[-6:]],
+        }
+
+    def _delegator_data(self, issue: Dict[str, Any], evidence: List[Dict[str, Any]]) -> Dict[str, Any]:
+        policy = self._plan()["policy"]
+        return dict(self._history_data(issue, evidence), model_options=models.model_options(policy["model_tiers"], self.available_models),
+                    strong_attempts_remaining=max(policy["budgets"]["strong_attempts_per_issue"] - issue["strong_attempts"], 0))
+
+    def _analyst_data(self, issue: Dict[str, Any], evidence: List[Dict[str, Any]]) -> Dict[str, Any]:
+        diagnosis = next((f["detail"] for f in reversed(issue["last_failures"]) if f["kind"] == "delegator_escalation"), "")
+        return dict(self._history_data(issue, evidence), delegator_diagnosis=diagnosis,
+                    model_options=models.model_options(self._plan()["policy"]["model_tiers"], self.available_models), split_rules={
+            "parts": "2 to %d" % splits.MAX_PARTS, "diff_size_cap": self._plan()["policy"]["diff_size_cap"], "requirement_ids": issue["requirement_ids"],
+            "original_dependencies": issue["deps"], "existing_issue_ids": sorted(i["issue_id"] for i in self.store.list_issues())})
+
     def _packet(self, issue: Dict[str, Any], role: str, tier: str) -> Dict[str, Any]:
         phase = self._phase(issue)
         data: Any = {}
@@ -866,6 +1112,12 @@ class Scheduler:
         own = [f for f in evidence if f["role"] == role]
         if role in ("implementer", "refiner") and issue.get("guidance"):
             data = dict(data, human_guidance=issue["guidance"])
+        if role == "implementer" and issue.get("delegator_guidance"):
+            data = dict(data, delegator_guidance=issue["delegator_guidance"])
+        if role == "delegator":
+            data = self._delegator_data(issue, evidence)
+        if role == "analyst":
+            data = self._analyst_data(issue, evidence)
         if role == "reviewer":
             data = {"diff": self.repo.diff_text(issue["branch"]), "checks": (self._valid(issue["issue_id"], "checks", issue["head_rev"]) or {}).get("detail")}
             if own:
@@ -900,7 +1152,37 @@ class Scheduler:
                                   previous_failure_kind=last_kind, touches_escalation_path=touches,
                                   strong_used=issue["strong_attempts"], strong_budget=budgets["strong_attempts_per_issue"])
         avoid = issue.get("implementer_model") if role == "reviewer" else None
-        route = models.resolve_model(tier, policy["model_tiers"], self.available_models, avoid)
+        try:
+            choices = schemas.validate(issue.get("model_choices", {}), schemas.MODEL_CHOICES, "model_choices")
+            broker.assert_no_secrets(choices, "model_choices")
+            choice = choices.get(role)
+            repair = bool(last_impl and role == "implementer" and
+                          (last_kind in models.ESCALATION_EVIDENCE or last_impl.get("routing_source") == "evidence"))
+            # The implementer's model can change without spending repair budget (a delegator retry), so compare against
+            # the model actually in use instead of gating independence on repair_failures.
+            review_conflict = bool(choice and role == "reviewer" and choice["model"] == avoid)
+            if choice and not repair and not review_conflict:
+                route = models.resolve_choice(choice, policy["model_tiers"], self.available_models, avoid,
+                                              strong_used=issue["strong_attempts"] if role == "implementer" else 0,
+                                              strong_budget=budgets["strong_attempts_per_issue"] if role == "implementer" else 1)
+                routing_source = "delegator"
+            else:
+                route = models.resolve_model(tier, policy["model_tiers"], self.available_models, avoid)
+                routing_source = "evidence" if choice else "legacy"
+                if choice:
+                    why = "quality failure requires repair" if repair else "the reviewer must not share the implementer's model"
+                    route["note"] = "%s; original choice: %s (%s); %s" % (
+                        why, choice["model"], choice["reason"], route["note"])
+            if route["routing"] and route["model"] is None:
+                raise ValueError("no configured model is available for this attempt")
+            if role == "implementer" and route["tier"] == "strong" and issue["strong_attempts"] >= budgets["strong_attempts_per_issue"]:
+                raise ValueError("strong attempt budget exhausted")
+        except (ValueError, broker.BrokerRejected) as exc:
+            issue["blocked_reason"] = "model selection rejected: %s" % exc
+            self.store.put_issue(issue)
+            self._emit("model_selection_rejected", issue=issue["issue_id"], role=role, reason=str(exc))
+            self._block(issue, now)
+            return
         packet = self._packet(issue, role, route["tier"])
         digest = digest_of(packet)
         dup = failures.duplicate_of_failed(attempts, digest, route["tier"])
@@ -935,7 +1217,7 @@ class Scheduler:
             self.store.put_issue(issue)
         self.store.start(lease.attempt_id, lease.epoch, now)
         meta = {"attempt_id": lease.attempt_id, "issue_id": issue["issue_id"], "role": role, "tier": route["tier"], "model": route["model"],
-                "routing": route["routing"], "routing_note": route["note"], "packet_digest": digest, "started_at": now, "outcome": "",
+            "routing": route["routing"], "routing_source": routing_source, "routing_note": route["note"], "packet_digest": digest, "started_at": now, "outcome": "",
                 "independent": bool(role == "reviewer" and route["model"] and route["model"] != avoid),
                 "reviewed_head": issue["head_rev"] if role == "reviewer" else ""}
         self.store.put_attempt(meta)
@@ -947,7 +1229,8 @@ class Scheduler:
             self._record_failure(meta, "infra", now, "adapter failed to start: %s" % exc)
             return
         self.handles[lease.attempt_id] = {"handle": handle, "epoch": lease.epoch, "started_at": now}
-        self._emit("dispatched", attempt=lease.attempt_id, issue=issue["issue_id"], role=role, tier=route["tier"], model=route["model"], routing=route["routing"])
+        self._emit("dispatched", attempt=lease.attempt_id, issue=issue["issue_id"], role=role, tier=route["tier"], model=route["model"],
+               routing=route["routing"], routing_source=routing_source, routing_note=route["note"])
 
     # -- phases and completion --------------------------------------------------
 
@@ -964,11 +1247,24 @@ class Scheduler:
             if state == "Eligible" and mine:
                 self.store.transition("phase", ent, "Active", self.runner_id, {}, now=now)
                 state = "Active"
-            if state == "Active" and mine and all(self.store.state("issue", i["issue_id"]) == "Done" for i in mine):
-                self.store.transition("phase", ent, "Validating", self.runner_id, {}, now=now)
-                state = "Validating"
+            if state == "Active" and mine:
+                states = [self.store.state("issue", i["issue_id"]) for i in mine]
+                if all(s in ("Done", "Cancelled") for s in states):
+                    covered = {r for i, s in zip(mine, states) if s == "Done" for r in i["requirement_ids"]}
+                    gaps = sorted(set(ph["requirements"]) - covered)
+                    if gaps:
+                        self._stall_phase(ph, gaps, [i["issue_id"] for i, s in zip(mine, states) if s == "Cancelled"], now)
+                        return
+                    self.store.transition("phase", ent, "Validating", self.runner_id, {}, now=now)
+                    state = "Validating"
             if state == "Validating":
                 self._validate_phase(ph, mine, ent, now)
+
+    def _stall_phase(self, ph: Dict[str, Any], gaps: List[str], cancelled: List[str], now: float) -> None:
+        """Every issue in the phase is finished or cancelled, yet requirements remain uncovered. Nothing can progress without the owner."""
+        self._emit("phase_stalled", phase=ph["id"], gaps=gaps, cancelled=cancelled)
+        self._pause("phase %s cannot complete: requirements %s have no finished issue%s. Import issues that cover them, then resume." % (
+            ph["id"], ", ".join(gaps), " (cancelled: %s)" % ", ".join(cancelled) if cancelled else ""), now)
 
     def _validate_phase(self, ph: Dict[str, Any], mine: List[Dict[str, Any]], ent: str, now: float) -> None:
         covered = {r for i in mine if self.store.state("issue", i["issue_id"]) == "Done" for r in i["requirement_ids"]}

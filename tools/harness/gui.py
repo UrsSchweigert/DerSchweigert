@@ -17,11 +17,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from . import approval, assets, gui_workflow, humantasks, runner, status
+from . import approval, assets, gui_workflow, humantasks, models, runner, status
 from .broker import BrokerRejected, assert_no_secrets
 from .store import Store, default_home
 
 MAX_BODY = 16 * 1024 * 1024
+MODEL_PROBE_MIN_INTERVAL_S = 60
 
 
 class GuiServer(ThreadingHTTPServer):
@@ -45,6 +46,9 @@ class GuiServer(ThreadingHTTPServer):
         self.launcher = subprocess.Popen
         self.processes: dict[str, dict] = {}
         self.preparations: dict[str, subprocess.Popen] = {}
+        self.probe_runner = runner.probe_menu
+        self.model_probe_lock = threading.Lock()
+        self.model_probe = {"started_at": None, "finished_at": None, "result": None, "error": None, "thread": None}
         super().__init__(("127.0.0.1", port), GuiHandler)
         self.allowed_hosts = {"127.0.0.1:%d" % self.server_port, "localhost:%d" % self.server_port}
         self.allowed_origins = {"http://" + host for host in self.allowed_hosts}
@@ -125,8 +129,12 @@ class GuiServer(ThreadingHTTPServer):
                     return self.workflow_action(store, path, body)
                 finally:
                     store.close()
+        if path == "/api/models/probe":
+            return self.start_probe(body)  # works before a store exists and needs no plan
         if path not in ("/api/pause", "/api/cancel", "/api/respond", "/api/resume"):
             raise KeyError("unknown action")
+        if path == "/api/models/probe":
+            return self.start_probe(body)  # works before a store exists and needs no plan
         if not (self.home / "harness.sqlite").is_file():
             raise runner.RunRefused("the store is not initialized")
         with self.actions:
@@ -311,6 +319,54 @@ class GuiServer(ThreadingHTTPServer):
             output = source.read().decode("utf-8", errors="replace")
         return {"output": output, "running": job["process"].poll() is None}
 
+    def models(self) -> dict:
+        """The picker menu and the last probe. Reads the catalog and the cache; never calls the runtime."""
+        catalog = models.load_catalog(str(self.home))
+        sources = list(models.SOURCES)
+        with self.model_probe_lock:
+            started, finished, result = self.model_probe["started_at"], self.model_probe["finished_at"], self.model_probe["result"]
+            error = self.model_probe["error"]
+            probing = self.model_probe["thread"] is not None and self.model_probe["thread"].is_alive()
+        wait = 0 if started is None else max(0, int(MODEL_PROBE_MIN_INTERVAL_S - (self.clock() - started) + 0.999))
+        return {"sources": sources, "catalog": catalog, "menu": models.menu_for(sources, catalog), "read_only": self.read_only,
+                "probing": probing, "probe_error": error, "probe_started_at": started, "probe_finished_at": finished,
+                "probe": result, "cache": runner.cached_probe(str(self.home)), "min_interval_s": MODEL_PROBE_MIN_INTERVAL_S,
+                "probe_after_s": wait}
+
+    def start_probe(self, body: dict) -> dict:
+        """Probe the chosen sources in the background: one at a time, and no more often than the minimum interval."""
+        sources = body.get("sources", list(models.SOURCES))
+        if not isinstance(sources, list) or not all(isinstance(source, str) for source in sources):
+            raise ValueError("sources must be a list of source names")
+        if not sources:
+            raise ValueError("choose at least one of %s" % ", ".join(models.SOURCES))
+        unknown = sorted(set(sources) - set(models.SOURCES))
+        if unknown:
+            raise ValueError("unknown model source(s) %s; choose from %s" % (", ".join(unknown), ", ".join(models.SOURCES)))
+        if self.read_only:
+            raise runner.RunRefused("read-only mode does not probe the runtime")
+        with self.model_probe_lock:
+            if self.model_probe["thread"] is not None and self.model_probe["thread"].is_alive():
+                raise ValueError("a probe is already running")
+            started = self.model_probe["started_at"]
+            if started is not None and self.clock() - started < MODEL_PROBE_MIN_INTERVAL_S:
+                raise ValueError("probe again in %d s" % int(MODEL_PROBE_MIN_INTERVAL_S - (self.clock() - started) + 0.999))
+            self.model_probe.update(started_at=self.clock(), finished_at=None, result=None, error=None)
+            thread = threading.Thread(target=self._probe, args=(list(dict.fromkeys(sources)),), daemon=True)
+            self.model_probe["thread"] = thread
+        thread.start()
+        return {"status": "probing", "sources": sources}
+
+    def _probe(self, sources: list[str]) -> None:
+        try:
+            result = self.probe_runner(str(self.home), sources, str(self.repo_root), refresh=True)
+        except Exception as exc:  # the runtime may be missing, the token unreadable, or the catalog invalid
+            with self.model_probe_lock:
+                self.model_probe.update(error=str(exc)[:300], finished_at=self.clock())
+            return
+        with self.model_probe_lock:
+            self.model_probe.update(result=result, finished_at=self.clock())
+
     def respond(self, store: Store, body: dict) -> dict:
         task_id = body.get("task_id")
         if not isinstance(task_id, str) or not task_id:
@@ -400,6 +456,8 @@ class GuiHandler(BaseHTTPRequestHandler):
                 self._send(200, self.server.tasks(parse_qs(target.query).get("plan", [""])[0]))
             elif target.path == "/api/log":
                 self._send(200, self.server.log_tail(parse_qs(target.query).get("plan", [""])[0]))
+            elif target.path == "/api/models":
+                self._send(200, self.server.models())
             elif target.path == "/api/workflow":
                 for process in tuple(self.server.preparations.values()):
                     process.poll()

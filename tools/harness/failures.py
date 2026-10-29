@@ -7,6 +7,7 @@ import json
 from typing import Any, Callable, Dict, List, Optional
 
 TRANSIENT, DETERMINISTIC, POLICY, SYSTEMIC = "transient", "deterministic", "policy", "systemic"
+REPORTED = "reported"  # the worker says it cannot finish: a request for direction, not evidence of anything
 
 # Evidence kinds observed by trusted code mapped to a failure class.
 KIND_CLASS = {
@@ -16,6 +17,7 @@ KIND_CLASS = {
     "scope_violation": POLICY, "escalation_path": POLICY, "approval": POLICY, "permission": POLICY,
     "protected_branch": POLICY, "diff_too_large": POLICY,
     "isolation": SYSTEMIC, "credentials": SYSTEMIC, "budget": SYSTEMIC,
+    "worker_blocked": REPORTED,
 }
 CONFIGURATION = "configuration"
 
@@ -47,13 +49,20 @@ def backoff_delay(failures: int, base: float = 5.0, cap: float = 600.0, rng: Cal
 
 def decide(failure_class: str, issue: Dict[str, Any], budgets: Dict[str, Any], now: float,
            rng: Callable[[], float] = random.random) -> Dict[str, Any]:
-    """Update the issue's counters and return the next action: retry, block, or pause.
+    """Update the issue's counters and return the next action: retry, consult, block, or pause.
 
     Transient failures use their own budget. Deterministic failures use the repair budget and must change an
     input before retrying (enforced at dispatch). Policy failures block at once. Systemic failures pause the project.
+    A reported failure spends no repair budget: it consults the delegating agent while its own budget lasts, then blocks.
     """
     if failure_class == SYSTEMIC:
         return {"action": "pause"}
+    if failure_class == REPORTED:
+        if issue.get("consults", 0) >= budgets.get("delegator_consults_per_issue", 0):
+            return {"action": "block", "reason": "the worker reported it cannot solve the task"}
+        issue["consults"] = issue.get("consults", 0) + 1
+        issue["consult_pending"] = True
+        return {"action": "consult"}
     if failure_class == POLICY:
         return {"action": "block", "reason": "policy failure"}
     if failure_class == CONFIGURATION:

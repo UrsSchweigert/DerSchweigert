@@ -339,8 +339,8 @@ def test_phase_with_uncovered_requirements_is_not_done(tmp_path):
     events = env.run_until(lambda: env.state("a") == "Done")
     events += env.tick()
     assert env.store.state("phase", "fx@v1/P1") == "Active"
-    assert any(e["event"] == "phase_gaps" and e["gaps"] == ["F1.2"] for e in events)
-    assert env.store.state("plan", "fx@v1") == "Executing"
+    assert any(e["event"] == "phase_stalled" and e["gaps"] == ["F1.2"] for e in events)
+    assert env.store.state("plan", "fx@v1") == "Paused" and "F1.2" in env.store.get_run("fx")["paused_reason"]
 
 
 def test_merge_is_bound_to_the_reviewed_head(tmp_path):

@@ -119,6 +119,11 @@ class FakeAdapter(Adapter):
         self.impl_paths = {}      # issue_id -> paths the implementer "changes"
         self.impl_lines = {}
         self.verdicts = {}        # issue_id -> list of 'approve'/'changes_requested'
+        self.decisions = {}       # issue_id -> delegator decisions, the last one repeats
+        self.analyses = {}        # issue_id -> analyst analyses, the last one repeats
+        self.size_usage = None    # what the adapter reports from prompt and file sizes
+        self.runtime_lines = []   # usage lines the runtime printed
+        self.agent_usage = None   # the estimate every worker reports about itself, malformed values included
 
     def script(self, issue_id, role, *steps):
         self.scripts[(issue_id, role)] = list(steps)
@@ -136,6 +141,14 @@ class FakeAdapter(Adapter):
         h.step = step
         h.base_rev = self.repo.base_head()
         return h
+
+    def usage(self, h):
+        out = {}
+        if self.size_usage:
+            out["size_estimate"] = dict(self.size_usage)
+        if self.runtime_lines:
+            out["runtime_lines"] = list(self.runtime_lines)
+        return out
 
     def poll(self, h, now):
         req, step = h.req, h.step
@@ -155,6 +168,19 @@ class FakeAdapter(Adapter):
                   "checks": [], "risks": [], "blockers": [], "next_action": "review"}
         if req.role == "implementer":
             result["revision"] = self.repo.branch_head(branch)
+            if step == "blocked":
+                result.update(outcome="blocked", blockers=["The helper this task depends on does not exist anywhere in the repository."],
+                              next_action="needs direction")
+            elif step == "done_with_blockers":
+                result["blockers"] = ["I could not make the second acceptance criterion work."]
+            elif step == "unknown_outcome":
+                result["outcome"] = "not_sure"
+        elif req.role == "delegator":
+            queue = self.decisions.get(req.issue_id) or [{"action": "retry", "diagnosis": "The task is feasible. Try a different approach."}]
+            result["decision"] = dict(queue.pop(0) if len(queue) > 1 else queue[0])
+        elif req.role == "analyst":
+            queue = self.analyses.get(req.issue_id) or [{"root_cause": "The task spans two modules that cannot be changed together.", "recommendation": "needs_owner"}]
+            result["analysis"] = dict(queue.pop(0) if len(queue) > 1 else queue[0])
         elif req.role == "reviewer":
             queue = self.verdicts.get(req.issue_id) or ["approve"]
             verdict = queue.pop(0) if len(queue) > 1 else queue[0]
@@ -164,6 +190,8 @@ class FakeAdapter(Adapter):
             result["outcome"] = "needs_input" if step == "needs_input" else "not_sure" if step == "not_sure" else "ready"
             if step in ("needs_input", "not_sure"):
                 result["blockers"] = ["The spec does not say whether the disclaimer repeats after a reload."]
+        if self.agent_usage is not None:
+            result["usage_estimate"] = self.agent_usage
         return Poll("finished", now, result, None)
 
     def cancel(self, h):

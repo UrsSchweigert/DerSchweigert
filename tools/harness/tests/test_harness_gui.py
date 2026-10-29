@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import threading
+import time
 
 import pytest
 
@@ -584,3 +585,112 @@ def test_gui_actual_preparation_subprocess_persists_failure_without_tier_a(gui_s
         assert not store.list_plans()
     finally:
         store.close()
+
+# -- the model picker panel ----------------------------------------------------------------------------
+
+def wait_for(predicate, timeout=5.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return False
+
+
+def models_state(server):
+    return json.loads(request(server, "GET", "/api/models")[2])
+
+
+def fake_probe(calls, checked_at=7.0):
+    def probe(home, sources, repo_root, refresh=False):
+        calls.append({"sources": list(sources), "repo_root": repo_root, "refresh": refresh})
+        return {"sources": list(sources), "menu": {}, "candidates": ["claude-haiku-4.5"], "available": ["claude-haiku-4.5"],
+                "reachable": True, "reason": "", "checked_at": checked_at}
+    return probe
+
+
+def test_the_models_panel_shows_the_menu_and_the_cached_probe(gui_server, tmp_path):
+    (tmp_path / "home").mkdir(exist_ok=True)
+    (tmp_path / "home" / "models.json").write_text(json.dumps(
+        {"checked_at": 100, "candidates": ["claude-haiku-4.5"], "models": ["claude-haiku-4.5"]}))
+    state = models_state(gui_server)
+    assert state["sources"] == ["copilot", "deepseek", "local"]
+    assert state["menu"]["low"][0] == "claude-haiku-4.5" and state["catalog"]["copilot"]["strong"]
+    assert state["cache"]["available"] == ["claude-haiku-4.5"] and state["cache"]["checked_at"] == 100
+    assert state["read_only"] is False and state["probing"] is False and state["probe"] is None
+    assert state["min_interval_s"] == gui.MODEL_PROBE_MIN_INTERVAL_S
+
+
+def test_the_dashboard_has_the_models_view(gui_server):
+    code, _, body = request(gui_server, "GET", "/")
+    assert code == 200 and 'data-view="models"' in body and 'id="view-models"' in body and 'id="probe-models"' in body
+
+
+def test_the_gui_probes_the_chosen_sources_in_the_background(gui_server):
+    calls = []
+    gui_server.probe_runner = fake_probe(calls)
+    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["deepseek", "local"]})
+    assert code == 200 and json.loads(body) == {"status": "probing", "sources": ["deepseek", "local"]}
+    assert wait_for(lambda: models_state(gui_server)["probe"] is not None)
+    state = models_state(gui_server)
+    assert state["probing"] is False and state["probe"]["available"] == ["claude-haiku-4.5"]
+    assert calls == [{"sources": ["deepseek", "local"], "repo_root": str(gui_server.repo_root), "refresh": True}]
+    assert state["probe_after_s"] > 0  # the next probe waits for the interval
+
+
+def test_a_failing_probe_is_reported_not_raised(gui_server):
+    def failing(home, sources, repo_root, refresh=False):
+        raise RuntimeError("docker is not available")
+    gui_server.probe_runner = failing
+    assert action(gui_server, "/api/models/probe", {})[0] == 200
+    assert wait_for(lambda: models_state(gui_server)["probe_error"])
+    state = models_state(gui_server)
+    assert "docker is not available" in state["probe_error"] and state["probe"] is None and state["probing"] is False
+
+
+def test_a_probe_is_rate_limited(gui_server):
+    now = [1000.0]
+    gui_server.clock = lambda: now[0]
+    gui_server.probe_runner = fake_probe([])
+    assert action(gui_server, "/api/models/probe", {"sources": ["copilot"]})[0] == 200
+    assert wait_for(lambda: not models_state(gui_server)["probing"])
+    now[0] += 5
+    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["copilot"]})
+    assert code == 400 and "probe again in" in json.loads(body)["error"]
+    now[0] += gui.MODEL_PROBE_MIN_INTERVAL_S
+    assert action(gui_server, "/api/models/probe", {"sources": ["copilot"]})[0] == 200
+
+
+def test_one_probe_at_a_time(gui_server):
+    release = threading.Event()
+    gui_server.probe_runner = lambda home, sources, repo_root, refresh=False: release.wait(5) or {"available": [], "reachable": True, "reason": "", "checked_at": 1.0}
+    assert action(gui_server, "/api/models/probe", {"sources": ["copilot"]})[0] == 200
+    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["copilot"]})
+    assert code == 400 and "already running" in json.loads(body)["error"]
+    release.set()
+    assert wait_for(lambda: not models_state(gui_server)["probing"])
+
+
+@pytest.mark.parametrize("body, message", [
+    ({"sources": []}, "at least one"),
+    ({"sources": ["mainframe"]}, "unknown model source"),
+    ({"sources": "copilot"}, "list of source names"),
+])
+def test_the_probe_rejects_bad_source_lists(gui_server, body, message):
+    code, _, payload = action(gui_server, "/api/models/probe", body)
+    assert code == 400 and message in json.loads(payload)["error"]
+
+
+def test_a_read_only_dashboard_shows_the_menu_but_does_not_probe(tmp_path):
+    server = gui.make_server(str(tmp_path / "home"), port=0, read_only=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+    thread.start()
+    try:
+        state = models_state(server)
+        assert state["read_only"] is True and state["menu"]["low"] and state["probing"] is False
+        code, _, body = action(server, "/api/models/probe", {"sources": ["copilot"]})
+        assert code == 403 and "read-only" in json.loads(body)["error"]
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()

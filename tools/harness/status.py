@@ -7,7 +7,7 @@ import sqlite3
 import time
 from typing import Any, Dict, List, Optional
 
-from . import approval, telemetry
+from . import approval, telemetry, usage
 from .approval import AuthorizationError, plan_entity
 from .store import Store, default_home
 
@@ -43,6 +43,7 @@ def build_report(home: Optional[str] = None, now: Optional[float] = None) -> Dic
         _issues(store, report, now)
         _workers(store, report, now)
         _tasks(store, report, now)
+        _usage(store, report)
         report["pending_sync"] = store.pending_sync()
         report["claims"] = store.active_claims()
         report["entities"] = store.entity_states()
@@ -65,6 +66,10 @@ def filter_plan(report: Dict[str, Any], plan_id: str) -> Dict[str, Any]:
     for key in ("queue", "blockers", "failures", "evidence"):
         out[key] = [r for r in report[key] if r["issue_id"] in ids]
     out["workers"] = [r for r in report["workers"] if r["issue"] in ids]
+    plan_usage = report.get("usage_detail", {}).get("plans", {}).get(plan_id)
+    if plan_usage is not None:
+        out["usage_detail"] = dict(report["usage_detail"], total=plan_usage, plans={plan_id: plan_usage})
+        out["usage"] = usage.headline(plan_usage)
     out["human_tasks"] = [t for t in report["human_tasks"] if set(t.get("issue_ids") or [t.get("issue_id")]) & ids] if report["human_tasks"] and isinstance(report["human_tasks"][0], dict) else report["human_tasks"]
     return out
 
@@ -101,7 +106,7 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
                                      "depends_on": ph["dependencies"], "issues": counts, "requirements": ph["requirements"]})
         phase_state = {p["phase"]: p["state"] for p in report["phases"] if p["plan_id"] == pid}
         for req in plan["requirements"]:
-            owners = [i for i in issues if req["id"] in i["requirement_ids"]]
+            owners = [i for i in issues if req["id"] in i["requirement_ids"] and store.state("issue", i["issue_id"]) != "Cancelled"]
             states = [store.state("issue", i["issue_id"]) for i in owners]
             host = next((p["id"] for p in plan["phases"] if req["id"] in p["requirements"]), None)
             if host and phase_state.get(host) == "Done":
@@ -162,6 +167,23 @@ def _workers(store: Store, report: Dict[str, Any], now: float) -> None:
                             "runner_id": last["_key"], "last_heartbeat_age_s": age, "heartbeat_interval_s": heartbeat, "active_attempts": last.get("active", [])}
 
 
+def _usage(store: Store, report: Dict[str, Any]) -> None:
+    """Token and cost estimates from the attempt records, by plan, model, and role. Every figure names its source."""
+    prices = usage.load_prices(store.home)
+    plan_of = {i["issue_id"]: i.get("plan_id") for i in _safe(store.list_issues, [])}
+    attempts = _safe(store.list_attempts, [])
+    by_plan: Dict[Any, List[Dict[str, Any]]] = {}
+    for a in attempts:
+        by_plan.setdefault(plan_of.get(a["issue_id"]), []).append(a)
+    plans = {pid: usage.summarize(rows, prices) for pid, rows in by_plan.items() if pid}
+    total = usage.summarize(attempts, prices)
+    report["usage_detail"] = {"total": total, "plans": plans, "prices": {k: v for k, v in prices.items() if k != "models"} | {"models": sorted(prices["models"])}}
+    report["usage"] = usage.headline(total)
+    for pid, budget in report["budgets"].items():
+        if pid in plans and usage.has_data(plans[pid]):
+            budget["tokens_and_cost"] = usage.short(plans[pid])
+
+
 def _tasks(store: Store, report: Dict[str, Any], now: float) -> None:
     notified = _safe(lambda: store.docs("notified"), [])
     for t in _safe(store.human_tasks, []):
@@ -206,6 +228,11 @@ def render(report: Dict[str, Any]) -> str:
     for o in report["pending_sync"]:
         w("pending sync %s (%s) %s" % (o["op_key"], o["status"], o["last_error"] or ""))
     w("usage: " + report["usage"])
+    detail = report.get("usage_detail")
+    if detail and usage.has_data(detail["total"]):
+        for row in detail["total"]["by_model"]:
+            w("  %s: ~%s in / ~%s out over %d attempts" % (row["name"], usage.count(row["input_tokens"]), usage.count(row["output_tokens"]), row["attempts"]))
+        w("  estimates come from the agents' own accounts or from prompt size, never from the runtime, and nothing enforces them")
     for text in report["limitations"]:
         w("limitation: " + text)
     if report.get("note"):
@@ -259,8 +286,16 @@ def render_issue(d: Dict[str, Any]) -> str:
         w("  - %s (%s, %s): %s" % (f["kind"], f["class"], f["role"], f["detail"][:140]))
     if d["attempts"]:
         w("attempts:")
-        out.extend("  %s %s tier %s model %s -> %s %s" % (a["attempt_id"], a["role"], a.get("tier"), a.get("model"), a.get("outcome") or "running",
-                                                          ("(%s)" % a["failure_kind"]) if a.get("failure_kind") else "") for a in d["attempts"])
+        out.extend("  %s %s tier %s model %s -> %s %s%s" % (a["attempt_id"], a["role"], a.get("tier"), a.get("model"), a.get("outcome") or "running",
+                                                          ("(%s)" % a["failure_kind"]) if a.get("failure_kind") else "",
+                                                          "  " + usage.attempt_label(a) if usage.attempt_label(a) else "") for a in d["attempts"])
+        for a in d["attempts"]:
+            if a.get("analysis"):
+                analysis = a["analysis"]
+                w("analysis %s recommends %s: %s" % (a["attempt_id"], analysis["recommendation"], analysis["root_cause"][:200]))
+                out.extend("  - proposed issue %s: %s" % (p["issue_id"], p["title"]) for p in analysis.get("parts", []))
+                if analysis.get("file"):
+                    w("  proposed issues file: %s" % analysis["file"])
     if d["evidence"]:
         w("evidence:")
         out.extend("  %s %s head %s base %s%s" % (e["kind"], e["verdict"], e["head_rev"][:12], e["base_rev"][:12], "" if e["valid"] else "  (invalidated)") for e in d["evidence"])
