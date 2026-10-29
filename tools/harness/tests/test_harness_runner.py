@@ -173,6 +173,19 @@ def test_a_check_may_not_name_a_file_the_phase_cannot_create():
     assert plans.command_paths_problem("node ../../../etc/passwd", "sites/lesen", allowlist, exists)
 
 
+def test_a_phase_may_rely_on_files_an_earlier_phase_creates():
+    from harness.cli import phase_allowlists
+
+    phases = [{"id": "P3", "dependencies": ["P2"], "path_allowlist": ["tools/build_books.mjs"]},
+              {"id": "P2", "dependencies": [], "path_allowlist": ["static/books.mjs"]},
+              {"id": "P10", "dependencies": ["P9"], "path_allowlist": ["static/index.html"]},
+              {"id": "P9", "dependencies": ["P8"], "path_allowlist": ["tests/"]},
+              {"id": "P8", "dependencies": ["P3"], "path_allowlist": []},
+              {"id": "PX", "dependencies": [], "path_allowlist": ["other/"]}]
+    assert set(phase_allowlists(phases, "P10")) == {"static/index.html", "tests/", "tools/build_books.mjs", "static/books.mjs"}
+    assert "other/" not in phase_allowlists(phases, "P10")  # an unrelated branch must not widen the check
+
+
 # -- the Stage 4 demonstration ------------------------------------------------------------------
 
 def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):

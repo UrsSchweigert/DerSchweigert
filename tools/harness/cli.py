@@ -110,6 +110,20 @@ def preflight_checks(store: Store, repo_root: str, checks: List[Dict[str, str]],
     return record
 
 
+def phase_allowlists(phases: List[Dict[str, Any]], phase_id: str) -> List[str]:
+    """The phase's own allowlist plus those of every phase that runs before it, so a check may rely on their files."""
+    by_id = {phase["id"]: phase for phase in phases}
+    seen, out, stack = set(), [], [phase_id]
+    while stack:
+        current = stack.pop()
+        if current in seen or current not in by_id:
+            continue
+        seen.add(current)
+        out.extend(by_id[current].get("path_allowlist", []))
+        stack.extend(by_id[current].get("dependencies", []))
+    return out
+
+
 def preflight_plan(store: Store, plan_id: str, version: Optional[int], repo_root: str,
                    issue_docs: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     stored = store.get_plan(plan_id, version)
@@ -119,15 +133,16 @@ def preflight_plan(store: Store, plan_id: str, version: Optional[int], repo_root
     checks = [{"command": command, "working_directory": phase.get("working_directory", ".")}
               for phase in plan["phases"] for command in phase["validation"]]
     phases = {phase["id"]: phase for phase in plan["phases"]}
-    declared = [(command, phase.get("working_directory", "."), phase["path_allowlist"], "phase %s" % phase["id"])
+    declared = [(command, phase.get("working_directory", "."), phase_allowlists(plan["phases"], phase["id"]), "phase %s" % phase["id"])
                 for phase in plan["phases"] for command in phase["validation"]]
     for issue in issue_docs or []:
         schemas.validate(issue, runner.ISSUE_SCHEMA, "issue")
         phase = phases.get(issue.get("phase_id"), {})
         directory = issue.get("working_directory") or phase.get("working_directory", ".")
+        allowlist = phase_allowlists(plan["phases"], issue.get("phase_id"))
         for command in issue.get("validation_commands") or []:
             checks.append({"command": command, "working_directory": directory})
-            declared.append((command, directory, phase.get("path_allowlist", []), "issue %s" % issue.get("issue_id")))
+            declared.append((command, directory, allowlist, "issue %s" % issue.get("issue_id")))
     node = repo_root and GitRepo(repo_root, "main")
     for command, directory, allowlist, label in declared:
         problem = plans.command_paths_problem(command, directory, allowlist, node.path_exists if node else (lambda _p: True))
@@ -223,7 +238,7 @@ def runner_command(args) -> int:
                     problem = plans.command_problem(command)
                     if problem:
                         raise runner.RunRefused("issue %s validation command is not allowed: %s" % (issue.get("issue_id"), problem))
-                    problem = plans.command_paths_problem(command, directory, phase.get("path_allowlist", []), probe.path_exists)
+                    problem = plans.command_paths_problem(command, directory, phase_allowlists(stored["plan"]["phases"], issue.get("phase_id")), probe.path_exists)
                     if problem:
                         raise runner.RunRefused("issue %s validation command %r: %s" % (issue.get("issue_id"), command, problem))
                     checks.append({"command": command, "working_directory": directory})
