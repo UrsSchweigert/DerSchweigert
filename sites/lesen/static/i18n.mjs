@@ -47,6 +47,12 @@ const DE = {
   'setup.error.no_pattern': 'Bitte wähle mindestens ein Muster aus.',
   'setup.warning.min_words': 'Mind. 10 Wörter erforderlich',
   'setup.warning.no_history': 'Noch kein passender Kartenverlauf vorhanden',
+  'setup.sentences.legend': 'Satz-Karten',
+  'setup.sentences.intro': 'Tippe Sätze an, die gelesen werden sollen.',
+  'setup.sentences.hint': 'Wähle mehr Buchstaben, dann erscheinen hier Sätze.',
+  'setup.sentences.clear': 'Auswahl leeren',
+  'setup.error.sentencepool': 'Die Satzliste konnte nicht geladen werden. Bitte versuche es erneut.',
+  'setup.error.no_sentences': 'Keine passenden Sätze gefunden. Wähle mehr Buchstaben.',
   
   // Practice screen
   'practice.stats.cleared': 'geschafft',
@@ -172,6 +178,12 @@ const EN = {
   'setup.error.no_pattern': 'Please select at least one pattern.',
   'setup.warning.min_words': 'Minimum 10 words required',
   'setup.warning.no_history': 'No matching card history available yet',
+  'setup.sentences.legend': 'Sentence cards',
+  'setup.sentences.intro': 'Tap the sentences you want to practise.',
+  'setup.sentences.hint': 'Select more letters and sentences will appear here.',
+  'setup.sentences.clear': 'Clear selection',
+  'setup.error.sentencepool': 'The sentence list could not be loaded. Please try again.',
+  'setup.error.no_sentences': 'No matching sentences found. Select more letters.',
   
   // Practice screen
   'practice.stats.cleared': 'completed',
