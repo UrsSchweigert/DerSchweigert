@@ -29,7 +29,7 @@ def new_issue(issue_id: str, plan_id: str, phase_id: str, requirement_ids: List[
         "issue_id": issue_id, "plan_id": plan_id, "phase_id": phase_id, "requirement_ids": requirement_ids,
         "title": fields.pop("title", issue_id), "outcomes": [], "acceptance_criteria": [], "non_goals": [], "code_anchors": [],
         "contract_paths": [], "deps": [], "validation_commands": [], "working_directory": "", "parallel_safe": False, "base_rev": "", "branch": "harness/" + issue_id,
-        "head_rev": "", "patch_id": "", "pr": None, "transient_failures": 0, "repair_failures": 0, "strong_attempts": 0,
+        "head_rev": "", "patch_id": "", "pr": None, "transient_failures": 0, "repair_failures": 0, "strong_attempts": 0, "merge_pending": 0,
         "not_before": 0.0, "last_failures": [], "implementer_model": None, "implementer_tier": None, "model_choices": {}, "blocked_reason": "",
         "consults": 0, "consult_pending": False, "delegator_guidance": [], "analyses": 0, "analysis_pending": False, "analysis": None,
     }
@@ -38,6 +38,10 @@ def new_issue(issue_id: str, plan_id: str, phase_id: str, requirement_ids: List[
 
 
 TRANSIENT_GITHUB = ("rate limit", "timeout", "timed out", "502", "503", "504", "connection", "temporar", "reset by peer", "could not resolve")
+# GitHub refuses a merge with 405 while a required check is still running. That is neither a conflict nor a failure, so
+# the merge simply waits: no repair budget, no stronger model, no issue churn.
+MERGE_PENDING = ("is in progress", "is queued", "waiting for status", "expected \u2014 waiting", "expected - waiting")
+MERGE_PENDING_LIMIT = 40
 MAX_DECISION_TEXT = 2000
 HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result"}
 
@@ -940,6 +944,17 @@ class Scheduler:
             return
         except GitHubError as exc:
             text = str(exc).lower()
+            if any(k in text for k in MERGE_PENDING):
+                issue["merge_pending"] = issue.get("merge_pending", 0) + 1
+                if issue["merge_pending"] >= MERGE_PENDING_LIMIT:
+                    issue["blocked_reason"] = "required checks did not finish after %d merge attempts: %s" % (
+                        issue["merge_pending"], str(exc)[:200])
+                    self.store.put_issue(issue)
+                    self._block(issue, now)
+                    return
+                self.store.put_issue(issue)
+                self._emit("merge_pending", issue=iid, waits=issue["merge_pending"], error=str(exc)[:160])
+                return
             transient = any(k in text for k in TRANSIENT_GITHUB)
             self._emit("merge_failed", issue=iid, error=str(exc)[:200], transient=transient)
             if not transient:
@@ -955,6 +970,9 @@ class Scheduler:
             return
         if not merged.get("merged"):
             return
+        if issue.get("merge_pending"):
+            issue["merge_pending"] = 0
+            self.store.put_issue(issue)
         self.store.add_evidence(iid, "merge", issue["head_rev"], self.repo.base_head(), "merged",
                                 {"mode": merged.get("mode"), "simulated": bool(merged.get("simulated"))}, now)
         self._emit("merged", issue=iid, pr=issue.get("pr"), head=issue["head_rev"][:12], simulated=bool(merged.get("simulated")))
