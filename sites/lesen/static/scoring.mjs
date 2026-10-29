@@ -77,6 +77,20 @@ export function isSpellableWith(text, allowedSounds) {
 }
 
 /**
+ * Collect the sentence texts of the given pool entries or cards.
+ * @param {Iterable<string|{text?: string}>|undefined} sentenceCards
+ * @returns {Set<string>} the texts that identify sentence cards
+ */
+function sentenceTextSet(sentenceCards) {
+  const texts = new Set();
+  for (const entry of sentenceCards || []) {
+    const text = cardTextOf(entry);
+    if (text) texts.add(text);
+  }
+  return texts;
+}
+
+/**
  * Collect the card texts from the recorded history that match the current
  * sound selection.
  *
@@ -84,21 +98,37 @@ export function isSpellableWith(text, allowedSounds) {
  * candidates have to be derived from the history itself rather than from
  * freshly generated combinations.
  *
+ * Word cards are filtered by spellability, exactly as before. Sentence cards
+ * are eligible regardless of spellability: a sentence is a whole utterance
+ * the child may still practise, even when not every one of its units is
+ * selected. Because the statistics map stores only texts, the caller names
+ * the sentence cards of the active language.
+ *
  * @param {object} stats - A map of card text to { correct_count, incorrect_count }
  * @param {Set<string>|readonly string[]} allowedSounds - Selected consonants,
  *   vowels and specials
+ * @param {Iterable<string|{text?: string}>} [sentenceCards] - texts of the
+ *   sentence cards of the active language
  * @returns {string[]} Card texts usable with the current selection
  */
-export function flopCandidateCards(stats, allowedSounds) {
+export function flopCandidateCards(stats, allowedSounds, sentenceCards = []) {
   if (!stats || typeof stats !== "object") {
     return [];
   }
-  return Object.keys(stats).filter((text) => isSpellableWith(text, allowedSounds));
+  const sentenceTexts = sentenceTextSet(sentenceCards);
+  return Object.keys(stats).filter(
+    (text) => sentenceTexts.has(text) || isSpellableWith(text, allowedSounds)
+  );
 }
 
 /**
  * Select cards for Flop Training (focused practice on weak cards).
- * 
+ *
+ * Sentence and word cards share the same rule: every candidate is ordered by
+ * its success rate and the worst tenth is practised. Because sentence cards
+ * reach this function through {@link flopCandidateCards}, they are never
+ * dropped for being unspellable; word cards keep the old spellability filter.
+ *
  * Algorithm:
  * 1. Filter to allowedCards that have been attempted at least once
  * 2. Sort ascending by success rate: correct/(correct+incorrect)
@@ -137,6 +167,33 @@ export function selectFlopDeck(stats, allowedCards) {
   const count = Math.min(Math.max(bottomPercent, 1), 30);
 
   return sorted.slice(0, count);
+}
+
+/**
+ * Build the Flop Training deck as practice cards.
+ *
+ * Candidates are chosen kind-aware by {@link flopCandidateCards} and cut by
+ * the worst-10 % rule of {@link selectFlopDeck}. Sentence cards keep their
+ * kind so the practice screen can size them like other sentence cards; word
+ * cards stay plain word cards. A single attempted sentence card therefore
+ * yields a usable one-card deck.
+ *
+ * @param {object} stats - A map of card text to { correct_count, incorrect_count }
+ * @param {Set<string>|readonly string[]} allowedSounds - Selected consonants,
+ *   vowels and specials
+ * @param {Iterable<string|{text?: string}>} [sentenceCards] - texts of the
+ *   sentence cards of the active language
+ * @returns {Array<{text: string, kind: "word"|"sentence", misses: number}>}
+ *   the flop deck, worst first
+ */
+export function buildFlopDeck(stats, allowedSounds, sentenceCards = []) {
+  const sentenceTexts = sentenceTextSet(sentenceCards);
+  const candidates = flopCandidateCards(stats, allowedSounds, sentenceCards);
+  return selectFlopDeck(stats, candidates).map((text) => ({
+    text,
+    kind: sentenceTexts.has(text) ? "sentence" : "word",
+    misses: 0,
+  }));
 }
 
 /**
