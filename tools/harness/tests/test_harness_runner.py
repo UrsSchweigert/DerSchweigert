@@ -143,7 +143,13 @@ def test_preflight_rejects_missing_absolute_paths_and_working_directories(tmp_pa
     assert len(calls) == 1
 
 
-def test_a_missing_test_file_is_a_configuration_error_not_a_failed_check(tmp_path, monkeypatch):
+def test_a_missing_file_that_the_phase_may_create_is_not_a_configuration_error(tmp_path, monkeypatch):
+    """Preflight runs at the base revision, where a file the phase will create does not exist yet.
+
+    Only the declared-path rule can tell that apart from a command that can never pass, so a plain
+    "file not found" from node must stay an ordinary failed check, not a configuration error that
+    blocks approval.
+    """
     from harness.checks import SandboxChecker
 
     class ExportRepo:
@@ -152,10 +158,10 @@ def test_a_missing_test_file_is_a_configuration_error_not_a_failed_check(tmp_pat
 
     monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
     monkeypatch.setattr(isolation, "_docker",
-                        lambda args, **kwargs: subprocess.CompletedProcess(args, 1, "", "Could not find 'tests/coverage.test.mjs'"))
-    results = SandboxChecker(ExportRepo(), "unused").preflight("head", [{"command": "node --test tests/coverage.test.mjs",
+                        lambda args, **kwargs: subprocess.CompletedProcess(args, 1, "", "Could not find 'tests/books.test.mjs'"))
+    results = SandboxChecker(ExportRepo(), "unused").preflight("head", [{"command": "node --test tests/books.test.mjs",
                                                                          "working_directory": "project"}])
-    assert results[0]["kind"] == "configuration"  # node says "Could not find", not "not found"
+    assert results[0]["kind"] == "check"
 
 
 def test_a_check_may_not_name_a_file_the_phase_cannot_create():
