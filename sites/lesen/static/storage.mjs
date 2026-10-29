@@ -4,10 +4,55 @@
  * The store is injected (e.g. `window.localStorage` on web) so these functions
  * stay pure and easy to unit test with a fake store. Each card's stats are
  * keyed by card text and include correct and incorrect attempt counts.
+ *
+ * Sentence cards use the same key and the same counter shape as word cards,
+ * so an attempt on either kind is stored and re-read identically. The
+ * persisted document is the flat map described above. A versioned document
+ * (`{ version: 2, cards: { … } }`) is also understood on read, so a store
+ * written by a newer schema is not lost; an unknown version reads as empty
+ * instead of throwing.
  */
 
 const CARD_STATS_KEY = "buchstabenzeit:card-stats";
 const LANGUAGE_KEY = "buchstabenzeit:language";
+
+/** The only statistics schema version this module understands. */
+const CARD_STATS_VERSION = 2;
+
+/**
+ * Whether a parsed JSON value is a plain object (not an array or null).
+ * @param {unknown} value parsed JSON value
+ * @returns {boolean} true for `{}`-style objects
+ */
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Turn a parsed statistics document into the flat counter map callers expect.
+ *
+ * Unversioned documents are the legacy flat map and are returned as they are,
+ * so existing word-card statistics keep every counter. Versioned documents
+ * carry their map under `cards`; a version this module does not know is
+ * treated as empty rather than crashing.
+ *
+ * @param {unknown} parsed parsed JSON document
+ * @returns {object} a map of card text to { correct_count, incorrect_count }
+ */
+function toStatsMap(parsed) {
+  if (!isPlainObject(parsed)) {
+    return {};
+  }
+  if (typeof parsed.version === "number") {
+    if (parsed.version !== CARD_STATS_VERSION) {
+      return {};
+    }
+    return isPlainObject(parsed.cards) ? parsed.cards : {};
+  }
+  // A legacy flat map may legitimately have a card called "version"; only a
+  // numeric version field marks a versioned document.
+  return parsed;
+}
 
 /**
  * Create a storage wrapper around an injectable store.
@@ -29,7 +74,7 @@ export function createStorage(store) {
         if (!json) {
           return {};
         }
-        return JSON.parse(json);
+        return toStatsMap(JSON.parse(json));
       } catch {
         // If JSON parsing fails, return empty stats
         return {};

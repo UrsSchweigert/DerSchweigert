@@ -90,6 +90,77 @@ test("storage: persists the +3 flop weight end-to-end", () => {
   assert.deepStrictEqual(persisted["ta"], { correct_count: 3, incorrect_count: 1 });
 });
 
+test("storage: a sentence attempt round-trips unchanged", () => {
+  const store = createFakeStore();
+  const stats = createStorage(store).read();
+  recordAttempt(stats, "Mama malt.", true, { flop: false });
+  recordAttempt(stats, "Mama malt.", false, { flop: false });
+  createStorage(store).write(stats);
+
+  const reloaded = createStorage(store).read();
+  assert.deepStrictEqual(reloaded["Mama malt."], { correct_count: 1, incorrect_count: 1 });
+  assert.deepStrictEqual(reloaded, stats);
+});
+
+test("storage: word-card statistics are unaffected by a sentence attempt", () => {
+  const store = createFakeStore();
+  store.setItem("buchstabenzeit:card-stats", JSON.stringify({
+    "Hut": { correct_count: 4, incorrect_count: 2 },
+  }));
+
+  const stats = createStorage(store).read();
+  recordAttempt(stats, "Oma mag Mama.", true, { flop: false });
+  createStorage(store).write(stats);
+
+  const reloaded = createStorage(store).read();
+  assert.deepStrictEqual(reloaded["Hut"], { correct_count: 4, incorrect_count: 2 });
+  assert.deepStrictEqual(reloaded["Oma mag Mama."], { correct_count: 1, incorrect_count: 0 });
+});
+
+test("storage: a versioned document is read as its card map", () => {
+  const store = createFakeStore();
+  store.setItem("buchstabenzeit:card-stats", JSON.stringify({
+    version: 2,
+    cards: { "Lisa erntet Ananas.": { correct_count: 2, incorrect_count: 0 } },
+  }));
+
+  assert.deepStrictEqual(createStorage(store).read(), {
+    "Lisa erntet Ananas.": { correct_count: 2, incorrect_count: 0 },
+  });
+});
+
+test("storage: an unknown version is empty and does not throw", () => {
+  const store = createFakeStore();
+  for (const document of [
+    { version: 1, cards: { "Hut": { correct_count: 1, incorrect_count: 0 } } },
+    { version: 99, cards: { "Hut": { correct_count: 1, incorrect_count: 0 } } },
+    { version: 3 },
+  ]) {
+    store.setItem("buchstabenzeit:card-stats", JSON.stringify(document));
+    assert.doesNotThrow(() => createStorage(store).read());
+    assert.deepStrictEqual(createStorage(store).read(), {});
+  }
+});
+
+test("storage: a versioned document without a cards map is empty", () => {
+  const store = createFakeStore();
+  for (const cards of [undefined, null, [], "Hut"]) {
+    store.setItem("buchstabenzeit:card-stats", JSON.stringify({ version: 2, cards }));
+    assert.deepStrictEqual(createStorage(store).read(), {});
+  }
+});
+
+test("storage: a card called 'version' stays a legacy word card", () => {
+  const store = createFakeStore();
+  store.setItem("buchstabenzeit:card-stats", JSON.stringify({
+    "version": { correct_count: 1, incorrect_count: 2 },
+  }));
+
+  assert.deepStrictEqual(createStorage(store).read(), {
+    "version": { correct_count: 1, incorrect_count: 2 },
+  });
+});
+
 test("language: a fake store with no prior value yields 'de'", () => {
   const store = createFakeStore();
   const lang = readLanguage(store);
