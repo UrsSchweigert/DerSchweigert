@@ -123,8 +123,55 @@ the function code, builds the React bundle, syncs it to S3, and invalidates
 CloudFront.
 
 Pushing to `main` also deploys automatically: the monorepo's
-`.github/workflows/deploy.yml` runs this site's tests and then applies the same
-deploy path in `deploy-lhc`. The manual commands above remain for local/hotfix use.
+`.github/workflows/deploy.yml` runs this site's tests (`test-lhc`) and then the
+same deploy path (`deploy-lhc`). The manual commands above remain for
+local/hotfix use.
+
+### Secrets required for CI deploys
+
+The workflow runs on the `UrsSchweigert/DerSchweigert` repository, so these must
+be set there (repository settings → Secrets and variables → Actions). Secret
+values do not move with code.
+
+Required (`tofu apply` fails without them, and the job says which are missing):
+
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+- `TF_VAR_HERE_API_KEY`, `TF_VAR_HERE_BROWSER_API_KEY`
+- `TF_VAR_GOOGLE_MAPS_API_KEY`, `TF_VAR_GOOGLE_MAPS_BROWSER_API_KEY`
+- `TF_VAR_DB_STADA_CLIENT_ID`, `TF_VAR_DB_STADA_API_KEY`
+
+Optional — used if present; the backing feature degrades gracefully otherwise:
+
+- `TF_VAR_TANKERKOENIG_API_KEY` (fuel prices), `JIRA_API_KEY` (feature requests),
+  `GH_WASTE_PAT` (waste-calendar contributions and auto-merge; needs `repo` and
+  `pull-requests: write`)
+
+Also needed by the monthly station-refresh workflow: `DB_STADA_CLIENT_ID` and
+`DB_STADA_API_KEY`.
+
+The Lambda itself reads its API keys from SSM Parameter Store
+(`/basicwebapp/*`, `/basicwebapp-dev/*`), so runtime keys are independent of
+these build-time secrets.
+
+`gh` can never read an existing secret's value, so each must be pasted once. If
+your local `infra/terraform/sites/landhauscheck/terraform.tfvars` still holds the
+values, this sets the six required ones from it:
+
+```bash
+cd infra/terraform/sites/landhauscheck
+for pair in HERE_API_KEY:here_api_key \
+            HERE_BROWSER_API_KEY:here_browser_api_key \
+            GOOGLE_MAPS_API_KEY:google_maps_api_key \
+            GOOGLE_MAPS_BROWSER_API_KEY:google_maps_browser_api_key \
+            DB_STADA_CLIENT_ID:db_stada_client_id \
+            DB_STADA_API_KEY:db_stada_api_key; do
+  secret="TF_VAR_${pair%%:*}"; key="${pair##*:}"
+  value="$(sed -n "s/^${key}[[:space:]]*=[[:space:]]*\"\(.*\)\"/\1/p" terraform.tfvars)"
+  if [ -n "$value" ]; then
+    gh secret set "$secret" --repo UrsSchweigert/DerSchweigert --body "$value" && echo "set $secret"
+  fi
+done
+```
 
 ---
 

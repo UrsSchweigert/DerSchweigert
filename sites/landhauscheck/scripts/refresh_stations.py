@@ -22,7 +22,7 @@ import httpx
 STADA_BASE = (
     "https://apis.deutschebahn.com/db-api-marketplace/apis/station-data/v2/stations"
 )
-OUT_FILE = Path(__file__).parent.parent / "sites/landhauscheck/app/data/db_stations.json"
+OUT_FILE = Path(__file__).parent.parent / "app/data/db_stations.json"
 PAGE_SIZE = 1000
 
 

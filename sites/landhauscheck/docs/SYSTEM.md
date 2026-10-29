@@ -420,18 +420,33 @@ so each one gates its jobs on the changed paths.
 | `refresh-stations.yml` | Monthly cron (1st, 03:00 UTC) | Re-downloads DB station snapshot, auto-commits if changed |
 
 ### Required GitHub Secrets
-| Secret | Purpose |
-|---|---|
-| `AWS_ACCESS_KEY_ID` | AWS auth |
-| `AWS_SECRET_ACCESS_KEY` | AWS auth |
-| `AWS_REGION` | `eu-west-1` |
-| `TF_VAR_HERE_API_KEY` | Lambda server key (HERE transit) |
-| `TF_VAR_HERE_BROWSER_API_KEY` | Frontend build `VITE_HERE_API_KEY` |
-| `TF_VAR_GOOGLE_MAPS_API_KEY` | Lambda server key (Directions/Places/Geocoding) |
-| `TF_VAR_GOOGLE_MAPS_BROWSER_API_KEY` | Frontend build `VITE_GOOGLE_MAPS_API_KEY` |
-| `TF_VAR_DB_STADA_CLIENT_ID` | DB station refresh |
-| `TF_VAR_DB_STADA_API_KEY` | DB station refresh |
-| `GH_WASTE_PAT` | `waste-calendar-review.yml` — PAT with `repo` + `pull_requests: write` scopes |
+
+These live on the **`UrsSchweigert/DerSchweigert`** repository (secret values do not
+move with code, so they had to be re-created there when this site joined the
+monorepo). At runtime the Lambda reads keys from SSM Parameter Store — the
+`TF_VAR_*` secrets below are only used by the CI `tofu apply`, because a CI
+checkout has no `terraform.tfvars` (gitignored, holds the same values locally).
+
+| Secret | Used by | Required | Purpose |
+|---|---|---|---|
+| `AWS_ACCESS_KEY_ID` | `deploy-lhc` | yes | AWS auth |
+| `AWS_SECRET_ACCESS_KEY` | `deploy-lhc` | yes | AWS auth |
+| `TF_VAR_HERE_API_KEY` | `deploy-lhc` | **yes** (no default) | SSM `/basicwebapp/here-api-key` |
+| `TF_VAR_HERE_BROWSER_API_KEY` | `deploy-lhc` | **yes** (no default) | SSM browser key |
+| `TF_VAR_GOOGLE_MAPS_API_KEY` | `deploy-lhc` | **yes** (no default) | SSM server key |
+| `TF_VAR_GOOGLE_MAPS_BROWSER_API_KEY` | `deploy-lhc` | **yes** (no default) | SSM browser key |
+| `TF_VAR_DB_STADA_CLIENT_ID` | `deploy-lhc` | **yes** (no default) | SSM DB StaDa client id |
+| `TF_VAR_DB_STADA_API_KEY` | `deploy-lhc` | **yes** (no default) | SSM DB StaDa key |
+| `TF_VAR_TANKERKOENIG_API_KEY` | `deploy-lhc` | no (defaults empty) | Fuel prices; blanking it disables the widget |
+| `JIRA_API_KEY` | `deploy-lhc` | no (defaults empty) | Feature-request endpoint |
+| `GH_WASTE_PAT` | `deploy-lhc`, `waste-calendar-review.yml` | no (defaults empty) | Waste contribution + auto-merge; PAT with `repo` and `pull-requests: write` |
+| `DB_STADA_CLIENT_ID` | `refresh-stations.yml` | yes for that cron | Monthly station snapshot |
+| `DB_STADA_API_KEY` | `refresh-stations.yml` | yes for that cron | Monthly station snapshot |
+
+`deploy-lhc` fails fast with an explicit list if any of the six required
+`TF_VAR_*` secrets is missing. `AWS_REGION` is not read by this job: the workflow
+sets `TF_VAR_aws_region: eu-west-1` directly, because the variable defaults to
+`eu-central-1` and omitting it would plan a duplicate copy of the stack there.
 
 ---
 
