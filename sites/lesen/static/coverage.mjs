@@ -55,6 +55,28 @@ function allowedUnits(selection) {
 }
 
 /**
+ * Precompute what a selection allows once per call, so per-unit checks do not
+ * rebuild the set or scan the specials list.
+ * @param {{consonants?: Iterable<string>, vowels?: Iterable<string>, specials?: Iterable<string>}} selection
+ * @returns {{allowed: Set<string>, doubledAllowed: boolean}} selection rules
+ */
+function selectionRules(selection) {
+  const allowed = allowedUnits(selection);
+  return { allowed, doubledAllowed: allowed.has("xx") };
+}
+
+/**
+ * Whether one tokenized unit is readable under precomputed selection rules.
+ * @param {string} unit sound unit
+ * @param {{allowed: Set<string>, doubledAllowed: boolean}} rules selection rules
+ * @returns {boolean} true when the unit is readable
+ */
+function unitReadable(unit, rules) {
+  if (rules.allowed.has(unit)) return true;
+  return rules.doubledAllowed && unit.length === 2 && unit[0] === unit[1];
+}
+
+/**
  * Whether a single sound unit is allowed by a selection.
  *
  * A two-character unit of identical letters (e.g. "ll") counts as allowed
@@ -66,10 +88,8 @@ function allowedUnits(selection) {
  * @returns {boolean} true when the unit is readable
  */
 export function isUnitAllowed(unit, selection, allowed = allowedUnits(selection)) {
-  if (allowed.has(unit)) return true;
-  const doubled = unit.length === 2 && unit[0] === unit[1];
   const specials = selection && selection.specials ? [...selection.specials] : [];
-  return doubled && specials.includes("xx");
+  return unitReadable(unit, { allowed, doubledAllowed: specials.includes("xx") });
 }
 
 /**
@@ -86,11 +106,11 @@ export function isUnitAllowed(unit, selection, allowed = allowedUnits(selection)
  * @returns {{readable: boolean, missing: string[]}} classification
  */
 export function classifyWord(word, selection, lang = "de") {
-  const allowed = allowedUnits(selection);
+  const rules = selectionRules(selection);
   const units = unitsOf(word, lang);
   const missing = [];
   for (const unit of units) {
-    if (!isUnitAllowed(unit, selection, allowed) && !missing.includes(unit)) missing.push(unit);
+    if (!unitReadable(unit, rules) && !missing.includes(unit)) missing.push(unit);
   }
   return { readable: units.length > 0 && missing.length === 0, missing };
 }
@@ -109,7 +129,7 @@ export function classifyWord(word, selection, lang = "de") {
  * @returns {{tokens: number, types: number}} fractions, 0 when there is nothing to count
  */
 export function coverageOfTypes(text, selection, lang = "de") {
-  const allowed = allowedUnits(selection);
+  const rules = selectionRules(selection);
   const tokens = wordTokens(text);
   if (!tokens.length) return { tokens: 0, types: 0 };
 
@@ -118,7 +138,7 @@ export function coverageOfTypes(text, selection, lang = "de") {
   const readableTypes = new Set();
   for (const token of tokens) {
     types.add(token);
-    const readable = unitsOf(token, lang).every((unit) => isUnitAllowed(unit, selection, allowed));
+    const readable = unitsOf(token, lang).every((unit) => unitReadable(unit, rules));
     if (readable) {
       readableTokens++;
       readableTypes.add(token);
@@ -142,7 +162,7 @@ export function coverageOfTypes(text, selection, lang = "de") {
  * @returns {number} fraction in [0, 1], 0 for an empty pool
  */
 export function readableSentenceShare(sentences, selection, lang = "de") {
-  const allowed = allowedUnits(selection);
+  const rules = selectionRules(selection);
   const pool = sentences ? [...sentences] : [];
   if (!pool.length) return 0;
 
@@ -151,7 +171,7 @@ export function readableSentenceShare(sentences, selection, lang = "de") {
     const text = typeof entry === "string" ? entry : entry && entry.text;
     const tokens = wordTokens(text);
     const fullyReadable = tokens.length > 0
-      && tokens.every((token) => unitsOf(token, lang).every((unit) => isUnitAllowed(unit, selection, allowed)));
+      && tokens.every((token) => unitsOf(token, lang).every((unit) => unitReadable(unit, rules)));
     if (fullyReadable) readable++;
   }
   return readable / pool.length;

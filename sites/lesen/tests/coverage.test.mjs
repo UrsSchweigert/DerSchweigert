@@ -7,6 +7,7 @@ import {
   classifyWord,
   coverageOfTypes,
   readableSentenceShare,
+  wordTokens,
 } from "../static/coverage.mjs";
 import { getSoundsForLanguage } from "../static/sounds.mjs";
 
@@ -148,4 +149,46 @@ test("the module is pure: it imports only the tokenizer and touches no browser o
   for (const forbidden of ["document", "window", "localStorage", "sessionStorage", "fetch(", "XMLHttpRequest", "indexedDB"]) {
     assert.ok(!source.includes(forbidden), "coverage.mjs must not reference " + forbidden);
   }
+});
+
+test("wordTokens: hyphens, apostrophes and digits separate words", () => {
+  assert.deepEqual(wordTokens("Schaukel-pferd, don't 42"), ["schaukel", "pferd", "don", "t"]);
+  assert.deepEqual(wordTokens(""), []);
+});
+
+test("classifyWord: English uses its own greedy digraphs", () => {
+  const withoutAi = { consonants: [..."sd"], vowels: [..."i"], specials: [] };
+  const withAi = { consonants: [..."sd"], vowels: [..."i"], specials: ["ai"] };
+  assert.deepEqual(classifyWord("said", withoutAi, "en"), { readable: false, missing: ["ai"] });
+  assert.deepEqual(classifyWord("said", withAi, "en"), { readable: true, missing: [] });
+});
+
+test("classifyWord: accepts a Set of specials and still applies the xx rule", () => {
+  const selection = { consonants: [..."kmt"], vowels: [..."o"], specials: new Set(["xx"]) };
+  assert.deepEqual(classifyWord("kommt", selection), { readable: true, missing: [] });
+});
+
+test("readableSentenceShare: xx unlocks doubled-letter sentences", () => {
+  const pool = ["Mama kommt.", "Oma kommt."];
+  const withoutXx = { consonants: [..."mkt"], vowels: [..."oa"], specials: [] };
+  const withXx = { consonants: [..."mkt"], vowels: [..."oa"], specials: ["xx"] };
+  assert.equal(readableSentenceShare(pool, withoutXx), 0);
+  assert.equal(readableSentenceShare(pool, withXx), 1);
+});
+
+test("readableSentenceShare: adding a unit never lowers the share", () => {
+  const pool = ["Mama malt.", "Oma liest.", "Das Eichhörnchen sammelt Nüsse."];
+  const selection = { consonants: [], vowels: [], specials: [] };
+  let previous = readableSentenceShare(pool, selection);
+  for (const [unit, bucket] of [
+    ...["m", "l", "t", "s", "r", "n", "d", "h", "ch", "st", "ß"].map((unit) => [unit, "consonants"]),
+    ...["a", "e", "i", "o", "u"].map((unit) => [unit, "vowels"]),
+    ...["ei", "ie", "xx", "ä", "ö", "ü"].map((unit) => [unit, "specials"]),
+  ]) {
+    selection[bucket].push(unit);
+    const current = readableSentenceShare(pool, selection);
+    assert.ok(current >= previous, "sentence share dropped after adding " + unit);
+    previous = current;
+  }
+  assert.equal(previous, 1);
 });
