@@ -1,187 +1,126 @@
 # Book text extraction
 
 `tools/epub.mjs` converts each EPUB spine document's XHTML into reading
-blocks. This document is the specification of that conversion. Every rule is
-listed here with a before/after example, and it is the only place the
-segmentation rules are defined — the app never re-splits text.
+blocks. This document specifies that conversion: every rule appears here with
+a before/after example, and it is the only place segmentation is defined — the
+app never re-splits text.
 
-A document becomes a list of **blocks**. Each block is either:
+A document becomes a list of **blocks**, either `prose` (one paragraph:
+`paragraphs`, `sentences`) or `verse` (one or more `lines`, plus `sentences`).
 
-- `prose` — one paragraph (`paragraphs`, `sentences`), or
-- `verse` — one or more verse lines (`lines`, `sentences`).
-
-Both kinds carry a `sentences` array.
-
-## Block rules
+## Blocks
 
 **Block elements end a paragraph.** `p`, `div`, `li`, `blockquote` and
 `h1`–`h6` close the current block when they open and when they close.
 
-```html
+```text
 <p>Ein Satz.</p><p>Ein zweiter Satz.</p>
-```
-```json
-[{ "kind": "prose", "paragraphs": ["Ein Satz."] },
- { "kind": "prose", "paragraphs": ["Ein zweiter Satz."] }]
+→ [{ "kind": "prose", "paragraphs": ["Ein Satz."] },
+   { "kind": "prose", "paragraphs": ["Ein zweiter Satz."] }]
 ```
 
-**`<br/>` produces verse lines.** A block that contains a `<br/>` becomes a
-`verse` block whose lines are the text around each break.
+**`<br/>` and verse containers produce verse lines.** A block containing
+`<br/>`, or any element whose class contains `poem`, `stanza`, `verse` or
+`poetry`, becomes a `verse` block whose lines are the text around each break.
 
-```html
-<p>Der Friederich, der Friederich<br/>
-das war ein arger Wüterich!</p>
-```
-```json
-[{ "kind": "verse",
-   "lines": ["Der Friederich, der Friederich", "das war ein arger Wüterich!"] }]
+```text
+<p>Der Friederich, der Friederich<br/>das war ein arger Wüterich!</p>
+→ [{ "kind": "verse",
+     "lines": ["Der Friederich, der Friederich", "das war ein arger Wüterich!"] }]
 ```
 
-**Verse containers produce verse lines.** Elements whose class contains
-`poem`, `stanza`, `verse` or `poetry` mark their content as verse even when no
-`<br/>` is present.
+**Table cells separate words.** `td` and `th` insert a word boundary without
+ending the paragraph: `<td>eins</td><td>zwei</td>` → `"eins zwei"`.
 
-```html
-<div class="poem"><div class="stanza">Zeile eins</div></div>
-```
-```json
-[{ "kind": "verse", "lines": ["Zeile eins"] }]
-```
-
-**Empty blocks are dropped.** A paragraph with no visible text, or a verse
-block with no non-empty lines, produces no block at all.
-
-```html
-<p> </p><p><br/></p><p>Text</p>
-```
-```json
-[{ "kind": "prose", "paragraphs": ["Text"] }]
-```
+**Empty blocks are dropped.** `<p> </p><p><br/></p><p>Text</p>` yields only
+`[{ "kind": "prose", "paragraphs": ["Text"] }]`.
 
 ## Entities and whitespace
 
-**Entities and numeric references are decoded** before any other step. Named
-entities include `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`, `&nbsp;`,
-`&shy;`, the German umlauts and common typographic marks; numeric references
-(`&#252;`, `&#xE4;`) are decoded as well.
+**Entities and numeric references are decoded** first (`&amp;`, `&lt;`,
+`&nbsp;`, `&shy;`, umlauts, typographic marks, `&#252;`, `&#xE4;`).
 
-| Before         | After |
-| -------------- | ----- |
-| `Th&uuml;r`    | `Thür` |
-| `&#252; &#xE4;` | `ü ä`  |
+```text
+Th&uuml;r und &#252;  →  Thür und ü
+```
 
-**`nbsp` collapses to a space.** A non-breaking space is whitespace, not a
-letter.
+**`nbsp` becomes a space; soft hyphens and zero-width characters are removed
+without adding one** (U+00AD, U+200B–U+200D, U+2060, U+FEFF).
 
-| Before     | After |
-| ---------- | ----- |
-| `a&nbsp;b` | `a b` |
+```text
+a&nbsp;b         →  a b
+Wort&shy;bruch   →  Wortbruch
+a\u200Bb         →  ab
+```
 
-**Soft hyphens are removed** without adding a space, so the surrounding
-letters stay together.
-
-| Before          | After      |
-| --------------- | ---------- |
-| `Wort&shy;bruch` | `Wortbruch` |
-
-**Zero-width spaces (U+200B) and other invisible characters are removed.**
-Soft hyphen (U+00AD), zero-width space (U+200B), zero-width non-joiner/joiner
-(U+200C/U+200D), word joiner (U+2060) and the byte-order mark (U+FEFF) carry
-no letter and are stripped.
-
-| Before     | After |
-| ---------- | ----- |
-| `a\u200Bb` | `ab`  |
-
-**Repeated spaces and line breaks inside a paragraph collapse to one space.**
-Source line breaks are pretty-printing only and never become verse lines.
-
-| Before              | After |
-| ------------------- | ----- |
-| `  a   ` `\n\t` ` b  ` | `a b` |
-
-No letter is ever dropped by these rules: only entity decoding, invisible
-characters and whitespace change.
+**Repeated spaces and source line breaks inside a paragraph collapse to one
+space:** `"  a   \n\t b  "` → `"a b"`. Only entity decoding, invisible
+characters and whitespace change; no letter is ever dropped.
 
 ## Sentence splitting
 
-Sentence segmentation happens **only** in `tools/epub.mjs`
-(`splitSentences`). The app consumes the resulting `sentences` arrays and
-never re-splits.
+Segmentation happens **only** in `tools/epub.mjs` (`splitSentences`); the app
+consumes the resulting `sentences` arrays and never re-splits.
 
 **A sentence ends after `.`, `!` or `?` plus an optional closing quote or
 bracket** (`»`, `«`, `“`, `”`, `‘`, `’`, `›`, `‹`, `"`, `'`, `)`, `]`, `}`).
+A period ends a sentence only when the next word starts with an uppercase
+letter or a digit, or the text ends.
 
 ```text
-Er rief »Hallo!« Dann ging er.
-```
-```json
-["Er rief »Hallo!«", "Dann ging er."]
+Er rief »Hallo!« Dann ging er.  →  ["Er rief »Hallo!«", "Dann ging er."]
+Er kam. dann ging er.           →  ["Er kam. dann ging er."]
 ```
 
-**A period after a known abbreviation does not end a sentence.** The
-recognised abbreviations are `Herr`, `Hr`, `Frau`, `Fr`, `Dr`, `Mr`, `Mrs`,
-`Ms`, `St`, `Prof`, `Nr`, `Bd`, `etc`, `usw`, `ca`, `bzw`, `vgl`, and the
-spaced forms `z. B.`, `u. a.`, `d. h.` and similar.
+**A period after a known title abbreviation does not end a sentence.** `Hr`,
+`Fr`, `Dr`, `Mr`, `Mrs`, `Ms`, `St`, `Prof`, `Nr`, `Bd`, `etc`, `usw`, `ca`,
+`bzw`, `vgl`, and the spaced forms `z. B.`, `u. a.`, `d. h.`.
 
 ```text
-Dr. Hoffmann kam. z. B. ein Haus. u. a. auch.
-```
-```json
-["Dr. Hoffmann kam.", "z. B. ein Haus.", "u. a. auch."]
+Dr. Hoffmann kam.  →  ["Dr. Hoffmann kam."]
+z. B. ein Haus.    →  ["z. B. ein Haus."]
 ```
 
-**A period inside a number does not end a sentence.**
-
-```text
-Das kostet 3.5 Euro.
-```
-```json
-["Das kostet 3.5 Euro."]
-```
-
-**A dash-led dialogue line stays one sentence.** Text that begins with an em
-dash (`—`) or en dash (`–`) is a single utterance and is not split further.
+**`Herr` and `Frau` suppress a split only before a lowercase word**, because
+they are also ordinary words.
 
 ```text
-– Ja, ich weiß. Und du?
-```
-```json
-["– Ja, ich weiß. Und du?"]
+Herr und Frau sind da.        →  ["Herr und Frau sind da."]
+Er sagte Herr. Dann ging er.  →  ["Er sagte Herr.", "Dann ging er."]
 ```
 
-**Historical spelling survives unchanged.** Characters such as `bey` and
-`Thür` pass through byte-for-byte; a sentence never differs from its source
-excerpt except through the rules above.
+**A period inside a number does not end a sentence:**
+`Das kostet 3.5 Euro.` → `["Das kostet 3.5 Euro."]`
+
+**A dash-led dialogue line stays one sentence:**
+`– Ja, ich weiß. Und du?` → `["– Ja, ich weiß. Und du?"]`
+
+**Historical spelling survives unchanged.** `bey` and `Thür` pass through
+byte for byte; a sentence never differs from its source excerpt except through
+the rules above.
 
 ## Boilerplate removal
 
-Boilerplate is removed by this explicit boundary list; every boundary is
+Boilerplate is removed only through this boundary list; every boundary is
 listed here.
 
-1. **Project Gutenberg header** — the `<div id="pg-header">` element and all
-   of its content (the machine header and the
-   `*** START OF THE PROJECT GUTENBERG EBOOK … ***` separator).
-
-2. **Project Gutenberg footer** — the `<div id="pg-footer">` element and all
-   of its content (the `*** END OF THE PROJECT GUTENBERG EBOOK … ***`
-   separator and the full license).
-
+1. **Project Gutenberg header** — any element with `id="pg-header"`: the
+   machine header and the `*** START OF … ***` separator.
+2. **Project Gutenberg footer** — any element with `id="pg-footer"`: the
+   `*** END OF … ***` separator and the license.
 3. **`<nav>` elements** — navigation blocks are never reading text.
+4. **Navigation pages** — a whole spine document is dropped only when package
+   metadata marks it as a table of contents: a manifest item with
+   `properties="nav"`, or a nav/NCX title of `Inhalt`, `Inhaltsverzeichnis`,
+   `Contents`, `Table of Contents` or `Index`. Bodies are never inspected, so
+   a chapter containing an `Inhalt` heading is still read.
+5. **Printer imprints** — any element whose class contains `printer`, e.g.
+   `<p class="printer">Druck von …</p>`.
 
-4. **Navigation pages** — a whole document is dropped when any of its
-   `h1`–`h6` headings is a table of contents: `Inhalt`,
-   `Inhaltsverzeichnis`, `Contents`, `Table of Contents` or `Index`.
-
-5. **Printer imprints** — any element whose class contains `printer` (for
-   example `<p class="printer">Druck von …</p>`) is dropped.
+`parsePackage` reports this as `navigation` per document;
+`extractBlocks(xhtml, { navigation: true })` returns no blocks.
 
 ## Counts
 
-`extractBlocks` returns `{ blocks, paragraphs, sentences }` where:
-
-- `paragraphs` counts prose paragraphs plus verse lines (the total number of
-  text segments), and
-- `sentences` counts every sentence across all blocks.
-
-These are the values the manifest stores and the tests assert.
+`paragraphs` counts prose paragraphs plus verse lines; `sentences` counts
+every sentence across all blocks.

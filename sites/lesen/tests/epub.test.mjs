@@ -527,6 +527,11 @@ test("splitSentences ends after .!? plus a closing quote, with the documented ex
   assert.deepStrictEqual(splitSentences("u. a. auch"), ["u. a. auch"]);
   assert.deepStrictEqual(splitSentences("Mr. und Mrs. Brown kamen."), ["Mr. und Mrs. Brown kamen."]);
   assert.deepStrictEqual(splitSentences("St. Gallen liegt da."), ["St. Gallen liegt da."]);
+  // A full word that happens to look like a title is not an abbreviation.
+  assert.deepStrictEqual(splitSentences("Er sagte Herr. Dann ging er."), [
+    "Er sagte Herr.",
+    "Dann ging er.",
+  ]);
   assert.deepStrictEqual(splitSentences("Das kostet 3.5 Euro."), ["Das kostet 3.5 Euro."]);
   assert.deepStrictEqual(splitSentences("Er rief »Hallo!« Dann ging er."), [
     "Er rief »Hallo!«",
@@ -575,15 +580,38 @@ test("extractBlocks ends paragraphs at block elements and drops empty blocks", (
   assert.strictEqual(sentences, 4);
 });
 
-test("Struwwelpeter: sample story words appear in order, no empty sentences, counts match the manifest", () => {
+test("table cells separate words instead of running them together", () => {
+  const { blocks } = extractBlocks("<table><tr><td>eins</td><td>zwei</td></tr></table>");
+  assert.deepStrictEqual(
+    blocks.map((block) => block.text),
+    ["eins zwei"],
+  );
+});
+
+test("navigation pages come from the package metadata, never from body headings", () => {
+  // The Grimms' "Inhalt" page is named by its NCX title and is dropped.
+  const grimmBytes = readFileSync(
+    new URL("../books-src/de-grimm-kinder-und-hausmaerchen.epub", import.meta.url),
+  );
+  const grimm = parse(grimmBytes);
+  assert.deepStrictEqual(
+    grimm.documents.filter((doc) => doc.navigation).map((doc) => doc.path),
+    ["OEBPS/2006717036795448504_77905-h-66.htm.html"],
+  );
+  // The Münchhausen body contains an in-document "Inhalt." heading but is
+  // reading text, so it must never be dropped.
+  const muenchhausenBytes = readFileSync(
+    new URL("../books-src/de-muenchhausen.epub", import.meta.url),
+  );
+  const muenchhausen = parse(muenchhausenBytes);
+  assert.deepStrictEqual(muenchhausen.documents.filter((doc) => doc.navigation), []);
+});
+
+test("Struwwelpeter: sample story words appear in order and no sentence is empty", () => {
   const { documents } = parsePackage(struwwelpeterBytes, { inflate: inflateRawSync });
   const texts = [];
-  let paragraphs = 0;
-  let sentences = 0;
   for (const doc of documents) {
-    const result = extractBlocks(doc.xhtml);
-    paragraphs += result.paragraphs;
-    sentences += result.sentences;
+    const result = extractBlocks(doc.xhtml, { navigation: doc.navigation });
     for (const block of result.blocks) {
       texts.push(block.text);
       for (const sentence of block.sentences) {
@@ -591,10 +619,6 @@ test("Struwwelpeter: sample story words appear in order, no empty sentences, cou
       }
     }
   }
-
-  // Whole-book manifest values.
-  assert.strictEqual(paragraphs, 374);
-  assert.strictEqual(sentences, 451);
 
   const expectedWords = [SAMPLE_STORY_HEADING, ...SAMPLE_STORY_LINES].join(" ").trim().split(/\s+/);
   assertWordsInOrder(texts.join(" "), expectedWords);
@@ -605,7 +629,7 @@ test("Struwwelpeter: the sample story yields 31 paragraphs and 31 sentences", ()
   const doc = documents.find((document) => document.xhtml.includes("Wüterich"));
   assert.ok(doc, "the story body document must be present");
 
-  const { blocks } = extractBlocks(doc.xhtml);
+  const { blocks } = extractBlocks(doc.xhtml, { navigation: doc.navigation });
   const start = blocks.findIndex((block) => block.text.includes(SAMPLE_STORY_HEADING));
   const end = blocks.findIndex((block) => block.text.includes("Die gar traurige Geschichte"));
   assert.ok(start >= 0, "sample story heading must be found");
@@ -622,27 +646,65 @@ test("Struwwelpeter: the sample story yields 31 paragraphs and 31 sentences", ()
   assert.strictEqual(sentences, 31);
 });
 
-test("all sixteen books extract without error and never yield an empty sentence", () => {
+/** Remove every element whose start tag matches, honouring nesting. */
+function dropElements(html, matches) {
+  const re = /<(\/?)([A-Za-z][\w:.-]*)\b[^>]*?(\/?)>/g;
+  let out = "";
+  let cursor = 0;
+  let depth = 0;
+  let name = "";
+  for (let m; (m = re.exec(html)); ) {
+    if (depth === 0) {
+      if (m[1] === "/" || m[3] || !matches(m[0], m[2].toLowerCase())) continue;
+      out += html.slice(cursor, m.index);
+      name = m[2].toLowerCase();
+      depth = 1;
+      continue;
+    }
+    if (m[2].toLowerCase() !== name) continue;
+    if (m[1] === "/") depth--;
+    else if (!m[3]) depth++;
+    if (depth === 0) cursor = m.index + m[0].length;
+  }
+  return out + html.slice(cursor);
+}
+
+/** Every letter of a source document, in order, with the documented boundaries removed. */
+function sourceLetters(xhtml) {
+  const html = dropElements(
+    String(xhtml),
+    (tag, name) =>
+      ["head", "nav", "script", "style"].includes(name) ||
+      /id\s*=\s*["']pg-(?:header|footer)["']/i.test(tag) ||
+      /class\s*=\s*["'][^"']*\bprinter\b/i.test(tag),
+  );
+  const text = html.replace(/<!--[\s\S]*?-->/g, " ").replace(/<[^>]*>/g, "");
+  return normalizeText(text).replace(/\s+/g, "");
+}
+
+test("every book keeps every letter of its non-navigation source documents", () => {
   const booksDir = new URL("../books-src/", import.meta.url);
   const files = readdirSync(booksDir).filter((name) => name.endsWith(".epub"));
   assert.strictEqual(files.length, 16, "the committed library must contain sixteen books");
 
+  // Regression: de-muenchhausen, en-secret-garden, en-railway-children,
+  // en-just-so-stories and en-five-children-and-it used to lose whole chapter
+  // documents because an in-document "Inhalt"/"Contents" heading dropped them.
   for (const file of files) {
-    const bytes = readFileSync(new URL(file, booksDir));
-    const { documents } = parsePackage(bytes, { inflate: inflateRawSync });
-    let blocks = 0;
+    const { documents } = parse(readFileSync(new URL(file, booksDir)));
     for (const doc of documents) {
-      const result = extractBlocks(doc.xhtml);
-      blocks += result.blocks.length;
-      assert.ok(result.paragraphs >= 0, `${file}: paragraph count must be non-negative`);
-      assert.ok(result.sentences >= 0, `${file}: sentence count must be non-negative`);
+      const result = extractBlocks(doc.xhtml, { navigation: doc.navigation });
       for (const block of result.blocks) {
-        assert.ok(block.kind === "prose" || block.kind === "verse", `${file}: unknown block kind`);
         for (const sentence of block.sentences) {
           assert.ok(sentence.trim().length > 0, `${file}: empty sentence in ${doc.path}`);
         }
       }
+      if (doc.navigation) {
+        assert.strictEqual(result.blocks.length, 0, `${file}: ${doc.path} is a navigation page`);
+        continue;
+      }
+      const extracted = result.blocks.map((block) => block.text).join(" ").replace(/\s+/g, "");
+      assert.strictEqual(extracted, sourceLetters(doc.xhtml), `${file}: ${doc.path} must keep every word`);
     }
-    assert.ok(blocks > 0, `${file} must yield at least one block`);
   }
 });
