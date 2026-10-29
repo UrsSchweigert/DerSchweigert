@@ -197,6 +197,15 @@ was evaluated without changing dependency manifests or CI defaults.
 
 After PR #26 broke production (a classic script read `window.__storage` before the module script set it) the harness gained a browser-level gate. The worker image carries Playwright Chromium and `smoke/lesen.mjs`; `smoke.json` maps changed paths to it. It is appended to an issue's validation commands (pre-merge, rebase rerun, post-merge, phase validation) and the isolation probe requires it. Failing output tails are included in repair feedback. Verified: passes on `849c734`, fails on the broken `d9c092e`. Limit: it covers the lesen web page only.
 
+## The diff cap counts added lines, not removals (2026-10-29)
+
+`remove-book-pipeline` blocked with `diff exceeds 800 lines` before it could be reviewed: deleting the
+EPUB importer removes about 1.950 lines, so a deletion-only issue can never pass a cap on insertions plus
+deletions. The cap exists to bound what a reviewer has to read, and deletions of a feature are not read
+line by line. `GitRepo.numstat_diff` now reports `added` and `removed` separately and the scheduler
+compares `added` with `diff_size_cap`; the failure text names both numbers. A test double that only knows
+a total keeps working because the default derives `added` from `numstat`.
+
 ## The pull-request budget can be lifted (2026-10-29)
 
 `pull_requests_per_run` defaults to 20. Setting it to `null` in an approved plan's policy means the owner

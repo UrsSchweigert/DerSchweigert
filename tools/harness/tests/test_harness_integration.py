@@ -254,6 +254,17 @@ def test_oversized_diff_blocks(tmp_path):
     assert env.store.get_attempt("i1#1")["failure_kind"] == "diff_too_large"
 
 
+def test_a_deletion_only_diff_does_not_trip_the_cap(tmp_path):
+    """Removing a feature is mostly deletions; the cap bounds added lines, which is what has to be reviewed."""
+    env = Env(tmp_path)
+    env.adapter.impl_paths["i1"] = ["src/old.py"]
+    env.adapter.impl_added["i1"] = 7
+    env.adapter.impl_removed["i1"] = 5000
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    assert env.store.get_attempt("i1#1").get("failure_kind") is None
+
+
 def test_human_merge_policy_stops_at_review(tmp_path):
     env = Env(tmp_path, merge_policy="human-merges")
     env.start()
