@@ -594,7 +594,8 @@ class Scheduler:
                                  evidence={"head": head, "results": failed})
             return
         run = self.store.get_run(self.plan_id)
-        if run.get("prs", 0) >= self._plan()["policy"]["budgets"]["pull_requests_per_run"]:
+        pr_limit = self._plan()["policy"]["budgets"].get("pull_requests_per_run")  # None means the owner set no limit
+        if pr_limit is not None and run.get("prs", 0) >= pr_limit:
             self._pause("pull request budget exhausted", now)
             return
         if not self._authorize_operations(issue, ["pushes", "pull_requests"], now, meta, h["epoch"]):
