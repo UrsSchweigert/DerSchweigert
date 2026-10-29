@@ -75,7 +75,8 @@ that can access the local account and port are not isolated from it.
   upstream while rewriting the loopback Host/Origin the dashboard checks. The
   dashboard itself is never re-bound or exposed directly. When `HARNESS_GUI_PIN`
   is set in the git-ignored `sites/derschweigert/.env`, `harness gui`, `run`,
-  and `resume` auto-start the relay plus `cloudflared`; `--no-tunnel` or
+  and `resume` auto-start the relay plus the configured tunnel provider
+  (`cloudflared`, `localhostrun`, or `ngrok`); `--no-tunnel` or
   `HARNESS_NO_TUNNEL=1` opts out. The relay weakens the default posture (the PIN
   and tunnel are the only barriers), so it must keep its own controls:
   constant-time PIN comparison, per-address rate limiting and lockout, signed

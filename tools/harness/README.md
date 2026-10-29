@@ -420,20 +420,26 @@ Configuration lives in the git-ignored `sites/derschweigert/.env` (only
 `HARNESS_*` keys are read, never the app's other secrets):
 
 ```sh
-HARNESS_GUI_PIN=...            # required
-HARNESS_TUNNEL_NAME=harness    # optional: named tunnel
-HARNESS_TUNNEL_HOST=...        # optional: stable address, e.g. harness.derschweigert.de
-# HARNESS_NO_TUNNEL=1          # opt out of auto-start
+HARNESS_GUI_PIN=...                     # required
+HARNESS_TUNNEL_PROVIDER=localhostrun    # cloudflared | localhostrun | ngrok (default cloudflared)
+# HARNESS_TUNNEL_NAME=harness           # cloudflared named tunnel only
+# HARNESS_TUNNEL_HOST=...               # cloudflared named tunnel only
+# HARNESS_NO_TUNNEL=1                   # opt out of auto-start
 ```
 
 When `HARNESS_GUI_PIN` is set, `harness gui`, `harness run`, and `harness resume`
-automatically start the relay and `cloudflared` and print the address. Pass
-`--no-tunnel` to start without the tunnel. With a named tunnel (both
-`HARNESS_TUNNEL_NAME` and `HARNESS_TUNNEL_HOST` set) the address is the stable
-`https://HARNESS_TUNNEL_HOST`; without them a quick tunnel is used and
-cloudflared prints a new random `https://...trycloudflare.com` URL each launch.
+automatically start the relay and the configured tunnel provider and print the
+address. Pass `--no-tunnel` to start without the tunnel.
 
-A named tunnel needs one-time setup on this machine:
+- `localhostrun` needs no account or install: it uses `ssh` and prints a new
+  `https://...lhr.life` URL each launch.
+- `ngrok` prints a new `https://...ngrok-free.app` URL each launch and needs a
+  free authtoken.
+- `cloudflared` uses a quick tunnel by default (new `https://...trycloudflare.com`
+  URL each launch), or a named tunnel when both `HARNESS_TUNNEL_NAME` and
+  `HARNESS_TUNNEL_HOST` are set (stable address, needs a Cloudflare zone).
+
+A `cloudflared` named tunnel needs one-time setup on this machine:
 
 ```sh
 cloudflared tunnel login                 # opens a browser to authenticate

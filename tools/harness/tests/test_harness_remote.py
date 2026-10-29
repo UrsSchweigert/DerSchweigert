@@ -147,6 +147,20 @@ def test_tunnel_command_named_and_quick():
         "cloudflared", "tunnel", "--no-autoupdate", "--url", relay_url]
 
 
+def test_tunnel_command_localhostrun_and_ngrok():
+    relay_url = "http://127.0.0.1:8443"
+    assert remote.tunnel_command(relay_url, "", "localhostrun") == [
+        "ssh", "-o", "StrictHostKeyChecking=accept-new", "-o", "ExitOnForwardFailure=yes",
+        "-R", "80:127.0.0.1:8443", "nokey@localhost.run"]
+    assert remote.tunnel_command(relay_url, "", "ngrok") == ["ngrok", "http", relay_url]
+
+
+def test_public_url_is_extracted_from_tunnel_output():
+    assert remote._public_url_in("Connect to https://abc123.lhr.life or https://abc123.lhr.life") == "https://abc123.lhr.life"
+    assert remote._public_url_in("https://random-words.trycloudflare.com") == "https://random-words.trycloudflare.com"
+    assert remote._public_url_in("no url here") is None
+
+
 def test_remote_dashboard_requires_a_pin(tmp_path, monkeypatch):
     monkeypatch.delenv("HARNESS_GUI_PIN", raising=False)
     dashboard = remote.RemoteDashboard(tmp_path, str(tmp_path / "home"))
