@@ -89,11 +89,12 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
         report["plans"].append({"plan_id": pid, "version": ver, "state": store.state("plan", plan_entity(pid, ver)), "digest": row["digest"][:12],
                                 "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested")),
                                 "pause_requested": bool(run.get("pause_requested"))})
+        limit = budgets.get("pull_requests_per_run")  # None means unlimited
         report["budgets"][pid] = {
             "wall_clock_s": {"limit": budgets["run_wall_clock_s"], "used": elapsed,
                              "remaining": max(budgets["run_wall_clock_s"] - elapsed, 0) if elapsed is not None else None},
-            "pull_requests": {"limit": budgets["pull_requests_per_run"], "used": run.get("prs", 0),
-                              "remaining": budgets["pull_requests_per_run"] - run.get("prs", 0)},
+            "pull_requests": {"limit": limit, "used": run.get("prs", 0),
+                              "remaining": None if limit is None else limit - run.get("prs", 0)},
             "tokens_and_cost": telemetry.UNAVAILABLE}
         issues = [i for i in _safe(lambda: store.list_issues(pid), [])]
         for ph in plan["phases"]:
@@ -207,9 +208,10 @@ def render(report: Dict[str, Any]) -> str:
         w("plan %s v%d  %s  digest %s  approval %s%s" % (p["plan_id"], p["version"], p["state"], p["digest"], p["approval"], "  PAUSED: " + p["paused_reason"] if p["paused_reason"] and p["state"] == "Paused" else ("  PAUSE REQUESTED, finishing active work" if p["pause_requested"] else "")))
         b = report["budgets"].get(p["plan_id"], {})
         if b:
-            w("  budgets: wall-clock %s of %ss, pull requests %d of %d, tokens and cost %s" % (
+            pr = b["pull_requests"]
+            w("  budgets: wall-clock %s of %ss, pull requests %d of %s, tokens and cost %s" % (
                 "%.0f" % b["wall_clock_s"]["used"] if b["wall_clock_s"]["used"] is not None else "not started", b["wall_clock_s"]["limit"],
-                b["pull_requests"]["used"], b["pull_requests"]["limit"], b["tokens_and_cost"]))
+                pr["used"], "unlimited" if pr["limit"] is None else pr["limit"], b["tokens_and_cost"]))
     for ph in report["phases"]:
         w("  phase %s %s  issues %s  deps %s" % (ph["phase"], ph["state"], ph["issues"] or "none", ",".join(ph["depends_on"]) or "-"))
     for rq in report["requirements"]:
