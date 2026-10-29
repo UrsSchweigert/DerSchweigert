@@ -166,14 +166,25 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
 - **Route53 zone**: `derschweigert.de` hosted zone ID `Z02407051JK3BF2C58UEQ`
   (shared across all subdomains/sites — no need to create a new zone for a new
   subdomain, just add records/aliases in the relevant site's Terraform stack).
-- **CI**: `.github/workflows/deploy.yml` has 6 jobs: `test` (derschweigert
-  pytest), `test-ffm` (ffm pytest, standalone), `check-secrets` (gates deploy
-  on AWS secrets being present), `deploy` (derschweigert terraform apply +
-  static sync), `deploy-ffm` (ffm terraform apply + Lambda code push + static
-  sync), and `deploy-lesen` (lesen terraform apply + static sync). Triggers
-  are `push` to `main` **and** `pull_request` into `main` — the two test jobs
-  run on both, but the three deploy jobs are additionally
-  gated on `github.ref == 'refs/heads/main'` so they never run for a PR.
+- **CI**: `.github/workflows/deploy.yml` has a `changes` job, a test and a
+  deploy job per site, and `check-secrets`. `changes` reads the changed paths
+  and reports per-site test/deploy gates, so a change only tests and deploys
+  the sites it touches; a shared `infra/*` change touches every site, and a
+  change set that cannot be listed is treated as touching everything.
+  `test` (derschweigert pytest, harness pytest, and lesen's node tests),
+  `test-ffm` (ffm pytest, standalone), and `test-lhc` (ruff, pytest, Vitest,
+  Vite build) run on both `push` to `main` and `pull_request` into `main`. The
+  deploy jobs — `deploy` (derschweigert terraform apply + static sync),
+  `deploy-ffm` (ffm terraform apply + Lambda code push + static sync),
+  `deploy-lesen` (lesen terraform apply + static sync), and `deploy-lhc`
+  (OpenTofu apply + Lambda zip + frontend sync) — additionally require
+  `github.ref == 'refs/heads/main'` plus their own gate, so they never run for
+  a PR. `deploy-ffm` is gated on its deploy flag rather than its test flag, so
+  a terraform-only change is still applied; `deploy-lesen` waits for `test`,
+  which is where lesen's node tests live; and `deploy-lhc` pins
+  `TF_VAR_aws_region: eu-west-1` because that stack lives in eu-west-1,
+  unlike the others. The required status checks on `main` are `test` and
+  `test-ffm`.
   Required GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
   `AWS_SESSION_TOKEN` (optional), `AWS_REGION` (optional, defaults to
   `eu-central-1`), `ROUTE53_ZONE_ID`.
