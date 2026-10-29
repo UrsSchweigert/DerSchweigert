@@ -416,13 +416,31 @@ loopback-only service that sits in front of the GUI, adds the PIN gate the
 dashboard deliberately lacks, and forwards a fixed allowlist of routes while
 rewriting the loopback `Host`/`Origin` metadata the GUI requires.
 
+Configuration lives in the git-ignored `sites/derschweigert/.env` (only
+`HARNESS_*` keys are read, never the app's other secrets):
+
 ```sh
-export HARNESS_GUI_PIN='a-long-random-pin'   # or pass --pin
-harness remote --port 8443                   # stays loopback-only
-cloudflared tunnel --url http://127.0.0.1:8443
+HARNESS_GUI_PIN=...            # required
+HARNESS_TUNNEL_NAME=harness    # optional: named tunnel
+HARNESS_TUNNEL_HOST=...        # optional: stable address, e.g. harness.derschweigert.de
+# HARNESS_NO_TUNNEL=1          # opt out of auto-start
 ```
 
-Then open the Cloudflare Tunnel URL, enter the PIN, and use the dashboard.
+When `HARNESS_GUI_PIN` is set, `harness gui`, `harness run`, and `harness resume`
+automatically start the relay and `cloudflared` and print the address. Pass
+`--no-tunnel` to start without the tunnel. With a named tunnel (both
+`HARNESS_TUNNEL_NAME` and `HARNESS_TUNNEL_HOST` set) the address is the stable
+`https://HARNESS_TUNNEL_HOST`; without them a quick tunnel is used and
+cloudflared prints a new random `https://...trycloudflare.com` URL each launch.
+
+A named tunnel needs one-time setup on this machine:
+
+```sh
+cloudflared tunnel login                 # opens a browser to authenticate
+cloudflared tunnel create harness
+cloudflared tunnel route dns harness harness.derschweigert.de   # or a CNAME at your DNS provider
+```
+
 Sessions are signed cookies (HttpOnly, SameSite=Strict, Secure behind the
 tunnel) that expire after 12 hours by default (`--session-hours`). Five wrong
 PINs lock the address out for 15 minutes. The relay only proxies the GUI's
@@ -548,11 +566,11 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `models` | Show the picker menu per source and which ids this runtime accepts | `--source copilot\|deepseek\|local` (repeatable), `--refresh` |
 | `approve PLAN_ID` | Record your one-time approval (real terminal) | `--version` |
 | `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version` |
-| `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version` |
+| `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version`, `--no-tunnel` |
 | `resume PLAN_ID` | Continue a paused or interrupted run | same as `run` |
 | `pause PLAN_ID` | Stop after current work (graceful) | `--now` |
 | `cancel PLAN_ID` | Stop for good | `--drain` |
-| `gui` | Local monitoring and management | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--repo OWNER/NAME` |
+| `gui` | Local monitoring and management; auto-starts the remote dashboard when `HARNESS_GUI_PIN` is set | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--no-tunnel`, `--repo OWNER/NAME` |
 | `remote` | PIN-locked loopback relay that proxies the local GUI for a tunnel (operator override) | `--upstream URL` (http://127.0.0.1:8765), `--host 127.0.0.1\|localhost`, `--port` (8443, or 0), `--pin`, `--session-hours` (12) |
 | `status` | Everything at a glance (read-only) | `--json` |
 | `issue ID` | One issue in detail (read-only) | `--json` |

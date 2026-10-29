@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import shutil
@@ -253,9 +254,20 @@ def runner_command(args) -> int:
         if not store.list_issues(args.plan_id):
             raise runner.RunRefused("no issues to schedule: supply refined issues with `import-issues`. Issue creation from phases is not automated yet")
         repo_slug = args.repo or detect_repo()
-        remote = "https://github.com/%s.git" % repo_slug
-        sched = runner.build_scheduler(store, args.plan_id, version, root, args.dry_run, remote, repo_slug, os.environ.get("USER", "owner"))
-        return runner.run_loop(sched, args.interval, args.max_ticks, lambda e: print(json.dumps(e, sort_keys=True), flush=True))
+        upstream = "https://github.com/%s.git" % repo_slug
+        sched = runner.build_scheduler(store, args.plan_id, version, root, args.dry_run, upstream, repo_slug, os.environ.get("USER", "owner"))
+        tunnel = None
+        if not args.no_tunnel:
+            from . import remote as remote_mod
+            settings = remote_mod.tunnel_settings(Path(root) if root else _repo_root())
+            if settings["pin"] and not settings["disabled"]:
+                tunnel = remote_mod.RemoteDashboard(root or str(_repo_root()), args.home, repo_slug)
+                tunnel.start()
+        try:
+            return runner.run_loop(sched, args.interval, args.max_ticks, lambda e: print(json.dumps(e, sort_keys=True), flush=True))
+        finally:
+            if tunnel is not None:
+                tunnel.stop()
     except (runner.RunRefused, approval.AuthorizationError) as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2
@@ -499,6 +511,10 @@ def detect_repo() -> str:
     return m.group(1)
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(prog="harness")
     ap.add_argument("--home", help="runtime store directory (default: ~/.local/state/derschweigert-harness or $HARNESS_HOME)")
@@ -529,6 +545,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     r.add_argument("--interval", type=float, default=30.0)
     r.add_argument("--max-ticks", type=int)
     r.add_argument("--repo", help="GitHub owner/name")
+    r.add_argument("--no-tunnel", action="store_true", help="do not auto-start the remote dashboard tunnel")
     rs = sub.add_parser("resume", help="reconcile stored state and continue a paused or interrupted run")
     rs.add_argument("plan_id")
     rs.add_argument("--version", type=int)
@@ -536,6 +553,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     rs.add_argument("--interval", type=float, default=30.0)
     rs.add_argument("--max-ticks", type=int)
     rs.add_argument("--repo")
+    rs.add_argument("--no-tunnel", action="store_true", help="do not auto-start the remote dashboard tunnel")
     pz = sub.add_parser("pause", help="pause a running plan: finish the workers in flight, start nothing new, then stop")
     pz.add_argument("plan_id")
     pz.add_argument("--version", type=int)
@@ -629,6 +647,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     dashboard.add_argument("--refresh", type=int, default=5, help="refresh interval in seconds")
     dashboard.add_argument("--read-only", action="store_true")
     dashboard.add_argument("--no-browser", action="store_true")
+    dashboard.add_argument("--no-tunnel", action="store_true", help="do not auto-start the PIN-locked relay and Cloudflare tunnel")
     dashboard.add_argument("--repo", help="GitHub owner/name for GUI-launched runs")
     rm = sub.add_parser("remote", help="PIN-locked loopback relay that proxies the local GUI for a tunnel")
     rm.add_argument("--upstream", default="http://127.0.0.1:8765", help="the loopback harness GUI URL")
@@ -640,8 +659,20 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     try:
         if args.cmd == "gui":
-            from . import gui
+            from . import gui, remote
             try:
+                if not args.no_tunnel:
+                    settings = remote.tunnel_settings(_repo_root())
+                    if settings["pin"] and not settings["disabled"]:
+                        dashboard = gui.make_server(args.home, host=args.host, port=args.port,
+                                                   refresh=args.refresh, read_only=args.read_only)
+                        dashboard.repo_slug = args.repo
+                        tunnel = remote.RemoteDashboard(_repo_root(), args.home, args.repo, gui_server=dashboard)
+                        tunnel.start()
+                        try:
+                            return gui.serve_server(dashboard, open_browser=not args.no_browser)
+                        finally:
+                            tunnel.stop()
                 return gui.serve(args.home, host=args.host, port=args.port, refresh=args.refresh, read_only=args.read_only,
                                  open_browser=not args.no_browser, repo=args.repo)
             except ValueError as exc:

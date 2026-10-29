@@ -18,9 +18,11 @@ import http.client
 import json
 import os
 import secrets
+import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 16 * 1024 * 1024
@@ -387,3 +389,98 @@ def serve(upstream: str = "http://127.0.0.1:8765", *, host: str = "127.0.0.1", p
             relay.serve_forever()
         except KeyboardInterrupt:
             return 130
+
+
+def load_harness_env(repo_root: Path) -> None:
+    """Load ``HARNESS_*`` values from the app env file without overriding the real environment.
+
+    The harness shares ``sites/derschweigert/.env`` (git-ignored), but only keys in
+    the ``HARNESS_`` namespace are read, so the app's unrelated secrets are never
+    imported into the harness process. The real environment always wins.
+    """
+    env_file = Path(repo_root) / "sites" / "derschweigert" / ".env"
+    if not env_file.is_file():
+        return
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key.startswith("HARNESS_") and value and key not in os.environ:
+            os.environ[key] = value
+
+
+def tunnel_settings(repo_root: Path) -> dict:
+    """The remote-dashboard configuration after reading ``sites/derschweigert/.env``."""
+    load_harness_env(repo_root)
+    return {
+        "pin": os.environ.get("HARNESS_GUI_PIN", "").strip(),
+        "name": os.environ.get("HARNESS_TUNNEL_NAME", "").strip(),
+        "host": os.environ.get("HARNESS_TUNNEL_HOST", "").strip(),
+        "disabled": os.environ.get("HARNESS_NO_TUNNEL", "").strip() == "1",
+    }
+
+
+def tunnel_command(relay_url: str, name: str) -> list[str]:
+    """The cloudflared command that points a named (or quick) tunnel at the relay."""
+    if name:
+        return ["cloudflared", "tunnel", "--no-autoupdate", "run", "--url", relay_url, name]
+    return ["cloudflared", "tunnel", "--no-autoupdate", "--url", relay_url]
+
+
+class RemoteDashboard:
+    """Owns a GUI (when started from ``run``), the PIN-locked relay, and the cloudflared tunnel.
+
+    ``gui_server`` is an already-created ``gui.GuiServer`` when the ``gui`` command is the
+    owner; pass ``None`` to start a fresh GUI in a daemon thread for ``run``/``resume``.
+    """
+
+    def __init__(self, repo_root, home, repo_slug=None, gui_server=None):
+        settings = tunnel_settings(Path(repo_root))
+        self.pin = settings["pin"]
+        self.name = settings["name"]
+        self.host = settings["host"]
+        self.home = home
+        self.repo_slug = repo_slug
+        self.gui_server = gui_server
+        self.owns_gui = gui_server is None
+        self.relay = None
+        self.relay_thread = None
+        self.process = None
+        self.public_url = None
+
+    def start(self) -> str | None:
+        if not self.pin:
+            raise ValueError("HARNESS_GUI_PIN is not set; cannot start the remote dashboard")
+        if self.gui_server is None:
+            from . import gui
+            self.gui_server = gui.make_server(self.home, port=0)
+            self.gui_server.repo_slug = self.repo_slug
+        self.relay = make_server(self.gui_server.url, port=0, pin=self.pin)
+        self.relay_thread = threading.Thread(target=self.relay.serve_forever,
+                                             kwargs={"poll_interval": 0.1}, daemon=True)
+        self.relay_thread.start()
+        self.process = subprocess.Popen(tunnel_command(self.relay.url, self.name))
+        if self.host and self.name:
+            self.public_url = "https://" + self.host
+            print("Remote dashboard: %s" % self.public_url, flush=True)
+        else:
+            print("Remote dashboard starting via quick tunnel; watch cloudflared output for the URL.", flush=True)
+        return self.public_url
+
+    def stop(self) -> None:
+        if self.process is not None and self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+        if self.relay is not None:
+            self.relay.shutdown()
+            self.relay.server_close()
+        if self.owns_gui and self.gui_server is not None:
+            self.gui_server.shutdown()
+            self.gui_server.server_close()
+
