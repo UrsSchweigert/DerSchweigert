@@ -9,6 +9,9 @@
  * caller only ever has to hand it a Buffer. Deflate decoding is injected by the
  * caller, so this module imports no third-party package and needs no network
  * access.
+ *
+ * `parsePackage` additionally reads the OPF package document (metadata,
+ * manifest and spine) and returns the content documents in reading order.
  */
 
 const EOCD_SIGNATURE = 0x06054b50;
@@ -175,4 +178,244 @@ export function openEpub(bytes, { inflate } = {}) {
   }
 
   return { entries, packagePath };
+}
+
+/** Directory part of a `/`-separated ZIP path, or "" at the root. */
+function dirname(path) {
+  const idx = path.lastIndexOf("/");
+  return idx >= 0 ? path.slice(0, idx) : "";
+}
+
+/** Join a base directory and a relative path with a single `/`. */
+function joinPath(base, rel) {
+  return base ? `${base}/${rel}` : rel;
+}
+
+/** Collapse `.` and `..` segments in a `/`-separated path. */
+function normalizePath(path) {
+  const out = [];
+  for (const part of path.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") {
+      out.pop();
+      continue;
+    }
+    out.push(part);
+  }
+  return out.join("/");
+}
+
+/** Strip a URL fragment and percent-decode a manifest or navigation href. */
+function decodeHref(href) {
+  let value = String(href);
+  const hash = value.indexOf("#");
+  if (hash >= 0) value = value.slice(0, hash);
+  try {
+    value = decodeURIComponent(value);
+  } catch {
+    // Keep the literal value when it is not valid percent-encoding.
+  }
+  return value;
+}
+
+const NAMED_ENTITIES = { lt: "<", gt: ">", quot: '"', apos: "'", amp: "&" };
+
+/** Decode the common XML character references in a single pass. */
+function decodeEntities(text) {
+  return String(text).replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (whole, name) => {
+    if (name[0] === "#") {
+      const hex = name[1] === "x" || name[1] === "X";
+      const code = parseInt(hex ? name.slice(2) : name.slice(1), hex ? 16 : 10);
+      return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : whole;
+    }
+    return Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, name) ? NAMED_ENTITIES[name] : whole;
+  });
+}
+
+/** Strip markup and collapse whitespace in an element's text content. */
+function cleanText(text) {
+  return decodeEntities(String(text).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
+}
+
+/** Read one attribute value from a single XML element string. */
+function getAttr(element, name) {
+  const re = new RegExp(`\\b${name}\\s*=\\s*["']([^"']*)["']`, "i");
+  const match = re.exec(element);
+  return match ? match[1] : null;
+}
+
+/** Text of the first `<prefix:name>…</prefix:name>` element. */
+function findElementText(xml, name) {
+  const re = new RegExp(
+    `<(?:[A-Za-z_][\\w.-]*:)?${name}\\b[^>]*>([\\s\\S]*?)<\\/(?:[A-Za-z_][\\w.-]*:)?${name}\\s*>`,
+    "i",
+  );
+  const match = re.exec(xml);
+  return match ? cleanText(match[1]) : "";
+}
+
+/** First h1–h3 heading text in a document, or "" when it has none. */
+function firstHeading(xhtml) {
+  const match = /<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]\s*>/i.exec(xhtml);
+  return match ? cleanText(match[1]) : "";
+}
+
+/** The `<nav epub:type="toc">` block, or the whole document as a fallback. */
+function tocNavBlock(navXhtml) {
+  const match = /<nav\b[^>]*\bepub:type\s*=\s*["']toc["'][^>]*>([\s\S]*?)<\/nav\s*>/i.exec(navXhtml);
+  return match ? match[1] : navXhtml;
+}
+
+function parseManifest(xml) {
+  const manifest = new Map();
+  const re = /<item\b[^>]*>/gi;
+  let match;
+  while ((match = re.exec(xml))) {
+    const element = match[0];
+    const id = getAttr(element, "id");
+    const href = getAttr(element, "href");
+    if (!id || !href) continue;
+    manifest.set(id, {
+      href,
+      mediaType: getAttr(element, "media-type") || "",
+      properties: getAttr(element, "properties") || "",
+    });
+  }
+  return manifest;
+}
+
+function parseSpine(xml) {
+  const spine = [];
+  const re = /<itemref\b[^>]*>/gi;
+  let match;
+  while ((match = re.exec(xml))) {
+    const element = match[0];
+    const idref = getAttr(element, "idref");
+    if (!idref) continue;
+    spine.push({ idref, linear: (getAttr(element, "linear") || "yes").toLowerCase() });
+  }
+  return spine;
+}
+
+function buildNcxTitles(byName, packageDir, manifest) {
+  const titles = new Map();
+  let ncxHref = null;
+  for (const item of manifest.values()) {
+    if (item.mediaType.toLowerCase() === "application/x-dtbncx+xml") {
+      ncxHref = item.href;
+      break;
+    }
+  }
+  if (!ncxHref) return titles;
+
+  const ncxPath = normalizePath(joinPath(packageDir, decodeHref(ncxHref)));
+  const ncxEntry = byName.get(ncxPath);
+  if (!ncxEntry) return titles;
+
+  const xml = ncxEntry.bytes.toString("utf8");
+  const ncxDir = dirname(ncxPath);
+  const re = /<navPoint\b[^>]*>([\s\S]*?)<\/navPoint\s*>/gi;
+  let match;
+  while ((match = re.exec(xml))) {
+    const body = match[1];
+    const contentTag = /<content\b[^>]*>/i.exec(body);
+    if (!contentTag) continue;
+    const src = getAttr(contentTag[0], "src");
+    if (!src) continue;
+    const label = /<navLabel\b[^>]*>[\s\S]*?<text\b[^>]*>([\s\S]*?)<\/text\s*>/i.exec(body);
+    const title = label ? cleanText(label[1]) : "";
+    if (!title) continue;
+    const path = normalizePath(joinPath(ncxDir, decodeHref(src)));
+    if (!titles.has(path)) titles.set(path, title);
+  }
+  return titles;
+}
+
+function buildNavTitles(byName, packageDir, manifest) {
+  const titles = new Map();
+  let navHref = null;
+  for (const item of manifest.values()) {
+    if (item.properties.toLowerCase().split(/\s+/).includes("nav")) {
+      navHref = item.href;
+      break;
+    }
+  }
+  if (!navHref) return titles;
+
+  const navPath = normalizePath(joinPath(packageDir, decodeHref(navHref)));
+  const navEntry = byName.get(navPath);
+  if (!navEntry) return titles;
+
+  const html = navEntry.bytes.toString("utf8");
+  const navDir = dirname(navPath);
+  const block = tocNavBlock(html);
+  const re = /<a\b[^>]*\bhref\s*=\s*["']([^"']*)["'][^>]*>([\s\S]*?)<\/a\s*>/gi;
+  let match;
+  while ((match = re.exec(block))) {
+    const title = cleanText(match[2]);
+    if (!title) continue;
+    const path = normalizePath(joinPath(navDir, decodeHref(match[1])));
+    if (!titles.has(path)) titles.set(path, title);
+  }
+  return titles;
+}
+
+/**
+ * Parse an EPUB package document into metadata and reading-order documents.
+ *
+ * @param {Buffer|Uint8Array} bytes  raw EPUB (ZIP) bytes.
+ * @param {{ inflate?: (compressed: Uint8Array) => Uint8Array }} [options]
+ * @returns {{ metadata: {title: string, language: string, creator: string, date: string}, documents: Array<{path: string, title: string, xhtml: string}> }}
+ */
+export function parsePackage(bytes, { inflate } = {}) {
+  const { entries, packagePath } = openEpub(bytes, { inflate });
+  const byName = new Map(entries.map((entry) => [entry.name, entry]));
+
+  const packageEntry = byName.get(packagePath);
+  if (!packageEntry) {
+    fail("MISSING_PACKAGE_DOCUMENT", `package document "${packagePath}" named by the container is missing from the archive`);
+  }
+
+  const packageDir = dirname(packagePath);
+  const xml = packageEntry.bytes.toString("utf8");
+
+  const metadata = {
+    title: findElementText(xml, "title"),
+    language: findElementText(xml, "language"),
+    creator: findElementText(xml, "creator"),
+    date: findElementText(xml, "date"),
+  };
+
+  const manifest = parseManifest(xml);
+  if (manifest.size === 0) {
+    fail("EMPTY_MANIFEST", `package document "${packagePath}" has an empty manifest`);
+  }
+
+  const navTitles = buildNavTitles(byName, packageDir, manifest);
+  const ncxTitles = buildNcxTitles(byName, packageDir, manifest);
+
+  const documents = [];
+  for (const ref of parseSpine(xml)) {
+    const item = manifest.get(ref.idref);
+    if (!item) {
+      fail("SPINE_ITEM_NOT_IN_MANIFEST", `spine item "${ref.idref}" is not listed in the manifest`);
+    }
+    if (ref.linear === "no") continue;
+
+    const path = normalizePath(joinPath(packageDir, decodeHref(item.href)));
+    const entry = byName.get(path);
+    const xhtml = entry ? entry.bytes.toString("utf8") : "";
+
+    let title = navTitles.get(path) ?? ncxTitles.get(path);
+    if (!title) title = firstHeading(xhtml);
+    if (!title) title = String(documents.length + 1);
+
+    documents.push({ path, title, xhtml });
+  }
+
+  if (documents.length === 0) {
+    fail("NO_LINEAR_DOCUMENTS", `package document "${packagePath}" has no linear reading-order documents`);
+  }
+
+  return { metadata, documents };
 }
