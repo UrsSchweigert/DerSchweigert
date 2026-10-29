@@ -197,6 +197,26 @@ was evaluated without changing dependency manifests or CI defaults.
 
 After PR #26 broke production (a classic script read `window.__storage` before the module script set it) the harness gained a browser-level gate. The worker image carries Playwright Chromium and `smoke/lesen.mjs`; `smoke.json` maps changed paths to it. It is appended to an issue's validation commands (pre-merge, rebase rerun, post-merge, phase validation) and the isolation probe requires it. Failing output tails are included in repair feedback. Verified: passes on `849c734`, fails on the broken `d9c092e`. Limit: it covers the lesen web page only.
 
+## Descoping, and restoring the scope afterwards (2026-10-29)
+
+A plan that cannot finish delivers nothing. `descope.py` lets the triage agent (or the owner) defer a
+requirement in small increments so the plan can end, without losing the requirement.
+
+* A deferral is a stored record: requirement, reason, the follow-up issue that still owns the work, the
+  actor, and the time. `harness defer PLAN REQ --reason ... --followup ...` writes it, `--list` shows it.
+* The envelope lives in the plan policy (`policy.descope`) and is therefore inside the approval digest:
+  `allow_deferral`, `max_deferred_requirements`, `max_deferred_share`, `forbidden_requirements`,
+  `require_followup`. Off by default; a plan without `allow_deferral` refuses every deferral.
+* Deferred requirements count as covered for the phase gate, so the phase can complete and the plan can
+  end. Both `_complete_phases` and `_validate_phase` subtract them; `status` prints every deferral.
+* The agent may not defer without a reason and a named follow-up issue, may not defer a forbidden
+  requirement, and never touches policy, budgets or path allowlists. Those stay owner-only.
+
+Restoring the scope: `harness restore PLAN` writes a follow-up plan (`<plan>-restore-<n>`) containing one
+issue per deferred requirement, **chained**: each issue depends on the previous one, so the scope comes
+back one increment at a time and only after the increment before it is Done. The draft is an ordinary
+plan and needs the usual approval, so nothing is re-expanded behind the owner's back.
+
 ## The diff cap counts added lines, not removals (2026-10-29)
 
 `remove-book-pipeline` blocked with `diff exceeds 800 lines` before it could be reviewed: deleting the

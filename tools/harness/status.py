@@ -7,7 +7,7 @@ import sqlite3
 import time
 from typing import Any, Dict, List, Optional
 
-from . import approval, telemetry, usage
+from . import approval, descope, telemetry, usage
 from .approval import AuthorizationError, plan_entity
 from .store import Store, default_home
 
@@ -90,6 +90,7 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
                                 "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested")),
                                 "pause_requested": bool(run.get("pause_requested"))})
         limit = budgets.get("pull_requests_per_run")  # None means unlimited
+        report.setdefault("deferred", {})[pid] = _safe(lambda: descope.deferrals(store, pid, ver), [])
         report["budgets"][pid] = {
             "wall_clock_s": {"limit": budgets["run_wall_clock_s"], "used": elapsed,
                              "remaining": max(budgets["run_wall_clock_s"] - elapsed, 0) if elapsed is not None else None},
@@ -209,6 +210,8 @@ def render(report: Dict[str, Any]) -> str:
         b = report["budgets"].get(p["plan_id"], {})
         if b:
             pr = b["pull_requests"]
+            for rec in report.get("deferred", {}).get(p["plan_id"], []):
+                w("  deferred: %s -> %s (%s)" % (rec["requirement_id"], rec["followup_issue"], rec["reason"][:70]))
             w("  budgets: wall-clock %s of %ss, pull requests %d of %s, tokens and cost %s" % (
                 "%.0f" % b["wall_clock_s"]["used"] if b["wall_clock_s"]["used"] is not None else "not started", b["wall_clock_s"]["limit"],
                 pr["used"], "unlimited" if pr["limit"] is None else pr["limit"], b["tokens_and_cost"]))

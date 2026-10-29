@@ -401,6 +401,52 @@ def responder_ids() -> List[str]:
     return ids
 
 
+def defer_command(args) -> int:
+    from . import descope
+    store = Store(args.home)
+    try:
+        stored = store.get_plan(args.plan_id, args.version)
+        if stored is None:
+            raise runner.RunRefused("unknown plan %s" % args.plan_id)
+        plan = stored["plan"]
+        if args.list or not args.requirement:
+            records = descope.deferrals(store, args.plan_id, plan["version"])
+            print("\n".join(descope.describe(records)) or "no deferred requirements")
+            return 0
+        record = descope.defer(store, args.plan_id, args.requirement, reason=args.reason or "",
+                               followup_issue=args.followup or "", actor=getpass.getuser(), version=plan["version"])
+        print(json.dumps(record, indent=2, sort_keys=True))
+        return 0
+    except descope.DescopeError as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
+def restore_command(args) -> int:
+    from . import descope
+    store = Store(args.home)
+    try:
+        draft = descope.restore_draft(store, args.plan_id, args.version)
+        out = args.out or os.path.join("uploads", draft["plan_id"])
+        os.makedirs(out, exist_ok=True)
+        with open(os.path.join(out, "requirements.md"), "w", encoding="utf-8") as fh:
+            fh.write(draft["requirements_markdown"])
+        with open(os.path.join(out, "phases.json"), "w", encoding="utf-8") as fh:
+            json.dump(draft["phases"], fh, indent=2)
+        with open(os.path.join(out, "issues.json"), "w", encoding="utf-8") as fh:
+            json.dump(draft["issues"], fh, indent=2)
+        print(json.dumps({"plan_id": draft["plan_id"], "out": out,
+                          "issues": [i["issue_id"] for i in draft["issues"]["issues"]]}, indent=2))
+        return 0
+    except descope.DescopeError as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
 def task_command(args) -> int:
     store = Store(args.home)
     try:
@@ -534,6 +580,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     rp.add_argument("--artifact", action="append", default=[])
     rp.add_argument("--answer", action="append", default=[], metavar="KEY=VALUE")
     rp.add_argument("--ack", action="store_true", help="acknowledge the task without answering")
+    df = sub.add_parser("defer", help="defer a requirement to a named follow-up issue so the plan can end")
+    df.add_argument("plan_id")
+    df.add_argument("requirement", nargs="?")
+    df.add_argument("--reason")
+    df.add_argument("--followup")
+    df.add_argument("--version", type=int)
+    df.add_argument("--list", action="store_true")
+    rs = sub.add_parser("restore", help="write a follow-up plan that adds deferred requirements back, one at a time")
+    rs.add_argument("plan_id")
+    rs.add_argument("--version", type=int)
+    rs.add_argument("--out", help="directory for requirements.md, phases.json and issues.json")
     tk = sub.add_parser("tasks", help="list open human tasks")
     st = sub.add_parser("sync-tasks", help="mirror open human tasks as GitHub issues")
     st.add_argument("plan_id")
@@ -625,6 +682,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             return run_start(args)
         if args.cmd == "investigate":
             return investigate_command(args)
+        if args.cmd == "defer":
+            return defer_command(args)
+        if args.cmd == "restore":
+            return restore_command(args)
         if args.cmd in ("respond", "tasks", "sync-tasks"):
             return task_command(args)
         if args.cmd == "assets":
