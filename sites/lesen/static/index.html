@@ -203,6 +203,54 @@
             overflow-wrap: anywhere;
         }
 
+        .pattern-card {
+            display: block;
+        }
+
+        .pattern-head {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .pattern-subs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            padding-left: 29px;
+        }
+
+        .pattern-sub {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding: 4px 10px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .pattern-sub:has(input:checked) {
+            border-color: var(--green);
+            background: #edf6f0;
+        }
+
+        .pattern-subs span {
+            font-size: 16px;
+            color: var(--ink);
+        }
+
+        input[type="checkbox"] {
+            accent-color: var(--green);
+            width: 17px;
+            height: 17px;
+            margin: 0;
+            flex: none;
+        }
+
         .number-label {
             display: block;
             font-size: 16px;
@@ -817,7 +865,38 @@
             transform: translateX(2px);
         }
 
-        input[type="radio"] {
+        .pattern-card {
+            cursor: default;
+        }
+
+        .pattern-card:hover {
+            transform: none;
+        }
+
+        /* The card contains checkboxes too; only the radio should highlight it. */
+        .pattern-card:has(input:checked) {
+            border-color: var(--line);
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .pattern-card:has(> .pattern-head > input[type="radio"]:checked) {
+            border-color: var(--blue);
+            background: #f0faff;
+            box-shadow: 0 3px 10px rgba(7, 89, 183, .08);
+        }
+
+        .pattern-sub {
+            border-radius: 10px;
+        }
+
+        .pattern-sub:has(input:checked) {
+            border-color: var(--blue);
+            background: #e6f5ff;
+        }
+
+        input[type="radio"],
+        input[type="checkbox"] {
             accent-color: var(--blue);
         }
 
@@ -1148,10 +1227,21 @@
                         <fieldset>
                             <legend id="pattern-legend">Buchstabenfolge</legend>
                             <div class="patterns">
-                                <label class="pattern"><input type="radio" name="pattern" value="CV"
-                                        checked><strong>ma</strong><span id="pattern-cv-desc">Konsonant + Vokal</span></label>
-                                <label class="pattern"><input type="radio" name="pattern"
-                                        value="VC"><strong>am</strong><span id="pattern-vc-desc">Vokal + Konsonant</span></label>
+                                <div class="pattern pattern-card" id="patterns-mode-label">
+                                    <label class="pattern-head"><input type="radio" name="pattern" value="PATTERNS"
+                                            checked><strong id="pattern-patterns-label">Muster</strong><span
+                                            id="pattern-patterns-desc">Silbenmuster kombinieren</span></label>
+                                    <div class="pattern-subs">
+                                        <label class="pattern-sub"><input type="checkbox" name="subpattern" value="ma"
+                                                checked><span id="subpattern-ma-label">ma</span></label>
+                                        <label class="pattern-sub"><input type="checkbox" name="subpattern" value="am"
+                                                checked><span id="subpattern-am-label">am</span></label>
+                                        <label class="pattern-sub"><input type="checkbox" name="subpattern" value="mam"><span
+                                                id="subpattern-mam-label">mam</span></label>
+                                        <label class="pattern-sub"><input type="checkbox" name="subpattern" value="ama"><span
+                                                id="subpattern-ama-label">ama</span></label>
+                                    </div>
+                                </div>
                                 <label class="pattern" id="words-mode-label"><input type="radio" name="pattern" value="WORDS"><strong id="pattern-words-label">Wörter</strong><span><span id="words-match-count">0</span> <span id="words-mode-desc">Wörter passen</span></span></label>
                                 <label class="pattern" id="flop-mode-label"><input type="radio" name="pattern" value="FLOP"><strong id="pattern-flop-label">Flops</strong><span id="pattern-flop-desc">Die schwierigsten Karten</span></label>
                             </div>
@@ -1273,7 +1363,7 @@
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
-        import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
+        import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards } from './scoring.mjs';
         import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
         import { t } from './i18n.mjs';
@@ -1282,7 +1372,7 @@
         window.__speech.warm();
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
-        window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, countMatchingWords, isWordsModeEligible, tokenizeWord };
+        window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards };
         window.__storage = createStorage(window.localStorage);
         window.__i18n = { t };
@@ -1302,9 +1392,11 @@
         let attempts = 0;
         let wordPromises = { de: null, en: null };
         let deckStarting = false;
+        let startLoading = false;
         let stats = window.__storage.read();
-        let currentPattern = 'CV';
+        let currentPattern = 'PATTERNS';
         let isInFlopMode = false;
+        let noPatternHintShown = false;
         let currentLanguage = readLanguage(window.localStorage);
 
         function setLanguage(lang) {
@@ -1379,8 +1471,12 @@
             byId('legend-specials').textContent = tr('setup.specials');
 
             byId('pattern-legend').textContent = tr('setup.pattern');
-            byId('pattern-cv-desc').textContent = tr('setup.pattern.cv');
-            byId('pattern-vc-desc').textContent = tr('setup.pattern.vc');
+            byId('pattern-patterns-label').textContent = tr('setup.pattern.patterns');
+            byId('pattern-patterns-desc').textContent = tr('setup.pattern.patterns_desc');
+            byId('subpattern-ma-label').textContent = tr('setup.pattern.sub.ma');
+            byId('subpattern-am-label').textContent = tr('setup.pattern.sub.am');
+            byId('subpattern-mam-label').textContent = tr('setup.pattern.sub.mam');
+            byId('subpattern-ama-label').textContent = tr('setup.pattern.sub.ama');
             byId('pattern-words-label').textContent = tr('setup.pattern.words');
             byId('words-mode-desc').textContent = tr('setup.pattern.words_desc');
             byId('pattern-flop-label').textContent = tr('setup.pattern.flop');
@@ -1396,7 +1492,7 @@
             byId('adult-note-text-2').textContent = tr('setup.adult_note.text_2');
             byId('adult-note-text-3').textContent = tr('setup.adult_note.text_3');
 
-            setStartLoading(byId('start-button').disabled);
+            setStartLoading(startLoading);
 
             updateSelectionCounts();
         }
@@ -1499,7 +1595,8 @@
                     wordsLabel.style.cursor = 'default';
                     disabledNote.hidden = false;
                     if (wordsRadio.checked) {
-                        document.querySelector('input[name="pattern"][value="CV"]').checked = true;
+                        document.querySelector('input[name="pattern"][value="PATTERNS"]').checked = true;
+                        updatePatternControls();
                     }
                 }
             } catch (error) {
@@ -1535,7 +1632,7 @@
                 disabledNote.hidden = false;
                 sizeNote.textContent = '';
                 if (flopRadio.checked) {
-                    document.querySelector('input[name="pattern"][value="CV"]').checked = true;
+                    document.querySelector('input[name="pattern"][value="PATTERNS"]').checked = true;
                 }
             }
             updatePatternControls();
@@ -1684,32 +1781,46 @@
             return promise;
         }
 
+        function selectedSubPatterns() {
+            return [...document.querySelectorAll('input[name="subpattern"]:checked')].map(input => input.value);
+        }
+
+        function updateStartButtonState() {
+            const checkedPattern = document.querySelector('input[name="pattern"]:checked');
+            const pattern = checkedPattern ? checkedPattern.value : 'PATTERNS';
+            const missingSubPattern = pattern === 'PATTERNS' && selectedSubPatterns().length === 0;
+            byId('start-button').disabled = startLoading || missingSubPattern;
+        }
+
         function updatePatternControls() {
-            const pattern = document.querySelector('input[name="pattern"]:checked').value;
+            const checkedPattern = document.querySelector('input[name="pattern"]:checked');
+            const pattern = checkedPattern ? checkedPattern.value : 'PATTERNS';
             byId('word-length-control').hidden = pattern !== 'WORDS';
             byId('card-count-control').hidden = pattern === 'FLOP';
             byId('flop-mode-size-note').hidden = pattern !== 'FLOP';
+
+            const missingSubPattern = pattern === 'PATTERNS' && selectedSubPatterns().length === 0;
+            updateStartButtonState();
+            if (missingSubPattern) {
+                byId('setup-error').textContent = tr('setup.error.no_pattern');
+                noPatternHintShown = true;
+            } else if (noPatternHintShown) {
+                byId('setup-error').textContent = '';
+                noPatternHintShown = false;
+            }
         }
 
         function setStartLoading(loading) {
+            startLoading = loading;
             const button = byId('start-button');
-            button.disabled = loading;
             button.setAttribute('aria-busy', String(loading));
             byId('start-label').textContent = loading ? tr('setup.start_loading') : tr('setup.start');
+            updateStartButtonState();
         }
 
         function capitalizeFirst(text) {
             const first = text[0] === '\u00df' ? '\u1e9e' : text[0].toUpperCase();
             return first + text.slice(1);
-        }
-
-        function buildCombinations(pattern, consonantLetters, vowelLetters) {
-            let combinations = [''];
-            for (const slot of pattern) {
-                const letters = slot === 'C' ? consonantLetters : vowelLetters;
-                combinations = combinations.flatMap(prefix => letters.map(letter => prefix + letter));
-            }
-            return combinations;
         }
 
         async function startDeck() {
@@ -1720,15 +1831,21 @@
                 byId('setup-error').textContent = tr('setup.error.selection');
                 return;
             }
-            const pattern = document.querySelector('input[name="pattern"]:checked').value;
+            const checkedPattern = document.querySelector('input[name="pattern"]:checked');
+            const pattern = checkedPattern ? checkedPattern.value : 'PATTERNS';
             const wordLengthInput = byId('word-length');
             if (pattern === 'WORDS' && !wordLengthInput.reportValidity()) return;
+            const subPatterns = pattern === 'PATTERNS' ? selectedSubPatterns() : [];
+            if (pattern === 'PATTERNS' && subPatterns.length === 0) {
+                updatePatternControls();
+                return;
+            }
 
             const selectedConsonants = [...consonants];
             const selectedVowels = [...vowels, ...specials];
             const requestedTotal = Number(countInput.value);
             const maxLength = Number(wordLengthInput.value);
-            const { getSoundsForLanguage } = window.__sounds;
+            const { getSoundsForLanguage, buildCombinations, buildPatternDeck } = window.__sounds;
             const allSpecials = getSoundsForLanguage(currentLanguage).specials;
             let words = [];
             if (pattern === 'WORDS') {
@@ -1748,9 +1865,9 @@
                 }
             }
 
-            const combinations = pattern === 'FLOP'
-                ? []
-                : buildCombinations(pattern === 'WORDS' ? 'CVC' : pattern, selectedConsonants, selectedVowels);
+            const combinations = pattern === 'WORDS'
+                ? buildCombinations('CVC', selectedConsonants, selectedVowels)
+                : [];
             total = requestedTotal;
             queue = [];
             let noMatchingWords = false;
@@ -1820,15 +1937,12 @@
                 queue = shuffleWithoutAdjacentCards([...wordCards, ...capitalizedPatterns]);
                 noMatchingWords = eligibleWords.length === 0;
             } else {
-                while (queue.length < total) {
-                    const batch = shuffle(combinations).slice(0, total - queue.length);
-                    queue.push(...batch.map(text => ({ text, misses: 0 })));
-                }
+                const deck = buildPatternDeck(subPatterns, selectedConsonants, selectedVowels, total, Math.random);
                 const uppercaseFirst = Math.random() < 0.5;
-                queue = shuffle(queue.map((card, index) => ({
-                    ...card,
-                    text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(card.text) : card.text
-                })));
+                queue = deck.map((text, index) => ({
+                    text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(text) : text,
+                    misses: 0
+                }));
             }
             cleared = 0;
             attempts = 0;
@@ -1893,6 +2007,9 @@
         });
         setLanguage(currentLanguage);
         document.querySelectorAll('input[name="pattern"]').forEach(input => {
+            input.addEventListener('change', updatePatternControls);
+        });
+        document.querySelectorAll('input[name="subpattern"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });
         byId('word-length').addEventListener('change', updateWordMatchCount);
