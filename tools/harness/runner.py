@@ -87,10 +87,10 @@ def trusted_clone(home: str, source_repo: str, base: str = "main", remote: Optio
     return repo
 
 
-def cached_models(adapter: CopilotCliAdapter, home: str, candidates: List[str]) -> Optional[List[str]]:
+def cached_models(adapter: CopilotCliAdapter, home: str, candidates: List[str], force: bool = False) -> Optional[List[str]]:
     """Models the runtime accepts. Probing costs a call per model, so the result is cached for a day."""
     path = os.path.join(home, "models.json")
-    if os.path.exists(path):
+    if os.path.exists(path) and not force:
         with open(path) as fh:
             doc = json.load(fh)
         if time.time() - doc["checked_at"] < MODEL_CACHE_TTL_S and set(doc["candidates"]) == set(candidates):
@@ -101,6 +101,29 @@ def cached_models(adapter: CopilotCliAdapter, home: str, candidates: List[str]) 
     with open(path, "w") as fh:
         json.dump({"checked_at": time.time(), "candidates": candidates, "models": probe["models"]}, fh)
     return probe["models"]
+
+
+def cached_probe(home: str) -> Optional[Dict[str, Any]]:
+    """The last cached probe result, without calling the runtime."""
+    try:
+        with open(os.path.join(home, "models.json")) as fh:
+            doc = json.load(fh)
+    except (OSError, ValueError, KeyError):
+        return None
+    return {"checked_at": doc.get("checked_at"), "candidates": list(doc.get("candidates") or []), "available": list(doc.get("models") or [])}
+
+
+def probe_menu(home: str, sources: List[str], repo_root: str = "", *, refresh: bool = False,
+               catalog: Optional[Dict[str, Dict[str, List[str]]]] = None) -> Dict[str, Any]:
+    """Probe the candidate ids of the chosen model sources and report what this runtime accepts."""
+    catalog = catalog or models.load_catalog(home)
+    menu = models.menu_for(sources, catalog)
+    candidates = sorted({model for ids in menu.values() for model in ids})
+    adapter = CopilotCliAdapter(home, repo_root or home, "main")
+    available = cached_models(adapter, home, candidates, force=refresh) if candidates else []
+    return {"sources": list(sources), "menu": menu, "candidates": candidates, "available": list(available or []),
+            "reachable": available is not None, "reason": "" if available is not None else adapter.probe().get("reason", ""),
+            "checked_at": time.time()}
 
 
 def make_rehearsal(home: str) -> str:

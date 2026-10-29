@@ -70,10 +70,53 @@ task warrants it. A different reviewer model is required whenever another
 approved model is available. The runtime cannot prove model independence when
 model routing is unavailable, and the harness reports that limitation.
 
+### Model sources
+
+The tier menu is the union of the sources you choose. Pass `--model-source` to
+`investigate` and `plan` (repeatable) and the plan records them, so you approve
+the exact menu:
+
+```
+harness investigate --requirements req.md --model-source deepseek --model-source local
+harness plan --requirements req.md --phases req.md_plan/phases.json      # keeps the draft's sources
+harness plan --requirements req.md --phases req.md_plan/phases.json --model-source copilot  # overrides it
+```
+
+Sources are `copilot`, `deepseek`, and `local`. The default is `copilot`. Each
+source contributes candidate ids per tier, and `harness models` probes them and
+shows which ones this runtime accepts:
+
+```
+harness models --source local
+```
+
+An id the runtime rejects is dropped from the menu. If a source has no accepted
+id, `investigate` refuses to start and a plan built from it has no pickable
+model, rather than silently routing to an untested one. If this
+runtime names the models differently, replace any source/tier list in
+`~/.local/state/derschweigert-harness/model_catalog.json`, for example
+`{"local": {"strong": ["my-local-model"]}}`. The file is read when a plan is
+built; it never changes an approved plan.
+
+Selecting only `local` models also runs the investigator, implementer, and
+reviewer on them. Keep two distinct models available per plan if you want an
+independent reviewer.
+
+Verified on GitHub Copilot CLI 1.0.103 in the worker image: only the four
+`copilot` ids above are accepted (`auto` also works but is not a menu entry).
+The built-in `deepseek` and `local` ids are rejected, so those sources need a
+runtime that exposes them; use the catalog file for the ids it does accept.
+
+The dashboard's **Models** view lists the same catalog per source and tier and
+probes on demand. A probe runs in the background, one at a time, at most once a
+minute, and never in `--read-only` mode; the page shows when each id was last
+checked and whether this runtime accepts it.
+
 Trusted code rejects unknown or unavailable choices, empty reasons, and choices
 that exceed the strong implementation-attempt budget. Failed checks or review
 findings retain the existing bounded repair escalation; an initial reviewer
-choice that now matches the repaired implementer is rerouted independently.
+choice that now matches the implementer's current model, after a repair or after
+a delegator retry, is rerouted independently.
 Infrastructure failures alone do not justify an upgrade. No extra routing-agent
 call is added per worker.
 
@@ -131,8 +174,10 @@ the task gains a sixth option, `apply the proposed split`. Choosing it makes the
 harness check the proposal again against the current state (ids still new, anchors
 valid, models still available), then create the parts, point the issues that
 depended on the original at all of the parts, and cancel the original. If the check
-fails now, you get a new decision task that says why. Parts carry the models the
-analyst chose for them, and the original's own models are not copied. The analysis
+fails now, you get a new decision task that says why. A part written before an
+interruption is advanced to `Ready` on the next pass and never moved backwards,
+so a resumed apply neither duplicates a part nor leaves one unworked. Parts carry
+the models the analyst chose for them, and the original's own models are not copied. The analysis
 costs one strong-model call and does not use the strong implementation-attempt
 budget. It is skipped when the budget is zero, the runtime offers no approved
 strong model, or model routing is unavailable.
@@ -179,6 +224,18 @@ and do not substitute for this precondition. The harness never changes GitHub
 protection settings itself.
 
 ## Quick start
+
+The shortest path is one command. It checks the environment, asks for the requirements file and the model sources,
+investigates, plans, approves (you still type the digest), imports the issues, and then offers to run — skipping every
+step the store already shows as done, so rerunning it resumes where you stopped.
+
+```sh
+harness start
+# or, without prompts for the file and the sources:
+harness start --requirements uploads/20261026_improvements.md --model-source copilot
+```
+
+Use the individual commands below when you want to do one step at a time.
 
 Replace the file name with your requirements file.
 
@@ -353,8 +410,10 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 
 | Command | Purpose | Options |
 |---|---|---|
-| `investigate` | Draft phases and issues from requirements. Asks you questions. | `--requirements FILE` (required), `--out DIR`, `--tier low\|standard\|strong` (default standard), `--max-rounds N`, `--non-interactive`, `--answers FILE`, `--feedback TEXT` (repeatable), `--feedback-file FILE`, `--timeout SECONDS`, `--force` |
-| `plan` | Validate and save a plan | `--requirements`, `--phases FILE`, `--plan-id`, `--dry-run`, `--fixture` |
+| `start` | One guided path: environment, investigate, plan, approve, import, run. Resumes where the store says you stopped. | `--requirements FILE`, `--out DIR`, `--plan-id`, `--tier`, `--model-source` (repeatable), `--repo`, `--redraft` |
+| `investigate` | Draft phases and issues from requirements. Asks you questions. | `--requirements FILE` (required), `--out DIR`, `--tier low\|standard\|strong` (default standard), `--model-source copilot\|deepseek\|local` (repeatable, default copilot), `--max-rounds N`, `--non-interactive`, `--answers FILE`, `--feedback TEXT` (repeatable), `--feedback-file FILE`, `--timeout SECONDS`, `--force` |
+| `plan` | Validate and save a plan | `--requirements`, `--phases FILE`, `--plan-id`, `--model-source copilot\|deepseek\|local` (repeatable, default: the phases file, else copilot), `--dry-run`, `--fixture` |
+| `models` | Show the picker menu per source and which ids this runtime accepts | `--source copilot\|deepseek\|local` (repeatable), `--refresh` |
 | `approve PLAN_ID` | Record your one-time approval (real terminal) | `--version` |
 | `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version` |
 | `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version` |

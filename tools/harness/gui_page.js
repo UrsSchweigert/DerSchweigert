@@ -8,6 +8,7 @@
   const mobile = matchMedia("(max-width:760px)");
   let snapshot = null, allTasks = [], selectedPlan = "", activeView = "monitor", online = false;
   let refreshing = false, actionPending = false, openIssue = null, issueSignature = "", confirmation = null;
+  let modelState = null, modelTimer = null;
 
   function element(tagName, attributes = {}, ...children) {
     const node = document.createElement(tagName);
@@ -86,6 +87,7 @@
       byId("connection-error").hidden = true; render();
       if (openIssue) await showIssue(openIssue, true);
       if (activeView === "activity") await refreshLog();
+      if (activeView === "models") await refreshModels();
     } catch (error) {
       online = false; byId("connection-error").textContent = "Connection unavailable: " + error.message;
       byId("connection-error").hidden = false; renderControls();
@@ -309,11 +311,47 @@
       fill("issue-detail", children); icons();
     } catch (error) { if (!quiet) fill("issue-detail", element("div", {class: "failure"}, error.message)); }
   }
+  async function refreshModels() {
+    clearTimeout(modelTimer); modelTimer = null;
+    try {
+      modelState = await api("/api/models"); renderModels();
+      if (modelState.probing) modelTimer = setTimeout(refreshModels, 4000);
+    } catch (error) {
+      byId("models-error").textContent = "Models unavailable: " + error.message; byId("models-error").hidden = false;
+    }
+  }
+  function renderModels() {
+    const state = modelState; if (!state) return;
+    const sources = state.sources || [];
+    if (!byId("model-sources").dataset.ready) {
+      fill("model-sources", sources.map(source => element("label", {class: "choice"},
+        element("input", {type: "checkbox", value: source, checked: true}), source)));
+      byId("model-sources").dataset.ready = "true";
+    }
+    const probe = state.probe, checkedAt = probe?.checked_at || state.cache?.checked_at;
+    const available = new Set(state.probing ? [] : (probe?.available || state.cache?.available || []));
+    byId("models-checked").textContent = state.probing ? "Probing..." : checkedAt ? "Checked " + formatTime(checkedAt) : "Never probed";
+    const rows = [];
+    for (const source of sources) for (const tier of ["low", "standard", "strong"]) for (const id of (state.catalog?.[source]?.[tier] || [])) {
+      const accepted = available.has(id);
+      rows.push(element("tr", {}, element("td", {}, source), element("td", {}, tier), element("td", {class: "mono small"}, id),
+        element("td", {}, badge(accepted ? "accepted" : "rejected", accepted ? "positive" : "negative"))));
+    }
+    fill("models-table", rows.length ? table(["Source", "Tier", "Model", "This runtime"], rows) : empty("No candidate ids in the catalog."));
+    const button = byId("probe-models"), wait = state.probe_after_s || 0;
+    button.disabled = Boolean(state.read_only || state.probing || wait);
+    button.title = state.read_only ? "Read-only mode does not probe the runtime" : state.probing ? "A probe is running"
+      : wait ? `Probe again in ${wait}s` : "Ask the runtime which ids it accepts";
+    const problem = state.probe_error || (probe && !probe.reachable ? "Model routing unavailable: " + (probe.reason || "unknown reason") : "");
+    byId("models-error").textContent = problem; byId("models-error").hidden = !problem;
+    icons();
+  }
   function selectView(view) {
     activeView = view;
     for (const section of document.querySelectorAll("main>.view")) section.hidden = section.id !== "view-" + view;
     for (const button of document.querySelectorAll("[data-view]")) button.setAttribute("aria-current", button.dataset.view === view ? "page" : "false");
     closeNavigation(); if (view === "activity") refreshLog();
+    if (view === "models") refreshModels();
   }
   function updateNavigation() {
     const open = byId("app").classList.contains("nav-open");
@@ -338,6 +376,13 @@
     byId("confirm-submit").disabled = confirmation.needsText; byId("confirm-error").hidden = true; byId("confirm-dialog").showModal();
   }
   byId("refresh").addEventListener("click", refresh);
+  byId("probe-models").addEventListener("click", async () => {
+    const sources = [...byId("model-sources").querySelectorAll("input:checked")].map(input => input.value);
+    if (!sources.length) { notify("Choose at least one model source"); return; }
+    byId("probe-models").disabled = true;
+    try { await api("/api/models/probe", {sources}); notify("Probe started; results appear here"); await refreshModels(); }
+    catch (error) { notify(error.message); renderModels(); }
+  });
   byId("plan-select").addEventListener("change", event => { selectedPlan = event.target.value; byId("issue-search").value = ""; byId("state-filter").value = ""; byId("phase-filter").value = ""; if (byId("issue-dialog").open) byId("issue-dialog").close(); render(); if (activeView === "activity") refreshLog(); });
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => selectView(button.dataset.view));
   for (const id of ["issue-search", "state-filter", "phase-filter"]) byId(id).addEventListener(id === "issue-search" ? "input" : "change", () => { renderIssues(); icons(); });

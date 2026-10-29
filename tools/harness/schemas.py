@@ -75,6 +75,7 @@ POLICY = {
     "escalation_paths": [str],
     "merge_policy": str,
     "budgets": dict,
+    "model_sources?": [str],
     "model_tiers": dict,
     "diff_size_cap": int,
     "assets?": dict,

@@ -486,7 +486,9 @@ class Investigator:
         archived = self._archive(out_dir)
         plan = plans.build_plan("draft", 1, reqs, draft["phases"], self.policy)
         flags = escalation_flags(draft, self.policy)
-        outputs = {"phases.json": {"phases": draft["phases"]}, "issues.json": {"issues": draft["issues"]}}
+        sources = self.policy.get("model_sources")
+        outputs = {"phases.json": dict({"phases": draft["phases"]}, **({"model_sources": sources} if sources else {})),
+                   "issues.json": {"issues": draft["issues"]}}
         for name, doc in outputs.items():
             tmp = os.path.join(out_dir, name + ".tmp")
             with open(tmp, "w") as fh:

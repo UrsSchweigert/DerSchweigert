@@ -222,7 +222,8 @@ Work goes stale when its inputs change underneath it. Code detects each case det
 
 Model choice is an execution-policy setting, so the approval digest covers it. Pick the cheapest tier that the task packet supports and move up only on evidence.
 
-* Define three tiers in the policy: `low`, `standard`, and `strong`. Map each tier to a concrete model in `docs/harness/decisions.md`, because the available models depend on the runtime.
+* Define three tiers in the policy: `low`, `standard`, and `strong`. Map each tier to concrete models in `docs/harness/decisions.md`, because the available models depend on the runtime.
+* The owner chooses which model sources the tier menu may draw from (`copilot`, `deepseek`, `local`), and the policy records the chosen sources with the derived menu so approval covers both. A source is a candidate list, not a promise: an id the runtime rejects never reaches the menu.
 * Default role mapping: investigator and refiner use `low`, the implementer uses `standard`, the reviewer uses `standard`, and the integrator uses `low` because its merge, check, and sync steps are deterministic code.
 * The reviewer never runs below the implementer's tier and uses a different model from the implementer when one is available.
 * Escalate by evidence. Move one tier up for a repair attempt only after a failed check or review finding on the previous attempt. Use `strong` for work touching an escalation path. An agent's request for a stronger model is a proposal that the coordinator accepts only on these grounds.

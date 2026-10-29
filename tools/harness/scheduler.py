@@ -749,8 +749,15 @@ class Scheduler:
                                             "validation_commands", "working_directory", "parallel_safe", "model_choices") if k in p}
                 self.store.put_issue(new_issue(p["issue_id"], self.plan_id, issue["phase_id"], p["requirement_ids"], base_rev=base,
                                                split_of=issue["issue_id"], **fields))
-                for state in ("Refining", "Ready"):
-                    self.store.transition("issue", p["issue_id"], state, self.runner_id, {"split_of": issue["issue_id"]}, now=now)
+        for part_id in ids:
+            # put_issue and the transitions commit separately, so a crash can leave a part with no state row or in Refining.
+            # Advance only forward, so a part that already started is never reset.
+            state = self.store.state("issue", part_id)
+            if state in (None, "Inbox"):
+                self.store.transition("issue", part_id, "Refining", self.runner_id, {"split_of": issue["issue_id"]}, now=now)
+                state = "Refining"
+            if state == "Refining":
+                self.store.transition("issue", part_id, "Ready", self.runner_id, {"split_of": issue["issue_id"]}, now=now)
         for other in self.store.list_issues(self.plan_id):
             if issue["issue_id"] in other["deps"]:
                 other["deps"] = list(dict.fromkeys(d for dep in other["deps"] for d in (ids if dep == issue["issue_id"] else [dep])))
@@ -1151,7 +1158,9 @@ class Scheduler:
             choice = choices.get(role)
             repair = bool(last_impl and role == "implementer" and
                           (last_kind in models.ESCALATION_EVIDENCE or last_impl.get("routing_source") == "evidence"))
-            review_conflict = bool(choice and role == "reviewer" and choice["model"] == avoid and issue["repair_failures"])
+            # The implementer's model can change without spending repair budget (a delegator retry), so compare against
+            # the model actually in use instead of gating independence on repair_failures.
+            review_conflict = bool(choice and role == "reviewer" and choice["model"] == avoid)
             if choice and not repair and not review_conflict:
                 route = models.resolve_choice(choice, policy["model_tiers"], self.available_models, avoid,
                                               strong_used=issue["strong_attempts"] if role == "implementer" else 0,
@@ -1161,8 +1170,9 @@ class Scheduler:
                 route = models.resolve_model(tier, policy["model_tiers"], self.available_models, avoid)
                 routing_source = "evidence" if choice else "legacy"
                 if choice:
-                    route["note"] = "quality failure requires repair or independent review; original choice: %s (%s); %s" % (
-                        choice["model"], choice["reason"], route["note"])
+                    why = "quality failure requires repair" if repair else "the reviewer must not share the implementer's model"
+                    route["note"] = "%s; original choice: %s (%s); %s" % (
+                        why, choice["model"], choice["reason"], route["note"])
             if route["routing"] and route["model"] is None:
                 raise ValueError("no configured model is available for this attempt")
             if role == "implementer" and route["tier"] == "strong" and issue["strong_attempts"] >= budgets["strong_attempts_per_issue"]:

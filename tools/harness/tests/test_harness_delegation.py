@@ -229,3 +229,22 @@ def test_worker_results_accept_only_well_formed_decisions():
     for bad in ({"action": "merge", "diagnosis": "x"}, {"action": "retry"}, {"action": "retry", "diagnosis": "x", "extra": 1}):
         with pytest.raises(schemas.SchemaError):
             schemas.validate(dict(base, decision=bad), schemas.WORKER_RESULT)
+
+
+def test_a_delegator_retry_that_matches_the_chosen_reviewer_reroutes_the_review(tmp_path):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {
+        "implementer": {"model": "claude-haiku-4.5", "reason": "A bounded change with strong test coverage."},
+        "reviewer": {"model": "claude-sonnet-5", "reason": "One standard-tier model is enough for this diff."},
+    }
+    env.store.put_issue(issue)
+    env.adapter.script("i1", "implementer", "blocked", "ok")
+    env.adapter.decisions["i1"] = [dict(RETRY_WITH_SONNET)]
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    implementations = [a for a in env.store.list_attempts("i1") if a["role"] == "implementer"]
+    review = next(a for a in env.store.list_attempts("i1") if a["role"] == "reviewer")
+    assert [a["model"] for a in implementations] == ["claude-haiku-4.5", "claude-sonnet-5"]
+    assert review["model"] != "claude-sonnet-5" and review["independent"] is True
+    assert "claude-sonnet-5" in review["routing_note"]

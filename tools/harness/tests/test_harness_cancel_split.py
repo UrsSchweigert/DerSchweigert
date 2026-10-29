@@ -238,3 +238,18 @@ def test_an_unavailable_part_model_stops_the_split_at_apply_time(tmp_path):
     env.sched.available_models = ["claude-haiku-4.5"]
     env.tick(60)
     assert env.state("i1") == "Blocked" and "not available" in env.store.get_issue("i1")["blocked_reason"]
+
+
+@pytest.mark.parametrize("reached", [(), ("Refining",)])
+def test_an_apply_interrupted_before_the_part_transitions_resumes(tmp_path, reached):
+    env = Env(tmp_path, issues=[("i1", "P1", ["F1.1", "F1.2"]), ("i2", "P2", ["F2.1"])])
+    escalate_with_split(env)
+    respond(env, APPLY)
+    first = SPLIT["split"][0]  # a crash after the part was written, before or between its transitions
+    fields = {k: v for k, v in first.items() if k not in ("issue_id", "requirement_ids")}
+    env.store.put_issue(new_issue("i1-model", "fx", "P1", first["requirement_ids"], base_rev=env.repo.base_head(), split_of="i1", **fields))
+    for state in reached:
+        env.store.transition("issue", "i1-model", state, "setup")
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Completed", advance=60)
+    assert any(e["event"] == "split_applied" for e in events)
+    assert env.state("i1") == "Cancelled" and env.state("i1-model") == "Done" and env.state("i1-view") == "Done"

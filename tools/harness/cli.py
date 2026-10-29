@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import time
 
-from . import approval, assets, humantasks, investigate, isolation, plans, reconcile, runner, schemas, status, workrecord
+from . import approval, assets, humantasks, investigate, isolation, models, plans, reconcile, runner, schemas, status, workrecord
 from .github import GhCli, GitHubError
 from .approval import AuthorizationError, plan_entity
 from .checks import SandboxChecker
@@ -27,20 +27,26 @@ def _slug(path: str) -> str:
 
 
 def plan_command(store: Optional[Store], requirements: str, phases_path: Optional[str] = None,
-                 plan_id: Optional[str] = None, fixture: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+                 plan_id: Optional[str] = None, fixture: bool = False, dry_run: bool = False,
+                 model_sources: Optional[List[str]] = None) -> Dict[str, Any]:
     """Build a plan from requirements. Without phases the plan stays Draft and lists what is missing."""
     reqs = plans.parse_requirements(requirements)
     phases = None
+    draft_sources = None
     if phases_path:
         with open(phases_path, encoding="utf-8") as fh:
             data = json.load(fh)
         phases = data["phases"] if isinstance(data, dict) else data
+        draft_sources = data.get("model_sources") if isinstance(data, dict) else None  # the investigator's choice
     plan_id = plan_id or _slug(requirements)
     latest = store.get_plan(plan_id) if store else None
     version = latest["plan"]["version"] + 1 if latest else 1
-    plan = plans.build_plan(plan_id, version, reqs, phases, fixture=fixture)
+    catalog = models.load_catalog(store.home) if store else None
+    plan = plans.build_plan(plan_id, version, reqs, phases, fixture=fixture, model_sources=model_sources or draft_sources,
+                            catalog=catalog)
     digest = plans.plan_digest(plan)
-    result: Dict[str, Any] = {"plan_id": plan_id, "version": version, "digest": digest, "requirements": len(reqs), "dry_run": dry_run}
+    result: Dict[str, Any] = {"plan_id": plan_id, "version": version, "digest": digest, "requirements": len(reqs), "dry_run": dry_run,
+                              "model_sources": plan["policy"].get("model_sources")}
     if latest and latest["digest"] == digest:
         result.update(version=latest["plan"]["version"], unchanged=True, state=store.state("plan", plan_entity(plan_id, latest["plan"]["version"])))
         return result
@@ -228,6 +234,32 @@ def runner_command(args) -> int:
         store.close()
 
 
+def models_command(args) -> int:
+    """Show the picker menu per source and which ids this runtime accepts. Read-only apart from the probe cache."""
+    store = Store(args.home)
+    try:
+        catalog = models.load_catalog(store.home)
+        sources = list(dict.fromkeys(args.source or list(models.SOURCES)))
+        root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+        report = runner.probe_menu(store.home, sources, root, refresh=args.refresh, catalog=catalog)
+        if not report["reachable"]:
+            print("model routing unavailable: %s; showing candidates only" % report["reason"])
+        available = set(report["available"])
+        for source in sources:
+            print(source)
+            for tier in models.TIERS:
+                shown = ["%s %s" % (model, "yes" if model in available else "no") for model in catalog[source][tier]]
+                print("  %-8s %s" % (tier, ", ".join(shown) or "-"))
+        if report["reachable"]:
+            accepted = [model for model in report["candidates"] if model in available]
+            print("menu with %s: %d of %d model(s) accepted" % ("+".join(sources), len(accepted), len(report["candidates"])))
+            if report["candidates"] and not accepted:
+                print("none accepted; replace the ids for this runtime in %s" % os.path.join(store.home, models.CATALOG_FILE), file=sys.stderr)
+        return 0
+    finally:
+        store.close()
+
+
 def investigate_command(args) -> int:
     store = Store(args.home)
     try:
@@ -241,10 +273,13 @@ def investigate_command(args) -> int:
         probe = adapter.probe()
         if not probe["available"]:
             raise runner.RunRefused("the Copilot CLI sandbox adapter is unavailable: %s" % probe["reason"])
-        policy = plans.DEFAULT_POLICY
+        policy = plans.with_model_sources(plans.DEFAULT_POLICY, args.model_source, models.load_catalog(store.home))
         tiers = policy["model_tiers"]
         candidates = sorted({m for v in tiers.values() for m in ([v] if isinstance(v, str) else v)})
         available = runner.cached_models(adapter, store.home, candidates)
+        if available is not None and not available:
+            raise runner.RunRefused("none of the %s models are available in this runtime; check them with `harness models --source %s`"
+                                    % ("+".join(policy["model_sources"]), " --source ".join(policy["model_sources"])))
         base = os.path.basename(args.requirements)
         out = args.out or os.path.join(os.path.dirname(os.path.abspath(args.requirements)), base + "_plan")
         interactive = not args.non_interactive and sys.stdin.isatty()
@@ -267,7 +302,8 @@ def investigate_command(args) -> int:
             print("No valid draft after %d attempts. Problems:\n  - %s\nThe last rejected draft is in %s/rejected-draft.json" % (
                 result["attempts"], "\n  - ".join(result["problems"][:10]), out))
             return 1
-        print("Draft written to %s: %d phases, %d issues (tier %s, model %s)" % (out, result["phases"], result["issues"], result["tier"], result["model"]))
+        print("Draft written to %s: %d phases, %d issues (tier %s, model %s, sources %s)" % (
+            out, result["phases"], result["issues"], result["tier"], result["model"], "+".join(policy["model_sources"])))
         if result.get("archived"):
             print("The previous version is kept in %s" % result["archived"])
         for a in result["assumptions"]:
@@ -358,6 +394,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--plan-id")
     p.add_argument("--fixture", action="store_true", help="mark the plan as a test fixture")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--model-source", action="append", choices=list(models.SOURCES),
+                   help="where the picker menu takes models from (repeatable; default: the phases file's choice, else copilot)")
     a = sub.add_parser("approve", help="record human approval of a plan version")
     a.add_argument("plan_id")
     a.add_argument("--version", type=int)
@@ -393,10 +431,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     ii.add_argument("plan_id")
     ii.add_argument("file")
     ii.add_argument("--version", type=int)
+    st = sub.add_parser("start", help="one guided path: environment, investigate, plan, approve, import, run")
+    st.add_argument("--requirements", help="requirements file (asked for when omitted)")
+    st.add_argument("--out", help="investigation directory (default: <requirements>_plan)")
+    st.add_argument("--plan-id")
+    st.add_argument("--tier", choices=["low", "standard", "strong"], default="standard")
+    st.add_argument("--model-source", action="append", choices=list(models.SOURCES), help="picker sources to allow (repeatable; asked when omitted)")
+    st.add_argument("--repo", help="GitHub owner/name (detected from the remote when omitted)")
+    st.add_argument("--redraft", action="store_true", help="investigate again even when a draft exists")
     iv = sub.add_parser("investigate", help="draft phases and issues from requirements with the investigator (asks you questions when needed)")
     iv.add_argument("--requirements", required=True)
     iv.add_argument("--out", help="output directory (default: <requirements>_plan next to the requirements file)")
     iv.add_argument("--tier", choices=["low", "standard", "strong"], default="standard")
+    iv.add_argument("--model-source", action="append", choices=list(models.SOURCES),
+                    help="where the picker menu takes models from (repeatable; default copilot)")
     iv.add_argument("--max-rounds", type=int, default=3, help="how many times the investigator may ask questions")
     iv.add_argument("--non-interactive", action="store_true", help="write questions.md and stop instead of asking in the terminal")
     iv.add_argument("--answers", help="JSON file mapping question id to answer, to continue a non-interactive run")
@@ -425,6 +473,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     asx.add_argument("action", choices=["probe"])
     i = sub.add_parser("isolation", help="Tier A worker sandbox: build the image, verify it, or show the tier")
     i.add_argument("action", choices=["build", "verify", "status"])
+    md = sub.add_parser("models", help="show the picker menu per source and which models this runtime accepts")
+    md.add_argument("--source", action="append", choices=list(models.SOURCES), help="source to show (repeatable; default all)")
+    md.add_argument("--refresh", action="store_true", help="probe again instead of using the cached result")
     q = sub.add_parser("probe", help="read-only GitHub capability probe")
     q.add_argument("--repo")
     rc = sub.add_parser("reconcile-completion", help="verify and record work completed outside the harness")
@@ -470,7 +521,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         if args.cmd == "plan":
             store = None if args.dry_run and not os.path.exists(os.path.join(args.home or default_home(), "harness.sqlite")) else Store(args.home)
-            result = plan_command(store, args.requirements, args.phases, args.plan_id, args.fixture, args.dry_run)
+            result = plan_command(store, args.requirements, args.phases, args.plan_id, args.fixture, args.dry_run,
+                                  model_sources=args.model_source)
             if store is not None and not args.dry_run and result.get("state") == "Proposed" and args.phases:
                 issue_path = args.issues
                 if issue_path is None:
@@ -492,6 +544,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 2 if result.get("preflight_errors") else 0
         if args.cmd in ("run", "resume", "cancel", "import-issues", "pause"):
             return runner_command(args)
+        if args.cmd == "start":
+            from .start import run_start
+            return run_start(args)
         if args.cmd == "investigate":
             return investigate_command(args)
         if args.cmd in ("respond", "tasks", "sync-tasks"):
@@ -501,6 +556,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         if args.cmd == "isolation":
             return isolation_command(args.action, args.home)
+        if args.cmd == "models":
+            return models_command(args)
         if args.cmd == "probe":
             print(json.dumps(GhCli(args.repo or detect_repo(), token_file=broker_token_file(args.home)).capabilities(), indent=2, sort_keys=True))
             return 0

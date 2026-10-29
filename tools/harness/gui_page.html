@@ -184,6 +184,7 @@
       <button class="nav-item" data-view="issues"><i data-lucide="list-checks"></i>Issues<span class="nav-count" id="issue-count">0</span></button>
       <button class="nav-item" data-view="tasks"><i data-lucide="circle-help"></i>Tasks<span class="nav-count" id="task-count">0</span></button>
       <button class="nav-item" data-view="activity"><i data-lucide="activity"></i>Activity</button>
+      <button class="nav-item" data-view="models"><i data-lucide="layers"></i>Models</button>
     </nav>
     <div class="sidebar-bottom">
       <div><span class="field-label">Isolation</span><span id="isolation">Checking</span></div>
@@ -241,6 +242,16 @@
         <section class="view" id="view-activity" aria-label="Activity" hidden>
           <section class="section"><div class="section-heading"><h2>Recent activity</h2></div><div id="events"></div></section>
           <section class="section"><div class="section-heading"><h2>Runner output</h2></div><pre class="log" id="run-log">No runner output.</pre></section>
+        </section>
+        <section class="view" id="view-models" aria-label="Models" hidden>
+          <section class="section">
+            <div class="section-heading"><h2>Model picker</h2><span class="small muted" id="models-checked">Never probed</span></div>
+            <p class="small muted">Plans pick their models from the sources you approve. A probe only asks this runtime which ids it accepts; it starts when you click, runs in the background, and is limited to once a minute.</p>
+            <div class="toolbar" id="model-sources"></div>
+            <div class="toolbar"><button class="command" id="probe-models"><i data-lucide="refresh-cw"></i>Probe now</button></div>
+            <div class="banner error" id="models-error" role="alert" hidden></div>
+            <div id="models-table"></div>
+          </section>
         </section>
       </main>
       <footer class="footer"><span id="updated-time">Waiting for data</span><span id="usage-note">Tokens and cost: unavailable</span></footer>

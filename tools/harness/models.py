@@ -1,11 +1,37 @@
 """Delegated model choices, bounded legacy routing, and independent review."""
 from __future__ import annotations
 
+import json
+import os
 from typing import Any, Dict, List, Optional
 
 from . import schemas
 
 TIERS = ("low", "standard", "strong")
+
+# Sources the picker menu can draw from. A plan records the chosen ones, so the menu is bound by its approval digest.
+SOURCES = ("copilot", "deepseek", "local")
+
+# Candidate ids per source and tier. Availability is still probed: ids this runtime rejects are dropped from the menu.
+# A store-level model_catalog.json can replace any source/tier list when a runtime uses different ids.
+MODEL_CATALOG: Dict[str, Dict[str, List[str]]] = {
+    "copilot": {
+        "low": ["claude-haiku-4.5"],
+        "standard": ["claude-sonnet-5"],
+        "strong": ["claude-opus-5", "claude-opus-4.8"],
+    },
+    "deepseek": {
+        "low": ["deepseek/deepseek-v4-flash"],
+        "standard": ["deepseek/deepseek-v4-flash"],
+        "strong": ["deepseek/deepseek-v4-pro"],
+    },
+    "local": {
+        "low": ["ollama-models/qwen3.5:4b", "ollama-models/qwen3:4b", "ollama-models/llama3.2:3b", "ollama-models/phi:latest"],
+        "standard": ["ollama-models/gemma4:12b", "ollama-models/qwen3-local:8k"],
+        "strong": ["ollama-models/gemma4:cloud"],
+    },
+}
+CATALOG_FILE = "model_catalog.json"
 ROLE_TIER = {"investigator": "low", "refiner": "low", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
              "analyst": "strong"}
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
@@ -79,6 +105,39 @@ def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], availab
             raise ValueError("reviewer must use an independent model when one is available")
         note += "; reviewer shares the implementer's model: no different model available"
     return {"model": selected, "tier": tier, "routing": True, "note": note}
+
+
+def load_catalog(home: Optional[str] = None) -> Dict[str, Dict[str, List[str]]]:
+    """The built-in catalog, with every source/tier that a store-level model_catalog.json replaces."""
+    catalog = {source: {tier: list(ids) for tier, ids in tiers.items()} for source, tiers in MODEL_CATALOG.items()}
+    path = os.path.join(home, CATALOG_FILE) if home else None
+    if path and os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            custom = json.load(fh)
+        schemas.validate(custom, {source + "?": {tier + "?": [str] for tier in TIERS} for source in SOURCES}, "model_catalog")
+        if not custom:
+            raise ValueError("model_catalog.json names no source")
+        for source, tiers in custom.items():
+            catalog[source].update({tier: list(ids) for tier, ids in tiers.items()})
+    return catalog
+
+
+def menu_for(sources: List[str], catalog: Optional[Dict[str, Dict[str, List[str]]]] = None) -> Dict[str, List[str]]:
+    """The picker menu for the chosen sources: each tier unions their candidates in the order the sources were given."""
+    chosen = list(dict.fromkeys(sources or []))
+    if not chosen:
+        raise ValueError("at least one model source is required; choose from %s" % ", ".join(SOURCES))
+    unknown = [source for source in chosen if source not in SOURCES]
+    if unknown:
+        raise ValueError("unknown model source(s) %s; choose from %s" % (", ".join(unknown), ", ".join(SOURCES)))
+    catalog = catalog or load_catalog()
+    menu: Dict[str, List[str]] = {}
+    for tier in TIERS:
+        ids: List[str] = []
+        for source in chosen:
+            ids.extend(model for model in catalog[source][tier] if model not in ids)
+        menu[tier] = ids
+    return menu
 
 
 def available_in_tier(tier: str, policy_tiers: dict[str, Any], available: list[str] | None) -> list[str]:
