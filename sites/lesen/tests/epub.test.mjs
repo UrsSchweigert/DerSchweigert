@@ -2,7 +2,14 @@ import test from "node:test";
 import assert from "node:assert";
 import { readFileSync, readdirSync } from "node:fs";
 import { inflateRawSync } from "node:zlib";
-import { openEpub, parsePackage, EpubError } from "../tools/epub.mjs";
+import {
+  openEpub,
+  parsePackage,
+  extractBlocks,
+  splitSentences,
+  normalizeText,
+  EpubError,
+} from "../tools/epub.mjs";
 
 // The committed sources are the fixtures. de-heinzelmaennchen is EPUB 3 and
 // en-peter-rabbit is EPUB 2; every malformed variant below is derived from
@@ -452,4 +459,190 @@ test("a package with zero linear documents is refused with a named error", () =>
       return true;
     },
   );
+});
+
+// --- extractBlocks / splitSentences / normalizeText -----------------------
+
+const struwwelpeterBytes = readFileSync(new URL("../books-src/de-struwwelpeter.epub", import.meta.url));
+
+const SAMPLE_STORY_HEADING = "Die Geschichte vom bösen Friederich";
+const SAMPLE_STORY_LINES = [
+  "Der Friederich, der Friederich",
+  "das war ein arger Wüterich!",
+  "Er fing die Fliegen in dem Haus",
+  "und riß ihnen die Flügel aus.",
+  "Er schlug die Stühl und Vögel tot,",
+  "die Katzen litten große Not.",
+  "Und höre nur, wie bös er war:",
+  "Er peitschte seine Gretchen gar!",
+  "Am Brunnen stand ein großer Hund,",
+  "trank Wasser dort mit seinem Mund.",
+  "Da mit der Peitsch herzu sich schlich",
+  "der bitterböse Friederich;",
+  "und schlug den Hund, der heulte sehr,",
+  "und trat und schlug ihn immer mehr.",
+  "Da biß der Hund ihn in das Bein,",
+  "recht tief bis in das Blut hinein.",
+  "Der bitterböse Friederich,",
+  "der schrie und weinte bitterlich.",
+  "Jedoch nach Hause lief der Hund",
+  "und trug die Peitsche in dem Mund.",
+  "Ins Bett muß Friedrich nun hinein,",
+  "litt vielen Schmerz an seinem Bein;",
+  "und der Herr Doktor sitzt dabei",
+  "und gibt ihm bittre Arzenei.",
+  "Der Hund an Friedrichs Tischchen saß,",
+  "wo er den großen Kuchen aß;",
+  "aß auch die gute Leberwurst",
+  "und trank den Wein für seinen Durst.",
+  "Die Peitsche hat er mitgebracht",
+  "und nimmt sie sorglich sehr in acht.",
+];
+
+function assertWordsInOrder(actualText, expectedWords) {
+  const actual = actualText.trim().split(/\s+/);
+  let cursor = 0;
+  for (const word of expectedWords) {
+    while (cursor < actual.length && actual[cursor] !== word) cursor++;
+    assert.ok(cursor < actual.length, `word "${word}" not found in order`);
+    cursor++;
+  }
+}
+
+test("normalizeText decodes entities and collapses whitespace without dropping a letter", () => {
+  assert.strictEqual(normalizeText("Th&uuml;r und bey"), "Thür und bey");
+  assert.strictEqual(normalizeText("&amp;&lt;&gt;&quot;&apos;"), '&<>"\'');
+  assert.strictEqual(normalizeText("&#252; &#xE4;"), "ü ä");
+  assert.strictEqual(normalizeText("a&nbsp;b"), "a b");
+  assert.strictEqual(normalizeText("Wort&shy;bruch"), "Wortbruch");
+  assert.strictEqual(normalizeText("a\u200bb"), "ab");
+  assert.strictEqual(normalizeText("  a   \n\t b  "), "a b");
+});
+
+test("splitSentences ends after .!? plus a closing quote, with the documented exceptions", () => {
+  assert.deepStrictEqual(splitSentences("Er kam. Dann ging er."), ["Er kam.", "Dann ging er."]);
+  assert.deepStrictEqual(splitSentences("Herr und Frau sind da."), ["Herr und Frau sind da."]);
+  assert.deepStrictEqual(splitSentences("Dr. Hoffmann kam."), ["Dr. Hoffmann kam."]);
+  assert.deepStrictEqual(splitSentences("z. B. ein Haus."), ["z. B. ein Haus."]);
+  assert.deepStrictEqual(splitSentences("u. a. auch"), ["u. a. auch"]);
+  assert.deepStrictEqual(splitSentences("Mr. und Mrs. Brown kamen."), ["Mr. und Mrs. Brown kamen."]);
+  assert.deepStrictEqual(splitSentences("St. Gallen liegt da."), ["St. Gallen liegt da."]);
+  assert.deepStrictEqual(splitSentences("Das kostet 3.5 Euro."), ["Das kostet 3.5 Euro."]);
+  assert.deepStrictEqual(splitSentences("Er rief »Hallo!« Dann ging er."), [
+    "Er rief »Hallo!«",
+    "Dann ging er.",
+  ]);
+  assert.deepStrictEqual(splitSentences("– Ja, ich weiß. Und du?"), ["– Ja, ich weiß. Und du?"]);
+});
+
+test("extractBlocks groups paragraphs and verse lines and drops boilerplate", () => {
+  const xhtml = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title></head><body>',
+    '<div class="pg-boilerplate pgheader header" id="pg-header"><p>Header</p><div id="pg-start-separator"><span>*** START OF THE PROJECT GUTENBERG EBOOK X ***</span></div></div>',
+    "<h2>Ein Test</h2>",
+    "<p>Erster Absatz. Zweiter Satz.</p>",
+    '<div class="poem"><div class="stanza"><span class="i1">Zeile eins<br/>Zeile zwei<br/></span></div></div>',
+    "<p>Letzter Absatz.</p>",
+    '<p class="printer">Druck von der Druckerei.</p>',
+    '<div id="pg-footer"><p>License.</p></div>',
+    "</body></html>",
+  ].join("\n");
+
+  const { blocks, paragraphs, sentences } = extractBlocks(xhtml);
+
+  assert.deepStrictEqual(
+    blocks.map((block) => block.kind),
+    ["prose", "prose", "verse", "prose"],
+  );
+  assert.deepStrictEqual(blocks[0].paragraphs, ["Ein Test"]);
+  assert.deepStrictEqual(blocks[1].sentences, ["Erster Absatz.", "Zweiter Satz."]);
+  assert.deepStrictEqual(blocks[2].lines, ["Zeile eins", "Zeile zwei"]);
+  assert.deepStrictEqual(blocks[3].paragraphs, ["Letzter Absatz."]);
+  assert.strictEqual(paragraphs, 5);
+  assert.strictEqual(sentences, 6);
+});
+
+test("extractBlocks ends paragraphs at block elements and drops empty blocks", () => {
+  const { blocks, paragraphs, sentences } = extractBlocks(
+    "<ul><li>A</li><li>B</li></ul><blockquote>C</blockquote><p> </p><p><br/></p><p>Text</p>",
+  );
+  assert.deepStrictEqual(
+    blocks.map((block) => block.text),
+    ["A", "B", "C", "Text"],
+  );
+  assert.strictEqual(paragraphs, 4);
+  assert.strictEqual(sentences, 4);
+});
+
+test("Struwwelpeter: sample story words appear in order, no empty sentences, counts match the manifest", () => {
+  const { documents } = parsePackage(struwwelpeterBytes, { inflate: inflateRawSync });
+  const texts = [];
+  let paragraphs = 0;
+  let sentences = 0;
+  for (const doc of documents) {
+    const result = extractBlocks(doc.xhtml);
+    paragraphs += result.paragraphs;
+    sentences += result.sentences;
+    for (const block of result.blocks) {
+      texts.push(block.text);
+      for (const sentence of block.sentences) {
+        assert.ok(sentence.trim().length > 0, "no sentence may be empty");
+      }
+    }
+  }
+
+  // Whole-book manifest values.
+  assert.strictEqual(paragraphs, 374);
+  assert.strictEqual(sentences, 451);
+
+  const expectedWords = [SAMPLE_STORY_HEADING, ...SAMPLE_STORY_LINES].join(" ").trim().split(/\s+/);
+  assertWordsInOrder(texts.join(" "), expectedWords);
+});
+
+test("Struwwelpeter: the sample story yields 31 paragraphs and 31 sentences", () => {
+  const { documents } = parsePackage(struwwelpeterBytes, { inflate: inflateRawSync });
+  const doc = documents.find((document) => document.xhtml.includes("Wüterich"));
+  assert.ok(doc, "the story body document must be present");
+
+  const { blocks } = extractBlocks(doc.xhtml);
+  const start = blocks.findIndex((block) => block.text.includes(SAMPLE_STORY_HEADING));
+  const end = blocks.findIndex((block) => block.text.includes("Die gar traurige Geschichte"));
+  assert.ok(start >= 0, "sample story heading must be found");
+  assert.ok(end > start, "the following story must bound the sample story");
+
+  const storyBlocks = blocks.slice(start, end);
+  let paragraphs = 0;
+  let sentences = 0;
+  for (const block of storyBlocks) {
+    paragraphs += block.kind === "prose" ? block.paragraphs.length : block.lines.length;
+    sentences += block.sentences.length;
+  }
+  assert.strictEqual(paragraphs, 31);
+  assert.strictEqual(sentences, 31);
+});
+
+test("all sixteen books extract without error and never yield an empty sentence", () => {
+  const booksDir = new URL("../books-src/", import.meta.url);
+  const files = readdirSync(booksDir).filter((name) => name.endsWith(".epub"));
+  assert.strictEqual(files.length, 16, "the committed library must contain sixteen books");
+
+  for (const file of files) {
+    const bytes = readFileSync(new URL(file, booksDir));
+    const { documents } = parsePackage(bytes, { inflate: inflateRawSync });
+    let blocks = 0;
+    for (const doc of documents) {
+      const result = extractBlocks(doc.xhtml);
+      blocks += result.blocks.length;
+      assert.ok(result.paragraphs >= 0, `${file}: paragraph count must be non-negative`);
+      assert.ok(result.sentences >= 0, `${file}: sentence count must be non-negative`);
+      for (const block of result.blocks) {
+        assert.ok(block.kind === "prose" || block.kind === "verse", `${file}: unknown block kind`);
+        for (const sentence of block.sentences) {
+          assert.ok(sentence.trim().length > 0, `${file}: empty sentence in ${doc.path}`);
+        }
+      }
+    }
+    assert.ok(blocks > 0, `${file} must yield at least one block`);
+  }
 });
