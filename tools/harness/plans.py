@@ -6,7 +6,8 @@ import hashlib
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+import shlex
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import models, schemas
 
@@ -57,6 +58,35 @@ _COMMAND_DENY = re.compile(r"(\bcurl\b|\bwget\b|\bssh\b|\bscp\b|\bsudo\b|\brm\s+
 def command_problem(command: str) -> Optional[str]:
     if _COMMAND_DENY.search(command):
         return "command uses a prohibited network, privilege, container, or publishing tool"
+    return None
+
+
+_GLOB_CHARS = set("*?[")
+
+
+def _under(path: str, prefixes: Sequence[str]) -> bool:
+    normal = os.path.normpath(path).replace(os.sep, "/")
+    return any(normal == p or normal.startswith(p + "/")
+               for p in (os.path.normpath(q).replace(os.sep, "/").rstrip("/") for q in prefixes))
+
+
+def command_paths_problem(command: str, working_directory: str, allowlist: Sequence[str],
+                          exists: Callable[[str], bool]) -> Optional[str]:
+    """A check may only name a path that exists at the base revision or that the phase may create.
+
+    A command naming a file that is neither in the repository nor inside the phase allowlist can never pass:
+    the worker is not allowed to create it. Refuse it before a worker attempt is paid for.
+    """
+    for token in shlex.split(command, posix=True):
+        if token.startswith("-") or "/" not in token or "://" in token or _GLOB_CHARS & set(token):
+            continue
+        path = os.path.normpath(os.path.join(working_directory or ".", token))
+        if os.path.isabs(path) or path == ".." or path.startswith(".." + os.sep):
+            return "%r points outside the repository" % token
+        if exists(path) or _under(path, allowlist):
+            continue
+        return ("%r does not exist at the base revision and is not inside the phase path allowlist, "
+                "so the worker cannot create it and the command can never pass" % path)
     return None
 
 

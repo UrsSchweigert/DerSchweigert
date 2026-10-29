@@ -143,6 +143,36 @@ def test_preflight_rejects_missing_absolute_paths_and_working_directories(tmp_pa
     assert len(calls) == 1
 
 
+def test_a_missing_test_file_is_a_configuration_error_not_a_failed_check(tmp_path, monkeypatch):
+    from harness.checks import SandboxChecker
+
+    class ExportRepo:
+        def export(self, head, work):
+            os.makedirs(os.path.join(work, "project", "tests"))
+
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    monkeypatch.setattr(isolation, "_docker",
+                        lambda args, **kwargs: subprocess.CompletedProcess(args, 1, "", "Could not find 'tests/coverage.test.mjs'"))
+    results = SandboxChecker(ExportRepo(), "unused").preflight("head", [{"command": "node --test tests/coverage.test.mjs",
+                                                                         "working_directory": "project"}])
+    assert results[0]["kind"] == "configuration"  # node says "Could not find", not "not found"
+
+
+def test_a_check_may_not_name_a_file_the_phase_cannot_create():
+    from harness import plans
+
+    exists = {"sites/lesen/static/sounds.mjs"}.__contains__
+    allowlist = ["sites/lesen/static/books.mjs", "sites/lesen/tests/books.test.mjs", "sites/lesen/tools/"]
+    # the issue's own override names a test file that neither exists nor is allowed: the worker cannot create it
+    problem = plans.command_paths_problem("node --test tests/coverage.test.mjs", "sites/lesen", allowlist, exists)
+    assert problem and "tests/coverage.test.mjs" in problem
+    assert plans.command_paths_problem("node --test tests/books.test.mjs", "sites/lesen", allowlist, exists) is None
+    assert plans.command_paths_problem("node --test tests/*.test.mjs", "sites/lesen", allowlist, exists) is None
+    assert plans.command_paths_problem("node --test static/sounds.mjs", "sites/lesen", allowlist, exists) is None  # exists already
+    assert plans.command_paths_problem("node tools/build_books.mjs --check", "sites/lesen", allowlist, exists) is None
+    assert plans.command_paths_problem("node ../../../etc/passwd", "sites/lesen", allowlist, exists)
+
+
 # -- the Stage 4 demonstration ------------------------------------------------------------------
 
 def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):

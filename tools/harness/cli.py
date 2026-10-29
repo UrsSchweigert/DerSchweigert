@@ -119,11 +119,20 @@ def preflight_plan(store: Store, plan_id: str, version: Optional[int], repo_root
     checks = [{"command": command, "working_directory": phase.get("working_directory", ".")}
               for phase in plan["phases"] for command in phase["validation"]]
     phases = {phase["id"]: phase for phase in plan["phases"]}
+    declared = [(command, phase.get("working_directory", "."), phase["path_allowlist"], "phase %s" % phase["id"])
+                for phase in plan["phases"] for command in phase["validation"]]
     for issue in issue_docs or []:
         schemas.validate(issue, runner.ISSUE_SCHEMA, "issue")
         phase = phases.get(issue.get("phase_id"), {})
+        directory = issue.get("working_directory") or phase.get("working_directory", ".")
         for command in issue.get("validation_commands") or []:
-            checks.append({"command": command, "working_directory": issue.get("working_directory") or phase.get("working_directory", ".")})
+            checks.append({"command": command, "working_directory": directory})
+            declared.append((command, directory, phase.get("path_allowlist", []), "issue %s" % issue.get("issue_id")))
+    node = repo_root and GitRepo(repo_root, "main")
+    for command, directory, allowlist, label in declared:
+        problem = plans.command_paths_problem(command, directory, allowlist, node.path_exists if node else (lambda _p: True))
+        if problem:
+            raise runner.RunRefused("%s validation command %r: %s" % (label, command, problem))
     for check in checks:
         problem = plans.command_problem(check["command"])
         if problem:
@@ -205,14 +214,19 @@ def runner_command(args) -> int:
                     raise runner.RunRefused("issue-specific validation commands must be included with `harness plan --issues` before approval: %s" %
                                             ", ".join(overrides))
             checks = []
+            probe = GitRepo(root, "main")
             for issue in issue_docs:
                 phase = phases.get(issue.get("phase_id"), {})
+                directory = issue.get("working_directory") or phase.get("working_directory", ".")
                 commands = issue.get("validation_commands") or phase.get("validation", [])
                 for command in commands:
                     problem = plans.command_problem(command)
                     if problem:
                         raise runner.RunRefused("issue %s validation command is not allowed: %s" % (issue.get("issue_id"), problem))
-                    checks.append({"command": command, "working_directory": issue.get("working_directory") or phase.get("working_directory", ".")})
+                    problem = plans.command_paths_problem(command, directory, phase.get("path_allowlist", []), probe.path_exists)
+                    if problem:
+                        raise runner.RunRefused("issue %s validation command %r: %s" % (issue.get("issue_id"), command, problem))
+                    checks.append({"command": command, "working_directory": directory})
             preflight = preflight_checks(store, root, checks, plan_entity(args.plan_id, version) + ":issues")
             config_errors = [r for r in preflight["results"] if r["kind"] == "configuration"]
             if config_errors:

@@ -197,6 +197,15 @@ was evaluated without changing dependency manifests or CI defaults.
 
 After PR #26 broke production (a classic script read `window.__storage` before the module script set it) the harness gained a browser-level gate. The worker image carries Playwright Chromium and `smoke/lesen.mjs`; `smoke.json` maps changed paths to it. It is appended to an issue's validation commands (pre-merge, rebase rerun, post-merge, phase validation) and the isolation probe requires it. Failing output tails are included in repair feedback. Verified: passes on `849c734`, fails on the broken `d9c092e`. Limit: it covers the lesen web page only.
 
+## Declared checks are checked against the allowlist, and worker questions are triaged (2026-10-29)
+
+A refiner stopped issue `coverage-core` with a human question because its validation command, `node --test tests/coverage.test.mjs`, named a file that was neither in the repository nor inside phase P3's path allowlist, so no worker could ever create it. The harness had already run exactly that command three times at preflight (v1, v2, v3) and recorded `Could not find 'tests/coverage.test.mjs'`, exit 1 — but classified it as an ordinary failed check. The classifier looked for `not found`, and Node writes `Could not find`. Import therefore went ahead, and the owner was asked a question that a script could have answered.
+
+* `plans.command_paths_problem` now refuses, before approval and at `import-issues`, any validation command that names a path which does not exist at the base revision and is not inside the phase allowlist. Glob tokens and absolute paths are treated separately. This is deterministic and costs nothing.
+* The configuration classifier also matches Node's `Could not find` and `Cannot find module`.
+* A worker's own question (`needs_input`) is now triaged by the `analyst` role before the owner sees a decision task, independent of `analyses_per_issue`, `strong_attempts_per_issue`, and the repair and transient budgets. It is bounded per distinct question, never twice in a row after an analyst attempt, and it does not cover budget or policy failures: trusted code decides those and a model would only add cost. When no strong model is available the launch is refused and the owner is asked as before, so the guarantee degrades to the old behaviour rather than to silence.
+* Limit: this triage is a harness role, not the `human-task-triage` chat agent in `.github/agents/`. A VS Code custom agent cannot be triggered by a harness event; the harness only launches sandboxed workers through `adapter.py`.
+
 ## Consequences
 
 * When the attestation lapses the harness drops to Tier B: only `plan`, `approve` on a fixture, `status`, and `--dry-run` operations are permitted.
