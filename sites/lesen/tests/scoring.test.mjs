@@ -1,6 +1,18 @@
 import test from "node:test";
 import assert from "node:assert";
-import { recordAttempt, selectFlopDeck, flopCandidateCards, isSpellableWith } from "../static/scoring.mjs";
+import { readFileSync } from "node:fs";
+import { recordAttempt, selectFlopDeck, flopCandidateCards, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom } from "../static/scoring.mjs";
+
+const SENTENCE_POOL = [
+  { id: "a", text: "Mama malt." },
+  { id: "b", text: "Oma mag Mama." },
+  { id: "c", text: "Das Brot ist frisch." },
+];
+const SMALL_SELECTION = { consonants: ["m", "l", "t", "g", "o"], vowels: ["a"], specials: [] };
+const WORDS = ["Mama", "Oma", "malt", "mag"];
+
+const kinds = (deck) => deck.map((card) => card.kind);
+const alternates = (deck) => deck.every((card, index) => index === 0 || card.kind !== deck[index - 1].kind);
 
 test("recordAttempt: adds +1 to correct_count on correct answer in normal mode", () => {
   const stats = {};
@@ -219,4 +231,107 @@ test("isSpellableWith: 'schon' can be spelled with s,c,h,o,n or with sch special
 test("isSpellableWith: 'stein' can be spelled with s,t,e,i,n", () => {
   const allowedSounds = new Set(["s", "t", "e", "i", "n"]);
   assert.strictEqual(isSpellableWith("stein", allowedSounds), true);
+});
+
+test("createSeededRandom: the same seed yields the same sequence", () => {
+  const first = createSeededRandom(1234);
+  const second = createSeededRandom(1234);
+  const a = Array.from({ length: 8 }, () => first());
+  const b = Array.from({ length: 8 }, () => second());
+  assert.deepStrictEqual(a, b);
+  assert.ok(a.every((value) => value >= 0 && value < 1));
+});
+
+test("buildSentenceOnlyDeck: draws only sentences the selection reads in full", () => {
+  const deck = buildSentenceOnlyDeck(SENTENCE_POOL, SMALL_SELECTION, "de", { seed: 7 });
+  const texts = deck.map((card) => card.text);
+  assert.ok(!texts.includes("Das Brot ist frisch."));
+  assert.deepStrictEqual(texts.sort(), ["Mama malt.", "Oma mag Mama."]);
+  for (const card of deck) {
+    assert.strictEqual(card.kind, "sentence");
+    assert.strictEqual(card.misses, 0);
+  }
+});
+
+test("buildSentenceOnlyDeck: cuts the readable pool to the requested count", () => {
+  const deck = buildSentenceOnlyDeck(SENTENCE_POOL, SMALL_SELECTION, "de", { count: 1, seed: 3 });
+  assert.strictEqual(deck.length, 1);
+  assert.strictEqual(deck[0].kind, "sentence");
+});
+
+test("buildSentenceOnlyDeck: an empty pool or selection yields an empty deck", () => {
+  assert.deepStrictEqual(buildSentenceOnlyDeck([], SMALL_SELECTION, "de"), []);
+  assert.deepStrictEqual(buildSentenceOnlyDeck(null, SMALL_SELECTION, "de"), []);
+  assert.deepStrictEqual(buildSentenceOnlyDeck(SENTENCE_POOL, {}, "de"), []);
+  assert.deepStrictEqual(buildSentenceOnlyDeck(SENTENCE_POOL, { consonants: [], vowels: [], specials: [] }, "de"), []);
+  assert.deepStrictEqual(buildSentenceOnlyDeck(SENTENCE_POOL, SMALL_SELECTION, "de", { count: 0 }), []);
+});
+
+test("buildSentenceOnlyDeck: the same seed yields the same deck", () => {
+  const pool = Array.from({ length: 20 }, (_, index) => ({ text: `Mama malt ${index}.` }));
+  const first = buildSentenceOnlyDeck(pool, SMALL_SELECTION, "de", { seed: 99 });
+  const second = buildSentenceOnlyDeck(pool, SMALL_SELECTION, "de", { seed: 99 });
+  assert.deepStrictEqual(first, second);
+  assert.strictEqual(first.length, pool.length);
+});
+
+test("buildMixedDeck: alternates sentence and word cards", () => {
+  const deck = buildMixedDeck(SENTENCE_POOL, SMALL_SELECTION, "de", WORDS, { count: 4, seed: 5 });
+  assert.strictEqual(deck.length, 4);
+  assert.ok(alternates(deck), `kinds do not alternate: ${kinds(deck).join(",")}`);
+  assert.strictEqual(new Set(kinds(deck)).size, 2);
+});
+
+test("buildMixedDeck: the same seed yields the same order and kinds", () => {
+  const first = buildMixedDeck(SENTENCE_POOL, SMALL_SELECTION, "de", WORDS, { count: 4, seed: 42 });
+  const second = buildMixedDeck(SENTENCE_POOL, SMALL_SELECTION, "de", WORDS, { count: 4, seed: 42 });
+  assert.deepStrictEqual(first, second);
+});
+
+test("buildMixedDeck: only mixes sentences the selection reads in full", () => {
+  for (let seed = 0; seed < 25; seed++) {
+    const deck = buildMixedDeck(SENTENCE_POOL, SMALL_SELECTION, "de", WORDS, { seed });
+    const texts = deck.map((card) => card.text);
+    assert.ok(!texts.includes("Das Brot ist frisch."), "unreadable sentence in mixed deck");
+  }
+});
+
+test("buildMixedDeck: an empty pool, selection or word list yields an empty deck", () => {
+  assert.deepStrictEqual(buildMixedDeck([], SMALL_SELECTION, "de", WORDS), []);
+  assert.deepStrictEqual(buildMixedDeck(SENTENCE_POOL, {}, "de", WORDS), []);
+  assert.deepStrictEqual(buildMixedDeck(SENTENCE_POOL, SMALL_SELECTION, "de", []), []);
+  assert.deepStrictEqual(buildMixedDeck(SENTENCE_POOL, SMALL_SELECTION, "de", WORDS, { count: 0 }), []);
+});
+
+test("buildMixedDeck: never groups one kind when the other runs out", () => {
+  // Two readable sentences and many words: strict alternation ends at 4 cards.
+  const deck = buildMixedDeck(SENTENCE_POOL, SMALL_SELECTION, "de", WORDS, { count: 10, seed: 11 });
+  assert.strictEqual(deck.length, 4);
+  assert.ok(alternates(deck));
+});
+
+test("buildMixedDeck: cards carry their kind and start with no misses", () => {
+  const deck = buildMixedDeck(SENTENCE_POOL, SMALL_SELECTION, "de", WORDS, { seed: 8 });
+  assert.ok(deck.length > 0);
+  for (const card of deck) {
+    assert.ok(card.kind === "word" || card.kind === "sentence", `unexpected kind ${card.kind}`);
+    assert.strictEqual(card.misses, 0);
+    assert.strictEqual(typeof card.text, "string");
+    assert.ok(card.text.length > 0);
+  }
+});
+
+const setupHtml = readFileSync(new URL("../static/index.html", import.meta.url), "utf8");
+
+test("the Karten tab offers a sentence-only and a mixed deck", () => {
+  assert.match(setupHtml, /<input type="radio" name="deck" value="SENTENCES">/);
+  assert.match(setupHtml, /<input type="radio" name="deck" value="MIXED">/);
+  assert.match(setupHtml, /id="deck-sentences-title"/);
+  assert.match(setupHtml, /id="deck-mixed-title"/);
+});
+
+test("the Karten tab builds both decks through the scoring module", () => {
+  assert.match(setupHtml, /window\.__scoring\.buildSentenceOnlyDeck\(/);
+  assert.match(setupHtml, /window\.__scoring\.buildMixedDeck\(/);
+  assert.match(setupHtml, /buildSentenceOnlyDeck, buildMixedDeck \} from '\.\/scoring\.mjs'/);
 });
