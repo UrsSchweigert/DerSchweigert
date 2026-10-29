@@ -17,13 +17,14 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Which sites a change touches. Required checks make a skipped job awkward, and a workflow that never starts leaves its
-  # checks "expected" forever, so the gates below are explicit outputs that every other job reads. Anything uncertain -
-  # an unreadable diff, shared infrastructure - reports every site as changed, because over-testing is cheap and a
-  # silently untested deploy is not.
+  # Which sites a change touches, and whether it touches their code or only their infrastructure. Required checks make a
+  # skipped job awkward and a workflow that never starts leaves its checks "expected" forever, so the gates below are
+  # explicit outputs that every other job reads. Anything uncertain reports every site as changed, because over-testing
+  # is cheap and a silently untested deploy is not.
   changes:
     runs-on: ubuntu-latest
     outputs:
+      ffm_tests: ${{ steps.diff.outputs.ffm_tests }}
       ffm: ${{ steps.diff.outputs.ffm }}
       lesen: ${{ steps.diff.outputs.lesen }}
       site: ${{ steps.diff.outputs.site }}
@@ -38,7 +39,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          ffm=false; lesen=false; site=false
+          ffm_tests=false; ffm=false; lesen=false; site=false
           changed=""; listed=true
           if [ -n "${PR:-}" ]; then
             # The files endpoint pages through every file, so nothing is truncated.
@@ -54,22 +55,31 @@ jobs:
           fi
           if [ "$listed" != true ] || [ -z "$changed" ]; then
             echo "::warning::could not list every changed path; treating every site as changed"
-            ffm=true; lesen=true; site=true
+            ffm_tests=true; ffm=true; lesen=true; site=true
           else
+            # Application code changes need that site's tests and deploy. A site's own terraform needs its deploy but not
+            # its tests, because the application did not change. Shared modules and anything else under infra/ can reach
+            # any site, so they deploy every site.
             while IFS= read -r path; do
               case "$path" in
-                sites/ffm/*) ffm=true ;;
+                sites/ffm/*) ffm_tests=true; ffm=true ;;
                 sites/lesen/*) lesen=true ;;
                 sites/derschweigert/*) site=true ;;
+                infra/terraform/sites/ffm/*) ffm=true ;;
+                infra/terraform/sites/lesen/*) lesen=true ;;
+                infra/terraform/sites/derschweigert/*) site=true ;;
+                infra/*) ffm=true; lesen=true; site=true ;;
               esac
             done <<< "$changed"
-            if grep -Eq '^(\.github/workflows/|infra/|requirements\.txt$|package\.json$|package-lock\.json$)' <<< "$changed"; then
-              echo "::notice::shared files changed; treating every site as changed"
-              ffm=true; lesen=true; site=true
+            # A workflow change runs every test job so the pipeline itself is exercised, but it does not deploy a site
+            # whose files did not change: a CI tweak must not apply terraform to three sites.
+            if grep -Eq '^\.github/workflows/' <<< "$changed"; then
+              echo "::notice::the workflow changed; running every test job"
+              ffm_tests=true
             fi
           fi
-          echo "sites changed -> ffm=$ffm lesen=$lesen site=$site"
-          printf 'ffm=%s\nlesen=%s\nsite=%s\n' "$ffm" "$lesen" "$site" >> "$GITHUB_OUTPUT"
+          echo "changed -> ffm_tests=$ffm_tests deploy ffm=$ffm lesen=$lesen site=$site"
+          printf 'ffm_tests=%s\nffm=%s\nlesen=%s\nsite=%s\n' "$ffm_tests" "$ffm" "$lesen" "$site" >> "$GITHUB_OUTPUT"
 
   test:
     runs-on: ubuntu-latest
@@ -95,33 +105,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Refuse to report an untested ffm as passing
-        if: needs.changes.outputs.ffm == ''
+        if: needs.changes.outputs.ffm_tests == ''
         run: |
           echo "::error::the changes job produced no result, so nothing proves sites/ffm was tested"
           exit 1
-      - name: sites/ffm is unchanged
-        if: needs.changes.outputs.ffm == 'false'
-        run: echo "::notice::sites/ffm unchanged; its tests are skipped for this change"
+      - name: sites/ffm code is unchanged
+        if: needs.changes.outputs.ffm_tests == 'false'
+        run: echo "::notice::sites/ffm code unchanged; its tests are skipped for this change"
       - uses: actions/checkout@v4
-        if: needs.changes.outputs.ffm == 'true'
+        if: needs.changes.outputs.ffm_tests == 'true'
       - uses: actions/setup-python@v5
-        if: needs.changes.outputs.ffm == 'true'
+        if: needs.changes.outputs.ffm_tests == 'true'
         with:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip
-        if: needs.changes.outputs.ffm == 'true'
+        if: needs.changes.outputs.ffm_tests == 'true'
       - run: pip install -r sites/ffm/requirements-dev.txt -q
-        if: needs.changes.outputs.ffm == 'true'
+        if: needs.changes.outputs.ffm_tests == 'true'
       - run: SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q --tb=short
-        if: needs.changes.outputs.ffm == 'true'
+        if: needs.changes.outputs.ffm_tests == 'true'
         env:
           PYTHONPATH: ${{ github.workspace }}
       - uses: actions/setup-node@v4
-        if: needs.changes.outputs.ffm == 'true'
+        if: needs.changes.outputs.ffm_tests == 'true'
         with:
           node-version: '22'
       - run: node --test sites/ffm/static/game/*.test.js
-        if: needs.changes.outputs.ffm == 'true'
+        if: needs.changes.outputs.ffm_tests == 'true'
 
   check-secrets:
     runs-on: ubuntu-latest
@@ -244,7 +254,7 @@ jobs:
     if: |
       github.ref == 'refs/heads/main' &&
       needs.check-secrets.outputs.has_secrets == 'true' &&
-      needs.changes.outputs.ffm == 'true'
+      needs.changes.outputs.ffm_tests == 'true'
     env:
       AWS_REGION: eu-central-1
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
