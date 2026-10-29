@@ -533,14 +533,29 @@ def test_a_broker_refusal_while_publishing_is_handled_too(tmp_path):
     assert env.store.get_attempt("i1#1")["outcome"] == "Failed"
 
 
-def test_github_refusing_a_merge_sends_the_issue_back_for_repair(tmp_path):
+def test_github_refusing_a_merge_is_recorded_and_the_issue_still_finishes(tmp_path):
     env = flaky_env(tmp_path)
     env.publisher.merge_errors = [GitHubError("HTTP 405: Pull Request is not mergeable")]
     env.start()
-    events = env.run_until(lambda: any(e["event"] == "merge_failed" for e in env.sched.events), limit=40)
-    assert env.state("i1") == "In Progress" or env.state("i1") == "Ready"
+    env.run_until(lambda: any(e["event"] == "merge_failed" for e in env.sched.events), limit=40)
     assert env.store.get_issue("i1")["last_failures"][-1]["kind"] == "merge_conflict"
     env.run_until(lambda: env.state("i1") == "Done")
+
+
+def test_a_github_merge_refusal_keeps_the_review_and_checks_evidence(tmp_path):
+    """Regression: a blanket invalidate_evidence wiped a passing review and passing checks for a refusal that said nothing
+    about the code, after which the only way forward was a second strong attempt the plan's budget forbids."""
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [GitHubError("HTTP 405: Pull Request is not mergeable: required reviews are missing")]
+    env.start()
+    env.run_until(lambda: env.store.get_issue("i1")["last_failures"], limit=40)
+    issue = env.store.get_issue("i1")
+    assert issue["last_failures"][-1]["kind"] == "merge_conflict"
+    assert {e["kind"] for e in env.store.evidence("i1")} >= {"checks", "review"}  # nothing was retired
+    assert env.state("i1") in ("Ready", "In Review")  # parked so the resume path can retry, not queued for repair
+    implementers = len([r for r in env.adapter.started if r.role == "implementer"])
+    env.run_until(lambda: env.state("i1") == "Done")
+    assert len([r for r in env.adapter.started if r.role == "implementer"]) == implementers  # no work redone
 
 
 def test_a_transient_merge_error_is_retried_and_five_in_a_row_block_with_a_task(tmp_path):
