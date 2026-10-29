@@ -299,11 +299,67 @@ results, and asset uploads. Activity shows events and output from runners
 started by this dashboard instance. Live refresh defaults to five seconds;
 `--refresh` accepts 3-60 seconds.
 
+**Daily sandbox verification**
+
+Click **Verify isolation** under Isolation in the sidebar to run the daily
+`harness isolation verify` check. Progress, probe results, and errors appear
+under **Daily sandbox verification** in Planning. This works even when the
+attestation has expired or is missing (Tier B). Success renews the signed
+24-hour attestation through the existing verifier; it does not bypass any
+probe. Docker must be running and the worker image must already be built.
+The button does not build images, change credentials, or start a live run.
+
+**Create and approve work in Planning**
+
+1. Open **Planning**, then upload a Markdown file or paste its text. Plain
+   paragraphs and list items work; no requirements table is needed.
+2. Click **Extract requirements**. Review, edit, add, split, or remove entries
+   before **Save requirements**. Plain text receives stable IDs (`R1`, `R2`,
+   ...); existing formatted requirement tables keep their IDs. The original
+   Markdown is retained as context, and the edited table is authoritative.
+   Markdown is limited to 1 MiB, with 1-200 requirements of at most 2,000
+   characters each.
+3. Click **Start investigation**. Its progress appears under Preparation
+   output. Answer any investigator questions in the view and continue.
+   Review its report and issue definitions. To change the draft, enter
+   feedback and choose **Revise draft with feedback**.
+4. Click **Prepare plan and checks**. This saves the proposed version and
+   preflights both phase and issue-specific checks in the existing sandbox.
+   Review the exact plan, scope, policy, issues, and preflight results.
+5. Type the first 12 digest characters and click **Approve reviewed plan**.
+   Approval uses the server-verified local identity and the same signed
+   scope-and-policy record as terminal approval. Changed versions, revised
+   drafts, unresolved questions, or validation configuration errors block
+   approval. Approved workspaces cannot be revised; create a new workspace.
+6. Click **Import approved issues**. Once it succeeds, select the new plan
+   in the sidebar and use **Start run** when ready. Approval and import do
+   not start workers or perform merges.
+
+Investigation, preparation, approval, and import require current Tier A
+verification. Preparation jobs run asynchronously; their status, drafts,
+questions, and output persist in the store's `gui-workspaces/` directory and
+can be revisited after reopening the dashboard. Verification output lives in
+`gui-maintenance/`. Workspaces have a short unique suffix in their plan IDs
+to prevent accidental reuse. Only one GUI preparation or verification job
+runs at a time. Do not start multiple dashboards against the same store;
+there is no cross-dashboard singleton lock. If a preparation process dies,
+its failure is shown with its output and can be retried. Image builds and
+dry-run rehearsal remain terminal commands.
+
+**Clear completed issues**
+
+In **Issues**, select individual Done issues (or all visible Done issues)
+and click **Archive selected Done**. This hides them from the default list
+and sidebar count, across refreshes and dashboard restarts. Completion totals,
+requirements coverage, dependencies, evidence, and history are unchanged;
+nothing is deleted from the harness or GitHub. Enable **Show archived**,
+select entries, and click **Restore selected** to bring them back. Non-Done
+issues cannot be archived.
+
 Start, Resume, and Recover launch the trusted coordinator, not a worker command
 from the browser. A valid existing signed approval and current Tier A
 attestation are required. Launch and cancellation require the exact plan ID;
-the server rejects a changed plan version. Approval, plan creation, issue
-import, isolation verification, and dry-run rehearsal remain terminal commands.
+the server rejects a changed plan version.
 Starting an approved run can merge to `main` and deploy production.
 
 Closing the browser or dashboard does not stop a launched coordinator. Use
@@ -317,7 +373,7 @@ The dashboard binds only to IPv4 loopback. Do not expose it through a proxy,
 tunnel, port forwarding, or shared remote desktop. It trusts the local OS
 account; browser request protections are not multi-user authentication. Use
 `--read-only` to disable mutation routes. Reading an uninitialized store does
-not create it. Browser uploads are limited to 10 MiB and still pass the existing
+not create it. Asset uploads are limited to 10 MiB and still pass the existing
 asset policy, path, format, provenance, and checksum validation.
 
 **Pause, resume, stop**
@@ -466,7 +522,7 @@ Plans are stored in the database, not in a folder, so they will not show up in y
 |---|---|
 | `isolation: Tier B ... run refused` | The sandbox attestation is missing or older than 24 hours. Run `harness isolation verify`. |
 | `error: unknown plan ...` | Wrong plan ID, or a different `--home`. Run `harness status` to see the IDs. |
-| `approval none` in `status` | You have not run `approve` yet, or it was declined. Run it in a real terminal and type the 12 digest characters exactly. |
+| `approval none` in `status` | Approve the prepared workspace in Planning, or run `approve` in a real terminal. Type the 12 digest characters exactly. |
 | `no issues to schedule` | Run `import-issues` first. |
 | An issue is `Blocked` | Run `harness tasks`. A blocked issue always has a dependency or a task with the reason. Answer it. |
 | `retry would repeat failed attempt ...` | A retry must differ from the failed attempt. Choose option 2 with guidance, or option 3. |
@@ -539,4 +595,4 @@ separate end-to-end verification.
 
 After changing the worker image, rerun `harness isolation build` and `harness isolation verify`. After changing harness code while a run is active, restart the run. Record decisions and limits in [decisions.md](../../docs/harness/decisions.md).
 
-Code map: `cli.py` (commands), `gui.py`, `gui_page.html`, and `gui_page.js` (local dashboard), `investigate.py` (investigator), `plans.py` and `approval.py` (plan, digest, approval), `scheduler.py` (the loop, gates, failures), `adapter.py` and `isolation.py` (runtime and sandbox), `publisher.py` and `github.py` (GitHub), `humantasks.py`, `assets.py`, `status.py`, `store.py` (SQLite state), `machines.py` (state machines).
+Code map: `cli.py` (commands), `gui.py`, `gui_workflow.py`, `gui_page.html`, and `gui_page.js` (local dashboard and persisted preparation jobs), `investigate.py` (investigator), `plans.py` and `approval.py` (plan, digest, approval), `scheduler.py` (the loop, gates, failures), `adapter.py` and `isolation.py` (runtime and sandbox), `publisher.py` and `github.py` (GitHub), `humantasks.py`, `assets.py`, `status.py`, `store.py` (SQLite state), `machines.py` (state machines).

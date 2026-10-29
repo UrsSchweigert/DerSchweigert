@@ -5,6 +5,8 @@
   const refreshSeconds = Math.max(3, Number(document.querySelector('meta[name="refresh"]').content) || 5);
   const byId = id => document.getElementById(id);
   const taskNodes = new Map(), drafts = new Map();
+  const selectedIssues = new Set();
+  let workspaces = [], workspaceId = "", workspaceDetail = null, requirementRows = [];
   const mobile = matchMedia("(max-width:760px)");
   let snapshot = null, allTasks = [], selectedPlan = "", activeView = "monitor", online = false;
   let refreshing = false, actionPending = false, openIssue = null, issueSignature = "", confirmation = null;
@@ -44,10 +46,10 @@
     return value >= 60 ? `${Math.floor(value / 60)}m ${value % 60}s` : `${value}s`;
   }
   function badge(text, kind) {
-    if (!kind) kind = ["Done", "Completed", "pass", "approve", "verified", "Succeeded"].includes(text) ? "positive"
-      : ["Executing", "In Progress", "In Review", "Active", "Running", "Validating", "Approved"].includes(text) ? "active"
-      : ["Blocked", "Failed", "Cancelled", "fail", "INVALID", "Fenced", "TimedOut"].includes(text) ? "negative"
-      : ["Paused", "Ready", "Requested", "Acknowledged", "Refining", "Pausing", "Cancelling"].includes(text) ? "warning" : "";
+    if (!kind) kind = ["Done", "Completed", "pass", "approve", "verified", "Succeeded", "succeeded"].includes(text) ? "positive"
+      : ["Executing", "In Progress", "In Review", "Active", "Running", "Validating", "Approved", "running"].includes(text) ? "active"
+      : ["Blocked", "Failed", "Cancelled", "fail", "INVALID", "Fenced", "TimedOut", "failed"].includes(text) ? "negative"
+      : ["Paused", "Ready", "Requested", "Acknowledged", "Refining", "Pausing", "Cancelling", "needs_answers"].includes(text) ? "warning" : "";
     return element("span", {class: "tag " + kind}, text || "-");
   }
   const empty = message => element("div", {class: "empty"}, icon("circle-check"), message);
@@ -81,8 +83,13 @@
     if (refreshing) return;
     refreshing = true; byId("refresh").disabled = true;
     try {
-      const [report, tasks] = await Promise.all([api("/api/status"), api("/api/tasks")]);
-      snapshot = report; allTasks = tasks; online = true;
+      const [report, tasks, workflow] = await Promise.all([api("/api/status"), api("/api/tasks"), api("/api/workflow")]);
+      snapshot = report; allTasks = tasks; workspaces = workflow.workspaces; online = true;
+      if (!workspaces.some(item => item.workspace_id === workspaceId)) workspaceId = workspaces.at(-1)?.workspace_id || "";
+      const requestedWorkspace = workspaceId;
+      const detail = requestedWorkspace ? await api("/api/workflow?workspace=" + encodeURIComponent(requestedWorkspace)) : null;
+      if (workspaceId !== requestedWorkspace) { setTimeout(refresh, 0); return; }
+      workspaceDetail = detail;
       if (!currentPlan()) selectedPlan = (latestPlans().find(plan => plan.state === "Executing") || latestPlans()[0])?.plan_id || "";
       byId("connection-error").hidden = true; render();
       if (openIssue) await showIssue(openIssue, true);
@@ -111,7 +118,7 @@
     fill("plan-state", badge(plan?.cancel_requested && plan.state === "Executing" ? "Cancelling" : plan?.pause_requested ? "Pausing" : plan?.state || "No plan"));
     fill("isolation", icon("shield-check"), badge("Tier " + snapshot.isolation.tier, snapshot.isolation.tier === "A" ? "positive" : "warning"));
     byId("isolation").title = snapshot.isolation.reason; byId("store-path").textContent = snapshot.store;
-    byId("mode-badge").hidden = !snapshot.read_only; byId("issue-count").textContent = issues.length;
+    byId("mode-badge").hidden = !snapshot.read_only; byId("issue-count").textContent = issues.filter(issue => !snapshot.archived_issues.includes(issue.issue_id)).length;
     byId("task-count").textContent = tasks.length; byId("task-count").hidden = !tasks.length;
     byId("updated-time").textContent = "Updated " + formatTime(snapshot.now);
     const total = snapshot.usage_detail?.total, measured = total && total.counts.agent_estimate + total.counts.size_estimate > 0;
@@ -120,7 +127,7 @@
     const notice = plan?.paused_reason && plan.state === "Paused" ? plan.paused_reason : plan?.cancel_requested && plan.state === "Executing" ? "Cancellation requested; waiting for the runner to finish." : plan?.pause_requested ? "Pause requested; active execution is draining." : failedRun ? `Runner exited with code ${failedRun.exit_code}.` : "";
     byId("plan-notice").textContent = notice; byId("plan-notice").hidden = !notice;
     byId("plan-notice").className = "banner" + (failedRun ? " error" : "");
-    renderMetrics(); renderExecution(); renderPhases(); renderAttention(); renderCoverage(); renderIssues(); renderTasks(); renderEvents(); renderControls(); icons();
+    renderMetrics(); renderExecution(); renderPhases(); renderAttention(); renderCoverage(); renderIssues(); renderTasks(); renderEvents(); renderPlanning(); renderControls(); icons();
   }
   function renderControls() {
     const plan = currentPlan(), allowed = Boolean(plan && online && !snapshot?.read_only && !actionPending);
@@ -129,12 +136,84 @@
     byId("run").hidden = !plan || !(["Approved", "Paused"].includes(plan.state) || executing && !runnerAlive);
     byId("run-label").textContent = plan?.state === "Approved" ? "Start run" : executing ? "Recover" : "Resume";
     byId("run").disabled = !allowed || !snapshot?.run_permitted || plan?.approval !== "valid" || runnerAlive || managedRunning;
-    byId("run").title = plan?.approval !== "valid" ? "A valid terminal approval is required" : !snapshot?.run_permitted ? snapshot?.isolation.reason || "Isolation is not verified" : runnerAlive || managedRunning ? "A runner is already active" : "Start approved live execution";
+    byId("run").title = plan?.approval !== "valid" ? "A valid signed approval is required" : !snapshot?.run_permitted ? snapshot?.isolation.reason || "Isolation is not verified" : runnerAlive || managedRunning ? "A runner is already active" : "Start approved live execution";
     byId("pause").hidden = !executing; byId("pause").disabled = !allowed || plan?.pause_requested;
     byId("plan-actions").hidden = !plan || !["Approved", "Executing", "Paused", "Draft", "Proposed"].includes(plan.state);
     byId("pause-now").hidden = !executing; byId("cancel-drain").hidden = !executing;
     for (const id of ["pause-now", "cancel-drain", "cancel-now"]) byId(id).disabled = !allowed;
     for (const button of document.querySelectorAll(".task button")) button.disabled = !online || Boolean(snapshot?.read_only) || button.dataset.pending === "true";
+    renderWorkflowControls(); renderArchiveControls();
+  }
+  function renderWorkflowControls() {
+    const editable = online && !snapshot?.read_only && !actionPending;
+    for (const id of ["preview-requirements", "save-requirements", "add-requirement"]) byId(id).disabled = !editable;
+    const detail = workspaceDetail, running = workspaces.some(item => item.job?.state === "running");
+    const verifying = snapshot?.isolation_verification?.job?.state === "running";
+    const ready = editable && detail && !running && !verifying && snapshot?.isolation.tier === "A";
+    byId("verify-isolation").disabled = !editable || running || verifying;
+    byId("verify-isolation").textContent = verifying ? "Verifying isolation..." : "Verify isolation";
+    const state = detail?.plan?.state, revisable = !state || ["Draft", "Proposed"].includes(state);
+    byId("investigate-plan").disabled = !ready || !revisable || Boolean(detail?.draft);
+    byId("prepare-plan").disabled = !ready || !revisable || !detail?.draft || Boolean(detail?.questions.length);
+    byId("revise-plan").disabled = !ready || !revisable || !detail?.draft || !byId("investigation-feedback").value.trim();
+    byId("import-plan").disabled = !ready || state !== "Approved";
+    byId("approve-plan").disabled = !ready || state !== "Proposed" || !detail?.preflight || Boolean(detail?.questions.length)
+      || byId("approval-confirm").value !== detail?.plan?.digest.slice(0, 12);
+    for (const button of byId("investigation-answers").querySelectorAll("button")) button.disabled = !ready || !revisable;
+  }
+  function renderPlanning() {
+    const verification = snapshot.isolation_verification, verificationJob = verification.job;
+    fill("verification-state", badge(verificationJob?.state || "Not started here"));
+    byId("verification-reason").textContent = snapshot.isolation.reason;
+    byId("verification-output").textContent = (verificationJob?.error ? verificationJob.error + "\n\n" : "")
+      + (verification.output || "No verification started from this dashboard.");
+    const select = byId("workspace-select"), signature = JSON.stringify(workspaces.map(item => [item.workspace_id, item.name]));
+    if (select.dataset.signature !== signature) {
+      select.replaceChildren(...(workspaces.length ? workspaces.map(item => element("option", {value: item.workspace_id}, item.name + " / " + item.plan_id)) : [element("option", {value: ""}, "No workspaces")]));
+      select.dataset.signature = signature;
+    }
+    select.value = workspaceId;
+    const detail = workspaceDetail; byId("workspace-detail").hidden = !detail;
+    if (!detail) return;
+    byId("workspace-title").textContent = detail.plan_id;
+    const job = detail.job;
+    fill("workflow-state", job ? [job.kind + ": ", badge(job.state)] : badge("Requirements saved"));
+    byId("workflow-output").textContent = (job?.error ? job.error + "\n\n" : "") + (detail.output || "No preparation output yet.");
+    byId("planning-report").textContent = detail.report || "Start investigation to draft phases and issues.";
+    byId("planning-definitions").textContent = JSON.stringify({requirements: detail.requirements, plan: detail.plan?.plan || null, draft: detail.draft}, null, 2);
+    byId("planning-preflight").textContent = JSON.stringify(detail.preflight, null, 2);
+    byId("approval-digest").textContent = detail.plan ? `v${detail.plan.plan.version} / ${detail.plan.state} / digest ${detail.plan.digest}` : "Prepare the plan before approval.";
+    const questions = detail.questions, target = byId("investigation-questions"), questionSignature = JSON.stringify([workspaceId, questions]);
+    byId("investigation-answers").hidden = !questions.length;
+    if (target.dataset.signature !== questionSignature) {
+      target.replaceChildren(...questions.map(question => field(`${question.id}: ${question.question}\n${question.why}${question.options?.length ? "\nOptions: " + question.options.join("; ") : ""}`,
+        element("textarea", {name: question.id, rows: 3, required: true}))));
+      target.dataset.signature = questionSignature;
+    }
+  }
+  function renderRequirementEditor() {
+    fill("editable-requirements", requirementRows.map(row => {
+      const id = element("input", {value: row.id, "aria-label": "Requirement ID", required: true});
+      const text = element("textarea", {rows: 3, "aria-label": "Requirement text", required: true});
+      text.value = row.title;
+      id.addEventListener("input", () => { row.id = id.value; });
+      text.addEventListener("input", () => { row.title = text.value; });
+      return element("div", {class: "section"}, field("ID", id), field("Requirement", text),
+        element("button", {type: "button", class: "command", onclick: () => { requirementRows = requirementRows.filter(item => item !== row); renderRequirementEditor(); }}, "Remove"));
+    }));
+    byId("requirements-editor").hidden = false;
+  }
+  async function workflowAction(kind, extra = {}) {
+    const detail = workspaceDetail;
+    try {
+      byId("workflow-error").hidden = true;
+      const body = {workspace_id: workspaceId, ...extra};
+      if (detail?.plan) Object.assign(body, {version: detail.plan.plan.version, digest: detail.plan.digest});
+      if (await perform("/api/workflow/" + kind, body)) {
+        byId("approval-confirm").value = "";
+        notify(kind === "approve" ? "Plan approved. Import its issues next." : "Preparation started. Output will refresh here.");
+      }
+    } catch (error) { byId("workflow-error").textContent = error.message; byId("workflow-error").hidden = false; }
   }
   function renderMetrics() {
     const plan = currentPlan(), issues = currentIssues(), done = issues.filter(issue => issue.state === "Done").length;
@@ -196,13 +275,28 @@
     setOptions(byId("state-filter"), [...new Set(issues.map(issue => issue.state))].sort(), "All states");
     setOptions(byId("phase-filter"), [...new Set(issues.map(issue => issue.phase))].sort(), "All phases");
     const query = byId("issue-search").value.trim().toLowerCase();
-    const filtered = snapshot.queue.filter(issue => ids.has(issue.issue_id) && (!byId("state-filter").value || issue.state === byId("state-filter").value)
+    const archived = new Set(snapshot.archived_issues), showArchived = byId("show-archived").checked;
+    const filtered = snapshot.queue.filter(issue => ids.has(issue.issue_id) && (showArchived || !archived.has(issue.issue_id)) && (!byId("state-filter").value || issue.state === byId("state-filter").value)
       && (!byId("phase-filter").value || issue.phase === byId("phase-filter").value)
       && (!query || `${issue.issue_id} ${issue.phase} ${metadata.get(issue.issue_id).blocked_reason}`.toLowerCase().includes(query)));
-    byId("filtered-count").textContent = `${filtered.length} / ${issues.length}`;
-    fill("issues", filtered.length ? table(["Issue", "Phase", "State", "Pull request", "Context"], filtered.map(issue => element("tr", {},
+    const selectable = filtered.filter(issue => issue.state === "Done");
+    for (const id of selectedIssues) if (!selectable.some(issue => issue.issue_id === id)) selectedIssues.delete(id);
+    const checkbox = issue => element("input", {type: "checkbox", checked: selectedIssues.has(issue.issue_id), disabled: issue.state !== "Done",
+      "aria-label": "Select " + issue.issue_id, onchange: event => { if (event.target.checked) selectedIssues.add(issue.issue_id); else selectedIssues.delete(issue.issue_id); renderArchiveControls(); }});
+    const all = element("input", {type: "checkbox", "aria-label": "Select all visible Done issues", disabled: !selectable.length,
+      checked: selectable.length > 0 && selectable.every(issue => selectedIssues.has(issue.issue_id)),
+      onchange: event => { selectedIssues.clear(); if (event.target.checked) for (const issue of selectable) selectedIssues.add(issue.issue_id); renderIssues(); }});
+    byId("filtered-count").textContent = `${filtered.length} / ${issues.length} (${issues.filter(issue => archived.has(issue.issue_id)).length} archived)`;
+    fill("issues", filtered.length ? table([all, "Issue", "Phase", "State", "Pull request", "Context"], filtered.map(issue => element("tr", {},
+      element("td", {}, checkbox(issue)),
       element("td", {}, linkButton(issue.issue_id, () => showIssue(issue.issue_id))), element("td", {}, issue.phase), element("td", {}, badge(issue.state)), element("td", {}, pullRequest(issue.pr)),
-      element("td", {class: "muted"}, metadata.get(issue.issue_id).blocked_reason || (issue.unmet_dependencies.length ? "Waiting on " + issue.unmet_dependencies.join(", ") : shortened(issue.head))))), "issue-table") : empty(query || byId("state-filter").value || byId("phase-filter").value ? "No matching issues." : "No issues."));
+      element("td", {class: "muted"}, archived.has(issue.issue_id) ? "Archived" : metadata.get(issue.issue_id).blocked_reason || (issue.unmet_dependencies.length ? "Waiting on " + issue.unmet_dependencies.join(", ") : shortened(issue.head))))), "issue-table") : empty(query || byId("state-filter").value || byId("phase-filter").value ? "No matching issues." : "No visible issues."));
+    renderArchiveControls();
+  }
+  function renderArchiveControls() {
+    const allowed = online && !snapshot?.read_only && !actionPending, archived = new Set(snapshot?.archived_issues || []);
+    byId("archive-issues").disabled = !allowed || ![...selectedIssues].some(id => !archived.has(id));
+    byId("restore-issues").disabled = !allowed || ![...selectedIssues].some(id => archived.has(id));
   }
   function field(label, input) { return element("label", {class: "field"}, label, input); }
   function taskForm(task) {
@@ -376,6 +470,65 @@
     byId("confirm-submit").disabled = confirmation.needsText; byId("confirm-error").hidden = true; byId("confirm-dialog").showModal();
   }
   byId("refresh").addEventListener("click", refresh);
+  byId("verify-isolation").addEventListener("click", async () => {
+    selectView("planning"); byId("verification-details").open = true;
+    try { if (await perform("/api/isolation/verify", {})) notify("Sandbox verification started. Progress appears in Planning."); }
+    catch (error) { notify(error.message); }
+  });
+  byId("requirements-file").addEventListener("change", async event => {
+    const file = event.target.files[0]; if (!file) return;
+    try {
+      if (file.size > 1024 * 1024) throw new Error("Markdown is limited to 1 MiB.");
+      byId("requirements-markdown").value = await file.text(); byId("requirements-name").value = file.name;
+      byId("requirements-editor").hidden = true; byId("workflow-error").hidden = true;
+    } catch (error) { byId("workflow-error").textContent = error.message; byId("workflow-error").hidden = false; }
+  });
+  byId("requirements-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    try {
+      const result = await api("/api/workflow/preview", {markdown: byId("requirements-markdown").value});
+      requirementRows = result.requirements; renderRequirementEditor(); byId("workflow-error").hidden = true;
+    } catch (error) { byId("workflow-error").textContent = error.message; byId("workflow-error").hidden = false; }
+  });
+  byId("add-requirement").addEventListener("click", () => {
+    let number = 1; while (requirementRows.some(row => row.id === "R" + number)) number++;
+    requirementRows.push({id: "R" + number, title: ""}); renderRequirementEditor();
+  });
+  byId("save-requirements").addEventListener("click", async () => {
+    if (actionPending) return;
+    actionPending = true; renderControls();
+    try {
+      const record = await api("/api/workflow/create", {name: byId("requirements-name").value,
+        markdown: byId("requirements-markdown").value, requirements: requirementRows});
+      workspaceId = record.workspace_id; byId("new-workspace").open = false; byId("workflow-error").hidden = true;
+      await refresh(); notify("Requirements saved. Start investigation when ready.");
+    } catch (error) { byId("workflow-error").textContent = error.message; byId("workflow-error").hidden = false; }
+    finally { actionPending = false; renderControls(); }
+  });
+  byId("workspace-select").addEventListener("change", async event => {
+    workspaceId = event.target.value; workspaceDetail = null; byId("workspace-detail").hidden = true; renderControls();
+    byId("approval-confirm").value = ""; byId("investigation-feedback").value = "";
+    byId("workflow-error").hidden = true; await refresh();
+  });
+  byId("investigate-plan").addEventListener("click", () => workflowAction("investigate"));
+  byId("prepare-plan").addEventListener("click", () => workflowAction("plan"));
+  byId("import-plan").addEventListener("click", () => workflowAction("import"));
+  byId("revise-plan").addEventListener("click", () => workflowAction("investigate", {feedback: byId("investigation-feedback").value}));
+  byId("investigation-feedback").addEventListener("input", renderWorkflowControls);
+  byId("approval-confirm").addEventListener("input", renderWorkflowControls);
+  byId("approve-plan-form").addEventListener("submit", event => {
+    event.preventDefault(); if (!byId("approve-plan").disabled) workflowAction("approve", {confirm: byId("approval-confirm").value});
+  });
+  byId("investigation-answers").addEventListener("submit", event => {
+    event.preventDefault(); workflowAction("investigate", {answers: Object.fromEntries(new FormData(event.target))});
+  });
+  byId("show-archived").addEventListener("change", () => { selectedIssues.clear(); renderIssues(); icons(); });
+  for (const [id, archived] of [["archive-issues", true], ["restore-issues", false]]) byId(id).addEventListener("click", async () => {
+    try {
+      const existing = new Set(snapshot.archived_issues), issue_ids = [...selectedIssues].filter(issue => existing.has(issue) !== archived);
+      if (await perform("/api/archive", {issue_ids, archived})) { selectedIssues.clear(); renderIssues(); notify(archived ? "Completed issues archived. History is preserved." : "Issues restored."); }
+    } catch (error) { notify(error.message); }
+  });
   byId("probe-models").addEventListener("click", async () => {
     const sources = [...byId("model-sources").querySelectorAll("input:checked")].map(input => input.value);
     if (!sources.length) { notify("Choose at least one model source"); return; }
