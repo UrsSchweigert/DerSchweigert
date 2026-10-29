@@ -40,7 +40,7 @@ def new_issue(issue_id: str, plan_id: str, phase_id: str, requirement_ids: List[
 TRANSIENT_GITHUB = ("rate limit", "timeout", "timed out", "502", "503", "504", "connection", "temporar", "reset by peer", "could not resolve")
 # GitHub refuses a merge with 405 while a required check is still running. That is neither a conflict nor a failure, so
 # the merge simply waits: no repair budget, no stronger model, no issue churn.
-MERGE_PENDING = ("is in progress", "is queued", "waiting for status", "expected \u2014 waiting", "expected - waiting")
+MERGE_PENDING = ("in progress", "queued", "waiting for status", "expected \u2014 waiting", "expected - waiting")
 MERGE_PENDING_LIMIT = 40
 MAX_DECISION_TEXT = 2000
 HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result"}
