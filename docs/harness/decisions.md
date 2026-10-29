@@ -197,6 +197,14 @@ was evaluated without changing dependency manifests or CI defaults.
 
 After PR #26 broke production (a classic script read `window.__storage` before the module script set it) the harness gained a browser-level gate. The worker image carries Playwright Chromium and `smoke/lesen.mjs`; `smoke.json` maps changed paths to it. It is appended to an issue's validation commands (pre-merge, rebase rerun, post-merge, phase validation) and the isolation probe requires it. Failing output tails are included in repair feedback. Verified: passes on `849c734`, fails on the broken `d9c092e`. Limit: it covers the lesen web page only.
 
+## The pull-request budget can be lifted (2026-10-29)
+
+`pull_requests_per_run` defaults to 20. Setting it to `null` in an approved plan's policy means the owner
+set no limit: the scheduler stops pausing on this budget and `status` prints `pull requests N of
+unlimited`. It stays in the digest like every other budget, so lifting it still needs a new plan version
+and an interactive approval. The wall-clock budget (`run_wall_clock_s`) is unaffected and remains the
+backstop for a runaway run.
+
 ## Declared checks are checked against the allowlist, and worker questions are triaged (2026-10-29)
 
 A refiner stopped issue `coverage-core` with a human question because its validation command, `node --test tests/coverage.test.mjs`, named a file that was neither in the repository nor inside phase P3's path allowlist, so no worker could ever create it. The harness had already run exactly that command three times at preflight (v1, v2, v3) and recorded `Could not find 'tests/coverage.test.mjs'`, exit 1 — but classified it as an ordinary failed check. The classifier looked for `not found`, and Node writes `Could not find`. Import therefore went ahead, and the owner was asked a question that a script could have answered.

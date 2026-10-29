@@ -1,6 +1,6 @@
 import pytest
 
-from harness import approval
+from harness import approval, status
 from harness.store import Store
 from harness_doubles import Env, FakeChecker
 
@@ -326,6 +326,18 @@ def test_pull_request_budget_pauses_the_project(tmp_path):
     env.start()
     env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused")
     assert "pull request budget" in env.store.get_run("fx")["paused_reason"]
+
+
+def test_an_absent_pull_request_budget_is_unlimited(tmp_path):
+    env = Env(tmp_path, issues=[("a", "P1", ["F1.1"]), ("b", "P1", ["F1.2"])], budgets={"pull_requests_per_run": None})
+    env.start()
+    env.run_until(lambda: env.state("a") == "Done" and env.state("b") == "Done")
+    run = env.store.get_run("fx")
+    assert not run.get("pause_requested") and "pull request budget" not in (run.get("paused_reason") or "")
+    assert run["prs"] >= 2  # two pull requests went out and the plan kept scheduling
+    report = status.build_report(env.store.home)
+    assert report["budgets"]["fx"]["pull_requests"]["limit"] is None
+    assert report["budgets"]["fx"]["pull_requests"]["remaining"] is None
 
 
 def test_cancel_terminates_workers_and_cancels_the_plan(tmp_path):
