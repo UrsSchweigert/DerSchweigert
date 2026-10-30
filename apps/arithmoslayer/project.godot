@@ -10,9 +10,11 @@ config_version=5
 
 [application]
 
-config/name="Arithmo Slayer"
+config/name="Arithmoslayer"
+config/version="1.0.0"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 run/main_scene="res://scenes/main.tscn"
+config/android_package="de.derschweigert.arithmoslayer"
 
 [autoload]
 
@@ -27,3 +29,7 @@ gdscript/warnings/untyped_declaration=2
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+
+[display]
+
+window/handheld/orientation=0

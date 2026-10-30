@@ -8,13 +8,13 @@ never imports from it, never links to it, and never mentions its path.
 
 | Path | Purpose |
 | --- | --- |
-| `scenes/` | Packed scenes. `scenes/main.tscn` is the only scene in the skeleton and is the main scene. |
-| `scripts/` | Typed GDScript. `scripts/main.gd` drives the root scene and `scripts/autoload/` holds autoloads. |
-| `data/` | Data-driven content: `data/i18n/strings.csv` holds the `key,en,de` translation table and `data/project/` holds project-wide data files. |
+| `scenes/` | Packed scenes. `scenes/main.tscn` is the main scene; `scenes/ui/root.tscn` is the safe-area UI root it instances. |
+| `scripts/` | Typed GDScript. `scripts/main.gd` drives the root scene, `scripts/autoload/` holds autoloads, and `scripts/ui/safe_area.gd` applies the display safe area. |
+| `data/` | Data-driven content: `data/i18n/strings.csv` holds the `key,en,de` translation table, `data/android_targets.json` records the Android SDK levels and permissions, and `data/project/` holds project-wide data files. |
 | `shaders/` | Reserved for Godot shaders (`.gdshader`); created with the first shader. |
 | `assets/` | Reserved for art, audio, and font sources; created with the first asset. |
 | `test/` | GUT tests. `test/unit/` holds unit tests and `test/fixtures/` holds shared fixtures. |
-| `docs/` | Architecture, installation, and testing notes. |
+| `docs/` | Architecture, installation, testing, and Android release notes (`docs/android.md`). |
 | `tools/` | Python guard scripts (`validate_data.py`, `check_isolation.py`, `check_offline.py`) and later build helpers. |
 
 Every directory stays inside `apps/arithmoslayer/`. Changes elsewhere in the
@@ -50,6 +50,13 @@ that every `tr_key()` reference in `scripts/` and `scenes/` resolves.
 
 ## Project settings
 
+- `application/config/name` is `Arithmoslayer`, and
+  `application/config/android_package` records the Play package id
+  `de.derschweigert.arithmoslayer` for the human-owned export preset.
+- `application/config/version` mirrors `versionName` from `VERSION`;
+  `VERSION` also holds `versionCode`.
+- `display/window/handheld/orientation` is `0` (landscape), so phones and
+  tablets both start in landscape.
 - `application/config/features` pins the `4.7` feature set with the
   `GL Compatibility` renderer, which is the portable choice for Android and
   desktop.
@@ -58,6 +65,19 @@ that every `tr_key()` reference in `scripts/` and `scenes/` resolves.
   variable, and return types.
 - `engine-version.txt` records the supported engine (`4.7.2-stable`); see
   `docs/install.md`.
+
+## App identity and Android target
+
+`VERSION` is the single source of `versionName` and `versionCode`, and
+`data/android_targets.json` records `minSdk` `24`, `targetSdk` `36`, the only
+allowed permission (`com.android.vending.BILLING`), and a source note for the
+SDK levels. `scripts/ui/safe_area.gd` reads
+`DisplayServer.get_display_safe_area()` and applies the insets as margins on
+the `scenes/ui/root.tscn` control, so the shell stays inside the usable screen
+area in landscape. `test/unit/test_app_identity.gd` guards all of these
+values and the safe-area maths. `docs/android.md` documents the export preset
+and manifest steps that the release owner performs by hand; the repository
+intentionally contains no export preset, build template, or signing material.
 
 ## Isolation from the browser game
 

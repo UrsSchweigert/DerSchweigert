@@ -1,0 +1,8 @@
+{
+  "source": "Google Play target API level policy (https://support.google.com/googleplay/android-developer/answer/11926878), checked 2026-10-30; Godot 4.7.2 Android export requirements.",
+  "minSdk": 24,
+  "targetSdk": 36,
+  "permissions": [
+    "com.android.vending.BILLING"
+  ]
+}

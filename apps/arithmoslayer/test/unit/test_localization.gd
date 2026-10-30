@@ -3,6 +3,7 @@ extends GutTest
 
 const TABLE_PATH: String = "res://data/i18n/strings.csv"
 const MAIN_SCENE_PATH: String = "res://scenes/main.tscn"
+const ROOT_SCENE_PATH: String = "res://scenes/ui/root.tscn"
 const MAIN_SCRIPT_PATH: String = "res://scripts/main.gd"
 const VALIDATE_TOOL: String = "tools/validate_data.py"
 const COLUMN_COUNT: int = 3
@@ -116,11 +117,12 @@ func test_shell_labels_use_translations() -> void:
 func test_shell_does_not_hard_code_text() -> void:
 	var scene_pattern: RegEx = RegEx.new()
 	assert_eq(scene_pattern.compile('(?m)^\\s*text\\s*=\\s*"[^"]+"'), OK)
-	assert_eq(
-		scene_pattern.search_all(_read_text(MAIN_SCENE_PATH)).size(),
-		0,
-		"main.tscn must not hard-code user-visible text",
-	)
+	for scene_path: String in [MAIN_SCENE_PATH, ROOT_SCENE_PATH]:
+		assert_eq(
+			scene_pattern.search_all(_read_text(scene_path)).size(),
+			0,
+			"%s must not hard-code user-visible text" % scene_path,
+		)
 	var script_pattern: RegEx = RegEx.new()
 	assert_eq(script_pattern.compile('\\.text\\s*=\\s*"[^"]+"'), OK)
 	assert_eq(
