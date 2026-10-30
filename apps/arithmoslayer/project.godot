@@ -17,6 +17,7 @@ run/main_scene="res://scenes/main.tscn"
 [autoload]
 
 GameState="*res://scripts/autoload/game_state.gd"
+Localization="*res://scripts/autoload/localization.gd"
 
 [debug]
 
