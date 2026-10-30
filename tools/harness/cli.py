@@ -459,6 +459,22 @@ def restore_command(args) -> int:
         store.close()
 
 
+def archive_command(args) -> int:
+    """Hide a plan or a workspace from the dashboard. Nothing is deleted, and `status` still lists everything."""
+    from . import gui_workflow
+    store = Store(args.home)
+    try:
+        if args.kind == "plan" and store.get_plan(args.target) is None:
+            raise runner.RunRefused("unknown plan %s" % args.target)
+        if args.kind == "workspace" and store.get_doc("gui_workspace", args.target) is None:
+            raise runner.RunRefused("unknown workspace %s" % args.target)
+        record = gui_workflow.set_archived(store, args.kind, args.target, archived=not args.undo)
+        print("%s %s: %s" % (record["kind"], record["target"], "archived" if record["archived"] else "visible"))
+        return 0
+    finally:
+        store.close()
+
+
 def task_command(args) -> int:
     store = Store(args.home)
     try:
@@ -610,6 +626,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     rs.add_argument("plan_id")
     rs.add_argument("--version", type=int)
     rs.add_argument("--out", help="directory for requirements.md, phases.json and issues.json")
+    ar = sub.add_parser("archive", help="hide a finished plan or an old workspace from the dashboard")
+    ar.add_argument("kind", choices=["plan", "workspace"])
+    ar.add_argument("target", help="the plan id or workspace id")
+    ar.add_argument("--undo", action="store_true", help="show it in the dashboard again")
     tk = sub.add_parser("tasks", help="list open human tasks")
     st = sub.add_parser("sync-tasks", help="mirror open human tasks as GitHub issues")
     st.add_argument("plan_id")
@@ -731,6 +751,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return defer_command(args)
         if args.cmd == "restore":
             return restore_command(args)
+        if args.cmd == "archive":
+            return archive_command(args)
         if args.cmd in ("respond", "tasks", "sync-tasks"):
             return task_command(args)
         if args.cmd == "assets":

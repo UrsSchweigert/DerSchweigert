@@ -155,6 +155,26 @@ def create(store: Store, body: dict) -> dict:
     return record
 
 
+ARCHIVE_KINDS = ("plan", "workspace")
+
+
+def archived_ids(store: Store, kind: str) -> set:
+    """Plans and workspaces the operator hid from the dashboard. Nothing is deleted; `status` still lists them."""
+    prefix = kind + ":"
+    return {str(doc.get("_key", ""))[len(prefix):] for doc in store.docs("gui_archive")
+            if doc.get("archived") and str(doc.get("_key", "")).startswith(prefix)}
+
+
+def set_archived(store: Store, kind: str, target: str, archived: bool = True) -> dict:
+    if kind not in ARCHIVE_KINDS:
+        raise ValueError("archive kind must be one of %s" % ", ".join(ARCHIVE_KINDS))
+    if not target:
+        raise ValueError("nothing to archive")
+    record = {"kind": kind, "target": target, "archived": bool(archived)}
+    store.put_doc("gui_archive", "%s:%s" % (kind, target), record)
+    return record
+
+
 def detail(store: Store, workspace_id: str) -> dict:
     record = visible_record(workspace(store, workspace_id))
     root = directory(store, workspace_id)
