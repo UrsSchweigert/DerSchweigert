@@ -53,11 +53,14 @@ DEFAULT_POLICY: Dict[str, Any] = {
 
 _REQ_ROW = re.compile(r"^\|\s*\*\*([A-Za-z]*\d+(?:\.\d+)*)\*\*\s*\|\s*\*\*(.+?)\*\*\s*\|")
 _COMMAND_DENY = re.compile(r"(\bcurl\b|\bwget\b|\bssh\b|\bscp\b|\bsudo\b|\brm\s+-[a-z]*r[a-z]*f?\s+/|\bgit\s+push\b|\bgh\s|\bdocker\b|\bnpm\s+publish\b|\bnpx\b)", re.I)
+_SWALLOW_FAILURE = re.compile(r"(\|\||;)\s*(true|:|exit\s+0)\s*$", re.I)
 
 
 def command_problem(command: str) -> Optional[str]:
     if _COMMAND_DENY.search(command):
         return "command uses a prohibited network, privilege, container, or publishing tool"
+    if _SWALLOW_FAILURE.search(command):
+        return "command ends in a fallback that always succeeds, so it can never report a failure; drop it"
     return None
 
 

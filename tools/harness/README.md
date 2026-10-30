@@ -354,7 +354,10 @@ The button does not build images, change credentials, or start a live run.
    feedback and choose **Revise draft with feedback**.
 4. Click **Prepare plan and checks**. This saves the proposed version and
    preflights both phase and issue-specific checks in the existing sandbox.
-   Review the exact plan, scope, policy, issues, and preflight results.
+   Review the exact plan, scope, policy, issues, and preflight results. A
+   check that names a file no worker may create, or that ends in `|| true`
+   and can therefore never fail, is refused here; a failed preparation shows
+   in the banner at the top of the dashboard and in the Preparation output.
 5. Type the first 12 digest characters and click **Approve reviewed plan**.
    Approval uses the server-verified local identity and the same signed
    scope-and-policy record as terminal approval. Changed versions, revised
@@ -638,6 +641,8 @@ Plans are stored in the database, not in a folder, so they will not show up in y
 | `no issues to schedule` | Run `import-issues` first. |
 | An issue is `Blocked` | Run `harness tasks`. A blocked issue always has a dependency or a task with the reason. Answer it. |
 | `retry would repeat failed attempt ...` | A retry must differ from the failed attempt. Choose option 2 with guidance, or option 3. |
+| `validation command ... can never report a failure` | The command ends in `\|\| true` (or `; true`, `\|\| exit 0`). A check must be able to fail: drop the fallback and let the command report its exit code. |
+| `... does not exist at the base revision and is not inside the phase path allowlist` | The check names a file no worker may create. Fix the command or add the path to the phase's `path_allowlist`, then prepare a new plan version. |
 | `investigate` shows nothing for a while | It is working: reading the repository takes a few minutes, and a progress line prints every 15 seconds. It stops after 10 quiet minutes. |
 | Containers left after Ctrl+C | `docker ps -a \| grep harness`, then `docker rm -f NAME`. |
 | `copilot.token` rejected or expired | Create a new fine-grained token (Copilot Requests permission, no repository access), save it to `~/.local/state/derschweigert-harness/copilot.token` with mode 600, and rerun `isolation verify`. |

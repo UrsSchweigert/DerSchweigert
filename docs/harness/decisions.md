@@ -281,3 +281,26 @@ For `coverage-core` the operator amended the row directly with the public store 
 ## Next Invocation
 
 `/setup-project-harness stage=2 requirements=/Users/ursschweigert/Documents/GitHub/DerSchweigert/uploads/20261026_improvements`
+
+## A check that cannot fail is refused (2026-10-30)
+
+The dashboard's "plan and check" died on a draft whose second validation command was
+`cd sites/lesen && node --test tests/*.test.mjs || true`. Two defects in the same gate:
+
+* `plans.command_paths_problem` joined every path token with the issue's working directory, so the `cd`
+  target became `sites/lesen/sites/lesen` and the gate reported an impossible command. A token now counts
+  when it resolves against the working directory **or** the repository root, and tokens that are code rather
+  than paths (`require('static/index.html')`) are skipped. The stored draft passes again.
+* The `|| true` made the check unpassable-to-fail, so the worker would have "verified" nothing. The owner
+  chose to refuse such commands: `plans.command_problem` rejects a command that ends in a fallback which
+  always succeeds (`|| true`, `|| :`, `|| exit 0`, `; true`, `; exit 0`). This runs in `build_plan`,
+  `import-issues`, splits and preflight, so a plan stops at authoring time rather than mid-run. `a || b` with
+  a real fallback (`|| echo failed`) stays allowed.
+
+The same draft showed the second defect of the dashboard: a failed preparation was only visible inside the
+Planning view, so the button looked stuck. The header banner now reports a failed or running preparation for
+the selected plan, and the investigate/prepare buttons carry a title naming the blocker.
+
+Rows in the dashboard followed the alphabet of issue ids, so progress read sideways rather than downwards and
+looked like it was jumping. Issues, queue, workers, checks and blockers now follow plan order, then phase
+order, then issue id: a stable total order that only ever appends.
