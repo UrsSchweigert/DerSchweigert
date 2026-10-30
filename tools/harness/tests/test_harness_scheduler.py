@@ -543,3 +543,47 @@ def test_a_fresh_approval_does_not_inherit_the_cancel_request(tmp_path):
     env.sched.start()
 
     assert env.store.state("plan", "fx@v1") == "Executing" and not env.store.get_run("fx").get("cancel_requested")
+
+
+def test_the_run_clock_stops_when_the_plan_is_cancelled(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.clock.advance(60)
+
+    env.sched.request_cancel()
+    env.sched.tick()
+
+    used = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
+    env.clock.advance(3600)
+    assert status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"] == used == 60
+
+
+def test_a_resumed_run_does_not_pay_for_the_time_it_was_stopped(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.clock.advance(60)
+    env.sched._pause("paused by the operator", env.clock())
+    stopped_at = env.store.get_run("fx")["ended_at"]
+
+    env.clock.advance(3600)  # an hour paused
+    env.sched.start()
+    env.clock.advance(30)
+
+    run = env.store.get_run("fx")
+    assert "ended_at" not in run and run["started_at"] == 1000.0 + 3600
+    used = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
+    assert used == 90 and stopped_at == 1060
+
+
+def test_the_run_clock_stops_when_the_plan_completes(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.clock.advance(120)
+
+    for phase in ("P1", "P2"):
+        for state in ("Eligible", "Active", "Validating", "Done"):
+            env.store.transition("phase", "fx@v1/" + phase, state, "test")
+    env.sched._complete_plan_if_done(env.clock())
+
+    env.clock.advance(7200)
+    assert status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"] == 120

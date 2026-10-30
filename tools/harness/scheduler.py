@@ -114,6 +114,9 @@ class Scheduler:
                     pass
         run = self.store.get_run(self.plan_id)
         run.setdefault("started_at", now)
+        if run.get("ended_at"):
+            run["started_at"] = min(now, run["started_at"] + max(0.0, now - run["ended_at"]))
+            run.pop("ended_at", None)
         for key in ("paused_reason", "pause_requested", "pause_now"):
             run.pop(key, None)
         if state == "Approved":
@@ -1446,6 +1449,9 @@ class Scheduler:
         phases = self._plan()["phases"]
         if all(self.store.state("phase", "%s/%s" % (self.entity, p["id"])) == "Done" for p in phases):
             self.store.transition("plan", self.entity, "Completed", self.runner_id, {}, now=now)
+            run = self.store.get_run(self.plan_id)
+            run["ended_at"] = now
+            self.store.put_run(self.plan_id, run)
             self._emit("plan_completed")
             self._open_promotion()
 
@@ -1490,6 +1496,7 @@ class Scheduler:
             self.store.transition("plan", self.entity, "Paused", self.runner_id, {"reason": reason}, now=now)
         run = self.store.get_run(self.plan_id)
         run["paused_reason"] = reason
+        run["ended_at"] = now  # the run wall clock stops with the run, so a resumed run does not inherit idle time
         run.pop("pause_requested", None)  # the request is why we are here; leaving it set reads as "still pausing"
         run.pop("pause_now", None)
         self.store.put_run(self.plan_id, run)
@@ -1509,6 +1516,9 @@ class Scheduler:
         self._release_all(now, "Cancelled")
         humantasks.cancel_for_issues(self.store, [i["issue_id"] for i in self.store.list_issues(self.plan_id)], now)
         self.store.transition("plan", self.entity, "Cancelled", self.runner_id, {"drain": drain}, now=now)
+        run = self.store.get_run(self.plan_id)
+        run["ended_at"] = now
+        self.store.put_run(self.plan_id, run)
         self._emit("cancelled", drain=drain)
 
     def active_attempts(self) -> List[str]:
