@@ -177,6 +177,9 @@ def test_a_check_may_not_name_a_file_the_phase_cannot_create():
     assert plans.command_paths_problem("node --test static/sounds.mjs", "sites/lesen", allowlist, exists) is None  # exists already
     assert plans.command_paths_problem("node tools/build_books.mjs --check", "sites/lesen", allowlist, exists) is None
     assert plans.command_paths_problem("node ../../../etc/passwd", "sites/lesen", allowlist, exists)
+    # a command that changes directory itself names its own target relative to the repository root
+    assert plans.command_paths_problem('cd sites/lesen && node -e "require(\\\'fs\\\')"', "sites/lesen",
+                                       allowlist, lambda path: path == "sites/lesen") is None
 
 
 def test_a_phase_may_rely_on_files_an_earlier_phase_creates():

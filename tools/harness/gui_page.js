@@ -124,9 +124,12 @@
     const total = snapshot.usage_detail?.total, measured = total && total.counts.agent_estimate + total.counts.size_estimate > 0;
     byId("usage-note").textContent = "Tokens and cost: " + (measured ? snapshot.usage : "unavailable"); byId("usage-note").title = snapshot.usage || "";
     const failedRun = snapshot.managed_runs.find(job => job.plan_id === selectedPlan && !job.running && job.exit_code !== 0);
-    const notice = plan?.paused_reason && plan.state === "Paused" ? plan.paused_reason : plan?.cancel_requested && plan.state === "Executing" ? "Cancellation requested; waiting for the runner to finish." : plan?.pause_requested ? "Pause requested; active execution is draining." : failedRun ? `Runner exited with code ${failedRun.exit_code}.` : "";
+    const preparation = workspaces.filter(item => item.plan_id === selectedPlan).map(item => item.job).filter(Boolean)
+      .sort((left, right) => (left.started_at || 0) - (right.started_at || 0)).at(-1);
+    const failedPreparation = preparation?.state === "failed" ? preparation : null;
+    const notice = plan?.paused_reason && plan.state === "Paused" ? plan.paused_reason : plan?.cancel_requested && plan.state === "Executing" ? "Cancellation requested; waiting for the runner to finish." : plan?.pause_requested ? "Pause requested; active execution is draining." : failedRun ? `Runner exited with code ${failedRun.exit_code}.` : failedPreparation ? `${failedPreparation.kind}: preparation failed. ${failedPreparation.error || "Open Planning to read the output."}` : preparation?.state === "running" ? `${preparation.kind}: preparation running, the output follows in Planning.` : "";
     byId("plan-notice").textContent = notice; byId("plan-notice").hidden = !notice;
-    byId("plan-notice").className = "banner" + (failedRun ? " error" : "");
+    byId("plan-notice").className = "banner" + (failedRun || failedPreparation ? " error" : "");
     renderMetrics(); renderExecution(); renderPhases(); renderAttention(); renderCoverage(); renderIssues(); renderTasks(); renderEvents(); renderPlanning(); renderControls(); icons();
   }
   function renderControls() {
@@ -157,6 +160,8 @@
     byId("prepare-plan").disabled = !ready || !revisable || !detail?.draft || Boolean(detail?.questions.length);
     byId("revise-plan").disabled = !ready || !revisable || !detail?.draft || !byId("investigation-feedback").value.trim();
     byId("import-plan").disabled = !ready || state !== "Approved";
+    byId("investigate-plan").title = !revisable ? "An approved or executing plan cannot be revised; create a new workspace" : detail?.draft ? "Requirements changed; revise the existing draft instead" : !ready ? "Preparation cannot start now: see the notice above" : "Draft phases and issues from the requirements";
+    byId("prepare-plan").title = detail?.questions.length ? "Answer the investigator's questions first" : !detail?.draft ? "Investigate first to draft phases and issues" : !revisable ? "An approved or executing plan cannot be revised" : !ready ? "Preparation cannot start now: see the notice above" : "Run the investigation, checks and planning steps";
     byId("approve-plan").disabled = !ready || state !== "Proposed" || !detail?.preflight || Boolean(detail?.questions.length)
       || byId("approval-confirm").value !== detail?.plan?.digest.slice(0, 12);
     for (const button of byId("investigation-answers").querySelectorAll("button")) button.disabled = !ready || !revisable;

@@ -90,6 +90,8 @@ class GuiServer(ThreadingHTTPServer):
         if selected:
             report = status.filter_plan(report, selected)
             report["checks"] = [job for job in report["checks"] if job["plan_id"] == selected]
+        order = {row["issue_id"]: rank for rank, row in enumerate(report["queue"])}
+        report["checks"].sort(key=lambda job: (order.get(job["issue_id"], len(order)), job["issue_id"], job["stage"]))
         report["read_only"] = self.read_only
         report["repository"] = self.repo_slug
         report["managed_runs"] = []
