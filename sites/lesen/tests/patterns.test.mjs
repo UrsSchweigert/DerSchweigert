@@ -163,7 +163,7 @@ test("setup guard: an empty sub-pattern selection disables start and reports the
   );
   assert.match(
     htmlSource,
-    /const missingSubPattern = pattern === 'PATTERNS' && selectedSubPatterns\(\)\.length === 0;/,
+    /const missingSubPattern = mode === 'PATTERNS' && selectedSubPatterns\(\)\.length === 0;/,
     "the guard must treat an empty sub-pattern selection as missing",
   );
   assert.match(
@@ -245,12 +245,17 @@ test("buildCombinations lives only in sounds.mjs and index.html uses the importe
   assert.match(htmlSource, /\bbuildCombinations\(/);
 });
 
-test("setup markup: one PATTERNS radio with ma/am/mam/ama checkboxes", async () => {
+test("setup markup: one mode radio group with ma/am/mam/ama checkboxes", async () => {
   const htmlSource = await readFile(path.join(SITE_ROOT, "static", "index.html"), "utf8");
   const markup = htmlSource.split("<script")[0];
 
-  assert.strictEqual((markup.match(/<input[^>]*name="pattern"/g) || []).length, 3, "expected PATTERNS, WORDS and FLOP radios");
+  assert.strictEqual((markup.match(/<input[^>]*name="mode"/g) || []).length, 4, "expected PATTERNS, WORDS, SENTENCES and FLOP radios");
   assert.strictEqual((markup.match(/<input[^>]*value="PATTERNS"/g) || []).length, 1);
+  for (const mode of ["PATTERNS", "WORDS", "SENTENCES", "FLOP"]) {
+    assert.match(markup, new RegExp(`name="mode" value="${mode}"`));
+  }
+  assert.ok(!/name="deck"/.test(markup), "the deck radio group must be gone");
+  assert.ok(!/name="pattern"/.test(markup), "the pattern radio group must be gone");
   assert.ok(!/value="CV"/.test(markup), "the CV radio value must be gone");
   assert.ok(!/value="VC"/.test(markup), "the VC radio value must be gone");
   assert.strictEqual((markup.match(/<input[^>]*name="subpattern"/g) || []).length, 4);

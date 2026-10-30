@@ -392,21 +392,21 @@ test("buildMixedDeck: cards carry their kind and start with no misses", () => {
 
 const setupHtml = readFileSync(new URL("../static/index.html", import.meta.url), "utf8");
 
-test("the Karten tab offers a sentence-only and a mixed deck", () => {
-  assert.match(setupHtml, /<input type="radio" name="deck" value="SENTENCES">/);
-  assert.match(setupHtml, /<input type="radio" name="deck" value="MIXED">/);
-  assert.match(setupHtml, /id="deck-sentences-title"/);
-  assert.match(setupHtml, /id="deck-mixed-title"/);
+test("the Karten tab offers a sentence mode in the single mode group", () => {
+  assert.match(setupHtml, /<input type="radio" name="mode" value="SENTENCES">/);
+  assert.doesNotMatch(setupHtml, /<input type="radio" name="deck"/);
+  assert.doesNotMatch(setupHtml, /value="MIXED"/);
+  assert.match(setupHtml, /id="mode-sentences-title"/);
 });
 
-test("the Karten tab builds both decks through the scoring module", () => {
+test("the Karten tab builds the sentence deck through the scoring module", () => {
   assert.match(setupHtml, /window\.__scoring\.buildSentenceOnlyDeck\(/);
-  assert.match(setupHtml, /window\.__scoring\.buildMixedDeck\(/);
-  assert.match(setupHtml, /buildSentenceOnlyDeck, buildMixedDeck \} from '\.\/scoring\.mjs'/);
+  assert.doesNotMatch(setupHtml, /buildMixedDeck/);
+  assert.match(setupHtml, /buildSentenceOnlyDeck \} from '\.\/scoring\.mjs'/);
 });
 
 test("the Flops mode builds a kind-aware deck from the active sentence pool", () => {
-  assert.match(setupHtml, /buildFlopDeck, buildSentenceOnlyDeck, buildMixedDeck \} from '\.\/scoring\.mjs'/);
+  assert.match(setupHtml, /buildFlopDeck, buildSentenceOnlyDeck \} from '\.\/scoring\.mjs'/);
   assert.match(setupHtml, /sentenceTexts\[lang\] = new Set\(/);
   assert.match(setupHtml, /buildFlopDeck\(stats, allowedSounds, sentenceTexts\[currentLanguage\] \|\| \[\]\)/);
   assert.match(setupHtml, /queue = shuffle\(flopDeck\);/);
@@ -464,17 +464,16 @@ test("regression: a word deck after a sentence deck still contains only words", 
   assert.ok(deck.every((card) => card.kind === "word"));
 });
 
-test("the sentence mode can be switched off without leaving state behind", () => {
-  assert.match(setupHtml, /function clearSentenceSelection\(\) \{/);
-  assert.match(setupHtml, /sentenceSelection\.clear\(\);/);
-  assert.match(setupHtml, /button\.setAttribute\('aria-pressed', 'false'\);/);
-  assert.match(setupHtml, /clearSentenceSelection\(\);\s*updatePatternControls\(\);/);
-  assert.match(setupHtml, /byId\('sentences-clear'\)\.addEventListener\('click', clearSentenceSelection\);/);
+test("the sentence mode keeps no manual selection state behind", () => {
+  assert.doesNotMatch(setupHtml, /sentenceSelection/);
+  assert.doesNotMatch(setupHtml, /clearSentenceSelection/);
+  assert.doesNotMatch(setupHtml, /id="sentences-clear"/);
+  assert.match(setupHtml, /byId\('sentences-match-count'\)\.textContent = cards\.length/);
 });
 
-test("regression: the letter deck and the old pattern modes stay the defaults", () => {
-  assert.match(setupHtml, /name="deck" value="LETTERS"\s+checked/);
-  for (const value of ["PATTERNS", "WORDS", "FLOP"]) {
-    assert.match(setupHtml, new RegExp(`name="pattern" value="${value}"`));
+test("regression: the patterns mode stays the default", () => {
+  assert.match(setupHtml, /name="mode" value="PATTERNS"\s+checked/);
+  for (const value of ["PATTERNS", "WORDS", "SENTENCES", "FLOP"]) {
+    assert.match(setupHtml, new RegExp(`name="mode" value="${value}"`));
   }
 });
