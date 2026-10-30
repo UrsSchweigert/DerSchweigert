@@ -250,6 +250,8 @@ def render(report: Dict[str, Any]) -> str:
             promotion = p.get("promotion") or {}
             if promotion.get("problem"):
                 w("  PROMOTION BLOCKED: %s" % promotion["problem"][:200])
+            elif promotion.get("number") and promotion.get("merged"):
+                w("  merged into %s as pull request #%s" % (promotion.get("base", ""), promotion["number"]))
             elif promotion.get("number"):
                 w("  promoted as pull request #%s into %s; only the owner merges it" % (promotion["number"], promotion.get("base", "")))
             w("  budgets: wall-clock %s of %ss, pull requests %d of %s, tokens and cost %s" % (
