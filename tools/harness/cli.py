@@ -27,6 +27,24 @@ def _slug(path: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", os.path.basename(path).lower()).strip("-") or "plan"
 
 
+SOURCES_ENV = models.SOURCES_ENV
+
+
+def operator_model_sources() -> Optional[List[str]]:
+    """The operator's standing model-source choice, when `--model-source` is omitted."""
+    return models.operator_sources()
+
+
+def model_sources_arg(given: Optional[List[str]], repo_root: Optional[str] = None) -> Optional[List[str]]:
+    """Explicit flags win; otherwise the operator default from the git-ignored app env file."""
+    if given:
+        return given
+    if repo_root:
+        from . import remote
+        remote.load_harness_env(Path(repo_root))
+    return operator_model_sources()
+
+
 def plan_command(store: Optional[Store], requirements: str, phases_path: Optional[str] = None,
                  plan_id: Optional[str] = None, fixture: bool = False, dry_run: bool = False,
                  model_sources: Optional[List[str]] = None, intent: Optional[str] = None) -> Dict[str, Any]:
@@ -359,7 +377,8 @@ def investigate_command(args) -> int:
         probe = adapter.probe()
         if not probe["available"]:
             raise runner.RunRefused("the Copilot CLI sandbox adapter is unavailable: %s" % probe["reason"])
-        policy = plans.with_model_sources(plans.DEFAULT_POLICY, args.model_source, models.load_catalog(store.home))
+        sources = model_sources_arg(args.model_source, root)
+        policy = plans.with_model_sources(plans.DEFAULT_POLICY, sources, models.load_catalog(store.home))
         tiers = policy["model_tiers"]
         candidates = sorted({m for v in tiers.values() for m in ([v] if isinstance(v, str) else v)})
         available = runner.cached_models(adapter, store.home, candidates)
@@ -765,6 +784,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd in ("run", "resume", "cancel", "import-issues", "pause"):
             return runner_command(args)
         if args.cmd == "start":
+            from . import remote
+            remote.load_harness_env(_repo_root())
             from .start import run_start
             return run_start(args)
         if args.cmd == "investigate":
