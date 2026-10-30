@@ -11,7 +11,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import approval, cli, plans, runner
+from . import approval, cli, models, plans, runner
 from .broker import assert_no_secrets
 from .store import Store
 
@@ -264,7 +264,7 @@ def investigator_choices(repo_root: Path) -> dict:
     """
     from .remote import load_harness_env
     load_harness_env(repo_root)
-    sources = [s.strip() for s in os.environ.get(INVESTIGATOR_SOURCES, "").split(",") if s.strip()]
+    sources = models.operator_sources() or []
     tier = os.environ.get(INVESTIGATOR_TIER, "").strip()
     return {"sources": sources, "tier": tier if tier in ("low", "standard", "strong") else ""}
 

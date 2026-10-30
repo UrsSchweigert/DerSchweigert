@@ -109,6 +109,26 @@ def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], availab
     return {"model": selected, "tier": tier, "routing": True, "note": note}
 
 
+SOURCES_ENV = "HARNESS_MODEL_SOURCES"
+DASHBOARD_SOURCES_ENV = "HARNESS_INVESTIGATOR_SOURCES"
+
+
+def operator_sources(env: Optional[Dict[str, str]] = None) -> Optional[List[str]]:
+    """The operator's standing source choice, so every new run is wired to the same providers.
+
+    `HARNESS_MODEL_SOURCES` wins over the dashboard's `HARNESS_INVESTIGATOR_SOURCES`.
+    Unknown names are dropped instead of approving a source this runtime cannot serve,
+    and with neither variable set the caller keeps its own default.
+    """
+    source = os.environ if env is None else env
+    for name in (SOURCES_ENV, DASHBOARD_SOURCES_ENV):
+        chosen = [part.strip() for part in str(source.get(name) or "").split(",") if part.strip()]
+        valid = [item for item in chosen if item in SOURCES]
+        if valid:
+            return list(dict.fromkeys(valid))
+    return None
+
+
 def load_catalog(home: Optional[str] = None) -> Dict[str, Dict[str, List[str]]]:
     """The built-in catalog, with every source/tier that a store-level model_catalog.json replaces."""
     catalog = {source: {tier: list(ids) for tier, ids in tiers.items()} for source, tiers in MODEL_CATALOG.items()}

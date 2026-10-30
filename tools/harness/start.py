@@ -109,12 +109,16 @@ def _sources(store: Store, args, execute, ask) -> List[str]:
     print("\n3/6  Model sources", flush=True)
     if args.model_source:
         return list(dict.fromkeys(args.model_source))
+    standing = models.operator_sources()
+    if standing:
+        print("  using the operator default %s (set HARNESS_MODEL_SOURCES to change it)" % ",".join(standing), flush=True)
+        return standing
     catalog = models.load_catalog(store.home)
     for attempt in range(3):
         accepted = _accepted_models(store)
         for source in models.SOURCES:
             print("  " + _source_line(catalog, source, accepted), flush=True)
-        chosen = parse_sources(ask("  sources to allow [copilot]: "), DEFAULT_SOURCES)
+        chosen = parse_sources(ask("  sources to allow [%s]: " % ",".join(DEFAULT_SOURCES)), DEFAULT_SOURCES)
         if accepted is None:
             if _yes(ask, "  probe them now to see what this runtime accepts (10-60 s)?"):
                 execute(["models"] + sum([["--source", source] for source in chosen], []))

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from harness import approval, plans, runner, start
+from harness import approval, models, plans, runner, start
 from harness.store import Store
 from harness_doubles import FIX, REQ
 
@@ -137,7 +137,10 @@ def test_the_chosen_sources_reach_investigate_and_the_plan(home, tmp_path):
         store.close()
 
 
-def test_a_rejected_source_is_explained_and_asked_again(home, tmp_path, capsys):
+def test_a_rejected_source_is_explained_and_asked_again(home, tmp_path, capsys, monkeypatch):
+    # An operator default would skip the prompt this test exercises.
+    monkeypatch.delenv(models.SOURCES_ENV, raising=False)
+    monkeypatch.delenv(models.DASHBOARD_SOURCES_ENV, raising=False)
     store, commands = commands_for(home, tmp_path)
     try:
         code = start.run_start(start_args(home, tmp_path, requirements=REQ, model_source=None),

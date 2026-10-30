@@ -124,3 +124,37 @@ def test_a_store_catalog_changes_the_default_menu_of_a_new_plan(tmp_path):
     assert plan["policy"]["model_tiers"]["low"] == ["my-copilot-low"]
     assert plan["policy"]["model_tiers"]["strong"] == models.MODEL_CATALOG["copilot"]["strong"]
     assert not plans.validate_plan(plan)
+
+
+# -- the operator's standing source choice -------------------------------------------------------------
+
+def test_no_operator_default_leaves_the_policy_default(monkeypatch):
+    monkeypatch.delenv(models.SOURCES_ENV, raising=False)
+    monkeypatch.delenv(models.DASHBOARD_SOURCES_ENV, raising=False)
+    assert models.operator_sources() is None
+    assert cli.model_sources_arg(None) is None
+
+
+def test_the_operator_default_wires_every_new_run_to_deepseek(monkeypatch):
+    monkeypatch.setenv(models.SOURCES_ENV, "deepseek,copilot")
+    monkeypatch.delenv(models.DASHBOARD_SOURCES_ENV, raising=False)
+    assert cli.model_sources_arg(None) == ["deepseek", "copilot"]
+    policy = plans.with_model_sources(plans.DEFAULT_POLICY, cli.model_sources_arg(None), models.load_catalog(None))
+    assert policy["model_sources"] == ["deepseek", "copilot"]
+    assert "deepseek/deepseek-v4-pro" in policy["model_tiers"]["strong"]
+    assert not plans.validate_plan(plans.build_plan("d", 1, plans.parse_requirements(REQ), draft_phases(), policy, fixture=True))
+
+
+def test_an_explicit_flag_beats_the_operator_default(monkeypatch):
+    monkeypatch.setenv(models.SOURCES_ENV, "deepseek")
+    assert cli.model_sources_arg(["copilot"]) == ["copilot"]
+
+
+def test_the_dashboard_key_is_the_fallback_and_unknown_names_are_dropped(monkeypatch):
+    monkeypatch.delenv(models.SOURCES_ENV, raising=False)
+    monkeypatch.setenv(models.DASHBOARD_SOURCES_ENV, "deepseek, mainframe")
+    assert models.operator_sources() == ["deepseek"]
+    monkeypatch.setenv(models.SOURCES_ENV, "mainframe")
+    assert models.operator_sources() == ["deepseek"]
+    monkeypatch.delenv(models.DASHBOARD_SOURCES_ENV, raising=False)
+    assert models.operator_sources() is None

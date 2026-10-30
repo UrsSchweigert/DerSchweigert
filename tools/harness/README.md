@@ -90,6 +90,15 @@ shows which ones this runtime accepts:
 harness models --source local
 ```
 
+**A standing source choice.** Set `HARNESS_MODEL_SOURCES` (comma separated, for
+example `deepseek,copilot`) to decide which sources every new run is allowed to
+use. `investigate`, `start`, and dashboard planning then stop asking and stop
+defaulting to `copilot`; the dashboard's older `HARNESS_INVESTIGATOR_SOURCES` is
+the fallback, and an explicit `--model-source` still wins. Both keys are read
+from the git-ignored `sites/derschweigert/.env`, so the choice survives a new
+terminal without exporting anything. Unknown names are dropped, and a source
+without an accepted id still refuses to start rather than routing untested.
+
 An id the runtime rejects is dropped from the menu. If a source has no accepted
 id, `investigate` refuses to start and a plan built from it has no pickable
 model, rather than silently routing to an untested one. If this
