@@ -70,6 +70,14 @@ task warrants it. A different reviewer model is required whenever another
 approved model is available. The runtime cannot prove model independence when
 model routing is unavailable, and the harness reports that limitation.
 
+The refiner is exempt from cost-first routing: it always runs on the strongest
+approved tier. It re-reads a task and judges whether the code still matches, and
+a cheap model there returns malformed results often enough that one bad answer
+costs a repair attempt plus an owner decision. A plan that names a cheaper
+refiner is upgraded by trusted code and the routing note says so; when no strong
+model is available the harness keeps the best available one and reports the gap
+rather than blocking the run.
+
 ### Model sources
 
 The tier menu is the union of the sources you choose. Pass `--model-source` to

@@ -38,8 +38,37 @@ def test_delegator_can_choose_a_cheaper_independent_reviewer():
 
 
 def test_default_tier_per_role():
+    # The refiner is a judgement role: a cheap model there returns malformed results and costs a repair attempt.
     assert [models.choose_tier(r) for r in ("investigator", "refiner", "implementer", "reviewer", "integrator")] == \
-        ["low", "low", "low", "standard", "low"]
+        ["low", "strong", "low", "standard", "low"]
+
+
+def test_a_cheap_refiner_choice_is_upgraded_to_the_strong_tier():
+    choice = {"model": "claude-haiku-4.5", "reason": "Bounded re-check with one concrete anchor."}
+    route = models.resolve_choice(choice, POLICY, ALL, role="refiner")
+    assert route["tier"] == "strong" and route["model"] in POLICY["strong"]
+    assert "upgraded from claude-haiku-4.5" in route["note"]
+    # The same choice stays cheap for a role without a required tier.
+    assert models.resolve_choice(choice, POLICY, ALL, role="implementer")["tier"] == "low"
+
+
+def test_a_strong_refiner_choice_is_kept():
+    choice = {"model": "claude-opus-4.8", "reason": "Interacting components must be re-derived."}
+    route = models.resolve_choice(choice, POLICY, ALL, role="refiner")
+    assert route["model"] == "claude-opus-4.8" and "upgraded" not in route["note"]
+
+
+def test_a_refiner_falls_back_when_no_strong_model_is_available():
+    choice = {"model": "claude-haiku-4.5", "reason": "Bounded re-check."}
+    route = models.resolve_choice(choice, POLICY, ["claude-haiku-4.5"], role="refiner")
+    assert route["model"] == "claude-haiku-4.5" and "none is available" in route["note"]
+
+
+def test_the_plan_check_accepts_a_cheap_refiner_because_dispatch_upgrades_it():
+    choices = {"implementer": {"model": "claude-haiku-4.5", "reason": "Mechanical edit."},
+               "reviewer": {"model": "claude-sonnet-5", "reason": "Independent review."},
+               "refiner": {"model": "claude-haiku-4.5", "reason": "Bounded re-check."}}
+    models.validate_choices(choices, POLICY, ALL, require=True)
 
 
 def test_escalation_only_on_evidence():

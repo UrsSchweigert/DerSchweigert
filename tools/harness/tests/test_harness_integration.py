@@ -29,7 +29,7 @@ def test_ready_issue_is_refreshed_when_an_anchor_changed(tmp_path):
     assert env.state("i1") == "Refining" and not [r for r in env.adapter.started if r.role == "implementer"]
     env.run_until(lambda: env.state("i1") == "Done")
     refiner = next(a for a in env.store.list_attempts("i1") if a["role"] == "refiner")
-    assert refiner["tier"] == "low"
+    assert refiner["tier"] == "strong"  # a judgement role, so it never runs on the cheapest tier
     assert env.store.get_issue("i1")["base_rev"] == env.repo.base_head()
 
 

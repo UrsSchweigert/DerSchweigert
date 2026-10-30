@@ -730,6 +730,7 @@ def test_the_investigator_uses_the_configured_models(tmp_path, monkeypatch):
     """Without this the GUI fell back to the policy default: copilot at tier standard, never DeepSeek."""
     from harness import gui_workflow
 
+    monkeypatch.delenv("HARNESS_MODEL_SOURCES", raising=False)  # the operator default would win over this key
     monkeypatch.setenv("HARNESS_INVESTIGATOR_SOURCES", "deepseek")
     monkeypatch.setenv("HARNESS_INVESTIGATOR_TIER", "strong")
     choices = gui_workflow.investigator_choices(tmp_path)
@@ -743,6 +744,7 @@ def test_the_investigator_uses_the_configured_models(tmp_path, monkeypatch):
 def test_the_investigator_keeps_the_default_when_nothing_is_configured(tmp_path, monkeypatch):
     from harness import gui_workflow
 
+    monkeypatch.delenv("HARNESS_MODEL_SOURCES", raising=False)
     monkeypatch.delenv("HARNESS_INVESTIGATOR_SOURCES", raising=False)
     monkeypatch.delenv("HARNESS_INVESTIGATOR_TIER", raising=False)
     choices = gui_workflow.investigator_choices(tmp_path)
