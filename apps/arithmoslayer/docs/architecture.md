@@ -95,6 +95,19 @@ of Godot's HTTP or WebSocket client classes, or when they request an Android
 permission other than `com.android.vending.BILLING`. The game ships its
 content and does not need a network connection to play.
 
+## Save system
+
+`scripts/core/save/save_system.gd` and `scripts/core/save/migrations.gd` own
+per-profile persistence. Every profile carries a `schema_version`; saves are
+written to a `.tmp` file and renamed into place after the previous file is
+moved aside as a `.bak` backup, so an interrupted or corrupt write can recover
+from the last good profile. `SaveMigrations` lists one migration per schema
+version below `CURRENT_SCHEMA_VERSION`, and `SaveSystem.load` migrates a
+profile up to the current version, falling back to the `.bak` and reporting the
+recovery when the target is corrupt. `test/unit/test_save_system.gd` and the
+fixtures in `test/fixtures/saves/` guard atomic writes, backup recovery, and
+migrations.
+
 ## Tests
 
 GUT tests live under `test/` and run with `godot-test .` from this directory.
