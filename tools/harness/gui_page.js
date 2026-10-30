@@ -117,7 +117,7 @@
     byId("plan-eyebrow").textContent = plan ? `PLAN / VERSION ${plan.version}` : "WORKSPACE";
     byId("plan-meta").textContent = plan ? `${issues.length} issues / digest ${plan.digest} / approval ${plan.approval}`
       + (plan.run_branch ? ` / run branch ${plan.run_branch}` : "") : "No plans in this store.";
-    if (detail?.draft_stale) byId("plan-meta").textContent += " / requirements changed since the draft";
+    if (workspaceDetail?.draft_stale) byId("plan-meta").textContent += " / requirements changed since the draft";
     fill("plan-state", badge(plan?.cancel_requested && plan.state === "Executing" ? "Cancelling" : plan?.pause_requested ? "Pausing" : plan?.state || "No plan"));
     fill("isolation", icon("shield-check"), badge("Tier " + snapshot.isolation.tier, snapshot.isolation.tier === "A" ? "positive" : "warning"));
     byId("isolation").title = snapshot.isolation.reason; byId("store-path").textContent = snapshot.store;
