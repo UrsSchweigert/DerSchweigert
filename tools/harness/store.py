@@ -126,6 +126,11 @@ class Store:
         rows = self.cx.execute("SELECT * FROM journal ORDER BY seq DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in reversed(rows)]
 
+    def last_transition_at(self, entity: str) -> Optional[float]:
+        """When this entity last changed state, for records written before an end stamp existed."""
+        row = self.cx.execute("SELECT ts FROM journal WHERE entity=? ORDER BY seq DESC LIMIT 1", (entity,)).fetchone()
+        return (row["ts"] if row else None) or None
+
     # -- plans and approvals --------------------------------------------------
 
     def put_plan(self, plan: Dict[str, Any], digest: str) -> None:

@@ -587,3 +587,20 @@ def test_the_run_clock_stops_when_the_plan_completes(tmp_path):
 
     env.clock.advance(7200)
     assert status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"] == 120
+
+
+def test_a_run_record_without_an_end_stamp_does_not_keep_growing(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.clock.advance(60)
+    env.sched.request_cancel()
+    env.sched.tick()
+    legacy = env.store.get_run("fx")
+    legacy.pop("ended_at", None)  # written by a version that did not stamp the end
+    env.store.put_run("fx", legacy)
+
+    first = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
+    env.clock.advance(3600)
+    second = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
+
+    assert first == second == 60
