@@ -885,3 +885,44 @@ def test_a_run_that_works_on_the_base_branch_needs_no_promotion(remote_world, tm
     pub = GitHubPublisher(gh, clone, origin, "main", None, sleep=lambda s: None)
 
     assert pub.open_promotion("main", "promote", "body") is None and not gh.prs
+
+
+def test_a_new_plan_version_replaces_an_issue_that_has_no_work_yet(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    assert runner.import_issues(store, "fx", None, str(first), "base1") == ["i1"]
+
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["the corrected outcome"], acceptance_criteria=["new"] )]))
+
+    assert runner.import_issues(store, "fx", None, str(corrected), "base2") == ["i1"]  # reported as changed
+    issue = store.get_issue("i1")
+    assert issue["outcomes"] == ["the corrected outcome"] and issue["base_rev"] == "base2"
+    assert store.state("issue", "i1") == "Ready"
+
+
+def test_an_issue_that_already_has_work_is_not_silently_skipped(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i1"), head_rev="a" * 40))
+
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["changed"])]))
+
+    with pytest.raises(runner.RunRefused, match="has work recorded"):
+        runner.import_issues(store, "fx", None, str(corrected), "base2")
+
+
+def test_an_issue_id_of_another_plan_is_reported(tmp_path):
+    store = make_plan(tmp_path)
+    other = tmp_path / "other.json"
+    other.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(other), "base1")
+    issue = store.get_issue("i1")
+    store.put_issue(dict(issue, plan_id="other-plan"))
+
+    with pytest.raises(runner.RunRefused, match="already belongs to plan other-plan"):
+        runner.import_issues(store, "fx", None, str(other), "base1")

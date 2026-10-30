@@ -360,3 +360,19 @@ even the draft could not be corrected.
   new version that needs a new approval. Approved, executing and paused workspaces stay locked.
 * `Scheduler.start` clears a leftover `cancel_requested` when the plan starts from `Approved`: a new approval starts a
   new run, not the cancelled one. Without this, a new version of a cancelled plan cancelled itself on its first tick.
+
+## A corrected plan reaches the issue it corrects (2026-10-30)
+
+`runner.import_issues` skipped every issue id that already existed (`if store.get_issue(...): continue`), and ids are
+global across plans. A corrected requirement therefore produced a new plan version, a new approval and a fresh
+`import-issues` that silently changed nothing: the run would execute the old definition. The same silence hid the
+case where an id belonged to a different plan, which cost a debugging session earlier.
+
+* An unchanged definition is still a no-op, compared only on the fields the document states so harness defaults do not
+  look like a change.
+* A changed definition replaces the issue when nothing has landed: no `head_rev`, no pull request, no active claim and
+  the state is `Inbox`, `Refining`, `Ready` or `Blocked`. Failed attempts do not block it; they left no work.
+* Anything else refuses loudly (`issue %s is already %s and has work recorded`) instead of skipping, and an id that
+  belongs to another plan refuses with that plan named.
+* `import-issues` writes an `import_report` document per plan listing `added` and `replaced`, so the GUI and the
+  operator can see that the corrected definition actually arrived.
