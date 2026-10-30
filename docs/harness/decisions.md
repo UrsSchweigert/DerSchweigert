@@ -402,3 +402,15 @@ reuses the same branch and stacks on top of it. A test pins that: after a cancel
 byte-identical to before. To throw the work away the owner says so explicitly — `harness discard-run PLAN` deletes the
 run branch (refused while the plan is `Executing` or `Paused`, and a no-op when the branch is already gone), so the
 next run starts from the base branch again.
+
+## A rejection at the strongest tier earns one repair, not five (2026-10-30)
+
+An investigation on `deepseek/deepseek-v4-pro` ran four attempts and would have used all six. The repair loop escalated the
+tier on every rejection, but the investigator was started at the top tier, so every retry ran the same expensive model
+with no stronger option behind it. The owner pays per attempt and asked for pro to be reserved for planning and real
+escalations.
+
+`MAX_TOP_TIER_ATTEMPTS = 2` in `investigate.py`: once an attempt at the strongest tier is rejected, only one repair attempt
+at that tier follows, then the run stops with the collected problems (and `rejected-draft.json`). Below the top tier the
+old ladder still applies, so a standard-tier run gets at most standard, then two strong attempts. Every rejection now also
+logs its reason, which is what the dashboard shows.

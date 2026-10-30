@@ -70,6 +70,9 @@ Rules:
 """
 
 
+MAX_TOP_TIER_ATTEMPTS = 2  # a rejection at the strongest tier only earns one repair attempt; pro models are expensive
+
+
 class InvestigationError(Exception):
     pass
 
@@ -355,13 +358,22 @@ class Investigator:
         last_bad: Optional[Dict[str, Any]] = None
         tier = self.tier
         transient = 0
+        previous_tier: Optional[str] = None
+        top_attempts = 0
         for attempt in range(1, self.max_attempts + 1):
+            if previous_tier == models.TIERS[-1]:
+                top_attempts += 1
+                if top_attempts >= MAX_TOP_TIER_ATTEMPTS:
+                    self.log("stopping after %d attempt(s) at %s: the strongest tier has nowhere stronger to escalate to"
+                             % (top_attempts, models.TIERS[-1]))
+                    break
             packet = {"requirements": text, "requirement_ids": [r["id"] for r in reqs], "answers": state["answers"], "previous_problems": problems[:20],
                       "model_options": models.model_options(self.policy["model_tiers"], self.models),
                       "model_budget": {"strong_implementation_attempts_per_issue": self.policy["budgets"]["strong_attempts_per_issue"]}}
             if current is not None:
                 packet.update(current_draft=current, owner_feedback=state["feedback"])
             route, poll = self._invoke(attempt, tier, packet)
+            previous_tier = route["tier"]
             recorded = dict(self._last_usage)
             agent = usage.clean_estimate(poll.result.pop("usage_estimate", None)) if isinstance(poll.result, dict) else None
             if agent:

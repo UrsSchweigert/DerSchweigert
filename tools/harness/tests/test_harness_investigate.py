@@ -735,3 +735,17 @@ def test_a_rejected_attempt_says_why_it_was_rejected(out):
     assert res["status"] == "ok"
     rejected = [line for line in lines if "rejected" in line]
     assert rejected and "harness-protected" in rejected[0]
+
+
+def test_the_strongest_tier_earns_only_one_repair_attempt(out):
+    from harness.investigate import MAX_TOP_TIER_ATTEMPTS
+
+    bad = mutate(lambda d: d["issues"][0].update(deps=["core-b"]))
+    adapter = FakeInvestigatorAdapter(*[bad] * 6)
+    lines = []
+
+    res = run(make(adapter, max_attempts=6, tier="strong", log=lines.append), out)
+
+    assert res["status"] == "failed" and len(adapter.models_used) == MAX_TOP_TIER_ATTEMPTS
+    assert any("strongest tier" in line for line in lines)
+    assert os.path.exists(os.path.join(out, "rejected-draft.json"))
