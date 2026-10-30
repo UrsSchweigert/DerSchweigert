@@ -414,3 +414,20 @@ escalations.
 at that tier follows, then the run stops with the collected problems (and `rejected-draft.json`). Below the top tier the
 old ladder still applies, so a standard-tier run gets at most standard, then two strong attempts. Every rejection now also
 logs its reason, which is what the dashboard shows.
+
+## Re-importing a plan retires the issues it no longer names (2026-10-30)
+
+The corrected plan v2 renamed the old issue: v1 had `consolidate-mode-selection`, v2 split it into
+`consolidate-setup-stylesheet` and `unify-mode-selection`. `import-issues` added the two new ones and left the old row
+`Ready` in the same plan, so the dashboard showed three issues and the run would have dispatched a task the plan no
+longer contains.
+
+* `import_issues(..., replace=True)` — what `import-issues` and the dashboard's **Import approved issues** declare — treats
+  the file as the plan's whole issue set: an issue of this plan that the file does not name and that has no work (no
+  `head_rev`, no pull request, no claim) is moved to `Cancelled` and reported as `superseded`.
+* An unnamed issue that already has work refuses the import before anything is written, because the plan no longer
+  covers what was done.
+* Callers that add a subset (an approved split, `import_issues` without the flag) are unaffected: the earlier
+  split-and-resume flow keeps its sibling issue.
+
+The import report now lists `added`, `replaced` and `superseded`.
