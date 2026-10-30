@@ -343,3 +343,20 @@ its own unprefixed keys, so the two never collide.
 
 The buttons also carry a title now. Every disabled state names its reason ("Only a Proposed plan can be approved;
 this one is Paused", "Type the first 12 characters of the digest exactly"), so a click never silently does nothing.
+
+## Requirements can be corrected in place, and a cancelled plan can be revised (2026-10-30)
+
+The dashboard offered only one way to change a requirement: **Save requirements** always created a new workspace, so
+every wording fix paid for a fresh investigation and left another workspace behind. And once a plan had been approved
+and cancelled, its workspace accepted no revision at all ("approved or executing workspaces cannot be revised"), so
+even the draft could not be corrected.
+
+* `gui_workflow.update_requirements` rewrites `requirements.md`, `source.md` and the workspace record of the selected
+  workspace, refusing only while its plan is `Executing`. The next `plan` step builds a new version from the new text,
+  so the new digest still needs the owner's approval; nothing moves behind an existing approval.
+* The GUI gained **Update this workspace** next to **Save as new workspace**, and the requirements editor is prefilled
+  from the selected workspace instead of only from an upload.
+* A `Cancelled` plan may be revised again (`investigate`, `plan`), because a cancelled run is terminal and produces a
+  new version that needs a new approval. Approved, executing and paused workspaces stay locked.
+* `Scheduler.start` clears a leftover `cancel_requested` when the plan starts from `Approved`: a new approval starts a
+  new run, not the cancelled one. Without this, a new version of a cancelled plan cancelled itself on its first tick.

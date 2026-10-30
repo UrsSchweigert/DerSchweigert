@@ -780,3 +780,38 @@ def test_an_unknown_archive_kind_is_refused(tmp_path):
     with pytest.raises(ValueError, match="archive kind"):
         gui_workflow.set_archived(store, "issue", "x")
     store.close()
+
+
+def test_requirements_can_be_updated_in_place(tmp_path):
+    from harness import gui_workflow
+
+    store = Store(str(tmp_path / "home"))
+    record = gui_workflow.create(store, {"name": "bugfixes.md", "markdown": "old text",
+                                         "requirements": [{"id": "R1", "title": "old"}]})
+
+    updated = gui_workflow.update_requirements(store, {"workspace_id": record["workspace_id"], "markdown": "new text",
+                                                       "requirements": [{"id": "R1", "title": "new words"}]})
+
+    assert updated["workspace_id"] == record["workspace_id"] and updated["plan_id"] == record["plan_id"]
+    assert updated["requirements"] == [{"id": "R1", "title": "new words", "source": "requirements.md"}]
+    root = gui_workflow.directory(store, record["workspace_id"])
+    assert "**new words**" in (root / "requirements.md").read_text() and (root / "source.md").read_text() == "new text"
+    store.close()
+
+
+def test_a_running_plan_cannot_change_its_requirements(tmp_path):
+    import json
+
+    from harness import approval, gui_workflow
+    from harness_doubles import Env
+
+    env = Env(tmp_path)
+    env.sched.start()
+    record = gui_workflow.create(env.store, {"name": "x.md", "markdown": "text", "requirements": [{"id": "R1", "title": "t"}]})
+    record["plan_id"] = "fx"
+    env.store.put_doc("gui_workspace", record["workspace_id"], record)
+    assert env.store.state("plan", approval.plan_entity("fx", 1)) == "Executing"
+
+    with pytest.raises(Exception, match="running plan cannot change its requirements"):
+        gui_workflow.update_requirements(env.store, {"workspace_id": record["workspace_id"], "markdown": "text",
+                                                     "requirements": [{"id": "R1", "title": "t"}]})

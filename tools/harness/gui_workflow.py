@@ -115,12 +115,8 @@ def execute_maintenance(store: Store) -> str:
     return "succeeded"
 
 
-def create(store: Store, body: dict) -> dict:
-    text = body.get("markdown")
-    requirements_from_markdown(text)
-    name = body.get("name", "requirements.md")
-    if not isinstance(name, str) or not name.strip() or len(name) > 120:
-        raise ValueError("a name of at most 120 characters is required")
+def normalized_requirements(body: dict) -> list:
+    """The checked requirement rows of a GUI submission."""
     rows = body.get("requirements")
     if not isinstance(rows, list) or not rows or len(rows) > 200:
         raise ValueError("supply between 1 and 200 requirements")
@@ -137,15 +133,52 @@ def create(store: Store, body: dict) -> dict:
         seen.add(rid)
         normalized.append({"id": rid, "title": " ".join(title.split()), "source": "requirements.md"})
     assert_no_secrets(normalized, "requirements")
+    return normalized
+
+
+def requirements_document(rows: list, text: str) -> str:
+    content = "# Requirements\n\n| ID | Requirement |\n| --- | --- |\n"
+    content += "\n".join("| **%s** | **%s** |" % (r["id"], r["title"].replace("|", "&#124;")) for r in rows)
+    content += "\n\n## Original Markdown (context only; the edited requirements table above is authoritative)\n\n"
+    content += "\n".join("> " + line for line in text.splitlines()) + "\n"
+    return content + "\n"
+
+
+def update_requirements(store: Store, body: dict) -> dict:
+    """Replace the requirements of an existing workspace, so one wording change needs no new investigation.
+
+    The plan is rebuilt from the new text by the next `plan` step, which makes a new version and a new digest:
+    nothing changes behind an approval that was already given.
+    """
+    workspace_id = body.get("workspace_id")
+    record = workspace(store, workspace_id)
+    stored = store.get_plan(record["plan_id"])
+    if stored is not None and store.state("plan", approval.plan_entity(record["plan_id"], stored["plan"]["version"])) == "Executing":
+        raise runner.RunRefused("a running plan cannot change its requirements; pause or cancel it first")
+    text = body.get("markdown")
+    requirements_from_markdown(text)
+    rows = normalized_requirements(body)
+    root = directory(store, workspace_id)
+    for filename, value in (("requirements.md", requirements_document(rows, text)), ("source.md", text)):
+        target = root / filename
+        target.write_text(value, encoding="utf-8")
+        target.chmod(0o600)
+    record["requirements"] = rows
+    store.put_doc("gui_workspace", workspace_id, record)
+    return record
+
+
+def create(store: Store, body: dict) -> dict:
+    text = body.get("markdown")
+    requirements_from_markdown(text)
+    name = body.get("name", "requirements.md")
+    if not isinstance(name, str) or not name.strip() or len(name) > 120:
+        raise ValueError("a name of at most 120 characters is required")
+    normalized = normalized_requirements(body)
     workspace_id = secrets.token_hex(8)
     root = directory(store, workspace_id)
     root.mkdir(parents=True, mode=0o700)
-    content = "# Requirements\n\n| ID | Requirement |\n| --- | --- |\n"
-    content += "\n".join("| **%s** | **%s** |" % (r["id"], r["title"].replace("|", "&#124;"))
-                         for r in normalized)
-    content += "\n\n## Original Markdown (context only; the edited requirements table above is authoritative)\n\n"
-    content += "\n".join("> " + line for line in text.splitlines()) + "\n"
-    for filename, value in (("requirements.md", content + "\n"), ("source.md", text)):
+    for filename, value in (("requirements.md", requirements_document(normalized, text)), ("source.md", text)):
         target = root / filename
         target.write_text(value, encoding="utf-8")
         target.chmod(0o600)
@@ -179,7 +212,9 @@ def detail(store: Store, workspace_id: str) -> dict:
     record = visible_record(workspace(store, workspace_id))
     root = directory(store, workspace_id)
     out = root / "draft"
-    record.update(report="", questions=[], draft=None, plan=None, preflight=None, output="")
+    record.update(report="", questions=[], draft=None, plan=None, preflight=None, output="", source="")
+    if (root / "source.md").is_file():
+        record["source"] = (root / "source.md").read_text(encoding="utf-8")
     if (out / "investigation-report.md").is_file():
         record["report"] = (out / "investigation-report.md").read_text(encoding="utf-8")
     if (out / "investigation.json").is_file():

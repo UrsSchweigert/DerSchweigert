@@ -6,7 +6,7 @@
   const byId = id => document.getElementById(id);
   const taskNodes = new Map(), drafts = new Map();
   const selectedIssues = new Set();
-  let workspaces = [], workspaceId = "", workspaceDetail = null, requirementRows = [];
+  let workspaces = [], workspaceId = "", workspaceDetail = null, requirementRows = [], requirementsLoadedFor = "";
   const mobile = matchMedia("(max-width:760px)");
   let snapshot = null, allTasks = [], selectedPlan = "", activeView = "monitor", online = false;
   let refreshing = false, actionPending = false, openIssue = null, issueSignature = "", confirmation = null;
@@ -90,6 +90,7 @@
       const detail = requestedWorkspace ? await api("/api/workflow?workspace=" + encodeURIComponent(requestedWorkspace)) : null;
       if (workspaceId !== requestedWorkspace) { setTimeout(refresh, 0); return; }
       workspaceDetail = detail;
+      loadRequirementsEditor();
       if (!currentPlan()) selectedPlan = (latestPlans().find(plan => plan.state === "Executing") || latestPlans()[0])?.plan_id || "";
       byId("connection-error").hidden = true; render();
       if (openIssue) await showIssue(openIssue, true);
@@ -151,12 +152,13 @@
   function renderWorkflowControls() {
     const editable = online && !snapshot?.read_only && !actionPending;
     for (const id of ["preview-requirements", "save-requirements", "add-requirement"]) byId(id).disabled = !editable;
+    byId("update-requirements").disabled = !editable || !workspaceDetail;
     const detail = workspaceDetail, running = workspaces.some(item => item.job?.state === "running");
     const verifying = snapshot?.isolation_verification?.job?.state === "running";
     const ready = editable && detail && !running && !verifying && snapshot?.isolation.tier === "A";
     byId("verify-isolation").disabled = !editable || running || verifying;
     byId("verify-isolation").textContent = verifying ? "Verifying isolation..." : "Verify isolation";
-    const state = detail?.plan?.state, revisable = !state || ["Draft", "Proposed"].includes(state);
+    const state = detail?.plan?.state, revisable = !state || ["Draft", "Proposed", "Cancelled"].includes(state);
     byId("investigate-plan").disabled = !ready || !revisable || Boolean(detail?.draft);
     byId("prepare-plan").disabled = !ready || !revisable || !detail?.draft || Boolean(detail?.questions.length);
     byId("revise-plan").disabled = !ready || !revisable || !detail?.draft || !byId("investigation-feedback").value.trim();
@@ -202,6 +204,16 @@
         element("textarea", {name: question.id, rows: 3, required: true}))));
       target.dataset.signature = questionSignature;
     }
+  }
+  function loadRequirementsEditor() {
+    const detail = workspaceDetail;
+    if (!detail || requirementsLoadedFor === detail.workspace_id) return;
+    requirementsLoadedFor = detail.workspace_id;
+    requirementRows = (detail.requirements || []).map(row => ({id: row.id, title: row.title}));
+    byId("requirements-name").value = detail.name || "requirements.md";
+    byId("requirements-markdown").value = detail.source || (detail.requirements || []).map(row => "- " + row.title).join("\n");
+    byId("requirements-editor").hidden = !requirementRows.length;
+    renderRequirementEditor();
   }
   function renderRequirementEditor() {
     fill("editable-requirements", requirementRows.map(row => {
@@ -520,6 +532,17 @@
         markdown: byId("requirements-markdown").value, requirements: requirementRows});
       workspaceId = record.workspace_id; byId("new-workspace").open = false; byId("workflow-error").hidden = true;
       await refresh(); notify("Requirements saved. Start investigation when ready.");
+    } catch (error) { byId("workflow-error").textContent = error.message; byId("workflow-error").hidden = false; }
+    finally { actionPending = false; renderControls(); }
+  });
+  byId("update-requirements").addEventListener("click", async () => {
+    if (actionPending || !workspaceId) return;
+    actionPending = true; renderControls();
+    try {
+      await api("/api/workflow/requirements", {workspace_id: workspaceId,
+        markdown: byId("requirements-markdown").value, requirements: requirementRows});
+      byId("workflow-error").hidden = true; await refresh();
+      notify("Requirements updated. Revise the draft so the plan covers them, then prepare and approve again.");
     } catch (error) { byId("workflow-error").textContent = error.message; byId("workflow-error").hidden = false; }
     finally { actionPending = false; renderControls(); }
   });

@@ -114,9 +114,12 @@ class Scheduler:
                     pass
         run = self.store.get_run(self.plan_id)
         run.setdefault("started_at", now)
-        run.pop("paused_reason", None)
-        run.pop("pause_requested", None)
-        run.pop("pause_now", None)
+        for key in ("paused_reason", "pause_requested", "pause_now"):
+            run.pop(key, None)
+        if state == "Approved":
+            # a fresh approval starts a new run of a (possibly new) version, not the cancelled one
+            run.pop("cancel_requested", None)
+            run.pop("drain", None)
         run["cancel_requested"] = run.get("cancel_requested", False)
         self.store.put_run(self.plan_id, run)
 
