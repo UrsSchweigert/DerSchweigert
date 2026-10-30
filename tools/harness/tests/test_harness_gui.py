@@ -724,3 +724,28 @@ def test_a_read_only_dashboard_shows_the_menu_but_does_not_probe(tmp_path):
         server.shutdown()
         thread.join(timeout=5)
         server.server_close()
+
+
+def test_the_investigator_uses_the_configured_models(tmp_path, monkeypatch):
+    """Without this the GUI fell back to the policy default: copilot at tier standard, never DeepSeek."""
+    from harness import gui_workflow
+
+    monkeypatch.setenv("HARNESS_INVESTIGATOR_SOURCES", "deepseek")
+    monkeypatch.setenv("HARNESS_INVESTIGATOR_TIER", "strong")
+    choices = gui_workflow.investigator_choices(tmp_path)
+    assert choices == {"sources": ["deepseek"], "tier": "strong"}
+
+    args = gui_workflow.investigate_args({"home": "/h", "requirements": "/r"}, tmp_path / "out", choices)
+    assert args[args.index("--model-source") + 1] == "deepseek"
+    assert args[args.index("--tier") + 1] == "strong"
+
+
+def test_the_investigator_keeps_the_default_when_nothing_is_configured(tmp_path, monkeypatch):
+    from harness import gui_workflow
+
+    monkeypatch.delenv("HARNESS_INVESTIGATOR_SOURCES", raising=False)
+    monkeypatch.delenv("HARNESS_INVESTIGATOR_TIER", raising=False)
+    choices = gui_workflow.investigator_choices(tmp_path)
+    assert choices == {"sources": [], "tier": ""}
+    args = gui_workflow.investigate_args({"home": "/h", "requirements": "/r"}, tmp_path / "out", choices)
+    assert "--model-source" not in args and "--tier" not in args
