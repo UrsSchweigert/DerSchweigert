@@ -11,6 +11,7 @@ cd apps/arithmoslayer
 godot-test .
 gdlint scripts test
 gdformat --check scripts test
+python3 tools/validate_data.py
 python3 tools/check_isolation.py
 python3 tools/check_offline.py
 ```

@@ -3,3 +3,7 @@
 .import/
 # Local export artifacts
 export/
+# Godot 4 generated import metadata and CSV translations
+*.import
+*.translation
+*.uid

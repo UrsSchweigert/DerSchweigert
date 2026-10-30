@@ -5,7 +5,7 @@ const PROJECT_ROOT: String = "res://"
 const ENGINE_VERSION_FILE: String = "res://engine-version.txt"
 const MAIN_SCENE_PATH: String = "res://scenes/main.tscn"
 const EXPECTED_ENGINE_VERSION: String = "4.7.2-stable"
-const EXPECTED_AUTOLOADS: Array[String] = ["GameState"]
+const EXPECTED_AUTOLOADS: Array[String] = ["GameState", "Localization"]
 const UNTYPED_DECLARATION_IS_ERROR: int = 2
 
 
