@@ -509,6 +509,17 @@ Before you answer, the [human-task-triage agent](../../.github/agents/human-task
 
 A worker's own question (`needs_input` from the refiner) is triaged by the harness itself before you see a decision task: the `analyst` role runs first, whatever `analyses_per_issue`, `strong_attempts_per_issue`, the repair budget, or the transient budget say. You then get the root cause and its questions instead of a raw failure. Budget and policy failures are not triaged; trusted code decides those. Without an available strong model the launch is refused and you are asked directly, as before.
 
+**Which model plans.** The GUI has no model picker, so the planning steps read their model from the
+same git-ignored env file (only `HARNESS_*` keys):
+
+```sh
+HARNESS_INVESTIGATOR_SOURCES=deepseek     # comma separated; empty keeps the policy default
+HARNESS_INVESTIGATOR_TIER=strong          # low | standard | strong; empty keeps the default
+```
+
+The investigator writes the chosen sources into the draft, so the `plan` step and everything after it
+inherit them. Without these keys the investigator runs on the policy default (copilot, tier standard).
+
 **Intent.** `harness plan --intent "..."` records one paragraph on why the plan exists. It is inside the
 approval digest and every task packet carries it, together with the titles of the requirements the issue
 serves and the phase's outcomes, non-goals and exit criteria. A worker that reads only acceptance criteria

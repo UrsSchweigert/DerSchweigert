@@ -194,7 +194,35 @@ def assert_review_current(store: Store, record: dict, current: dict) -> None:
             raise runner.RunRefused("issue ID %s is already used by another plan; revise the draft with unique IDs before approval" % issue["issue_id"])
 
 
-def execute(store: Store, record: dict) -> str:
+
+INVESTIGATOR_SOURCES = "HARNESS_INVESTIGATOR_SOURCES"
+INVESTIGATOR_TIER = "HARNESS_INVESTIGATOR_TIER"
+
+
+def investigator_choices(repo_root: Path) -> dict:
+    """Which model sources and tier the planning steps use, after reading the harness env file.
+
+    The GUI has no model picker, so without this it fell back to the policy default (copilot, tier
+    standard) no matter which models the running plan was approved with.
+    """
+    from .remote import load_harness_env
+    load_harness_env(repo_root)
+    sources = [s.strip() for s in os.environ.get(INVESTIGATOR_SOURCES, "").split(",") if s.strip()]
+    tier = os.environ.get(INVESTIGATOR_TIER, "").strip()
+    return {"sources": sources, "tier": tier if tier in ("low", "standard", "strong") else ""}
+
+
+def investigate_args(record: dict, out: Path, choices: dict) -> list:
+    """The command line for one investigation, including the model choice the owner configured."""
+    args = ["--home", str(record["home"]), "investigate", "--requirements", str(record["requirements"]),
+            "--out", str(out), "--non-interactive"]
+    for source in choices.get("sources") or []:
+        args.extend(["--model-source", source])
+    if choices.get("tier"):
+        args.extend(["--tier", choices["tier"]])
+    return args
+
+def execute(store: Store, record: dict, repo_root=None) -> str:
     root = directory(store, record["workspace_id"])
     out = root / "draft"
     job = record["job"]
@@ -203,7 +231,8 @@ def execute(store: Store, record: dict) -> str:
     if approval.detect_isolation(store)["tier"] != "A":
         raise runner.RunRefused("current Tier A isolation verification is required")
     if kind == "investigate":
-        args = ["--home", store.home, "investigate", "--requirements", str(requirements), "--out", str(out), "--non-interactive"]
+        choices = investigator_choices(Path(repo_root) if repo_root else Path.cwd())
+        args = investigate_args({"home": store.home, "requirements": requirements}, out, choices)
         if job.get("feedback"):
             args.extend(["--feedback", job["feedback"]])
         if job.get("answers"):
