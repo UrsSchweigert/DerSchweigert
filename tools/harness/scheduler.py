@@ -1487,6 +1487,8 @@ class Scheduler:
             self.store.transition("plan", self.entity, "Paused", self.runner_id, {"reason": reason}, now=now)
         run = self.store.get_run(self.plan_id)
         run["paused_reason"] = reason
+        run.pop("pause_requested", None)  # the request is why we are here; leaving it set reads as "still pausing"
+        run.pop("pause_now", None)
         self.store.put_run(self.plan_id, run)
         self._emit("paused", reason=reason)
 

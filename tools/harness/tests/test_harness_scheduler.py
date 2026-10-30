@@ -511,3 +511,26 @@ def test_a_missing_promotion_never_undoes_a_completed_plan(tmp_path):
 
     failed = [e for e in env.sched.events if e["event"] == "promotion_failed"]
     assert failed and "RuntimeError" in failed[0]["error"]
+
+
+def test_pausing_an_idle_plan_clears_the_request(tmp_path):
+    from harness import runner as runner_mod
+
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start()
+
+    assert runner_mod.request_pause(env.store, "fx", 1) == "Paused"
+    run = env.store.get_run("fx")
+    assert env.store.state("plan", "fx@v1") == "Paused" and not run.get("pause_requested") and not run.get("pause_now")
+    assert run["paused_reason"] == "paused by the operator"
+
+
+def test_the_runner_clears_the_pause_request_once_it_pauses(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start()
+    env.store.put_run("fx", dict(env.store.get_run("fx"), pause_requested=True, pause_now=False))
+
+    env.sched._pause("paused by the operator", env.clock())
+
+    run = env.store.get_run("fx")
+    assert env.store.state("plan", "fx@v1") == "Paused" and not run.get("pause_requested")
