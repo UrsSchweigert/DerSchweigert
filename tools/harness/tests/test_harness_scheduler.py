@@ -666,6 +666,7 @@ def test_a_splittable_task_does_not_get_the_strongest_tier(tmp_path, monkeypatch
     issue = env.store.get_issue("i1")
     issue["code_anchors"] = ["src/a.py", "src/b.py"]
     issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "looks big"}}
+    issue["planned"] = True  # planning is covered elsewhere; this test is about who implements
     env.store.put_issue(issue)
     started = []
 

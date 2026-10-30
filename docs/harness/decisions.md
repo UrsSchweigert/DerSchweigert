@@ -522,3 +522,29 @@ inside the approval digest of every plan built from now on; the running plan kee
 * **Refiner guidance in the investigator prompt**: the refiner only re-checks a task and writes nothing, so its model
   follows the *task's* uncertainty — cheap for a bounded task with concrete anchors, stronger when its assumptions rest
   on interacting components — instead of defaulting to the cheapest model.
+
+## The refiner plans the work before a paid implementer is dispatched (2026-10-30)
+
+The order used to be: the investigator declares a tier, and a `standard` or `strong` implementer discovers the shape of
+the work while already editing files. Complexity therefore arrived on the most expensive model, and `strong_attempts`
+was spent before anyone knew whether the task was really that hard.
+
+The plan pass moves that judgement forward. For an issue whose declared implementer tier is `standard` or `strong`,
+`_dispatch` sends the issue to `Refining` before the first implementer attempt. The refiner — a cheap tier, and only
+when the model selection is already valid — verifies the anchors as before and additionally:
+
+* writes `plan`, the concrete steps per file, which the implementer receives in its packet as `plan`;
+* reports `tier_fit`, the cheapest tier whose model can execute that plan. When `tier_fit` is lower than the resolved
+  route, `_launch` routes the implementer there and emits `tier_lowered_by_plan` — the paid model is not spent on work a
+  cheap model can follow.
+* may set `split_advice` instead of a plan when the steps cannot be made small enough for one implementer. The issue is
+  then blocked with that sentence as the reason, so the existing delegator/analyst path produces a validated split
+  (`splits.validate_analysis`, `_write_split`) instead of an implementer discovering the size mid-task.
+
+A low-tier issue is not planned first: there is no cheaper tier to discover, so the pass would only cost a round trip.
+`planned` marks the pass as done, so a refiner that returns nothing is never asked again.
+
+**Nothing in this path names a model.** The instruction speaks of `low`/`standard`/`strong`, and every route resolves
+through the plan's `policy.model_tiers`, which `with_model_sources` derives from the chosen `model_sources`. A plan bound
+to `deepseek` is planned, judged and implemented with DeepSeek ids only; a test pins that no dispatched role leaves the
+approved tiers.

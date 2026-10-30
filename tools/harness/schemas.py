@@ -140,6 +140,10 @@ WORKER_RESULT = {
     "next_action": str,
     "decision?": DELEGATOR_DECISION,
     "analysis?": ANALYSIS,
+    # The refiner plans the work and judges the cheapest tier that can execute the plan.
+    "plan?": [str],
+    "tier_fit?": str,
+    "split_advice?": str,
     "usage_estimate?": dict,
 }
 

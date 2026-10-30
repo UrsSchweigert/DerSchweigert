@@ -115,9 +115,9 @@ def test_scheduler_uses_task_specific_models_instead_of_role_tiers(tmp_path):
     assert attempts["implementer"]["model"] == "claude-sonnet-5"
     assert attempts["reviewer"]["model"] == "claude-haiku-4.5"
     assert attempts["reviewer"]["independent"] is True
-    for role, attempt in attempts.items():
-        assert attempt["routing_source"] == "delegator"
-        assert issue["model_choices"][role]["reason"] in attempt["routing_note"]
+    for role, choice in issue["model_choices"].items():  # the refiner plans, it is not a delegated choice
+        assert attempts[role]["routing_source"] == "delegator"
+        assert choice["reason"] in attempts[role]["routing_note"]
 
 
 @pytest.mark.parametrize("model, available, used, message", [
