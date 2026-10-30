@@ -805,6 +805,11 @@ class _Quiet:
         self.script, self.paused = list(script), None
         self.entity = "p@v1"
         self.store = types.SimpleNamespace(state=lambda machine, entity: "Paused" if self.paused else "Executing")
+        self.finished = False
+        self.watched = 0
+
+    def promotion_waiting(self):
+        return self.finished
 
     def start(self):
         pass
@@ -1387,3 +1392,28 @@ def _advance_main(clone, origin, path, text, message):
     git(clone, "add", "-A")
     git(clone, "commit", "-q", "-m", message)
     git(clone, "push", "-q", "origin", "HEAD:main")
+
+
+def test_a_finished_run_keeps_watching_its_pull_request(monkeypatch):
+    """The ask closes itself only if something keeps reading the pull request after the plan is Complete."""
+    from harness import runner as runner_mod
+
+    monkeypatch.setattr(runner_mod.time, "sleep", lambda s: None)
+    states = iter(["Completed", "Completed", "Paused"])
+
+    class Watching(_Quiet):
+        def __init__(self):
+            super().__init__([], [], [])
+            self.ticked = 0
+            self.store = __import__("types").SimpleNamespace(state=lambda machine, entity: next(states, "Paused"))
+
+        def promotion_waiting(self):
+            return True
+
+        def tick(self):
+            self.ticked += 1
+            return []
+
+    sched = Watching()
+    assert runner_mod.run_loop(sched, 0, 5, lambda e: None) == 0
+    assert sched.ticked >= 2  # it did not stop at the first Completed pass

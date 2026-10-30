@@ -218,6 +218,10 @@ class Publisher:
         """Merge the base into the run branch before it is promoted. Rehearsals have no remote to sync with."""
         return None
 
+    def promotion_merged(self, number: int) -> bool:
+        """Whether the owner merged the finished run. A rehearsal never has a real pull request."""
+        return False
+
     def open_promotion(self, base: str, title: str, body: str) -> Optional[int]:
         """Propose the finished run branch to the base branch. Only the owner merges that one."""
         return None

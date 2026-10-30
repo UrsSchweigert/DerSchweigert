@@ -87,6 +87,10 @@ class FakeGitHub(Client):
         self.mutations += 1
         return number
 
+    def pr_merged(self, number):
+        self._maybe_limit()
+        return self.prs.get(number, {}).get("state") == "merged"
+
     def merge_pr(self, number, sha, method="squash"):
         self._maybe_limit()
         if self.prs[number]["sha"] and self.prs[number]["sha"] != sha:
