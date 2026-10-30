@@ -115,15 +115,15 @@ def test_scheduler_uses_task_specific_models_instead_of_role_tiers(tmp_path):
     assert attempts["implementer"]["model"] == "claude-sonnet-5"
     assert attempts["reviewer"]["model"] == "claude-haiku-4.5"
     assert attempts["reviewer"]["independent"] is True
-    for role, attempt in attempts.items():
-        assert attempt["routing_source"] == "delegator"
-        assert issue["model_choices"][role]["reason"] in attempt["routing_note"]
+    for role, choice in issue["model_choices"].items():  # the refiner plans, it is not a delegated choice
+        assert attempts[role]["routing_source"] == "delegator"
+        assert choice["reason"] in attempts[role]["routing_note"]
 
 
 @pytest.mark.parametrize("model, available, used, message", [
     ("unapproved-model", ALL, 0, "configured"),
     ("claude-haiku-4.5", ["claude-sonnet-5"], 0, "available"),
-    ("claude-opus-5", ALL, 1, "budget"),
+    ("claude-opus-5", ALL, 2, "budget"),  # the default strong budget is two attempts
 ])
 def test_scheduler_blocks_invalid_delegation_before_starting_a_worker(tmp_path, model, available, used, message):
     env = Env(tmp_path, available_models=available)

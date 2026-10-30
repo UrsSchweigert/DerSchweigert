@@ -144,8 +144,9 @@ class SandboxChecker(Checker):
             isolation.cancel_worker(handle.name, handle.proc)
             handle.timed_out = True
             code = handle.proc.returncode
-        if code is None or handle.reader.is_alive():
+        if code is None:
             return None
+        handle.reader.join(timeout=2)  # the writer is gone; never wait forever for a pipe that cannot drain
         result: Dict[str, Any] = {"command": command, "exit_code": 124 if handle.timed_out else code}
         if handle.timed_out or code in (124, 137):
             result.update(exit_code=124, output="the command timed out after %d seconds" % self.timeout)
@@ -212,6 +213,10 @@ class Publisher:
 
     def update_branch(self, issue: Dict[str, Any], branch: str, old_head: str, new_head: str) -> None:
         """Publish a branch the harness itself rebased, so the pull request head equals the commit the evidence is bound to."""
+
+    def sync_run_branch(self, base: str) -> Optional[str]:
+        """Merge the base into the run branch before it is promoted. Rehearsals have no remote to sync with."""
+        return None
 
     def open_promotion(self, base: str, title: str, body: str) -> Optional[int]:
         """Propose the finished run branch to the base branch. Only the owner merges that one."""

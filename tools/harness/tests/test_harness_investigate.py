@@ -152,7 +152,7 @@ def test_delegator_receives_the_probed_model_menu_and_budget(out):
         {"model": "claude-opus-5", "relative_cost": "strong"},
         {"model": "claude-opus-4.8", "relative_cost": "strong"},
     ]
-    assert packet["model_budget"] == {"strong_implementation_attempts_per_issue": 1}
+    assert packet["model_budget"] == {"strong_implementation_attempts_per_issue": plans.DEFAULT_POLICY["budgets"]["strong_attempts_per_issue"]}
     assert "You are the delegating agent" in adapter.prompts[0]
 
 

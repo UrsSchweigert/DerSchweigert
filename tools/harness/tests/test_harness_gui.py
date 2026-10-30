@@ -854,3 +854,27 @@ def test_a_stale_draft_is_investigated_again_with_force(tmp_path, monkeypatch):
     assert "--force" in seen[0] and "--feedback" not in seen[0]
     assert not gui_workflow.workspace(store, record["workspace_id"]).get("draft_stale")
     store.close()
+
+
+def test_a_check_row_reports_its_elapsed_time(tmp_path, monkeypatch):
+    from harness import gui
+
+    store = Store(str(tmp_path / "home"))
+    plan = {"plan_id": "p1", "version": 1, "requirements": [], "phases": [], "policy": {}, "fixture": True}
+    store.put_plan(plan, "0" * 64)
+    store.put_run("p1", {"started_at": 1.0, "checks": {"phase:P1": {
+        "issue_id": "phase-P1", "head_rev": "a" * 40, "base_rev": "b" * 40, "runner": "runner-1",
+        "lease_until": 5000.0, "started_at": 4000.0}}})
+    dashboard = object.__new__(gui.GuiServer)
+    dashboard.home, dashboard.read_only, dashboard.repo_slug, dashboard.clock = tmp_path / "home", False, None, lambda: 4300.0
+    dashboard.preparations, dashboard.processes, dashboard.managed, dashboard.identities = {}, {}, {}, None
+    monkeypatch.setattr(gui.status, "build_report", lambda *a, **k: {
+        "plans": [{"plan_id": "p1", "version": 1}], "checks": [], "issues": [], "queue": [], "phases": [],
+        "requirements": [], "budgets": {}, "read_only": False, "managed_runs": []})
+    monkeypatch.setattr(gui.gui_workflow, "maintenance_detail", lambda s: {"job": None, "output": ""})
+    monkeypatch.setattr(gui.gui_workflow, "archived_ids", lambda s, kind: set())
+
+    report = gui.GuiServer.snapshot(dashboard)
+
+    assert report["checks"][0]["elapsed_s"] == 300 and report["checks"][0]["stage"] == "phase"
+    store.close()

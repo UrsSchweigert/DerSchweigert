@@ -484,8 +484,14 @@ class _Promoter:
 
     base = "harness/run/fx"
 
-    def __init__(self, fail=False):
-        self.calls, self.fail = [], fail
+    def __init__(self, fail=False, conflict=""):
+        self.calls, self.fail, self.conflict, self.syncs = [], fail, conflict, []
+
+    def sync_run_branch(self, base):
+        self.syncs.append(base)
+        if self.conflict:
+            raise RuntimeError(self.conflict)
+        return None
 
     def open_promotion(self, base, title, body):
         if self.fail:
@@ -503,6 +509,19 @@ def test_a_finished_run_offers_its_branch_to_the_base_branch(tmp_path):
     base, title, body = env.sched.publisher.calls[0]
     assert base == "main" and "fx" in title and "harness/run/fx" in body
     assert [e for e in env.sched.events if e["event"] == "promotion_pr"][0]["number"] == 42
+
+
+def test_a_run_that_cannot_be_brought_up_to_the_base_is_not_offered(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.publisher = _Promoter(conflict="harness/run/fx and main both changed tools/harness/scheduler.py")
+
+    env.sched._open_promotion()
+
+    assert env.sched.publisher.calls == []  # an unmergeable pull request reports no checks and never merges
+    problem = env.store.get_run("fx")["promotion"]
+    assert problem["base"] == "main" and "both changed tools/harness/scheduler.py" in problem["problem"]
+    assert [e for e in env.sched.events if e["event"] == "promotion_conflict"]
+    assert env.store.state("plan", "fx@v1") != "Cancelled"
 
 
 def test_a_missing_promotion_never_undoes_a_completed_plan(tmp_path):
@@ -666,6 +685,7 @@ def test_a_splittable_task_does_not_get_the_strongest_tier(tmp_path, monkeypatch
     issue = env.store.get_issue("i1")
     issue["code_anchors"] = ["src/a.py", "src/b.py"]
     issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "looks big"}}
+    issue["planned"] = True  # planning is covered elsewhere; this test is about who implements
     env.store.put_issue(issue)
     started = []
 
