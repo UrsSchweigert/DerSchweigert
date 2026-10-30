@@ -831,3 +831,26 @@ def test_an_updated_requirement_marks_the_draft_stale(tmp_path):
 
     assert updated["draft_stale"] is True
     store.close()
+
+
+def test_a_stale_draft_is_investigated_again_with_force(tmp_path, monkeypatch):
+    from harness import gui_workflow
+
+    store = Store(str(tmp_path / "home"))
+    record = gui_workflow.create(store, {"name": "x.md", "markdown": "text", "requirements": [{"id": "R1", "title": "t"}]})
+    draft = gui_workflow.directory(store, record["workspace_id"]) / "draft"
+    draft.mkdir(mode=0o700)
+    (draft / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    record = gui_workflow.update_requirements(store, {"workspace_id": record["workspace_id"], "markdown": "text",
+                                                      "requirements": [{"id": "R1", "title": "t2"}]})
+    record["job"] = {"id": "j1", "kind": "investigate", "state": "running", "error": "", "feedback": "", "answers": {}}
+    store.put_doc("gui_workspace", record["workspace_id"], record)
+    seen = []
+    monkeypatch.setattr(gui_workflow.approval, "detect_isolation", lambda s: {"tier": "A"})
+    monkeypatch.setattr(gui_workflow.cli, "main", lambda args: seen.append(args) or 0)
+
+    gui_workflow.execute(store, record)
+
+    assert "--force" in seen[0] and "--feedback" not in seen[0]
+    assert not gui_workflow.workspace(store, record["workspace_id"]).get("draft_stale")
+    store.close()
