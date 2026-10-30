@@ -292,6 +292,8 @@ def execute(store: Store, record: dict, repo_root=None) -> str:
         args = investigate_args({"home": store.home, "requirements": requirements}, out, choices)
         if job.get("feedback"):
             args.extend(["--feedback", job["feedback"]])
+        elif record.get("draft_stale"):
+            args.append("--force")  # the draft was written for the previous wording; start it over
         if job.get("answers"):
             answers = root / (job["id"] + "-answers.json")
             answers.write_text(json.dumps(job["answers"]), encoding="utf-8")
@@ -302,7 +304,9 @@ def execute(store: Store, record: dict, repo_root=None) -> str:
             return "needs_answers"
         if code:
             raise runner.RunRefused("investigation failed (exit %d); see output" % code)
-        record.pop("draft_stale", None)
+        latest = store.get_doc("gui_workspace", record["workspace_id"]) or {}
+        latest.pop("draft_stale", None)  # the new draft matches the current requirements
+        store.put_doc("gui_workspace", record["workspace_id"], latest)
     elif kind == "plan":
         if record.get("draft_stale"):
             raise runner.RunRefused("the requirements changed after this draft was written; investigate again first")
