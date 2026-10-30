@@ -562,12 +562,13 @@ the same files.
 
 Two changes close the class:
 
-* **The harness keeps the run branch on top of the base.** `ensure_run_branch` no longer returns early when the branch
-  exists: it fetches the base and the run branch, and if the base is not contained it merges the base in with a real
-  merge commit (in a throwaway clone, then pushed). A genuine conflict stops the run with the colliding paths, instead of
-  letting a worker build work that can never land.
-* **The promotion is synced and reported.** Before opening the promotion pull request, the harness merges the base into
-  the run branch once more — `main` moves during a long run, so a conflict at that point is normal, not an accident. If
-  that fails, the pull request is *not* opened (an unmergeable one only looks like progress), and the reason is stored on
-  the run, emitted as `promotion_conflict`, and shown in the GUI banner and in `harness status` as
-  `PROMOTION BLOCKED: …`. A successful promotion now also shows as "Promoted as pull request #N; only you merge it."
+* **The promotion syncs the base through a pull request, because the run branch only accepts changes that way.** The
+  ruleset on `harness/run/**` requires a pull request, so a direct push of a base merge is declined; the harness merges
+  the base into the run branch in a worktree of its trusted clone, pushes the result to `harness/run-sync`, opens that
+  pull request into the run branch and merges it once its checks pass. Only then does it open the promotion pull request,
+  which is mergeable by construction. `main` moves during a long run, so a sync at promotion time is normal, not an
+  accident.
+* **A blocked promotion is reported, never silent.** If the sync cannot merge (a genuine conflict, or checks that do not
+  turn green), no promotion pull request is opened — an unmergeable one only looks like progress — and the reason is
+  stored on the run, emitted as `promotion_conflict`, and shown in the GUI banner and in `harness status` as
+  `PROMOTION BLOCKED: …`. A successful promotion shows as "Promoted as pull request #N; only you merge it."

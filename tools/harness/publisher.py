@@ -10,6 +10,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import time
 from typing import Any, Dict, Optional
 
 from .broker import BrokerRejected, check_branch_target
@@ -53,41 +54,43 @@ def push_branch(clone_path: str, remote: str, branch: str, token_file: Optional[
         raise GitHubError("push of %s failed: %s" % (name, proc.stderr.strip()[-200:]))
 
 
-def merge_base_into(clone_path: str, remote: str, base: str, branch: str, base_sha: str, token_file: Optional[str]) -> Optional[str]:
-    """Bring the base into a harness-owned branch with a real merge commit and push it.
+def merge_base_into(clone_path: str, remote: str, base: str, branch: str, base_rev: str, run_rev: str,
+                    token_file: Optional[str]) -> str:
+    """Merge `base_rev` into `run_rev` with a real merge commit and push the result to `harness/run-sync`.
 
-    A run branch that falls behind the base cannot be promoted: GitHub cannot build a merge commit for the promotion pull
-    request, so it reports no checks at all and the required checks never arrive. Merging here keeps the promotion
+    A run branch that falls behind the base cannot be promoted: GitHub cannot build a merge commit for the promotion
+    pull request, so it reports no checks at all and the required checks never arrive. Merging keeps the promotion
     mergeable and, when the base really collided with the run's work, names the paths instead of hiding them.
-    Returns the merge commit, or None when the base was already contained.
+    The run branch only accepts changes through a pull request, so the result goes to `harness/run-sync` and the caller
+    merges it there. Returns the merge commit.
     """
     tmp = tempfile.mkdtemp(prefix="harness-base-merge-")
     work = os.path.join(tmp, "work")
-    ident = ["-c", "user.name=harness", "-c", "user.email=harness@localhost"]
+    ident = ["-c", "safe.bareRepository=all", "-c", "user.name=harness", "-c", "user.email=harness@localhost"]
 
-    def git(*args: str) -> "subprocess.CompletedProcess":
-        return subprocess.run(["git"] + ident + list(args), cwd=work, capture_output=True, text=True)
+    def git(cwd: str, *args: str) -> "subprocess.CompletedProcess":
+        return subprocess.run(["git"] + ident + list(args), cwd=cwd, capture_output=True, text=True)
 
     try:
-        cloned = subprocess.run(["git", "clone", "--quiet", "--no-checkout", clone_path, work], capture_output=True, text=True)
-        if cloned.returncode != 0:
-            raise GitHubError("could not read %s to merge %s into it: %s" % (branch, base, cloned.stderr.strip()[-200:]))
-        checked = git("checkout", "--quiet", "--force", "-B", branch, "refs/remotes/origin/" + branch)
-        if checked.returncode != 0:
-            raise GitHubError("could not check out %s to merge %s into it: %s" % (branch, base, checked.stderr.strip()[-200:]))
-        merged = git("merge", "--no-ff", "--no-edit", "-m", "Merge %s into %s before the run continues" % (base, branch), base_sha)
+        added = git(clone_path, "worktree", "add", "--quiet", "--detach", work, run_rev)
+        if added.returncode != 0:
+            raise GitHubError("could not check out %s to merge %s into it: %s" % (branch, base, added.stderr.strip()[-200:]))
+        merged = git(work, "merge", "--no-ff", "--no-edit", "-m",
+                     "Merge %s into %s so that the run can be promoted" % (base, branch), base_rev)
         if merged.returncode != 0:
-            paths = git("diff", "--name-only", "--diff-filter=U").stdout.split()
+            paths = git(work, "diff", "--name-only", "--diff-filter=U").stdout.split()
             if not paths:
                 raise GitHubError("could not merge %s into %s: %s" % (base, branch, merged.stderr.strip()[-200:]))
             raise GitHubError("%s and %s both changed %s; resolve them on %s or discard the run"
                               % (branch, base, ", ".join(sorted(paths)[:10]), branch))
-        head = git("rev-parse", "HEAD").stdout.strip()
-        pushed = git_with_token(["push", "--quiet", remote, "refs/heads/%s:refs/heads/%s" % (branch, branch)], work, token_file)
+        head = git(work, "rev-parse", "HEAD").stdout.strip()
+        pushed = git_with_token(["push", "--quiet", "--force", remote, "HEAD:refs/heads/%s" % SYNC_BRANCH], work, token_file)
         if pushed.returncode != 0:
-            raise GitHubError("could not push %s with %s merged in: %s" % (branch, base, pushed.stderr.strip()[-200:]))
+            raise GitHubError("could not push the sync branch %s: %s" % (SYNC_BRANCH, pushed.stderr.strip()[-200:]))
         return head
     finally:
+        git(clone_path, "worktree", "remove", "--force", work)
+        git(clone_path, "worktree", "prune")
         shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -101,6 +104,11 @@ def push_rebased(clone_path: str, remote: str, branch: str, expected_old: str, t
                           clone_path, token_file)
     if proc.returncode != 0:
         raise GitHubError("publishing the rebased %s failed: %s" % (name, proc.stderr.strip()[-200:]))
+
+
+SYNC_BRANCH = "harness/run-sync"
+SYNC_POLL_S = 15
+SYNC_WAIT_S = 1800
 
 
 class GitHubPublisher(Publisher):
@@ -127,21 +135,43 @@ class GitHubPublisher(Publisher):
         if proc.returncode != 0:
             raise GitHubError("could not refresh the base branch: %s" % proc.stderr.strip()[-200:])
 
-    def sync_run_branch(self, base: str) -> Optional[str]:
-        """Merge the current base into the run branch. The promotion must stay mergeable, because an unmergeable pull
-        request produces no checks and can therefore never satisfy the required ones."""
+    def sync_run_branch(self, base: str, wait_s: int = SYNC_WAIT_S) -> Optional[int]:
+        """Bring the base into the run branch, through a pull request, before the run is promoted.
+
+        The promotion pull request has to stay mergeable: GitHub cannot build a merge commit for a conflicting one, runs
+        no checks for it at all, and the required checks then never arrive. The run branch only accepts changes through a
+        pull request, so the merge is pushed to `harness/run-sync` and merged there, waiting for its checks. Returns the
+        sync pull request number, or None when the base was already contained.
+        """
         if not base or self.base == base:
             return None
         fetched = git_with_token(["fetch", "--quiet", "--no-tags", self.remote,
-                                  "+refs/heads/%s:refs/heads/%s" % (base, base),
-                                  "+refs/heads/%s:refs/heads/%s" % (self.base, self.base)], self.clone_path, self.token_file)
+                                  "+refs/heads/%s:refs/harness-sync/%s" % (base, base),
+                                  "+refs/heads/%s:refs/harness-sync/%s" % (self.base, self.base)], self.clone_path, self.token_file)
         if fetched.returncode != 0:
             raise GitHubError("could not refresh %s and %s: %s" % (base, self.base, fetched.stderr.strip()[-200:]))
-        repo = GitRepo(self.clone_path, base)
-        head = repo.base_head()
-        if repo.is_ancestor(head, repo.branch_head(self.base)):
+        repo = GitRepo(self.clone_path, "refs/harness-sync/" + base)
+        head, run_head = repo.base_head(), "refs/harness-sync/" + self.base
+        if repo.is_ancestor(head, run_head):
             return None
-        return merge_base_into(self.clone_path, self.remote, base, self.base, head, self.token_file)
+        merged = merge_base_into(self.clone_path, self.remote, base, self.base, head, run_head, self.token_file)
+        number = with_retries(lambda: self.client.find_pr(SYNC_BRANCH), sleep=self.sleep)
+        if number is None:
+            number = with_retries(lambda: self.client.create_pr(
+                "Bring %s into %s" % (base, self.base),
+                "The harness merged `%s` into `%s` so that the run can be promoted without a conflict. "
+                "Merging this pull request only brings the base up to date; the run's own work stays as it is." % (base, self.base),
+                SYNC_BRANCH, self.base), sleep=self.sleep)
+        deadline = time.time() + wait_s
+        while True:
+            try:
+                if self.client.merge_pr(number, merged, "merge"):
+                    return number
+            except Exception:  # noqa: BLE001 - the checks of the sync are simply not green yet
+                pass
+            if time.time() >= deadline:
+                raise GitHubError("the sync pull request #%d did not merge within %ds; its checks must pass first" % (number, wait_s))
+            (self.sleep or time.sleep)(SYNC_POLL_S)
 
     def open_promotion(self, base: str, title: str, body: str) -> Optional[int]:
         """A pull request from the run branch into the base branch, so `main` only moves when the owner merges."""
