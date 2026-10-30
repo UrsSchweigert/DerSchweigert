@@ -249,7 +249,7 @@ def runner_command(args) -> int:
                 raise runner.RunRefused("validation configuration errors prevent issue import: %s" %
                                         "; ".join("%s: %s" % (r["command"], r.get("output", "")) for r in config_errors[:3]))
             base = subprocess.run(["git", "-C", root, "rev-parse", "main"], capture_output=True, text=True).stdout.strip()
-            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base)) or "nothing new")
+            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=True)) or "nothing new")
             return 0
         if not store.list_issues(args.plan_id):
             raise runner.RunRefused("no issues to schedule: supply refined issues with `import-issues`. Issue creation from phases is not automated yet")

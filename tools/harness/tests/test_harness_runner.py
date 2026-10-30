@@ -973,3 +973,33 @@ def test_discarding_a_stopped_run_branch_deletes_it(remote_world, tmp_path):
     assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is True
     assert git(clone, "--git-dir", origin, "branch", "--list", "harness/run/fx") == ""
     assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is False
+
+
+def test_an_issue_the_revised_plan_no_longer_names_is_retired(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE, dict(ISSUE, issue_id="i2")]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    assert store.state("issue", "i2") == "Ready"
+
+    revised = tmp_path / "revised.json"
+    revised.write_text(json.dumps([dict(ISSUE, outcomes=["merged"])]))  # i2 disappeared, i1 kept
+
+    assert runner.import_issues(store, "fx", None, str(revised), "base2", replace=True) == ["i1"]
+    assert store.state("issue", "i2") == "Cancelled" and store.state("issue", "i1") == "Ready"
+    assert store.get_doc("import_report", "fx")["superseded"] == ["i2"]
+
+
+def test_a_leftover_issue_with_work_blocks_the_import(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE, dict(ISSUE, issue_id="i2")]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i2"), head_rev="b" * 40))
+
+    revised = tmp_path / "revised.json"
+    revised.write_text(json.dumps([dict(ISSUE, outcomes=["merged"])]))
+
+    with pytest.raises(runner.RunRefused, match="i2 from an earlier version already has work"):
+        runner.import_issues(store, "fx", None, str(revised), "base2", replace=True)
+    assert store.state("issue", "i1") == "Ready" and store.state("issue", "i2") == "Ready"  # nothing was written

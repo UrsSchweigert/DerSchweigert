@@ -33,8 +33,13 @@ class RunRefused(Exception):
     pass
 
 
-def import_issues(store: Store, plan_id: str, version: Optional[int], path: str, base_rev: str) -> List[str]:
-    """Load refined issues supplied by a human or an investigator pass. They enter Ready after validation against the approved plan."""
+def import_issues(store: Store, plan_id: str, version: Optional[int], path: str, base_rev: str,
+                  replace: bool = False) -> List[str]:
+    """Load refined issues supplied by a human or an investigator pass. They enter Ready after validation against the approved plan.
+
+    `replace` says the file is the plan's whole issue set, as `import-issues` declares: an issue of this plan that the
+    file no longer names is then superseded instead of silently staying `Ready` for a plan that no longer contains it.
+    """
     stored = store.get_plan(plan_id, version)
     if stored is None:
         raise RunRefused("unknown plan %s" % plan_id)
@@ -43,6 +48,7 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         docs = json.load(fh)
     docs = docs["issues"] if isinstance(docs, dict) else docs
     phases = {p["id"]: p for p in plan["phases"]}
+    leftover = _leftovers(store, plan_id, {doc["issue_id"] for doc in docs}) if replace else []  # refuse before writing
     added, replaced = [], []
     for doc in docs:
         schemas.validate(doc, ISSUE_SCHEMA, "issue")
@@ -76,8 +82,30 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         for state in ("Refining", "Ready"):
             store.transition("issue", doc["issue_id"], state, "import")
         added.append(doc["issue_id"])
-    store.put_doc("import_report", plan_id, {"added": added, "replaced": replaced})
+    superseded = _retire(store, plan_id, leftover)
+    store.put_doc("import_report", plan_id, {"added": added, "replaced": replaced, "superseded": superseded})
     return added + replaced
+
+
+def _leftovers(store: Store, plan_id: str, imported: set) -> List[Dict[str, Any]]:
+    """Issues of this plan that the new document no longer names. A revised plan renames or merges issues, and the old
+    rows would otherwise stay `Ready` and be dispatched by a plan whose phases no longer contain them."""
+    leftovers = [i for i in store.list_issues(plan_id)
+                 if i["issue_id"] not in imported and store.state("issue", i["issue_id"]) not in ("Done", "Cancelled")]
+    landed = sorted(i["issue_id"] for i in leftovers
+                    if i.get("head_rev") or i.get("pr") is not None or store.active_claims_for(i["issue_id"]))
+    if landed:
+        raise RunRefused("issue %s from an earlier version already has work and is not part of this plan version"
+                         % ", ".join(landed))
+    return leftovers
+
+
+def _retire(store: Store, plan_id: str, leftovers: List[Dict[str, Any]]) -> List[str]:
+    retired = []
+    for existing in leftovers:
+        store.transition("issue", existing["issue_id"], "Cancelled", "import", {"reason": "not part of this plan version"})
+        retired.append(existing["issue_id"])
+    return retired
 
 
 _DEFINITION_FIELDS = ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
