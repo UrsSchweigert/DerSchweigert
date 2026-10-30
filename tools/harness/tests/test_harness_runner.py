@@ -926,3 +926,50 @@ def test_an_issue_id_of_another_plan_is_reported(tmp_path):
 
     with pytest.raises(runner.RunRefused, match="already belongs to plan other-plan"):
         runner.import_issues(store, "fx", None, str(other), "base1")
+
+
+def test_a_cancelled_run_keeps_its_branch_and_main_untouched(remote_world, tmp_path):
+    from harness import plans as plans_mod
+    from harness import approval
+
+    origin, clone = remote_world
+    store = Store(str(tmp_path / "home"))
+    phases = [{"id": "P1", "outcomes": ["o"], "requirements": ["R1"], "path_allowlist": ["a"], "non_goals": [],
+               "dependencies": [], "exit_criteria": ["e"], "validation": ["node --test x.mjs"]}]
+    plan = plans_mod.build_plan("fx", 1, [{"id": "R1", "title": "t", "source": "s"}], phases, fixture=True)
+    store.put_plan(plan, plans_mod.plan_digest(plan))
+    store.transition("plan", "fx@v1", "Proposed", "t")
+    store.transition("plan", "fx@v1", "Approved", "t")
+    store.transition("plan", "fx@v1", "Executing", "t")
+    store.put_run("fx", {"started_at": 1.0})
+    git(clone, "branch", "harness/run/fx")
+    git(clone, "push", "-q", "origin", "harness/run/fx")
+    store.transition("plan", "fx@v1", "Cancelled", "t")
+
+    # cancelling is only a state change: the branch and the base branch are exactly as they were
+    assert git(clone, "--git-dir", origin, "rev-parse", "harness/run/fx") == git(clone, "rev-parse", "main")
+    assert git(clone, "--git-dir", origin, "rev-parse", "main") == git(clone, "rev-parse", "main")
+
+
+def test_discarding_a_stopped_run_branch_deletes_it(remote_world, tmp_path):
+    from harness import plans as plans_mod
+
+    origin, clone = remote_world
+    store = Store(str(tmp_path / "home"))
+    phases = [{"id": "P1", "outcomes": ["o"], "requirements": ["R1"], "path_allowlist": ["a"], "non_goals": [],
+               "dependencies": [], "exit_criteria": ["e"], "validation": ["node --test x.mjs"]}]
+    plan = plans_mod.build_plan("fx", 1, [{"id": "R1", "title": "t", "source": "s"}], phases, fixture=True)
+    store.put_plan(plan, plans_mod.plan_digest(plan))
+    store.transition("plan", "fx@v1", "Proposed", "t")
+    store.transition("plan", "fx@v1", "Approved", "t")
+    store.transition("plan", "fx@v1", "Executing", "t")
+    git(clone, "branch", "harness/run/fx")
+    git(clone, "push", "-q", "origin", "harness/run/fx")
+
+    with pytest.raises(runner.RunRefused, match="still owns its run branch"):
+        runner.discard_run_branch(store, "fx", 1, clone, origin)
+
+    store.transition("plan", "fx@v1", "Cancelled", "t")
+    assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is True
+    assert git(clone, "--git-dir", origin, "branch", "--list", "harness/run/fx") == ""
+    assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is False

@@ -164,6 +164,8 @@ def update_requirements(store: Store, body: dict) -> dict:
         target.write_text(value, encoding="utf-8")
         target.chmod(0o600)
     record["requirements"] = rows
+    if (root / "draft" / "issues.json").is_file():
+        record["draft_stale"] = True  # the draft was written for the previous wording
     store.put_doc("gui_workspace", workspace_id, record)
     return record
 
@@ -300,7 +302,10 @@ def execute(store: Store, record: dict, repo_root=None) -> str:
             return "needs_answers"
         if code:
             raise runner.RunRefused("investigation failed (exit %d); see output" % code)
+        record.pop("draft_stale", None)
     elif kind == "plan":
+        if record.get("draft_stale"):
+            raise runner.RunRefused("the requirements changed after this draft was written; investigate again first")
         result = cli.plan_command(store, str(requirements), str(out / "phases.json"), record["plan_id"])
         if result["state"] != "Proposed":
             raise runner.RunRefused("plan is not Proposed: %s" % result.get("problems", result["state"]))

@@ -815,3 +815,19 @@ def test_a_running_plan_cannot_change_its_requirements(tmp_path):
     with pytest.raises(Exception, match="running plan cannot change its requirements"):
         gui_workflow.update_requirements(env.store, {"workspace_id": record["workspace_id"], "markdown": "text",
                                                      "requirements": [{"id": "R1", "title": "t"}]})
+
+
+def test_an_updated_requirement_marks_the_draft_stale(tmp_path):
+    from harness import gui_workflow
+
+    store = Store(str(tmp_path / "home"))
+    record = gui_workflow.create(store, {"name": "x.md", "markdown": "text", "requirements": [{"id": "R1", "title": "old"}]})
+    draft = gui_workflow.directory(store, record["workspace_id"]) / "draft"
+    draft.mkdir(mode=0o700)
+    (draft / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+
+    updated = gui_workflow.update_requirements(store, {"workspace_id": record["workspace_id"], "markdown": "text",
+                                                       "requirements": [{"id": "R1", "title": "new"}]})
+
+    assert updated["draft_stale"] is True
+    store.close()
