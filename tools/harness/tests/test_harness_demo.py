@@ -33,6 +33,7 @@ def test_dry_run_demonstration_of_scheduling_escalation_status_and_recovery(tmp_
     sched2 = Scheduler(env.store, "fx", 1, adapter2, env.repo, env.checker, env.publisher, clock=env.clock, isolation_override=TIER_A,
                        available_models=MODELS, runner_id="runner-2", notifier=notes, secondary_owner="backup-owner")
     env.sched, env.adapter = sched2, adapter2
+    env.clock.advance(65)  # the dead runner's plan lock expires after two heartbeats
     sched2.start(env.clock())
     env.tick(5)
     assert not adapter2.started

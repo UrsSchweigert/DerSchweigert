@@ -212,6 +212,7 @@ def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):
     s2 = Scheduler(env.store, "fx", 1, adapter2, env.repo, env.checker, env.publisher, clock=env.clock, isolation_override=TIER_A,
                    available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"], runner_id="runner-2")
     env.sched, env.adapter = s2, adapter2
+    env.clock.advance(65)  # the dead runner's plan lock expires after two heartbeats
     s2.start(env.clock())
     env.tick(5)
     assert not adapter2.started  # the dead runner's lease is still live, so no duplicate worker starts
@@ -885,3 +886,165 @@ def test_a_run_that_works_on_the_base_branch_needs_no_promotion(remote_world, tm
     pub = GitHubPublisher(gh, clone, origin, "main", None, sleep=lambda s: None)
 
     assert pub.open_promotion("main", "promote", "body") is None and not gh.prs
+
+
+def test_a_new_plan_version_replaces_an_issue_that_has_no_work_yet(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    assert runner.import_issues(store, "fx", None, str(first), "base1") == ["i1"]
+
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["the corrected outcome"], acceptance_criteria=["new"] )]))
+
+    assert runner.import_issues(store, "fx", None, str(corrected), "base2") == ["i1"]  # reported as changed
+    issue = store.get_issue("i1")
+    assert issue["outcomes"] == ["the corrected outcome"] and issue["base_rev"] == "base2"
+    assert store.state("issue", "i1") == "Ready"
+
+
+def test_an_issue_that_already_has_work_is_not_silently_skipped(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i1"), head_rev="a" * 40))
+
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["changed"])]))
+
+    with pytest.raises(runner.RunRefused, match="has work recorded"):
+        runner.import_issues(store, "fx", None, str(corrected), "base2")
+
+
+def test_an_issue_id_of_another_plan_is_reported(tmp_path):
+    store = make_plan(tmp_path)
+    other = tmp_path / "other.json"
+    other.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(other), "base1")
+    issue = store.get_issue("i1")
+    store.put_issue(dict(issue, plan_id="other-plan"))
+
+    with pytest.raises(runner.RunRefused, match="already belongs to plan other-plan"):
+        runner.import_issues(store, "fx", None, str(other), "base1")
+
+
+def test_a_cancelled_run_keeps_its_branch_and_main_untouched(remote_world, tmp_path):
+    from harness import plans as plans_mod
+    from harness import approval
+
+    origin, clone = remote_world
+    store = Store(str(tmp_path / "home"))
+    phases = [{"id": "P1", "outcomes": ["o"], "requirements": ["R1"], "path_allowlist": ["a"], "non_goals": [],
+               "dependencies": [], "exit_criteria": ["e"], "validation": ["node --test x.mjs"]}]
+    plan = plans_mod.build_plan("fx", 1, [{"id": "R1", "title": "t", "source": "s"}], phases, fixture=True)
+    store.put_plan(plan, plans_mod.plan_digest(plan))
+    store.transition("plan", "fx@v1", "Proposed", "t")
+    store.transition("plan", "fx@v1", "Approved", "t")
+    store.transition("plan", "fx@v1", "Executing", "t")
+    store.put_run("fx", {"started_at": 1.0})
+    git(clone, "branch", "harness/run/fx")
+    git(clone, "push", "-q", "origin", "harness/run/fx")
+    store.transition("plan", "fx@v1", "Cancelled", "t")
+
+    # cancelling is only a state change: the branch and the base branch are exactly as they were
+    assert git(clone, "--git-dir", origin, "rev-parse", "harness/run/fx") == git(clone, "rev-parse", "main")
+    assert git(clone, "--git-dir", origin, "rev-parse", "main") == git(clone, "rev-parse", "main")
+
+
+def test_discarding_a_stopped_run_branch_deletes_it(remote_world, tmp_path):
+    from harness import plans as plans_mod
+
+    origin, clone = remote_world
+    store = Store(str(tmp_path / "home"))
+    phases = [{"id": "P1", "outcomes": ["o"], "requirements": ["R1"], "path_allowlist": ["a"], "non_goals": [],
+               "dependencies": [], "exit_criteria": ["e"], "validation": ["node --test x.mjs"]}]
+    plan = plans_mod.build_plan("fx", 1, [{"id": "R1", "title": "t", "source": "s"}], phases, fixture=True)
+    store.put_plan(plan, plans_mod.plan_digest(plan))
+    store.transition("plan", "fx@v1", "Proposed", "t")
+    store.transition("plan", "fx@v1", "Approved", "t")
+    store.transition("plan", "fx@v1", "Executing", "t")
+    git(clone, "branch", "harness/run/fx")
+    git(clone, "push", "-q", "origin", "harness/run/fx")
+
+    with pytest.raises(runner.RunRefused, match="still owns its run branch"):
+        runner.discard_run_branch(store, "fx", 1, clone, origin)
+
+    store.transition("plan", "fx@v1", "Cancelled", "t")
+    assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is True
+    assert git(clone, "--git-dir", origin, "branch", "--list", "harness/run/fx") == ""
+    assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is False
+
+
+def test_an_issue_the_revised_plan_no_longer_names_is_retired(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE, dict(ISSUE, issue_id="i2")]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    assert store.state("issue", "i2") == "Ready"
+
+    revised = tmp_path / "revised.json"
+    revised.write_text(json.dumps([dict(ISSUE, outcomes=["merged"])]))  # i2 disappeared, i1 kept
+
+    assert runner.import_issues(store, "fx", None, str(revised), "base2", replace=True) == ["i1"]
+    assert store.state("issue", "i2") == "Cancelled" and store.state("issue", "i1") == "Ready"
+    assert store.get_doc("import_report", "fx")["superseded"] == ["i2"]
+
+
+def test_a_leftover_issue_with_work_blocks_the_import(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE, dict(ISSUE, issue_id="i2")]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i2"), head_rev="b" * 40))
+
+    revised = tmp_path / "revised.json"
+    revised.write_text(json.dumps([dict(ISSUE, outcomes=["merged"])]))
+
+    with pytest.raises(runner.RunRefused, match="i2 from an earlier version already has work"):
+        runner.import_issues(store, "fx", None, str(revised), "base2", replace=True)
+    assert store.state("issue", "i1") == "Ready" and store.state("issue", "i2") == "Ready"  # nothing was written
+
+
+def test_a_worker_starts_on_a_run_branch_that_is_not_the_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    with open(os.path.join(src, "f.txt"), "w") as fh:
+        fh.write("x\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    git(src, "branch", "harness/run/fx")
+    adapter = CopilotCliAdapter(str(tmp_path / "home"), src, "harness/run/fx")
+    req = WorkRequest("i1#1", 1, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
+
+    work = adapter._prepare(req)
+
+    repo = os.path.join(work, "repo")
+    assert git(repo, "rev-parse", "--abbrev-ref", "HEAD") == "harness/i1"
+    assert git(repo, "rev-parse", "HEAD") == git(src, "rev-parse", "harness/run/fx")
+
+
+def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkeypatch):
+    from harness.adapter import ACTIVITY_SCAN_AFTER_S, _Handle
+
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    with open(os.path.join(src, "f.txt"), "w") as fh:
+        fh.write("x\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    adapter = CopilotCliAdapter(str(tmp_path / "home"), src)
+    req = WorkRequest("i1#1", 1, "i1", "reviewer", "low", None, {"issue_id": "i1"}, "harness/i1")
+    handle = _Handle(req, adapter._prepare(req), None, "probe")
+
+    quiet_since = 1000.0
+    handle.last_activity = quiet_since
+    with open(os.path.join(handle.workdir, "repo", "analysis.txt"), "w") as fh:
+        fh.write("work\n")
+
+    assert adapter._last_sign_of_work(handle, quiet_since + 5) == quiet_since          # too soon to look
+    assert adapter._last_sign_of_work(handle, quiet_since + ACTIVITY_SCAN_AFTER_S + 5) > quiet_since

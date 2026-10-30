@@ -343,3 +343,157 @@ its own unprefixed keys, so the two never collide.
 
 The buttons also carry a title now. Every disabled state names its reason ("Only a Proposed plan can be approved;
 this one is Paused", "Type the first 12 characters of the digest exactly"), so a click never silently does nothing.
+
+## Requirements can be corrected in place, and a cancelled plan can be revised (2026-10-30)
+
+The dashboard offered only one way to change a requirement: **Save requirements** always created a new workspace, so
+every wording fix paid for a fresh investigation and left another workspace behind. And once a plan had been approved
+and cancelled, its workspace accepted no revision at all ("approved or executing workspaces cannot be revised"), so
+even the draft could not be corrected.
+
+* `gui_workflow.update_requirements` rewrites `requirements.md`, `source.md` and the workspace record of the selected
+  workspace, refusing only while its plan is `Executing`. The next `plan` step builds a new version from the new text,
+  so the new digest still needs the owner's approval; nothing moves behind an existing approval.
+* The GUI gained **Update this workspace** next to **Save as new workspace**, and the requirements editor is prefilled
+  from the selected workspace instead of only from an upload.
+* A `Cancelled` plan may be revised again (`investigate`, `plan`), because a cancelled run is terminal and produces a
+  new version that needs a new approval. Approved, executing and paused workspaces stay locked.
+* `Scheduler.start` clears a leftover `cancel_requested` when the plan starts from `Approved`: a new approval starts a
+  new run, not the cancelled one. Without this, a new version of a cancelled plan cancelled itself on its first tick.
+
+## A corrected plan reaches the issue it corrects (2026-10-30)
+
+`runner.import_issues` skipped every issue id that already existed (`if store.get_issue(...): continue`), and ids are
+global across plans. A corrected requirement therefore produced a new plan version, a new approval and a fresh
+`import-issues` that silently changed nothing: the run would execute the old definition. The same silence hid the
+case where an id belonged to a different plan, which cost a debugging session earlier.
+
+* An unchanged definition is still a no-op, compared only on the fields the document states so harness defaults do not
+  look like a change.
+* A changed definition replaces the issue when nothing has landed: no `head_rev`, no pull request, no active claim and
+  the state is `Inbox`, `Refining`, `Ready` or `Blocked`. Failed attempts do not block it; they left no work.
+* Anything else refuses loudly (`issue %s is already %s and has work recorded`) instead of skipping, and an id that
+  belongs to another plan refuses with that plan named.
+* `import-issues` writes an `import_report` document per plan listing `added` and `replaced`, so the GUI and the
+  operator can see that the corrected definition actually arrived.
+
+## The run clock stops when the run stops (2026-10-30)
+
+`status` computed the run's wall clock as `now - started_at`, so the dashboard kept counting after the plan was
+cancelled, completed or paused: a cancelled run showed a growing "Run time" against its budget, and a run that sat
+paused for an hour resumed with that hour already charged — enough to trip `run_wall_clock_s` immediately.
+
+`Scheduler._pause`, `_cancel` and `_complete_plan_if_done` (and `runner.request_pause` when it pauses without a
+runner) now record `run["ended_at"]`, and `status` charges up to that stamp instead of up to now. On the next
+`start()` the clock is shifted by the idle gap (`started_at += now - ended_at`) and the stamp is dropped, so a
+resumed run pays only for the time it actually runs.
+
+## Changing a requirement invalidates the draft, and a run branch is never thrown away silently (2026-10-30)
+
+**The draft.** After **Update this workspace** the dashboard kept "Start investigation" disabled because a draft already
+existed, and "Revise draft with feedback" needed text — so the only visible action did nothing. The workspace record now
+carries `draft_stale` when requirements change after a draft was written. A stale draft re-enables **Start investigation**
+(the new wording is investigated from scratch; the old draft stays in `draft/` until it is replaced) and blocks
+**Prepare plan and checks** with that reason, so a plan can never be built from a draft written for other words.
+
+**The branch.** Nothing asserts a discard because nothing discards: cancelling is a state change only. Work a cancelled
+run already merged stays on its protected run branch, `main` was never touched, and a new version of the same plan
+reuses the same branch and stacks on top of it. A test pins that: after a cancel the run branch and the base branch are
+byte-identical to before. To throw the work away the owner says so explicitly — `harness discard-run PLAN` deletes the
+run branch (refused while the plan is `Executing` or `Paused`, and a no-op when the branch is already gone), so the
+next run starts from the base branch again.
+
+## A rejection at the strongest tier earns one repair, not five (2026-10-30)
+
+An investigation on `deepseek/deepseek-v4-pro` ran four attempts and would have used all six. The repair loop escalated the
+tier on every rejection, but the investigator was started at the top tier, so every retry ran the same expensive model
+with no stronger option behind it. The owner pays per attempt and asked for pro to be reserved for planning and real
+escalations.
+
+`MAX_TOP_TIER_ATTEMPTS = 2` in `investigate.py`: once an attempt at the strongest tier is rejected, only one repair attempt
+at that tier follows, then the run stops with the collected problems (and `rejected-draft.json`). Below the top tier the
+old ladder still applies, so a standard-tier run gets at most standard, then two strong attempts. Every rejection now also
+logs its reason, which is what the dashboard shows.
+
+## Re-importing a plan retires the issues it no longer names (2026-10-30)
+
+The corrected plan v2 renamed the old issue: v1 had `consolidate-mode-selection`, v2 split it into
+`consolidate-setup-stylesheet` and `unify-mode-selection`. `import-issues` added the two new ones and left the old row
+`Ready` in the same plan, so the dashboard showed three issues and the run would have dispatched a task the plan no
+longer contains.
+
+* `import_issues(..., replace=True)` — what `import-issues` and the dashboard's **Import approved issues** declare — treats
+  the file as the plan's whole issue set: an issue of this plan that the file does not name and that has no work (no
+  `head_rev`, no pull request, no claim) is moved to `Cancelled` and reported as `superseded`.
+* An unnamed issue that already has work refuses the import before anything is written, because the plan no longer
+  covers what was done.
+* Callers that add a subset (an approved split, `import_issues` without the flag) are unaffected: the earlier
+  split-and-resume flow keeps its sibling issue.
+
+The import report now lists `added`, `replaced` and `superseded`.
+
+## A worker that never started costs nothing, and a run branch is a usable base (2026-10-30)
+
+The first real run on a run branch blocked issue `consolidate-setup-stylesheet` with `model selection rejected: strong
+attempt budget exhausted`, 4 seconds after start. Two defects behind it:
+
+* `adapter._prepare` checked out the base branch by its **local** name. A fresh clone knows a non-default branch only as
+  `refs/remotes/origin/<branch>`, so `git checkout -B harness/<issue> harness/run/<plan>` failed with exit 128 — the
+  run-branch feature could never have started a worker. The base now resolves to the remote-tracking ref when it exists.
+* That infra failure still consumed the single `strong_attempts_per_issue` slot, because the budget is charged when the
+  attempt is dispatched. The retry then could not use the strong model and blocked the issue. An attempt whose worker
+  never started now refunds the slot.
+
+The block also reached the owner as a `decisionRequested` task instead of being triaged, because this plan carries no
+`auto_answer` policy: it was built from `DEFAULT_POLICY`, which has no `auto_answer` and no `descope`. Putting open-ended
+descoping into the defaults was attempted and reverted — a failing check then defers its requirements instead of
+reporting them, which changed 74 tests and the semantics of a red test. The standing instruction therefore stays a plan
+decision, and a new plan must be prepared to carry it.
+
+## One runner per plan, enforced (2026-10-30)
+
+Three `harness resume` processes were alive at once for the same store: one for a finished plan, one for a cancelled
+version and one for the current version. They ticked against the same claims and budgets, produced duplicate human tasks
+and left the dashboard saying "run active" while nothing did any work.
+
+`store.claim_plan` gives a plan a single owner (document `plan_owner`: runner id, pid and heartbeat). `Scheduler.start`
+refuses with the holder's name when a live runner owns the plan, every tick refreshes the heartbeat, and `run_loop`
+releases it in a `finally`, so a Ctrl+C frees the plan immediately. A holder whose pid is gone, or whose heartbeat is
+older than two heartbeats, is replaced — that is what makes a crash recoverable without an operator clearing state by
+hand. The error names the holder and the remaining lock time.
+
+## A splittable task does not get the strongest model (2026-10-30)
+
+The owner pays for `deepseek-v4-pro` and asked for a fixed rule that decides whether a task sent to the top tier could
+be several cheaper tasks instead. It must not be a model's own opinion of how hard its work is, so the rule is
+arithmetic over facts the plan already states (`tools/harness/sizing.py`):
+
+| Fact | Limit |
+|---|---|
+| anchored files (`code_anchors` + `contract_paths`) | 3 |
+| bytes of those files at the base revision | 60 000 |
+| requirement ids | 1 |
+| acceptance criteria | 6 |
+| separate areas (first two path segments) | 2 |
+
+Any breach marks the task as worth splitting. The scheduler applies it where it is cheapest: when an implementer would
+run at the strongest tier and the rule fires, that attempt is routed to the standard tier instead and a `split_pressure`
+event reports the facts, the reasons, the model that would have been used and the one that was. Nothing is blocked and no
+question is asked; if the cheaper attempt fails, the existing delegator and analyst path can still propose a real split.
+
+`policy.split_pressure` is off unless `enabled` is true, so no existing plan changes behaviour, and its keys and values
+are validated in `validate_plan` — a typo such as `max_file` is a plan problem, not a silently weaker rule.
+
+## Run-branch pull requests must run the checks, and silence is not idleness (2026-10-30)
+
+Two gaps the first real run exposed minutes after it started:
+
+* **No CI on the pull request.** `deploy.yml` ran on `pull_request: branches: [main]`, so PR #102, whose base is
+  `harness/run/<plan>`, produced no `test` or `test-ffm` run at all — while the run-branch ruleset demands exactly those
+  two checks. The trigger now includes `harness/run/**`. Deploy jobs keep `github.ref == 'refs/heads/main'`, so nothing
+  deploys from a run branch; the deploy happens when the owner promotes the run branch to `main`.
+* **A working reviewer was fenced as inactive.** The reviewer of PR #102 printed nothing for ten minutes while its
+  container used 121% CPU analysing a stylesheet, so `inactivity_timeout_s` (600 s) killed it and started a fresh
+  attempt. The adapter now treats a changed file in the worker's own work directory as a sign of life: after
+  `ACTIVITY_SCAN_AFTER_S` (60 s) without output it scans the work directory and takes the newest modification time as
+  activity. Output alone was too narrow a definition of work.

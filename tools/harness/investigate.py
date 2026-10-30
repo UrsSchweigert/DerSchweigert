@@ -70,6 +70,9 @@ Rules:
 """
 
 
+MAX_TOP_TIER_ATTEMPTS = 2  # a rejection at the strongest tier only earns one repair attempt; pro models are expensive
+
+
 class InvestigationError(Exception):
     pass
 
@@ -355,13 +358,22 @@ class Investigator:
         last_bad: Optional[Dict[str, Any]] = None
         tier = self.tier
         transient = 0
+        previous_tier: Optional[str] = None
+        top_attempts = 0
         for attempt in range(1, self.max_attempts + 1):
+            if previous_tier == models.TIERS[-1]:
+                top_attempts += 1
+                if top_attempts >= MAX_TOP_TIER_ATTEMPTS:
+                    self.log("stopping after %d attempt(s) at %s: the strongest tier has nowhere stronger to escalate to"
+                             % (top_attempts, models.TIERS[-1]))
+                    break
             packet = {"requirements": text, "requirement_ids": [r["id"] for r in reqs], "answers": state["answers"], "previous_problems": problems[:20],
                       "model_options": models.model_options(self.policy["model_tiers"], self.models),
                       "model_budget": {"strong_implementation_attempts_per_issue": self.policy["budgets"]["strong_attempts_per_issue"]}}
             if current is not None:
                 packet.update(current_draft=current, owner_feedback=state["feedback"])
             route, poll = self._invoke(attempt, tier, packet)
+            previous_tier = route["tier"]
             recorded = dict(self._last_usage)
             agent = usage.clean_estimate(poll.result.pop("usage_estimate", None)) if isinstance(poll.result, dict) else None
             if agent:
@@ -378,12 +390,14 @@ class Investigator:
                     self.sleep(failures.backoff_delay(transient, base=2.0, cap=30.0))
                     continue
                 problems = ["the previous attempt produced no usable result.json (%s)" % kind]
+                self.log("attempt %d rejected: %s" % (attempt, problems[0]))
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
                 continue
             try:
                 draft = schemas.validate(poll.result, DRAFT, "draft")
             except schemas.SchemaError as exc:
                 problems = ["result does not match the required shape: %s" % exc]
+                self.log("attempt %d rejected: %s" % (attempt, problems[0][:300]))
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
                 continue
             if draft["status"] == "questions":
@@ -415,7 +429,8 @@ class Investigator:
                     except ValueError as exc:
                         problems.append("issue %s: %s" % (issue["issue_id"], exc))
             if problems:
-                self.log("draft rejected: %d problem(s)" % len(problems))
+                self.log("attempt %d rejected: %d problem(s): %s"
+                         % (attempt, len(problems), " | ".join(p[:160] for p in problems[:3])))
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
                 last_bad = draft
                 continue

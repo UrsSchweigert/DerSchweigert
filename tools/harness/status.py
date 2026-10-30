@@ -114,8 +114,12 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
         plan = store.get_plan(pid, ver)["plan"]
         run = _safe(lambda: store.get_run(pid), {})
         budgets = plan["policy"]["budgets"]
-        elapsed = now - run["started_at"] if run.get("started_at") else None
-        report["plans"].append({"plan_id": pid, "version": ver, "state": store.state("plan", plan_entity(pid, ver)), "digest": row["digest"][:12],
+        state = store.state("plan", plan_entity(pid, ver))
+        ended = run.get("ended_at") or now  # a paused, cancelled or completed run stops charging wall clock
+        if not run.get("ended_at") and state in ("Cancelled", "Completed", "Superseded", "Paused"):
+            ended = _safe(lambda: store.last_transition_at(plan_entity(pid, ver)), None) or ended
+        elapsed = max(0.0, ended - run["started_at"]) if run.get("started_at") else None
+        report["plans"].append({"plan_id": pid, "version": ver, "state": state, "digest": row["digest"][:12],
                                 "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested")),
                                 "pause_requested": bool(run.get("pause_requested")),
                                 "base_branch": plans.base_branch(plan), "run_branch": plans.run_branch(plan)})

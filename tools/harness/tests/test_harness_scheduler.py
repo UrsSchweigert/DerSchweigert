@@ -129,6 +129,7 @@ def test_restart_reclaims_pending_checks_after_expiry(tmp_path, stage):
     env.checker, env.adapter = checker, adapter
     env.sched = Scheduler(env.store, "fx", 1, adapter, env.repo, checker, env.publisher, clock=env.clock,
                           isolation_override=TIER_A, available_models=["claude-haiku-4.5", "claude-sonnet-5"], runner_id="runner-2")
+    env.clock.advance(65)  # a crashed runner keeps its plan lock for two heartbeats
     env.sched.start()
     env.tick(5)
     assert not checker.pending and not adapter.started
@@ -381,6 +382,7 @@ def test_crash_recovery_resumes_from_the_store_alone(tmp_path):
     adapter2 = FakeAdapter(env.repo, env.clock)
     s2 = Scheduler(env.store, "fx", 1, adapter2, env.repo, env.checker, env.publisher, clock=env.clock, isolation_override=TIER_A,
                    available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5"], runner_id="runner-2")
+    env.clock.advance(65)  # the dead runner's plan lock expires after two heartbeats
     s2.start(env.clock())
     s2.tick(env.clock.advance(5))
     assert not adapter2.started  # the dead runner's lease is still live, so no duplicate worker starts
@@ -534,3 +536,146 @@ def test_the_runner_clears_the_pause_request_once_it_pauses(tmp_path):
 
     run = env.store.get_run("fx")
     assert env.store.state("plan", "fx@v1") == "Paused" and not run.get("pause_requested")
+
+
+def test_a_fresh_approval_does_not_inherit_the_cancel_request(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.store.put_run("fx", dict(env.store.get_run("fx"), cancel_requested=True, drain=False))
+
+    env.sched.start()
+
+    assert env.store.state("plan", "fx@v1") == "Executing" and not env.store.get_run("fx").get("cancel_requested")
+
+
+def test_the_run_clock_stops_when_the_plan_is_cancelled(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.clock.advance(60)
+
+    env.sched.request_cancel()
+    env.sched.tick()
+
+    used = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
+    env.clock.advance(3600)
+    assert status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"] == used == 60
+
+
+def test_a_resumed_run_does_not_pay_for_the_time_it_was_stopped(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.clock.advance(60)
+    env.sched._pause("paused by the operator", env.clock())
+    stopped_at = env.store.get_run("fx")["ended_at"]
+
+    env.clock.advance(3600)  # an hour paused
+    env.sched.start()
+    env.clock.advance(30)
+
+    run = env.store.get_run("fx")
+    assert "ended_at" not in run and run["started_at"] == 1000.0 + 3600
+    used = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
+    assert used == 90 and stopped_at == 1060
+
+
+def test_the_run_clock_stops_when_the_plan_completes(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.clock.advance(120)
+
+    for phase in ("P1", "P2"):
+        for state in ("Eligible", "Active", "Validating", "Done"):
+            env.store.transition("phase", "fx@v1/" + phase, state, "test")
+    env.sched._complete_plan_if_done(env.clock())
+
+    env.clock.advance(7200)
+    assert status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"] == 120
+
+
+def test_a_run_record_without_an_end_stamp_does_not_keep_growing(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.clock.advance(60)
+    env.sched.request_cancel()
+    env.sched.tick()
+    legacy = env.store.get_run("fx")
+    legacy.pop("ended_at", None)  # written by a version that did not stamp the end
+    env.store.put_run("fx", legacy)
+
+    first = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
+    env.clock.advance(3600)
+    second = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
+
+    assert first == second == 60
+
+
+def test_a_worker_that_never_started_does_not_use_up_the_strong_budget(tmp_path):
+    env = Env(tmp_path, budgets=dict(LONG_BUDGETS, strong_attempts_per_issue=1))
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "needs the strong model"}}
+    env.store.put_issue(issue)
+
+    def explode(req):
+        raise OSError("git checkout failed")
+
+    env.adapter.start = explode
+    env.sched.start()
+
+    env.sched.tick(60)
+
+    issue = env.store.get_issue("i1")
+    assert issue["strong_attempts"] == 0
+    assert any("adapter failed to start" in f["detail"] for f in issue["last_failures"])
+
+
+def test_a_second_runner_cannot_take_the_same_plan(tmp_path):
+    from harness.broker import BrokerRejected
+    from harness.scheduler import Scheduler
+    from harness_doubles import TIER_A
+
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    other = Scheduler(env.store, "fx", 1, env.adapter, env.repo, env.checker, env.publisher, clock=env.clock,
+                      rng=lambda: 0.0, isolation_override=TIER_A, available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"])
+    other.runner_id = "runner-2"
+
+    with pytest.raises(BrokerRejected, match="already being run by runner-1"):
+        other.start(now=1010.0)
+
+
+def test_the_lock_expires_so_a_crashed_runner_does_not_block_the_plan(tmp_path):
+    from harness.scheduler import Scheduler
+    from harness_doubles import TIER_A
+
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.start(now=1000.0)
+    env.sched.release()
+
+    other = Scheduler(env.store, "fx", 1, env.adapter, env.repo, env.checker, env.publisher, clock=env.clock,
+                      rng=lambda: 0.0, isolation_override=TIER_A, available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"])
+    other.runner_id = "runner-2"
+
+    other.start(now=1010.0)  # the plan was released, so a new runner may take it
+    assert env.store.get_doc("plan_owner", "fx")["runner_id"] == "runner-2"
+
+
+def test_a_splittable_task_does_not_get_the_strongest_tier(tmp_path, monkeypatch):
+    from harness import plans
+
+    monkeypatch.setitem(plans.DEFAULT_POLICY, "split_pressure", {"enabled": True, "max_files": 1})
+    env = Env(tmp_path, budgets=dict(LONG_BUDGETS, strong_attempts_per_issue=1))
+    issue = env.store.get_issue("i1")
+    issue["code_anchors"] = ["src/a.py", "src/b.py"]
+    issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "looks big"}}
+    env.store.put_issue(issue)
+    started = []
+
+    def record(req):
+        started.append((req.tier, req.model))
+        raise OSError("stop here: the routing is what this test looks at")
+
+    env.adapter.start = record
+    env.sched.start()
+    env.sched.tick(60)
+
+    assert started and started[0][0] != "strong"
+    assert any(e["event"] == "split_pressure" for e in env.sched.events)

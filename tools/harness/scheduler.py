@@ -12,7 +12,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from . import approval, broker, descope, failures, humantasks, models, plans, schemas, smoke, splits, telemetry, usage
+from . import approval, broker, descope, failures, humantasks, models, plans, schemas, sizing, smoke, splits, telemetry, usage
 from .adapter import Adapter, WorkRequest
 from .checks import Checker, Publisher
 from .github import BaseChanged, GitHubError
@@ -103,6 +103,7 @@ class Scheduler:
         """Begin or resume execution. Requires a verified approval and an isolation tier that permits `run`."""
         now = self.clock() if now is None else now
         approval.authorize_run(self.store, self.plan_id, self.version, self.iso, allow_paused=True)
+        self._claim(now)
         state = self.store.state("plan", self.entity)
         if state in ("Approved", "Paused"):
             self.store.transition("plan", self.entity, "Executing", self.runner_id, {"resumed_from": state}, now=now)
@@ -114,9 +115,15 @@ class Scheduler:
                     pass
         run = self.store.get_run(self.plan_id)
         run.setdefault("started_at", now)
-        run.pop("paused_reason", None)
-        run.pop("pause_requested", None)
-        run.pop("pause_now", None)
+        if run.get("ended_at"):
+            run["started_at"] = min(now, run["started_at"] + max(0.0, now - run["ended_at"]))
+            run.pop("ended_at", None)
+        for key in ("paused_reason", "pause_requested", "pause_now"):
+            run.pop(key, None)
+        if state == "Approved":
+            # a fresh approval starts a new run of a (possibly new) version, not the cancelled one
+            run.pop("cancel_requested", None)
+            run.pop("drain", None)
         run["cancel_requested"] = run.get("cancel_requested", False)
         self.store.put_run(self.plan_id, run)
 
@@ -126,6 +133,7 @@ class Scheduler:
         now = self.clock() if now is None else now
         self.events = []
         self.store.put_doc("runner", self.runner_id, {"last_tick": now, "plan": self.plan_id, "active": sorted(self.handles)})
+        self.store.refresh_plan_claim(self.plan_id, self.runner_id, now)
         telemetry.prune(self.store, now)
         if self.store.state("plan", self.entity) != "Executing":
             return self.events
@@ -747,6 +755,30 @@ class Scheduler:
         self.store.put_issue(issue)
         self._emit("delegator_retry", issue=issue["issue_id"], attempt=meta["attempt_id"], model=choice["model"] if choice else None)
 
+    def _split_pressure(self, issue: Dict[str, Any], policy: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Measured, not judged: does this task look like several cheaper tasks wearing one hat?"""
+        if not sizing.enabled(policy):
+            return None
+        size_of = getattr(self.repo, "file_size", None)
+        report = sizing.split_pressure(issue, size_of if callable(size_of) else (lambda _p: 0), policy)
+        return report if report["split_recommended"] else None
+
+    def _split_pressure_route(self, issue: Dict[str, Any], route: Dict[str, Any], policy: Dict[str, Any],
+                              tier: str) -> Dict[str, Any]:
+        """The strongest tier is for work that cannot be split. A splittable task gets the cheaper model instead."""
+        if route["tier"] != models.TIERS[-1]:
+            return route
+        report = self._split_pressure(issue, policy)
+        if report is None:
+            return route
+        cheaper = models.resolve_model("standard", policy["model_tiers"], self.available_models,
+                                       issue.get("implementer_model"))
+        self._emit("split_pressure", issue=issue["issue_id"], facts=report["facts"], reasons=report["reasons"],
+                   strongest=route["model"], used=cheaper.get("model"))
+        if not cheaper.get("model"):
+            return route
+        return dict(cheaper, note="%s (split pressure: %s)" % (cheaper.get("note", ""), sizing.describe(report)))
+
     def _schedule_analysis(self, issue: Dict[str, Any]) -> bool:
         """A strong analysis needs budget and a strong model that the runtime offers. Without both, the owner is asked directly."""
         policy = self._plan()["policy"]
@@ -1319,6 +1351,8 @@ class Scheduler:
                         why, choice["model"], choice["reason"], route["note"])
             if route["routing"] and route["model"] is None:
                 raise ValueError("no configured model is available for this attempt")
+            if role == "implementer":
+                route = self._split_pressure_route(issue, route, policy, tier)
             if role == "implementer" and route["tier"] == "strong" and issue["strong_attempts"] >= budgets["strong_attempts_per_issue"]:
                 raise ValueError("strong attempt budget exhausted")
         except (ValueError, broker.BrokerRejected) as exc:
@@ -1370,6 +1404,10 @@ class Scheduler:
             handle = self.adapter.start(req)
         except Exception as exc:
             self.handles[lease.attempt_id] = {"handle": None, "epoch": lease.epoch, "started_at": now}
+            if role == "implementer" and route["tier"] == "strong":
+                # the worker never ran, so this attempt must not use up the strong-model budget
+                issue["strong_attempts"] = max(0, issue["strong_attempts"] - 1)
+                self.store.put_issue(issue)
             self._record_failure(meta, "infra", now, "adapter failed to start: %s" % exc)
             return
         self.handles[lease.attempt_id] = {"handle": handle, "epoch": lease.epoch, "started_at": now}
@@ -1443,6 +1481,9 @@ class Scheduler:
         phases = self._plan()["phases"]
         if all(self.store.state("phase", "%s/%s" % (self.entity, p["id"])) == "Done" for p in phases):
             self.store.transition("plan", self.entity, "Completed", self.runner_id, {}, now=now)
+            run = self.store.get_run(self.plan_id)
+            run["ended_at"] = now
+            self.store.put_run(self.plan_id, run)
             self._emit("plan_completed")
             self._open_promotion()
 
@@ -1481,12 +1522,32 @@ class Scheduler:
         self.handles.clear()
         self.store.recover(now, self.runner_id)  # releases claims whose lease already lapsed
 
+    def _heartbeat_s(self) -> int:
+        try:
+            return int(self._plan()["policy"]["budgets"]["heartbeat_s"])
+        except Exception:  # noqa: BLE001 - a missing budget only means the default
+            return 30
+
+    def _claim(self, now: float) -> None:
+        """One runner per plan. A second one would fight over claims, retry budgets and tasks."""
+        ttl = self._heartbeat_s() * 2
+        holder = self.store.claim_plan(self.plan_id, self.runner_id, now, ttl, pid=os.getpid())
+        if holder:
+            raise broker.BrokerRejected(
+                "plan %s is already being run by %s. Stop that runner first, or wait %d seconds for its lock to expire."
+                % (self.plan_id, holder, ttl))
+
+    def release(self) -> None:
+        """Give up the plan so another runner may take it. Called when this run stops."""
+        self.store.release_plan(self.plan_id, self.runner_id)
+
     def _pause(self, reason: str, now: float) -> None:
         self._release_all(now, "Cancelled")
         if self.store.state("plan", self.entity) == "Executing":
             self.store.transition("plan", self.entity, "Paused", self.runner_id, {"reason": reason}, now=now)
         run = self.store.get_run(self.plan_id)
         run["paused_reason"] = reason
+        run["ended_at"] = now  # the run wall clock stops with the run, so a resumed run does not inherit idle time
         run.pop("pause_requested", None)  # the request is why we are here; leaving it set reads as "still pausing"
         run.pop("pause_now", None)
         self.store.put_run(self.plan_id, run)
@@ -1506,6 +1567,9 @@ class Scheduler:
         self._release_all(now, "Cancelled")
         humantasks.cancel_for_issues(self.store, [i["issue_id"] for i in self.store.list_issues(self.plan_id)], now)
         self.store.transition("plan", self.entity, "Cancelled", self.runner_id, {"drain": drain}, now=now)
+        run = self.store.get_run(self.plan_id)
+        run["ended_at"] = now
+        self.store.put_run(self.plan_id, run)
         self._emit("cancelled", drain=drain)
 
     def active_attempts(self) -> List[str]:

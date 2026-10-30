@@ -58,6 +58,8 @@ RESULT_EXAMPLE = {"attempt_id": "<attempt_id from task.json>", "epoch": "<epoch 
                   "usage_estimate": {"input_tokens": 0, "output_tokens": 0, "basis": "<how you estimated>"}}
 
 
+ACTIVITY_SCAN_AFTER_S = 60  # how long a worker may be silent before its work directory is checked for signs of life
+
 OUTCOMES = {"implementer": "done", "refiner": "ready", "reviewer": "approve", "investigator": "done", "delegator": "done", "analyst": "done"}
 
 DECISION_EXAMPLE = {"action": "retry", "diagnosis": "<what blocks the task and why>", "guidance": "<optional hints for the next attempt>",
@@ -158,6 +160,10 @@ class CopilotCliAdapter(Adapter):
         subprocess.run(["git", "-c", "core.hooksPath=" + os.devnull, "clone", "--quiet", "--no-hardlinks", self.source_repo, repo],
                        check=True, capture_output=True, env={"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_GLOBAL": os.devnull})
         start = self.base
+        probe_base = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/" + self.base],
+                                    capture_output=True)
+        if probe_base.returncode == 0:
+            start = "refs/remotes/origin/" + self.base  # a fresh clone only knows non-default branches as remote refs
         if req.role == "reviewer":
             # A reviewer must see the code under review, not main. The implementer's branch was fetched into the trusted clone.
             probe = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/" + req.branch], capture_output=True)
@@ -214,7 +220,7 @@ class CopilotCliAdapter(Adapter):
 
     def poll(self, handle: _Handle, now: float) -> Poll:
         if handle.proc.poll() is None:
-            return Poll("running", handle.last_activity, None, None)
+            return Poll("running", self._last_sign_of_work(handle, now), None, None)
         text = "\n".join(handle.tail)
         if handle.cancelled:
             return Poll("finished", handle.last_activity, None, {"kind": "cancelled"})
@@ -253,6 +259,25 @@ class CopilotCliAdapter(Adapter):
         subprocess.run(["docker", "kill", handle.name], capture_output=True)
         if handle.proc.poll() is None:
             handle.proc.kill()
+
+    def _last_sign_of_work(self, handle: _Handle, now: float) -> float:
+        """Printed lines are not the only sign of work: an agent that runs shell commands stays quiet for minutes.
+
+        A reviewer analysing a 1200-line stylesheet printed nothing for ten minutes while its container used 121% CPU,
+        and the inactivity timeout killed it. Files it touches in its work directory count as activity too.
+        """
+        if now - handle.last_activity < ACTIVITY_SCAN_AFTER_S:
+            return handle.last_activity
+        newest = handle.last_activity
+        for root, _dirs, files in os.walk(handle.workdir):
+            for name in files:
+                try:
+                    newest = max(newest, os.path.getmtime(os.path.join(root, name)))
+                except OSError:
+                    continue
+        if newest > handle.last_activity:
+            handle.last_activity = newest
+        return handle.last_activity
 
     def source_path(self, handle: _Handle) -> Optional[str]:
         return os.path.join(handle.workdir, "repo")

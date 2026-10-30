@@ -33,8 +33,13 @@ class RunRefused(Exception):
     pass
 
 
-def import_issues(store: Store, plan_id: str, version: Optional[int], path: str, base_rev: str) -> List[str]:
-    """Load refined issues supplied by a human or an investigator pass. They enter Ready after validation against the approved plan."""
+def import_issues(store: Store, plan_id: str, version: Optional[int], path: str, base_rev: str,
+                  replace: bool = False) -> List[str]:
+    """Load refined issues supplied by a human or an investigator pass. They enter Ready after validation against the approved plan.
+
+    `replace` says the file is the plan's whole issue set, as `import-issues` declares: an issue of this plan that the
+    file no longer names is then superseded instead of silently staying `Ready` for a plan that no longer contains it.
+    """
     stored = store.get_plan(plan_id, version)
     if stored is None:
         raise RunRefused("unknown plan %s" % plan_id)
@@ -43,7 +48,8 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         docs = json.load(fh)
     docs = docs["issues"] if isinstance(docs, dict) else docs
     phases = {p["id"]: p for p in plan["phases"]}
-    added = []
+    leftover = _leftovers(store, plan_id, {doc["issue_id"] for doc in docs}) if replace else []  # refuse before writing
+    added, replaced = [], []
     for doc in docs:
         schemas.validate(doc, ISSUE_SCHEMA, "issue")
         for role, choice in doc.get("model_choices", {}).items():
@@ -63,15 +69,73 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         phase = phases.get(doc["phase_id"])
         if phase is None or not doc["requirement_ids"] or not set(doc["requirement_ids"]) <= set(phase["requirements"]):
             raise RunRefused("issue %s must reference one approved phase and its requirement IDs" % doc["issue_id"])
-        if store.get_issue(doc["issue_id"]):
+        existing = store.get_issue(doc["issue_id"])
+        if existing is not None:
+            _adopt_or_refuse(store, existing, plan_id)
+            if _unchanged(existing, doc):
+                continue  # already imported from this definition
+            store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev,
+                                      **_definition(doc)))
+            replaced.append(doc["issue_id"])
             continue
-        extra = {k: doc[k] for k in ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
-                                      "validation_commands", "working_directory", "parallel_safe", "model_choices") if k in doc}
-        store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev, **extra))
+        store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev, **_definition(doc)))
         for state in ("Refining", "Ready"):
             store.transition("issue", doc["issue_id"], state, "import")
         added.append(doc["issue_id"])
-    return added
+    superseded = _retire(store, plan_id, leftover)
+    store.put_doc("import_report", plan_id, {"added": added, "replaced": replaced, "superseded": superseded})
+    return added + replaced
+
+
+def _leftovers(store: Store, plan_id: str, imported: set) -> List[Dict[str, Any]]:
+    """Issues of this plan that the new document no longer names. A revised plan renames or merges issues, and the old
+    rows would otherwise stay `Ready` and be dispatched by a plan whose phases no longer contain them."""
+    leftovers = [i for i in store.list_issues(plan_id)
+                 if i["issue_id"] not in imported and store.state("issue", i["issue_id"]) not in ("Done", "Cancelled")]
+    landed = sorted(i["issue_id"] for i in leftovers
+                    if i.get("head_rev") or i.get("pr") is not None or store.active_claims_for(i["issue_id"]))
+    if landed:
+        raise RunRefused("issue %s from an earlier version already has work and is not part of this plan version"
+                         % ", ".join(landed))
+    return leftovers
+
+
+def _retire(store: Store, plan_id: str, leftovers: List[Dict[str, Any]]) -> List[str]:
+    retired = []
+    for existing in leftovers:
+        store.transition("issue", existing["issue_id"], "Cancelled", "import", {"reason": "not part of this plan version"})
+        retired.append(existing["issue_id"])
+    return retired
+
+
+_DEFINITION_FIELDS = ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
+                      "validation_commands", "working_directory", "parallel_safe", "model_choices")
+
+
+def _definition(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """The parts of an issue that define the work, so an unchanged re-import stays a no-op."""
+    return {key: doc[key] for key in _DEFINITION_FIELDS if key in doc}
+
+
+def _unchanged(existing: Dict[str, Any], doc: Dict[str, Any]) -> bool:
+    """Compare only the fields the new document states, so fields the harness defaults do not look like a change."""
+    definition = _definition(doc)
+    return plans.canonical({key: existing.get(key) for key in definition}) == plans.canonical(definition)
+
+
+def _adopt_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> None:
+    """A new plan version may replace an issue definition that no worker has touched yet.
+
+    Re-importing used to skip every existing id silently, so a corrected plan never reached the issue it corrected.
+    """
+    issue_id = existing["issue_id"]
+    if existing.get("plan_id") != plan_id:
+        raise RunRefused("issue %s already belongs to plan %s; issue ids are global" % (issue_id, existing.get("plan_id")))
+    state = store.state("issue", issue_id)
+    if existing.get("head_rev") or existing.get("pr") is not None or store.active_claims_for(issue_id) or \
+            state not in ("Inbox", "Refining", "Ready", "Blocked"):
+        raise RunRefused("issue %s is already %s and has work recorded; a new plan version cannot replace it"
+                         % (issue_id, state))
 
 
 def trusted_clone(home: str, source_repo: str, base: str = "main", remote: Optional[str] = None, token_file: Optional[str] = None) -> GitRepo:
@@ -157,6 +221,39 @@ def ensure_run_branch(clone_path: str, remote: str, base: str, run: str, token_f
         raise RunRefused("could not create the run branch %s: %s" % (run, created.stderr.strip()[-200:]))
 
 
+def discard_run_branch(store: Store, plan_id: str, version: Optional[int], repo_root: str,
+                       remote_url: Optional[str] = None) -> Dict[str, Any]:
+    """Delete the protected run branch of a stopped plan, so the next run starts from the base branch again.
+
+    Nothing else ever deletes a branch: a cancelled run keeps what it merged on its own branch, and `main` was never
+    touched. This is the owner's explicit way to throw that work away.
+    """
+    stored = store.get_plan(plan_id, version)
+    if stored is None:
+        raise RunRefused("unknown plan %s" % plan_id)
+    plan = stored["plan"]
+    branch = plans.run_branch(plan)
+    if not branch:
+        raise RunRefused("plan %s has no run branch; its work lands on %s" % (plan_id, plans.base_branch(plan)))
+    state = store.state("plan", approval.plan_entity(plan_id, plan["version"]))
+    if state in ("Executing", "Paused"):
+        raise RunRefused("a plan that is %s still owns its run branch; cancel it first" % state)
+    home = store.home
+    token_file = os.path.join(home, "broker.token")
+    token_file = token_file if os.path.isfile(token_file) else None
+    remote = remote_url or repo_root
+    clone = trusted_clone(home, repo_root, plans.base_branch(plan), remote_url, token_file)
+    known = git_with_token(["ls-remote", "--heads", remote, "refs/heads/" + branch], clone.path, token_file)
+    if known.returncode != 0:
+        raise RunRefused("could not inspect the run branch %s: %s" % (branch, known.stderr.strip()[-200:]))
+    if not known.stdout.strip():
+        return {"plan_id": plan_id, "branch": branch, "deleted": False}
+    removed = git_with_token(["push", "--quiet", remote, "--delete", branch], clone.path, token_file)
+    if removed.returncode != 0:
+        raise RunRefused("could not delete the run branch %s: %s" % (branch, removed.stderr.strip()[-200:]))
+    return {"plan_id": plan_id, "branch": branch, "deleted": True}
+
+
 def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dry_run: bool, remote_url: Optional[str],
                     repo_slug: Optional[str], owner: str) -> Scheduler:
     home = store.home
@@ -223,6 +320,10 @@ def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit, 
     except KeyboardInterrupt:
         emit({"event": "interrupted", "note": "leases expire on their own; run `resume` to reconcile and continue"})
         return 130
+    finally:
+        release = getattr(sched, "release", None)
+        if callable(release):
+            release()
 
 
 def request_cancel(store: Store, plan_id: str, version: int, drain: bool) -> str:
@@ -253,6 +354,7 @@ def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = Fal
     store.put_run(plan_id, run)
     if not store.active_claims() and not run.get("checks"):
         store.transition("plan", entity, "Paused", "operator", {"reason": "paused by the operator"})
+        run["ended_at"] = time.time()
         run.pop("pause_requested", None)  # nothing was draining, so the request is already fulfilled
         run.pop("pause_now", None)
         store.put_run(plan_id, run)

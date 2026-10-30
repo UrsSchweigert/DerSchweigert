@@ -151,6 +151,14 @@ class GitRepo(Repo):
         """Does a file or directory exist at the base revision?"""
         return self._exec("cat-file", "-e", "%s:%s" % (self.base, path.strip("/"))).returncode == 0
 
+    def file_size(self, path: str) -> int:
+        """Bytes of a file at the base revision, 0 when it is unknown or is not a blob."""
+        out = self._exec("cat-file", "-s", "%s:%s" % (self.base, path.strip("/")))
+        try:
+            return int(out.stdout.strip()) if out.returncode == 0 else 0
+        except ValueError:
+            return 0
+
     def diff_text(self, branch: str, limit: int = 60000) -> str:
         return self._git("diff", self.merge_base(branch), "refs/heads/" + branch)[:limit]
 
