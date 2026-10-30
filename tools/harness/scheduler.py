@@ -1622,6 +1622,11 @@ class Scheduler:
                                   {"reason": "the owner merged the finished run", "pull_request": number}, now=now)
         self._emit("promotion_merged", number=number, base=promotion.get("base", ""))
 
+    def promotion_waiting(self) -> bool:
+        """The finished run still waits for the owner's merge, so the runner keeps watching its pull request."""
+        promotion = self.store.get_run(self.plan_id).get("promotion") or {}
+        return bool(promotion.get("number")) and not promotion.get("merged") and not promotion.get("problem")
+
     def _promotion_problem(self, base: str, problem: str) -> None:
         """Record why the finished run cannot be offered, so the plan does not look simply "done" in the UI."""
         run = self.store.get_run(self.plan_id)

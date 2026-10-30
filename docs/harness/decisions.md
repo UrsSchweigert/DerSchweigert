@@ -584,6 +584,10 @@ for now". The harness still never merges into the base branch. Because the owner
 the harness reads the pull request back (`pr_merged`) on every pass of a `Completed` plan and closes its own ask as soon
 as the merge is real — the task is a reminder with an audit trail, not a gate the owner has to answer.
 
+Watching needs a process: `run_loop` used to stop the moment a plan was no longer `Executing`, which would have left the
+ask open forever. A finished run whose pull request is still open now keeps ticking at `PROMOTION_POLL_S` (30 s) instead
+of stopping, bounded by `PROMOTION_WATCH_S` (6 h), so an abandoned runner cannot watch a pull request indefinitely.
+
 **Sizing work down was left to the owner.** When the refiner said a task could not be made small enough for one
 implementer, the issue was blocked straight into a decision task: the owner was handed the raw judgement and had to
 invent the split. Sizing is an analysis, so that path now goes through triage first: the `analyst` (strong tier — the only

@@ -22,6 +22,8 @@ from .scheduler import Scheduler, new_issue
 from .store import Store
 
 MODEL_CACHE_TTL_S = 24 * 3600
+PROMOTION_POLL_S = 30            # how often a finished run re-reads its pull request while it waits for the merge
+PROMOTION_WATCH_S = 6 * 3600     # an unattended finished run stops watching after this long
 ISSUE_SCHEMA = {
     "issue_id": str, "phase_id": str, "requirement_ids": [str], "title?": str, "outcomes": [str], "acceptance_criteria": [str],
     "non_goals": [str], "code_anchors": [str], "contract_paths?": [str], "deps?": [str], "validation_commands?": [str],
@@ -299,6 +301,7 @@ def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit, 
     An unexpected error in one pass is reported and retried. Repeated errors pause the plan instead of killing the process."""
     sched.start()
     ticks = errors = 0
+    watch_until = time.time() + PROMOTION_WATCH_S if sched.promotion_waiting() else None
     try:
         while True:
             try:
@@ -314,6 +317,10 @@ def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit, 
                     return 1
             ticks += 1
             state = sched.store.state("plan", sched.entity)
+            if state == "Completed" and watch_until is not None and time.time() < watch_until and sched.promotion_waiting():
+                # A finished run waits for one human step. Keep reading its pull request so the ask closes itself.
+                time.sleep(max(interval, PROMOTION_POLL_S))
+                continue
             if state != "Executing":
                 emit({"event": "stopped", "plan_state": state})
                 return 0
