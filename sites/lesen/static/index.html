@@ -26,12 +26,16 @@
         }
 
         :root {
-            --ink: #223e35;
-            --muted: #61716a;
-            --green: #28694e;
-            --paper: #fcfdfa;
-            --line: #d5e1d8;
-            --coral: #b84937;
+            --ink: #173c68;
+            --muted: #58718a;
+            --green: #65ad35;
+            --paper: #f5fbff;
+            --line: #c9e5f4;
+            --coral: #a94f00;
+            --blue: #0759b7;
+            --blue-dark: #06468f;
+            --orange: #a94f00;
+            --yellow: #ffca19;
         }
 
         * {
@@ -41,9 +45,16 @@
         body {
             margin: 0;
             color: var(--ink);
-            background: var(--paper);
             font-family: Andika, "Trebuchet MS", sans-serif;
             letter-spacing: 0;
+            min-height: 100vh;
+            /* Subtle blue geometric pattern, CSS-only (no network asset). */
+            background:
+                radial-gradient(ellipse at 8% 10%, rgba(125, 216, 242, .25), transparent 31rem),
+                repeating-linear-gradient(135deg, rgba(7, 89, 183, .05) 0, rgba(7, 89, 183, .05) 2px, transparent 2px, transparent 64px),
+                repeating-linear-gradient(45deg, rgba(7, 89, 183, .04) 0, rgba(7, 89, 183, .04) 2px, transparent 2px, transparent 64px),
+                var(--paper);
+            background-attachment: fixed;
         }
 
         button,
@@ -57,7 +68,7 @@
 
         button:focus-visible,
         input:focus-visible {
-            outline: 3px solid #c16a19;
+            outline: 3px solid var(--orange);
             outline-offset: 4px;
         }
 
@@ -70,641 +81,21 @@
             display: none !important;
         }
 
-        main {
-            max-width: 1040px;
-            margin: auto;
-            padding: 46px 28px 32px;
-        }
-
-        h1 {
-            font-family: Georgia, serif;
-            font-size: 38px;
-            line-height: 1.15;
-            margin: 0 0 32px;
-            font-weight: normal;
-        }
-
-        h2,
-        legend {
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        fieldset {
-            margin: 0;
-            padding: 0;
-            border: 0;
-            min-width: 0;
-        }
-
-        legend {
-            padding: 0;
-            margin-bottom: 16px;
-        }
-
-        .setup-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1.6fr) minmax(230px, 1fr);
-            gap: 48px;
-        }
-
-        .letter-group+.letter-group {
-            margin-top: 32px;
-        }
-
-        .letters {
-            display: grid;
-            grid-template-columns: repeat(7, minmax(0, 1fr));
-            gap: 9px;
-        }
-
-        .letter {
-            min-height: 52px;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            background: white;
-            color: var(--ink);
-            font-size: 25px;
-            transition: background .15s, border-color .15s;
-        }
-
-        .letter[aria-pressed="true"] {
-            background: #dcefe2;
-            border-color: var(--green);
-            color: #174b33;
-            box-shadow: inset 0 -3px 0 #28694e;
-        }
-
-        .letter:hover {
-            border-color: var(--green);
-        }
-
-        .selection-count {
-            color: var(--muted);
-            font-weight: normal;
-            margin-left: 8px;
-            font-size: 13px;
-        }
-
-        .deck-options {
-            border-left: 1px solid var(--line);
-            padding-left: 36px;
-        }
-
-        .patterns {
-            display: grid;
-            gap: 9px;
-        }
-
-        .pattern {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            padding: 13px 14px;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        .pattern:has(input:checked) {
-            border-color: var(--green);
-            background: #edf6f0;
-        }
-
-        .pattern:has(input:disabled) {
-            opacity: 0.5;
-            cursor: default;
-        }
-
-        .words-mode-note {
-            font-size: 13px;
-            color: var(--muted);
-            margin: 8px 0 0 0;
-            padding-left: 35px;
-        }
-
-        input[type="radio"] {
-            accent-color: var(--green);
-            width: 17px;
-            height: 17px;
-            margin: 0;
-            flex: none;
-        }
-
-        .pattern strong {
-            font-size: 20px;
-            min-width: 72px;
-        }
-
-        .pattern span {
-            font-size: 12px;
-            color: var(--muted);
-            min-width: 0;
-            overflow-wrap: anywhere;
-        }
-
-        .pattern-card {
-            display: block;
-        }
-
-        .pattern-head {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            cursor: pointer;
-        }
-
-        .pattern-subs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-            padding-left: 29px;
-        }
-
-        .pattern-sub {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            padding: 4px 10px;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .pattern-sub:has(input:checked) {
-            border-color: var(--green);
-            background: #edf6f0;
-        }
-
-        .pattern-subs span {
-            font-size: 16px;
-            color: var(--ink);
-        }
-
-        input[type="checkbox"] {
-            accent-color: var(--green);
-            width: 17px;
-            height: 17px;
-            margin: 0;
-            flex: none;
-        }
-
-        .number-label {
-            display: block;
-            font-size: 16px;
-            font-weight: 700;
-            margin: 28px 0 12px;
-        }
-
-        input[type="number"] {
-            width: 100%;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            padding: 12px 14px;
-            background: white;
-            color: var(--ink);
-            font-size: 20px;
-        }
-
-        .setup-bottom {
-            border-top: 1px solid var(--line);
-            margin-top: 36px;
-            padding-top: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 20px;
-        }
-
-        .error {
-            margin: 0;
-            color: #a32c24;
-            font-size: 14px;
-        }
-
-        .adult-note {
-            margin-top: 28px;
-            padding: 16px 20px;
-            background-color: rgba(88, 113, 138, 0.08);
-            border-radius: 6px;
-            font-size: 14px;
-            color: var(--muted);
-        }
-
-        .adult-note summary {
-            cursor: pointer;
-            font-weight: 700;
-            color: var(--ink);
-            margin-bottom: 12px;
-            user-select: none;
-        }
-
-        .adult-note summary:hover {
-            color: var(--blue);
-        }
-
-        .adult-note p {
-            margin: 12px 0;
-            line-height: 1.5;
-        }
-
-        .adult-note p:first-of-type {
-            margin-top: 0;
-        }
-
-        .adult-note p:last-of-type {
-            margin-bottom: 0;
-        }
-
-        .primary,
-        .action,
-        .quiet {
-            border-radius: 6px;
-            padding: 14px 22px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            font-weight: 700;
-            border: 1px solid transparent;
-        }
-
-        .primary {
-            background: var(--green);
-            color: white;
-        }
-
-        .primary:hover {
-            background: #1b523b;
-        }
-
-        .quiet {
-            background: transparent;
-            color: var(--ink);
-            border-color: var(--line);
-            padding: 10px 14px;
-        }
-
-        .icon {
-            width: 20px;
-            height: 20px;
-            fill: none;
-            stroke: currentColor;
-            stroke-width: 2;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            flex: none;
-        }
-
-        .practice-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-
-        .practice-top h1 {
-            margin: 0;
-            font-size: 30px;
-        }
-
-        .practice-inner {
-            max-width: 660px;
-            margin: auto;
-        }
-
-        .stats {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            font-size: 14px;
-            color: var(--muted);
-            margin: 0 0 12px;
-        }
-
-        .stats strong {
-            color: var(--ink);
-        }
-
-        progress {
-            display: block;
-            appearance: none;
-            width: 100%;
-            height: 7px;
-            border: none;
-            background: #e4eae4;
-            border-radius: 5px;
-            overflow: hidden;
-            margin-bottom: 24px;
-        }
-
-        progress::-webkit-progress-bar {
-            background: #e4eae4;
-        }
-
-        progress::-webkit-progress-value {
-            background: var(--green);
-            transition: width .2s;
-        }
-
-        progress::-moz-progress-bar {
-            background: var(--green);
-        }
-
-        .reading-card {
-            position: relative;
-            height: 290px;
-            border: 1px solid #cbded1;
-            border-radius: 8px;
-            background: #edf6f0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        .reading-card::before,
-        .reading-card::after {
-            content: "";
-            position: absolute;
-            width: 64px;
-            height: 64px;
-            border: 1px solid #ccdfd1;
-            border-radius: 50%;
-            pointer-events: none;
-        }
-
-        .reading-card::before {
-            top: -32px;
-            left: -32px;
-        }
-
-        .reading-card::after {
-            bottom: -32px;
-            right: -32px;
-        }
-
-        #syllable {
-            font-family: Andika, "Trebuchet MS", sans-serif;
-            font-weight: normal;
-            font-size: 100px;
-            line-height: 1.1;
-            margin: 0;
-            padding: 16px;
-        }
-
-        .review-label {
-            position: absolute;
-            top: 18px;
-            left: 20px;
-            color: var(--green);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-            margin-top: 20px;
-        }
-
-        .speak-row {
-            display: flex;
-            justify-content: center;
-            margin-top: 16px;
-        }
-
-        .speak-button {
-            color: var(--blue);
-            background: #f0faff;
-            border-color: var(--line);
-            font-size: 15px;
-        }
-
-        .speak-button:hover {
-            background: #e1f4ff;
-            border-color: var(--blue);
-        }
-
-        .action {
-            min-height: 58px;
-            font-size: 16px;
-        }
-
-        .retry {
-            border-color: #e3b7ad;
-            background: #fff2ec;
-            color: var(--coral);
-        }
-
-        .retry:hover {
-            background: #ffe5da;
-        }
-
-        .correct {
-            background: var(--green);
-            color: white;
-        }
-
-        .correct:hover {
-            background: #1b523b;
-        }
-
-        .feedback {
-            text-align: center;
-            color: var(--muted);
-            font-size: 14px;
-            min-height: 40px;
-            margin: 18px 0 0;
-        }
-
-        .complete {
-            position: relative;
-            text-align: center;
-            padding: 35px 0;
-            overflow: hidden;
-        }
-
-        .star-rain {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            overflow: hidden;
-        }
-
-        .star-rain .star {
-            position: absolute;
-            top: -10%;
-            width: 16px;
-            height: 16px;
-            color: var(--yellow);
-            opacity: 0;
-            animation-name: star-fall;
-            animation-timing-function: ease-in;
-            animation-fill-mode: forwards;
-        }
-
-        @keyframes star-fall {
-            0% {
-                opacity: 0;
-                transform: translateY(0) rotate(0deg) scale(.6);
-            }
-
-            12% {
-                opacity: 1;
-            }
-
-            100% {
-                opacity: 0;
-                transform: translateY(260px) rotate(220deg) scale(1);
-            }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            .star-rain {
-                display: none;
-            }
-        }
-
-        .complete-mark {
-            display: inline-flex;
-            background: #dcefe2;
-            color: var(--green);
-            border-radius: 50%;
-            padding: 20px;
-            margin-bottom: 24px;
-        }
-
-        .complete-mark svg {
-            width: 40px;
-            height: 40px;
-        }
-
-        .complete h1 {
-            margin-bottom: 16px;
-        }
-
-        .complete p {
-            color: var(--muted);
-            margin-bottom: 30px;
-        }
-
-        .complete-actions {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 12px;
-        }
-
-        footer {
-            max-width: 1040px;
-            padding: 20px 28px 28px;
-            margin: auto;
-            color: var(--muted);
-            font-size: 12px;
-        }
-
-        @media (max-width: 680px) {
-            main {
-                padding: 30px 20px 20px;
-            }
-
-            h1 {
-                font-size: 30px;
-                margin-bottom: 26px;
-            }
-
-            .setup-grid {
-                grid-template-columns: 1fr;
-                gap: 30px;
-            }
-
-            .deck-options {
-                border-left: 0;
-                border-top: 1px solid var(--line);
-                padding: 24px 0 0;
-            }
-
-            .letters {
-                gap: 7px;
-            }
-
-            .letter {
-                min-height: 46px;
-                font-size: 23px;
-            }
-
-            .setup-bottom {
-                align-items: stretch;
-                flex-direction: column;
-            }
-
-            .reading-card {
-                height: 260px;
-            }
-
-            .practice-top h1 {
-                font-size: 25px;
-            }
-
-            .action {
-                padding: 14px 10px;
-                gap: 7px;
-                font-size: 14px;
-            }
-
-            .stats {
-                font-size: 13px;
-                gap: 8px;
-            }
-
-            footer {
-                padding-left: 20px;
-            }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            * {
-                transition: none !important;
-            }
-        }
-
-        :root {
-            --ink: #173c68;
-            --muted: #58718a;
-            --green: #65ad35;
-            --paper: #f5fbff;
-            --line: #c9e5f4;
-            --coral: #a94f00;
-            --blue: #0759b7;
-            --blue-dark: #06468f;
-            --orange: #a94f00;
-            --yellow: #ffca19;
-        }
-
-        body {
-            min-height: 100vh;
-            /* Subtle blue geometric pattern, CSS-only (no network asset). */
-            background:
-                radial-gradient(ellipse at 8% 10%, rgba(125, 216, 242, .25), transparent 31rem),
-                repeating-linear-gradient(135deg, rgba(7, 89, 183, .05) 0, rgba(7, 89, 183, .05) 2px, transparent 2px, transparent 64px),
-                repeating-linear-gradient(45deg, rgba(7, 89, 183, .04) 0, rgba(7, 89, 183, .04) 2px, transparent 2px, transparent 64px),
-                var(--paper);
-            background-attachment: fixed;
-        }
-
         main,
         footer {
             max-width: 1120px;
         }
 
         main {
-            padding-top: 34px;
+            margin: auto;
+            padding: 34px 28px 32px;
+        }
+
+        footer {
+            padding: 20px 28px 28px;
+            margin: auto;
+            color: var(--muted);
+            font-size: 12px;
         }
 
         .setup-intro {
@@ -803,6 +194,19 @@
         legend {
             color: var(--blue);
             font-size: 17px;
+            font-weight: 700;
+        }
+
+        fieldset {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            min-width: 0;
+        }
+
+        legend {
+            padding: 0;
+            margin-bottom: 16px;
         }
 
         #setup-form {
@@ -813,13 +217,28 @@
             box-shadow: 0 15px 45px rgba(21, 83, 130, .09);
         }
 
+        .setup-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.6fr) minmax(230px, 1fr);
+            gap: 48px;
+        }
+
         .letter-group+.letter-group {
             margin-top: 26px;
         }
 
+        .letters {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 9px;
+        }
+
         .letter {
             min-height: 54px;
+            border: 1px solid var(--line);
             border-radius: 14px;
+            background: white;
+            color: var(--ink);
             font-size: 26px;
             font-weight: 700;
             box-shadow: 0 2px 0 rgba(7, 89, 183, .04);
@@ -845,13 +264,31 @@
             transform: translateY(-2px);
         }
 
+        .selection-count {
+            color: var(--muted);
+            font-weight: normal;
+            margin-left: 8px;
+            font-size: 13px;
+        }
+
         .deck-options {
             border-left: 2px dashed var(--line);
             padding-left: 30px;
         }
 
+        .patterns {
+            display: grid;
+            gap: 9px;
+        }
+
         .pattern {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            padding: 13px 14px;
+            border: 1px solid var(--line);
             border-radius: 14px;
+            cursor: pointer;
             transition: background .15s, border-color .15s, transform .15s;
         }
 
@@ -861,11 +298,53 @@
             box-shadow: 0 3px 10px rgba(7, 89, 183, .08);
         }
 
+        .pattern:has(input:disabled) {
+            opacity: 0.5;
+            cursor: default;
+        }
+
         .pattern:hover {
             transform: translateX(2px);
         }
 
+        .words-mode-note {
+            font-size: 13px;
+            color: var(--muted);
+            margin: 8px 0 0 0;
+            padding-left: 35px;
+        }
+
+        input[type="radio"] {
+            accent-color: var(--blue);
+            width: 17px;
+            height: 17px;
+            margin: 0;
+            flex: none;
+        }
+
+        input[type="checkbox"] {
+            accent-color: var(--blue);
+            width: 17px;
+            height: 17px;
+            margin: 0;
+            flex: none;
+        }
+
+        .pattern strong {
+            color: var(--blue);
+            font-size: 20px;
+            min-width: 72px;
+        }
+
+        .pattern span {
+            font-size: 12px;
+            color: var(--muted);
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
         .pattern-card {
+            display: block;
             cursor: default;
         }
 
@@ -886,8 +365,30 @@
             box-shadow: 0 3px 10px rgba(7, 89, 183, .08);
         }
 
+        .pattern-head {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .pattern-subs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            padding-left: 29px;
+        }
+
         .pattern-sub {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding: 4px 10px;
+            border: 1px solid var(--line);
             border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
         }
 
         .pattern-sub:has(input:checked) {
@@ -895,82 +396,26 @@
             background: #e6f5ff;
         }
 
-        .sentence-group {
-            margin-top: 32px;
-            padding-top: 24px;
-            border-top: 2px dashed var(--line);
-        }
-
-        .sentence-intro {
-            margin: 0 0 14px;
-            color: var(--muted);
-            font-size: 14px;
-        }
-
-        .sentence-hint {
-            margin: 10px 0 0;
-            color: var(--muted);
-            font-size: 13px;
-        }
-
-        .sentences-list {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 9px;
-            max-height: 340px;
-            overflow-y: auto;
-        }
-
-        .sentences-list li {
-            margin: 0;
-        }
-
-        .sentence-card {
-            width: 100%;
-            min-height: 44px;
-            padding: 10px 14px;
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            background: white;
-            color: var(--ink);
-            font: inherit;
+        .pattern-subs span {
             font-size: 16px;
-            line-height: 1.35;
-            text-align: left;
-            overflow-wrap: anywhere;
-            transition: background .15s, border-color .15s, box-shadow .15s;
+            color: var(--ink);
         }
 
-        .sentence-card[aria-pressed="true"] {
-            border-color: var(--blue);
-            background: #e6f5ff;
-            color: var(--blue);
-            box-shadow: inset 0 -3px 0 var(--blue);
-        }
-
-        .sentence-card:hover {
-            border-color: var(--blue);
-        }
-
-        .sentence-group .link-button {
-            margin-top: 12px;
-            font-size: 14px;
-        }
-
-        input[type="radio"],
-        input[type="checkbox"] {
-            accent-color: var(--blue);
-        }
-
-        .pattern strong {
-            color: var(--blue);
+        .number-label {
+            display: block;
+            font-size: 16px;
+            font-weight: 700;
+            margin: 28px 0 12px;
         }
 
         input[type="number"] {
+            width: 100%;
+            border: 1px solid var(--line);
             border-radius: 14px;
+            padding: 12px 14px;
+            background: white;
+            color: var(--ink);
+            font-size: 20px;
         }
 
         .word-length-control {
@@ -987,24 +432,71 @@
         }
 
         .setup-bottom {
+            border-top: 1px solid #e7f0f6;
             margin-top: 28px;
             padding-top: 22px;
-            border-top-color: #e7f0f6;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
         }
 
-        button:focus-visible,
-        input:focus-visible {
-            outline-color: var(--orange);
+        .error {
+            margin: 0;
+            color: #a32c24;
+            font-size: 14px;
+        }
+
+        .adult-note {
+            margin-top: 28px;
+            padding: 16px 20px;
+            background-color: rgba(88, 113, 138, 0.08);
+            border-radius: 6px;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .adult-note summary {
+            cursor: pointer;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 12px;
+            user-select: none;
+        }
+
+        .adult-note summary:hover {
+            color: var(--blue);
+        }
+
+        .adult-note p {
+            margin: 12px 0;
+            line-height: 1.5;
+        }
+
+        .adult-note p:first-of-type {
+            margin-top: 0;
+        }
+
+        .adult-note p:last-of-type {
+            margin-bottom: 0;
         }
 
         .primary,
         .action,
         .quiet {
             border-radius: 14px;
+            padding: 14px 22px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-weight: 700;
+            border: 1px solid transparent;
         }
 
         .primary {
             background: var(--blue);
+            color: white;
             box-shadow: 0 5px 0 var(--blue-dark), 0 9px 18px rgba(7, 89, 183, .18);
             transition: transform .15s, box-shadow .15s, background .15s;
         }
@@ -1016,20 +508,74 @@
         }
 
         .quiet {
+            background: transparent;
+            color: var(--ink);
+            border-color: var(--line);
+            padding: 10px 14px;
             border-radius: 12px;
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex: none;
+        }
+
+        .practice-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .practice-top h1 {
+            margin: 0;
+            font-size: 30px;
+        }
+
+        .practice-inner {
+            max-width: 660px;
+            margin: auto;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--muted);
+            margin: 0 0 12px;
         }
 
         .stats strong {
             color: var(--blue);
         }
 
-        progress,
+        progress {
+            display: block;
+            appearance: none;
+            width: 100%;
+            height: 7px;
+            border: none;
+            background: #dceef7;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
         progress::-webkit-progress-bar {
             background: #dceef7;
         }
 
         progress::-webkit-progress-value {
             background: var(--blue);
+            transition: width .2s;
         }
 
         progress::-moz-progress-bar {
@@ -1037,25 +583,88 @@
         }
 
         .reading-card {
+            position: relative;
+            height: 290px;
             border: 2px solid #a9dcf3;
             border-radius: 24px;
             background: linear-gradient(145deg, #e1f7ff, #f0fbff 55%, #fff4dc);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
             box-shadow: inset 0 0 0 8px rgba(255, 255, 255, .38), 0 10px 22px rgba(10, 83, 145, .08);
         }
 
         .reading-card::before,
         .reading-card::after {
+            content: "";
+            position: absolute;
+            width: 64px;
+            height: 64px;
             border: 2px solid rgba(7, 89, 183, .13);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .reading-card::before {
+            top: -32px;
+            left: -32px;
+        }
+
+        .reading-card::after {
+            bottom: -32px;
+            right: -32px;
         }
 
         #syllable {
             color: var(--blue);
+            font-family: Andika, "Trebuchet MS", sans-serif;
             font-weight: 700;
+            font-size: 100px;
+            line-height: 1.1;
+            margin: 0;
+            padding: 16px;
             text-shadow: 0 3px 0 rgba(7, 89, 183, .08);
         }
 
         .review-label {
+            position: absolute;
+            top: 18px;
+            left: 20px;
             color: var(--orange);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-top: 20px;
+        }
+
+        .speak-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
+        }
+
+        .speak-button {
+            color: var(--blue);
+            background: #f0faff;
+            border-color: var(--line);
+            font-size: 15px;
+        }
+
+        .speak-button:hover {
+            background: #e1f4ff;
+            border-color: var(--blue);
+        }
+
+        .action {
+            min-height: 58px;
+            font-size: 16px;
         }
 
         .retry {
@@ -1070,84 +679,97 @@
 
         .correct {
             background: var(--green);
+            color: white;
         }
 
         .correct:hover {
             background: #4d9025;
         }
 
+        .feedback {
+            text-align: center;
+            color: var(--muted);
+            font-size: 14px;
+            min-height: 40px;
+            margin: 18px 0 0;
+        }
+
+        .complete {
+            position: relative;
+            text-align: center;
+            padding: 35px 0;
+            overflow: hidden;
+        }
+
+        .star-rain {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .star-rain .star {
+            position: absolute;
+            top: -10%;
+            width: 16px;
+            height: 16px;
+            color: var(--yellow);
+            opacity: 0;
+            animation-name: star-fall;
+            animation-timing-function: ease-in;
+            animation-fill-mode: forwards;
+        }
+
+        @keyframes star-fall {
+            0% {
+                opacity: 0;
+                transform: translateY(0) rotate(0deg) scale(.6);
+            }
+
+            12% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(260px) rotate(220deg) scale(1);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .star-rain {
+                display: none;
+            }
+        }
+
         .complete-mark {
+            display: inline-flex;
             background: #e9f8dc;
+            color: var(--green);
+            border-radius: 50%;
+            padding: 20px;
+            margin-bottom: 24px;
         }
 
-        @media (max-width: 680px) {
-            main {
-                padding: 18px 20px 20px;
-            }
-
-            h1 {
-                margin-bottom: 0;
-                font-size: 30px;
-            }
-
-            .setup-intro {
-                min-height: 0;
-                gap: 8px;
-                padding: 8px 4px 20px;
-            }
-
-            .intro-description {
-                font-size: 14px;
-            }
-
-            .hero-logo {
-                width: clamp(92px, 26vw, 150px);
-                margin-right: -8px;
-            }
-
-            #setup-form {
-                padding: 24px 20px 22px;
-                border-radius: 20px;
-            }
-
-            .deck-options {
-                border-left: 0;
-                border-top: 2px dashed var(--line);
-                padding: 22px 0 0;
-            }
+        .complete-mark svg {
+            width: 40px;
+            height: 40px;
         }
 
-        @media (orientation: landscape) and (max-height: 500px) {
-            html,
-            body {
-                height: auto;
-                overflow-y: auto;
-            }
+        .complete h1 {
+            margin-bottom: 16px;
+        }
 
-            main {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: flex-start;
-                margin: 0 auto;
-                padding-top: 14px;
-                padding-bottom: 14px;
-                max-height: none;
-                overflow: visible;
-            }
+        .complete p {
+            color: var(--muted);
+            margin-bottom: 30px;
+        }
 
-            .setup-intro {
-                min-height: 0;
-                padding-bottom: 12px;
-            }
-
-            .hero-logo {
-                width: clamp(80px, 14vw, 120px);
-            }
-
-            .reading-card {
-                height: clamp(140px, 30vh, 220px);
-            }
+        .complete-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
         }
 
         .confirm-dialog {
@@ -1254,6 +876,124 @@
             font: inherit;
             padding: 0;
         }
+
+        @media (max-width: 680px) {
+            main {
+                padding: 18px 20px 20px;
+            }
+
+            h1 {
+                margin-bottom: 0;
+                font-size: 30px;
+            }
+
+            .setup-intro {
+                min-height: 0;
+                gap: 8px;
+                padding: 8px 4px 20px;
+            }
+
+            .intro-description {
+                font-size: 14px;
+            }
+
+            .hero-logo {
+                width: clamp(92px, 26vw, 150px);
+                margin-right: -8px;
+            }
+
+            #setup-form {
+                padding: 24px 20px 22px;
+                border-radius: 20px;
+            }
+
+            .deck-options {
+                border-left: 0;
+                border-top: 2px dashed var(--line);
+                padding: 22px 0 0;
+            }
+
+            .setup-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+
+            .letters {
+                gap: 7px;
+            }
+
+            .letter {
+                min-height: 46px;
+                font-size: 23px;
+            }
+
+            .setup-bottom {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .reading-card {
+                height: 260px;
+            }
+
+            .practice-top h1 {
+                font-size: 25px;
+            }
+
+            .action {
+                padding: 14px 10px;
+                gap: 7px;
+                font-size: 14px;
+            }
+
+            .stats {
+                font-size: 13px;
+                gap: 8px;
+            }
+
+            footer {
+                padding-left: 20px;
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            html,
+            body {
+                height: auto;
+                overflow-y: auto;
+            }
+
+            main {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-start;
+                margin: 0 auto;
+                padding-top: 14px;
+                padding-bottom: 14px;
+                max-height: none;
+                overflow: visible;
+            }
+
+            .setup-intro {
+                min-height: 0;
+                padding-bottom: 12px;
+            }
+
+            .hero-logo {
+                width: clamp(80px, 14vw, 120px);
+            }
+
+            .reading-card {
+                height: clamp(140px, 30vh, 220px);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                transition: none !important;
+            }
+        }
     </style>
 </head>
 
@@ -1290,22 +1030,12 @@
                     </div>
                     <div class="deck-options">
                         <fieldset>
-                            <legend id="deck-legend"></legend>
-                            <div class="patterns">
-                                <label class="pattern" id="deck-letters-label"><input type="radio" name="deck" value="LETTERS"
-                                        checked><strong id="deck-letters-title"></strong><span
-                                        id="deck-letters-desc"></span></label>
-                                <label class="pattern" id="deck-sentences-label"><input type="radio" name="deck" value="SENTENCES"><strong id="deck-sentences-title"></strong><span id="deck-sentences-desc"></span></label>
-                                <label class="pattern" id="deck-mixed-label"><input type="radio" name="deck" value="MIXED"><strong id="deck-mixed-title"></strong><span id="deck-mixed-desc"></span></label>
-                            </div>
-                        </fieldset>
-                        <fieldset>
-                            <legend id="pattern-legend">Buchstabenfolge</legend>
+                            <legend id="mode-legend"></legend>
                             <div class="patterns">
                                 <div class="pattern pattern-card" id="patterns-mode-label">
-                                    <label class="pattern-head"><input type="radio" name="pattern" value="PATTERNS"
-                                            checked><strong id="pattern-patterns-label">Muster</strong><span
-                                            id="pattern-patterns-desc">Silbenmuster kombinieren</span></label>
+                                    <label class="pattern-head"><input type="radio" name="mode" value="PATTERNS"
+                                            checked><strong id="mode-patterns-title"></strong><span
+                                            id="mode-patterns-desc"></span></label>
                                     <div class="pattern-subs">
                                         <label class="pattern-sub"><input type="checkbox" name="subpattern" value="ma"
                                                 checked><span id="subpattern-ma-label">ma</span></label>
@@ -1317,8 +1047,9 @@
                                                 id="subpattern-ama-label">ama</span></label>
                                     </div>
                                 </div>
-                                <label class="pattern" id="words-mode-label"><input type="radio" name="pattern" value="WORDS"><strong id="pattern-words-label">Wörter</strong><span><span id="words-match-count">0</span> <span id="words-mode-desc">Wörter passen</span></span></label>
-                                <label class="pattern" id="flop-mode-label"><input type="radio" name="pattern" value="FLOP"><strong id="pattern-flop-label">Flops</strong><span id="pattern-flop-desc">Die schwierigsten Karten</span></label>
+                                <label class="pattern" id="words-mode-label"><input type="radio" name="mode" value="WORDS"><strong id="mode-words-title"></strong><span><span id="words-match-count">0</span> <span id="words-mode-desc"></span></span></label>
+                                <label class="pattern" id="sentences-mode-label"><input type="radio" name="mode" value="SENTENCES"><strong id="mode-sentences-title"></strong><span><span id="sentences-match-count">0</span> <span id="sentences-mode-desc"></span></span></label>
+                                <label class="pattern" id="flop-mode-label"><input type="radio" name="mode" value="FLOP"><strong id="mode-flop-title"></strong><span><span id="flop-match-count">0</span> <span id="flop-mode-desc"></span></span></label>
                             </div>
                             <p id="words-mode-disabled-note" class="words-mode-note" hidden>Mind. 10 Wörter erforderlich</p>
                             <p id="flop-mode-disabled-note" class="words-mode-note" hidden>Noch kein passender Kartenverlauf vorhanden</p>
@@ -1331,16 +1062,8 @@
                             <label for="card-count" class="number-label" id="card-count-label">Anzahl der Karten</label>
                             <input id="card-count" type="number" min="1" max="200" step="1" value="10" required>
                         </div>
-                        <p id="flop-mode-size-note" class="words-mode-note" hidden></p>
                     </div>
                 </div>
-                <fieldset class="letter-group sentence-group">
-                    <legend><span id="sentences-legend"></span> <span id="sentences-count" class="selection-count" aria-live="polite"></span></legend>
-                    <p id="sentences-intro" class="sentence-intro"></p>
-                    <p id="sentences-hint" class="sentence-hint" hidden></p>
-                    <ul id="sentences-list" class="sentences-list" aria-labelledby="sentences-legend"></ul>
-                    <button id="sentences-clear" class="link-button" type="button" hidden><span id="sentences-clear-label"></span></button>
-                </fieldset>
                 <div class="setup-bottom">
                     <p id="setup-error" class="error" role="alert"></p>
                     <button id="start-button" class="primary" type="submit"><span id="start-label">Lesen starten</span> <svg class="icon" viewBox="0 0 24 24"
@@ -1446,9 +1169,9 @@
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
-        import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, buildMixedDeck } from './scoring.mjs';
+        import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck } from './scoring.mjs';
         import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
-        import { readableSentenceCards, buildSentenceDeck, createSentenceSelection } from './sentences/cards.mjs';
+        import { readableSentenceCards } from './sentences/cards.mjs';
         import { t } from './i18n.mjs';
         
         window.__speech = createSpeechAdapter();
@@ -1456,8 +1179,8 @@
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
-        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, buildMixedDeck };
-        window.__sentences = { readableSentenceCards, buildSentenceDeck, createSentenceSelection };
+        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck };
+        window.__sentences = { readableSentenceCards };
         window.__storage = createStorage(window.localStorage);
         window.__i18n = { t };
     </script>
@@ -1477,8 +1200,6 @@
         let wordPromises = { de: null, en: null };
         let sentencePromises = { de: null, en: null };
         let sentenceTexts = { de: null, en: null };
-        let sentenceSelection = window.__sentences.createSentenceSelection();
-        let sentenceRenderToken = 0;
         let deckStarting = false;
         let startLoading = false;
         let stats = window.__storage.read();
@@ -1531,10 +1252,9 @@
             buildLetters('vowels', sounds.vowels, vowels);
             buildLetters('specials', sounds.specials, specials);
 
-            // Sentence cards belong to one language's pool, so switching the
-            // language starts with an empty selection and the new pool.
-            sentenceSelection.clear();
-            updateSentenceCount();
+            // Sentence counts belong to one language's pool, so switching the
+            // language resets the counter until the new pool is read.
+            byId('sentences-match-count').textContent = '0';
 
             // Re-render all current on-screen text (and the text of hidden
             // screens/dialogs, so it is ready the next time they are shown).
@@ -1563,35 +1283,24 @@
             byId('legend-vowels').textContent = tr('setup.vowels');
             byId('legend-specials').textContent = tr('setup.specials');
 
-            byId('pattern-legend').textContent = tr('setup.pattern');
-            byId('deck-legend').textContent = tr('setup.deck');
-            byId('deck-letters-title').textContent = tr('setup.deck.letters');
-            byId('deck-letters-desc').textContent = tr('setup.deck.letters_desc');
-            byId('deck-sentences-title').textContent = tr('setup.deck.sentences');
-            byId('deck-sentences-desc').textContent = tr('setup.deck.sentences_desc');
-            byId('deck-mixed-title').textContent = tr('setup.deck.mixed');
-            byId('deck-mixed-desc').textContent = tr('setup.deck.mixed_desc');
-            byId('pattern-patterns-label').textContent = tr('setup.pattern.patterns');
-            byId('pattern-patterns-desc').textContent = tr('setup.pattern.patterns_desc');
-            byId('subpattern-ma-label').textContent = tr('setup.pattern.sub.ma');
-            byId('subpattern-am-label').textContent = tr('setup.pattern.sub.am');
-            byId('subpattern-mam-label').textContent = tr('setup.pattern.sub.mam');
-            byId('subpattern-ama-label').textContent = tr('setup.pattern.sub.ama');
-            byId('pattern-words-label').textContent = tr('setup.pattern.words');
-            byId('words-mode-desc').textContent = tr('setup.pattern.words_desc');
-            byId('pattern-flop-label').textContent = tr('setup.pattern.flop');
-            byId('pattern-flop-desc').textContent = tr('setup.pattern.flop_desc');
+            byId('mode-legend').textContent = tr('setup.mode');
+            byId('mode-patterns-title').textContent = tr('setup.mode.patterns');
+            byId('mode-patterns-desc').textContent = tr('setup.mode.patterns_desc');
+            byId('subpattern-ma-label').textContent = tr('setup.mode.sub.ma');
+            byId('subpattern-am-label').textContent = tr('setup.mode.sub.am');
+            byId('subpattern-mam-label').textContent = tr('setup.mode.sub.mam');
+            byId('subpattern-ama-label').textContent = tr('setup.mode.sub.ama');
+            byId('mode-words-title').textContent = tr('setup.mode.words');
+            byId('words-mode-desc').textContent = tr('setup.mode.words_desc');
+            byId('mode-sentences-title').textContent = tr('setup.mode.sentences');
+            byId('sentences-mode-desc').textContent = tr('setup.mode.sentences_desc');
+            byId('mode-flop-title').textContent = tr('setup.mode.flop');
+            byId('flop-mode-desc').textContent = tr('setup.mode.flop_desc');
             byId('words-mode-disabled-note').textContent = tr('setup.warning.min_words');
             byId('flop-mode-disabled-note').textContent = tr('setup.warning.no_history');
 
             byId('word-length-label').textContent = tr('setup.wordlength');
             byId('card-count-label').textContent = tr('setup.cardcount');
-
-            byId('sentences-legend').textContent = tr('setup.sentences.legend');
-            byId('sentences-intro').textContent = tr('setup.sentences.intro');
-            byId('sentences-hint').textContent = tr('setup.sentences.hint');
-            byId('sentences-clear-label').textContent = tr('setup.sentences.clear');
-            updateSentenceCount();
 
             byId('adult-note-summary').textContent = tr('setup.adult_note.summary');
             byId('adult-note-text-1').textContent = tr('setup.adult_note.text_1');
@@ -1662,7 +1371,7 @@
             byId('specials-count').textContent = `${specials.size} ${tr('unit.selected')}`;
             updateWordMatchCount();
             updateFlopModeStatus();
-            updateSentenceCards();
+            updateSentenceMatchCount();
         }
 
         /** The current letter selection in the shape the pure modules expect. */
@@ -1703,93 +1412,34 @@
         }
 
         /**
-         * Drop the manually chosen sentence cards and reflect it in the UI.
-         *
-         * The selection belongs to the letter deck. Leaving that deck (or
-         * switching back to it from a sentence deck) must not carry the old
-         * cards into a later round.
-         */
-        function clearSentenceSelection() {
-            sentenceSelection.clear();
-            document.querySelectorAll('.sentence-card').forEach(button => {
-                button.setAttribute('aria-pressed', 'false');
-            });
-            updateSentenceCount();
-        }
-
-        /** Show how many sentence cards are chosen and whether they can be cleared. */
-        function updateSentenceCount() {
-            byId('sentences-count').textContent = `${sentenceSelection.count()} ${tr('unit.selected')}`;
-            byId('sentences-clear').hidden = sentenceSelection.count() === 0;
-            // Chosen cards replace the pattern deck, so the pattern hint, the
-            // card-count input and the start button follow the new state.
-            updatePatternControls();
-        }
-
-        /**
-         * The card-count input sizes letter and word decks. A chosen sentence
-         * deck is practised in full, so the input would lie and is hidden.
+         * The card-count input sizes pattern, word and sentence decks. The
+         * Flops deck is practised in full, so the input would lie and is
+         * hidden.
          */
         function updateCardCountVisibility() {
-            const checked = document.querySelector('input[name="pattern"]:checked');
-            const pattern = checked ? checked.value : 'PATTERNS';
-            const manualSentences = selectedDeckMode() === 'LETTERS' && sentenceSelection.count() > 0;
-            byId('card-count-control').hidden = (selectedDeckMode() === 'LETTERS' && pattern === 'FLOP') || manualSentences;
+            byId('card-count-control').hidden = selectedMode() === 'FLOP';
         }
 
         /**
-         * Render the readable sentence cards, keeping the chosen state.
-         * @param {Array<{id: string, text: string}>} cards readable pool entries
+         * Show how many readable sentence cards the current letter selection
+         * offers for the active language. This live count replaces the
+         * removed manual sentence-card picker.
          */
-        function renderSentenceCards(cards) {
-            const list = byId('sentences-list');
-            list.innerHTML = '';
-            for (const entry of cards) {
-                const item = document.createElement('li');
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'sentence-card';
-                button.textContent = entry.text;
-                button.setAttribute('aria-pressed', String(sentenceSelection.has(entry.text)));
-                button.addEventListener('click', () => {
-                    const added = sentenceSelection.toggle(entry.text);
-                    button.setAttribute('aria-pressed', String(added));
-                    byId('setup-error').textContent = '';
-                    updateSentenceCount();
-                });
-                item.append(button);
-                list.append(item);
-            }
-            byId('sentences-list').hidden = cards.length === 0;
-            byId('sentences-hint').hidden = cards.length > 0;
-        }
-
-        /**
-         * Refresh the offered sentence cards for the active language and the
-         * current letter selection. Cards that are no longer readable are
-         * dropped from the chosen set, so nothing unreadable can be practised.
-         */
-        async function updateSentenceCards() {
+        async function updateSentenceMatchCount() {
             const lang = currentLanguage;
-            const token = ++sentenceRenderToken;
             let pool;
             try {
                 pool = await loadSentencePool(lang);
             } catch {
-                if (token !== sentenceRenderToken) return;
-                byId('sentences-list').hidden = true;
-                byId('sentences-hint').hidden = false;
-                byId('sentences-hint').textContent = tr('setup.error.sentencepool');
-                updateSentenceCount();
+                if (lang !== currentLanguage) return;
+                byId('sentences-match-count').textContent = '0';
+                updatePatternControls();
                 return;
             }
-            if (token !== sentenceRenderToken || lang !== currentLanguage) return;
+            if (lang !== currentLanguage) return;
 
             const cards = window.__sentences.readableSentenceCards(pool, currentSelection(), lang);
-            sentenceSelection.retain(cards.map(entry => entry.text));
-            renderSentenceCards(cards);
-            byId('sentences-hint').textContent = tr('setup.sentences.hint');
-            updateSentenceCount();
+            byId('sentences-match-count').textContent = cards.length;
             // The pool just became available, so sentence flops can now be
             // recognised and counted in the Flops status line.
             updateFlopModeStatus();
@@ -1817,7 +1467,7 @@
                 );
                 byId('words-match-count').textContent = matchCount;
                 
-                const wordsRadio = document.querySelector('input[name="pattern"][value="WORDS"]');
+                const wordsRadio = document.querySelector('input[name="mode"][value="WORDS"]');
                 const wordsLabel = byId('words-mode-label');
                 const disabledNote = byId('words-mode-disabled-note');
                 const isEligible = isWordsModeEligible(matchCount);
@@ -1833,7 +1483,7 @@
                     wordsLabel.style.cursor = 'default';
                     disabledNote.hidden = false;
                     if (wordsRadio.checked) {
-                        document.querySelector('input[name="pattern"][value="PATTERNS"]').checked = true;
+                        document.querySelector('input[name="mode"][value="PATTERNS"]').checked = true;
                         updatePatternControls();
                     }
                 }
@@ -1852,25 +1502,24 @@
             const flopDeck = currentFlopDeck();
             const hasQualifyingHistory = flopDeck.length > 0;
 
-            const flopRadio = document.querySelector('input[name="pattern"][value="FLOP"]');
+            const flopRadio = document.querySelector('input[name="mode"][value="FLOP"]');
             const flopLabel = byId('flop-mode-label');
             const disabledNote = byId('flop-mode-disabled-note');
-            const sizeNote = byId('flop-mode-size-note');
+
+            byId('flop-match-count').textContent = flopDeck.length;
 
             if (hasQualifyingHistory) {
                 flopRadio.disabled = false;
                 flopLabel.style.opacity = '1';
                 flopLabel.style.cursor = 'pointer';
                 disabledNote.hidden = true;
-                sizeNote.textContent = `${flopDeck.length} ${tr(flopDeck.length === 1 ? 'unit.card' : 'unit.cards')} ${tr('unit.in_flop')}`;
             } else {
                 flopRadio.disabled = true;
                 flopLabel.style.opacity = '0.5';
                 flopLabel.style.cursor = 'default';
                 disabledNote.hidden = false;
-                sizeNote.textContent = '';
                 if (flopRadio.checked) {
-                    document.querySelector('input[name="pattern"][value="PATTERNS"]').checked = true;
+                    document.querySelector('input[name="mode"][value="PATTERNS"]').checked = true;
                 }
             }
             updatePatternControls();
@@ -2024,45 +1673,30 @@
             return [...document.querySelectorAll('input[name="subpattern"]:checked')].map(input => input.value);
         }
 
-        /** The chosen deck kind: 'LETTERS', 'SENTENCES' or 'MIXED'. */
-        function selectedDeckMode() {
-            const checked = document.querySelector('input[name="deck"]:checked');
-            return checked ? checked.value : 'LETTERS';
+        /** The chosen deck kind: 'PATTERNS', 'WORDS', 'SENTENCES' or 'FLOP'. */
+        function selectedMode() {
+            const checked = document.querySelector('input[name="mode"]:checked');
+            return checked ? checked.value : 'PATTERNS';
         }
 
         /**
          * Whether the pattern deck is blocked by a missing sub-pattern.
-         * Chosen sentence cards form their own deck, so they need none.
+         * The other modes do not use the sub-pattern selection at all.
          */
         function updateStartButtonState() {
-            const checkedPattern = document.querySelector('input[name="pattern"]:checked');
-            const usesPatterns = selectedDeckMode() === 'LETTERS';
-            const pattern = usesPatterns && checkedPattern ? checkedPattern.value : 'NONE';
-            const missingSubPattern = pattern === 'PATTERNS' && selectedSubPatterns().length === 0;
-            if (missingSubPattern && sentenceSelection.count() > 0) {
-                byId('start-button').disabled = startLoading;
-                return;
-            }
+            const mode = selectedMode();
+            const missingSubPattern = mode === 'PATTERNS' && selectedSubPatterns().length === 0;
             byId('start-button').disabled = startLoading || missingSubPattern;
         }
 
         function updatePatternControls() {
-            const checkedPattern = document.querySelector('input[name="pattern"]:checked');
-            const pattern = checkedPattern ? checkedPattern.value : 'PATTERNS';
-            const deckMode = selectedDeckMode();
-            const usesPatterns = deckMode === 'LETTERS';
-            byId('word-length-control').hidden = deckMode === 'SENTENCES'
-                || (usesPatterns && pattern !== 'WORDS');
+            const mode = selectedMode();
+            byId('word-length-control').hidden = mode !== 'WORDS';
             updateCardCountVisibility();
-            byId('flop-mode-size-note').hidden = !usesPatterns || pattern !== 'FLOP';
 
-            // Chosen sentence cards are practised instead of the pattern deck,
-            // so they do not need a sub-pattern. The sentence-only and mixed
-            // decks never use the pattern selection at all.
-            const missingSubPattern = usesPatterns
-                && pattern === 'PATTERNS'
-                && selectedSubPatterns().length === 0
-                && sentenceSelection.count() === 0;
+            // A pattern deck needs at least one sub-pattern; the word,
+            // sentence and flop decks never use the sub-pattern selection.
+            const missingSubPattern = mode === 'PATTERNS' && selectedSubPatterns().length === 0;
             updateStartButtonState();
             if (missingSubPattern) {
                 byId('setup-error').textContent = tr('setup.error.no_pattern');
@@ -2123,63 +1757,22 @@
         async function startDeck() {
             if (deckStarting) return;
             const countInput = byId('card-count');
-            const deckMode = selectedDeckMode();
-            const chosenSentences = deckMode === 'LETTERS' ? sentenceSelection.texts() : [];
+            const mode = selectedMode();
             if (!consonants.size || !vowels.size) {
                 byId('setup-error').textContent = tr('setup.error.selection');
                 return;
             }
-            const checkedPattern = document.querySelector('input[name="pattern"]:checked');
-            const pattern = checkedPattern ? checkedPattern.value : 'PATTERNS';
             const wordLengthInput = byId('word-length');
-            const needsWordLength = deckMode === 'MIXED' || (deckMode === 'LETTERS' && pattern === 'WORDS');
-            if (needsWordLength && !wordLengthInput.reportValidity()) return;
-            const subPatterns = deckMode === 'LETTERS' && pattern === 'PATTERNS' ? selectedSubPatterns() : [];
-            if (deckMode === 'LETTERS' && !chosenSentences.length && pattern === 'PATTERNS' && subPatterns.length === 0) {
+            if (mode === 'WORDS' && !wordLengthInput.reportValidity()) return;
+            const subPatterns = mode === 'PATTERNS' ? selectedSubPatterns() : [];
+            if (mode === 'PATTERNS' && subPatterns.length === 0) {
                 updatePatternControls();
                 return;
             }
 
-            // Chosen sentence cards are practised on their own; the pattern
-            // deck is untouched when no sentence card is chosen.
-            if (chosenSentences.length > 0) {
-                deckStarting = true;
-                setStartLoading(true);
-                try {
-                    const pool = await loadSentencePool(currentLanguage);
-                    const deck = window.__sentences.buildSentenceDeck(
-                        pool,
-                        currentSelection(),
-                        currentLanguage,
-                        chosenSentences,
-                    );
-                    if (deck.length === 0) {
-                        byId('setup-error').textContent = tr('setup.error.no_sentences');
-                        return;
-                    }
-                    total = deck.length;
-                    queue = deck;
-                    cleared = 0;
-                    attempts = 0;
-                    currentPattern = 'SENTENCES';
-                    isInFlopMode = false;
-                    byId('feedback').textContent = '';
-                    byId('setup-error').textContent = '';
-                    showScreen('practice');
-                    renderCard();
-                    byId('correct').focus();
-                } catch {
-                    byId('setup-error').textContent = tr('setup.error.sentencepool');
-                } finally {
-                    deckStarting = false;
-                    setStartLoading(false);
-                }
-                return;
-            }
-
-            // A sentence-only deck draws random readable sentences from the
+            // A sentence deck draws random readable sentences from the
             // committed pool, limited by the card-count input.
-            if (deckMode === 'SENTENCES') {
+            if (mode === 'SENTENCES') {
                 if (!countInput.reportValidity()) return;
                 const requestedTotal = Number(countInput.value);
                 deckStarting = true;
@@ -2216,40 +1809,8 @@
                 return;
             }
 
-            const selectedConsonants = [...consonants];
-            const selectedVowels = [...vowels, ...specials];
-            if (!countInput.reportValidity()) return;
-            const requestedTotal = Number(countInput.value);
-            const maxLength = Number(wordLengthInput.value);
-            const { buildCombinations, buildPatternDeck } = window.__sounds;
-            let words = [];
-            if (deckMode === 'MIXED' || (deckMode === 'LETTERS' && pattern === 'WORDS')) {
-                deckStarting = true;
-                setStartLoading(true);
-                try {
-                    if (!wordPromises[currentLanguage]) {
-                        wordPromises[currentLanguage] = loadWordsForLanguage(currentLanguage);
-                    }
-                    words = await wordPromises[currentLanguage];
-                } catch {
-                    byId('setup-error').textContent = tr('setup.error.wordlist');
-                    return;
-                } finally {
-                    deckStarting = false;
-                    setStartLoading(false);
-                }
-            }
-
-            const combinations = deckMode === 'LETTERS' && pattern === 'WORDS'
-                ? buildCombinations('CVC', selectedConsonants, selectedVowels)
-                : [];
-            total = requestedTotal;
-            queue = [];
-            let noMatchingWords = false;
-            currentPattern = deckMode === 'MIXED' ? 'MIXED' : pattern;
-            isInFlopMode = deckMode === 'LETTERS' && pattern === 'FLOP';
-
-            if (deckMode === 'LETTERS' && pattern === 'FLOP') {
+            // Flops mode practises the hardest cards from the history in full.
+            if (mode === 'FLOP') {
                 // The sentence pool identifies sentence cards among the
                 // statistics keys; load it so they can join the flop deck and
                 // keep their kind on the practice screen.
@@ -2275,7 +1836,44 @@
 
                 total = flopDeck.length;
                 queue = shuffle(flopDeck);
-            } else if (deckMode === 'LETTERS' && pattern === 'WORDS') {
+                cleared = 0;
+                attempts = 0;
+                currentPattern = 'FLOP';
+                isInFlopMode = true;
+                byId('feedback').textContent = '';
+                byId('setup-error').textContent = '';
+                showScreen('practice');
+                renderCard();
+                byId('correct').focus();
+                return;
+            }
+
+            const selectedConsonants = [...consonants];
+            const selectedVowels = [...vowels, ...specials];
+            if (!countInput.reportValidity()) return;
+            const requestedTotal = Number(countInput.value);
+            const maxLength = Number(wordLengthInput.value);
+            const { buildCombinations, buildPatternDeck } = window.__sounds;
+
+            // Words mode reads the word list that matches the selection.
+            if (mode === 'WORDS') {
+                let words = [];
+                deckStarting = true;
+                setStartLoading(true);
+                try {
+                    if (!wordPromises[currentLanguage]) {
+                        wordPromises[currentLanguage] = loadWordsForLanguage(currentLanguage);
+                    }
+                    words = await wordPromises[currentLanguage];
+                } catch {
+                    byId('setup-error').textContent = tr('setup.error.wordlist');
+                    return;
+                } finally {
+                    deckStarting = false;
+                    setStartLoading(false);
+                }
+
+                const combinations = buildCombinations('CVC', selectedConsonants, selectedVowels);
                 const eligibleWords = readableWordList(words, maxLength);
                 if (maxLength >= 4 && eligibleWords.length === 0) {
                     byId('setup-error').textContent = tr('setup.error.no_words');
@@ -2284,18 +1882,18 @@
 
                 const wordCards = [];
                 if (maxLength <= 3) {
-                    wordCards.push(...shuffle(eligibleWords).slice(0, total).map(text => ({ text, misses: 0 })));
+                    wordCards.push(...shuffle(eligibleWords).slice(0, requestedTotal).map(text => ({ text, misses: 0 })));
                 } else {
                     const shuffledWords = shuffle(eligibleWords);
-                    while (wordCards.length < total) {
-                        wordCards.push(...shuffle(shuffledWords).slice(0, total - wordCards.length)
+                    while (wordCards.length < requestedTotal) {
+                        wordCards.push(...shuffle(shuffledWords).slice(0, requestedTotal - wordCards.length)
                             .map(text => ({ text, misses: 0 })));
                     }
                 }
 
                 const patternCards = [];
-                while (maxLength <= 3 && wordCards.length + patternCards.length < total) {
-                    const batchSize = Math.min(combinations.length, total - wordCards.length - patternCards.length);
+                while (maxLength <= 3 && wordCards.length + patternCards.length < requestedTotal) {
+                    const batchSize = Math.min(combinations.length, requestedTotal - wordCards.length - patternCards.length);
                     patternCards.push(...shuffle(combinations).slice(0, batchSize));
                 }
                 const uppercaseFirst = Math.random() < 0.5;
@@ -2304,53 +1902,34 @@
                     misses: 0
                 }));
                 queue = shuffleWithoutAdjacentCards([...wordCards, ...capitalizedPatterns]);
-                noMatchingWords = eligibleWords.length === 0;
-            } else if (deckMode === 'MIXED') {
-                // A mixed deck interleaves readable words and readable
-                // sentences; both kinds are drawn from the current selection.
-                const eligibleWords = readableWordList(words, maxLength);
-                if (eligibleWords.length === 0) {
-                    byId('setup-error').textContent = tr('setup.error.no_words');
-                    return;
-                }
-                deckStarting = true;
-                setStartLoading(true);
-                let pool;
-                try {
-                    pool = await loadSentencePool(currentLanguage);
-                } catch {
-                    byId('setup-error').textContent = tr('setup.error.sentencepool');
-                    return;
-                } finally {
-                    deckStarting = false;
-                    setStartLoading(false);
-                }
-                queue = window.__scoring.buildMixedDeck(
-                    pool,
-                    currentSelection(),
-                    currentLanguage,
-                    eligibleWords,
-                    { count: total },
-                );
-                if (queue.length === 0) {
-                    byId('setup-error').textContent = tr('setup.error.no_mixed');
-                    return;
-                }
                 total = queue.length;
-                noMatchingWords = false;
-            } else {
-                const deck = buildPatternDeck(subPatterns, selectedConsonants, selectedVowels, total, Math.random);
-                const uppercaseFirst = Math.random() < 0.5;
-                queue = deck.map((text, index) => ({
-                    text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(text) : text,
-                    misses: 0
-                }));
+                cleared = 0;
+                attempts = 0;
+                currentPattern = 'WORDS';
+                isInFlopMode = false;
+                byId('feedback').textContent = eligibleWords.length === 0
+                    ? tr('feedback.pattern_fallback')
+                    : '';
+                byId('setup-error').textContent = '';
+                showScreen('practice');
+                renderCard();
+                byId('correct').focus();
+                return;
             }
+
+            // Patterns mode builds combinations from the chosen sub-patterns.
+            const deck = buildPatternDeck(subPatterns, selectedConsonants, selectedVowels, requestedTotal, Math.random);
+            const uppercaseFirst = Math.random() < 0.5;
+            queue = deck.map((text, index) => ({
+                text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(text) : text,
+                misses: 0
+            }));
+            total = queue.length;
             cleared = 0;
             attempts = 0;
-            byId('feedback').textContent = noMatchingWords
-                ? tr('feedback.pattern_fallback')
-                : '';
+            currentPattern = 'PATTERNS';
+            isInFlopMode = false;
+            byId('feedback').textContent = '';
             byId('setup-error').textContent = '';
             showScreen('practice');
             renderCard();
@@ -2408,23 +1987,13 @@
             btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
         });
         setLanguage(currentLanguage);
-        document.querySelectorAll('input[name="deck"]').forEach(input => {
-            input.addEventListener('change', () => {
-                // A deck-mode change starts without the manual sentence
-                // selection, so switching the sentence decks off cannot leak
-                // chosen cards into a later letter deck.
-                clearSentenceSelection();
-                updatePatternControls();
-            });
-        });
-        document.querySelectorAll('input[name="pattern"]').forEach(input => {
+        document.querySelectorAll('input[name="mode"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });
         document.querySelectorAll('input[name="subpattern"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });
         byId('word-length').addEventListener('change', updateWordMatchCount);
-        byId('sentences-clear').addEventListener('click', clearSentenceSelection);
         window.addEventListener('resize', () => {
             if (queue.length) updateCardFontSize(queue[0].text, queue[0].kind === 'sentence' ? 22 : 0);
         });

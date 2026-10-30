@@ -185,18 +185,17 @@ test('the selection drops cards the new letter selection cannot read', () => {
 
 const setupHtml = readFileSync(new URL('../static/index.html', import.meta.url), 'utf8');
 
-test('the Karten tab has its own sentence-card section', () => {
-  assert.match(setupHtml, /<fieldset class="letter-group sentence-group">/);
-  assert.match(setupHtml, /<legend><span id="sentences-legend">/);
-  assert.match(setupHtml, /<ul id="sentences-list" class="sentences-list" aria-labelledby="sentences-legend">/);
-  assert.match(setupHtml, /id="sentences-count" class="selection-count"/);
-  assert.match(setupHtml, /id="sentences-clear"/);
+test('the Karten tab offers a sentence mode with a live count', () => {
+  assert.match(setupHtml, /input type="radio" name="mode" value="SENTENCES"/);
+  assert.match(setupHtml, /id="sentences-match-count"/);
+  assert.match(setupHtml, /id="mode-sentences-title"/);
+  assert.doesNotMatch(setupHtml, /class="letter-group sentence-group"/);
 });
 
 test('the setup screen offers and practises the filtered sentence pool', () => {
   assert.match(setupHtml, /from '\.\/sentences\/cards\.mjs'/);
   assert.match(setupHtml, /readableSentenceCards\(pool, currentSelection\(\), lang\)/);
   assert.match(setupHtml, /\.\/sentences\/\$\{lang\}\.json/);
-  assert.match(setupHtml, /window\.__sentences\.buildSentenceDeck\(/);
-  assert.match(setupHtml, /sentenceSelection\.toggle\(entry\.text\)/);
+  assert.match(setupHtml, /window\.__scoring\.buildSentenceOnlyDeck\(/);
+  assert.match(setupHtml, /byId\('sentences-match-count'\)\.textContent = cards\.length/);
 });
