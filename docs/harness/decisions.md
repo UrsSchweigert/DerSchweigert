@@ -431,3 +431,21 @@ longer contains.
   split-and-resume flow keeps its sibling issue.
 
 The import report now lists `added`, `replaced` and `superseded`.
+
+## A worker that never started costs nothing, and a run branch is a usable base (2026-10-30)
+
+The first real run on a run branch blocked issue `consolidate-setup-stylesheet` with `model selection rejected: strong
+attempt budget exhausted`, 4 seconds after start. Two defects behind it:
+
+* `adapter._prepare` checked out the base branch by its **local** name. A fresh clone knows a non-default branch only as
+  `refs/remotes/origin/<branch>`, so `git checkout -B harness/<issue> harness/run/<plan>` failed with exit 128 — the
+  run-branch feature could never have started a worker. The base now resolves to the remote-tracking ref when it exists.
+* That infra failure still consumed the single `strong_attempts_per_issue` slot, because the budget is charged when the
+  attempt is dispatched. The retry then could not use the strong model and blocked the issue. An attempt whose worker
+  never started now refunds the slot.
+
+The block also reached the owner as a `decisionRequested` task instead of being triaged, because this plan carries no
+`auto_answer` policy: it was built from `DEFAULT_POLICY`, which has no `auto_answer` and no `descope`. Putting open-ended
+descoping into the defaults was attempted and reverted — a failing check then defers its requirements instead of
+reporting them, which changed 74 tests and the semantics of a red test. The standing instruction therefore stays a plan
+decision, and a new plan must be prepared to carry it.
