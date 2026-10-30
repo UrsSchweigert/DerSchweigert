@@ -449,3 +449,15 @@ The block also reached the owner as a `decisionRequested` task instead of being 
 descoping into the defaults was attempted and reverted — a failing check then defers its requirements instead of
 reporting them, which changed 74 tests and the semantics of a red test. The standing instruction therefore stays a plan
 decision, and a new plan must be prepared to carry it.
+
+## One runner per plan, enforced (2026-10-30)
+
+Three `harness resume` processes were alive at once for the same store: one for a finished plan, one for a cancelled
+version and one for the current version. They ticked against the same claims and budgets, produced duplicate human tasks
+and left the dashboard saying "run active" while nothing did any work.
+
+`store.claim_plan` gives a plan a single owner (document `plan_owner`: runner id, pid and heartbeat). `Scheduler.start`
+refuses with the holder's name when a live runner owns the plan, every tick refreshes the heartbeat, and `run_loop`
+releases it in a `finally`, so a Ctrl+C frees the plan immediately. A holder whose pid is gone, or whose heartbeat is
+older than two heartbeats, is replaced — that is what makes a crash recoverable without an operator clearing state by
+hand. The error names the holder and the remaining lock time.
