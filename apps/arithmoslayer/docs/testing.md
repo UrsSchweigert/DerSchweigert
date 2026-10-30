@@ -28,6 +28,7 @@ godot-test . -gtest=res://test/unit/test_project_config.gd
 | `test/unit/test_app_identity.gd` | The app name, package id, version record, Android SDK targets and permissions, landscape orientation, and the safe-area margins. |
 | `test/unit/test_isolation.gd` | The isolation and offline guard scripts, including their failure paths. |
 | `test/unit/test_save_system.gd` | Atomic save writes, the `.bak` last-good backup, corrupt-file recovery, and the schema migration fixtures. |
+| `test/unit/test_determinism.gd` | Seedable `Rng` sequences, `Timestep.FIXED_DELTA`, and the scan that fails on direct `randi`, `randf`, or `randomize` calls in `scripts/` outside `scripts/core/rng.gd`. |
 
 The guard scripts can also be run directly:
 
@@ -40,6 +41,22 @@ python3 tools/check_offline.py
 `validate_data.py` reports a missing translation as
 `data/i18n/strings.csv:<line>: missing translation for key '<key>' (field 'de')`,
 so the failing file, line, and field are explicit.
+
+## Determinism
+
+Randomness and timing are injected so a run can be replayed from its inputs.
+
+- `scripts/core/rng.gd` wraps `RandomNumberGenerator` behind the `Rng` class.
+  Construct it with a seed (`Rng.new(12345)`), reseed it with `set_seed()`, and
+  draw values with `randf()`, `randf_range()`, `randi()`, and `randi_range()`.
+  Two instances built with the same seed emit the same sequence, and the
+  default seed is fixed.
+- `scripts/core/timestep.gd` defines `Timestep.FIXED_DELTA = 1.0 / 60.0`, the
+  only step size simulation code should advance by.
+- `test/unit/test_determinism.gd` walks every `.gd` file under `scripts/` and
+  fails with each offending `file:line` when a script calls `randi`, `randf`,
+  or `randomize` directly. `scripts/core/rng.gd` is the single exception, so
+  gameplay code takes an `Rng` instead of reaching for the global functions.
 
 ## Formatting and linting
 
