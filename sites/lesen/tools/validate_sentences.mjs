@@ -7,7 +7,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { tokenizeWord, getSoundsForLanguage } from '../static/sounds.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -89,4 +89,18 @@ export function validate(lang, data) {
   }
   if (data.count !== data.sentences.length) problems.push('count does not match the number of sentences');
   return problems;
+}
+
+// CLI: `node tools/validate_sentences.mjs <de|en>` prints problems and exits 1 when any exist.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const lang = process.argv[2];
+  if (lang !== 'de' && lang !== 'en') {
+    console.error('usage: node tools/validate_sentences.mjs <de|en>');
+    process.exit(2);
+  }
+  const data = load(lang);
+  const problems = validate(lang, data);
+  for (const problem of problems) console.error(problem);
+  console.log(lang + ': ' + data.sentences.length + ' sentences, ' + (problems.length ? problems.length + ' problems' : 'valid'));
+  process.exit(problems.length ? 1 : 0);
 }
