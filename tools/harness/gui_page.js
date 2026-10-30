@@ -165,6 +165,12 @@
     byId("prepare-plan").title = detail?.questions.length ? "Answer the investigator's questions first" : !detail?.draft ? "Investigate first to draft phases and issues" : !revisable ? "An approved or executing plan cannot be revised" : !ready ? "Preparation cannot start now: see the notice above" : "Run the investigation, checks and planning steps";
     byId("approve-plan").disabled = !ready || state !== "Proposed" || !detail?.preflight || Boolean(detail?.questions.length)
       || byId("approval-confirm").value !== detail?.plan?.digest.slice(0, 12);
+    byId("approve-plan").title = !ready ? "Approval cannot start now: see the notice above"
+      : state !== "Proposed" ? `Only a Proposed plan can be approved; this one is ${state || "not prepared"}`
+      : !detail?.preflight ? "Prepare plan and checks first" : detail?.questions.length ? "Answer the investigator's questions first"
+      : byId("approval-confirm").value !== detail?.plan?.digest.slice(0, 12) ? "Type the first 12 characters of the digest exactly" : "Approve the reviewed plan";
+    byId("import-plan").title = !ready ? "Import cannot start now: see the notice above"
+      : state !== "Approved" ? `Only an approved plan can be imported; this one is ${state || "not prepared"}` : "Import the approved issues";
     for (const button of byId("investigation-answers").querySelectorAll("button")) button.disabled = !ready || !revisable;
   }
   function renderPlanning() {

@@ -749,3 +749,34 @@ def test_the_investigator_keeps_the_default_when_nothing_is_configured(tmp_path,
     assert choices == {"sources": [], "tier": ""}
     args = gui_workflow.investigate_args({"home": "/h", "requirements": "/r"}, tmp_path / "out", choices)
     assert "--model-source" not in args and "--tier" not in args
+
+
+def test_archiving_hides_a_plan_and_a_workspace_without_deleting_them(tmp_path):
+    import json
+    from harness import gui, gui_workflow
+
+    store = Store(str(tmp_path / "home"))
+    plan = {"plan_id": "p1", "version": 1, "requirements": [], "phases": [], "policy": {},
+            "fixture": True}
+    store.put_plan(plan, "0" * 64)
+    store.put_doc("gui_workspace", "w1", {"workspace_id": "w1", "name": "a", "plan_id": "p1", "requirements": [], "job": None})
+    store.put_doc("gui_workspace", "w2", {"workspace_id": "w2", "name": "b", "plan_id": "p2", "requirements": [], "job": None})
+
+    gui_workflow.set_archived(store, "plan", "p1")
+    gui_workflow.set_archived(store, "workspace", "w1")
+
+    assert gui_workflow.archived_ids(store, "plan") == {"p1"}
+    assert gui_workflow.archived_ids(store, "workspace") == {"w1"}
+    assert [d["workspace_id"] for d in store.docs("gui_workspace")] == ["w1", "w2"]
+    assert gui_workflow.set_archived(store, "workspace", "w1", archived=False)["archived"] is False
+    assert gui_workflow.archived_ids(store, "workspace") == set()
+    store.close()
+
+
+def test_an_unknown_archive_kind_is_refused(tmp_path):
+    from harness import gui_workflow
+
+    store = Store(str(tmp_path / "home"))
+    with pytest.raises(ValueError, match="archive kind"):
+        gui_workflow.set_archived(store, "issue", "x")
+    store.close()

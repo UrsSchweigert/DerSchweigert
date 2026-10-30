@@ -77,7 +77,10 @@ class GuiServer(ThreadingHTTPServer):
                     process.poll()
                 report["isolation_verification"] = gui_workflow.maintenance_detail(store)
                 report["archived_issues"] = [doc["issue_id"] for doc in store.docs("gui_archive")
-                                             if doc["archived"] and store.state("issue", doc["issue_id"]) == "Done"]
+                                             if doc.get("archived") and "issue_id" in doc
+                                             and store.state("issue", doc["issue_id"]) == "Done"]
+                hidden_plans = gui_workflow.archived_ids(store, "plan")
+                report["plans"] = [plan for plan in report["plans"] if plan["plan_id"] not in hidden_plans]
                 for plan_id in {plan["plan_id"] for plan in report["plans"]}:
                     for key, job in store.get_run(plan_id).get("checks", {}).items():
                         report["checks"].append({
@@ -469,8 +472,10 @@ class GuiHandler(BaseHTTPRequestHandler):
                     store = Store(str(self.server.home), readonly=True)
                     try:
                         workspace_id = parse_qs(target.query).get("workspace", [""])[0]
+                        hidden = gui_workflow.archived_ids(store, "workspace")
                         self._send(200, gui_workflow.detail(store, workspace_id) if workspace_id else
-                                   {"workspaces": [gui_workflow.visible_record(record) for record in store.docs("gui_workspace")]})
+                                   {"workspaces": [gui_workflow.visible_record(record) for record in store.docs("gui_workspace")
+                                                   if record["workspace_id"] not in hidden]})
                     finally:
                         store.close()
             elif target.path.startswith("/api/issue/"):

@@ -329,3 +329,17 @@ protected like `main`, created as soon as a run starts.
 Limit: preflight and `import-issues` still inspect the base branch (`main`), because a plan is authored against the
 repository as it is, not against an in-flight run branch. An issue imported mid-run therefore records `main`'s head
 as its first base; the scheduler rebases it onto the run branch head before it dispatches.
+
+## Plans and workspaces can be hidden from the dashboard (2026-10-30)
+
+The dashboard listed every plan that ever existed and every workspace that was ever created, seven plans and four
+workspaces after a day of work. Selecting the wrong one is easy, and the workflow buttons of a stale workspace look
+"dead" because its plan is already `Paused` or `Completed`.
+
+`gui_workflow.set_archived` writes a `plan:<id>` or `workspace:<id>` record into the existing `gui_archive` document
+store, and `gui.snapshot` / `/api/workflow` drop those ids from the lists they serve. Nothing is deleted: `status`
+and `harness issue` still show everything, and `harness archive KIND ID --undo` brings it back. Issue archival keeps
+its own unprefixed keys, so the two never collide.
+
+The buttons also carry a title now. Every disabled state names its reason ("Only a Proposed plan can be approved;
+this one is Paused", "Type the first 12 characters of the digest exactly"), so a click never silently does nothing.
