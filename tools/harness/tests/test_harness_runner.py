@@ -212,6 +212,7 @@ def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):
     s2 = Scheduler(env.store, "fx", 1, adapter2, env.repo, env.checker, env.publisher, clock=env.clock, isolation_override=TIER_A,
                    available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"], runner_id="runner-2")
     env.sched, env.adapter = s2, adapter2
+    env.clock.advance(65)  # the dead runner's plan lock expires after two heartbeats
     s2.start(env.clock())
     env.tick(5)
     assert not adapter2.started  # the dead runner's lease is still live, so no duplicate worker starts

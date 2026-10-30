@@ -126,6 +126,40 @@ class Store:
         rows = self.cx.execute("SELECT * FROM journal ORDER BY seq DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in reversed(rows)]
 
+    def claim_plan(self, plan_id: str, runner_id: str, now: float, ttl: float, pid: Optional[int] = None) -> Optional[str]:
+        """Take ownership of a plan for this runner. Returns None on success, else the runner that holds it.
+
+        Two runners on one plan fight over the same claims, retry budgets and human tasks; the lock makes that
+        impossible instead of merely unlikely. A holder whose process is gone, or whose heartbeat is older than the
+        time to live, is replaced.
+        """
+        owner = self.get_doc("plan_owner", plan_id) or {}
+        held_by = owner.get("runner_id")
+        if held_by and held_by != runner_id:
+            alive = True
+            holder_pid = owner.get("pid")
+            if holder_pid:
+                try:
+                    os.kill(int(holder_pid), 0)
+                except ProcessLookupError:
+                    alive = False
+                except (PermissionError, ValueError, OverflowError):
+                    pass
+            if alive and now - float(owner.get("heartbeat_at") or 0) <= ttl:
+                return str(held_by)
+        self.put_doc("plan_owner", plan_id, {"runner_id": runner_id, "heartbeat_at": now, "ttl_s": ttl, "pid": pid})
+        return None
+
+    def refresh_plan_claim(self, plan_id: str, runner_id: str, now: float) -> None:
+        owner = self.get_doc("plan_owner", plan_id)
+        if owner and owner.get("runner_id") == runner_id:
+            self.put_doc("plan_owner", plan_id, dict(owner, heartbeat_at=now))
+
+    def release_plan(self, plan_id: str, runner_id: str) -> None:
+        owner = self.get_doc("plan_owner", plan_id)
+        if owner and owner.get("runner_id") == runner_id:
+            self.cx.execute("DELETE FROM docs WHERE kind=? AND key=?", ("plan_owner", plan_id))
+
     def last_transition_at(self, entity: str) -> Optional[float]:
         """When this entity last changed state, for records written before an end stamp existed."""
         row = self.cx.execute("SELECT ts FROM journal WHERE entity=? ORDER BY seq DESC LIMIT 1", (entity,)).fetchone()

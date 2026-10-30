@@ -320,6 +320,10 @@ def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit, 
     except KeyboardInterrupt:
         emit({"event": "interrupted", "note": "leases expire on their own; run `resume` to reconcile and continue"})
         return 130
+    finally:
+        release = getattr(sched, "release", None)
+        if callable(release):
+            release()
 
 
 def request_cancel(store: Store, plan_id: str, version: int, drain: bool) -> str:

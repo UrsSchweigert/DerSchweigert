@@ -103,6 +103,7 @@ class Scheduler:
         """Begin or resume execution. Requires a verified approval and an isolation tier that permits `run`."""
         now = self.clock() if now is None else now
         approval.authorize_run(self.store, self.plan_id, self.version, self.iso, allow_paused=True)
+        self._claim(now)
         state = self.store.state("plan", self.entity)
         if state in ("Approved", "Paused"):
             self.store.transition("plan", self.entity, "Executing", self.runner_id, {"resumed_from": state}, now=now)
@@ -132,6 +133,7 @@ class Scheduler:
         now = self.clock() if now is None else now
         self.events = []
         self.store.put_doc("runner", self.runner_id, {"last_tick": now, "plan": self.plan_id, "active": sorted(self.handles)})
+        self.store.refresh_plan_claim(self.plan_id, self.runner_id, now)
         telemetry.prune(self.store, now)
         if self.store.state("plan", self.entity) != "Executing":
             return self.events
@@ -1493,6 +1495,25 @@ class Scheduler:
                 self._requeue(issue, self.store.state("issue", issue["issue_id"]), now)
         self.handles.clear()
         self.store.recover(now, self.runner_id)  # releases claims whose lease already lapsed
+
+    def _heartbeat_s(self) -> int:
+        try:
+            return int(self._plan()["policy"]["budgets"]["heartbeat_s"])
+        except Exception:  # noqa: BLE001 - a missing budget only means the default
+            return 30
+
+    def _claim(self, now: float) -> None:
+        """One runner per plan. A second one would fight over claims, retry budgets and tasks."""
+        ttl = self._heartbeat_s() * 2
+        holder = self.store.claim_plan(self.plan_id, self.runner_id, now, ttl, pid=os.getpid())
+        if holder:
+            raise broker.BrokerRejected(
+                "plan %s is already being run by %s. Stop that runner first, or wait %d seconds for its lock to expire."
+                % (self.plan_id, holder, ttl))
+
+    def release(self) -> None:
+        """Give up the plan so another runner may take it. Called when this run stops."""
+        self.store.release_plan(self.plan_id, self.runner_id)
 
     def _pause(self, reason: str, now: float) -> None:
         self._release_all(now, "Cancelled")
