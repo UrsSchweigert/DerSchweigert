@@ -116,7 +116,7 @@ def test_the_delegator_is_given_the_stuck_report_history_and_model_menu(tmp_path
     data = packet_data(request)
     assert "does not exist anywhere" in data["stuck_report"] and request.tier == "standard"
     assert {o["model"] for o in data["model_options"]} == {"claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"}
-    assert data["strong_attempts_remaining"] == 1 and data["attempts"][0]["failure_kind"] == "worker_blocked"
+    assert data["strong_attempts_remaining"] == 2 and data["attempts"][0]["failure_kind"] == "worker_blocked"
 
 
 def test_a_delegator_decision_without_a_model_keeps_the_current_one(tmp_path):
@@ -151,7 +151,7 @@ def test_a_second_stuck_report_goes_to_the_owner_not_back_to_the_delegator(tmp_p
 
 @pytest.mark.parametrize("decision, used, message", [
     (dict(RETRY_WITH_SONNET, model_choice={"model": "unapproved-model", "reason": "Cheap."}), 0, "configured"),
-    (dict(RETRY_WITH_SONNET, model_choice={"model": "claude-opus-5", "reason": "Hard."}), 1, "budget"),
+    (dict(RETRY_WITH_SONNET, model_choice={"model": "claude-opus-5", "reason": "Hard."}), 2, "budget"),
     (dict(RETRY_WITH_SONNET, model_choice={"model": "claude-sonnet-5", "reason": " "}), 0, "reason"),
     (dict(RETRY_WITH_SONNET, diagnosis="  "), 0, "diagnosis"),
     (dict(RETRY_WITH_SONNET, guidance="use ghp_" + "b" * 36), 0, "credential"),
