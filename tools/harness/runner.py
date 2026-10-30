@@ -296,6 +296,26 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
     return Scheduler(store, plan_id, version, adapter, clone, SandboxChecker(clone, token), publisher, available_models=available, owner=owner, notifier=notifier)
 
 
+def watch_promotion(sched: Scheduler, interval: float, max_ticks: Optional[int], emit) -> int:
+    """Watch a finished run whose pull request the owner has not merged yet.
+
+    Nothing is claimed and nothing is restarted: the plan stays Complete, and the only work is reading the pull request
+    back so the harness can close its own ask. Without this, a run whose runner already exited would keep the ask open
+    forever, because `start` refuses a completed plan (correctly: it must not resume work).
+    """
+    deadline = time.time() + PROMOTION_WATCH_S
+    ticks = 0
+    while sched.promotion_waiting() and time.time() < deadline:
+        for event in sched.tick():
+            emit(event)
+        ticks += 1
+        if max_ticks is not None and ticks >= max_ticks:
+            return 0
+        time.sleep(max(interval, PROMOTION_POLL_S))
+    emit({"event": "stopped", "plan_state": sched.store.state("plan", sched.entity), "reason": "promotion settled"})
+    return 0
+
+
 def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit, max_errors: int = 3) -> int:
     """Foreground and restartable. Stopping it leaves leases to expire, and `resume` reconciles from the store.
     An unexpected error in one pass is reported and retried. Repeated errors pause the plan instead of killing the process."""

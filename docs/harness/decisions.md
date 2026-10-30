@@ -594,3 +594,7 @@ invent the split. Sizing is an analysis, so that path now goes through triage fi
 role that plans at that level) produces the root cause and, where it fits, the validated smaller issues, and the owner is
 asked only to apply them. The split advice is therefore also the first place where the two halves of the rule meet: the
 expensive model analyses, the small models execute.
+
+A finished run whose runner already exited cannot be resumed — `start` refuses a `Completed` plan, which is right, because
+resuming would re-enter execution. `resume` on such a plan now *watches* instead: `watch_promotion` claims nothing, starts
+nothing, and only reads the pull request back until the ask closes or `PROMOTION_WATCH_S` expires.

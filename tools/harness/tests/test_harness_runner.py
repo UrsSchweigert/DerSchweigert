@@ -1417,3 +1417,28 @@ def test_a_finished_run_keeps_watching_its_pull_request(monkeypatch):
     sched = Watching()
     assert runner_mod.run_loop(sched, 0, 5, lambda e: None) == 0
     assert sched.ticked >= 2  # it did not stop at the first Completed pass
+
+
+def test_a_finished_run_is_watched_instead_of_resumed(monkeypatch):
+    """A completed plan may not be resumed, but its pull request still has to be read so the ask can close."""
+    from harness import runner as runner_mod
+
+    monkeypatch.setattr(runner_mod.time, "sleep", lambda s: None)
+
+    class Watched(_Quiet):
+        def __init__(self):
+            super().__init__([], [])
+            self.waiting = True
+            self.ticked = 0
+
+        def promotion_waiting(self):
+            return self.waiting
+
+        def tick(self):
+            self.ticked += 1
+            self.waiting = False  # the merge shows up on the first pass
+            return [{"event": "promotion_merged"}]
+
+    sched, events = Watched(), []
+    assert runner_mod.watch_promotion(sched, 0, None, events.append) == 0
+    assert sched.ticked == 1 and [e["event"] for e in events] == ["promotion_merged", "stopped"]
