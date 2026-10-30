@@ -604,3 +604,22 @@ def test_a_run_record_without_an_end_stamp_does_not_keep_growing(tmp_path):
     second = status.build_report(env.store.home, env.clock())["budgets"]["fx"]["wall_clock_s"]["used"]
 
     assert first == second == 60
+
+
+def test_a_worker_that_never_started_does_not_use_up_the_strong_budget(tmp_path):
+    env = Env(tmp_path, budgets=dict(LONG_BUDGETS, strong_attempts_per_issue=1))
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "needs the strong model"}}
+    env.store.put_issue(issue)
+
+    def explode(req):
+        raise OSError("git checkout failed")
+
+    env.adapter.start = explode
+    env.sched.start()
+
+    env.sched.tick(60)
+
+    issue = env.store.get_issue("i1")
+    assert issue["strong_attempts"] == 0
+    assert any("adapter failed to start" in f["detail"] for f in issue["last_failures"])

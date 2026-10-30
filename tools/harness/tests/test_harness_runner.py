@@ -1003,3 +1003,23 @@ def test_a_leftover_issue_with_work_blocks_the_import(tmp_path):
     with pytest.raises(runner.RunRefused, match="i2 from an earlier version already has work"):
         runner.import_issues(store, "fx", None, str(revised), "base2", replace=True)
     assert store.state("issue", "i1") == "Ready" and store.state("issue", "i2") == "Ready"  # nothing was written
+
+
+def test_a_worker_starts_on_a_run_branch_that_is_not_the_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    with open(os.path.join(src, "f.txt"), "w") as fh:
+        fh.write("x\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    git(src, "branch", "harness/run/fx")
+    adapter = CopilotCliAdapter(str(tmp_path / "home"), src, "harness/run/fx")
+    req = WorkRequest("i1#1", 1, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
+
+    work = adapter._prepare(req)
+
+    repo = os.path.join(work, "repo")
+    assert git(repo, "rev-parse", "--abbrev-ref", "HEAD") == "harness/i1"
+    assert git(repo, "rev-parse", "HEAD") == git(src, "rev-parse", "harness/run/fx")

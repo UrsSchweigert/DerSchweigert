@@ -158,6 +158,10 @@ class CopilotCliAdapter(Adapter):
         subprocess.run(["git", "-c", "core.hooksPath=" + os.devnull, "clone", "--quiet", "--no-hardlinks", self.source_repo, repo],
                        check=True, capture_output=True, env={"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_GLOBAL": os.devnull})
         start = self.base
+        probe_base = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/" + self.base],
+                                    capture_output=True)
+        if probe_base.returncode == 0:
+            start = "refs/remotes/origin/" + self.base  # a fresh clone only knows non-default branches as remote refs
         if req.role == "reviewer":
             # A reviewer must see the code under review, not main. The implementer's branch was fetched into the trusted clone.
             probe = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/" + req.branch], capture_output=True)

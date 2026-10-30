@@ -1376,6 +1376,10 @@ class Scheduler:
             handle = self.adapter.start(req)
         except Exception as exc:
             self.handles[lease.attempt_id] = {"handle": None, "epoch": lease.epoch, "started_at": now}
+            if role == "implementer" and route["tier"] == "strong":
+                # the worker never ran, so this attempt must not use up the strong-model budget
+                issue["strong_attempts"] = max(0, issue["strong_attempts"] - 1)
+                self.store.put_issue(issue)
             self._record_failure(meta, "infra", now, "adapter failed to start: %s" % exc)
             return
         self.handles[lease.attempt_id] = {"handle": handle, "epoch": lease.epoch, "started_at": now}
