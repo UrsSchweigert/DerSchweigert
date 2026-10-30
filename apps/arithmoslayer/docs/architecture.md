@@ -10,12 +10,12 @@ never imports from it, never links to it, and never mentions its path.
 | --- | --- |
 | `scenes/` | Packed scenes. `scenes/main.tscn` is the only scene in the skeleton and is the main scene. |
 | `scripts/` | Typed GDScript. `scripts/main.gd` drives the root scene and `scripts/autoload/` holds autoloads. |
-| `data/` | Data-driven content: `data/i18n/` for translations and `data/project/` for project-wide data files. |
+| `data/` | Data-driven content: `data/i18n/strings.csv` holds the `key,en,de` translation table and `data/project/` holds project-wide data files. |
 | `shaders/` | Reserved for Godot shaders (`.gdshader`); created with the first shader. |
 | `assets/` | Reserved for art, audio, and font sources; created with the first asset. |
 | `test/` | GUT tests. `test/unit/` holds unit tests and `test/fixtures/` holds shared fixtures. |
 | `docs/` | Architecture, installation, and testing notes. |
-| `tools/` | Python guard scripts (`check_isolation.py`, `check_offline.py`) and later build helpers. |
+| `tools/` | Python guard scripts (`validate_data.py`, `check_isolation.py`, `check_offline.py`) and later build helpers. |
 
 Every directory stays inside `apps/arithmoslayer/`. Changes elsewhere in the
 repository are rejected by `tools/check_isolation.py`.
@@ -28,9 +28,25 @@ The autoload list is deliberately short. Each entry is registered in
 | Autoload | Script | Responsibility |
 | --- | --- | --- |
 | `GameState` | `res://scripts/autoload/game_state.gd` | Session score shared between scenes. |
+| `Localization` | `res://scripts/autoload/localization.gd` | Loads `data/i18n/strings.csv`, picks the device language with English fallback, and exposes `tr_key()`. |
 
 Add an autoload only when several scenes need the same state, and update this
 table, `project.godot`, and the autoload test in the same change.
+
+## Localization
+
+`data/i18n/strings.csv` is the single source of every user-visible string. The
+first column holds the key and the remaining columns hold the `en` and `de`
+translations; a key must have a value in both languages. The `Localization`
+autoload parses the table at startup, selects the device language when it is
+supported (`de_DE` resolves to `de`), falls back to `en` otherwise, and exposes
+the typed lookup `tr_key(key: StringName) -> String`. An unknown key returns the
+key itself so a missing translation is visible instead of blank.
+
+`scripts/core/localization/localization.gd` holds the reusable table parser;
+the autoload is the thin scene-facing wrapper. `tools/validate_data.py` checks
+the table shape, reports a missing key with its file and field, and verifies
+that every `tr_key()` reference in `scripts/` and `scenes/` resolves.
 
 ## Project settings
 
