@@ -16,7 +16,7 @@ from .adapter import CopilotCliAdapter
 from .checks import DryRunPublisher, SandboxChecker
 from .github import GhCli
 from .humantasks import MultiNotifier, TerminalNotifier
-from .publisher import GitHubPublisher, git_with_token
+from .publisher import GitHubPublisher, git_with_token, merge_base_into
 from .repo import GitRepo
 from .scheduler import Scheduler, new_issue
 from .store import Store
@@ -209,16 +209,39 @@ def make_rehearsal(home: str) -> str:
 
 
 def ensure_run_branch(clone_path: str, remote: str, base: str, run: str, token_file: Optional[str]) -> None:
-    """Create the run branch at the current base head if it is missing. An existing one resumes where it stopped."""
+    """Create the run branch at the current base head if it is missing, and keep an existing one on top of the base.
+
+    A run branch that falls behind the base cannot be promoted: GitHub cannot build the promotion merge commit, reports
+    no checks at all for it, and the required checks never arrive. So the base is merged into the run branch before any
+    work starts. A real conflict stops the run with the paths that collide instead of finishing work that cannot land.
+    """
     known = git_with_token(["ls-remote", "--heads", remote, "refs/heads/" + run], clone_path, token_file)
     if known.returncode != 0:
         raise RunRefused("could not inspect the run branch %s: %s" % (run, known.stderr.strip()[-200:]))
     if known.stdout.strip():
+        merge_base_into_run_branch(clone_path, remote, base, run, token_file)
         return
     head = GitRepo(clone_path, base).base_head()
     created = git_with_token(["push", "--quiet", remote, "%s:refs/heads/%s" % (head, run)], clone_path, token_file)
     if created.returncode != 0:
         raise RunRefused("could not create the run branch %s: %s" % (run, created.stderr.strip()[-200:]))
+
+
+def merge_base_into_run_branch(clone_path: str, remote: str, base: str, run: str, token_file: Optional[str]) -> Optional[str]:
+    """Bring the base into the run branch. Returns the merge commit, or None when the base was already contained."""
+    fetched = git_with_token(["fetch", "--quiet", "--no-tags", remote,
+                              "+refs/heads/%s:refs/heads/%s" % (base, base),
+                              "+refs/heads/%s:refs/heads/%s" % (run, run)], clone_path, token_file)
+    if fetched.returncode != 0:
+        raise RunRefused("could not read %s and %s: %s" % (base, run, fetched.stderr.strip()[-200:]))
+    repo = GitRepo(clone_path, base)
+    head = repo.base_head()
+    if repo.is_ancestor(head, repo.branch_head(run)):
+        return None
+    try:
+        return merge_base_into(clone_path, remote, base, run, head, token_file)
+    except Exception as exc:  # noqa: BLE001 - every reason is the owner's decision, and each one names itself
+        raise RunRefused("the run branch %s cannot be brought up to %s: %s" % (run, base, str(exc)[:400]))
 
 
 def discard_run_branch(store: Store, plan_id: str, version: Optional[int], repo_root: str,

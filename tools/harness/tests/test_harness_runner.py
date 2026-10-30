@@ -1077,3 +1077,58 @@ def test_a_check_job_does_not_wait_for_a_reader_whose_writer_is_gone(tmp_path, m
     handle.proc, handle.reader = Done(), Stuck()
 
     assert checker.poll(handle) == [{"command": "true", "exit_code": 0}]
+
+
+def _advance_main(clone, origin, path, text, message):
+    git(clone, "checkout", "-q", "main")
+    git(clone, "pull", "-q", "origin", "main")
+    with open(os.path.join(clone, path), "w") as fh:
+        fh.write(text)
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", message)
+    git(clone, "push", "-q", "origin", "HEAD:main")
+
+
+def test_a_resumed_run_branch_is_brought_up_to_the_base(remote_world, tmp_path):
+    """An unmergeable promotion pull request gets no checks at all, so the run branch must not fall behind the base."""
+    origin, clone = remote_world
+    bare = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", origin, "+refs/heads/main:refs/heads/main")
+    runner.ensure_run_branch(bare, origin, "main", "harness/run/p1", None)
+
+    _advance_main(clone, origin, "c.txt", "c\n", "main moves on")
+    git(clone, "fetch", "-q", "origin", "harness/run/p1:harness/run/p1")
+    git(clone, "checkout", "-q", "harness/run/p1")
+    with open(os.path.join(clone, "b.txt"), "w") as fh:
+        fh.write("b\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "run work")
+    git(clone, "push", "-q", "origin", "HEAD:harness/run/p1")
+
+    runner.ensure_run_branch(bare, origin, "main", "harness/run/p1", None)
+
+    assert git(clone, "--git-dir", origin, "merge-base", "--is-ancestor", "main", "harness/run/p1") == ""
+    merged = git(clone, "--git-dir", origin, "rev-parse", "harness/run/p1")
+    assert git(clone, "--git-dir", origin, "rev-list", "--parents", "-n", "1", merged).count(" ") == 2  # a real merge commit
+    assert git(clone, "--git-dir", origin, "show", merged + ":b.txt") == "b"  # the run's own work survived
+
+
+def test_a_run_branch_that_really_collides_stops_the_run(remote_world, tmp_path):
+    origin, clone = remote_world
+    bare = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", origin, "+refs/heads/main:refs/heads/main")
+    runner.ensure_run_branch(bare, origin, "main", "harness/run/p1", None)
+
+    git(clone, "fetch", "-q", "origin", "harness/run/p1:harness/run/p1")
+    git(clone, "checkout", "-q", "harness/run/p1")
+    with open(os.path.join(clone, "a.txt"), "w") as fh:
+        fh.write("run side\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "run edits a.txt")
+    git(clone, "push", "-q", "origin", "HEAD:harness/run/p1")
+    _advance_main(clone, origin, "a.txt", "main side\n", "main edits a.txt")
+
+    with pytest.raises(runner.RunRefused, match="a.txt"):
+        runner.ensure_run_branch(bare, origin, "main", "harness/run/p1", None)

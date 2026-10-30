@@ -214,6 +214,10 @@ class Publisher:
     def update_branch(self, issue: Dict[str, Any], branch: str, old_head: str, new_head: str) -> None:
         """Publish a branch the harness itself rebased, so the pull request head equals the commit the evidence is bound to."""
 
+    def sync_run_branch(self, base: str) -> Optional[str]:
+        """Merge the base into the run branch before it is promoted. Rehearsals have no remote to sync with."""
+        return None
+
     def open_promotion(self, base: str, title: str, body: str) -> Optional[int]:
         """Propose the finished run branch to the base branch. Only the owner merges that one."""
         return None

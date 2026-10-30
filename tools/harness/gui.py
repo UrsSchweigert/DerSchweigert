@@ -81,7 +81,11 @@ class GuiServer(ThreadingHTTPServer):
                                              and store.state("issue", doc["issue_id"]) == "Done"]
                 hidden_plans = gui_workflow.archived_ids(store, "plan")
                 report["plans"] = [plan for plan in report["plans"] if plan["plan_id"] not in hidden_plans]
+                report["promotion"] = {}
                 for plan_id in {plan["plan_id"] for plan in report["plans"]}:
+                    promotion = store.get_run(plan_id).get("promotion")
+                    if promotion:
+                        report["promotion"][plan_id] = promotion
                     for key, job in store.get_run(plan_id).get("checks", {}).items():
                         report["checks"].append({
                             "plan_id": plan_id, "stage": key.partition(":")[0], "issue_id": job["issue_id"],
