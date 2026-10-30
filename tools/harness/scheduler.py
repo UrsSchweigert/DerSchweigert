@@ -12,7 +12,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from . import approval, broker, descope, failures, humantasks, models, plans, schemas, smoke, splits, telemetry, usage
+from . import approval, broker, descope, failures, humantasks, models, plans, schemas, sizing, smoke, splits, telemetry, usage
 from .adapter import Adapter, WorkRequest
 from .checks import Checker, Publisher
 from .github import BaseChanged, GitHubError
@@ -755,6 +755,30 @@ class Scheduler:
         self.store.put_issue(issue)
         self._emit("delegator_retry", issue=issue["issue_id"], attempt=meta["attempt_id"], model=choice["model"] if choice else None)
 
+    def _split_pressure(self, issue: Dict[str, Any], policy: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Measured, not judged: does this task look like several cheaper tasks wearing one hat?"""
+        if not sizing.enabled(policy):
+            return None
+        size_of = getattr(self.repo, "file_size", None)
+        report = sizing.split_pressure(issue, size_of if callable(size_of) else (lambda _p: 0), policy)
+        return report if report["split_recommended"] else None
+
+    def _split_pressure_route(self, issue: Dict[str, Any], route: Dict[str, Any], policy: Dict[str, Any],
+                              tier: str) -> Dict[str, Any]:
+        """The strongest tier is for work that cannot be split. A splittable task gets the cheaper model instead."""
+        if route["tier"] != models.TIERS[-1]:
+            return route
+        report = self._split_pressure(issue, policy)
+        if report is None:
+            return route
+        cheaper = models.resolve_model("standard", policy["model_tiers"], self.available_models,
+                                       issue.get("implementer_model"))
+        self._emit("split_pressure", issue=issue["issue_id"], facts=report["facts"], reasons=report["reasons"],
+                   strongest=route["model"], used=cheaper.get("model"))
+        if not cheaper.get("model"):
+            return route
+        return dict(cheaper, note="%s (split pressure: %s)" % (cheaper.get("note", ""), sizing.describe(report)))
+
     def _schedule_analysis(self, issue: Dict[str, Any]) -> bool:
         """A strong analysis needs budget and a strong model that the runtime offers. Without both, the owner is asked directly."""
         policy = self._plan()["policy"]
@@ -1327,6 +1351,8 @@ class Scheduler:
                         why, choice["model"], choice["reason"], route["note"])
             if route["routing"] and route["model"] is None:
                 raise ValueError("no configured model is available for this attempt")
+            if role == "implementer":
+                route = self._split_pressure_route(issue, route, policy, tier)
             if role == "implementer" and route["tier"] == "strong" and issue["strong_attempts"] >= budgets["strong_attempts_per_issue"]:
                 raise ValueError("strong attempt budget exhausted")
         except (ValueError, broker.BrokerRejected) as exc:

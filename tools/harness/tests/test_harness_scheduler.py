@@ -656,3 +656,26 @@ def test_the_lock_expires_so_a_crashed_runner_does_not_block_the_plan(tmp_path):
 
     other.start(now=1010.0)  # the plan was released, so a new runner may take it
     assert env.store.get_doc("plan_owner", "fx")["runner_id"] == "runner-2"
+
+
+def test_a_splittable_task_does_not_get_the_strongest_tier(tmp_path, monkeypatch):
+    from harness import plans
+
+    monkeypatch.setitem(plans.DEFAULT_POLICY, "split_pressure", {"enabled": True, "max_files": 1})
+    env = Env(tmp_path, budgets=dict(LONG_BUDGETS, strong_attempts_per_issue=1))
+    issue = env.store.get_issue("i1")
+    issue["code_anchors"] = ["src/a.py", "src/b.py"]
+    issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "looks big"}}
+    env.store.put_issue(issue)
+    started = []
+
+    def record(req):
+        started.append((req.tier, req.model))
+        raise OSError("stop here: the routing is what this test looks at")
+
+    env.adapter.start = record
+    env.sched.start()
+    env.sched.tick(60)
+
+    assert started and started[0][0] != "strong"
+    assert any(e["event"] == "split_pressure" for e in env.sched.events)
