@@ -83,6 +83,9 @@ class Client:
     def merge_protection(self, base: str) -> Dict[str, Any]:
         return {"safe": False, "reason": "the client cannot verify strict branch protection"}
 
+    def pr_merged(self, number: int) -> bool:
+        raise NotImplementedError
+
     def completion_evidence(self, number: int, required_checks: List[str]) -> Dict[str, Any]:
         raise NotImplementedError
 
@@ -192,6 +195,11 @@ class GhCli(Client):
         result = self._json(["api", "-X", "PUT", "repos/%s/pulls/%d/merge" % (self.repo, number), "-f", "sha=" + sha,
                              "-f", "merge_method=" + method])
         return isinstance(result, dict) and result.get("merged") is True
+
+    def pr_merged(self, number: int) -> bool:
+        """Whether the owner merged the pull request. A read: the harness never merges into the base branch."""
+        data = self._json(["api", "repos/%s/pulls/%d" % (self.repo, number)])
+        return bool(isinstance(data, dict) and data.get("merged"))
 
     def completion_evidence(self, number: int, required_checks: List[str]) -> Dict[str, Any]:
         pr = self._json(["api", "repos/%s/pulls/%d" % (self.repo, number)])

@@ -1,6 +1,6 @@
 import pytest
 
-from harness import approval, status
+from harness import approval, humantasks, status
 from harness.store import Store
 from harness_doubles import Env, FakeChecker
 
@@ -487,11 +487,16 @@ class _Promoter:
     def __init__(self, fail=False, conflict=""):
         self.calls, self.fail, self.conflict, self.syncs = [], fail, conflict, []
 
+    merged = False
+
     def sync_run_branch(self, base):
         self.syncs.append(base)
         if self.conflict:
             raise RuntimeError(self.conflict)
         return None
+
+    def promotion_merged(self, number):
+        return self.merged
 
     def open_promotion(self, base, title, body):
         if self.fail:
@@ -522,6 +527,36 @@ def test_a_run_that_cannot_be_brought_up_to_the_base_is_not_offered(tmp_path):
     assert problem["base"] == "main" and "both changed tools/harness/scheduler.py" in problem["problem"]
     assert [e for e in env.sched.events if e["event"] == "promotion_conflict"]
     assert env.store.state("plan", "fx@v1") != "Cancelled"
+
+
+def test_the_finished_run_asks_the_owner_to_merge_it(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.publisher = _Promoter()
+
+    env.sched._open_promotion()
+
+    task = env.store.get_human_task("promotion-fx-42")
+    assert task and task["state"] == "Requested"
+    assert task["payload"]["kind"] == "promotion"
+    assert task["payload"]["options"] == humantasks.PROMOTION_OPTIONS
+    assert task["payload"]["extra"]["pull_request"] == 42 and task["payload"]["extra"]["base"] == "main"
+
+
+def test_a_merged_promotion_closes_the_ask_by_itself(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    promoter = _Promoter()
+    env.sched.publisher = promoter
+    env.sched._open_promotion()
+    env.store.transition("plan", "fx@v1", "Executing", "t", {}, now=env.clock())
+    env.store.transition("plan", "fx@v1", "Completed", "t", {}, now=env.clock())
+    assert env.store.get_human_task("promotion-fx-42")["state"] == "Requested"
+
+    promoter.merged = True
+    events = env.tick()
+
+    assert env.store.get_human_task("promotion-fx-42")["state"] == "Resolved"
+    assert env.store.get_run("fx")["promotion"]["merged"] is True
+    assert any(e["event"] == "promotion_merged" for e in events)
 
 
 def test_a_missing_promotion_never_undoes_a_completed_plan(tmp_path):

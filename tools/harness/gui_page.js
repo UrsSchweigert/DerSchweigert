@@ -345,10 +345,11 @@
       const input = options.multiline ? element("textarea", {name, rows: 3, required: options.required}) : element("input", {name, type: "text", required: options.required});
       input.value = saved[name] ?? options.value ?? ""; form.append(field(label, input)); return input;
     };
-    if (task.kind === "decision") {
+    if (task.kind === "decision" || task.kind === "promotion") {
       known.add("option"); form.append(element("fieldset", {}, element("legend", {}, "Decision"), task.options.map(option => element("label", {class: "choice"},
         element("input", {type: "radio", name: "option", value: option, checked: saved.option === option, required: true}), element("span", {}, option)))));
-      add("guidance", "Guidance", {multiline: true});
+      if (task.kind === "decision") add("guidance", "Guidance", {multiline: true});
+      if (task.extra?.url) card.append(element("p", {}, element("a", {href: task.extra.url, target: "_blank", rel: "noreferrer"}, "Open pull request #" + task.extra.pull_request)));
     } else if (task.kind === "manual_test") {
       known.add("outcome");
       const outcome = element("select", {name: "outcome", required: true}, element("option", {value: ""}, "Select outcome"), ["pass", "fail", "inconclusive"].map(value => element("option", {value}, value)));
