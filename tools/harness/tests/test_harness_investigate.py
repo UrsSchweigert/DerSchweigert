@@ -723,3 +723,15 @@ def test_the_picker_offers_only_the_chosen_sources(out):
         assert json.load(fh)["model_sources"] == ["deepseek", "local"]
     result = cli.plan_command(None, REQ, os.path.join(out, "phases.json"), plan_id="d", fixture=True, dry_run=True)
     assert result["model_sources"] == ["deepseek", "local"] and result["state"] == "Proposed"
+
+
+def test_a_rejected_attempt_says_why_it_was_rejected(out):
+    lines = []
+    bad = mutate(lambda d: d["phases"][0]["path_allowlist"].append("tools/harness/"))
+    adapter = FakeInvestigatorAdapter(bad, good_draft())
+
+    res = run(make(adapter, log=lines.append), out)
+
+    assert res["status"] == "ok"
+    rejected = [line for line in lines if "rejected" in line]
+    assert rejected and "harness-protected" in rejected[0]
