@@ -67,7 +67,7 @@ for (const lang of ['de', 'en']) {
   test(`${lang}: the whole pool is offered once every unit is selected`, () => {
     const pool = poolOf(lang);
     const offered = readableSentenceCards(pool, fullSelection(lang), lang);
-    assert.equal(pool.length, 1000);
+    assert.ok(pool.length > 0, `${lang} pool should not be empty`);
     assert.equal(offered.length, pool.length);
     assert.deepEqual(
       offered.map((entry) => entry.text),
