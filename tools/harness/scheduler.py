@@ -704,10 +704,27 @@ class Scheduler:
         self.handles.pop(meta["attempt_id"], None)
         meta.update(outcome="Succeeded", finished_at=now)
         self.store.put_attempt(meta)
+        plan = [str(step)[:400] for step in (result.get("plan") or []) if str(step).strip()][:12]
+        tier_fit = str(result.get("tier_fit") or "").strip().lower()
+        if tier_fit not in models.TIERS:
+            tier_fit = ""
+        advice = str(result.get("split_advice") or "").strip()[:400]
+        issue["planned"] = True  # the pass ran; a refiner that writes no steps must not be asked again
+        if plan:
+            issue["plan"] = plan
+        if tier_fit:
+            issue["tier_fit"] = tier_fit
         issue["base_rev"] = self.repo.base_head()
         self.store.put_issue(issue)
         self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"base": issue["base_rev"]}, now=now)
-        self._emit("refined", issue=issue["issue_id"])
+        self._emit("refined", issue=issue["issue_id"], plan_steps=len(plan), tier_fit=tier_fit or None,
+                   split_advice=advice or None)
+        if advice:
+            issue["split_advice"] = advice
+            issue["blocked_reason"] = "the refiner says this task cannot be sized for one implementer: %s" % advice
+            self.store.put_issue(issue)
+            self._emit("split_advised", issue=issue["issue_id"], advice=advice)
+            self._block(issue, now)
 
     def _on_delegator(self, meta, h, result, now) -> None:
         """Apply the delegating agent's decision after trusted code checks it. It can steer a retry or hand the question to the owner."""
@@ -763,6 +780,23 @@ class Scheduler:
         size_of = getattr(self.repo, "file_size", None)
         report = sizing.split_pressure(issue, size_of if callable(size_of) else (lambda _p: 0), policy)
         return report if report["split_recommended"] else None
+
+    def _planned_route(self, issue: Dict[str, Any], route: Dict[str, Any], policy: Dict[str, Any]) -> Dict[str, Any]:
+        """The refiner wrote the steps down; the cheapest tier that can follow them is enough.
+
+        Only the first attempt is decided this way: once an attempt runs, evidence owns the tier, so a failed cheap
+        attempt must still be allowed to escalate."""
+        fit = issue.get("tier_fit")
+        if issue.get("implementer_model") or not fit or fit == route["tier"]:
+            return route
+        if models.TIERS.index(fit) >= models.TIERS.index(route["tier"]):
+            return route
+        cheaper = models.resolve_model(fit, policy["model_tiers"], self.available_models, issue.get("implementer_model"))
+        if not cheaper.get("model"):
+            return route
+        self._emit("tier_lowered_by_plan", issue=issue["issue_id"], planned=route["model"], used=cheaper["model"],
+                   tier_fit=fit, steps=len(issue.get("plan") or []))
+        return dict(cheaper, note="%s (the refiner's plan fits %s)" % (cheaper.get("note", ""), fit))
 
     def _split_pressure_route(self, issue: Dict[str, Any], route: Dict[str, Any], policy: Dict[str, Any],
                               tier: str) -> Dict[str, Any]:
@@ -1186,6 +1220,23 @@ class Scheduler:
             return True
         return len(running) < limit and issue["parallel_safe"] and all(r["parallel_safe"] for r in running)
 
+    def _declared_tier(self, issue: Dict[str, Any]) -> str:
+        """The tier the issue's own model choice aims at, before any downgrade."""
+        choice = (issue.get("model_choices") or {}).get("implementer") or {}
+        model = choice.get("model")
+        for tier in models.TIERS:
+            if model and model in models._candidates(tier, self._plan()["policy"]["model_tiers"]):
+                return tier
+        return ""
+
+    def _needs_plan(self, issue: Dict[str, Any]) -> bool:
+        """Plan the work before paying for it, but only where lowering the tier is possible at all."""
+        if issue.get("planned") or issue.get("plan") or issue.get("tier_fit"):
+            return False
+        if issue.get("analysis_pending") or issue.get("consult_pending"):
+            return False
+        return self._declared_tier(issue) in ("standard", "strong")
+
     def _ready_to_work(self, issue: Dict[str, Any], now: float) -> bool:
         phase_state = self.store.state("phase", "%s/%s" % (self.entity, issue["phase_id"]))
         return (issue["not_before"] <= now and not self._unmet_deps(issue) and phase_state in ("Active",)
@@ -1286,6 +1337,8 @@ class Scheduler:
             data = dict(data, human_guidance=issue["guidance"])
         if role == "implementer" and issue.get("delegator_guidance"):
             data = dict(data, delegator_guidance=issue["delegator_guidance"])
+        if role == "implementer" and issue.get("plan"):
+            data = dict(data, plan=issue["plan"])  # the refiner's steps; the implementer follows them
         if role == "delegator":
             data = self._delegator_data(issue, evidence)
         if role == "analyst":
@@ -1353,6 +1406,7 @@ class Scheduler:
             if route["routing"] and route["model"] is None:
                 raise ValueError("no configured model is available for this attempt")
             if role == "implementer":
+                route = self._planned_route(issue, route, policy)
                 route = self._split_pressure_route(issue, route, policy, tier)
             if role == "implementer" and route["tier"] == "strong" and issue["strong_attempts"] >= budgets["strong_attempts_per_issue"]:
                 raise ValueError("strong attempt budget exhausted")
@@ -1361,6 +1415,12 @@ class Scheduler:
             self.store.put_issue(issue)
             self._emit("model_selection_rejected", issue=issue["issue_id"], role=role, reason=str(exc))
             self._block(issue, now)
+            return
+        if role == "implementer" and self.store.state("issue", issue["issue_id"]) == "Ready" and self._needs_plan(issue):
+            # The model selection is valid, so the only thing missing is a written-down plan. Pay for that once instead of
+            # letting the expensive model discover the shape of the work while it implements.
+            self.store.transition("issue", issue["issue_id"], "Refining", self.runner_id, {"reason": "plan before implement"}, now=now)
+            self._emit("plan_requested", issue=issue["issue_id"], declared_tier=self._declared_tier(issue), declined=route["tier"])
             return
         packet = self._packet(issue, role, route["tier"])
         digest = digest_of(packet)

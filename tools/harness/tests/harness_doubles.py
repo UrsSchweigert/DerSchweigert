@@ -128,6 +128,7 @@ class FakeAdapter(Adapter):
         self.verdicts = {}        # issue_id -> list of 'approve'/'changes_requested'
         self.decisions = {}       # issue_id -> delegator decisions, the last one repeats
         self.analyses = {}        # issue_id -> analyst analyses, the last one repeats
+        self.plans = {}           # issue_id -> extra refiner result fields (plan, tier_fit, split_advice)
         self.size_usage = None    # what the adapter reports from prompt and file sizes
         self.runtime_lines = []   # usage lines the runtime printed
         self.agent_usage = None   # the estimate every worker reports about itself, malformed values included
@@ -197,6 +198,8 @@ class FakeAdapter(Adapter):
             result["outcome"] = "needs_input" if step == "needs_input" else "not_sure" if step == "not_sure" else "ready"
             if step in ("needs_input", "not_sure"):
                 result["blockers"] = ["The spec does not say whether the disclaimer repeats after a reload."]
+            else:
+                result.update(dict(self.plans.get(req.issue_id) or {}))
         if self.agent_usage is not None:
             result["usage_estimate"] = self.agent_usage
         return Poll("finished", now, result, None)
@@ -222,7 +225,7 @@ class Env:
     """An approved plan, Tier A attestation override, and a scheduler wired to doubles."""
 
     def __init__(self, tmp_path, issues=None, allowlist=("src/",), merge_policy=None, available_models=("claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"),
-                 budgets=None, phases=None, authorized_operations=None):
+                 budgets=None, phases=None, authorized_operations=None, model_sources=None):
         self.store = Store(str(tmp_path / "home"))
         phases = phases or [
             {"id": "P1", "outcomes": ["one"], "requirements": ["F1.1", "F1.2"], "path_allowlist": list(allowlist), "non_goals": ["x"],
@@ -238,7 +241,7 @@ class Env:
         if authorized_operations is not None:
             policy["authorized_operations"] = list(authorized_operations)
         policy["budgets"].update(budgets or {})
-        plan = plans.build_plan("fx", 1, plans.parse_requirements(REQ), phases, policy, fixture=True)
+        plan = plans.build_plan("fx", 1, plans.parse_requirements(REQ), phases, policy, fixture=True, model_sources=model_sources)
         assert not plans.validate_plan(plan)
         self.store.put_plan(plan, plans.plan_digest(plan))
         self.store.transition("plan", "fx@v1", "Proposed", "t")
