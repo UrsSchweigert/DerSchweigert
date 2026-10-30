@@ -1,0 +1,5 @@
+# Godot editor and import caches
+.godot/
+.import/
+# Local export artifacts
+export/
