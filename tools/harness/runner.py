@@ -56,7 +56,7 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         schemas.validate(doc, ISSUE_SCHEMA, "issue")
         for role, choice in doc.get("model_choices", {}).items():
             try:
-                models.resolve_choice(choice, plan["policy"]["model_tiers"], None,
+                models.resolve_choice(choice, plan["policy"]["model_tiers"], None, role=role,
                                       strong_budget=plan["policy"]["budgets"]["strong_attempts_per_issue"] if role == "implementer" else 1)
             except ValueError as exc:
                 raise RunRefused("issue %s %s model choice: %s" % (doc["issue_id"], role, exc)) from exc

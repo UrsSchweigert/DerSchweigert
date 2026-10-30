@@ -1397,7 +1397,7 @@ class Scheduler:
             # the model actually in use instead of gating independence on repair_failures.
             review_conflict = bool(choice and role == "reviewer" and choice["model"] == avoid)
             if choice and not repair and not review_conflict:
-                route = models.resolve_choice(choice, policy["model_tiers"], self.available_models, avoid,
+                route = models.resolve_choice(choice, policy["model_tiers"], self.available_models, avoid, role=role,
                                               strong_used=issue["strong_attempts"] if role == "implementer" else 0,
                                               strong_budget=budgets["strong_attempts_per_issue"] if role == "implementer" else 1)
                 routing_source = "delegator"

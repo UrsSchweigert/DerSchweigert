@@ -34,8 +34,12 @@ MODEL_CATALOG: Dict[str, Dict[str, List[str]]] = {
     },
 }
 CATALOG_FILE = "model_catalog.json"
-ROLE_TIER = {"investigator": "low", "refiner": "low", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
+ROLE_TIER = {"investigator": "low", "refiner": "strong", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
              "analyst": "strong"}
+
+# Roles whose output is a judgement rather than mechanical work. A cheap model that returns a malformed
+# result costs a repair attempt and a human decision, which is always more expensive than the stronger call.
+REQUIRED_TIER = {"refiner": "strong"}
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
 
 
@@ -82,8 +86,13 @@ def _candidates(tier: str, policy_tiers: Dict[str, Any]) -> List[str]:
 
 
 def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], available: list[str] | None,
-                   avoid: str | None = None, *, strong_used: int = 0, strong_budget: int = 1) -> dict[str, Any]:
-    """Validate a delegator's concrete model choice without substituting a role default."""
+                   avoid: str | None = None, *, strong_used: int = 0, strong_budget: int = 1,
+                   role: str | None = None) -> dict[str, Any]:
+    """Validate a delegator's concrete model choice without substituting a role default.
+
+    A role with a required tier is upgraded by trusted code, never left cheap: the plan's
+    own approval cannot lower that floor, and the returned note says what happened.
+    """
     schemas.validate(choice, schemas.MODEL_CHOICE, "model_choice")
     reason = choice["reason"].strip()
     if not reason or len(reason) > 2000:
@@ -92,6 +101,19 @@ def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], availab
     tier = next((band for band in TIERS if selected in _candidates(band, policy_tiers)), None)
     if tier is None:
         raise ValueError("model %r is not configured in the approved policy" % selected)
+    floor = REQUIRED_TIER.get(role or "")
+    if floor and TIERS.index(tier) < TIERS.index(floor):
+        upgraded = resolve_model(floor, policy_tiers, available, avoid)
+        if upgraded.get("model"):
+            return {"model": upgraded["model"], "tier": upgraded["tier"], "routing": True,
+                    "note": "%s always runs on a %s-tier model; upgraded from %s: %s"
+                            % (role, floor, selected, reason)}
+        if available is not None:
+            return {"model": selected, "tier": tier, "routing": True,
+                    "note": "%s should run on a %s-tier model, but none is available; kept %s: %s"
+                            % (role, floor, selected, reason)}
+        return {"model": None, "tier": floor, "routing": False,
+                "note": "model routing unavailable: runtime default model used; %s needs a %s-tier model" % (role, floor)}
     if tier == "strong" and strong_used >= strong_budget:
         raise ValueError("strong attempt budget exhausted")
     note = "delegator chose %s: %s" % (selected, reason)
@@ -192,7 +214,8 @@ def validate_choices(choices: dict[str, Any], policy_tiers: dict[str, Any], avai
             raise ValueError("model_choices missing decisions for %s" % ", ".join(sorted(missing)))
     for role, choice in choices.items():
         avoid = choices.get("implementer", {}).get("model") if role == "reviewer" else None
-        resolve_choice(choice, policy_tiers, available, avoid, strong_budget=strong_budget if role == "implementer" else 1)
+        resolve_choice(choice, policy_tiers, available, avoid, role=role,
+                      strong_budget=strong_budget if role == "implementer" else 1)
 
 
 def resolve_model(tier: str, policy_tiers: Dict[str, Any], available: Optional[List[str]], avoid: Optional[str] = None) -> Dict[str, Any]:
