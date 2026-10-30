@@ -108,6 +108,17 @@ recovery when the target is corrupt. `test/unit/test_save_system.gd` and the
 fixtures in `test/fixtures/saves/` guard atomic writes, backup recovery, and
 migrations.
 
+## Determinism
+
+`scripts/core/rng.gd` is the only script allowed to call Godot's global
+randomness. The `Rng` class wraps `RandomNumberGenerator`, takes an injected
+seed in `Rng.new(seed)`, can be reseeded with `set_seed()`, and delegates
+`randf()`, `randf_range()`, `randi()`, and `randi_range()`, so two instances
+with the same seed produce the same sequence. `scripts/core/timestep.gd`
+defines `Timestep.FIXED_DELTA = 1.0 / 60.0` as the fixed simulation step.
+`test/unit/test_determinism.gd` checks both and scans `scripts/` for direct
+`randi`, `randf`, or `randomize` calls, failing with each `file:line`.
+
 ## Tests
 
 GUT tests live under `test/` and run with `godot-test .` from this directory.
