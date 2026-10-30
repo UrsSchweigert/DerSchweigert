@@ -173,6 +173,9 @@ class GitHubPublisher(Publisher):
                 raise GitHubError("the sync pull request #%d did not merge within %ds; its checks must pass first" % (number, wait_s))
             (self.sleep or time.sleep)(SYNC_POLL_S)
 
+    def promotion_merged(self, number: int) -> bool:
+        return self.client.pr_merged(number)
+
     def open_promotion(self, base: str, title: str, body: str) -> Optional[int]:
         """A pull request from the run branch into the base branch, so `main` only moves when the owner merges."""
         if not base or self.base == base:

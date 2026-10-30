@@ -57,19 +57,27 @@ def test_the_plan_pass_runs_once_even_when_the_refiner_writes_no_steps(tmp_path)
     assert starts(env, "implementer")[0].tier == "standard"
 
 
-def test_a_task_that_does_not_fit_one_implementer_is_handed_back(tmp_path):
+def test_a_task_that_does_not_fit_one_implementer_goes_to_the_strong_analysis(tmp_path):
+    """Sizing work down is an analysis: the strong model proposes the smaller tasks, not the owner."""
     env = Env(tmp_path)
     issue = env.store.get_issue("i1")
     issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "Looks large."}}
     env.store.put_issue(issue)
     env.adapter.plans["i1"] = {"split_advice": "the stylesheet work and the markup work are independent"}
+    part = lambda iid, req, anchor, outcome: {"issue_id": iid, "title": iid, "requirement_ids": [req], "outcomes": [outcome],
+                                              "acceptance_criteria": ["the check passes"], "non_goals": ["nothing else"],
+                                              "code_anchors": [anchor]}
+    env.adapter.analyses["i1"] = [{"root_cause": "Two independent areas are bundled.", "recommendation": "split",
+                                   "split": [part("i1-a", "F1.1", "src/a.py", "the theme is one"),
+                                             part("i1-b", "F1.2", "src/b.py", "one radio group")]}]
     env.start()
-    events = [e for _ in range(3) for e in env.tick()]
+    events = [e for _ in range(6) for e in env.tick()]
 
     assert not starts(env, "implementer")
-    blocked = env.store.get_issue("i1")["blocked_reason"]
-    assert "cannot be sized for one implementer" in blocked and "independent" in blocked
     assert any(e["event"] == "split_advised" for e in events)
+    assert starts(env, "analyst") and starts(env, "analyst")[0].tier == "strong"
+    issue = env.store.get_issue("i1")
+    assert [p["issue_id"] for p in issue["proposed_split"]] == ["i1-a", "i1-b"]  # the smaller tasks, ready to apply
 
 
 def test_planning_and_routing_stay_inside_the_deepseek_source(tmp_path):

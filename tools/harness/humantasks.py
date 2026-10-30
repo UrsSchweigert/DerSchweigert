@@ -11,17 +11,20 @@ from . import telemetry
 from .broker import BrokerRejected, assert_no_secrets
 from .store import Store
 
-KINDS = ("asset", "decision", "manual_test")
+KINDS = ("asset", "decision", "manual_test", "promotion")
 OPEN_STATES = ("Requested", "Acknowledged", "Submitted", "Validated")
 TRUSTED_SOURCES = ("local", "github")
 DECISION_OPTIONS = ["retry as is", "give guidance and retry", "extend retry budget and retry", "refine the scope", "cancel the issue"]
 APPLY_SPLIT = "apply the proposed split"  # offered only when a validated split was proposed for the issue
+PROMOTION_OPTIONS = ["merged the pull request", "keep it open for now"]  # the finished run waits for the owner's merge
 OPTION_HELP = {
     "retry as is": "Run the next step again with no changes. Choose this when the cause looks like a fluke or a fault in the harness or its tools.",
     "give guidance and retry": "Retry, and pass your hint to the worker with --guidance \"...\". Choose this when you know what the worker got wrong.",
     "extend retry budget and retry": "Authorize one additional attempt in the exhausted retry class. This override is recorded and does not reset prior failures.",
     "refine the scope": "Send the issue back to be re-planned before another attempt. Choose this when the issue itself is unclear or too big.",
     "cancel the issue": "Drop this issue and every issue that depends on it, because they can no longer run. A phase left with requirements that no finished issue covers pauses the plan until you import replacements.",
+    PROMOTION_OPTIONS[0]: "Record that you merged the finished run. The harness closes this task by itself once it sees the merge on GitHub.",
+    PROMOTION_OPTIONS[1]: "Leave the pull request open. Nothing else happens: the run stays finished and this task stays visible.",
     APPLY_SPLIT: "Replace this issue with the proposed issues listed above. Nothing is applied until you choose this option. The harness checks the proposal again, then cancels this issue and makes the work that depended on it wait for the new issues instead.",
     # Labels used by tasks raised before the wording was clarified.
     "supply guidance or an asset": "Retry, optionally with your hint (--guidance). The 'asset' part only matters for tasks that ask for a file.",
@@ -145,7 +148,7 @@ def _validate_content(store: Store, task: Dict[str, Any], answers: Dict[str, Any
         if os.path.getsize(path) > MAX_ARTIFACT_BYTES:
             return "artifact is too large: %s" % os.path.basename(path)
     kind = p["kind"]
-    if kind == "decision" and answers.get("option") not in p["options"]:
+    if kind in ("decision", "promotion") and answers.get("option") not in p["options"]:
         return "option must be one of %s" % p["options"]
     if kind == "asset" and not artifacts:
         return "an asset response needs the asset file as an artifact"
@@ -217,6 +220,8 @@ def _stale(store: Store, task: Dict[str, Any], current: Dict[str, Optional[str]]
 def _release(store: Store, task: Dict[str, Any], outcome: str, answers: Dict[str, Any], artifacts: Sequence[str], now: float) -> List[str]:
     """Release waiting work. Resumed issues return to Ready, and the scheduler picks them up without anyone polling."""
     p, released = task["payload"], []
+    if p["kind"] == "promotion":
+        return released  # nothing waits on this one: every issue of the run is already Done
     for iid in p["issue_ids"]:
         issue = store.get_issue(iid)
         state = store.state("issue", iid)
