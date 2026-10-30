@@ -254,6 +254,7 @@ class Scheduler:
         run.setdefault("checks", {})[key] = {
             "issue_id": issue_id, "head_rev": head, "base_rev": base, "runner": self.runner_id,
             "attempt_id": attempt_id, "job_id": job_id, "lease_until": now + self._plan()["policy"]["budgets"]["lease_s"],
+            "started_at": now,
             "recovery": self.checker.recovery_data(handle),
         }
         self.store.put_run(self.plan_id, run)

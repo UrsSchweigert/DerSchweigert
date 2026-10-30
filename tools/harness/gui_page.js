@@ -256,10 +256,16 @@
       element("td", {}, linkButton(worker.issue, () => showIssue(worker.issue)), element("div", {class: "small muted"}, worker.attempt_id)),
       element("td", {}, worker.role || "Worker"), element("td", {}, worker.model || worker.tier || "-"),
       element("td", {}, duration(worker.elapsed_s)), element("td", {}, worker.lease_expires_in_s > 0 ? duration(worker.lease_expires_in_s) : badge("Expired", "negative"))));
-    for (const job of checks) rows.push(element("tr", {}, element("td", {}, icon("list-checks")),
-      element("td", {}, ids.has(job.issue_id) ? linkButton(job.issue_id, () => showIssue(job.issue_id)) : job.issue_id, element("div", {class: "mono muted"}, shortened(job.head_rev))),
-      element("td", {}, "Checks / " + job.stage), element("td", {}, job.runner), element("td", {}, "-"),
-      element("td", {}, job.lease_expires_in_s > 0 ? duration(job.lease_expires_in_s) : badge("Expired", "negative"))));
+    for (const job of checks) {
+      const phase = job.issue_id.startsWith("phase-") ? job.issue_id.slice(6) : "";
+      const label = phase ? linkButton("phase " + phase, () => { byId("phase-filter").value = phase; selectView("issues"); renderIssues(); })
+        : ids.has(job.issue_id) ? linkButton(job.issue_id, () => showIssue(job.issue_id)) : job.issue_id;
+      rows.push(element("tr", {}, element("td", {}, icon("list-checks")),
+        element("td", {}, label, element("div", {class: "mono muted"}, shortened(job.head_rev))),
+        element("td", {}, "Checks / " + job.stage), element("td", {}, job.runner),
+        element("td", {}, job.elapsed_s == null ? "-" : duration(job.elapsed_s)),
+        element("td", {}, job.lease_expires_in_s > 0 ? duration(job.lease_expires_in_s) : badge("Expired", "negative"))));
+    }
     fill("execution", rows.length ? table(["", "Issue / attempt", "Role", "Model / runner", "Elapsed", "Lease"], rows, "execution-table") : empty("No active workers or checks."));
     fill("runner-state", badge(snapshot.runner.status === "alive" ? "Runner healthy" : snapshot.runner.status === "none" ? "No runner" : "Runner stale", snapshot.runner.status === "alive" ? "positive" : ""));
   }
