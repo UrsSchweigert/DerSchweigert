@@ -52,7 +52,36 @@ def build_report(home: Optional[str] = None, now: Optional[float] = None) -> Dic
         report["event_count"] = _safe(lambda: telemetry.count(store), 0)
     finally:
         store.close()
+    _flow_order(report)
     return report
+
+
+def _flow_order(report: Dict[str, Any]) -> None:
+    """Order per-issue rows the way the plan flows: plan, then phase, then issue id.
+
+    A stable total order keeps rows from moving between refreshes, and phase order makes progress read top-down
+    instead of following the alphabet of issue ids.
+    """
+    latest: Dict[str, int] = {}
+    for plan in report["plans"]:
+        if plan["version"] >= latest.get(plan["plan_id"], 0):
+            latest[plan["plan_id"]] = plan["version"]
+    phase_rank: Dict[tuple, Dict[str, int]] = {}
+    for row in report["phases"]:
+        ranks = phase_rank.setdefault((row["plan_id"], row["version"]), {})
+        ranks[row["phase"]] = len(ranks)
+    plan_rank = {plan_id: rank for rank, plan_id in enumerate(sorted(latest))}
+
+    def position(plan_id: Optional[str], phase: Optional[str], issue_id: Optional[str]) -> tuple:
+        ranks = phase_rank.get((plan_id, latest.get(plan_id)), {})
+        return plan_rank.get(plan_id, len(plan_rank)), ranks.get(phase, len(ranks)), issue_id or ""
+
+    report["queue"].sort(key=lambda row: position(row.get("plan_id"), row.get("phase"), row.get("issue_id")))
+    report["issues"].sort(key=lambda row: position(row.get("plan_id"), row.get("phase"), row.get("issue_id")))
+    order = {row["issue_id"]: rank for rank, row in enumerate(report["queue"])}
+    for key in ("blockers", "workers", "failures", "evidence"):
+        report[key].sort(key=lambda row: (order.get(row.get("issue_id") or row.get("issue"), len(order)),
+                                          row.get("issue_id") or row.get("issue") or ""))
 
 
 def filter_plan(report: Dict[str, Any], plan_id: str) -> Dict[str, Any]:
@@ -131,7 +160,7 @@ def _issues(store: Store, report: Dict[str, Any], now: float) -> None:
         unmet = [d for d in i["deps"] if store.state("issue", d) != "Done"]
         report["issues"].append({"issue_id": iid, "plan_id": i.get("plan_id"), "phase": i["phase_id"], "state": state, "transient_failures": i["transient_failures"],
                                  "repair_failures": i["repair_failures"], "blocked_reason": i["blocked_reason"]})
-        report["queue"].append({"issue_id": iid, "state": state, "phase": i["phase_id"], "depends_on": i["deps"], "unmet_dependencies": unmet,
+        report["queue"].append({"issue_id": iid, "plan_id": i.get("plan_id"), "state": state, "phase": i["phase_id"], "depends_on": i["deps"], "unmet_dependencies": unmet,
                                 "not_before": i["not_before"] or None, "branch": i["branch"], "head": i["head_rev"] or None, "pr": i["pr"]})
         if state == "Blocked":
             report["blockers"].append({"issue_id": iid, "reason": i["blocked_reason"], "unmet_dependencies": unmet, "human_tasks": open_tasks,

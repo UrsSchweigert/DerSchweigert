@@ -62,6 +62,7 @@ def command_problem(command: str) -> Optional[str]:
 
 
 _GLOB_CHARS = set("*?[")
+_PATH_CHARS = re.compile(r"^[A-Za-z0-9._@+~/-]+$")
 
 
 def _under(path: str, prefixes: Sequence[str]) -> bool:
@@ -80,14 +81,24 @@ def command_paths_problem(command: str, working_directory: str, allowlist: Seque
     for token in shlex.split(command, posix=True):
         if token.startswith("-") or "/" not in token or "://" in token or _GLOB_CHARS & set(token):
             continue
-        path = os.path.normpath(os.path.join(working_directory or ".", token))
-        if os.path.isabs(path) or path == ".." or path.startswith(".." + os.sep):
+        if not _PATH_CHARS.match(token):
+            continue  # inline code such as require('static/index.html'), not a path argument
+        paths = _path_candidates(token, working_directory)
+        if any(os.path.isabs(path) or path == ".." or path.startswith(".." + os.sep) for path in paths):
             return "%r points outside the repository" % token
-        if exists(path) or _under(path, allowlist):
+        if any(exists(path) or _under(path, allowlist) for path in paths):
             continue
         return ("%r does not exist at the base revision and is not inside the phase path allowlist, "
-                "so the worker cannot create it and the command can never pass" % path)
+                "so the worker cannot create it and the command can never pass" % paths[0])
     return None
+
+
+def _path_candidates(token: str, working_directory: str) -> List[str]:
+    """A path may be relative to the working directory or, in a command that changes it, to the repository root."""
+    paths = [os.path.normpath(os.path.join(working_directory or ".", token))]
+    if working_directory:
+        paths.append(os.path.normpath(token))
+    return paths
 
 
 def parse_requirements(path: str) -> List[Dict[str, str]]:
