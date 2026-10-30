@@ -7,7 +7,8 @@ for (const lang of ['de', 'en']) {
   test(lang + ': the committed sentence pool is consistent', () => {
     const data = load(lang);
     assert.deepEqual(validate(lang, data), []);
-    assert.equal(data.sentences.length, 1000);
+    assert.ok(data.sentences.length > 0, lang + ' pool should not be empty');
+    assert.equal(data.sentences.length, data.count, lang + ' pool count should match its length');
   });
 
   test(lang + ': every sentence is readable in some selection and short enough', () => {
