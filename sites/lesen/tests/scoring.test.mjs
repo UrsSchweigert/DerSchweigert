@@ -411,3 +411,70 @@ test("the Flops mode builds a kind-aware deck from the active sentence pool", ()
   assert.match(setupHtml, /buildFlopDeck\(stats, allowedSounds, sentenceTexts\[currentLanguage\] \|\| \[\]\)/);
   assert.match(setupHtml, /queue = shuffle\(flopDeck\);/);
 });
+
+test("regression: word flop candidates keep the old spellability filter", () => {
+  const stats = {
+    ta: { correct_count: 1, incorrect_count: 1 },
+    am: { correct_count: 0, incorrect_count: 1 },
+    Hut: { correct_count: 0, incorrect_count: 1 },
+    "Mama malt.": { correct_count: 0, incorrect_count: 1 },
+  };
+  const sounds = new Set(["t", "m", "a"]);
+  const expected = Object.keys(stats).filter((text) => isSpellableWith(text, sounds));
+  assert.deepStrictEqual(expected, ["ta", "am"]);
+  assert.deepStrictEqual(flopCandidateCards(stats, sounds), expected);
+  assert.deepStrictEqual(flopCandidateCards(stats, sounds, []), expected);
+});
+
+test("regression: a word-only flop deck is exactly the old selectFlopDeck result", () => {
+  const stats = {
+    aa: { correct_count: 9, incorrect_count: 1 },
+    ab: { correct_count: 5, incorrect_count: 5 },
+    ba: { correct_count: 1, incorrect_count: 9 },
+  };
+  const legacy = selectFlopDeck(stats, Object.keys(stats));
+  assert.deepStrictEqual(
+    buildFlopDeck(stats, ["a", "b"]),
+    legacy.map((text) => ({ text, kind: "word", misses: 0 })),
+  );
+  assert.deepStrictEqual(buildFlopDeck(stats, ["a", "b"], []), buildFlopDeck(stats, ["a", "b"]));
+});
+
+test("regression: the sentence deck builders do not mutate the pool or word cards", () => {
+  const pool = SENTENCE_POOL.map((entry) => ({ ...entry }));
+  const words = [...WORDS];
+  const poolBefore = JSON.stringify(pool);
+  const wordsBefore = JSON.stringify(words);
+
+  buildSentenceOnlyDeck(pool, SMALL_SELECTION, "de", { seed: 1 });
+  buildMixedDeck(pool, SMALL_SELECTION, "de", words, { seed: 1 });
+
+  assert.strictEqual(JSON.stringify(pool), poolBefore);
+  assert.strictEqual(JSON.stringify(words), wordsBefore);
+});
+
+test("regression: a word deck after a sentence deck still contains only words", () => {
+  buildSentenceOnlyDeck(SENTENCE_POOL, SMALL_SELECTION, "de", { seed: 2 });
+  const stats = {
+    aa: { correct_count: 1, incorrect_count: 1 },
+    ab: { correct_count: 0, incorrect_count: 1 },
+  };
+  const deck = buildFlopDeck(stats, ["a", "b"]);
+  assert.ok(deck.length > 0);
+  assert.ok(deck.every((card) => card.kind === "word"));
+});
+
+test("the sentence mode can be switched off without leaving state behind", () => {
+  assert.match(setupHtml, /function clearSentenceSelection\(\) \{/);
+  assert.match(setupHtml, /sentenceSelection\.clear\(\);/);
+  assert.match(setupHtml, /button\.setAttribute\('aria-pressed', 'false'\);/);
+  assert.match(setupHtml, /clearSentenceSelection\(\);\s*updatePatternControls\(\);/);
+  assert.match(setupHtml, /byId\('sentences-clear'\)\.addEventListener\('click', clearSentenceSelection\);/);
+});
+
+test("regression: the letter deck and the old pattern modes stay the defaults", () => {
+  assert.match(setupHtml, /name="deck" value="LETTERS"\s+checked/);
+  for (const value of ["PATTERNS", "WORDS", "FLOP"]) {
+    assert.match(setupHtml, new RegExp(`name="pattern" value="${value}"`));
+  }
+});

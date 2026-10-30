@@ -1702,6 +1702,21 @@
             return sentencePromises[lang];
         }
 
+        /**
+         * Drop the manually chosen sentence cards and reflect it in the UI.
+         *
+         * The selection belongs to the letter deck. Leaving that deck (or
+         * switching back to it from a sentence deck) must not carry the old
+         * cards into a later round.
+         */
+        function clearSentenceSelection() {
+            sentenceSelection.clear();
+            document.querySelectorAll('.sentence-card').forEach(button => {
+                button.setAttribute('aria-pressed', 'false');
+            });
+            updateSentenceCount();
+        }
+
         /** Show how many sentence cards are chosen and whether they can be cleared. */
         function updateSentenceCount() {
             byId('sentences-count').textContent = `${sentenceSelection.count()} ${tr('unit.selected')}`;
@@ -2394,7 +2409,13 @@
         });
         setLanguage(currentLanguage);
         document.querySelectorAll('input[name="deck"]').forEach(input => {
-            input.addEventListener('change', updatePatternControls);
+            input.addEventListener('change', () => {
+                // A deck-mode change starts without the manual sentence
+                // selection, so switching the sentence decks off cannot leak
+                // chosen cards into a later letter deck.
+                clearSentenceSelection();
+                updatePatternControls();
+            });
         });
         document.querySelectorAll('input[name="pattern"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
@@ -2403,13 +2424,7 @@
             input.addEventListener('change', updatePatternControls);
         });
         byId('word-length').addEventListener('change', updateWordMatchCount);
-        byId('sentences-clear').addEventListener('click', () => {
-            sentenceSelection.clear();
-            document.querySelectorAll('.sentence-card').forEach(button => {
-                button.setAttribute('aria-pressed', 'false');
-            });
-            updateSentenceCount();
-        });
+        byId('sentences-clear').addEventListener('click', clearSentenceSelection);
         window.addEventListener('resize', () => {
             if (queue.length) updateCardFontSize(queue[0].text, queue[0].kind === 'sentence' ? 22 : 0);
         });
