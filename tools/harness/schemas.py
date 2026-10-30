@@ -74,6 +74,8 @@ POLICY = {
     "authorized_operations": [str],
     "escalation_paths": [str],
     "merge_policy": str,
+    "base_branch?": str,
+    "run_branch?": str,
     "budgets": dict,
     "model_sources?": [str],
     "model_tiers": dict,

@@ -144,17 +144,37 @@ def make_rehearsal(home: str) -> str:
     return dest
 
 
+def ensure_run_branch(clone_path: str, remote: str, base: str, run: str, token_file: Optional[str]) -> None:
+    """Create the run branch at the current base head if it is missing. An existing one resumes where it stopped."""
+    known = git_with_token(["ls-remote", "--heads", remote, "refs/heads/" + run], clone_path, token_file)
+    if known.returncode != 0:
+        raise RunRefused("could not inspect the run branch %s: %s" % (run, known.stderr.strip()[-200:]))
+    if known.stdout.strip():
+        return
+    head = GitRepo(clone_path, base).base_head()
+    created = git_with_token(["push", "--quiet", remote, "%s:refs/heads/%s" % (head, run)], clone_path, token_file)
+    if created.returncode != 0:
+        raise RunRefused("could not create the run branch %s: %s" % (run, created.stderr.strip()[-200:]))
+
+
 def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dry_run: bool, remote_url: Optional[str],
                     repo_slug: Optional[str], owner: str) -> Scheduler:
     home = store.home
     token = os.path.join(home, "copilot.token")
     broker_token = os.path.join(home, "broker.token")
-    clone = trusted_clone(home, repo_root, "main", None if dry_run else remote_url, None if dry_run else broker_token)
-    adapter = CopilotCliAdapter(home, clone.path, "main")
+    plan = store.get_plan(plan_id, version)["plan"]
+    base = plans.base_branch(plan)
+    run = "" if dry_run else plans.run_branch(plan)
+    clone = trusted_clone(home, repo_root, base, None if dry_run else remote_url, None if dry_run else broker_token)
+    target = base
+    if run:
+        ensure_run_branch(clone.path, remote_url, base, run, broker_token)
+        clone = trusted_clone(home, repo_root, run, remote_url, broker_token)
+        target = run
+    adapter = CopilotCliAdapter(home, clone.path, target)
     probe = adapter.probe()
     if not probe["available"]:
         raise RunRefused("run refused: the Copilot CLI sandbox adapter is unavailable: %s" % probe["reason"])
-    plan = store.get_plan(plan_id, version)["plan"]
     tiers = plan["policy"]["model_tiers"]
     candidates = sorted({m for v in tiers.values() for m in ([v] if isinstance(v, str) else v)})
     available = cached_models(adapter, home, candidates)
@@ -162,10 +182,10 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
         publisher = DryRunPublisher(clone)
     else:
         client = GhCli(repo_slug, token_file=broker_token)
-        protection = client.merge_protection("main")
+        protection = client.merge_protection(target)
         if not protection["safe"]:
-            raise RunRefused("run refused by effective GitHub rules for main: %s" % protection["reason"])
-        publisher = GitHubPublisher(client, clone.path, remote_url, "main", broker_token)
+            raise RunRefused("run refused by effective GitHub rules for %s: %s" % (target, protection["reason"]))
+        publisher = GitHubPublisher(client, clone.path, remote_url, target, broker_token)
     notifier = TerminalNotifier(lambda m: print(m, file=sys.stderr, flush=True))
     if not dry_run:
         from .workrecord import GitHubNotifier

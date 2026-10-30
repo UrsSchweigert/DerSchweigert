@@ -181,6 +181,41 @@ def test_plan_problems_detected():
     assert "requirement F2.1 is not covered by any phase" in plans.validate_plan(plan)
 
 
+def test_a_run_accumulates_on_its_own_protected_branch_by_default():
+    phases = json.load(open(PHASES))["phases"]
+    plan = plans.build_plan("2026103001bugfixes-md-d5ea72f7", 1, plans.parse_requirements(REQ), phases, fixture=True)
+
+    assert plans.base_branch(plan) == "main"
+    assert plans.run_branch(plan) == "harness/run/2026103001bugfixes-md-d5ea72f7"
+    assert plans.validate_plan(plan) == []
+
+
+def test_a_plan_can_work_directly_on_its_base_branch():
+    phases = json.load(open(PHASES))["phases"]
+    plan = plans.build_plan("p", 1, plans.parse_requirements(REQ), phases, fixture=True,
+                            policy=dict(plans.DEFAULT_POLICY, run_branch="", base_branch="develop"))
+
+    assert plans.run_branch(plan) == "" and plans.base_branch(plan) == "develop"
+    assert plans.validate_plan(plan) == []
+
+
+@pytest.mark.parametrize("branch", ["harness/run/../main", "harness run/x", "harness/run/x.lock", "/harness/run/x"])
+def test_an_unsafe_run_branch_is_refused(branch):
+    phases = json.load(open(PHASES))["phases"]
+    plan = plans.build_plan("p", 1, plans.parse_requirements(REQ), phases, fixture=True,
+                            policy=dict(plans.DEFAULT_POLICY, run_branch=branch))
+
+    assert any("policy.run_branch" in p for p in plans.validate_plan(plan))
+
+
+def test_the_run_branch_may_not_be_the_base_branch():
+    phases = json.load(open(PHASES))["phases"]
+    plan = plans.build_plan("p", 1, plans.parse_requirements(REQ), phases, fixture=True,
+                            policy=dict(plans.DEFAULT_POLICY, base_branch="main", run_branch="main"))
+
+    assert "policy.run_branch must differ from policy.base_branch" in plans.validate_plan(plan)
+
+
 @pytest.mark.parametrize("machine,current,new", [
     ("plan", "Draft", "Approved"),
     ("plan", "Proposed", "Executing"),

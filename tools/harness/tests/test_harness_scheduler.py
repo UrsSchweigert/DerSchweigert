@@ -475,3 +475,39 @@ def test_status_and_cli_report_a_requested_pause(tmp_path, capsys):
     env.tick()
     assert "PAUSED" in status.render(status.build_report(env.store.home, env.clock()))
     assert cli.main(["--home", env.store.home, "pause", "fx"]) == 2  # already paused
+
+
+class _Promoter:
+    """A publisher whose run branch accumulates the work, so completion has somewhere to promote to."""
+
+    base = "harness/run/fx"
+
+    def __init__(self, fail=False):
+        self.calls, self.fail = [], fail
+
+    def open_promotion(self, base, title, body):
+        if self.fail:
+            raise RuntimeError("no permission")
+        self.calls.append((base, title, body))
+        return 42
+
+
+def test_a_finished_run_offers_its_branch_to_the_base_branch(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.publisher = _Promoter()
+
+    env.sched._open_promotion()
+
+    base, title, body = env.sched.publisher.calls[0]
+    assert base == "main" and "fx" in title and "harness/run/fx" in body
+    assert [e for e in env.sched.events if e["event"] == "promotion_pr"][0]["number"] == 42
+
+
+def test_a_missing_promotion_never_undoes_a_completed_plan(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.sched.publisher = _Promoter(fail=True)
+
+    env.sched._open_promotion()
+
+    failed = [e for e in env.sched.events if e["event"] == "promotion_failed"]
+    assert failed and "RuntimeError" in failed[0]["error"]

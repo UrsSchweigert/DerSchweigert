@@ -213,6 +213,10 @@ class Publisher:
     def update_branch(self, issue: Dict[str, Any], branch: str, old_head: str, new_head: str) -> None:
         """Publish a branch the harness itself rebased, so the pull request head equals the commit the evidence is bound to."""
 
+    def open_promotion(self, base: str, title: str, body: str) -> Optional[int]:
+        """Propose the finished run branch to the base branch. Only the owner merges that one."""
+        return None
+
 
 class DryRunPublisher(Publisher):
     """Reads nothing and writes nothing. Records what a real run would do so the flow can be exercised."""

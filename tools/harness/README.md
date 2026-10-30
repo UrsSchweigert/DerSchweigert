@@ -612,6 +612,25 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 
 **Merge gates** (code checks all of these): approval digest valid, checks passed on the current head and base, independent review approved for that head, changes only inside the phase path allowlist, no escalation paths touched, diff under the size cap, and, where required, a passing manual test. Escalation paths always need a human: workflow files, the harness itself (`tools/harness/`, `docs/harness/`, `.github/`), dependency manifests (including nested `package.json` and lockfiles), Android build and permission files, infrastructure, and migrations.
 
+## The run branch keeps `main` free
+
+A new plan runs on its own protected branch instead of `main`. `policy.run_branch` defaults to
+`harness/run/{plan}`, so `harness run` (or **Start run** in the dashboard) creates
+`harness/run/<plan-id>` at the current `main` head before the first worker starts and then treats it as the base
+branch: workers branch off it, pull requests target it, rebases follow it, and the merge gates verify *its*
+protection. An existing branch is reused, so a resumed run continues where it stopped instead of restarting.
+
+Protection is the repository ruleset `harness run branches`, which covers `refs/heads/harness/run/**` with the same
+rules as `main`: no direct pushes, no force pushes, and the strict required checks `test` and `test-ffm` before a
+merge. The harness verifies those rules before it runs, exactly as it does for `main`, and never changes them.
+
+When every phase is Done, the harness opens a pull request from the run branch into `main` and emits `promotion_pr`.
+It does not merge it: `main` moves when you decide, and the deploy that follows belongs to that merge. Run branches
+may be deleted after promotion; `main` itself stays protected against deletion.
+
+Set `policy.run_branch` to `""` to work directly on the base branch as before, and `policy.base_branch` when the
+repository's base is not `main`. Both are part of the approval digest.
+
 ## Where things live
 
 | What | Where |
@@ -624,7 +643,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | Output from GUI-launched coordinators | `gui-runners/` inside the selected state folder; private per-launch log files |
 | Throwaway worker folders | `~/.local/share/derschweigert-harness-work/` (cleaned automatically) |
 | Investigator output | `<requirements file>_plan/`: `phases.json`, `issues.json`, `investigation-report.md`, `investigation.json`, `history/` |
-| Pull requests and branches | GitHub, branches named `harness/<issue-id>` |
+| Pull requests and branches | GitHub: work branches `harness/<issue-id>`, and one protected run branch `harness/run/<plan-id>` per plan |
 | Optional GitHub work record | milestones and issues created by `sync` |
 
 Environment variables: `HARNESS_HOME` (alternative state folder), `HARNESS_WORK_ROOT` (alternative worker folder), `HARNESS_LIVE=1` (enable live tests).

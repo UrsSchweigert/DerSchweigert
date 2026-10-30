@@ -7,7 +7,7 @@ import sqlite3
 import time
 from typing import Any, Dict, List, Optional
 
-from . import approval, descope, telemetry, usage
+from . import approval, descope, plans, telemetry, usage
 from .approval import AuthorizationError, plan_entity
 from .store import Store, default_home
 
@@ -117,7 +117,8 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
         elapsed = now - run["started_at"] if run.get("started_at") else None
         report["plans"].append({"plan_id": pid, "version": ver, "state": store.state("plan", plan_entity(pid, ver)), "digest": row["digest"][:12],
                                 "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested")),
-                                "pause_requested": bool(run.get("pause_requested"))})
+                                "pause_requested": bool(run.get("pause_requested")),
+                                "base_branch": plans.base_branch(plan), "run_branch": plans.run_branch(plan)})
         limit = budgets.get("pull_requests_per_run")  # None means unlimited
         report.setdefault("deferred", {})[pid] = _safe(lambda: descope.deferrals(store, pid, ver), [])
         report["budgets"][pid] = {

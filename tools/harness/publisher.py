@@ -88,6 +88,15 @@ class GitHubPublisher(Publisher):
         if proc.returncode != 0:
             raise GitHubError("could not refresh the base branch: %s" % proc.stderr.strip()[-200:])
 
+    def open_promotion(self, base: str, title: str, body: str) -> Optional[int]:
+        """A pull request from the run branch into the base branch, so `main` only moves when the owner merges."""
+        if not base or self.base == base:
+            return None
+        number = with_retries(lambda: self.client.find_pr(self.base), sleep=self.sleep)
+        if number is None:
+            number = with_retries(lambda: self.client.create_pr(title, body, self.base, base), sleep=self.sleep)
+        return number
+
     def merge(self, issue: Dict[str, Any], pr: Any, head_rev: str) -> Dict[str, Any]:
         if not pr:
             raise BrokerRejected("no pull request to merge for %s" % issue["issue_id"])
