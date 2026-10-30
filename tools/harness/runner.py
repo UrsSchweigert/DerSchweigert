@@ -43,7 +43,7 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         docs = json.load(fh)
     docs = docs["issues"] if isinstance(docs, dict) else docs
     phases = {p["id"]: p for p in plan["phases"]}
-    added = []
+    added, replaced = [], []
     for doc in docs:
         schemas.validate(doc, ISSUE_SCHEMA, "issue")
         for role, choice in doc.get("model_choices", {}).items():
@@ -63,15 +63,51 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         phase = phases.get(doc["phase_id"])
         if phase is None or not doc["requirement_ids"] or not set(doc["requirement_ids"]) <= set(phase["requirements"]):
             raise RunRefused("issue %s must reference one approved phase and its requirement IDs" % doc["issue_id"])
-        if store.get_issue(doc["issue_id"]):
+        existing = store.get_issue(doc["issue_id"])
+        if existing is not None:
+            _adopt_or_refuse(store, existing, plan_id)
+            if _unchanged(existing, doc):
+                continue  # already imported from this definition
+            store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev,
+                                      **_definition(doc)))
+            replaced.append(doc["issue_id"])
             continue
-        extra = {k: doc[k] for k in ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
-                                      "validation_commands", "working_directory", "parallel_safe", "model_choices") if k in doc}
-        store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev, **extra))
+        store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev, **_definition(doc)))
         for state in ("Refining", "Ready"):
             store.transition("issue", doc["issue_id"], state, "import")
         added.append(doc["issue_id"])
-    return added
+    store.put_doc("import_report", plan_id, {"added": added, "replaced": replaced})
+    return added + replaced
+
+
+_DEFINITION_FIELDS = ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
+                      "validation_commands", "working_directory", "parallel_safe", "model_choices")
+
+
+def _definition(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """The parts of an issue that define the work, so an unchanged re-import stays a no-op."""
+    return {key: doc[key] for key in _DEFINITION_FIELDS if key in doc}
+
+
+def _unchanged(existing: Dict[str, Any], doc: Dict[str, Any]) -> bool:
+    """Compare only the fields the new document states, so fields the harness defaults do not look like a change."""
+    definition = _definition(doc)
+    return plans.canonical({key: existing.get(key) for key in definition}) == plans.canonical(definition)
+
+
+def _adopt_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> None:
+    """A new plan version may replace an issue definition that no worker has touched yet.
+
+    Re-importing used to skip every existing id silently, so a corrected plan never reached the issue it corrected.
+    """
+    issue_id = existing["issue_id"]
+    if existing.get("plan_id") != plan_id:
+        raise RunRefused("issue %s already belongs to plan %s; issue ids are global" % (issue_id, existing.get("plan_id")))
+    state = store.state("issue", issue_id)
+    if existing.get("head_rev") or existing.get("pr") is not None or store.active_claims_for(issue_id) or \
+            state not in ("Inbox", "Refining", "Ready", "Blocked"):
+        raise RunRefused("issue %s is already %s and has work recorded; a new plan version cannot replace it"
+                         % (issue_id, state))
 
 
 def trusted_clone(home: str, source_repo: str, base: str = "main", remote: Optional[str] = None, token_file: Optional[str] = None) -> GitRepo:
