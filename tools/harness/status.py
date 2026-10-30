@@ -122,7 +122,8 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
         report["plans"].append({"plan_id": pid, "version": ver, "state": state, "digest": row["digest"][:12],
                                 "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested")),
                                 "pause_requested": bool(run.get("pause_requested")),
-                                "base_branch": plans.base_branch(plan), "run_branch": plans.run_branch(plan)})
+                                "base_branch": plans.base_branch(plan), "run_branch": plans.run_branch(plan),
+                                "promotion": run.get("promotion") or {}})
         limit = budgets.get("pull_requests_per_run")  # None means unlimited
         report.setdefault("deferred", {})[pid] = _safe(lambda: descope.deferrals(store, pid, ver), [])
         report["budgets"][pid] = {
@@ -246,6 +247,11 @@ def render(report: Dict[str, Any]) -> str:
             pr = b["pull_requests"]
             for rec in report.get("deferred", {}).get(p["plan_id"], []):
                 w("  deferred: %s -> %s (%s)" % (rec["requirement_id"], rec["followup_issue"], rec["reason"][:70]))
+            promotion = p.get("promotion") or {}
+            if promotion.get("problem"):
+                w("  PROMOTION BLOCKED: %s" % promotion["problem"][:200])
+            elif promotion.get("number"):
+                w("  promoted as pull request #%s into %s; only the owner merges it" % (promotion["number"], promotion.get("base", "")))
             w("  budgets: wall-clock %s of %ss, pull requests %d of %s, tokens and cost %s" % (
                 "%.0f" % b["wall_clock_s"]["used"] if b["wall_clock_s"]["used"] is not None else "not started", b["wall_clock_s"]["limit"],
                 pr["used"], "unlimited" if pr["limit"] is None else pr["limit"], b["tokens_and_cost"]))

@@ -548,3 +548,26 @@ A low-tier issue is not planned first: there is no cheaper tier to discover, so 
 through the plan's `policy.model_tiers`, which `with_model_sources` derives from the chosen `model_sources`. A plan bound
 to `deepseek` is planned, judged and implemented with DeepSeek ids only; a test pins that no dispatched role leaves the
 approved tiers.
+
+## A finished run is never left with a pull request nobody can merge (2026-10-30)
+
+The plan finished, the promotion pull request #111 (`harness/run/...` → `main`) was opened, and then nothing happened for
+hours. `gh pr checks` reported *no checks at all*, and the pull request was `CONFLICTING`: GitHub cannot build a merge
+commit for a conflicting pull request, so it never triggers `pull_request` workflows, so the required `test` checks never
+appear and nothing can be merged. The GUI said "healthy" because it only knew about the runner, not the promotion.
+
+The cause was the run branch's history: it had been "synced with main" by a squash commit, which threw away the ancestry
+that would have made the later merges trivial. Every later change on `main` then collided with the branch's own copy of
+the same files.
+
+Two changes close the class:
+
+* **The harness keeps the run branch on top of the base.** `ensure_run_branch` no longer returns early when the branch
+  exists: it fetches the base and the run branch, and if the base is not contained it merges the base in with a real
+  merge commit (in a throwaway clone, then pushed). A genuine conflict stops the run with the colliding paths, instead of
+  letting a worker build work that can never land.
+* **The promotion is synced and reported.** Before opening the promotion pull request, the harness merges the base into
+  the run branch once more — `main` moves during a long run, so a conflict at that point is normal, not an accident. If
+  that fails, the pull request is *not* opened (an unmergeable one only looks like progress), and the reason is stored on
+  the run, emitted as `promotion_conflict`, and shown in the GUI banner and in `harness status` as
+  `PROMOTION BLOCKED: …`. A successful promotion now also shows as "Promoted as pull request #N; only you merge it."

@@ -1553,6 +1553,13 @@ class Scheduler:
         plan = self._plan()
         base = plans.base_branch(plan)
         try:
+            merged = self.publisher.sync_run_branch(base)
+        except Exception as exc:  # noqa: BLE001 - a promotion problem is the owner's decision, never a lost run
+            self._promotion_problem(base, "%s: %s" % (type(exc).__name__, str(exc)[:400]))
+            return
+        if merged:
+            self._emit("promotion_synced", base=base, commit=merged)
+        try:
             number = self.publisher.open_promotion(
                 base, "%s: finished run (%s)" % (plan["plan_id"], self.runner_id),
                 "All phases of plan `%s` are Done on `%s`. Merging this pull request moves them onto `%s`."
@@ -1561,7 +1568,17 @@ class Scheduler:
             self._emit("promotion_failed", error="%s: %s" % (type(exc).__name__, str(exc)[:200]))
             return
         if number:
+            run = self.store.get_run(self.plan_id)
+            run["promotion"] = {"base": base, "number": number, "problem": ""}
+            self.store.put_run(self.plan_id, run)
             self._emit("promotion_pr", number=number, base=base)
+
+    def _promotion_problem(self, base: str, problem: str) -> None:
+        """Record why the finished run cannot be offered, so the plan does not look simply "done" in the UI."""
+        run = self.store.get_run(self.plan_id)
+        run["promotion"] = {"base": base, "number": run.get("promotion", {}).get("number"), "problem": problem}
+        self.store.put_run(self.plan_id, run)
+        self._emit("promotion_conflict", base=base, problem=problem)
 
     # -- pause, cancel ----------------------------------------------------------
 

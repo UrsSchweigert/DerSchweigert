@@ -130,9 +130,11 @@
     const preparation = workspaces.filter(item => item.plan_id === selectedPlan).map(item => item.job).filter(Boolean)
       .sort((left, right) => (left.started_at || 0) - (right.started_at || 0)).at(-1);
     const failedPreparation = preparation?.state === "failed" ? preparation : null;
-    const notice = plan?.paused_reason && plan.state === "Paused" ? plan.paused_reason : plan?.cancel_requested && plan.state === "Executing" ? "Cancellation requested; waiting for the runner to finish." : plan?.pause_requested && plan.state === "Executing" ? "Pause requested; active execution is draining." : failedRun ? `Runner exited with code ${failedRun.exit_code}.` : failedPreparation ? `${failedPreparation.kind}: preparation failed. ${failedPreparation.error || "Open Planning to read the output."}` : preparation?.state === "running" ? `${preparation.kind}: preparation running, the output follows in Planning.` : "";
+    const promotion = snapshot.promotion?.[selectedPlan];
+    const promotionNotice = plan?.state === "Completed" ? promotion?.problem ? `The finished run cannot be promoted: ${promotion.problem}` : promotion?.number ? `Promoted as pull request #${promotion.number}; only you merge it.` : "" : "";
+    const notice = promotionNotice || (plan?.paused_reason && plan.state === "Paused" ? plan.paused_reason : plan?.cancel_requested && plan.state === "Executing" ? "Cancellation requested; waiting for the runner to finish." : plan?.pause_requested && plan.state === "Executing" ? "Pause requested; active execution is draining." : failedRun ? `Runner exited with code ${failedRun.exit_code}.` : failedPreparation ? `${failedPreparation.kind}: preparation failed. ${failedPreparation.error || "Open Planning to read the output."}` : preparation?.state === "running" ? `${preparation.kind}: preparation running, the output follows in Planning.` : "");
     byId("plan-notice").textContent = notice; byId("plan-notice").hidden = !notice;
-    byId("plan-notice").className = "banner" + (failedRun || failedPreparation ? " error" : "");
+    byId("plan-notice").className = "banner" + (failedRun || failedPreparation || promotion?.problem ? " error" : "");
     renderMetrics(); renderExecution(); renderPhases(); renderAttention(); renderCoverage(); renderIssues(); renderTasks(); renderEvents(); renderPlanning(); renderControls(); icons();
   }
   function renderControls() {
