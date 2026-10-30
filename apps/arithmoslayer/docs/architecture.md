@@ -15,7 +15,7 @@ never imports from it, never links to it, and never mentions its path.
 | `assets/` | Reserved for art, audio, and font sources; created with the first asset. |
 | `test/` | GUT tests. `test/unit/` holds unit tests and `test/fixtures/` holds shared fixtures. |
 | `docs/` | Architecture, installation, testing, and Android release notes (`docs/android.md`). |
-| `tools/` | Python guard scripts (`validate_data.py`, `check_isolation.py`, `check_offline.py`) and later build helpers. |
+| `tools/` | Python guard scripts (`validate_data.py`, `check_isolation.py`, `check_offline.py`) and later build helpers. `tools/validate/` holds one data validator module per data type. |
 
 Every directory stays inside `apps/arithmoslayer/`. Changes elsewhere in the
 repository are rejected by `tools/check_isolation.py`.
@@ -46,7 +46,10 @@ key itself so a missing translation is visible instead of blank.
 `scripts/core/localization/localization.gd` holds the reusable table parser;
 the autoload is the thin scene-facing wrapper. `tools/validate_data.py` checks
 the table shape, reports a missing key with its file and field, and verifies
-that every `tr_key()` reference in `scripts/` and `scenes/` resolves.
+that every `tr_key()` reference in `scripts/` and `scenes/` resolves. It is
+the single data-validation entry point: it discovers the modules in
+`tools/validate/` (today `translations.py` and `android_targets.py`), so each
+new data type adds its own module instead of growing the entry point.
 
 ## Project settings
 

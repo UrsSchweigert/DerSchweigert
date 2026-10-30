@@ -1,0 +1,7 @@
+{
+  "source": "Google Play target API level policy, checked 2026-10-30.",
+  "targetSdk": 36,
+  "permissions": [
+    "com.android.vending.BILLING"
+  ]
+}

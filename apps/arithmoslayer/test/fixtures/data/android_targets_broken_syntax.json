@@ -1,0 +1,6 @@
+{
+  "source": "Google Play target API level policy, checked 2026-10-30.",
+  "minSdk": 24,
+  "targetSdk": 36,
+  "permissions": [],
+}

@@ -7,3 +7,5 @@ export/
 *.import
 *.translation
 *.uid
+# Python bytecode from the tools/ guard scripts
+__pycache__/
