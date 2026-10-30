@@ -336,3 +336,172 @@ test("language selection: switching in either direction updates voice code, spec
   assert.ok(current.specials.includes('ä'), "switching en->de should load German specials");
   assert.ok(!current.specials.includes('sh'), "switching en->de must not keep English specials");
 });
+
+/** Read the single-page app markup so tests can assert on its static HTML. */
+async function readIndexHtml() {
+  const { readFile } = await import("node:fs/promises");
+  const { fileURLToPath } = await import("node:url");
+  const path = await import("node:path");
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), "../static/index.html");
+  return readFile(file, "utf8");
+}
+
+/** Read a committed sentence pool of the given language. */
+async function readSentencePool(lang) {
+  const { readFile } = await import("node:fs/promises");
+  const { fileURLToPath } = await import("node:url");
+  const path = await import("node:path");
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), `../static/sentences/${lang}.json`);
+  return JSON.parse(await readFile(file, "utf8"));
+}
+
+const SENTENCE_MODE_TEXT_IDS = [
+  "deck-legend",
+  "deck-letters-title",
+  "deck-letters-desc",
+  "deck-sentences-title",
+  "deck-sentences-desc",
+  "deck-mixed-title",
+  "deck-mixed-desc",
+  "sentences-legend",
+  "sentences-intro",
+  "sentences-hint",
+  "sentences-clear-label",
+];
+
+test("i18n: no key exists only in the English dictionary", () => {
+  const enKeys = Object.keys(EN);
+  const missingInDe = enKeys.filter((key) => !(key in DE));
+  assert.deepStrictEqual(
+    missingInDe,
+    [],
+    `the following keys from English dictionary are missing in German dictionary: ${missingInDe.join(", ")}`,
+  );
+});
+
+test("i18n: sentence-mode keys exist in both languages", () => {
+  const sentenceModeKeys = [
+    "setup.deck",
+    "setup.deck.letters",
+    "setup.deck.letters_desc",
+    "setup.deck.sentences",
+    "setup.deck.sentences_desc",
+    "setup.deck.mixed",
+    "setup.deck.mixed_desc",
+    "setup.sentences.legend",
+    "setup.sentences.intro",
+    "setup.sentences.hint",
+    "setup.sentences.clear",
+    "setup.error.sentencepool",
+    "setup.error.no_sentences",
+    "setup.error.no_mixed",
+    "practice.progress_label",
+  ];
+
+  for (const key of sentenceModeKeys) {
+    for (const lang of ["de", "en"]) {
+      const translated = t(lang, key);
+      assert.notStrictEqual(translated, key, `${key} should have a ${lang} translation`);
+      assert.ok(translated.trim().length > 0, `${key} ${lang} translation should not be empty`);
+    }
+  }
+});
+
+test("i18n: the sentence-mode UI has no hard-coded user-visible text", async () => {
+  const html = await readIndexHtml();
+
+  for (const id of SENTENCE_MODE_TEXT_IDS) {
+    const emptyElement = new RegExp(`id="${id}"[^>]*>\\s*</`);
+    assert.match(
+      html,
+      emptyElement,
+      `#${id} must be filled from the dictionaries instead of hard-coding German text`,
+    );
+  }
+});
+
+test("i18n: every sentence-mode text element is filled from a dictionary key", async () => {
+  const html = await readIndexHtml();
+  const wired = new Set();
+  for (const match of html.matchAll(/byId\('([^']+)'\)\.textContent = tr\('([^']+)'\)/g)) {
+    wired.add(match[1]);
+  }
+
+  for (const id of SENTENCE_MODE_TEXT_IDS) {
+    assert.ok(wired.has(id), `#${id} should be updated through tr()`);
+  }
+});
+
+test("i18n: both language pools load", async () => {
+  for (const lang of ["de", "en"]) {
+    const data = await readSentencePool(lang);
+    assert.strictEqual(data.lang, lang, `${lang} pool should declare its language`);
+    assert.strictEqual(data.count, 1000, `${lang} pool should announce 1000 sentences`);
+    assert.strictEqual(data.sentences.length, 1000, `${lang} pool should contain 1000 sentences`);
+
+    const ids = new Set();
+    for (const entry of data.sentences) {
+      assert.strictEqual(typeof entry.text, "string", `${lang} entry should have text`);
+      assert.ok(entry.text.trim().length > 0, `${lang} entry text should not be empty`);
+      assert.ok(!ids.has(entry.id), `${lang} entry id ${entry.id} should be unique`);
+      ids.add(entry.id);
+    }
+  }
+});
+
+test("i18n: both pools offer sentence cards the selection can read", async () => {
+  const { readableSentenceCards } = await import("../static/sentences/cards.mjs");
+  const { getSoundsForLanguage } = await import("../static/sounds.mjs");
+  const { stageSets } = await import("../tools/validate_sentences.mjs");
+
+  for (const lang of ["de", "en"]) {
+    const data = await readSentencePool(lang);
+
+    const allSounds = getSoundsForLanguage(lang);
+    const fullSelection = readableSentenceCards(data.sentences, allSounds, lang);
+    assert.strictEqual(fullSelection.length, 1000, `${lang} pool should be fully readable with all sounds`);
+
+    const beginner = readableSentenceCards(data.sentences, stageSets(lang).S0, lang);
+    assert.ok(beginner.length > 0, `${lang} pool should offer readable sentences to a beginner`);
+    assert.ok(beginner.every((entry) => entry.text.trim().length > 0));
+  }
+});
+
+test("a11y: sentence cards are native toggle buttons that announce their state", async () => {
+  const html = await readIndexHtml();
+
+  assert.match(html, /<fieldset class="letter-group sentence-group">/);
+  assert.match(html, /<legend><span id="sentences-legend"/);
+  assert.match(html, /<ul id="sentences-list" class="sentences-list" aria-labelledby="sentences-legend">/);
+  assert.match(html, /<button id="sentences-clear" class="link-button" type="button" hidden>/);
+
+  // Cards are real buttons (Tab-reachable) with a pressed state, not divs.
+  assert.match(html, /const button = document\.createElement\('button'\);/);
+  assert.match(html, /button\.type = 'button';/);
+  assert.match(html, /button\.textContent = entry\.text;/);
+  assert.match(html, /button\.setAttribute\('aria-pressed', String\(sentenceSelection\.has\(entry\.text\)\)\);/);
+  assert.match(html, /button\.setAttribute\('aria-pressed', String\(added\)\);/);
+});
+
+test("a11y: the sentence selection count is announced as it changes", async () => {
+  const html = await readIndexHtml();
+  assert.match(html, /id="sentences-count" class="selection-count" aria-live="polite"/);
+});
+
+test("a11y: the deck selector is a labelled radio group", async () => {
+  const html = await readIndexHtml();
+
+  assert.match(html, /<legend id="deck-legend">/);
+  for (const value of ["LETTERS", "SENTENCES", "MIXED"]) {
+    assert.match(html, new RegExp(`<input type="radio" name="deck" value="${value}"`));
+  }
+});
+
+test("a11y: the practice progress bar has a translated accessible name", async () => {
+  const html = await readIndexHtml();
+
+  assert.doesNotMatch(html, /<progress[^>]*aria-label="[^"]+"/);
+  assert.match(html, /byId\('progress'\)\.setAttribute\('aria-label', tr\('practice\.progress_label'\)\);/);
+  assert.notStrictEqual(t("de", "practice.progress_label"), "practice.progress_label");
+  assert.notStrictEqual(t("en", "practice.progress_label"), "practice.progress_label");
+});

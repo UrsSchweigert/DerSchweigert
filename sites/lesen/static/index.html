@@ -1290,13 +1290,13 @@
                     </div>
                     <div class="deck-options">
                         <fieldset>
-                            <legend id="deck-legend">Deck</legend>
+                            <legend id="deck-legend"></legend>
                             <div class="patterns">
                                 <label class="pattern" id="deck-letters-label"><input type="radio" name="deck" value="LETTERS"
-                                        checked><strong id="deck-letters-title">Buchstaben &amp; W&ouml;rter</strong><span
-                                        id="deck-letters-desc">Nach Buchstabenfolge</span></label>
-                                <label class="pattern" id="deck-sentences-label"><input type="radio" name="deck" value="SENTENCES"><strong id="deck-sentences-title">Nur S&auml;tze</strong><span id="deck-sentences-desc">Ganze S&auml;tze lesen</span></label>
-                                <label class="pattern" id="deck-mixed-label"><input type="radio" name="deck" value="MIXED"><strong id="deck-mixed-title">Gemischt</strong><span id="deck-mixed-desc">W&ouml;rter und S&auml;tze im Wechsel</span></label>
+                                        checked><strong id="deck-letters-title"></strong><span
+                                        id="deck-letters-desc"></span></label>
+                                <label class="pattern" id="deck-sentences-label"><input type="radio" name="deck" value="SENTENCES"><strong id="deck-sentences-title"></strong><span id="deck-sentences-desc"></span></label>
+                                <label class="pattern" id="deck-mixed-label"><input type="radio" name="deck" value="MIXED"><strong id="deck-mixed-title"></strong><span id="deck-mixed-desc"></span></label>
                             </div>
                         </fieldset>
                         <fieldset>
@@ -1335,11 +1335,11 @@
                     </div>
                 </div>
                 <fieldset class="letter-group sentence-group">
-                    <legend><span id="sentences-legend">Satz-Karten</span> <span id="sentences-count" class="selection-count"></span></legend>
-                    <p id="sentences-intro" class="sentence-intro">Tippe Sätze an, die gelesen werden sollen.</p>
-                    <p id="sentences-hint" class="sentence-hint" hidden>Wähle mehr Buchstaben, dann erscheinen hier Sätze.</p>
+                    <legend><span id="sentences-legend"></span> <span id="sentences-count" class="selection-count" aria-live="polite"></span></legend>
+                    <p id="sentences-intro" class="sentence-intro"></p>
+                    <p id="sentences-hint" class="sentence-hint" hidden></p>
                     <ul id="sentences-list" class="sentences-list" aria-labelledby="sentences-legend"></ul>
-                    <button id="sentences-clear" class="link-button" type="button" hidden><span id="sentences-clear-label">Auswahl leeren</span></button>
+                    <button id="sentences-clear" class="link-button" type="button" hidden><span id="sentences-clear-label"></span></button>
                 </fieldset>
                 <div class="setup-bottom">
                     <p id="setup-error" class="error" role="alert"></p>
@@ -1367,7 +1367,7 @@
                 <div class="stats"><span><strong id="cleared">0</strong> <span id="stats-cleared-label">geschafft</span></span><span><strong
                             id="remaining">10</strong> <span id="stats-remaining-label">offen</span></span><span><strong id="total">10</strong> <span id="stats-total-label">insgesamt</span></span>
                 </div>
-                <progress id="progress" value="0" max="10" aria-label="Geschaffte Karten"></progress>
+                <progress id="progress" value="0" max="10"></progress>
                 <div class="reading-card"><span id="review-label" class="review-label" hidden>Noch einmal</span>
                     <p id="syllable" aria-live="polite" aria-atomic="true"></p>
                 </div>
@@ -1610,6 +1610,7 @@
             byId('stats-remaining-label').textContent = tr('practice.stats.remaining');
             byId('stats-total-label').textContent = tr('practice.stats.total');
             byId('review-label').textContent = tr('practice.review_label');
+            byId('progress').setAttribute('aria-label', tr('practice.progress_label'));
             byId('speak-card-label').textContent = tr('practice.button.speak');
             byId('retry-label').textContent = tr('practice.button.retry');
             byId('correct-label').textContent = tr('practice.button.correct');
