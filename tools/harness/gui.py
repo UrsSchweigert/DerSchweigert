@@ -87,6 +87,7 @@ class GuiServer(ThreadingHTTPServer):
                             "plan_id": plan_id, "stage": key.partition(":")[0], "issue_id": job["issue_id"],
                             "head_rev": job["head_rev"], "base_rev": job["base_rev"], "runner": job["runner"],
                             "lease_expires_in_s": job["lease_until"] - self.clock(),
+                            "elapsed_s": (self.clock() - job["started_at"]) if job.get("started_at") else None,
                         })
             finally:
                 store.close()
