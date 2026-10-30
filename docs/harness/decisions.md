@@ -376,3 +376,14 @@ case where an id belonged to a different plan, which cost a debugging session ea
   belongs to another plan refuses with that plan named.
 * `import-issues` writes an `import_report` document per plan listing `added` and `replaced`, so the GUI and the
   operator can see that the corrected definition actually arrived.
+
+## The run clock stops when the run stops (2026-10-30)
+
+`status` computed the run's wall clock as `now - started_at`, so the dashboard kept counting after the plan was
+cancelled, completed or paused: a cancelled run showed a growing "Run time" against its budget, and a run that sat
+paused for an hour resumed with that hour already charged — enough to trip `run_wall_clock_s` immediately.
+
+`Scheduler._pause`, `_cancel` and `_complete_plan_if_done` (and `runner.request_pause` when it pauses without a
+runner) now record `run["ended_at"]`, and `status` charges up to that stamp instead of up to now. On the next
+`start()` the clock is shifted by the idle gap (`started_at += now - ended_at`) and the stamp is dropped, so a
+resumed run pays only for the time it actually runs.

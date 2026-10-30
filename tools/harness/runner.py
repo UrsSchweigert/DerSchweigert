@@ -289,6 +289,7 @@ def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = Fal
     store.put_run(plan_id, run)
     if not store.active_claims() and not run.get("checks"):
         store.transition("plan", entity, "Paused", "operator", {"reason": "paused by the operator"})
+        run["ended_at"] = time.time()
         run.pop("pause_requested", None)  # nothing was draining, so the request is already fulfilled
         run.pop("pause_now", None)
         store.put_run(plan_id, run)
