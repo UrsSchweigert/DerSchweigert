@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import { recordAttempt, selectFlopDeck, flopCandidateCards, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom } from "../static/scoring.mjs";
+import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom } from "../static/scoring.mjs";
 
 const SENTENCE_POOL = [
   { id: "a", text: "Mama malt." },
@@ -188,6 +188,75 @@ test("flopCandidateCards: returns an empty list without stats or sounds", () => 
   assert.deepStrictEqual(flopCandidateCards({ ta: { correct_count: 1, incorrect_count: 0 } }, []), []);
 });
 
+test("flopCandidateCards: a sentence card is a candidate even when unspellable", () => {
+  const stats = {
+    "Das Brot ist frisch.": { correct_count: 0, incorrect_count: 1 },
+    Hut: { correct_count: 0, incorrect_count: 1 },
+  };
+  const candidates = flopCandidateCards(stats, new Set(["m", "l", "t", "g", "o", "a"]), SENTENCE_POOL);
+  assert.ok(candidates.includes("Das Brot ist frisch."));
+  assert.ok(!candidates.includes("Hut"), "an unspellable word card must stay out");
+});
+
+test("flopCandidateCards: sentence cards bypass spellability only when named", () => {
+  const stats = { "Das Brot ist frisch.": { correct_count: 0, incorrect_count: 1 } };
+  assert.deepStrictEqual(flopCandidateCards(stats, new Set(["m", "l", "t", "g", "o", "a"])), []);
+  assert.deepStrictEqual(
+    flopCandidateCards(stats, new Set(["m", "l", "t", "g", "o", "a"]), ["Das Brot ist frisch."]),
+    ["Das Brot ist frisch."],
+  );
+});
+
+test("flopCandidateCards: a sentence card stays a candidate with an empty selection", () => {
+  const stats = { "Mama malt.": { correct_count: 0, incorrect_count: 1 } };
+  assert.deepStrictEqual(flopCandidateCards(stats, [], SENTENCE_POOL), ["Mama malt."]);
+  assert.deepStrictEqual(flopCandidateCards({ Hut: stats["Mama malt."] }, [], SENTENCE_POOL), []);
+});
+
+test("selectFlopDeck: sentence cards share the worst-10 % rule", () => {
+  const stats = {};
+  const allowedCards = [];
+  for (let index = 0; index < 9; index++) {
+    stats[`Word ${index}`] = { correct_count: 9, incorrect_count: 1 };
+    allowedCards.push(`Word ${index}`);
+  }
+  stats["Das Brot ist frisch."] = { correct_count: 0, incorrect_count: 2 };
+  allowedCards.push("Das Brot ist frisch.");
+  // Bottom 10 % of 10 candidates = 1 card: the worst, which is the sentence.
+  assert.deepStrictEqual(selectFlopDeck(stats, allowedCards), ["Das Brot ist frisch."]);
+});
+
+test("buildFlopDeck: a deck with one sentence card is usable", () => {
+  const stats = { "Das Brot ist frisch.": { correct_count: 0, incorrect_count: 1 } };
+  const deck = buildFlopDeck(stats, new Set(["m", "a"]), SENTENCE_POOL);
+  assert.deepStrictEqual(deck, [
+    { text: "Das Brot ist frisch.", kind: "sentence", misses: 0 },
+  ]);
+});
+
+test("buildFlopDeck: word cards keep the worst-10 % behaviour and their kind", () => {
+  const stats = {
+    aa: { correct_count: 9, incorrect_count: 1 },
+    ab: { correct_count: 5, incorrect_count: 5 },
+    ba: { correct_count: 1, incorrect_count: 9 },
+  };
+  const deck = buildFlopDeck(stats, ["a", "b"]);
+  assert.deepStrictEqual(deck, [{ text: "ba", kind: "word", misses: 0 }]);
+});
+
+test("buildFlopDeck: sentence and word cards keep their kind in one deck", () => {
+  const stats = {};
+  for (const word of ["aaa", "aab", "aba", "abb", "baa", "bab", "bba", "bbb", "aaaa", "aaab"]) {
+    stats[word] = { correct_count: 10, incorrect_count: 0 };
+  }
+  stats["Das Brot ist frisch."] = { correct_count: 0, incorrect_count: 1 };
+  // 11 candidates, bottom 10 % = 2: the sentence and the first perfect word.
+  const deck = buildFlopDeck(stats, ["a", "b"], SENTENCE_POOL);
+  assert.strictEqual(deck.length, 2);
+  assert.deepStrictEqual(deck[0], { text: "Das Brot ist frisch.", kind: "sentence", misses: 0 });
+  assert.strictEqual(deck[1].kind, "word");
+});
+
 test("selectFlopDeck: deck built from history is min(ceil(10%), 30) and never empty", () => {
   const stats = {};
   for (let index = 0; index < 15; index++) {
@@ -334,4 +403,11 @@ test("the Karten tab builds both decks through the scoring module", () => {
   assert.match(setupHtml, /window\.__scoring\.buildSentenceOnlyDeck\(/);
   assert.match(setupHtml, /window\.__scoring\.buildMixedDeck\(/);
   assert.match(setupHtml, /buildSentenceOnlyDeck, buildMixedDeck \} from '\.\/scoring\.mjs'/);
+});
+
+test("the Flops mode builds a kind-aware deck from the active sentence pool", () => {
+  assert.match(setupHtml, /buildFlopDeck, buildSentenceOnlyDeck, buildMixedDeck \} from '\.\/scoring\.mjs'/);
+  assert.match(setupHtml, /sentenceTexts\[lang\] = new Set\(/);
+  assert.match(setupHtml, /buildFlopDeck\(stats, allowedSounds, sentenceTexts\[currentLanguage\] \|\| \[\]\)/);
+  assert.match(setupHtml, /queue = shuffle\(flopDeck\);/);
 });

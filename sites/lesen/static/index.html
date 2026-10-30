@@ -1446,7 +1446,7 @@
         import { createSpeechAdapter } from './speech-adapter.js';
         import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
-        import { recordAttempt, selectFlopDeck, flopCandidateCards, buildSentenceOnlyDeck, buildMixedDeck } from './scoring.mjs';
+        import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, buildMixedDeck } from './scoring.mjs';
         import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
         import { readableSentenceCards, buildSentenceDeck, createSentenceSelection } from './sentences/cards.mjs';
         import { t } from './i18n.mjs';
@@ -1456,7 +1456,7 @@
         window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
-        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildSentenceOnlyDeck, buildMixedDeck };
+        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, buildMixedDeck };
         window.__sentences = { readableSentenceCards, buildSentenceDeck, createSentenceSelection };
         window.__storage = createStorage(window.localStorage);
         window.__i18n = { t };
@@ -1476,6 +1476,7 @@
         let attempts = 0;
         let wordPromises = { de: null, en: null };
         let sentencePromises = { de: null, en: null };
+        let sentenceTexts = { de: null, en: null };
         let sentenceSelection = window.__sentences.createSentenceSelection();
         let sentenceRenderToken = 0;
         let deckStarting = false;
@@ -1682,10 +1683,18 @@
                     })
                     .then(data => {
                         if (!data || !Array.isArray(data.sentences)) throw new Error('Invalid sentence pool');
+                        // Flops need to recognise sentence cards by text, even
+                        // when the current selection cannot read them yet.
+                        sentenceTexts[lang] = new Set(
+                            data.sentences
+                                .map(entry => (entry && typeof entry.text === 'string' ? entry.text : ''))
+                                .filter(text => text),
+                        );
                         return data.sentences;
                     })
                     .catch(error => {
                         sentencePromises[lang] = null;
+                        sentenceTexts[lang] = null;
                         throw error;
                     });
             }
@@ -1765,6 +1774,9 @@
             renderSentenceCards(cards);
             byId('sentences-hint').textContent = tr('setup.sentences.hint');
             updateSentenceCount();
+            // The pool just became available, so sentence flops can now be
+            // recognised and counted in the Flops status line.
+            updateFlopModeStatus();
         }
 
         async function updateWordMatchCount() {
@@ -1815,9 +1827,9 @@
         }
 
         function currentFlopDeck() {
-            const { selectFlopDeck, flopCandidateCards } = window.__scoring;
+            const { buildFlopDeck } = window.__scoring;
             const allowedSounds = new Set([...consonants, ...vowels, ...specials]);
-            return selectFlopDeck(stats, flopCandidateCards(stats, allowedSounds));
+            return buildFlopDeck(stats, allowedSounds, sentenceTexts[currentLanguage] || []);
         }
 
         function updateFlopModeStatus() {
@@ -2222,16 +2234,31 @@
             isInFlopMode = deckMode === 'LETTERS' && pattern === 'FLOP';
 
             if (deckMode === 'LETTERS' && pattern === 'FLOP') {
-                const flopCardTexts = currentFlopDeck();
+                // The sentence pool identifies sentence cards among the
+                // statistics keys; load it so they can join the flop deck and
+                // keep their kind on the practice screen.
+                if (!sentenceTexts[currentLanguage]) {
+                    deckStarting = true;
+                    setStartLoading(true);
+                    try {
+                        await loadSentencePool(currentLanguage);
+                    } catch {
+                        // Word flops keep working when the pool is unavailable.
+                    } finally {
+                        deckStarting = false;
+                        setStartLoading(false);
+                    }
+                }
+                const flopDeck = currentFlopDeck();
 
-                if (flopCardTexts.length === 0) {
+                if (flopDeck.length === 0) {
                     byId('setup-error').textContent = tr('setup.error.no_flop');
                     updateFlopModeStatus();
                     return;
                 }
 
-                total = flopCardTexts.length;
-                queue = shuffle(flopCardTexts).map(text => ({ text, misses: 0 }));
+                total = flopDeck.length;
+                queue = shuffle(flopDeck);
             } else if (deckMode === 'LETTERS' && pattern === 'WORDS') {
                 const eligibleWords = readableWordList(words, maxLength);
                 if (maxLength >= 4 && eligibleWords.length === 0) {
