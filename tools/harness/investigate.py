@@ -378,12 +378,14 @@ class Investigator:
                     self.sleep(failures.backoff_delay(transient, base=2.0, cap=30.0))
                     continue
                 problems = ["the previous attempt produced no usable result.json (%s)" % kind]
+                self.log("attempt %d rejected: %s" % (attempt, problems[0]))
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
                 continue
             try:
                 draft = schemas.validate(poll.result, DRAFT, "draft")
             except schemas.SchemaError as exc:
                 problems = ["result does not match the required shape: %s" % exc]
+                self.log("attempt %d rejected: %s" % (attempt, problems[0][:300]))
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
                 continue
             if draft["status"] == "questions":
@@ -415,7 +417,8 @@ class Investigator:
                     except ValueError as exc:
                         problems.append("issue %s: %s" % (issue["issue_id"], exc))
             if problems:
-                self.log("draft rejected: %d problem(s)" % len(problems))
+                self.log("attempt %d rejected: %d problem(s): %s"
+                         % (attempt, len(problems), " | ".join(p[:160] for p in problems[:3])))
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
                 last_bad = draft
                 continue
