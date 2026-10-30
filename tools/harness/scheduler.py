@@ -136,6 +136,8 @@ class Scheduler:
         self.store.refresh_plan_claim(self.plan_id, self.runner_id, now)
         telemetry.prune(self.store, now)
         if self.store.state("plan", self.entity) != "Executing":
+            if self.store.state("plan", self.entity) == "Completed":
+                self._reconcile_promotion(now)  # the owner merges the finished run, and the ask closes itself
             return self.events
         run = self.store.get_run(self.plan_id)
         if run.get("cancel_requested"):
@@ -430,7 +432,7 @@ class Scheduler:
                         [str(f.get("detail") or "") + " " + str(f.get("kind") or "") for f in (issue.get("last_failures") or [])[-3:]]).lower()
         return any(topic in text for topic in topics)
 
-    def _schedule_triage(self, issue: Dict[str, Any], now: float) -> bool:
+    def _schedule_triage(self, issue: Dict[str, Any], now: float, force: bool = False) -> bool:
         """Triage every question before the owner sees it, independent of the retry and analysis budgets.
 
         Bounded per distinct question, not by money: one triage for each question that would otherwise reach the
@@ -441,7 +443,7 @@ class Scheduler:
         if not reason or issue.get("analysis_pending") or issue.get("triage_for") == reason:
             return False
         last = (issue.get("last_failures") or [])[-1:]
-        if not self._auto_answer().get("triage_all_blocks"):
+        if not force and not self._auto_answer().get("triage_all_blocks"):
             if not any(f.get("kind") in QUESTION_KINDS for f in last):
                 return False  # budgets and policy are decided by trusted code, not by a model
         if self._auto_answer().get("enabled") and self._is_emergency(issue):
@@ -724,7 +726,10 @@ class Scheduler:
             issue["blocked_reason"] = "the refiner says this task cannot be sized for one implementer: %s" % advice
             self.store.put_issue(issue)
             self._emit("split_advised", issue=issue["issue_id"], advice=advice)
-            self._block(issue, now)
+            # Sizing the work down is an analysis, so the strong model does it and the result is smaller tasks.
+            if not self._schedule_triage(issue, now, force=True):
+                self._block(issue, now)
+            return
 
     def _on_delegator(self, meta, h, result, now) -> None:
         """Apply the delegating agent's decision after trusted code checks it. It can steer a retry or hand the question to the owner."""
@@ -1569,9 +1574,58 @@ class Scheduler:
             return
         if number:
             run = self.store.get_run(self.plan_id)
-            run["promotion"] = {"base": base, "number": number, "problem": ""}
+            run["promotion"] = {"base": base, "number": number, "problem": "", "merged": False}
             self.store.put_run(self.plan_id, run)
             self._emit("promotion_pr", number=number, base=base)
+            self._ask_to_merge(base, number)
+
+    def _ask_to_merge(self, base: str, number: int) -> None:
+        """The run is finished and waiting for one decision the harness must never make itself: merging into the base."""
+        issues = [i["issue_id"] for i in self.store.list_issues(self.plan_id)]
+        if not issues:
+            return
+        created = humantasks.request_task(
+            self.store, task_id="promotion-%s-%d" % (self.plan_id, number), kind="promotion", issue_ids=issues[:1],
+            owner=self.owner, secondary_owner=self.secondary_owner, now=self.clock(),
+            why="Every phase is Done and pull request #%d into %s has all required checks." % (number, base),
+            request="Only you merge into %s. Merge the finished run, then answer here so the run counts as landed." % base,
+            response_format={"required": ["option"]}, options=humantasks.PROMOTION_OPTIONS,
+            resolution_criteria="Either option resolves the task. The run stays finished either way.",
+            extra={"pull_request": number, "base": base, "url": "https://github.com/%s/pull/%d" % (
+                getattr(self.publisher.client, "repo", ""), number) if getattr(self.publisher, "client", None) else "",
+                   "option_help": {o: humantasks.OPTION_HELP[o] for o in humantasks.PROMOTION_OPTIONS if o in humantasks.OPTION_HELP}},
+            block_issues=False)
+        if created:
+            self._emit("promotion_task", task="promotion-%s-%d" % (self.plan_id, number), number=number, base=base)
+
+    def _reconcile_promotion(self, now: float) -> None:
+        """A finished run whose pull request the owner merged is done for good; the ask closes itself."""
+        promotion = self.store.get_run(self.plan_id).get("promotion") or {}
+        number = promotion.get("number")
+        if not number or promotion.get("merged"):
+            return
+        try:
+            merged = self.publisher.promotion_merged(number)
+        except Exception:  # noqa: BLE001 - an unreadable pull request is retried on the next pass
+            return
+        if not merged:
+            return
+        promotion["merged"] = True
+        run = self.store.get_run(self.plan_id)
+        run["promotion"] = promotion
+        self.store.put_run(self.plan_id, run)
+        task_id = "promotion-%s-%d" % (self.plan_id, number)
+        # The task machine is walked one step at a time: the harness resolves its own ask, it never skips a state.
+        next_state = {"Requested": "Acknowledged", "Acknowledged": "Submitted", "Submitted": "Validated", "Validated": "Resolved"}
+        while self.store.state("human_task", task_id) in next_state:
+            self.store.transition("human_task", task_id, next_state[self.store.state("human_task", task_id)], self.runner_id,
+                                  {"reason": "the owner merged the finished run", "pull_request": number}, now=now)
+        self._emit("promotion_merged", number=number, base=promotion.get("base", ""))
+
+    def promotion_waiting(self) -> bool:
+        """The finished run still waits for the owner's merge, so the runner keeps watching its pull request."""
+        promotion = self.store.get_run(self.plan_id).get("promotion") or {}
+        return bool(promotion.get("number")) and not promotion.get("merged") and not promotion.get("problem")
 
     def _promotion_problem(self, base: str, problem: str) -> None:
         """Record why the finished run cannot be offered, so the plan does not look simply "done" in the UI."""

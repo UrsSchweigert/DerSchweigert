@@ -572,3 +572,25 @@ Two changes close the class:
   turn green), no promotion pull request is opened — an unmergeable one only looks like progress — and the reason is
   stored on the run, emitted as `promotion_conflict`, and shown in the GUI banner and in `harness status` as
   `PROMOTION BLOCKED: …`. A successful promotion shows as "Promoted as pull request #N; only you merge it."
+
+## The finished run asks for its merge, and a split is analysed before the owner sees it (2026-10-30)
+
+Two gaps closed.
+
+**The promotion had no owner decision in it.** The finished run opened its pull request and the GUI said nothing, so the
+last step of a run looked like the first: wait and see. A finished plan now raises a `promotion` task
+(`promotion-<plan>-<pr>`) that names the pull request, links to it and offers "merged the pull request" / "keep it open
+for now". The harness still never merges into the base branch. Because the owner merges on GitHub rather than in the GUI,
+the harness reads the pull request back (`pr_merged`) on every pass of a `Completed` plan and closes its own ask as soon
+as the merge is real — the task is a reminder with an audit trail, not a gate the owner has to answer.
+
+Watching needs a process: `run_loop` used to stop the moment a plan was no longer `Executing`, which would have left the
+ask open forever. A finished run whose pull request is still open now keeps ticking at `PROMOTION_POLL_S` (30 s) instead
+of stopping, bounded by `PROMOTION_WATCH_S` (6 h), so an abandoned runner cannot watch a pull request indefinitely.
+
+**Sizing work down was left to the owner.** When the refiner said a task could not be made small enough for one
+implementer, the issue was blocked straight into a decision task: the owner was handed the raw judgement and had to
+invent the split. Sizing is an analysis, so that path now goes through triage first: the `analyst` (strong tier — the only
+role that plans at that level) produces the root cause and, where it fits, the validated smaller issues, and the owner is
+asked only to apply them. The split advice is therefore also the first place where the two halves of the rule meet: the
+expensive model analyses, the small models execute.
