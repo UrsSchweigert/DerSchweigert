@@ -483,3 +483,17 @@ question is asked; if the cheaper attempt fails, the existing delegator and anal
 
 `policy.split_pressure` is off unless `enabled` is true, so no existing plan changes behaviour, and its keys and values
 are validated in `validate_plan` — a typo such as `max_file` is a plan problem, not a silently weaker rule.
+
+## Run-branch pull requests must run the checks, and silence is not idleness (2026-10-30)
+
+Two gaps the first real run exposed minutes after it started:
+
+* **No CI on the pull request.** `deploy.yml` ran on `pull_request: branches: [main]`, so PR #102, whose base is
+  `harness/run/<plan>`, produced no `test` or `test-ffm` run at all — while the run-branch ruleset demands exactly those
+  two checks. The trigger now includes `harness/run/**`. Deploy jobs keep `github.ref == 'refs/heads/main'`, so nothing
+  deploys from a run branch; the deploy happens when the owner promotes the run branch to `main`.
+* **A working reviewer was fenced as inactive.** The reviewer of PR #102 printed nothing for ten minutes while its
+  container used 121% CPU analysing a stylesheet, so `inactivity_timeout_s` (600 s) killed it and started a fresh
+  attempt. The adapter now treats a changed file in the worker's own work directory as a sign of life: after
+  `ACTIVITY_SCAN_AFTER_S` (60 s) without output it scans the work directory and takes the newest modification time as
+  activity. Output alone was too narrow a definition of work.

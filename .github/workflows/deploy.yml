@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, 'harness/run/**']   # a harness run lands on its own protected branch first
   # Allows re-running the deploy from the Actions UI (same `main` ref, no new
   # commit needed) after changing the non-secret FFM billing/access
   # repository variables below — e.g. to apply a newly provisioned Stripe ID
