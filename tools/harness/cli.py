@@ -263,6 +263,10 @@ def runner_command(args) -> int:
             if settings["pin"] and not settings["disabled"]:
                 tunnel = remote_mod.RemoteDashboard(root or str(_repo_root()), args.home, repo_slug)
                 tunnel.start()
+        if args.cmd == "resume" and store.state("plan", plan_entity(args.plan_id, version)) == "Completed":
+            # a finished run is not resumed; it is watched until the owner merges or the watch expires
+            return runner.watch_promotion(sched, args.interval, args.max_ticks,
+                                          lambda e: print(json.dumps(e, sort_keys=True), flush=True))
         try:
             return runner.run_loop(sched, args.interval, args.max_ticks, lambda e: print(json.dumps(e, sort_keys=True), flush=True))
         finally:
