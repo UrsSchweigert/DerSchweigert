@@ -1024,3 +1024,27 @@ def test_a_worker_starts_on_a_run_branch_that_is_not_the_default(tmp_path, monke
     repo = os.path.join(work, "repo")
     assert git(repo, "rev-parse", "--abbrev-ref", "HEAD") == "harness/i1"
     assert git(repo, "rev-parse", "HEAD") == git(src, "rev-parse", "harness/run/fx")
+
+
+def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkeypatch):
+    from harness.adapter import ACTIVITY_SCAN_AFTER_S, _Handle
+
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    with open(os.path.join(src, "f.txt"), "w") as fh:
+        fh.write("x\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    adapter = CopilotCliAdapter(str(tmp_path / "home"), src)
+    req = WorkRequest("i1#1", 1, "i1", "reviewer", "low", None, {"issue_id": "i1"}, "harness/i1")
+    handle = _Handle(req, adapter._prepare(req), None, "probe")
+
+    quiet_since = 1000.0
+    handle.last_activity = quiet_since
+    with open(os.path.join(handle.workdir, "repo", "analysis.txt"), "w") as fh:
+        fh.write("work\n")
+
+    assert adapter._last_sign_of_work(handle, quiet_since + 5) == quiet_since          # too soon to look
+    assert adapter._last_sign_of_work(handle, quiet_since + ACTIVITY_SCAN_AFTER_S + 5) > quiet_since
