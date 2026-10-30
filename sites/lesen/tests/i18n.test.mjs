@@ -42,15 +42,19 @@ test("i18n: German dictionary covers setup form strings", () => {
     "setup.consonants",
     "setup.vowels",
     "setup.specials",
-    "setup.pattern",
-    "setup.pattern.patterns",
-    "setup.pattern.patterns_desc",
-    "setup.pattern.sub.ma",
-    "setup.pattern.sub.am",
-    "setup.pattern.sub.mam",
-    "setup.pattern.sub.ama",
-    "setup.pattern.words",
-    "setup.pattern.flop",
+    "setup.mode",
+    "setup.mode.patterns",
+    "setup.mode.patterns_desc",
+    "setup.mode.sub.ma",
+    "setup.mode.sub.am",
+    "setup.mode.sub.mam",
+    "setup.mode.sub.ama",
+    "setup.mode.words",
+    "setup.mode.words_desc",
+    "setup.mode.sentences",
+    "setup.mode.sentences_desc",
+    "setup.mode.flop",
+    "setup.mode.flop_desc",
     "setup.wordlength",
     "setup.cardcount",
     "setup.start",
@@ -65,12 +69,12 @@ test("i18n: German dictionary covers setup form strings", () => {
 
 test("i18n: pattern mode keys exist in both languages and the old CV/VC keys are gone", () => {
   const patternKeys = [
-    "setup.pattern.patterns",
-    "setup.pattern.patterns_desc",
-    "setup.pattern.sub.ma",
-    "setup.pattern.sub.am",
-    "setup.pattern.sub.mam",
-    "setup.pattern.sub.ama",
+    "setup.mode.patterns",
+    "setup.mode.patterns_desc",
+    "setup.mode.sub.ma",
+    "setup.mode.sub.am",
+    "setup.mode.sub.mam",
+    "setup.mode.sub.ama",
     "setup.error.no_pattern",
   ];
 
@@ -79,9 +83,9 @@ test("i18n: pattern mode keys exist in both languages and the old CV/VC keys are
     assert.ok(!(t("en", key) === key), `${key} should have an English translation`);
   }
 
-  assert.strictEqual(t("de", "setup.pattern.patterns"), "Muster");
-  assert.strictEqual(t("en", "setup.pattern.patterns"), "Patterns");
-  for (const key of ["setup.pattern.sub.ma", "setup.pattern.sub.am", "setup.pattern.sub.mam", "setup.pattern.sub.ama"]) {
+  assert.strictEqual(t("de", "setup.mode.patterns"), "Muster");
+  assert.strictEqual(t("en", "setup.mode.patterns"), "Patterns");
+  for (const key of ["setup.mode.sub.ma", "setup.mode.sub.am", "setup.mode.sub.mam", "setup.mode.sub.ama"]) {
     assert.strictEqual(t("de", key), t("en", key));
   }
 
@@ -355,18 +359,16 @@ async function readSentencePool(lang) {
   return JSON.parse(await readFile(file, "utf8"));
 }
 
-const SENTENCE_MODE_TEXT_IDS = [
-  "deck-legend",
-  "deck-letters-title",
-  "deck-letters-desc",
-  "deck-sentences-title",
-  "deck-sentences-desc",
-  "deck-mixed-title",
-  "deck-mixed-desc",
-  "sentences-legend",
-  "sentences-intro",
-  "sentences-hint",
-  "sentences-clear-label",
+const MODE_TEXT_IDS = [
+  "mode-legend",
+  "mode-patterns-title",
+  "mode-patterns-desc",
+  "mode-words-title",
+  "words-mode-desc",
+  "mode-sentences-title",
+  "sentences-mode-desc",
+  "mode-flop-title",
+  "flop-mode-desc",
 ];
 
 test("i18n: no key exists only in the English dictionary", () => {
@@ -379,26 +381,23 @@ test("i18n: no key exists only in the English dictionary", () => {
   );
 });
 
-test("i18n: sentence-mode keys exist in both languages", () => {
-  const sentenceModeKeys = [
-    "setup.deck",
-    "setup.deck.letters",
-    "setup.deck.letters_desc",
-    "setup.deck.sentences",
-    "setup.deck.sentences_desc",
-    "setup.deck.mixed",
-    "setup.deck.mixed_desc",
-    "setup.sentences.legend",
-    "setup.sentences.intro",
-    "setup.sentences.hint",
-    "setup.sentences.clear",
+test("i18n: mode keys exist in both languages", () => {
+  const modeKeys = [
+    "setup.mode",
+    "setup.mode.patterns",
+    "setup.mode.patterns_desc",
+    "setup.mode.words",
+    "setup.mode.words_desc",
+    "setup.mode.sentences",
+    "setup.mode.sentences_desc",
+    "setup.mode.flop",
+    "setup.mode.flop_desc",
     "setup.error.sentencepool",
     "setup.error.no_sentences",
-    "setup.error.no_mixed",
     "practice.progress_label",
   ];
 
-  for (const key of sentenceModeKeys) {
+  for (const key of modeKeys) {
     for (const lang of ["de", "en"]) {
       const translated = t(lang, key);
       assert.notStrictEqual(translated, key, `${key} should have a ${lang} translation`);
@@ -407,10 +406,10 @@ test("i18n: sentence-mode keys exist in both languages", () => {
   }
 });
 
-test("i18n: the sentence-mode UI has no hard-coded user-visible text", async () => {
+test("i18n: the mode UI has no hard-coded user-visible text", async () => {
   const html = await readIndexHtml();
 
-  for (const id of SENTENCE_MODE_TEXT_IDS) {
+  for (const id of MODE_TEXT_IDS) {
     const emptyElement = new RegExp(`id="${id}"[^>]*>\\s*</`);
     assert.match(
       html,
@@ -420,14 +419,14 @@ test("i18n: the sentence-mode UI has no hard-coded user-visible text", async () 
   }
 });
 
-test("i18n: every sentence-mode text element is filled from a dictionary key", async () => {
+test("i18n: every mode text element is filled from a dictionary key", async () => {
   const html = await readIndexHtml();
   const wired = new Set();
   for (const match of html.matchAll(/byId\('([^']+)'\)\.textContent = tr\('([^']+)'\)/g)) {
     wired.add(match[1]);
   }
 
-  for (const id of SENTENCE_MODE_TEXT_IDS) {
+  for (const id of MODE_TEXT_IDS) {
     assert.ok(wired.has(id), `#${id} should be updated through tr()`);
   }
 });
@@ -467,34 +466,24 @@ test("i18n: both pools offer sentence cards the selection can read", async () =>
   }
 });
 
-test("a11y: sentence cards are native toggle buttons that announce their state", async () => {
+test("a11y: the mode selector is a labelled radio group", async () => {
   const html = await readIndexHtml();
 
-  assert.match(html, /<fieldset class="letter-group sentence-group">/);
-  assert.match(html, /<legend><span id="sentences-legend"/);
-  assert.match(html, /<ul id="sentences-list" class="sentences-list" aria-labelledby="sentences-legend">/);
-  assert.match(html, /<button id="sentences-clear" class="link-button" type="button" hidden>/);
-
-  // Cards are real buttons (Tab-reachable) with a pressed state, not divs.
-  assert.match(html, /const button = document\.createElement\('button'\);/);
-  assert.match(html, /button\.type = 'button';/);
-  assert.match(html, /button\.textContent = entry\.text;/);
-  assert.match(html, /button\.setAttribute\('aria-pressed', String\(sentenceSelection\.has\(entry\.text\)\)\);/);
-  assert.match(html, /button\.setAttribute\('aria-pressed', String\(added\)\);/);
-});
-
-test("a11y: the sentence selection count is announced as it changes", async () => {
-  const html = await readIndexHtml();
-  assert.match(html, /id="sentences-count" class="selection-count" aria-live="polite"/);
-});
-
-test("a11y: the deck selector is a labelled radio group", async () => {
-  const html = await readIndexHtml();
-
-  assert.match(html, /<legend id="deck-legend">/);
-  for (const value of ["LETTERS", "SENTENCES", "MIXED"]) {
-    assert.match(html, new RegExp(`<input type="radio" name="deck" value="${value}"`));
+  assert.match(html, /<legend id="mode-legend">/);
+  for (const value of ["PATTERNS", "WORDS", "SENTENCES", "FLOP"]) {
+    assert.match(html, new RegExp(`<input type="radio" name="mode" value="${value}"`));
   }
+  assert.doesNotMatch(html, /<input type="radio" name="deck"/);
+  assert.doesNotMatch(html, /<input type="radio" name="pattern"/);
+});
+
+test("a11y: each mode count is rendered as plain text", async () => {
+  const html = await readIndexHtml();
+
+  assert.match(html, /id="words-match-count"/);
+  assert.match(html, /id="sentences-match-count"/);
+  assert.match(html, /id="flop-match-count"/);
+  assert.doesNotMatch(html, /id="sentences-count" class="selection-count"/);
 });
 
 test("a11y: the practice progress bar has a translated accessible name", async () => {
