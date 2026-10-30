@@ -1553,12 +1553,12 @@ class Scheduler:
         plan = self._plan()
         base = plans.base_branch(plan)
         try:
-            merged = self.publisher.sync_run_branch(base)
+            sync = self.publisher.sync_run_branch(base)
         except Exception as exc:  # noqa: BLE001 - a promotion problem is the owner's decision, never a lost run
             self._promotion_problem(base, "%s: %s" % (type(exc).__name__, str(exc)[:400]))
             return
-        if merged:
-            self._emit("promotion_synced", base=base, commit=merged)
+        if sync:
+            self._emit("promotion_synced", base=base, pull_request=sync)
         try:
             number = self.publisher.open_promotion(
                 base, "%s: finished run (%s)" % (plan["plan_id"], self.runner_id),

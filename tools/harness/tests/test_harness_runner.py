@@ -5,11 +5,11 @@ import subprocess
 import pytest
 
 from harness import adapter as adapter_mod
-from harness import approval, cli, isolation, runner
+from harness import approval, cli, isolation, publisher, runner
 from harness.adapter import CopilotCliAdapter, WorkRequest, build_prompt
 from harness.broker import BrokerRejected
 from harness.github import GhCli, GitHubError
-from harness.publisher import GitHubPublisher, push_branch
+from harness.publisher import GitHubPublisher, merge_base_into, push_branch
 from harness.scheduler import Scheduler
 from harness.store import Store
 from harness_doubles import FakeAdapter, TIER_A, Env, REQ
@@ -1089,8 +1089,8 @@ def _advance_main(clone, origin, path, text, message):
     git(clone, "push", "-q", "origin", "HEAD:main")
 
 
-def test_a_resumed_run_branch_is_brought_up_to_the_base(remote_world, tmp_path):
-    """An unmergeable promotion pull request gets no checks at all, so the run branch must not fall behind the base."""
+def test_the_base_is_merged_into_the_run_branch_faithfully(remote_world, tmp_path):
+    """The merge that keeps the promotion mergeable must carry the run's own work and really have two parents."""
     origin, clone = remote_world
     bare = str(tmp_path / "trusted.git")
     git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
@@ -1105,16 +1105,20 @@ def test_a_resumed_run_branch_is_brought_up_to_the_base(remote_world, tmp_path):
     git(clone, "add", "-A")
     git(clone, "commit", "-q", "-m", "run work")
     git(clone, "push", "-q", "origin", "HEAD:harness/run/p1")
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", origin, "+refs/heads/harness/run/p1:refs/heads/harness/run/p1",
+        "+refs/heads/main:refs/heads/main")
+    base_sha = git(clone, "--git-dir", origin, "rev-parse", "main")
 
-    runner.ensure_run_branch(bare, origin, "main", "harness/run/p1", None)
+    merged = merge_base_into(bare, origin, "main", "harness/run/p1", base_sha, "refs/heads/harness/run/p1", None)
 
-    assert git(clone, "--git-dir", origin, "merge-base", "--is-ancestor", "main", "harness/run/p1") == ""
-    merged = git(clone, "--git-dir", origin, "rev-parse", "harness/run/p1")
-    assert git(clone, "--git-dir", origin, "rev-list", "--parents", "-n", "1", merged).count(" ") == 2  # a real merge commit
+    parents = git(clone, "--git-dir", origin, "rev-list", "--parents", "-n", "1", merged).split()
+    assert len(parents) == 3  # a real merge commit: the run's tip and the base
     assert git(clone, "--git-dir", origin, "show", merged + ":b.txt") == "b"  # the run's own work survived
+    assert git(clone, "--git-dir", origin, "show", merged + ":c.txt") == "c"  # and the base came with it
+    assert git(clone, "--git-dir", origin, "rev-parse", publisher.SYNC_BRANCH) == merged  # offered for a pull request
 
 
-def test_a_run_branch_that_really_collides_stops_the_run(remote_world, tmp_path):
+def test_a_run_branch_that_really_collides_is_reported_with_its_paths(remote_world, tmp_path):
     origin, clone = remote_world
     bare = str(tmp_path / "trusted.git")
     git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
@@ -1129,6 +1133,257 @@ def test_a_run_branch_that_really_collides_stops_the_run(remote_world, tmp_path)
     git(clone, "commit", "-q", "-m", "run edits a.txt")
     git(clone, "push", "-q", "origin", "HEAD:harness/run/p1")
     _advance_main(clone, origin, "a.txt", "main side\n", "main edits a.txt")
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", origin, "+refs/heads/harness/run/p1:refs/heads/harness/run/p1",
+        "+refs/heads/main:refs/heads/main")
+    base_sha = git(clone, "--git-dir", origin, "rev-parse", "main")
 
-    with pytest.raises(runner.RunRefused, match="a.txt"):
-        runner.ensure_run_branch(bare, origin, "main", "harness/run/p1", None)
+    with pytest.raises(GitHubError, match="a.txt"):
+        merge_base_into(bare, origin, "main", "harness/run/p1", base_sha, "refs/heads/harness/run/p1", None)
+
+
+def test_the_promotion_sync_goes_through_a_pull_request(remote_world):
+    """The run branch only accepts changes through a pull request, so the base comes in that way too."""
+    origin, clone = remote_world
+    gh = FakeGitHub()
+    pub = publisher.GitHubPublisher(gh, clone, origin, "harness/run/p1", None, sleep=lambda s: None)
+
+    runner.ensure_run_branch(clone, origin, "main", "harness/run/p1", None)
+    number = pub.sync_run_branch("main")  # nothing to bring in yet: the branch is at the base
+
+    assert number is None and gh.prs == {}
+
+    git(clone, "fetch", "-q", "origin", "harness/run/p1:harness/run/p1")
+    git(clone, "checkout", "-q", "harness/run/p1")
+    with open(os.path.join(clone, "b.txt"), "w") as fh:
+        fh.write("b\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "run work")
+    git(clone, "push", "-q", "origin", "HEAD:harness/run/p1")
+    _advance_main(clone, origin, "c.txt", "c\n", "main moves on")
+
+    number = pub.sync_run_branch("main")
+
+    assert number and number in gh.prs
+    assert gh.prs[number]["head"] == publisher.SYNC_BRANCH and gh.prs[number]["base"] == "harness/run/p1"
+    assert gh.prs[number]["state"] == "merged"
+
+
+def test_the_publisher_offers_the_finished_run_to_the_base_branch_once(remote_world, tmp_path):
+    origin, clone = remote_world
+    gh = FakeGitHub()
+    pub = GitHubPublisher(gh, clone, origin, "harness/run/p1", None, sleep=lambda s: None)
+
+    first = pub.open_promotion("main", "promote", "body")
+    again = pub.open_promotion("main", "promote", "body")
+
+    assert first == again == 100 and len(gh.prs) == 1
+    assert gh.prs[100]["head"] == "harness/run/p1" and gh.prs[100]["base"] == "main"
+
+
+def test_a_run_that_works_on_the_base_branch_needs_no_promotion(remote_world, tmp_path):
+    origin, clone = remote_world
+    gh = FakeGitHub()
+    pub = GitHubPublisher(gh, clone, origin, "main", None, sleep=lambda s: None)
+
+    assert pub.open_promotion("main", "promote", "body") is None and not gh.prs
+
+
+def test_a_new_plan_version_replaces_an_issue_that_has_no_work_yet(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    assert runner.import_issues(store, "fx", None, str(first), "base1") == ["i1"]
+
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["the corrected outcome"], acceptance_criteria=["new"] )]))
+
+    assert runner.import_issues(store, "fx", None, str(corrected), "base2") == ["i1"]  # reported as changed
+    issue = store.get_issue("i1")
+    assert issue["outcomes"] == ["the corrected outcome"] and issue["base_rev"] == "base2"
+    assert store.state("issue", "i1") == "Ready"
+
+
+def test_an_issue_that_already_has_work_is_not_silently_skipped(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i1"), head_rev="a" * 40))
+
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["changed"])]))
+
+    with pytest.raises(runner.RunRefused, match="has work recorded"):
+        runner.import_issues(store, "fx", None, str(corrected), "base2")
+
+
+def test_an_issue_id_of_another_plan_is_reported(tmp_path):
+    store = make_plan(tmp_path)
+    other = tmp_path / "other.json"
+    other.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(other), "base1")
+    issue = store.get_issue("i1")
+    store.put_issue(dict(issue, plan_id="other-plan"))
+
+    with pytest.raises(runner.RunRefused, match="already belongs to plan other-plan"):
+        runner.import_issues(store, "fx", None, str(other), "base1")
+
+
+def test_a_cancelled_run_keeps_its_branch_and_main_untouched(remote_world, tmp_path):
+    from harness import plans as plans_mod
+    from harness import approval
+
+    origin, clone = remote_world
+    store = Store(str(tmp_path / "home"))
+    phases = [{"id": "P1", "outcomes": ["o"], "requirements": ["R1"], "path_allowlist": ["a"], "non_goals": [],
+               "dependencies": [], "exit_criteria": ["e"], "validation": ["node --test x.mjs"]}]
+    plan = plans_mod.build_plan("fx", 1, [{"id": "R1", "title": "t", "source": "s"}], phases, fixture=True)
+    store.put_plan(plan, plans_mod.plan_digest(plan))
+    store.transition("plan", "fx@v1", "Proposed", "t")
+    store.transition("plan", "fx@v1", "Approved", "t")
+    store.transition("plan", "fx@v1", "Executing", "t")
+    store.put_run("fx", {"started_at": 1.0})
+    git(clone, "branch", "harness/run/fx")
+    git(clone, "push", "-q", "origin", "harness/run/fx")
+    store.transition("plan", "fx@v1", "Cancelled", "t")
+
+    # cancelling is only a state change: the branch and the base branch are exactly as they were
+    assert git(clone, "--git-dir", origin, "rev-parse", "harness/run/fx") == git(clone, "rev-parse", "main")
+    assert git(clone, "--git-dir", origin, "rev-parse", "main") == git(clone, "rev-parse", "main")
+
+
+def test_discarding_a_stopped_run_branch_deletes_it(remote_world, tmp_path):
+    from harness import plans as plans_mod
+
+    origin, clone = remote_world
+    store = Store(str(tmp_path / "home"))
+    phases = [{"id": "P1", "outcomes": ["o"], "requirements": ["R1"], "path_allowlist": ["a"], "non_goals": [],
+               "dependencies": [], "exit_criteria": ["e"], "validation": ["node --test x.mjs"]}]
+    plan = plans_mod.build_plan("fx", 1, [{"id": "R1", "title": "t", "source": "s"}], phases, fixture=True)
+    store.put_plan(plan, plans_mod.plan_digest(plan))
+    store.transition("plan", "fx@v1", "Proposed", "t")
+    store.transition("plan", "fx@v1", "Approved", "t")
+    store.transition("plan", "fx@v1", "Executing", "t")
+    git(clone, "branch", "harness/run/fx")
+    git(clone, "push", "-q", "origin", "harness/run/fx")
+
+    with pytest.raises(runner.RunRefused, match="still owns its run branch"):
+        runner.discard_run_branch(store, "fx", 1, clone, origin)
+
+    store.transition("plan", "fx@v1", "Cancelled", "t")
+    assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is True
+    assert git(clone, "--git-dir", origin, "branch", "--list", "harness/run/fx") == ""
+    assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is False
+
+
+def test_an_issue_the_revised_plan_no_longer_names_is_retired(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE, dict(ISSUE, issue_id="i2")]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    assert store.state("issue", "i2") == "Ready"
+
+    revised = tmp_path / "revised.json"
+    revised.write_text(json.dumps([dict(ISSUE, outcomes=["merged"])]))  # i2 disappeared, i1 kept
+
+    assert runner.import_issues(store, "fx", None, str(revised), "base2", replace=True) == ["i1"]
+    assert store.state("issue", "i2") == "Cancelled" and store.state("issue", "i1") == "Ready"
+    assert store.get_doc("import_report", "fx")["superseded"] == ["i2"]
+
+
+def test_a_leftover_issue_with_work_blocks_the_import(tmp_path):
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE, dict(ISSUE, issue_id="i2")]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i2"), head_rev="b" * 40))
+
+    revised = tmp_path / "revised.json"
+    revised.write_text(json.dumps([dict(ISSUE, outcomes=["merged"])]))
+
+    with pytest.raises(runner.RunRefused, match="i2 from an earlier version already has work"):
+        runner.import_issues(store, "fx", None, str(revised), "base2", replace=True)
+    assert store.state("issue", "i1") == "Ready" and store.state("issue", "i2") == "Ready"  # nothing was written
+
+
+def test_a_worker_starts_on_a_run_branch_that_is_not_the_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    with open(os.path.join(src, "f.txt"), "w") as fh:
+        fh.write("x\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    git(src, "branch", "harness/run/fx")
+    adapter = CopilotCliAdapter(str(tmp_path / "home"), src, "harness/run/fx")
+    req = WorkRequest("i1#1", 1, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
+
+    work = adapter._prepare(req)
+
+    repo = os.path.join(work, "repo")
+    assert git(repo, "rev-parse", "--abbrev-ref", "HEAD") == "harness/i1"
+    assert git(repo, "rev-parse", "HEAD") == git(src, "rev-parse", "harness/run/fx")
+
+
+def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkeypatch):
+    from harness.adapter import ACTIVITY_SCAN_AFTER_S, _Handle
+
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    with open(os.path.join(src, "f.txt"), "w") as fh:
+        fh.write("x\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    adapter = CopilotCliAdapter(str(tmp_path / "home"), src)
+    req = WorkRequest("i1#1", 1, "i1", "reviewer", "low", None, {"issue_id": "i1"}, "harness/i1")
+    handle = _Handle(req, adapter._prepare(req), None, "probe")
+
+    quiet_since = 1000.0
+    handle.last_activity = quiet_since
+    with open(os.path.join(handle.workdir, "repo", "analysis.txt"), "w") as fh:
+        fh.write("work\n")
+
+    assert adapter._last_sign_of_work(handle, quiet_since + 5) == quiet_since          # too soon to look
+    assert adapter._last_sign_of_work(handle, quiet_since + ACTIVITY_SCAN_AFTER_S + 5) > quiet_since
+def test_a_check_job_does_not_wait_for_a_reader_whose_writer_is_gone(tmp_path, monkeypatch):
+    import threading
+
+    from harness.checks import SandboxChecker, _CheckHandle
+
+    env = Env(tmp_path)
+    checker = SandboxChecker(env.repo, str(tmp_path / "token"))
+    handle = _CheckHandle(str(tmp_path / "work"), ["true"])
+    handle.results.append({"command": "true", "exit_code": 0})  # the only command already finished
+
+    class Done:
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+        def __getattr__(self, name):
+            return lambda *a, **k: None
+
+    class Stuck:
+        def is_alive(self):
+            return True
+
+        def join(self, timeout=None):
+            return None
+
+    handle.proc, handle.reader = Done(), Stuck()
+
+    assert checker.poll(handle) == [{"command": "true", "exit_code": 0}]
+
+
+def _advance_main(clone, origin, path, text, message):
+    git(clone, "checkout", "-q", "main")
+    git(clone, "pull", "-q", "origin", "main")
+    with open(os.path.join(clone, path), "w") as fh:
+        fh.write(text)
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", message)
+    git(clone, "push", "-q", "origin", "HEAD:main")
