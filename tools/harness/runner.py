@@ -209,7 +209,11 @@ def make_rehearsal(home: str) -> str:
 
 
 def ensure_run_branch(clone_path: str, remote: str, base: str, run: str, token_file: Optional[str]) -> None:
-    """Create the run branch at the current base head if it is missing. An existing one resumes where it stopped."""
+    """Create the run branch at the current base head if it is missing. An existing one resumes where it stopped.
+
+    The run branch only accepts changes through a pull request, so it cannot be fast-forwarded here when the base moved.
+    The promotion merges the base in through such a pull request instead (`GitHubPublisher.sync_run_branch`).
+    """
     known = git_with_token(["ls-remote", "--heads", remote, "refs/heads/" + run], clone_path, token_file)
     if known.returncode != 0:
         raise RunRefused("could not inspect the run branch %s: %s" % (run, known.stderr.strip()[-200:]))

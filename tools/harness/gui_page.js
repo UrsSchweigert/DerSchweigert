@@ -130,9 +130,11 @@
     const preparation = workspaces.filter(item => item.plan_id === selectedPlan).map(item => item.job).filter(Boolean)
       .sort((left, right) => (left.started_at || 0) - (right.started_at || 0)).at(-1);
     const failedPreparation = preparation?.state === "failed" ? preparation : null;
-    const notice = plan?.paused_reason && plan.state === "Paused" ? plan.paused_reason : plan?.cancel_requested && plan.state === "Executing" ? "Cancellation requested; waiting for the runner to finish." : plan?.pause_requested && plan.state === "Executing" ? "Pause requested; active execution is draining." : failedRun ? `Runner exited with code ${failedRun.exit_code}.` : failedPreparation ? `${failedPreparation.kind}: preparation failed. ${failedPreparation.error || "Open Planning to read the output."}` : preparation?.state === "running" ? `${preparation.kind}: preparation running, the output follows in Planning.` : "";
+    const promotion = snapshot.promotion?.[selectedPlan];
+    const promotionNotice = plan?.state === "Completed" ? promotion?.problem ? `The finished run cannot be promoted: ${promotion.problem}` : promotion?.number ? `Promoted as pull request #${promotion.number}; only you merge it.` : "" : "";
+    const notice = promotionNotice || (plan?.paused_reason && plan.state === "Paused" ? plan.paused_reason : plan?.cancel_requested && plan.state === "Executing" ? "Cancellation requested; waiting for the runner to finish." : plan?.pause_requested && plan.state === "Executing" ? "Pause requested; active execution is draining." : failedRun ? `Runner exited with code ${failedRun.exit_code}.` : failedPreparation ? `${failedPreparation.kind}: preparation failed. ${failedPreparation.error || "Open Planning to read the output."}` : preparation?.state === "running" ? `${preparation.kind}: preparation running, the output follows in Planning.` : "");
     byId("plan-notice").textContent = notice; byId("plan-notice").hidden = !notice;
-    byId("plan-notice").className = "banner" + (failedRun || failedPreparation ? " error" : "");
+    byId("plan-notice").className = "banner" + (failedRun || failedPreparation || promotion?.problem ? " error" : "");
     renderMetrics(); renderExecution(); renderPhases(); renderAttention(); renderCoverage(); renderIssues(); renderTasks(); renderEvents(); renderPlanning(); renderControls(); icons();
   }
   function renderControls() {
@@ -256,10 +258,16 @@
       element("td", {}, linkButton(worker.issue, () => showIssue(worker.issue)), element("div", {class: "small muted"}, worker.attempt_id)),
       element("td", {}, worker.role || "Worker"), element("td", {}, worker.model || worker.tier || "-"),
       element("td", {}, duration(worker.elapsed_s)), element("td", {}, worker.lease_expires_in_s > 0 ? duration(worker.lease_expires_in_s) : badge("Expired", "negative"))));
-    for (const job of checks) rows.push(element("tr", {}, element("td", {}, icon("list-checks")),
-      element("td", {}, ids.has(job.issue_id) ? linkButton(job.issue_id, () => showIssue(job.issue_id)) : job.issue_id, element("div", {class: "mono muted"}, shortened(job.head_rev))),
-      element("td", {}, "Checks / " + job.stage), element("td", {}, job.runner), element("td", {}, "-"),
-      element("td", {}, job.lease_expires_in_s > 0 ? duration(job.lease_expires_in_s) : badge("Expired", "negative"))));
+    for (const job of checks) {
+      const phase = job.issue_id.startsWith("phase-") ? job.issue_id.slice(6) : "";
+      const label = phase ? linkButton("phase " + phase, () => { byId("phase-filter").value = phase; selectView("issues"); renderIssues(); })
+        : ids.has(job.issue_id) ? linkButton(job.issue_id, () => showIssue(job.issue_id)) : job.issue_id;
+      rows.push(element("tr", {}, element("td", {}, icon("list-checks")),
+        element("td", {}, label, element("div", {class: "mono muted"}, shortened(job.head_rev))),
+        element("td", {}, "Checks / " + job.stage), element("td", {}, job.runner),
+        element("td", {}, job.elapsed_s == null ? "-" : duration(job.elapsed_s)),
+        element("td", {}, job.lease_expires_in_s > 0 ? duration(job.lease_expires_in_s) : badge("Expired", "negative"))));
+    }
     fill("execution", rows.length ? table(["", "Issue / attempt", "Role", "Model / runner", "Elapsed", "Lease"], rows, "execution-table") : empty("No active workers or checks."));
     fill("runner-state", badge(snapshot.runner.status === "alive" ? "Runner healthy" : snapshot.runner.status === "none" ? "No runner" : "Runner stale", snapshot.runner.status === "alive" ? "positive" : ""));
   }

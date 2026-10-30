@@ -51,7 +51,7 @@ Words used throughout:
 | Model tier | An approved relative cost band: `low` (Haiku), `standard` (Sonnet), `strong` (Opus). These bands describe the model menu and bound repair escalation; they do not assign models to roles on newly investigated tasks. |
 | Human task | A question the harness asks you: a decision, an asset, or a manual test. |
 
-What an issue goes through: a **refiner** re-checks it if the code under it changed, an **implementer** builds it in a throwaway copy of the repository, the harness runs the issue's own check commands, an **independent reviewer** (a different model) reviews the diff, the harness opens a pull request and merges it when every gate passes, and it reruns the checks on the merged `main`. Only then is the issue Done. A phase is Done when all its issues are Done and its exit checks pass.
+What an issue goes through: a **refiner** re-checks it if the code under it changed, and plans it once when its declared implementer tier is `standard` or `strong` (the plan and the tier the plan really needs are what the implementer gets), an **implementer** builds it in a throwaway copy of the repository, the harness runs the issue's own check commands, an **independent reviewer** (a different model) reviews the diff, the harness opens a pull request and merges it when every gate passes, and it reruns the checks on the merged `main`. Only then is the issue Done. A phase is Done when all its issues are Done and its exit checks pass.
 
 **Every merge to `main` deploys to production.** This repository's deploy workflow runs on `main`, so each autonomous merge of a `sites/lesen` change goes live. Keep that in mind when you approve a plan.
 

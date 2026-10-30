@@ -497,3 +497,78 @@ Two gaps the first real run exposed minutes after it started:
   attempt. The adapter now treats a changed file in the worker's own work directory as a sign of life: after
   `ACTIVITY_SCAN_AFTER_S` (60 s) without output it scans the work directory and takes the newest modification time as
   activity. Output alone was too narrow a definition of work.
+
+## A check job cannot wait for a pipe whose writer is gone (2026-10-30)
+
+After PR #102 merged, the `integrated` check that verifies the merge on the run branch never finished: the plan stayed
+`In Review` for minutes while no container existed. `SandboxChecker.poll` returned "not finished" whenever the output
+reader thread was alive — even when the process had already exited. If the reader outlived its writer, the poll answered
+`None` forever, the lease kept being refreshed, and nothing could time out.
+
+`poll` now returns early only while the process is alive; once it exited, the reader is joined for at most two seconds
+and the exit code decides. A stuck reader can delay a result by two seconds but never suppress it.
+
+## The next plans start with these three defaults (2026-10-30)
+
+The owner asked for three settings to become the default for new plans. All three live in `DEFAULT_POLICY`, so they are
+inside the approval digest of every plan built from now on; the running plan keeps the policy it was approved with.
+
+* **`strong_attempts_per_issue: 2`** instead of 1. The first attempt and one repair may both use the strongest model;
+  repetition past that is still capped. Before, the expensive attempt came first and every repair had to fall back to a
+  cheap model, which inverted the intent.
+* **`split_pressure: {"enabled": true}`** — the measured rule from this morning now applies by default: an implementer
+  that would run at the strongest tier is routed to the standard tier when the task breaches a limit (3 files, 60 000
+  bytes, 1 requirement, 6 acceptance criteria, 2 areas), and a `split_pressure` event records why.
+* **Refiner guidance in the investigator prompt**: the refiner only re-checks a task and writes nothing, so its model
+  follows the *task's* uncertainty — cheap for a bounded task with concrete anchors, stronger when its assumptions rest
+  on interacting components — instead of defaulting to the cheapest model.
+
+## The refiner plans the work before a paid implementer is dispatched (2026-10-30)
+
+The order used to be: the investigator declares a tier, and a `standard` or `strong` implementer discovers the shape of
+the work while already editing files. Complexity therefore arrived on the most expensive model, and `strong_attempts`
+was spent before anyone knew whether the task was really that hard.
+
+The plan pass moves that judgement forward. For an issue whose declared implementer tier is `standard` or `strong`,
+`_dispatch` sends the issue to `Refining` before the first implementer attempt. The refiner — a cheap tier, and only
+when the model selection is already valid — verifies the anchors as before and additionally:
+
+* writes `plan`, the concrete steps per file, which the implementer receives in its packet as `plan`;
+* reports `tier_fit`, the cheapest tier whose model can execute that plan. When `tier_fit` is lower than the resolved
+  route, `_launch` routes the implementer there and emits `tier_lowered_by_plan` — the paid model is not spent on work a
+  cheap model can follow.
+* may set `split_advice` instead of a plan when the steps cannot be made small enough for one implementer. The issue is
+  then blocked with that sentence as the reason, so the existing delegator/analyst path produces a validated split
+  (`splits.validate_analysis`, `_write_split`) instead of an implementer discovering the size mid-task.
+
+A low-tier issue is not planned first: there is no cheaper tier to discover, so the pass would only cost a round trip.
+`planned` marks the pass as done, so a refiner that returns nothing is never asked again.
+
+**Nothing in this path names a model.** The instruction speaks of `low`/`standard`/`strong`, and every route resolves
+through the plan's `policy.model_tiers`, which `with_model_sources` derives from the chosen `model_sources`. A plan bound
+to `deepseek` is planned, judged and implemented with DeepSeek ids only; a test pins that no dispatched role leaves the
+approved tiers.
+
+## A finished run is never left with a pull request nobody can merge (2026-10-30)
+
+The plan finished, the promotion pull request #111 (`harness/run/...` → `main`) was opened, and then nothing happened for
+hours. `gh pr checks` reported *no checks at all*, and the pull request was `CONFLICTING`: GitHub cannot build a merge
+commit for a conflicting pull request, so it never triggers `pull_request` workflows, so the required `test` checks never
+appear and nothing can be merged. The GUI said "healthy" because it only knew about the runner, not the promotion.
+
+The cause was the run branch's history: it had been "synced with main" by a squash commit, which threw away the ancestry
+that would have made the later merges trivial. Every later change on `main` then collided with the branch's own copy of
+the same files.
+
+Two changes close the class:
+
+* **The promotion syncs the base through a pull request, because the run branch only accepts changes that way.** The
+  ruleset on `harness/run/**` requires a pull request, so a direct push of a base merge is declined; the harness merges
+  the base into the run branch in a worktree of its trusted clone, pushes the result to `harness/run-sync`, opens that
+  pull request into the run branch and merges it once its checks pass. Only then does it open the promotion pull request,
+  which is mergeable by construction. `main` moves during a long run, so a sync at promotion time is normal, not an
+  accident.
+* **A blocked promotion is reported, never silent.** If the sync cannot merge (a genuine conflict, or checks that do not
+  turn green), no promotion pull request is opened — an unmergeable one only looks like progress — and the reason is
+  stored on the run, emitted as `promotion_conflict`, and shown in the GUI banner and in `harness status` as
+  `PROMOTION BLOCKED: …`. A successful promotion shows as "Promoted as pull request #N; only you merge it."
