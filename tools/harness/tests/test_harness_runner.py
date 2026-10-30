@@ -1048,3 +1048,32 @@ def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkey
 
     assert adapter._last_sign_of_work(handle, quiet_since + 5) == quiet_since          # too soon to look
     assert adapter._last_sign_of_work(handle, quiet_since + ACTIVITY_SCAN_AFTER_S + 5) > quiet_since
+def test_a_check_job_does_not_wait_for_a_reader_whose_writer_is_gone(tmp_path, monkeypatch):
+    import threading
+
+    from harness.checks import SandboxChecker, _CheckHandle
+
+    env = Env(tmp_path)
+    checker = SandboxChecker(env.repo, str(tmp_path / "token"))
+    handle = _CheckHandle(str(tmp_path / "work"), ["true"])
+    handle.results.append({"command": "true", "exit_code": 0})  # the only command already finished
+
+    class Done:
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+        def __getattr__(self, name):
+            return lambda *a, **k: None
+
+    class Stuck:
+        def is_alive(self):
+            return True
+
+        def join(self, timeout=None):
+            return None
+
+    handle.proc, handle.reader = Done(), Stuck()
+
+    assert checker.poll(handle) == [{"command": "true", "exit_code": 0}]

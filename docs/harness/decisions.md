@@ -497,3 +497,13 @@ Two gaps the first real run exposed minutes after it started:
   attempt. The adapter now treats a changed file in the worker's own work directory as a sign of life: after
   `ACTIVITY_SCAN_AFTER_S` (60 s) without output it scans the work directory and takes the newest modification time as
   activity. Output alone was too narrow a definition of work.
+
+## A check job cannot wait for a pipe whose writer is gone (2026-10-30)
+
+After PR #102 merged, the `integrated` check that verifies the merge on the run branch never finished: the plan stayed
+`In Review` for minutes while no container existed. `SandboxChecker.poll` returned "not finished" whenever the output
+reader thread was alive — even when the process had already exited. If the reader outlived its writer, the poll answered
+`None` forever, the lease kept being refreshed, and nothing could time out.
+
+`poll` now returns early only while the process is alive; once it exited, the reader is joined for at most two seconds
+and the exit code decides. A stuck reader can delay a result by two seconds but never suppress it.
