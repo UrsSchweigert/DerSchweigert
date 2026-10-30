@@ -21,20 +21,22 @@ python3 tools/check_offline.py
 - [`docs/install.md`](docs/install.md) — install Godot 4.7.2, gdtoolkit, and GUT.
 - [`docs/architecture.md`](docs/architecture.md) — directory layout and autoloads.
 - [`docs/testing.md`](docs/testing.md) — test, lint, and format workflow.
+- [`docs/android.md`](docs/android.md) — app identity, SDK targets, and the human-owned Android export preset.
 
 ## Layout at a glance
 
 ```
 apps/arithmoslayer/
-  project.godot        # engine settings, autoloads, warning policy
+  project.godot        # engine settings, app identity, autoloads, warning policy
+  VERSION              # versionName and versionCode for the Android release
   engine-version.txt   # pinned Godot version
   scenes/              # packed scenes, main.tscn is the entry point
   scripts/             # typed GDScript, autoloads under scripts/autoload/
-  data/                # data-driven content (i18n, project data)
+  data/                # data-driven content (i18n, Android target record)
   shaders/             # Godot shaders (added with the first shader)
   assets/              # art, audio, fonts (added with the first asset)
   test/                # GUT tests
-  docs/                # architecture, install, testing
+  docs/                # architecture, install, testing, Android notes
   tools/               # isolation and offline guard scripts
 ```
 

@@ -25,6 +25,7 @@ godot-test . -gtest=res://test/unit/test_project_config.gd
 | --- | --- |
 | `test/unit/test_project_config.gd` | Engine pin, `4.7` feature set, untyped-declaration errors, the autoload list, and the main scene. |
 | `test/unit/test_localization.gd` | The translation table, the English/German key sets, device-language selection with English fallback, the translated shell labels, and `tools/validate_data.py` failure paths. |
+| `test/unit/test_app_identity.gd` | The app name, package id, version record, Android SDK targets and permissions, landscape orientation, and the safe-area margins. |
 | `test/unit/test_isolation.gd` | The isolation and offline guard scripts, including their failure paths. |
 
 The guard scripts can also be run directly:

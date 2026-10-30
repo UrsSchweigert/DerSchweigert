@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/safe_area.gd" id="1_safe_area"]
+
+[node name="Root" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_safe_area")
+
+[node name="TitleLabel" type="Label" parent="."]
+offset_left = 32.0
+offset_top = 32.0
+offset_right = 512.0
+offset_bottom = 72.0
+theme_override_font_sizes/font_size = 32
+
+[node name="TaglineLabel" type="Label" parent="."]
+offset_left = 32.0
+offset_top = 80.0
+offset_right = 640.0
+offset_bottom = 112.0
