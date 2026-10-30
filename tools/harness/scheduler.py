@@ -1444,6 +1444,22 @@ class Scheduler:
         if all(self.store.state("phase", "%s/%s" % (self.entity, p["id"])) == "Done" for p in phases):
             self.store.transition("plan", self.entity, "Completed", self.runner_id, {}, now=now)
             self._emit("plan_completed")
+            self._open_promotion()
+
+    def _open_promotion(self) -> None:
+        """Offer the run branch to the base branch. The owner merges it; the harness never touches the base."""
+        plan = self._plan()
+        base = plans.base_branch(plan)
+        try:
+            number = self.publisher.open_promotion(
+                base, "%s: finished run (%s)" % (plan["plan_id"], self.runner_id),
+                "All phases of plan `%s` are Done on `%s`. Merging this pull request moves them onto `%s`."
+                % (plan["plan_id"], getattr(self.publisher, "base", ""), base))
+        except Exception as exc:  # noqa: BLE001 - a missing promotion must not undo a completed plan
+            self._emit("promotion_failed", error="%s: %s" % (type(exc).__name__, str(exc)[:200]))
+            return
+        if number:
+            self._emit("promotion_pr", number=number, base=base)
 
     # -- pause, cancel ----------------------------------------------------------
 

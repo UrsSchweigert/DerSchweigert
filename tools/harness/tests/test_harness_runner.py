@@ -838,3 +838,50 @@ def test_a_success_resets_the_error_count():
     events = []
     sched = _Quiet(RuntimeError("a"), RuntimeError("b"), [], RuntimeError("c"), RuntimeError("d"), [])
     assert runner.run_loop(sched, 0, 6, events.append) == 0 and sched.paused is None
+
+
+def test_the_run_branch_is_created_at_the_base_head_once(remote_world, tmp_path):
+    origin, clone = remote_world
+    bare = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", origin, "+refs/heads/main:refs/heads/main")
+
+    runner.ensure_run_branch(bare, origin, "main", "harness/run/p1", None)
+
+    assert git(clone, "--git-dir", origin, "rev-parse", "harness/run/p1") == git(clone, "rev-parse", "main")
+    with open(os.path.join(clone, "b.txt"), "w") as fh:
+        fh.write("b\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "run work")
+    git(clone, "push", "-q", "origin", "HEAD:harness/run/p1")
+    ahead = git(clone, "--git-dir", origin, "rev-parse", "harness/run/p1")
+
+    runner.ensure_run_branch(bare, origin, "main", "harness/run/p1", None)  # a resumed run keeps its commits
+
+    assert git(clone, "--git-dir", origin, "rev-parse", "harness/run/p1") == ahead
+    assert ahead != git(clone, "--git-dir", origin, "rev-parse", "main")
+
+
+def test_a_run_branch_that_cannot_be_inspected_refuses_the_run(tmp_path):
+    with pytest.raises(runner.RunRefused, match="could not inspect the run branch"):
+        runner.ensure_run_branch(str(tmp_path), str(tmp_path / "missing.git"), "main", "harness/run/p1", None)
+
+
+def test_the_publisher_offers_the_finished_run_to_the_base_branch_once(remote_world, tmp_path):
+    origin, clone = remote_world
+    gh = FakeGitHub()
+    pub = GitHubPublisher(gh, clone, origin, "harness/run/p1", None, sleep=lambda s: None)
+
+    first = pub.open_promotion("main", "promote", "body")
+    again = pub.open_promotion("main", "promote", "body")
+
+    assert first == again == 100 and len(gh.prs) == 1
+    assert gh.prs[100]["head"] == "harness/run/p1" and gh.prs[100]["base"] == "main"
+
+
+def test_a_run_that_works_on_the_base_branch_needs_no_promotion(remote_world, tmp_path):
+    origin, clone = remote_world
+    gh = FakeGitHub()
+    pub = GitHubPublisher(gh, clone, origin, "main", None, sleep=lambda s: None)
+
+    assert pub.open_promotion("main", "promote", "body") is None and not gh.prs

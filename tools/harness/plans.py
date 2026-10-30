@@ -23,6 +23,8 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "package.json", "package-lock.json", "requirements.txt", "build.gradle", "settings.gradle", "AndroidManifest.xml", "infra/", "migrations/",
     ],
     "merge_policy": "autonomous-when-all-gates-pass",
+    "base_branch": "main",
+    "run_branch": "harness/run/{plan}",
     "budgets": {
         "concurrent_workers": 2, "repair_attempts": 2, "strong_attempts_per_issue": 1, "transient_retries": 3, "delegator_consults_per_issue": 1,
         "analyses_per_issue": 1,
@@ -62,6 +64,30 @@ def command_problem(command: str) -> Optional[str]:
     if _SWALLOW_FAILURE.search(command):
         return "command ends in a fallback that always succeeds, so it can never report a failure; drop it"
     return None
+
+
+def base_branch(plan: Dict[str, Any]) -> str:
+    """The branch the run promotes into: `main` unless the plan says otherwise."""
+    return str((plan.get("policy") or {}).get("base_branch") or "main").strip("/")
+
+
+def run_branch(plan: Dict[str, Any]) -> str:
+    """The protected branch a run accumulates on. Empty means the run works directly on the base branch."""
+    template = str((plan.get("policy") or {}).get("run_branch") or "").strip().strip("/")
+    return template.replace("{plan}", plan["plan_id"]) if template else ""
+
+
+def branch_problem(name: str) -> Optional[str]:
+    """A branch the harness creates and pushes must be a plain ref this repository may own."""
+    if not name:
+        return None
+    if _BAD_BRANCH_CHARS.search(name) or ".." in name or "//" in name or name.startswith("/") or name.endswith("/") \
+            or name.endswith(".lock") or name.endswith("."):
+        return "%r is not a usable branch name" % name
+    return None
+
+
+_BAD_BRANCH_CHARS = re.compile(r"[\s~^:?*\[\\]")
 
 
 _GLOB_CHARS = set("*?[")
@@ -202,6 +228,12 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
     bad_ops = set(plan["policy"]["authorized_operations"]) - set(ALLOWED_OPERATIONS)
     if bad_ops:
         problems.append("policy authorizes operations that plan approval cannot grant: %s" % sorted(bad_ops))
+    for key in ("base_branch", "run_branch"):
+        problem = branch_problem(str(plan["policy"].get(key) or ""))
+        if problem:
+            problems.append("policy.%s: %s" % (key, problem))
+    if run_branch(plan) and run_branch(plan) == base_branch(plan):
+        problems.append("policy.run_branch must differ from policy.base_branch")
     sources = plan["policy"].get("model_sources")
     if sources is not None:
         unknown = sorted(set(sources) - set(models.SOURCES))

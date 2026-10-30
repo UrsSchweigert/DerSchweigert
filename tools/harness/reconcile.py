@@ -5,13 +5,21 @@ import json
 import time
 from typing import Any, Dict
 
-from . import humantasks, machines
+from . import humantasks, machines, plans
 from .github import Client, GitHubError
 from .store import Store
 
 
 class ReconciliationError(ValueError):
     pass
+
+
+def _base_branch(store: Store, issue: Dict[str, Any]) -> str:
+    """The branch this issue's pull request merged into: the run branch when the plan uses one."""
+    versions = [row["version"] for row in store.list_plans() if row["plan_id"] == issue.get("plan_id")]
+    if not versions:
+        return "main"
+    return plans.base_branch(store.get_plan(issue["plan_id"], max(versions))["plan"])
 
 
 def reconcile_completion(store: Store, client: Client, issue_id: str, pr_number: int, head_sha: str,
@@ -36,7 +44,8 @@ def reconcile_completion(store: Store, client: Client, issue_id: str, pr_number:
         raise ReconciliationError("head SHA must be a full 40-character commit id")
 
     try:
-        protection = client.merge_protection("main")
+        base = _base_branch(store, issue)
+        protection = client.merge_protection(base)
         required_checks = protection.get("required_checks", [])
         if not required_checks:
             raise ReconciliationError("effective GitHub rules expose no required checks to verify")
@@ -55,8 +64,8 @@ def reconcile_completion(store: Store, client: Client, issue_id: str, pr_number:
         raise ReconciliationError("PR head branch does not match the harness issue branch")
     if proof.get("head_repository") != client.repo:
         raise ReconciliationError("PR head repository does not match the configured repository")
-    if proof.get("base_ref") != "main":
-        raise ReconciliationError("PR base branch does not match the configured main branch")
+    if proof.get("base_ref") != base:
+        raise ReconciliationError("PR base branch does not match the configured base branch %r" % base)
     if not proof.get("merge_commit_sha") or not proof.get("base_sha"):
         raise ReconciliationError("GitHub did not provide the merge commit and base revisions")
     successful = {c.get("name") for c in proof.get("checks", []) if c.get("conclusion") == "success"}

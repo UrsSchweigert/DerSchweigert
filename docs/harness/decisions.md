@@ -304,3 +304,28 @@ the selected plan, and the investigate/prepare buttons carry a title naming the 
 Rows in the dashboard followed the alphabet of issue ids, so progress read sideways rather than downwards and
 looked like it was jumping. Issues, queue, workers, checks and blockers now follow plan order, then phase
 order, then issue id: a stable total order that only ever appends.
+
+## A run lands on its own protected branch, and `main` only moves when the owner says so (2026-10-30)
+
+Every run merged into `main`. That is convenient but it means autonomous work reaches the deploy branch in small
+steps, and a run that goes badly has to be reverted out of `main`. The owner asked for a run branch that is
+protected like `main`, created as soon as a run starts.
+
+* `policy.base_branch` (default `main`) and `policy.run_branch` (default `harness/run/{plan}`) are new, and both sit
+  inside the approval digest. An empty `run_branch` means the old behaviour: work directly on the base branch.
+* `runner.build_scheduler` creates the run branch at the current base head with `ensure_run_branch` and then uses it
+  as the base: trusted clone, adapter, `GitHubPublisher.base`, rebases, and the `merge_protection` gate all follow it.
+  An existing branch is reused, so `resume` continues instead of starting a second branch.
+* Protection is a repository ruleset, not something the harness creates: `harness run branches` covers
+  `refs/heads/harness/run/**` with no direct pushes, no force pushes, and the strict required checks `test` and
+  `test-ffm`, with no bypass actors. The harness keeps its rule that it never changes GitHub protection settings; it
+  verifies the effective rules for whatever base it uses. The deletion rule is deliberately omitted so a promoted run
+  branch can be cleaned up, which is impossible on `main`.
+* On completion the scheduler opens one pull request from the run branch into the base branch (`open_promotion`,
+  event `promotion_pr`) and never merges it. A failure to open it is reported as `promotion_failed` and does not undo
+  the completed plan.
+* `reconcile` compares the PR's base with the issue's own plan base branch instead of the literal `main`.
+
+Limit: preflight and `import-issues` still inspect the base branch (`main`), because a plan is authored against the
+repository as it is, not against an in-flight run branch. An issue imported mid-run therefore records `main`'s head
+as its first base; the scheduler rebases it onto the run branch head before it dispatches.
