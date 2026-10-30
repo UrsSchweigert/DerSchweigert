@@ -461,3 +461,25 @@ refuses with the holder's name when a live runner owns the plan, every tick refr
 releases it in a `finally`, so a Ctrl+C frees the plan immediately. A holder whose pid is gone, or whose heartbeat is
 older than two heartbeats, is replaced — that is what makes a crash recoverable without an operator clearing state by
 hand. The error names the holder and the remaining lock time.
+
+## A splittable task does not get the strongest model (2026-10-30)
+
+The owner pays for `deepseek-v4-pro` and asked for a fixed rule that decides whether a task sent to the top tier could
+be several cheaper tasks instead. It must not be a model's own opinion of how hard its work is, so the rule is
+arithmetic over facts the plan already states (`tools/harness/sizing.py`):
+
+| Fact | Limit |
+|---|---|
+| anchored files (`code_anchors` + `contract_paths`) | 3 |
+| bytes of those files at the base revision | 60 000 |
+| requirement ids | 1 |
+| acceptance criteria | 6 |
+| separate areas (first two path segments) | 2 |
+
+Any breach marks the task as worth splitting. The scheduler applies it where it is cheapest: when an implementer would
+run at the strongest tier and the rule fires, that attempt is routed to the standard tier instead and a `split_pressure`
+event reports the facts, the reasons, the model that would have been used and the one that was. Nothing is blocked and no
+question is asked; if the cheaper attempt fails, the existing delegator and analyst path can still propose a real split.
+
+`policy.split_pressure` is off unless `enabled` is true, so no existing plan changes behaviour, and its keys and values
+are validated in `validate_plan` — a typo such as `max_file` is a plan problem, not a silently weaker rule.

@@ -84,6 +84,7 @@ POLICY = {
     "manual_testing?": dict,
     "descope?": dict,
     "auto_answer?": dict,
+    "split_pressure?": dict,
 }
 
 PLAN = {

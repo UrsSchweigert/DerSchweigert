@@ -9,7 +9,7 @@ import re
 import shlex
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from . import models, schemas
+from . import models, schemas, sizing
 
 ALLOWED_OPERATIONS = [
     "issue_project_updates", "isolated_branches", "commits", "pushes", "pull_requests", "eligible_merges", "asset_requests",
@@ -228,6 +228,17 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
     bad_ops = set(plan["policy"]["authorized_operations"]) - set(ALLOWED_OPERATIONS)
     if bad_ops:
         problems.append("policy authorizes operations that plan approval cannot grant: %s" % sorted(bad_ops))
+    pressure = plan["policy"].get("split_pressure")
+    if pressure is not None:
+        if not isinstance(pressure, dict):
+            problems.append("policy.split_pressure must be an object")
+        else:
+            unknown = sorted(set(pressure) - set(sizing.DEFAULT_LIMITS) - {"enabled"})
+            if unknown:
+                problems.append("policy.split_pressure has unknown keys: %s" % unknown)
+            for key, value in pressure.items():
+                if key != "enabled" and (not isinstance(value, int) or value < 0):
+                    problems.append("policy.split_pressure.%s must be a whole number" % key)
     for key in ("base_branch", "run_branch"):
         problem = branch_problem(str(plan["policy"].get(key) or ""))
         if problem:

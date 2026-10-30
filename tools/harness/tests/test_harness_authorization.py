@@ -317,3 +317,16 @@ def test_cli_approve_refuses_without_terminal(tmp_path, capsys, monkeypatch):
     capsys.readouterr()
     assert cli.main(["--home", home, "approve", "fx"]) == 2
     assert Store(home).get_approval("fx", 1) is None
+
+
+def test_split_pressure_limits_are_validated_in_the_policy():
+    phases = json.load(open(PHASES))["phases"]
+    problems = plans.validate_plan(plans.build_plan(
+        "p", 1, plans.parse_requirements(REQ), phases, fixture=True,
+        policy=dict(plans.DEFAULT_POLICY, split_pressure={"enabled": True, "max_file": 3})))
+    assert any("unknown keys" in p and "max_file" in p for p in problems)
+
+    problems = plans.validate_plan(plans.build_plan(
+        "p", 1, plans.parse_requirements(REQ), phases, fixture=True,
+        policy=dict(plans.DEFAULT_POLICY, split_pressure={"enabled": True, "max_files": -1})))
+    assert any("whole number" in p for p in problems)
