@@ -507,3 +507,18 @@ reader thread was alive — even when the process had already exited. If the rea
 
 `poll` now returns early only while the process is alive; once it exited, the reader is joined for at most two seconds
 and the exit code decides. A stuck reader can delay a result by two seconds but never suppress it.
+
+## The next plans start with these three defaults (2026-10-30)
+
+The owner asked for three settings to become the default for new plans. All three live in `DEFAULT_POLICY`, so they are
+inside the approval digest of every plan built from now on; the running plan keeps the policy it was approved with.
+
+* **`strong_attempts_per_issue: 2`** instead of 1. The first attempt and one repair may both use the strongest model;
+  repetition past that is still capped. Before, the expensive attempt came first and every repair had to fall back to a
+  cheap model, which inverted the intent.
+* **`split_pressure: {"enabled": true}`** — the measured rule from this morning now applies by default: an implementer
+  that would run at the strongest tier is routed to the standard tier when the task breaches a limit (3 files, 60 000
+  bytes, 1 requirement, 6 acceptance criteria, 2 areas), and a `split_pressure` event records why.
+* **Refiner guidance in the investigator prompt**: the refiner only re-checks a task and writes nothing, so its model
+  follows the *task's* uncertainty — cheap for a bounded task with concrete anchors, stronger when its assumptions rest
+  on interacting components — instead of defaulting to the cheapest model.
