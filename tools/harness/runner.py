@@ -193,6 +193,39 @@ def ensure_run_branch(clone_path: str, remote: str, base: str, run: str, token_f
         raise RunRefused("could not create the run branch %s: %s" % (run, created.stderr.strip()[-200:]))
 
 
+def discard_run_branch(store: Store, plan_id: str, version: Optional[int], repo_root: str,
+                       remote_url: Optional[str] = None) -> Dict[str, Any]:
+    """Delete the protected run branch of a stopped plan, so the next run starts from the base branch again.
+
+    Nothing else ever deletes a branch: a cancelled run keeps what it merged on its own branch, and `main` was never
+    touched. This is the owner's explicit way to throw that work away.
+    """
+    stored = store.get_plan(plan_id, version)
+    if stored is None:
+        raise RunRefused("unknown plan %s" % plan_id)
+    plan = stored["plan"]
+    branch = plans.run_branch(plan)
+    if not branch:
+        raise RunRefused("plan %s has no run branch; its work lands on %s" % (plan_id, plans.base_branch(plan)))
+    state = store.state("plan", approval.plan_entity(plan_id, plan["version"]))
+    if state in ("Executing", "Paused"):
+        raise RunRefused("a plan that is %s still owns its run branch; cancel it first" % state)
+    home = store.home
+    token_file = os.path.join(home, "broker.token")
+    token_file = token_file if os.path.isfile(token_file) else None
+    remote = remote_url or repo_root
+    clone = trusted_clone(home, repo_root, plans.base_branch(plan), remote_url, token_file)
+    known = git_with_token(["ls-remote", "--heads", remote, "refs/heads/" + branch], clone.path, token_file)
+    if known.returncode != 0:
+        raise RunRefused("could not inspect the run branch %s: %s" % (branch, known.stderr.strip()[-200:]))
+    if not known.stdout.strip():
+        return {"plan_id": plan_id, "branch": branch, "deleted": False}
+    removed = git_with_token(["push", "--quiet", remote, "--delete", branch], clone.path, token_file)
+    if removed.returncode != 0:
+        raise RunRefused("could not delete the run branch %s: %s" % (branch, removed.stderr.strip()[-200:]))
+    return {"plan_id": plan_id, "branch": branch, "deleted": True}
+
+
 def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dry_run: bool, remote_url: Optional[str],
                     repo_slug: Optional[str], owner: str) -> Scheduler:
     home = store.home

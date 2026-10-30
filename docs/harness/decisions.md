@@ -387,3 +387,18 @@ paused for an hour resumed with that hour already charged — enough to trip `ru
 runner) now record `run["ended_at"]`, and `status` charges up to that stamp instead of up to now. On the next
 `start()` the clock is shifted by the idle gap (`started_at += now - ended_at`) and the stamp is dropped, so a
 resumed run pays only for the time it actually runs.
+
+## Changing a requirement invalidates the draft, and a run branch is never thrown away silently (2026-10-30)
+
+**The draft.** After **Update this workspace** the dashboard kept "Start investigation" disabled because a draft already
+existed, and "Revise draft with feedback" needed text — so the only visible action did nothing. The workspace record now
+carries `draft_stale` when requirements change after a draft was written. A stale draft re-enables **Start investigation**
+(the new wording is investigated from scratch; the old draft stays in `draft/` until it is replaced) and blocks
+**Prepare plan and checks** with that reason, so a plan can never be built from a draft written for other words.
+
+**The branch.** Nothing asserts a discard because nothing discards: cancelling is a state change only. Work a cancelled
+run already merged stays on its protected run branch, `main` was never touched, and a new version of the same plan
+reuses the same branch and stacks on top of it. A test pins that: after a cancel the run branch and the base branch are
+byte-identical to before. To throw the work away the owner says so explicitly — `harness discard-run PLAN` deletes the
+run branch (refused while the plan is `Executing` or `Paused`, and a no-op when the branch is already gone), so the
+next run starts from the base branch again.

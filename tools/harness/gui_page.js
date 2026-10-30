@@ -117,6 +117,7 @@
     byId("plan-eyebrow").textContent = plan ? `PLAN / VERSION ${plan.version}` : "WORKSPACE";
     byId("plan-meta").textContent = plan ? `${issues.length} issues / digest ${plan.digest} / approval ${plan.approval}`
       + (plan.run_branch ? ` / run branch ${plan.run_branch}` : "") : "No plans in this store.";
+    if (detail?.draft_stale) byId("plan-meta").textContent += " / requirements changed since the draft";
     fill("plan-state", badge(plan?.cancel_requested && plan.state === "Executing" ? "Cancelling" : plan?.pause_requested ? "Pausing" : plan?.state || "No plan"));
     fill("isolation", icon("shield-check"), badge("Tier " + snapshot.isolation.tier, snapshot.isolation.tier === "A" ? "positive" : "warning"));
     byId("isolation").title = snapshot.isolation.reason; byId("store-path").textContent = snapshot.store;
@@ -159,12 +160,13 @@
     byId("verify-isolation").disabled = !editable || running || verifying;
     byId("verify-isolation").textContent = verifying ? "Verifying isolation..." : "Verify isolation";
     const state = detail?.plan?.state, revisable = !state || ["Draft", "Proposed", "Cancelled"].includes(state);
-    byId("investigate-plan").disabled = !ready || !revisable || Boolean(detail?.draft);
-    byId("prepare-plan").disabled = !ready || !revisable || !detail?.draft || Boolean(detail?.questions.length);
+    const staleDraft = Boolean(detail?.draft_stale);
+    byId("investigate-plan").disabled = !ready || !revisable || (Boolean(detail?.draft) && !staleDraft);
+    byId("prepare-plan").disabled = !ready || !revisable || !detail?.draft || staleDraft || Boolean(detail?.questions.length);
     byId("revise-plan").disabled = !ready || !revisable || !detail?.draft || !byId("investigation-feedback").value.trim();
     byId("import-plan").disabled = !ready || state !== "Approved";
-    byId("investigate-plan").title = !revisable ? "An approved or executing plan cannot be revised; create a new workspace" : detail?.draft ? "Requirements changed; revise the existing draft instead" : !ready ? "Preparation cannot start now: see the notice above" : "Draft phases and issues from the requirements";
-    byId("prepare-plan").title = detail?.questions.length ? "Answer the investigator's questions first" : !detail?.draft ? "Investigate first to draft phases and issues" : !revisable ? "An approved or executing plan cannot be revised" : !ready ? "Preparation cannot start now: see the notice above" : "Run the investigation, checks and planning steps";
+    byId("investigate-plan").title = !revisable ? "An approved, running or paused plan cannot be revised; cancel it first" : staleDraft ? "The requirements changed; investigate them again" : detail?.draft ? "Requirements changed; revise the existing draft instead" : !ready ? "Preparation cannot start now: see the notice above" : "Draft phases and issues from the requirements";
+    byId("prepare-plan").title = staleDraft ? "The requirements changed; investigate again first" : detail?.questions.length ? "Answer the investigator's questions first" : !detail?.draft ? "Investigate first to draft phases and issues" : !revisable ? "An approved, running or paused plan cannot be revised" : !ready ? "Preparation cannot start now: see the notice above" : "Run the investigation, checks and planning steps";
     byId("approve-plan").disabled = !ready || state !== "Proposed" || !detail?.preflight || Boolean(detail?.questions.length)
       || byId("approval-confirm").value !== detail?.plan?.digest.slice(0, 12);
     byId("approve-plan").title = !ready ? "Approval cannot start now: see the notice above"

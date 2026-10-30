@@ -459,6 +459,20 @@ def restore_command(args) -> int:
         store.close()
 
 
+def discard_run_command(args) -> int:
+    store = Store(args.home)
+    try:
+        root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+        result = runner.discard_run_branch(store, args.plan_id, args.version, root or ".", args.remote)
+        print("%s %s" % (result["branch"], "deleted" if result["deleted"] else "did not exist"))
+        return 0
+    except runner.RunRefused as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
 def archive_command(args) -> int:
     """Hide a plan or a workspace from the dashboard. Nothing is deleted, and `status` still lists everything."""
     from . import gui_workflow
@@ -626,6 +640,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     rs.add_argument("plan_id")
     rs.add_argument("--version", type=int)
     rs.add_argument("--out", help="directory for requirements.md, phases.json and issues.json")
+    dr = sub.add_parser("discard-run", help="delete a stopped plan's run branch so the next run starts clean")
+    dr.add_argument("plan_id")
+    dr.add_argument("--version", type=int)
+    dr.add_argument("--remote", help="the repository URL; defaults to this working copy")
     ar = sub.add_parser("archive", help="hide a finished plan or an old workspace from the dashboard")
     ar.add_argument("kind", choices=["plan", "workspace"])
     ar.add_argument("target", help="the plan id or workspace id")
@@ -751,6 +769,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return defer_command(args)
         if args.cmd == "restore":
             return restore_command(args)
+        if args.cmd == "discard-run":
+            return discard_run_command(args)
         if args.cmd == "archive":
             return archive_command(args)
         if args.cmd in ("respond", "tasks", "sync-tasks"):
