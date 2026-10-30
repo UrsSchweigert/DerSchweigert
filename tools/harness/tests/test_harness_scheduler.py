@@ -534,3 +534,12 @@ def test_the_runner_clears_the_pause_request_once_it_pauses(tmp_path):
 
     run = env.store.get_run("fx")
     assert env.store.state("plan", "fx@v1") == "Paused" and not run.get("pause_requested")
+
+
+def test_a_fresh_approval_does_not_inherit_the_cancel_request(tmp_path):
+    env = Env(tmp_path, budgets=LONG_BUDGETS)
+    env.store.put_run("fx", dict(env.store.get_run("fx"), cancel_requested=True, drain=False))
+
+    env.sched.start()
+
+    assert env.store.state("plan", "fx@v1") == "Executing" and not env.store.get_run("fx").get("cancel_requested")

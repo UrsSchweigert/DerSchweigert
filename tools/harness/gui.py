@@ -177,6 +177,8 @@ class GuiServer(ThreadingHTTPServer):
             return {"requirements": gui_workflow.requirements_from_markdown(body.get("markdown"))}
         if path == "/api/workflow/create":
             return gui_workflow.create(store, body)
+        if path == "/api/workflow/requirements":
+            return gui_workflow.update_requirements(store, body)
         if path == "/api/archive":
             issue_ids = body.get("issue_ids")
             archived = self.flag(body, "archived")
@@ -227,8 +229,8 @@ class GuiServer(ThreadingHTTPServer):
         if kind == "import":
             approval.authorize_run(store, record["plan_id"], current["plan"]["version"])
         if current and kind in ("plan", "investigate") and store.state(
-                "plan", approval.plan_entity(record["plan_id"], current["plan"]["version"])) not in ("Draft", "Proposed"):
-            raise runner.RunRefused("approved or executing workspaces cannot be revised; create a new workspace")
+                "plan", approval.plan_entity(record["plan_id"], current["plan"]["version"])) not in ("Draft", "Proposed", "Cancelled"):
+            raise runner.RunRefused("an approved, running or paused workspace cannot be revised; cancel it first")
         feedback, answers = body.get("feedback", ""), body.get("answers", {})
         if not isinstance(feedback, str) or len(feedback) > 4000:
             raise ValueError("feedback must be text of at most 4000 characters")

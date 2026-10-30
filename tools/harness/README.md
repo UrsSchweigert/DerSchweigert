@@ -343,9 +343,13 @@ The button does not build images, change credentials, or start a live run.
 1. Open **Planning**, then upload a Markdown file or paste its text. Plain
    paragraphs and list items work; no requirements table is needed.
 2. Click **Extract requirements**. Review, edit, add, split, or remove entries
-   before **Save requirements**. Plain text receives stable IDs (`R1`, `R2`,
-   ...); existing formatted requirement tables keep their IDs. The original
-   Markdown is retained as context, and the edited table is authoritative.
+   before **Save as new workspace** (a fresh workspace) or **Update this
+   workspace** (correct the selected one in place). Plain text receives stable
+   IDs (`R1`, `R2`, ...); existing formatted requirement tables keep their IDs.
+   The original Markdown is retained as context, and the edited table is
+   authoritative. Correcting a requirement changes the plan, so the next
+   **Prepare plan and checks** makes a new version with a new digest that you
+   approve again; a workspace is only locked while its plan runs.
    Markdown is limited to 1 MiB, with 1-200 requirements of at most 2,000
    characters each.
 3. Click **Start investigation**. Its progress appears under Preparation
