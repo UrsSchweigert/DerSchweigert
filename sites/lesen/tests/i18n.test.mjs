@@ -150,8 +150,6 @@ test("i18n: German dictionary covers dialog strings", () => {
     "dialog.confirm_end.text",
     "dialog.confirm_end.cancel",
     "dialog.confirm_end.confirm",
-    "dialog.tts_disclaimer.title",
-    "dialog.tts_disclaimer.close",
     "dialog.about.title",
   ];
   

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import { recordAttempt, resetCardStats, selectFlopDeck, flopCandidateCards, buildFlopDeck, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom, FLOP_WEAK_SUCCESS_RATE_THRESHOLD, FLOP_WEAK_MIN_ATTEMPTS, FLOP_DECK_MIN_CARDS, FLOP_DECK_MAX_CARDS } from "../static/scoring.mjs";
+import { recordAttempt, resetCardStats, selectFlopDeck, flopCandidateCards, buildFlopDeck, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom, isSpeakableCard, FLOP_WEAK_SUCCESS_RATE_THRESHOLD, FLOP_WEAK_MIN_ATTEMPTS, FLOP_DECK_MIN_CARDS, FLOP_DECK_MAX_CARDS } from "../static/scoring.mjs";
 
 const SENTENCE_POOL = [
   { id: "a", text: "Mama malt." },
@@ -571,11 +571,11 @@ test("the Karten tab offers a sentence mode in the single mode group", () => {
 test("the Karten tab builds the sentence deck through the scoring module", () => {
   assert.match(setupHtml, /window\.__scoring\.buildSentenceOnlyDeck\(/);
   assert.doesNotMatch(setupHtml, /buildMixedDeck/);
-  assert.match(setupHtml, /buildSentenceOnlyDeck \} from '\.\/scoring\.mjs'/);
+  assert.match(setupHtml, /buildSentenceOnlyDeck,?\s*.*? \} from '\.\/scoring\.mjs'/);
 });
 
 test("the Flops mode builds a kind-aware deck from the active sentence pool", () => {
-  assert.match(setupHtml, /buildFlopDeck, buildSentenceOnlyDeck \} from '\.\/scoring\.mjs'/);
+  assert.match(setupHtml, /buildFlopDeck.*?buildSentenceOnlyDeck.*? \} from '\.\/scoring\.mjs'/);
   assert.match(setupHtml, /sentenceTexts\[lang\] = new Set\(/);
   assert.match(setupHtml, /buildFlopDeck\(stats, allowedSounds, sentenceTexts\[currentLanguage\] \|\| \[\]\)/);
   assert.match(setupHtml, /queue = shuffle\(flopDeck\);/);
@@ -646,3 +646,32 @@ test("regression: the patterns mode stays the default", () => {
     assert.match(setupHtml, new RegExp(`name="mode" value="${value}"`));
   }
 });
+
+test("isSpeakableCard: returns true for word cards", () => {
+  assert.strictEqual(isSpeakableCard({ text: "hello", kind: "word" }), true);
+});
+
+test("isSpeakableCard: returns true for sentence cards", () => {
+  assert.strictEqual(isSpeakableCard({ text: "Hello world.", kind: "sentence" }), true);
+});
+
+test("isSpeakableCard: returns false for pattern cards", () => {
+  assert.strictEqual(isSpeakableCard({ text: "ma", kind: "pattern" }), false);
+});
+
+test("isSpeakableCard: returns false for cards without kind", () => {
+  assert.strictEqual(isSpeakableCard({ text: "hello" }), false);
+});
+
+test("isSpeakableCard: returns false for null", () => {
+  assert.strictEqual(isSpeakableCard(null), false);
+});
+
+test("isSpeakableCard: returns false for undefined", () => {
+  assert.strictEqual(isSpeakableCard(undefined), false);
+});
+
+test("isSpeakableCard: returns false for unknown kind", () => {
+  assert.strictEqual(isSpeakableCard({ text: "test", kind: "unknown" }), false);
+});
+

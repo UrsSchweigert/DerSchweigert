@@ -70,6 +70,7 @@ const DE = {
   'feedback.tts_unsupported': 'Die Vorlesefunktion wird von diesem Browser nicht unterstützt.',
   'feedback.tts_no_voice': 'Keine deutsche Stimme verfügbar. Bitte aktiviere eine deutsche Sprachausgabe auf deinem Gerät.',
   'feedback.tts_error': 'Die deutsche Aussprache konnte nicht abgespielt werden.',
+  'feedback.tts_card_unsupported': 'Vorlesen gibt es nur für Wort- und Satzkarten.',
   
   // Complete screen
   'complete.button.again': 'Neue Runde',
@@ -80,12 +81,6 @@ const DE = {
   'dialog.confirm_end.text': 'Möchtest du die aktuelle Übung beenden und zur Auswahl zurückkehren?',
   'dialog.confirm_end.cancel': 'Weiter üben',
   'dialog.confirm_end.confirm': 'Beenden',
-  
-  // TTS disclaimer dialog
-  'dialog.tts_disclaimer.title': 'Hinweis zum Vorlesen',
-  'dialog.tts_disclaimer.text': 'Das Vorlesen nutzt die Sprachausgabe deines Geräts. Klang und Verfügbarkeit hängen von den Barrierefreiheits- bzw. Sprachausgabe-Einstellungen deines Geräts ab.',
-  'dialog.tts_disclaimer.extra': 'Da die Silben teils keine echten Wörter sind, kann die Aussprache ungewöhnlich klingen.',
-  'dialog.tts_disclaimer.close': 'Verstanden',
   
   // About dialog
   'dialog.about.title': 'Über Buchstabenzeit',
@@ -200,6 +195,7 @@ const EN = {
   'feedback.tts_unsupported': 'Text-to-speech is not supported by this browser.',
   'feedback.tts_no_voice': 'No English voice available. Please enable an English voice in your device settings.',
   'feedback.tts_error': 'Could not play the English pronunciation.',
+  'feedback.tts_card_unsupported': 'Read aloud is only available for word and sentence cards.',
   
   // Complete screen
   'complete.button.again': 'New round',
@@ -210,12 +206,6 @@ const EN = {
   'dialog.confirm_end.text': 'Do you want to end the current practice and return to the selection?',
   'dialog.confirm_end.cancel': 'Continue practicing',
   'dialog.confirm_end.confirm': 'End',
-  
-  // TTS disclaimer dialog
-  'dialog.tts_disclaimer.title': 'About read aloud',
-  'dialog.tts_disclaimer.text': 'Read aloud uses your device\'s text-to-speech feature. Sound quality and availability depend on your device\'s accessibility settings.',
-  'dialog.tts_disclaimer.extra': 'Since the syllables are not always real words, the pronunciation may sound unusual.',
-  'dialog.tts_disclaimer.close': 'Got it',
   
   // About dialog
   'dialog.about.title': 'About Letter time',

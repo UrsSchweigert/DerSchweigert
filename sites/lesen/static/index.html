@@ -668,6 +668,11 @@
             border-color: var(--blue);
         }
 
+        .speak-button[aria-disabled="true"] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .action {
             min-height: 58px;
             font-size: 16px;
@@ -1152,15 +1157,6 @@
                 <button id="confirm-end-yes" class="primary" type="button">Beenden</button>
             </div>
         </dialog>
-        <dialog id="tts-disclaimer-dialog" class="about-dialog" aria-labelledby="tts-disclaimer-title">
-            <button id="tts-disclaimer-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
-            <h2 id="tts-disclaimer-title">Hinweis zum Vorlesen</h2>
-            <p id="tts-disclaimer-text">Das Vorlesen nutzt die Sprachausgabe deines Ger&auml;ts. Klang und Verf&uuml;gbarkeit h&auml;ngen von den Barrierefreiheits- bzw. Sprachausgabe-Einstellungen deines Ger&auml;ts ab.</p>
-            <p id="tts-disclaimer-extra">Da die Silben teils keine echten W&ouml;rter sind, kann die Aussprache ungew&ouml;hnlich klingen.</p>
-            <div class="about-actions">
-                <button id="tts-disclaimer-close" class="primary" type="button">Verstanden</button>
-            </div>
-        </dialog>
         <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
             <button id="about-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
             <h2 id="about-title">Über Buchstabenzeit</h2>
@@ -1183,19 +1179,17 @@
     <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
-        import { consumeTtsDisclaimerFlag } from './session-flags.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
-        import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck } from './scoring.mjs';
+        import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard } from './scoring.mjs';
         import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
         import { readableSentenceCards } from './sentences/cards.mjs';
         import { t } from './i18n.mjs';
         
         window.__speech = createSpeechAdapter();
         window.__speech.warm();
-        window.__consumeTtsDisclaimerFlag = () => consumeTtsDisclaimerFlag(window.sessionStorage);
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
-        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck };
+        window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard };
         window.__sentences = { readableSentenceCards };
         window.__storage = createStorage(window.localStorage);
         window.__i18n = { t };
@@ -1353,11 +1347,6 @@
             byId('confirm-end-text').textContent = tr('dialog.confirm_end.text');
             byId('confirm-end-no').textContent = tr('dialog.confirm_end.cancel');
             byId('confirm-end-yes').textContent = tr('dialog.confirm_end.confirm');
-
-            byId('tts-disclaimer-title').textContent = tr('dialog.tts_disclaimer.title');
-            byId('tts-disclaimer-text').textContent = tr('dialog.tts_disclaimer.text');
-            byId('tts-disclaimer-extra').textContent = tr('dialog.tts_disclaimer.extra');
-            byId('tts-disclaimer-close').textContent = tr('dialog.tts_disclaimer.close');
 
             byId('about-title').textContent = tr('dialog.about.title');
             byId('about-version').textContent = tr('dialog.about.version');
@@ -1660,6 +1649,7 @@
             byId('syllable').textContent = queue[0].text;
             updateCardFontSize(queue[0].text, queue[0].kind === 'sentence' ? 22 : 0);
             byId('review-label').hidden = queue[0].misses === 0;
+            byId('speak-card').setAttribute('aria-disabled', String(!window.__scoring.isSpeakableCard(queue[0])));
         }
 
         async function loadWordsForLanguage(lang) {
@@ -1898,12 +1888,12 @@
 
                 const wordCards = [];
                 if (maxLength <= 3) {
-                    wordCards.push(...shuffle(eligibleWords).slice(0, requestedTotal).map(text => ({ text, misses: 0 })));
+                    wordCards.push(...shuffle(eligibleWords).slice(0, requestedTotal).map(text => ({ text, kind: 'word', misses: 0 })));
                 } else {
                     const shuffledWords = shuffle(eligibleWords);
                     while (wordCards.length < requestedTotal) {
                         wordCards.push(...shuffle(shuffledWords).slice(0, requestedTotal - wordCards.length)
-                            .map(text => ({ text, misses: 0 })));
+                            .map(text => ({ text, kind: 'word', misses: 0 })));
                     }
                 }
 
@@ -1915,6 +1905,7 @@
                 const uppercaseFirst = Math.random() < 0.5;
                 const capitalizedPatterns = patternCards.map((text, index) => ({
                     text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(text) : text,
+                    kind: 'pattern',
                     misses: 0
                 }));
                 queue = shuffleWithoutAdjacentCards([...wordCards, ...capitalizedPatterns]);
@@ -1938,6 +1929,7 @@
             const uppercaseFirst = Math.random() < 0.5;
             queue = deck.map((text, index) => ({
                 text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(text) : text,
+                kind: 'pattern',
                 misses: 0
             }));
             total = queue.length;
@@ -1977,11 +1969,11 @@
         }
 
         function speakCard() {
-          const speech = window.__speech;
-          if (window.__consumeTtsDisclaimerFlag?.()) {
-            // Shown once per session; speech playback below is not delayed by this.
-            byId('tts-disclaimer-dialog').showModal();
+          if (!window.__scoring.isSpeakableCard(queue[0])) {
+            byId('feedback').textContent = tr('feedback.tts_card_unsupported');
+            return;
           }
+          const speech = window.__speech;
           if (!speech) {
             byId('feedback').textContent = tr('feedback.tts_unsupported');
             return;
@@ -2051,8 +2043,6 @@
         });
         byId('about-x').addEventListener('click', () => byId('about-dialog').close());
         byId('about-close').addEventListener('click', () => byId('about-dialog').close());
-        byId('tts-disclaimer-x').addEventListener('click', () => byId('tts-disclaimer-dialog').close());
-        byId('tts-disclaimer-close').addEventListener('click', () => byId('tts-disclaimer-dialog').close());
     </script>
 </body>
 
