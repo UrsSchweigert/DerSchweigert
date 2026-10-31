@@ -9,6 +9,16 @@
 import { readableSentenceCards } from "./sentences/cards.mjs";
 
 /**
+ * Determine whether a card can be read aloud.
+ * Only word and sentence cards support text-to-speech; pattern cards do not.
+ * @param {object} card a card object with optional kind property
+ * @returns {boolean} true if the card is a word or sentence card
+ */
+export function isSpeakableCard(card) {
+  return card?.kind === 'word' || card?.kind === 'sentence';
+}
+
+/**
  * Record an attempt on a card and update the stats map.
  * @param {object} stats - A map of card text to { correct_count, incorrect_count }
  * @param {string} key - The card text (unique identifier)
