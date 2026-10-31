@@ -13,9 +13,9 @@ import { readableSentenceCards } from "./sentences/cards.mjs";
  * @param {object} stats - A map of card text to { correct_count, incorrect_count }
  * @param {string} key - The card text (unique identifier)
  * @param {boolean} correct - Whether the answer was correct
- * @param {{flop: boolean}} options - Options object; flop=true awards 3 points for correct
+ * @param {{flop: boolean, recovery?: boolean}} options - Options object; flop=true awards 3 points for correct; recovery=true resets stats on flop success
  */
-export function recordAttempt(stats, key, correct, { flop } = {}) {
+export function recordAttempt(stats, key, correct, { flop, recovery } = {}) {
   if (!stats[key]) {
     stats[key] = { correct_count: 0, incorrect_count: 0 };
   }
@@ -26,6 +26,25 @@ export function recordAttempt(stats, key, correct, { flop } = {}) {
   } else {
     // Incorrect always adds 1
     stats[key].incorrect_count += 1;
+  }
+
+  // If recovery flag is set on flop success, reset the card stats
+  if (recovery && flop && correct) {
+    stats[key].correct_count = 0;
+    stats[key].incorrect_count = 0;
+  }
+}
+
+/**
+ * Reset card statistics for recovery mode.
+ * Used when a card with previous misses is answered correctly in Flop Training.
+ * @param {object} stats - A map of card text to { correct_count, incorrect_count }
+ * @param {string} key - The card text (unique identifier)
+ */
+export function resetCardStats(stats, key) {
+  if (stats[key]) {
+    stats[key].correct_count = 0;
+    stats[key].incorrect_count = 0;
   }
 }
 
@@ -121,50 +140,59 @@ export function flopCandidateCards(stats, allowedSounds, sentenceCards = []) {
   );
 }
 
+// Flop Training weak card selection constants
+export const FLOP_WEAK_SUCCESS_RATE_THRESHOLD = 0.7;  // Cards below 70% success rate
+export const FLOP_WEAK_MIN_ATTEMPTS = 2;              // At least 2 attempts required
+export const FLOP_DECK_MIN_CARDS = 1;                 // Minimum cards in flop deck
+export const FLOP_DECK_MAX_CARDS = 30;                // Maximum cards in flop deck
+export const FLOP_DECK_PERCENTILE = 0.1;              // Bottom 10% of weak cards
+
 /**
  * Select cards for Flop Training (focused practice on weak cards).
  *
- * Sentence and word cards share the same rule: every candidate is ordered by
- * its success rate and the worst tenth is practised. Because sentence cards
- * reach this function through {@link flopCandidateCards}, they are never
- * dropped for being unspellable; word cards keep the old spellability filter.
+ * Sentence and word cards share the same rule: only cards with success rate < 0.7
+ * AND at least 2 total attempts qualify as "weak". Among weak candidates, the
+ * worst tenth is practised. Because sentence cards reach this function through
+ * {@link flopCandidateCards}, they are never dropped for being unspellable; word
+ * cards keep the old spellability filter.
  *
  * Algorithm:
- * 1. Filter to allowedCards that have been attempted at least once
- * 2. Sort ascending by success rate: correct/(correct+incorrect)
- * 3. Take bottom 10% (rounding up, with min 1 and max 30)
+ * 1. Filter to allowedCards with success rate (correct/(correct+incorrect)) < 0.7
+ * 2. Filter to cards with total attempts >= 2
+ * 3. Sort ascending by success rate: worst first
+ * 4. Take bottom 10% of the remaining weak cards (rounding up, with min 1 and max 30)
  * 
  * @param {object} stats - A map of card text to { correct_count, incorrect_count }
  * @param {string[]} allowedCards - Array of card texts to consider
  * @returns {string[]} Array of card texts for Flop Training
  */
 export function selectFlopDeck(stats, allowedCards) {
-  // Filter to only cards that have been attempted at least once
-  const attempted = allowedCards.filter((card) => {
+  // Filter to only genuinely weak cards: success rate < 0.7 AND >= 2 attempts
+  const weak = allowedCards.filter((card) => {
     const cardStats = stats[card];
     if (!cardStats) return false;
     const total = cardStats.correct_count + cardStats.incorrect_count;
-    return total > 0;
+    if (total < FLOP_WEAK_MIN_ATTEMPTS) return false;
+    const successRate = cardStats.correct_count / total;
+    return successRate < FLOP_WEAK_SUCCESS_RATE_THRESHOLD;
   });
 
-  if (attempted.length === 0) {
+  if (weak.length === 0) {
     return [];
   }
 
   // Sort by success rate ascending (worst first)
-  const sorted = attempted.sort((a, b) => {
+  const sorted = weak.sort((a, b) => {
     const statsA = stats[a];
     const statsB = stats[b];
-    const rateA =
-      statsA.correct_count / (statsA.correct_count + statsA.incorrect_count);
-    const rateB =
-      statsB.correct_count / (statsB.correct_count + statsB.incorrect_count);
+    const rateA = statsA.correct_count / (statsA.correct_count + statsA.incorrect_count);
+    const rateB = statsB.correct_count / (statsB.correct_count + statsB.incorrect_count);
     return rateA - rateB;
   });
 
-  // Calculate bottom 10%, with at least 1 and max 30
-  const bottomPercent = Math.ceil(sorted.length * 0.1);
-  const count = Math.min(Math.max(bottomPercent, 1), 30);
+  // Calculate bottom 10% of weak cards, with at least 1 and max 30
+  const bottomPercent = Math.ceil(sorted.length * FLOP_DECK_PERCENTILE);
+  const count = Math.min(Math.max(bottomPercent, FLOP_DECK_MIN_CARDS), FLOP_DECK_MAX_CARDS);
 
   return sorted.slice(0, count);
 }
