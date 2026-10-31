@@ -75,6 +75,7 @@ test("storage: persists the +3 flop weight end-to-end", () => {
 
   const practice = storage.read();
   recordAttempt(practice, "ta", false, { flop: false });
+  recordAttempt(practice, "ta", false, { flop: false }); // Second attempt to meet min >= 2
   recordAttempt(practice, "am", true, { flop: false });
   storage.write(practice);
 
@@ -87,7 +88,7 @@ test("storage: persists the +3 flop weight end-to-end", () => {
   createStorage(store).write(flopStats);
 
   const persisted = createStorage(store).read();
-  assert.deepStrictEqual(persisted["ta"], { correct_count: 3, incorrect_count: 1 });
+  assert.deepStrictEqual(persisted["ta"], { correct_count: 3, incorrect_count: 2 });
 });
 
 test("storage: a sentence attempt round-trips unchanged", () => {

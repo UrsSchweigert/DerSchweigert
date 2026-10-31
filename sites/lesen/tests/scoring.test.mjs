@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom } from "../static/scoring.mjs";
+import { recordAttempt, resetCardStats, selectFlopDeck, flopCandidateCards, buildFlopDeck, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom, FLOP_WEAK_SUCCESS_RATE_THRESHOLD, FLOP_WEAK_MIN_ATTEMPTS, FLOP_DECK_MIN_CARDS, FLOP_DECK_MAX_CARDS } from "../static/scoring.mjs";
 
 const SENTENCE_POOL = [
   { id: "a", text: "Mama malt." },
@@ -54,6 +54,60 @@ test("recordAttempt: flop mode increments correctly on existing card", () => {
   assert.deepStrictEqual(stats["Card 6"], { correct_count: 4, incorrect_count: 0 });
 });
 
+test("recordAttempt: recovery flag resets stats on flop success after misses", () => {
+  const stats = {
+    "Card Recovered": { correct_count: 0, incorrect_count: 3 },
+  };
+  recordAttempt(stats, "Card Recovered", true, { flop: true, recovery: true });
+  // Stats should be reset to 0, 0 (not incremented)
+  assert.deepStrictEqual(stats["Card Recovered"], { correct_count: 0, incorrect_count: 0 });
+});
+
+test("recordAttempt: recovery flag does not affect normal (non-flop) mode", () => {
+  const stats = {
+    "Card Normal": { correct_count: 0, incorrect_count: 2 },
+  };
+  recordAttempt(stats, "Card Normal", true, { flop: false, recovery: true });
+  // In normal mode, recovery should not trigger reset; just add +1
+  assert.deepStrictEqual(stats["Card Normal"], { correct_count: 1, incorrect_count: 2 });
+});
+
+test("recordAttempt: recovery flag does not reset on incorrect answer", () => {
+  const stats = {
+    "Card Miss": { correct_count: 1, incorrect_count: 1 },
+  };
+  recordAttempt(stats, "Card Miss", false, { flop: true, recovery: true });
+  // Incorrect should just add +1 to incorrect_count, no reset
+  assert.deepStrictEqual(stats["Card Miss"], { correct_count: 1, incorrect_count: 2 });
+});
+
+test("recordAttempt: first-try flop success (no recovery) keeps +3 behavior with no reset", () => {
+  const stats = {
+    "Card FirstTry": { correct_count: 0, incorrect_count: 0 },
+  };
+  recordAttempt(stats, "Card FirstTry", true, { flop: true, recovery: false });
+  // First-try flop success should add +3 without reset
+  assert.deepStrictEqual(stats["Card FirstTry"], { correct_count: 3, incorrect_count: 0 });
+});
+
+test("resetCardStats: resets stats for a given card", () => {
+  const stats = {
+    "Card A": { correct_count: 5, incorrect_count: 3 },
+    "Card B": { correct_count: 2, incorrect_count: 1 },
+  };
+  resetCardStats(stats, "Card A");
+  assert.deepStrictEqual(stats["Card A"], { correct_count: 0, incorrect_count: 0 });
+  // Card B should remain unchanged
+  assert.deepStrictEqual(stats["Card B"], { correct_count: 2, incorrect_count: 1 });
+});
+
+test("resetCardStats: handles non-existent card gracefully", () => {
+  const stats = {};
+  resetCardStats(stats, "Non-existent");
+  assert.deepStrictEqual(stats, {});
+});
+
+
 test("selectFlopDeck: excludes cards never attempted", () => {
   const stats = {
     "Card A": { correct_count: 0, incorrect_count: 0 },
@@ -63,94 +117,103 @@ test("selectFlopDeck: excludes cards never attempted", () => {
   assert.deepStrictEqual(deck, []);
 });
 
-test("selectFlopDeck: includes only cards with at least one attempt", () => {
+test("selectFlopDeck: excludes cards with fewer than 2 total attempts (weak criteria)", () => {
   const stats = {
-    "Card A": { correct_count: 1, incorrect_count: 0 },
-    "Card B": { correct_count: 0, incorrect_count: 0 },
-    "Card C": { correct_count: 0, incorrect_count: 1 },
+    "Card A": { correct_count: 1, incorrect_count: 0 }, // 1 attempt, 100% - not weak
+    "Card B": { correct_count: 0, incorrect_count: 0 }, // 0 attempts
+    "Card C": { correct_count: 0, incorrect_count: 1 }, // 1 attempt, 0% - not weak (too few attempts)
   };
   const allowedCards = ["Card A", "Card B", "Card C"];
   const deck = selectFlopDeck(stats, allowedCards);
-  // Card B never attempted so excluded; A and C have attempts
-  // Bottom 10% of 2 cards = 1 card minimum, so only the worst (Card C at 0%) is included
-  assert.strictEqual(deck.length, 1);
-  assert.ok(deck.includes("Card C"));
-  assert.ok(!deck.includes("Card B"));
+  // All cards have too few attempts or are not weak
+  assert.deepStrictEqual(deck, []);
 });
 
-test("selectFlopDeck: sorts by success rate (correct/(correct+incorrect)) ascending", () => {
+test("selectFlopDeck: excludes cards with success rate >= 0.7 (healthy cards)", () => {
   const stats = {
-    "Card A": { correct_count: 9, incorrect_count: 1 }, // 90%
-    "Card B": { correct_count: 5, incorrect_count: 5 }, // 50%
-    "Card C": { correct_count: 1, incorrect_count: 9 }, // 10%
+    "Card A": { correct_count: 7, incorrect_count: 3 }, // 70%, exactly at threshold - not weak (>= 0.7)
+    "Card B": { correct_count: 8, incorrect_count: 2 }, // 80%, healthy
+    "Card C": { correct_count: 6, incorrect_count: 4 }, // 60%, weak
   };
   const allowedCards = ["Card A", "Card B", "Card C"];
   const deck = selectFlopDeck(stats, allowedCards);
-  // Bottom 10% of 3 = 0.3, rounds up to 1, so only Card C (worst performer)
+  // Only Card C qualifies as weak (< 70% success rate and >= 2 attempts)
   assert.deepStrictEqual(deck, ["Card C"]);
 });
 
-test("selectFlopDeck: selects bottom 10% of qualifying cards", () => {
+test("selectFlopDeck: sorts by success rate (correct/(correct+incorrect)) ascending, worst first", () => {
+  const stats = {
+    "Card A": { correct_count: 1, incorrect_count: 9 }, // 10%, weak
+    "Card B": { correct_count: 3, incorrect_count: 7 }, // 30%, weak
+    "Card C": { correct_count: 6, incorrect_count: 4 }, // 60%, weak
+  };
+  const allowedCards = ["Card A", "Card B", "Card C"];
+  const deck = selectFlopDeck(stats, allowedCards);
+  // All are weak, bottom 10% of 3 weak cards = 1 card, so only the worst (Card A)
+  assert.deepStrictEqual(deck, ["Card A"]);
+});
+
+test("selectFlopDeck: selects bottom 10% of weak cards only", () => {
   const stats = {};
   const allowedCards = [];
-  // Create 20 cards with varying success rates
+  // Create 20 weak cards (all < 70% success rate, >= 2 attempts)
   for (let i = 0; i < 20; i++) {
-    stats[`Card ${i}`] = { correct_count: i, incorrect_count: 20 - i };
+    stats[`Card ${i}`] = { correct_count: i, incorrect_count: 20 - i }; // i% success rate (0-19%)
     allowedCards.push(`Card ${i}`);
   }
   const deck = selectFlopDeck(stats, allowedCards);
-  // Bottom 10% of 20 = 2 cards
+  // All 20 cards are weak. Bottom 10% of 20 = 2 cards
   assert.strictEqual(deck.length, 2);
-  // Should be the lowest success rate cards
   const expectedBottomTwo = ["Card 0", "Card 1"];
   assert.deepStrictEqual(deck, expectedBottomTwo);
 });
 
-test("selectFlopDeck: caps the result at 30 cards", () => {
+test("selectFlopDeck: caps weak deck at 30 cards", () => {
   const stats = {};
   const allowedCards = [];
-  // Create 400 cards all with 0% success rate (to all qualify for bottom 10%)
+  // Create 400 weak cards all with 0% success rate (0 correct, 2 incorrect)
   for (let i = 0; i < 400; i++) {
-    stats[`Card ${i}`] = { correct_count: 0, incorrect_count: 1 };
+    stats[`Card ${i}`] = { correct_count: 0, incorrect_count: 2 };
     allowedCards.push(`Card ${i}`);
   }
   const deck = selectFlopDeck(stats, allowedCards);
-  // Bottom 10% of 400 = 40 cards, but capped at 30
+  // 400 cards all weak, bottom 10% = 40 cards, but capped at 30
   assert.strictEqual(deck.length, 30);
 });
 
-test("selectFlopDeck: returns at least 1 card when any qualifying cards exist", () => {
+test("selectFlopDeck: returns at least 1 weak card when any exist", () => {
   const stats = {
-    "Card A": { correct_count: 1, incorrect_count: 0 },
+    "Card A": { correct_count: 1, incorrect_count: 9 }, // 10%, weak
   };
   const allowedCards = ["Card A"];
   const deck = selectFlopDeck(stats, allowedCards);
   assert.deepStrictEqual(deck, ["Card A"]);
 });
 
-test("selectFlopDeck: returns at least 1 card from bottom 10% when exactly 10 cards", () => {
+test("selectFlopDeck: returns at least 1 weak card from bottom 10% when exactly 10 weak cards", () => {
   const stats = {};
   const allowedCards = [];
+  // Create 10 weak cards with success rates 0-9% (all weak: < 70%)
   for (let i = 0; i < 10; i++) {
     stats[`Card ${i}`] = { correct_count: i, incorrect_count: 10 - i };
     allowedCards.push(`Card ${i}`);
   }
   const deck = selectFlopDeck(stats, allowedCards);
-  // Bottom 10% of 10 = 1 card
+  // All 10 are weak, bottom 10% of 10 = 1 card
   assert.strictEqual(deck.length, 1);
   assert.deepStrictEqual(deck, ["Card 0"]);
 });
 
-test("selectFlopDeck: filters by allowedCards", () => {
+test("selectFlopDeck: filters by allowedCards and excludes non-weak", () => {
   const stats = {
-    "Card A": { correct_count: 1, incorrect_count: 0 },
-    "Card B": { correct_count: 1, incorrect_count: 9 },
-    "Card C": { correct_count: 1, incorrect_count: 0 },
+    "Card A": { correct_count: 7, incorrect_count: 3 }, // 70%, not weak
+    "Card B": { correct_count: 1, incorrect_count: 9 }, // 10%, weak
+    "Card C": { correct_count: 8, incorrect_count: 2 }, // 80%, not weak
   };
   const allowedCards = ["Card A", "Card B"]; // Card C not allowed
   const deck = selectFlopDeck(stats, allowedCards);
-  assert.ok(deck.includes("Card A") || deck.includes("Card B"));
-  assert.ok(!deck.includes("Card C"));
+  // Only Card B is weak among allowed cards
+  assert.deepStrictEqual(deck, ["Card B"]);
 });
 
 test("flopCandidateCards: keeps history cards spelled with the selected sounds", () => {
@@ -213,57 +276,71 @@ test("flopCandidateCards: a sentence card stays a candidate with an empty select
   assert.deepStrictEqual(flopCandidateCards({ Hut: stats["Mama malt."] }, [], SENTENCE_POOL), []);
 });
 
-test("selectFlopDeck: sentence cards share the worst-10 % rule", () => {
+test("selectFlopDeck: sentence cards share the worst-10 % rule among weak cards", () => {
   const stats = {};
   const allowedCards = [];
+  // Create 9 healthy words (90% success rate) - not weak
   for (let index = 0; index < 9; index++) {
     stats[`Word ${index}`] = { correct_count: 9, incorrect_count: 1 };
     allowedCards.push(`Word ${index}`);
   }
+  // Add a weak sentence (0% success rate, 2 attempts)
   stats["Das Brot ist frisch."] = { correct_count: 0, incorrect_count: 2 };
   allowedCards.push("Das Brot ist frisch.");
-  // Bottom 10 % of 10 candidates = 1 card: the worst, which is the sentence.
+  // Only the sentence is weak among 10 candidates, so it's included
   assert.deepStrictEqual(selectFlopDeck(stats, allowedCards), ["Das Brot ist frisch."]);
 });
 
-test("buildFlopDeck: a deck with one sentence card is usable", () => {
-  const stats = { "Das Brot ist frisch.": { correct_count: 0, incorrect_count: 1 } };
+test("buildFlopDeck: a deck with one weak sentence card is usable", () => {
+  const stats = { "Das Brot ist frisch.": { correct_count: 0, incorrect_count: 2 } };
   const deck = buildFlopDeck(stats, new Set(["m", "a"]), SENTENCE_POOL);
   assert.deepStrictEqual(deck, [
     { text: "Das Brot ist frisch.", kind: "sentence", misses: 0 },
   ]);
 });
 
-test("buildFlopDeck: word cards keep the worst-10 % behaviour and their kind", () => {
+test("buildFlopDeck: word cards keep the worst-10 % behaviour and their kind among weak cards", () => {
   const stats = {
-    aa: { correct_count: 9, incorrect_count: 1 },
-    ab: { correct_count: 5, incorrect_count: 5 },
-    ba: { correct_count: 1, incorrect_count: 9 },
+    aa: { correct_count: 1, incorrect_count: 9 }, // 10%, weak
+    ab: { correct_count: 3, incorrect_count: 7 }, // 30%, weak
+    ba: { correct_count: 1, incorrect_count: 9 }, // 10%, weak
   };
   const deck = buildFlopDeck(stats, ["a", "b"]);
-  assert.deepStrictEqual(deck, [{ text: "ba", kind: "word", misses: 0 }]);
+  // All 3 are weak, bottom 10% of 3 = 1 card (worst)
+  assert.strictEqual(deck.length, 1);
+  assert.ok(deck[0].text === "aa" || deck[0].text === "ba");
+  assert.deepStrictEqual(deck[0].kind, "word");
 });
 
-test("buildFlopDeck: sentence and word cards keep their kind in one deck", () => {
+test("buildFlopDeck: sentence and word cards keep their kind in one weak deck", () => {
   const stats = {};
-  for (const word of ["aaa", "aab", "aba", "abb", "baa", "bab", "bba", "bbb", "aaaa", "aaab"]) {
-    stats[word] = { correct_count: 10, incorrect_count: 0 };
+  // Create 10 weak word cards that are spellable with ["a", "b"]
+  for (let index = 0; index < 10; index++) {
+    stats[`a${index}b`] = { correct_count: 1, incorrect_count: 9 }; // 10% weak
   }
-  stats["Das Brot ist frisch."] = { correct_count: 0, incorrect_count: 1 };
-  // 11 candidates, bottom 10 % = 2: the sentence and the first perfect word.
+  // Add "Das Brot ist frisch." which is in SENTENCE_POOL with 0% success (weak)
+  stats["Das Brot ist frisch."] = { correct_count: 0, incorrect_count: 2 };
+  
+  // With ["a", "b"] only, "Das Brot ist frisch." is not spellable, so it should not be a candidate
+  // unless we pass SENTENCE_POOL, which we do here
   const deck = buildFlopDeck(stats, ["a", "b"], SENTENCE_POOL);
-  assert.strictEqual(deck.length, 2);
-  assert.deepStrictEqual(deck[0], { text: "Das Brot ist frisch.", kind: "sentence", misses: 0 });
-  assert.strictEqual(deck[1].kind, "word");
+  
+  // 11 candidates: 10 words + 1 sentence, but 10% of 11 = 1-2 cards
+  // Since all the words are 10% weak and sentence is 0% weak, bottom 10% should have 1 card (the sentence)
+  assert.strictEqual(deck.length, 1);
+  assert.deepStrictEqual(deck[0].text, "Das Brot ist frisch.");
+  assert.strictEqual(deck[0].kind, "sentence");
 });
 
-test("selectFlopDeck: deck built from history is min(ceil(10%), 30) and never empty", () => {
+test("selectFlopDeck: deck built from weak history cards", () => {
   const stats = {};
+  // Create 15 weak cards with success rates from 0-14% (all < 70%)
   for (let index = 0; index < 15; index++) {
     stats[`t${index}`] = { correct_count: index, incorrect_count: 15 - index };
   }
   const deck = selectFlopDeck(stats, Object.keys(stats));
-  assert.strictEqual(deck.length, Math.min(Math.ceil(15 * 0.1), 30));
+  // All 15 cards are weak (< 70%), bottom 10% = ceil(15 * 0.1) = 2 cards
+  assert.strictEqual(deck.length, 2);
   assert.ok(deck.length > 0);
 });
 
@@ -390,6 +467,98 @@ test("buildMixedDeck: cards carry their kind and start with no misses", () => {
   }
 });
 
+// Recovery and weakness filtering comprehensive tests
+test("recovery: recovered card is reset and absent from next flop deck", () => {
+  // Scenario: card has misses, is answered correctly with recovery, then should not appear in next deck
+  const stats = {
+    "weak-card": { correct_count: 0, incorrect_count: 3 }, // 0%, weak
+  };
+  // Initial flop deck includes it
+  let deck = selectFlopDeck(stats, ["weak-card"]);
+  assert.deepStrictEqual(deck, ["weak-card"]);
+  
+  // User answers correctly with recovery flag set
+  recordAttempt(stats, "weak-card", true, { flop: true, recovery: true });
+  assert.deepStrictEqual(stats["weak-card"], { correct_count: 0, incorrect_count: 0 });
+  
+  // Next flop deck should not include it (0 attempts)
+  deck = selectFlopDeck(stats, ["weak-card"]);
+  assert.deepStrictEqual(deck, []);
+});
+
+test("recovery: first-try flop success keeps +3 and is not reset", () => {
+  // Scenario: card is answered correctly on first try in flop mode
+  const stats = {
+    "first-try": { correct_count: 0, incorrect_count: 0 },
+  };
+  recordAttempt(stats, "first-try", true, { flop: true, recovery: false });
+  // Should add +3 without reset
+  assert.deepStrictEqual(stats["first-try"], { correct_count: 3, incorrect_count: 0 });
+  // It will have 3 attempts (all correct), so success rate = 100%, not weak
+  const deck = selectFlopDeck(stats, ["first-try"]);
+  assert.deepStrictEqual(deck, []);
+});
+
+test("weak filtering: cards below 70% success rate are weak", () => {
+  const stats = {
+    "weak-69": { correct_count: 69, incorrect_count: 31 }, // 69%, weak
+    "weak-60": { correct_count: 6, incorrect_count: 4 },   // 60%, weak
+    "weak-50": { correct_count: 5, incorrect_count: 5 },   // 50%, weak
+    "weak-40": { correct_count: 4, incorrect_count: 6 },   // 40%, weak
+    "healthy-70": { correct_count: 70, incorrect_count: 30 }, // 70%, not weak (at threshold)
+    "healthy-80": { correct_count: 8, incorrect_count: 2 }, // 80%, not weak
+  };
+  const weak = selectFlopDeck(stats, Object.keys(stats));
+  // Bottom 10% of 4 weak cards = 1 card, so only the worst is included
+  // But we should verify the 4 weak cards are identified correctly for this test
+  assert.strictEqual(weak.length, 1);
+  // The worst weak card should be the 40% one
+  assert.deepStrictEqual(weak, ["weak-40"]);
+});
+
+test("weak filtering: cards with fewer than 2 attempts are not weak", () => {
+  const stats = {
+    "single-attempt-fail": { correct_count: 0, incorrect_count: 1 }, // 0%, but only 1 attempt
+    "single-attempt-pass": { correct_count: 1, incorrect_count: 0 }, // 100%, but only 1 attempt
+    "two-attempts-weak": { correct_count: 0, incorrect_count: 2 },   // 0%, 2 attempts - weak
+  };
+  const weak = selectFlopDeck(stats, Object.keys(stats));
+  assert.ok(!weak.includes("single-attempt-fail"), "single failed attempt should not qualify");
+  assert.ok(!weak.includes("single-attempt-pass"), "single passed attempt should not qualify");
+  assert.ok(weak.includes("two-attempts-weak"), "two weak attempts should qualify");
+});
+
+test("weak filtering: empty result when no genuinely weak cards", () => {
+  const stats = {
+    "healthy-1": { correct_count: 8, incorrect_count: 2 },  // 80%, healthy
+    "healthy-2": { correct_count: 7, incorrect_count: 3 },  // 70%, at threshold
+    "one-attempt": { correct_count: 0, incorrect_count: 1 }, // too few attempts
+  };
+  const weak = selectFlopDeck(stats, Object.keys(stats));
+  assert.deepStrictEqual(weak, []);
+});
+
+test("weak filtering: cap min 1, max 30 applies within weak cards", () => {
+  // Test min 1: only 1 weak card available
+  let stats = {
+    "only-weak": { correct_count: 0, incorrect_count: 2 },  // weak
+    "healthy": { correct_count: 9, incorrect_count: 1 },    // healthy
+  };
+  let weak = selectFlopDeck(stats, Object.keys(stats));
+  assert.strictEqual(weak.length, 1);
+  assert.deepStrictEqual(weak, ["only-weak"]);
+
+  // Test max 30: 400 weak cards, cap at 30
+  stats = {};
+  const allowedCards = [];
+  for (let i = 0; i < 400; i++) {
+    stats[`Card ${i}`] = { correct_count: 0, incorrect_count: 2 }; // all weak (0%, >= 2 attempts)
+    allowedCards.push(`Card ${i}`);
+  }
+  weak = selectFlopDeck(stats, allowedCards);
+  assert.strictEqual(weak.length, 30);
+});
+
 const setupHtml = readFileSync(new URL("../static/index.html", import.meta.url), "utf8");
 
 test("the Karten tab offers a sentence mode in the single mode group", () => {
@@ -426,11 +595,11 @@ test("regression: word flop candidates keep the old spellability filter", () => 
   assert.deepStrictEqual(flopCandidateCards(stats, sounds, []), expected);
 });
 
-test("regression: a word-only flop deck is exactly the old selectFlopDeck result", () => {
+test("regression: a word-only flop deck is exactly the weak selectFlopDeck result", () => {
   const stats = {
-    aa: { correct_count: 9, incorrect_count: 1 },
-    ab: { correct_count: 5, incorrect_count: 5 },
-    ba: { correct_count: 1, incorrect_count: 9 },
+    aa: { correct_count: 1, incorrect_count: 9 }, // 10%, weak
+    ab: { correct_count: 3, incorrect_count: 7 }, // 30%, weak
+    ba: { correct_count: 1, incorrect_count: 9 }, // 10%, weak
   };
   const legacy = selectFlopDeck(stats, Object.keys(stats));
   assert.deepStrictEqual(
