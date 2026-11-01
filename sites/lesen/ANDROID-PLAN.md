@@ -226,6 +226,7 @@ every installed service is guaranteed never to communicate externally.
   Saved selections above the limit are trimmed on load, never deleted.
 - Families policy: the purchase prompt needs a parental gate and calm,
   non-pushy wording; the paywall appears only when a limit is hit.
+- Owner checklist: [PLAY-BILLING-SETUP.md](PLAY-BILLING-SETUP.md).
 - Be transparent that the website is available separately and that installed
   offline convenience is part of the app's value.
 - Store listing must distinguish offline exercises from conditional device

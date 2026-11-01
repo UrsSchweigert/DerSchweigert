@@ -878,6 +878,122 @@
             margin-top: 16px;
         }
 
+        .paywall-dialog {
+            padding: 22px;
+            border: none;
+            border-radius: 14px;
+            max-width: 360px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            color: var(--ink);
+        }
+
+        .paywall-dialog::backdrop {
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .paywall-dialog h2 {
+            margin: 0 0 12px;
+            font-size: 18px;
+            color: var(--blue);
+        }
+
+        .paywall-dialog p {
+            margin: 12px 0;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--muted);
+        }
+
+        .paywall-dialog p:first-of-type {
+            margin-top: 0;
+        }
+
+        .paywall-intro-text {
+            color: var(--ink);
+            font-weight: normal;
+        }
+
+        .paywall-gate-container {
+            margin: 20px 0;
+            padding: 16px;
+            background: rgba(7, 89, 183, 0.05);
+            border-radius: 8px;
+        }
+
+        .paywall-gate-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .paywall-gate-container input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: Andika, "Trebuchet MS", sans-serif;
+        }
+
+        .paywall-gate-container input:focus-visible {
+            outline: 3px solid var(--orange);
+            outline-offset: 0;
+        }
+
+        .paywall-gate-message {
+            margin-top: 8px;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .paywall-gate-message.error {
+            color: #a32c24;
+        }
+
+        .paywall-gate-message.success {
+            color: var(--green);
+        }
+
+        .paywall-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .paywall-actions button {
+            border-radius: 14px;
+            padding: 12px 18px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .paywall-actions .primary {
+            background: var(--blue);
+            color: white;
+        }
+
+        .paywall-actions .primary:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .paywall-actions .quiet {
+            background: rgba(88, 113, 138, 0.1);
+            color: var(--muted);
+        }
+
+        .paywall-actions .quiet:hover:not(:disabled) {
+            background: rgba(88, 113, 138, 0.2);
+        }
+
         .link-button {
             background: none;
             border: none;
@@ -1175,10 +1291,27 @@
                 <button id="about-close" class="primary" type="button"><span id="about-close-label">Schlie&szlig;en</span></button>
             </div>
         </dialog>
+        <dialog id="paywall-dialog" class="paywall-dialog" aria-labelledby="paywall-title">
+            <h2 id="paywall-title">Alle Buchstaben freischalten</h2>
+            <p class="paywall-intro-text" id="paywall-intro">Du hast die maximale Anzahl von Buchstaben in der kostenlosen Version erreicht.</p>
+            <p id="paywall-cta">Schließe dein Leseerlebnis auf mit einem einmaligen Kauf.</p>
+            <div class="paywall-gate-container">
+                <label for="paywall-gate-input" id="paywall-gate-label">Sicherheitsabfrage für Erwachsene: Wie viel ist 5 + 3?</label>
+                <input id="paywall-gate-input" type="number" inputmode="numeric" autocomplete="off" aria-describedby="paywall-gate-message" />
+                <div class="paywall-gate-message" id="paywall-gate-message" role="status" aria-live="polite"></div>
+            </div>
+            <div id="paywall-error-message" role="status" aria-live="polite"></div>
+            <div class="paywall-actions">
+                <button id="paywall-close" class="quiet" type="button">Abbrechen</button>
+                <button id="paywall-restore" class="quiet" type="button">Kauf wiederherstellen</button>
+                <button id="paywall-unlock" class="primary" type="button" disabled>Freischalten</button>
+            </div>
+        </dialog>
     </main>
     <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button></footer>
     <script type="module">
         import { createSpeechAdapter } from './speech-adapter.js';
+        import { createEntitlementAdapter } from './entitlement-adapter.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard } from './scoring.mjs';
         import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
@@ -1188,6 +1321,7 @@
         window.__speech = createSpeechAdapter();
         window.__speech.warm();
         
+        window.__entitlement = createEntitlementAdapter();
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard };
         window.__sentences = { readableSentenceCards };
@@ -1198,6 +1332,7 @@
     <script type="module">
         'use strict';
         import { readLanguage, writeLanguage, getTtsLanguageCode, getWordListFilename } from './storage.mjs';
+        import { tryAddLetter } from './entitlement-adapter.mjs';
         
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
@@ -1218,7 +1353,7 @@
         let noPatternHintShown = false;
         let currentLanguage = readLanguage(window.localStorage);
 
-        function setLanguage(lang) {
+        async function setLanguage(lang) {
             currentLanguage = lang;
             writeLanguage(window.localStorage, lang);
             document.documentElement.lang = lang;
@@ -1236,22 +1371,32 @@
             specials.clear();
             
             // Set some reasonable defaults for the new language
+            let defaultConsonants = [];
+            let defaultVowels = [];
+            
             if (lang === 'en') {
                 // English defaults: common starting letters
-                for (const letter of ['m', 's', 't', 'b', 'c']) {
-                    consonants.add(letter);
-                }
-                for (const letter of ['a', 'e', 'o']) {
-                    vowels.add(letter);
-                }
+                defaultConsonants = ['m', 's', 't', 'b', 'c'];
+                defaultVowels = ['a', 'e', 'o'];
             } else {
                 // German defaults
-                for (const letter of ['m', 's', 't', 'p', 'n']) {
-                    consonants.add(letter);
-                }
-                for (const letter of ['a', 'e', 'o']) {
-                    vowels.add(letter);
-                }
+                defaultConsonants = ['m', 's', 't', 'p', 'n'];
+                defaultVowels = ['a', 'e', 'o'];
+            }
+            
+            // Trim defaults to entitlement caps
+            const trimmedConsonants = await window.__entitlement.trimBulkLoad('consonants', defaultConsonants);
+            const trimmedVowels = await window.__entitlement.trimBulkLoad('vowels', defaultVowels);
+            const trimmedSpecials = await window.__entitlement.trimBulkLoad('specials', []);
+            
+            for (const letter of trimmedConsonants) {
+                consonants.add(letter);
+            }
+            for (const letter of trimmedVowels) {
+                vowels.add(letter);
+            }
+            for (const letter of trimmedSpecials) {
+                specials.add(letter);
             }
             
             // Clear and rebuild the letter buttons
@@ -1363,6 +1508,15 @@
             // Update privacy policy link based on current language
             byId('about-privacy-link').href = currentLanguage === 'en' ? 'datenschutz-en.html' : 'datenschutz.html';
             byId('about-close-label').textContent = tr('dialog.about.close');
+
+            // Paywall dialog
+            byId('paywall-title').textContent = tr('dialog.paywall.title');
+            byId('paywall-intro').textContent = tr('dialog.paywall.intro');
+            byId('paywall-cta').textContent = tr('dialog.paywall.cta');
+            byId('paywall-close').textContent = tr('dialog.paywall.close');
+            byId('paywall-restore').textContent = tr('dialog.paywall.restore_button');
+            byId('paywall-unlock').textContent = tr('dialog.paywall.unlock_button');
+            // Gate input label will be updated when the question is generated
         }
 
         function updateFooterText() {
@@ -1531,6 +1685,13 @@
         }
 
         function buildLetters(containerId, alphabet, selected) {
+            const categoryMap = {
+                'consonants': 'consonants',
+                'vowels': 'vowels',
+                'specials': 'specials'
+            };
+            const category = categoryMap[containerId];
+            
             for (const letter of alphabet) {
                 const button = document.createElement('button');
                 button.type = 'button';
@@ -1538,9 +1699,25 @@
                 button.textContent = letter;
                 button.setAttribute('aria-label', letter);
                 button.setAttribute('aria-pressed', String(selected.has(letter)));
-                button.addEventListener('click', () => {
-                    if (selected.has(letter)) selected.delete(letter);
-                    else selected.add(letter);
+                button.addEventListener('click', async () => {
+                    const wasSelected = selected.has(letter);
+                    
+                    // If toggling off, always allow
+                    if (wasSelected) {
+                        selected.delete(letter);
+                    } else {
+                        // If toggling on, use tryAddLetter which does fresh cap check + add atomically
+                        const added = await tryAddLetter(window.__entitlement, category, selected, letter);
+                        if (!added) {
+                            // Cap prevented addition - show paywall dialog
+                            button.setAttribute('aria-pressed', 'false');
+                            byId('setup-error').textContent = '';
+                            updateSelectionCounts();
+                            showPaywallDialog();
+                            return;
+                        }
+                    }
+                    
                     button.setAttribute('aria-pressed', String(selected.has(letter)));
                     byId('setup-error').textContent = '';
                     updateSelectionCounts();
@@ -1996,9 +2173,15 @@
         }
 
         document.querySelectorAll('.lang-btn').forEach(btn => {
-            btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+            btn.addEventListener('click', () => {
+                setLanguage(btn.dataset.lang).catch(e => {
+                    // Ignore errors silently as per task requirements
+                });
+            });
         });
-        setLanguage(currentLanguage);
+        setLanguage(currentLanguage).catch(e => {
+            // Ignore errors silently as per task requirements
+        });
         document.querySelectorAll('input[name="mode"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });
@@ -2043,6 +2226,143 @@
         });
         byId('about-x').addEventListener('click', () => byId('about-dialog').close());
         byId('about-close').addEventListener('click', () => byId('about-dialog').close());
+
+        /**
+         * Paywall dialog: manages parental gate and unlock/restore actions.
+         * Only shown on native (non-web) builds when user hits letter selection cap.
+         */
+        let paywallGatePassed = false;
+        let paywallCurrentA = 0;
+        let paywallCurrentB = 0;
+        let paywallCorrectAnswer = 0;
+
+        function generateArithmeticQuestion() {
+            // Simple addition: a + b where both are single digits
+            paywallCurrentA = Math.floor(Math.random() * 10);
+            paywallCurrentB = Math.floor(Math.random() * 10);
+            paywallCorrectAnswer = paywallCurrentA + paywallCurrentB;
+            paywallGatePassed = false;
+            return { a: paywallCurrentA, b: paywallCurrentB };
+        }
+
+        function resetPaywallGate() {
+            const input = byId('paywall-gate-input');
+            input.value = '';
+            input.disabled = false;
+            byId('paywall-gate-message').textContent = '';
+            byId('paywall-gate-message').className = 'paywall-gate-message';
+            byId('paywall-error-message').textContent = '';
+            const { a, b } = generateArithmeticQuestion();
+            const label = tr('dialog.paywall.gate.question');
+            byId('paywall-gate-label').textContent = label.replace('{a}', a).replace('{b}', b);
+            byId('paywall-unlock').disabled = true;
+            byId('paywall-restore').disabled = true;
+            byId('paywall-close').disabled = false;
+        }
+
+        function showPaywallDialog() {
+            // Only show on native (non-web) builds; web always has unlocked adapter
+            if (window.__entitlement.kind !== 'native') {
+                return;
+            }
+            resetPaywallGate();
+            const dlg = byId('paywall-dialog');
+            dlg.showModal();
+            byId('paywall-gate-input').focus({ preventScroll: true });
+        }
+
+        byId('paywall-gate-input').addEventListener('input', () => {
+            const input = byId('paywall-gate-input');
+            const messageEl = byId('paywall-gate-message');
+            
+            if (input.value.trim() === '') {
+                messageEl.textContent = '';
+                messageEl.className = 'paywall-gate-message';
+                byId('paywall-unlock').disabled = true;
+                byId('paywall-restore').disabled = true;
+                paywallGatePassed = false;
+                return;
+            }
+            
+            const userAnswer = parseInt(input.value, 10);
+            if (isNaN(userAnswer)) {
+                messageEl.textContent = '';
+                messageEl.className = 'paywall-gate-message';
+                byId('paywall-unlock').disabled = true;
+                byId('paywall-restore').disabled = true;
+                paywallGatePassed = false;
+                return;
+            }
+            
+            if (userAnswer === paywallCorrectAnswer) {
+                // Correct answer - enable purchase and restore buttons
+                const successMsg = tr('dialog.paywall.gate.success');
+                messageEl.textContent = successMsg;
+                messageEl.className = 'paywall-gate-message success';
+                byId('paywall-unlock').disabled = false;
+                byId('paywall-restore').disabled = false;
+                byId('paywall-unlock').focus({ preventScroll: true });
+                paywallGatePassed = true;
+            } else {
+                // Wrong answer - show calm error message
+                const errorMsg = tr('dialog.paywall.gate.error');
+                messageEl.textContent = errorMsg;
+                messageEl.className = 'paywall-gate-message error';
+                byId('paywall-unlock').disabled = true;
+                byId('paywall-restore').disabled = true;
+                paywallGatePassed = false;
+            }
+        });
+
+        byId('paywall-close').addEventListener('click', () => {
+            byId('paywall-dialog').close();
+            paywallGatePassed = false;
+            byId('paywall-error-message').textContent = '';
+        });
+
+        byId('paywall-restore').addEventListener('click', async () => {
+            if (!paywallGatePassed) {
+                return;
+            }
+            byId('paywall-restore').disabled = true;
+            byId('paywall-error-message').textContent = '';
+            try {
+                await window.__entitlement.restore();
+                // After restore, close the dialog
+                byId('paywall-dialog').close();
+            } catch (e) {
+                console.error('Restore failed:', e);
+                const errorMsg = tr('dialog.paywall.error');
+                byId('paywall-error-message').textContent = errorMsg;
+            } finally {
+                if (paywallGatePassed) {
+                    byId('paywall-restore').disabled = false;
+                }
+            }
+        });
+
+        byId('paywall-unlock').addEventListener('click', async () => {
+            if (!paywallGatePassed) {
+                return;
+            }
+            byId('paywall-unlock').disabled = true;
+            byId('paywall-restore').disabled = true;
+            byId('paywall-close').disabled = true;
+            byId('paywall-error-message').textContent = '';
+            try {
+                await window.__entitlement.purchase();
+                // After purchase, close the dialog
+                byId('paywall-dialog').close();
+            } catch (e) {
+                console.error('Purchase failed:', e);
+                const errorMsg = tr('dialog.paywall.error');
+                byId('paywall-error-message').textContent = errorMsg;
+            } finally {
+                byId('paywall-unlock').disabled = false;
+                byId('paywall-restore').disabled = false;
+                byId('paywall-close').disabled = false;
+            }
+        });
     </script>
 </body>
 

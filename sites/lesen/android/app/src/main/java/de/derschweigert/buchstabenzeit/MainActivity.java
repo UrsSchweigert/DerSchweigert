@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(OfflineTtsPlugin.class);
+    registerPlugin(EntitlementPlugin.class);
     super.onCreate(savedInstanceState);
   }
 }

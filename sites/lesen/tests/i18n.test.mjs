@@ -16,6 +16,35 @@ test("i18n: every key present in 'de' has a corresponding 'en' entry", () => {
   );
 });
 
+test("i18n: paywall: every dialog.paywall.* key present in de and en", () => {
+  const dePaywallKeys = Object.keys(DE).filter(k => k.startsWith('dialog.paywall.'));
+  const enPaywallKeys = Object.keys(EN).filter(k => k.startsWith('dialog.paywall.'));
+  
+  // Check that both have the same paywall keys
+  const deOnly = dePaywallKeys.filter(k => !enPaywallKeys.includes(k));
+  const enOnly = enPaywallKeys.filter(k => !dePaywallKeys.includes(k));
+  
+  assert.deepStrictEqual(
+    deOnly,
+    [],
+    `the following paywall keys exist in German but not in English: ${deOnly.join(", ")}`,
+  );
+  
+  assert.deepStrictEqual(
+    enOnly,
+    [],
+    `the following paywall keys exist in English but not in German: ${enOnly.join(", ")}`,
+  );
+  
+  // Verify all keys have non-empty translations
+  for (const key of dePaywallKeys) {
+    const deTrans = t("de", key);
+    const enTrans = t("en", key);
+    assert.ok(deTrans.length > 0, `${key} German translation should not be empty`);
+    assert.ok(enTrans.length > 0, `${key} English translation should not be empty`);
+  }
+});
+
 test("i18n: t() returns the translated string for a valid German key", () => {
   assert.strictEqual(t("de", "setup.title"), "Lesen lernen, Karte für Karte.");
   assert.strictEqual(t("de", "practice.title"), "Deine Lesekarten");

@@ -82,6 +82,18 @@ const DE = {
   'dialog.confirm_end.cancel': 'Weiter üben',
   'dialog.confirm_end.confirm': 'Beenden',
   
+  // Paywall dialog
+  'dialog.paywall.title': 'Alle Buchstaben freischalten',
+  'dialog.paywall.intro': 'Du hast die maximale Anzahl von Buchstaben in der kostenlosen Version erreicht.',
+  'dialog.paywall.cta': 'Schließe dein Leseerlebnis auf mit einem einmaligen Kauf.',
+  'dialog.paywall.gate.question': 'Sicherheitsabfrage für Erwachsene: Wie viel ist {a} + {b}?',
+  'dialog.paywall.gate.error': 'Das ist nicht korrekt. Versuche es erneut.',
+  'dialog.paywall.gate.success': 'Richtig! Hier sind deine Optionen:',
+  'dialog.paywall.error': 'Das hat gerade nicht geklappt. Du kannst es später noch einmal versuchen.',
+  'dialog.paywall.unlock_button': 'Freischalten',
+  'dialog.paywall.restore_button': 'Kauf wiederherstellen',
+  'dialog.paywall.close': 'Abbrechen',
+  
   // About dialog
   'dialog.about.title': 'Über Buchstabenzeit',
   'dialog.about.version': 'Version 1.0',
@@ -206,6 +218,18 @@ const EN = {
   'dialog.confirm_end.text': 'Do you want to end the current practice and return to the selection?',
   'dialog.confirm_end.cancel': 'Continue practicing',
   'dialog.confirm_end.confirm': 'End',
+  
+  // Paywall dialog
+  'dialog.paywall.title': 'Unlock all letters',
+  'dialog.paywall.intro': 'You\'ve reached the maximum number of letters in the free version.',
+  'dialog.paywall.cta': 'Unlock your reading experience with a one-time purchase.',
+  'dialog.paywall.gate.question': 'Parent verification: What is {a} + {b}?',
+  'dialog.paywall.gate.error': 'That\'s not correct. Try again.',
+  'dialog.paywall.gate.success': 'Correct! Here are your options:',
+  'dialog.paywall.error': 'Something didn\'t work just now. You can try again later.',
+  'dialog.paywall.unlock_button': 'Unlock',
+  'dialog.paywall.restore_button': 'Restore purchase',
+  'dialog.paywall.close': 'Cancel',
   
   // About dialog
   'dialog.about.title': 'About Letter time',
