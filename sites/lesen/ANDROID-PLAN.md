@@ -1,4 +1,4 @@
-# Buchstabenzeit: self-contained paid Android release plan
+# Buchstabenzeit: self-contained Android release plan (free download, one-time unlock)
 
 Updated: 2026-10-22
 
@@ -10,8 +10,9 @@ No Android application or custom agent configuration has been created yet.
 Maintain one shared learning application for two release channels:
 
 - Website: continue improving and deploying `lesen.derschweigert.de`.
-- Android: periodically publish a tested snapshot as a one-time paid download
-  through Google Play.
+- Android: periodically publish a tested snapshot as a free download through
+  Google Play, with a one-time in-app purchase that unlocks all letters
+  (see section 6).
 
 The app is an adult-led reading activity: an adult selects exercises, supervises
 the child reading, and marks answers. Read-aloud is optional assistance, not a
@@ -174,7 +175,7 @@ every installed service is guaranteed never to communicate externally.
 
 - Run focused shared-logic tests and Android integration checks.
 - Test a real device and emulator coverage for supported Android versions.
-- Set up paid distribution and merchant details.
+- Set up the in-app purchase product and merchant details.
 - Prepare screenshots, description, support contact, privacy policy, audience
   declarations, content rating, and Data safety answers.
 - Describe the adult-led workflow honestly. Adult operation alone does not
@@ -208,12 +209,23 @@ every installed service is guaranteed never to communicate externally.
 | Packaged assets and licences | All required files present; no runtime website dependency |
 | Release reproduction | Documented revision and locked dependencies produce a valid bundle |
 
-## 6. Paid distribution and long-term independence
+## 6. Free download with one-time unlock (decision 2026-11-01, replaces paid model)
 
-- Charge once for installation; no subscription, in-app billing, purchase
-  backend, or online licence-verification service.
-- Set the package as paid before public free distribution. Google does not allow
-  converting the same previously free app package into a paid download.
+- The app has not been publicly released (closed testing only), so no buyer
+  needs grandfathering. Set the package to Free before release; free cannot be
+  converted back to paid.
+- One Google Play managed (non-consumable) product, `unlock_all_letters`, removes
+  the free-tier limit. No subscription, own purchase backend, or own licence server.
+- Free tier limits letter selection only: up to 5 consonants, 5 vowels and 1
+  special sound (from the active language's special list) per round of cards.
+  Words and sentences modes are not limited. There is no time-based trial.
+- Gating lives only in a platform-neutral `entitlement-adapter` in shared
+  `static/` code. The website always reports "unlocked". A test must fail if
+  gating logic appears outside the adapter, to keep web and app in parity.
+- Ownership comes from Play Billing's purchase query (works from cache offline).
+  Saved selections above the limit are trimmed on load, never deleted.
+- Families policy: the purchase prompt needs a parental gate and calm,
+  non-pushy wording; the paywall appears only when a limit is hit.
 - Be transparent that the website is available separately and that installed
   offline convenience is part of the app's value.
 - Store listing must distinguish offline exercises from conditional device
@@ -585,7 +597,7 @@ path, not merely a final approval gate or last resort.
 | B: shared integration | Shared learning logic and website regression checks pass |
 | C: Android polish | Back navigation, lifecycle, cancellation, and accessibility checks |
 | D: release workflow | Selected revision produces a valid, versioned Android bundle |
-| E: store preparation | Reviewed listing/declaration drafts and paid-distribution checklist |
+| E: store preparation | Reviewed listing/declaration drafts and free-download and in-app-purchase checklist |
 | F: handover/release | Update-install test, owner device verification, and explicit publication approval |
 
 Start implementation with Phase A only after resolving its setup decisions and
@@ -635,7 +647,7 @@ system. Creating these configuration files is a subsequent implementation step.
 
 ## 10. Decisions needed before implementation
 
-- Permanent Android package identifier and first-release price.
+- Permanent Android package identifier and one-time unlock product price.
 - Supported Android/device range.
 - Exact Opus/Sonnet/Haiku versions, runtime/provider, real rates or credit rules,
   and approved initial spending cap.
