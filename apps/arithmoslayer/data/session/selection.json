@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "targetAccuracy": 0.8,
+  "windowSize": 20,
+  "masteryThreshold": 0.75,
+  "weights": {"new": 0.4, "review": 0.4, "challenge": 0.2},
+  "interleaveOperations": true
+}
