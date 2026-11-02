@@ -12,7 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write   # needed to push the updated JSON back to main
+      contents: write       # push the refresh branch
+      pull-requests: write  # open the PR
 
     steps:
       - name: Checkout
@@ -32,14 +33,23 @@ jobs:
           DB_STADA_API_KEY: ${{ secrets.DB_STADA_API_KEY }}
         run: python sites/landhauscheck/scripts/refresh_stations.py
 
-      - name: Commit if changed
+      - name: Open pull request if changed
+        env:
+          GH_TOKEN: ${{ secrets.STATIONS_PR_TOKEN || github.token }}
         run: |
+          if git diff --quiet -- sites/landhauscheck/app/data/db_stations.json; then
+            echo "No changes to station data."
+            exit 0
+          fi
+          BRANCH="chore/refresh-stations-$(date -u +%Y-%m-%d)"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
           git add sites/landhauscheck/app/data/db_stations.json
-          if git diff --cached --quiet; then
-            echo "No changes to station data."
-          else
-            git commit -m "chore: refresh DB station snapshot ($(date -u +%Y-%m-%d))"
-            git push
-          fi
+          git commit -m "chore: refresh DB station snapshot ($(date -u +%Y-%m-%d))"
+          git push --force origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore: refresh DB station snapshot ($(date -u +%Y-%m-%d))" \
+            --body "Automated monthly refresh of db_stations.json." \
+            || echo "PR already exists."
+          gh pr merge "$BRANCH" --auto --squash || echo "Auto-merge not enabled; merge manually."
