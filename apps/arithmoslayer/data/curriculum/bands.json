@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "islands": [
+    {"id": "grade-1", "name": "Sunny Shore", "grade": 1},
+    {"id": "grade-2", "name": "Ten Grove", "grade": 2},
+    {"id": "grade-3", "name": "Hundred Hills", "grade": 3},
+    {"id": "grade-4", "name": "Thousand Peaks", "grade": 4}
+  ],
+  "bands": [
+    {
+      "id": "g1-within-10", "grade": 1, "island": "grade-1",
+      "operations": {"addition": {"a": {"min": 1, "max": 5}, "b": {"min": 1, "max": 5}}, "subtraction": {"a": {"min": 1, "max": 10}, "b": {"min": 1, "max": 5}}},
+      "maxResult": 10, "answerFormat": "multiple_choice", "prerequisites": [],
+      "noNegativeResults": true
+    },
+    {
+      "id": "g1-within-20-no-carry", "grade": 1, "island": "grade-1",
+      "operations": {"addition": {"a": {"min": 10, "max": 18}, "b": {"min": 1, "max": 9}}, "subtraction": {"a": {"min": 10, "max": 19}, "b": {"min": 1, "max": 9}}},
+      "maxResult": 20, "answerFormat": "multiple_choice", "prerequisites": ["g1-within-10"],
+      "noNegativeResults": true, "crossesTens": false
+    },
+    {
+      "id": "g1-within-20-carry", "grade": 1, "island": "grade-1",
+      "operations": {"addition": {"a": {"min": 2, "max": 9}, "b": {"min": 2, "max": 9}}, "subtraction": {"a": {"min": 11, "max": 19}, "b": {"min": 2, "max": 9}}},
+      "maxResult": 20, "answerFormat": "multiple_choice", "prerequisites": ["g1-within-20-no-carry"],
+      "noNegativeResults": true, "crossesTens": true
+    },
+    {
+      "id": "g2-within-100-no-carry", "grade": 2, "island": "grade-2",
+      "operations": {"addition": {"a": {"min": 10, "max": 99}, "b": {"min": 10, "max": 99}}, "subtraction": {"a": {"min": 10, "max": 99}, "b": {"min": 10, "max": 99}}},
+      "maxResult": 100, "answerFormat": "numeric", "prerequisites": ["g1-within-20-carry"],
+      "noNegativeResults": true, "crossesTens": false
+    },
+    {
+      "id": "g2-within-100-carry", "grade": 2, "island": "grade-2",
+      "operations": {"addition": {"a": {"min": 10, "max": 99}, "b": {"min": 10, "max": 99}}, "subtraction": {"a": {"min": 10, "max": 99}, "b": {"min": 10, "max": 99}}},
+      "maxResult": 100, "answerFormat": "numeric", "prerequisites": ["g2-within-100-no-carry"],
+      "noNegativeResults": true, "crossesTens": true
+    },
+    {
+      "id": "g2-tables-2-5-10", "grade": 2, "island": "grade-2",
+      "operations": {"multiplication": {"a": {"values": [2, 5, 10]}, "b": {"min": 1, "max": 10}}},
+      "maxResult": 100, "answerFormat": "numeric", "prerequisites": ["g2-within-100-no-carry"]
+    },
+    {
+      "id": "g2-tables-3-4-division", "grade": 2, "island": "grade-2",
+      "operations": {"multiplication": {"a": {"values": [3, 4]}, "b": {"min": 1, "max": 10}}, "division": {"a": {"min": 3, "max": 40}, "b": {"values": [3, 4]}}},
+      "maxResult": 40, "answerFormat": "numeric", "prerequisites": ["g2-tables-2-5-10"],
+      "exactDivision": true
+    },
+    {
+      "id": "g3-within-1000", "grade": 3, "island": "grade-3",
+      "operations": {"addition": {"a": {"min": 10, "max": 990}, "b": {"min": 10, "max": 990}}, "subtraction": {"a": {"min": 10, "max": 999}, "b": {"min": 10, "max": 990}}},
+      "maxResult": 1000, "answerFormat": "numeric", "prerequisites": ["g2-within-100-carry"],
+      "noNegativeResults": true
+    },
+    {
+      "id": "g3-tables-to-10", "grade": 3, "island": "grade-3",
+      "operations": {"multiplication": {"a": {"min": 2, "max": 10}, "b": {"min": 1, "max": 10}}},
+      "maxResult": 100, "answerFormat": "numeric", "prerequisites": ["g2-tables-3-4-division"]
+    },
+    {
+      "id": "g3-division-facts", "grade": 3, "island": "grade-3",
+      "operations": {"division": {"a": {"min": 2, "max": 100}, "b": {"min": 2, "max": 10}}},
+      "maxResult": 10, "answerFormat": "numeric", "prerequisites": ["g3-tables-to-10"],
+      "exactDivision": true
+    },
+    {
+      "id": "g3-multiples-of-ten", "grade": 3, "island": "grade-3",
+      "operations": {"multiplication": {"a": {"min": 2, "max": 10}, "b": {"values": [10, 20, 30, 40, 50, 60, 70, 80, 90]}}},
+      "maxResult": 900, "answerFormat": "numeric", "prerequisites": ["g3-tables-to-10"]
+    },
+    {
+      "id": "g4-within-10000", "grade": 4, "island": "grade-4",
+      "operations": {"addition": {"a": {"min": 100, "max": 9000}, "b": {"min": 100, "max": 990}}, "subtraction": {"a": {"min": 100, "max": 9999}, "b": {"min": 100, "max": 990}}},
+      "maxResult": 10000, "answerFormat": "numeric", "prerequisites": ["g3-within-1000"],
+      "noNegativeResults": true
+    },
+    {
+      "id": "g4-two-digit-by-one-digit", "grade": 4, "island": "grade-4",
+      "operations": {"multiplication": {"a": {"min": 10, "max": 99}, "b": {"min": 2, "max": 9}}},
+      "maxResult": 891, "answerFormat": "numeric", "prerequisites": ["g3-multiples-of-ten"]
+    },
+    {
+      "id": "g4-three-digit-by-one-digit-division", "grade": 4, "island": "grade-4",
+      "operations": {"division": {"a": {"min": 100, "max": 999}, "b": {"min": 2, "max": 9}}},
+      "maxResult": 499, "answerFormat": "numeric", "prerequisites": ["g3-division-facts", "g4-two-digit-by-one-digit"],
+      "exactDivision": true
+    },
+    {
+      "id": "g4-mixed-review", "grade": 4, "island": "grade-4",
+      "operations": {"addition": {"a": {"min": 100, "max": 9000}, "b": {"min": 100, "max": 990}}, "subtraction": {"a": {"min": 100, "max": 9999}, "b": {"min": 100, "max": 990}}, "multiplication": {"a": {"min": 10, "max": 99}, "b": {"min": 2, "max": 9}}, "division": {"a": {"min": 100, "max": 999}, "b": {"min": 2, "max": 9}}},
+      "maxResult": 10000, "answerFormat": "numeric", "prerequisites": ["g4-within-10000", "g4-two-digit-by-one-digit", "g4-three-digit-by-one-digit-division"],
+      "noNegativeResults": true, "exactDivision": true
+    }
+  ]
+}
