@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "movement": {
+    "maxSpeed": 220.0,
+    "acceleration": 1600.0,
+    "deceleration": 2000.0,
+    "radius": 14.0
+  },
+  "camera": {
+    "smoothingSpeed": 6.0,
+    "zoom": 1.0
+  }
+}

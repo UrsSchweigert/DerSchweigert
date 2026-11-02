@@ -1,0 +1,36 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/arena.gd" id="1_arena"]
+[ext_resource type="Script" path="res://scripts/combat/player_movement.gd" id="2_player"]
+[ext_resource type="Script" path="res://scripts/combat/follow_camera.gd" id="3_camera"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_player"]
+radius = 14.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pillar"]
+size = Vector2(96, 96)
+
+[node name="Arena" type="Node2D"]
+script = ExtResource("1_arena")
+room_size = Vector2(1600, 900)
+
+[node name="Floor" type="TileMapLayer" parent="."]
+
+[node name="Pillar" type="StaticBody2D" parent="."]
+position = Vector2(1100, 450)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Pillar"]
+shape = SubResource("RectangleShape2D_pillar")
+
+[node name="Player" type="CharacterBody2D" parent="."]
+position = Vector2(800, 450)
+motion_mode = 1
+script = ExtResource("2_player")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+shape = SubResource("CircleShape2D_player")
+
+[node name="Camera" type="Camera2D" parent="."]
+script = ExtResource("3_camera")
+target = NodePath("../Player")
+room_size = Vector2(1600, 900)
