@@ -11,19 +11,19 @@
       "id": "g1-within-10", "grade": 1, "island": "grade-1",
       "operations": {"addition": {"a": {"min": 1, "max": 5}, "b": {"min": 1, "max": 5}}, "subtraction": {"a": {"min": 1, "max": 10}, "b": {"min": 1, "max": 5}}},
       "maxResult": 10, "answerFormat": "multiple_choice", "prerequisites": [],
-      "noNegativeResults": true
+      "freeEntryMastery": 0.75, "noNegativeResults": true
     },
     {
       "id": "g1-within-20-no-carry", "grade": 1, "island": "grade-1",
       "operations": {"addition": {"a": {"min": 10, "max": 18}, "b": {"min": 1, "max": 9}}, "subtraction": {"a": {"min": 10, "max": 19}, "b": {"min": 1, "max": 9}}},
       "maxResult": 20, "answerFormat": "multiple_choice", "prerequisites": ["g1-within-10"],
-      "noNegativeResults": true, "crossesTens": false
+      "freeEntryMastery": 0.75, "noNegativeResults": true, "crossesTens": false
     },
     {
       "id": "g1-within-20-carry", "grade": 1, "island": "grade-1",
       "operations": {"addition": {"a": {"min": 2, "max": 9}, "b": {"min": 2, "max": 9}}, "subtraction": {"a": {"min": 11, "max": 19}, "b": {"min": 2, "max": 9}}},
       "maxResult": 20, "answerFormat": "multiple_choice", "prerequisites": ["g1-within-20-no-carry"],
-      "noNegativeResults": true, "crossesTens": true
+      "freeEntryMastery": 0.75, "noNegativeResults": true, "crossesTens": true
     },
     {
       "id": "g2-within-100-no-carry", "grade": 2, "island": "grade-2",
