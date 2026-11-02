@@ -17,7 +17,7 @@ sound units it needs. No text is written, fetched or imported by a worker.
 | **2.1** | **Sentence card mode** | P2 | The Karten tab offers sentence cards drawn from the pool, filtered to sentences the current selection can read. |
 | **2.2** | **Sentence progress** | P2 | Attempts on sentence cards are stored, counted and survive a reload like word cards do. |
 | **3.1** | **Sentence decks** | P3 | A sentence-only deck and a mixed deck that interleaves word and sentence cards. |
-| **3.2** | **Sentence flops** | P3 | Flop decks include sentence cards under the existing worst-10 % rule. |
+| **3.2** | **Sentence flops** | P3 | Flop decks include sentence cards and contain every weak card (no cap). |
 | **4.1** | **Remove the book pipeline** | P4 | The EPUB importer, the licence gate and the committed book sources are deleted; nothing else depends on them. |
 | **5.1** | **Both languages and accessibility** | P5 | Every new string exists in German and English and the new mode is operable with keyboard and screen reader. |
 | **5.2** | **Regression guard** | P5 | The existing modes, word lists and statistics behave exactly as before. |
