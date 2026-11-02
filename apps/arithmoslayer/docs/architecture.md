@@ -15,7 +15,7 @@ never imports from it, never links to it, and never mentions its path.
 | `assets/` | Reserved for art, audio, and font sources; created with the first asset. |
 | `test/` | GUT tests. `test/unit/` holds unit tests and `test/fixtures/` holds shared fixtures. |
 | `docs/` | Architecture, installation, testing, and Android release notes (`docs/android.md`). |
-| `tools/` | Python guard scripts (`validate_data.py`, `check_isolation.py`, `check_offline.py`) and later build helpers. |
+| `tools/` | Python guard scripts. `validate_data.py` is the single data-validation entry point and discovers the per-data-type modules under `tools/validate/`; `check_isolation.py` and `check_offline.py` guard the project boundary and network policy. |
 
 Every directory stays inside `apps/arithmoslayer/`. Changes elsewhere in the
 repository are rejected by `tools/check_isolation.py`.
