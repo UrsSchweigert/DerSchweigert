@@ -187,6 +187,32 @@ so large bands stay bounded. `test/integration/visual_models/test_visual_models.
 instantiates the scene headlessly for every model type and asserts node counts
 and labels.
 
+## Mastery and selection
+
+`data/mastery/intervals.json` names the spaced-review ladder
+(`intervals`), the slow-answer threshold (`slowThresholdMs`), and the EMA
+learning rate (`learningRate`). `data/session/selection.json` names the
+selector's target first-attempt accuracy (`targetAccuracy`), the size of the
+recent-accuracy window (`windowSize`), the mastery threshold that unlocks a
+prerequisite (`masteryThreshold`), the new/review/challenge mix (`weights`), and
+whether operations are interleaved (`interleaveOperations`).
+
+`scripts/core/mastery/mastery_model.gd` is `MasteryModel`, plain `RefCounted`
+logic that keeps per-band accuracy, fluency, rewards, stage, and due-in. A
+correct answer raises accuracy and rewards and advances the review stage; a
+slow correct answer still raises both but lowers fluency. A wrong answer lowers
+accuracy and resets the stage so the band is due for review. `mastery_for()`
+weights accuracy over fluency.
+
+`scripts/core/session/selector.gd` is `Selector`, which holds an injected `Rng`,
+`ProblemGenerator`, `MasteryModel`, the band list, and the selection config.
+`unlocked_band_ids()` returns bands whose prerequisites are mastered,
+`recent_accuracy()` reports the fraction correct over the last window,
+`record_result()` feeds that window, and `select()` returns
+`{problem, band, category}` after mixing new, review, and challenge bands and
+nudging the challenge share toward the target accuracy. The same profile and
+seed replay the same sequence.
+
 ## Validation
 
 `tools/validate_data.py` discovers `tools/validate/curriculum.py`, which
@@ -197,8 +223,13 @@ grade does not match the band, a subtraction band without `noNegativeResults`,
 a division band without `exactDivision`, and a `freeEntryMastery` outside
 (0, 1]. `tools/validate/feedback.py` rejects a feedback document with the wrong
 version, stages out of order, an unknown operation, a missing or empty model
-list, and an unknown or duplicate model id. Every error names the file, line,
-and field.
+list, and an unknown or duplicate model id. `tools/validate/mastery.py` rejects
+a mastery document with the wrong version, an empty or non-ascending interval
+ladder, a non-positive slow threshold, or a learning rate outside (0, 1], and
+`tools/validate/selection.py` rejects a selection document with the wrong
+version, a target accuracy or mastery threshold outside (0, 1], a non-positive
+window, a non-boolean interleave flag, or missing or negative category weights.
+Every error names the file, line, and field.
 
 ```sh
 cd apps/arithmoslayer
