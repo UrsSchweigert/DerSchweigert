@@ -74,6 +74,35 @@ draw is ordered so `a >= b`, and a division draw picks a quotient and derives
 | 4 | `g4-three-digit-by-one-digit-division` | Exact three-digit by one-digit division | `÷` `a` 100–999, `b` 2–9 | 499 | `numeric` | `g3-division-facts`, `g4-two-digit-by-one-digit` |
 | 4 | `g4-mixed-review` | Mixed review of all four operations | `+` `a` 100–9000, `-` `a` 100–9999, `b` 100–990; `×` `a` 10–99, `b` 2–9; `÷` `a` 100–999, `b` 2–9 | 10000 | `numeric` | `g4-within-10000`, `g4-two-digit-by-one-digit`, `g4-three-digit-by-one-digit-division` |
 
+## Problem generation
+
+`scripts/core/math/problem_generator.gd` turns a band into one practice
+problem. It is plain `RefCounted` logic with no scene tree access, and it draws
+from an injected `Rng`, so the same band and seed always produce the same
+problem.
+
+```gdscript
+var generator := ProblemGenerator.new(Rng.new(seed))
+var problem := generator.generate(band)  # {operation, a, b, answer}
+```
+
+`generate()` picks one of the band's declared operations and then applies the
+band's rules while it draws:
+
+| Operation | Rule |
+| --- | --- |
+| `addition` | `a` and `b` come from their pools, `a + b <= maxResult`, and the ones digits carry exactly when `crossesTens` is true. |
+| `subtraction` | `a >= b` and `a - b <= maxResult`, so the answer is never negative, and the ones digits borrow exactly when `crossesTens` is true. |
+| `multiplication` | `a` and `b` come from their pools and `a * b <= maxResult`. |
+| `division` | `b` is drawn first, then a quotient `q` with `a = q * b` inside the dividend pool and `q <= maxResult`, so the division is exact. |
+
+`crossesTens` applies to addition and subtraction only. A band whose rules
+cannot be satisfied yields an empty dictionary.
+
+`test/unit/math/test_problem_generator.gd` runs 10,000 seeds per band and
+asserts the operation, operand ranges, answer bounds, non-negative subtraction,
+exact division, and `crossesTens` rules, plus replay from the same seed.
+
 ## Validation
 
 `tools/validate_data.py` discovers `tools/validate/curriculum.py`, which
