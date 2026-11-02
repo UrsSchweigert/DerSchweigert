@@ -85,6 +85,20 @@ func confirm_hit() -> bool:
 	return true
 
 
+## Cancels the active step without completing the combo, used by a dodge roll.
+## Returns true when a step was interrupted.
+func cancel() -> bool:
+	if state != State.ACTIVE:
+		return false
+	state = State.IDLE
+	step_id = ""
+	frame = 0
+	hit_confirmed = false
+	_buffer.clear()
+	_accumulator = 0.0
+	return true
+
+
 ## Returns how many inputs are waiting in the buffer.
 func buffered_count() -> int:
 	return _buffer.size()

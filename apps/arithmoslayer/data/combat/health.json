@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "health": {
+    "maxHearts": 6,
+    "startingHearts": 6,
+    "hitInvulnerabilitySeconds": 0.8
+  },
+  "dodge": {
+    "cooldownSeconds": 0.9,
+    "durationSeconds": 0.35,
+    "invulnerabilityStartSeconds": 0.05,
+    "invulnerabilityEndSeconds": 0.3,
+    "speedMultiplier": 2.4
+  },
+  "respawn": {
+    "delaySeconds": 0.6,
+    "invulnerabilitySeconds": 1.5
+  }
+}
