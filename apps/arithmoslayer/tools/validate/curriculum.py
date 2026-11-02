@@ -5,8 +5,9 @@ Each band names the operations it drills, the operand ranges per operation, the
 largest allowed answer, the answer format, its prerequisites, and its island.
 This module checks the document shape, the operand ranges, the cross
 references, and the safety rules: a subtraction band declares that it never
-produces a negative result and a division band declares that its answers are
-exact. Every problem is reported with its file, line, and field.
+produces a negative result, a division band declares that its answers are
+exact, and an optional free-entry threshold is a number in (0, 1]. Every
+problem is reported with its file, line, and field.
 """
 
 from __future__ import annotations
@@ -271,6 +272,19 @@ def validate_bands(
                 f"'{band_id}' answerFormat must be 'numeric' or 'multiple_choice' "
                 f"but found {answer_format!r} (field 'answerFormat')"
             )
+
+        if "freeEntryMastery" in band:
+            threshold = band["freeEntryMastery"]
+            if (
+                isinstance(threshold, bool)
+                or not isinstance(threshold, (int, float))
+                or not 0 < threshold <= 1
+            ):
+                errors.append(
+                    f"{location}:{band_line(text, band_id, 'freeEntryMastery')}: band "
+                    f"'{band_id}' freeEntryMastery must be a number in (0, 1] but "
+                    f"found {threshold!r} (field 'freeEntryMastery')"
+                )
 
         prerequisites = band.get("prerequisites")
         if "prerequisites" in band:

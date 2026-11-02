@@ -112,6 +112,17 @@ func test_rejects_division_without_the_exact_rule() -> void:
 	_assert_rejected("inexact_division", band, "exactDivision")
 
 
+func test_rejects_an_invalid_free_entry_threshold() -> void:
+	for invalid: Variant in [0, 1.5, true]:
+		var band: Dictionary = _band()
+		band["freeEntryMastery"] = invalid
+		_assert_rejected(
+			"invalid_free_entry_%s" % str(invalid),
+			band,
+			"freeEntryMastery must be a number in (0, 1]",
+		)
+
+
 func _assert_rejected(label: String, band: Dictionary, expected: String) -> void:
 	var result: Dictionary = _run_validate(_make_project(label, band))
 	assert_ne(int(result["exit_code"]), 0, "%s must fail validation" % label)

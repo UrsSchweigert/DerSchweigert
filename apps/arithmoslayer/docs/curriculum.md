@@ -40,6 +40,7 @@ draw is ordered so `a >= b`, and a division draw picks a quotient and derives
 | `operations` | Non-empty object keyed by `addition`, `subtraction`, `multiplication`, or `division`. Each value holds the `a` and `b` ranges for that operation. |
 | `maxResult` | Largest allowed answer. A generator rejects candidates above it. |
 | `answerFormat` | How the answer is entered: `numeric` or `multiple_choice`. |
+| `freeEntryMastery` | Optional number in (0, 1]. Mastery at which a `multiple_choice` band switches from orbs to free numeric entry. Defaults to 0.75 when absent. |
 | `prerequisites` | Earlier band ids that should be mastered first. Empty for the entry band. |
 | `noNegativeResults` | Required `true` on every band with subtraction, so `a >= b` and the answer is never negative. |
 | `exactDivision` | Required `true` on every band with division, so `a` is a multiple of `b` and the quotient is exact. |
@@ -103,6 +104,56 @@ cannot be satisfied yields an empty dictionary.
 asserts the operation, operand ranges, answer bounds, non-negative subtraction,
 exact division, and `crossesTens` rules, plus replay from the same seed.
 
+## Distractors
+
+`scripts/core/math/distractors.gd` turns one generated problem into up to three
+plausible wrong answers. It is plain `RefCounted` logic with an injected `Rng`,
+and every distractor names the error model that produced it.
+
+```gdscript
+var builder := Distractors.new(Rng.new(seed))
+var distractors := builder.generate(problem)  # [{value, model}, ...]
+```
+
+| Error model | Candidate |
+| --- | --- |
+| `off_by_one` | The answer plus or minus one. |
+| `off_by_ten` | The answer plus or minus ten, so a place value is wrong. |
+| `wrong_operation` | The other operation on the same operands, such as `a + b` for subtraction. |
+| `missed_carry_or_borrow` | The answer minus ten when an addition carries, or plus ten when a subtraction borrows. |
+| `neighboring_table_fact` | A neighbouring factor product, such as `(a + 1) * b`, or the neighbouring division fact. |
+| `transposed_digits` | The answer with two adjacent digits swapped. |
+
+A candidate that is negative, equals the answer, or repeats an earlier
+distractor is skipped. The models rotate from a seed-dependent start, so each
+applicable model gets a turn. A problem with too few usable candidates yields
+fewer than three distractors.
+
+`test/unit/math/test_distractors.gd` runs 10,000 seeds per band and asserts
+non-negative values, distinctness from the answer and each other, known model
+tags, and coverage of every applicable error model.
+
+## Answer modes
+
+`scripts/core/math/answer_mode.gd` decides how an answer is entered. A numeric
+band always uses free entry. A `multiple_choice` band shows orbs until the
+learner's mastery reaches the band's `freeEntryMastery`, then switches to free
+entry, so the mode is data-defined and shifts with mastery.
+
+```gdscript
+var mode := AnswerMode.new()
+var resolved := mode.resolve(band, mastery, distractors.size())  # {kind, orbs}
+```
+
+`kind` is `orbs` or `numeric`, and `orbs` counts the answer plus the
+distractors clamped to two to four choices. `AnswerMode.NumericEntry` is the
+pure input model for free entry: it accepts up to five decimal digits, rejects
+non-numeric text, and supports `delete()` and `confirm()`. `confirm()` returns
+`-1` while the entry is empty.
+
+`test/unit/math/test_answer_mode.gd` covers the two-to-four orb clamp, the
+band-defined mode, the mastery threshold, and the entry rules.
+
 ## Validation
 
 `tools/validate_data.py` discovers `tools/validate/curriculum.py`, which
@@ -110,8 +161,8 @@ rejects malformed JSON, a missing required field, an unknown operation, an
 empty or inverted operand range, a division range that includes zero, an
 unknown or self-referencing prerequisite, an unknown island, an island whose
 grade does not match the band, a subtraction band without `noNegativeResults`,
-and a division band without `exactDivision`. Every error names the file, line,
-and field.
+a division band without `exactDivision`, and a `freeEntryMastery` outside
+(0, 1]. Every error names the file, line, and field.
 
 ```sh
 cd apps/arithmoslayer
