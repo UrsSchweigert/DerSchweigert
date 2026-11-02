@@ -154,6 +154,39 @@ non-numeric text, and supports `delete()` and `confirm()`. `confirm()` returns
 `test/unit/math/test_answer_mode.gd` covers the two-to-four orb clamp, the
 band-defined mode, the mastery threshold, and the entry rules.
 
+## Feedback and hints
+
+`data/session/feedback.json` defines the gentle hint ladder. `stages` orders
+the three rungs (`visual_model`, then `decomposition`, then `answer`), and
+`visualModels` names the visual models each operation prefers.
+
+`scripts/core/session/hint_ladder.gd` serves those rungs for one problem.
+`wrong()` advances one rung and never moves backwards, `correct()` resets the
+ladder for the next problem, and `rung_for()` returns the current hint without
+advancing. The first rung names a visual model, the second returns worked
+`steps`, and the third returns the `answer` plus a `replay` of the problem.
+
+```gdscript
+var ladder := HintLadder.new()          # loads feedback.json
+var hint := ladder.wrong(problem)       # {stage: "visual_model", model: "dot_array"}
+ladder.wrong(problem)                   # {stage: "decomposition", steps: [...]}
+ladder.wrong(problem)                   # {stage: "answer", answer: 8, replay: true, ...}
+ladder.correct()                        # resets for the next problem
+```
+
+`scripts/core/session/session_queue.gd` is the session's FIFO of problems.
+`requeue()` appends a missed problem to the end, so a wrong answer returns
+later in the same session instead of repeating immediately.
+
+`scripts/ui/visual_models/visual_models.gd` (scene
+`scenes/ui/visual_models/visual_models.tscn`) renders one problem as any of the
+four models: `dot_array`, `ten_frame`, `number_line`, and `equal_groups`.
+`build(problem, model_type)` clears `ModelRoot` and rebuilds deterministic
+labelled nodes from the problem data, capping dots, frames, ticks, and groups
+so large bands stay bounded. `test/integration/visual_models/test_visual_models.gd`
+instantiates the scene headlessly for every model type and asserts node counts
+and labels.
+
 ## Validation
 
 `tools/validate_data.py` discovers `tools/validate/curriculum.py`, which
@@ -162,7 +195,10 @@ empty or inverted operand range, a division range that includes zero, an
 unknown or self-referencing prerequisite, an unknown island, an island whose
 grade does not match the band, a subtraction band without `noNegativeResults`,
 a division band without `exactDivision`, and a `freeEntryMastery` outside
-(0, 1]. Every error names the file, line, and field.
+(0, 1]. `tools/validate/feedback.py` rejects a feedback document with the wrong
+version, stages out of order, an unknown operation, a missing or empty model
+list, and an unknown or duplicate model id. Every error names the file, line,
+and field.
 
 ```sh
 cd apps/arithmoslayer
