@@ -1,0 +1,21 @@
+{
+  "version": 1, "id": "glaive", "inputBufferFrames": 6,
+  "steps": [
+    {"id": "cleave", "input": {"kind": "tap", "touches": 1}, "frames": {"startup": 6, "active": 4, "recovery": 10},
+     "hitbox": {"shape": "rectangle", "size": [56.0, 40.0]}, "impulse": [80.0, 0.0], "knockback": 140.0,
+     "cancel": {"startFrame": 6, "endFrame": 14, "into": ["spin"]}, "orb": "cone",
+     "effects": ["slash_arc"], "sounds": ["slash"], "finisher": false},
+    {"id": "spin", "input": {"kind": "hold", "holdFrames": 12, "touches": 1}, "frames": {"startup": 4, "active": 8, "recovery": 12},
+     "hitbox": {"shape": "circle", "size": [48.0, 48.0]}, "impulse": [20.0, 0.0], "knockback": 90.0,
+     "cancel": {"startFrame": 4, "endFrame": 12, "into": ["thrust"]}, "orb": "line",
+     "effects": ["spin_arc"], "sounds": ["whoosh"], "finisher": false},
+    {"id": "thrust", "input": {"kind": "swipe", "direction": "up", "touches": 1}, "frames": {"startup": 3, "active": 5, "recovery": 9},
+     "hitbox": {"shape": "line", "size": [64.0, 16.0]}, "impulse": [140.0, 0.0], "knockback": 120.0,
+     "cancel": {"startFrame": 3, "endFrame": 10, "into": ["slam"]}, "orb": "single",
+     "effects": ["thrust_line"], "sounds": ["thrust"], "finisher": false},
+    {"id": "slam", "input": {"kind": "rhythm", "rhythmBeats": 2, "touches": 2}, "frames": {"startup": 8, "active": 6, "recovery": 18},
+     "hitbox": {"shape": "circle", "size": [96.0, 96.0]}, "impulse": [0.0, 0.0], "knockback": 260.0,
+     "cancel": {"startFrame": 8, "endFrame": 12, "into": []}, "orb": "chain",
+     "effects": ["shockwave"], "sounds": ["slam"], "finisher": true}
+  ]
+}

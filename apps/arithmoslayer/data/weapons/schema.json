@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Arithmo Slayer weapon",
+  "description": "An ordered combo graph. Add a weapon by adding a file of this shape; no code changes.",
+  "type": "object", "additionalProperties": false,
+  "required": ["version", "id", "inputBufferFrames", "steps"],
+  "properties": {
+    "version": {"const": 1}, "id": {"type": "string", "minLength": 1},
+    "inputBufferFrames": {"type": "integer", "minimum": 1},
+    "steps": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/step"}}
+  },
+  "$defs": {
+    "pair": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+    "step": {"type": "object", "additionalProperties": false, "properties": {
+      "id": {"type": "string", "minLength": 1}, "input": {"$ref": "#/$defs/input"},
+      "frames": {"$ref": "#/$defs/frames"}, "hitbox": {"$ref": "#/$defs/hitbox"},
+      "impulse": {"$ref": "#/$defs/pair"}, "knockback": {"type": "number", "minimum": 0},
+      "cancel": {"$ref": "#/$defs/cancel"}, "orb": {"enum": ["single", "cone", "line", "chain"]},
+      "effects": {"type": "array", "items": {"type": "string"}},
+      "sounds": {"type": "array", "items": {"type": "string"}},
+      "finisher": {"type": "boolean"}},
+      "required": ["id", "input", "frames", "hitbox", "impulse", "knockback", "cancel", "orb", "effects", "sounds", "finisher"]},
+    "input": {"type": "object", "additionalProperties": false, "required": ["kind", "touches"], "properties": {
+      "kind": {"enum": ["tap", "hold", "charge", "swipe", "rhythm"]},
+      "direction": {"enum": ["up", "down", "left", "right"]},
+      "holdFrames": {"type": "integer", "minimum": 1},
+      "chargeFrames": {"type": "integer", "minimum": 1},
+      "rhythmBeats": {"type": "integer", "minimum": 1},
+      "touches": {"type": "integer", "minimum": 1, "maximum": 2}}},
+    "frames": {"type": "object", "additionalProperties": false, "required": ["startup", "active", "recovery"], "properties": {
+      "startup": {"type": "integer", "minimum": 0}, "active": {"type": "integer", "minimum": 1},
+      "recovery": {"type": "integer", "minimum": 0}}},
+    "hitbox": {"type": "object", "additionalProperties": false, "required": ["shape", "size"], "properties": {
+      "shape": {"enum": ["rectangle", "circle", "line"]}, "size": {"$ref": "#/$defs/pair"}}},
+    "cancel": {"type": "object", "additionalProperties": false, "required": ["startFrame", "endFrame", "into"], "properties": {
+      "startFrame": {"type": "integer", "minimum": 0}, "endFrame": {"type": "integer", "minimum": 1},
+      "into": {"type": "array", "items": {"type": "string"}}}}
+  }
+}
