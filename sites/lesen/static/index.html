@@ -424,19 +424,6 @@
             font-size: 20px;
         }
 
-        .word-length-control {
-            margin-top: 18px;
-        }
-
-        .word-length-control .number-label {
-            margin: 0 0 8px;
-        }
-
-        .word-length-control input {
-            max-width: 140px;
-            min-height: 52px;
-        }
-
         .setup-bottom {
             border-top: 1px solid #e7f0f6;
             margin-top: 28px;
@@ -1075,10 +1062,6 @@
                             <p id="words-mode-disabled-note" class="words-mode-note" hidden>Mind. 10 Wörter erforderlich</p>
                             <p id="flop-mode-disabled-note" class="words-mode-note" hidden>Noch kein passender Kartenverlauf vorhanden</p>
                         </fieldset>
-                        <div id="word-length-control" class="word-length-control" hidden>
-                            <label for="word-length" class="number-label" id="word-length-label">Maximale Wortlänge</label>
-                            <input id="word-length" type="number" min="2" max="8" step="1" value="4" required>
-                        </div>
                         <div id="card-count-control">
                             <label for="card-count" class="number-label" id="card-count-label">Anzahl der Karten</label>
                             <input id="card-count" type="number" min="1" max="200" step="1" value="10" required>
@@ -1309,7 +1292,6 @@
             byId('words-mode-disabled-note').textContent = tr('setup.warning.min_words');
             byId('flop-mode-disabled-note').textContent = tr('setup.warning.no_history');
 
-            byId('word-length-label').textContent = tr('setup.wordlength');
             byId('card-count-label').textContent = tr('setup.cardcount');
 
             byId('adult-note-summary').textContent = tr('setup.adult_note.summary');
@@ -1462,12 +1444,11 @@
             try {
                 const words = await wordPromises[currentLanguage];
                 const { countMatchingWords, isWordsModeEligible, getSoundsForLanguage } = window.__sounds;
-                const wordLength = Number(byId('word-length').value);
                 const allSpecials = getSoundsForLanguage(currentLanguage).specials;
                 const matchCount = countMatchingWords(
                     words,
                     { consonants: [...consonants], vowels: [...vowels], specials: [...specials] },
-                    wordLength,
+                    Infinity,
                     allSpecials,
                 );
                 byId('words-match-count').textContent = matchCount;
@@ -1697,7 +1678,6 @@
 
         function updatePatternControls() {
             const mode = selectedMode();
-            byId('word-length-control').hidden = mode !== 'WORDS';
             updateCardCountVisibility();
 
             // A pattern deck needs at least one sub-pattern; the word,
@@ -1728,13 +1708,12 @@
 
         /**
          * Word-list entries that the current selection reads in full and that
-         * fit the maximum length. The first spelling of a word wins, matching
+         * are in the list. The first spelling of a word wins, matching
          * the Words mode deck.
          * @param {string[]} words word list of the active language
-         * @param {number} maxLength maximum word length
          * @returns {string[]} readable words
          */
-        function readableWordList(words, maxLength) {
+        function readableWordList(words) {
             const { tokenizeWord, getSoundsForLanguage } = window.__sounds;
             const allowedUnits = new Set([...consonants, ...vowels, ...specials]);
             const hasXxSentinel = specials.has('xx');
@@ -1743,7 +1722,7 @@
             for (const word of words) {
                 const key = word.toLowerCase();
                 const units = tokenizeWord(key, allSpecials);
-                let eligible = units.length > 0 && key.length <= maxLength;
+                let eligible = units.length > 0;
                 if (eligible) {
                     for (const unit of units) {
                         const isDoubledLetter = unit.length === 2 && unit[0] === unit[1];
@@ -1768,8 +1747,6 @@
                 byId('setup-error').textContent = tr('setup.error.selection');
                 return;
             }
-            const wordLengthInput = byId('word-length');
-            if (mode === 'WORDS' && !wordLengthInput.reportValidity()) return;
             const subPatterns = mode === 'PATTERNS' ? selectedSubPatterns() : [];
             if (mode === 'PATTERNS' && subPatterns.length === 0) {
                 updatePatternControls();
@@ -1858,8 +1835,7 @@
             const selectedVowels = [...vowels, ...specials];
             if (!countInput.reportValidity()) return;
             const requestedTotal = Number(countInput.value);
-            const maxLength = Number(wordLengthInput.value);
-            const { buildCombinations, buildPatternDeck } = window.__sounds;
+            const { buildPatternDeck } = window.__sounds;
 
             // Words mode reads the word list that matches the selection.
             if (mode === 'WORDS') {
@@ -1879,29 +1855,20 @@
                     setStartLoading(false);
                 }
 
-                const combinations = buildCombinations('CVC', selectedConsonants, selectedVowels);
-                const eligibleWords = readableWordList(words, maxLength);
-                if (maxLength >= 4 && eligibleWords.length === 0) {
+                const eligibleWords = readableWordList(words);
+                if (eligibleWords.length === 0) {
                     byId('setup-error').textContent = tr('setup.error.no_words');
                     return;
                 }
 
                 const wordCards = [];
-                if (maxLength <= 3) {
-                    wordCards.push(...shuffle(eligibleWords).slice(0, requestedTotal).map(text => ({ text, kind: 'word', misses: 0 })));
-                } else {
-                    const shuffledWords = shuffle(eligibleWords);
-                    while (wordCards.length < requestedTotal) {
-                        wordCards.push(...shuffle(shuffledWords).slice(0, requestedTotal - wordCards.length)
-                            .map(text => ({ text, kind: 'word', misses: 0 })));
-                    }
+                const shuffledWords = shuffle(eligibleWords);
+                while (wordCards.length < requestedTotal) {
+                    wordCards.push(...shuffle(shuffledWords).slice(0, requestedTotal - wordCards.length)
+                        .map(text => ({ text, kind: 'word', misses: 0 })));
                 }
 
                 const patternCards = [];
-                while (maxLength <= 3 && wordCards.length + patternCards.length < requestedTotal) {
-                    const batchSize = Math.min(combinations.length, requestedTotal - wordCards.length - patternCards.length);
-                    patternCards.push(...shuffle(combinations).slice(0, batchSize));
-                }
                 const uppercaseFirst = Math.random() < 0.5;
                 const capitalizedPatterns = patternCards.map((text, index) => ({
                     text: (index % 2 === 0) === uppercaseFirst ? capitalizeFirst(text) : text,
@@ -2005,7 +1972,6 @@
         document.querySelectorAll('input[name="subpattern"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });
-        byId('word-length').addEventListener('change', updateWordMatchCount);
         window.addEventListener('resize', () => {
             if (queue.length) updateCardFontSize(queue[0].text, queue[0].kind === 'sentence' ? 22 : 0);
         });
