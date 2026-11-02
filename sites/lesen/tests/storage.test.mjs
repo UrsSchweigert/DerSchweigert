@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { createStorage, readLanguage, writeLanguage } from "../static/storage.mjs";
+import { createStorage, readLanguage, writeLanguage, readSelection, writeSelection } from "../static/storage.mjs";
 import { recordAttempt, selectFlopDeck, flopCandidateCards } from "../static/scoring.mjs";
 
 /** Minimal in-memory stand-in for localStorage. */
@@ -211,3 +211,14 @@ test("language: writeLanguage handles undefined store gracefully", () => {
   });
 });
 
+
+test("selection: round-trips per language and rejects corrupt data", () => {
+  const data = new Map();
+  const store = { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => data.set(k, v) };
+  assert.strictEqual(readSelection(store, "de"), null);
+  writeSelection(store, "de", { consonants: new Set(["b"]), vowels: ["i"], specials: [] });
+  assert.deepStrictEqual(readSelection(store, "de"), { consonants: ["b"], vowels: ["i"], specials: [] });
+  assert.strictEqual(readSelection(store, "en"), null);
+  data.set("buchstabenzeit:selection:en", "not json");
+  assert.strictEqual(readSelection(store, "en"), null);
+});

@@ -259,6 +259,20 @@
             white-space: nowrap;
         }
 
+        .letter {
+            position: relative;
+        }
+
+        .letter.best::after {
+            content: "\2605";
+            position: absolute;
+            top: 1px;
+            right: 3px;
+            font-size: 14px;
+            line-height: 1;
+            color: #f5a623;
+        }
+
         .letter:hover {
             border-color: var(--blue);
             transform: translateY(-2px);
@@ -1180,7 +1194,8 @@
     <!-- Must be a module: module scripts run in order after parsing, so window.__storage, __sounds and __scoring (set above) exist first. -->
     <script type="module">
         'use strict';
-        import { readLanguage, writeLanguage, getTtsLanguageCode, getWordListFilename } from './storage.mjs';
+        import { bestNextUnits } from './coverage.mjs';
+        import { readLanguage, writeLanguage, readSelection, writeSelection, getTtsLanguageCode, getWordListFilename } from './storage.mjs';
         
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
@@ -1217,9 +1232,14 @@
             consonants.clear();
             vowels.clear();
             specials.clear();
-            
-            // Set some reasonable defaults for the new language
-            if (lang === 'en') {
+
+            const saved = readSelection(window.localStorage, lang);
+            if (saved) {
+                // Keep only units that exist in this language's alphabets
+                for (const letter of saved.consonants) if (sounds.consonants.includes(letter)) consonants.add(letter);
+                for (const letter of saved.vowels) if (sounds.vowels.includes(letter)) vowels.add(letter);
+                for (const letter of saved.specials) if (sounds.specials.includes(letter)) specials.add(letter);
+            } else if (lang === 'en') {
                 // English defaults: common starting letters
                 for (const letter of ['m', 's', 't', 'b', 'c']) {
                     consonants.add(letter);
@@ -1353,6 +1373,7 @@
         }
 
         function updateSelectionCounts() {
+            writeSelection(window.localStorage, currentLanguage, currentSelection());
             byId('consonant-count').textContent = `${consonants.size} ${tr('unit.selected')}`;
             byId('vowel-count').textContent = `${vowels.size} ${tr('unit.selected')}`;
             byId('specials-count').textContent = `${specials.size} ${tr('unit.selected')}`;
@@ -1442,7 +1463,9 @@
             }
             
             try {
+                const wordsLang = currentLanguage;
                 const words = await wordPromises[currentLanguage];
+                if (wordsLang !== currentLanguage) return;
                 const { countMatchingWords, isWordsModeEligible, getSoundsForLanguage } = window.__sounds;
                 const allSpecials = getSoundsForLanguage(currentLanguage).specials;
                 const matchCount = countMatchingWords(
@@ -1452,6 +1475,7 @@
                     allSpecials,
                 );
                 byId('words-match-count').textContent = matchCount;
+                if (currentLanguage === wordsLang) updateBestStars(words);
                 
                 const wordsRadio = document.querySelector('input[name="mode"][value="WORDS"]');
                 const wordsLabel = byId('words-mode-label');
@@ -1475,6 +1499,19 @@
                 }
             } catch (error) {
                 console.error('Error updating word match count:', error);
+            }
+        }
+
+        /** Mark the one unit per category that would unlock the most extra words. */
+        function updateBestStars(words) {
+            const sounds = window.__sounds.getSoundsForLanguage(currentLanguage);
+            const best = bestNextUnits(words, currentSelection(), sounds, currentLanguage);
+            for (const category of ['consonants', 'vowels', 'specials']) {
+                byId(category).querySelectorAll('.letter').forEach(button => {
+                    const isBest = button.dataset.unit === best[category];
+                    button.classList.toggle('best', isBest);
+                    button.setAttribute('aria-label', isBest ? `${button.dataset.unit} ★` : button.dataset.unit);
+                });
             }
         }
 
@@ -1517,6 +1554,7 @@
                 button.type = 'button';
                 button.className = 'letter';
                 button.textContent = letter;
+                button.dataset.unit = letter;
                 button.setAttribute('aria-label', letter);
                 button.setAttribute('aria-pressed', String(selected.has(letter)));
                 button.addEventListener('click', () => {

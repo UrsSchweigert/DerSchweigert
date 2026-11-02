@@ -15,6 +15,7 @@
 
 const CARD_STATS_KEY = "buchstabenzeit:card-stats";
 const LANGUAGE_KEY = "buchstabenzeit:language";
+const SELECTION_KEY = "buchstabenzeit:selection:";
 
 /** The only statistics schema version this module understands. */
 const CARD_STATS_VERSION = 2;
@@ -154,4 +155,60 @@ export function getTtsLanguageCode(lang) {
  */
 export function getWordListFilename(lang) {
   return lang === 'en' ? 'words-en.json' : 'words-de.json';
+}
+
+/**
+ * Read the saved letter selection of one language.
+ * Entries that are not strings are dropped; a missing or corrupt record
+ * yields null so callers can fall back to their defaults.
+ * @param {{getItem: (key: string) => string|null}|null|undefined} store
+ * @param {string} lang - The language code ('de' or 'en')
+ * @returns {{consonants: string[], vowels: string[], specials: string[]}|null} saved selection or null
+ */
+export function readSelection(store, lang) {
+  if (!store || typeof store.getItem !== "function") {
+    return null;
+  }
+  try {
+    const json = store.getItem(SELECTION_KEY + lang);
+    if (!json) {
+      return null;
+    }
+    const parsed = JSON.parse(json);
+    if (!isPlainObject(parsed)) {
+      return null;
+    }
+    const clean = (list) => (Array.isArray(list) ? list.filter((unit) => typeof unit === "string") : []);
+    return {
+      consonants: clean(parsed.consonants),
+      vowels: clean(parsed.vowels),
+      specials: clean(parsed.specials),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save the letter selection of one language.
+ * @param {{setItem: (key: string, value: string) => void}|null|undefined} store
+ * @param {string} lang - The language code ('de' or 'en')
+ * @param {{consonants: Iterable<string>, vowels: Iterable<string>, specials: Iterable<string>}} selection
+ */
+export function writeSelection(store, lang, selection) {
+  if (!store || typeof store.setItem !== "function") {
+    return;
+  }
+  try {
+    store.setItem(
+      SELECTION_KEY + lang,
+      JSON.stringify({
+        consonants: [...selection.consonants],
+        vowels: [...selection.vowels],
+        specials: [...selection.specials],
+      }),
+    );
+  } catch {
+    // Ignore storage failures
+  }
 }

@@ -438,3 +438,24 @@ for (const lang of ["de", "en"]) {
     assert.deepEqual(coverage, { tokens: 1, types: 1 });
   });
 }
+
+test("bestNextUnits picks the unit unlocking the most words per category", async () => {
+  const { bestNextUnits } = await import("../static/coverage.mjs");
+  const alphabet = { consonants: ["m", "t", "l"], vowels: ["a", "i", "u"], specials: ["au"] };
+  const words = ["mama", "tam", "tama", "lam", "mi", "mim", "mum"];
+  const best = bestNextUnits(words, { consonants: ["m"], vowels: ["a"], specials: [] }, alphabet, "de");
+  assert.strictEqual(best.consonants, "t");
+  assert.strictEqual(best.vowels, "i");
+  assert.strictEqual(best.specials, null);
+});
+
+test("bestNextUnits breaks ties by list order, counts spellings once, and supports xx", async () => {
+  const { bestNextUnits } = await import("../static/coverage.mjs");
+  const alphabet = { consonants: ["m", "t", "l"], vowels: ["a"], specials: ["ll", "xx"] };
+  const sel = { consonants: ["m"], vowels: ["a"], specials: [] };
+  assert.strictEqual(bestNextUnits(["tam", "lam"], sel, alphabet, "de").consonants, "t");
+  assert.strictEqual(bestNextUnits(["Lam", "lam", "tam"], sel, alphabet, "de").consonants, "t");
+  assert.strictEqual(bestNextUnits(["lam", "Lam", "lam"], sel, alphabet, "de").consonants, "l");
+  const doubled = bestNextUnits(["mall", "mamm"], sel, alphabet, "de");
+  assert.strictEqual(doubled.specials, "xx");
+});

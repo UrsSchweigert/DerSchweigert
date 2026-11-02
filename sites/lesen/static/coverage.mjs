@@ -226,3 +226,59 @@ export function readableSentenceShare(sentences, selection, lang = "de") {
   }
   return readable / pool.length;
 }
+
+/**
+ * For each category, the not-yet-selected unit whose addition would make the
+ * most additional words readable.
+ *
+ * A word gains a unit when that unit is the only thing it still lacks. The
+ * 'xx' sentinel gains every word whose missing units are all doubled letters.
+ * Ties go to the first unit in list order; a category with no gaining unit
+ * reports null.
+ *
+ * @param {Iterable<string>} words word list
+ * @param {{consonants?: Iterable<string>, vowels?: Iterable<string>, specials?: Iterable<string>}} selection
+ * @param {{consonants: string[], vowels: string[], specials: string[]}} alphabet every unit of the language
+ * @param {string} [lang] language code ('de' or 'en')
+ * @returns {{consonants: string|null, vowels: string|null, specials: string|null}} best next unit per category
+ */
+export function bestNextUnits(words, selection, alphabet, lang = "de") {
+  const gains = new Map();
+  const doubledGain = { count: 0 };
+  const rules = selectionRules(selection);
+  const seen = new Set();
+  for (const word of words || []) {
+    const key = String(word ?? "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const units = unitsOf(key, lang);
+    if (!units.length) continue;
+    const missing = new Set(units.filter((unit) => !unitReadable(unit, rules)));
+    if (!missing.size) continue;
+    if (missing.size === 1) {
+      const [unit] = missing;
+      gains.set(unit, (gains.get(unit) || 0) + 1);
+    }
+    if ([...missing].every((unit) => unit.length === 2 && unit[0] === unit[1])) doubledGain.count++;
+  }
+  const gainOf = (unit) => (unit === "xx" ? doubledGain.count : gains.get(unit) || 0);
+  const chosen = allowedUnits(selection);
+  const pick = (units) => {
+    let best = null;
+    let bestGain = 0;
+    for (const unit of units || []) {
+      if (chosen.has(unit)) continue;
+      const gain = gainOf(unit);
+      if (gain > bestGain) {
+        best = unit;
+        bestGain = gain;
+      }
+    }
+    return best;
+  };
+  return {
+    consonants: pick(alphabet && alphabet.consonants),
+    vowels: pick(alphabet && alphabet.vowels),
+    specials: pick(alphabet && alphabet.specials),
+  };
+}
