@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "stages": ["visual_model", "decomposition", "answer"],
+  "visualModels": {
+    "addition": ["dot_array", "ten_frame", "number_line"],
+    "subtraction": ["dot_array", "number_line", "ten_frame"],
+    "multiplication": ["equal_groups", "dot_array", "number_line"],
+    "division": ["equal_groups", "dot_array", "number_line"]
+  }
+}
