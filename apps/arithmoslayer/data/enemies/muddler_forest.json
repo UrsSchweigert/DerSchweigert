@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "muddler_forest",
+  "biome": "forest",
+  "states": ["idle", "patrol", "chase", "telegraph", "attack", "stagger", "unscramble"],
+  "telegraph": 0.55,
+  "speed": 95.0,
+  "hp": 22,
+  "movement": "stalk",
+  "attack": "lunge"
+}

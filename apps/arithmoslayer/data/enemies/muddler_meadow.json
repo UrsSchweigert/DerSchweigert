@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "muddler_meadow",
+  "biome": "meadow",
+  "states": ["idle", "patrol", "chase", "telegraph", "attack", "stagger", "unscramble"],
+  "telegraph": 0.5,
+  "speed": 70.0,
+  "hp": 24,
+  "movement": "hop",
+  "attack": "slam"
+}
