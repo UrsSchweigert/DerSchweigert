@@ -46,6 +46,17 @@ with a collidable border ring, a static pillar for body collision, the player in
 the middle, and the follow camera. Set `room_size` and `tile_size` on the arena
 root to resize the room; the border and camera bounds follow.
 
+## Health, dodge, and respawn
+
+`data/combat/health.json` defines hearts, hit i-frames, the dodge window and
+cooldown, and respawn timings. `health.gd` spends a heart per hit, ignores hits
+during i-frames, and signals `defeated` at zero. `dodge.gd` rolls for the data
+duration with i-frames only inside its window, cancels any weapon combo, and
+waits for its cooldown. `respawn.gd` returns the hero to the last checkpoint or
+the room entrance with full hearts and brief invulnerability, keeping earned
+items and score. `test/unit/combat/test_health_dodge.gd` covers the window,
+cooldown, every weapon, and both respawn points.
+
 ## Tests
 
 `test/unit/combat/test_movement.gd` covers direction normalization and
