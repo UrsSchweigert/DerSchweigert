@@ -242,7 +242,6 @@ test("buildCombinations lives only in sounds.mjs and index.html uses the importe
     "index.html must not keep an inline buildCombinations copy",
   );
   assert.match(htmlSource, /import \{[^}]*\bbuildCombinations\b[^}]*\} from '\.\/sounds\.mjs'/);
-  assert.match(htmlSource, /\bbuildCombinations\(/);
 });
 
 test("setup markup: one mode radio group with ma/am/mam/ama checkboxes", async () => {

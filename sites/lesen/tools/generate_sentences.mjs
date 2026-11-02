@@ -20,98 +20,63 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { stageOf, unitsOf, MAX_WORDS } from "./validate_sentences.mjs";
+import { VOCAB } from "./sentence_vocab.mjs";
 
 // ---------------------------------------------------------------------------
-// Curated vocabulary. Every word stays inside the language's sound inventory
-// (a-z, plus German umlauts and ß) so every generated sentence is readable in
-// at least one stage. Subjects are third-person singular, verbs are their
-// third-person singular forms, and complements are grouped by verb class so
-// every combination is grammatical.
+// Curated vocabulary lives in sentence_vocab.mjs. Subjects carry ability groups
+// and each verb lists complements per group, so a candidate only combines a
+// subject with a verb and complement that make sense together.
 // ---------------------------------------------------------------------------
-const VOCAB = {
-  de: {
-    subjects: [
-      "Lisa", "Mama", "Papa", "Tim", "Anna", "Emma", "Ben", "Mia",
-      "der Hund", "die Katze", "das Kind", "der Mann", "die Frau",
-      "der Vogel", "die Maus", "das Pferd", "der Fisch", "die Kuh",
-      "das Schaf", "der Bär", "die Ente", "der Fuchs", "die Biene",
-      "das Huhn", "der Löwe",
-    ],
-    verbs: {
-      loc: [
-        "schläft", "sitzt", "steht", "spielt", "tanzt", "rennt", "lacht",
-        "weint", "arbeitet", "singt", "malt", "liest", "lernt", "kocht",
-        "sucht", "findet", "wartet", "ruht", "geht", "schwimmt", "springt",
-      ],
-      food: ["isst", "trinkt", "kocht", "backt"],
-      obj: [
-        "liest", "malt", "singt", "sucht", "findet", "bringt", "holt",
-        "kauft", "pflanzt", "erntet", "zählt", "öffnet", "wäscht", "macht",
-        "sieht", "hört",
-      ],
-    },
-    complements: {
-      loc: [
-        "im Garten", "im Haus", "am Tisch", "im Bett", "auf dem Sofa",
-        "in der Schule", "im Park", "am See", "im Wald", "auf der Wiese",
-        "im Schnee", "im Regen", "in der Sonne", "",
-      ],
-      food: ["einen Apfel", "eine Birne", "Brot", "Kuchen", "Suppe", "Wasser", "Milch", "Kakao", "Tee", ""],
-      obj: ["ein Buch", "eine Blume", "ein Lied", "einen Ball", "einen Brief", "eine Tür", ""],
-    },
-  },
-  en: {
-    subjects: [
-      "Lisa", "Mom", "Dad", "Tim", "Anna", "Emma", "Ben", "Mia",
-      "the dog", "the cat", "the kid", "the man", "the woman",
-      "the bird", "the mouse", "the horse", "the fish", "the cow",
-      "the sheep", "the bear", "the duck", "the fox", "the bee",
-      "the hen", "the lion",
-    ],
-    verbs: {
-      loc: [
-        "sleeps", "sits", "stands", "plays", "dances", "runs", "laughs",
-        "cries", "works", "sings", "paints", "reads", "learns", "cooks",
-        "searches", "finds", "waits", "rests", "swims", "jumps",
-      ],
-      food: ["eats", "drinks", "cooks", "bakes"],
-      obj: [
-        "reads", "paints", "sings", "searches", "finds", "brings", "fetches",
-        "buys", "plants", "harvests", "counts", "opens", "washes", "makes",
-        "sees", "hears",
-      ],
-    },
-    complements: {
-      loc: [
-        "in the garden", "in the house", "at the table", "in bed",
-        "on the sofa", "at school", "in the park", "at the lake",
-        "in the woods", "in the snow", "in the rain", "in the sun", "",
-      ],
-      food: ["an apple", "a pear", "bread", "cake", "soup", "water", "milk", "cocoa", "tea", ""],
-      obj: ["a book", "a flower", "a song", "a ball", "a letter", "a door", ""],
-    },
-  },
-};
 
 /** Capitalise the first letter of a string. */
 function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** Complements a verb allows for one subject: the first matching group wins. */
+function complementsFor(verb, subject) {
+  const group = Object.keys(verb.c).find((key) => key === "any" || subject.g.includes(key));
+  if (!group) return [];
+  return verb.c[group].flatMap((item) => (item === "$diet" ? subject.diet : item === "$drink" ? subject.drink : [item]));
+}
+
+/** The conjugated verb for a subject, or "" when the subject cannot use it. */
+function verbFor(verb, subject) {
+  if (verb.v === "$sound") return subject.sound;
+  if (typeof verb.v === "string") return verb.v;
+  return subject.g.includes("H") ? verb.v.H : verb.v.default;
+}
+
 /**
- * Expand the vocabulary into the ordered candidate stream: subject, then verb
- * class, then verb, then complement. The order is deterministic.
+ * Expand the vocabulary into the ordered candidate stream. Plain sentences come
+ * first, then the same sentences with one adverb each. Within a block the order
+ * rotates through subjects so a truncated stream stays varied. Deterministic.
  */
 export function candidates(lang) {
   const vocab = VOCAB[lang];
   if (!vocab) throw new Error("unsupported language " + lang);
   const out = [];
-  for (const subject of vocab.subjects) {
-    for (const cls of ["loc", "food", "obj"]) {
-      for (const verb of vocab.verbs[cls]) {
-        for (const complement of vocab.complements[cls]) {
-          const words = complement ? [subject, verb, complement] : [subject, verb];
-          out.push(capitalize(words.join(" ")) + ".");
+  const variants = [null, ...vocab.adverbs];
+  for (const adverb of variants) {
+    for (const verb of vocab.verbs) {
+      if (adverb && verb.advOnly && !verb.advOnly.includes(adverb.w)) continue;
+      const lists = vocab.subjects.map((subject) => {
+        const form = verbFor(verb, subject);
+        return form ? complementsFor(verb, subject).map((complement) => ({ subject, form, complement })) : [];
+      });
+      const longest = Math.max(0, ...lists.map((list) => list.length));
+      for (let index = 0; index < longest; index++) {
+        for (const list of lists) {
+          if (index >= list.length) continue;
+          const { subject, form, complement } = list[index];
+          const parts = [subject.t];
+          if (adverb && adverb.pos === "pre") parts.push(adverb.w);
+          parts.push(form);
+          if (adverb && adverb.pos === "verb") parts.push(adverb.w);
+          if (complement) parts.push(complement);
+          if (adverb && adverb.pos === "end") parts.push(adverb.w);
+          const words = parts.join(" ");
+          if (words.split(" ").length <= MAX_WORDS) out.push(capitalize(words) + ".");
         }
       }
     }
