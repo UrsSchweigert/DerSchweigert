@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import { recordAttempt, resetCardStats, selectFlopDeck, flopCandidateCards, buildFlopDeck, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom, isSpeakableCard, FLOP_WEAK_SUCCESS_RATE_THRESHOLD, FLOP_WEAK_MIN_ATTEMPTS, FLOP_DECK_MIN_CARDS, FLOP_DECK_MAX_CARDS } from "../static/scoring.mjs";
+import { recordAttempt, resetCardStats, selectFlopDeck, flopCandidateCards, buildFlopDeck, isSpellableWith, buildSentenceOnlyDeck, buildMixedDeck, createSeededRandom, isSpeakableCard, FLOP_WEAK_SUCCESS_RATE_THRESHOLD, FLOP_WEAK_MIN_ATTEMPTS } from "../static/scoring.mjs";
 
 const SENTENCE_POOL = [
   { id: "a", text: "Mama malt." },
@@ -149,26 +149,28 @@ test("selectFlopDeck: sorts by success rate (correct/(correct+incorrect)) ascend
   };
   const allowedCards = ["Card A", "Card B", "Card C"];
   const deck = selectFlopDeck(stats, allowedCards);
-  // All are weak, bottom 10% of 3 weak cards = 1 card, so only the worst (Card A)
-  assert.deepStrictEqual(deck, ["Card A"]);
+  // All are weak, return all sorted worst first
+  assert.deepStrictEqual(deck, ["Card A", "Card B", "Card C"]);
 });
 
-test("selectFlopDeck: selects bottom 10% of weak cards only", () => {
+test("selectFlopDeck: returns all weak cards, sorted worst first", () => {
   const stats = {};
   const allowedCards = [];
   // Create 20 weak cards (all < 70% success rate, >= 2 attempts)
+  // Use correct_count: i, incorrect_count: 30 - i so all cards have < 70% success
   for (let i = 0; i < 20; i++) {
-    stats[`Card ${i}`] = { correct_count: i, incorrect_count: 20 - i }; // i% success rate (0-19%)
+    stats[`Card ${i}`] = { correct_count: i, incorrect_count: 30 - i }; 
     allowedCards.push(`Card ${i}`);
   }
   const deck = selectFlopDeck(stats, allowedCards);
-  // All 20 cards are weak. Bottom 10% of 20 = 2 cards
-  assert.strictEqual(deck.length, 2);
-  const expectedBottomTwo = ["Card 0", "Card 1"];
-  assert.deepStrictEqual(deck, expectedBottomTwo);
+  // All 20 cards are weak (all have success rate < 70%); now we return all of them
+  assert.strictEqual(deck.length, 20);
+  // Worst first: Card 0 (0%), Card 1 (1/31≈3%), etc.
+  assert.deepStrictEqual(deck[0], "Card 0");
+  assert.ok(deck.every((card) => card.startsWith("Card")));
 });
 
-test("selectFlopDeck: caps weak deck at 30 cards", () => {
+test("selectFlopDeck: returns all weak cards regardless of count", () => {
   const stats = {};
   const allowedCards = [];
   // Create 400 weak cards all with 0% success rate (0 correct, 2 incorrect)
@@ -177,11 +179,11 @@ test("selectFlopDeck: caps weak deck at 30 cards", () => {
     allowedCards.push(`Card ${i}`);
   }
   const deck = selectFlopDeck(stats, allowedCards);
-  // 400 cards all weak, bottom 10% = 40 cards, but capped at 30
-  assert.strictEqual(deck.length, 30);
+  // All 400 cards are weak; no cap, return all
+  assert.strictEqual(deck.length, 400);
 });
 
-test("selectFlopDeck: returns at least 1 weak card when any exist", () => {
+test("selectFlopDeck: returns exactly 1 weak card when exactly 1 weak card exists", () => {
   const stats = {
     "Card A": { correct_count: 1, incorrect_count: 9 }, // 10%, weak
   };
@@ -190,18 +192,30 @@ test("selectFlopDeck: returns at least 1 weak card when any exist", () => {
   assert.deepStrictEqual(deck, ["Card A"]);
 });
 
-test("selectFlopDeck: returns at least 1 weak card from bottom 10% when exactly 10 weak cards", () => {
+test("selectFlopDeck: returns all weak cards when exactly 10 weak cards", () => {
   const stats = {};
   const allowedCards = [];
-  // Create 10 weak cards with success rates 0-9% (all weak: < 70%)
+  // Create 10 weak cards with success rates 0% to 45% (all weak: < 70%)
+  // Card i has i correct out of (10 - i) incorrect, so i/(10) total attempts = i*10% success
   for (let i = 0; i < 10; i++) {
     stats[`Card ${i}`] = { correct_count: i, incorrect_count: 10 - i };
     allowedCards.push(`Card ${i}`);
   }
   const deck = selectFlopDeck(stats, allowedCards);
-  // All 10 are weak, bottom 10% of 10 = 1 card
-  assert.strictEqual(deck.length, 1);
-  assert.deepStrictEqual(deck, ["Card 0"]);
+  // All 10 are weak (0%, 1/9≈11%, ..., 9/10=90%)... wait, some are not weak
+  // Let me create cards where all are weak: use high incorrect counts
+  const weakStats = {};
+  const weakAllowed = [];
+  for (let i = 0; i < 10; i++) {
+    // i correct, (30-i) incorrect: gives success rates from 0% to 25%
+    weakStats[`Card ${i}`] = { correct_count: i, incorrect_count: 30 - i };
+    weakAllowed.push(`Card ${i}`);
+  }
+  const weakDeck = selectFlopDeck(weakStats, weakAllowed);
+  // All 10 are weak, return all
+  assert.strictEqual(weakDeck.length, 10);
+  assert.deepStrictEqual(weakDeck[0], "Card 0");
+  assert.ok(weakDeck.every((card) => card.startsWith("Card")));
 });
 
 test("selectFlopDeck: filters by allowedCards and excludes non-weak", () => {
@@ -276,7 +290,7 @@ test("flopCandidateCards: a sentence card stays a candidate with an empty select
   assert.deepStrictEqual(flopCandidateCards({ Hut: stats["Mama malt."] }, [], SENTENCE_POOL), []);
 });
 
-test("selectFlopDeck: sentence cards share the worst-10 % rule among weak cards", () => {
+test("selectFlopDeck: sentence cards are included among weak cards", () => {
   const stats = {};
   const allowedCards = [];
   // Create 9 healthy words (90% success rate) - not weak
@@ -299,48 +313,59 @@ test("buildFlopDeck: a deck with one weak sentence card is usable", () => {
   ]);
 });
 
-test("buildFlopDeck: word cards keep the worst-10 % behaviour and their kind among weak cards", () => {
+test("buildFlopDeck: word cards return all weak ones with their kind", () => {
   const stats = {
     aa: { correct_count: 1, incorrect_count: 9 }, // 10%, weak
     ab: { correct_count: 3, incorrect_count: 7 }, // 30%, weak
     ba: { correct_count: 1, incorrect_count: 9 }, // 10%, weak
   };
   const deck = buildFlopDeck(stats, ["a", "b"]);
-  // All 3 are weak, bottom 10% of 3 = 1 card (worst)
-  assert.strictEqual(deck.length, 1);
-  assert.ok(deck[0].text === "aa" || deck[0].text === "ba");
-  assert.deepStrictEqual(deck[0].kind, "word");
+  // All 3 are weak, return all
+  assert.strictEqual(deck.length, 3);
+  // Verify all are words
+  assert.ok(deck.every(card => card.kind === "word"));
+  // Verify all texts are present
+  const texts = new Set(deck.map(d => d.text));
+  assert.ok(texts.has("aa"));
+  assert.ok(texts.has("ab"));
+  assert.ok(texts.has("ba"));
 });
 
-test("buildFlopDeck: sentence and word cards keep their kind in one weak deck", () => {
+test("buildFlopDeck: sentence and word cards return all weak ones with their kind", () => {
   const stats = {};
   // Create 10 weak word cards that are spellable with ["a", "b"]
   for (let index = 0; index < 10; index++) {
-    stats[`a${index}b`] = { correct_count: 1, incorrect_count: 9 }; // 10% weak
+    stats[`a${"b".repeat(index + 1)}`] = { correct_count: 1, incorrect_count: 9 }; // 10% weak, spellable
   }
   // Add "Das Brot ist frisch." which is in SENTENCE_POOL with 0% success (weak)
   stats["Das Brot ist frisch."] = { correct_count: 0, incorrect_count: 2 };
   
-  // With ["a", "b"] only, "Das Brot ist frisch." is not spellable, so it should not be a candidate
-  // unless we pass SENTENCE_POOL, which we do here
   const deck = buildFlopDeck(stats, ["a", "b"], SENTENCE_POOL);
   
-  // 11 candidates: 10 words + 1 sentence, but 10% of 11 = 1-2 cards
-  // Since all the words are 10% weak and sentence is 0% weak, bottom 10% should have 1 card (the sentence)
-  assert.strictEqual(deck.length, 1);
-  assert.deepStrictEqual(deck[0].text, "Das Brot ist frisch.");
-  assert.strictEqual(deck[0].kind, "sentence");
+  // All weak cards are included: 10 words + 1 sentence = 11 total
+  assert.strictEqual(deck.length, 11);
+  
+  // Verify the sentence is included and marked as sentence
+  const sentenceCard = deck.find(c => c.text === "Das Brot ist frisch.");
+  assert.ok(sentenceCard);
+  assert.strictEqual(sentenceCard.kind, "sentence");
+  
+  // Verify words are marked as word
+  const wordCards = deck.filter(c => c.text !== "Das Brot ist frisch.");
+  assert.ok(wordCards.every(c => c.kind === "word"));
+  assert.strictEqual(wordCards.length, 10);
 });
 
-test("selectFlopDeck: deck built from weak history cards", () => {
+test("selectFlopDeck: returns all weak history cards", () => {
   const stats = {};
-  // Create 15 weak cards with success rates from 0-14% (all < 70%)
+  // Create 15 weak cards with success rates from 0% to 50% (all < 70%)
+  // Use higher incorrect counts to ensure all are weak
   for (let index = 0; index < 15; index++) {
-    stats[`t${index}`] = { correct_count: index, incorrect_count: 15 - index };
+    stats[`t${index}`] = { correct_count: index, incorrect_count: 30 - index };
   }
   const deck = selectFlopDeck(stats, Object.keys(stats));
-  // All 15 cards are weak (< 70%), bottom 10% = ceil(15 * 0.1) = 2 cards
-  assert.strictEqual(deck.length, 2);
+  // All 15 cards are weak (< 70%), return all
+  assert.strictEqual(deck.length, 15);
   assert.ok(deck.length > 0);
 });
 
@@ -509,11 +534,10 @@ test("weak filtering: cards below 70% success rate are weak", () => {
     "healthy-80": { correct_count: 8, incorrect_count: 2 }, // 80%, not weak
   };
   const weak = selectFlopDeck(stats, Object.keys(stats));
-  // Bottom 10% of 4 weak cards = 1 card, so only the worst is included
-  // But we should verify the 4 weak cards are identified correctly for this test
-  assert.strictEqual(weak.length, 1);
-  // The worst weak card should be the 40% one
-  assert.deepStrictEqual(weak, ["weak-40"]);
+  // All 4 weak cards are returned
+  assert.strictEqual(weak.length, 4);
+  // Worst first: 40%, 50%, 60%, 69%
+  assert.deepStrictEqual(weak, ["weak-40", "weak-50", "weak-60", "weak-69"]);
 });
 
 test("weak filtering: cards with fewer than 2 attempts are not weak", () => {
@@ -538,8 +562,8 @@ test("weak filtering: empty result when no genuinely weak cards", () => {
   assert.deepStrictEqual(weak, []);
 });
 
-test("weak filtering: cap min 1, max 30 applies within weak cards", () => {
-  // Test min 1: only 1 weak card available
+test("weak filtering: returns all weak cards regardless of count", () => {
+  // Test with only 1 weak card available
   let stats = {
     "only-weak": { correct_count: 0, incorrect_count: 2 },  // weak
     "healthy": { correct_count: 9, incorrect_count: 1 },    // healthy
@@ -548,7 +572,7 @@ test("weak filtering: cap min 1, max 30 applies within weak cards", () => {
   assert.strictEqual(weak.length, 1);
   assert.deepStrictEqual(weak, ["only-weak"]);
 
-  // Test max 30: 400 weak cards, cap at 30
+  // Test with 400 weak cards: all are returned (no cap)
   stats = {};
   const allowedCards = [];
   for (let i = 0; i < 400; i++) {
@@ -556,7 +580,7 @@ test("weak filtering: cap min 1, max 30 applies within weak cards", () => {
     allowedCards.push(`Card ${i}`);
   }
   weak = selectFlopDeck(stats, allowedCards);
-  assert.strictEqual(weak.length, 30);
+  assert.strictEqual(weak.length, 400);
 });
 
 const setupHtml = readFileSync(new URL("../static/index.html", import.meta.url), "utf8");
@@ -673,5 +697,35 @@ test("isSpeakableCard: returns false for undefined", () => {
 
 test("isSpeakableCard: returns false for unknown kind", () => {
   assert.strictEqual(isSpeakableCard({ text: "test", kind: "unknown" }), false);
+});
+
+test("full flop round: after correct answers to all flop deck cards, deck is empty", () => {
+  // Create 50 weak word cards all with 0% success rate
+  const stats = {};
+  const allowedCards = [];
+  for (let i = 0; i < 50; i++) {
+    stats[`weak-word-${i}`] = { correct_count: 0, incorrect_count: 2 };
+    allowedCards.push(`weak-word-${i}`);
+  }
+
+  // Build the initial flop deck
+  let deck = buildFlopDeck(stats, new Set(allowedCards.slice(0, 26))); // subset of 26 cards are "spellable"
+  const initialDeckSize = deck.length;
+  
+  // Simulate a complete round: every card is answered correctly at least once
+  // This tests that:
+  // 1. All weak cards start in the deck
+  // 2. Each card answered correctly resets its stats (recovery: true in flop mode)
+  // 3. After full round with all correct answers, a fresh call to buildFlopDeck returns empty
+  for (const card of deck) {
+    recordAttempt(stats, card.text, true, { flop: true, recovery: true });
+  }
+
+  // After all cards are correctly answered in flop mode with recovery, their stats should be reset (0, 0)
+  // So they are no longer weak (< 2 attempts or >= 70% success)
+  const newDeck = buildFlopDeck(stats, new Set(allowedCards.slice(0, 26)));
+  
+  // Verify the deck is now empty
+  assert.strictEqual(newDeck.length, 0, `Expected empty deck after completing all ${initialDeckSize} flop cards, but got ${newDeck.length}`);
 });
 

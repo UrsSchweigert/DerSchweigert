@@ -153,28 +153,25 @@ export function flopCandidateCards(stats, allowedSounds, sentenceCards = []) {
 // Flop Training weak card selection constants
 export const FLOP_WEAK_SUCCESS_RATE_THRESHOLD = 0.7;  // Cards below 70% success rate
 export const FLOP_WEAK_MIN_ATTEMPTS = 2;              // At least 2 attempts required
-export const FLOP_DECK_MIN_CARDS = 1;                 // Minimum cards in flop deck
-export const FLOP_DECK_MAX_CARDS = 30;                // Maximum cards in flop deck
-export const FLOP_DECK_PERCENTILE = 0.1;              // Bottom 10% of weak cards
 
 /**
  * Select cards for Flop Training (focused practice on weak cards).
  *
  * Sentence and word cards share the same rule: only cards with success rate < 0.7
- * AND at least 2 total attempts qualify as "weak". Among weak candidates, the
- * worst tenth is practised. Because sentence cards reach this function through
- * {@link flopCandidateCards}, they are never dropped for being unspellable; word
- * cards keep the old spellability filter.
+ * AND at least 2 total attempts qualify as "weak". All weak cards are included,
+ * sorted by success rate from worst to best. Because sentence cards reach this
+ * function through {@link flopCandidateCards}, they are never dropped for being
+ * unspellable; word cards keep the old spellability filter.
  *
  * Algorithm:
  * 1. Filter to allowedCards with success rate (correct/(correct+incorrect)) < 0.7
  * 2. Filter to cards with total attempts >= 2
  * 3. Sort ascending by success rate: worst first
- * 4. Take bottom 10% of the remaining weak cards (rounding up, with min 1 and max 30)
+ * 4. Return all weak cards
  * 
  * @param {object} stats - A map of card text to { correct_count, incorrect_count }
  * @param {string[]} allowedCards - Array of card texts to consider
- * @returns {string[]} Array of card texts for Flop Training
+ * @returns {string[]} Array of card texts for Flop Training, sorted worst first
  */
 export function selectFlopDeck(stats, allowedCards) {
   // Filter to only genuinely weak cards: success rate < 0.7 AND >= 2 attempts
@@ -200,21 +197,17 @@ export function selectFlopDeck(stats, allowedCards) {
     return rateA - rateB;
   });
 
-  // Calculate bottom 10% of weak cards, with at least 1 and max 30
-  const bottomPercent = Math.ceil(sorted.length * FLOP_DECK_PERCENTILE);
-  const count = Math.min(Math.max(bottomPercent, FLOP_DECK_MIN_CARDS), FLOP_DECK_MAX_CARDS);
-
-  return sorted.slice(0, count);
+  // Return all weak cards
+  return sorted;
 }
 
 /**
  * Build the Flop Training deck as practice cards.
  *
- * Candidates are chosen kind-aware by {@link flopCandidateCards} and cut by
- * the worst-10 % rule of {@link selectFlopDeck}. Sentence cards keep their
- * kind so the practice screen can size them like other sentence cards; word
- * cards stay plain word cards. A single attempted sentence card therefore
- * yields a usable one-card deck.
+ * Candidates are chosen kind-aware by {@link flopCandidateCards}. All weak cards
+ * are included. Sentence cards keep their kind so the practice screen can size
+ * them like other sentence cards; word cards stay plain word cards. A single
+ * attempted sentence card therefore yields a usable one-card deck.
  *
  * @param {object} stats - A map of card text to { correct_count, incorrect_count }
  * @param {Set<string>|readonly string[]} allowedSounds - Selected consonants,

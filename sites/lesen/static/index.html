@@ -1950,10 +1950,10 @@
             attempts++;
             
             const { recordAttempt } = window.__scoring;
-            // A flop card answered correctly after misses is retrained: its counters reset.
+            // Any correct answer in flop mode resets the card stats to 0, 0 (recovery).
             recordAttempt(stats, card.text, correct, {
                 flop: isInFlopMode,
-                recovery: isInFlopMode && correct && card.misses > 0
+                recovery: isInFlopMode && correct
             });
             window.__storage.write(stats);
             

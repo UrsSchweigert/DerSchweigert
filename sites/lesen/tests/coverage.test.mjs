@@ -382,7 +382,7 @@ test("golden: isUnitAllowed pins the xx rule and the prebuilt allowed set", () =
 
 // --- The committed pool ----------------------------------------------------
 //
-// The same metric must hold for all 1000 sentences of each language, not only
+// The same metric must hold for all 8000 sentences of each language, not only
 // for the fixture: every unit reads everything, nothing reads with an empty
 // selection, and adding a unit never lowers coverage.
 
@@ -391,7 +391,7 @@ function loadPool(lang) {
 }
 
 for (const lang of ["de", "en"]) {
-  test(lang + ": selecting every unit reads all 1000 pool sentences", () => {
+  test(lang + ": selecting every unit reads all 8000 pool sentences", () => {
     const pool = loadPool(lang);
     const sounds = getSoundsForLanguage(lang);
     assert.ok(pool.sentences.length > 0);
