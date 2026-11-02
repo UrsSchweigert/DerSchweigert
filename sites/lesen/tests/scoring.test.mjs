@@ -661,7 +661,7 @@ test("the sentence mode keeps no manual selection state behind", () => {
   assert.doesNotMatch(setupHtml, /sentenceSelection/);
   assert.doesNotMatch(setupHtml, /clearSentenceSelection/);
   assert.doesNotMatch(setupHtml, /id="sentences-clear"/);
-  assert.match(setupHtml, /byId\('sentences-match-count'\)\.textContent = cards\.length/);
+  assert.match(setupHtml, /applySentenceCount\(cards\.length\)/);
 });
 
 test("regression: the patterns mode stays the default", () => {

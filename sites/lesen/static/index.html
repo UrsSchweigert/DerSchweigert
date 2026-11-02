@@ -273,6 +273,12 @@
             color: #f5a623;
         }
 
+        .star-hint {
+            margin: 0 0 8px;
+            font-size: 14px;
+            color: #555;
+        }
+
         .letter:hover {
             border-color: var(--blue);
             transform: translateY(-2px);
@@ -1037,6 +1043,7 @@
             <form id="setup-form">
                 <div class="setup-grid">
                     <div>
+                        <p class="star-hint" id="star-hint">&#9733; markiert den Buchstaben, mit dem du als N&auml;chstes die meisten neuen W&ouml;rter lesen kannst.</p>
                         <fieldset class="letter-group">
                             <legend><span id="legend-consonants">Konsonanten</span> <span id="consonant-count" class="selection-count"></span></legend>
                             <div class="letters" id="consonants"></div>
@@ -1292,6 +1299,7 @@
             byId('setup-title').textContent = tr('setup.title');
             byId('setup-intro').textContent = tr('setup.intro');
 
+            byId('star-hint').textContent = tr('setup.star_hint');
             byId('legend-consonants').textContent = tr('setup.consonants');
             byId('legend-vowels').textContent = tr('setup.vowels');
             byId('legend-specials').textContent = tr('setup.specials');
@@ -1377,9 +1385,84 @@
             byId('consonant-count').textContent = `${consonants.size} ${tr('unit.selected')}`;
             byId('vowel-count').textContent = `${vowels.size} ${tr('unit.selected')}`;
             byId('specials-count').textContent = `${specials.size} ${tr('unit.selected')}`;
-            updateWordMatchCount();
             updateFlopModeStatus();
+            scheduleHeavyCounts();
+        }
+
+        let countsWorker = null;
+        let countsWorkerFailed = false;
+        let countsRequestId = 0;
+        let countsTimer = null;
+
+        /** Debounce the expensive word/sentence recalculation so rapid taps stay smooth. */
+        function scheduleHeavyCounts() {
+            clearTimeout(countsTimer);
+            countsTimer = setTimeout(runHeavyCounts, 100);
+        }
+
+        function getCountsWorker() {
+            if (countsWorkerFailed) return null;
+            if (!countsWorker) {
+                try {
+                    countsWorker = new Worker('./counts-worker.mjs', { type: 'module' });
+                    countsWorker.onmessage = event => applyWorkerCounts(event.data);
+                    countsWorker.onerror = () => failCountsWorker();
+                } catch {
+                    countsWorkerFailed = true;
+                    countsWorker = null;
+                    return null;
+                }
+            }
+            return countsWorker;
+        }
+
+        function failCountsWorker() {
+            countsWorkerFailed = true;
+            if (countsWorker) countsWorker.terminate();
+            countsWorker = null;
+            updateWordMatchCount();
             updateSentenceMatchCount();
+        }
+
+        function runHeavyCounts() {
+            // Flop sentence recognition needs sentenceTexts on the main thread.
+            if (!sentenceTexts[currentLanguage]) {
+                const lang = currentLanguage;
+                loadSentencePool(lang).then(() => {
+                    if (lang === currentLanguage) updateFlopModeStatus();
+                }, () => {});
+            }
+            const worker = getCountsWorker();
+            if (!worker) {
+                if (!countsWorkerFailed) return;
+                updateWordMatchCount();
+                updateSentenceMatchCount();
+                return;
+            }
+            try {
+                worker.postMessage({ requestId: ++countsRequestId, lang: currentLanguage, selection: currentSelection() });
+            } catch {
+                failCountsWorker();
+            }
+        }
+
+        function applyWorkerCounts(result) {
+            if (!result || result.requestId !== countsRequestId || result.lang !== currentLanguage) return;
+            if (result.error) {
+                failCountsWorker();
+                return;
+            }
+            if (result.wordCount !== null) {
+                applyWordCount(result.wordCount);
+                applyBestStars(result.best);
+            }
+            applySentenceCount(result.sentenceCount);
+        }
+
+        function applySentenceCount(count) {
+            byId('sentences-match-count').textContent = count === null ? '0' : count;
+            if (count === null) updatePatternControls();
+            else updateFlopModeStatus();
         }
 
         /** The current letter selection in the shape the pure modules expect. */
@@ -1440,17 +1523,13 @@
                 pool = await loadSentencePool(lang);
             } catch {
                 if (lang !== currentLanguage) return;
-                byId('sentences-match-count').textContent = '0';
-                updatePatternControls();
+                applySentenceCount(null);
                 return;
             }
             if (lang !== currentLanguage) return;
 
             const cards = window.__sentences.readableSentenceCards(pool, currentSelection(), lang);
-            byId('sentences-match-count').textContent = cards.length;
-            // The pool just became available, so sentence flops can now be
-            // recognised and counted in the Flops status line.
-            updateFlopModeStatus();
+            applySentenceCount(cards.length);
         }
 
         async function updateWordMatchCount() {
@@ -1466,7 +1545,7 @@
                 const wordsLang = currentLanguage;
                 const words = await wordPromises[currentLanguage];
                 if (wordsLang !== currentLanguage) return;
-                const { countMatchingWords, isWordsModeEligible, getSoundsForLanguage } = window.__sounds;
+                const { countMatchingWords, getSoundsForLanguage } = window.__sounds;
                 const allSpecials = getSoundsForLanguage(currentLanguage).specials;
                 const matchCount = countMatchingWords(
                     words,
@@ -1474,9 +1553,17 @@
                     Infinity,
                     allSpecials,
                 );
-                byId('words-match-count').textContent = matchCount;
+                applyWordCount(matchCount);
                 if (currentLanguage === wordsLang) updateBestStars(words);
-                
+            } catch (error) {
+                console.error('Error updating word match count:', error);
+            }
+        }
+
+        function applyWordCount(matchCount) {
+            const { isWordsModeEligible } = window.__sounds;
+            try {
+                byId('words-match-count').textContent = matchCount;
                 const wordsRadio = document.querySelector('input[name="mode"][value="WORDS"]');
                 const wordsLabel = byId('words-mode-label');
                 const disabledNote = byId('words-mode-disabled-note');
@@ -1505,7 +1592,10 @@
         /** Mark the one unit per category that would unlock the most extra words. */
         function updateBestStars(words) {
             const sounds = window.__sounds.getSoundsForLanguage(currentLanguage);
-            const best = bestNextUnits(words, currentSelection(), sounds, currentLanguage);
+            applyBestStars(bestNextUnits(words, currentSelection(), sounds, currentLanguage));
+        }
+
+        function applyBestStars(best) {
             for (const category of ['consonants', 'vowels', 'specials']) {
                 byId(category).querySelectorAll('.letter').forEach(button => {
                     const isBest = button.dataset.unit === best[category];

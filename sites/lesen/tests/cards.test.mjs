@@ -197,5 +197,5 @@ test('the setup screen offers and practises the filtered sentence pool', () => {
   assert.match(setupHtml, /readableSentenceCards\(pool, currentSelection\(\), lang\)/);
   assert.match(setupHtml, /\.\/sentences\/\$\{lang\}\.json/);
   assert.match(setupHtml, /window\.__scoring\.buildSentenceOnlyDeck\(/);
-  assert.match(setupHtml, /byId\('sentences-match-count'\)\.textContent = cards\.length/);
+  assert.match(setupHtml, /applySentenceCount\(cards\.length\)/);
 });
