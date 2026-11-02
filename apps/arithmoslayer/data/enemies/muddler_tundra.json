@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "muddler_tundra",
+  "biome": "tundra",
+  "states": ["idle", "patrol", "chase", "telegraph", "attack", "stagger", "unscramble"],
+  "telegraph": 0.6,
+  "speed": 80.0,
+  "hp": 28,
+  "movement": "slide",
+  "attack": "shard"
+}

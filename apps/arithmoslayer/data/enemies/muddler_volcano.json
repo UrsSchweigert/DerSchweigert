@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "muddler_volcano",
+  "biome": "volcano",
+  "states": ["idle", "patrol", "chase", "telegraph", "attack", "stagger", "unscramble"],
+  "telegraph": 0.75,
+  "speed": 55.0,
+  "hp": 40,
+  "movement": "stomp",
+  "attack": "eruption"
+}

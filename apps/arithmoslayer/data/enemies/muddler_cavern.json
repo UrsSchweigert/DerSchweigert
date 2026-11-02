@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "muddler_cavern",
+  "biome": "cavern",
+  "states": ["idle", "patrol", "chase", "telegraph", "attack", "stagger", "unscramble"],
+  "telegraph": 0.5,
+  "speed": 65.0,
+  "hp": 30,
+  "movement": "crawl",
+  "attack": "echo"
+}

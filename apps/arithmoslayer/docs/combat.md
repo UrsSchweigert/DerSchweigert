@@ -51,3 +51,41 @@ root to resize the room; the border and camera bounds follow.
 `test/unit/combat/test_movement.gd` covers direction normalization and
 deadzones, analog magnitudes, data-defined numbers, body and tilemap collision,
 camera clamping and smoothing, and the wired arena scene.
+
+## Enemies
+
+`scripts/combat/enemy_state_machine.gd` is the Muddler brain. It cycles through
+seven states in a fixed order:
+
+| State | Purpose |
+| --- | --- |
+| `IDLE` | Brief pause after spawning or resetting. |
+| `PATROL` | Walk the room before the hero is noticed. |
+| `CHASE` | Close the distance to the hero. |
+| `TELEGRAPH` | Show the attack warning for at least 0.4 seconds. |
+| `ATTACK` | Resolve the attack. |
+| `STAGGER` | Recover after the attack. |
+| `UNSCRAMBLE` | Re-form the body, then return to `PATROL`. |
+
+`advance(delta)` steps the state timers, so a test or the scripted bot can run
+the brain without a physics frame. `duration_for(State.TELEGRAPH)` and
+`telegraph_remaining()` expose the warning window. `apply_config()` clamps any
+telegraph below `MIN_TELEGRAPH` (0.4 seconds) so a data mistake cannot remove
+the readable warning at default speed.
+
+`data/enemies/muddler_<biome>.json` defines eight archetypes across the meadow,
+desert, tundra, forest, swamp, cavern, volcano, and reef biomes. Each document
+declares the seven states, a telegraph, speed, hp, and one movement pattern and
+one attack pattern. No two archetypes share either pattern.
+
+`scenes/combat/muddler.tscn` is the placeholder enemy: a square `ColorRect` body
+and an `Area2D` hitbox with the state machine script on the root. It ships no
+final art.
+
+`tools/validate/enemies.py` rejects a document with a missing or unknown state,
+a telegraph below 0.4 seconds, a non-positive speed or hp, a missing pattern, or
+a movement or attack pattern already used by another archetype.
+
+`test/unit/combat/test_enemy_states.gd` covers the eight biomes, the seven-state
+cycle, the telegraph floor, pattern uniqueness, the placeholder scene, and the
+validator's rejection cases.

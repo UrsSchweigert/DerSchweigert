@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "muddler_desert",
+  "biome": "desert",
+  "states": ["idle", "patrol", "chase", "telegraph", "attack", "stagger", "unscramble"],
+  "telegraph": 0.45,
+  "speed": 110.0,
+  "hp": 18,
+  "movement": "skitter",
+  "attack": "spit"
+}

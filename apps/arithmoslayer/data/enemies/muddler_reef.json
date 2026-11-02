@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "muddler_reef",
+  "biome": "reef",
+  "states": ["idle", "patrol", "chase", "telegraph", "attack", "stagger", "unscramble"],
+  "telegraph": 0.45,
+  "speed": 90.0,
+  "hp": 26,
+  "movement": "weave",
+  "attack": "sweep"
+}
