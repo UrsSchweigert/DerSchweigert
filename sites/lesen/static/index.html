@@ -1174,6 +1174,27 @@
                 <button id="confirm-end-yes" class="primary" type="button">Beenden</button>
             </div>
         </dialog>
+        <dialog id="reminders-dialog" class="about-dialog" aria-labelledby="reminders-title">
+            <h2 id="reminders-title">Übungserinnerungen</h2>
+            <p id="reminders-explanation"></p>
+            <form id="reminders-gate">
+                <p id="reminders-question"></p>
+                <label id="reminders-answer-label" for="reminders-answer">Ergebnis</label>
+                <input id="reminders-answer" type="number" inputmode="numeric" required aria-describedby="reminders-question reminders-gate-error">
+                <p id="reminders-gate-error" role="status"></p>
+                <button id="reminders-unlock" class="primary" type="submit">Einstellungen öffnen</button>
+            </form>
+            <form id="reminders-settings" hidden>
+                <fieldset disabled>
+                    <p><label><input id="reminders-enabled" type="checkbox"> <span id="reminders-enabled-label">Täglich ans Lesen erinnern</span></label></p>
+                    <label id="reminders-time-label" for="reminders-time">Ungefähre Uhrzeit auf diesem Gerät</label>
+                    <input id="reminders-time" type="time" value="17:00" required>
+                    <p><button id="reminders-save" class="primary" type="submit">Speichern</button></p>
+                </fieldset>
+            </form>
+            <p id="reminders-status" role="status"></p>
+            <div class="about-actions"><button id="reminders-close" class="quiet" type="button">Schließen</button></div>
+        </dialog>
         <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
             <button id="about-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
             <h2 id="about-title">Über Buchstabenzeit</h2>
@@ -1193,7 +1214,7 @@
             </div>
         </dialog>
     </main>
-    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="export-report" class="link-button"><span id="footer-report-label">Bericht als CSV speichern</span></button> <button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button> <span id="report-status" class="report-status" role="status"></span></footer>
+    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="export-report" class="link-button"><span id="footer-report-label">Bericht als CSV speichern</span></button> <button type="button" id="open-reminders" class="link-button" hidden>Übungserinnerungen</button> <button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button> <span id="report-status" class="report-status" role="status"></span></footer>
     <script type="module">
         import { createPlatformAdapter } from './platform.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
@@ -1218,6 +1239,7 @@
         import { bestNextUnits } from './coverage.mjs';
         import { getTtsLanguageCode, getWordListFilename } from './storage.mjs';
         import { buildReport, toCsv, REPORT_FILENAME, MAX_CARD_PRACTICE_MS } from './platform.mjs';
+        import { mountReminderSettings } from './reminder-settings.mjs';
         
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
@@ -1239,6 +1261,9 @@
         let noPatternHintShown = false;
         let currentLanguage = window.__platform.progress.readLanguage();
         let appVersion = null;
+        const reminderSettings = mountReminderSettings({
+            document, reminders: window.__platform.reminders, translate: key => tr(key),
+        });
 
         function setLanguage(lang) {
             currentLanguage = lang;
@@ -1304,6 +1329,7 @@
         }
 
         function updateAllText() {
+            reminderSettings.render();
             updateSetupScreenText();
             updatePracticeScreenText();
             updateCompleteScreenText();

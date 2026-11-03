@@ -537,12 +537,13 @@ export function createWebReminders(env = {}) {
   }
 
   async function cancelAll() {
-    clearSchedule();
     if (!supported) {
+      clearSchedule();
       return UNSUPPORTED;
     }
     try {
       await plugin.cancel({ notifications: [{ id: REMINDER_NOTIFICATION_ID }] });
+      clearSchedule();
       return 'cancelled';
     } catch {
       return 'failed';
@@ -553,12 +554,14 @@ export function createWebReminders(env = {}) {
     kind: plugin ? 'native' : 'web',
     isSupported: () => supported,
     isEnabled: () => enabled,
+    settings: () => normalizeSchedule(pendingSchedule),
     async setEnabled(value) {
-      enabled = Boolean(value);
-      writeStoredValue(store, REMINDERS_ENABLED_KEY, enabled ? 'true' : 'false');
-      if (!enabled) {
-        await cancelAll();
+      const next = Boolean(value);
+      if (!next && (await cancelAll()) === 'failed') {
+        throw new Error('The pending practice reminder could not be cancelled.');
       }
+      enabled = next;
+      writeStoredValue(store, REMINDERS_ENABLED_KEY, enabled ? 'true' : 'false');
       return enabled;
     },
     requestPermission,

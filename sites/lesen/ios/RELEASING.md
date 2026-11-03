@@ -41,16 +41,17 @@ behaviour, and the four native capabilities listed under device checks.
 
 `APP-REVIEW.md` is the review package for App Review and for anyone running the
 device checks below. It names the four native capabilities as the **native
-spine** — `@capacitor/filesystem` cache write of the CSV report,
-`@capacitor/share` system share sheet, `@capacitor/haptics` grading feedback, and
-`@capacitor/local-notifications` practice reminders — gives an airplane-mode
+spine** — native `OfflineTts` speech, local progress/report
+(`@capacitor/filesystem` plus `@capacitor/share`), `@capacitor/haptics` grading
+feedback, and `@capacitor/local-notifications` practice reminders — gives an airplane-mode
 demo script with the expected on-screen result for each step, lists the offline
 screenshots to capture, and ends with a copy-paste block for App Store Connect.
 
 The notes are deliberately narrower than the device checklist: every claim is
-limited to what the build does. Capability 4 is adapter-only in this revision
-because no in-app control exposes reminders yet, so the review notes and the
-App Store text must not describe a reminder toggle.
+limited to what the build does. Speech is registered in the compiled scene
+bridge. The native-only footer reminder control mounts the shared adapter,
+with an adult challenge, default-off opt-in and explicit localized status.
+Neither source coverage nor automated doubles replace the device gates below.
 
 Capturing the offline screenshots, attaching them to the submission, and
 submitting for App Review are owner actions, exactly like producing the signed
@@ -220,34 +221,40 @@ the result in the release record:
    about dialog in both. The privacy link must open the matching bundled page
    (`datenschutz.html` for German, `datenschutz-en.html` for English) with no
    network request. Confirm word lists and sounds follow the selected language.
-3. **Native capability 1 — Filesystem export.** In the parent report, export the
+3. **Native capability 2 — Progress/report export.** In the parent report, export the
    CSV. It is written to the app's own cache directory with
    `@capacitor/filesystem` and the app reports success; no permission prompt
    appears because the file never leaves the app container.
-4. **Native capability 2 — Share sheet.** The exported CSV opens the system share
+4. **Report share sheet (also capability 2).** The exported CSV opens the system share
    sheet through `@capacitor/share`; sharing or saving works and cancelling
    returns to the app without losing the report.
-5. **Native capability 3 — Haptics.** Correct and incorrect answers give the
-   expected one-pulse / two-pulse feedback through `@capacitor/haptics`, and no
+5. **Native capability 4 — Haptics.** Correct and incorrect answers give distinct
+   native success/error feedback through `@capacitor/haptics`, and no
    haptics fire when Reduce Motion is enabled in iOS Settings.
-6. **Native capability 4 — Local notifications.** Reminders are off by default
-   and the adapter requests notification permission only after the parental gate
-   enables them. **No in-app control exposes that adapter in this build**, so the
-   reminder cannot be exercised from the UI yet; this item stays untested until a
-   parental-gated toggle ships. When it does: Allow → exactly one inexact daily
+6. **Native capability 3 — Local notifications.** Open the footer's
+   **Übungserinnerungen / Practice reminders**, solve the adult challenge and
+   choose the time. Wrong answers cannot open settings; closing/backgrounding
+   locks the gate again. Reminders are off by default and permission is only
+   requested when an adult enables them and saves. Allow → one inexact daily
    reminder is scheduled and delivered. Deny → the denial is remembered and the
-   app never re-prompts. Disabling cancels the reminder.
-7. **Speech.** Optional practice speech uses the Web Speech API and an installed
-   on-device voice. With airplane mode on, confirm the selected language still
-   speaks; with no matching voice the adapter reports the capability as
-   unavailable instead of hanging.
+   app never re-prompts. Cold restart restores the selected time without
+   prompting. Disabling cancels; cancellation failure must not look disabled.
+7. **Native capability 1 — Speech.** Optional practice speech uses the locally
+   registered `OfflineTts` plugin and `AVSpeechSynthesizer`. It accepts only
+   enumerated installed Apple compact DE/EN voices, preferring de-DE for
+   German, with rate/pitch controls in the bridge contract. With airplane mode
+   on, confirm speech works; with no eligible voice, visible feedback explains
+   that audio is unavailable and practice continues.
 8. **Upgrade.** Install the previous TestFlight build, then install the new one
    over it. Saved progress, language, and settings survive, and the about dialog
    shows the new version.
 9. **Silent switch and lifecycle.** Practice audio stops when the app is
-   backgrounded or the device is locked. Record what the silent switch does to
-   speech on the tested iOS version: the shell does not configure an
-   `AVAudioSession`, so this is observed per release, not assumed.
+   backgrounded or the device is locked. The native bridge configures
+   `AVAudioSession` playback/spokenAudio with duckOthers: verify speech with the
+   silent switch on and other audio ducking on the tested device/iOS version.
+   A call stops stale speech; after it ends, a new tap should work without
+   automatically restarting an old card. Record actual results, not just the
+   intended session configuration.
 
 A simulator pass does not substitute for any item above: the simulator has no
 haptics, no real notification delivery, no silent switch, and no TestFlight

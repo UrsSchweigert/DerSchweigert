@@ -17,6 +17,7 @@ export const REQUIRED_FILES = Object.freeze([
   'favicon.png',
   'apple-touch-icon.png',
   'platform.mjs',
+  'reminder-settings.mjs',
   'storage.mjs',
   'sounds.mjs',
   'scoring.mjs',
