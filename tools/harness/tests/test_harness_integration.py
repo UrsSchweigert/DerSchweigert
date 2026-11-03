@@ -681,6 +681,45 @@ def test_a_plural_required_checks_message_also_waits(tmp_path):
     assert issue["last_failures"] == [] and issue["repair_failures"] == 0
 
 
+def test_a_required_check_that_has_not_reported_yet_waits_instead_of_failing(tmp_path):
+    """Regression: a required check produced by a job that still has to run does not exist yet, so a ruleset words the
+    refusal 'Required status check "x" is expected.' with no 'waiting for status' suffix. The matcher only knew the
+    classic wording, so three such refusals in 77 seconds exhausted the repair budget two minutes before the check
+    turned green."""
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [
+        GitHubError('gh: Repository rule violations found\n\nRequired status check "lesen-native" is expected.\n\n (HTTP 405)')]
+    env.start()
+    events = env.run_until(lambda: env.state("i1") == "Done")
+    issue = env.store.get_issue("i1")
+    assert any(e["event"] == "merge_pending" for e in events)
+    assert issue["merge_pending"] == 0  # cleared once the merge went through
+    assert issue["last_failures"] == [] and issue["repair_failures"] == 0
+
+
+def test_plural_required_checks_that_have_not_reported_yet_also_wait(tmp_path):
+    """The same refusal for several checks at once: '3 of 3 required status checks are expected.'"""
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [
+        GitHubError('gh: Repository rule violations found\n\n3 of 3 required status checks are expected.\n\n (HTTP 405)')]
+    env.start()
+    events = env.run_until(lambda: env.state("i1") == "Done")
+    issue = env.store.get_issue("i1")
+    assert any(e["event"] == "merge_pending" for e in events)
+    assert issue["last_failures"] == [] and issue["repair_failures"] == 0
+
+
+def test_a_merge_refusal_that_only_mentions_expected_elsewhere_still_fails(tmp_path):
+    """The wait is for a required check that has not reported, not for any refusal containing the word 'expected'."""
+    env = flaky_env(tmp_path)
+    env.publisher.merge_errors = [GitHubError("gh: merge commit is expected to be signed (HTTP 405)")] * 10
+    env.start()
+    env.run_until(lambda: env.store.get_issue("i1")["repair_failures"] >= 1)
+    issue = env.store.get_issue("i1")
+    assert issue["merge_pending"] == 0
+    assert [f["kind"] for f in issue["last_failures"]] == ["merge_conflict"]
+
+
 def test_required_checks_that_never_finish_block_with_their_own_reason(tmp_path, monkeypatch):
     monkeypatch.setattr(scheduler, "MERGE_PENDING_TIMEOUT_S", 15)
     env = flaky_env(tmp_path)
