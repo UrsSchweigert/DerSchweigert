@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "id": "greybox-arena",
+  "seed": 20261103,
+  "band": "g1-within-10",
+  "enemy": "muddler_meadow",
+  "maxTicks": 240,
+  "expectedAnswers": 24
+}

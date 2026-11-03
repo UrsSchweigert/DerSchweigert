@@ -63,6 +63,28 @@ the window, roll protection, cooldown, every weapon, and both respawn points.
 deadzones, analog magnitudes, data-defined numbers, body and tilemap collision,
 camera clamping and smoothing, and the wired arena scene.
 
+## Debug snapshot, input injection, and replay
+
+Three helpers under `scripts/debug/` support bot playthroughs and bug reports,
+and `input_injection.gd` and `state_snapshot.gd` refuse to do anything unless
+`OS.is_debug_build()` is true, so a release build cannot reach them. They are
+plain classes, not autoloads.
+
+`Replay` records one fixed-tick session: `record({kind, action, direction, x,
+y})` stamps the current tick, `advance_tick()` moves on, and `to_json()` writes
+`{version, seed, ticks, events}`. `from_json()` reads it back and collects
+malformed fields in `errors`. `InputInjection.inject(event)` feeds those events
+to the shared `InputActions` and drives a bound `PlayerMovement`.
+`StateSnapshot.capture(state)` returns the JSON view of a live session: tick,
+entities, orbs, problem, chain and finisher, hearts, entitlement, and cleared.
+
+`data/bots/arena.json` seeds the scripted bot in `test/bots/arena_bot.gd`. The
+bot answers every problem by striking the correct orb, records its inputs, and
+`replay_session()` re-runs them so a matching snapshot proves determinism.
+`test/integration/combat/test_replay_snapshot.gd` covers the clear, the replay
+round trip and its determinism, the snapshot, the injection API, and the debug
+guard.
+
 ## Enemies
 
 `scripts/combat/enemy_state_machine.gd` is the Muddler brain. It cycles through
