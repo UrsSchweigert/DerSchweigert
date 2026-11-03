@@ -250,6 +250,23 @@ def test_refiner_and_implementer_receive_the_enforced_escalation_boundary(tmp_pa
         assert "blocked" in prompt and "needs_input" in prompt
 
 
+def test_owner_replanning_guidance_survives_refiner_staleness_context(tmp_path):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["guidance"] = ["Replace the old plan; do not edit requirements.txt."]
+    env.store.put_issue(issue)
+    env.repo.advance_base(["src/core.py"])
+    env.start()
+    env.run_until(lambda: any(r.role == "implementer" for r in env.adapter.started))
+    for role in ("refiner", "implementer"):
+        packet = next(r.packet for r in env.adapter.started if r.role == role)
+        assert "human_guidance" in packet["untrusted_data"]
+        assert issue["guidance"][0] in packet["untrusted_data"]
+        if role == "refiner":
+            assert "changed_since_refinement" in packet["untrusted_data"]
+            assert "src/core.py" in packet["untrusted_data"]
+
+
 def test_scope_drift_is_detected_from_the_repository_not_the_worker_claim(tmp_path):
     env = Env(tmp_path)
     env.adapter.impl_paths["i1"] = ["src/ok.py", "infra/main.tf"]
