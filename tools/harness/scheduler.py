@@ -110,6 +110,7 @@ class Scheduler:
         self._heartbeat_stop: Optional[threading.Event] = None
         self.check_runs: Dict[str, Dict[str, Any]] = {}
         self.events: List[Dict[str, Any]] = []
+        self._admitted_phases: Optional[set] = None  # recomputed each tick; None means no pause-after-phase gate is armed
 
     # -- plan and policy ------------------------------------------------------
 
@@ -216,6 +217,14 @@ class Scheduler:
                         self._emit(event.pop("event"), **event)
                 except Exception as exc:  # noqa: BLE001 - a notification must never stop the run
                     self._emit("notify_failed", error="%s: %s" % (type(exc).__name__, str(exc)[:200]))
+        try:
+            self._admitted_phases = self._phase_admission()
+        except ValueError as exc:
+            # The gate decides what may start. If it cannot be resolved, running on would silently break the promise
+            # the operator was given, so stop and say why instead.
+            self._pause("pause-after-phase gate cannot be enforced: %s. Resume to continue without it, or pause again "
+                        "naming a phase of this plan." % exc, now)
+            return self.events
         with self._timed("phases"):
             self._advance_phases(now)
         if run.get("pause_after_phase") and self.store.state(
@@ -1405,8 +1414,8 @@ class Scheduler:
             if self.store.state("plan", self.entity) != "Executing":
                 return
             if (self.store.state("issue", issue["issue_id"]) != "In Review" or self.store.active_claims_for(issue["issue_id"])
-                    or self._has_checks(issue["issue_id"])):
-                continue
+                    or self._has_checks(issue["issue_id"]) or not self._phase_admits_new_work(issue["phase_id"])):
+                continue  # a gated phase keeps work it already started, but merges none of it until the gate is lifted
             if self._valid(issue["issue_id"], "merge", issue["head_rev"]) is not None:
                 self._post_merge(issue, max(now, self.clock()))
                 continue
@@ -1629,6 +1638,7 @@ class Scheduler:
     def _ready_to_work(self, issue: Dict[str, Any], now: float) -> bool:
         phase_state = self.store.state("phase", "%s/%s" % (self.entity, issue["phase_id"]))
         return (issue["not_before"] <= now and not self._unmet_deps(issue) and phase_state in ("Active",)
+            and self._phase_admits_new_work(issue["phase_id"])
             and not self.store.active_claims_for(issue["issue_id"]) and not self._has_checks(issue["issue_id"]) and self._concurrency_ok(issue))
 
     def _dispatch(self, now: float) -> None:
@@ -1901,6 +1911,36 @@ class Scheduler:
 
     # -- phases and completion --------------------------------------------------
 
+    def _phase_admission(self) -> Optional[set]:
+        """Which phases new work may enter while `pause --after-phase` is armed, or None when it is not.
+
+        The promise the operator is given is that nothing after the named phase starts. In a linear plan the next
+        phase cannot start anyway, so the pause at the end of the tick was enough. A branching plan has phases that
+        become eligible the moment the gate's own prerequisites are done, and those are not "after" anything that has
+        to finish first: without an explicit admission set they run beside the gate and the promise is broken.
+        Admitted are the gate, everything the gate transitively waits for, and every phase already Done, so history is
+        never reopened or stranded. Raises ValueError when the gate cannot be resolved against the signed plan.
+        """
+        gate = (self.store.get_run(self.plan_id) or {}).get("pause_after_phase")
+        if not gate:
+            return None
+        phases = {p["id"]: p for p in self._plan()["phases"]}
+        if gate not in phases:
+            raise ValueError("phase %s is not part of %s v%d" % (gate, self.plan_id, self.version))
+        admitted, frontier = {gate}, [gate]
+        while frontier:  # the plan is acyclic (validate_plan rejects cycles); the visited set keeps a corrupt one finite
+            for dep in phases[frontier.pop()]["dependencies"]:
+                if dep not in phases:
+                    raise ValueError("phase %s depends on unknown phase %s" % (gate, dep))
+                if dep not in admitted:
+                    admitted.add(dep)
+                    frontier.append(dep)
+        return admitted | {pid for pid in phases if self.store.state("phase", "%s/%s" % (self.entity, pid)) == "Done"}
+
+    def _phase_admits_new_work(self, phase_id: str) -> bool:
+        """One question asked wherever work, checks, or a merge would begin: may this phase start anything now?"""
+        return self._admitted_phases is None or phase_id in self._admitted_phases
+
     def _advance_phases(self, now: float) -> None:
         plan = self._plan()
         issues = self.store.list_issues(self.plan_id)
@@ -1909,7 +1949,9 @@ class Scheduler:
             state = self.store.state("phase", ent) or "Planned"
             if state == "Planned" and all(self.store.state("phase", "%s/%s" % (self.entity, d)) == "Done" for d in ph["dependencies"]):
                 self.store.transition("phase", ent, "Eligible", self.runner_id, {}, now=now)
-                state = "Eligible"
+                state = "Eligible"  # dependencies met is an observation; whether work may start is the gate's question
+            if not self._phase_admits_new_work(ph["id"]):
+                continue  # a gate is armed: a phase beside or after it neither activates nor runs its exit criteria
             mine = [i for i in issues if i["phase_id"] == ph["id"]]
             if state == "Eligible" and mine:
                 self.store.transition("phase", ent, "Active", self.runner_id, {}, now=now)

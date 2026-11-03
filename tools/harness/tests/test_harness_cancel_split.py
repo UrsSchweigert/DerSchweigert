@@ -268,3 +268,208 @@ def test_a_run_pauses_by_itself_once_the_named_phase_is_done(tmp_path):
     assert env.store.state("phase", "fx@v1/P2") in ("Planned", "Eligible")  # P2 never started
     paused = env.store.get_run("fx")
     assert not paused.get("pause_after_phase")  # the request is one-shot
+
+
+BRANCHING = [
+    {"id": "P1", "outcomes": ["one"], "requirements": ["F1.1"], "path_allowlist": ["src/"], "non_goals": ["x"],
+     "dependencies": [], "exit_criteria": ["ok"], "validation": ["check-p1"]},
+    {"id": "P2", "outcomes": ["two"], "requirements": ["F1.2"], "path_allowlist": ["src/"], "non_goals": ["x"],
+     "dependencies": ["P1"], "exit_criteria": ["ok"], "validation": ["check-p2"]},
+    {"id": "P3", "outcomes": ["three"], "requirements": ["F2.1"], "path_allowlist": ["src/"], "non_goals": ["x"],
+     "dependencies": ["P1"], "exit_criteria": ["ok"], "validation": ["check-p3"]},
+    {"id": "P5", "outcomes": ["five"], "requirements": ["F2.1"], "path_allowlist": ["src/"], "non_goals": ["x"],
+     "dependencies": ["P3"], "exit_criteria": ["ok"], "validation": ["check-p5"]},
+]
+SLOW_BUDGETS = {"lease_s": 10 ** 7, "run_wall_clock_s": 10 ** 8, "worker_timeout_s": 10 ** 7, "inactivity_timeout_s": 10 ** 7}
+
+
+def branching_env(tmp_path, gate=None):
+    """P1 fans out to P2 and P3, and P5 waits for P3: the shape a linear fixture cannot show."""
+    from harness_doubles import Env
+    env = Env(tmp_path, phases=BRANCHING, budgets=dict(SLOW_BUDGETS),
+              issues=[("i1", "P1", ["F1.1"]), ("i2", "P2", ["F1.2"]), ("i3", "P3", ["F2.1"]), ("i5", "P5", ["F2.1"])])
+    if gate is not None:
+        env.store.put_run("fx", dict(env.store.get_run("fx"), pause_after_phase=gate))
+    return env
+
+
+def worked_on(env):
+    return {r.issue_id for r in env.adapter.started}
+
+
+def phase_checks(env):
+    return {iid for iid, _ in env.checker.calls if iid.startswith("phase-")}
+
+
+def merged(env):
+    return {i["issue"] for i in env.publisher.intents if i["action"] == "merge_pr"}
+
+
+NOT_STARTED = (None, "Planned", "Eligible")  # no state document, or one that records nothing beyond "may begin"
+
+
+def test_a_gate_phase_keeps_a_sibling_branch_and_its_followers_from_starting(tmp_path):
+    """`pause --after-phase P2` promises nothing after P2 starts. P3 is a sibling of P2, not a successor of it,
+    so only an explicit admission gate keeps P3 (and P5 behind it) out of the run."""
+    env = branching_env(tmp_path, gate="P2")
+    env.start()
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert "paused after phase P2" in [e for e in events if e["event"] == "paused"][0]["reason"]
+    assert env.store.state("phase", "fx@v1/P1") == "Done" and env.store.state("phase", "fx@v1/P2") == "Done"
+    assert env.store.state("phase", "fx@v1/P3") in NOT_STARTED and env.store.state("phase", "fx@v1/P5") in NOT_STARTED
+    assert worked_on(env) == {"i1", "i2"}  # no worker was ever started past the gate
+    assert env.state("i3") == "Ready" and env.state("i5") == "Ready"
+    assert phase_checks(env) == {"phase-P1", "phase-P2"}  # no premature exit criteria either
+    assert not [i for i in env.publisher.intents if i.get("issue_id") in ("i3", "i5")]
+
+
+def test_a_gate_admits_the_phases_it_waits_for(tmp_path):
+    """The gate's own prerequisites must still run, or the gate could never be reached."""
+    env = branching_env(tmp_path, gate="P5")
+    env.start()
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert "paused after phase P5" in [e for e in events if e["event"] == "paused"][0]["reason"]
+    assert env.store.state("phase", "fx@v1/P3") == "Done" and env.store.state("phase", "fx@v1/P5") == "Done"
+    assert env.store.state("phase", "fx@v1/P2") in NOT_STARTED  # P2 is beside the chain, not under it
+    assert worked_on(env) == {"i1", "i3", "i5"}
+
+
+def test_a_later_gate_keeps_the_phases_that_already_finished(tmp_path):
+    """Arming a second gate must not strand the history of the first: P1 and P2 stay Done."""
+    env = branching_env(tmp_path, gate="P2")
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    env.store.put_run("fx", dict(env.store.get_run("fx"), pause_after_phase="P3"))
+    env.start()
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert "paused after phase P3" in [e for e in events if e["event"] == "paused"][0]["reason"]
+    assert env.store.state("phase", "fx@v1/P1") == "Done" and env.store.state("phase", "fx@v1/P2") == "Done"
+    assert env.store.state("phase", "fx@v1/P3") == "Done" and env.store.state("phase", "fx@v1/P5") in NOT_STARTED
+    assert worked_on(env) == {"i1", "i2", "i3"}
+
+
+def test_without_a_gate_independent_phases_still_run_together(tmp_path):
+    """The baseline the gate must not change: siblings are concurrent when the operator asked for nothing."""
+    env = branching_env(tmp_path)
+    env.start()
+    env.run_until(lambda: {"i2", "i3"} <= worked_on(env), advance=700)
+    assert env.store.state("phase", "fx@v1/P2") == "Active" and env.store.state("phase", "fx@v1/P3") == "Active"
+
+
+def test_an_unresolvable_gate_pauses_instead_of_running_on(tmp_path):
+    """A gate naming a phase the plan does not have cannot be enforced, so the run stops rather than silently ignoring it."""
+    env = branching_env(tmp_path, gate="P9")
+    env.start()
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=10)
+    reason = [e for e in events if e["event"] == "paused"][0]["reason"]
+    assert "pause-after-phase" in reason and "P9" in reason
+    assert worked_on(env) == set()
+    assert env.store.state("phase", "fx@v1/P1") in NOT_STARTED
+
+
+def test_a_gate_armed_mid_flight_keeps_started_work_but_merges_none_of_it(tmp_path):
+    """Work already running past the gate is not thrown away; it simply stops short of a merge until the gate lifts."""
+    env = branching_env(tmp_path)
+    env.start()
+    env.run_until(lambda: env.state("i3") == "In Review", advance=700)
+    env.store.put_run("fx", dict(env.store.get_run("fx"), pause_after_phase="P2"))
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert "paused after phase P2" in [e for e in events if e["event"] == "paused"][0]["reason"]
+    assert env.state("i3") == "In Review" and "i3" not in merged(env)  # kept, not merged, not lost
+    assert env.store.state("phase", "fx@v1/P3") == "Active"  # the phase it had already entered stays as it was
+    assert env.store.state("phase", "fx@v1/P5") in NOT_STARTED and "i5" not in worked_on(env)
+
+
+def test_the_gate_is_lifted_by_the_pause_so_resuming_runs_the_rest(tmp_path):
+    """The gate is one-shot: after the pause the operator asked for, a plain resume finishes the plan."""
+    env = branching_env(tmp_path, gate="P2")
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert not env.store.get_run("fx").get("pause_after_phase")
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Completed", advance=700)
+    assert merged(env) == {"i1", "i2", "i3", "i5"}
+
+
+def test_a_gate_may_name_a_phase_the_run_has_not_reached_yet(tmp_path):
+    """A phase with no state document yet is the usual thing to gate on; only an id the plan lacks is refused."""
+    env = branching_env(tmp_path)
+    env.start()
+    assert env.store.state("phase", "fx@v1/P5") is None
+    assert runner.request_pause(env.store, "fx", 1, after_phase="P5") == "after P5"
+    assert env.store.get_run("fx")["pause_after_phase"] == "P5"
+    with pytest.raises(runner.RunRefused, match="unknown phase P9"):
+        runner.request_pause(env.store, "fx", 1, after_phase="P9")
+
+
+def test_the_next_gate_can_be_armed_while_the_plan_is_paused(tmp_path):
+    """The gate is consumed by the pause it causes. Arming the next one has to work before `resume`, or the first tick
+    of the resumed run starts exactly the phases the next gate was meant to hold back."""
+    env = branching_env(tmp_path, gate="P2")
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    before = (env.store.state("phase", "fx@v1/P3"), len(env.adapter.started))
+    assert runner.request_pause(env.store, "fx", 1, after_phase="P3") == "armed after P3"
+    assert env.store.get_run("fx")["pause_after_phase"] == "P3"
+    assert env.store.state("plan", "fx@v1") == "Paused"  # arming a gate moves nothing and starts nothing
+    assert (env.store.state("phase", "fx@v1/P3"), len(env.adapter.started)) == before
+    env.start()
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert "paused after phase P3" in [e for e in events if e["event"] == "paused"][0]["reason"]
+    assert env.store.state("phase", "fx@v1/P3") == "Done"
+    assert env.store.state("phase", "fx@v1/P5") in NOT_STARTED and "i5" not in worked_on(env)
+
+
+def test_arming_a_gate_while_paused_refuses_a_phase_the_plan_does_not_have(tmp_path):
+    env = branching_env(tmp_path, gate="P2")
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    with pytest.raises(runner.RunRefused, match="unknown phase P9"):
+        runner.request_pause(env.store, "fx", 1, after_phase="P9")
+    assert not env.store.get_run("fx").get("pause_after_phase")  # nothing half-armed is left behind
+
+
+def test_arming_a_gate_on_an_already_finished_phase_is_refused_not_ignored(tmp_path):
+    """Resuming on a gate that can hold nothing back would run the rest of the plan under a request that reads
+    like a stop. Say it cannot be done instead."""
+    env = branching_env(tmp_path, gate="P2")
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert env.store.state("phase", "fx@v1/P2") == "Done"
+    with pytest.raises(runner.RunRefused, match="already Done"):
+        runner.request_pause(env.store, "fx", 1, after_phase="P2")
+    assert not env.store.get_run("fx").get("pause_after_phase")
+    assert env.store.state("plan", "fx@v1") == "Paused"
+
+
+def test_a_plain_pause_still_needs_a_running_plan(tmp_path):
+    """Only the gate is allowed on a paused plan; pausing a plan that is not running stays refused."""
+    env = branching_env(tmp_path, gate="P2")
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    with pytest.raises(runner.RunRefused, match="only a running plan can be paused"):
+        runner.request_pause(env.store, "fx", 1)
+    with pytest.raises(runner.RunRefused, match="only a running plan can be paused"):
+        runner.request_pause(env.store, "fx", 1, now_flag=True)
+    assert env.store.state("plan", "fx@v1") == "Paused" and not env.store.get_run("fx").get("pause_requested")
+
+
+def test_a_gate_is_refused_on_a_plan_that_is_not_resumable(tmp_path):
+    env = branching_env(tmp_path)
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Completed", advance=700)
+    with pytest.raises(runner.RunRefused, match="only a running or paused plan"):
+        runner.request_pause(env.store, "fx", 1, after_phase="P3")
+    assert not env.store.get_run("fx").get("pause_after_phase")
+
+
+def test_status_says_a_gate_is_armed_on_a_paused_plan(tmp_path):
+    """The operator has to be able to see, before resuming, what the next resume will run."""
+    env = branching_env(tmp_path, gate="P2")
+    env.start()
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    runner.request_pause(env.store, "fx", 1, after_phase="P3")
+    report = status.build_report(home=str(tmp_path / "home"))
+    assert report["plans"][0]["pause_after_phase"] == "P3"
+    line = [l for l in status.render(report).splitlines() if l.startswith("plan fx")][0]
+    assert "PAUSED: paused after phase P2" in line and "GATE ARMED: resume runs P3" in line
