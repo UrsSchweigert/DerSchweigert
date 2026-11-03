@@ -322,6 +322,14 @@ proves the merged content is byte for byte what was tested. A check that *failed
 on the merge commit is never overruled by the head, and a differing tree reads
 nothing: both fail closed.
 
+*Absent* here means the merge commit never reported that context at all. A check
+that is queued or running on the merge commit has reported, so it counts as
+pending and is never satisfied from the head: completion waits for the merged
+revision's own answer. Where a context reports more than once, the newest report
+decides, so a rerun that is queued again is not masked by the success it
+replaces; and where a check run and a commit status share a name, the one that is
+not successful decides.
+
 ## Quick start
 
 The shortest path is one command. It checks the environment, asks for the requirements file and the model sources,
