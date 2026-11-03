@@ -322,6 +322,20 @@ def test_wall_clock_budget_pauses_the_project(tmp_path):
     assert env.store.active_claims() == [] and env.state("i1") == "Ready"
 
 
+def test_an_absent_wall_clock_budget_is_unlimited(tmp_path):
+    env = Env(tmp_path, budgets={"run_wall_clock_s": None})
+    env.adapter.script("i1", "implementer", "hang")
+    env.start()
+    env.tick(10)
+    events = env.tick(10**7)  # far past any limit a plan would have used
+    run = env.store.get_run("fx")
+    assert not any(e["event"] == "paused" for e in events)
+    assert "wall-clock" not in (run.get("paused_reason") or "") and env.store.state("plan", "fx@v1") == "Executing"
+    report = status.build_report(env.store.home)
+    assert report["budgets"]["fx"]["wall_clock_s"]["limit"] is None
+    assert report["budgets"]["fx"]["wall_clock_s"]["remaining"] is None
+
+
 def test_pull_request_budget_pauses_the_project(tmp_path):
     env = Env(tmp_path, issues=[("a", "P1", ["F1.1"]), ("b", "P1", ["F1.2"])], budgets={"pull_requests_per_run": 1})
     env.start()

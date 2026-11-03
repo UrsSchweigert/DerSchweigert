@@ -34,7 +34,9 @@ MACHINES = {
         "In Review": {"In Progress", "Done", "Blocked"},
         "Blocked": {"Refining", "Ready", "Cancelled"},
         "Done": set(),
-        "Cancelled": set(),
+        # A cancelled issue that never produced work can be put back by importing it again; runner.import_issues
+        # refuses the revival as soon as a head, a pull request, or a claim exists.
+        "Cancelled": {"Ready"},
     },
     "human_task": {
         "Requested": {"Acknowledged", "Submitted", "Cancelled"},

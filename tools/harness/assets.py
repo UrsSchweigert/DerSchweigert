@@ -12,6 +12,7 @@ import struct
 import subprocess
 import tempfile
 import time
+import wave
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -24,6 +25,7 @@ ASSET_REQUEST = {
     "request_id": str, "issue_id": str, "purpose": str, "asset_class": str, "format": str, "output_path": str,
     "source": ("repository", "cc0_library", "procedural", "ai"),
     "limits?": dict, "style_notes?": str, "existing_path?": str, "script?": str, "library?": dict, "generator?": str, "prompt?": str,
+    "license_file?": str, "license_file_checksum?": str,
 }
 SOURCE_ORDER = ("repository", "cc0_library", "procedural", "ai")
 AMBIGUOUS_LICENSE = re.compile(r"(unknown|various|unspecified|\?|tbd|mixed|custom)", re.I)
@@ -36,6 +38,26 @@ SCRIPT_BLOCKLIST = re.compile(r"\b(import\s+(os|sys|subprocess|socket|shutil|cty
 
 class AssetError(Exception):
     pass
+
+
+def allowed_licenses(policy: Dict[str, Any], asset_class: str) -> List[str]:
+    """A class may narrow the global allowlist (fonts allow OFL and Apache text licences); every other class uses it as is."""
+    spec = (policy["assets"]["classes"] or {}).get(asset_class) or {}
+    return list(spec.get("allowed_licenses") or policy["assets"]["allowed_licenses"])
+
+
+LICENSE_FILE_HINTS = ("license", "licence", "ofl", "apache", "copying")
+
+
+def _license_artifact(artifacts: Sequence[str]) -> Optional[str]:
+    """The attachment that is a licence text rather than the asset itself."""
+    for path in artifacts[1:]:
+        name = os.path.basename(path).lower()
+        if any(hint in name for hint in LICENSE_FILE_HINTS):
+            return path
+    return None
+
+
 
 
 def asset_path(root: str, relative: str) -> str:
@@ -98,8 +120,9 @@ def validate_request(policy: Dict[str, Any], req: Dict[str, Any], root: Optional
         if key in cls and isinstance(value, (int, float)) and isinstance(cls[key], (int, float)) and value > cls[key]:
             problems.append("limit %s=%s exceeds the policy maximum %s" % (key, value, cls[key]))
     lib = req.get("library") or {}
-    if lib.get("license") and lib["license"] not in a["allowed_licenses"]:
-        problems.append("license %r is not allowed (allowed: %s)" % (lib["license"], a["allowed_licenses"]))
+    licenses = allowed_licenses(policy, req["asset_class"])
+    if lib.get("license") and lib["license"] not in licenses:
+        problems.append("license %r is not allowed for %s (allowed: %s)" % (lib["license"], req["asset_class"], licenses))
     if root is not None and not problems:
         relatives = [req["output_path"], str(Path(a["output_dir"]) / "manifest.json"),
                      str(Path(a["output_dir"]) / "manifest.json.tmp"),
@@ -129,6 +152,115 @@ def image_dims(data: bytes) -> Optional[Sequence[int]]:
                 return (w, h)
             i += 2 + struct.unpack(">H", data[i + 2:i + 4])[0]
     return None
+
+
+def ogg_vorbis_stats(path: str) -> Dict[str, Any]:
+    """Length, sample rate, and channels of a single logical Ogg Vorbis stream, read without third-party code.
+
+    Fails closed: an unparsable page, a chained or multiplexed stream, a missing Vorbis identification header,
+    or a file without a granule position is an error, never a guess.
+    """
+    with open(path, "rb") as fh:
+        data = fh.read()
+    if data[:4] != b"OggS":
+        raise AssetError("not an Ogg file")
+    pos, serial, ident, granule = 0, None, None, None
+    while pos < len(data):
+        if data[pos:pos + 4] != b"OggS":
+            raise AssetError("Ogg page capture pattern is missing at byte %d" % pos)
+        if pos + 27 > len(data):
+            raise AssetError("truncated Ogg page header")
+        if data[pos + 4] != 0:
+            raise AssetError("unsupported Ogg stream version %d" % data[pos + 4])
+        page_granule = struct.unpack("<q", data[pos + 6:pos + 14])[0]
+        page_serial = struct.unpack("<I", data[pos + 14:pos + 18])[0]
+        table_end = pos + 27 + data[pos + 26]
+        if table_end > len(data):
+            raise AssetError("truncated Ogg segment table")
+        body_start = table_end
+        body_end = body_start + sum(data[pos + 27:table_end])
+        if body_end > len(data):
+            raise AssetError("truncated Ogg page body")
+        if serial is None:
+            serial = page_serial
+        elif page_serial != serial:
+            raise AssetError("chained or multiplexed Ogg streams are not supported")
+        if ident is None:
+            body = data[body_start:body_end]
+            if not body.startswith(b"\x01vorbis"):
+                raise AssetError("the first Ogg packet is not a Vorbis identification header")
+            if len(body) < 16:
+                raise AssetError("truncated Vorbis identification header")
+            channels, rate = body[11], struct.unpack("<I", body[12:16])[0]
+            if channels < 1 or rate < 1:
+                raise AssetError("Vorbis identification header has no usable channels or sample rate")
+            ident = {"channels": channels, "sample_rate_hz": rate}
+        if page_granule >= 0:
+            granule = page_granule
+        pos = body_end
+    if ident is None:
+        raise AssetError("Ogg file has no Vorbis identification header")
+    if granule is None:
+        raise AssetError("Ogg file has no granule position, so its length cannot be verified")
+    return {"channels": ident["channels"], "sample_rate_hz": ident["sample_rate_hz"],
+            "seconds": granule / float(ident["sample_rate_hz"])}
+
+
+def audio_stats(path: str, ext: str) -> Dict[str, Any]:
+    """Seconds, sample rate, and channels for a WAV or Ogg Vorbis file."""
+    if ext == "wav":
+        try:
+            with wave.open(path, "rb") as fh:
+                channels, rate, frames = fh.getnchannels(), fh.getframerate(), fh.getnframes()
+        except (wave.Error, EOFError, OSError) as exc:
+            raise AssetError("not a readable WAV file: %s" % exc) from exc
+        if frames < 1 or rate < 1 or channels < 1:
+            raise AssetError("WAV file has no usable audio frames")
+        return {"channels": channels, "sample_rate_hz": rate, "seconds": frames / float(rate)}
+    if ext == "ogg":
+        return ogg_vorbis_stats(path)
+    raise AssetError("no audio parser for .%s" % ext)
+
+
+SFNT_MAGIC = (b"\x00\x01\x00\x00", b"OTTO", b"true", b"typ1")
+SFNT_REQUIRED_TABLES = ("head", "cmap", "name", "maxp")
+
+
+def font_stats(path: str) -> Dict[str, Any]:
+    """Verify an sfnt font (TrueType, OpenType/CFF, or a collection) and that every table lies inside the file."""
+    with open(path, "rb") as fh:
+        data = fh.read()
+    if len(data) < 12:
+        raise AssetError("file is too short to be a font")
+    magic = data[:4]
+    base = 0
+    if magic == b"ttcf":
+        if len(data) < 16:
+            raise AssetError("truncated font collection header")
+        count, base = struct.unpack(">II", data[8:16])
+        if count < 1:
+            raise AssetError("font collection is empty")
+        if base + 12 > len(data) or data[base:base + 4] not in SFNT_MAGIC:
+            raise AssetError("font collection does not point at a usable sfnt font")
+    elif magic not in SFNT_MAGIC:
+        raise AssetError("not an sfnt font: unexpected magic %r" % magic)
+    num_tables = struct.unpack(">H", data[base + 4:base + 6])[0]
+    if num_tables < 1 or num_tables > 512:
+        raise AssetError("font declares an implausible %d tables" % num_tables)
+    if base + 12 + 16 * num_tables > len(data):
+        raise AssetError("truncated font table directory")
+    tables: Dict[str, int] = {}
+    for index in range(num_tables):
+        record = base + 12 + 16 * index
+        tag = data[record:record + 4].decode("latin-1")
+        table_offset, length = struct.unpack(">II", data[record + 8:record + 16])
+        if table_offset + length > len(data):
+            raise AssetError("font table %r points outside the file" % tag)
+        tables[tag] = length
+    missing = [tag for tag in SFNT_REQUIRED_TABLES if tag not in tables]
+    if missing:
+        raise AssetError("font is missing the %s table" % ", ".join(repr(tag) for tag in missing))
+    return {"num_tables": num_tables, "tables": sorted(tables)}
 
 
 def read_gltf(path: str) -> Dict[str, Any]:
@@ -176,6 +308,29 @@ def gltf_stats(path: str) -> Dict[str, Any]:
 
 # -- deterministic validation ---------------------------------------------------------------
 
+VERIFIABLE_LIMITS = ("max_texture_px", "max_triangles", "max_bbox_m", "max_seconds", "max_sample_rate_hz", "max_channels")
+
+
+def _license_file_problems(root: str, entry: Dict[str, Any]) -> List[str]:
+    """A class that requires its licence text (fonts) must name a licence file stored next to the asset."""
+    reference = entry.get("license_file")
+    if not reference:
+        return ["license_file is required for %s: the licence text must sit next to the asset" % entry.get("path", "this asset")]
+    try:
+        license_path = asset_path(root, reference)
+        asset_dir = os.path.dirname(asset_path(root, entry["path"]))
+    except (AssetError, KeyError) as exc:
+        return ["license_file %r is not usable: %s" % (reference, exc)]
+    if os.path.dirname(license_path) != asset_dir:
+        return ["license_file %r must sit in the same directory as %r" % (reference, entry.get("path"))]
+    if not os.path.isfile(license_path):
+        return ["license_file %r does not exist" % reference]
+    if os.path.getsize(license_path) < 100:
+        return ["license_file %r is too short to be a licence text" % reference]
+    if sha256_file(license_path) != entry.get("license_file_checksum"):
+        return ["license_file %r does not match the checksum recorded in the manifest" % reference]
+    return []
+
 def validate_entry(root: str, entry: Dict[str, Any], policy: Dict[str, Any], asset_class: str) -> List[str]:
     """All checks are code, never an agent's opinion. Anything that cannot be verified fails closed."""
     a, cls, fails = policy["assets"], policy["assets"]["classes"][asset_class], []
@@ -194,12 +349,15 @@ def validate_entry(root: str, entry: Dict[str, Any], policy: Dict[str, Any], ass
     if sha256_file(path) != entry.get("checksum"):
         fails.append("checksum does not match the manifest")
     lic = entry.get("license", "")
+    licenses = allowed_licenses(policy, asset_class)
     if not lic or AMBIGUOUS_LICENSE.search(lic):
         fails.append("license is unknown or ambiguous: %r" % lic)
-    elif lic not in a["allowed_licenses"]:
-        fails.append("license %r is not allowed by the policy" % lic)
+    elif lic not in licenses:
+        fails.append("license %r is not allowed by the policy for %s (allowed: %s)" % (lic, asset_class, licenses))
     if lic in a.get("attribution_required_licenses", []) and not entry.get("attribution"):
         fails.append("attribution is required for %s" % lic)
+    if cls.get("license_file_required"):
+        fails.extend(_license_file_problems(root, entry))
     for field in ("request_id", "issue", "source", "author", "date", "tool"):
         if not entry.get(field):
             fails.append("manifest field %r is missing" % field)
@@ -228,7 +386,17 @@ def validate_entry(root: str, entry: Dict[str, Any], policy: Dict[str, Any], ass
                 fails.append("image dimensions cannot be read")
             elif max(dims) > cls.get("max_texture_px", 10**9):
                 fails.append("texture %dx%d exceeds %d px" % (dims[0], dims[1], cls["max_texture_px"]))
-        elif "max_texture_px" in cls or "max_triangles" in cls:
+        elif ext in ("wav", "ogg"):
+            stats = audio_stats(path, ext)
+            if "max_seconds" in cls and stats["seconds"] > cls["max_seconds"]:
+                fails.append("%.2f s exceeds the %s s limit" % (stats["seconds"], cls["max_seconds"]))
+            if "max_sample_rate_hz" in cls and stats["sample_rate_hz"] > cls["max_sample_rate_hz"]:
+                fails.append("sample rate %d Hz exceeds %d Hz" % (stats["sample_rate_hz"], cls["max_sample_rate_hz"]))
+            if "max_channels" in cls and stats["channels"] > cls["max_channels"]:
+                fails.append("%d channels exceed %d" % (stats["channels"], cls["max_channels"]))
+        elif ext in ("ttf", "otf"):
+            font_stats(path)
+        elif any(key in cls for key in VERIFIABLE_LIMITS):
             fails.append("limits cannot be verified for format %s" % ext)
     except (AssetError, KeyError, IndexError, ValueError, struct.error) as exc:
         fails.append("asset cannot be inspected: %s" % exc)
@@ -352,6 +520,7 @@ class AssetService:
                  "source": source, "source_id": lib.get("source_id", ""), "url": lib.get("url", ""), "author": lib.get("author", "harness"),
                  "license": lib.get("license", "CC0-1.0" if source == "procedural" else ""), "attribution": lib.get("attribution", ""),
                  "tool": tool, "tool_version": "", "generator": req.get("generator", ""), "script_ref": "", "prompt": req.get("prompt", ""),
+                 "license_file": req.get("license_file", ""), "license_file_checksum": req.get("license_file_checksum", ""),
                  "deterministic": source != "ai", "date": time.strftime("%Y-%m-%d", time.gmtime())}
         entry.update(kw)
         return entry
@@ -492,12 +661,25 @@ class AssetService:
         dest = asset_path(self.root, req["output_path"])
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(artifacts[0], dest)
+        extra: Dict[str, Any] = {}
+        if self.policy["assets"]["classes"][req["asset_class"]].get("license_file_required"):
+            licence = _license_artifact(artifacts)
+            if licence is None:
+                os.remove(dest)
+                return ("%s needs its licence text next to it: attach it as a second file with LICENSE, LICENCE, OFL, "
+                        "APACHE, or COPYING in the name" % req["asset_class"])
+            reference = req["output_path"] + ".LICENSE.txt"
+            target = asset_path(self.root, reference)
+            shutil.copyfile(licence, target)
+            extra = {"license_file": reference, "license_file_checksum": sha256_file(target)}
         entry = self._entry(dict(req, library={"license": answers["license"], "author": answers["author"], "url": answers.get("url", ""),
                                                "attribution": answers.get("attribution", ""), "source_id": answers.get("source_id", "")}),
-                            answers["source"], "human-supplied")
+                            answers["source"], "human-supplied", **extra)
         fails = validate_entry(self.root, entry, self.policy, req["asset_class"])
         if fails:
             os.remove(dest)
+            if extra:
+                os.remove(asset_path(self.root, extra["license_file"]))
             return "; ".join(fails)[:300]
         self._write_manifest(entry)
         return None

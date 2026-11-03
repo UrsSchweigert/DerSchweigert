@@ -82,6 +82,9 @@ POLICY = {
     "diff_size_cap": int,
     "assets?": dict,
     "manual_testing?": dict,
+    # The top-tier overseer that answers process blocks before the owner is asked. Bounded, and it may only retry,
+    # extend a budget, or refine; anything else it finds is escalated with its diagnosis.
+    "overseer?": {"enabled?": bool, "rounds_per_issue?": int},
     "descope?": dict,
     "auto_answer?": dict,
     "split_pressure?": dict,
@@ -104,7 +107,7 @@ TASK_PACKET = {
     "issue_id": str,
     "phase_id": str,
     "requirement_ids": [str],
-    "role": ("investigator", "refiner", "implementer", "reviewer", "integrator", "delegator", "analyst"),
+    "role": ("investigator", "refiner", "implementer", "reviewer", "integrator", "delegator", "analyst", "overseer"),
     "tier": ("low", "standard", "strong"),
     "outcomes": [str],
     "acceptance_criteria": [str],
@@ -114,6 +117,8 @@ TASK_PACKET = {
     "validation_commands": [str],
     "working_directory?": str,
     "path_allowlist": [str],
+    # The hard line budget trusted code enforces on the diff, stated where the worker reads it.
+    "diff_budget?": {"max_added_lines": int, "rule": str},
     "untrusted_data": str,
 }
 
@@ -128,13 +133,25 @@ ACTION_PROPOSAL = {
     "payload": dict,
 }
 
+# What the overseer may do about a stuck issue. It never cancels, approves, merges, or changes policy: those are the
+# owner's, and the harness refuses them below this list.
+OVERSEER_DECISION = {
+    "action": ("retry", "extend_budget", "refine", "escalate"),
+    "cause": ("process", "plan_scope", "harness_defect", "content"),
+    "reason": str,
+    "guidance?": str,
+}
+OVERSEER_ACTIONS = OVERSEER_DECISION["action"]
+
 WORKER_RESULT = {
     "attempt_id": str,
     "epoch": int,
     "outcome": str,
     "changed_files": [str],
     "revision": str,
-    "checks": [{"command": str, "exit_code": int}],
+    # Checks are run by trusted code, never taken from the worker's report, and a role that runs none (the refiner)
+    # is told to leave the key out. Requiring it rejected every model that followed that instruction.
+    "checks?": [{"command": str, "exit_code": int}],
     "risks": [str],
     "blockers": [str],
     "next_action": str,
@@ -144,6 +161,7 @@ WORKER_RESULT = {
     "plan?": [str],
     "tier_fit?": str,
     "split_advice?": str,
+    "overseer?": OVERSEER_DECISION,
     "usage_estimate?": dict,
 }
 

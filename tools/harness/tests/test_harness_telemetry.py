@@ -88,7 +88,8 @@ def test_status_shows_progress_workers_runner_health_and_budgets(tmp_path):
     assert worker["role"] == "implementer" and worker["issue"] == "a" and worker["branch"] == "harness/a" and worker["attempt_id"] == "a#1"
     assert worker["elapsed_s"] == 10 and worker["retries"] == 0 and worker["last_activity_age_s"] == 0 and worker["tier"] == "low"
     assert r["runner"]["status"] == "alive" and r["runner"]["last_heartbeat_age_s"] == 0
-    assert r["budgets"]["fx"]["wall_clock_s"]["remaining"] == 10_000 - 20 and r["budgets"]["fx"]["pull_requests"]["remaining"] == 20
+    assert r["budgets"]["fx"]["wall_clock_s"]["remaining"] == 10_000 - 20
+    assert r["budgets"]["fx"]["pull_requests"]["limit"] is None and r["budgets"]["fx"]["pull_requests"]["remaining"] is None
     phases = {p["phase"]: p for p in r["phases"]}
     assert phases["P1"]["state"] == "Active" and phases["P2"]["state"] == "Planned" and phases["P2"]["depends_on"] == ["P1"]
     reqs = {q["id"]: q["coverage"] for q in r["requirements"]}

@@ -47,22 +47,33 @@ def model_sources_arg(given: Optional[List[str]], repo_root: Optional[str] = Non
 
 def plan_command(store: Optional[Store], requirements: str, phases_path: Optional[str] = None,
                  plan_id: Optional[str] = None, fixture: bool = False, dry_run: bool = False,
-                 model_sources: Optional[List[str]] = None, intent: Optional[str] = None) -> Dict[str, Any]:
+                 model_sources: Optional[List[str]] = None, intent: Optional[str] = None,
+                 assets_dir: Optional[str] = None, overseer: Optional[bool] = None) -> Dict[str, Any]:
     """Build a plan from requirements. Without phases the plan stays Draft and lists what is missing."""
     reqs = plans.parse_requirements(requirements)
     phases = None
     draft_sources = None
+    draft_assets_dir = None
     if phases_path:
         with open(phases_path, encoding="utf-8") as fh:
             data = json.load(fh)
         phases = data["phases"] if isinstance(data, dict) else data
         draft_sources = data.get("model_sources") if isinstance(data, dict) else None  # the investigator's choice
+        assets = data.get("assets") if isinstance(data, dict) else None
+        draft_assets_dir = assets.get("output_dir") if isinstance(assets, dict) else None
     plan_id = plan_id or _slug(requirements)
     latest = store.get_plan(plan_id) if store else None
     version = latest["plan"]["version"] + 1 if latest else 1
     catalog = models.load_catalog(store.home) if store else None
-    plan = plans.build_plan(plan_id, version, reqs, phases, fixture=fixture, model_sources=model_sources or draft_sources,
-                            catalog=catalog, intent=intent)
+    policy = None
+    chosen_assets_dir = assets_dir or draft_assets_dir
+    if chosen_assets_dir:
+        policy = plans.with_assets_dir(plans.DEFAULT_POLICY, chosen_assets_dir)
+    if overseer is not None:
+        policy = plans.with_overseer(policy or plans.DEFAULT_POLICY, overseer)
+    plan = plans.build_plan(plan_id, version, reqs, phases, policy=policy, fixture=fixture,
+                            model_sources=model_sources or draft_sources, catalog=catalog, intent=intent)
+
     digest = plans.plan_digest(plan)
     result: Dict[str, Any] = {"plan_id": plan_id, "version": version, "digest": digest, "requirements": len(reqs), "dry_run": dry_run,
                               "model_sources": plan["policy"].get("model_sources")}
@@ -109,6 +120,15 @@ def terminal_confirm(plan: Dict[str, Any], digest: str) -> bool:
     return input("Type the first 12 characters of the digest to approve: ").strip() == digest[:12]
 
 
+def _import_base(root: str, base: str) -> str:
+    """The revision the issues are bound to: the remote base the run will use, never an unpushed local commit."""
+    for ref in ("refs/remotes/origin/" + base, "refs/heads/" + base):
+        rev = subprocess.run(["git", "-C", root, "rev-parse", "--verify", "--quiet", ref], capture_output=True, text=True)
+        if rev.returncode == 0 and rev.stdout.strip():
+            return rev.stdout.strip()
+    return ""
+
+
 def status_report(home: Optional[str] = None, now: Optional[float] = None) -> Dict[str, Any]:
     return status.build_report(home, now)
 
@@ -149,7 +169,8 @@ def preflight_plan(store: Store, plan_id: str, version: Optional[int], repo_root
     if stored is None:
         raise AuthorizationError("unknown plan %s" % plan_id)
     plan = stored["plan"]
-    checks = [{"command": command, "working_directory": phase.get("working_directory", ".")}
+    checks = [{"command": command, "working_directory": phase.get("working_directory", "."),
+               "allowlist": phase_allowlists(plan["phases"], phase["id"])}
               for phase in plan["phases"] for command in phase["validation"]]
     phases = {phase["id"]: phase for phase in plan["phases"]}
     declared = [(command, phase.get("working_directory", "."), phase_allowlists(plan["phases"], phase["id"]), "phase %s" % phase["id"])
@@ -160,7 +181,7 @@ def preflight_plan(store: Store, plan_id: str, version: Optional[int], repo_root
         directory = issue.get("working_directory") or phase.get("working_directory", ".")
         allowlist = phase_allowlists(plan["phases"], issue.get("phase_id"))
         for command in issue.get("validation_commands") or []:
-            checks.append({"command": command, "working_directory": directory})
+            checks.append({"command": command, "working_directory": directory, "allowlist": allowlist})
             declared.append((command, directory, allowlist, "issue %s" % issue.get("issue_id")))
     node = repo_root and GitRepo(repo_root, "main")
     for command, directory, allowlist, label in declared:
@@ -215,9 +236,13 @@ def runner_command(args) -> int:
         version = latest["plan"]["version"]
         root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
         if args.cmd == "pause":
-            result = runner.request_pause(store, args.plan_id, version, args.now)
-            print("plan %s v%d: %s" % (args.plan_id, version, "paused" if result == "Paused" else
-                  "pause requested. %s. The run stops by itself, then `resume` continues" % ("active workers are being cancelled" if args.now else "waiting for active workers to finish")))
+            result = runner.request_pause(store, args.plan_id, version, args.now, after_phase=args.after_phase)
+            if result.startswith("after "):
+                print("plan %s v%d: will pause once phase %s is Done; nothing after it starts" % (
+                    args.plan_id, version, result.split(" ", 1)[1]))
+            else:
+                print("plan %s v%d: %s" % (args.plan_id, version, "paused" if result == "Paused" else
+                      "pause requested. %s. The run stops by itself, then `resume` continues" % ("active workers are being cancelled" if args.now else "waiting for active workers to finish")))
             return 0
         if args.cmd == "cancel":
             print("plan %s v%d: %s" % (args.plan_id, version, runner.request_cancel(store, args.plan_id, version, args.drain)))
@@ -232,9 +257,11 @@ def runner_command(args) -> int:
             phases = {p["id"]: p for p in stored["plan"]["phases"]}
             proof = store.get_doc("check_preflight", plan_entity(args.plan_id, version)) or {}
             issue_digest = hashlib.sha256(plans.canonical(issue_docs)).hexdigest()
-            if proof.get("issue_digest") and proof["issue_digest"] != issue_digest:
+            # `--add` replaces nothing, and the commands of the issues it adds are preflighted below against the
+            # current base, so it is not bound to the digest of the issue set the plan was approved with.
+            if not args.add and proof.get("issue_digest") and proof["issue_digest"] != issue_digest:
                 raise runner.RunRefused("issue definitions differ from the checks preflighted before approval")
-            if not proof.get("issue_digest"):
+            if not args.add and not proof.get("issue_digest"):
                 overrides = []
                 for issue in issue_docs:
                     phase = phases.get(issue.get("phase_id"), {})
@@ -260,14 +287,15 @@ def runner_command(args) -> int:
                     problem = plans.command_paths_problem(command, directory, phase_allowlists(stored["plan"]["phases"], issue.get("phase_id")), probe.path_exists)
                     if problem:
                         raise runner.RunRefused("issue %s validation command %r: %s" % (issue.get("issue_id"), command, problem))
-                    checks.append({"command": command, "working_directory": directory})
+                    checks.append({"command": command, "working_directory": directory,
+                                   "allowlist": phase_allowlists(stored["plan"]["phases"], issue.get("phase_id"))})
             preflight = preflight_checks(store, root, checks, plan_entity(args.plan_id, version) + ":issues")
             config_errors = [r for r in preflight["results"] if r["kind"] == "configuration"]
             if config_errors:
                 raise runner.RunRefused("validation configuration errors prevent issue import: %s" %
                                         "; ".join("%s: %s" % (r["command"], r.get("output", "")) for r in config_errors[:3]))
-            base = subprocess.run(["git", "-C", root, "rev-parse", "main"], capture_output=True, text=True).stdout.strip()
-            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=True)) or "nothing new")
+            base = _import_base(root, plans.base_branch(stored["plan"]))
+            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=not args.add)) or "nothing new")
             return 0
         if not store.list_issues(args.plan_id):
             raise runner.RunRefused("no issues to schedule: supply refined issues with `import-issues`. Issue creation from phases is not automated yet")
@@ -582,6 +610,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--model-source", action="append", choices=list(models.SOURCES),
                    help="where the picker menu takes models from (repeatable; default: the phases file's choice, else copilot)")
+    p.add_argument("--assets-dir", help="repository-relative asset output directory for this plan (for example apps/arithmoslayer/assets/)")
+    p.add_argument("--overseer", dest="overseer", action="store_true", default=None,
+                   help="let the top-tier overseer answer process blocks (retry, extend a budget, refine) before the owner is asked")
+    p.add_argument("--no-overseer", dest="overseer", action="store_false", help="keep every block with the owner (default)")
     a = sub.add_parser("approve", help="record human approval of a plan version")
     a.add_argument("plan_id")
     a.add_argument("--version", type=int)
@@ -611,11 +643,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     pz.add_argument("plan_id")
     pz.add_argument("--version", type=int)
     pz.add_argument("--now", action="store_true", help="cancel the workers in flight instead of waiting for them")
+    pz.add_argument("--after-phase", help="finish this phase, then pause by itself: nothing after it starts")
     cn = sub.add_parser("cancel", help="stop scheduling and terminate or drain active work")
     cn.add_argument("plan_id")
     cn.add_argument("--version", type=int)
     cn.add_argument("--drain", action="store_true", help="let active workers finish first")
     ii = sub.add_parser("import-issues", help="load refined implementation issues for an approved plan")
+    ii.add_argument("--add", action="store_true",
+                    help="add the issues in the file and leave the plan's other issues alone, instead of replacing the whole set")
     ii.add_argument("plan_id")
     ii.add_argument("file")
     ii.add_argument("--version", type=int)
@@ -702,6 +737,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     s = sub.add_parser("status", help="read-only status")
     s.add_argument("--plan", help="show only this plan, e.g. bugfixes-001-md")
     s.add_argument("--json", action="store_true")
+    rp = sub.add_parser("report", help="publish the run's state as a markdown page on a git branch")
+    rp.add_argument("plan_id")
+    rp.add_argument("--interval", type=float, default=300.0, help="seconds between updates (default 300)")
+    rp.add_argument("--once", action="store_true", help="write one page and exit")
+    rp.add_argument("--branch", help="override the branch (only harness/status/<plan> is accepted)")
+    rp.add_argument("--repo", help="GitHub owner/name; without it the page is only written locally")
+    rp.add_argument("--no-push", action="store_true", help="render and keep the page locally, never push")
     dashboard = sub.add_parser("gui", help="monitor and manage the harness in a local browser")
     dashboard.add_argument("--host", choices=["127.0.0.1", "localhost"], default="127.0.0.1")
     dashboard.add_argument("--port", type=int, default=8765, help="loopback port, or 0 to choose an available port")
@@ -749,6 +791,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             detail = status.issue_detail(args.home, args.issue_id)
             print(json.dumps(detail, indent=2, sort_keys=True, default=str) if args.json else status.render_issue(detail))
             return 0
+        if args.cmd == "report":
+            from . import report as report_mod
+            token_file = os.path.join(args.home or default_home(), "broker.token")
+            repo = None if args.no_push else (args.repo or detect_repo())
+            return report_mod.watch(args.home, args.plan_id, repo, token_file if repo else None,
+                                    args.interval, args.branch, args.once)
         if args.cmd == "status":
             report = status_report(args.home)
             if args.plan:
@@ -761,7 +809,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd == "plan":
             store = None if args.dry_run and not os.path.exists(os.path.join(args.home or default_home(), "harness.sqlite")) else Store(args.home)
             result = plan_command(store, args.requirements, args.phases, args.plan_id, args.fixture, args.dry_run,
-                                  model_sources=args.model_source)
+                                  model_sources=args.model_source, assets_dir=args.assets_dir, overseer=args.overseer)
             if store is not None and not args.dry_run and result.get("state") == "Proposed" and args.phases:
                 issue_path = args.issues
                 if issue_path is None:

@@ -35,11 +35,13 @@ MODEL_CATALOG: Dict[str, Dict[str, List[str]]] = {
 }
 CATALOG_FILE = "model_catalog.json"
 ROLE_TIER = {"investigator": "low", "refiner": "strong", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
-             "analyst": "strong"}
+             "analyst": "strong", "overseer": "strong"}
 
 # Roles whose output is a judgement rather than mechanical work. A cheap model that returns a malformed
 # result costs a repair attempt and a human decision, which is always more expensive than the stronger call.
-REQUIRED_TIER = {"refiner": "strong"}
+# The overseer decides whether a stuck issue is a harness defect, a scope problem, or a question for the owner. A wrong
+# call there costs more than any implementation attempt, so it is never downgraded by a plan.
+REQUIRED_TIER = {"refiner": "strong", "overseer": "strong"}
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
 
 

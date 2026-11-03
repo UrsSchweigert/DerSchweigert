@@ -4,6 +4,11 @@
       "name": "lesen page in a real browser",
       "paths": ["sites/lesen/static/"],
       "command": "node /opt/harness/smoke/lesen.mjs /work"
+    },
+    {
+      "name": "arithmoslayer Godot project loads headless",
+      "paths": ["apps/arithmoslayer/"],
+      "command": "sh /opt/harness/smoke/godot_project.sh /work apps/arithmoslayer"
     }
   ]
 }

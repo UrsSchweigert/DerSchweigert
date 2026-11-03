@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 from . import plans
 
@@ -147,12 +147,16 @@ chk no_capabilities 'grep -q "^CapEff:[[:space:]]*0000000000000000" /proc/self/s
 chk no_new_privileges 'grep -q "^NoNewPrivs:[[:space:]]*1" /proc/self/status'
 chk copilot_installed 'command -v copilot >/dev/null'
 chk smoke_tool '[ -f /opt/harness/smoke/lesen.mjs ] && ls -d /opt/pw-browsers/chromium* >/dev/null 2>&1 && node -e "require(\"playwright\")" >/dev/null 2>&1'
+chk godot_pinned 'godot --headless --version 2>/dev/null | grep -qx "4.7.2.stable.official.ed1daf0bf"'
+chk gdtoolkit_pinned 'python3 -c "import importlib.metadata as m, sys; sys.exit(0 if m.version(\"gdtoolkit\") == \"4.5.0\" else 1)"'
+chk godot_headless_import 'T=$(mktemp -d) && printf "config_version=5\n[application]\nconfig/name=\"probe\"\n" > "$T/project.godot" && godot --headless --path "$T" --import >/dev/null 2>&1 && [ -d "$T/.godot" ] && rm -rf "$T"'
+chk godot_test_tool 'command -v godot-test >/dev/null && [ -f /opt/harness/godot/addons/gut/gut_cmdln.gd ] && [ -f /opt/harness/smoke/godot_project.sh ] && [ -f /opt/harness/smoke/godot_verify.gd ]'
 """
 
 REQUIRED_CHECKS = [
     "non_root", "no_host_credentials_in_env", "no_copilot_token_unless_passed", "store_path_absent", "host_home_absent",
     "no_ssh_agent", "no_docker_socket", "rootfs_read_only", "workdir_writable", "no_capabilities", "no_new_privileges",
-    "copilot_installed", "smoke_tool",
+    "copilot_installed", "smoke_tool", "godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool",
 ]
 
 
@@ -168,6 +172,32 @@ def new_workdir(prefix: str = "work-") -> str:
     path = tempfile.mkdtemp(prefix=prefix, dir=work_root())
     os.chmod(path, 0o777)
     return path
+
+
+def prune_workdirs(max_age_s: float, keep: Iterable[str] = (), now: Optional[float] = None) -> Dict[str, int]:
+    """Remove worker directories nothing can be using any more. Each one holds a copy of the repository, so a run that
+    crashes without releasing them eventually fills the disk and no worker can start."""
+    now = time.time() if now is None else now
+    keep_paths = {os.path.realpath(p) for p in keep if p}
+    removed, kept = 0, 0
+    try:
+        entries = [os.path.join(work_root(), n) for n in os.listdir(work_root())]
+    except OSError:
+        return {"removed": 0, "kept": 0}
+    for path in entries:
+        if not os.path.isdir(path) or os.path.islink(path) or os.path.realpath(path) in keep_paths:
+            kept += 1
+            continue
+        try:
+            age = now - os.path.getmtime(path)
+        except OSError:
+            continue
+        if age <= max_age_s:
+            kept += 1
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+        removed += 1 if not os.path.exists(path) else 0
+    return {"removed": removed, "kept": kept}
 
 
 def probe(store_home: str, image: str = IMAGE) -> Dict[str, Any]:

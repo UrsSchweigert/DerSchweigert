@@ -93,6 +93,9 @@ class Client:
         raise NotImplementedError
 
 
+GH_TIMEOUT_S = 60  # an unanswered gh call must never hold a scheduling pass open
+
+
 class GhCli(Client):
     def __init__(self, repo: str, runner: Optional[Callable[[List[str]], str]] = None, token_file: Optional[str] = None):
         """`token_file` holds the broker token. It reaches only the gh subprocess environment, never argv or output."""
@@ -106,7 +109,10 @@ class GhCli(Client):
         if self._token_file:
             with open(self._token_file) as fh:
                 env = dict(os.environ, GH_TOKEN=fh.read().strip())
-        proc = subprocess.run(["gh"] + args, capture_output=True, text=True, env=env)
+        try:
+            proc = subprocess.run(["gh"] + args, capture_output=True, text=True, env=env, timeout=GH_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            raise GitHubError("gh %s did not answer within %ds" % (" ".join(args[:2]), GH_TIMEOUT_S))
         if proc.returncode != 0:
             err = proc.stderr.strip()
             if re.search(r"rate limit|HTTP 429|abuse", err, re.I):

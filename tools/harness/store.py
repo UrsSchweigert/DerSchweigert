@@ -352,6 +352,28 @@ class Store:
             cx.execute("UPDATE claims SET expires_at=? WHERE attempt_id=?", (expires, attempt_id))
             return expires
 
+    def extend_claim(self, attempt_id: str, epoch: int, now: float, lease_seconds: int = DEFAULT_LEASE_SECONDS) -> bool:
+        """Renew a claim that expired while the host slept.
+
+        The attempt never stopped: the machine slept, and this process was frozen with it. Restoring the lease before the
+        recovery pass sees it keeps a good attempt alive instead of fencing work that was never in trouble. It still
+        refuses a claim that belongs to another epoch, so it cannot revive somebody else's attempt.
+        """
+        with self.tx() as cx:
+            cursor = cx.execute("UPDATE claims SET expires_at=? WHERE attempt_id=? AND epoch=?",
+                                (now + lease_seconds, attempt_id, epoch))
+            return cursor.rowcount > 0
+
+    def renew_lease_from_thread(self, attempt_id: str, epoch: int, now: float, lease_seconds: int = DEFAULT_LEASE_SECONDS) -> bool:
+        """Renew a lease from another thread. sqlite3 connections belong to the thread that opened them, so the heartbeat
+        thread uses its own. The UPDATE carries the epoch and the live-lease condition, so it can never revive a lease
+        that the scheduler has already fenced."""
+        with contextlib.closing(sqlite3.connect(self.path, isolation_level=None, timeout=10)) as cx:
+            cx.execute("PRAGMA busy_timeout=5000")
+            cursor = cx.execute("UPDATE claims SET expires_at=? WHERE attempt_id=? AND epoch=? AND expires_at>?",
+                                (now + lease_seconds, attempt_id, epoch, now))
+            return cursor.rowcount > 0
+
     def start(self, attempt_id: str, epoch: int, now: float) -> None:
         with self.tx() as cx:
             row = self._live_claim(cx, attempt_id, epoch, now)

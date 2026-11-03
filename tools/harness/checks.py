@@ -9,9 +9,9 @@ import subprocess
 import threading
 import time
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from . import isolation
+from . import isolation, plans
 from .repo import Repo
 
 
@@ -47,6 +47,29 @@ class Checker:
         pass
 
 
+def _planned_directory(directory: str, allowlist: Sequence[str]) -> bool:
+    """The plan will create this directory if some allowed path lies inside it."""
+    if not allowlist:
+        return False
+    normal = os.path.normpath(directory or ".").replace(os.sep, "/")
+    if normal in (".", ""):
+        return True
+    return any(plans.under(entry, [normal]) for entry in allowlist)
+
+
+def _names_planned_path(command: str, directory: str, allowlist: Sequence[str]) -> bool:
+    """True when the command names a path that the phase allowlist lets a worker create."""
+    if not allowlist:
+        return False
+    for token in shlex.split(command, posix=True):
+        if token.startswith("-") or "/" not in token or "://" in token:
+            continue
+        for path in (os.path.join(directory or ".", token), token):
+            if plans.under(path, allowlist) or any(plans.under(entry, [path]) for entry in allowlist):
+                return True
+    return False
+
+
 class _CheckHandle:
     def __init__(self, workdir: str, commands: List[str]):
         self.workdir, self.commands = workdir, list(commands)
@@ -76,14 +99,19 @@ class SandboxChecker(Checker):
             raise
         return _CheckHandle(work, commands)
 
-    def preflight(self, head_rev: str, checks: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    def preflight(self, head_rev: str, checks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Check commands in the same image, mount, and /work-rooted container used for execution."""
         work = isolation.new_workdir("preflight-")
         results: List[Dict[str, Any]] = []
+        seen: Dict[tuple, Dict[str, Any]] = {}  # a command depends only on itself and its directory, so run it once
         try:
             self.repo.export(head_rev, work)
             for check in checks:
                 directory = check.get("working_directory", ".")
+                key = (check["command"], directory)
+                if key in seen:
+                    results.append(dict(seen[key]))
+                    continue
                 if (not directory or os.path.isabs(directory) or "\\" in directory
                         or ".." in directory.split("/")):
                     results.append({"command": check["command"], "working_directory": directory,
@@ -92,9 +120,14 @@ class SandboxChecker(Checker):
                     continue
                 target = os.path.realpath(os.path.join(work, directory))
                 if os.path.commonpath([os.path.realpath(work), target]) != os.path.realpath(work) or not os.path.isdir(target):
-                    results.append({"command": check["command"], "working_directory": directory,
-                                    "kind": "configuration", "exit_code": 2,
-                                    "output": "working directory does not exist inside the repository"})
+                    # A greenfield plan names directories its own workers create, so a missing directory inside the
+                    # phase allowlist is an ordinary failing check, not a broken configuration.
+                    planned = _planned_directory(directory, check.get("allowlist") or [])
+                    result = {"command": check["command"], "working_directory": directory,
+                              "kind": "check" if planned else "configuration", "exit_code": 2,
+                              "output": "working directory does not exist inside the repository"}
+                    seen[key] = result
+                    results.append(dict(result))
                     continue
                 absolute_paths = sorted(set(re.findall(r"(?<![A-Za-z0-9._-])(/[^ \t\r\n;&|<>\"']+)", check["command"])))
                 path_check = ("for p in %s; do test -e \"$p\" || { echo \"HARNESS_CONFIG_ERROR: missing absolute path $p\"; exit 126; }; done; " %
@@ -108,12 +141,18 @@ class SandboxChecker(Checker):
                     text = (out.stdout + out.stderr)[-OUTPUT_TAIL:]
                 except (OSError, subprocess.TimeoutExpired) as exc:
                     code, text = 124, str(exc)
-                config_error = ("HARNESS_CONFIG_ERROR:" in text or code == 127
-                                or "command not found" in text.lower() or "not found" in text.lower()
-                                or "no such file or directory" in text.lower())
-                results.append({"command": check["command"], "working_directory": directory, "exit_code": code,
-                                "kind": "configuration" if config_error else ("pass" if code == 0 else "check"),
-                                "output": output_tail(text)})
+                hard_error = ("HARNESS_CONFIG_ERROR:" in text or code == 127 or "command not found" in text.lower())
+                config_error = (hard_error or "not found" in text.lower() or "no such file or directory" in text.lower())
+                kind = "configuration" if config_error else ("pass" if code == 0 else "check")
+                if kind == "configuration" and not hard_error and _names_planned_path(
+                        check["command"], directory, check.get("allowlist") or []):
+                    # The command failed because a file the plan lets a worker create does not exist at the base
+                    # revision yet. A missing tool still counts as a configuration error, above.
+                    kind = "check"
+                result = {"command": check["command"], "working_directory": directory, "exit_code": code,
+                          "kind": kind, "output": output_tail(text)}
+                seen[key] = result
+                results.append(dict(result))
         finally:
             shutil.rmtree(work, ignore_errors=True)
         return results

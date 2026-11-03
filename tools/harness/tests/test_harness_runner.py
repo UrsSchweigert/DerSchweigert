@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import time
 
 import pytest
 
@@ -220,7 +221,10 @@ def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):
 
     flaky = env.store.get_issue("flaky")
     kinds = [f["kind"] for f in flaky["last_failures"]]
-    assert kinds == ["lease_lost", "infra"] and flaky["transient_failures"] == 2 and flaky["repair_failures"] == 0
+    # The attempt the dead runner left behind is recorded, but it is not charged: the worker did nothing wrong, and
+    # charging it made every restart cost the issue a retry.
+    assert kinds == ["infra"] and flaky["transient_failures"] == 1 and flaky["repair_failures"] == 0
+    assert env.store.get_attempt("flaky#1")["failure_kind"] == "runner_lost"
     assert env.store.state("attempt", "flaky#1") == "Fenced"
     assert env.state("doomed") == "Blocked" and env.store.state("plan", "fx@v1") == "Executing"
     assert env.store.state("phase", "fx@v1/P1") == "Active"  # a blocked issue keeps the phase from finishing
@@ -478,7 +482,7 @@ def finished_handle(tmp_path, rc=0, tail=(), result=None, cancelled=False):
     (1, ["Error: rate limit exceeded"], None, "rate_limit"),
     (1, ["401 Bad credentials"], None, "credentials"),
     (1, ["segfault"], None, "runtime_crash"),
-    (0, [], None, "schema_invalid"),
+    (0, [], None, "no_result"),  # a clean exit with no file at all produced nothing; that is not a schema violation
 ])
 def test_adapter_poll_classifies_outcomes(tmp_path, rc, tail, result, expected):
     a = CopilotCliAdapter(str(tmp_path), str(tmp_path))
@@ -548,6 +552,78 @@ def test_trusted_clone_tracks_the_base_branch(tmp_path):
             repo = runner.trusted_clone(home, src)
             first = repo.base_head()
     assert runner.trusted_clone(home, src).base_head() == git(src, "rev-parse", "main") != first
+
+
+def _one_commit_repo(tmp_path):
+    src = str(tmp_path / "src")
+    os.makedirs(src)
+    git(src, "init", "-q", "-b", "main")
+    with open(os.path.join(src, "f.txt"), "w") as fh:
+        fh.write("x\n")
+    git(src, "add", "-A")
+    git(src, "commit", "-q", "-m", "i")
+    home = str(tmp_path / "home")
+    os.makedirs(home)
+    return src, home
+
+
+def test_trusted_clone_uses_the_protocol_transfer_and_a_bounded_timeout(tmp_path, monkeypatch):
+    """The local object copy is what hung for nearly an hour, and it ran with no timeout at all."""
+    src, home = _one_commit_repo(tmp_path)
+    seen = {}
+    real = subprocess.run
+
+    def record(args, **kwargs):
+        if args[:2] == ["git", "clone"]:
+            seen["args"], seen["timeout"] = list(args), kwargs.get("timeout")
+            seen["env"] = kwargs.get("env") or {}
+        return real(args, **kwargs)
+
+    monkeypatch.setattr(runner.subprocess, "run", record)
+    assert runner.trusted_clone(home, src).base_head() == git(src, "rev-parse", "main")
+    assert "--no-local" in seen["args"] and "--no-hardlinks" not in seen["args"]
+    assert seen["timeout"] == runner.CLONE_TIMEOUT_S and seen["timeout"] > 0
+    assert seen["env"].get("GIT_TERMINAL_PROMPT") == "0"
+
+
+def test_a_clone_that_hangs_is_bounded_and_keeps_the_partial_attempt_out_of_the_way(tmp_path, monkeypatch):
+    src, home = _one_commit_repo(tmp_path)
+
+    def hang(args, **kwargs):
+        raise subprocess.TimeoutExpired(args, kwargs.get("timeout"))
+
+    monkeypatch.setattr(runner.subprocess, "run", hang)
+    with pytest.raises(runner.RunRefused) as exc:
+        runner.trusted_clone(home, src)
+    kept = [n for n in os.listdir(home) if n.startswith("trusted-clone.git.partial-")]
+    assert "timed out" in str(exc.value) and len(kept) == 1
+    assert kept[0] in str(exc.value), "the evidence must be named in the error"
+    assert os.path.isdir(os.path.join(home, kept[0])), "a failed attempt is preserved for inspection"
+    assert not os.path.exists(os.path.join(home, "trusted-clone.git")), "a partial clone must never sit at the real path"
+
+
+def test_a_failed_clone_is_reported_and_never_reused_as_a_valid_clone(tmp_path, monkeypatch):
+    src, home = _one_commit_repo(tmp_path)
+    real = subprocess.run
+
+    def fail(args, **kwargs):
+        if args[:2] == ["git", "clone"]:
+            return subprocess.CompletedProcess(args, 128, "", "fatal: the remote end hung up unexpectedly")
+        return real(args, **kwargs)
+
+    monkeypatch.setattr(runner.subprocess, "run", fail)
+    with pytest.raises(runner.RunRefused) as exc:
+        runner.trusted_clone(home, src)
+    assert "the remote end hung up unexpectedly" in str(exc.value)
+    assert not os.path.exists(os.path.join(home, "trusted-clone.git"))
+
+    monkeypatch.undo()
+    repo = runner.trusted_clone(home, src)
+    assert repo.base_head() == git(src, "rev-parse", "main")
+    # A clean git environment, like the harness itself uses: the ambient one may inject safe.bareRepository.
+    fsck = subprocess.run(["git", "fsck", "--connectivity-only"], cwd=os.path.join(home, "trusted-clone.git"),
+                          env=runner._clone_env(home), capture_output=True, text=True)
+    assert fsck.returncode == 0 and fsck.stdout.strip() == "", fsck.stderr
 
 
 # -- rehearsals must not touch real state, and merges must move the base ---------------------------------------------
@@ -813,6 +889,15 @@ class _Quiet:
 
     def start(self):
         pass
+
+    def reclaim_dead_workdirs(self):
+        self.reclaimed = True
+
+    def start_heartbeat(self):
+        self.heartbeat_running = True
+
+    def stop_heartbeat(self):
+        self.heartbeat_running = False
 
     def tick(self):
         step = self.script.pop(0) if self.script else []
@@ -1442,3 +1527,118 @@ def test_a_finished_run_is_watched_instead_of_resumed(monkeypatch):
     sched, events = Watched(), []
     assert runner_mod.watch_promotion(sched, 0, None, events.append) == 0
     assert sched.ticked == 1 and [e["event"] for e in events] == ["promotion_merged", "stopped"]
+
+
+def test_republishing_a_branch_replaces_only_the_head_the_harness_records(remote_world, tmp_path):
+    """A worker that rebased onto the current base must be published, but a branch somebody else moved must survive."""
+    origin, clone = remote_world
+    push_branch(clone, origin, "harness/i1", None)  # the issue's first publication
+    published = git(str(tmp_path), "--git-dir", origin, "rev-parse", "harness/i1")
+    bare = str(tmp_path / "trusted.git")
+    git(str(tmp_path), "clone", "-q", "--bare", origin, bare)
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", clone, "+refs/heads/harness/i1:refs/heads/harness/i1")
+    gh = FakeGitHub()
+    pub = GitHubPublisher(gh, bare, origin, "main", None, sleep=lambda s: None)
+
+    # The harness rebased the branch in its own clone, so the trusted clone holds a rewritten head.
+    git(clone, "checkout", "-q", "-B", "harness/i1", published)
+    with open(os.path.join(clone, "rebased.txt"), "w") as fh:
+        fh.write("rebased\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "rebased onto the base")
+    rewritten = git(clone, "rev-parse", "harness/i1")
+    git(str(tmp_path), "--git-dir", bare, "fetch", "-q", clone, "+refs/heads/harness/i1:refs/heads/harness/i1")
+    pub.open_pr({"issue_id": "i1", "title": "t", "requirement_ids": ["F1.1"], "head_rev": published}, "harness/i1", rewritten)
+    assert git(str(tmp_path), "--git-dir", origin, "rev-parse", "harness/i1") == rewritten
+
+    # Somebody else moved the branch, so the recorded head is no longer what the remote has: refuse, do not clobber.
+    with open(os.path.join(clone, "theirs.txt"), "w") as fh:
+        fh.write("theirs\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "somebody else")
+    git(clone, "push", "-q", "origin", "HEAD:harness/i1")
+    theirs = git(clone, "rev-parse", "HEAD")
+    with pytest.raises(GitHubError):
+        pub.open_pr({"issue_id": "i1", "title": "t", "requirement_ids": ["F1.1"], "head_rev": rewritten}, "harness/i1", theirs)
+    assert git(str(tmp_path), "--git-dir", origin, "rev-parse", "harness/i1") == theirs
+
+
+def test_import_add_keeps_the_other_issues_of_the_plan(tmp_path):
+    """`--add` loads one issue into a plan whose others already exist, instead of superseding the whole set."""
+    store = make_plan(tmp_path)
+
+    def load(*docs):
+        f = tmp_path / "issues.json"
+        f.write_text(json.dumps(list(docs)))
+        return str(f)
+
+    runner.import_issues(store, "fx", None, load(ISSUE, dict(ISSUE, issue_id="i2", requirement_ids=["F1.1"])), "base1")
+    late = dict(ISSUE, issue_id="i3", requirement_ids=["F1.1"])
+    assert runner.import_issues(store, "fx", None, load(late), "base1", replace=False) == ["i3"]
+    assert store.state("issue", "i1") == "Ready" and store.state("issue", "i2") == "Ready"
+    assert runner.import_issues(store, "fx", None, load(late), "base1", replace=True) == []
+
+
+def test_a_cancelled_issue_without_work_can_be_added_again(tmp_path):
+    store = make_plan(tmp_path)
+
+    def load(*docs):
+        f = tmp_path / "issues.json"
+        f.write_text(json.dumps(list(docs)))
+        return str(f)
+
+    runner.import_issues(store, "fx", None, load(ISSUE), "base1")
+    store.transition("issue", "i1", "Cancelled", "coordinator", {"reason": "cascade"})
+    assert store.state("issue", "i1") == "Cancelled"
+    assert runner.import_issues(store, "fx", None, load(ISSUE), "base1", replace=False) == ["i1"]
+    assert store.state("issue", "i1") == "Ready"
+
+
+def test_a_cancelled_issue_that_reached_a_pull_request_stays_cancelled(tmp_path):
+    store = make_plan(tmp_path)
+
+    def load(*docs):
+        f = tmp_path / "issues.json"
+        f.write_text(json.dumps(list(docs)))
+        return str(f)
+
+    runner.import_issues(store, "fx", None, load(ISSUE), "base1")
+    store.put_issue(dict(store.get_issue("i1"), pr=7))
+    store.transition("issue", "i1", "Cancelled", "coordinator", {"reason": "cascade"})
+    with pytest.raises(runner.RunRefused, match="cancelled after it had work"):
+        runner.import_issues(store, "fx", None, load(ISSUE), "base1", replace=False)
+
+
+def test_import_binds_issues_to_the_remote_base_not_an_unpushed_local_commit(remote_world, tmp_path):
+    origin, clone = remote_world
+    assert cli._import_base(clone, "main") == git(clone, "rev-parse", "origin/main")
+    with open(os.path.join(clone, "local.txt"), "w") as fh:
+        fh.write("local only\n")
+    git(clone, "add", "-A")
+    git(clone, "commit", "-q", "-m", "not pushed")
+    remote_head = git(clone, "rev-parse", "origin/main")
+    assert cli._import_base(clone, "main") == remote_head != git(clone, "rev-parse", "main")
+
+
+def test_the_runner_reclaims_working_copies_left_by_a_dead_runner(monkeypatch, tmp_path):
+    """A crashed attempt leaves a whole copy of the repository behind. Nothing reads it again, and they fill the disk."""
+    root = tmp_path / "work"
+    monkeypatch.setenv("HARNESS_WORK_ROOT", str(root))
+    dead = isolation.new_workdir("w-dead-")
+    (tmp_path / "work" / "w-dead-" / "repo").mkdir(parents=True, exist_ok=True)
+    old = time.time() - 5 * 3600
+    os.utime(dead, (old, old))
+    live_dir = isolation.new_workdir("w-live-")
+    events = []
+    sched = _Quiet([{"event": "ok"}, []])
+    sched.reclaim_dead_workdirs = lambda: isolation.prune_workdirs(4 * 3600, keep=[live_dir])
+    runner.run_loop(sched, 0, 1, events.append)
+    assert not os.path.exists(dead) and os.path.exists(live_dir)  # an attempt that may still run keeps its copy
+
+
+def test_adapter_poll_separates_an_invalid_file_from_a_missing_one(tmp_path):
+    """A present but unparseable result.json is a schema problem; an absent one is a worker that produced nothing."""
+    a = CopilotCliAdapter(str(tmp_path), str(tmp_path))
+    (tmp_path / "result.json").write_text("{not json")
+    poll = a.poll(finished_handle(tmp_path, 0), 0)
+    assert poll.error["kind"] == "schema_invalid" and "not valid JSON" in poll.error["detail"]

@@ -50,6 +50,7 @@ Words used throughout:
 | Model choice | The delegating investigator picks a concrete model for each task's implementer, reviewer, and refiner, with a reason balancing cost and quality. |
 | Model tier | An approved relative cost band: `low` (Haiku), `standard` (Sonnet), `strong` (Opus). These bands describe the model menu and bound repair escalation; they do not assign models to roles on newly investigated tasks. |
 | Human task | A question the harness asks you: a decision, an asset, or a manual test. |
+| Overseer | The top-tier agent that answers a stuck issue's *process* question before you are asked: retry, extend a budget, or refine. It never cancels, approves, merges, or changes policy; when it finds a harness defect or a content question, it escalates to you with its diagnosis. |
 
 What an issue goes through: a **refiner** re-checks it if the code under it changed, and plans it once when its declared implementer tier is `standard` or `strong` (the plan and the tier the plan really needs are what the implementer gets), an **implementer** builds it in a throwaway copy of the repository, the harness runs the issue's own check commands, an **independent reviewer** (a different model) reviews the diff, the harness opens a pull request and merges it when every gate passes, and it reruns the checks on the merged `main`. Only then is the issue Done. A phase is Done when all its issues are Done and its exit checks pass.
 
@@ -238,11 +239,15 @@ You need:
 | Docker, running | `docker info` | prints a server version |
 | `gh` signed in as the repository owner | `gh auth status` | logged in, scopes include `repo` and `read:project` |
 | Worker image | `docker images harness-worker` | `harness-worker:1` is listed |
+| Engine toolchain in the image | `docker run --rm harness-worker:1 sh -c 'godot --headless --version; gdlint --version'` | `4.7.2.stable.official...` and gdtoolkit `4.5.0` |
 | Token files | `ls -l ~/.local/state/derschweigert-harness/` | `broker.token` and `copilot.token`, both `-rw-------` |
 
 * `broker.token`: a GitHub token the harness uses to open and merge pull requests. Keep it in the store folder only, never in the repository.
 * `copilot.token`: a fine-grained token with only the **Copilot Requests** account permission and no repository access. Workers receive only this one. It expires, so renew it before the date it was issued for.
 * Optional: Blender (`blender` on your PATH) for procedural assets.
+* Godot is not installed on your machine: the pinned Godot 4 editor, gdtoolkit (`gdlint`, `gdformat`), and the GUT test
+  runner live in the worker image. Changing any of them means rebuilding the image and rerunning `isolation verify`.
+  Export templates and the Android SDK are deliberately absent; Android builds stay a human-owned release workflow.
 
 Set up a shortcut in every terminal you use (it only lasts for that window):
 
@@ -432,6 +437,29 @@ account; browser request protections are not multi-user authentication. Use
 not create it. Asset uploads are limited to 10 MiB and still pass the existing
 asset policy, path, format, provenance, and checksum validation.
 
+**A status page on GitHub (no tunnel, no dashboard)**
+
+`harness report <plan-id>` renders the run's current state as one markdown page and, when given a repository, publishes it
+to a branch of its own: `harness/status/<plan-id>`. GitHub renders that file in the repository view, so the state is
+readable from anywhere without a tunnel, a Pages setup, or a workflow — the status branch matches no push trigger in
+`.github/workflows`.
+
+```
+harness report 20261028-arithmoslayer-md --once          # one page, then exit
+harness report 20261028-arithmoslayer-md --interval 300  # keep it current
+harness report 20261028-arithmoslayer-md --no-push       # keep it local only
+```
+
+The page shows the plan and its digest, the phase table, what is running now with model and elapsed time, what is
+waiting for you, the last events, and the pull requests opened. It is regenerated only when something changed, and the
+branch always holds exactly one commit, replaced under a lease against the branch tip it read.
+
+The publisher reads the store read-only and writes one file to one branch. It never touches the run branch, the base
+branch, evidence, or a lease, so it can run beside a live coordinator — a second terminal, or a detached process — without
+changing what that coordinator decides. A failure (no network, no token) is printed and the next interval tries again; it
+can never fail a run. A copy is always kept at `<store>/status-<plan-id>.md`. The page is redacted: no home directory, no
+token.
+
 **Remote dashboard (operator override)**
 
 `harness remote` is an explicit, opt-in exception for when you need the dashboard
@@ -580,6 +608,32 @@ An issue that already has a pull request and passing checks resumes at review in
 `harness respond TASK_ID --answer source=self-made --answer license=CC0-1.0 --answer author=Me --artifact ./crate.glb`.
 The file is validated (format, size, polygons, license, no embedded scripts) before it is accepted.
 
+Asset classes and their per-file ceilings. Every limit is checked with standard-library parsers; a file that cannot be
+read is refused rather than assumed good. The ceilings are sized so that a release bundle stays inside the 150 MB budget:
+
+| Class | Formats | Ceilings | Typical size |
+|---|---|---|---|
+| `sprite` | png | 1 MB, 1024 px | 10-100 kB |
+| `texture` | png, jpg | 4 MB, 2048 px | 100-800 kB |
+| `hdri` | hdr, exr | 20 MB, 4096 px | 5-15 MB |
+| `model3d` | glb, gltf | 5 MB, 100 000 triangles, 20 m | 20-500 kB |
+| `audio_sfx` | wav, ogg | 500 kB, 3 s, 48 kHz, 2 channels | 10-50 kB (Ogg) |
+| `audio_music` | ogg | 3.5 MB, 180 s, 48 kHz, 2 channels | about 2 MB per 3-minute track |
+| `font` | ttf, otf | 1.5 MB | 100-400 kB |
+
+* Licences: the global allowlist is CC0-1.0. A class may replace it; `font` allows `OFL-1.1` and `Apache-2.0`, and every
+  other class keeps CC0-1.0. A font must ship its licence text next to the file; the harness copies it to
+  `<font>.LICENSE.txt` and records it with its checksum in the manifest.
+* Audio and fonts have no automated source in the policy, so a request for one goes straight to an asset task. Audio can
+  come from a committed synthesis script (procedural) or from you; fonts come from you together with the licence text.
+* WAV is measured with `wave`, Ogg Vorbis with a page and granule reader, and fonts with an sfnt magic and table check.
+  Chained or multiplexed Ogg streams, fonts whose tables point outside the file, and files without a readable length all
+  fail closed.
+* The asset directory is per plan: `harness plan ... --assets-dir apps/arithmoslayer/assets/` (the investigator may also
+  put `{"assets": {"output_dir": "..."}}` in `phases.json`). The directory must be repository-relative, end with `/`,
+  and cannot contain `..`; traversal and symlinks stay refused. The choice is part of the policy, so it is bound by the
+  approval digest.
+
 **Manual test tasks** ask you to try something by hand on an exact commit:
 `harness respond TASK_ID --outcome pass --tester me --revision COMMIT --evidence screenshot.png`.
 A result for an older commit is rejected as stale, and `inconclusive` stays open. A manual pass never replaces the automated checks.
@@ -595,6 +649,30 @@ Unit tests cannot catch wiring between scripts, so changes under `sites/lesen/st
 * After rebuilding the image (`isolation build`) run `isolation verify`. The probe now also checks that the browser is present.
 * To try it by hand: `docker run --rm --user 10001 -v <repo-dir>:/w:ro -w /w harness-worker:1 node /opt/harness/smoke/lesen.mjs .` (the directory must be inside a Docker-shared path, such as your home folder).
 
+## Godot project checks
+
+Changes under `apps/arithmoslayer/` get a headless Godot check as well. The script copies the project to a throwaway
+folder, imports it with `godot --headless`, and loads every script, scene, and resource, instantiating each scene.
+A parse error, a scene that cannot load, or a script that does not compile fails the check.
+
+* Rule: `tools/harness/smoke.json` maps `apps/arithmoslayer/` to `sh /opt/harness/smoke/godot_project.sh /work apps/arithmoslayer`.
+  The script and the GDScript it runs (`worker/smoke/godot_verify.gd`) are baked into the image; workers cannot edit them.
+* The pinned GUT runner is copied into that throwaway project, so `extends GutTest` test scripts compile without the
+  repository vendoring GUT. GUT's own internals are skipped: they are trusted image content, not project code.
+* Headless Godot does not render. The check proves scripts and scenes load; it says nothing about how the game looks,
+  about shaders and particles, or about frame time. Those stay `visual_judgment` and `physical_device` human tasks.
+* Tests inside a phase run through `godot-test <project dir>`, which is on the worker's `PATH`. It copies the project to
+  tmpfs, adds the image's GUT, imports, and runs `-gdir=res://test`. Extra GUT flags may be appended, for example
+  `godot-test apps/arithmoslayer -gdir=res://tests`. GUT prints a "new version available" notice that only reflects the
+  bundled version list; it is not a network call and the pinned GUT never upgrades itself.
+* Lint and format with `gdlint <paths>` and `gdformat --check <paths>`. All of `godot`, `godot-test`, `gdlint`, and
+  `gdformat` pass the validation-command filter; `docker`, `npx`, `curl`, `gh`, and `git push` still do not.
+* To try it by hand: `docker run --rm --user 10001 -v <repo-dir>:/w -w /w harness-worker:1 sh /opt/harness/smoke/godot_project.sh /w apps/arithmoslayer`
+  (the directory must be inside a Docker-shared path, such as your home folder).
+
+The check runs on a copy, so `/tmp` in the container bounds its size: a project plus its import cache must fit in the
+256 MB tmpfs. That is plenty for a small project and will need attention once the audio and art land.
+
 ## Command reference
 
 Every command is `harness <command>`. Add `--home DIR` before the command to use another store folder.
@@ -603,10 +681,10 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 |---|---|---|
 | `start` | One guided path: environment, investigate, plan, approve, import, run. Resumes where the store says you stopped. | `--requirements FILE`, `--out DIR`, `--plan-id`, `--tier`, `--model-source` (repeatable), `--repo`, `--redraft` |
 | `investigate` | Draft phases and issues from requirements. Asks you questions. | `--requirements FILE` (required), `--out DIR`, `--tier low\|standard\|strong` (default standard), `--model-source copilot\|deepseek\|local` (repeatable, default copilot), `--max-rounds N`, `--non-interactive`, `--answers FILE`, `--feedback TEXT` (repeatable), `--feedback-file FILE`, `--timeout SECONDS`, `--force` |
-| `plan` | Validate and save a plan | `--requirements`, `--phases FILE`, `--plan-id`, `--model-source copilot\|deepseek\|local` (repeatable, default: the phases file, else copilot), `--dry-run`, `--fixture` |
+| `plan` | Validate and save a plan | `--requirements`, `--phases FILE`, `--plan-id`, `--model-source copilot\|deepseek\|local` (repeatable, default: the phases file, else copilot), `--assets-dir DIR` (per-plan asset directory, default `assets/`), `--overseer` / `--no-overseer` (top-tier overseer answers process blocks; default off), `--dry-run`, `--fixture` |
 | `models` | Show the picker menu per source and which ids this runtime accepts | `--source copilot\|deepseek\|local` (repeatable), `--refresh` |
 | `approve PLAN_ID` | Record your one-time approval (real terminal) | `--version` |
-| `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version` |
+| `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version`, `--add` (add the file's issues and leave the plan's other issues alone) |
 | `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version`, `--no-tunnel` |
 | `resume PLAN_ID` | Continue a paused or interrupted run | same as `run` |
 | `pause PLAN_ID` | Stop after current work (graceful) | `--now` |
@@ -614,6 +692,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `gui` | Local monitoring and management; auto-starts the remote dashboard when `HARNESS_GUI_PIN` is set | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--no-tunnel`, `--repo OWNER/NAME` |
 | `remote` | PIN-locked loopback relay that proxies the local GUI for a tunnel (operator override) | `--upstream URL` (http://127.0.0.1:8765), `--host 127.0.0.1\|localhost`, `--port` (8443, or 0), `--pin`, `--session-hours` (12) |
 | `status` | Everything at a glance (read-only) | `--json` |
+| `report <plan>` | Publish the run's state as a markdown page on `harness/status/<plan>` | `--once`, `--interval`, `--no-push`, `--branch`, `--repo` |
 | `issue ID` | One issue in detail (read-only) | `--json` |
 | `tasks` | Open human tasks, explained | none |
 | `respond TASK_ID` | Answer a human task | `--option`, `--guidance`, `--outcome`, `--tester`, `--revision`, `--notes`, `--evidence`, `--artifact`, `--answer KEY=VALUE`, `--ack` |
@@ -629,9 +708,9 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 
 **Issue file format** for `import-issues`: a list of objects with `issue_id`, `phase_id`, `requirement_ids`, `outcomes`, `acceptance_criteria`, `non_goals`, `code_anchors`, and optionally `title`, `contract_paths`, `deps`, `validation_commands`, `parallel_safe`, `model_choices`. The investigator writes these for you, including concrete models and reasons for `implementer`, `reviewer`, and `refiner`. Older issue files may omit `model_choices`.
 
-**Defaults** (all part of the approved plan): 2 workers at once, only for issues marked parallel-safe (otherwise one at a time); 2 automatic repair attempts and 3 transient retries per issue; 30 minute worker limit and 10 minute inactivity limit; 8 hour run limit; 20 pull requests per run; at most 1 strong-tier implementation attempt per issue; at most 1 delegating-agent consultation per issue; autonomous merge only when every gate passes and no escalation path is touched.
+**Defaults** (all part of the approved plan): no run wall-clock limit and no pull-request or issue cap, so a run keeps scheduling until its issues are Done or you pause it; 2 workers at once, only for issues marked parallel-safe (otherwise one at a time); 2 automatic repair attempts and 3 transient retries per issue; 30 minute worker limit and 10 minute inactivity limit; at most 1 strong-tier implementation attempt per issue; at most 1 delegating-agent consultation per issue; autonomous merge only when every gate passes and no escalation path is touched.
 
-**Merge gates** (code checks all of these): approval digest valid, checks passed on the current head and base, independent review approved for that head, changes only inside the phase path allowlist, no escalation paths touched, diff under the size cap, and, where required, a passing manual test. Escalation paths always need a human: workflow files, the harness itself (`tools/harness/`, `docs/harness/`, `.github/`), dependency manifests (including nested `package.json` and lockfiles), Android build and permission files, infrastructure, and migrations.
+**Merge gates** (code checks all of these): approval digest valid, checks passed on the current head and base, independent review approved for that head, changes only inside the phase path allowlist, no escalation paths touched, diff under the size cap, and, where required, a passing manual test. Escalation paths always need a human: workflow files, the harness itself (`tools/harness/`, `docs/harness/`, `.github/`), dependency manifests (including nested `package.json` and lockfiles), Android build and permission files, infrastructure, and migrations. The Godot and Android release surface is included: any `export_presets.cfg` (it holds signing settings), any `addons/` directory at any depth (third-party code such as a vendored test framework), `apps/arithmoslayer/android/` (the Android build template), and plugin and store binaries by suffix (`*.gdextension`, `*.so`, `*.dylib`, `*.dll`, `*.aar`, `*.jar`, `*.apk`, `*.aab`, `*.keystore`, `*.jks`).
 
 ## The run branch keeps `main` free
 
@@ -679,6 +758,9 @@ Plans are stored in the database, not in a folder, so they will not show up in y
 | `error: unknown plan ...` | Wrong plan ID, or a different `--home`. Run `harness status` to see the IDs. |
 | `approval none` in `status` | Approve the prepared workspace in Planning, or run `approve` in a real terminal. Type the 12 digest characters exactly. |
 | `no issues to schedule` | Run `import-issues` first. |
+| `paused: only N GiB free for worker directories` | The disk holding `~/.local/share/derschweigert-harness-work/` is nearly full, and a worker needs a copy of the repository plus its build output. Free space, then `resume`. Each attempt releases its copy when it ends; a crashed or killed runner's copies are reclaimed when the next one starts. |
+| `paused: no worker can be started: ...` | The host could not start a worker at all (git clone, docker, disk). Every issue would fail the same way, so the run pauses once instead of raising a decision task per issue. Fix the named cause, then `resume`. |
+| `cloning ... timed out after 600s` or `could not clone ...` | Building the trusted clone failed or hung. The clone uses `--no-local`, so it is bounded by `CLONE_TIMEOUT_S` instead of stalling in a local object copy. The incomplete attempt is kept at `<home>/trusted-clone.git.partial-*` for inspection and is never reused: `trusted-clone.git` only ever appears once a clone finished. Read the kept directory, delete it, then run the command again. |
 | An issue is `Blocked` | Run `harness tasks`. A blocked issue always has a dependency or a task with the reason. Answer it. |
 | `retry would repeat failed attempt ...` | A retry must differ from the failed attempt. Choose option 2 with guidance, or option 3. |
 | `validation command ... can never report a failure` | The command ends in `\|\| true` (or `; true`, `\|\| exit 0`). A check must be able to fail: drop the fallback and let the command report its exit code. |
@@ -701,6 +783,7 @@ What is enforced:
 * Real merges require verified strict required checks enforced for administrators, preventing an external base change between the final fetch and the merge from bypassing validation.
 * Asset request identifiers cannot contain paths. Outputs, manifests, scripts, existing assets, and human-upload destinations are checked for traversal and symlink escapes.
 * Nothing is merged for escalation paths, out-of-scope changes, failed checks, or stale evidence.
+* The worker toolchain is pinned and verified. The Godot binary matches the official SHA512 of its release, GUT is pinned to a commit that `git` verifies at build time, and gdtoolkit is pinned by version. The Tier A probe fails unless `godot` and `gdlint` report the pinned versions and a throwaway project imports headless under the read-only root filesystem.
 
 What is not, honestly:
 
@@ -708,13 +791,26 @@ What is not, honestly:
 * The worker sandbox has open outbound network access. A worker could send out its task folder or its Copilot-only token.
 * `broker.token` is a broad classic token. Treat the store folder as sensitive.
 * Blender runs on your machine, not in the sandbox. Host execution refuses scripts unless trusted code explicitly allowlists the exact reviewed script through `BlenderCli(reviewed_scripts=...)`. Worker requests cannot grant that permission. The blocklist remains defense in depth, not isolation; prefer submitting the generated asset through a human task.
+* The overseer is **off unless the plan asks for it** (`harness plan --overseer`), because the harness has always held that budgets and policy are decided by trusted code rather than by a model. With it on, it removes process questions from your queue, not judgement. It cannot cancel, approve, merge, or change policy, and it cannot touch `tools/harness/`: a harness defect it finds becomes a decision task with its diagnosis attached, which you still have to act on. It is bounded per issue (`policy.overseer.rounds_per_issue`, default 2) and never runs on an authority failure such as a scope breach or an isolation problem.
 * The individual work issues are not mirrored to GitHub: they exist only in the harness store, so use `status` and the pull requests for progress. GitHub Project fields are not synced.
 * If a person merges a harness pull request on GitHub, the harness does not notice.
 * Token and cost figures are estimates. The runtime reports no usage, so each attempt records the agent's own estimate and a lower bound from prompt and file sizes. `status`, `issue`, and the dashboard label every figure by source, and nothing enforces them. Cost appears only if you add prices.
 * The local dashboard is not a remote administration service. It has no separate user authentication, persistent process registry, or cross-dashboard singleton lock. `harness remote` is a documented operator override: a loopback-only, PIN-locked relay that proxies the dashboard for a tunnel. It is not the default posture.
 * Phase-wide exit checks run only when a phase is validated. Each issue is checked with its own commands.
+* Headless Godot does not render. No automated check covers how the game looks, whether a shader compiles into the intended effect, or how many frames a device draws. Loadability is not correctness: a passing Godot smoke check means the scenes and scripts parse and instantiate, nothing more.
+* The Godot smoke check and `godot-test` work on a copy of the project inside the container's 256 MB `/tmp` tmpfs. A project larger than that cannot be checked until the sandbox sizes change, which invalidates the attestation.
+* GUT is image content, not repository content. A change to the test framework is a harness and image change reviewed here, never part of a worker's pull request; a worker that adds or edits `addons/` is escalated to you.
 
 ## Upgrading safely
+
+Publishing a harness fix is separate from applying it to a running coordinator.
+Prepare maintenance changes in a separate Git worktree, add regression tests,
+and merge a harness-only pull request into `main` after the required checks pass.
+Leave the active checkout, run branch, store, approved policy and worker image
+untouched. This also applies to subsequent fixes discovered during a run:
+publishing them does not require restarting or upgrading that run.
+
+When applying a published fix to the runtime:
 
 1. Pause the existing run and confirm its process has stopped before replacing
   harness code. An already-running process retains its old permissions and
@@ -750,6 +846,10 @@ consolidation candidates. Matching coverage is not permission to remove a test.
 GUI HTTP contracts are automated; browser interaction checks currently require
 separate end-to-end verification.
 
-After changing the worker image, rerun `harness isolation build` and `harness isolation verify`. After changing harness code while a run is active, restart the run. Record decisions and limits in [decisions.md](../../docs/harness/decisions.md).
+After rebuilding the worker image, rerun `harness isolation verify` before resuming.
+Do not rebuild an image used by an active run merely to publish its source changes.
+Apply runtime code updates only at a stopped, paused boundary as described above;
+do not hot-swap files under a running coordinator or its GUI. Record decisions and
+limits in [decisions.md](../../docs/harness/decisions.md).
 
 Code map: `cli.py` (commands), `gui.py`, `gui_workflow.py`, `gui_page.html`, and `gui_page.js` (local dashboard and persisted preparation jobs), `investigate.py` (investigator), `plans.py` and `approval.py` (plan, digest, approval), `scheduler.py` (the loop, gates, failures), `adapter.py` and `isolation.py` (runtime and sandbox), `publisher.py` and `github.py` (GitHub), `humantasks.py`, `assets.py`, `status.py`, `store.py` (SQLite state), `machines.py` (state machines).
