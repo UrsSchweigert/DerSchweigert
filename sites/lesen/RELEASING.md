@@ -8,10 +8,10 @@ All commands run from `sites/lesen/`. Nothing secret is ever committed.
 
 ## Prerequisites (local)
 
-- Node.js 18+ and npm.
-- JDK 17 (e.g. `brew install openjdk@17`).
-- Android SDK command-line tools with `platform-tools`, `platforms;android-34`,
-  `build-tools;34.0.0`, and `android/local.properties` pointing at the SDK
+- Node.js 22+ and npm (Capacitor 8).
+- JDK 21 (e.g. `brew install openjdk@21`).
+- Android SDK command-line tools with `platform-tools`, `platforms;android-36`,
+  `build-tools;36.0.0`, and `android/local.properties` pointing at the SDK
   (`sdk.dir=/path/to/Android/sdk`). `local.properties` is gitignored.
 
 ## One-time: create your upload keystore
@@ -95,6 +95,11 @@ version inputs.
 `android-v*` tag). It is separate from the website `deploy.yml` and never runs on
 a website deploy or ordinary push. It uploads the `.aab` as a build artifact and
 does **not** publish to Google Play (v1 publication stays manual and owner-approved).
+
+The workflow uses Node 22, JDK 21 and Android SDK 36. A passing shared JavaScript
+test run is not native build evidence: record an Android debug build and the
+required iOS simulator proof at the exact upgrade revision before advancing
+past the harness's Capacitor prerequisite milestone.
 
 Add these repository **secrets** (Settings → Secrets and variables → Actions):
 
