@@ -6,6 +6,11 @@
       "command": "node /opt/harness/smoke/lesen.mjs /work"
     },
     {
+      "name": "lesen iOS shell stays offline and reviewable",
+      "paths": ["sites/lesen/ios/", "sites/lesen/capacitor.config.json", "sites/lesen/static/", "sites/lesen/scripts/"],
+      "command": "sh /opt/harness/smoke/ios_shell.sh /work sites/lesen"
+    },
+    {
       "name": "arithmoslayer Godot project loads headless",
       "paths": ["apps/arithmoslayer/"],
       "command": "sh /opt/harness/smoke/godot_project.sh /work apps/arithmoslayer"

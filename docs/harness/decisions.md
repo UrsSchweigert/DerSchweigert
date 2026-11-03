@@ -963,3 +963,50 @@ failure spends the ordinary repair budget rather than any override.
 task naming the contract, where before it would have been implemented and stopped later by the diff gate. That is
 the point of the change, and the prompt states the requirement, but it does make refinement depend on a model
 following one more instruction.
+
+## The sandbox checks the shape of an iOS app and never builds one (2026-11-03)
+
+An iOS build needs macOS, Xcode, and signing material. None of that belongs in a Linux worker sandbox, and none
+of it may be given to a worker, so the macOS release workflow stays the only build authority: it is the only
+place that compiles, signs, and uploads. What the sandbox *can* do without a toolchain is read the app the way a
+reviewer reads it, which is where the expensive mistakes live. `worker/smoke/ios_shell.sh` (trusted, baked into
+the image, Python standard library only, no network) is therefore a shape check, not a build:
+
+* `capacitor.config.json` must carry a reverse-DNS `appId` and a relative `webDir`, and must not set `server.url`
+  or `server.cleartext`. A webview pointed at a remote server is the rejection the whole offline app exists to
+  avoid, and it is one line in a config file.
+* `Info.plist` and `PrivacyInfo.xcprivacy` must parse as property lists, the manifest must declare
+  `NSPrivacyTracking=false`, empty tracking domains, no tracking data type, and one reason code per required-reason
+  API under `NSPrivacyAccessedAPITypeReasons`. Apple reads that key; the shortened `NSPrivacyAccessedAPIReasons`
+  spelling parses as a plist, ships, and is ignored, so the rule names it explicitly instead of passing it.
+* The manifest file existing is not evidence that it ships: the check reads the `PBXResourcesBuildPhase` of the
+  Xcode project and fails unless `PrivacyInfo.xcprivacy` and the web-asset folder are actually bundled.
+* `Info.plist` must declare exactly `de` and `en`: the app is bilingual, and a wrong localization list is a
+  store listing defect no test on the device would show.
+* The bundle must be offline and complete: nothing may be *loaded* over the network from HTML, CSS, bundled
+  JavaScript, or an inline `<script>` — which is where most of this app's code lives — every local reference and
+  module specifier must exist, and the only remote links allowed are the reviewed navigation targets (the imprint
+  and the supervisory authority the privacy policy must name).
+* Completeness is a named inventory, not a reference scan. The app loads vocabulary, sentence data, and licence
+  files by names it builds at run time, so a scan that follows only literal references passes a bundle with no
+  words in it. The 27 required files are listed in trusted code, mirroring `REQUIRED_FILES` in the product's
+  `scripts/verify-bundle.mjs`, which is read for its inventory and never executed: it is worker-editable, so it
+  can inform the trusted list but cannot be the authority. A test fails when the two drift.
+* Every bundle that exists is checked — the source `static/`, the copied `www/`, and the generated
+  `ios/App/App/public/`. Checking only the first would let a stale generated copy hide a source that changed
+  under it, which is the failure mode a build step makes easy.
+
+It fails closed. Once `sites/lesen/ios/` exists, a missing or unreadable `Info.plist`, privacy manifest, or
+`project.pbxproj` is a failure rather than a skip. Before the shell exists — and in repositories that have no
+Capacitor project at all — the rule checks the configuration and says so, so Android-only and web-only phases
+keep working and a legacy repository is not failed by a check for something it does not have.
+
+The matching escalation entries stay narrow on purpose: `Info.plist`, `PrivacyInfo.xcprivacy`, `project.pbxproj`,
+`*.entitlements`, and the signing material (`*.p12`, `*.mobileprovision`, `*.p8`, `*.cer`) are owner-merged, while
+the Swift sources and the SPM manifests `cap sync` rewrites are not. Escalating `sites/lesen/ios/` as a whole
+would make an iOS plan unexecutable, which is a worse answer than a reviewed list.
+
+**Cost accepted.** The rule is only as good as its list: a privacy key Apple adds later, or a way to reach the
+network the scanner does not model (a template literal built at runtime, a plugin that fetches on its own), passes
+it. It proves the shape, not the behaviour — the device evidence stays a manual test — and adding the script to
+the image invalidates the Tier A attestation until `harness isolation build` and `isolation verify` have run.

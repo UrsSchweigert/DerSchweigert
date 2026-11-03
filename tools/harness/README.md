@@ -799,6 +799,40 @@ A parse error, a scene that cannot load, or a script that does not compile fails
 The check runs on a copy, so `/tmp` in the container bounds its size: a project plus its import cache must fit in the
 256 MB tmpfs. That is plenty for a small project and will need attention once the audio and art land.
 
+## iOS shell checks
+
+Once `sites/lesen/ios/` exists, changes to the iOS shell, to `capacitor.config.json`, to the web source in
+`static/`, or to the copy step in `scripts/` also get a trusted offline check. It reads the app the way a reviewer
+would and never builds or signs anything: the macOS release workflow remains the only build authority.
+
+* Rule: `tools/harness/smoke.json` maps those paths to `sh /opt/harness/smoke/ios_shell.sh /work sites/lesen`.
+  The script is baked into the image (Python standard library only, no network), so workers cannot edit or skip it.
+* It fails when `capacitor.config.json` has no reverse-DNS `appId` or `webDir`, when it sets `server.url` or
+  `server.cleartext`, when it allows navigation to an unreviewed host, when `Info.plist` or `PrivacyInfo.xcprivacy`
+  is missing or does not parse, when `Info.plist` does not declare exactly `de` and `en` in `CFBundleLocalizations`
+  or opens App Transport Security, when the privacy manifest declares tracking or lacks a reason code per
+  required-reason API under `NSPrivacyAccessedAPITypeReasons`, when the Xcode project does not bundle the privacy
+  manifest and the web assets, or when a bundle loads anything over the network, references a file that is not
+  there, or is missing one of the 27 required runtime files.
+* Every bundle present is checked, not the first one found: the source `static/`, the copied `www/`, and the
+  generated `ios/App/App/public/`. A stale generated copy therefore cannot vouch for a source that has changed,
+  and a clean source cannot excuse a broken copy.
+* Script code is checked wherever it lives. Most of this app's code is inline in `index.html`, so inline
+  `<script>` bodies are read like a module: a `fetch`, `import`, or `new Worker` against a remote URL fails there
+  too. XML namespace constants and the reviewed legal links stay allowed.
+* Vocabulary, sentence data, fonts, and licence files are loaded by names the app builds at run time, which no
+  reference scan can see, so the inventory is checked by name. The list mirrors `REQUIRED_FILES` in
+  `sites/lesen/scripts/verify-bundle.mjs`; the trusted copy is the authority and a test fails if the two drift.
+* It is a shape check, not a build: it proves the app is offline and reviewable, not that it runs. Device
+  behaviour stays a `physical_device` human task.
+* When the project has no iOS shell yet, or no Capacitor configuration at all, the rule checks what exists and
+  passes with a note. Android-only and web-only phases are not failed by it.
+* After rebuilding the image (`isolation build`) run `isolation verify`: the probe checks that the script is in
+  the image and runs there.
+* To try it by hand: `docker run --rm --user 10001 -v <repo-dir>:/w:ro -w /w harness-worker:1 sh /opt/harness/smoke/ios_shell.sh /w sites/lesen`
+  (the directory must be inside a Docker-shared path, such as your home folder). It also runs on the host:
+  `sh tools/harness/worker/smoke/ios_shell.sh "$PWD" sites/lesen`.
+
 ## Command reference
 
 Every command is `harness <command>`. Add `--home DIR` before the command to use another store folder.
@@ -896,6 +930,9 @@ Plans are stored in the database, not in a folder, so they will not show up in y
 | `copilot.token` rejected or expired | Create a new fine-grained token (Copilot Requests permission, no repository access), save it to `~/.local/state/derschweigert-harness/copilot.token` with mode 600, and rerun `isolation verify`. |
 | `harness pause` does nothing | The running process started before `pause` existed. Stop it with Ctrl+C and restart with `resume`. |
 | `[CopilotCLIAgents] Failed to fetch custom agents: Canceled` | A harmless VS Code Copilot panel message, unrelated to the harness. |
+| `FAIL: ... sets server.url` or `FAIL: ... does not parse as a property list` | The iOS shell check. A `server.url` makes the app load from the network; an unparsable `Info.plist` or `PrivacyInfo.xcprivacy` fails closed. Fix the file, or run `sh tools/harness/worker/smoke/ios_shell.sh "$PWD" sites/lesen` locally to see every problem at once. |
+| `FAIL: ... is missing the required runtime file ...` | The bundle does not carry a file the app loads by a name built at run time (vocabulary, sentences, licences). Add it to `sites/lesen/static/`, or, if the file is genuinely gone, change the inventory in `worker/smoke/ios_shell.sh` and the product verifier together. |
+| `FAIL: ... references ..., which does not exist in the bundle` | The web bundle is incomplete: a page, stylesheet, or module points at a file that is not shipped. Add the file to `sites/lesen/static/` or fix the reference; the bundle must work with no network. |
 | A deploy failed on `main` | The harness only merges. Open the Actions run and fix or rerun the deploy. |
 
 ## Safety, limits, and known gaps
