@@ -1,9 +1,7 @@
 """Validate the combat health, dodge, and respawn data.
 
-``data/combat/health.json`` holds the hearts count, the dodge i-frame window and
-cooldown, and the respawn timings. Every number must be finite and in range so a
-typo cannot remove the i-frames, make a dodge impossible to repeat, or respawn
-without protection. Problems name the file, line, and field.
+Every number must be finite and in range so a typo cannot remove the i-frames,
+make a dodge impossible to repeat, or respawn without protection.
 """
 
 from __future__ import annotations
@@ -40,17 +38,14 @@ TYPE_NAMES = {bool: "a boolean", int: "an integer", float: "a number", str: "a s
 
 
 def type_name(value: Any) -> str:
-    """Describe a JSON value for a type error."""
     return TYPE_NAMES.get(type(value), "null")
 
 
 def is_number(value: Any) -> bool:
-    """Return whether a decoded value is a finite JSON number."""
     return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
 
 
 def leaf_problem(rule: str, value: Any) -> str | None:
-    """Return why ``value`` breaks one field rule, or ``None`` when it holds."""
     if rule == "positive_integer":
         if not isinstance(value, int) or isinstance(value, bool):
             return f"expected an integer but found {type_name(value)}"
@@ -65,17 +60,14 @@ def leaf_problem(rule: str, value: Any) -> str | None:
 
 
 def error(location: str, line: int, message: str, field: str) -> str:
-    """Build one reported problem in the project's validator format."""
     return f"{location}:{line}: {message} (field '{field}')"
 
 
 def unknown_fields(data: dict[str, Any], allowed: tuple[str, ...], text: str, location: str) -> list[str]:
-    """Return a problem for every field the document does not declare."""
     return [error(location, field_line(text, field), "unknown field", field) for field in data if field not in allowed]
 
 
 def section_errors(data: dict[str, Any], name: str, text: str, location: str) -> list[str]:
-    """Return every type and range problem in one required section."""
     section = data.get(name)
     if not isinstance(section, dict):
         line = field_line(text, name)
@@ -93,7 +85,6 @@ def section_errors(data: dict[str, Any], name: str, text: str, location: str) ->
 
 
 def cross_field_errors(data: dict[str, Any], text: str, location: str) -> list[str]:
-    """Return the range relationships the runtime relies on."""
     errors: list[str] = []
     health = data.get("health", {})
     dodge = data.get("dodge", {})
@@ -120,7 +111,6 @@ def cross_field_errors(data: dict[str, Any], text: str, location: str) -> list[s
 
 
 def validate_document(text: str, location: str) -> list[str]:
-    """Return every problem in a decoded ``health.json`` document."""
     try:
         data: Any = json.loads(text)
     except json.JSONDecodeError as exc:

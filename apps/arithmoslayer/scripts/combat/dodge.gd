@@ -1,12 +1,8 @@
 class_name Dodge
 extends Node
 ## A dodge roll with data-defined invulnerability frames and cooldown.
-##
-## The roll is independent of the equipped weapon: [method try_dodge] cancels
-## whatever combo is active, so every weapon can dodge out of its own steps.
-## [method advance] runs on the fixed physics step, and [method speed_scale]
-## reports the movement multiplier for the roll. The hero's [Health] consults
-## [method is_invulnerable], so the roll's i-frames actually block damage.
+## [method try_dodge] cancels whatever combo is active, so every weapon can roll
+## out of its own steps, and the hero's [Health] consults the roll's i-frames.
 
 const DEFAULT_PATH: String = "res://data/combat/health.json"
 const DEFAULT_COOLDOWN: float = 0.9
@@ -30,8 +26,6 @@ func _ready() -> void:
 	apply_config(Health.load_config(DEFAULT_PATH))
 
 
-## Applies the dodge numbers, keeping current values for missing or invalid
-## fields and clamping the i-frames inside the roll.
 func apply_config(config: Dictionary) -> void:
 	var section: Variant = config.get("dodge", {})
 	if not (section is Dictionary):
@@ -52,8 +46,6 @@ func apply_config(config: Dictionary) -> void:
 	)
 
 
-## Starts a roll and cancels [param combo] when it is active. Returns false
-## while a roll is running or the cooldown has not elapsed.
 func try_dodge(combo: ComboEngine = null) -> bool:
 	if not can_dodge():
 		return false
@@ -65,7 +57,6 @@ func try_dodge(combo: ComboEngine = null) -> bool:
 	return true
 
 
-## Advances the roll and cooldown timers by [param delta] seconds.
 func advance(delta: float) -> void:
 	if delta <= 0.0:
 		return
@@ -77,7 +68,6 @@ func advance(delta: float) -> void:
 		_rolling = false
 
 
-## Returns true while the data-defined invulnerability window is active.
 func is_invulnerable() -> bool:
 	return (
 		_rolling
@@ -98,12 +88,10 @@ func elapsed_seconds() -> float:
 	return _elapsed
 
 
-## Returns the movement multiplier for the current state.
 func speed_scale() -> float:
 	return speed_multiplier if _rolling else 1.0
 
 
-## Ends the roll and clears its cooldown, used when a respawn takes control.
 func reset() -> void:
 	_rolling = false
 	_elapsed = 0.0

@@ -1,11 +1,9 @@
 class_name Respawn
 extends Node
 ## Returns the hero to the room entrance or last checkpoint after a defeat.
-##
-## A defeat starts a short delay, then moves the body to [method spawn_position],
-## refills every heart, and grants respawn invulnerability. Earned items and
-## score are never touched: the run progress dictionary is carried through
-## unchanged, so there is no game-over screen and no lost progress.
+## A defeat starts a short delay, then moves the body, refills every heart, and
+## grants invulnerability. Earned items and score are never touched, so there is
+## no game-over screen and no lost progress.
 
 signal respawned(position: Vector2)
 
@@ -28,8 +26,6 @@ func _ready() -> void:
 	apply_config(Health.load_config(DEFAULT_PATH))
 
 
-## Applies the respawn timings, keeping current values for missing or invalid
-## fields.
 func apply_config(config: Dictionary) -> void:
 	var section: Variant = config.get("respawn", {})
 	if not (section is Dictionary):
@@ -40,23 +36,19 @@ func apply_config(config: Dictionary) -> void:
 	)
 
 
-## Records the run's earned items and score. Defeat and respawn never clear it.
 func set_progress(earned: Dictionary) -> void:
 	progress = earned
 
 
-## Returns the earned items and score that survive a defeat.
 func earned_progress() -> Dictionary:
 	return progress
 
 
-## Marks [param position] as the latest checkpoint.
 func set_checkpoint(position: Vector2) -> void:
 	checkpoint_position = position
 	has_checkpoint = true
 
 
-## Returns the last checkpoint, or the room entrance when none was set.
 func spawn_position() -> Vector2:
 	return checkpoint_position if has_checkpoint else entrance_position
 
@@ -65,7 +57,6 @@ func is_pending() -> bool:
 	return _pending
 
 
-## Starts the respawn delay when [param health] is defeated.
 func begin(health: Health) -> bool:
 	if health == null or not health.is_defeated() or _pending:
 		return false
@@ -74,7 +65,6 @@ func begin(health: Health) -> bool:
 	return true
 
 
-## Advances the delay. Returns true on the step that moves the body back.
 func advance(
 	delta: float, player: Node2D = null, health: Health = null, dodge: Dodge = null
 ) -> bool:
@@ -87,7 +77,6 @@ func advance(
 	return true
 
 
-## Respawns immediately and returns the position the body moved to.
 func respawn_now(player: Node2D, health: Health, dodge: Dodge = null) -> Vector2:
 	_apply(player, health, dodge)
 	return spawn_position()

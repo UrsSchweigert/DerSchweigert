@@ -49,16 +49,13 @@ root to resize the room; the border and camera bounds follow.
 ## Health, dodge, and respawn
 
 `data/combat/health.json` defines hearts, hit i-frames, the dodge window and
-cooldown, and respawn timings. `health.gd` spends a heart per hit, ignores hits
-during i-frames, and signals `defeated` at zero. `dodge.gd` rolls for the data
-duration with i-frames only inside its window, cancels any weapon combo, and
-waits for its cooldown. `Health.bind_dodge` lets `health.gd` ignore damage
-while the bound roll reports `is_invulnerable`, so a hit inside the roll never
-costs a heart; the arena wires the two on load. `respawn.gd` returns the hero
-to the last checkpoint or the room entrance with full hearts and brief
-invulnerability, keeping earned items and score.
-`test/unit/combat/test_health_dodge.gd` covers the window, the roll's damage
-protection, cooldown, every weapon, and both respawn points.
+cooldown, and respawn timings. `health.gd` spends a heart per hit and ignores
+hits during i-frames or inside a roll bound with `Health.bind_dodge`; the arena
+wires the two on load. `dodge.gd` rolls for the data duration, cancels any
+weapon combo, and waits for its cooldown. `respawn.gd` returns the hero to the
+last checkpoint or room entrance with full hearts and brief invulnerability,
+keeping earned items and score. `test/unit/combat/test_health_dodge.gd` covers
+the window, roll protection, cooldown, every weapon, and both respawn points.
 
 ## Tests
 

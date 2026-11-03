@@ -4,7 +4,6 @@ extends GutTest
 const HEALTH_PATH: String = "res://data/combat/health.json"
 const ARENA_PATH: String = "res://scenes/combat/arena.tscn"
 const WEAPON_DIR: String = "res://data/weapons"
-const SCHEMA_NAME: String = "schema.json"
 const EPSILON: float = 0.001
 
 
@@ -176,18 +175,12 @@ func test_arena_wires_health_dodge_and_respawn() -> void:
 	assert_not_null(arena.respawn, "the arena needs a respawn")
 	assert_eq(arena.respawn.entrance_position, arena.player.global_position)
 	assert_eq(arena.health.max_hearts, int(_health_config()["health"]["maxHearts"]))
-	assert_true(arena.try_dodge(), "the arena must expose the dodge")
-	assert_false(arena.try_dodge(), "the arena must respect the cooldown")
-
-
-func test_arena_roll_blocks_damage() -> void:
-	var arena: Arena = load(ARENA_PATH).instantiate() as Arena
-	add_child_autofree(arena)
 	assert_eq(arena.health.dodge, arena.dodge, "the arena must bind the roll to the hearts")
-	assert_true(arena.try_dodge())
+	assert_true(arena.try_dodge(), "the arena must expose the dodge")
 	arena.dodge.advance(arena.dodge.invulnerability_start_seconds)
 	assert_false(arena.health.damage(), "a hit inside the arena roll must not land")
 	assert_eq(arena.health.hearts, arena.health.max_hearts)
+	assert_false(arena.try_dodge(), "the arena must respect the cooldown")
 
 
 func _health() -> Health:
@@ -217,7 +210,7 @@ func _health_config() -> Dictionary:
 func _weapon_paths() -> Array[String]:
 	var paths: Array[String] = []
 	for file_name: String in DirAccess.get_files_at(WEAPON_DIR):
-		if file_name.ends_with(".json") and file_name != SCHEMA_NAME:
+		if file_name.ends_with(".json") and file_name != "schema.json":
 			paths.append(WEAPON_DIR.path_join(file_name))
 	paths.sort()
 	return paths
