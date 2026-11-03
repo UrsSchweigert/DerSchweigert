@@ -876,3 +876,15 @@ repository and merge-commit evidence are unchanged.
 The known limit above still holds for the rest of the flow: the scheduler does not notice a human merge by itself, and
 `reconcile-completion` refuses while the issue still has an open human task, so the owner answers the decision task
 first and records the merge afterwards.
+
+## Phase gates restrict admission in branching plans (2026-11-03)
+
+`pause --after-phase P` previously stopped only after P finished, while independent sibling phases could already
+start and unlock later work. An armed gate now admits new activation, dispatch, phase exit checks and integration
+only in P and its transitive prerequisites. Already-completed phases remain admitted as history. Existing workers
+drain, but out-of-gate work waits for a later gate before integration. Without a gate, independent phases still run
+concurrently. An unresolvable gate pauses explicitly rather than admitting the whole plan.
+
+A paused plan can pre-arm its next gate before `resume`, avoiding a first-tick race. The phase is validated against
+the signed plan even before its state exists; unknown or already-completed targets are refused. Pre-arming does not
+resume execution or change the approved plan, budgets, models or evidence requirements.
