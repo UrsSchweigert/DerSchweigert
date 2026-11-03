@@ -286,6 +286,128 @@ def test_github_merge_protection_reports_ruleset_only_approval_blocker():
     assert protection["blocking_rules"] == ["ruleset requires 1 approving review(s)"]
 
 
+HEAD_SHA = "4" * 40
+MERGE_SHA = "8" * 40
+BASE_SHA = "3" * 40
+SAME_TREE = "e" * 40
+OTHER_TREE = "f" * 40
+
+
+def check_run(item):
+    """A check run is either a completed (name, conclusion) pair or a literal run, so a test can also express a run
+    that is still queued, or two runs of the same name."""
+    if isinstance(item, dict):
+        return item
+    name, conclusion = item
+    return {"name": name, "status": "completed", "conclusion": conclusion}
+
+
+def evidence_world(merge_checks, head_checks, merge_tree=SAME_TREE, head_tree=SAME_TREE,
+                   merge_statuses=(), head_statuses=()):
+    """A merged pull request whose required checks may sit on the merge commit, on the head, or nowhere."""
+    calls = []
+
+    def request(args):
+        calls.append(args)
+        path = args[3] if args[1] == "-X" else args[1]  # ["api", "-X", "GET", <path>, ...]
+        if path == "repos/owner/repo/pulls/7":
+            return json.dumps({"number": 7, "state": "closed", "merged_at": "now", "merge_commit_sha": MERGE_SHA,
+                               "head": {"sha": HEAD_SHA, "ref": "harness/i1", "repo": {"full_name": "owner/repo"}},
+                               "base": {"sha": BASE_SHA, "ref": "harness/run/p"}, "user": {"login": "worker"}})
+        if path == "repos/owner/repo/pulls/7/reviews":
+            return json.dumps([{"user": {"login": "reviewer"}, "state": "APPROVED", "submitted_at": "now"}])
+        if path == "repos/owner/repo/git/commits/" + MERGE_SHA:
+            return json.dumps({"sha": MERGE_SHA, "tree": {"sha": merge_tree}})
+        if path == "repos/owner/repo/git/commits/" + HEAD_SHA:
+            return json.dumps({"sha": HEAD_SHA, "tree": {"sha": head_tree}})
+        if path.endswith("/check-runs"):
+            runs = [check_run(item) for item in (merge_checks if MERGE_SHA in path else head_checks)]
+            return json.dumps({"total_count": len(runs), "check_runs": runs})
+        if path.endswith("/status"):
+            return json.dumps({"statuses": list(merge_statuses if MERGE_SHA in path else head_statuses)})
+        raise GitHubError("HTTP 404 unexpected path %s" % path)
+
+    return GhCli("owner/repo", runner=request), calls
+
+
+def test_completion_evidence_reads_check_runs_and_reviews_with_an_explicit_get():
+    """Regression: both calls passed '-f per_page=100' without '-X GET', so gh defaulted to POST and GitHub answered
+    404. It also aimed a POST at the reviews endpoint, which is the 'create a review' route."""
+    client, calls = evidence_world([("test", "success")], [])
+    client.completion_evidence(7, ["test"])
+    paged = [args for args in calls if "per_page=100" in args]
+    assert paged, "no paged read was issued"
+    for args in paged:
+        assert args[:3] == ["api", "-X", "GET"], args
+
+
+def test_completion_evidence_prefers_checks_bound_to_the_merge_commit():
+    client, calls = evidence_world([("test", "success")], [("test", "failure")])
+    proof = client.completion_evidence(7, ["test"])
+    assert proof["checks"] == [{"name": "test", "conclusion": "success", "revision": MERGE_SHA}]
+    assert not any(HEAD_SHA in "".join(args) for args in calls), "head was consulted although the merge commit answered"
+
+
+def test_completion_evidence_falls_back_to_head_checks_only_when_the_tree_is_identical():
+    """A merged pull request whose gate only runs on pull_request events leaves the merge commit without check runs.
+    The tested head carries them, and an identical tree id proves the merged content is the content that was tested."""
+    client, _ = evidence_world([], [("test", "success")])
+    proof = client.completion_evidence(7, ["test"])
+    assert proof["checks"] == [{"name": "test", "conclusion": "success", "revision": HEAD_SHA}]
+
+
+def test_completion_evidence_fails_closed_when_the_merged_tree_differs_from_the_tested_one():
+    client, _ = evidence_world([], [("test", "success")], merge_tree=OTHER_TREE)
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+
+
+def test_completion_evidence_never_lets_the_head_overrule_a_failure_on_the_merge_commit():
+    client, _ = evidence_world([("test", "failure")], [("test", "success")])
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+
+
+def test_completion_evidence_refuses_a_required_check_still_running_on_the_merge_commit():
+    """A check that is running on the merge commit has reported: it is pending, not absent. Satisfying it from an
+    identical-tree head would pre-empt a result the merged revision has not given yet."""
+    client, calls = evidence_world([{"name": "test", "status": "in_progress"}], [("test", "success")])
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+    assert not any(HEAD_SHA in "".join(args) for args in calls), "the head was consulted for a pending check"
+
+
+def test_completion_evidence_refuses_a_queued_rerun_that_supersedes_an_older_success():
+    """GitHub returns reruns in no order the harness may rely on, so the newest report has to win: a queued rerun
+    must not be masked by the success it replaces."""
+    runs = [{"name": "test", "status": "queued", "started_at": "2026-11-03T18:00:00Z"},
+            {"name": "test", "status": "completed", "conclusion": "success", "started_at": "2026-11-03T17:00:00Z"}]
+    client, _ = evidence_world(runs, [("test", "success")])
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+
+
+def test_completion_evidence_refuses_a_pending_commit_status_on_the_merge_commit():
+    client, calls = evidence_world([], [("test", "success")], merge_statuses=[{"context": "test", "state": "pending"}])
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+    assert not any(HEAD_SHA in "".join(args) for args in calls), "the head was consulted for a pending status"
+
+
+def test_completion_evidence_does_not_let_a_successful_status_mask_a_running_check_run():
+    """The two sources report the same context independently; the one that is not successful decides."""
+    client, _ = evidence_world([{"name": "test", "status": "queued"}], [("test", "success")],
+                               merge_statuses=[{"context": "test", "state": "success"}])
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+
+
+def test_completion_evidence_fails_closed_when_neither_revision_has_the_check():
+    client, _ = evidence_world([], [])
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+
+
 @pytest.mark.parametrize("response,merged", [({"merged": True}, True), ({"merged": False}, False), ({}, False), (None, False)])
 def test_github_merge_uses_the_api_result(response, merged):
     client = GhCli("owner/repo", runner=lambda args: json.dumps(response))
