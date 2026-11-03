@@ -888,3 +888,24 @@ concurrently. An unresolvable gate pauses explicitly rather than admitting the w
 A paused plan can pre-arm its next gate before `resume`, avoiding a first-tick race. The phase is validated against
 the signed plan even before its state exists; unknown or already-completed targets are refused. Pre-arming does not
 resume execution or change the approved plan, budgets, models or evidence requirements.
+
+## A plan can sign its refiner instead of always paying for the strong tier (2026-11-03)
+
+Role routing pinned the refiner, but three places still forced that pin to be a `strong` model:
+`plans.validate_plan` refused any `model_routing.refiner` outside the strong band, `models.REQUIRED_TIER`
+upgraded a cheaper refiner choice, and dispatch asked `resolve_model` for the `strong` tier, which then found
+nothing inside the one-model routed menu and blocked the attempt. An owner who wanted routine refinement on
+Sonnet had no way to say so, even though Sonnet was already approved in `model_tiers`.
+
+A refiner named in `model_routing` is now read as a signature: `models.signed_refiner` resolves it to the band
+it is approved at and `models.resolve_signed` dispatches exactly that model — no tier upgrade, no substitution,
+no runtime-default fallback. The signature also wins over a per-issue `model_choices.refiner` recorded under an
+earlier plan version, so switching the refiner is a new plan version and no attempted issue or its evidence is
+rewritten.
+
+Nothing was widened. The floor for a signed refiner is `standard`: a `low` selection, or one outside
+`model_tiers`, is refused by plan validation and again at dispatch. A signed model the runtime does not offer
+blocks the issue (`model selection rejected`) instead of falling back. Plans without `model_routing` keep the
+`REQUIRED_TIER` strong refiner and its upgrade-with-a-note behaviour, the overseer's strong floor, the model
+catalog and tier bands, the routine/escalation menus and reviewer independence are unchanged, and changing the
+signature still requires a new plan version and personal approval.

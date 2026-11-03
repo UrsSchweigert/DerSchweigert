@@ -64,6 +64,37 @@ def test_a_refiner_falls_back_when_no_strong_model_is_available():
     assert route["model"] == "claude-haiku-4.5" and "none is available" in route["note"]
 
 
+ROUTED = {"model_tiers": POLICY, "model_routing": {"routine_models": ["claude-haiku-4.5", "claude-sonnet-5"],
+                                                   "refiner": "claude-sonnet-5", "escalation_models": ["claude-opus-5"]}}
+
+
+def test_a_signed_refiner_is_taken_exactly_as_signed():
+    signed = models.signed_refiner(ROUTED)
+    assert signed == {"model": "claude-sonnet-5", "tier": "standard"}
+    route = models.resolve_signed(signed, ALL)
+    assert route["model"] == "claude-sonnet-5" and route["tier"] == "standard" and route["routing"] is True
+    assert "upgraded" not in route["note"]
+
+
+def test_an_unsigned_or_unusable_refiner_selection_is_refused_not_substituted():
+    assert models.signed_refiner({"model_tiers": POLICY}) is None  # a legacy plan keeps the strong floor
+    for refiner, message in (("claude-haiku-4.5", "below"), ("unapproved-model", "configured")):
+        routing = dict(ROUTED["model_routing"], refiner=refiner)
+        with pytest.raises(ValueError, match=message):
+            models.signed_refiner(dict(ROUTED, model_routing=routing))
+    signed = models.signed_refiner(ROUTED)
+    with pytest.raises(ValueError, match="not available"):
+        models.resolve_signed(signed, ["claude-opus-5"])
+    with pytest.raises(ValueError, match="availability"):
+        models.resolve_signed(signed, None)
+
+
+def test_the_required_tiers_and_the_model_catalog_are_unchanged_by_signing():
+    assert models.REQUIRED_TIER == {"refiner": "strong", "overseer": "strong"}
+    assert models.MODEL_CATALOG["copilot"]["standard"] == ["claude-sonnet-5"]
+    assert models.MODEL_CATALOG["copilot"]["strong"] == ["claude-opus-5", "claude-opus-4.8"]
+
+
 def test_the_plan_check_accepts_a_cheap_refiner_because_dispatch_upgrades_it():
     choices = {"implementer": {"model": "claude-haiku-4.5", "reason": "Mechanical edit."},
                "reviewer": {"model": "claude-sonnet-5", "reason": "Independent review."},

@@ -42,6 +42,11 @@ ROLE_TIER = {"investigator": "low", "refiner": "strong", "implementer": "low", "
 # The overseer decides whether a stuck issue is a harness defect, a scope problem, or a question for the owner. A wrong
 # call there costs more than any implementation attempt, so it is never downgraded by a plan.
 REQUIRED_TIER = {"refiner": "strong", "overseer": "strong"}
+
+# A plan may sign one concrete refiner instead of taking the strong default. The signature is the owner's
+# cost decision, so it replaces the REQUIRED_TIER floor for that role only, and never below this band:
+# refinement is still a judgement role, so a low-tier refiner stays refused however it is signed.
+SIGNED_REFINER_FLOOR = "standard"
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
 
 
@@ -87,6 +92,40 @@ def _candidates(tier: str, policy_tiers: Dict[str, Any]) -> List[str]:
     return [value] if isinstance(value, str) else list(value)
 
 
+def tier_of(model: str, policy_tiers: Dict[str, Any]) -> Optional[str]:
+    """The band a model is approved at: the cheapest one that lists it, or None when it is not approved."""
+    return next((band for band in TIERS if model in _candidates(band, policy_tiers)), None)
+
+
+def signed_refiner(policy: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """The refiner the approved policy names, with the band it is approved at.
+
+    None for a legacy plan with no `model_routing`: those keep the REQUIRED_TIER strong floor.
+    A signature naming an unapproved or low-tier model is refused here rather than quietly upgraded,
+    so a bad policy blocks the attempt instead of spending a model the owner did not sign.
+    """
+    routing = policy.get("model_routing") or {}
+    selected = routing.get("refiner")
+    if not selected:
+        return None
+    tier = tier_of(selected, policy["model_tiers"])
+    if tier is None:
+        raise ValueError("the approved refiner %r is not configured in the approved policy" % selected)
+    if TIERS.index(tier) < TIERS.index(SIGNED_REFINER_FLOOR):
+        raise ValueError("the approved refiner %r is below the %s tier" % (selected, SIGNED_REFINER_FLOOR))
+    return {"model": selected, "tier": tier}
+
+
+def resolve_signed(selection: Dict[str, str], available: Optional[List[str]], *, role: str = "refiner") -> Dict[str, Any]:
+    """Dispatch exactly the signed model: no substitution, no tier upgrade, no runtime-default fallback."""
+    if available is None:
+        raise ValueError("the approved %s routing requires verified model availability" % role)
+    if selection["model"] not in available:
+        raise ValueError("the approved %s model %r is not available" % (role, selection["model"]))
+    return {"model": selection["model"], "tier": selection["tier"], "routing": True,
+            "note": "the approved policy routes the %s to %s" % (role, selection["model"])}
+
+
 def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], available: list[str] | None,
                    avoid: str | None = None, *, strong_used: int = 0, strong_budget: int = 1,
                    role: str | None = None) -> dict[str, Any]:
@@ -100,7 +139,7 @@ def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], availab
     if not reason or len(reason) > 2000:
         raise ValueError("model choice needs a non-empty reason under 2000 characters")
     selected = choice["model"]
-    tier = next((band for band in TIERS if selected in _candidates(band, policy_tiers)), None)
+    tier = tier_of(selected, policy_tiers)
     if tier is None:
         raise ValueError("model %r is not configured in the approved policy" % selected)
     floor = REQUIRED_TIER.get(role or "")
