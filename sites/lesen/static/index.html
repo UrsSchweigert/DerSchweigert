@@ -1182,27 +1182,28 @@
     </main>
     <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button></footer>
     <script type="module">
-        import { createSpeechAdapter } from './speech-adapter.js';
+        import { createPlatformAdapter } from './platform.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard } from './scoring.mjs';
-        import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
         import { readableSentenceCards } from './sentences/cards.mjs';
         import { t } from './i18n.mjs';
         
-        window.__speech = createSpeechAdapter();
+        const platform = createPlatformAdapter();
+        window.__platform = platform;
+        window.__speech = platform.speech;
         window.__speech.warm();
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard };
         window.__sentences = { readableSentenceCards };
-        window.__storage = createStorage(window.localStorage);
+        window.__storage = platform.progress;
         window.__i18n = { t };
     </script>
     <!-- Must be a module: module scripts run in order after parsing, so window.__storage, __sounds and __scoring (set above) exist first. -->
     <script type="module">
         'use strict';
         import { bestNextUnits } from './coverage.mjs';
-        import { readLanguage, writeLanguage, readSelection, writeSelection, getTtsLanguageCode, getWordListFilename } from './storage.mjs';
+        import { getTtsLanguageCode, getWordListFilename } from './storage.mjs';
         
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
@@ -1217,15 +1218,15 @@
         let sentenceTexts = { de: null, en: null };
         let deckStarting = false;
         let startLoading = false;
-        let stats = window.__storage.read();
+        let stats = window.__platform.progress.read();
         let currentPattern = 'PATTERNS';
         let isInFlopMode = false;
         let noPatternHintShown = false;
-        let currentLanguage = readLanguage(window.localStorage);
+        let currentLanguage = window.__platform.progress.readLanguage();
 
         function setLanguage(lang) {
             currentLanguage = lang;
-            writeLanguage(window.localStorage, lang);
+            window.__platform.progress.writeLanguage(lang);
             document.documentElement.lang = lang;
             document.title = tr('app.title_full');
 
@@ -1240,7 +1241,7 @@
             vowels.clear();
             specials.clear();
 
-            const saved = readSelection(window.localStorage, lang);
+            const saved = window.__platform.progress.readSelection(lang);
             if (saved) {
                 // Keep only units that exist in this language's alphabets
                 for (const letter of saved.consonants) if (sounds.consonants.includes(letter)) consonants.add(letter);
@@ -1381,7 +1382,7 @@
         }
 
         function updateSelectionCounts() {
-            writeSelection(window.localStorage, currentLanguage, currentSelection());
+            window.__platform.progress.writeSelection(currentLanguage, currentSelection());
             byId('consonant-count').textContent = `${consonants.size} ${tr('unit.selected')}`;
             byId('vowel-count').textContent = `${vowels.size} ${tr('unit.selected')}`;
             byId('specials-count').textContent = `${specials.size} ${tr('unit.selected')}`;
@@ -2050,7 +2051,7 @@
                 flop: isInFlopMode,
                 recovery: isInFlopMode && correct
             });
-            window.__storage.write(stats);
+            window.__platform.progress.write(stats);
             
             if (correct) {
                 cleared++;
@@ -2111,8 +2112,8 @@
         byId('change-letters').addEventListener('click', returnToSetup);
         byId('again').addEventListener('click', startDeck);
 
-        const App = window.Capacitor?.Plugins?.App;
-        if (App) {
+        const App = window.__platform.app;
+        if (App.isSupported()) {
             App.addListener('backButton', () => {
                 const openDialog = document.querySelector('dialog[open]');
                 if (openDialog) { openDialog.close(); return; }
