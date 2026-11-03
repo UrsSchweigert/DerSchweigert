@@ -85,7 +85,7 @@ const DE = {
   
   // About dialog
   'dialog.about.title': 'Über Buchstabenzeit',
-  'dialog.about.version': 'Version 1.0',
+  'dialog.about.version': 'Version',
   'dialog.about.intro': 'Buchstabenzeit ist eine begleitete Leseübung. Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.',
   'dialog.about.privacy': 'Datenschutz',
   'dialog.about.privacy_text': 'Diese App sammelt keine persönlichen Daten, hat keine Benutzerkonten, keine Werbung und keine Analyse. Sie funktioniert vollständig offline und benötigt keine Internetverbindung.',
@@ -216,7 +216,7 @@ const EN = {
   
   // About dialog
   'dialog.about.title': 'About Letter time',
-  'dialog.about.version': 'Version 1.0',
+  'dialog.about.version': 'Version',
   'dialog.about.intro': 'Letter time is guided reading practice. An adult chooses the cards, guides the child through reading, and marks the answers.',
   'dialog.about.privacy': 'Privacy',
   'dialog.about.privacy_text': 'This app collects no personal data, has no user accounts, no ads, and no analytics. It works completely offline and requires no internet connection.',

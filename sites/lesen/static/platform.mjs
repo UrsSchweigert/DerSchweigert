@@ -693,6 +693,23 @@ export function createWebApp(win) {
     exitApp() {
       plugin?.exitApp?.();
     },
+    /**
+     * Native app identity, including the version declared once in
+     * android/app/build.gradle. Resolves null on the web and whenever the
+     * plugin or its getInfo() call is unavailable, so callers can fall back
+     * to a version-less label instead of showing a stale literal.
+     * @returns {Promise<{id?: string, name?: string, version?: string, build?: string}|null>}
+     */
+    async getInfo() {
+      if (!plugin || typeof plugin.getInfo !== 'function') {
+        return null;
+      }
+      try {
+        return await plugin.getInfo();
+      } catch {
+        return null;
+      }
+    },
   };
 }
 

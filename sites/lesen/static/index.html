@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#eaf8ff">
     <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -44,6 +44,13 @@
 
         body {
             margin: 0;
+            /* viewport-fit=cover plus these insets keeps content clear of the
+               notch and gesture bar inside the edge-to-edge Android shell. */
+            padding:
+                env(safe-area-inset-top, 0px)
+                env(safe-area-inset-right, 0px)
+                env(safe-area-inset-bottom, 0px)
+                env(safe-area-inset-left, 0px);
             color: var(--ink);
             font-family: Andika, "Trebuchet MS", sans-serif;
             letter-spacing: 0;
@@ -1170,7 +1177,7 @@
         <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
             <button id="about-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
             <h2 id="about-title">Über Buchstabenzeit</h2>
-            <p class="about-version" id="about-version">Version 1.0</p>
+            <p class="about-version" id="about-version">Version</p>
             <p id="about-intro">Buchstabenzeit ist eine begleitete Leseübung. Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
             <h3 id="about-privacy-heading">Datenschutz</h3>
             <p id="about-privacy-text">Diese App sammelt keine persönlichen Daten, hat keine Benutzerkonten, keine Werbung und keine Analyse. Sie funktioniert vollständig offline und benötigt keine Internetverbindung.</p>
@@ -1231,6 +1238,7 @@
         let isInFlopMode = false;
         let noPatternHintShown = false;
         let currentLanguage = window.__platform.progress.readLanguage();
+        let appVersion = null;
 
         function setLanguage(lang) {
             currentLanguage = lang;
@@ -1368,7 +1376,12 @@
             byId('confirm-end-yes').textContent = tr('dialog.confirm_end.confirm');
 
             byId('about-title').textContent = tr('dialog.about.title');
-            byId('about-version').textContent = tr('dialog.about.version');
+            // The version number has a single source: versionName in
+            // android/app/build.gradle, surfaced by @capacitor/app getInfo().
+            // On the web no native version exists, so the label stands alone.
+            byId('about-version').textContent = appVersion
+                ? `${tr('dialog.about.version')} ${appVersion}`
+                : tr('dialog.about.version');
             byId('about-intro').textContent = tr('dialog.about.intro');
             byId('about-privacy-heading').textContent = tr('dialog.about.privacy');
             byId('about-privacy-text').textContent = tr('dialog.about.privacy_text');
@@ -1379,8 +1392,9 @@
             byId('about-wordlist-link').textContent = tr('dialog.about.license_link');
             byId('about-font-link').textContent = tr('dialog.about.license_link');
             byId('about-privacy-link').textContent = tr('dialog.about.privacy_link');
-            // Update privacy policy link based on current language
+            // Update privacy policy and word-list license links based on current language
             byId('about-privacy-link').href = currentLanguage === 'en' ? 'datenschutz-en.html' : 'datenschutz.html';
+            byId('about-wordlist-link').href = currentLanguage === 'en' ? 'words-en-LICENSE.txt' : 'words-de-LICENSE.txt';
             byId('about-close-label').textContent = tr('dialog.about.close');
         }
 
@@ -2112,10 +2126,18 @@
             document.querySelector('#setup button').focus();
         }
 
+        /** Cache the native app version once so every about-dialog render uses it. */
+        async function loadAppVersion() {
+            const info = await window.__platform.app.getInfo?.();
+            appVersion = info?.version ?? null;
+            updateDialogText();
+        }
+
         document.querySelectorAll('.lang-btn').forEach(btn => {
             btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
         });
         setLanguage(currentLanguage);
+        loadAppVersion();
         document.querySelectorAll('input[name="mode"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });
