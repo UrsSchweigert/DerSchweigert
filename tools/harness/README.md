@@ -173,6 +173,36 @@ legacy role mapping; existing issues and running coordinators are not rewritten.
 The `investigate --tier` option selects the planning agent only. Changing the
 approved model menu or budgets still requires renewed plan approval.
 
+An optional `model_routing` object in `phases.json` pins the refiner and separates
+routine models from escalation models. For example:
+
+```json
+{
+  "routine_models": ["deepseek/deepseek-flash", "deepseek/deepseek-v4-pro"],
+  "refiner": "claude-opus-5",
+  "escalation_models": ["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5"]
+}
+```
+
+These are subsets of the approved `model_tiers`, not extra authorization.
+Every fresh issue is refined first. Routine implementation and independent
+review stay inside `routine_models`; quality repairs and delegator, analyst,
+and overseer consultations use `escalation_models`. The refiner remains pinned
+in both cases. Missing models fail closed, never falling back to another source
+or the runtime default. Plans without this object keep their existing behavior.
+Changing it requires a new plan version and personal approval. Reimporting an
+unchanged completed issue preserves its historical evidence; completed work
+cannot be redefined. Pending required CI checks can wait up to 30 minutes,
+independently of scheduler polling frequency, without spending repair budget.
+
+For Buchstabenzeit run branches, `.github/workflows/lesen-native.yml` builds an
+Android debug APK and an unsigned iOS simulator app from the PR revision.
+Until the iOS phase adds its actual project, CI generates a temporary Capacitor
+shell from the locked packages. The aggregate `lesen-native` check fails closed
+for absent, failed, cancelled or skipped required builds. A run-branch ruleset
+must require that check; merely adding the workflow does not enforce it.
+Neither build proves physical-device behavior, signing, or publication.
+
 ### When a worker is stuck
 
 An implementer that cannot complete its task sets its outcome to `blocked` and
