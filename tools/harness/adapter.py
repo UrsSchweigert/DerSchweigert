@@ -92,10 +92,11 @@ def build_prompt(req: WorkRequest) -> str:
         example["overseer"] = {"action": "retry", "cause": "process", "reason": "<what the recorded failures show, in one sentence>",
                                "guidance": "<the concrete hint for the next attempt>"}
     if req.role == "refiner":
-        example.update(plan=["edit site/index.html: drop the second :root block"], tier_fit="standard")
+        example.update(plan=["edit site/index.html: drop the second :root block"],
+                       plan_files=["site/index.html"], tier_fit="standard")
         example.pop("checks", None)
     allowed = {"reviewer": ' The outcome field must be exactly "approve" or "changes_requested".',
-               "refiner": ' The outcome field must be exactly "ready" or "needs_input". plan is a list of short step strings, tier_fit is one of "low", "standard", "strong", and split_advice is one sentence or omitted.',
+               "refiner": ' The outcome field must be exactly "ready" or "needs_input". plan is a list of short step strings. plan_files is required whenever the outcome is "ready": list every file the plan writes, as repository or working-directory paths, paths only and no prose, and write [] when the plan writes none. A refinement that reports ready without plan_files is rejected and asked again. A plan whose plan_files name a task.escalation_paths file is not carried out: it is held for the owner to merge, so work around those files or report needs_input instead. tier_fit is one of "low", "standard", "strong", and split_advice is one sentence or omitted.',
                "implementer": ' The outcome field must be exactly "done" or "blocked".',
                "delegator": ' The decision.action field must be exactly "retry" or "ask_owner"; leave out guidance and model_choice when they do not apply.',
                "analyst": ' The analysis.recommendation field must be exactly "split", "retry", or "needs_owner"; leave out the optional fields that do not apply.',

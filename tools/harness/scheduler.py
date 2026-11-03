@@ -69,6 +69,16 @@ OVERSEER_KINDS = {"checks_failed", "check_configuration", "schema_invalid", "pat
 # A worker's own question is triaged before the owner sees it. Budget and policy failures are decided by trusted code.
 QUESTION_KINDS = ("needs_input",)
 
+# The refinement result contract this scheduler dispatches under. It is written into the attempt record at dispatch,
+# so whether a refiner owed a structural `plan_files` declaration is decided by what trusted code asked for, never by
+# what the worker chose to send back. An attempt recorded without this marker was dispatched before the contract
+# existed (history, or a worker still in flight across the upgrade) and is read under the old rules.
+REFINER_RESULT_CONTRACT = "plan_files/1"
+# Bounds for that declaration. Exceeding them is an error, never a truncation: a silently shortened list would hide
+# exactly the owner-merged path the declaration exists to surface.
+MAX_PLAN_FILES = 200
+MAX_PLAN_FILE_LEN = 400
+
 # A human is contacted only for these. Everything else is answered by the harness: triage decides, the
 # descope envelope bounds what it may give up, and the reasons are recorded.
 EMERGENCY_TOPICS = ("credential", "secret", "token", "password", "production", "deploy", "licence", "license",
@@ -1055,6 +1065,14 @@ class Scheduler:
             self._record_failure(meta, "schema_invalid", now, "refiner outcome was %r (blockers: %s; next: %s)" % (
                 result["outcome"], "; ".join(result["blockers"])[:200], str(result["next_action"])[:120]))
             return
+        try:
+            declared = self._declared_plan_files(meta, result)
+        except ValueError as exc:
+            # The same path a malformed outcome takes: the refinement is rejected, the reason reaches the next
+            # refiner attempt as `your_previous_answer_was_rejected`, and no implementer is dispatched on a plan
+            # whose file list trusted code could not read.
+            self._record_failure(meta, "schema_invalid", now, str(exc))
+            return
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {})
         self._release(meta["attempt_id"])
         meta.update(outcome="Succeeded", finished_at=now)
@@ -1070,7 +1088,10 @@ class Scheduler:
         if tier_fit:
             issue["tier_fit"] = tier_fit
         issue["base_rev"] = self.repo.base_head()
+        issue.pop("plan_prerequisites", None)  # a fresh plan answers the previous one; the guard below records it again if it still applies
         self.store.put_issue(issue)
+        if self._plan_needs_owner_merge(issue, declared, meta, now):
+            return
         self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"base": issue["base_rev"]}, now=now)
         self._emit("refined", issue=issue["issue_id"], plan_steps=len(plan), tier_fit=tier_fit or None,
                    split_advice=advice or None)
@@ -1083,6 +1104,62 @@ class Scheduler:
             if not self._schedule_triage(issue, now, force=True):
                 self._block(issue, now)
             return
+
+    def _declared_plan_files(self, meta: Dict[str, Any], result: Dict[str, Any]) -> List[str]:
+        """The files the refiner says its plan writes, under the contract its dispatch was recorded with.
+
+        A refinement dispatched under `REFINER_RESULT_CONTRACT` owes this declaration whenever it reports `ready`;
+        an empty list is a valid answer and means the plan writes nothing. Anything unreadable is an error rather
+        than a shortened list, because the one entry dropped by a silent bound could be the owner-merged file.
+        An attempt recorded before the contract existed keeps the old behaviour and declares nothing.
+        """
+        declared = result.get("plan_files")
+        if declared is None:
+            if meta.get("result_contract") == REFINER_RESULT_CONTRACT:
+                raise ValueError("the refinement contract %s requires plan_files: list every file the plan writes, "
+                                 "as repository or working-directory paths, or [] when it writes none" % REFINER_RESULT_CONTRACT)
+            return []  # dispatched before the contract existed: read under the old rules
+        if len(declared) > MAX_PLAN_FILES:
+            raise ValueError("plan_files declares %d files, more than the %d this contract allows; split the issue "
+                             "instead of planning a change that wide" % (len(declared), MAX_PLAN_FILES))
+        out = []
+        for i, raw in enumerate(declared):
+            path = str(raw).strip()
+            if not path:
+                raise ValueError("plan_files[%d] is empty; every entry must be a path" % i)
+            if len(path) > MAX_PLAN_FILE_LEN:
+                raise ValueError("plan_files[%d] is longer than %d characters" % (i, MAX_PLAN_FILE_LEN))
+            out.append(path)
+        return out
+
+    def _plan_needs_owner_merge(self, issue: Dict[str, Any], declared: List[str], meta: Dict[str, Any], now: float) -> bool:
+        """Hold a plan that writes owner-merged files instead of dispatching an implementer to carry it out.
+
+        The diff gate already refuses such a change, but only after an implementer has been paid for and the
+        attempt is lost. The refiner is told to work around these files or report `needs_input`; when it instead
+        plans the edit, the prerequisite is the owner's to merge, so it is stated here as a prerequisite rather
+        than discovered as a violation. Only the refiner's structural file declaration is read: a plan that names
+        a protected file in prose, including to say it must not be touched, is not held.
+        """
+        if not declared:
+            return False  # a read-only plan, or a legacy refinement: the diff gate still guards the branch either way
+        working = issue.get("working_directory") or self._phase(issue).get("working_directory", ".")
+        protected = broker.planned_escalation(declared, self._plan()["policy"]["escalation_paths"], working)
+        if not protected:
+            return False
+        detail = "the plan writes owner-merged files: %s" % ", ".join(protected)
+        issue["plan_prerequisites"] = protected
+        issue["last_failures"].append({"attempt": meta["attempt_id"], "role": "refiner", "kind": "protected_prerequisite",
+                                       "class": "human", "detail": detail[:400]})
+        issue["last_failures"] = issue["last_failures"][-6:]
+        issue["blocked_reason"] = ("%s. Merge that change yourself, or send the issue back to be re-planned around it; "
+                                   "no implementer was started." % detail)[:300]
+        self.store.put_issue(issue)
+        # No `refined` event: the issue never became Ready, and the log should say why the plan stopped here.
+        self._emit("plan_prerequisite", issue=issue["issue_id"], paths=protected, attempt=meta["attempt_id"],
+                   plan_steps=len(issue.get("plan") or []))
+        self._block(issue, now)
+        return True
 
     def _on_delegator(self, meta, h, result, now) -> None:
         """Apply the delegating agent's decision after trusted code checks it. It can steer a retry or hand the question to the owner."""
@@ -1898,6 +1975,7 @@ class Scheduler:
         self.store.start(lease.attempt_id, lease.epoch, now)
         meta = {"attempt_id": lease.attempt_id, "issue_id": issue["issue_id"], "role": role, "tier": route["tier"], "model": route["model"],
             "routing": route["routing"], "routing_source": routing_source, "routing_note": route["note"], "packet_digest": digest, "started_at": now, "outcome": "",
+                "result_contract": REFINER_RESULT_CONTRACT if role == "refiner" else "",
                 "independent": bool(role == "reviewer" and route["model"] and route["model"] != avoid),
                 "reviewed_head": issue["head_rev"] if role == "reviewer" else ""}
         self.store.put_attempt(meta)

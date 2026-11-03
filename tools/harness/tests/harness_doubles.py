@@ -131,7 +131,7 @@ class FakeAdapter(Adapter):
         self.decisions = {}       # issue_id -> delegator decisions, the last one repeats
         self.analyses = {}        # issue_id -> analyst analyses, the last one repeats
         self.overseer = None      # the overseer's answer, repeated until it is changed
-        self.plans = {}           # issue_id -> extra refiner result fields (plan, tier_fit, split_advice)
+        self.plans = {}           # issue_id -> extra refiner result fields (plan, plan_files, tier_fit, split_advice)
         self.size_usage = None    # what the adapter reports from prompt and file sizes
         self.runtime_lines = []   # usage lines the runtime printed
         self.agent_usage = None   # the estimate every worker reports about itself, malformed values included
@@ -207,7 +207,12 @@ class FakeAdapter(Adapter):
             if step in ("needs_input", "not_sure"):
                 result["blockers"] = ["The spec does not say whether the disclaimer repeats after a reload."]
             else:
+                # A compliant worker under the current refinement contract declares the files its plan writes;
+                # the default plan writes none. `plan_files: None` injects the non-compliant worker that omits it.
+                result["plan_files"] = []
                 result.update(dict(self.plans.get(req.issue_id) or {}))
+                if result.get("plan_files", []) is None:
+                    result.pop("plan_files")
         if self.agent_usage is not None:
             result["usage_estimate"] = self.agent_usage
         return Poll("finished", now, result, None)

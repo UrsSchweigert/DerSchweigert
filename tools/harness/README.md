@@ -673,7 +673,31 @@ can be correct and still miss the point.
 plans. The prompt tells refiners and implementers not to plan or edit these
 owner-merged files. If the acceptance criteria can be met without touching them,
 the worker must do so; otherwise it reports the concrete owner prerequisite.
-Trusted diff enforcement remains unchanged. When a previous refinement crossed
+Trusted diff enforcement remains unchanged.
+
+A refiner lists the files its plan writes in `plan_files` (paths, not prose).
+This is required whenever it reports `ready`; `[]` is a valid answer and means
+the plan writes nothing. Whether a refinement owes that declaration is decided
+by the contract recorded in its attempt at dispatch (`result_contract`,
+currently `plan_files/1`), never by what the worker sends back, so an attempt
+recorded before the contract existed -- history, or a worker in flight across
+the upgrade -- is still read under the old rules. A `ready` result that omits
+the declaration under the contract is rejected like any other malformed result:
+the attempt fails `schema_invalid`, the reason reaches the next refiner attempt
+as `your_previous_answer_was_rejected`, and no implementer is dispatched on a
+plan whose file list trusted code could not read.
+
+When a declared file is owner-merged, the plan is held at the refinement
+boundary: the issue blocks with the prerequisite and the files named, the plan
+is kept so you can read what was asked for, and no implementer is dispatched to
+carry out work the diff gate would reject. That hold is not a failure -- the
+refinement stays a success and no repair or transient budget is spent. Every
+declared path is inspected; an over-long list or an empty entry is an error,
+never a shortened list, because the entry a silent bound dropped could be the
+owner-merged one. Only the declaration is read, so a plan that names a
+protected file in prose -- to say it must not be edited, or that its change is
+already merged -- is not held, and the diff gate remains the enforcing boundary
+either way. When a previous refinement crossed
 this boundary, use the decision task's re-refinement option with guidance rather
 than retrying the stale plan. Replanning packets retain that owner guidance
 alongside changed-anchor and missing-file context. Any optional owner wiring that depends on a new
