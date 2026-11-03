@@ -131,6 +131,11 @@ const DE = {
   // Footer
   'footer.tagline': 'Buchstabenzeit · Jeden Tag ein kleines Stück weiter.',
   'footer.about_button': 'Rechtliches & Datenschutz',
+  'footer.parent_report': 'Bericht als CSV speichern',
+
+  // Parent report export status
+  'report.export_ready': 'Bericht gespeichert.',
+  'report.export_failed': 'Bericht konnte nicht gespeichert werden.',
 };
 
 /**
@@ -257,6 +262,11 @@ const EN = {
   // Footer
   'footer.tagline': 'Letter time · Every day a little bit further.',
   'footer.about_button': 'Legal & Privacy',
+  'footer.parent_report': 'Save report as CSV',
+
+  // Parent report export status
+  'report.export_ready': 'Report saved.',
+  'report.export_failed': 'Report could not be saved.',
 };
 
 /**
