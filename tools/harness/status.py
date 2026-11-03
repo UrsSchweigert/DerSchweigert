@@ -243,8 +243,17 @@ def render(report: Dict[str, Any]) -> str:
     r = report["runner"]
     w("runner: %s" % (r["status"] if r["status"] == "none" else "%s (%s, last heartbeat %.0fs ago)" % (r["status"], r["runner_id"], r["last_heartbeat_age_s"])))
     for p in report["plans"]:
-        w("plan %s v%d  %s  digest %s  approval %s%s" % (p["plan_id"], p["version"], p["state"], p["digest"], p["approval"], "  PAUSED: " + p["paused_reason"] if p["paused_reason"] and p["state"] == "Paused" else ("  PAUSE REQUESTED, finishing active work" if p["pause_requested"] else
-                ("  WILL PAUSE AFTER %s" % p["pause_after_phase"] if p.get("pause_after_phase") else ""))))
+        if p["paused_reason"] and p["state"] == "Paused":
+            # A gate armed while paused decides what the next resume may start, so say it here and not only in --json.
+            note = "  PAUSED: " + p["paused_reason"] + ("  GATE ARMED: resume runs %s and what it waits for, then pauses"
+                                                       % p["pause_after_phase"] if p.get("pause_after_phase") else "")
+        elif p["pause_requested"]:
+            note = "  PAUSE REQUESTED, finishing active work"
+        elif p.get("pause_after_phase"):
+            note = "  WILL PAUSE AFTER %s" % p["pause_after_phase"]
+        else:
+            note = ""
+        w("plan %s v%d  %s  digest %s  approval %s%s" % (p["plan_id"], p["version"], p["state"], p["digest"], p["approval"], note))
         b = report["budgets"].get(p["plan_id"], {})
         if b:
             pr = b["pull_requests"]
