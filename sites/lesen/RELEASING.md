@@ -4,6 +4,11 @@ This document describes how to turn a known-good source revision into a valid,
 versioned, signed Android App Bundle (`.aab`) for Google Play. The website
 (`lesen.derschweigert.de`) deploys separately and is unaffected by this process.
 
+> **External release gate:** producing a validly signed `.aab` and completing the
+> Play Console internal-track install and upgrade check are manual maintainer
+> actions. This repository's automated checks (shared JS tests, asset sync, and
+> `android-release.yml`) neither perform nor claim that gate.
+
 All commands run from `sites/lesen/`. Nothing secret is ever committed.
 
 ## Prerequisites (local)
@@ -93,6 +98,11 @@ versionCode, date, and release notes.
 8. Upload the `.aab` to the Play Console (internal testing first). Test an
    **upgrade** over the previous build, not just a clean install.
 
+Producing a validly signed `.aab` and completing the Play Console internal-track
+install/upgrade check are an **external release gate**. They are performed
+manually by the maintainer; the shared JS tests, `copy-assets`/`cap sync`, and
+the `android-release.yml` build neither perform nor claim this gate.
+
 ## Release record
 
 | Date | Git revision | versionName | versionCode | targetSdk | Track | Notes |
@@ -105,7 +115,10 @@ versionCode, date, and release notes.
 A release is reproducible from: the recorded **git revision** + the locked
 `package-lock.json` + the recorded **versionCode/versionName** + your upload
 keystore. Check out the revision, `npm ci`, and run `build:release` with the same
-version inputs.
+version inputs. `npm run sync` first re-copies `static/` into `www/` from that
+revision and verifies the required bundle files, then `cap sync android` copies
+that same output into the native project, so asset sync is reproducible rather
+than hand-edited.
 
 ## Continuous integration (GitHub Actions)
 
@@ -115,10 +128,11 @@ version inputs.
 a website deploy or ordinary push. It uploads the `.aab` as a build artifact and
 does **not** publish to Google Play (v1 publication stays manual and owner-approved).
 
-The workflow uses Node 22, JDK 21 and Android SDK 36. A passing shared JavaScript
-test run is not native build evidence: record an Android debug build and the
-required iOS simulator proof at the exact upgrade revision before advancing
-past the harness's Capacitor prerequisite milestone.
+The workflow uses Node 22, JDK 21 and Android SDK 36. It is maintainer-owned:
+release work should not edit it, and a change to it is an owner handoff. A
+passing shared JavaScript test run is not native build evidence: record an
+Android debug build and the required iOS simulator proof at the exact upgrade
+revision before advancing past the harness's Capacitor prerequisite milestone.
 
 Add these repository **secrets** (Settings → Secrets and variables → Actions):
 
