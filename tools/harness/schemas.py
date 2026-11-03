@@ -161,6 +161,9 @@ WORKER_RESULT = {
     "analysis?": ANALYSIS,
     # The refiner plans the work and judges the cheapest tier that can execute the plan.
     "plan?": [str],
+    # The files the plan writes, declared as paths rather than described in prose, so trusted code can hold the
+    # plan against the owner-merged paths before an implementer is dispatched to carry it out.
+    "plan_files?": [str],
     "tier_fit?": str,
     "split_advice?": str,
     "overseer?": OVERSEER_DECISION,

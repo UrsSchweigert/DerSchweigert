@@ -909,3 +909,57 @@ blocks the issue (`model selection rejected`) instead of falling back. Plans wit
 `REQUIRED_TIER` strong refiner and its upgrade-with-a-note behaviour, the overseer's strong floor, the model
 catalog and tier bands, the routine/escalation menus and reviewer independence are unchanged, and changing the
 signature still requires a new plan version and personal approval.
+
+## A plan that writes an owner-merged file is held, not handed to an implementer (2026-11-03)
+
+Three times in the iOS/Android run a refinement planned an edit to an escalation path, an implementer was
+dispatched to carry it out, and the trusted diff gate refused the result: `lesen-capacitor-8-upgrade#2`,
+`lesen-offline-bundle#2` and `lesen-parent-report#2` (`sites/lesen/package.json`, adding
+`@capacitor/filesystem` and `@capacitor/share`). The gate did its job every time — nothing was merged and no
+repair budget was spent — but the cost was a paid implementer attempt and an owner round trip per occurrence,
+and the prompt rule the refiner broke ("do not plan edits to these files; report `needs_input`") was enforced
+nowhere in trusted code.
+
+The refiner now declares the files its plan writes in `plan_files`, and `_on_refiner` holds the plan when
+`broker.planned_escalation` — the same matcher the diff gate uses, applied to the task's working directory —
+finds an owner-merged file among them. The issue blocks with the prerequisite stated and the files named, the
+plan is stored so the owner can read what was asked for, the refinement stays a success, and no implementer is
+started.
+
+Nothing was widened and no policy changed. The diff gate, the escalation path list, the merge gates, routing
+and every budget are untouched; this only stops work earlier than the gate already stopped it.
+
+**Known limitation, accepted deliberately.** `WORKER_RESULT.plan` is a list of free-text steps, and the real
+plans show why that cannot be parsed: protected files appear in them as instructions *not* to edit
+("do not edit sites/lesen/package.json, which is owner-merged"), as cleanup ("reverting any package.json or
+package-lock.json dependency-pin churn"), and as prerequisites already merged by the owner. Classifying those
+by text would need negation and sentiment, so the guard reads only the structured declaration. A refiner that
+plans a protected edit and declares nothing is therefore still caught by the diff gate, as before — the
+previous behaviour, unchanged. Making `plan_files` mandatory for every refinement would close that gap and
+would be a worker-contract change worth a separate decision.
+
+## The plan declaration became a contract instead of an optional extra (2026-11-03)
+
+The first version of the guard above read `plan_files` when a refiner happened to send it and accepted the
+refinement silently when it did not, so the recurring failure it was built for stayed open: the refinement that
+cost `lesen-parent-report#2` would have passed by simply omitting the field. It also read only the first 50
+declared paths and truncated each to 400 characters, so a protected file at index 51 was classified as absent —
+a silent bypass in the one list whose purpose is to surface it.
+
+A refiner dispatch now records the contract it was issued under in the attempt (`result_contract`, currently
+`plan_files/1`). A `ready` result under that contract must declare `plan_files`; `[]` is valid and means the
+plan writes nothing. Omitting it, declaring more than `MAX_PLAN_FILES` paths, or declaring an empty one is
+rejected through the existing `schema_invalid` path, which fails the attempt, carries the reason into the next
+refiner packet as `your_previous_answer_was_rejected`, and stops the implementer from being dispatched on a plan
+trusted code could not read. Every declared path is now classified; nothing is truncated.
+
+The marker lives in trusted dispatch metadata rather than in the result, so compatibility is explicit instead of
+accidental: an attempt recorded without it — history, or a worker in flight across the upgrade — keeps the old
+behaviour, and a worker cannot opt out of the contract by leaving a field out. Nothing else moved: the diff gate,
+the escalation path list, the merge gates, routing, budgets and issue guidance are untouched, and a contract
+failure spends the ordinary repair budget rather than any override.
+
+**Cost accepted.** A refiner that never emits `plan_files` now exhausts its repair attempts and raises a decision
+task naming the contract, where before it would have been implemented and stopped later by the diff gate. That is
+the point of the change, and the prompt states the requirement, but it does make refinement depend on a model
+following one more instruction.
