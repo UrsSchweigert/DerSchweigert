@@ -463,22 +463,37 @@ def request_cancel(store: Store, plan_id: str, version: int, drain: bool) -> str
 def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = False,
                   after_phase: Optional[str] = None) -> str:
     """Ask a running scheduler to pause: stop starting work, wait for active workers (or cancel them with now_flag), then stop.
-    With no active work the plan is paused here. Returns the plan state."""
+    With no active work the plan is paused here. With after_phase on a plan that is already paused, arm the gate for the
+    next resume instead. Returns the plan state, "after PHASE", or "armed after PHASE"."""
     entity = approval.plan_entity(plan_id, version)
     state = store.state("plan", entity)
+    if after_phase:
+        # Finish one phase, then stop by itself: the operator wants the work in flight to land as a completed phase
+        # instead of an unfinished one, and nothing after it to start. The gate is one-shot, so the pause it caused
+        # cleared it; arming the next one has to be possible while the plan is paused, or the first tick of `resume`
+        # would start the phases that gate was meant to hold back.
+        if state not in ("Executing", "Paused"):
+            raise RunRefused("only a running or paused plan can be gated on a phase (plan is %s)" % state)
+        # A phase the run has not reached yet has no state document, and gating one of those is the usual request.
+        # The approved plan, not the store, says which phase ids exist.
+        if after_phase not in [p["id"] for p in store.get_plan(plan_id, version)["plan"]["phases"]]:
+            raise RunRefused("unknown phase %s in %s v%d" % (after_phase, plan_id, version))
+        phase_entity = "%s/%s" % (entity, after_phase)
+        if store.state("phase", phase_entity) == "Done":
+            # Nothing is left for this gate to hold back. Say so: a paused plan must not be resumed by a request that
+            # reads as "stop after P2" but would in fact let the whole rest of the plan run.
+            if state == "Paused":
+                raise RunRefused("phase %s is already Done in %s v%d, so it cannot gate the run. Name a later phase, "
+                                 "or resume without a gate." % (after_phase, plan_id, version))
+        else:
+            run = store.get_run(plan_id)
+            run["pause_after_phase"] = after_phase
+            store.put_run(plan_id, run)
+            # Arming a gate changes nothing else: no plan or phase transition, and no work starts or stops here.
+            return ("after %s" if state == "Executing" else "armed after %s") % after_phase
     if state != "Executing":
         raise RunRefused("only a running plan can be paused (plan is %s)" % state)
     run = store.get_run(plan_id)
-    if after_phase:
-        # Finish one phase, then stop by itself: the operator wants the work in flight to land as a completed phase
-        # instead of an unfinished one, and nothing after it to start.
-        phase_entity = "%s/%s" % (approval.plan_entity(plan_id, version), after_phase)
-        if store.state("phase", phase_entity) is None:
-            raise RunRefused("unknown phase %s in %s v%d" % (after_phase, plan_id, version))
-        if store.state("phase", phase_entity) != "Done":
-            run["pause_after_phase"] = after_phase
-            store.put_run(plan_id, run)
-            return "after %s" % after_phase
     run.update(pause_requested=True, pause_now=bool(now_flag), paused_reason="paused by the operator")
     store.put_run(plan_id, run)
     if not store.active_claims() and not run.get("checks"):

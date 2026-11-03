@@ -241,7 +241,10 @@ def runner_command(args) -> int:
         root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
         if args.cmd == "pause":
             result = runner.request_pause(store, args.plan_id, version, args.now, after_phase=args.after_phase)
-            if result.startswith("after "):
+            if result.startswith("armed after "):
+                print("plan %s v%d: gate armed while paused. `resume` runs phase %s and what it waits for, nothing "
+                      "else, and pauses again once it is Done" % (args.plan_id, version, result.split(" ", 2)[2]))
+            elif result.startswith("after "):
                 print("plan %s v%d: will pause once phase %s is Done; nothing after it starts" % (
                     args.plan_id, version, result.split(" ", 1)[1]))
             else:
@@ -647,7 +650,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     pz.add_argument("plan_id")
     pz.add_argument("--version", type=int)
     pz.add_argument("--now", action="store_true", help="cancel the workers in flight instead of waiting for them")
-    pz.add_argument("--after-phase", help="finish this phase, then pause by itself: nothing after it starts")
+    pz.add_argument("--after-phase", help="finish this phase, then pause by itself: nothing outside it and its "
+                                          "prerequisites starts. Works on a paused plan too, arming the gate for `resume`")
     cn = sub.add_parser("cancel", help="stop scheduling and terminate or drain active work")
     cn.add_argument("plan_id")
     cn.add_argument("--version", type=int)

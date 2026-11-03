@@ -573,9 +573,30 @@ never exposed directly.
 ```sh
 harness pause PLAN_ID           # finish the workers in flight, start nothing new, then stop
 harness pause PLAN_ID --now     # cancel the workers in flight instead of waiting
+harness pause PLAN_ID --after-phase P2   # let P2 land whole, start nothing outside it, then stop
 harness resume PLAN_ID          # continue a paused or interrupted run
 harness cancel PLAN_ID          # permanent: the plan cannot be resumed. --drain lets active workers finish first
 ```
+
+`--after-phase` names a gate. Until that phase is Done, the only phases that may
+start anything are the gate itself and the phases it waits for, directly or
+indirectly. Phases that merely became eligible at the same time, such as a
+sibling branch of the same predecessor, do not start: they would otherwise run
+beside the gate and the pause would arrive with work already spent past it.
+Phases that were already Done stay Done, and work that was already running when
+the gate was armed keeps its progress but is not merged while the gate holds; it
+continues on `resume`. You may name a phase the run has not reached yet, but not
+one the plan does not contain.
+
+The gate is one-shot: the pause it causes clears it, so a plain `resume`
+continues the whole plan. To go one phase at a time, arm the next gate before
+resuming — `pause PLAN_ID --after-phase P3` works on a paused plan and only
+records the gate: no plan or phase changes state and no worker starts. A gate on
+a phase that is already Done is refused rather than quietly letting the rest of
+the plan run, and so is a gate on a plan that is neither running nor paused.
+Pausing without `--after-phase` still requires a running plan. If a stored gate
+cannot be resolved against the approved plan, the run pauses and says so instead
+of continuing without it.
 
 Ctrl+C in the `run` terminal also stops the loop. It is safe: leases expire, workers are fenced, nothing is marked done by absence, and `resume` carries on. Afterwards check `docker ps | grep harness` and remove leftovers with `docker rm -f NAME`.
 
@@ -754,7 +775,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version`, `--add` (add the file's issues and leave the plan's other issues alone) |
 | `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version`, `--no-tunnel` |
 | `resume PLAN_ID` | Continue a paused or interrupted run | same as `run` |
-| `pause PLAN_ID` | Stop after current work (graceful) | `--now` |
+| `pause PLAN_ID` | Stop after current work (graceful) | `--now`, `--after-phase PHASE_ID` (finish that phase, start nothing outside it and its prerequisites, then stop; also arms the gate on an already paused plan) |
 | `cancel PLAN_ID` | Stop for good | `--drain` |
 | `gui` | Local monitoring and management; auto-starts the remote dashboard when `HARNESS_GUI_PIN` is set | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--no-tunnel`, `--repo OWNER/NAME` |
 | `remote` | PIN-locked loopback relay that proxies the local GUI for a tunnel (operator override) | `--upstream URL` (http://127.0.0.1:8765), `--host 127.0.0.1\|localhost`, `--port` (8443, or 0), `--pin`, `--session-hours` (12) |
