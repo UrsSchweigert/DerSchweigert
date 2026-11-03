@@ -18,6 +18,8 @@ from .checks import Publisher
 from .github import BaseChanged, Client, GitHubError, with_retries
 from .repo import GitRepo
 
+GIT_TIMEOUT_S = 300  # a stuck network git call must not hold a scheduling pass open
+
 ASKPASS = "#!/bin/sh\ncase \"$1\" in Username*) echo x-access-token ;; *) echo \"$HARNESS_GIT_TOKEN\" ;; esac\n"
 
 
@@ -36,7 +38,11 @@ def git_with_token(args: list, cwd: str, token_file: Optional[str]) -> subproces
             with open(token_file) as fh:
                 token = fh.read().strip()
             env.update(GIT_ASKPASS=script, HARNESS_GIT_TOKEN=token)
-        proc = subprocess.run(["git", "-c", "core.hooksPath=" + os.devnull] + args, cwd=cwd, env=env, capture_output=True, text=True)
+        try:
+            proc = subprocess.run(["git", "-c", "core.hooksPath=" + os.devnull] + args, cwd=cwd, env=env, capture_output=True, text=True,
+                                  timeout=GIT_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            raise GitHubError("git %s did not finish within %ds" % (args[0] if args else "", GIT_TIMEOUT_S))
         if token:
             proc.stderr = proc.stderr.replace(token, "***")
         return proc
@@ -69,7 +75,10 @@ def merge_base_into(clone_path: str, remote: str, base: str, branch: str, base_r
     ident = ["-c", "safe.bareRepository=all", "-c", "user.name=harness", "-c", "user.email=harness@localhost"]
 
     def git(cwd: str, *args: str) -> "subprocess.CompletedProcess":
-        return subprocess.run(["git"] + ident + list(args), cwd=cwd, capture_output=True, text=True)
+        try:
+            return subprocess.run(["git"] + ident + list(args), cwd=cwd, capture_output=True, text=True, timeout=GIT_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            raise GitHubError("git %s did not finish within %ds" % (args[0] if args else "", GIT_TIMEOUT_S))
 
     try:
         added = git(clone_path, "worktree", "add", "--quiet", "--detach", work, run_rev)
@@ -118,7 +127,14 @@ class GitHubPublisher(Publisher):
         self.client, self.clone_path, self.remote, self.base, self.token_file, self.sleep = client, clone_path, remote, base, token_file, sleep
 
     def open_pr(self, issue: Dict[str, Any], branch: str, head_rev: str) -> Dict[str, Any]:
-        push_branch(self.clone_path, self.remote, branch, self.token_file)
+        # An issue that already has a branch is republished with force-with-lease against the head the harness last
+        # recorded. A worker that rebased onto the current base therefore lands, while a branch somebody else moved
+        # is refused instead of overwritten. A brand-new branch is a plain push.
+        expected = issue.get("head_rev")
+        if expected:
+            push_rebased(self.clone_path, self.remote, branch, expected, self.token_file)
+        else:
+            push_branch(self.clone_path, self.remote, branch, self.token_file)
         number = with_retries(lambda: self.client.find_pr(branch), sleep=self.sleep)
         if number is None:
             title = "%s [%s]" % (issue.get("title", issue["issue_id"]), ", ".join(issue["requirement_ids"]))

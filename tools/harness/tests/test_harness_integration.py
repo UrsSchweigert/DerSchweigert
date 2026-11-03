@@ -246,8 +246,20 @@ def test_harness_paths_are_rejected_even_if_the_plan_allows_them(tmp_path):
     assert env.store.get_attempt("i1#1")["failure_kind"] == "scope_violation"
 
 
-def test_oversized_diff_blocks(tmp_path):
+def test_oversized_diff_goes_to_the_sizing_analysis(tmp_path):
+    """The worker wrote the work; it only does not fit in one reviewable change. That is a split, not a policy breach."""
     env = Env(tmp_path)
+    env.adapter.impl_lines["i1"] = 5000
+    env.start()
+    events = env.run_until(lambda: env.store.get_issue("i1").get("analysis_pending") or env.state("i1") == "Blocked")
+    assert any(e["event"] == "analysis_scheduled" for e in events)
+    assert env.store.get_attempt("i1#1")["failure_kind"] == "diff_too_large"
+    issue = env.store.get_issue("i1")
+    assert issue.get("analysis_pending") is True and env.state("i1") != "Blocked"
+
+
+def test_oversized_diff_blocks_once_the_analysis_budget_is_spent(tmp_path):
+    env = Env(tmp_path, budgets={"analyses_per_issue": 0})
     env.adapter.impl_lines["i1"] = 5000
     env.start()
     env.run_until(lambda: env.state("i1") == "Blocked")

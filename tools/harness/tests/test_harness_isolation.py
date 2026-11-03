@@ -152,3 +152,28 @@ def test_real_worker_sees_only_its_workdir_and_copilot_token(tmp_path, monkeypat
     finally:
         import shutil
         shutil.rmtree(work, ignore_errors=True)
+
+
+# -- the engine toolchain the image must prove ---------------------------------
+
+def test_the_probe_requires_the_pinned_engine_toolchain():
+    for name in ("godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool"):
+        assert name in isolation.REQUIRED_CHECKS, name
+        assert ("chk %s " % name) in isolation.PROBE_SCRIPT, name
+    assert "4.7.2.stable" in isolation.PROBE_SCRIPT
+    assert "gdtoolkit" in isolation.PROBE_SCRIPT
+
+
+def test_an_attestation_without_the_engine_checks_is_not_tier_a(tmp_path):
+    home = str(tmp_path)
+    doc = isolation.write_attestation(home, KEY, {"ok": True, "image_id": "sha256:abc",
+                                                  "checks": {"godot_pinned": True, "rootfs_read_only": True}}, now=1000.0)
+    assert doc["tier"] == "A"
+    assert isolation.current_tier(home, KEY, now=1001.0, image_lookup=lookup("sha256:abc"))["tier"] == "B"
+
+
+def test_an_attestation_that_covers_the_toolchain_is_tier_a(tmp_path):
+    home = str(tmp_path)
+    isolation.write_attestation(home, KEY, {"ok": True, "image_id": "sha256:abc",
+                                            "checks": {c: True for c in isolation.REQUIRED_CHECKS}}, now=1000.0)
+    assert isolation.current_tier(home, KEY, now=1001.0, image_lookup=lookup("sha256:abc"))["tier"] == "A"

@@ -144,8 +144,42 @@ The Blender MCP integration lets a client run Python inside a live Blender proce
 * Keep library and generator API keys in Blender add-on preferences or `BLENDERMCP_*` environment variables owned by the broker. Never place them in the repository, issues, task packets, or logs.
 * Pin a reviewed version of `mcp-for-blender` for unattended runs, because `uvx` otherwise fetches the latest release.
 
+## Engine Toolchain
+
+The worker image carries an engine and a test framework that workers cannot change. Both are supply-chain inputs, not
+repository content.
+
+* The Godot editor binary is pinned to one stable release and verified against the official SHA512 values of that
+  release at image build; a mismatch fails the build. There is no "latest" path, and an upgrade is a repository change.
+* GUT is cloned at build and verified by comparing the checkout's `HEAD` with a pinned commit, which `git` hashes.
+  gdtoolkit is pinned by exact version. npm packages are pinned by version, as before.
+* GUT and the trusted smoke scripts live under `/opt/harness` in the image. A worker cannot edit them, and `addons/` is
+  an escalation path, so a worker that adds third-party code is sent to the operator instead of shipping it.
+* The Tier A probe requires `godot` and `gdlint` at the pinned versions plus a successful headless import of a throwaway
+  project. Any change to the image or to the probe's required checks invalidates the attestation until
+  `isolation verify` is rerun.
+* Export templates, the Android SDK, and signing material are deliberately absent from the image. Android release work
+  stays a human-owned workflow, so no worker can produce or sign a store artefact.
+* The engine checks run on a copy of the project inside the container's tmpfs. They need no credentials, no network, and
+  no host socket.
+
 ## Known Limits
 
 * The harness cannot prove semantic correctness or the absence of scope drift. It enforces evidence, scope proxies, and authorization rules.
 * A runtime that cannot be sandboxed limits the harness to Tier B.
 * Platform rules, such as branch protection and required reviews, are preserved and never bypassed. Record them as blockers when they stop work.
+* A headless engine load check proves that scripts parse and scenes instantiate. It proves nothing about rendering, shader behaviour, or frame time; those need human eyes and the reference device.
+* The engine and test framework in the image are trusted wholesale. Pinning makes their provenance checkable, but it does not review their code; a compromised upstream release would be reproduced faithfully in the sandbox.
+
+## The status page (outward write, one branch only)
+
+`harness report` publishes the run's state as `STATUS.md` on `harness/status/<plan-id>`. It is the only outward write the
+harness makes that is not tied to an issue, a pull request, or a merge, so its limits are narrow and enforced in code:
+
+* the target branch is derived from the plan id and validated against `^harness/status/[a-z0-9][a-z0-9._-]{0,80}$`; any
+  other name — `main`, a run branch, a worker branch — is refused before a single git command runs;
+* the branch holds one commit, replaced with `--force-with-lease` against the tip it read, so a branch somebody else
+  moved is refused rather than overwritten;
+* the store is opened read-only; the publisher cannot take a lease, transition an entity, record evidence, or change
+  policy, and a failure is printed and retried on the next interval instead of reaching the run;
+* the page is redacted: the home directory is replaced with `~` and credential-shaped strings with `<redacted>`.

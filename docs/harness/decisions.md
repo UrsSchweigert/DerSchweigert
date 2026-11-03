@@ -598,3 +598,281 @@ expensive model analyses, the small models execute.
 A finished run whose runner already exited cannot be resumed — `start` refuses a `Completed` plan, which is right, because
 resuming would re-enter execution. `resume` on such a plan now *watches* instead: `watch_promotion` claims nothing, starts
 nothing, and only reads the pull request back until the ask closes or `PROMOTION_WATCH_S` expires.
+
+## The harness can build and verify a Godot 4 Android game (2026-10-30)
+
+Requested by `uploads/gotoextentionharnesspromt.md`: the worker image could run a browser and Blender, but no engine, so
+every phase that wanted `godot --headless` would have been blocked.
+
+**Godot version policy: pin 4.7.2-stable, exactly.** The image carries the official Linux editor build for amd64 and
+arm64, and `worker/install_godot.py` refuses anything whose bytes do not match the release's `SHA512-SUMS.txt` value
+(`9aa00f7a…` for x86_64, `dd5991…` for arm64). There is no "latest" path: an upgrade is a deliberate edit of the release
+name and both hashes, followed by an image rebuild and a new attestation. 4.7.2 was the current stable release on
+2026-10-30; the game pins the same version in its own project file, so engine and tooling cannot drift apart.
+
+Only `libfontconfig1` is added as a dependency. The probe showed the editor binary links nothing else that Debian slim
+lacks: X11, GL, and audio drivers are opened lazily by the display drivers, which workers never start. Export templates
+and the Android SDK stay out; RL1 builds a signed AAB in a human-owned workflow, and shipping an SDK into the sandbox
+would only invite a worker to try.
+
+**Test framework: GUT, baked into the image.** The alternative was vendoring GUT (or gdUnit4) under
+`apps/arithmoslayer/addons/`. Vendoring would put third-party code into every worker's diff, need an approved plan that
+authorises `addons/`, and give the worker edit rights over the framework it is judged by — the one thing the review gate
+cannot check for itself. Instead GUT 9.6.1 is cloned at image build and the checkout is proven by comparing `HEAD` with a
+pinned commit (`c80954f4…`), which `git` hashes rather than the network. `godot-test` copies it next to a throwaway
+project, so `extends GutTest` compiles and the repository stays free of `addons/`. `addons/` is now an escalation path
+anywhere in the tree, so a worker that tries to vendor something is sent to a human instead.
+
+The cost is honest: GUT's behaviour is part of the image, so a GUT change is a harness change reviewed in this repository,
+not a line in a pull request. GUT's "new version available" line is computed from its bundled version list and never
+fetches; the pinned copy cannot upgrade itself.
+
+**A headless load check that actually fails.** `worker/smoke/godot_project.sh` copies the project to tmpfs, imports it,
+and runs `godot_verify.gd`, which loads every `.gd`, `.tscn`, `.scn`, `.tres`, `.res`, and `.gdshader` and instantiates
+every scene. Three engine behaviours had to be discovered by experiment, and each is recorded in the script:
+
+* A failed parse inside a `--script` main loop crashes Godot 4.7.2 (signal 11) while it prints the error backtrace. The
+  verifier mutes `Engine.print_error_messages` around each load and reports the failures itself.
+* A script that fails to parse still comes back as a `GDScript` object, so `null` alone is not a failure signal;
+  `can_instantiate()` is.
+* Loading the running script with `CACHE_MODE_IGNORE_DEEP` crashes the engine, so the cache mode is `REUSE` and the
+  verifier skips itself.
+
+**Assets: audio and fonts, with real parsers.** The policy gains `audio_sfx` (wav, ogg; 500 kB, 3 s, 48 kHz, 2 channels),
+`audio_music` (ogg; 3.5 MB, 180 s, 48 kHz, 2 channels), and `font` (ttf, otf; 1.5 MB). The ceilings are per file and sized
+against the 150 MB AAB: twelve three-minute tracks at about 2 MB each are the largest single block, and a typical effect
+is 10-50 kB, far below its ceiling. WAV is read with `wave`; Ogg Vorbis with a page walker that reads the identification
+header for channels and rate and the last granule for length; fonts with an sfnt magic and table-directory check that
+also refuses tables pointing outside the file. Anything unreadable fails closed, including chained or multiplexed Ogg
+streams, which the reader does not support.
+
+Licences: `font` replaces the global list with `OFL-1.1` and `Apache-2.0`; every other class keeps CC0-1.0. A font must
+ship its licence text next to it, which the harness copies to `<font>.LICENSE.txt` and records with a checksum — the OFL
+requires the notice to travel with the font, and a manifest note would not satisfy that. No new fetchers were added:
+audio and fonts have no automated source, so a request becomes a human asset task, which `humantasks.py` already handled
+generically through `extra.asset_class`.
+
+**Asset directories are per plan.** `--assets-dir` (or `{"assets": {"output_dir": …}}` in the investigator's
+`phases.json`) moves the asset root to, say, `apps/arithmoslayer/assets/`. It is validated as repository-relative, must
+end in `/`, and cannot contain `..`; traversal and symlink checks are unchanged and run against the new root. Because the
+value lives in the policy, it is bound by the approval digest, so moving it later needs a new approval.
+
+**Escalation matching grew two modes.** `is_escalation` matched a prefix, an exact path, or a base name. It now also
+matches a directory named in the policy at any depth (an entry ending in `/`, so `addons/` catches
+`apps/x/addons/gut/y.gd`) and a file suffix (an entry starting with `*.`). The policy uses both: `export_presets.cfg`
+holds signing settings, `apps/arithmoslayer/android/` is the build template, and `*.gdextension`, `*.so`, `*.aar`,
+`*.jar`, `*.apk`, `*.aab`, `*.keystore`, and `*.jks` are native or store artefacts no worker should produce unannounced.
+
+**What was deliberately not done.** No export templates, no Android SDK, no new network fetcher, no change to
+`paid_generation_credits` (still 0) or to the disabled `ai` source. `godot`, `godot-test`, `gdlint`, and `gdformat` pass
+the validation-command filter; the network, privilege, container, and publishing tools it blocks stay blocked.
+
+**Known limits.** Headless Godot cannot render, so nothing here verifies look, shader behaviour, or frame time; those stay
+`visual_judgment` and `physical_device` tasks. Software rendering was considered for screenshots and is not feasible in
+this image: Mesa, Xvfb, and a GL driver would add hundreds of megabytes and a second GPU path to trust, and a screenshot
+of an emulated GL stack would still not be the reference device. The Godot checks copy the project into the container's
+256 MB `/tmp` tmpfs, so a large project will need a bigger sandbox — a change that invalidates the attestation and is
+therefore a deliberate one. `apps/arithmoslayer/` does not exist yet; the rule is live and will apply as soon as it does.
+
+## A run has no wall-clock or pull-request cap by default (2026-11-02)
+
+The defaults used to stop a run after 8 hours or 20 pull requests. Both were guesses from the design phase, and both
+turned out to cut long, healthy work short: the runner paused mid-plan, and the remaining issues stayed `Ready` with
+nothing wrong except the clock. Cycles are now unbounded on both counts — `run_wall_clock_s: None` and
+`pull_requests_per_run: None` — so a run keeps scheduling until its issues are Done or the owner pauses it.
+
+There is no separate issue cap to remove: one issue produces one pull request, so the pull-request budget was the issue
+budget. The other budgets still bound spending rather than calendar time: 2 workers, 2 repair attempts, 3 transient
+retries per issue, a 30 minute worker limit, and the 10 minute inactivity limit. A run that loops on a broken issue is
+therefore still stopped by the repair budget and a blocked issue, not by the clock.
+
+`None` means "the owner set no limit" everywhere the value is read: the scheduler skips the wall-clock check, `status`
+reports `limit: null` and `remaining: null`, and the dashboard prints "no limit". The values stay part of the approved
+policy, so a plan that wants a cap can still name a number and get it bound by the approval digest.
+
+## A republished branch replaces only the head the harness recorded (2026-11-02)
+
+A worker cannot resolve a merge conflict. Its own push is not the problem — the coordinator pushes — but the coordinator
+used `push_branch`, which never forces. When the harness had rebased an issue's branch onto a newer base, the remote
+still held the older commits and the push was refused as "behind its remote counterpart". The issue then blocked with
+`push_rejected` after the rebase had already succeeded, and no worker could ever get past it.
+
+`GitHubPublisher.open_pr` now republishes an existing branch with `push_rebased`, which is `--force-with-lease` against
+the head the harness recorded for that issue. Two effects: an issue that had to be rebased lands, and a branch that
+somebody else moved is refused rather than overwritten. A branch without a recorded head is still a plain push, so the
+first publication keeps its no-force guarantee.
+
+## An issue can be added to a plan whose issues already have work (2026-11-02)
+
+`import-issues` always replaced the plan's whole issue set, and an issue that has been worked cannot be replaced
+(`_adopt_or_refuse`: a recorded head or an active claim is final). Together that made the documented recovery
+impossible: a cancelled issue left a requirement uncovered, and the replacement the manual asks for could not be
+loaded, because any file that named the remaining issues hit the "already has work" refusal and any file that omitted
+them superseded them.
+
+`import-issues --add` now loads just the issues in the file and leaves the rest of the plan untouched. Preflight for
+those commands still runs, and re-importing a file whose issues are unchanged stays idempotent. The preflight also
+runs each distinct command once per revision now, so a file of fifty issues that share four commands costs four
+sandbox runs instead of two hundred.
+
+## A cancelled issue that never worked can be put back (2026-11-02)
+
+Cancelling an issue cascades to every issue that depends on it, which is right when the work is abandoned and wrong when
+the cancellation was a mistake: twelve issues that had nothing to do with the cancelled one were cancelled with it, and
+`Cancelled` was terminal, so `import-issues` could not bring them back.
+
+The issue machine now allows `Cancelled -> Ready` for exactly one caller. `runner.import_issues` revives a cancelled
+issue only while nothing ever landed for it — no head, no pull request, no claim — and rewrites the definition from the
+imported document, so a repaired `deps` list takes effect. An issue cancelled after it reached a pull request stays
+cancelled; the answer there is a fresh issue, not a resurrection.
+
+## Imported issues are bound to the remote base, and re-importing re-anchors them (2026-11-02)
+
+`import-issues` recorded the local `main` head as every issue's `base_rev`. That is only correct while local `main`
+matches the remote: with unpushed harness commits, the run tried to diff a commit its trusted clone had never fetched
+and paused with `git diff failed: fatal: bad object`. The base now resolves to `refs/remotes/origin/<base>` when it
+exists, so an issue is always bound to a revision the run can actually see.
+
+Re-importing an unchanged issue also refreshes its `base_rev`. Without that, issues imported under the wrong base kept
+it forever, because `_unchanged` short-circuits before the record is written.
+
+## A role prompt and the result schema must name the same keys (2026-11-02)
+
+The refiner's prompt deliberately dropped `checks` from its example — a refiner changes no files, and every check that
+counts is run by trusted code, never read from a worker's report — while `WORKER_RESULT` still required the key. A
+refiner that followed its own instructions therefore failed as `schema_invalid: result.checks: missing`, and only a
+model that volunteered an unrequested key could pass. It cost three attempts on `p2-problem-generator` and single
+attempts earlier on two other issues.
+
+`checks` is optional now, and a test builds every role's prompt, parses the example out of it, and asserts that the
+result it describes validates — and that the prompt never asks for a key the schema forbids. That is the general
+defect behind the symptom: two trusted artifacts describing one contract, with nothing checking that they agree.
+
+The 800-line diff cap is unchanged. It is not what failed here, and it did its job on `p2-curriculum-data`: a 1346-line
+diff was refused, the issue was re-planned into seven steps, and the smaller diff merged as PR #146. Raising the cap
+would let a thousand-line data change through review, where the band values nobody can verify by reading a diff.
+
+## An oversize diff is a split, and the worker is told the budget (2026-11-02)
+
+`diff_too_large` was classed a policy failure, and a policy failure blocks on the first occurrence. So the very first
+attempt that wrote more than 800 lines ended the issue and asked the owner — while the machinery that could have fixed
+it (the analyst, whose `split_rules` already carry `diff_size_cap`) was only reachable from a worker's stuck report. Two
+issues blocked that way within minutes of each other, at 1538 and 1618 added lines.
+
+Two things were wrong, and only one of them was the classification.
+
+1. **The worker was never told the limit.** The task packet carried the path allowlist, the validation commands, and the
+   phase context, but not the diff cap. The harness enforced a number the worker could not read, then punished the
+   first miss. `diff_budget` is now in every packet (`max_added_lines` plus the rule), and the implementer and refiner
+   instructions name it, including what to do instead of writing more: report blocked with what should be split off.
+2. **The recovery path was unreachable.** An oversize diff now schedules the sizing analysis when the analysis budget
+   allows, exactly like a stuck report: the analyst reads the work and proposes parts that fit, and the owner applies
+   the split. With no analysis budget left it still blocks, and the task says so.
+
+The cap itself stays at 800. It is doing what it is for: `p2-curriculum-data` at 1346 lines became seven planned steps
+and merged as PR #146. What changed is that the harness now tells the worker the number, and treats a size miss as a
+sizing problem rather than a policy breach.
+
+## The overseer: a top-tier agent for process questions (2026-11-02)
+
+Every stuck issue used to become an owner decision, whatever the cause: a harness bug, a plan that was too big, a
+transient race. Reading those and choosing "retry, extend, or refine" is not a judgement about the game — it is the
+cheapest possible triage, and it was consuming the owner's attention dozens of times per phase.
+
+There is a dedicated `overseer` role now, **off unless the plan opts in** (`harness plan --overseer`). The harness has always held that budgets and policy are decided by trusted code, not by a model; the overseer is an explicit, bounded exception the owner grants per plan, and the setting is part of the approval digest. It runs on the strongest approved tier (`models.REQUIRED_TIER`, so a plan
+cannot downgrade it), it is dispatched exactly like any other helper, and it answers with one of four actions and one of
+four causes.
+
+* **What it may do:** `retry` (with a hint), `extend_budget`, `refine`. These are the same three outcomes an owner
+  answer produces, applied through the same code path.
+* **What it must escalate to the owner:** `cause: harness_defect` and `cause: content`. Its reason is attached to the
+  decision task as `overseer_finding`, so the owner sees the diagnosis rather than only the raw failure. That is how the
+  `checks`-contract bug and the stale-runner fencing would have arrived: named as harness defects, with evidence.
+* **What it never touches:** cancel, approve, merge, policy, or `tools/harness/`. `schemas.OVERSEER_ACTIONS` is the
+  closed list, and anything outside it is rejected as an unusable decision. Authority failures — scope breach,
+  escalation path, permission, approval, isolation, plan budget — are excluded by `OVERSEER_KINDS` and go straight to the
+  owner, because those are exactly the cases where a model must not decide.
+* **How it is bounded:** `policy.overseer.rounds_per_issue` (default 2) and the fact that it is an ordinary attempt with
+  a lease, a timeout, and an inactivity limit. When its rounds are spent, the issue blocks with the decision task as
+  before.
+
+The honest limit: an overseer that misclassifies a real content question as `process` would let a retry loop run twice
+before the owner sees it. That is why the escalation causes exist and why the guarded list of actions is closed; a run
+where the overseer fires repeatedly on the same issue is a signal about the harness, not about the task.
+
+## A worker that never starts is the environment's failure, not the issue's (2026-11-03)
+
+Four issues blocked with four identical decision tasks: `adapter failed to start: git clone ... returned non-zero exit
+status 128`. The cause was the host: 84 GB of worker directories had accumulated, the disk was full, and no attempt
+could be prepared. Three defects, found in that order.
+
+1. **Working copies were never released.** Every attempt gets its own directory with a full clone of the repository and
+   everything the worker built in it, and `Adapter.cleanup` existed but was only ever called by the investigator. Each
+   attempt left ~300 MB behind. The scheduler now releases a copy in the same step that ends the attempt (`_release`,
+   used by every terminal path, including lease loss and cancel), a half-prepared directory is removed when preparation
+   throws, and a long-running runner reclaims directories older than four hours at start — longer than any worker run
+   or check job, so it can never delete a copy that is still in use.
+2. **The failure was classified as an issue problem.** `infra` means the worker never started: nothing was learned about
+   the issue, and retrying that issue cannot help while every other issue is about to hit the same wall. Four retries
+   per issue and a decision task each buried the one fact the owner needed. When the retry budget is exhausted and every
+   recorded failure for the issue is `infra`, the issue is released and **the run pauses once**, naming the environment
+   error. A transient failure after a worker actually ran still blocks with a decision task, because then the issue's
+   own work is in question.
+3. **Nothing looked at the disk.** `_dispatch` now checks free space on the worker root and pauses the run below a floor
+   (4 GiB by default, `WORK_ROOT_FREE_BYTES`, set by the runner) instead of spending four attempts per issue to
+   discover it. The check is a constructor parameter defaulting to 0 so a scheduler driven by test doubles, which
+   start no worker, is not coupled to the host's disk.
+
+The overseer is deliberately not in this path. A model cannot free disk space, and asking one to classify a host fault
+would spend a round to learn what the error message already said. The harness pauses, the operator frees space, and the
+run resumes: the same shape as an isolation failure. Failures that are *about the work* still reach the overseer.
+
+## A lease detects a dead runner, not a busy one (2026-11-03)
+
+Within three hours of the disk fix, all four P3 issues were blocked again, this time with `lease_lost`: *lease expired,
+worker fenced*. The worker had not failed. Every attempt — implementer, refiner and even the overseer's own — was
+fenced 2 to 16 minutes after it started, spent a transient retry, and after three of those raised a decision task.
+
+`lease_s` is 90 seconds and was renewed **only** from the scheduling pass. Any call in that pass that took longer than
+90 seconds therefore fenced every worker in flight. The pass makes network calls: task notifications go through `gh`,
+publishing goes through network `git`, and neither had a timeout. A stall of a minute or two was enough; the 16-minute
+gaps were stalls, not worker time.
+
+Three changes, in the order they matter:
+
+1. **Renewal moved off the scheduling pass.** A daemon thread renews every live attempt's lease every `heartbeat_s`,
+   using its own SQLite connection and an `UPDATE` that carries the epoch and the `expires_at > now` condition, so it can
+   never revive a lease the scheduler has already fenced. The lease now measures whether the runner *process* is alive,
+   which is what it is for.
+2. **Every call a pass makes is bounded.** `gh` gets 60 seconds, network `git` 300, the preparation clone 300. A stalled
+   call raises, is classified (`_publish_kind` and friends), and the pass continues instead of freezing the run.
+3. **A failing notification cannot stop the run.** `tick_tasks` is wrapped; a failure is emitted as `notify_failed` and
+   the pass carries on. A comment on a GitHub issue is a notification, never evidence.
+
+The pass is also instrumented: any stage taking 20 seconds or more is named in the run log as `tick_slow` with its stage
+and duration. The first two fixes make this class of failure harmless; the instrumentation is there so the underlying
+slowness — whatever it is — can be named rather than inferred from fence timestamps.
+
+**What the overseer did and did not do.** It engaged on every one of these issues, twice each, and on
+`p3-input-assist` it escalated with `cause: harness_defect` and a correct reading of the evidence. That is the role
+working as designed. What it could not do is fix the harness, and its rounds were consumed by the very defect it was
+diagnosing, so the owner still saw four tasks. The harness now prevents the fence, which is where the fix belongs.
+
+## `reconcile-completion` verifies the run branch, not `main` (2026-11-03)
+
+Escalation-path work is the one case the harness is designed never to merge itself: `_on_implementer` fails the attempt
+and asks the owner, and `merge_gate` refuses a second time. The supported way such work still reaches `Done` is
+`reconcile-completion`, which checks a merged pull request at GitHub and then journals ordinary transitions.
+
+It could not succeed for any real run. `_base_branch` returned `policy.base_branch` (`main`) while
+`runner.build_scheduler` publishes every issue pull request against `policy.run_branch`
+(`harness/run/<plan>`, set by `DEFAULT_POLICY`). A correctly merged issue pull request was rejected with *PR base branch
+does not match the configured base branch 'main'*, and the required checks were read from the wrong branch's rules. The
+function's own docstring already said "the run branch when the plan uses one"; only the code disagreed. It now returns
+`run_branch(plan) or base_branch(plan)`, so the branch whose rules are verified is the branch the work actually landed
+on. Nothing was relaxed: a pull request that bypassed the run branch is still refused, and the review, check, head,
+repository and merge-commit evidence are unchanged.
+
+The known limit above still holds for the rest of the flow: the scheduler does not notice a human merge by itself, and
+`reconcile-completion` refuses while the issue still has an open human task, so the owner answers the decision task
+first and records the merge afterwards.
