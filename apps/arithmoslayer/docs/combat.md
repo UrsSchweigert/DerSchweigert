@@ -118,3 +118,25 @@ by `wrongStrikeHastenSeconds`.
 `data/combat/chain.json` defines ascending `shardMultiplier`/`finisherCharge`
 tiers and the `finisherThreshold`; `tools/validate/orbs_chain.py` rejects bad
 counts, missing shapes, and flat tiers, and `test_orbs_chain.gd` covers it all.
+
+## Strike feel
+
+`data/combat/feel.json` defines five effects that fire on every strike:
+hit-stop, knockback, squash and stretch, a camera punch, and screen shake.
+`scripts/combat/game_feel.gd` starts all five in `strike(direction, power)` and
+returns the payload it started; `advance(delta)` steps the timers, and
+`knockback_offset()`, `squash_scale()`, and `camera_offset()` give the
+per-frame displacement and scale. `OrbSpawner` owns a `GameFeel`, fires it on
+both correct and wrong strikes, and emits `felt_strike` with the payload.
+
+Every intensity is multiplied by `power` (clamped to two) so a higher chain
+tier hits harder. The `reducedEffects` section holds `intensityScale` and
+`durationScale`; when `GameFeel.reduced_effects` is on, every one of the five
+effects uses both scales, so the setting softens and shortens all of them at
+once. The toggle round-trips through a saved profile under the
+`reducedEffects` key. `tools/validate/feel.py` rejects missing effects,
+non-positive durations or intensities, scales outside zero to one, and scales
+that would not soften anything. `test/unit/combat/test_game_feel.gd` covers the
+data, every effect's duration and intensity, the squash-then-stretch envelope,
+expiry, the reduced path, the profile round trip, the orb-strike hook, and the
+validator.
