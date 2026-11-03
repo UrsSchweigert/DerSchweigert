@@ -19,6 +19,7 @@ var deceleration: float = DEFAULT_DECELERATION
 var radius: float = DEFAULT_RADIUS
 var speed_multiplier: float = 1.0
 var input: MoveInput = MoveInput.new()
+var actions: InputActions = null
 
 var _driven: bool = false
 var _driven_direction: Vector2 = Vector2.ZERO
@@ -75,9 +76,15 @@ func step_velocity(current: Vector2, direction: Vector2, delta: float) -> Vector
 
 
 func _physics_process(delta: float) -> void:
-	var direction: Vector2 = _driven_direction if _driven else input.poll()
+	var direction: Vector2 = _driven_direction if _driven else _poll_direction()
 	velocity = step_velocity(velocity, direction, delta)
 	move_and_slide()
+
+
+func _poll_direction() -> Vector2:
+	if actions != null:
+		return actions.move
+	return input.poll()
 
 
 func _ensure_collider() -> void:

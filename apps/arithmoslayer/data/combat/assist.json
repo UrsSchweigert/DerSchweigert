@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "profileKey": "assistMode",
+  "presentation": {"name": "Assist"},
+  "autoTarget": {"radiusPx": 260},
+  "oneButtonCombos": true,
+  "timers": false,
+  "enemySpeedMultiplier": 0.7,
+  "rewardMultiplier": 1.0
+}
