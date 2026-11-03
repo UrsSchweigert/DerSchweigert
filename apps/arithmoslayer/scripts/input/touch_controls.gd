@@ -5,7 +5,6 @@ extends Control
 
 var actions: InputActions = null
 var layout: InputActions.Layout = null
-var mirrored: bool = false
 var pixel_scale: float = 1.0
 
 var _stick_pointer: int = -1
@@ -28,7 +27,6 @@ func bind(target: InputActions) -> void:
 
 
 func set_mirrored(value: bool) -> void:
-	mirrored = value
 	layout = actions.layout.mirrored() if value else actions.layout
 	build()
 

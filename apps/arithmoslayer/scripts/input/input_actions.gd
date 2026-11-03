@@ -106,17 +106,17 @@ static func load_layout(path: String = DEFAULT_LAYOUT_PATH, mirror: bool = false
 	return layout
 
 
-## A directional attack resolves as a swipe, so devices agree on gestures.
+## An attack waits for one gesture: a direction swipes, a hold holds, a release taps.
 func press(action: String, direction: String = "") -> bool:
 	if not ACTIONS.has(action) or _down.has(action):
 		return false
 	_down[action] = true
 	_held[action] = 0.0
 	_resolved[action] = false
-	if action == "attack" and DIRECTIONS.has(direction):
+	if action != "attack":
+		action_pressed.emit(action, TAP, "")
+	elif DIRECTIONS.has(direction):
 		_resolve_attack(SWIPE, direction)
-		return true
-	action_pressed.emit(action, TAP, "")
 	return true
 
 
