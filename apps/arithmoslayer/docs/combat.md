@@ -140,3 +140,24 @@ that would not soften anything. `test/unit/combat/test_game_feel.gd` covers the
 data, every effect's duration and intensity, the squash-then-stretch envelope,
 expiry, the reduced path, the profile round trip, the orb-strike hook, and the
 validator.
+
+## Bosses
+
+`data/combat/bosses.json` declares each boss with an island from
+`data/curriculum/bands.json`, a total hp, and phases. A phase carries its own hp,
+the band ids its mastery rounds draw from, a scripted pattern, and a pattern-loop
+duration.
+
+`scripts/combat/boss_state_machine.gd` runs the fight: `damage()` drains the
+current phase and hands over at zero hp, `advance(delta)` loops the pattern timer
+without skipping a phase, and the last phase emits `defeated`. Every phase entry
+records a checkpoint, and `retry()` restores it with full phase hp, so a retry
+never replays a completed phase. `mastery_round(rng)` deterministically draws one
+of the phase's bands through the injected `Rng`.
+
+`scripts/combat/boss_health_bar.gd` follows a boss's `health_changed` and
+`defeated` signals with a greybox background and fill; `scenes/combat/boss.tscn`
+is the placeholder boss. `tools/validate/bosses.py` rejects unknown islands,
+foreign bands, duplicate ids, and non-positive hp or duration, and
+`test/unit/combat/test_boss_framework.gd` covers transitions, checkpoint restore,
+mastery selection, the scene, and the validator.

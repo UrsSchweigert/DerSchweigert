@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "bosses": [
+    {
+      "id": "placeholder_boss",
+      "island": "grade-1",
+      "hp": 100,
+      "phases": [
+        {
+          "id": "phase_opening",
+          "hp": 40,
+          "bands": ["g1-within-10", "g1-within-20-no-carry"],
+          "pattern": "slow_chase",
+          "duration": 12.0
+        },
+        {
+          "id": "phase_pressure",
+          "hp": 60,
+          "bands": ["g1-within-20-carry"],
+          "pattern": "orb_barrage",
+          "duration": 10.0
+        }
+      ]
+    }
+  ]
+}
