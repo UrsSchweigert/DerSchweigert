@@ -17,6 +17,7 @@ from ._common import display, field_line
 
 DATA_RELATIVE = Path("data") / "weapons"
 SCHEMA_NAME = "schema.json"
+LOADOUT_NAME = "loadout.json"
 DOCUMENT_FIELDS = ("version", "id", "inputBufferFrames", "steps", "affinity", "mastery")
 REQUIRED_DOCUMENT_FIELDS = ("version", "id", "inputBufferFrames", "steps")
 MASTERY_FIELDS = ("levels",)
@@ -247,6 +248,6 @@ def validate(root: Path) -> list[str]:
     for name in set(DOCUMENT_FIELDS) - set(schema.get("properties", {})):
         errors.append(error(display(schema_path, root), 1, "schema omits a field", name))
     for path in sorted(directory.glob("*.json")):
-        if path.name != SCHEMA_NAME:
+        if path.name not in (SCHEMA_NAME, LOADOUT_NAME):
             errors.extend(validate_document(path.read_text(encoding="utf-8"), display(path, root)))
     return errors

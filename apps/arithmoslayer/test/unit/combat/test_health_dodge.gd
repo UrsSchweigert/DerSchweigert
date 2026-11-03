@@ -210,7 +210,11 @@ func _health_config() -> Dictionary:
 func _weapon_paths() -> Array[String]:
 	var paths: Array[String] = []
 	for file_name: String in DirAccess.get_files_at(WEAPON_DIR):
-		if file_name.ends_with(".json") and file_name != "schema.json":
+		if (
+			file_name.ends_with(".json")
+			and file_name != "schema.json"
+			and file_name != "loadout.json"
+		):
 			paths.append(WEAPON_DIR.path_join(file_name))
 	paths.sort()
 	return paths

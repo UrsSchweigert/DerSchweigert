@@ -3,6 +3,7 @@ extends GutTest
 
 const WEAPON_DIR: String = "res://data/weapons"
 const SCHEMA_NAME: String = "schema.json"
+const LOADOUT_NAME: String = "loadout.json"
 const EPSILON: float = 0.001
 const MAX_FRAMES: int = 2000
 
@@ -147,7 +148,7 @@ func _weapon_paths() -> Array[String]:
 	if directory == null:
 		return paths
 	for file_name: String in directory.get_files():
-		if file_name.ends_with(".json") and file_name != SCHEMA_NAME:
+		if file_name.ends_with(".json") and file_name not in [SCHEMA_NAME, LOADOUT_NAME]:
 			paths.append(WEAPON_DIR.path_join(file_name))
 	paths.sort()
 	return paths

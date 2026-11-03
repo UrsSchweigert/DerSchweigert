@@ -18,6 +18,7 @@ const PHYSICS_LAYER: int = 1
 
 var actions: InputActions = InputActions.new()
 var assist: AssistMode = AssistMode.new()
+var loadout: Loadout = null
 var touch_controls: TouchControls = null
 
 @onready var floor_layer: TileMapLayer = $Floor
@@ -32,6 +33,7 @@ var touch_controls: TouchControls = null
 func _ready() -> void:
 	floor_layer.tile_set = build_tile_set(tile_size)
 	_build_walls()
+	loadout = Loadout.load_file()
 	camera.room_size = room_size
 	camera.target = player
 	camera.apply_room()
@@ -51,6 +53,8 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	health.advance(delta)
 	dodge.advance(delta)
+	if loadout != null:
+		loadout.tick()
 	player.speed_multiplier = dodge.speed_scale()
 	respawn.advance(delta, player, health, dodge)
 
@@ -58,11 +62,18 @@ func _physics_process(delta: float) -> void:
 func _on_action_pressed(action: String, _gesture: String, _direction: String) -> void:
 	if action == "dodge":
 		try_dodge()
+	elif action == "swap":
+		try_swap()
 
 
 ## Starts a dodge roll when the cooldown allows it.
 func try_dodge() -> bool:
 	return dodge.try_dodge()
+
+
+## Toggles the active quick-swap slot when the loadout cooldown allows it.
+func try_swap() -> bool:
+	return loadout != null and loadout.try_swap()
 
 
 func _on_player_defeated() -> void:

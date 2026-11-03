@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "slots": 2,
+  "swapCooldownFrames": 12,
+  "sources": ["exploration", "quest", "boss"],
+  "starting": ["sum_blade"],
+  "weapons": [
+    {"id": "sum_blade", "source": "exploration", "unlock": "arena_tutorial"},
+    {"id": "difference_daggers", "source": "exploration", "unlock": "hidden_grove"},
+    {"id": "equal_boomerang", "source": "quest", "unlock": "balance_trial"},
+    {"id": "product_hammer", "source": "boss", "unlock": "product_warden"},
+    {"id": "quotient_spear", "source": "boss", "unlock": "quotient_warden"}
+  ]
+}

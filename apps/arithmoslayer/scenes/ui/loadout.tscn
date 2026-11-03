@@ -1,0 +1,27 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/hud/loadout_screen.gd" id="1_loadout"]
+
+[node name="Loadout" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_loadout")
+
+[node name="TitleLabel" type="Label" parent="."]
+position = Vector2(32, 24)
+size = Vector2(480, 40)
+theme_override_font_sizes/font_size = 28
+
+[node name="WeaponList" type="VBoxContainer" parent="."]
+position = Vector2(32, 88)
+size = Vector2(328, 472)
+
+[node name="SlotList" type="HBoxContainer" parent="."]
+position = Vector2(400, 88)
+size = Vector2(500, 48)
+
+[node name="StatusLabel" type="Label" parent="."]
+position = Vector2(400, 152)
+size = Vector2(500, 32)
