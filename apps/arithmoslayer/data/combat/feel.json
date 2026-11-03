@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "reducedEffects": {"intensityScale": 0.25, "durationScale": 0.5},
+  "hitStop": {"seconds": 0.06},
+  "knockback": {"distancePx": 28.0, "seconds": 0.18},
+  "squashStretch": {"squash": 0.22, "stretch": 0.3, "seconds": 0.16},
+  "cameraPunch": {"distancePx": 6.0, "seconds": 0.12},
+  "screenShake": {"amplitudePx": 4.0, "seconds": 0.2, "frequency": 22.0}
+}

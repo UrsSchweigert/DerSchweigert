@@ -10,6 +10,7 @@ extends Node2D
 signal open_number_pad
 signal correct_strike(orb: AnswerOrb, value: int)
 signal wrong_strike(orb: AnswerOrb, value: int, hint: String)
+signal felt_strike(effects: Dictionary)
 signal unscrambled
 
 const DEFAULT_PATH: String = "res://data/combat/orbs.json"
@@ -31,6 +32,7 @@ var wrong_strike_hasten: float = 0.3
 var enemy: Node = null
 var chain: Chain = null
 var finisher: Finisher = null
+var feel: GameFeel = null
 var orbs: Array[AnswerOrb] = []
 var is_unscrambled: bool = false
 var hint_text: String = ""
@@ -49,6 +51,7 @@ func _init(rng: Rng = null, mode: AnswerMode = null) -> void:
 	_distractors = Distractors.new(_rng)
 	chain = Chain.new()
 	finisher = Finisher.new()
+	feel = GameFeel.new()
 	apply_config(load_config(DEFAULT_PATH))
 
 
@@ -129,11 +132,13 @@ func _on_orb_struck(orb: AnswerOrb) -> void:
 		is_unscrambled = true
 		chain.raise()
 		finisher.add(chain.finisher_charge())
+		_fire_feel(orb, 1.0 + 0.1 * float(chain.tier()))
 		correct_strike.emit(orb, orb.value)
 		unscrambled.emit()
 		return
 	orb.pop()
 	chain.drop()
+	_fire_feel(orb, 0.6)
 	var symbol: String = String(SYMBOLS.get(String(_problem.get("operation", "")), "?"))
 	hint_text = (
 		"Not %d: %d %s %d"
@@ -147,6 +152,14 @@ func _on_orb_struck(orb: AnswerOrb) -> void:
 	if wrong_strike_hasten > 0.0 and enemy is EnemyStateMachine:
 		(enemy as EnemyStateMachine).advance(wrong_strike_hasten)
 	wrong_strike.emit(orb, orb.value, hint_text)
+
+
+## Fires the strike effects away from the struck orb and publishes the payload.
+func _fire_feel(orb: AnswerOrb, power: float) -> void:
+	if feel == null:
+		return
+	var direction: Vector2 = orb.position.normalized()
+	felt_strike.emit(feel.strike(direction, power))
 
 
 func _make_orb(value: int, shape_name: String, correct: bool) -> AnswerOrb:
