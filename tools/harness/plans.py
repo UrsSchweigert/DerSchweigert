@@ -25,6 +25,11 @@ DEFAULT_POLICY: Dict[str, Any] = {
         # the Android build template and plugin binaries are native build inputs.
         "export_presets.cfg", "addons/", "apps/arithmoslayer/android/",
         "*.gdextension", "*.so", "*.dylib", "*.dll", "*.aar", "*.jar", "*.apk", "*.aab", "*.keystore", "*.jks",
+        # iOS release surface: the reviewed manifests, the Xcode project, entitlements, and signing material.
+        # Generated Swift and SPM manifests are deliberately absent, because `cap sync` rewrites them and
+        # escalating sites/lesen/ios/ as a whole would make an iOS plan unexecutable.
+        "sites/lesen/ios/App/App/Info.plist", "PrivacyInfo.xcprivacy", "project.pbxproj",
+        "*.entitlements", "*.p12", "*.mobileprovision", "*.p8", "*.cer",
     ],
     "merge_policy": "autonomous-when-all-gates-pass",
     "base_branch": "main",
