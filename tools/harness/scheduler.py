@@ -1806,6 +1806,7 @@ class Scheduler:
         avoid = issue.get("implementer_model") if role == "reviewer" else None
         try:
             routed = bool(policy.get("model_routing"))
+            signed = models.signed_refiner(policy) if routed and role == "refiner" else None
             if routed:
                 if self.available_models is None:
                     raise ValueError("the approved role routing requires verified model availability")
@@ -1821,7 +1822,13 @@ class Scheduler:
             review_conflict = bool(choice and role == "reviewer" and choice["model"] == avoid)
             outside_route = bool(routed and choice and not any(
                 choice["model"] in models._candidates(band, policy["model_tiers"]) for band in models.TIERS))
-            if choice and not repair and not review_conflict and not outside_route:
+            if signed:
+                # The plan signed one refiner. That decision is the owner's, so a per-issue choice written under an
+                # earlier policy version does not reopen it, and the model is sent as signed: never upgraded, never
+                # substituted. An unavailable signed model blocks the attempt instead of picking a different one.
+                route = models.resolve_signed(signed, self.available_models)
+                routing_source = "policy"
+            elif choice and not repair and not review_conflict and not outside_route:
                 route = models.resolve_choice(choice, policy["model_tiers"], self.available_models, avoid, role=role,
                                               strong_used=issue["strong_attempts"] if role == "implementer" else 0,
                                               strong_budget=budgets["strong_attempts_per_issue"] if role == "implementer" else 1)

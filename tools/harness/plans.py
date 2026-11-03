@@ -317,8 +317,12 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
                 problems.append("policy.model_routing.%s must name non-empty approved models" % key)
         if len(set(routing["routine_models"])) < 2:
             problems.append("policy.model_routing.routine_models needs two distinct models for independent review")
-        if routing["refiner"] not in models._candidates("strong", tiers):
-            problems.append("policy.model_routing.refiner must be an approved strong model")
+        try:
+            # The signed refiner must name an approved model of at least standard tier; an empty signature is no routing.
+            if not models.signed_refiner(plan["policy"]):
+                problems.append("policy.model_routing.refiner must name an approved standard or strong model")
+        except ValueError as exc:
+            problems.append("policy.model_routing.refiner must be an approved standard or strong model: %s" % exc)
         if not models.routed_tiers(plan["policy"], "overseer")["strong"]:
             problems.append("policy.model_routing.escalation_models needs an approved strong model")
     assets = plan["policy"].get("assets") or {}
