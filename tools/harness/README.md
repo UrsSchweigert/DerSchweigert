@@ -71,13 +71,22 @@ task warrants it. A different reviewer model is required whenever another
 approved model is available. The runtime cannot prove model independence when
 model routing is unavailable, and the harness reports that limitation.
 
-The refiner is exempt from cost-first routing: it always runs on the strongest
-approved tier. It re-reads a task and judges whether the code still matches, and
-a cheap model there returns malformed results often enough that one bad answer
-costs a repair attempt plus an owner decision. A plan that names a cheaper
-refiner is upgraded by trusted code and the routing note says so; when no strong
-model is available the harness keeps the best available one and reports the gap
-rather than blocking the run.
+The refiner is exempt from cost-first routing: by default it always runs on the
+strongest approved tier. It re-reads a task and judges whether the code still
+matches, and a cheap model there returns malformed results often enough that one
+bad answer costs a repair attempt plus an owner decision. In a plan without
+`model_routing` a `model_choices` entry naming a cheaper refiner is upgraded by
+trusted code and the routing note says so; when no strong model is available the
+harness keeps the best available one and reports the gap rather than blocking
+the run.
+
+A plan may instead *sign* one refiner in `model_routing` (see below). That
+signature is the owner's own cost decision, so it replaces the strong default
+for that role: the signed model is dispatched exactly as signed, at its own
+approved band, with no upgrade and no substitution. A signed refiner must still
+be `standard` or stronger — refinement stays a judgement role, so a `low`-tier
+selection is refused at plan validation — and the overseer's strong floor is
+untouched.
 
 ### Model sources
 
@@ -188,7 +197,12 @@ These are subsets of the approved `model_tiers`, not extra authorization.
 Every fresh issue is refined first. Routine implementation and independent
 review stay inside `routine_models`; quality repairs and delegator, analyst,
 and overseer consultations use `escalation_models`. The refiner remains pinned
-in both cases. Missing models fail closed, never falling back to another source
+in both cases, and it is dispatched at the band the signed model is approved at
+(`claude-sonnet-5` runs as `standard`, `claude-opus-5` as `strong`) without a
+tier upgrade. The signature also wins over a per-issue `model_choices.refiner`
+written under an earlier plan version: switching the refiner is a new plan
+version, and recorded issues and their history are not rewritten for it.
+Missing models fail closed, never falling back to another source
 or the runtime default. Plans without this object keep their existing behavior.
 Changing it requires a new plan version and personal approval. Reimporting an
 unchanged completed issue preserves its historical evidence; completed work
