@@ -607,6 +607,16 @@ approval digest and every task packet carries it, together with the titles of th
 serves and the phase's outcomes, non-goals and exit criteria. A worker that reads only acceptance criteria
 can be correct and still miss the point.
 
+**Escalation boundaries.** Every worker packet also carries the approved
+`escalation_paths`, which override the phase allowlist, code anchors and earlier
+plans. The prompt tells refiners and implementers not to plan or edit these
+owner-merged files. If the acceptance criteria can be met without touching them,
+the worker must do so; otherwise it reports the concrete owner prerequisite.
+Trusted diff enforcement remains unchanged. When a previous refinement crossed
+this boundary, use the decision task's re-refinement option with guidance rather
+than retrying the stale plan. Any optional owner wiring that depends on a new
+worker file must land after that file, not before it.
+
 **Descoping.** A plan that cannot finish delivers nothing, so a requirement may be deferred to a named
 follow-up issue: `harness defer PLAN REQ --reason "..." --followup ISSUE_ID`, and `harness defer PLAN --list`
 shows what was deferred. The plan policy decides how far that may go (`policy.descope`), and that policy is

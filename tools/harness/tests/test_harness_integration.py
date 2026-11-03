@@ -230,6 +230,26 @@ def test_escalation_path_changes_are_never_merged_autonomously(tmp_path):
     assert task["kind"] == "decision" and task["owner"] == "owner"
 
 
+def test_refiner_and_implementer_receive_the_enforced_escalation_boundary(tmp_path):
+    from harness import schemas
+    from harness.adapter import build_prompt
+
+    env = Env(tmp_path, allowlist=("src/", "requirements.txt"))
+    env.repo.advance_base(["src/core.py"])
+    env.start()
+    env.run_until(lambda: any(r.role == "implementer" for r in env.adapter.started))
+    for role in ("refiner", "implementer"):
+        request = next(r for r in env.adapter.started if r.role == role)
+        schemas.validate(request.packet, schemas.TASK_PACKET, "task_packet")
+        assert request.packet["escalation_paths"] == env.sched._plan()["policy"]["escalation_paths"]
+        assert "requirements.txt" in request.packet["escalation_paths"]
+        assert "requirements.txt" in request.packet["path_allowlist"]
+        prompt = build_prompt(request)
+        assert "task.escalation_paths overrides task.path_allowlist" in prompt
+        assert "owner-merged" in prompt
+        assert "blocked" in prompt and "needs_input" in prompt
+
+
 def test_scope_drift_is_detected_from_the_repository_not_the_worker_claim(tmp_path):
     env = Env(tmp_path)
     env.adapter.impl_paths["i1"] = ["src/ok.py", "infra/main.tf"]
