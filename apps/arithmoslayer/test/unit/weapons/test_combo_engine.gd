@@ -44,7 +44,7 @@ func test_loader_rejects_unknown_fields_at_every_level() -> void:
 
 
 func test_engine_starts_and_advances_on_fixed_frames() -> void:
-	var weapon: WeaponDefinition = _glaive()
+	var weapon: WeaponDefinition = _weapon()
 	var engine: ComboEngine = ComboEngine.new(weapon)
 	assert_true(engine.start(), "a valid weapon must start")
 	assert_eq(engine.state, ComboEngine.State.ACTIVE)
@@ -56,7 +56,7 @@ func test_engine_starts_and_advances_on_fixed_frames() -> void:
 
 
 func test_hit_confirmation_gates_the_next_step_and_dropped_hits_restart() -> void:
-	var weapon: WeaponDefinition = _glaive()
+	var weapon: WeaponDefinition = _weapon()
 	var engine: ComboEngine = ComboEngine.new(weapon)
 	engine.start()
 	var first: WeaponDefinition.Step = engine.current_step()
@@ -75,10 +75,11 @@ func test_hit_confirmation_gates_the_next_step_and_dropped_hits_restart() -> voi
 
 
 func test_cancel_window_jumps_and_early_input_stays_buffered() -> void:
-	var engine: ComboEngine = ComboEngine.new(_glaive())
+	var engine: ComboEngine = ComboEngine.new(_weapon())
 	engine.start()
 	var first: WeaponDefinition.Step = engine.current_step()
-	engine.push_input("hold")
+	var target: WeaponDefinition.Step = engine.weapon.step(first.cancel_into[0])
+	engine.push_input(target.input_kind, target.input_direction)
 	for _index: int in first.cancel_start - 1:
 		engine.tick()
 	assert_eq(engine.step_id, first.id, "an early cancel input must not jump")
@@ -89,7 +90,7 @@ func test_cancel_window_jumps_and_early_input_stays_buffered() -> void:
 
 
 func test_input_buffer_holds_two_touches_and_expires() -> void:
-	var engine: ComboEngine = ComboEngine.new(_glaive())
+	var engine: ComboEngine = ComboEngine.new(_weapon())
 	engine.start()
 	assert_true(engine.push_input("tap"))
 	assert_true(engine.push_input("tap"))
@@ -152,8 +153,10 @@ func _weapon_paths() -> Array[String]:
 	return paths
 
 
-func _glaive() -> WeaponDefinition:
-	var weapon: WeaponDefinition = WeaponDefinition.load_file(_weapon_paths()[0])
+func _weapon() -> WeaponDefinition:
+	var weapon: WeaponDefinition = WeaponDefinition.load_file(
+		WEAPON_DIR.path_join("sum_blade.json")
+	)
 	assert_true(weapon.is_valid(), "the fixture must load: %s" % [weapon.errors])
 	return weapon
 

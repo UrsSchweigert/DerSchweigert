@@ -1,0 +1,30 @@
+{
+  "version": 1, "id": "equal_boomerang", "inputBufferFrames": 8, "affinity": "equal",
+  "steps": [
+    {"id": "equal_throw", "input": {"kind": "swipe", "direction": "right", "touches": 1}, "frames": {"startup": 5, "active": 4, "recovery": 9},
+     "hitbox": {"shape": "circle", "size": [44.0, 44.0]}, "impulse": [140.0, 0.0], "knockback": 120.0,
+     "cancel": {"startFrame": 5, "endFrame": 13, "into": ["equal_return"]}, "orb": "chain",
+     "effects": ["boomerang_throw"], "sounds": ["whoosh"], "finisher": false},
+    {"id": "equal_return", "input": {"kind": "swipe", "direction": "left", "touches": 1}, "frames": {"startup": 5, "active": 5, "recovery": 10},
+     "hitbox": {"shape": "circle", "size": [48.0, 48.0]}, "impulse": [-120.0, 0.0], "knockback": 130.0,
+     "cancel": {"startFrame": 5, "endFrame": 14, "into": ["equal_orbit"]}, "orb": "chain",
+     "effects": ["boomerang_return"], "sounds": ["whoosh"], "finisher": false},
+    {"id": "equal_orbit", "input": {"kind": "hold", "holdFrames": 12, "touches": 1}, "frames": {"startup": 7, "active": 6, "recovery": 12},
+     "hitbox": {"shape": "circle", "size": [56.0, 56.0]}, "impulse": [0.0, 0.0], "knockback": 150.0,
+     "cancel": {"startFrame": 7, "endFrame": 16, "into": ["equal_cross"]}, "orb": "chain",
+     "effects": ["boomerang_orbit"], "sounds": ["hum"], "finisher": false},
+    {"id": "equal_cross", "input": {"kind": "rhythm", "rhythmBeats": 2, "touches": 2}, "frames": {"startup": 6, "active": 5, "recovery": 13},
+     "hitbox": {"shape": "circle", "size": [64.0, 64.0]}, "impulse": [60.0, 0.0], "knockback": 170.0,
+     "cancel": {"startFrame": 6, "endFrame": 14, "into": ["equal_balance"]}, "orb": "chain",
+     "effects": ["boomerang_cross"], "sounds": ["hum"], "finisher": false},
+    {"id": "equal_balance", "input": {"kind": "tap", "touches": 2}, "frames": {"startup": 8, "active": 7, "recovery": 18},
+     "hitbox": {"shape": "circle", "size": [80.0, 80.0]}, "impulse": [0.0, 0.0], "knockback": 220.0,
+     "cancel": {"startFrame": 8, "endFrame": 14, "into": []}, "orb": "chain",
+     "effects": ["balance_burst"], "sounds": ["chime"], "finisher": true}
+  ],
+  "mastery": {"levels": [
+    {"threshold": 0, "steps": ["equal_throw", "equal_return", "equal_orbit", "equal_balance"], "finisher": "", "trail": ""},
+    {"threshold": 30, "steps": ["equal_throw", "equal_return", "equal_orbit", "equal_cross", "equal_balance"], "finisher": "", "trail": "equal_halo"},
+    {"threshold": 100, "steps": ["equal_throw", "equal_return", "equal_orbit", "equal_cross", "equal_balance"], "finisher": "balance_break", "trail": "equal_halo"}
+  ]}
+}

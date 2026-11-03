@@ -1,0 +1,30 @@
+{
+  "version": 1, "id": "product_hammer", "inputBufferFrames": 9, "affinity": "product",
+  "steps": [
+    {"id": "product_swing", "input": {"kind": "hold", "holdFrames": 10, "touches": 1}, "frames": {"startup": 10, "active": 6, "recovery": 16},
+     "hitbox": {"shape": "rectangle", "size": [64.0, 56.0]}, "impulse": [120.0, 0.0], "knockback": 240.0,
+     "cancel": {"startFrame": 10, "endFrame": 22, "into": ["product_slam"]}, "orb": "single",
+     "effects": ["heavy_swing"], "sounds": ["thud"], "finisher": false},
+    {"id": "product_slam", "input": {"kind": "charge", "chargeFrames": 14, "touches": 1}, "frames": {"startup": 12, "active": 8, "recovery": 20},
+     "hitbox": {"shape": "rectangle", "size": [72.0, 64.0]}, "impulse": [80.0, 40.0], "knockback": 280.0,
+     "cancel": {"startFrame": 12, "endFrame": 24, "into": ["product_quake"]}, "orb": "single",
+     "effects": ["ground_slam"], "sounds": ["slam"], "finisher": false},
+    {"id": "product_quake", "input": {"kind": "tap", "touches": 2}, "frames": {"startup": 8, "active": 5, "recovery": 18},
+     "hitbox": {"shape": "rectangle", "size": [88.0, 72.0]}, "impulse": [0.0, 60.0], "knockback": 300.0,
+     "cancel": {"startFrame": 8, "endFrame": 16, "into": ["product_avalanche"]}, "orb": "single",
+     "effects": ["quake_ring"], "sounds": ["rumble"], "finisher": false},
+    {"id": "product_avalanche", "input": {"kind": "hold", "holdFrames": 16, "touches": 1}, "frames": {"startup": 14, "active": 10, "recovery": 24},
+     "hitbox": {"shape": "rectangle", "size": [104.0, 80.0]}, "impulse": [60.0, 60.0], "knockback": 320.0,
+     "cancel": {"startFrame": 14, "endFrame": 26, "into": ["product_crater"]}, "orb": "single",
+     "effects": ["avalanche"], "sounds": ["rumble"], "finisher": false},
+    {"id": "product_crater", "input": {"kind": "rhythm", "rhythmBeats": 3, "touches": 2}, "frames": {"startup": 16, "active": 12, "recovery": 28},
+     "hitbox": {"shape": "rectangle", "size": [128.0, 96.0]}, "impulse": [0.0, 0.0], "knockback": 380.0,
+     "cancel": {"startFrame": 16, "endFrame": 20, "into": []}, "orb": "single",
+     "effects": ["crater"], "sounds": ["slam"], "finisher": true}
+  ],
+  "mastery": {"levels": [
+    {"threshold": 0, "steps": ["product_swing", "product_slam", "product_quake", "product_crater"], "finisher": "", "trail": ""},
+    {"threshold": 40, "steps": ["product_swing", "product_slam", "product_quake", "product_avalanche", "product_crater"], "finisher": "", "trail": "product_dust"},
+    {"threshold": 120, "steps": ["product_swing", "product_slam", "product_quake", "product_avalanche", "product_crater"], "finisher": "crater_collapse", "trail": "product_dust"}
+  ]}
+}

@@ -1,0 +1,30 @@
+{
+  "version": 1, "id": "quotient_spear", "inputBufferFrames": 8, "affinity": "quotient",
+  "steps": [
+    {"id": "quotient_thrust", "input": {"kind": "swipe", "direction": "up", "touches": 1}, "frames": {"startup": 4, "active": 3, "recovery": 7},
+     "hitbox": {"shape": "line", "size": [120.0, 12.0]}, "impulse": [160.0, 0.0], "knockback": 140.0,
+     "cancel": {"startFrame": 4, "endFrame": 11, "into": ["quotient_sweep"]}, "orb": "line",
+     "effects": ["thrust_line"], "sounds": ["thrust"], "finisher": false},
+    {"id": "quotient_sweep", "input": {"kind": "swipe", "direction": "left", "touches": 1}, "frames": {"startup": 5, "active": 4, "recovery": 8},
+     "hitbox": {"shape": "line", "size": [128.0, 14.0]}, "impulse": [120.0, 0.0], "knockback": 150.0,
+     "cancel": {"startFrame": 5, "endFrame": 12, "into": ["quotient_pierce"]}, "orb": "line",
+     "effects": ["sweep_line"], "sounds": ["whoosh"], "finisher": false},
+    {"id": "quotient_pierce", "input": {"kind": "hold", "holdFrames": 6, "touches": 1}, "frames": {"startup": 6, "active": 5, "recovery": 10},
+     "hitbox": {"shape": "line", "size": [144.0, 12.0]}, "impulse": [180.0, 0.0], "knockback": 170.0,
+     "cancel": {"startFrame": 6, "endFrame": 14, "into": ["quotient_split"]}, "orb": "line",
+     "effects": ["pierce_line"], "sounds": ["thrust"], "finisher": false},
+    {"id": "quotient_split", "input": {"kind": "tap", "touches": 2}, "frames": {"startup": 4, "active": 3, "recovery": 9},
+     "hitbox": {"shape": "line", "size": [100.0, 20.0]}, "impulse": [80.0, 0.0], "knockback": 160.0,
+     "cancel": {"startFrame": 4, "endFrame": 10, "into": ["quotient_remainder"]}, "orb": "cone",
+     "effects": ["split_line"], "sounds": ["whoosh"], "finisher": false},
+    {"id": "quotient_remainder", "input": {"kind": "rhythm", "rhythmBeats": 2, "touches": 1}, "frames": {"startup": 7, "active": 6, "recovery": 14},
+     "hitbox": {"shape": "line", "size": [168.0, 16.0]}, "impulse": [200.0, 0.0], "knockback": 240.0,
+     "cancel": {"startFrame": 7, "endFrame": 12, "into": []}, "orb": "line",
+     "effects": ["remainder_lance"], "sounds": ["thrust"], "finisher": true}
+  ],
+  "mastery": {"levels": [
+    {"threshold": 0, "steps": ["quotient_thrust", "quotient_sweep", "quotient_pierce", "quotient_remainder"], "finisher": "", "trail": ""},
+    {"threshold": 35, "steps": ["quotient_thrust", "quotient_sweep", "quotient_pierce", "quotient_split", "quotient_remainder"], "finisher": "", "trail": "quotient_glint"},
+    {"threshold": 110, "steps": ["quotient_thrust", "quotient_sweep", "quotient_pierce", "quotient_split", "quotient_remainder"], "finisher": "remainder_reap", "trail": "quotient_glint"}
+  ]}
+}

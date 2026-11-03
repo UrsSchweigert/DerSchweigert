@@ -4,7 +4,7 @@ extends GutTest
 const LAYOUT_PATH: String = "res://data/input/actions.json"
 const ASSIST_PATH: String = "res://data/combat/assist.json"
 const ARENA_PATH: String = "res://scenes/combat/arena.tscn"
-const WEAPON_PATH: String = "res://data/weapons/glaive.json"
+const WEAPON_PATH: String = "res://data/weapons/sum_blade.json"
 const SCREEN: Vector2 = Vector2(1152.0, 648.0)
 const EPSILON: float = 0.001
 

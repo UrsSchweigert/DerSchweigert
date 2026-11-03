@@ -1,0 +1,30 @@
+{
+  "version": 1, "id": "difference_daggers", "inputBufferFrames": 5, "affinity": "difference",
+  "steps": [
+    {"id": "difference_jab", "input": {"kind": "tap", "touches": 1}, "frames": {"startup": 2, "active": 2, "recovery": 4},
+     "hitbox": {"shape": "circle", "size": [30.0, 30.0]}, "impulse": [70.0, 0.0], "knockback": 60.0,
+     "cancel": {"startFrame": 2, "endFrame": 5, "into": ["difference_feint"]}, "orb": "single",
+     "effects": ["quick_jab"], "sounds": ["tick"], "finisher": false},
+    {"id": "difference_feint", "input": {"kind": "tap", "touches": 2}, "frames": {"startup": 2, "active": 2, "recovery": 4},
+     "hitbox": {"shape": "circle", "size": [28.0, 28.0]}, "impulse": [60.0, 20.0], "knockback": 50.0,
+     "cancel": {"startFrame": 2, "endFrame": 5, "into": ["difference_flurry"]}, "orb": "single",
+     "effects": ["feint_cut"], "sounds": ["tick"], "finisher": false},
+    {"id": "difference_flurry", "input": {"kind": "tap", "touches": 1}, "frames": {"startup": 2, "active": 3, "recovery": 5},
+     "hitbox": {"shape": "circle", "size": [32.0, 32.0]}, "impulse": [90.0, 0.0], "knockback": 70.0,
+     "cancel": {"startFrame": 2, "endFrame": 6, "into": ["difference_backstab"]}, "orb": "cone",
+     "effects": ["flurry"], "sounds": ["tick"], "finisher": false},
+    {"id": "difference_backstab", "input": {"kind": "swipe", "direction": "down", "touches": 1}, "frames": {"startup": 3, "active": 2, "recovery": 6},
+     "hitbox": {"shape": "circle", "size": [26.0, 26.0]}, "impulse": [-40.0, 0.0], "knockback": 90.0,
+     "cancel": {"startFrame": 3, "endFrame": 7, "into": ["difference_zero"]}, "orb": "single",
+     "effects": ["backstab"], "sounds": ["tick"], "finisher": false},
+    {"id": "difference_zero", "input": {"kind": "tap", "touches": 2}, "frames": {"startup": 3, "active": 3, "recovery": 8},
+     "hitbox": {"shape": "circle", "size": [40.0, 40.0]}, "impulse": [0.0, 0.0], "knockback": 160.0,
+     "cancel": {"startFrame": 3, "endFrame": 6, "into": []}, "orb": "cone",
+     "effects": ["zero_cross"], "sounds": ["slash"], "finisher": true}
+  ],
+  "mastery": {"levels": [
+    {"threshold": 0, "steps": ["difference_jab", "difference_feint", "difference_flurry", "difference_zero"], "finisher": "", "trail": ""},
+    {"threshold": 20, "steps": ["difference_jab", "difference_feint", "difference_flurry", "difference_backstab", "difference_zero"], "finisher": "", "trail": "difference_shadow"},
+    {"threshold": 70, "steps": ["difference_jab", "difference_feint", "difference_flurry", "difference_backstab", "difference_zero"], "finisher": "zero_point", "trail": "difference_shadow"}
+  ]}
+}

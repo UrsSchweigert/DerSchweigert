@@ -17,7 +17,12 @@ from ._common import display, field_line
 
 DATA_RELATIVE = Path("data") / "weapons"
 SCHEMA_NAME = "schema.json"
-DOCUMENT_FIELDS = ("version", "id", "inputBufferFrames", "steps")
+DOCUMENT_FIELDS = ("version", "id", "inputBufferFrames", "steps", "affinity", "mastery")
+REQUIRED_DOCUMENT_FIELDS = ("version", "id", "inputBufferFrames", "steps")
+MASTERY_FIELDS = ("levels",)
+MASTERY_LEVEL_FIELDS = ("threshold", "steps", "finisher", "trail")
+AFFINITIES = ("sum", "product", "quotient", "difference", "equal")
+MIN_LEVEL_STEPS = 3
 STEP_FIELDS = (
     "id", "input", "frames", "hitbox", "impulse", "knockback", "cancel", "orb", "effects",
     "sounds", "finisher",
@@ -143,6 +148,48 @@ def validate_step(step: Any, index: int, text: str, location: str, ids: list[str
     return errors
 
 
+def validate_mastery(value: Any, text: str, location: str, ids: list[str]) -> list[str]:
+    """Return every problem in the optional mastery levels of a weapon."""
+    if not isinstance(value, dict):
+        message = f"expected an object but found {type_name(value)}"
+        return [error(location, field_line(text, "mastery"), message, "mastery")]
+    errors = unknown_fields(value, MASTERY_FIELDS, text, location)
+    levels = value.get("levels")
+    if not isinstance(levels, list) or not levels:
+        message = "expected a non-empty list"
+        return errors + [error(location, field_line(text, "levels"), message, "levels")]
+    previous = -1
+    for index, level in enumerate(levels):
+        if not isinstance(level, dict):
+            message = f"mastery level {index} is {type_name(level)}"
+            errors.append(error(location, field_line(text, "threshold"), message, "levels"))
+            continue
+        errors.extend(unknown_fields(level, MASTERY_LEVEL_FIELDS, text, location))
+        threshold = level.get("threshold")
+        if not (is_integer(threshold) and threshold >= 0):
+            errors.append(error(location, field_line(text, "threshold"), "expected a non-negative integer", "threshold"))
+        elif index == 0 and threshold != 0:
+            errors.append(error(location, field_line(text, "threshold"), "the first level must start at 0", "threshold"))
+        elif threshold <= previous:
+            errors.append(error(location, field_line(text, "threshold"), "mastery thresholds must ascend", "threshold"))
+        else:
+            previous = threshold
+        steps = level.get("steps")
+        if not (isinstance(steps, list) and all(isinstance(step, str) for step in steps)):
+            errors.append(error(location, field_line(text, "steps"), "expected a list of step ids", "steps"))
+        else:
+            if len(steps) < MIN_LEVEL_STEPS:
+                message = f"level {index} needs at least {MIN_LEVEL_STEPS} steps"
+                errors.append(error(location, field_line(text, "steps"), message, "steps"))
+            missing = [step for step in steps if step not in ids]
+            if missing:
+                errors.append(error(location, field_line(text, "steps"), f"unknown step id {missing[0]!r}", "steps"))
+        for name in ("finisher", "trail"):
+            if not isinstance(level.get(name), str):
+                errors.append(error(location, field_line(text, name), "expected a string", name))
+    return errors
+
+
 def validate_document(text: str, location: str) -> list[str]:
     """Return every problem in one decoded weapon document."""
     try:
@@ -152,7 +199,7 @@ def validate_document(text: str, location: str) -> list[str]:
     if not isinstance(data, dict):
         return [error(location, 1, f"expected an object but found {type_name(data)}", "<document>")]
     errors = unknown_fields(data, DOCUMENT_FIELDS, text, location)
-    for name in DOCUMENT_FIELDS:
+    for name in REQUIRED_DOCUMENT_FIELDS:
         if name not in data:
             errors.append(error(location, field_line(text, name), "missing required field", name))
     if data.get("version") != 1:
@@ -167,6 +214,11 @@ def validate_document(text: str, location: str) -> list[str]:
         errors.append(error(location, line_of(text, "steps"), "expected a non-empty list", "steps"))
         return errors
     ids = [s.get("id") for s in steps if isinstance(s, dict) and isinstance(s.get("id"), str)]
+    if "affinity" in data and data["affinity"] not in AFFINITIES:
+        message = f"expected one of {', '.join(AFFINITIES)}"
+        errors.append(error(location, field_line(text, "affinity"), message, "affinity"))
+    if "mastery" in data:
+        errors.extend(validate_mastery(data["mastery"], text, location, ids))
     for index, step in enumerate(steps):
         errors.extend(validate_step(step, index, text, location, ids))
     finishers = [i for i, s in enumerate(steps) if isinstance(s, dict) and s.get("finisher") is True]

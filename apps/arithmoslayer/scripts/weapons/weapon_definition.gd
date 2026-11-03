@@ -6,7 +6,9 @@ extends RefCounted
 ## schema does not declare. [ComboEngine] reads the typed [Step] objects below,
 ## so adding a weapon is a data-only change under [code]data/weapons/[/code].
 
-const DOCUMENT_FIELDS: Array[String] = ["version", "id", "inputBufferFrames", "steps"]
+const DOCUMENT_FIELDS: Array[String] = [
+	"version", "id", "inputBufferFrames", "steps", "affinity", "mastery"
+]
 const STEP_FIELDS: Array[String] = ["id", "input", "frames", "hitbox", "cancel", "orb"]
 const STEP_HOOKS: Array[String] = ["impulse", "knockback", "effects", "sounds", "finisher"]
 const INPUT_FIELDS: Array[String] = ["kind", "direction", "touches"]
@@ -15,6 +17,8 @@ const FRAME_FIELDS: Array[String] = ["startup", "active", "recovery"]
 const HITBOX_FIELDS: Array[String] = ["shape", "size"]
 const CANCEL_FIELDS: Array[String] = ["startFrame", "endFrame", "into"]
 const INPUT_KINDS: Array[String] = ["tap", "hold", "charge", "swipe", "rhythm"]
+const AFFINITIES: Array[String] = ["sum", "product", "quotient", "difference", "equal"]
+const MASTERY_FIELDS: Array[String] = ["threshold", "steps", "finisher", "trail"]
 
 
 ## One ordered combo step with every number the engine needs.
@@ -46,10 +50,21 @@ class Step:
 		return startup + active + recovery
 
 
+## One mastery level: the uses needed and what it unlocks.
+class MasteryLevel:
+	extends RefCounted
+	var threshold: int = 0
+	var steps: Array[String] = []
+	var finisher: String = ""
+	var trail: String = ""
+
+
 var version: int = 1
 var id: String = ""
 var input_buffer_frames: int = 6
 var steps: Array[Step] = []
+var affinity: String = ""
+var mastery_levels: Array[MasteryLevel] = []
 var errors: Array[String] = []
 
 
@@ -115,6 +130,10 @@ func _read(data: Dictionary) -> void:
 	for raw: Variant in raw_steps if raw_steps is Array else []:
 		if raw is Dictionary:
 			steps.append(_read_step(raw as Dictionary))
+	affinity = _string(data, "affinity")
+	if not affinity.is_empty() and not AFFINITIES.has(affinity):
+		errors.append("affinity '%s' is not one of %s" % [affinity, ", ".join(AFFINITIES)])
+	_read_mastery(data.get("mastery"))
 	if version != 1:
 		errors.append("version must be 1")
 	if id.is_empty():
@@ -164,6 +183,47 @@ func _read_step(raw: Dictionary) -> Step:
 	if not INPUT_KINDS.has(step.input_kind):
 		errors.append("step '%s': unknown input kind '%s'" % [step.id, step.input_kind])
 	return step
+
+
+func _read_mastery(value: Variant) -> void:
+	mastery_levels.clear()
+	if value == null:
+		return
+	if not (value is Dictionary):
+		errors.append("mastery must be an object")
+		return
+	var data: Dictionary = value as Dictionary
+	_reject_unknown(data, ["levels"], "mastery")
+	var raw_levels: Variant = data.get("levels", [])
+	if not (raw_levels is Array) or (raw_levels as Array).is_empty():
+		errors.append("mastery.levels must be a non-empty list")
+		return
+	var previous: int = -1
+	for raw: Variant in raw_levels as Array:
+		if not (raw is Dictionary):
+			errors.append("mastery level must be an object")
+			continue
+		var level: MasteryLevel = _read_mastery_level(raw as Dictionary)
+		if level.threshold <= previous:
+			errors.append("mastery thresholds must ascend")
+		previous = level.threshold
+		mastery_levels.append(level)
+	for level: MasteryLevel in mastery_levels:
+		for step_id: String in level.steps:
+			if not step_ids().has(step_id):
+				errors.append("mastery references unknown step '%s'" % step_id)
+
+
+func _read_mastery_level(data: Dictionary) -> MasteryLevel:
+	var level: MasteryLevel = MasteryLevel.new()
+	_reject_unknown(data, MASTERY_FIELDS, "mastery level")
+	level.threshold = _int(data, "threshold", -1)
+	if level.threshold < 0:
+		errors.append("mastery threshold must be a non-negative integer")
+	level.steps = _strings(data.get("steps"))
+	level.finisher = _string(data, "finisher")
+	level.trail = _string(data, "trail")
+	return level
 
 
 func _reject_unknown(data: Dictionary, allowed: Array[String], context: String) -> void:
