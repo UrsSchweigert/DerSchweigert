@@ -100,3 +100,21 @@ a movement or attack pattern already used by another archetype.
 `test/unit/combat/test_enemy_states.gd` covers the eight biomes, the seven-state
 cycle, the telegraph floor, pattern uniqueness, the placeholder scene, and the
 validator's rejection cases.
+
+## Orbs, chain, and finisher
+
+`data/combat/orbs.json` defines two to four orbs, the four shapes, the orbit
+radius, and the hint-chip and pop durations. `answer_orb.gd` draws a number
+label, a shape label, and a matching polygon, so an orb reads by number and
+shape rather than colour; `scenes/combat/answer_orb.tscn` is its greybox scene.
+
+`orb_spawner.gd` asks `AnswerMode` how the band is answered: free entry emits
+`open_number_pad`, and multiple choice places the answer plus `Distractors` on
+the orbit with distinct shapes. A correct strike sets `is_unscrambled`, raises
+the `Chain`, and charges the `Finisher`; a wrong strike pops harmlessly, shows a
+hint chip, drops the `Chain` one tier (never below zero), and advances the enemy
+by `wrongStrikeHastenSeconds`.
+
+`data/combat/chain.json` defines ascending `shardMultiplier`/`finisherCharge`
+tiers and the `finisherThreshold`; `tools/validate/orbs_chain.py` rejects bad
+counts, missing shapes, and flat tiers, and `test_orbs_chain.gd` covers it all.

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "minOrbs": 2,
+  "maxOrbs": 4,
+  "shapes": ["circle", "triangle", "square", "diamond"],
+  "orbit": {"radiusPx": 56.0, "angularSpeed": 1.4},
+  "hintChipSeconds": 1.4,
+  "popSeconds": 0.25,
+  "wrongStrikeHastenSeconds": 0.3
+}

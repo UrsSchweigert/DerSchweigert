@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "startTier": 0,
+  "finisherThreshold": 3.0,
+  "tiers": [
+    {"shardMultiplier": 1.0, "finisherCharge": 1.0},
+    {"shardMultiplier": 1.5, "finisherCharge": 1.0},
+    {"shardMultiplier": 2.0, "finisherCharge": 1.0},
+    {"shardMultiplier": 3.0, "finisherCharge": 1.5}
+  ]
+}

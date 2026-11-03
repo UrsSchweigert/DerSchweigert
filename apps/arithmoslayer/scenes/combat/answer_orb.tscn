@@ -1,0 +1,32 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/answer_orb.gd" id="1_orb"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_orb"]
+radius = 14.0
+
+[node name="AnswerOrb" type="Area2D"]
+script = ExtResource("1_orb")
+
+[node name="Shape" type="Polygon2D" parent="."]
+color = Color(0.82, 0.86, 0.92, 1)
+
+[node name="NumberLabel" type="Label" parent="."]
+offset_left = -12.0
+offset_top = -11.0
+offset_right = 12.0
+offset_bottom = 11.0
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "0"
+
+[node name="ShapeLabel" type="Label" parent="."]
+offset_left = -28.0
+offset_top = 13.0
+offset_right = 28.0
+offset_bottom = 29.0
+horizontal_alignment = 1
+text = "circle"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_orb")
