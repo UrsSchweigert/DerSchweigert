@@ -14,6 +14,14 @@ All commands run from `sites/lesen/`. Nothing secret is ever committed.
   `build-tools;36.0.0`, and `android/local.properties` pointing at the SDK
   (`sdk.dir=/path/to/Android/sdk`). `local.properties` is gitignored.
 
+The locked native dependencies include `@capacitor/filesystem` and
+`@capacitor/share` for the parent report's on-device CSV export. Run Capacitor
+sync after restoring dependencies so both plugins reach the native project
+(`npm run sync` for Android, or `npx cap sync ios` for an existing iOS project).
+Installing the plugins alone is not export verification: test the adapter and
+the native share sheet before release. The plain website remains independent
+of these native dependencies.
+
 ## One-time: create your upload keystore
 
 Google Play uses **Play App Signing**: Google holds the real *app signing key*;
