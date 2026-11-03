@@ -87,6 +87,78 @@ def test_escalation_roles_only_see_the_escalation_models(role):
     assert {m for band in tiers.values() for m in band} == set(ROUTING["escalation_models"])
 
 
+SONNET = "claude-sonnet-5"
+SONNET_ROUTING = dict(ROUTING, refiner=SONNET)
+
+
+def sonnet_refiner_env(tmp_path, available=None):
+    """A plan whose signed routing names the standard-tier refiner, over an issue whose choice still says Opus."""
+    env = Env(tmp_path, model_sources=["deepseek", "copilot"],
+              available_models=AVAILABLE if available is None else available,
+              policy_overrides={"model_routing": SONNET_ROUTING})
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {
+        "implementer": {"model": FLASH, "reason": "Routine implementation after refinement."},
+        "reviewer": {"model": PRO, "reason": "Independent DeepSeek reviewer."},
+        "refiner": {"model": OPUS, "reason": "Owner-selected refinement model."},  # written under an earlier policy version
+    }
+    env.store.put_issue(issue)
+    return env
+
+
+def test_a_signed_standard_refiner_is_dispatched_at_its_own_tier(tmp_path):
+    env = sonnet_refiner_env(tmp_path)
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    refinements = [req for req in env.adapter.started if req.role == "refiner"]
+    assert [(req.model, req.tier) for req in refinements] == [(SONNET, "standard")], "the signed refiner must be sent as signed"
+    attempt = next(a for a in env.store.list_attempts("i1") if a["role"] == "refiner")
+    assert attempt["model"] == SONNET and attempt["tier"] == "standard"
+    # Routine implementation and independent review are untouched by the refiner change.
+    assert [a["model"] for a in env.store.list_attempts("i1")] == [SONNET, FLASH, PRO]
+
+
+def test_the_signed_refiner_wins_a_stale_opus_choice_without_rewriting_the_issue(tmp_path):
+    env = sonnet_refiner_env(tmp_path)
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    attempt = next(a for a in env.store.list_attempts("i1") if a["role"] == "refiner")
+    assert attempt["model"] == SONNET and attempt["routing_source"] == "policy"
+    assert OPUS not in [req.model for req in env.adapter.started], "the stale choice must not reopen the signed decision"
+    assert env.store.get_issue("i1")["model_choices"]["refiner"]["model"] == OPUS, "recorded history stays as it was"
+
+
+def test_an_unavailable_signed_refiner_fails_closed_instead_of_falling_back(tmp_path):
+    env = sonnet_refiner_env(tmp_path, available=[FLASH, PRO, OPUS])
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Blocked")
+    assert not [req for req in env.adapter.started if req.role == "refiner"]
+    reason = env.store.get_issue("i1")["blocked_reason"]
+    assert "model selection rejected" in reason and SONNET in reason
+
+
+def test_a_legacy_plan_without_routing_still_refines_on_a_strong_model(tmp_path):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["model_choices"] = {"implementer": {"model": "claude-sonnet-5", "reason": "Two files interact."},
+                              "refiner": {"model": "claude-haiku-4.5", "reason": "Bounded re-check."}}
+    env.store.put_issue(issue)
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done")
+    refinements = [req for req in env.adapter.started if req.role == "refiner"]
+    assert [req.tier for req in refinements] == ["strong"]
+    assert refinements[0].model in ("claude-opus-5", "claude-opus-4.8")
+
+
+def test_the_plan_check_signs_a_standard_refiner_but_still_refuses_a_cheap_one(tmp_path):
+    env = routed_env(tmp_path)
+    plan = copy.deepcopy(env.store.get_plan("fx")["plan"])
+    plan["policy"]["model_routing"]["refiner"] = SONNET
+    assert not [problem for problem in plans.validate_plan(plan) if "model_routing" in problem]
+    plan["policy"]["model_routing"]["refiner"] = "claude-haiku-4.5"
+    assert any("model_routing.refiner" in problem for problem in plans.validate_plan(plan))
+
+
 def test_model_routing_is_part_of_the_approval_digest(tmp_path):
     env = routed_env(tmp_path)
     original = env.store.get_plan("fx")["plan"]
@@ -99,6 +171,7 @@ def test_model_routing_is_part_of_the_approval_digest(tmp_path):
     ("routine_models", [FLASH]),
     ("routine_models", [FLASH, "unapproved"]),
     ("refiner", FLASH),
+    ("refiner", ""),
     ("escalation_models", ["claude-sonnet-5"]),
 ])
 def test_invalid_role_menus_are_rejected(tmp_path, key, value):
