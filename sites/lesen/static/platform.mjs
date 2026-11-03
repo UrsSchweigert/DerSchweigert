@@ -6,6 +6,11 @@
  * implementations below preserve today's behaviour exactly (browser speech,
  * localStorage progress, no-op notifications and vibration, Blob download).
  * UI code depends only on this module, never on a Capacitor plugin.
+ *
+ * Practice reminders stay off until a parent enables them behind the parental
+ * gate. Only then does the adapter touch the native LocalNotifications plugin,
+ * it schedules one inexact daily notification, and it remembers a denial so the
+ * permission prompt never loops.
  */
 import { createSpeechAdapter } from './speech-adapter.js';
 import {
@@ -36,6 +41,33 @@ export const HAPTIC_CORRECT_PATTERN = [40];
 
 /** Browser vibration pattern for an incorrect answer: two pulses. */
 export const HAPTIC_INCORRECT_PATTERN = [40, 60, 40];
+
+/**
+ * Persisted key holding whether practice reminders are enabled.
+ * Unset or any value other than 'true' means off, so reminders start off.
+ */
+export const REMINDERS_ENABLED_KEY = 'buchstabenzeit:reminders-enabled';
+
+/** Persisted key remembering that notification permission was denied. */
+export const REMINDERS_DENIED_KEY = 'buchstabenzeit:reminders-denied';
+
+/** Persisted key holding the scheduled reminder so a cold start can restore it. */
+export const REMINDERS_SCHEDULE_KEY = 'buchstabenzeit:reminders-schedule';
+
+/** Fixed id of the single recurring practice reminder. */
+export const REMINDER_NOTIFICATION_ID = 1;
+
+/** Default local time of the daily practice reminder. */
+export const DEFAULT_REMINDER_HOUR = 17;
+
+/** Default minute of the daily practice reminder. */
+export const DEFAULT_REMINDER_MINUTE = 0;
+
+/** German-first title of the practice reminder; callers may override it. */
+export const REMINDER_TITLE = 'Buchstabenzeit';
+
+/** German-first body of the practice reminder; callers may override it. */
+export const REMINDER_BODY = 'Zeit für eine kleine Leseübung.';
 
 /**
  * Whether the user asked the operating system to reduce motion.
@@ -272,20 +304,321 @@ export function createWebProgress(store) {
 }
 
 /**
- * Web reminders capability. The web build never prompts for notification
- * permission and never schedules anything, so the Notification API is not
- * touched at all.
- * @param {Object} [env] - Platform environment (unused on web).
+ * Read one persisted string from a key-value store.
+ * @param {Object|null|undefined} store key-value store
+ * @param {string} key persisted key
+ * @returns {string|null} stored value, or null when missing or unreadable
+ */
+function readStoredValue(store, key) {
+  if (!store || typeof store.getItem !== 'function') {
+    return null;
+  }
+  try {
+    return store.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persist one string value, ignoring stores that cannot write.
+ * @param {Object|null|undefined} store key-value store
+ * @param {string} key persisted key
+ * @param {string} value value to persist
+ * @returns {boolean} true when the value was stored
+ */
+function writeStoredValue(store, key, value) {
+  if (!store || typeof store.setItem !== 'function') {
+    return false;
+  }
+  try {
+    store.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove one persisted value, ignoring stores that cannot remove.
+ * @param {Object|null|undefined} store key-value store
+ * @param {string} key persisted key
+ */
+function removeStoredValue(store, key) {
+  if (!store || typeof store.removeItem !== 'function') {
+    return;
+  }
+  try {
+    store.removeItem(key);
+  } catch {
+    // Ignore storage failures; the in-memory schedule is cleared regardless.
+  }
+}
+
+/**
+ * Normalize a Capacitor LocalNotifications permission result.
+ * @param {unknown} result plugin permission result
+ * @returns {string} 'granted', 'denied', 'prompt' or 'unknown'
+ */
+function displayState(result) {
+  const state = result?.display;
+  return typeof state === 'string' ? state : 'unknown';
+}
+
+/**
+ * Coerce a reminder hour to 0-23, falling back to the default.
+ * @param {unknown} value stored hour
+ * @returns {number} valid hour
+ */
+function toHour(value) {
+  const number = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  return Number.isInteger(number) && number >= 0 && number <= 23 ? number : DEFAULT_REMINDER_HOUR;
+}
+
+/**
+ * Coerce a reminder minute to 0-59, falling back to the default.
+ * @param {unknown} value stored minute
+ * @returns {number} valid minute
+ */
+function toMinute(value) {
+  const number = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  return Number.isInteger(number) && number >= 0 && number <= 59 ? number : DEFAULT_REMINDER_MINUTE;
+}
+
+/**
+ * Coerce reminder options into the persisted shape.
+ * Missing or invalid values fall back to the daily default time and text.
+ * @param {unknown} options caller-provided reminder options
+ * @returns {{hour: number, minute: number, title: string, body: string}} schedule
+ */
+function normalizeSchedule(options) {
+  const source = isPlainObject(options) ? options : {};
+  return {
+    hour: toHour(source.hour),
+    minute: toMinute(source.minute),
+    title: typeof source.title === 'string' && source.title.trim() !== '' ? source.title : REMINDER_TITLE,
+    body: typeof source.body === 'string' && source.body.trim() !== '' ? source.body : REMINDER_BODY,
+  };
+}
+
+/**
+ * Read the persisted reminder schedule.
+ * A missing or corrupt value reads as no schedule.
+ * @param {Object|null|undefined} store key-value store
+ * @returns {{hour: number, minute: number, title: string, body: string}|null} schedule
+ */
+function readStoredSchedule(store) {
+  const raw = readStoredValue(store, REMINDERS_SCHEDULE_KEY);
+  if (typeof raw !== 'string' || raw === '') {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return isPlainObject(parsed) ? normalizeSchedule(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Web reminders capability. Reminders are off by default and only prompt for
+ * notification permission after the parent enabled them through the parental
+ * gate (setEnabled). A denial is remembered, so the app never prompts again in
+ * a loop; the web build without the native plugin never prompts at all.
+ *
+ * The reminder itself is one daily, inexact local notification. The resolved
+ * schedule is persisted, so restore() can reapply it after a cold start
+ * without asking for permission again.
+ * @param {Object} [env] - Platform environment with an optional window/store.
  * @returns {Object} Reminders capability.
  */
 export function createWebReminders(env = {}) {
+  const win = env.window ?? (typeof window === 'undefined' ? undefined : window);
+  const store = env.store ?? win?.localStorage;
+  const plugin = win?.Capacitor?.Plugins?.LocalNotifications ?? null;
+  const supported = Boolean(plugin);
+
+  let enabled = readStoredValue(store, REMINDERS_ENABLED_KEY) === 'true';
+  let denied = readStoredValue(store, REMINDERS_DENIED_KEY) === 'true';
+  let pendingSchedule = readStoredSchedule(store);
+
+  function rememberDenied() {
+    denied = true;
+    writeStoredValue(store, REMINDERS_DENIED_KEY, 'true');
+  }
+
+  function clearDenied() {
+    denied = false;
+    removeStoredValue(store, REMINDERS_DENIED_KEY);
+  }
+
+  function persistSchedule(value) {
+    pendingSchedule = value;
+    writeStoredValue(store, REMINDERS_SCHEDULE_KEY, JSON.stringify(value));
+  }
+
+  function clearSchedule() {
+    pendingSchedule = null;
+    removeStoredValue(store, REMINDERS_SCHEDULE_KEY);
+  }
+
+  async function checkPermission() {
+    if (!plugin || typeof plugin.checkPermissions !== 'function') {
+      return 'unknown';
+    }
+    try {
+      return displayState(await plugin.checkPermissions());
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  async function requestPermission() {
+    if (!supported) {
+      return 'denied';
+    }
+    if (denied) {
+      // A remembered denial is never re-prompted, but a permission granted in
+      // the system settings clears it without any dialog.
+      const grantedNow = await checkPermission();
+      if (grantedNow === 'granted') {
+        clearDenied();
+        return 'granted';
+      }
+      return 'denied';
+    }
+    const current = await checkPermission();
+    if (current === 'granted') {
+      clearDenied();
+      return 'granted';
+    }
+    if (current === 'denied') {
+      rememberDenied();
+      return 'denied';
+    }
+    try {
+      if (displayState(await plugin.requestPermissions()) === 'granted') {
+        clearDenied();
+        return 'granted';
+      }
+    } catch {
+      // Fall through to a remembered denial; the OS refused the request.
+    }
+    rememberDenied();
+    return 'denied';
+  }
+
+  async function ensurePermission() {
+    const current = await checkPermission();
+    if (current === 'granted') {
+      clearDenied();
+      return 'granted';
+    }
+    if (denied || current === 'denied') {
+      rememberDenied();
+      return 'denied';
+    }
+    return requestPermission();
+  }
+
+  async function scheduleNative(value) {
+    await plugin.schedule({
+      notifications: [{
+        id: REMINDER_NOTIFICATION_ID,
+        title: value.title,
+        body: value.body,
+        schedule: {
+          on: { hour: value.hour, minute: value.minute },
+          repeats: true,
+          isExactNotification: false,
+        },
+      }],
+    });
+  }
+
+  async function cancelAll() {
+    clearSchedule();
+    if (!supported) {
+      return UNSUPPORTED;
+    }
+    try {
+      await plugin.cancel({ notifications: [{ id: REMINDER_NOTIFICATION_ID }] });
+      return 'cancelled';
+    } catch {
+      return 'failed';
+    }
+  }
+
   return {
-    kind: 'web',
-    isSupported: () => false,
-    requestPermission: async () => 'denied',
-    schedule: async () => UNSUPPORTED,
-    cancelAll: async () => UNSUPPORTED,
-    status: () => UNSUPPORTED,
+    kind: plugin ? 'native' : 'web',
+    isSupported: () => supported,
+    isEnabled: () => enabled,
+    async setEnabled(value) {
+      enabled = Boolean(value);
+      writeStoredValue(store, REMINDERS_ENABLED_KEY, enabled ? 'true' : 'false');
+      if (!enabled) {
+        await cancelAll();
+      }
+      return enabled;
+    },
+    requestPermission,
+    async schedule(options) {
+      if (!supported) {
+        return UNSUPPORTED;
+      }
+      if (!enabled) {
+        return 'gated';
+      }
+      if ((await ensurePermission()) !== 'granted') {
+        return 'denied';
+      }
+      const value = normalizeSchedule(options);
+      try {
+        await scheduleNative(value);
+      } catch {
+        return 'failed';
+      }
+      persistSchedule(value);
+      return 'scheduled';
+    },
+    cancelAll,
+    async restore() {
+      if (!supported) {
+        return UNSUPPORTED;
+      }
+      if (!enabled || !pendingSchedule) {
+        return 'off';
+      }
+      if (denied) {
+        return 'denied';
+      }
+      const current = await checkPermission();
+      if (current === 'denied') {
+        rememberDenied();
+        return 'denied';
+      }
+      if (current !== 'granted' && current !== 'unknown') {
+        return 'denied';
+      }
+      try {
+        await scheduleNative(pendingSchedule);
+        return 'scheduled';
+      } catch {
+        return 'failed';
+      }
+    },
+    status() {
+      if (!supported) {
+        return UNSUPPORTED;
+      }
+      if (!enabled) {
+        return 'off';
+      }
+      if (denied) {
+        return 'denied';
+      }
+      return pendingSchedule ? 'scheduled' : 'off';
+    },
   };
 }
 
@@ -483,7 +816,7 @@ export function createPlatformAdapter(env = {}) {
   return {
     speech: createWebSpeech(win),
     progress: createWebProgress(store),
-    reminders: createWebReminders(env),
+    reminders: createWebReminders({ window: win, store }),
     haptics: createWebHaptics(env),
     app: createWebApp(win),
     export: createWebExport(win),
