@@ -17,6 +17,7 @@ var max_speed: float = DEFAULT_MAX_SPEED
 var acceleration: float = DEFAULT_ACCELERATION
 var deceleration: float = DEFAULT_DECELERATION
 var radius: float = DEFAULT_RADIUS
+var speed_multiplier: float = 1.0
 var input: MoveInput = MoveInput.new()
 
 var _driven: bool = false
@@ -68,7 +69,7 @@ func release_drive() -> void:
 ## Returns the velocity after accelerating [param current] toward
 ## [param direction] for [param delta] seconds.
 func step_velocity(current: Vector2, direction: Vector2, delta: float) -> Vector2:
-	var target: Vector2 = direction.limit_length(1.0) * max_speed
+	var target: Vector2 = direction.limit_length(1.0) * max_speed * speed_multiplier
 	var rate: float = acceleration if direction.length_squared() > 0.0 else deceleration
 	return current.move_toward(target, rate * delta)
 
