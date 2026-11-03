@@ -37,6 +37,26 @@ called done: distribution signing, the `.ipa`, TestFlight install/upgrade,
 physical-device layout, on-device speech, the silent switch, airplane-mode
 behaviour, and the four native capabilities listed under device checks.
 
+## iOS App Review package
+
+`APP-REVIEW.md` is the review package for App Review and for anyone running the
+device checks below. It names the four native capabilities as the **native
+spine** — `@capacitor/filesystem` cache write of the CSV report,
+`@capacitor/share` system share sheet, `@capacitor/haptics` grading feedback, and
+`@capacitor/local-notifications` practice reminders — gives an airplane-mode
+demo script with the expected on-screen result for each step, lists the offline
+screenshots to capture, and ends with a copy-paste block for App Store Connect.
+
+The notes are deliberately narrower than the device checklist: every claim is
+limited to what the build does. Capability 4 is adapter-only in this revision
+because no in-app control exposes reminders yet, so the review notes and the
+App Store text must not describe a reminder toggle.
+
+Capturing the offline screenshots, attaching them to the submission, and
+submitting for App Review are owner actions, exactly like producing the signed
+build. `APP-REVIEW.md` documents the capture list; it does not contain
+submission images.
+
 ## Prerequisites (local, macOS only)
 
 - macOS with **Xcode** whose installed iOS SDK still supports the app's
@@ -210,11 +230,13 @@ the result in the release record:
 5. **Native capability 3 — Haptics.** Correct and incorrect answers give the
    expected one-pulse / two-pulse feedback through `@capacitor/haptics`, and no
    haptics fire when Reduce Motion is enabled in iOS Settings.
-6. **Native capability 4 — Local notifications.** Reminders are off by default;
-   enabling them asks for notification permission only after the parental gate.
-   Allow → exactly one inexact daily reminder is scheduled and delivered. Deny →
-   the denial is remembered and the app never re-prompts. Disabling cancels the
-   reminder.
+6. **Native capability 4 — Local notifications.** Reminders are off by default
+   and the adapter requests notification permission only after the parental gate
+   enables them. **No in-app control exposes that adapter in this build**, so the
+   reminder cannot be exercised from the UI yet; this item stays untested until a
+   parental-gated toggle ships. When it does: Allow → exactly one inexact daily
+   reminder is scheduled and delivered. Deny → the denial is remembered and the
+   app never re-prompts. Disabling cancels the reminder.
 7. **Speech.** Optional practice speech uses the Web Speech API and an installed
    on-device voice. With airplane mode on, confirm the selected language still
    speaks; with no matching voice the adapter reports the capability as
@@ -260,6 +282,8 @@ install/upgrade check remain external gates.
 
 ## See also
 
+- `APP-REVIEW.md` — App Review notes, native-spine capability list, and the
+  airplane-mode demo script.
 - `../RELEASING.md` — Android release process, versioning log, and the shared
   plugin/privacy prerequisites.
 - `../ANDROID-PLAN.md` — distribution policy context shared by both stores.
