@@ -5,7 +5,8 @@ extends Node
 ## The roll is independent of the equipped weapon: [method try_dodge] cancels
 ## whatever combo is active, so every weapon can dodge out of its own steps.
 ## [method advance] runs on the fixed physics step, and [method speed_scale]
-## reports the movement multiplier for the roll.
+## reports the movement multiplier for the roll. The hero's [Health] consults
+## [method is_invulnerable], so the roll's i-frames actually block damage.
 
 const DEFAULT_PATH: String = "res://data/combat/health.json"
 const DEFAULT_COOLDOWN: float = 0.9

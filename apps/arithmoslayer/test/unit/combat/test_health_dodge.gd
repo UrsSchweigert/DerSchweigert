@@ -74,6 +74,27 @@ func test_dodge_grants_iframes_only_inside_the_data_window() -> void:
 	assert_false(dodge.is_rolling(), "the roll must end on its duration")
 
 
+func test_dodge_iframes_block_damage_until_the_window_ends() -> void:
+	var health: Health = _health()
+	var dodge: Dodge = _dodge()
+	health.bind_dodge(dodge)
+	assert_true(dodge.try_dodge())
+	assert_false(dodge.is_invulnerable(), "the roll starts before its i-frames")
+	assert_true(health.damage(), "a hit before the i-frames must land")
+	health.advance(health.hit_invulnerability)
+	var before: int = health.hearts
+	dodge.advance(dodge.invulnerability_start_seconds)
+	assert_true(dodge.is_invulnerable())
+	assert_false(health.damage(), "a hit inside the roll i-frames must not land")
+	assert_eq(health.hearts, before, "the roll must keep every heart")
+	dodge.advance(dodge.invulnerability_end_seconds - dodge.invulnerability_start_seconds + EPSILON)
+	assert_false(dodge.is_invulnerable(), "the i-frames end at their data-defined end")
+	health.advance(dodge.invulnerability_end_seconds)
+	assert_false(health.is_invulnerable(), "the roll must not outlast its i-frames")
+	assert_true(health.damage(), "a hit after the i-frames must land")
+	assert_eq(health.hearts, before - 1)
+
+
 func test_dodge_cooldown_is_data_defined_and_blocks_a_second_roll() -> void:
 	var dodge: Dodge = _dodge()
 	assert_true(dodge.try_dodge())
@@ -157,6 +178,16 @@ func test_arena_wires_health_dodge_and_respawn() -> void:
 	assert_eq(arena.health.max_hearts, int(_health_config()["health"]["maxHearts"]))
 	assert_true(arena.try_dodge(), "the arena must expose the dodge")
 	assert_false(arena.try_dodge(), "the arena must respect the cooldown")
+
+
+func test_arena_roll_blocks_damage() -> void:
+	var arena: Arena = load(ARENA_PATH).instantiate() as Arena
+	add_child_autofree(arena)
+	assert_eq(arena.health.dodge, arena.dodge, "the arena must bind the roll to the hearts")
+	assert_true(arena.try_dodge())
+	arena.dodge.advance(arena.dodge.invulnerability_start_seconds)
+	assert_false(arena.health.damage(), "a hit inside the arena roll must not land")
+	assert_eq(arena.health.hearts, arena.health.max_hearts)
 
 
 func _health() -> Health:

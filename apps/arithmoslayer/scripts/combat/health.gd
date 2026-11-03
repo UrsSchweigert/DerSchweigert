@@ -3,8 +3,9 @@ extends Node
 ## Hearts-style health with post-hit invulnerability frames.
 ##
 ## Hearts are whole units. [method damage] costs hearts unless the hero is still
-## invulnerable from the previous hit, [method heal] tops them back up, and
-## [method restore] refills every heart after a respawn. Defeat is a signal, not
+## invulnerable from the previous hit or is inside a bound [Dodge] roll's
+## i-frames, [method heal] tops them back up, and [method restore] refills every
+## heart after a respawn. Defeat is a signal, not
 ## a game-over state: [Respawn] reacts to it and keeps the run's earned items.
 
 signal hearts_changed(hearts: int, max_hearts: int)
@@ -18,6 +19,10 @@ const DEFAULT_HIT_INVULNERABILITY: float = 0.8
 var max_hearts: int = DEFAULT_MAX_HEARTS
 var hearts: int = DEFAULT_STARTING_HEARTS
 var hit_invulnerability: float = DEFAULT_HIT_INVULNERABILITY
+
+## Optional dodge roll whose i-frames also protect the hero. Bind it so a roll
+## blocks damage for its data-defined window.
+var dodge: Dodge = null
 
 var _invulnerable_left: float = 0.0
 var _defeated_announced: bool = false
@@ -54,10 +59,15 @@ func apply_config(config: Dictionary) -> void:
 	hearts_changed.emit(hearts, max_hearts)
 
 
+## Binds [param target] so its roll i-frames protect the hearts.
+func bind_dodge(target: Dodge) -> void:
+	dodge = target
+
+
 ## Costs [param amount] hearts and starts the hit invulnerability. Returns true
 ## when the hit landed.
 func damage(amount: int = 1) -> bool:
-	if amount <= 0 or _invulnerable_left > 0.0 or is_defeated():
+	if amount <= 0 or is_invulnerable() or is_defeated():
 		return false
 	hearts = maxi(hearts - amount, 0)
 	_invulnerable_left = hit_invulnerability
@@ -99,8 +109,9 @@ func advance(delta: float) -> void:
 		_invulnerable_left = maxf(_invulnerable_left - delta, 0.0)
 
 
+## Returns true during post-hit i-frames or an active dodge roll window.
 func is_invulnerable() -> bool:
-	return _invulnerable_left > 0.0
+	return _invulnerable_left > 0.0 or (dodge != null and dodge.is_invulnerable())
 
 
 func is_defeated() -> bool:

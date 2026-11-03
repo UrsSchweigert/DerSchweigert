@@ -30,6 +30,7 @@ func _ready() -> void:
 	camera.snap_to_target()
 	camera.make_current()
 	respawn.entrance_position = player.global_position
+	health.bind_dodge(dodge)
 	health.defeated.connect(_on_player_defeated)
 
 
