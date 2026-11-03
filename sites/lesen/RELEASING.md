@@ -38,6 +38,38 @@ remember denial without re-prompting, and suppress haptics under Reduce Motion.
 Verify the final APK's merged permissions as well as native reminder/haptics
 behaviour before release.
 
+## iOS project prerequisites (not release approval)
+
+The checked-in `ios/` shell is generated with the locked Capacitor 8 CLI and
+Swift Package Manager. Restore it with `npm ci`, `npm run copy-assets`, then
+`npx cap sync ios`; do not recreate or hand-edit `project.pbxproj`. The app
+localizations are German and English, and its icon and light/dark splash assets
+come from the existing images under `assets/`.
+
+The app's `PrivacyInfo.xcprivacy` is registered in the App target's Resources
+build phase, not merely present beside the source. It declares the Filesystem
+plugin's documented `NSPrivacyAccessedAPICategoryFileTimestamp` reason `C617.1`
+using Apple's `NSPrivacyAccessedAPITypeReasons` key. Tracking, tracking domains
+and collected data are empty/disabled; recheck declarations against actual
+native API usage whenever plugins change. Resource registration was performed
+using the `xcode` project API already shipped with the locked Capacitor CLI.
+
+An unsigned simulator build can be checked without signing credentials:
+
+```bash
+xcodebuild -project ios/App/App.xcodeproj -scheme App \
+  -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath /tmp/buchstabenzeit-ios CODE_SIGNING_ALLOWED=NO build
+plutil -lint /tmp/buchstabenzeit-ios/Build/Products/Debug-iphonesimulator/App.app/PrivacyInfo.xcprivacy
+```
+
+The generated project uses explicit source build phases. A new Swift file is
+not compiled just because it exists: use an already compiled source file or
+request maintainer-side project registration through supported project tooling.
+This scaffold and unsigned build do not prove native speech, silent-switch
+behaviour, physical-device behaviour, distribution signing or TestFlight/store
+readiness. Those remain separate implementation and external release gates.
+
 ## One-time: create your upload keystore
 
 Google Play uses **Play App Signing**: Google holds the real *app signing key*;
