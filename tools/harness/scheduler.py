@@ -1753,8 +1753,8 @@ class Scheduler:
             base = self.repo.base_head()
             changed = self.repo.changed_paths(issue["base_rev"], base) if issue.get("base_rev") and issue["base_rev"] != base else []
             watched = issue["code_anchors"] + issue["contract_paths"]
-            data = {"changed_since_refinement": [p for p in changed if any(p == w or p.startswith(w.rstrip("/") + "/") for w in watched)][:50],
-                    "anchors_that_do_not_exist_yet": [w for w in watched if not self.repo.path_exists(w)]}
+            data = dict(data, changed_since_refinement=[p for p in changed if any(p == w or p.startswith(w.rstrip("/") + "/") for w in watched)][:50],
+                        anchors_that_do_not_exist_yet=[w for w in watched if not self.repo.path_exists(w)])
             if own:
                 data["your_previous_answer_was_rejected"] = own[-2:]
         return {

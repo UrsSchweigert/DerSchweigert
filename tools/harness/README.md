@@ -614,7 +614,8 @@ owner-merged files. If the acceptance criteria can be met without touching them,
 the worker must do so; otherwise it reports the concrete owner prerequisite.
 Trusted diff enforcement remains unchanged. When a previous refinement crossed
 this boundary, use the decision task's re-refinement option with guidance rather
-than retrying the stale plan. Any optional owner wiring that depends on a new
+than retrying the stale plan. Replanning packets retain that owner guidance
+alongside changed-anchor and missing-file context. Any optional owner wiring that depends on a new
 worker file must land after that file, not before it.
 
 **Descoping.** A plan that cannot finish delivers nothing, so a requirement may be deferred to a named
