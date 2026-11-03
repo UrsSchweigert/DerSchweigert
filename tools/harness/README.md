@@ -304,6 +304,24 @@ merge-queue configurations are not independently verified by this implementation
 and do not substitute for this precondition. The harness never changes GitHub
 protection settings itself.
 
+A required check that has not reported is *missing*, not failing. GitHub refuses
+the merge with 405 in both cases, so the harness separates them by wording: a
+check that is "in progress", "queued" or "expected" simply has not answered yet,
+and the merge waits (up to 30 minutes, no repair budget, no new attempt) until it
+does. Any other refusal is a real failure and costs an attempt. A check that is
+*expected* usually belongs to a job that has not started, such as a gate that
+aggregates other jobs with `needs:`; its check run does not exist until they
+finish.
+
+For the same reason, verifying work that was merged outside the harness
+(`reconcile-completion`) reads the checks on the merge commit first. A gate that
+only triggers on `pull_request` never runs on that commit, so when a required
+check is absent there the harness falls back to the checks on the tested head,
+and only if the merge commit and the head have the identical Git tree id, which
+proves the merged content is byte for byte what was tested. A check that *failed*
+on the merge commit is never overruled by the head, and a differing tree reads
+nothing: both fail closed.
+
 ## Quick start
 
 The shortest path is one command. It checks the environment, asks for the requirements file and the model sources,
