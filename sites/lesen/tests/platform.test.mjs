@@ -15,6 +15,14 @@ import {
   REPORT_FILENAME,
   HAPTIC_CORRECT_PATTERN,
   HAPTIC_INCORRECT_PATTERN,
+  REMINDERS_ENABLED_KEY,
+  REMINDERS_DENIED_KEY,
+  REMINDERS_SCHEDULE_KEY,
+  REMINDER_NOTIFICATION_ID,
+  DEFAULT_REMINDER_HOUR,
+  DEFAULT_REMINDER_MINUTE,
+  REMINDER_TITLE,
+  REMINDER_BODY,
 } from '../static/platform.mjs';
 
 /** Minimal in-memory stand-in for localStorage. */
@@ -25,7 +33,42 @@ function createFakeStore(initial = {}) {
     setItem: (key, value) => {
       data.set(key, String(value));
     },
+    removeItem: (key) => {
+      data.delete(key);
+    },
   };
+}
+
+/**
+ * Fake Capacitor LocalNotifications plugin with call tracking.
+ * @param {{permission?: string, requestResult?: string, failSchedule?: boolean}} [options]
+ */
+function createFakeLocalNotifications({ permission = 'prompt', requestResult, failSchedule = false } = {}) {
+  const calls = { schedule: [], cancel: [], check: 0, request: 0 };
+  const state = { permission };
+  const plugin = {
+    checkPermissions: async () => {
+      calls.check++;
+      return { display: state.permission };
+    },
+    requestPermissions: async () => {
+      calls.request++;
+      if (typeof requestResult === 'string') {
+        state.permission = requestResult;
+      }
+      return { display: state.permission };
+    },
+    schedule: async (payload) => {
+      if (failSchedule) {
+        throw new Error('schedule failed');
+      }
+      calls.schedule.push(payload);
+    },
+    cancel: async (payload) => {
+      calls.cancel.push(payload);
+    },
+  };
+  return { calls, state, plugin };
 }
 
 /**
@@ -398,6 +441,254 @@ test('web reminders: unsupported, denied and no-ops without touching Notificatio
       globalThis.Notification = previous;
     }
   }
+});
+
+test('web reminders: off by default and the parental gate blocks scheduling', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'granted' });
+  const store = createFakeStore();
+  const win = {
+    localStorage: store,
+    Capacitor: { Plugins: { LocalNotifications: fake.plugin } },
+  };
+  const reminders = createWebReminders({ window: win, store });
+
+  assert.equal(reminders.kind, 'native');
+  assert.equal(reminders.isSupported(), true);
+  assert.equal(reminders.isEnabled(), false);
+  assert.equal(reminders.status(), 'off');
+  assert.equal(store.getItem(REMINDERS_ENABLED_KEY), null);
+
+  assert.equal(await reminders.schedule({ hour: 8, minute: 30 }), 'gated');
+  assert.equal(fake.calls.schedule.length, 0);
+  assert.equal(fake.calls.check, 0);
+  assert.equal(fake.calls.request, 0);
+  assert.equal(store.getItem(REMINDERS_SCHEDULE_KEY), null);
+});
+
+test('web reminders: enabling schedules one inexact daily reminder', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'granted' });
+  const store = createFakeStore();
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store,
+  });
+
+  assert.equal(await reminders.setEnabled(true), true);
+  assert.equal(reminders.isEnabled(), true);
+  assert.equal(store.getItem(REMINDERS_ENABLED_KEY), 'true');
+
+  assert.equal(
+    await reminders.schedule({ hour: 7, minute: 15, title: 'Los', body: 'Lies weiter' }),
+    'scheduled',
+  );
+
+  assert.equal(fake.calls.check, 1);
+  assert.equal(fake.calls.request, 0);
+  assert.equal(fake.calls.schedule.length, 1);
+
+  const [notification] = fake.calls.schedule[0].notifications;
+  assert.equal(fake.calls.schedule[0].notifications.length, 1);
+  assert.equal(notification.id, REMINDER_NOTIFICATION_ID);
+  assert.equal(notification.title, 'Los');
+  assert.equal(notification.body, 'Lies weiter');
+  assert.deepEqual(notification.schedule.on, { hour: 7, minute: 15 });
+  assert.equal(notification.schedule.repeats, true);
+  assert.equal(notification.schedule.isExactNotification, false);
+
+  assert.equal(reminders.status(), 'scheduled');
+  assert.deepEqual(JSON.parse(store.getItem(REMINDERS_SCHEDULE_KEY)), {
+    hour: 7,
+    minute: 15,
+    title: 'Los',
+    body: 'Lies weiter',
+  });
+});
+
+test('web reminders: missing or invalid options schedule the default daily time', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'granted' });
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store: createFakeStore(),
+  });
+
+  await reminders.setEnabled(true);
+  assert.equal(await reminders.schedule(), 'scheduled');
+  assert.equal(await reminders.schedule({ hour: 99, minute: 'x', title: '  ' }), 'scheduled');
+
+  for (const payload of fake.calls.schedule) {
+    const [notification] = payload.notifications;
+    assert.deepEqual(notification.schedule.on, {
+      hour: DEFAULT_REMINDER_HOUR,
+      minute: DEFAULT_REMINDER_MINUTE,
+    });
+    assert.equal(notification.title, REMINDER_TITLE);
+    assert.equal(notification.body, REMINDER_BODY);
+  }
+});
+
+test('web reminders: a denial is remembered and never prompts again', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'prompt', requestResult: 'denied' });
+  const store = createFakeStore();
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store,
+  });
+
+  await reminders.setEnabled(true);
+  assert.equal(await reminders.requestPermission(), 'denied');
+  assert.equal(fake.calls.request, 1);
+  assert.equal(store.getItem(REMINDERS_DENIED_KEY), 'true');
+
+  assert.equal(await reminders.requestPermission(), 'denied');
+  assert.equal(fake.calls.request, 1);
+
+  assert.equal(await reminders.schedule({ hour: 9 }), 'denied');
+  assert.equal(fake.calls.request, 1);
+  assert.equal(fake.calls.schedule.length, 0);
+  assert.equal(reminders.status(), 'denied');
+});
+
+test('web reminders: a permission granted in the system settings clears a denial', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'prompt', requestResult: 'denied' });
+  const store = createFakeStore();
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store,
+  });
+
+  await reminders.setEnabled(true);
+  assert.equal(await reminders.requestPermission(), 'denied');
+  assert.equal(store.getItem(REMINDERS_DENIED_KEY), 'true');
+
+  fake.state.permission = 'granted';
+  assert.equal(await reminders.requestPermission(), 'granted');
+  assert.equal(fake.calls.request, 1);
+  assert.equal(store.getItem(REMINDERS_DENIED_KEY), null);
+  assert.equal(await reminders.schedule({ hour: 9 }), 'scheduled');
+});
+
+test('web reminders: an OS-level denial is remembered without prompting', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'denied' });
+  const store = createFakeStore();
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store,
+  });
+
+  await reminders.setEnabled(true);
+  assert.equal(await reminders.schedule({ hour: 9 }), 'denied');
+  assert.equal(fake.calls.request, 0);
+  assert.equal(store.getItem(REMINDERS_DENIED_KEY), 'true');
+});
+
+test('web reminders: disabling cancels the pending reminder and clears the schedule', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'granted' });
+  const store = createFakeStore();
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store,
+  });
+
+  await reminders.setEnabled(true);
+  assert.equal(await reminders.schedule({ hour: 18 }), 'scheduled');
+  assert.equal(await reminders.setEnabled(false), false);
+
+  assert.equal(reminders.isEnabled(), false);
+  assert.equal(store.getItem(REMINDERS_ENABLED_KEY), 'false');
+  assert.equal(store.getItem(REMINDERS_SCHEDULE_KEY), null);
+  assert.deepEqual(fake.calls.cancel, [
+    { notifications: [{ id: REMINDER_NOTIFICATION_ID }] },
+  ]);
+  assert.equal(reminders.status(), 'off');
+});
+
+test('web reminders: restore reapplies the stored schedule without prompting', async () => {
+  const store = createFakeStore();
+  const first = createFakeLocalNotifications({ permission: 'granted' });
+  const beforeRestart = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: first.plugin } } },
+    store,
+  });
+
+  await beforeRestart.setEnabled(true);
+  assert.equal(await beforeRestart.schedule({ hour: 6, minute: 45 }), 'scheduled');
+
+  const afterRestart = createFakeLocalNotifications({ permission: 'granted' });
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: afterRestart.plugin } } },
+    store,
+  });
+
+  assert.equal(reminders.isEnabled(), true);
+  assert.equal(reminders.status(), 'scheduled');
+  assert.equal(await reminders.restore(), 'scheduled');
+  assert.equal(afterRestart.calls.request, 0);
+  assert.equal(afterRestart.calls.schedule.length, 1);
+
+  const [notification] = afterRestart.calls.schedule[0].notifications;
+  assert.equal(notification.id, REMINDER_NOTIFICATION_ID);
+  assert.deepEqual(notification.schedule.on, { hour: 6, minute: 45 });
+  assert.equal(notification.schedule.isExactNotification, false);
+});
+
+test('web reminders: restore stays off without an enabled, stored schedule', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'granted' });
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store: createFakeStore(),
+  });
+
+  assert.equal(await reminders.restore(), 'off');
+  assert.equal(fake.calls.schedule.length, 0);
+  assert.equal(fake.calls.request, 0);
+});
+
+test('web reminders: restore never prompts when permission is missing', async () => {
+  const store = createFakeStore({
+    [REMINDERS_ENABLED_KEY]: 'true',
+    [REMINDERS_SCHEDULE_KEY]: JSON.stringify({ hour: 8, minute: 0 }),
+  });
+  const fake = createFakeLocalNotifications({ permission: 'prompt' });
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store,
+  });
+
+  assert.equal(await reminders.restore(), 'denied');
+  assert.equal(fake.calls.request, 0);
+  assert.equal(fake.calls.schedule.length, 0);
+  assert.equal(store.getItem(REMINDERS_DENIED_KEY), null);
+});
+
+test('web reminders: a failing plugin reports failure and keeps no schedule', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'granted', failSchedule: true });
+  const store = createFakeStore();
+  const reminders = createWebReminders({
+    window: { Capacitor: { Plugins: { LocalNotifications: fake.plugin } } },
+    store,
+  });
+
+  await reminders.setEnabled(true);
+  assert.equal(await reminders.schedule({ hour: 8 }), 'failed');
+  assert.equal(store.getItem(REMINDERS_SCHEDULE_KEY), null);
+  assert.equal(reminders.status(), 'off');
+});
+
+test('platform adapter: reminders use the injected window plugin and store', async () => {
+  const fake = createFakeLocalNotifications({ permission: 'granted' });
+  const store = createFakeStore();
+  const win = {
+    localStorage: store,
+    Capacitor: { Plugins: { LocalNotifications: fake.plugin } },
+  };
+  const platform = createPlatformAdapter({ window: win });
+
+  assert.equal(platform.reminders.isSupported(), true);
+  assert.equal(platform.reminders.isEnabled(), false);
+  await platform.reminders.setEnabled(true);
+  assert.equal(store.getItem(REMINDERS_ENABLED_KEY), 'true');
+  assert.equal(await platform.reminders.schedule({ hour: 19 }), 'scheduled');
+  assert.equal(fake.calls.schedule.length, 1);
 });
 
 test('web haptics: unsupported no-ops', async () => {
