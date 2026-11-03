@@ -31,6 +31,22 @@ export const MAX_CARD_PRACTICE_MS = 5 * 60 * 1000;
 /** Fixed column order of the exported report. */
 const REPORT_COLUMNS = ['card', 'correct', 'incorrect', 'attempts', 'accuracy_percent', 'practice_seconds'];
 
+/** Browser vibration pattern for a correct answer: one short pulse. */
+export const HAPTIC_CORRECT_PATTERN = [40];
+
+/** Browser vibration pattern for an incorrect answer: two pulses. */
+export const HAPTIC_INCORRECT_PATTERN = [40, 60, 40];
+
+/**
+ * Whether the user asked the operating system to reduce motion.
+ * Mirrors the check the star animation already uses.
+ * @param {Window} [win] - Window object that may expose matchMedia.
+ * @returns {boolean} true when reduced motion is requested.
+ */
+export function prefersReducedMotion(win) {
+  return Boolean(win?.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+}
+
 /**
  * Whether a parsed JSON value is a plain object (not an array or null).
  * @param {unknown} value parsed value
@@ -274,17 +290,46 @@ export function createWebReminders(env = {}) {
 }
 
 /**
- * Web haptics capability. Browsers get no vibration so the current silent
- * behaviour is preserved.
- * @param {Object} [env] - Platform environment (unused on web).
+ * Haptics capability. Grading feedback uses the Capacitor Haptics plugin when
+ * present, otherwise the browser Vibration API, and stays silent when the
+ * platform offers neither or the user asked for reduced motion.
+ * @param {Object} [env] - Platform environment with an optional window/navigator.
  * @returns {Object} Haptics capability.
  */
 export function createWebHaptics(env = {}) {
+  const win = env.window ?? (typeof window === 'undefined' ? undefined : window);
+  const plugin = win?.Capacitor?.Plugins?.Haptics ?? null;
+  const navigator = env.navigator ?? win?.navigator;
+  const canVibrate = typeof navigator?.vibrate === 'function';
+  const supported = Boolean(plugin) || canVibrate;
+
+  async function gradeNative(correct) {
+    if (typeof plugin.notification === 'function') {
+      await plugin.notification({ type: correct ? 'SUCCESS' : 'ERROR' });
+      return 'native';
+    }
+    await plugin.impact?.({ style: correct ? 'MEDIUM' : 'HEAVY' });
+    return 'native';
+  }
+
   return {
-    kind: 'web',
-    isSupported: () => false,
+    kind: plugin ? 'native' : 'web',
+    isSupported: () => supported,
     impact: async () => UNSUPPORTED,
     vibrate: async () => UNSUPPORTED,
+    async grade(correct) {
+      if (!supported) {
+        return UNSUPPORTED;
+      }
+      if (prefersReducedMotion(win)) {
+        return 'suppressed';
+      }
+      if (plugin) {
+        return gradeNative(correct);
+      }
+      navigator.vibrate(correct ? HAPTIC_CORRECT_PATTERN : HAPTIC_INCORRECT_PATTERN);
+      return 'vibrate';
+    },
   };
 }
 

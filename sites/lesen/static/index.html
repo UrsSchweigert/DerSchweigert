@@ -2079,6 +2079,9 @@
                 queue.push(card);
                 byId('feedback').textContent = queue.length === 1 ? tr('feedback.try_again') : tr('feedback.try_later');
             }
+            // Distinct tactile feedback per grade; the adapter suppresses it
+            // under Reduce Motion and stays silent where haptics are absent.
+            window.__platform.haptics.grade?.(correct)?.catch?.(() => {});
             renderCard();
         }
 

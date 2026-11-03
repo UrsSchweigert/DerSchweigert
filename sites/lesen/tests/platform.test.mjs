@@ -8,10 +8,13 @@ import {
   createWebApp,
   createWebExport,
   createPlatformAdapter,
+  prefersReducedMotion,
   UNSUPPORTED,
   PRACTICE_TIME_KEY,
   MAX_CARD_PRACTICE_MS,
   REPORT_FILENAME,
+  HAPTIC_CORRECT_PATTERN,
+  HAPTIC_INCORRECT_PATTERN,
 } from '../static/platform.mjs';
 
 /** Minimal in-memory stand-in for localStorage. */
@@ -405,6 +408,114 @@ test('web haptics: unsupported no-ops', async () => {
   assert.equal(await haptics.vibrate(100), UNSUPPORTED);
 });
 
+test('web haptics: grade without a plugin or vibration stays unsupported', async () => {
+  const haptics = createWebHaptics({ window: {} });
+
+  assert.equal(haptics.isSupported(), false);
+  assert.equal(await haptics.grade(true), UNSUPPORTED);
+  assert.equal(await haptics.grade(false), UNSUPPORTED);
+});
+
+test('web haptics: grade sends distinct native feedback per grade', async () => {
+  const calls = [];
+  const win = {
+    Capacitor: {
+      Plugins: {
+        Haptics: {
+          notification: (options) => calls.push(['notification', options.type]),
+          impact: (options) => calls.push(['impact', options.style]),
+        },
+      },
+    },
+  };
+  const haptics = createWebHaptics({ window: win });
+
+  assert.equal(haptics.kind, 'native');
+  assert.equal(haptics.isSupported(), true);
+  assert.equal(await haptics.grade(true), 'native');
+  assert.equal(await haptics.grade(false), 'native');
+  assert.deepEqual(calls, [
+    ['notification', 'SUCCESS'],
+    ['notification', 'ERROR'],
+  ]);
+});
+
+test('web haptics: grade falls back to distinct impact styles without notification support', async () => {
+  const calls = [];
+  const win = {
+    Capacitor: {
+      Plugins: {
+        Haptics: {
+          impact: (options) => calls.push(options.style),
+        },
+      },
+    },
+  };
+  const haptics = createWebHaptics({ window: win });
+
+  assert.equal(await haptics.grade(true), 'native');
+  assert.equal(await haptics.grade(false), 'native');
+  assert.deepEqual(calls, ['MEDIUM', 'HEAVY']);
+});
+
+test('web haptics: grade vibrates distinct browser patterns per grade', async () => {
+  const patterns = [];
+  const win = {
+    navigator: {
+      vibrate: (pattern) => {
+        patterns.push(pattern);
+        return true;
+      },
+    },
+  };
+  const haptics = createWebHaptics({ window: win });
+
+  assert.equal(haptics.kind, 'web');
+  assert.equal(haptics.isSupported(), true);
+  assert.equal(await haptics.grade(true), 'vibrate');
+  assert.equal(await haptics.grade(false), 'vibrate');
+  assert.deepEqual(patterns, [HAPTIC_CORRECT_PATTERN, HAPTIC_INCORRECT_PATTERN]);
+  assert.notDeepEqual(HAPTIC_CORRECT_PATTERN, HAPTIC_INCORRECT_PATTERN);
+});
+
+test('web haptics: grade is suppressed under Reduce Motion', async () => {
+  const calls = [];
+  const win = {
+    matchMedia: (query) => ({ matches: query === '(prefers-reduced-motion: reduce)' }),
+    Capacitor: {
+      Plugins: {
+        Haptics: {
+          notification: (options) => calls.push(['notification', options.type]),
+        },
+      },
+    },
+    navigator: {
+      vibrate: (pattern) => calls.push(['vibrate', pattern]),
+    },
+  };
+  const haptics = createWebHaptics({ window: win });
+
+  assert.equal(prefersReducedMotion(win), true);
+  assert.equal(await haptics.grade(true), 'suppressed');
+  assert.equal(await haptics.grade(false), 'suppressed');
+  assert.deepEqual(calls, []);
+});
+
+test('web haptics: grade is not suppressed when Reduce Motion is off', async () => {
+  const patterns = [];
+  const win = {
+    matchMedia: () => ({ matches: false }),
+    navigator: {
+      vibrate: (pattern) => patterns.push(pattern),
+    },
+  };
+  const haptics = createWebHaptics({ window: win });
+
+  assert.equal(prefersReducedMotion(win), false);
+  assert.equal(await haptics.grade(true), 'vibrate');
+  assert.deepEqual(patterns, [HAPTIC_CORRECT_PATTERN]);
+});
+
 test('platform adapter: exposes the four capabilities plus app without Capacitor', () => {
   const store = createFakeStore();
   const win = createFakeWindow({ voices: [{ lang: 'de-DE' }] });
@@ -422,6 +533,19 @@ test('platform adapter: exposes the four capabilities plus app without Capacitor
   assert.equal(typeof handle.remove, 'function');
   assert.doesNotThrow(() => handle.remove());
   assert.doesNotThrow(() => platform.app.exitApp());
+});
+
+test('platform adapter: haptics grade uses the injected window', async () => {
+  const patterns = [];
+  const win = {
+    localStorage: createFakeStore(),
+    navigator: { vibrate: (pattern) => patterns.push(pattern) },
+  };
+  const platform = createPlatformAdapter({ window: win });
+
+  assert.equal(platform.haptics.isSupported(), true);
+  assert.equal(await platform.haptics.grade(false), 'vibrate');
+  assert.deepEqual(patterns, [HAPTIC_INCORRECT_PATTERN]);
 });
 
 test('platform adapter: forwards listeners and exitApp to a Capacitor App plugin', () => {
