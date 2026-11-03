@@ -50,6 +50,11 @@ TRANSIENT_GITHUB = ("rate limit", "timeout", "timed out", "502", "503", "504", "
 # GitHub refuses a merge with 405 while a required check is still running. That is neither a conflict nor a failure, so
 # the merge simply waits: no repair budget, no stronger model, no issue churn.
 MERGE_PENDING = ("in progress", "queued", "waiting for status", "expected \u2014 waiting", "expected - waiting")
+# A required check produced by a job that has not started yet does not exist, and a ruleset words that refusal
+# "Required status check \"x\" is expected." with no "waiting" suffix, singular or as "N of M ... are expected".
+# The check name varies, so the sentence is matched rather than a bare "expected", which also occurs in unrelated
+# refusals ("merge commit is expected to be signed") that are real failures.
+MERGE_CHECK_EXPECTED = re.compile(r"required status checks?\b[^\n]{0,200}?\b(?:is|are) expected")
 MERGE_PENDING_TIMEOUT_S = 30 * 60
 MAX_DECISION_TEXT = 2000
 HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result",
@@ -1472,7 +1477,7 @@ class Scheduler:
             return
         except GitHubError as exc:
             text = str(exc).lower()
-            if any(k in text for k in MERGE_PENDING):
+            if any(k in text for k in MERGE_PENDING) or MERGE_CHECK_EXPECTED.search(text):
                 issue["merge_pending"] = issue.get("merge_pending", 0) + 1
                 if issue.get("merge_pending_head") != issue["head_rev"]:
                     issue.update(merge_pending_since=now, merge_pending_head=issue["head_rev"])

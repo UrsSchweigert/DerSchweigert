@@ -207,6 +207,24 @@ class GhCli(Client):
         data = self._json(["api", "repos/%s/pulls/%d" % (self.repo, number)])
         return bool(isinstance(data, dict) and data.get("merged"))
 
+    def _checks_at(self, revision: str) -> Dict[str, str]:
+        """Completed check runs and commit statuses for one revision, by context name. Both are reads: `gh api` posts
+        whenever a field is passed, so the method is explicit."""
+        runs = self._json(["api", "-X", "GET", "repos/%s/commits/%s/check-runs" % (self.repo, revision), "-f", "per_page=100"])
+        statuses = self._json(["api", "-X", "GET", "repos/%s/commits/%s/status" % (self.repo, revision)])
+        conclusions: Dict[str, str] = {}
+        for check in (runs or {}).get("check_runs", []):
+            if check.get("status") == "completed":
+                conclusions[check.get("name", "")] = check.get("conclusion", "")
+        for status in (statuses or {}).get("statuses", []):
+            conclusions[status.get("context", "")] = status.get("state", "")
+        return conclusions
+
+    def _tree_of(self, revision: str) -> str:
+        """The tree id of a commit: the identity of its content, independent of its history."""
+        commit = self._json(["api", "-X", "GET", "repos/%s/git/commits/%s" % (self.repo, revision)])
+        return (((commit or {}).get("tree") or {}).get("sha") or "").lower()
+
     def completion_evidence(self, number: int, required_checks: List[str]) -> Dict[str, Any]:
         pr = self._json(["api", "repos/%s/pulls/%d" % (self.repo, number)])
         if not isinstance(pr, dict):
@@ -214,24 +232,29 @@ class GhCli(Client):
         merge_sha = (pr.get("merge_commit_sha") or "").lower()
         head = pr.get("head") or {}
         base = pr.get("base") or {}
+        head_sha = (head.get("sha") or "").lower()
         if not merge_sha:
             raise GitHubError("pull request has no merge commit")
-        runs = self._json(["api", "repos/%s/commits/%s/check-runs" % (self.repo, merge_sha), "-f", "per_page=100"])
-        statuses = self._json(["api", "repos/%s/commits/%s/status" % (self.repo, merge_sha)])
-        reviews = self._json(["api", "repos/%s/pulls/%d/reviews" % (self.repo, number), "-f", "per_page=100"])
-        check_runs = (runs or {}).get("check_runs", [])
-        status_contexts = (statuses or {}).get("statuses", [])
-        conclusions: Dict[str, str] = {}
-        for check in check_runs:
-            if check.get("status") == "completed":
-                conclusions[check.get("name", "")] = check.get("conclusion", "")
-        for status in status_contexts:
-            conclusions[status.get("context", "")] = status.get("state", "")
-        missing = [name for name in required_checks if conclusions.get(name) not in ("success",)]
+        # The merge commit is the primary evidence: it is the revision the base branch actually carries.
+        evidence: Dict[str, tuple] = {name: (conclusion, merge_sha) for name, conclusion in self._checks_at(merge_sha).items()}
+        absent = [name for name in required_checks if name not in evidence]
+        if absent and head_sha:
+            # A gate that only triggers on pull_request events never runs on the merge commit, so a legitimately merged
+            # pull request would be unverifiable. The tested head carries those runs, and an identical tree id proves
+            # the merged content is byte for byte the content they ran on. Only contexts the merge commit never
+            # reported are read from the head: a check that failed there stays failed, and a differing tree reads
+            # nothing at all.
+            merge_tree = self._tree_of(merge_sha)
+            if merge_tree and merge_tree == self._tree_of(head_sha):
+                for name, conclusion in self._checks_at(head_sha).items():
+                    if name in absent:
+                        evidence[name] = (conclusion, head_sha)
+        missing = [name for name in required_checks if evidence.get(name, ("", ""))[0] != "success"]
         if missing:
-            raise GitHubError("required checks are missing or not successful on merge commit: %s" % ", ".join(missing))
+            raise GitHubError("required checks are missing or not successful on the merged content: %s" % ", ".join(missing))
         if not required_checks:
             raise GitHubError("effective branch rules do not provide required checks to verify")
+        reviews = self._json(["api", "-X", "GET", "repos/%s/pulls/%d/reviews" % (self.repo, number), "-f", "per_page=100"])
         author = ((pr.get("user") or {}).get("login") or "").lower()
         latest_reviews: Dict[str, Dict[str, Any]] = {}
         for review in reviews or []:
@@ -243,11 +266,12 @@ class GhCli(Client):
         return {
             "number": pr["number"], "state": pr.get("state"), "merged": bool(pr.get("merged_at")),
             "merged_at": pr.get("merged_at"), "merge_commit_sha": merge_sha,
-            "head_sha": ((head.get("sha") or "")).lower(), "head_ref": head.get("ref", ""),
+            "head_sha": head_sha, "head_ref": head.get("ref", ""),
             "head_repository": ((head.get("repo") or {}).get("full_name") or ""),
             "base_sha": ((base.get("sha") or "")).lower(), "base_ref": base.get("ref", ""),
             "author": author, "approvals": approvals,
-            "checks": [{"name": name, "conclusion": conclusion} for name, conclusion in sorted(conclusions.items())],
+            "checks": [{"name": name, "conclusion": conclusion, "revision": revision}
+                       for name, (conclusion, revision) in sorted(evidence.items())],
             "required_checks": list(required_checks),
         }
 
