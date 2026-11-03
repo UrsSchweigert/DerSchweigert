@@ -21,9 +21,9 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          paths="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR/files?per_page=100" --jq '.[].filename')"
+          paths="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR/files?per_page=100" --jq '.[] | .filename, (.previous_filename // empty)')"
           needed=false
-          if grep -Eq '^(sites/lesen/|\.github/workflows/lesen-native\.yml$)' <<< "$paths"; then
+          if [ -z "$paths" ] || grep -Eq '^(sites/lesen/|\.github/workflows/lesen-native\.yml$)' <<< "$paths"; then
             needed=true
           fi
           echo "needed=$needed" >> "$GITHUB_OUTPUT"
