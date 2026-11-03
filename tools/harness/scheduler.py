@@ -1768,6 +1768,7 @@ class Scheduler:
             "code_anchors": issue["code_anchors"], "dependencies": issue["deps"],
             "validation_commands": issue["validation_commands"] or phase["validation"],             "working_directory": issue.get("working_directory") or phase.get("working_directory", "."),
             "path_allowlist": phase["path_allowlist"],
+            "escalation_paths": self._plan()["policy"]["escalation_paths"],
             # The cap is enforced without mercy, so it must be stated where the worker reads it.
             "diff_budget": {"max_added_lines": self._plan()["policy"]["diff_size_cap"],
                             "rule": "Keep the change inside this many added lines. If the work cannot fit, stop and report "

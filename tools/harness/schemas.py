@@ -118,6 +118,7 @@ TASK_PACKET = {
     "validation_commands": [str],
     "working_directory?": str,
     "path_allowlist": [str],
+    "escalation_paths?": [str],
     # The hard line budget trusted code enforces on the diff, stated where the worker reads it.
     "diff_budget?": {"max_added_lines": int, "rule": str},
     "untrusted_data": str,
