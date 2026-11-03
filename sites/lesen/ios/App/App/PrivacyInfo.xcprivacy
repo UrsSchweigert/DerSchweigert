@@ -9,6 +9,7 @@
 			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
+				<!-- Filesystem reads metadata only for files in the app's own container. -->
 				<string>C617.1</string>
 			</array>
 		</dict>
