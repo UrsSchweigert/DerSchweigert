@@ -83,6 +83,9 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
             added.append(doc["issue_id"])
             continue
         if existing is not None:
+            if (existing.get("plan_id") == plan_id and _unchanged(existing, doc)
+                    and store.state("issue", doc["issue_id"]) == "Done"):
+                continue  # preserve completed work and its exact historical evidence on a plan revision
             _adopt_or_refuse(store, existing, plan_id)
             if _unchanged(existing, doc):
                 if base_rev and existing.get("base_rev") != base_rev:

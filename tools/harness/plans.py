@@ -307,6 +307,20 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
             problems.append("policy.model_sources has unknown sources: %s" % unknown)
         elif any(not plan["policy"]["model_tiers"].get(tier) for tier in models.TIERS):
             problems.append("policy.model_tiers has an empty tier for the chosen model sources %s" % sources)
+    routing = plan["policy"].get("model_routing")
+    if routing:
+        tiers = plan["policy"]["model_tiers"]
+        approved = {m for tier in models.TIERS for m in models._candidates(tier, tiers)}
+        for key in ("routine_models", "escalation_models"):
+            choices = routing[key]
+            if not choices or not set(choices) <= approved:
+                problems.append("policy.model_routing.%s must name non-empty approved models" % key)
+        if len(set(routing["routine_models"])) < 2:
+            problems.append("policy.model_routing.routine_models needs two distinct models for independent review")
+        if routing["refiner"] not in models._candidates("strong", tiers):
+            problems.append("policy.model_routing.refiner must be an approved strong model")
+        if not models.routed_tiers(plan["policy"], "overseer")["strong"]:
+            problems.append("policy.model_routing.escalation_models needs an approved strong model")
     assets = plan["policy"].get("assets") or {}
     problem = assets_output_dir_problem(assets.get("output_dir"))
     if problem:

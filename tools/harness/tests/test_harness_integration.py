@@ -645,7 +645,7 @@ def test_a_plural_required_checks_message_also_waits(tmp_path):
 
 
 def test_required_checks_that_never_finish_block_with_their_own_reason(tmp_path, monkeypatch):
-    monkeypatch.setattr(scheduler, "MERGE_PENDING_LIMIT", 2)
+    monkeypatch.setattr(scheduler, "MERGE_PENDING_TIMEOUT_S", 15)
     env = flaky_env(tmp_path)
     env.publisher.merge_errors = [GitHubError('Required status check "test-ffm" is in progress. (HTTP 405)')] * 10
     env.start()

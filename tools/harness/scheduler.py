@@ -50,7 +50,7 @@ TRANSIENT_GITHUB = ("rate limit", "timeout", "timed out", "502", "503", "504", "
 # GitHub refuses a merge with 405 while a required check is still running. That is neither a conflict nor a failure, so
 # the merge simply waits: no repair budget, no stronger model, no issue churn.
 MERGE_PENDING = ("in progress", "queued", "waiting for status", "expected \u2014 waiting", "expected - waiting")
-MERGE_PENDING_LIMIT = 40
+MERGE_PENDING_TIMEOUT_S = 30 * 60
 MAX_DECISION_TEXT = 2000
 HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result",
                   "overseer": "the overseer gave no usable decision"}
@@ -1474,9 +1474,12 @@ class Scheduler:
             text = str(exc).lower()
             if any(k in text for k in MERGE_PENDING):
                 issue["merge_pending"] = issue.get("merge_pending", 0) + 1
-                if issue["merge_pending"] >= MERGE_PENDING_LIMIT:
-                    issue["blocked_reason"] = "required checks did not finish after %d merge attempts: %s" % (
-                        issue["merge_pending"], str(exc)[:200])
+                if issue.get("merge_pending_head") != issue["head_rev"]:
+                    issue.update(merge_pending_since=now, merge_pending_head=issue["head_rev"])
+                waited = now - issue["merge_pending_since"]
+                if waited >= MERGE_PENDING_TIMEOUT_S:
+                    issue["blocked_reason"] = "required checks did not finish after %d seconds: %s" % (
+                        waited, str(exc)[:200])
                     self.store.put_issue(issue)
                     self._block(issue, now)
                     return
@@ -1502,6 +1505,8 @@ class Scheduler:
             return
         if issue.get("merge_pending"):
             issue["merge_pending"] = 0
+            issue.pop("merge_pending_since", None)
+            issue.pop("merge_pending_head", None)
             self.store.put_issue(issue)
         self.store.add_evidence(iid, "merge", issue["head_rev"], self.repo.base_head(), "merged",
                                 {"mode": merged.get("mode"), "simulated": bool(merged.get("simulated"))}, now)
@@ -1612,6 +1617,8 @@ class Scheduler:
             return False
         if issue.get("analysis_pending") or issue.get("consult_pending"):
             return False
+        if self._plan()["policy"].get("model_routing"):
+            return True
         return self._declared_tier(issue) in ("standard", "strong")
 
     def _ready_to_work(self, issue: Dict[str, Any], now: float) -> bool:
@@ -1782,6 +1789,12 @@ class Scheduler:
                                   strong_used=issue["strong_attempts"], strong_budget=budgets["strong_attempts_per_issue"])
         avoid = issue.get("implementer_model") if role == "reviewer" else None
         try:
+            routed = bool(policy.get("model_routing"))
+            if routed:
+                if self.available_models is None:
+                    raise ValueError("the approved role routing requires verified model availability")
+                escalated = any(issue.get(key, 0) for key in ("repair_failures", "consults", "analyses", "overseer_rounds"))
+                policy = dict(policy, model_tiers=models.routed_tiers(policy, role, escalated))
             choices = schemas.validate(issue.get("model_choices", {}), schemas.MODEL_CHOICES, "model_choices")
             broker.assert_no_secrets(choices, "model_choices")
             choice = choices.get(role)
@@ -1790,7 +1803,9 @@ class Scheduler:
             # The implementer's model can change without spending repair budget (a delegator retry), so compare against
             # the model actually in use instead of gating independence on repair_failures.
             review_conflict = bool(choice and role == "reviewer" and choice["model"] == avoid)
-            if choice and not repair and not review_conflict:
+            outside_route = bool(routed and choice and not any(
+                choice["model"] in models._candidates(band, policy["model_tiers"]) for band in models.TIERS))
+            if choice and not repair and not review_conflict and not outside_route:
                 route = models.resolve_choice(choice, policy["model_tiers"], self.available_models, avoid, role=role,
                                               strong_used=issue["strong_attempts"] if role == "implementer" else 0,
                                               strong_budget=budgets["strong_attempts_per_issue"] if role == "implementer" else 1)
@@ -1799,7 +1814,8 @@ class Scheduler:
                 route = models.resolve_model(tier, policy["model_tiers"], self.available_models, avoid)
                 routing_source = "evidence" if choice else "legacy"
                 if choice:
-                    why = "quality failure requires repair" if repair else "the reviewer must not share the implementer's model"
+                    why = ("approved role routing restricts this attempt" if outside_route else
+                           "quality failure requires repair" if repair else "the reviewer must not share the implementer's model")
                     route["note"] = "%s; original choice: %s (%s); %s" % (
                         why, choice["model"], choice["reason"], route["note"])
             if route["routing"] and route["model"] is None:
@@ -1808,6 +1824,8 @@ class Scheduler:
                 route = self._planned_route(issue, route, policy)
                 route = self._split_pressure_route(issue, route, policy, tier)
                 route = self._escalate_after_repeats(issue, route, policy, budgets)
+            if routed and role == "reviewer" and route.get("model") == avoid:
+                raise ValueError("no independent reviewer is available inside the approved role routing")
             if role == "implementer" and route["tier"] == "strong" and issue["strong_attempts"] >= budgets["strong_attempts_per_issue"]:
                 raise ValueError("strong attempt budget exhausted")
         except (ValueError, broker.BrokerRejected) as exc:

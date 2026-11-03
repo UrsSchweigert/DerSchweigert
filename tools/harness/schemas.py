@@ -79,6 +79,7 @@ POLICY = {
     "budgets": dict,
     "model_sources?": [str],
     "model_tiers": dict,
+    "model_routing?": {"routine_models": [str], "refiner": str, "escalation_models": [str]},
     "diff_size_cap": int,
     "assets?": dict,
     "manual_testing?": dict,

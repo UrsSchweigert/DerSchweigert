@@ -200,6 +200,21 @@ def available_in_tier(tier: str, policy_tiers: dict[str, Any], available: list[s
     return [m for m in _candidates(tier, policy_tiers) if available is not None and m in available]
 
 
+def routed_tiers(policy: Dict[str, Any], role: str, escalated: bool = False) -> Dict[str, Any]:
+    """Restrict the approved menu before resolving a role, including automatic fallback paths."""
+    tiers = policy["model_tiers"]
+    routing = policy.get("model_routing")
+    if not routing:
+        return tiers
+    if role == "refiner":
+        allowed = {routing["refiner"]}
+    elif escalated or role in ("delegator", "analyst", "overseer"):
+        allowed = set(routing["escalation_models"])
+    else:
+        allowed = set(routing["routine_models"])
+    return {tier: [model for model in _candidates(tier, tiers) if model in allowed] for tier in TIERS}
+
+
 def model_options(policy_tiers: dict[str, Any], available: list[str] | None) -> list[dict[str, str]]:
     """Expose probed models and approved relative cost bands to the delegator."""
     return [{"model": candidate, "relative_cost": band} for band in TIERS

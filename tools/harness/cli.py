@@ -54,6 +54,7 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
     phases = None
     draft_sources = None
     draft_assets_dir = None
+    draft_routing = None
     if phases_path:
         with open(phases_path, encoding="utf-8") as fh:
             data = json.load(fh)
@@ -61,6 +62,7 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
         draft_sources = data.get("model_sources") if isinstance(data, dict) else None  # the investigator's choice
         assets = data.get("assets") if isinstance(data, dict) else None
         draft_assets_dir = assets.get("output_dir") if isinstance(assets, dict) else None
+        draft_routing = data.get("model_routing") if isinstance(data, dict) else None
     plan_id = plan_id or _slug(requirements)
     latest = store.get_plan(plan_id) if store else None
     version = latest["plan"]["version"] + 1 if latest else 1
@@ -71,6 +73,8 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
         policy = plans.with_assets_dir(plans.DEFAULT_POLICY, chosen_assets_dir)
     if overseer is not None:
         policy = plans.with_overseer(policy or plans.DEFAULT_POLICY, overseer)
+    if draft_routing is not None:
+        policy = dict(policy or plans.DEFAULT_POLICY, model_routing=draft_routing)
     plan = plans.build_plan(plan_id, version, reqs, phases, policy=policy, fixture=fixture,
                             model_sources=model_sources or draft_sources, catalog=catalog, intent=intent)
 
