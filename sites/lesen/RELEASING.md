@@ -22,6 +22,17 @@ Installing the plugins alone is not export verification: test the adapter and
 the native share sheet before release. The plain website remains independent
 of these native dependencies.
 
+P3's locked native prerequisites also include `@capacitor/haptics` and
+`@capacitor/local-notifications`. Android inherits vibration and notification
+restore support from these plugins. The app removes the notification plugin's
+exact-alarm permission: practice reminders use inexact scheduling, not
+exact-alarm settings or prompts. No INTERNET permission is added. Installing
+these dependencies does not enable reminders or request permission; the adapter
+must keep reminders off by default, require the parental gate before prompting,
+remember denial without re-prompting, and suppress haptics under Reduce Motion.
+Verify the final APK's merged permissions as well as native reminder/haptics
+behaviour before release.
+
 ## One-time: create your upload keystore
 
 Google Play uses **Play App Signing**: Google holds the real *app signing key*;
