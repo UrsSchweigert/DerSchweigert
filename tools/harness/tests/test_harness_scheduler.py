@@ -1,3 +1,6 @@
+import copy
+import json
+
 import pytest
 
 from harness import approval, humantasks, status
@@ -6,6 +9,37 @@ from harness_doubles import Env, FakeChecker
 
 
 LONG_BUDGETS = {"lease_s": 10**7, "run_wall_clock_s": 10**8, "worker_timeout_s": 10**7, "inactivity_timeout_s": 10**7}
+
+
+@pytest.mark.parametrize("role", ["refiner", "implementer", "reviewer"])
+def test_execution_roles_receive_the_same_untrusted_handoff_guidance(tmp_path, role):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue.update(guidance=["Verify the approved native capability, not just compilation."],
+                 delegator_guidance=["Use the already registered bridge."], branch="harness/i1")
+    original = copy.deepcopy(issue)
+    packet = env.sched._packet(issue, role, "standard")
+    data = json.loads(packet["untrusted_data"])
+    assert data["human_guidance"] == issue["guidance"]
+    assert data["delegator_guidance"] == issue["delegator_guidance"]
+    assert packet["acceptance_criteria"] == issue["acceptance_criteria"]
+    assert packet["escalation_paths"] == env.sched._plan()["policy"]["escalation_paths"]
+    assert issue == original
+    if role == "reviewer":
+        assert data["diff"] == "diff of harness/i1"
+        assert "checks" in data
+    if role == "refiner":
+        assert "anchors_that_do_not_exist_yet" in data
+
+
+@pytest.mark.parametrize("role", ["refiner", "implementer", "reviewer"])
+def test_handoff_does_not_invent_guidance_when_absent(tmp_path, role):
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue["branch"] = "harness/i1"
+    data = json.loads(env.sched._packet(issue, role, "standard")["untrusted_data"])
+    assert "human_guidance" not in data
+    assert "delegator_guidance" not in data
 
 
 class PendingChecker(FakeChecker):
