@@ -207,18 +207,30 @@ class GhCli(Client):
         data = self._json(["api", "repos/%s/pulls/%d" % (self.repo, number)])
         return bool(isinstance(data, dict) and data.get("merged"))
 
+    @staticmethod
+    def _run_order(check: Dict[str, Any]) -> tuple:
+        """Oldest first by start time, and among runs that started together the unfinished one last, so that reading
+        in order leaves the newest report standing and a rerun can only ever make a context less conclusive."""
+        return (check.get("started_at") or "", check.get("status") != "completed")
+
     def _checks_at(self, revision: str) -> Dict[str, str]:
-        """Completed check runs and commit statuses for one revision, by context name. Both are reads: `gh api` posts
-        whenever a field is passed, so the method is explicit."""
+        """What every context reports for one revision: its conclusion once it completed, otherwise the state it is
+        still in. A queued or running check is recorded rather than dropped, so it can never be mistaken for a check
+        that never reported at all. Both calls are reads: `gh api` posts whenever a field is passed, so the method
+        is explicit."""
         runs = self._json(["api", "-X", "GET", "repos/%s/commits/%s/check-runs" % (self.repo, revision), "-f", "per_page=100"])
         statuses = self._json(["api", "-X", "GET", "repos/%s/commits/%s/status" % (self.repo, revision)])
-        conclusions: Dict[str, str] = {}
-        for check in (runs or {}).get("check_runs", []):
-            if check.get("status") == "completed":
-                conclusions[check.get("name", "")] = check.get("conclusion", "")
+        reported: Dict[str, str] = {}
+        for check in sorted((runs or {}).get("check_runs", []), key=self._run_order):
+            completed = check.get("status") == "completed"
+            reported[check.get("name", "")] = (check.get("conclusion", "") if completed else check.get("status") or "pending")
         for status in (statuses or {}).get("statuses", []):
-            conclusions[status.get("context", "")] = status.get("state", "")
-        return conclusions
+            # The two sources report a context independently; a success from one never covers a pending or failing
+            # report from the other.
+            context, state = status.get("context", ""), status.get("state", "")
+            if context not in reported or state != "success":
+                reported[context] = state
+        return reported
 
     def _tree_of(self, revision: str) -> str:
         """The tree id of a commit: the identity of its content, independent of its history."""
@@ -242,8 +254,8 @@ class GhCli(Client):
             # A gate that only triggers on pull_request events never runs on the merge commit, so a legitimately merged
             # pull request would be unverifiable. The tested head carries those runs, and an identical tree id proves
             # the merged content is byte for byte the content they ran on. Only contexts the merge commit never
-            # reported are read from the head: a check that failed there stays failed, and a differing tree reads
-            # nothing at all.
+            # reported at all are read from the head: a check that failed there stays failed, one that is still
+            # running stays pending, and a differing tree reads nothing at all.
             merge_tree = self._tree_of(merge_sha)
             if merge_tree and merge_tree == self._tree_of(head_sha):
                 for name, conclusion in self._checks_at(head_sha).items():
