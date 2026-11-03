@@ -26,27 +26,28 @@ screenshots attached to the submission, and signing are maintainer actions; see
 - Haptics and reminder delivery need a physical iPhone or iPad. The simulator
   has no haptics, no notification delivery and no real airplane mode, so
   simulator screenshots show layout only, never offline or tactile behaviour.
-- The app has no `AVAudioSession` configuration; speech uses the device's
-  installed voices through the Web Speech API and is optional.
+- Optional speech uses the registered native `OfflineTts` bridge with
+  `AVSpeechSynthesizer`, a playback/spoken-audio session and ducking. Only
+  enumerated, installed Apple compact DE/EN voices are admitted, preferring
+  de-DE for German; unknown, Siri, provider and personal voices are excluded.
+  Without a suitable voice the app explains the limitation and practice
+  continues without audio. Website speech keeps its existing Web Speech path.
 
 ## The four native capabilities (the native spine)
 
-The SPM project (`App/CapApp-SPM/Package.swift`) links the locked Capacitor
-plugins below. All four are local: none of them uploads data or contacts a
-server.
+The four approved capabilities are native speech, progress/report, reminders
+and haptics. File writing and sharing are two parts of one report capability,
+not substitutes for speech. The local speech plugin is registered from the
+already compiled `SceneDelegate.swift`; the SPM project
+(`App/CapApp-SPM/Package.swift`) links the other locked plugins below.
+All four operate locally without an app server.
 
 | # | Capability | Plugin (locked version) | Where a reviewer sees it | On-device only |
 | --- | --- | --- | --- | --- |
-| 1 | Report file write | `@capacitor/filesystem` 8.1.5 | Footer button "Bericht als CSV speichern" / "Save report as CSV" writes `buchstabenzeit-report.csv` into the app **cache** directory (`writeFile({ directory: 'CACHE', encoding: 'UTF8' })`) | Yes — app container only, no permission prompt |
-| 2 | System share sheet | `@capacitor/share` 8.0.3 | The same button resolves the written file with `getUri` and opens the iOS share sheet for it | Yes — the user decides where it goes; the app never uploads it |
-| 3 | Grading haptics | `@capacitor/haptics` 8.0.2 | "Richtig gelesen" / "Read correctly" fires a `SUCCESS` notification; "Noch üben" / "Practice more" fires an `ERROR` notification; both are suppressed when Reduce Motion is on | Yes — device only, silent on the simulator |
-| 4 | Practice reminders | `@capacitor/local-notifications` 8.3.1 | One daily, inexact local reminder scheduled by the platform adapter; off by default and permission is requested only after the parental gate enables it | Yes — no server, no push |
-
-**Capability 4 is wired but not exposed by the current UI.** No control in
-`static/index.html` calls the reminders adapter, so a reviewer cannot enable,
-schedule or observe a reminder in this revision; see
-[Local notifications are not demonstrable in this build](#local-notifications-are-not-demonstrable-in-this-build).
-The other three are reachable from the setup, practice and footer screens.
+| 1 | Native speech | Local `OfflineTts` / AVFAudio | Practice button "Vorlesen" / "Read aloud"; installed compact voices, rate/pitch, playback session and cancellation | Silent-switch, offline audio and interruption checks remain device gates |
+| 2 | Progress + parent report | `@capacitor/filesystem` 8.1.5 + `@capacitor/share` 8.0.3 | Progress stays local. Footer "Bericht als CSV speichern" / "Save report as CSV" writes `buchstabenzeit-report.csv` into **CACHE**, resolves `getUri`, and opens the system share sheet | App-container write needs no permission; user chooses where to share |
+| 3 | Practice reminders | `@capacitor/local-notifications` 8.3.1 | Footer "Übungserinnerungen" / "Practice reminders"; adult challenge, daily local time, opt-in and explicit Save | Off by default; no server or push; real delivery remains a device gate |
+| 4 | Grading haptics | `@capacitor/haptics` 8.0.2 | Correct = `SUCCESS`, retry = `ERROR`; suppressed with Reduce Motion | Physical-device verification required |
 
 A fifth locked plugin, `@capacitor/app` 8.1.2, supplies the native app identity
 (about dialog version) and lifecycle events (stopping speech when the app is
@@ -60,7 +61,7 @@ build phase and matches these capabilities:
 
 - One required-reason API: `NSPrivacyAccessedAPICategoryFileTimestamp` with
   reason `C617.1`, for the Filesystem plugin reading metadata of files it
-  writes in the app's own container (capability 1).
+  writes in the app's own container (capability 2).
 - `NSPrivacyTracking` is `false`, `NSPrivacyTrackingDomains` and
   `NSPrivacyCollectedDataTypes` are empty.
 - No analytics or advertising SDK is linked. The audit and the re-check
@@ -104,7 +105,7 @@ needed.
 7. **Export the parent report.** Tap "Bericht als CSV speichern" / "Save report
    as CSV" in the footer. **Expected:** the iOS share sheet opens for
    `buchstabenzeit-report.csv`, which was written to the app's cache directory
-   (capability 1). Save it to Files or cancel; after the sheet closes the footer
+   (capability 2). Save it to Files or cancel; after the sheet closes the footer
    status reads "Bericht gespeichert." / "Report saved." (a failure reads
    "Bericht konnte nicht gespeichert werden." / "Report could not be saved.").
    **Expected:** nothing was uploaded and no permission prompt appeared.
@@ -125,25 +126,34 @@ A simulator run can cover steps 2–4, 6, 8 and 9 (layout and bundle) but not
 the airplane-mode radio state, haptics, or share-sheet-to-Files behaviour of a
 physical device.
 
-## Local notifications are not demonstrable in this build
+## Native speech and reminder demonstration
 
-Capability 4 exists at the adapter and plugin level only. The facts a reviewer
-or maintainer can check:
+1. In practice, tap **Vorlesen / Read aloud** with airplane mode and the silent
+   switch on. An installed eligible voice should speak. With no suitable
+   voice, the explanatory feedback must appear and grading must still work.
+   Change cards, leave practice, lock/background the app and interrupt audio:
+   stale cards must stop. After a call ends, a new tap can speak; an old card
+   must not automatically restart.
+2. In the footer, open **Übungserinnerungen / Practice reminders**. This entry
+   is native-only; the ordinary website has no reminder control or browser
+   notification prompt. Solve the adult multiplication challenge. An incorrect
+   answer must not reveal settings or request permission. Closing or
+   backgrounding locks the gate again; it is an adult UI gate, not identity
+   authentication.
+3. Check **Täglich ans Lesen erinnern / Remind me to read every day**, choose
+   the approximate device-local time and press **Speichern / Save**. Only this
+   explicit opt-in requests permission. Allow schedules one daily, inexact
+   notification. Deny shows a settings explanation and never re-prompts on
+   later saves. Permission can instead be changed in system settings.
+4. Cold-launch: the saved time is restored without a permission prompt.
+   Disable and save: the pending reminder is cancelled. A cancellation failure
+   must display failure and retain the prior enabled state, not claim success.
+   Confirm real delivery and cancellation on a physical device.
 
-- `createWebReminders` in `static/platform.mjs` keeps reminders off until
-  `setEnabled(true)`, returns `'gated'` from `schedule()` before that, asks for
-  notification permission only once, remembers a denial without re-prompting,
-  schedules exactly one notification with `isExactNotification: false`, and
-  re-applies the persisted schedule after a cold start.
-- `tests/platform.test.mjs` covers those rules and runs on Linux
-  (`node --test tests/*.test.mjs`).
-
-What is missing: no screen or control in `static/index.html` calls
-`window.__platform.reminders`, so the permission dialog cannot be triggered and
-no reminder can be scheduled or observed from the app. Adding that
-parental-gated toggle is a change to the shared web assets, which is outside
-this review-package change; it must not be claimed in the App Store submission
-until it ships. `RELEASING.md`'s device checklist says the same.
+`tests/reminder-settings.test.mjs` exercises the actual mounted controller with
+the real adapter and a native-plugin double; `tests/ios-speech.test.mjs` checks
+registration and executes production Swift against API doubles on macOS.
+Neither mocks nor a simulator build prove real-device audio or notifications.
 
 ## Offline screenshots
 
@@ -165,6 +175,7 @@ consistent:
 | `06-share-sheet.png` | The iOS share sheet open for `buchstabenzeit-report.csv` |
 | `07-report-saved.png` | Footer status "Bericht gespeichert." / "Report saved." after the sheet closes |
 | `08-ipad-landscape.png` | The universal layout on iPad in landscape |
+| `09-reminders-settings.png` | Adult-unlocked reminder time and saved status, without showing the challenge answer |
 
 On a simulator, `xcrun simctl io booted screenshot <file>` captures layout only.
 On a device, use the normal screenshot buttons. The only image currently
@@ -176,8 +187,8 @@ device, haptics or submission evidence, and the app does not reference it.
 
 Proven on Linux or in the maintainer-owned unsigned simulator CI job:
 
-- `node --test tests/*.test.mjs` passes (406 tests, including the adapter rules
-  above).
+- `node --test tests/*.test.mjs` exercises shared behaviour, native bridge
+  contracts, reminder gate, opt-in/denial, restart and cancellation failures.
 - `npm run copy-assets` verifies the offline bundle is complete and free of
   remote app-load dependencies.
 - `capacitor.config.json` has no `server.url`; the webview loads bundled assets.
@@ -206,8 +217,12 @@ airplane-mode behaviour, and the screenshots above.
 > the app cache and opens the system share sheet. Switch DE/EN at the top right;
 > the privacy page is bundled and opens offline.
 >
-> Reminders: the local-notification adapter ships with the app but no in-app
-> control enables it in this version, so no reminder UI is part of this build.
+> "Read aloud" uses installed offline-capable native voices; without a suitable
+> voice, reading practice still works without sound. "Practice reminders" in the
+> footer opens an adult challenge, then an optional daily local reminder, off by
+> default. Enable, select a time and Save to request notification permission.
+> Denial is remembered without repeated prompts. No server or push service is
+> involved. Device test and capture records must accompany submission.
 
 ## See also
 

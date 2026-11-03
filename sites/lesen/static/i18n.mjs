@@ -136,6 +136,21 @@ const DE = {
   // Parent report export status
   'report.export_ready': 'Bericht gespeichert.',
   'report.export_failed': 'Bericht konnte nicht gespeichert werden.',
+  'reminders.title': 'Übungserinnerungen',
+  'reminders.explanation': 'Nur für Erwachsene: Eine tägliche Erinnerung auf diesem Gerät. Standardmäßig aus, ohne Server oder Push-Dienst.',
+  'reminders.question': 'Bitte löse zuerst: {a} × {b}',
+  'reminders.answer': 'Ergebnis',
+  'reminders.unlock': 'Einstellungen öffnen',
+  'reminders.gate_error': 'Das Ergebnis stimmt nicht. Bitte einen Erwachsenen um Hilfe.',
+  'reminders.enabled': 'Täglich ans Lesen erinnern',
+  'reminders.time': 'Ungefähre Uhrzeit auf diesem Gerät',
+  'reminders.save': 'Speichern',
+  'reminders.notification': 'Zeit für eine kleine Leseübung.',
+  'reminders.status.off': 'Erinnerungen sind aus.',
+  'reminders.status.scheduled': 'Die tägliche Erinnerung ist gespeichert.',
+  'reminders.status.denied': 'Mitteilungen sind nicht erlaubt. Du kannst sie in den Geräteeinstellungen freigeben. Die App fragt nicht erneut.',
+  'reminders.status.failed': 'Die Erinnerung konnte nicht geändert werden. Bitte versuche es erneut.',
+  'reminders.status.unsupported': 'Erinnerungen sind auf diesem Gerät nicht verfügbar.',
 };
 
 /**
@@ -267,6 +282,21 @@ const EN = {
   // Parent report export status
   'report.export_ready': 'Report saved.',
   'report.export_failed': 'Report could not be saved.',
+  'reminders.title': 'Practice reminders',
+  'reminders.explanation': 'For adults only: One daily reminder on this device. Off by default, with no server or push service.',
+  'reminders.question': 'First solve: {a} × {b}',
+  'reminders.answer': 'Answer',
+  'reminders.unlock': 'Open settings',
+  'reminders.gate_error': 'That answer is not correct. Please ask an adult for help.',
+  'reminders.enabled': 'Remind me to read every day',
+  'reminders.time': 'Approximate time on this device',
+  'reminders.save': 'Save',
+  'reminders.notification': 'Time for a little reading practice.',
+  'reminders.status.off': 'Reminders are off.',
+  'reminders.status.scheduled': 'The daily reminder is saved.',
+  'reminders.status.denied': 'Notifications are not allowed. You can enable them in device settings. The app will not ask again.',
+  'reminders.status.failed': 'The reminder could not be changed. Please try again.',
+  'reminders.status.unsupported': 'Reminders are not available on this device.',
 };
 
 /**
