@@ -8,6 +8,7 @@ extends RefCounted
 
 const DEFAULT_DIRECTORY: String = "res://data/weapons"
 const SCHEMA_NAME: String = "schema.json"
+const LOADOUT_NAME: String = "loadout.json"
 const SHARD_BONUS: int = 2
 const AFFINITY_OPERATIONS: Dictionary = {
 	"sum": ["addition"],
@@ -31,7 +32,7 @@ func _init(weapons: Array[WeaponDefinition] = []) -> void:
 static func load_directory(path: String = DEFAULT_DIRECTORY) -> WeaponMastery:
 	var weapons: Array[WeaponDefinition] = []
 	for file_name: String in DirAccess.get_files_at(path):
-		if file_name.ends_with(".json") and file_name != SCHEMA_NAME:
+		if file_name.ends_with(".json") and file_name not in [SCHEMA_NAME, LOADOUT_NAME]:
 			weapons.append(WeaponDefinition.load_file(path.path_join(file_name)))
 	return WeaponMastery.new(weapons)
 

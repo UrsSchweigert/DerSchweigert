@@ -38,3 +38,16 @@ uses, mastery, or what the player can solve.
 `ComboEngine.tick()` advances one fixed frame: buffered input survives `inputBufferFrames`,
 a hit confirmed during `active` advances the graph, a dropped hit restarts at the first
 step, and a cancel window jumps to its declared target.
+
+## Loadout and quick-swap
+
+`data/weapons/loadout.json` declares the two quick-swap slots, the short frame cooldown, the
+three unlock sources (`exploration`, `quest`, `boss`), every weapon's unlock route, and the
+starting weapons. In `scripts/weapons/loadout.gd`, `unlock()` accepts only the route declared
+for that weapon, `equip()` refuses unowned weapons, `try_swap()` toggles the active slot once
+the cooldown has elapsed, and `start_level()` re-checks every equipped slot so a stale profile
+cannot carry an unowned or unknown weapon into a level. There is no shop and no paid unlock.
+
+`scenes/ui/loadout.tscn` lists every owned weapon, lets the player select either slot, and
+equips the chosen weapon. The arena routes the shared `swap` action through the same
+`InputActions` object, so touch, gamepad, and keyboard all toggle the quick-swap slots.
