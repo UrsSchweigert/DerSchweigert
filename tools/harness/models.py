@@ -35,11 +35,13 @@ MODEL_CATALOG: Dict[str, Dict[str, List[str]]] = {
 }
 CATALOG_FILE = "model_catalog.json"
 ROLE_TIER = {"investigator": "low", "refiner": "strong", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
-             "analyst": "strong"}
+             "analyst": "strong", "overseer": "strong"}
 
 # Roles whose output is a judgement rather than mechanical work. A cheap model that returns a malformed
 # result costs a repair attempt and a human decision, which is always more expensive than the stronger call.
-REQUIRED_TIER = {"refiner": "strong"}
+# The overseer decides whether a stuck issue is a harness defect, a scope problem, or a question for the owner. A wrong
+# call there costs more than any implementation attempt, so it is never downgraded by a plan.
+REQUIRED_TIER = {"refiner": "strong", "overseer": "strong"}
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
 
 
@@ -196,6 +198,21 @@ def menu_for(sources: List[str], catalog: Optional[Dict[str, Dict[str, List[str]
 def available_in_tier(tier: str, policy_tiers: dict[str, Any], available: list[str] | None) -> list[str]:
     """Approved models of one tier that the runtime offers. Empty when model routing is unavailable."""
     return [m for m in _candidates(tier, policy_tiers) if available is not None and m in available]
+
+
+def routed_tiers(policy: Dict[str, Any], role: str, escalated: bool = False) -> Dict[str, Any]:
+    """Restrict the approved menu before resolving a role, including automatic fallback paths."""
+    tiers = policy["model_tiers"]
+    routing = policy.get("model_routing")
+    if not routing:
+        return tiers
+    if role == "refiner":
+        allowed = {routing["refiner"]}
+    elif escalated or role in ("delegator", "analyst", "overseer"):
+        allowed = set(routing["escalation_models"])
+    else:
+        allowed = set(routing["routine_models"])
+    return {tier: [model for model in _candidates(tier, tiers) if model in allowed] for tier in TIERS}
 
 
 def model_options(policy_tiers: dict[str, Any], available: list[str] | None) -> list[dict[str, str]]:

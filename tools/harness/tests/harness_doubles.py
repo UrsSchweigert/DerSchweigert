@@ -109,6 +109,7 @@ class FakeChecker(Checker):
 class FakeHandle:
     def __init__(self, req, started):
         self.req, self.started, self.cancelled = req, started, False
+        self.tail = []
 
 
 class FakeAdapter(Adapter):
@@ -121,6 +122,7 @@ class FakeAdapter(Adapter):
         self.scripts = {}
         self.started = []
         self.cancelled = []
+        self.cleaned = []         # attempt ids whose working copy was released
         self.impl_paths = {}      # issue_id -> paths the implementer "changes"
         self.impl_lines = {}
         self.impl_added = {}       # issue_id -> lines added, when it differs from impl_lines
@@ -128,10 +130,12 @@ class FakeAdapter(Adapter):
         self.verdicts = {}        # issue_id -> list of 'approve'/'changes_requested'
         self.decisions = {}       # issue_id -> delegator decisions, the last one repeats
         self.analyses = {}        # issue_id -> analyst analyses, the last one repeats
+        self.overseer = None      # the overseer's answer, repeated until it is changed
         self.plans = {}           # issue_id -> extra refiner result fields (plan, tier_fit, split_advice)
         self.size_usage = None    # what the adapter reports from prompt and file sizes
         self.runtime_lines = []   # usage lines the runtime printed
         self.agent_usage = None   # the estimate every worker reports about itself, malformed values included
+        self.tail_lines = []      # what the worker "printed", for evidence tests
 
     def script(self, issue_id, role, *steps):
         self.scripts[(issue_id, role)] = list(steps)
@@ -146,6 +150,7 @@ class FakeAdapter(Adapter):
             raise RuntimeError("runtime refused to start")
         self.started.append(req)
         h = FakeHandle(req, self.clock())
+        h.tail = list(self.tail_lines)
         h.step = step
         h.base_rev = self.repo.base_head()
         return h
@@ -189,6 +194,9 @@ class FakeAdapter(Adapter):
         elif req.role == "analyst":
             queue = self.analyses.get(req.issue_id) or [{"root_cause": "The task spans two modules that cannot be changed together.", "recommendation": "needs_owner"}]
             result["analysis"] = dict(queue.pop(0) if len(queue) > 1 else queue[0])
+        elif req.role == "overseer":
+            result["overseer"] = dict(self.overseer or {"action": "escalate", "cause": "process",
+                                                       "reason": "the test double has no overseer answer configured"})
         elif req.role == "reviewer":
             queue = self.verdicts.get(req.issue_id) or ["approve"]
             verdict = queue.pop(0) if len(queue) > 1 else queue[0]
@@ -208,6 +216,9 @@ class FakeAdapter(Adapter):
         h.cancelled = True
         self.cancelled.append(h.req.attempt_id)
 
+    def cleanup(self, h):
+        self.cleaned.append(h.req.attempt_id)
+
 
 class Clock:
     def __init__(self, t=1000.0):
@@ -225,7 +236,7 @@ class Env:
     """An approved plan, Tier A attestation override, and a scheduler wired to doubles."""
 
     def __init__(self, tmp_path, issues=None, allowlist=("src/",), merge_policy=None, available_models=("claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"),
-                 budgets=None, phases=None, authorized_operations=None, model_sources=None):
+                 budgets=None, phases=None, authorized_operations=None, model_sources=None, policy_overrides=None):
         self.store = Store(str(tmp_path / "home"))
         phases = phases or [
             {"id": "P1", "outcomes": ["one"], "requirements": ["F1.1", "F1.2"], "path_allowlist": list(allowlist), "non_goals": ["x"],
@@ -241,6 +252,7 @@ class Env:
         if authorized_operations is not None:
             policy["authorized_operations"] = list(authorized_operations)
         policy["budgets"].update(budgets or {})
+        policy.update(policy_overrides or {})
         plan = plans.build_plan("fx", 1, plans.parse_requirements(REQ), phases, policy, fixture=True, model_sources=model_sources)
         assert not plans.validate_plan(plan)
         self.store.put_plan(plan, plans.plan_digest(plan))

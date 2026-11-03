@@ -248,8 +248,8 @@
     const blocked = issues.filter(issue => issue.state === "Blocked").length, budget = snapshot.budgets[plan?.plan_id];
     const metric = (label, value, note) => element("div", {class: "metric"}, element("div", {class: "metric-label"}, label), element("div", {class: "metric-value"}, value), element("div", {class: "metric-note"}, note));
     fill("metrics", metric("Completed", `${done} / ${issues.length}`, blocked ? `${blocked} blocked` : "No blockers"),
-      metric("Run time", duration(budget?.wall_clock_s.used), budget ? "of " + duration(budget.wall_clock_s.limit) : "Not started"),
-      metric("Pull requests", budget ? `${budget.pull_requests.used} / ${budget.pull_requests.limit}` : "0", "Current run"),
+      metric("Run time", duration(budget?.wall_clock_s.used), budget ? (budget.wall_clock_s.limit === null ? "no limit" : "of " + duration(budget.wall_clock_s.limit)) : "Not started"),
+      metric("Pull requests", budget ? (budget.pull_requests.limit === null ? `${budget.pull_requests.used} (no limit)` : `${budget.pull_requests.used} / ${budget.pull_requests.limit}`) : "0", "Current run"),
       metric("Human tasks", currentTasks().length, currentTasks().filter(task => task.state === "Requested").length + " awaiting acknowledgement"));
   }
   function renderExecution() {
