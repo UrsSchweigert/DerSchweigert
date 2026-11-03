@@ -37,3 +37,4 @@ def test_native_ci_is_unsigned_revision_bound_and_has_a_bounded_build_budget():
     assert workflow.count("uses: actions/checkout@v4") == 2
     assert "CODE_SIGNING_ALLOWED=NO" in workflow
     assert "needs: [changes, android, ios]\n    if: always()" in workflow
+    assert "uses: android-actions/setup-android@v3\n        with:\n          packages: platform-tools" in workflow
