@@ -1815,9 +1815,9 @@ class Scheduler:
         if role == "implementer" and [f for f in evidence if f["role"] != "reviewer"]:
             data = {"previous_failures": [f for f in evidence if f["role"] != "reviewer"][-3:]}
         own = [f for f in evidence if f["role"] == role]
-        if role in ("implementer", "refiner") and issue.get("guidance"):
+        if role in ("implementer", "refiner", "reviewer") and issue.get("guidance"):
             data = dict(data, human_guidance=issue["guidance"])
-        if role == "implementer" and issue.get("delegator_guidance"):
+        if role in ("implementer", "refiner", "reviewer") and issue.get("delegator_guidance"):
             data = dict(data, delegator_guidance=issue["delegator_guidance"])
         if role == "implementer" and issue.get("plan"):
             data = dict(data, plan=issue["plan"])  # the refiner's steps; the implementer follows them
@@ -1838,7 +1838,8 @@ class Scheduler:
                                                    "diff_size_cap": self._plan()["policy"]["diff_size_cap"]},
                                        "cannot": "cancel, approve, merge, change policy, or edit the harness"}}
         if role == "reviewer":
-            data = {"diff": self.repo.diff_text(issue["branch"]), "checks": (self._valid(issue["issue_id"], "checks", issue["head_rev"]) or {}).get("detail")}
+            data = dict(data, diff=self.repo.diff_text(issue["branch"]),
+                        checks=(self._valid(issue["issue_id"], "checks", issue["head_rev"]) or {}).get("detail"))
             if own:
                 data["your_previous_verdict_was_rejected"] = own[-2:]  # a retry must differ, and this tells the reviewer why
         if role == "refiner":

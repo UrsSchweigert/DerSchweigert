@@ -386,6 +386,13 @@ harness tasks
 
 The plan ID is the requirements file name in lowercase with punctuation turned into dashes. `plan` prints it.
 
+Issue guidance and retained delegator guidance reach the refiner, implementer
+and independent reviewer in `untrusted_data`. Reviewer packets retain those
+handoffs alongside the diff and checks, so operational acceptance details do
+not disappear between roles. Guidance cannot override approved scope,
+protected paths, budgets or required evidence; a green build is not proof of
+functional coverage.
+
 Optional extras: `harness sync PLAN_ID` creates a requirements issue, milestones, and phase issues on GitHub for visibility (try `--dry-run` first). It does not create the individual work issues. `run` never creates GitHub issues.
 
 ## Everyday use
