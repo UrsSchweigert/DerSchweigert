@@ -141,6 +141,26 @@ by `wrongStrikeHastenSeconds`.
 tiers and the `finisherThreshold`; `tools/validate/orbs_chain.py` rejects bad
 counts, missing shapes, and flat tiers, and `test_orbs_chain.gd` covers it all.
 
+## Free entry number pad
+
+Free numeric entry uses `scripts/ui/number_pad/number_pad.gd`, whose greybox
+scene is `scenes/ui/number_pad.tscn`. `data/input/number_pad.json` defines the
+layout: every key is at least 56 dp, digits 1-5 and delete sit under the left
+thumb, digits 6-0 and confirm sit under the right thumb, and the haptic and
+sound switches default on. `press(id)` accepts a digit, `delete`, or `confirm`
+and rejects anything else; entry is capped at five digits by
+`AnswerMode.NumericEntry`, which the pad delegates to.
+
+Opening the pad opens its `TimeControl` (`scripts/combat/time_control.gd`), so
+the world slows to `slowScale` (15 percent by default, data-tunable) and
+`timers_paused()` reports that countdowns and cooldowns must freeze. Closing the
+pad restores full speed. Every accepted key emits `haptic_requested` and
+`sound_requested` hooks. `tools/validate/number_pad.py` rejects a slow scale
+outside (0, 1], an undersized key, a missing digit, delete, or confirm key, and
+an unknown thumb, and `test/unit/input/test_number_pad.gd` covers the time-scale
+transitions, timer pause, input validation, the two-thumb layout, the hooks, and
+the scene.
+
 ## Strike feel
 
 `data/combat/feel.json` defines five effects that fire on every strike:
