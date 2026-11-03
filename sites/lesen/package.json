@@ -14,12 +14,16 @@
     "build:release": "npm run sync && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
-    "@capacitor/android": "6.2.1",
-    "@capacitor/app": "^6.0.3",
-    "@capacitor/core": "6.2.1"
+    "@capacitor/android": "8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/ios": "8.6.0"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "6.2.1"
+    "@capacitor/cli": "8.6.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
