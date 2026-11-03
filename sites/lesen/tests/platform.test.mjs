@@ -892,3 +892,47 @@ test('web app: addListener without a plugin returns a removable no-op handle', (
   assert.doesNotThrow(() => handle.remove());
   assert.doesNotThrow(() => app.exitApp());
 });
+
+test('web app: getInfo returns the Capacitor App plugin result', async () => {
+  const info = { id: 'de.derschweigert.buchstabenzeit', name: 'Buchstabenzeit', version: '1.4', build: '7' };
+  let calls = 0;
+  const win = {
+    Capacitor: {
+      Plugins: {
+        App: {
+          getInfo: async () => {
+            calls++;
+            return info;
+          },
+        },
+      },
+    },
+  };
+  const app = createWebApp(win);
+
+  assert.deepEqual(await app.getInfo(), info);
+  assert.equal(calls, 1);
+});
+
+test('web app: getInfo resolves null without a plugin', async () => {
+  const app = createWebApp(undefined);
+
+  assert.equal(await app.getInfo(), null);
+});
+
+test('web app: getInfo resolves null when the plugin call fails', async () => {
+  const win = {
+    Capacitor: {
+      Plugins: {
+        App: {
+          getInfo: async () => {
+            throw new Error('getInfo failed');
+          },
+        },
+      },
+    },
+  };
+  const app = createWebApp(win);
+
+  assert.equal(await app.getInfo(), null);
+});

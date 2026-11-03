@@ -84,6 +84,31 @@ BZ_VERSION_CODE=2 BZ_VERSION_NAME=1.1 npm run build:release
 Keep a simple log (commit message or a table below) of: git revision, versionName,
 versionCode, date, and release notes.
 
+## Shell behaviour (safe areas, Back, version)
+
+The web shell in `static/` and the thin native activity carry the P4 polish:
+
+- **Safe areas.** `static/index.html` sets `viewport-fit=cover` and pads the
+  body with `env(safe-area-inset-*)` (falling back to `0px`). `MainActivity`
+  calls `WindowCompat.setDecorFitsSystemWindows(getWindow(), false)` and
+  `AppTheme.NoActionBar` keeps the status and navigation bars transparent, so
+  the edge-to-edge WebView reports real notch and gesture-bar insets.
+- **Back behaviour.** The `@capacitor/app` `backButton` listener closes an open
+  dialog first, asks for confirmation (End practice?) while a deck is running,
+  returns to setup from the completion screen, and only exits the app from
+  setup. Cancelling the dialog resumes practice.
+- **Lifecycle and speech.** `appStateChange` and `visibilitychange` cancel
+  in-flight speech when the app is backgrounded, so audio never continues while
+  the device is locked or another app is in front.
+- **Version, privacy, attribution.** The about dialog shows the version from a
+  single source: `versionName` in `android/app/build.gradle`, read once at
+  startup through the `@capacitor/app` plugin's `getInfo()`. On the plain
+  website there is no native version, so the label is shown alone. The dialog
+  links the bundled privacy policy (`datenschutz.html` /
+  `datenschutz-en.html`), the word-list licences (`words-de-LICENSE.txt` /
+  `words-en-LICENSE.txt`) and the font licence (`fonts/OFL.txt`); these files
+  are part of the verified offline bundle, so no network request is involved.
+
 ## Release steps (local)
 
 1. Choose a known-good commit on `android-app` and check it out.
