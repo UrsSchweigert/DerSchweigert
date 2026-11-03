@@ -1,0 +1,30 @@
+{
+  "version": 1, "id": "sum_blade", "inputBufferFrames": 7, "affinity": "sum",
+  "steps": [
+    {"id": "sum_cut", "input": {"kind": "tap", "touches": 1}, "frames": {"startup": 5, "active": 4, "recovery": 9},
+     "hitbox": {"shape": "circle", "size": [52.0, 52.0]}, "impulse": [90.0, 0.0], "knockback": 120.0,
+     "cancel": {"startFrame": 5, "endFrame": 14, "into": ["sum_rise"]}, "orb": "cone",
+     "effects": ["slash_arc"], "sounds": ["slash"], "finisher": false},
+    {"id": "sum_rise", "input": {"kind": "tap", "touches": 1}, "frames": {"startup": 4, "active": 3, "recovery": 8},
+     "hitbox": {"shape": "circle", "size": [56.0, 56.0]}, "impulse": [70.0, -20.0], "knockback": 130.0,
+     "cancel": {"startFrame": 4, "endFrame": 12, "into": ["sum_arc"]}, "orb": "cone",
+     "effects": ["rising_arc"], "sounds": ["slash"], "finisher": false},
+    {"id": "sum_arc", "input": {"kind": "hold", "holdFrames": 8, "touches": 1}, "frames": {"startup": 6, "active": 5, "recovery": 10},
+     "hitbox": {"shape": "circle", "size": [60.0, 60.0]}, "impulse": [40.0, 0.0], "knockback": 150.0,
+     "cancel": {"startFrame": 6, "endFrame": 14, "into": ["sum_cross"]}, "orb": "cone",
+     "effects": ["wide_arc"], "sounds": ["whoosh"], "finisher": false},
+    {"id": "sum_cross", "input": {"kind": "rhythm", "rhythmBeats": 2, "touches": 2}, "frames": {"startup": 5, "active": 4, "recovery": 12},
+     "hitbox": {"shape": "circle", "size": [72.0, 72.0]}, "impulse": [60.0, 0.0], "knockback": 180.0,
+     "cancel": {"startFrame": 5, "endFrame": 10, "into": ["sum_sunburst"]}, "orb": "cone",
+     "effects": ["cross_arc"], "sounds": ["whoosh"], "finisher": false},
+    {"id": "sum_sunburst", "input": {"kind": "swipe", "direction": "up", "touches": 1}, "frames": {"startup": 8, "active": 6, "recovery": 16},
+     "hitbox": {"shape": "circle", "size": [96.0, 96.0]}, "impulse": [0.0, -60.0], "knockback": 260.0,
+     "cancel": {"startFrame": 8, "endFrame": 12, "into": []}, "orb": "cone",
+     "effects": ["sunburst"], "sounds": ["slam"], "finisher": true}
+  ],
+  "mastery": {"levels": [
+    {"threshold": 0, "steps": ["sum_cut", "sum_rise", "sum_arc", "sum_sunburst"], "finisher": "", "trail": ""},
+    {"threshold": 30, "steps": ["sum_cut", "sum_rise", "sum_arc", "sum_cross", "sum_sunburst"], "finisher": "", "trail": "sum_ember"},
+    {"threshold": 90, "steps": ["sum_cut", "sum_rise", "sum_arc", "sum_cross", "sum_sunburst"], "finisher": "sunburst_radiant", "trail": "sum_ember"}
+  ]}
+}
