@@ -150,13 +150,14 @@ chk smoke_tool '[ -f /opt/harness/smoke/lesen.mjs ] && ls -d /opt/pw-browsers/ch
 chk godot_pinned 'godot --headless --version 2>/dev/null | grep -qx "4.7.2.stable.official.ed1daf0bf"'
 chk gdtoolkit_pinned 'python3 -c "import importlib.metadata as m, sys; sys.exit(0 if m.version(\"gdtoolkit\") == \"4.5.0\" else 1)"'
 chk godot_headless_import 'T=$(mktemp -d) && printf "config_version=5\n[application]\nconfig/name=\"probe\"\n" > "$T/project.godot" && godot --headless --path "$T" --import >/dev/null 2>&1 && [ -d "$T/.godot" ] && rm -rf "$T"'
+chk ios_shell_tool '[ -f /opt/harness/smoke/ios_shell.sh ] && sh /opt/harness/smoke/ios_shell.sh /work harness-probe-absent 2>/dev/null | grep -q "^SKIP:"'
 chk godot_test_tool 'command -v godot-test >/dev/null && [ -f /opt/harness/godot/addons/gut/gut_cmdln.gd ] && [ -f /opt/harness/smoke/godot_project.sh ] && [ -f /opt/harness/smoke/godot_verify.gd ]'
 """
 
 REQUIRED_CHECKS = [
     "non_root", "no_host_credentials_in_env", "no_copilot_token_unless_passed", "store_path_absent", "host_home_absent",
     "no_ssh_agent", "no_docker_socket", "rootfs_read_only", "workdir_writable", "no_capabilities", "no_new_privileges",
-    "copilot_installed", "smoke_tool", "godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool",
+    "copilot_installed", "smoke_tool", "godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool", "ios_shell_tool",
 ]
 
 

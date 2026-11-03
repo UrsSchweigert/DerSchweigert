@@ -46,7 +46,7 @@ RUN chmod 0755 /opt/harness/godot-test && ln -sf /opt/harness/godot-test /usr/lo
 
 # Trusted browser and engine checks. Workers cannot change them: they live in the image, not in the repository.
 COPY smoke/ /opt/harness/smoke/
-RUN chmod 0755 /opt/harness/smoke/godot_project.sh
+RUN chmod 0755 /opt/harness/smoke/godot_project.sh /opt/harness/smoke/ios_shell.sh
 
 RUN useradd --uid 10001 --create-home --shell /bin/sh worker
 USER worker
