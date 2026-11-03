@@ -6,8 +6,12 @@ import {
   createWebReminders,
   createWebHaptics,
   createWebApp,
+  createWebExport,
   createPlatformAdapter,
   UNSUPPORTED,
+  PRACTICE_TIME_KEY,
+  MAX_CARD_PRACTICE_MS,
+  REPORT_FILENAME,
 } from '../static/platform.mjs';
 
 /** Minimal in-memory stand-in for localStorage. */
@@ -171,6 +175,201 @@ test('web progress: corrupt or absent store falls back to defaults', () => {
   assert.doesNotThrow(() => missing.writeSelection('de', { consonants: [], vowels: [], specials: [] }));
 });
 
+test('web progress: practice time accumulates, is capped per card and survives corruption', () => {
+  const store = createFakeStore();
+  const progress = createWebProgress(store);
+
+  assert.equal(progress.readPracticeMs(), 0);
+  progress.addPracticeMs(1500);
+  progress.addPracticeMs('2500');
+  assert.equal(progress.readPracticeMs(), 4000);
+  assert.equal(store.getItem(PRACTICE_TIME_KEY), '4000');
+
+  progress.addPracticeMs(-500);
+  progress.addPracticeMs('not-a-number');
+  progress.addPracticeMs(Number.NaN);
+  assert.equal(progress.readPracticeMs(), 4000);
+
+  progress.addPracticeMs(MAX_CARD_PRACTICE_MS * 10);
+  assert.equal(progress.readPracticeMs(), 4000 + MAX_CARD_PRACTICE_MS);
+
+  const corrupt = createWebProgress(createFakeStore({ [PRACTICE_TIME_KEY]: '{oops' }));
+  assert.equal(corrupt.readPracticeMs(), 0);
+
+  const missing = createWebProgress(undefined);
+  assert.equal(missing.readPracticeMs(), 0);
+  assert.equal(missing.addPracticeMs(1000), 1000);
+  assert.equal(missing.readPracticeMs(), 0);
+});
+
+test('web export: native shell writes the CSV and opens the share sheet', async () => {
+  const calls = [];
+  const win = {
+    Capacitor: {
+      isNativePlatform: () => true,
+      Plugins: {
+        Filesystem: {
+          writeFile: async (options) => {
+            calls.push(['writeFile', options]);
+            return { uri: 'file:///cache/report.csv' };
+          },
+          getUri: async (options) => {
+            calls.push(['getUri', options]);
+            return { uri: 'file:///cache/buchstabenzeit-report.csv' };
+          },
+        },
+        Share: {
+          share: async (options) => {
+            calls.push(['share', options]);
+          },
+        },
+      },
+    },
+  };
+  const exporter = createWebExport(win);
+
+  assert.equal(exporter.kind, 'native');
+  assert.equal(exporter.isSupported(), true);
+  assert.deepEqual(await exporter.save('card,correct\n"Mama",1\n', REPORT_FILENAME), {
+    saved: true,
+    kind: 'native',
+  });
+  assert.deepEqual(calls[0], [
+    'writeFile',
+    { path: REPORT_FILENAME, data: 'card,correct\n"Mama",1\n', directory: 'CACHE', encoding: 'UTF8' },
+  ]);
+  assert.deepEqual(calls[1], ['getUri', { path: REPORT_FILENAME, directory: 'CACHE' }]);
+  assert.equal(calls[2][0], 'share');
+  assert.equal(calls[2][1].title, REPORT_FILENAME);
+  assert.equal(calls[2][1].url, 'file:///cache/buchstabenzeit-report.csv');
+});
+
+/** Fake browser download surface that records blob and anchor usage. */
+function createFakeDownloadWindow() {
+  const created = [];
+  const clicks = [];
+  const revoked = [];
+  const appended = [];
+  const win = {
+    Blob: class {
+      constructor(parts, options) {
+        this.parts = parts;
+        this.options = options;
+      }
+    },
+    URL: {
+      createObjectURL: (blob) => {
+        created.push(blob);
+        return 'blob:report';
+      },
+      revokeObjectURL: (href) => revoked.push(href),
+    },
+    document: {
+      body: {
+        appendChild: (anchor) => appended.push(anchor),
+      },
+      createElement: (tag) => {
+        const anchor = { tag, click: () => clicks.push(anchor), remove: () => {} };
+        return anchor;
+      },
+    },
+  };
+  return { win, created, clicks, revoked, appended };
+}
+
+test('web export: the browser path downloads the CSV through a blob and anchor', async () => {
+  const { win, created, clicks, revoked, appended } = createFakeDownloadWindow();
+  const previousFetch = globalThis.fetch;
+  let fetches = 0;
+  globalThis.fetch = () => {
+    fetches++;
+    throw new Error('export must not use the network');
+  };
+  try {
+    const exporter = createWebExport(win);
+
+    assert.equal(exporter.kind, 'web');
+    assert.equal(exporter.isSupported(), true);
+    const result = await exporter.save('card,correct\n"Mama",1\n');
+
+    assert.deepEqual(result, { saved: true, kind: 'download' });
+    assert.equal(created.length, 1);
+    assert.deepEqual(created[0].parts, ['card,correct\n"Mama",1\n']);
+    assert.equal(created[0].options.type, 'text/csv;charset=utf-8');
+    assert.equal(clicks.length, 1);
+    assert.equal(clicks[0].href, 'blob:report');
+    assert.equal(clicks[0].download, REPORT_FILENAME);
+    assert.deepEqual(appended, [clicks[0]]);
+    assert.deepEqual(revoked, ['blob:report']);
+    assert.equal(fetches, 0);
+  } finally {
+    if (previousFetch === undefined) {
+      delete globalThis.fetch;
+    } else {
+      globalThis.fetch = previousFetch;
+    }
+  }
+});
+
+test('web export: a native shell without plugins fails instead of downloading', async () => {
+  const { win, created, clicks } = createFakeDownloadWindow();
+  win.Capacitor = { isNativePlatform: () => true };
+  const exporter = createWebExport(win);
+
+  assert.equal(exporter.kind, 'native');
+  assert.equal(exporter.isSupported(), false);
+  assert.deepEqual(await exporter.save('a,b\n1,2\n'), {
+    saved: false,
+    kind: 'native',
+    reason: UNSUPPORTED,
+  });
+  assert.equal(created.length, 0);
+  assert.equal(clicks.length, 0);
+});
+
+test('web export: a failing native write reports failure without a web fallback', async () => {
+  const { win, created, clicks } = createFakeDownloadWindow();
+  const shared = [];
+  win.Capacitor = {
+    isNativePlatform: () => true,
+    Plugins: {
+      Filesystem: {
+        writeFile: async () => {
+          throw new Error('disk full');
+        },
+        getUri: async () => ({ uri: 'file:///cache/report.csv' }),
+      },
+      Share: {
+        share: async (options) => {
+          shared.push(options);
+        },
+      },
+    },
+  };
+  const exporter = createWebExport(win);
+
+  assert.deepEqual(await exporter.save('a,b\n1,2\n'), {
+    saved: false,
+    kind: 'native',
+    reason: 'failed',
+  });
+  assert.equal(shared.length, 0);
+  assert.equal(created.length, 0);
+  assert.equal(clicks.length, 0);
+});
+
+test('web export: a missing browser download surface is unsupported', async () => {
+  const exporter = createWebExport({ document: {} });
+
+  assert.equal(exporter.kind, 'web');
+  assert.equal(exporter.isSupported(), false);
+  assert.deepEqual(await exporter.save('a,b\n'), {
+    saved: false,
+    kind: 'download',
+    reason: UNSUPPORTED,
+  });
+});
+
 test('web reminders: unsupported, denied and no-ops without touching Notification', async () => {
   const previous = globalThis.Notification;
   let touched = 0;
@@ -264,6 +463,8 @@ test('platform adapter: defaults are safe outside a browser', () => {
   assert.equal(platform.reminders.isSupported(), false);
   assert.equal(platform.haptics.isSupported(), false);
   assert.equal(platform.app.isSupported(), false);
+  assert.equal(platform.export.kind, 'web');
+  assert.equal(platform.export.isSupported(), false);
 });
 
 test('web app: addListener without a plugin returns a removable no-op handle', () => {

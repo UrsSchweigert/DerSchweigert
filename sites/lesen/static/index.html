@@ -895,6 +895,12 @@
             padding: 0;
         }
 
+        .report-status {
+            display: inline-block;
+            margin-left: 10px;
+            color: var(--blue);
+        }
+
         @media (max-width: 680px) {
             main {
                 padding: 18px 20px 20px;
@@ -1180,7 +1186,7 @@
             </div>
         </dialog>
     </main>
-    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button></footer>
+    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="export-report" class="link-button"><span id="footer-report-label">Bericht als CSV speichern</span></button> <button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button> <span id="report-status" class="report-status" role="status"></span></footer>
     <script type="module">
         import { createPlatformAdapter } from './platform.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
@@ -1204,6 +1210,7 @@
         'use strict';
         import { bestNextUnits } from './coverage.mjs';
         import { getTtsLanguageCode, getWordListFilename } from './storage.mjs';
+        import { buildReport, toCsv, REPORT_FILENAME, MAX_CARD_PRACTICE_MS } from './platform.mjs';
         
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
@@ -1218,6 +1225,7 @@
         let sentenceTexts = { de: null, en: null };
         let deckStarting = false;
         let startLoading = false;
+        let cardShownAt = null;
         let stats = window.__platform.progress.read();
         let currentPattern = 'PATTERNS';
         let isInFlopMode = false;
@@ -1378,6 +1386,7 @@
 
         function updateFooterText() {
             byId('footer-tagline').textContent = tr('footer.tagline');
+            byId('footer-report-label').textContent = tr('footer.parent_report');
             byId('footer-about-label').textContent = tr('footer.about_button');
         }
 
@@ -1750,6 +1759,7 @@
             byId('progress').max = total;
             byId('progress').value = cleared;
             if (!queue.length) {
+                cardShownAt = null;
                 showScreen('complete');
                 byId('complete-summary').textContent = `${total} ${tr(total === 1 ? 'unit.card' : 'unit.cards')} ${tr('unit.in')} ${attempts} ${tr(attempts === 1 ? 'unit.attempt' : 'unit.attempts_dat')} ${tr('complete.summary_suffix')}`;
                 byId('complete-title').focus();
@@ -1757,6 +1767,7 @@
                 return;
             }
             byId('syllable').textContent = queue[0].text;
+            cardShownAt = Date.now();
             updateCardFontSize(queue[0].text, queue[0].kind === 'sentence' ? 22 : 0);
             byId('review-label').hidden = queue[0].misses === 0;
             byId('speak-card').setAttribute('aria-disabled', String(!window.__scoring.isSpeakableCard(queue[0])));
@@ -2044,7 +2055,14 @@
             window.__speech?.cancel();
             const card = queue.shift();
             attempts++;
-            
+
+            // Credit the time the card was on screen, capped so an idle tab
+            // cannot inflate the practice total in the parent report.
+            if (cardShownAt !== null) {
+                window.__platform.progress.addPracticeMs(Math.min(Date.now() - cardShownAt, MAX_CARD_PRACTICE_MS));
+                cardShownAt = null;
+            }
+
             const { recordAttempt } = window.__scoring;
             // Any correct answer in flop mode resets the card stats to 0, 0 (recovery).
             recordAttempt(stats, card.text, correct, {
@@ -2138,6 +2156,19 @@
         });
         byId('about-x').addEventListener('click', () => byId('about-dialog').close());
         byId('about-close').addEventListener('click', () => byId('about-dialog').close());
+        byId('export-report').addEventListener('click', async () => {
+            const status = byId('report-status');
+            try {
+                const csv = toCsv(buildReport(
+                    window.__platform.progress.read(),
+                    window.__platform.progress.readPracticeMs(),
+                ));
+                const result = await window.__platform.export.save(csv, REPORT_FILENAME);
+                status.textContent = tr(result?.saved ? 'report.export_ready' : 'report.export_failed');
+            } catch {
+                status.textContent = tr('report.export_failed');
+            }
+        });
     </script>
 </body>
 
