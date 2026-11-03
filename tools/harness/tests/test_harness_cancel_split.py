@@ -253,3 +253,18 @@ def test_an_apply_interrupted_before_the_part_transitions_resumes(tmp_path, reac
     events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Completed", advance=60)
     assert any(e["event"] == "split_applied" for e in events)
     assert env.state("i1") == "Cancelled" and env.state("i1-model") == "Done" and env.state("i1-view") == "Done"
+
+
+def test_a_run_pauses_by_itself_once_the_named_phase_is_done(tmp_path):
+    """The operator asks for one phase to land whole and nothing after it to start."""
+    from harness_doubles import Env
+    env = Env(tmp_path, budgets={"lease_s": 10 ** 7, "run_wall_clock_s": 10 ** 8, "worker_timeout_s": 10 ** 7,
+                                 "inactivity_timeout_s": 10 ** 7})
+    env.store.put_run("fx", dict(env.store.get_run("fx"), pause_after_phase="P1"))
+    env.start()
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert "paused after phase P1" in [e for e in events if e["event"] == "paused"][0]["reason"]
+    assert env.store.state("phase", "fx@v1/P1") == "Done"
+    assert env.store.state("phase", "fx@v1/P2") in ("Planned", "Eligible")  # P2 never started
+    paused = env.store.get_run("fx")
+    assert not paused.get("pause_after_phase")  # the request is one-shot

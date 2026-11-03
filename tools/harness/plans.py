@@ -21,6 +21,10 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "escalation_paths": [
         ".github/workflows/", "tools/harness/", "docs/harness/", ".github/CODEOWNERS",
         "package.json", "package-lock.json", "requirements.txt", "build.gradle", "settings.gradle", "AndroidManifest.xml", "infra/", "migrations/",
+        # Godot and Android release surface: presets hold signing configuration, addons are third-party code,
+        # the Android build template and plugin binaries are native build inputs.
+        "export_presets.cfg", "addons/", "apps/arithmoslayer/android/",
+        "*.gdextension", "*.so", "*.dylib", "*.dll", "*.aar", "*.jar", "*.apk", "*.aab", "*.keystore", "*.jks",
     ],
     "merge_policy": "autonomous-when-all-gates-pass",
     "base_branch": "main",
@@ -31,7 +35,9 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "concurrent_workers": 2, "repair_attempts": 2, "transient_retries": 3, "delegator_consults_per_issue": 1,
         "analyses_per_issue": 1, "strong_attempts_per_issue": 2,
         "worker_timeout_s": 1800, "inactivity_timeout_s": 600, "heartbeat_s": 30, "lease_s": 90,
-        "run_wall_clock_s": 28800, "pull_requests_per_run": 20, "github_write_retries": 5,
+        # No wall-clock and no pull-request/issue cap by default: a run works until its issues are done or the owner
+        # pauses it. Set a number here (or in the plan's policy) to bound a run again.
+        "run_wall_clock_s": None, "pull_requests_per_run": None, "github_write_retries": 5,
         "human_reminder_after_s": 86400, "human_reminders_max": 3, "human_escalation_after_s": 259200,
     },
     "model_sources": ["copilot"],
@@ -42,11 +48,20 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "allowed_licenses": ["CC0-1.0"],
         "attribution_required_licenses": [],
         "paid_generation_credits": 0,
+        # Per-file ceilings, sized against a 150 MB release AAB. A class may override allowed_licenses.
+        # Typical files sit far below the ceiling: an sfx is usually 10-50 kB and a UI font 100-400 kB.
         "classes": {
             "model3d": {"formats": ["glb", "gltf"], "max_bytes": 5000000, "max_triangles": 100000, "max_texture_px": 2048, "max_bbox_m": 20.0},
             "texture": {"formats": ["png", "jpg"], "max_bytes": 4000000, "max_texture_px": 2048},
             "sprite": {"formats": ["png"], "max_bytes": 1000000, "max_texture_px": 1024},
             "hdri": {"formats": ["hdr", "exr"], "max_bytes": 20000000, "max_texture_px": 4096},
+            # A short effect: 3 s stereo Ogg at 96 kbit/s is about 36 kB, so 500 kB is a generous ceiling.
+            "audio_sfx": {"formats": ["wav", "ogg"], "max_bytes": 500000, "max_seconds": 3.0, "max_sample_rate_hz": 48000, "max_channels": 2},
+            # One looping track: 3 minutes at 96 kbit/s is about 2.2 MB. Twelve tracks stay under 42 MB.
+            "audio_music": {"formats": ["ogg"], "max_bytes": 3500000, "max_seconds": 180.0, "max_sample_rate_hz": 48000, "max_channels": 2},
+            # Fonts carry their own licence allowlist and must ship their licence text next to the file.
+            "font": {"formats": ["ttf", "otf"], "max_bytes": 1500000, "license_file_required": True,
+                     "allowed_licenses": ["OFL-1.1", "Apache-2.0"]},
         },
         "output_dir": "assets/",
         "name_pattern": "^[a-z0-9][a-z0-9_-]*\\.[a-z0-9]+$",
@@ -96,10 +111,14 @@ _GLOB_CHARS = set("*?[")
 _PATH_CHARS = re.compile(r"^[A-Za-z0-9._@+~/-]+$")
 
 
-def _under(path: str, prefixes: Sequence[str]) -> bool:
+def under(path: str, prefixes: Sequence[str]) -> bool:
+    """True when `path` is one of `prefixes` or lies inside one of them."""
     normal = os.path.normpath(path).replace(os.sep, "/")
     return any(normal == p or normal.startswith(p + "/")
                for p in (os.path.normpath(q).replace(os.sep, "/").rstrip("/") for q in prefixes))
+
+
+_under = under
 
 
 def command_paths_problem(command: str, working_directory: str, allowlist: Sequence[str],
@@ -189,6 +208,38 @@ def with_model_sources(policy: Optional[Dict[str, Any]], sources: Optional[List[
     return policy
 
 
+def assets_output_dir_problem(value: Any) -> Optional[str]:
+    """An asset output directory must be a repository-relative directory that cannot climb out of the repository."""
+    if not isinstance(value, str) or not value.strip():
+        return "output_dir must be a non-empty repository-relative directory"
+    text = value.strip().replace(os.sep, "/")
+    if text.startswith("/") or ".." in text.split("/"):
+        return "output_dir must stay inside the repository"
+    if not text.endswith("/"):
+        return "output_dir must end with '/' because it names a directory"
+    return None
+
+
+def with_overseer(policy: Optional[Dict[str, Any]], enabled: bool, rounds_per_issue: int = 2) -> Dict[str, Any]:
+    """Bind the overseer setting into a plan's policy copy. The choice is part of the approval digest."""
+    if not isinstance(rounds_per_issue, int) or rounds_per_issue < 0:
+        raise ValueError("overseer rounds_per_issue must be a whole number")
+    policy = copy.deepcopy(policy or DEFAULT_POLICY)
+    policy["overseer"] = {"enabled": bool(enabled), "rounds_per_issue": rounds_per_issue}
+    return policy
+
+
+def with_assets_dir(policy: Optional[Dict[str, Any]], value: str) -> Dict[str, Any]:
+    """Bind an asset output directory (for example `apps/arithmoslayer/assets/`) into a plan's policy copy."""
+    problem = assets_output_dir_problem(value)
+    if problem:
+        raise ValueError(problem)
+    policy = copy.deepcopy(policy or DEFAULT_POLICY)
+    policy["assets"]["output_dir"] = re.sub(r"/{2,}", "/", value.strip().replace(os.sep, "/"))
+    return policy
+
+
+
 def validate_plan(plan: Dict[str, Any]) -> List[str]:
     """Return semantic problems. An empty list means the plan may move from Draft to Proposed."""
     schemas.validate(plan, schemas.PLAN, "plan")
@@ -256,7 +307,35 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
             problems.append("policy.model_sources has unknown sources: %s" % unknown)
         elif any(not plan["policy"]["model_tiers"].get(tier) for tier in models.TIERS):
             problems.append("policy.model_tiers has an empty tier for the chosen model sources %s" % sources)
+    routing = plan["policy"].get("model_routing")
+    if routing:
+        tiers = plan["policy"]["model_tiers"]
+        approved = {m for tier in models.TIERS for m in models._candidates(tier, tiers)}
+        for key in ("routine_models", "escalation_models"):
+            choices = routing[key]
+            if not choices or not set(choices) <= approved:
+                problems.append("policy.model_routing.%s must name non-empty approved models" % key)
+        if len(set(routing["routine_models"])) < 2:
+            problems.append("policy.model_routing.routine_models needs two distinct models for independent review")
+        if routing["refiner"] not in models._candidates("strong", tiers):
+            problems.append("policy.model_routing.refiner must be an approved strong model")
+        if not models.routed_tiers(plan["policy"], "overseer")["strong"]:
+            problems.append("policy.model_routing.escalation_models needs an approved strong model")
+    assets = plan["policy"].get("assets") or {}
+    problem = assets_output_dir_problem(assets.get("output_dir"))
+    if problem:
+        problems.append("policy.assets.%s" % problem)
+    try:
+        re.compile(str(assets.get("name_pattern") or ""))
+    except re.error:
+        problems.append("policy.assets.name_pattern is not a valid regular expression")
+    for name, spec in sorted((assets.get("classes") or {}).items()):
+        if not isinstance(spec, dict) or not spec.get("formats"):
+            problems.append("policy.assets.classes.%s needs a list of allowed formats" % name)
+        elif spec.get("allowed_licenses") is not None and not spec["allowed_licenses"]:
+            problems.append("policy.assets.classes.%s.allowed_licenses must not be empty; omit it to use the global list" % name)
     return problems
+
 
 
 def _has_cycle(phases: List[Dict[str, Any]]) -> bool:

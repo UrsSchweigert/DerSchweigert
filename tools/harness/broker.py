@@ -92,9 +92,27 @@ def assert_store_unreachable(worktree: str, store_home: str) -> None:
 
 
 def is_escalation(path: str, escalation: Sequence[str]) -> bool:
-    """Prefix or exact match, plus file-name match for entries without a directory, so sites/x/package.json counts as package.json."""
+    """Match modes, so a policy can name files, directories, and binary types:
+    a plain name matches a prefix or the exact path, and also any path with that base name
+    (`sites/x/package.json` counts as `package.json`); an entry ending in `/` matches a directory of that
+    name at any depth (third-party `addons/`); an entry starting with `*.` matches a file suffix (`*.so`)."""
     p = os.path.normpath(path).replace(os.sep, "/")
-    return any(p.startswith(e) or p == e or ("/" not in e and os.path.basename(p) == e) for e in escalation)
+    for entry in escalation:
+        raw = str(entry).replace(os.sep, "/").strip()
+        if not raw:
+            continue
+        if raw.startswith("*."):
+            if p.lower().endswith(raw[1:].lower()):
+                return True
+            continue
+        is_dir = raw.endswith("/")
+        normal = os.path.normpath(raw).replace(os.sep, "/")
+        if is_dir:
+            if p == normal or p.startswith(normal + "/") or ("/" + normal + "/") in ("/" + p):
+                return True
+        elif p.startswith(normal) or p == normal or ("/" not in normal and os.path.basename(p) == normal):
+            return True
+    return False
 
 
 def check_changed_paths(changed: Sequence[str], allowlist: Sequence[str], escalation: Sequence[str]) -> Dict[str, List[str]]:

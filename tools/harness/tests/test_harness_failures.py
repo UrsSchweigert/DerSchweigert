@@ -1,4 +1,6 @@
 import json
+import pathlib
+import time
 
 import pytest
 
@@ -44,11 +46,41 @@ def test_transient_and_repair_budgets_are_separate(tmp_path):
 
 def test_exhausted_transient_budget_blocks_with_an_owner(tmp_path):
     env = Env(tmp_path, budgets=LONG)
-    env.adapter.script("i1", "implementer", *["error:infra"] * 6)
+    # A transient failure after a worker ran: the issue's own work is at stake, so the owner decides.
+    env.adapter.script("i1", "implementer", "error:runtime_crash", "error:runtime_crash", *["error:runtime_crash"] * 6)
     env.start()
     env.run_until(lambda: env.state("i1") == "Blocked", advance=700)
     assert "transient retry budget exhausted" in env.store.get_issue("i1")["blocked_reason"]
     assert [t["state"] for t in env.store.human_tasks("i1")] == ["Requested"]
+
+
+def test_a_worker_that_never_starts_pauses_the_run_once_instead_of_asking_per_issue(tmp_path):
+    """A host problem hits every issue the same way. Four retries per issue and a decision task each would bury the
+    one fact the owner needs: no worker can start at all."""
+    env = Env(tmp_path, budgets=LONG, issues=[("i1", "P1", ["F1.1"]), ("i2", "P1", ["F1.2"])])
+    env.adapter.script("i1", "implementer", "start_fails", "start_fails", "start_fails", "start_fails")
+    env.start()
+    events = env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused", advance=700)
+    assert [e["event"] for e in events if e["event"] in ("environment_failure", "paused")] == ["environment_failure", "paused"]
+    assert "no worker can be started" in events[-1]["reason"]
+    assert env.state("i1") == "Ready"  # released for a retry, not blocked
+    assert env.store.human_tasks("i1") == [] and env.store.human_tasks("i2") == []
+    assert env.store.get_issue("i1")["transient_failures"] == 0  # none of it was about this issue
+
+
+def test_a_run_pauses_when_there_is_no_room_for_a_worker_copy(tmp_path):
+    """Every attempt fails in preparation without disk space, so the harness says so instead of retrying."""
+    env = Env(tmp_path)
+    env.sched.free_space_floor_bytes = 2 ** 60  # no host has this much free
+    env.start()
+    events = env.tick(1)
+    assert events[-1]["event"] == "paused" and "free for worker directories" in events[-1]["reason"]
+    assert not env.adapter.started
+    env.sched.free_space_floor_bytes = 0
+    env.store.put_run("fx", dict(env.store.get_run("fx"), pause_requested=False))
+    env.sched.start(env.clock())  # the owner resumes once space is free
+    env.tick(1)
+    assert env.adapter.started
 
 
 def test_validation_configuration_failure_blocks_without_repair_dispatch(tmp_path):
@@ -174,3 +206,180 @@ def test_blocked_on_unmet_dependency_needs_no_task(tmp_path):
     env.start()
     env.tick()
     assert env.store.human_tasks("b") == []
+
+
+def test_a_finished_attempt_releases_its_working_copy(tmp_path):
+    """Every attempt gets its own copy of the repository. Keeping them after the attempt is over filled the disk."""
+    env = Env(tmp_path, budgets=LONG)
+    env.adapter.script("i1", "implementer", "error:runtime_crash", "ok")
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done", advance=700)
+    started = [req.attempt_id for req in env.adapter.started]
+    assert started and sorted(env.adapter.cleaned) == sorted(started)  # every copy released, each exactly once
+
+
+def test_the_heartbeat_keeps_a_lease_alive_when_a_tick_is_slow(tmp_path):
+    """A lease detects a dead runner, not a busy one. A slow network call in one tick used to fence every worker in
+    flight, spend its retry budget, and block four issues over workers that had done nothing wrong."""
+    env = Env(tmp_path, budgets=dict(LONG, lease_s=90))
+    env.adapter.script("i1", "implementer", "busy", "busy", "ok")
+    env.start()
+    env.tick(1)
+    assert env.sched.active_attempts() == ["i1#1"]
+    env.clock.advance(80)
+    env.sched._renew_leases()  # what the heartbeat thread does while the tick is stuck in a slow call
+    env.clock.advance(80)
+    assert env.store.recover(env.clock()) == []  # 160s after the claim, and the lease is still alive
+    assert env.sched.active_attempts() == ["i1#1"]
+
+
+def test_a_notification_that_fails_does_not_stop_the_scheduling_pass(tmp_path):
+    class Broken:
+        def send(self, recipient, subject, message, task):
+            raise RuntimeError("gh did not answer within 60s")
+
+    env = Env(tmp_path, budgets=LONG)
+    env.sched.notifier = Broken()
+    env.start()
+    env.tick(1)  # must not raise
+    assert env.state("i1") == "In Progress" and env.sched.active_attempts() == ["i1#1"]
+
+
+def test_a_slow_scheduling_stage_is_named_in_the_run_log(tmp_path, monkeypatch):
+    from harness import scheduler as scheduler_mod
+    monkeypatch.setattr(scheduler_mod, "SLOW_STAGE_S", 0.01)
+    env = Env(tmp_path, budgets=LONG)
+    env.sched.events = []
+    with env.sched._timed("notify"):
+        time.sleep(0.02)
+    assert env.sched.events[0]["event"] == "tick_slow" and env.sched.events[0]["stage"] == "notify"
+
+
+def test_a_sleeping_host_does_not_fence_a_running_attempt(tmp_path):
+    """A laptop that sleeps freezes the runner, the worker and the lease at once. Fencing that attempt charges the
+    issue for a fault of the host — and on a machine that sleeps at night it charges every issue once per night."""
+    env = Env(tmp_path, budgets=dict(LONG, lease_s=90, worker_timeout_s=10 ** 7, inactivity_timeout_s=10 ** 7))
+    mono = {"t": 1000.0}
+    env.sched.mono_clock = lambda: mono["t"]
+    env.adapter.script("i1", "implementer", "busy", "busy", "ok")
+    env.start()
+    env.tick(1)  # the pivot
+    env.clock.advance(700)  # 11 minutes of wall clock pass ...
+    mono["t"] += 2  # ... while this process was frozen for all but two seconds of it
+    events = env.tick(1)
+    assert [e for e in events if e["event"] == "host_slept"] != []
+    assert env.sched.active_attempts() == ["i1#1"]  # still running, not fenced
+    assert env.state("i1") == "In Progress"
+    assert not [e for e in events if e["event"] == "attempt_failed"]
+
+
+def test_without_sleep_detection_the_same_jump_fences_the_attempt(tmp_path):
+    """The control: the very same wall-clock jump, with no monotonic clock to compare against."""
+    env = Env(tmp_path, budgets=dict(LONG, lease_s=90, worker_timeout_s=10 ** 7, inactivity_timeout_s=10 ** 7))
+    env.adapter.script("i1", "implementer", "busy", "busy", "ok")
+    env.start()
+    env.tick(1)
+    env.clock.advance(700)
+    events = env.tick(1)
+    assert [e for e in events if e["event"] == "attempt_failed" and e.get("kind") == "lease_lost"] != []
+
+
+def test_a_claim_cannot_be_extended_under_another_epoch(tmp_path):
+    env = Env(tmp_path, budgets=dict(LONG, lease_s=90))
+    env.start()
+    env.tick(1)
+    claim = env.store.active_claims()[0]
+    assert env.store.extend_claim(claim["attempt_id"], claim["epoch"], env.clock(), 90) is True
+    assert env.store.extend_claim(claim["attempt_id"], claim["epoch"] + 1, env.clock(), 90) is False
+
+
+def test_keep_awake_is_a_no_op_outside_macos(monkeypatch):
+    from harness import runner as runner_mod
+    monkeypatch.setattr(runner_mod.sys, "platform", "linux")
+    assert runner_mod.keep_awake() is None
+
+
+def test_a_worker_that_writes_no_result_is_transient_not_deterministic():
+    """A clean exit with no result file is a provider or CLI fault. Classifying it deterministic blocked an issue after
+    one repeat instead of spending a retry on a stronger model."""
+    assert failures.classify("no_result") == "transient"
+    assert failures.classify("schema_invalid") == "deterministic"
+
+
+def test_a_repeated_failure_signature_escalates_the_model_tier(tmp_path):
+    """The harness already changes the packet; when the model produced nothing, the model is what has to change."""
+    env = Env(tmp_path, budgets=dict(LONG, transient_retries=10, repair_attempts=10),
+              available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5"])
+    env.adapter.script("i1", "implementer", *["error:no_result"] * 6)
+    env.start()
+    env.run_until(lambda: len(env.adapter.started) >= 3, advance=700)
+    tiers = [req.tier for req in env.adapter.started if req.role == "implementer"]
+    assert tiers[0] == "low"
+    assert "standard" in tiers[2:3]  # after two identical failures the next attempt is a tier higher
+
+
+def test_the_escalation_skips_a_tier_that_offers_the_same_model(tmp_path):
+    """This plan maps low and standard both to the cheapest model. Escalating one label up repeated the same failure
+    under a different name; the model is what has to change."""
+    env = Env(tmp_path, budgets=dict(LONG, transient_retries=10, repair_attempts=10),
+              available_models=["deepseek/deepseek-flash", "deepseek/deepseek-v4-pro"],
+              model_sources=["deepseek"],
+              policy_overrides={"model_tiers": {"low": ["deepseek/deepseek-flash"],
+                                                "standard": ["deepseek/deepseek-flash"],
+                                                "strong": ["deepseek/deepseek-v4-pro"]}})
+    env.adapter.script("i1", "implementer", *["error:no_result"] * 6)
+    env.start()
+    env.run_until(lambda: len(env.adapter.started) >= 3, advance=700)
+    models_used = [req.model for req in env.adapter.started if req.role == "implementer"]
+    assert models_used[0] == "deepseek/deepseek-flash"
+    assert models_used[2] == "deepseek/deepseek-v4-pro"  # straight past the tier that repeats the same model
+
+
+def test_an_attempt_left_by_a_stopped_runner_is_requeued_without_charge(tmp_path):
+    """Restarting the runner used to cost the issue a retry for whatever was in flight, and enough restarts blocked a
+    healthy issue. The attempt is still recorded as fenced, but the issue keeps its budget."""
+    from harness.scheduler import Scheduler
+    from harness_doubles import FakeAdapter, TIER_A
+    env = Env(tmp_path, budgets=dict(LONG, lease_s=90))
+    env.adapter.script("i1", "implementer", "busy", "busy", "ok")
+    env.start()
+    env.tick(1)
+    before = env.store.get_issue("i1")["transient_failures"]
+    # A new process takes the plan over, exactly as `harness resume` does.
+    adapter2 = FakeAdapter(env.repo, env.clock)
+    adapter2.script("i1", "implementer", "ok")
+    sched2 = Scheduler(env.store, "fx", 1, adapter2, env.repo, env.checker, env.publisher,
+                       clock=env.clock, rng=lambda: 0.0, isolation_override=TIER_A)
+    env.clock.advance(120)  # the dead runner's lease lapses
+    sched2.start(env.clock())
+    events = sched2.tick(env.clock())
+    assert [e for e in events if e["event"] == "attempt_orphaned"] != []
+    assert not [e for e in events if e.get("kind") == "lease_lost"]
+    assert env.store.get_issue("i1")["transient_failures"] == before
+    assert env.store.get_attempt("i1#1")["failure_kind"] == "runner_lost"
+
+
+def test_a_failure_keeps_the_workers_own_last_words(tmp_path):
+    """Without the worker's output a failure is a category with no cause, and every such failure ends at the owner."""
+    import json as _json
+    env = Env(tmp_path, budgets=dict(LONG, transient_retries=5))
+    env.adapter.tail_lines = ["Rate limit reached for deepseek-flash", "context length exceeded: 131072 tokens"]
+    env.adapter.script("i1", "implementer", "error:no_result", "ok")
+    env.start()
+    env.run_until(lambda: env.state("i1") == "Done", advance=700)
+    issue = env.store.get_issue("i1")
+    first = issue["last_failures"][0]
+    assert first["kind"] == "no_result"
+    assert any("context length exceeded" in line for line in first["tail"])
+    attempt = env.store.get_attempt("i1#1")
+    assert any("Rate limit" in line for line in attempt["output_tail"])
+    log = pathlib.Path(env.store.home) / "attempt-logs" / "i1_1.log"
+    assert log.exists() and "Rate limit" in log.read_text()
+
+
+def test_the_tail_does_not_change_the_failure_signature(tmp_path):
+    """Two identical failures with different output are still the same failure; the repeat rule must still fire."""
+    from harness import failures
+    a = failures.signature("no_result", "the worker exited without writing result.json")
+    b = failures.signature("no_result", "the worker exited without writing result.json")
+    assert a == b

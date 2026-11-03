@@ -12,6 +12,7 @@ REPORTED = "reported"  # the worker says it cannot finish: a request for directi
 # Evidence kinds observed by trusted code mapped to a failure class.
 KIND_CLASS = {
     "infra": TRANSIENT, "network": TRANSIENT, "rate_limit": TRANSIENT, "runtime_crash": TRANSIENT, "lease_lost": TRANSIENT,
+    "no_result": TRANSIENT,  # a clean exit with no result file is a provider or CLI fault, not a schema violation
     "checks_failed": DETERMINISTIC, "check_configuration": "configuration", "review_findings": DETERMINISTIC, "schema_invalid": DETERMINISTIC,
     "merge_conflict": DETERMINISTIC, "push_rejected": DETERMINISTIC, "patch_changed": DETERMINISTIC, "integrated_checks_failed": DETERMINISTIC,
     "scope_violation": POLICY, "escalation_path": POLICY, "approval": POLICY, "permission": POLICY,

@@ -19,7 +19,11 @@ def _base_branch(store: Store, issue: Dict[str, Any]) -> str:
     versions = [row["version"] for row in store.list_plans() if row["plan_id"] == issue.get("plan_id")]
     if not versions:
         return "main"
-    return plans.base_branch(store.get_plan(issue["plan_id"], max(versions))["plan"])
+    plan = store.get_plan(issue["plan_id"], max(versions))["plan"]
+    # `runner.build_scheduler` publishes issue pull requests against the run branch when the plan has one, and only
+    # falls back to the base branch without it. Verifying `main` instead would check the wrong branch's rules and
+    # reject a legitimately merged issue pull request.
+    return plans.run_branch(plan) or plans.base_branch(plan)
 
 
 def reconcile_completion(store: Store, client: Client, issue_id: str, pr_number: int, head_sha: str,

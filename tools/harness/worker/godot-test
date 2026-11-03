@@ -1,0 +1,41 @@
+#!/bin/sh
+# Trusted harness helper: run the project's GUT suite headless.
+#
+# GUT is not vendored into the repository. It is baked into this image and copied next to a throwaway
+# copy of the project, so a worker can neither edit the framework nor add it to its own diff.
+#
+# Usage: godot-test <project dir> [extra gut arguments]
+#   godot-test apps/arithmoslayer
+#   godot-test apps/arithmoslayer -gdir=res://tests -gtest=test_math.gd
+#
+# The default test directory is res://test. The project copy lives on tmpfs (/tmp), so the size of
+# a half-imported test run is bounded by that tmpfs, not by the repository.
+set -eu
+
+project="${1:-}"
+if [ -z "$project" ]; then
+    echo "godot-test: usage: godot-test <project dir> [extra gut arguments]" >&2
+    exit 2
+fi
+shift
+
+if [ ! -f "$project/project.godot" ]; then
+    echo "godot-test: $project has no project.godot, so it is not a Godot project" >&2
+    exit 2
+fi
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cp -a "$project"/. "$work"/
+rm -rf "$work/addons/gut"
+mkdir -p "$work/addons"
+cp -a /opt/harness/godot/addons/gut "$work/addons/gut"
+
+cd "$work"
+godot --headless --path . --import >/tmp/godot-import.log 2>&1 || {
+    echo "godot-test: the project does not import headless; last lines of the import log:" >&2
+    tail -n 40 /tmp/godot-import.log >&2
+    exit 1
+}
+
+exec godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://test -ginclude_subdirs -gexit "$@"

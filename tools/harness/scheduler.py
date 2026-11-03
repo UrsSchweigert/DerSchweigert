@@ -2,17 +2,20 @@
 evidence binding, merge gating, and phase progression. Trusted code. Time is injected so every path is testable."""
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import random
 import re
 import shlex
+import shutil
+import threading
 import time
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
-from . import approval, broker, descope, failures, humantasks, models, plans, schemas, sizing, smoke, splits, telemetry, usage
+from . import approval, broker, descope, failures, humantasks, isolation, models, plans, schemas, sizing, smoke, splits, telemetry, usage
 from .adapter import Adapter, WorkRequest
 from .checks import Checker, Publisher
 from .github import BaseChanged, GitHubError
@@ -21,6 +24,12 @@ from .store import StaleLease, Store
 
 OPEN_TASK_STATES = ("Requested", "Acknowledged", "Submitted", "Validated")
 ACTIVE_ISSUE_STATES = ("Refining", "Ready", "In Progress", "In Review")
+ENVIRONMENT_KIND = "infra"  # the worker never started: evidence about the harness or its host, never about the issue
+WORK_ROOT_FREE_BYTES = 4 * 2 ** 30  # a worker copies the repository and builds in it; below this nothing can succeed
+WORKDIR_RETENTION_S = 4 * 3600  # longer than the longest worker run and check job, so a pruned directory is never in use
+SLOW_STAGE_S = 20.0  # one scheduling stage taking this long is worth naming in the run log
+SLEEP_JUMP_S = 20.0  # wall clock running this far ahead of the monotonic clock means the host was asleep
+REPEAT_ESCALATE_AFTER = 2  # the same failure signature this often means the model, not the plan, kept failing
 
 
 def new_issue(issue_id: str, plan_id: str, phase_id: str, requirement_ids: List[str], **fields: Any) -> Dict[str, Any]:
@@ -41,9 +50,17 @@ TRANSIENT_GITHUB = ("rate limit", "timeout", "timed out", "502", "503", "504", "
 # GitHub refuses a merge with 405 while a required check is still running. That is neither a conflict nor a failure, so
 # the merge simply waits: no repair budget, no stronger model, no issue churn.
 MERGE_PENDING = ("in progress", "queued", "waiting for status", "expected \u2014 waiting", "expected - waiting")
-MERGE_PENDING_LIMIT = 40
+MERGE_PENDING_TIMEOUT_S = 30 * 60
 MAX_DECISION_TEXT = 2000
-HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result"}
+HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result",
+                  "overseer": "the overseer gave no usable decision"}
+# What the overseer may decide. Everything else stays with the owner: a scope breach, an escalation path, a permission
+# problem, an isolation failure, or a cancelled plan is not a process question.
+OVERSEER_KINDS = {"checks_failed", "check_configuration", "schema_invalid", "patch_changed", "push_rejected",
+                  "merge_conflict", "diff_too_large", "worker_blocked", "lease_lost", "inactivity", "timeout", "no_result"}
+# inactivity and timeout belong here for the same reason lease_lost does: the attempt produced no result, and nothing
+# observed so far says the issue is at fault. Leaving them out sent every stalled worker to the owner as if it were a
+# decision about the game.
 # A worker's own question is triaged before the owner sees it. Budget and policy failures are decided by trusted code.
 QUESTION_KINDS = ("needs_input",)
 
@@ -73,13 +90,19 @@ class Scheduler:
                  publisher: Publisher, *, clock: Callable[[], float] = time.time, rng: Callable[[], float] = random.random,
                  isolation_override: Optional[Dict[str, str]] = None, available_models: Optional[List[str]] = None,
                  runner_id: str = "runner-1", owner: str = "owner", secondary_owner: Optional[str] = None,
-                 notifier: Optional[humantasks.Notifier] = None, smoke_rules: Optional[List[Dict[str, Any]]] = None):
+                 notifier: Optional[humantasks.Notifier] = None, smoke_rules: Optional[List[Dict[str, Any]]] = None,
+                 free_space_floor_bytes: int = 0, mono_clock: Optional[Callable[[], float]] = None):
         self.smoke_rules = smoke.load_rules() if smoke_rules is None else smoke_rules  # trusted browser checks, see smoke.json
         self.store, self.plan_id, self.version = store, plan_id, version
         self.adapter, self.repo, self.checker, self.publisher = adapter, repo, checker, publisher
         self.clock, self.rng, self.iso, self.available_models = clock, rng, isolation_override, available_models
         self.runner_id, self.owner, self.secondary_owner, self.notifier = runner_id, owner, secondary_owner, notifier
+        self.free_space_floor_bytes = free_space_floor_bytes  # 0 disables the check; the runner sets the real floor
+        self.mono_clock = mono_clock  # supplied by the runner: only it can tell a frozen process from a sleeping host
+        self._pivot: Optional[tuple] = None
         self.handles: Dict[str, Dict[str, Any]] = {}
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._heartbeat_stop: Optional[threading.Event] = None
         self.check_runs: Dict[str, Dict[str, Any]] = {}
         self.events: List[Dict[str, Any]] = []
 
@@ -103,6 +126,7 @@ class Scheduler:
         """Begin or resume execution. Requires a verified approval and an isolation tier that permits `run`."""
         now = self.clock() if now is None else now
         approval.authorize_run(self.store, self.plan_id, self.version, self.iso, allow_paused=True)
+        self._boot_at = now  # anything older than this was started by a previous process
         self._claim(now)
         state = self.store.state("plan", self.entity)
         if state in ("Approved", "Paused"):
@@ -153,13 +177,19 @@ class Scheduler:
             self._pause("authorization or isolation: %s" % exc, now)
             return self.events
         budgets = self._plan()["policy"]["budgets"]
-        if now - run.get("started_at", now) > budgets["run_wall_clock_s"]:
+        wall_clock = budgets.get("run_wall_clock_s")  # None means the owner set no limit
+        if wall_clock is not None and now - run.get("started_at", now) > wall_clock:
             self._pause("run wall-clock budget exhausted", now)
             return self.events
-        self._recover_checks(now)
-        self._fence_expired(now)
-        self._poll(now, budgets)
-        self._poll_checks()
+        self._survive_sleep(now, budgets)
+        with self._timed("recover_checks"):
+            self._recover_checks(now)
+        with self._timed("fence"):
+            self._fence_expired(now)
+        with self._timed("poll"):
+            self._poll(now, budgets)
+        with self._timed("poll_checks"):
+            self._poll_checks()
         now = max(now, self.clock())
         if run.get("cancel_requested") and run.get("drain") and self.store.state("plan", self.entity) == "Executing":
             self._cancel(now, drain=True)
@@ -170,17 +200,32 @@ class Scheduler:
             if run.get("pause_now") or not (self.handles or self._has_checks()):
                 self._pause("paused by the operator", now)
             return self.events
-        self._settle_cancelled(now)
-        self._apply_approved_splits(now)
-        self._reconcile_blocked(now)
+        with self._timed("settle"):
+            self._settle_cancelled(now)
+            self._apply_approved_splits(now)
+            self._reconcile_blocked(now)
         if self.notifier is not None:
-            for event in humantasks.tick_tasks(self.store, self.notifier, now, budgets):
-                self._emit(event.pop("event"), **event)
-        self._advance_phases(now)
+            with self._timed("notify"):
+                try:
+                    for event in humantasks.tick_tasks(self.store, self.notifier, now, budgets):
+                        self._emit(event.pop("event"), **event)
+                except Exception as exc:  # noqa: BLE001 - a notification must never stop the run
+                    self._emit("notify_failed", error="%s: %s" % (type(exc).__name__, str(exc)[:200]))
+        with self._timed("phases"):
+            self._advance_phases(now)
+        if run.get("pause_after_phase") and self.store.state(
+                "phase", "%s/%s" % (self.entity, run["pause_after_phase"])) == "Done":
+            # The operator asked for this phase to land whole and nothing after it to start.
+            phase = run["pause_after_phase"]
+            self._pause("paused after phase %s as requested" % phase, now)
+            return self.events
         if not run.get("cancel_requested"):
-            self._integrate_ready(now)
-            self._dispatch(now)
-        self._complete_plan_if_done(now)
+            with self._timed("integrate"):
+                self._integrate_ready(now)
+            with self._timed("dispatch"):
+                self._dispatch(now)
+        with self._timed("complete"):
+            self._complete_plan_if_done(now)
         return self.events
 
     # -- lease loss and polling ----------------------------------------------
@@ -193,11 +238,23 @@ class Scheduler:
                 if state in ("Fenced", "Failed", "TimedOut", "Cancelled", "Succeeded"):
                     meta.update(outcome=state, finished_at=now)
                     self.store.put_attempt(meta)
+        expired = {c["attempt_id"]: c["expires_at"] for c in self.store.active_claims() if c["expires_at"] <= now}
         for attempt_id in self.store.recover(now, self.runner_id):
             self._drop(attempt_id)
             meta = self.store.get_attempt(attempt_id)
             if meta and not meta.get("outcome"):
-                self._record_failure(meta, "lease_lost", now, "lease expired, worker fenced", outcome="Fenced", already_final=True)
+                lapse = now - expired.get(attempt_id, now)
+                if self._inherited_from_previous_runner(meta):
+                    # The operator stopped this runner, or it crashed. The worker did nothing wrong, so the issue keeps
+                    # its retry budget: charging it makes every restart cost an attempt on whatever was in flight, and
+                    # that is how a healthy issue ends up blocked.
+                    meta.update(outcome="Fenced", failure_kind="runner_lost", finished_at=now,
+                                detail="the runner that started this attempt stopped; requeued without charge")
+                    self.store.put_attempt(meta)
+                    self._emit("attempt_orphaned", attempt=attempt_id, issue=meta["issue_id"], lapse=round(lapse, 1))
+                else:
+                    self._record_failure(meta, "lease_lost", now, "lease expired %.0fs ago, worker fenced" % lapse,
+                                         outcome="Fenced", already_final=True)
 
     def _poll(self, now: float, budgets: Dict[str, Any]) -> None:
         for attempt_id, h in list(self.handles.items()):
@@ -205,7 +262,10 @@ class Scheduler:
             meta = self.store.get_attempt(attempt_id)
             try:
                 self.store.heartbeat(attempt_id, h["epoch"], now, budgets["lease_s"])
-            except StaleLease:
+            except StaleLease as exc:
+                # The next recovery pass will fence this attempt. Say why here, or the only trace is a lease expiring
+                # with no explanation of who let it lapse.
+                self._emit("lease_renewal_failed", attempt=attempt_id, reason=str(exc)[:200])
                 self._drop(attempt_id)
                 continue
             meta.update(last_heartbeat=now)
@@ -227,9 +287,189 @@ class Scheduler:
 
     def _drop(self, attempt_id: str) -> None:
         self._cancel_checks(attempt_id)
+        self._release(attempt_id, cancel=True)
+
+    def _release(self, attempt_id: str, cancel: bool = False) -> None:
+        """Forget a finished attempt and delete its working copy.
+
+        A worker directory is a full clone of the repository plus everything the worker built, and nothing else ever
+        reads it once the attempt is over. Keeping them filled the disk until no worker could be started at all.
+        """
         h = self.handles.pop(attempt_id, None)
-        if h:
+        if not h or h.get("handle") is None:
+            return
+        if cancel:
             self.adapter.cancel(h["handle"])
+        self.adapter.cleanup(h["handle"])
+
+    def start_heartbeat(self) -> None:
+        """Renew the leases of running attempts from their own thread.
+
+        A lease is there to detect a dead runner. It must not fire because one tick is slow, and ticks do make network
+        calls: a notification, a push, a `gh` request. A stall of a minute then fenced every worker in flight, spent
+        its retry budget, and left the owner reading four identical blocks about workers that never failed.
+        """
+        if self._heartbeat_thread is not None:
+            return
+        self._heartbeat_stop = threading.Event()
+        interval = max(5.0, min(float(self._heartbeat_s()), 30.0))
+
+        def beat() -> None:
+            while not self._heartbeat_stop.wait(interval):
+                self._renew_leases()
+
+        self._heartbeat_thread = threading.Thread(target=beat, name="harness-heartbeat", daemon=True)
+        self._heartbeat_thread.start()
+
+    def stop_heartbeat(self) -> None:
+        if self._heartbeat_thread is None:
+            return
+        if self._heartbeat_stop is not None:
+            self._heartbeat_stop.set()
+        self._heartbeat_thread.join(timeout=5)
+        self._heartbeat_thread = None
+
+    def _renew_leases(self) -> None:
+        """Renew every live attempt's lease without touching anything else. Runs on the heartbeat thread."""
+        snapshot = dict(self.handles)
+        if not snapshot:
+            return
+        try:
+            lease_s = self._plan()["policy"]["budgets"]["lease_s"]
+        except Exception:  # noqa: BLE001 - a missing budget only means the default
+            lease_s = None
+        now = self.clock()
+        for attempt_id, h in snapshot.items():
+            epoch = h.get("epoch")
+            if epoch is None:
+                continue
+            try:
+                if lease_s is None:
+                    self.store.renew_lease_from_thread(attempt_id, epoch, max(now, self.clock()))
+                else:
+                    self.store.renew_lease_from_thread(attempt_id, epoch, max(now, self.clock()), lease_s)
+            except Exception:  # noqa: BLE001 - renewing is best effort; the tick decides what a lost lease means
+                continue
+
+    def _host_slept(self, now: float) -> float:
+        """Seconds the host spent asleep since the previous pass, or 0.
+
+        macOS stops the monotonic clock while the machine sleeps, so wall clock running ahead of it is the only signal
+        that time passed without this process running. During sleep nothing here can run: the lease, the activity
+        timestamps and the worker timeout all expire at once, and every attempt in flight would be fenced for a fault
+        that is entirely the host's.
+        """
+        if self.mono_clock is None:
+            return 0.0
+        pivot = (now, float(self.mono_clock()))
+        previous, self._pivot = self._pivot, pivot
+        if previous is None:
+            return 0.0
+        gap = (pivot[0] - previous[0]) - (pivot[1] - previous[1])
+        return gap if gap >= SLEEP_JUMP_S else 0.0
+
+    def _survive_sleep(self, now: float, budgets: Dict[str, Any]) -> None:
+        """Restore everything the sleep consumed, before the recovery pass mistakes it for failure."""
+        gap = self._host_slept(now)
+        if not gap:
+            return
+        lease_s = budgets.get("lease_s", 90)
+        for attempt_id, h in list(self.handles.items()):
+            epoch = h.get("epoch")
+            if epoch is None:
+                continue
+            try:
+                self.store.extend_claim(attempt_id, epoch, now, lease_s)
+            except Exception:  # noqa: BLE001 - a claim that cannot be restored is fenced by the normal path
+                continue
+            h["started_at"] = float(h.get("started_at") or now) + gap
+            handle = h.get("handle")
+            if handle is not None and hasattr(handle, "last_activity"):
+                handle.last_activity = float(getattr(handle, "last_activity") or now) + gap
+        run = self.store.get_run(self.plan_id)
+        for job in (run.get("checks") or {}).values():
+            job["started_at"] = float(job.get("started_at") or now) + gap
+            job["lease_until"] = now + lease_s
+        self.store.put_run(self.plan_id, run)
+        self._emit("host_slept", seconds=round(gap, 1), attempts=len(self.handles))
+
+    @contextlib.contextmanager
+    def _timed(self, name: str) -> Iterator[None]:
+        started = time.time()
+        try:
+            yield
+        finally:
+            elapsed = time.time() - started
+            if elapsed >= SLOW_STAGE_S:
+                self._emit("tick_slow", stage=name, seconds=round(elapsed, 1))
+
+    def _attempt_tail(self, h: Dict[str, Any]) -> List[str]:
+        """What the worker printed before it stopped, which is the only evidence of why it produced nothing."""
+        handle = h.get("handle")
+        return [str(line)[:400] for line in (getattr(handle, "tail", None) or [])[-40:]]
+
+    def _write_attempt_log(self, attempt_id: str, tail: List[str]) -> None:
+        """Keep the tail on disk so a failure can be read after the container is gone."""
+        directory = os.path.join(self.store.home, "attempt-logs")
+        try:
+            os.makedirs(directory, mode=0o700, exist_ok=True)
+            path = os.path.join(directory, re.sub(r"[^A-Za-z0-9_.-]", "_", attempt_id) + ".log")
+            with open(path, "w") as fh:
+                fh.write("\n".join(self._redact(line) for line in tail) + "\n")
+            os.chmod(path, 0o600)
+        except OSError:
+            pass  # losing the log must never fail the attempt
+
+    @staticmethod
+    def _redact(line: str) -> str:
+        home = os.path.expanduser("~")
+        line = line.replace(home, "~") if home and home != "~" else line
+        return re.sub(r"\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b", "<redacted>", line)
+
+    def _inherited_from_previous_runner(self, meta: Dict[str, Any]) -> bool:
+        """True when this attempt was started before this process took the plan over.
+
+        A restart is an operator or crash event, not evidence about the issue. Recording a lease loss for it charges a
+        retry for something the issue had no part in.
+        """
+        started = meta.get("started_at")
+        boot = getattr(self, "_boot_at", None)
+        return bool(started and boot and float(started) < float(boot))
+
+    def _only_environment_failures(self, issue: Dict[str, Any]) -> bool:
+        """True when every failure of this issue happened before a worker started, so none of it is about the work."""
+        failures_seen = issue.get("last_failures") or []
+        return bool(failures_seen) and all(f.get("kind") == ENVIRONMENT_KIND for f in failures_seen)
+
+    def _disk_problem(self) -> str:
+        """A worker needs room for a copy of the repository and everything it builds; without it every attempt fails
+        in preparation, four retries at a time."""
+        if not self.free_space_floor_bytes:
+            return ""
+        root = isolation.work_root()
+        try:
+            free = shutil.disk_usage(root).free
+        except OSError:
+            return ""
+        if free >= self.free_space_floor_bytes:
+            return ""
+        return "only %.1f GiB free for worker directories in %s (needs %.0f GiB): release space, then resume" % (
+            free / 2 ** 30, root, self.free_space_floor_bytes / 2 ** 30)
+
+    def _prune_workdirs(self, now: float) -> None:
+        """Working copies of attempts that died with an earlier runner are never read again; reclaim them at start."""
+        keep = [h["handle"].workdir for h in self.handles.values() if h.get("handle") is not None]
+        try:
+            result = isolation.prune_workdirs(WORKDIR_RETENTION_S, keep=keep, now=now)
+        except Exception:  # noqa: BLE001 - housekeeping must never keep a run from starting
+            return
+        if result["removed"]:
+            self._emit("workdirs_pruned", removed=result["removed"], kept=result["kept"])
+
+    def reclaim_dead_workdirs(self) -> None:
+        """Housekeeping for a long-running runner: a crashed attempt leaves a copy of the repository behind, and the
+        copies are large enough to fill the disk that the next attempt needs."""
+        self._prune_workdirs(self.clock())
 
     # -- required-check jobs -------------------------------------------------
 
@@ -332,9 +572,9 @@ class Scheduler:
         if poll.error:
             kind = poll.error.get("kind", "runtime_crash")
             if kind == "cancelled":
-                self.handles.pop(meta["attempt_id"], None)
+                self._release(meta["attempt_id"])
                 return
-            self._record_failure(meta, kind, now, poll.error.get("detail", kind))
+            self._record_failure(meta, kind, now, poll.error.get("detail", kind), tail=self._attempt_tail(h))
             return
         result = poll.result
         try:
@@ -345,7 +585,7 @@ class Scheduler:
             self._record_failure(meta, "schema_invalid", now, str(exc))
             return
         handler = {"implementer": self._on_implementer, "reviewer": self._on_reviewer, "refiner": self._on_refiner,
-                   "delegator": self._on_delegator, "analyst": self._on_analyst}.get(meta["role"])
+                   "delegator": self._on_delegator, "analyst": self._on_analyst, "overseer": self._on_overseer}.get(meta["role"])
         if handler is None:
             self._record_failure(meta, "schema_invalid", now, "unsupported role %s" % meta["role"])
             return
@@ -354,7 +594,8 @@ class Scheduler:
     # -- failure handling -----------------------------------------------------
 
     def _record_failure(self, meta: Dict[str, Any], kind: str, now: float, detail: str, outcome: Optional[str] = None,
-                        already_final: bool = False, evidence: Optional[Dict[str, Any]] = None) -> None:
+                        already_final: bool = False, evidence: Optional[Dict[str, Any]] = None,
+                        tail: Optional[List[str]] = None) -> None:
         """Classify by code, finish the attempt, update budgets, and retry, block, or pause."""
         attempt_id, issue_id = meta["attempt_id"], meta["issue_id"]
         prior_timeout = any(a["attempt_id"] != attempt_id and a.get("outcome") == "TimedOut" and a.get("packet_digest") == meta.get("packet_digest")
@@ -368,10 +609,20 @@ class Scheduler:
                 self.store.finish(attempt_id, h["epoch"], outcome, now, {"kind": kind, "class": fclass})
             except StaleLease:
                 outcome = "Fenced"
+        if h and h.get("handle") is not None:
+            self.adapter.cleanup(h["handle"])  # the attempt is over; its working copy is never read again
         meta.update(outcome=outcome, failure_kind=kind, failure_class=fclass, detail=detail, finished_at=now)
         self.store.put_attempt(meta)
         issue = self.store.get_issue(issue_id)
         issue["last_failures"].append({"attempt": attempt_id, "role": meta["role"], "kind": kind, "class": fclass, "detail": detail[:1500]})
+        if tail:
+            # The worker's own last words. Without them a failure is a category with no cause, and every such failure
+            # ends at the owner no matter how good the classification is. Not part of the signature: two identical
+            # failures with different output are still the same failure.
+            meta["output_tail"] = tail[-40:]
+            self.store.put_attempt(meta)  # the attempt record was written before the tail was known
+            issue["last_failures"][-1]["tail"] = [line[:200] for line in tail[-8:]]
+            self._write_attempt_log(attempt_id, tail)
         issue["last_failures"] = issue["last_failures"][-6:]
         budgets = self._plan()["policy"]["budgets"]
         failure_signature = failures.signature(kind, evidence if evidence is not None else detail)
@@ -384,12 +635,25 @@ class Scheduler:
         ) else failures.decide(fclass, issue, budgets, now, self.rng)  # a failed helper must not spend the implementer's repair budget
         if fclass == failures.REPORTED and decision["action"] == "block" and self._schedule_analysis(issue):
             decision = {"action": "analyze"}
+        # An oversize diff is a sizing problem, not a policy violation: the worker wrote the work, it just does not fit
+        # in one reviewable change. The analyst re-reads it and proposes the split, which the owner then applies.
+        if kind == "diff_too_large" and decision["action"] == "block" and self._schedule_analysis(issue):
+            decision = {"action": "analyze"}
         if repeated_check_failure:
             decision = {"action": "block", "reason": "identical check failure repeated without changed command or inputs"}
         self._emit("attempt_failed", attempt=attempt_id, issue=issue_id, kind=kind, failure_class=fclass, action=decision["action"])
         if decision["action"] == "analyze":
             self._emit("analysis_scheduled", issue=issue_id, trigger="stuck_report")
         state = self.store.state("issue", issue_id)
+        if kind == ENVIRONMENT_KIND and decision["action"] == "block" and self._only_environment_failures(issue):
+            # No worker ever ran, so nothing was learned about this issue and retrying it cannot help: every other
+            # issue is about to hit the same wall. One pause that names the cause beats a decision task per issue.
+            issue["transient_failures"] = 0
+            self._requeue(issue, state, now)
+            self.store.put_issue(issue)
+            self._emit("environment_failure", issue=issue_id, detail=detail[:500])
+            self._pause("no worker can be started: %s" % detail[:300], now)
+            return
         if decision["action"] == "pause":
             self._requeue(issue, state, now)
             self.store.put_issue(issue)
@@ -397,6 +661,8 @@ class Scheduler:
             return
         if decision["action"] == "block":
             issue["blocked_reason"] = "%s: %s" % (decision["reason"], detail[:200])
+            if self._overseer_instead(issue, kind, now, state):
+                return
             self.store.put_issue(issue)
             self._block(issue, now)
             return
@@ -459,6 +725,79 @@ class Scheduler:
         self.store.put_issue(issue)
         self._emit("triage_scheduled", issue=issue["issue_id"], reason=reason)
         return True
+
+    def _overseer_config(self) -> Dict[str, Any]:
+        # Off unless the approved plan asks for it: this harness has always held that budgets and policy are decided by
+        # trusted code rather than by a model, so an owner opts in explicitly and the plan digest binds the choice.
+        cfg = dict((self._plan().get("policy") or {}).get("overseer") or {})
+        cfg.setdefault("enabled", False)
+        cfg.setdefault("rounds_per_issue", 2)
+        return cfg
+
+    def _overseer_instead(self, issue: Dict[str, Any], kind: str, now: float, state: str) -> bool:
+        """Hand a work or process block to the overseer instead of the owner, within its own bound.
+
+        The overseer may only retry, extend the budget, or refine. Anything it calls a harness defect or a content
+        question goes to the owner with its diagnosis attached, and so does every authority failure, which is never
+        routed here at all.
+        """
+        cfg = self._overseer_config()
+        if not cfg.get("enabled") or kind not in OVERSEER_KINDS:
+            return False
+        if issue.get("overseer_rounds", 0) >= cfg["rounds_per_issue"]:
+            return False
+        if not models.available_in_tier("strong", self._plan()["policy"]["model_tiers"], self.available_models):
+            return False
+        issue["overseer_rounds"] = issue.get("overseer_rounds", 0) + 1
+        issue["overseer_pending"] = True
+        if state == "In Progress":
+            self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"reason": "overseer"}, now=now)
+        self.store.put_issue(issue)
+        self._emit("overseer_scheduled", issue=issue["issue_id"], round=issue["overseer_rounds"], kind=kind)
+        return True
+
+    def _on_overseer(self, meta, h, result, now) -> None:
+        """Apply the overseer's decision through the same paths the owner's answer would take."""
+        issue = self.store.get_issue(meta["issue_id"])
+        decision = result.get("overseer") or {}
+        action, cause = decision.get("action"), decision.get("cause")
+        reason = str(decision.get("reason") or "").strip()
+        self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"outcome": "done", "overseer": action})
+        self._release(meta["attempt_id"])
+        meta.update(outcome="Succeeded", finished_at=now)
+        self.store.put_attempt(meta)
+        issue["overseer_pending"] = False
+        if action not in schemas.OVERSEER_ACTIONS or cause not in ("process", "plan_scope", "harness_defect", "content") or not reason:
+            issue["overseer_pending"] = False
+            issue["blocked_reason"] = "the overseer gave no usable decision"
+            self.store.put_issue(issue)
+            self._block(issue, now)
+            return
+        self._emit("overseer_decision", issue=issue["issue_id"], action=action, cause=cause, reason=reason[:200])
+        if action == "escalate" or cause in ("harness_defect", "content"):
+            # The owner decides, and sees what the overseer found rather than the raw failure alone.
+            issue["blocked_reason"] = "%s: %s (overseer: %s)" % (cause, reason[:300], action)
+            issue["overseer_finding"] = {"cause": cause, "reason": reason[:1500], "action": action, "attempt": meta["attempt_id"]}
+            self.store.put_issue(issue)
+            self._block(issue, now)
+            return
+        budgets = self._plan()["policy"]["budgets"]
+        if action == "extend_budget":
+            repair_exhausted = issue.get("repair_failures", 0) > budgets["repair_attempts"] + issue.get("repair_budget_override", 0)
+            if repair_exhausted:
+                issue["repair_budget_override"] = issue.get("repair_budget_override", 0) + 1
+            else:
+                issue["transient_budget_override"] = issue.get("transient_budget_override", 0) + 1
+        if action == "refine":
+            issue["guidance"] = (issue.get("guidance", []) + [reason])[-5:]
+            self.store.put_issue(issue)
+            if self.store.state("issue", issue["issue_id"]) == "Ready":
+                self.store.transition("issue", issue["issue_id"], "Refining", self.runner_id, {"reason": "overseer"}, now=now)
+            return
+        issue["blocked_reason"] = ""
+        issue["guidance"] = (issue.get("guidance", []) + [str(decision.get("guidance") or reason).strip()])[-5:]
+        issue["overseer_for"] = issue.get("overseer_for") or reason[:120]
+        self.store.put_issue(issue)
 
     def _ensure_decision_task(self, issue: Dict[str, Any], now: float, why: str) -> Optional[str]:
         open_tasks = [t for t in self.store.human_tasks(issue["issue_id"]) if t["state"] in humantasks.OPEN_STATES]
@@ -647,7 +986,7 @@ class Scheduler:
             return
         now = max(now, self.clock())
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"revision": head})
-        self.handles.pop(meta["attempt_id"], None)
+        self._release(meta["attempt_id"])
         try:
             self.repo.pin_good(issue["issue_id"], head)
         except Exception:
@@ -671,7 +1010,7 @@ class Scheduler:
             self._record_failure(meta, "schema_invalid", now, "verdict must be approve or changes_requested")
             return
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"verdict": result["outcome"]})
-        self.handles.pop(meta["attempt_id"], None)
+        self._release(meta["attempt_id"])
         meta.update(outcome="Succeeded", finished_at=now)
         self.store.put_attempt(meta)
         verdict = "approve" if result["outcome"] == "approve" else "changes"
@@ -688,7 +1027,7 @@ class Scheduler:
             # A real question for the owner, with the refiner's reasons, not a failure.
             reasons = [b for b in result["blockers"] if b] or [result["next_action"]]
             self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"outcome": "needs_input"})
-            self.handles.pop(meta["attempt_id"], None)
+            self._release(meta["attempt_id"])
             meta.update(outcome="Succeeded", finished_at=now)
             self.store.put_attempt(meta)
             issue["last_failures"].append({"attempt": meta["attempt_id"], "role": "refiner", "kind": "needs_input", "class": "human",
@@ -703,7 +1042,7 @@ class Scheduler:
                 result["outcome"], "; ".join(result["blockers"])[:200], str(result["next_action"])[:120]))
             return
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {})
-        self.handles.pop(meta["attempt_id"], None)
+        self._release(meta["attempt_id"])
         meta.update(outcome="Succeeded", finished_at=now)
         self.store.put_attempt(meta)
         plan = [str(step)[:400] for step in (result.get("plan") or []) if str(step).strip()][:12]
@@ -754,7 +1093,7 @@ class Scheduler:
             self._record_failure(meta, "schema_invalid", now, "delegator decision rejected: %s" % exc)
             return
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"decision": decision["action"]})
-        self.handles.pop(meta["attempt_id"], None)
+        self._release(meta["attempt_id"])
         meta.update(outcome="Succeeded", finished_at=now, decision=decision)
         self.store.put_attempt(meta)
         issue["consult_pending"] = False
@@ -918,7 +1257,7 @@ class Scheduler:
                    "questions": analysis.get("questions", []), "file": self._write_split(issue, parts) if parts else None,
                    "parts": [{"issue_id": p["issue_id"], "title": p["title"], "requirement_ids": p["requirement_ids"], "deps": p.get("deps", [])} for p in parts]}
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {"recommendation": analysis["recommendation"]})
-        self.handles.pop(meta["attempt_id"], None)
+        self._release(meta["attempt_id"])
         meta.update(outcome="Succeeded", finished_at=now, analysis=summary)
         self.store.put_attempt(meta)
         issue["analysis_pending"] = False
@@ -1135,9 +1474,12 @@ class Scheduler:
             text = str(exc).lower()
             if any(k in text for k in MERGE_PENDING):
                 issue["merge_pending"] = issue.get("merge_pending", 0) + 1
-                if issue["merge_pending"] >= MERGE_PENDING_LIMIT:
-                    issue["blocked_reason"] = "required checks did not finish after %d merge attempts: %s" % (
-                        issue["merge_pending"], str(exc)[:200])
+                if issue.get("merge_pending_head") != issue["head_rev"]:
+                    issue.update(merge_pending_since=now, merge_pending_head=issue["head_rev"])
+                waited = now - issue["merge_pending_since"]
+                if waited >= MERGE_PENDING_TIMEOUT_S:
+                    issue["blocked_reason"] = "required checks did not finish after %d seconds: %s" % (
+                        waited, str(exc)[:200])
                     self.store.put_issue(issue)
                     self._block(issue, now)
                     return
@@ -1163,6 +1505,8 @@ class Scheduler:
             return
         if issue.get("merge_pending"):
             issue["merge_pending"] = 0
+            issue.pop("merge_pending_since", None)
+            issue.pop("merge_pending_head", None)
             self.store.put_issue(issue)
         self.store.add_evidence(iid, "merge", issue["head_rev"], self.repo.base_head(), "merged",
                                 {"mode": merged.get("mode"), "simulated": bool(merged.get("simulated"))}, now)
@@ -1225,6 +1569,39 @@ class Scheduler:
             return True
         return len(running) < limit and issue["parallel_safe"] and all(r["parallel_safe"] for r in running)
 
+    def _escalate_after_repeats(self, issue: Dict[str, Any], route: Dict[str, Any], policy: Dict[str, Any],
+                                budgets: Dict[str, Any]) -> Dict[str, Any]:
+        """After the same failure signature repeats, try one tier higher instead of asking the same model again.
+
+        The harness already makes the next packet differ, which is not enough when the model produced no work at all:
+        ten attempts on one issue, the same failure each time. What kept failing was the model, so that is what changes.
+        """
+        signatures = issue.get("failure_signatures") or {}
+        worst = max(signatures.values()) if signatures else 0
+        if worst < REPEAT_ESCALATE_AFTER:
+            return route
+        tiers = list(models.TIERS)
+        if route.get("tier") not in tiers:
+            return route
+        # Walk up until a tier offers a different model. A plan may map two tiers to the same id — this one maps low and
+        # standard both to the cheapest model — and escalating onto the same model would repeat the same failure under
+        # a different label.
+        higher = model = None
+        for tier_name in tiers[tiers.index(route["tier"]) + 1:]:
+            if tier_name == "strong" and issue.get("strong_attempts", 0) >= budgets.get("strong_attempts_per_issue", 1):
+                break
+            candidates = [m for m in models.available_in_tier(tier_name, policy["model_tiers"], self.available_models)
+                          if m != route.get("model")]
+            if candidates:
+                higher, model = tier_name, candidates[0]
+                break
+        if not model:
+            return route
+        route = dict(route, tier=higher, model=model, routing=True,
+                     note="escalated to %s after %d identical failures; %s" % (higher, worst, str(route.get("note") or "")[:120]))
+        self._emit("model_escalated", issue=issue["issue_id"], tier=higher, model=model, repeats=worst)
+        return route
+
     def _declared_tier(self, issue: Dict[str, Any]) -> str:
         """The tier the issue's own model choice aims at, before any downgrade."""
         choice = (issue.get("model_choices") or {}).get("implementer") or {}
@@ -1240,6 +1617,8 @@ class Scheduler:
             return False
         if issue.get("analysis_pending") or issue.get("consult_pending"):
             return False
+        if self._plan()["policy"].get("model_routing"):
+            return True
         return self._declared_tier(issue) in ("standard", "strong")
 
     def _ready_to_work(self, issue: Dict[str, Any], now: float) -> bool:
@@ -1251,9 +1630,13 @@ class Scheduler:
         run = self.store.get_run(self.plan_id)
         if self.store.state("plan", self.entity) != "Executing" or run.get("pause_requested") or run.get("cancel_requested"):
             return
+        problem = self._disk_problem()
+        if problem:
+            self._pause(problem, now)
+            return
         issues = self.store.list_issues(self.plan_id)
-        for role, states in (("reviewer", ("In Review",)), ("delegator", ("Ready",)), ("analyst", ("Ready",)), ("implementer", ("Ready", "In Progress")),
-                             ("refiner", ("Refining",))):
+        for role, states in (("reviewer", ("In Review",)), ("overseer", ("Ready",)), ("delegator", ("Ready",)), ("analyst", ("Ready",)),
+                             ("implementer", ("Ready", "In Progress")), ("refiner", ("Refining",))):
             for issue in issues:
                 state = self.store.state("issue", issue["issue_id"])
                 if state not in states or not self._ready_to_work(issue, now):
@@ -1262,7 +1645,9 @@ class Scheduler:
                     continue
                 if role == "analyst" and not issue.get("analysis_pending"):
                     continue
-                if role == "implementer" and (issue.get("consult_pending") or issue.get("analysis_pending")):
+                if role == "overseer" and not issue.get("overseer_pending"):
+                    continue
+                if role == "implementer" and (issue.get("consult_pending") or issue.get("analysis_pending") or issue.get("overseer_pending")):
                     continue  # a helper answers first
                 if role == "reviewer" and self._valid(issue["issue_id"], "review", issue["head_rev"]) is not None:
                     continue
@@ -1348,6 +1733,18 @@ class Scheduler:
             data = self._delegator_data(issue, evidence)
         if role == "analyst":
             data = self._analyst_data(issue, evidence)
+        if role == "overseer":
+            data = {"recorded_failures": evidence[-6:], "blocked_reason": issue.get("blocked_reason", ""),
+                    "attempts": [{"attempt": a["attempt_id"], "role": a["role"], "tier": a.get("tier"), "model": a.get("model"),
+                                  "outcome": a.get("outcome"), "kind": a.get("failure_kind"), "detail": (a.get("detail") or "")[:300]}
+                                 for a in self.store.list_attempts(issue["issue_id"])][-8:],
+                    "overseer_rules": {"actions": list(schemas.OVERSEER_ACTIONS),
+                                       "rounds_used": issue.get("overseer_rounds", 0),
+                                       "rounds_allowed": self._overseer_config()["rounds_per_issue"],
+                                       "budgets": {"repair_attempts": self._plan()["policy"]["budgets"]["repair_attempts"],
+                                                   "transient_retries": self._plan()["policy"]["budgets"]["transient_retries"],
+                                                   "diff_size_cap": self._plan()["policy"]["diff_size_cap"]},
+                                       "cannot": "cancel, approve, merge, change policy, or edit the harness"}}
         if role == "reviewer":
             data = {"diff": self.repo.diff_text(issue["branch"]), "checks": (self._valid(issue["issue_id"], "checks", issue["head_rev"]) or {}).get("detail")}
             if own:
@@ -1371,6 +1768,10 @@ class Scheduler:
             "code_anchors": issue["code_anchors"], "dependencies": issue["deps"],
             "validation_commands": issue["validation_commands"] or phase["validation"],             "working_directory": issue.get("working_directory") or phase.get("working_directory", "."),
             "path_allowlist": phase["path_allowlist"],
+            # The cap is enforced without mercy, so it must be stated where the worker reads it.
+            "diff_budget": {"max_added_lines": self._plan()["policy"]["diff_size_cap"],
+                            "rule": "Keep the change inside this many added lines. If the work cannot fit, stop and report "
+                                    "outcome blocked with what should be split off, instead of writing more."},
             "untrusted_data": json.dumps(data, sort_keys=True),
         }
 
@@ -1388,6 +1789,12 @@ class Scheduler:
                                   strong_used=issue["strong_attempts"], strong_budget=budgets["strong_attempts_per_issue"])
         avoid = issue.get("implementer_model") if role == "reviewer" else None
         try:
+            routed = bool(policy.get("model_routing"))
+            if routed:
+                if self.available_models is None:
+                    raise ValueError("the approved role routing requires verified model availability")
+                escalated = any(issue.get(key, 0) for key in ("repair_failures", "consults", "analyses", "overseer_rounds"))
+                policy = dict(policy, model_tiers=models.routed_tiers(policy, role, escalated))
             choices = schemas.validate(issue.get("model_choices", {}), schemas.MODEL_CHOICES, "model_choices")
             broker.assert_no_secrets(choices, "model_choices")
             choice = choices.get(role)
@@ -1396,7 +1803,9 @@ class Scheduler:
             # The implementer's model can change without spending repair budget (a delegator retry), so compare against
             # the model actually in use instead of gating independence on repair_failures.
             review_conflict = bool(choice and role == "reviewer" and choice["model"] == avoid)
-            if choice and not repair and not review_conflict:
+            outside_route = bool(routed and choice and not any(
+                choice["model"] in models._candidates(band, policy["model_tiers"]) for band in models.TIERS))
+            if choice and not repair and not review_conflict and not outside_route:
                 route = models.resolve_choice(choice, policy["model_tiers"], self.available_models, avoid, role=role,
                                               strong_used=issue["strong_attempts"] if role == "implementer" else 0,
                                               strong_budget=budgets["strong_attempts_per_issue"] if role == "implementer" else 1)
@@ -1405,7 +1814,8 @@ class Scheduler:
                 route = models.resolve_model(tier, policy["model_tiers"], self.available_models, avoid)
                 routing_source = "evidence" if choice else "legacy"
                 if choice:
-                    why = "quality failure requires repair" if repair else "the reviewer must not share the implementer's model"
+                    why = ("approved role routing restricts this attempt" if outside_route else
+                           "quality failure requires repair" if repair else "the reviewer must not share the implementer's model")
                     route["note"] = "%s; original choice: %s (%s); %s" % (
                         why, choice["model"], choice["reason"], route["note"])
             if route["routing"] and route["model"] is None:
@@ -1413,6 +1823,9 @@ class Scheduler:
             if role == "implementer":
                 route = self._planned_route(issue, route, policy)
                 route = self._split_pressure_route(issue, route, policy, tier)
+                route = self._escalate_after_repeats(issue, route, policy, budgets)
+            if routed and role == "reviewer" and route.get("model") == avoid:
+                raise ValueError("no independent reviewer is available inside the approved role routing")
             if role == "implementer" and route["tier"] == "strong" and issue["strong_attempts"] >= budgets["strong_attempts_per_issue"]:
                 raise ValueError("strong attempt budget exhausted")
         except (ValueError, broker.BrokerRejected) as exc:
@@ -1679,6 +2092,7 @@ class Scheduler:
             self.store.transition("plan", self.entity, "Paused", self.runner_id, {"reason": reason}, now=now)
         run = self.store.get_run(self.plan_id)
         run["paused_reason"] = reason
+        run.pop("pause_after_phase", None)
         run["ended_at"] = now  # the run wall clock stops with the run, so a resumed run does not inherit idle time
         run.pop("pause_requested", None)  # the request is why we are here; leaving it set reads as "still pausing"
         run.pop("pause_now", None)

@@ -6,6 +6,7 @@ import os
 import shutil
 import sqlite3
 import subprocess
+import tempfile
 import time
 from typing import Any, Dict, List, Optional
 
@@ -18,12 +19,14 @@ from .github import GhCli
 from .humantasks import MultiNotifier, TerminalNotifier
 from .publisher import GitHubPublisher, git_with_token
 from .repo import GitRepo
+from . import scheduler as scheduler_mod
 from .scheduler import Scheduler, new_issue
 from .store import Store
 
 MODEL_CACHE_TTL_S = 24 * 3600
 PROMOTION_POLL_S = 30            # how often a finished run re-reads its pull request while it waits for the merge
 PROMOTION_WATCH_S = 6 * 3600     # an unattended finished run stops watching after this long
+CLONE_TIMEOUT_S = 600            # a bare clone of this repository takes seconds; a hang must fail loudly, not wait forever
 ISSUE_SCHEMA = {
     "issue_id": str, "phase_id": str, "requirement_ids": [str], "title?": str, "outcomes": [str], "acceptance_criteria": [str],
     "non_goals": [str], "code_anchors": [str], "contract_paths?": [str], "deps?": [str], "validation_commands?": [str],
@@ -72,9 +75,21 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         if phase is None or not doc["requirement_ids"] or not set(doc["requirement_ids"]) <= set(phase["requirements"]):
             raise RunRefused("issue %s must reference one approved phase and its requirement IDs" % doc["issue_id"])
         existing = store.get_issue(doc["issue_id"])
+        if existing is not None and store.state("issue", doc["issue_id"]) == "Cancelled":
+            _revive_or_refuse(store, existing, plan_id)
+            store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev,
+                                      **_definition(doc)))
+            store.transition("issue", doc["issue_id"], "Ready", "import", {"reason": "re-added"})
+            added.append(doc["issue_id"])
+            continue
         if existing is not None:
+            if (existing.get("plan_id") == plan_id and _unchanged(existing, doc)
+                    and store.state("issue", doc["issue_id"]) == "Done"):
+                continue  # preserve completed work and its exact historical evidence on a plan revision
             _adopt_or_refuse(store, existing, plan_id)
             if _unchanged(existing, doc):
+                if base_rev and existing.get("base_rev") != base_rev:
+                    store.put_issue(dict(existing, base_rev=base_rev))  # re-anchor it to the base just resolved
                 continue  # already imported from this definition
             store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev,
                                       **_definition(doc)))
@@ -140,12 +155,48 @@ def _adopt_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> No
                          % (issue_id, state))
 
 
+def _revive_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> None:
+    """A cancelled issue may be put back only while nothing ever landed for it."""
+    issue_id = existing["issue_id"]
+    if existing.get("plan_id") != plan_id:
+        raise RunRefused("issue %s already belongs to plan %s; issue ids are global" % (issue_id, existing.get("plan_id")))
+    if existing.get("head_rev") or existing.get("pr") is not None or store.active_claims_for(issue_id):
+        raise RunRefused("issue %s was cancelled after it had work; add a fresh issue instead" % issue_id)
+
+
+def _clone_env(home: str) -> Dict[str, str]:
+    """A git environment with no user, system, or terminal input: an unattended clone must never wait on a prompt."""
+    return {"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_TERMINAL_PROMPT": "0", "HOME": home}
+
+
+def clone_bare(home: str, source_repo: str, path: str, timeout: float = CLONE_TIMEOUT_S) -> None:
+    """Clone into a scratch directory and move it into place, so `path` exists only once the clone has finished.
+
+    `--no-local` forces the protocol transfer. The local transport copies the object directory file by file and
+    stalled for nearly an hour on this repository, with no timeout to end it. A failed or interrupted attempt is
+    kept for inspection and named in the error, but never where the next call would read it as a finished clone.
+    """
+    partial = tempfile.mkdtemp(prefix="trusted-clone.git.partial-", dir=home)
+    scratch = os.path.join(partial, "clone.git")
+    try:
+        proc = subprocess.run(["git", "clone", "--quiet", "--bare", "--no-local", source_repo, scratch],
+                              capture_output=True, text=True, timeout=timeout, env=_clone_env(home))
+    except subprocess.TimeoutExpired:
+        raise RunRefused("cloning %s timed out after %gs; the incomplete attempt is kept at %s"
+                         % (source_repo, timeout, partial))
+    if proc.returncode != 0:
+        raise RunRefused("could not clone %s: %s; the incomplete attempt is kept at %s"
+                         % (source_repo, (proc.stderr or "").strip()[-200:], partial))
+    os.replace(scratch, path)
+    shutil.rmtree(partial, ignore_errors=True)
+
+
 def trusted_clone(home: str, source_repo: str, base: str = "main", remote: Optional[str] = None, token_file: Optional[str] = None) -> GitRepo:
     """A bare clone owned by the harness. Workers clone from it, and trusted code inspects worker branches in it."""
     path = os.path.join(home, "trusted-clone.git")
     if not os.path.exists(path):
-        subprocess.run(["git", "clone", "--quiet", "--bare", "--no-hardlinks", source_repo, path], check=True, capture_output=True,
-                       env={"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_GLOBAL": os.devnull, "HOME": home})
+        clone_bare(home, source_repo, path)
     repo = GitRepo(path, base)
     proc = git_with_token(["fetch", "--quiet", remote or source_repo, "+refs/heads/%s:refs/heads/%s" % (base, base)], path, token_file if remote else None)
     if proc.returncode != 0:
@@ -293,7 +344,8 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
     if not dry_run:
         from .workrecord import GitHubNotifier
         notifier = MultiNotifier(notifier, GitHubNotifier(GhCli(repo_slug, token_file=broker_token), store, plan_id))
-    return Scheduler(store, plan_id, version, adapter, clone, SandboxChecker(clone, token), publisher, available_models=available, owner=owner, notifier=notifier)
+    return Scheduler(store, plan_id, version, adapter, clone, SandboxChecker(clone, token), publisher, available_models=available, owner=owner, notifier=notifier,
+                     free_space_floor_bytes=scheduler_mod.WORK_ROOT_FREE_BYTES, mono_clock=time.monotonic)
 
 
 def watch_promotion(sched: Scheduler, interval: float, max_ticks: Optional[int], emit) -> int:
@@ -316,10 +368,43 @@ def watch_promotion(sched: Scheduler, interval: float, max_ticks: Optional[int],
     return 0
 
 
+def keep_awake() -> Optional[Any]:
+    """Stop the host from idle-sleeping while a run is active, on macOS only.
+
+    A sleeping machine freezes the runner, the workers and every lease at once: every attempt in flight is fenced on
+    wake, and a model request that was waiting on the network simply never answers. `caffeinate` binds the assertion to
+    this process, so it disappears with the run and nothing has to be remembered or cleaned up. A closed lid still
+    sleeps; the scheduler's own sleep detection covers that case.
+    """
+    if sys.platform != "darwin":
+        return None
+    tool = shutil.which("caffeinate")
+    if tool is None:
+        return None
+    try:
+        return subprocess.Popen([tool, "-i", "-m", "-s", "-w", str(os.getpid())],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        return None
+
+
+def stop_keep_awake(process: Optional[Any]) -> None:
+    if process is None:
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=5)
+    except Exception:  # noqa: BLE001 - the assertion dies with this process anyway
+        pass
+
+
 def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit, max_errors: int = 3) -> int:
     """Foreground and restartable. Stopping it leaves leases to expire, and `resume` reconciles from the store.
     An unexpected error in one pass is reported and retried. Repeated errors pause the plan instead of killing the process."""
     sched.start()
+    sched.reclaim_dead_workdirs()
+    sched.start_heartbeat()  # leases depend on the process being alive, not on every tick being fast
+    keeper = keep_awake()
     ticks = errors = 0
     watch_until = time.time() + PROMOTION_WATCH_S if sched.promotion_waiting() else None
     try:
@@ -352,6 +437,8 @@ def run_loop(sched: Scheduler, interval: float, max_ticks: Optional[int], emit, 
         emit({"event": "interrupted", "note": "leases expire on their own; run `resume` to reconcile and continue"})
         return 130
     finally:
+        stop_keep_awake(keeper)
+        sched.stop_heartbeat()
         release = getattr(sched, "release", None)
         if callable(release):
             release()
@@ -373,7 +460,8 @@ def request_cancel(store: Store, plan_id: str, version: int, drain: bool) -> str
     return state
 
 
-def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = False) -> str:
+def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = False,
+                  after_phase: Optional[str] = None) -> str:
     """Ask a running scheduler to pause: stop starting work, wait for active workers (or cancel them with now_flag), then stop.
     With no active work the plan is paused here. Returns the plan state."""
     entity = approval.plan_entity(plan_id, version)
@@ -381,6 +469,16 @@ def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = Fal
     if state != "Executing":
         raise RunRefused("only a running plan can be paused (plan is %s)" % state)
     run = store.get_run(plan_id)
+    if after_phase:
+        # Finish one phase, then stop by itself: the operator wants the work in flight to land as a completed phase
+        # instead of an unfinished one, and nothing after it to start.
+        phase_entity = "%s/%s" % (approval.plan_entity(plan_id, version), after_phase)
+        if store.state("phase", phase_entity) is None:
+            raise RunRefused("unknown phase %s in %s v%d" % (after_phase, plan_id, version))
+        if store.state("phase", phase_entity) != "Done":
+            run["pause_after_phase"] = after_phase
+            store.put_run(plan_id, run)
+            return "after %s" % after_phase
     run.update(pause_requested=True, pause_now=bool(now_flag), paused_reason="paused by the operator")
     store.put_run(plan_id, run)
     if not store.active_claims() and not run.get("checks"):

@@ -511,9 +511,24 @@ def test_escalation_paths_are_flagged_not_rejected(out):
     ("sites/lesen/android/app/build.gradle", True), ("sites/lesen/android/app/src/main/AndroidManifest.xml", True),
     (".github/workflows/deploy.yml", True), ("infra/terraform/main.tf", True), ("requirements.txt", True),
     ("sites/lesen/static/index.html", False), ("sites/lesen/static/package.json.md", False), ("docs/notes.md", False),
+    # Godot and Android release surface
+    ("apps/arithmoslayer/export_presets.cfg", True), ("apps/arithmoslayer/addons/gut/gut_cmdln.gd", True),
+    ("apps/arithmoslayer/android/build/build.gradle", True), ("apps/arithmoslayer/bin/libfoo.so", True),
+    ("apps/arithmoslayer/gdextension/native.gdextension", True), ("apps/arithmoslayer/release.aab", True),
+    ("apps/arithmoslayer/release.keystore", True), ("apps/arithmoslayer/src/hero.gd", False),
+    ("apps/arithmoslayer/assets/hit.wav", False), ("apps/arithmoslayer/project.godot", False),
 ])
 def test_escalation_matching(path, expected):
     assert broker.is_escalation(path, plans.DEFAULT_POLICY["escalation_paths"]) is expected
+
+
+def test_a_directory_entry_matches_at_any_depth_and_a_suffix_entry_matches_the_suffix():
+    esc = plans.DEFAULT_POLICY["escalation_paths"]
+    assert broker.is_escalation("a/b/addons/x/y.gd", esc) is True
+    assert broker.is_escalation("apps/arithmoslayer/lib/native.so", esc) is True
+    assert broker.is_escalation("apps/arithmoslayer/lib/native.so.txt", esc) is False
+    assert broker.is_escalation("apps/arithmoslayer/notes/solid.gd", esc) is False
+    assert broker.is_escalation("addons", esc) is True
 
 
 def test_nested_manifest_changes_are_not_merged_autonomously():

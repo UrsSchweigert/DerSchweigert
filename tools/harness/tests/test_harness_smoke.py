@@ -1,4 +1,5 @@
 import os
+import pathlib
 import shutil
 import subprocess
 
@@ -101,3 +102,46 @@ def test_the_real_rule_names_the_repository_root_absolutely():
         command = rule["command"]
         assert " /work" in command and " ." not in command, (
             "smoke rule %r must pass an absolute repository root, not '.': %r" % (rule["name"], command))
+
+
+# -- the Godot project rule ---------------------------------------------------------------------------------
+
+def test_the_shipped_rules_cover_the_godot_app_and_nothing_else():
+    rules = smoke.load_rules()
+    assert smoke.commands_for(["apps/arithmoslayer/project.godot"], rules) == \
+        ["sh /opt/harness/smoke/godot_project.sh /work apps/arithmoslayer"]
+    assert smoke.commands_for(["apps/arithmoslayer"], rules) == \
+        ["sh /opt/harness/smoke/godot_project.sh /work apps/arithmoslayer"]
+    assert smoke.commands_for(["apps/other/project.godot"], rules) == []
+    assert smoke.commands_for_allowlist(["apps/arithmoslayer/"], rules) == \
+        ["sh /opt/harness/smoke/godot_project.sh /work apps/arithmoslayer"]
+
+
+@pytest.mark.skipif(not (isolation.docker_available() and isolation.image_id()), reason="needs the worker image")
+@pytest.mark.parametrize("broken", [False, True])
+def test_the_real_godot_check_separates_a_working_project_from_a_broken_one(tmp_path, broken):
+    project = pathlib.Path(os.path.expanduser("~/.cache/harness-godot-smoke-%s-%s" % (os.getpid(), broken)))  # must be under a Docker-shared path
+
+    (project / "apps/arithmoslayer/scenes").mkdir(parents=True)
+    (project / "apps/arithmoslayer/scripts").mkdir(parents=True)
+    (project / "apps/arithmoslayer/project.godot").write_text(
+        'config_version=5\n\n[application]\n\nconfig/name="probe"\nrun/main_scene="res://scenes/main.tscn"\n')
+    (project / "apps/arithmoslayer/scenes/main.tscn").write_text(
+        '[gd_scene load_steps=2 format=3]\n\n[ext_resource type="Script" path="res://scripts/hero.gd" id="1"]\n\n'
+        '[node name="Root" type="Node2D"]\nscript = ExtResource("1")\n')
+    (project / "apps/arithmoslayer/scripts/hero.gd").write_text("extends Node2D\n\nfunc speed() -> int:\n\treturn 3\n")
+    if broken:
+        (project / "apps/arithmoslayer/scripts/broken.gd").write_text("extends Node2D\n\nfunc broken(:\n\tpass\n")
+    subprocess.run(["chmod", "-R", "a+rX", str(project)], check=True)
+    try:
+        r = subprocess.run(["docker", "run", "--rm", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
+                            "--tmpfs", "/tmp:rw,exec,size=256m", "--tmpfs", "/home/worker:rw,exec,uid=10001,gid=10001,size=512m",
+                            "--user", "10001", "-v", str(project) + ":/w", "-w", "/w", isolation.IMAGE,
+                            "sh", "/opt/harness/smoke/godot_project.sh", "/w", "apps/arithmoslayer"],
+                           capture_output=True, text=True, timeout=600)
+        assert (r.returncode == 0) is not broken, r.stdout + r.stderr
+        assert ("OK: godot smoke test passed" in r.stdout) is not broken
+        if broken:
+            assert "scripts/broken.gd does not compile" in r.stdout
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
