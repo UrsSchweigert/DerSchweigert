@@ -1,0 +1,16 @@
+{
+  "version": 1, "minTargetDp": 48, "holdSeconds": 0.25, "swipeThresholdDp": 24,
+  "stick": {"side": "left", "floating": true, "radiusDp": 72, "marginDp": 24, "deadzone": 0.2},
+  "buttons": [
+    {"action": "attack", "side": "right", "sizeDp": 96, "offsetDp": [20, 20]},
+    {"action": "special", "side": "right", "sizeDp": 72, "offsetDp": [132, 28]},
+    {"action": "dodge", "side": "right", "sizeDp": 64, "offsetDp": [40, 128]},
+    {"action": "swap", "side": "right", "sizeDp": 64, "offsetDp": [120, 128]}
+  ],
+  "keyboard": {
+    "moveUp": ["w", "up"], "moveDown": ["s", "down"],
+    "moveLeft": ["a", "left"], "moveRight": ["d", "right"],
+    "attack": ["j"], "dodge": ["space", "shift"], "swap": ["k"], "special": ["l"]
+  },
+  "gamepad": {"attack": ["x"], "dodge": ["a"], "swap": ["y"], "special": ["b"]}
+}

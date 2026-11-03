@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/combat/arena.gd" id="1_arena"]
 [ext_resource type="Script" path="res://scripts/combat/player_movement.gd" id="2_player"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/combat/health.gd" id="4_health"]
 [ext_resource type="Script" path="res://scripts/combat/dodge.gd" id="5_dodge"]
 [ext_resource type="Script" path="res://scripts/combat/respawn.gd" id="6_respawn"]
+[ext_resource type="Script" path="res://scripts/input/gamepad_keyboard.gd" id="7_keys"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_player"]
 radius = 14.0
@@ -41,6 +42,11 @@ script = ExtResource("5_dodge")
 
 [node name="Respawn" type="Node" parent="."]
 script = ExtResource("6_respawn")
+
+[node name="Input" type="Node" parent="."]
+
+[node name="GamepadKeyboard" type="Node" parent="Input"]
+script = ExtResource("7_keys")
 
 [node name="Camera" type="Camera2D" parent="."]
 script = ExtResource("3_camera")

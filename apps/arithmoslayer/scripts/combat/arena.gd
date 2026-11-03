@@ -5,6 +5,9 @@ extends Node2D
 ## The room size defines both the tile border and the camera bounds. The player
 ## spawns in the middle, a static pillar proves body collision, and the camera
 ## follows the player inside the room. Art is intentionally absent.
+##
+## Every device feeds one [InputActions] object: the touch overlay and the
+## gamepad/keyboard poller share it with the hero and the dodge.
 
 const TILE_SIZE: int = 32
 const DEFAULT_ROOM_SIZE: Vector2 = Vector2(1600.0, 900.0)
@@ -13,12 +16,17 @@ const PHYSICS_LAYER: int = 1
 @export var room_size: Vector2 = DEFAULT_ROOM_SIZE
 @export var tile_size: int = TILE_SIZE
 
+var actions: InputActions = InputActions.new()
+var assist: AssistMode = AssistMode.new()
+var touch_controls: TouchControls = null
+
 @onready var floor_layer: TileMapLayer = $Floor
 @onready var player: PlayerMovement = $Player
 @onready var camera: FollowCamera = $Camera
 @onready var health: Health = $Player/Health
 @onready var dodge: Dodge = $Player/Dodge
 @onready var respawn: Respawn = $Respawn
+@onready var gamepad_keyboard: GamepadKeyboard = $Input/GamepadKeyboard
 
 
 func _ready() -> void:
@@ -32,6 +40,12 @@ func _ready() -> void:
 	respawn.entrance_position = player.global_position
 	health.bind_dodge(dodge)
 	health.defeated.connect(_on_player_defeated)
+	gamepad_keyboard.actions = actions
+	touch_controls = TouchControls.new()
+	add_child(touch_controls)
+	touch_controls.bind(actions)
+	player.actions = actions
+	actions.action_pressed.connect(_on_action_pressed)
 
 
 func _physics_process(delta: float) -> void:
@@ -41,16 +55,9 @@ func _physics_process(delta: float) -> void:
 	respawn.advance(delta, player, health, dodge)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey:
-		var key_event: InputEventKey = event as InputEventKey
-		if key_event.pressed and not key_event.echo:
-			if key_event.keycode == KEY_SPACE or key_event.keycode == KEY_SHIFT:
-				try_dodge()
-	elif event is InputEventJoypadButton:
-		var button_event: InputEventJoypadButton = event as InputEventJoypadButton
-		if button_event.pressed and button_event.button_index == JOY_BUTTON_A:
-			try_dodge()
+func _on_action_pressed(action: String, _gesture: String, _direction: String) -> void:
+	if action == "dodge":
+		try_dodge()
 
 
 ## Starts a dodge roll when the cooldown allows it.
