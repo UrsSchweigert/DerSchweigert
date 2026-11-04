@@ -72,7 +72,9 @@ test('resolvePlatform returns the complete app adapter', async () => {
 
 test('the app adapter needs no api.js and never touches the network', async () => {
   const source = await readFile(join(root, 'game', 'platform-adapter.js'), 'utf8');
-  assert.doesNotMatch(source, /^\s*import\s/m);
+  assert.doesNotMatch(source, /from '\.\/api\.js'/);
+  assert.doesNotMatch(source, /from '\.\/access-flow\.js'/);
+  assert.match(source, /from '\.\/progress-store\.js'/, 'progress is read from the local store');
   assert.doesNotMatch(source, /\bfetch\s*\(/);
   assert.doesNotMatch(source, /\bXMLHttpRequest\b/);
 
