@@ -23,13 +23,13 @@ test('iOS speech: the compiled scene uses a bridge with the local OfflineTts plu
   }
 });
 
-test('iOS speech: only explicitly installed Apple compact de/en voices are eligible', () => {
+test('iOS speech: installed Apple de/en speech assets are eligible regardless of quality', () => {
   assert.match(scene, /AVSpeechSynthesisVoice\.speechVoices\(\)\.filter/);
-  assert.match(scene, /voice\.quality == \.default/);
+  assert.doesNotMatch(scene, /voice\.quality == \.default/);
   assert.match(scene, /#available\(iOS 17\.0, \*\), !voice\.voiceTraits\.isEmpty/);
-  assert.match(scene, /com\.apple\.voice\.compact\./);
+  assert.match(scene, /\["compact", "super-compact", "enhanced", "premium"\]/);
   assert.match(scene, /com\.apple\.ttsbundle\./);
-  assert.match(scene, /id\.hasSuffix\("-compact"\)/);
+  assert.match(scene, /\["-compact", "-enhanced", "-premium"\]/);
   assert.match(scene, /AVSpeechSynthesisVoice\(identifier: id\) != nil/);
   assert.match(scene, /primary == "de", locale == "de-de"/);
   assert.doesNotMatch(scene, /AVSpeechSynthesisVoice\(language:|requestPersonalVoiceAuthorization|URLSession/);
