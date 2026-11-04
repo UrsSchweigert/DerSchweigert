@@ -729,3 +729,22 @@ test("full flop round: after correct answers to all flop deck cards, deck is emp
   assert.strictEqual(newDeck.length, 0, `Expected empty deck after completing all ${initialDeckSize} flop cards, but got ${newDeck.length}`);
 });
 
+
+test('startup: the 4.5 MB sentence pool stays off the critical startup path', async () => {
+  const readStatic = name => readFileSync(new URL(`../static/${name}`, import.meta.url), 'utf8');
+  const html = readStatic('index.html');
+
+  assert.match(html, /function scheduleSentencePool\(\)/);
+  assert.match(
+    html,
+    /if \(sentencePoolScheduled \|\| Object\.keys\(stats\)\.length === 0\) return;/,
+    'a fresh install has no history, so the pool must not be fetched at all',
+  );
+  assert.match(html, /requestIdleCallback\(load, \{ timeout: 2000 \}\)/, 'load the pool while idle, not during startup');
+  assert.match(html, /function runHeavyCounts\(\) \{\s*scheduleSentencePool\(\);/, 'startup counting must not await the pool');
+
+  // The counts worker keeps its own copy, so the match counts never depend on
+  // the main thread having loaded the pool.
+  const worker = readStatic('counts-worker.mjs');
+  assert.match(worker, /loadSentences\(lang\)/);
+});
