@@ -70,7 +70,7 @@
         <span id="splash-user-greeting" class="splash-greeting"></span>
       </div>
       <p class="splash-subtitle" data-i18n="splash.chooseDifficulty">Choose your difficulty:</p>
-      <section class="splash-leaderboard" aria-live="polite">
+      <section id="leaderboard-section" class="splash-leaderboard" aria-live="polite">
         <div class="leaderboard-header">
           <h2 class="leaderboard-title" data-i18n="leaderboard.title">Leaderboard</h2>
           <select id="leaderboard-year-filter" class="leaderboard-filter">
@@ -83,6 +83,12 @@
         <p id="leaderboard-profile-prompt" class="leaderboard-profile-prompt" style="display:none"></p>
         <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none" data-i18n="leaderboard.completeProfile">Complete profile</button>
         <ol id="leaderboard-list" class="leaderboard-list"></ol>
+      </section>
+      <section id="personal-development" class="splash-leaderboard" aria-live="polite" style="display:none">
+        <h2 class="leaderboard-title" data-i18n="personalDevelopment.title">My progress</h2>
+        <ol id="personal-best-list" class="leaderboard-list"></ol>
+        <div id="personal-score-history-chart" class="score-history-chart" style="display:none"></div>
+        <p id="personal-completed-overview" class="leaderboard-personal-best"></p>
       </section>
       <div id="level-jump-row" class="level-jump-row" style="display:none">
         <label for="level-jump-select" data-i18n="leaderboard.jumpLabel">Jump to a level you've already cleared:</label>

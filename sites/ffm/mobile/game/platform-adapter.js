@@ -136,6 +136,20 @@ const platform = {
     return { history: await progress.readHistory() };
   },
 
+  // The app has no account: the title screen renders the local
+  // personal-development panel instead of the web leaderboard.
+  getAccountAvailability() {
+    return 'none';
+  },
+
+  async getBestScores() {
+    return { best: await progress.readBestScores() };
+  },
+
+  async getCompletedLevels() {
+    return { completed: await progress.readCompletedLevels() };
+  },
+
   async getLeaderboard() {
     return [];
   },

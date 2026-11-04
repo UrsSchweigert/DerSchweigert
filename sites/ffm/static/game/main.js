@@ -316,6 +316,11 @@ const leaderboardPersonalBest = document.getElementById('leaderboard-personal-be
 const scoreHistoryChart = document.getElementById('score-history-chart');
 const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
 const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
+const leaderboardSection = document.getElementById('leaderboard-section');
+const personalDevelopment = document.getElementById('personal-development');
+const personalBestList = document.getElementById('personal-best-list');
+const personalScoreHistoryChart = document.getElementById('personal-score-history-chart');
+const personalCompletedOverview = document.getElementById('personal-completed-overview');
 const levelJumpRow = document.getElementById('level-jump-row');
 const levelJumpSelect = document.getElementById('level-jump-select');
 
@@ -435,6 +440,7 @@ const SPELL_TARGET_Y_OFFSET = 60;
 const FIREBALL_FLIGHT_MS = 1350;
 let currentProfile = null;
 let currentLeaderboard = null;
+let currentPersonalDevelopment = null;
 let pendingResetToken = null;
 let lastBillingStatus = null;
 let lastLevelClearNum = null;
@@ -642,7 +648,61 @@ function entriesForSelectedFilter(data) {
   return group ? group.entries : [];
 }
 
+function renderPersonalDevelopment(state) {
+  if (!personalDevelopment) return;
+  const best = state?.best || [];
+  const completed = state?.completed || [];
+
+  if (best.length === 0) {
+    personalBestList.innerHTML = `<li>${t('personalDevelopment.noProgress')}</li>`;
+  } else {
+    personalBestList.innerHTML = best
+      .map((entry) => `<li>${t('personalDevelopment.perLevelBest', {
+        level: entry.level,
+        score: entry.score,
+      })}</li>`)
+      .join('');
+  }
+
+  renderScoreHistory({ history: state?.history || [] }, personalScoreHistoryChart);
+
+  personalCompletedOverview.textContent = t('personalDevelopment.completed', {
+    completed: completed.length,
+    total: Math.max(TOTAL_LEVELS, completed.length),
+  });
+}
+
+async function refreshPersonalDevelopment() {
+  const state = { best: [], history: [], completed: [] };
+  try {
+    state.best = (await platform.getBestScores())?.best || [];
+  } catch {
+    state.best = [];
+  }
+  try {
+    state.history = (await platform.getScoreHistory())?.history || [];
+  } catch {
+    state.history = [];
+  }
+  try {
+    state.completed = (await platform.getCompletedLevels())?.completed || [];
+  } catch {
+    state.completed = [];
+  }
+  currentPersonalDevelopment = state;
+  renderPersonalDevelopment(state);
+}
+
 async function refreshProfileAndLeaderboard() {
+  if (await platform.getAccountAvailability() === 'none') {
+    leaderboardSection.style.display = 'none';
+    personalDevelopment.style.display = '';
+    await refreshPersonalDevelopment();
+    return;
+  }
+  leaderboardSection.style.display = '';
+  personalDevelopment.style.display = 'none';
+
   try {
     currentLeaderboard = await platform.getLeaderboard();
     syncLeaderboardFilterOptions(currentLeaderboard.grouped_entries || []);
@@ -2348,13 +2408,17 @@ function handleUrlAuthTokens() {
 
 handleUrlAuthTokens();
 
-// Show a loading placeholder immediately so the leaderboard section never
-// looks empty/broken while the first network round-trip is in flight, and
-// kick off the leaderboard fetch right away rather than waiting on
-// platform.refresh() to settle first — the leaderboard doesn't need auth, so
-// serializing it behind the refresh round-trip only doubles the wait
-// (each hop can also hit a cold Lambda) before anything is shown.
-leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
+// The app build has no leaderboard; its title screen shows the local
+// personal-development panel instead (see refreshProfileAndLeaderboard).
+if (!platform.isApp) {
+  // Show a loading placeholder immediately so the leaderboard section never
+  // looks empty/broken while the first network round-trip is in flight, and
+  // kick off the leaderboard fetch right away rather than waiting on
+  // platform.refresh() to settle first — the leaderboard doesn't need auth, so
+  // serializing it behind the refresh round-trip only doubles the wait
+  // (each hop can also hit a cold Lambda) before anything is shown.
+  leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
+}
 refreshProfileAndLeaderboard();
 
 updateMuteButtonLabel();
@@ -2367,6 +2431,7 @@ onLocaleChange(() => {
   updateMuteButtonLabel();
   if (currentLeaderboard) renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
   if (currentProfile) renderPersonalBest(currentProfile, leaderboardPersonalBest);
+  if (currentPersonalDevelopment) renderPersonalDevelopment(currentPersonalDevelopment);
   renderPersonalBest(currentProfile, accountPersonalBest);
   renderLevelJumpOptions(currentProfile);
   if (platform.isLoggedIn) {
