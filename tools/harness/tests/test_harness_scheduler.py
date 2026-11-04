@@ -825,3 +825,15 @@ def test_the_run_document_is_never_written_back_from_a_stale_snapshot(tmp_path):
     assert "started_at" not in store.get_run("fx") or store.get_run("fx")["started_at"] == 1.0
     store.put_run("other", {"prs": 2})
     assert store.get_run("other")["prs"] == 2
+
+
+def test_a_pre_planned_issue_is_not_sent_to_the_refiner(tmp_path):
+    """An issue imported with a declared tier_fit already states what refinement would say, so the pass is not owed."""
+    env = Env(tmp_path)
+    issue = env.store.get_issue("i1")
+    issue.update(tier_fit="low")
+    env.store.put_issue(issue)
+    env.start()
+    env.tick()
+    assert [r.role for r in env.adapter.started] == ["implementer"]
+    assert not [r for r in env.adapter.started if r.role == "refiner"]
