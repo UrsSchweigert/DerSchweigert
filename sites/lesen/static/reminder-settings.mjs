@@ -21,7 +21,7 @@ export function mountReminderSettings({ document, reminders, translate, random =
 
   function render() {
     for (const [id, key] of [
-      ['open-reminders', 'reminders.title'],
+      ['open-reminders-label', 'reminders.title'],
       ['reminders-title', 'reminders.title'],
       ['reminders-explanation', 'reminders.explanation'],
       ['reminders-answer-label', 'reminders.answer'],
@@ -111,7 +111,9 @@ export function mountReminderSettings({ document, reminders, translate, random =
   byId('reminders-close').addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', lock);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && dialog.open) dialog.close();
+    // Keep the dialog open while a save is in flight: the native permission
+    // prompt backgrounds the app (document.hidden) without closing our dialog.
+    if (document.hidden && dialog.open && !busy) dialog.close();
   });
   render();
   const ready = reminders.restore()

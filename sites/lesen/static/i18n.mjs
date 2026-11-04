@@ -132,7 +132,24 @@ const DE = {
   // Footer
   'footer.tagline': 'Buchstabenzeit · Jeden Tag ein kleines Stück weiter.',
   'footer.about_button': 'Rechtliches & Datenschutz',
-  'footer.parent_report': 'Bericht als CSV speichern',
+  'footer.parent_report': 'Bericht',
+  'footer.haptics': 'Vibration',
+
+  // Parent report card and export
+  'report.title': 'Bericht',
+  'report.no_data': 'Noch keine Übungsergebnisse.',
+  'report.cards_practiced': 'Geübte Karten',
+  'report.correct': 'Richtig',
+  'report.needs_practice': 'Nochmal üben',
+  'report.accuracy': 'Genauigkeit',
+  'report.practice_time': 'Übungszeit',
+  'report.unit.min': 'min',
+  'report.unit.s': 's',
+  'report.export_csv': 'Als CSV exportieren',
+  'report.col.card': 'Karte',
+  'report.col.correct': 'Richtig',
+  'report.col.needs': 'Nochmal',
+  'report.col.accuracy': 'Genauigkeit',
 
   // Parent report export status
   'report.export_ready': 'Bericht gespeichert.',
@@ -279,7 +296,24 @@ const EN = {
   // Footer
   'footer.tagline': 'Letter time · Every day a little bit further.',
   'footer.about_button': 'Legal & Privacy',
-  'footer.parent_report': 'Save report as CSV',
+  'footer.parent_report': 'Report',
+  'footer.haptics': 'Haptics',
+
+  // Parent report card and export
+  'report.title': 'Report',
+  'report.no_data': 'No practice results yet.',
+  'report.cards_practiced': 'Cards practised',
+  'report.correct': 'Correct',
+  'report.needs_practice': 'Needs practice',
+  'report.accuracy': 'Accuracy',
+  'report.practice_time': 'Practice time',
+  'report.unit.min': 'min',
+  'report.unit.s': 's',
+  'report.export_csv': 'Export as CSV',
+  'report.col.card': 'Card',
+  'report.col.correct': 'Correct',
+  'report.col.needs': 'Needs practice',
+  'report.col.accuracy': 'Accuracy',
 
   // Parent report export status
   'report.export_ready': 'Report saved.',

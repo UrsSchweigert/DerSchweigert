@@ -42,6 +42,21 @@ export const HAPTIC_CORRECT_PATTERN = [40];
 /** Browser vibration pattern for an incorrect answer: two pulses. */
 export const HAPTIC_INCORRECT_PATTERN = [40, 60, 40];
 
+/** Native vibrate durations (ms) for the two grading outcomes. */
+export const HAPTIC_CORRECT_MS = 60;
+
+/** Single native pulse duration for an incorrect answer (two pulses). */
+export const HAPTIC_INCORRECT_MS = 50;
+
+/** Gap between the two incorrect-answer pulses. */
+export const HAPTIC_INCORRECT_GAP_MS = 70;
+
+/**
+ * Persisted key holding whether grading haptics are on.
+ * Unset or any value other than 'false' means on, so haptics start on.
+ */
+export const HAPTICS_ENABLED_KEY = 'buchstabenzeit:haptics-enabled';
+
 /**
  * Persisted key holding whether practice reminders are enabled.
  * Unset or any value other than 'true' means off, so reminders start off.
@@ -626,20 +641,36 @@ export function createWebReminders(env = {}) {
 }
 
 /**
- * Haptics capability. Grading feedback uses the Capacitor Haptics plugin when
- * present, otherwise the browser Vibration API, and stays silent when the
- * platform offers neither or the user asked for reduced motion.
- * @param {Object} [env] - Platform environment with an optional window/navigator.
+ * Haptics capability. Grading feedback uses the Capacitor Haptics plugin's
+ * vibrate() (the Vibrator engine, which also works when the system haptic
+ * feedback toggle is off) when present, otherwise the browser Vibration API.
+ * It stays silent when the platform offers neither, when the user turned the
+ * app switch off, or when the user asked for reduced motion.
+ * @param {Object} [env] - Platform environment with an optional window/navigator/store.
  * @returns {Object} Haptics capability.
  */
 export function createWebHaptics(env = {}) {
   const win = env.window ?? (typeof window === 'undefined' ? undefined : window);
+  const store = env.store ?? win?.localStorage;
   const plugin = win?.Capacitor?.Plugins?.Haptics ?? null;
   const navigator = env.navigator ?? win?.navigator;
   const canVibrate = typeof navigator?.vibrate === 'function';
   const supported = Boolean(plugin) || canVibrate;
+  let enabled = readStoredValue(store, HAPTICS_ENABLED_KEY) !== 'false';
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   async function gradeNative(correct) {
+    if (typeof plugin.vibrate === 'function') {
+      if (correct) {
+        await plugin.vibrate({ duration: HAPTIC_CORRECT_MS });
+      } else {
+        await plugin.vibrate({ duration: HAPTIC_INCORRECT_MS });
+        await sleep(HAPTIC_INCORRECT_GAP_MS);
+        await plugin.vibrate({ duration: HAPTIC_INCORRECT_MS });
+      }
+      return 'native';
+    }
     if (typeof plugin.notification === 'function') {
       await plugin.notification({ type: correct ? 'SUCCESS' : 'ERROR' });
       return 'native';
@@ -651,11 +682,20 @@ export function createWebHaptics(env = {}) {
   return {
     kind: plugin ? 'native' : 'web',
     isSupported: () => supported,
+    isEnabled: () => enabled,
+    async setEnabled(value) {
+      enabled = Boolean(value);
+      writeStoredValue(store, HAPTICS_ENABLED_KEY, enabled ? 'true' : 'false');
+      return enabled;
+    },
     impact: async () => UNSUPPORTED,
     vibrate: async () => UNSUPPORTED,
     async grade(correct) {
       if (!supported) {
         return UNSUPPORTED;
+      }
+      if (!enabled) {
+        return 'disabled';
       }
       if (prefersReducedMotion(win)) {
         return 'suppressed';
@@ -837,7 +877,7 @@ export function createPlatformAdapter(env = {}) {
     speech: createWebSpeech(win),
     progress: createWebProgress(store),
     reminders: createWebReminders({ window: win, store }),
-    haptics: createWebHaptics(env),
+    haptics: createWebHaptics({ window: win, store }),
     app: createWebApp(win),
     export: createWebExport(win),
   };

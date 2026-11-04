@@ -836,6 +836,7 @@
             padding: 22px;
             border: none;
             border-radius: 14px;
+            width: min(360px, calc(100vw - 32px));
             max-width: 360px;
             max-height: 80vh;
             overflow-y: auto;
@@ -897,6 +898,66 @@
             margin-top: 16px;
         }
 
+        .report-summary {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 6px 14px;
+            margin: 14px 0;
+            align-items: baseline;
+        }
+
+        .report-summary div {
+            display: contents;
+        }
+
+        .report-summary dt {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .report-summary dd {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .report-table-wrap {
+            max-height: 40vh;
+            overflow-y: auto;
+            margin: 8px 0 4px;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .report-table th,
+        .report-table td {
+            text-align: left;
+            padding: 5px 6px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .report-table th {
+            color: var(--muted);
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            background: #fff;
+        }
+
+        .report-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 14px;
+        }
+
         .link-button {
             background: none;
             border: none;
@@ -907,7 +968,22 @@
             padding: 0 2px;
             display: inline-flex;
             align-items: center;
+            gap: 6px;
             min-height: 44px;
+        }
+
+        .link-button svg {
+            width: 18px;
+            height: 18px;
+            flex: none;
+        }
+
+        .footer-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            justify-content: center;
+            margin-top: 10px;
         }
 
         .report-status {
@@ -921,6 +997,38 @@
             align-items: center;
             gap: 8px;
             min-height: 44px;
+        }
+
+        .reminder-toggle input[type="checkbox"] {
+            appearance: none;
+            width: 40px;
+            height: 24px;
+            flex: none;
+            border-radius: 999px;
+            background: var(--muted);
+            cursor: pointer;
+            position: relative;
+            transition: background 0.15s ease;
+        }
+
+        .reminder-toggle input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform 0.15s ease;
+        }
+
+        .reminder-toggle input[type="checkbox"]:checked {
+            background: var(--green);
+        }
+
+        .reminder-toggle input[type="checkbox"]:checked::after {
+            transform: translateX(16px);
         }
 
         @media (max-width: 680px) {
@@ -1229,8 +1337,51 @@
                 <button id="about-close" class="primary" type="button"><span id="about-close-label">Schlie&szlig;en</span></button>
             </div>
         </dialog>
+        <dialog id="report-dialog" class="about-dialog" aria-labelledby="report-title">
+            <button id="report-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
+            <h2 id="report-title">Bericht</h2>
+            <p id="report-no-data" hidden>Noch keine Übungsergebnisse.</p>
+            <dl id="report-summary" class="report-summary">
+                <div><dt id="report-cards-label">Geübte Karten</dt><dd id="report-cards">0</dd></div>
+                <div><dt id="report-correct-label">Richtig</dt><dd id="report-correct">0</dd></div>
+                <div><dt id="report-needs-label">Nochmal üben</dt><dd id="report-needs">0</dd></div>
+                <div><dt id="report-accuracy-label">Genauigkeit</dt><dd id="report-accuracy">&ndash;</dd></div>
+                <div><dt id="report-time-label">Übungszeit</dt><dd id="report-time">&ndash;</dd></div>
+            </dl>
+            <div class="report-table-wrap">
+                <table class="report-table" id="report-table" hidden>
+                    <thead><tr><th id="report-col-card">Karte</th><th id="report-col-correct">Richtig</th><th id="report-col-needs">Nochmal</th><th id="report-col-accuracy">Genauigkeit</th></tr></thead>
+                    <tbody id="report-rows"></tbody>
+                </table>
+            </div>
+            <div class="report-actions">
+                <button id="report-export" class="primary" type="button">Als CSV exportieren</button>
+                <button id="report-close" class="quiet" type="button">Schlie&szlig;en</button>
+            </div>
+            <p id="report-status" class="report-status" role="status"></p>
+        </dialog>
     </main>
-    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="export-report" class="link-button"><span id="footer-report-label">Bericht als CSV speichern</span></button> <button type="button" id="open-reminders" class="link-button" hidden>Übungserinnerungen</button> <button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button> <span id="report-status" class="report-status" role="status"></span></footer>
+    <footer>
+        <span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span>
+        <div class="footer-actions">
+            <button type="button" id="export-report" class="link-button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+                <span id="footer-report-label">Bericht</span>
+            </button>
+            <button type="button" id="open-reminders" class="link-button" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                <span id="open-reminders-label">Übungserinnerungen</span>
+            </button>
+            <button type="button" id="toggle-haptics" class="link-button" aria-pressed="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6a2 2 0 0 0 4 0V5a2 2 0 0 1 4 0v6a2 2 0 0 0 4 0V9a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-1a8 8 0 0 1-8-8V9a2 2 0 0 1 4 0v2a2 2 0 0 0 4 0V5a2 2 0 0 1 4 0"/></svg>
+                <span id="footer-haptics-label">Vibration</span>
+            </button>
+            <button type="button" id="open-about" class="link-button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span id="footer-about-label">Rechtliches &amp; Datenschutz</span>
+            </button>
+        </div>
+    </footer>
     <script type="module">
         import { createPlatformAdapter } from './platform.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
@@ -1442,12 +1593,28 @@
             byId('about-wordlist-link').href = currentLanguage === 'en' ? 'words-en-LICENSE.txt' : 'words-de-LICENSE.txt';
             byId('about-close-label').textContent = tr('dialog.about.close');
             byId('about-x').setAttribute('aria-label', tr('dialog.about.close'));
+
+            byId('report-title').textContent = tr('report.title');
+            byId('report-no-data').textContent = tr('report.no_data');
+            byId('report-cards-label').textContent = tr('report.cards_practiced');
+            byId('report-correct-label').textContent = tr('report.correct');
+            byId('report-needs-label').textContent = tr('report.needs_practice');
+            byId('report-accuracy-label').textContent = tr('report.accuracy');
+            byId('report-time-label').textContent = tr('report.practice_time');
+            byId('report-export').textContent = tr('report.export_csv');
+            byId('report-close').textContent = tr('dialog.about.close');
+            byId('report-x').setAttribute('aria-label', tr('dialog.about.close'));
+            byId('report-col-card').textContent = tr('report.col.card');
+            byId('report-col-correct').textContent = tr('report.col.correct');
+            byId('report-col-needs').textContent = tr('report.col.needs');
+            byId('report-col-accuracy').textContent = tr('report.col.accuracy');
         }
 
         function updateFooterText() {
             byId('footer-tagline').textContent = tr('footer.tagline');
             byId('footer-report-label').textContent = tr('footer.parent_report');
             byId('footer-about-label').textContent = tr('footer.about_button');
+            byId('footer-haptics-label').textContent = tr('footer.haptics');
         }
 
         function updateSelectionCounts() {
@@ -1767,6 +1934,7 @@
 
         function showScreen(screen) {
             for (const name of ['setup', 'practice', 'complete']) byId(name).hidden = name !== screen;
+            byId('open-about').hidden = screen !== 'setup';
         }
 
         function updateCardFontSize(text, minimum = 0) {
@@ -2231,7 +2399,52 @@
         });
         byId('about-x').addEventListener('click', () => byId('about-dialog').close());
         byId('about-close').addEventListener('click', () => byId('about-dialog').close());
-        byId('export-report').addEventListener('click', async () => {
+
+        function formatPracticeTime(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return minutes > 0
+                ? `${minutes} ${tr('report.unit.min')} ${seconds} ${tr('report.unit.s')}`
+                : `${seconds} ${tr('report.unit.s')}`;
+        }
+
+        function renderReport() {
+            const report = buildReport(
+                window.__platform.progress.read(),
+                window.__platform.progress.readPracticeMs(),
+            );
+            const totals = report.totals;
+            byId('report-cards').textContent = String(totals.cards);
+            byId('report-correct').textContent = String(totals.correct);
+            byId('report-needs').textContent = String(totals.incorrect);
+            byId('report-accuracy').textContent = totals.attempts ? `${totals.accuracy.toFixed(1)} %` : '–';
+            byId('report-time').textContent = formatPracticeTime(totals.practiceSeconds);
+            byId('report-no-data').hidden = report.cards.length > 0;
+            byId('report-table').hidden = report.cards.length === 0;
+            const rows = byId('report-rows');
+            rows.textContent = '';
+            for (const row of report.cards) {
+                const trEl = document.createElement('tr');
+                for (const value of [row.card, String(row.correct), String(row.incorrect), `${row.accuracy.toFixed(1)} %`]) {
+                    const td = document.createElement('td');
+                    td.textContent = value;
+                    trEl.appendChild(td);
+                }
+                rows.appendChild(trEl);
+            }
+            byId('report-status').textContent = '';
+        }
+
+        byId('export-report').addEventListener('click', () => {
+            renderReport();
+            const dlg = byId('report-dialog');
+            dlg.showModal();
+            dlg.scrollTop = 0;
+            byId('report-close').focus({ preventScroll: true });
+        });
+        byId('report-close').addEventListener('click', () => byId('report-dialog').close());
+        byId('report-x').addEventListener('click', () => byId('report-dialog').close());
+        byId('report-export').addEventListener('click', async () => {
             const status = byId('report-status');
             try {
                 const csv = toCsv(buildReport(
@@ -2243,6 +2456,14 @@
             } catch {
                 status.textContent = tr('report.export_failed');
             }
+        });
+
+        const hapticsButton = byId('toggle-haptics');
+        hapticsButton.setAttribute('aria-pressed', String(window.__platform.haptics.isEnabled()));
+        hapticsButton.addEventListener('click', async () => {
+            const next = !window.__platform.haptics.isEnabled();
+            await window.__platform.haptics.setEnabled(next);
+            hapticsButton.setAttribute('aria-pressed', String(next));
         });
     </script>
 </body>
