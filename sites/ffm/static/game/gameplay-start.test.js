@@ -20,6 +20,7 @@ it('hides the title when a blocked level successfully resumes', () => {
     updateHUDLogoutVisibility() {},
     hud: { update() {} },
     audio: { startBGM() {} },
+    syncKeepAwake() {},
     animFrameId: 1,
   };
   vm.createContext(context);
@@ -55,6 +56,7 @@ it('closes account and checkout dialogs while keeping title controls available a
     updateHUDLogoutVisibility() {},
     topBar: { style: { display: 'none' } },
     audio: { stopBGM() {} },
+    syncKeepAwake() {},
   };
   vm.createContext(context);
   vm.runInContext(`${fn}\nclearPremiumSession();`, context);

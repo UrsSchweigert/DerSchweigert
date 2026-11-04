@@ -25,6 +25,10 @@ import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getL
 // local-only adapter. Resolved once, before any game code runs.
 const platform = await resolvePlatform();
 
+// App-only lifecycle handle (see ./lifecycle.js, shipped by the app overlay).
+// Stays null on the web build and until the app plugin has been wired.
+let appLifecycle = null;
+
 // The app caches the store entitlement on device. Refresh it on launch and on
 // every return to the foreground, so a refund made while the app was closed
 // revokes access and a purchase finished outside the app is picked up.
@@ -38,6 +42,29 @@ if (platform.isApp) {
   // The web build never loads this module and keeps its existing footer.
   import('./legal.js')
     .then(({ setupTitleLegalLinks }) => setupTitleLegalLinks({ getLocale, onLocaleChange }))
+    .catch(() => {});
+  // Pause gameplay and music while the app is in the background, resume only
+  // after an automatic pause, map the Android back button, and keep the
+  // screen awake only while a level is running. The web build never loads
+  // this module.
+  import('./lifecycle.js')
+    .then(({ createAppPlugin, createKeepAwakePlugin, createLifecycle }) => {
+      const app = createAppPlugin();
+      if (!app) return;
+      appLifecycle = createLifecycle({
+        app,
+        keepAwake: createKeepAwakePlugin(),
+        game: {
+          isPlaying: () => gameRunning && !paused,
+          isPaused: () => paused,
+          pause: pauseGame,
+          resume: resumeGame,
+          goBack: handleAppBack,
+        },
+      });
+      appLifecycle.start().catch(() => {});
+      syncKeepAwake();
+    })
     .catch(() => {});
 }
 
@@ -1447,6 +1474,7 @@ function clearPremiumSession() {
   hideLoadingOverlay();
   topBar.style.display = 'flex';
   audio.stopBGM();
+  syncKeepAwake();
   updateHUDLogoutVisibility();
 }
 
@@ -1618,6 +1646,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   updateHUDLogoutVisibility();
   hud.update(state);
   audio.startBGM(cfg.chapter);
+  syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
 }
 
@@ -1673,6 +1702,7 @@ function finishStartShapesMode() {
   gameOverOverlay.style.display = 'none';
   hud.update(state);
   audio.startBGM(1);
+  syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
 }
 
@@ -1779,6 +1809,7 @@ function quitPausedGame() {
   pauseOverlay.style.display = 'none';
   pauseQuitActions.style.display = 'none';
   diffSelect.scrollTop = 0;
+  syncKeepAwake();
 }
 
 const gameplayTimers = [];
@@ -1801,6 +1832,34 @@ function advanceGameplayTimers(dt) {
   }
 }
 
+// The screen may sleep on the title screen, in the pause menu, while the
+// heal tip is up and after game over; only a running level keeps it awake.
+function syncKeepAwake() {
+  appLifecycle?.setKeepAwake(gameRunning && !paused);
+}
+
+// Android Back: while playing it pauses, while paused it backs out of the
+// quit confirmation (or resumes), and everywhere else the lifecycle exits.
+function handleAppBack() {
+  if (pauseQuitActions.style.display !== 'none') {
+    pauseQuitActions.style.display = 'none';
+    pauseActions.style.display = '';
+    return true;
+  }
+  if (paused) {
+    if (healTipOverlay.style.display === 'flex') {
+      healTipOverlay.style.display = 'none';
+      paused = false;
+      audio.resumeBGM();
+      syncKeepAwake();
+      return true;
+    }
+    resumeGame();
+    return true;
+  }
+  return false;
+}
+
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
@@ -1810,6 +1869,7 @@ function pauseGame() {
   input.disable();
   audio.pauseBGM();
   resetHealHold();
+  syncKeepAwake();
 }
 
 function resumeGame() {
@@ -1820,6 +1880,7 @@ function resumeGame() {
   if (activeFiend && state.timerActive) {
     input.enable(getCurrentInputMode());
   }
+  syncKeepAwake();
 }
 
 // Shown once per playthrough, the first time hearts drop to half (or below)
@@ -1833,12 +1894,14 @@ function showHealTip() {
   paused = true;
   healTipOverlay.style.display = 'flex';
   audio.pauseBGM();
+  syncKeepAwake();
 }
 
 btnHealTipConfirm.addEventListener('click', () => {
   healTipOverlay.style.display = 'none';
   paused = false;
   audio.resumeBGM();
+  syncKeepAwake();
 });
 
 // Only one fiend on screen at a time; gap kept for requeue safety
@@ -2172,6 +2235,7 @@ function updatePaceAdapter() {
 
 function triggerWaveClear() {
   gameRunning = false;
+  syncKeepAwake();
   hero.setState('victory');
   audio.playLevelClear();
 
@@ -2239,6 +2303,7 @@ function triggerGameOver() {
   levelClearOverlay.style.display = 'none';
   topBar.style.display = 'flex';
   audio.stopBGM();
+  syncKeepAwake();
   audio.playGameOver();
   // Shapes mode is unscored — never submit a high score for it.
   if (platform.isLoggedIn && !state.isShapesMode) {
