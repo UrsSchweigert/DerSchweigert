@@ -145,6 +145,18 @@ test('the repository capacitor config loads from the local origin', async t => {
   assert.deepEqual(problems, [], problems.join('\n'));
 });
 
+test('capacitor config paints the web view in the boot splash colour', async () => {
+  const config = JSON.parse(await readFile(realConfig, 'utf8'));
+  const page = await readFile(join(staticDir, 'index.html'), 'utf8');
+  const paper = page.match(/--paper:\s*(#[0-9a-fA-F]{6})\s*;/)?.[1];
+  assert.ok(paper, 'index.html must define --paper');
+  assert.equal(
+    config.backgroundColor?.toLowerCase(),
+    paper.toLowerCase(),
+    'the empty web view must use the same colour as the boot splash',
+  );
+});
+
 test('REQUIRED_FILES covers every module imported at runtime', async () => {
   const required = new Set(REQUIRED_FILES);
   const visited = new Set();
