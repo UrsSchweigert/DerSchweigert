@@ -193,6 +193,15 @@ test('parent report: index.html shows an in-app report card with CSV export from
   assert.match(html, /id="toggle-haptics"/);
 });
 
+test('parent report: the haptics switch confirms switching on with the grading pulse', async () => {
+  const html = await readFile(new URL('../static/index.html', import.meta.url), 'utf8');
+
+  assert.match(
+    html,
+    /hapticsButton\.addEventListener\('click'[\s\S]*?if \(next\) \{[\s\S]*?haptics\.grade\?\.\(true\)/,
+  );
+});
+
 test('parent report: entry point re-exports the platform contract', () => {
   assert.equal(buildReport, platform.buildReport);
   assert.equal(toCsv, platform.toCsv);
