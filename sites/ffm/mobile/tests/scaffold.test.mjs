@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, stat, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, stat, mkdtemp, rm, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { copyAssets } from '../scripts/copy-assets.mjs';
+import { copyAssets, EXCLUDED, REQUIRED_FILES } from '../scripts/copy-assets.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const json = async (rel) => JSON.parse(await readFile(join(root, rel), 'utf8'));
+const toPosix = (rel) => rel.split('\\').join('/');
 
 test('capacitor config bundles local assets under the app identity', async () => {
   const config = await json('capacitor.config.json');
@@ -15,14 +16,23 @@ test('capacitor config bundles local assets under the app identity', async () =>
   assert.equal(config.appName, 'Arithmo Slayer');
   assert.equal(config.webDir, 'www');
   assert.equal(config.server?.url, undefined);
+  assert.doesNotMatch(JSON.stringify(config), /"url"\s*:/);
 });
 
 test('capacitor packages stay on one 8.x version', async () => {
   const pkg = await json('package.json');
   const all = { ...pkg.dependencies, ...pkg.devDependencies };
-  for (const name of ['@capacitor/core', '@capacitor/cli', '@capacitor/android', '@capacitor/ios']) {
+  const platform = ['@capacitor/core', '@capacitor/cli', '@capacitor/android', '@capacitor/ios'];
+  for (const name of platform) {
     assert.match(all[name], /^8\.\d+\.\d+$/, name);
     assert.equal(all[name], all['@capacitor/core'], name);
+  }
+  for (const [name, version] of Object.entries(all)) {
+    // @capacitor/assets is the icon/splash tool and does not track the runtime line.
+    if (name === '@capacitor/assets') continue;
+    if (name.startsWith('@capacitor') || name.startsWith('@capgo/')) {
+      assert.match(version, /^8\.\d+\.\d+$/, name);
+    }
   }
 });
 
@@ -30,7 +40,14 @@ test('copy-assets copies the game and drops development-only files', async () =>
   const out = await mkdtemp(join(tmpdir(), 'ffm-www-'));
   try {
     await copyAssets(undefined, out);
-    assert.ok((await stat(join(out, 'game/main.js'))).isFile());
+    for (const rel of REQUIRED_FILES) {
+      assert.ok((await stat(join(out, rel))).isFile(), rel);
+    }
+    const entries = (await readdir(out, { recursive: true })).map(toPosix);
+    for (const rel of entries) {
+      assert.ok(!EXCLUDED.some((pattern) => pattern.test(rel)), `${rel} must not be bundled`);
+      assert.notEqual(rel.split('/').pop(), '.DS_Store', rel);
+    }
     for (const rel of ['game/source-assets', 'game/calibrate.html', 'game/levels.test.js', 'demo.html']) {
       await assert.rejects(stat(join(out, rel)), rel);
     }
@@ -39,7 +56,84 @@ test('copy-assets copies the game and drops development-only files', async () =>
   }
 });
 
+// One concrete path per development-only rule. Adding an exclusion without a
+// sample here fails the coverage assertion below, so every excluded path is
+// asserted and would surface if it ever reached www/.
+const EXCLUDED_SAMPLES = [
+  'game/source-assets/hero.png',
+  'game/source-assets/nested/deep.png',
+  'game/calibrate.html',
+  'game/calibrate.js',
+  'game/_dragon_test.html',
+  'game/main.test.js',
+  'game/platform.test.js',
+  'export-sprites.html',
+  'demo.html',
+  '.DS_Store',
+];
+
+const KEPT_SAMPLES = [
+  ...REQUIRED_FILES,
+  'game/platform.js',
+  'game/platform-app.js',
+  'game/fiend-sprites/a.png',
+  'terms.html',
+];
+
+async function fixture(files) {
+  const dir = await mkdtemp(join(tmpdir(), 'ffm-src-'));
+  for (const rel of files) {
+    const target = join(dir, rel);
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, rel);
+  }
+  return dir;
+}
+
+test('every copy-assets exclusion is asserted against a concrete path', async () => {
+  for (const pattern of EXCLUDED) {
+    assert.ok(
+      EXCLUDED_SAMPLES.some((rel) => pattern.test(rel)),
+      `no sample path exercises exclusion ${pattern}`,
+    );
+  }
+
+  const src = await fixture([...KEPT_SAMPLES, ...EXCLUDED_SAMPLES]);
+  const out = await mkdtemp(join(tmpdir(), 'ffm-www-'));
+  try {
+    await copyAssets(src, out);
+    for (const rel of EXCLUDED_SAMPLES) {
+      await assert.rejects(stat(join(out, rel)), `${rel} must not appear in www/`);
+    }
+    for (const rel of KEPT_SAMPLES) {
+      assert.ok((await stat(join(out, rel))).isFile(), `${rel} must be bundled`);
+    }
+  } finally {
+    await rm(src, { recursive: true, force: true });
+    await rm(out, { recursive: true, force: true });
+  }
+});
+
+test('copy-assets fails when a required file is missing', async () => {
+  const src = await fixture(['index.html', 'game/main.js']);
+  const out = await mkdtemp(join(tmpdir(), 'ffm-www-'));
+  try {
+    await assert.rejects(copyAssets(src, out), /styles\.css/);
+  } finally {
+    await rm(src, { recursive: true, force: true });
+    await rm(out, { recursive: true, force: true });
+  }
+});
+
 const text = (rel) => readFile(join(root, rel), 'utf8');
+
+test('README records the maintainer-owned escalation paths', async () => {
+  const readme = await text('README.md');
+  for (const rel of ['package.json', 'package-lock.json', 'capacitor.config.json', 'android/', 'ios/']) {
+    assert.ok(readme.includes(rel), rel);
+  }
+  assert.match(readme, /escalat/i);
+});
 
 test('native projects carry the app identity and store metadata', async () => {
   const gradle = await text('android/app/build.gradle');
