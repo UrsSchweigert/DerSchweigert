@@ -33,6 +33,12 @@ if (platform.isApp) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') platform.refreshEntitlement().catch(() => false);
   });
+  // The app bundles its own privacy, imprint, terms and licence pages (see
+  // ./legal.js); replace the web legal footer with localized links to them.
+  // The web build never loads this module and keeps its existing footer.
+  import('./legal.js')
+    .then(({ setupTitleLegalLinks }) => setupTitleLegalLinks({ getLocale, onLocaleChange }))
+    .catch(() => {});
 }
 
 // Resolves the active locale, translates every data-i18n-* element in the

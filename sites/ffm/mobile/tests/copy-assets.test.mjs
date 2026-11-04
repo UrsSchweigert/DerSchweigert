@@ -8,6 +8,7 @@ import {
   APP_OVERLAY,
   EXCLUDED,
   GENERATED_FILES,
+  LEGAL_DIR,
   REQUIRED_FILES,
   copyAssets,
   isExcluded,
@@ -71,8 +72,12 @@ test('www/ holds the entry points and every kept game asset', async () => {
       await readFile(join(staticDir, 'game/main.js'), 'utf8'),
     );
 
-    const expected = [...(await listFiles(staticDir)).filter((rel) => !isExcluded(rel)), ...GENERATED_FILES]
-      .sort();
+    const legal = (await listFiles(LEGAL_DIR)).map((rel) => `legal/${rel}`);
+    const expected = [
+      ...(await listFiles(staticDir)).filter((rel) => !isExcluded(rel)),
+      ...legal,
+      ...GENERATED_FILES,
+    ].sort();
     const copied = await listFiles(out);
     assert.deepEqual(copied, expected, 'www/ must contain exactly the non-excluded static files');
   });
