@@ -1028,3 +1028,22 @@ asserts that the `prs` bump and the `pause_requested` flag are both present afte
 
 A field that must never be lost still needs a writer that respects it: `update_run` prevents a lost update, not a
 deliberate clear. `start()` may clear the pause flags because a resumed run is a new run; nothing else may.
+
+## An imported issue may arrive pre-planned (2026-11-04)
+
+Refinement is the plan's most repeated cost, and the Arithmo Slayer run shows why it is not always worth paying: of
+twelve refiner passes, **ten were re-plans after anchor churn** (`_stale_anchors`) and only two were the first plan
+of a task. A documentation issue that writes one Markdown file gains nothing from that pass and still pays for the
+strong tier, which the harness refuses to lower (`SIGNED_REFINER_FLOOR`).
+
+`tier_fit` is now accepted on an imported issue, because it is exactly the statement a refiner makes: the tier the
+work fits. `_needs_plan` already skips an issue that declares one, so the plan's author — inside a plan the owner
+approved — can say "no plan pass is owed" for the work that does not need one. The value is validated against the
+known tiers at import, it is part of the issue definition, so an unchanged re-import stays a no-op, and a bad value
+is refused rather than ignored.
+
+What this does *not* do is make planning cheaper in general. `model_routing` still forces a plan pass on every issue
+when it is set, and a signed refiner below the standard band is still refused, so a DeepSeek-only plan cannot route
+refinement to `deepseek-flash`. The cheaper levers that remain are volume, and they belong to whoever writes the
+plan: fewer, larger issues; documentation exempt from planning; and issues whose anchors are stable, because every
+issue that edits the same file after an earlier merge buys another re-plan.

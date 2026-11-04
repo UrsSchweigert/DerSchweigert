@@ -31,6 +31,9 @@ ISSUE_SCHEMA = {
     "issue_id": str, "phase_id": str, "requirement_ids": [str], "title?": str, "outcomes": [str], "acceptance_criteria": [str],
     "non_goals": [str], "code_anchors": [str], "contract_paths?": [str], "deps?": [str], "validation_commands?": [str],
     "working_directory?": str, "parallel_safe?": bool, "model_choices?": schemas.MODEL_CHOICES,
+    # An imported issue may arrive pre-planned: the plan's author can declare the tier its work fits, which is the
+    # same statement a refiner makes with `tier_fit`, so no refinement pass is owed before implementing.
+    "tier_fit?": str,
 }
 
 
@@ -57,6 +60,11 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
     added, replaced = [], []
     for doc in docs:
         schemas.validate(doc, ISSUE_SCHEMA, "issue")
+        if "tier_fit" in doc:
+            fit = str(doc["tier_fit"]).strip().lower()
+            if fit not in models.TIERS:
+                raise RunRefused("issue %s tier_fit %r is not one of %s" % (doc["issue_id"], doc["tier_fit"], ", ".join(models.TIERS)))
+            doc["tier_fit"] = fit
         for role, choice in doc.get("model_choices", {}).items():
             try:
                 models.resolve_choice(choice, plan["policy"]["model_tiers"], None, role=role,
@@ -126,7 +134,7 @@ def _retire(store: Store, plan_id: str, leftovers: List[Dict[str, Any]]) -> List
 
 
 _DEFINITION_FIELDS = ("title", "outcomes", "acceptance_criteria", "non_goals", "code_anchors", "contract_paths", "deps",
-                      "validation_commands", "working_directory", "parallel_safe", "model_choices")
+                      "validation_commands", "working_directory", "parallel_safe", "model_choices", "tier_fit")
 
 
 def _definition(doc: Dict[str, Any]) -> Dict[str, Any]:
