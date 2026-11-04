@@ -42,6 +42,55 @@
             box-sizing: border-box;
         }
 
+        html {
+            /* Explicit background so the native WebView never paints black
+               while the document is still being parsed. */
+            background-color: var(--paper);
+        }
+
+        /* Boot splash: bridges the gap between the native launch screen and
+           the first painted app frame. Capacitor has no splash plugin here, so
+           the WebView showed an unpainted (black) surface in between. */
+        #boot-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--paper);
+            transition: opacity 0.25s ease;
+        }
+
+        #boot-splash.is-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #boot-splash img {
+            width: 128px;
+            height: 128px;
+            animation: boot-pulse 1.6s ease-in-out infinite;
+            will-change: transform, opacity;
+        }
+
+        @keyframes boot-pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.07);
+                opacity: 0.82;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #boot-splash img {
+                animation: none;
+            }
+        }
+
         body {
             margin: 0;
             /* viewport-fit=cover plus these insets keeps content clear of the
@@ -1224,6 +1273,9 @@
 </head>
 
 <body>
+    <div id="boot-splash" aria-hidden="true">
+        <img src="apple-touch-icon.png" alt="" width="128" height="128">
+    </div>
     <main>
         <section id="setup" aria-labelledby="setup-title">
             <div class="language-control">
@@ -2528,6 +2580,20 @@
             await window.__platform.haptics.setEnabled(next);
             hapticsButton.setAttribute('aria-pressed', String(next));
         });
+
+        /** Fade out the boot splash once the first app frame is painted. */
+        function hideBootSplash() {
+            const splash = byId('boot-splash');
+            if (!splash) return;
+            splash.classList.add('is-hidden');
+            splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+            // Safety net for reduced motion, where no transition runs.
+            setTimeout(() => splash.remove(), 400);
+        }
+
+        requestAnimationFrame(() => requestAnimationFrame(hideBootSplash));
+        // Never trap the user behind the splash if startup stalls.
+        setTimeout(hideBootSplash, 3000);
     </script>
 </body>
 
