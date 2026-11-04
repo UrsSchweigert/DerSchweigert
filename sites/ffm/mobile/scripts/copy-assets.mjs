@@ -6,11 +6,12 @@
 //   1. ../static, without development-only and web-only files;
 //   2. game/, the app-only overlay, copied on top of www/game so an app module
 //      replaces the web one with the same name (mobile wins).
-// Level data and the bundle check are added by the other 1.2 requirements in
-// docs/harness/requirements/20261104_arithmoslayer-mobile.md.
-import { cp, rm, mkdir, stat } from 'node:fs/promises';
+// After the copy it generates game/level-data.js from the private curriculum
+// and removes web-only inline scripts (visitor tracking) from index.html.
+import { cp, rm, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { basename, dirname, join } from 'node:path';
+import { generateLevelData } from './level-data.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -39,7 +40,21 @@ export const EXCLUDED = [
   /^widerruf\.html$/,
 ];
 
-export const REQUIRED_FILES = ['index.html', 'styles.css', 'game/main.js'];
+export const REQUIRED_FILES = ['index.html', 'styles.css', 'game/main.js', 'game/level-data.js'];
+
+// Build output that copy-assets writes on top of the copied web game.
+export const GENERATED_FILES = ['game/level-data.js'];
+
+// Web-only inline scripts. The website tracks page visits with a fetch to the
+// FFM API; the app is offline and must not make that request, so the script
+// block is dropped while copying.
+const INLINE_SCRIPT_RE = /<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi;
+const FFM_API_CALL_RE = /\bfetch\s*\(\s*['"`][^'"`]*\/api(?:\/|['"`])/;
+
+export function stripWebOnlyScripts(html) {
+  return html.replace(INLINE_SCRIPT_RE, (block, body) =>
+    FFM_API_CALL_RE.test(body) ? '' : block);
+}
 
 export function isExcluded(relative) {
   return EXCLUDED.some((pattern) => pattern.test(relative));
@@ -80,6 +95,13 @@ export async function copyAssets(from = src, to = dest, overlay = APP_OVERLAY) {
       filter: keep(overlay, (relative) => `game/${relative}`),
     });
   }
+
+  await generateLevelData(join(to, 'game', 'level-data.js'));
+
+  const indexPath = join(to, 'index.html');
+  const html = await readFile(indexPath, 'utf8');
+  const stripped = stripWebOnlyScripts(html);
+  if (stripped !== html) await writeFile(indexPath, stripped);
 
   const missing = [];
   for (const rel of REQUIRED_FILES) {
