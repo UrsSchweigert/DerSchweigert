@@ -658,10 +658,19 @@ export function createWebHaptics(env = {}) {
   const supported = Boolean(plugin) || canVibrate;
   let enabled = readStoredValue(store, HAPTICS_ENABLED_KEY) !== 'false';
 
+  const capacitor = win?.Capacitor;
+  const platform = typeof capacitor?.getPlatform === 'function' ? capacitor.getPlatform() : 'web';
+  // Android's notification()/impact() run through performHapticFeedback, which the
+  // system haptic-feedback toggle silences, while vibrate() drives the Vibrator
+  // engine directly and always fires. iOS is the reverse: vibrate() builds a
+  // throwaway CoreHaptics engine per call, whereas the feedback generators behind
+  // notification() are dependable. So the preferred method is per platform.
+  const useVibrateEngine = platform !== 'ios';
+
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   async function gradeNative(correct) {
-    if (typeof plugin.vibrate === 'function') {
+    if (useVibrateEngine && typeof plugin.vibrate === 'function') {
       if (correct) {
         await plugin.vibrate({ duration: HAPTIC_CORRECT_MS });
       } else {
