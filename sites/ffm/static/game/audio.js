@@ -1,15 +1,39 @@
 // audio.js — Web Audio API chiptune engine for Arithmo Slayer
 
+import { DEFAULT_VOLUME, TrackRotation } from './track-rotation.js';
+
+// Used until tracks.json loads (and when it cannot be fetched), so the game
+// always has the one bundled track. The manifest holds the credited metadata.
+const FALLBACK_TRACKS = Object.freeze([Object.freeze({ file: 'background-music.mp3' })]);
+
 export class AudioEngine {
-  constructor() {
+  constructor({ tracks = null, manifestUrl = null, makeAudio = null, fetchManifest = null, baseUrl } = {}) {
     this._ctx = null;
     this._muted = false;
-    this._bgmActive = false;
-    this._bgmNodes = [];
-    this._bgmTimer = null;
-    this._bgmAudio = new Audio(new URL('./background-music.mp3', import.meta.url).href);
-    this._bgmAudio.loop = true;
-    this._bgmAudio.volume = 0.35;
+    this._rotation = new TrackRotation({
+      tracks: tracks ?? FALLBACK_TRACKS,
+      makeAudio: makeAudio ?? (() => new Audio()),
+      volume: DEFAULT_VOLUME,
+      baseUrl: baseUrl === undefined ? new URL('./', import.meta.url).href : baseUrl,
+    });
+    if (!tracks) {
+      this._manifestUrl = manifestUrl ?? new URL('./tracks.json', import.meta.url).href;
+      this._manifestReady = this._loadManifest(fetchManifest);
+    }
+  }
+
+  async _loadManifest(fetchManifest) {
+    const load = fetchManifest ?? ((url) => fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`music manifest ${response.status}`);
+      return response.json();
+    }));
+    try {
+      const manifest = await load(this._manifestUrl);
+      const tracks = Array.isArray(manifest) ? manifest : manifest?.tracks;
+      if (Array.isArray(tracks) && tracks.length > 0) this._rotation.replaceTracks(tracks);
+    } catch {
+      // Offline or unsupported fetch: the bundled fallback track keeps playing.
+    }
   }
 
   _ensureCtx() {
@@ -234,39 +258,19 @@ export class AudioEngine {
 
   startBGM(chapter) {
     this._ensureCtx();
-    this.stopBGM();
-    this._bgmActive = true;
-    if (this._muted) return;
-
-    this._bgmAudio.currentTime = 0;
-    this._bgmAudio.play().catch(() => {});
+    this._rotation.start(chapter ?? null);
   }
 
   stopBGM() {
-    this._bgmActive = false;
-    if (this._bgmTimer) {
-      clearTimeout(this._bgmTimer);
-      this._bgmTimer = null;
-    }
-    this._bgmNodes.forEach(n => {
-      try {
-        n.stop();
-      } catch (e) {}
-    });
-    this._bgmNodes = [];
-    this._bgmAudio.pause();
-    this._bgmAudio.currentTime = 0;
+    this._rotation.stop();
   }
 
   pauseBGM() {
-    this._bgmActive = false;
-    this._bgmAudio.pause();
+    this._rotation.pause();
   }
 
   resumeBGM() {
-    this._bgmActive = true;
-    if (this._muted) return;
-    this._bgmAudio.play().catch(() => {});
+    this._rotation.resume();
   }
 
   get muted() {
@@ -275,10 +279,6 @@ export class AudioEngine {
 
   toggleMute() {
     this._muted = !this._muted;
-    if (this._muted) {
-      this._bgmAudio.pause();
-    } else if (this._bgmActive) {
-      this._bgmAudio.play().catch(() => {});
-    }
+    this._rotation.setMuted(this._muted);
   }
 }

@@ -26,6 +26,11 @@ levels, when any file references a remote first-party (`derschweigert.de`) URL, 
 API (`fetch` to `/api`, XHR or beacon). Approved navigational legal links in `terms.html`/`terms.en.html` are the
 only first-party URLs allowed; they are text only and never loaded.
 
+Background music follows `game/tracks.json`: file, title, author, licence, optional `source` URL and optional
+`stage` tag. The web build ships the one existing track; the app overlay replaces that manifest with
+`mobile/game/tracks.json`, which is where the owner's M4 tracks are added. `game/music-manifest.js` supplies the
+licence-page credits, and `tests/track-rotation.test.mjs` fails if a manifest file has no credit.
+
 Game code reaches the outside world only through `game/platform.js`. The web build resolves
 `static/game/platform-adapter.js`, which delegates to `api.js` and `access-flow.js`; the app build ships the
 local-only `game/platform-adapter.js` from this directory instead, so `main.js` runs without the web API modules
