@@ -31,8 +31,10 @@ for (const outcome of ['success', 'failure', 'invalid-url']) {
     const pending = new Promise((res, rej) => { resolve = res; reject = rej; });
     const context = {
       btnOpenPortal: button,
-      api: { openBillingPortal() { calls++; return pending; } },
-      isStripeRedirect,
+      platform: {
+        openBillingPortal() { calls++; return pending; },
+        isStripeRedirect,
+      },
       window: { location: { href: 'http://localhost/' } },
       billingStatusText: { textContent: '' },
       t,

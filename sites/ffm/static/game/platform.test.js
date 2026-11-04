@@ -51,20 +51,39 @@ describe('platform interface', () => {
     assert.deepEqual([...PLATFORM_CAPABILITIES], ['isApp', 'hasAccount', 'hasLeaderboard']);
   });
 
-  it('covers every api.* and access-flow call main.js makes today', async () => {
+  it('routes every game-to-platform call through the adapter', async () => {
     const source = await readFile(new URL('./main.js', import.meta.url), 'utf8');
-    const apiCalls = new Set(
-      [...source.matchAll(/\bapi\.([A-Za-z_]\w*)/g)]
+    const imports = source.match(/^import\s[^\n]*$/gm) || [];
+    assert.ok(
+      imports.some((line) => /from '\.\/platform\.js'/.test(line)),
+      'main.js imports platform.js',
+    );
+    for (const line of imports) {
+      assert.doesNotMatch(line, /from '\.\/api\.js'/, 'main.js must not import api.js');
+      assert.doesNotMatch(line, /from '\.\/access-flow\.js'/, 'main.js must not import access-flow.js');
+    }
+    assert.match(source, /const platform = await resolvePlatform\(\);/);
+
+    const calls = new Set(
+      [...source.matchAll(/\bplatform\.([A-Za-z_]\w*)/g)]
         .map((match) => match[1])
         .filter((name) => name !== 'js'),
     );
-    for (const name of apiCalls) {
-      assert.ok(PLATFORM_METHODS.includes(name) || PLATFORM_PROPERTIES.includes(name), name);
+    for (const name of calls) {
+      assert.ok(
+        PLATFORM_METHODS.includes(name)
+          || PLATFORM_PROPERTIES.includes(name)
+          || PLATFORM_CAPABILITIES.includes(name),
+        `${name} is not part of the platform interface`,
+      );
     }
-    const imported = source.match(/import\s*\{([^}]+)\}\s*from\s*'\.\/access-flow\.js'/);
-    assert.ok(imported, 'main.js imports access-flow.js');
-    for (const name of imported[1].split(',').map((part) => part.trim()).filter(Boolean)) {
-      assert.ok(PLATFORM_METHODS.includes(name), name);
+    for (const name of [
+      'getAuthorizedLevelConfig', 'getCurrentLevelConfig', 'setCurrentLevelConfig',
+      'incrementRequestGeneration', 'isStripeRedirect', 'validatePendingRecord',
+      'postHighScore', 'postLevelScore', 'getScoreHistory', 'getBillingStatus',
+      'getLeaderboard', 'login', 'logout', 'isLoggedIn', 'username',
+    ]) {
+      assert.ok(calls.has(name), `${name} must go through the platform adapter`);
     }
   });
 
@@ -121,6 +140,38 @@ describe('web platform adapter', () => {
     await webPlatform.logout();
     assert.equal(calls[1].url, 'https://game.example/api/auth/logout');
     assert.equal(webPlatform.isLoggedIn, false);
+  });
+
+  it('delegates score, history and billing calls to the existing api.js routes', async () => {
+    calls.length = 0;
+    await webPlatform.postHighScore(1234, 2);
+    assert.equal(calls[0].url, 'https://game.example/api/high-score');
+    assert.equal(calls[0].options.method, 'POST');
+    assert.deepEqual(JSON.parse(calls[0].options.body), { score: 1234, level: 2 });
+
+    await webPlatform.postLevelScore(3, 50, 'easy');
+    assert.equal(calls[1].url, 'https://game.example/api/score');
+    assert.deepEqual(JSON.parse(calls[1].options.body), { level: 3, score: 50, difficulty: 'easy' });
+
+    await webPlatform.getScoreHistory();
+    assert.equal(calls[2].url, 'https://game.example/api/profile/score-history');
+
+    await webPlatform.getLeaderboard();
+    assert.equal(calls[3].url, 'https://game.example/api/leaderboard');
+
+    await webPlatform.getBillingStatus();
+    assert.equal(calls[4].url, 'https://game.example/api/billing/status');
+
+    await webPlatform.openBillingPortal();
+    assert.equal(calls[5].url, 'https://game.example/api/billing/portal');
+    assert.equal(calls[5].options.method, 'POST');
+
+    await webPlatform.cancelSubscription();
+    assert.equal(calls[6].url, 'https://game.example/api/billing/cancel');
+
+    await webPlatform.redeemCode('FOUNDING');
+    assert.equal(calls[7].url, 'https://game.example/api/billing/redeem');
+    assert.deepEqual(JSON.parse(calls[7].options.body), { code: 'FOUNDING' });
   });
 
   it('serves free levels without a network call', async () => {
