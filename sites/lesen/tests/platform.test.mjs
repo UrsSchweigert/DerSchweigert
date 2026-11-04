@@ -753,10 +753,11 @@ test('web haptics: grade falls back to distinct impact styles without notificati
   assert.deepEqual(calls, ['MEDIUM', 'HEAVY']);
 });
 
-test('web haptics: grade prefers the vibrate engine over notification/impact', async () => {
+test('web haptics: android grade prefers the vibrate engine over notification/impact', async () => {
   const calls = [];
   const win = {
     Capacitor: {
+      getPlatform: () => 'android',
       Plugins: {
         Haptics: {
           vibrate: (options) => calls.push(['vibrate', options.duration]),
@@ -776,6 +777,30 @@ test('web haptics: grade prefers the vibrate engine over notification/impact', a
     ['vibrate', HAPTIC_INCORRECT_MS],
   ]);
   assert.ok(HAPTIC_CORRECT_MS !== HAPTIC_INCORRECT_MS);
+});
+
+test('web haptics: ios grade uses the notification generator instead of vibrate', async () => {
+  const calls = [];
+  const win = {
+    Capacitor: {
+      getPlatform: () => 'ios',
+      Plugins: {
+        Haptics: {
+          vibrate: (options) => calls.push(['vibrate', options.duration]),
+          notification: (options) => calls.push(['notification', options.type]),
+          impact: (options) => calls.push(['impact', options.style]),
+        },
+      },
+    },
+  };
+  const haptics = createWebHaptics({ window: win });
+
+  assert.equal(await haptics.grade(true), 'native');
+  assert.equal(await haptics.grade(false), 'native');
+  assert.deepEqual(calls, [
+    ['notification', 'SUCCESS'],
+    ['notification', 'ERROR'],
+  ]);
 });
 
 test('web haptics: grade is silent when the app switch is off', async () => {
