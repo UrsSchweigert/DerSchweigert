@@ -1,0 +1,110 @@
+name: Arithmo Slayer native build gate
+
+on:
+  pull_request:
+    branches: [main, 'harness/run/**']
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.paths.outputs.needed }}
+    steps:
+      - id: paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          paths="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR/files?per_page=100" --jq '.[] | .filename, (.previous_filename // empty)')"
+          needed=false
+          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/|\.github/workflows/ffm-native\.yml$)' <<< "$paths"; then
+            needed=true
+          fi
+          echo "needed=$needed" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: changes
+    if: needs.changes.outputs.needed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sites/ffm/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffm-debug-apk
+          path: sites/ffm/mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  ios:
+    needs: changes
+    if: needs.changes.outputs.needed == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sites/ffm/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: xcodebuild -version
+      - run: npm ci
+      - run: npm run copy-assets
+      - run: ./node_modules/.bin/cap sync ios
+      - name: Compile without signing
+        run: |
+          set -euo pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/ffm-derived" \
+            CODE_SIGNING_ALLOWED=NO build
+
+  ffm-native:
+    needs: [changes, android, ios]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both native builds when relevant
+        env:
+          NEEDED: ${{ needs.changes.outputs.needed }}
+          CHANGES: ${{ needs.changes.result }}
+          ANDROID: ${{ needs.android.result }}
+          IOS: ${{ needs.ios.result }}
+        run: |
+          set -euo pipefail
+          if [ "$CHANGES" != success ]; then
+            echo "::error::could not determine whether native builds are required"
+            exit 1
+          fi
+          if [ "$NEEDED" = false ]; then
+            echo "Arithmo Slayer native inputs are unchanged."
+          elif [ "$NEEDED" = true ] && [ "$ANDROID" = success ] && [ "$IOS" = success ]; then
+            echo "Both native builds passed."
+          else
+            echo "::error::native builds are missing, pending, skipped, cancelled or failed"
+            exit 1
+          fi

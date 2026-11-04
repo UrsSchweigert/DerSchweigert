@@ -1,0 +1,8 @@
+# The Capacitor-generated android/.gitignore and ios/.gitignore exclude build
+# output and copied web assets, so the native projects themselves are tracked.
+node_modules/
+www/
+local.properties
+*.keystore
+*.jks
+keystore.properties

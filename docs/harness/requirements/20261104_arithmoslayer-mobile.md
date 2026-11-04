@@ -47,6 +47,23 @@ the investigation report and the release handover keep each one visible until it
   ("Data not collected"), content rating, signing credentials, physical-device checks, review submission and
   publication. No approval of a worker plan constitutes publication approval.
 
+### Already provided by the maintainer scaffold
+
+The native shell exists before the run, generated with the real Capacitor tooling; workers extend it, never
+regenerate or hand-write it:
+
+- `sites/ffm/mobile/`: `package.json`/`package-lock.json` (Capacitor 8.6, Preferences, App, keep-awake, and the
+  MPL-2.0 `@capgo/native-purchases` 8.9.6 for StoreKit 2 / Play Billing; no third-party purchase service),
+  `capacitor.config.json` (bundled assets, no `server.url`), `scripts/copy-assets.mjs` with the development-file
+  exclusions below, and `tests/scaffold.test.mjs`.
+- `android/` and `ios/` projects with id `de.derschweigert.arithmoslayer`, name "Arithmo Slayer", generated icons
+  and splash, Android Auto Backup on and no app-declared permissions (Play Billing merges its own), iOS
+  `CFBundleLocalizations` de/en, `ITSAppUsesNonExemptEncryption` false, iPhone only, and a bundled
+  `PrivacyInfo.xcprivacy` (no tracking, UserDefaults reason CA92.1).
+- M2 is satisfied by `.github/workflows/ffm-native.yml` (Android debug APK + iOS simulator build, `npm test`).
+
+Native files and `package*.json` are escalation paths; a worker needing a change there stops and escalates.
+
 ## Execution and evidence boundaries
 
 - Inspect the current repository first. Reuse the proven Buchstabenzeit packaging pattern in `sites/lesen/`
