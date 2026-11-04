@@ -1776,14 +1776,34 @@
             updateSentenceMatchCount();
         }
 
-        function runHeavyCounts() {
-            // Flop sentence recognition needs sentenceTexts on the main thread.
-            if (!sentenceTexts[currentLanguage]) {
+        /**
+         * The sentence pool (~4.5 MB) is only needed to classify sentence
+         * cards among the practice history, which is what Flops uses. The match
+         * counts come from the worker, which has its own copy, so fetching this
+         * eagerly on every start delays the first paint for no benefit. Load it
+         * once history exists, and off the critical path.
+         */
+        let sentencePoolScheduled = false;
+
+        function scheduleSentencePool() {
+            if (sentencePoolScheduled || Object.keys(stats).length === 0) return;
+            sentencePoolScheduled = true;
+            const load = () => {
                 const lang = currentLanguage;
+                if (sentenceTexts[lang]) return;
                 loadSentencePool(lang).then(() => {
                     if (lang === currentLanguage) updateFlopModeStatus();
                 }, () => {});
+            };
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(load, { timeout: 2000 });
+            } else {
+                setTimeout(load, 300);
             }
+        }
+
+        function runHeavyCounts() {
+            scheduleSentencePool();
             const worker = getCountsWorker();
             if (!worker) {
                 if (!countsWorkerFailed) return;
