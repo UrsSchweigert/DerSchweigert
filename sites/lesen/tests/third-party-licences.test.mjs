@@ -137,11 +137,42 @@ test('runtime notices preserve each complete upstream permission and disclaimer'
     assert.ok(notices.includes(`${name} ${resolved[`node_modules/${name}`].version}`), name);
   }
   assert.match(aboutDialog(html), /href="third-party-notices\.txt"/);
-  const bodies = notices.split(/^={10,}$/m).filter((_, index) => index > 0 && index % 2 === 0)
+  const bodies = notices.split(/^={10,}$/m).filter((_, index) => index > 0 && index % 2 === 0).slice(0, 3)
     .map(text => text.trim());
   assert.deepEqual(bodies.map(text => createHash('sha256').update(text).digest('hex')), [
     '7edf453d1584f19ee63f4507d4bbe05e6cce2fa9d334ad72dc40dcaf03cdc6bb',
     'eb99a0d61b507ad0182e18e9d2a91537c1d9025c94e098e4e7603a53b4b5218a',
     '7290a4bdbc2f004c5812e6ba8b2b6cde0caedb72902d3fde5f4f0ee622374307',
   ], 'verbatim trimmed notices from the exact installed locked packages must not be abbreviated');
+});
+
+test('native notices preserve full Apache terms, Cordova NOTICE and configured native versions', async () => {
+  const [notices, variables] = await Promise.all([
+    readSiteFile('static/third-party-notices.txt'),
+    readSiteFile('android/variables.gradle'),
+  ]);
+  const apache = notices.split('Apache License 2.0 (complete upstream text):')[1]?.trim();
+  assert.ok(apache, 'actual native redistribution requires the licence text, not just its URL');
+  assert.equal(createHash('sha256').update(apache).digest('hex'),
+    '283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b');
+  assert.ok(notices.includes('Apache Cordova\nCopyright 2015-2020 The Apache Software Foundation\n\n'
+    + 'This product includes software developed at\n'
+    + 'The Apache Software Foundation (http://www.apache.org/).'));
+  const versions = Object.fromEntries([...variables.matchAll(/(\w+Version)\s*=\s*'([^']+)'/g)]
+    .map(match => [match[1], match[2]]));
+  for (const [key, coordinate] of [
+    ['androidxActivityVersion', 'androidx.activity:activity'],
+    ['androidxAppCompatVersion', 'androidx.appcompat:appcompat'],
+    ['androidxCoordinatorLayoutVersion', 'androidx.coordinatorlayout:coordinatorlayout'],
+    ['androidxCoreVersion', 'androidx.core:core'],
+    ['androidxFragmentVersion', 'androidx.fragment:fragment'],
+    ['coreSplashScreenVersion', 'androidx.core:core-splashscreen'],
+    ['androidxWebkitVersion', 'androidx.webkit:webkit'],
+    ['cordovaAndroidVersion', 'org.apache.cordova:framework'],
+  ]) {
+    assert.ok(versions[key], `missing configured runtime version ${key}`);
+    assert.ok(notices.includes(`${coordinate}:${versions[key]}`), `${coordinate} notice version needs review`);
+  }
+  assert.ok(notices.includes('io.ionic.libs:ionfilesystem-android 1.1.1'));
+  assert.ok(notices.includes('ion-ios-filesystem 2.0.1'));
 });

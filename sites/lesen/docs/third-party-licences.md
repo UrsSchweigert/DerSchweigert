@@ -2,11 +2,13 @@
 
 Audited baseline: `58b8951`. Scope is the shared web source in
 `sites/lesen/static`, which the website and both Capacitor shells render, plus
-the locked npm dependencies in `sites/lesen/package-lock.json`.
+the locked npm dependencies in `sites/lesen/package-lock.json`. The corrective
+exit review also resolves Android `debugRuntimeClasspath` and the actual Swift
+package checkouts, rather than assuming npm is the entire native runtime.
 
-No dependency was added for this review. The licence notices below are the
-ones already shipped; their wording is unchanged and must stay unchanged unless
-an owner explicitly approves an attribution edit.
+No dependency was added for this review. Existing word-list/font attribution
+wording is unchanged. Missing runtime notices are now included verbatim; this
+is preservation of upstream licences, not a change to content attribution.
 
 ## Bundled content
 
@@ -85,6 +87,50 @@ files, or `LICENSE.md` for synapse, are the source. Synapse 1.0.4's metadata
 declares ISC but its actual distributed notice is MIT; this record and the
 bundle preserve that notice instead of inventing an ISC copyright notice.
 No copyleft obligation applies to these runtime libraries.
+
+### Native dependencies beyond npm
+
+The first corrected APK inspection also found that the npm list alone was
+incomplete: Gradle embeds AndroidX, Cordova and Kotlin code, and npm's filesystem
+plugin links separate native Ionic libraries. No root licence or NOTICE file
+was discoverable in that APK. These components are now covered in the **same**
+offline `third-party-notices.txt`; no extra dependency or runtime module is
+introduced.
+
+| Component | Resolved version | Licence and source |
+| --- | --- | --- |
+| `io.ionic.libs:ionfilesystem-android` | 1.1.1 | MIT, [versioned LICENSE](https://github.com/ionic-team/ion-android-filesystem/blob/1.1.1/LICENSE), identical Ionic 2025 notice retained |
+| `ion-ios-filesystem` | 2.0.1 | MIT, [versioned LICENSE](https://github.com/ionic-team/ion-ios-filesystem/blob/2.0.1/LICENSE), same retained notice |
+| AndroidX runtime/annotation families | Exact coordinates in the bundled notice | Apache-2.0, resolved POM declarations and embedded AAR `META-INF/androidx/**/LICENSE.txt` |
+| `org.apache.cordova:framework` | 14.0.1 | Apache-2.0; [versioned NOTICE](https://github.com/apache/cordova-android/blob/rel/14.0.1/NOTICE) reproduced in full |
+| Cordova compatibility sources in `capacitor-swift-pm` | Capacitor 8.6.0 | Apache-2.0 source notices; common full licence retained |
+| `org.jetbrains.kotlin:kotlin-stdlib` | 2.2.20 | Apache-2.0, resolved Maven POM |
+| `org.jetbrains.kotlinx:kotlinx-coroutines-*` | 1.10.2 | Apache-2.0, resolved Maven POMs; BOM/variant metadata identified separately from executable code |
+| `org.jetbrains:annotations` | 23.0.0 | Apache-2.0, resolved Maven POM |
+| `org.jspecify:jspecify` | 1.0.0 | Apache-2.0, resolved Maven POM |
+| `com.google.guava:listenablefuture` | 1.0 | Apache-2.0, inherited licence in resolved `guava-parent:26.0-android` POM |
+
+Apache-2.0 permits commercial binary redistribution, requires the full licence
+and applicable upstream NOTICE text, and does not require opening the app's
+own source. The complete [Apache-2.0 text](https://www.apache.org/licenses/LICENSE-2.0.txt)
+and Cordova NOTICE are bundled, not merely linked remotely. The test fingerprints
+the full upstream licence, including the appendix. The archive inspection of
+the resolved runtime AARs/JARs found Apache licence copies in AndroidX archives
+and no additional embedded NOTICE texts; source Cordova NOTICE is retained.
+
+Reproduce the native inventory after `npm ci` and `cap sync android`:
+
+```sh
+cd android
+./gradlew :app:dependencies --configuration debugRuntimeClasspath --console=plain
+```
+
+Check each selected coordinate's cached Maven POM (including inherited licence
+metadata), applicable AAR/JAR notices, and the Swift checkout licences when
+dependencies change. Compare against the exact coordinate list in the bundled
+notice. Before release, inspect the actual APK's
+`assets/public/third-party-notices.txt` and the built `.app`'s
+`public/third-party-notices.txt`, not just `node_modules` or a successful copy.
 
 ## Build-only tooling
 

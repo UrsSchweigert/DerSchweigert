@@ -56,7 +56,7 @@ export const ALLOWED_URL_PREFIXES = Object.freeze([
 // Deterministic per-file allowlist for attribution, legal and documentation
 // links. These are navigational text only; the app never fetches them.
 export const ALLOWED_FILE_URL_PREFIXES = Object.freeze({
-  'third-party-notices.txt': Object.freeze(['https://ionic.io']),
+  'third-party-notices.txt': Object.freeze(['https://ionic.io', 'http://www.apache.org/']),
   'datenschutz.html': Object.freeze([
     'https://derschweigert.de/',
     'https://www.lda.bayern.de/',
