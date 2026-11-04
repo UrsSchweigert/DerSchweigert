@@ -42,7 +42,7 @@ features."
 For v1 the App Store listing text (name, subtitle, description, keywords,
 promotional text and review notes) is **German only**, even though the shipped
 app is bilingual German/English. German is the default app language and the
-DE/EN buttons switch the whole interface. The App Store Connect primary
+The German and English flag buttons switch the whole interface. The App Store Connect primary
 language is therefore German, with no English localisation submitted in v1.
 This is a v1 scope decision, not a platform limitation; later versions may add
 localisations.
@@ -136,7 +136,8 @@ die Installation für unterwegs und native Gerätefunktionen.
 ### German review-note draft
 
 Kein Konto und keine Anmeldung erforderlich. Bitte die App nach der Installation
-im Flugmodus kalt starten und mit DE/EN die Sprache wechseln. Eine Kartenrunde
+im Flugmodus kalt starten und über die Sprachschalter (Deutschflagge /
+Union Jack) die Sprache wechseln. Eine Kartenrunde
 starten und richtige sowie erneut zu übende Karten markieren; bei „Bewegung
 reduzieren“ bleiben haptische Rückmeldungen aus.
 

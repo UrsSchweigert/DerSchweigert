@@ -20,7 +20,7 @@ screenshots attached to the submission, and signing are maintainer actions; see
 - The webview loads the bundled `www/` copy. `capacitor.config.json` has no
   `server.url`, and `npm run copy-assets` fails if the bundle depends on a
   remote script, stylesheet, import or fetch.
-- German is the default language; the DE/EN buttons at the top right switch the
+- German is the default language; the German and English flag buttons at the top right switch the
   whole interface, and the about dialog links to the language-matched bundled
   privacy page (`datenschutz.html` or `datenschutz-en.html`).
 - Haptics and reminder delivery need a physical iPhone. The simulator
@@ -80,7 +80,7 @@ prior knowledge of the app is needed.
    no cellular or Wi-Fi connection.
 2. **Cold-launch offline.** Force-quit Buchstabenzeit (swipe up in the app
    switcher) and launch it again. **Expected:** the full setup screen appears
-   with the heading "Lesen lernen, Karte für Karte.", the DE/EN buttons, the
+   with the heading "Lesen lernen, Karte für Karte.", the flag language switch, the
    consonant/vowel/special letter groups, the card-count field and the
    "Lesen starten" button. No spinner, no blank page, no network error.
 3. **Switch language.** Tap **EN** at the top right. **Expected:** the setup
@@ -211,7 +211,8 @@ airplane-mode behaviour, and the screenshots above.
 > To review: enable Airplane Mode, force-quit and relaunch. Assemble a deck and
 > start reading; "Read correctly" and "Practice more" give distinct haptics on a
 > device (silent under Reduce Motion). "Save report as CSV" writes the report to
-> the app cache and opens the system share sheet. Switch DE/EN at the top right;
+> the app cache and opens the system share sheet. Switch the language with the
+flag buttons at the top right;
 > the privacy page is bundled and opens offline.
 >
 > "Read aloud" uses installed offline-capable native voices; without a suitable

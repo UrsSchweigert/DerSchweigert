@@ -217,7 +217,7 @@ the result in the release record:
    full setup screen appears with no spinner or blank page; nothing is fetched
    from a network. Rotate the device and confirm the layout respects the safe
    areas and both orientations from `Info.plist`.
-2. **DE/EN switch.** Switch DE ⇄ EN in setup and check setup, practice, and the
+2. **Language switch.** Toggle the German and English flags in setup and check setup, practice, and the
    about dialog in both. The privacy link must open the matching bundled page
    (`datenschutz.html` for German, `datenschutz-en.html` for English) with no
    network request. Confirm word lists and sounds follow the selected language.

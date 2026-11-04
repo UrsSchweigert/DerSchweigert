@@ -21,7 +21,7 @@ test('android shell: the viewport opts into safe-area insets', async () => {
   }
 });
 
-test('android shell: the language switch stays out of the hero logo row', async () => {
+test('android shell: the language switch shares the eyebrow row', async () => {
   const html = await readSiteFile('static/index.html');
 
   const controlAt = html.indexOf('.language-control {');
@@ -34,7 +34,12 @@ test('android shell: the language switch stays out of the hero logo row', async 
       + 'row and the hero logo, which is shorter than the 44px control and needs '
       + 'the body safe-area padding to line up at all',
   );
-  assert.match(control, /justify-content:\s*flex-end/);
+
+  const headAt = html.search(/<div class="setup-head">[\s\S]*?<\/div>\s*<\/div>\s*<h1 id="setup-title">/);
+  assert.ok(headAt > 0, 'the eyebrow and the language switch must share .setup-head');
+  const head = html.slice(headAt, html.indexOf('<h1 id="setup-title">', headAt));
+  assert.ok(head.includes('class="eyebrow"'), '.setup-head must hold the eyebrow');
+  assert.ok(head.includes('class="language-control"'), '.setup-head must hold the switch');
 });
 
 test('android shell: the activity draws edge-to-edge for real insets', async () => {  const activity = await readSiteFile(
