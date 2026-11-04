@@ -6,6 +6,9 @@
     "allowMixedContent": false,
     "webContentsDebuggingEnabled": false
   },
+  "ios": {
+    "webContentsDebuggingEnabled": false
+  },
   "server": {
     "androidScheme": "https"
   }

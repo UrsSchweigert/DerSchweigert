@@ -69,6 +69,80 @@ test("selectOfflineVoices: locale with underscore de_DE matches de language", ()
   assert.strictEqual(result[0].name, "German Voice");
 });
 
+test("selectOfflineVoices: exact de-DE voice is listed before de-AT when both are offline", () => {
+  const voices = [
+    {
+      name: "Austrian Voice",
+      locale: "de-AT",
+      networkRequired: false,
+      notInstalled: false,
+    },
+    {
+      name: "German Voice",
+      locale: "de-DE",
+      networkRequired: false,
+      notInstalled: false,
+    },
+  ];
+  const result = selectOfflineVoices(voices, "de-DE");
+  assert.strictEqual(result.length, 2);
+  assert.strictEqual(result[0].name, "German Voice");
+  assert.strictEqual(result[1].name, "Austrian Voice");
+});
+
+test("selectOfflineVoices: exact de-DE voice is listed first regardless of underscore/case", () => {
+  const voices = [
+    {
+      name: "Swiss Voice",
+      locale: "de-CH",
+      networkRequired: false,
+      notInstalled: false,
+    },
+    {
+      name: "German Voice",
+      locale: "DE_de",
+      networkRequired: false,
+      notInstalled: false,
+    },
+  ];
+  const result = selectOfflineVoices(voices, "de");
+  assert.strictEqual(result[0].name, "German Voice");
+});
+
+test("selectOfflineVoices: single offline voice keeps its position and is returned", () => {
+  const voices = [
+    {
+      name: "Austrian Voice",
+      locale: "de-AT",
+      networkRequired: false,
+      notInstalled: false,
+    },
+  ];
+  const result = selectOfflineVoices(voices, "de-DE");
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].name, "Austrian Voice");
+});
+
+test("selectOfflineVoices: never falls back to a network voice", () => {
+  const voices = [
+    {
+      name: "Online German Voice",
+      locale: "de-DE",
+      networkRequired: true,
+      notInstalled: false,
+    },
+    {
+      name: "Offline Austrian Voice",
+      locale: "de-AT",
+      networkRequired: false,
+      notInstalled: false,
+    },
+  ];
+  const result = selectOfflineVoices(voices, "de-DE");
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].name, "Offline Austrian Voice");
+});
+
 test("hasOfflineVoice: returns true when offline voice exists", () => {
   const voices = [
     {

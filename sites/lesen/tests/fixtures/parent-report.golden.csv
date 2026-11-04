@@ -1,0 +1,5 @@
+card,correct,incorrect,attempts,accuracy_percent,practice_seconds
+"Mama",3,1,4,75.0,
+"Oma",0,2,2,0.0,
+"Papa",2,0,2,100.0,
+"Total",5,3,8,62.5,125

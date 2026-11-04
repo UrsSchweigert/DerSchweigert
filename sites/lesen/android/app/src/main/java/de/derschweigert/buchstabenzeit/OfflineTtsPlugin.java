@@ -8,6 +8,9 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -23,6 +26,11 @@ import java.util.Set;
 @CapacitorPlugin(name = "OfflineTts")
 public class OfflineTtsPlugin extends com.getcapacitor.Plugin {
   private static final String TAG = "OfflineTtsPlugin";
+
+  /** Prefer standard German (de-DE) over other German variants such as de-AT/de-CH. */
+  private static final Comparator<Voice> DE_DE_FIRST = Comparator.comparingInt(voice ->
+    isStandardGermanLocale(voice.getLocale()) ? 0 : 1
+  );
 
   @Nullable
   private TextToSpeech tts;
@@ -104,7 +112,11 @@ public class OfflineTtsPlugin extends com.getcapacitor.Plugin {
 
     Set<Voice> voices = tts.getVoices();
     if (voices != null) {
-      for (Voice voice : voices) {
+      List<Voice> orderedVoices = new ArrayList<>(voices);
+      // List.sort is stable, so equal-ranked voices keep the engine's order.
+      orderedVoices.sort(DE_DE_FIRST);
+
+      for (Voice voice : orderedVoices) {
         String voiceLanguage = extractLanguage(voice.getLocale().toString());
 
         JSObject voiceObj = new JSObject();
@@ -139,7 +151,7 @@ public class OfflineTtsPlugin extends com.getcapacitor.Plugin {
   /**
    * Speak text using an offline-suitable voice in the given language.
    *
-   * <p>Params: { text, lang: "de-DE" (default), rate: 0.8 (default) }
+   * <p>Params: { text, lang: "de-DE" (default), rate: 0.8 (default), pitch: 1.0 (default) }
    *
    * <p>Rejects with a clear message if no offline-suitable voice exists for the language.
    * Does NOT fall back to network voices.
@@ -159,6 +171,7 @@ public class OfflineTtsPlugin extends com.getcapacitor.Plugin {
 
     String lang = call.getString("lang", "de-DE");
     float rate = call.getDouble("rate", 0.8).floatValue();
+    float pitch = call.getDouble("pitch", 1.0).floatValue();
 
     String targetLanguage = extractLanguage(lang);
 
@@ -175,6 +188,7 @@ public class OfflineTtsPlugin extends com.getcapacitor.Plugin {
       tts.setLanguage(new Locale(lang.split("-")[0]));
       tts.setVoice(offlineVoice);
       tts.setSpeechRate(rate);
+      tts.setPitch(pitch);
       tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "utteranceId");
       call.resolve();
       Log.d(
@@ -240,7 +254,23 @@ public class OfflineTtsPlugin extends com.getcapacitor.Plugin {
   }
 
   /**
+   * Check whether a locale is standard German (de-DE).
+   *
+   * @param locale The voice locale.
+   * @return true when the locale normalizes to de-DE
+   */
+  private static boolean isStandardGermanLocale(Locale locale) {
+    if (locale == null) {
+      return false;
+    }
+    return locale.toString().replace('_', '-').equalsIgnoreCase("de-DE");
+  }
+
+  /**
    * Find an offline-suitable voice for the given language.
+   *
+   * <p>Network voices are never returned. Among offline-suitable candidates,
+   * an exact de-DE voice is preferred over other German variants.
    *
    * @param targetLanguage The language code (e.g., "de")
    * @return A Voice object, or null if no offline voice is available
@@ -256,6 +286,8 @@ public class OfflineTtsPlugin extends com.getcapacitor.Plugin {
       return null;
     }
 
+    Voice firstMatch = null;
+
     for (Voice voice : voices) {
       String voiceLanguage = extractLanguage(voice.getLocale().toString());
       boolean isNetworkFree = !voice.isNetworkConnectionRequired();
@@ -268,10 +300,15 @@ public class OfflineTtsPlugin extends com.getcapacitor.Plugin {
         isNetworkFree &&
         isInstalled
       ) {
-        return voice;
+        if (isStandardGermanLocale(voice.getLocale())) {
+          return voice;
+        }
+        if (firstMatch == null) {
+          firstMatch = voice;
+        }
       }
     }
 
-    return null;
+    return firstMatch;
   }
 }

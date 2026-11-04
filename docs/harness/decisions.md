@@ -989,7 +989,7 @@ the image, Python standard library only, no network) is therefore a shape check,
   and the supervisory authority the privacy policy must name).
 * Completeness is a named inventory, not a reference scan. The app loads vocabulary, sentence data, and licence
   files by names it builds at run time, so a scan that follows only literal references passes a bundle with no
-  words in it. The 27 required files are listed in trusted code, mirroring `REQUIRED_FILES` in the product's
+  words in it. The 29 required files are listed in trusted code, mirroring `REQUIRED_FILES` in the product's
   `scripts/verify-bundle.mjs`, which is read for its inventory and never executed: it is worker-editable, so it
   can inform the trusted list but cannot be the authority. A test fails when the two drift.
 * Every bundle that exists is checked — the source `static/`, the copied `www/`, and the generated

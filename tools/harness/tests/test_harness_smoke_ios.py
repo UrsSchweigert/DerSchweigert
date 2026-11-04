@@ -85,6 +85,8 @@ REQUIRED = [
     "index.html", "favicon.png", "apple-touch-icon.png",
     "platform.mjs", "storage.mjs", "sounds.mjs", "scoring.mjs", "coverage.mjs", "i18n.mjs",
     "speech-adapter.js", "speech-offline-filter.mjs", "counts-compute.mjs", "counts-worker.mjs",
+    "reminder-settings.mjs",
+    "third-party-notices.txt",
     "sentences/cards.mjs", "sentences/de.json", "sentences/en.json",
     "words-de.json", "words-en.json", "words-de-LICENSE.txt", "words-en-LICENSE.txt",
     "fonts/OFL.txt", "fonts/andika-latin-regular.woff2", "fonts/andika-latin-bold.woff2",
@@ -471,7 +473,7 @@ def test_the_required_inventory_matches_the_product_verifier():
     block = script.split("REQUIRED_BUNDLE_FILES = (", 1)[1].split(")", 1)[0]
     trusted = [part.strip().strip('",') for part in block.replace("\n", " ").split() if '"' in part]
     assert sorted(trusted) == sorted(REQUIRED)
-    assert len(trusted) == 27
+    assert len(trusted) == 29
 
 
 def test_the_trusted_inventory_does_not_drift_from_the_product_verifier():

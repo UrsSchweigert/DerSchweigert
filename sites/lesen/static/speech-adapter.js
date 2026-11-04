@@ -142,7 +142,7 @@ export function createNativeSpeechAdapter(plugin) {
       }
     },
 
-    async speak({ text, lang, rate, onUnsupported, onNoVoice, onError }) {
+    async speak({ text, lang, rate, pitch, onUnsupported, onNoVoice, onError }) {
       try {
         if (!initPromise) {
           initPromise = plugin.initialize();
@@ -159,7 +159,7 @@ export function createNativeSpeechAdapter(plugin) {
           return;
         }
 
-        await plugin.speak({ text, lang, rate });
+        await plugin.speak({ text, lang, rate, pitch: pitch ?? 1.0 });
       } catch (e) {
         onError?.();
       }

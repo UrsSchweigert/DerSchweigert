@@ -43,6 +43,8 @@ SCAN_TEXT = (".html", ".htm", ".js", ".mjs", ".css")
 REQUIRED_BUNDLE_FILES = (
     "index.html", "favicon.png", "apple-touch-icon.png",
     "platform.mjs", "storage.mjs", "sounds.mjs", "scoring.mjs", "coverage.mjs", "i18n.mjs",
+    "reminder-settings.mjs",
+    "third-party-notices.txt",
     "speech-adapter.js", "speech-offline-filter.mjs", "counts-compute.mjs", "counts-worker.mjs",
     "sentences/cards.mjs", "sentences/de.json", "sentences/en.json",
     "words-de.json", "words-en.json", "words-de-LICENSE.txt", "words-en-LICENSE.txt",

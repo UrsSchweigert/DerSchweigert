@@ -13,7 +13,7 @@
  * instead of throwing.
  */
 
-const CARD_STATS_KEY = "buchstabenzeit:card-stats";
+export const CARD_STATS_KEY = "buchstabenzeit:card-stats";
 const LANGUAGE_KEY = "buchstabenzeit:language";
 const SELECTION_KEY = "buchstabenzeit:selection:";
 
@@ -40,7 +40,7 @@ function isPlainObject(value) {
  * @param {unknown} parsed parsed JSON document
  * @returns {object} a map of card text to { correct_count, incorrect_count }
  */
-function toStatsMap(parsed) {
+export function toStatsMap(parsed) {
   if (!isPlainObject(parsed)) {
     return {};
   }

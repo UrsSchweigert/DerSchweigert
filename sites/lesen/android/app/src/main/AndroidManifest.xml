@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -33,4 +34,7 @@
     <!-- No INTERNET permission: the app is fully offline; all assets, exercises,
          vocabulary, fonts, and licences are bundled, and device TTS is a separate
          OS service. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Practice reminders do not need the plugin's exact-alarm permission. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
 </manifest>

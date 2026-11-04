@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#eaf8ff">
     <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -28,7 +28,7 @@
         :root {
             --ink: #173c68;
             --muted: #58718a;
-            --green: #65ad35;
+            --green: #3f7a1a;
             --paper: #f5fbff;
             --line: #c9e5f4;
             --coral: #a94f00;
@@ -44,6 +44,13 @@
 
         body {
             margin: 0;
+            /* viewport-fit=cover plus these insets keeps content clear of the
+               notch and gesture bar inside the edge-to-edge Android shell. */
+            padding:
+                env(safe-area-inset-top, 0px)
+                env(safe-area-inset-right, 0px)
+                env(safe-area-inset-bottom, 0px)
+                env(safe-area-inset-left, 0px);
             color: var(--ink);
             font-family: Andika, "Trebuchet MS", sans-serif;
             letter-spacing: 0;
@@ -67,7 +74,9 @@
         }
 
         button:focus-visible,
-        input:focus-visible {
+        input:focus-visible,
+        summary:focus-visible,
+        a:focus-visible {
             outline: 3px solid var(--orange);
             outline-offset: 4px;
         }
@@ -499,6 +508,7 @@
         .quiet {
             border-radius: 14px;
             padding: 14px 22px;
+            min-height: 44px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -701,7 +711,7 @@
         }
 
         .correct:hover {
-            background: #4d9025;
+            background: #356b12;
         }
 
         .feedback {
@@ -795,6 +805,8 @@
             border: none;
             border-radius: 14px;
             max-width: 320px;
+            max-height: 80vh;
+            overflow-y: auto;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
@@ -824,8 +836,10 @@
             padding: 22px;
             border: none;
             border-radius: 14px;
+            width: min(360px, calc(100vw - 32px));
             max-width: 360px;
             max-height: 80vh;
+            max-height: calc(100dvh - 24px);
             overflow-y: auto;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             color: var(--ink);
@@ -867,9 +881,9 @@
             position: sticky;
             top: 0;
             float: right;
-            width: 40px;
-            height: 40px;
-            margin: -8px -8px 0 8px;
+            width: 44px;
+            height: 44px;
+            margin: -10px -10px 0 8px;
             border: none;
             border-radius: 50%;
             background: #e9f4ff;
@@ -885,6 +899,78 @@
             margin-top: 16px;
         }
 
+        .report-summary {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 6px 14px;
+            margin: 14px 0;
+            align-items: baseline;
+        }
+
+        .report-summary div {
+            display: contents;
+        }
+
+        .report-summary dt {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .report-summary dd {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .report-table-wrap {
+            max-height: 40vh;
+            overflow-y: auto;
+            margin: 8px 0 4px;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .report-table th,
+        .report-table td {
+            text-align: left;
+            padding: 5px 6px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .report-table th {
+            color: var(--muted);
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            background: #fff;
+        }
+
+        .report-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 14px;
+        }
+
+        .report-actions .primary,
+        .report-actions .quiet {
+            min-height: 40px;
+            padding: 8px 14px;
+            font-size: 14px;
+            border-radius: 10px;
+        }
+
+        .report-actions .primary {
+            box-shadow: 0 3px 0 var(--blue-dark), 0 5px 10px rgba(7, 89, 183, .14);
+        }
+
         .link-button {
             background: none;
             border: none;
@@ -892,7 +978,119 @@
             text-decoration: underline;
             cursor: pointer;
             font: inherit;
-            padding: 0;
+            padding: 0 2px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 44px;
+        }
+
+        .link-button svg {
+            width: 18px;
+            height: 18px;
+            flex: none;
+        }
+
+        .link-button[aria-pressed="true"] .haptics-off {
+            display: none;
+        }
+
+        .link-button[aria-pressed="false"] .haptics-on {
+            display: none;
+        }
+
+        .link-button[aria-pressed="false"] {
+            color: var(--muted);
+            text-decoration: none;
+        }
+
+        .footer-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .report-status {
+            display: inline-block;
+            margin-left: 10px;
+            color: var(--blue);
+        }
+
+        .reminder-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 44px;
+        }
+
+        .reminder-toggle input[type="checkbox"] {
+            appearance: none;
+            width: 40px;
+            height: 24px;
+            flex: none;
+            border-radius: 999px;
+            background: var(--muted);
+            cursor: pointer;
+            position: relative;
+            transition: background 0.15s ease;
+        }
+
+        .reminder-toggle input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform 0.15s ease;
+        }
+
+        .reminder-toggle input[type="checkbox"]:checked {
+            background: var(--green);
+        }
+
+        .reminder-toggle input[type="checkbox"]:checked::after {
+            transform: translateX(16px);
+        }
+
+        .reminders-dialog {
+            padding: 14px 16px;
+        }
+
+        .reminders-dialog h2 {
+            font-size: 16px;
+            margin-bottom: 6px;
+        }
+
+        .reminders-dialog p {
+            font-size: 13px;
+            line-height: 1.35;
+            margin-bottom: 8px;
+        }
+
+        .reminders-dialog form {
+            display: grid;
+            gap: 6px;
+        }
+
+        .reminders-dialog input {
+            width: 100%;
+            padding: 8px 10px;
+            font: inherit;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .reminders-dialog .primary,
+        .reminders-dialog .quiet {
+            min-height: 40px;
+            padding: 7px 12px;
+            font-size: 14px;
+            border-radius: 10px;
         }
 
         @media (max-width: 680px) {
@@ -1029,8 +1227,8 @@
     <main>
         <section id="setup" aria-labelledby="setup-title">
             <div class="language-control">
-                <button id="lang-de" class="lang-btn active" data-lang="de">DE</button>
-                <button id="lang-en" class="lang-btn" data-lang="en">EN</button>
+                <button id="lang-de" class="lang-btn active" data-lang="de" aria-pressed="true">DE</button>
+                <button id="lang-en" class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
             </div>
             <div class="setup-intro">
                 <div class="intro-copy">
@@ -1145,7 +1343,7 @@
             <div class="complete-mark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="m5 12 4 4L19 6" />
                 </svg></div>
-            <h1 id="complete-title" tabindex="-1">Alle Karten geschafft!</h1>
+            <h1 id="complete-title" tabindex="-1" aria-describedby="complete-summary">Alle Karten geschafft!</h1>
             <p id="complete-summary"></p>
             <div class="complete-actions"><button id="again" class="primary" type="button"><svg class="icon"
                         viewBox="0 0 24 24" aria-hidden="true">
@@ -1161,10 +1359,31 @@
                 <button id="confirm-end-yes" class="primary" type="button">Beenden</button>
             </div>
         </dialog>
+        <dialog id="reminders-dialog" class="about-dialog reminders-dialog" aria-labelledby="reminders-title">
+            <h2 id="reminders-title">Übungserinnerungen</h2>
+            <p id="reminders-explanation"></p>
+            <form id="reminders-gate">
+                <p id="reminders-question"></p>
+                <label id="reminders-answer-label" for="reminders-answer">Ergebnis</label>
+                <input id="reminders-answer" type="number" inputmode="numeric" required aria-describedby="reminders-question reminders-gate-error">
+                <p id="reminders-gate-error" role="status"></p>
+                <button id="reminders-unlock" class="primary" type="submit">Einstellungen öffnen</button>
+            </form>
+            <form id="reminders-settings" hidden>
+                <fieldset disabled>
+                    <p><label class="reminder-toggle"><input id="reminders-enabled" type="checkbox"> <span id="reminders-enabled-label">Täglich ans Lesen erinnern</span></label></p>
+                    <label id="reminders-time-label" for="reminders-time">Ungefähre Uhrzeit auf diesem Gerät</label>
+                    <input id="reminders-time" type="time" value="17:00" required>
+                    <p><button id="reminders-save" class="primary" type="submit">Speichern</button></p>
+                </fieldset>
+            </form>
+            <p id="reminders-status" role="status"></p>
+            <div class="about-actions"><button id="reminders-close" class="quiet" type="button">Schließen</button></div>
+        </dialog>
         <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
             <button id="about-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
             <h2 id="about-title">Über Buchstabenzeit</h2>
-            <p class="about-version" id="about-version">Version 1.0</p>
+            <p class="about-version" id="about-version">Version</p>
             <p id="about-intro">Buchstabenzeit ist eine begleitete Leseübung. Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.</p>
             <h3 id="about-privacy-heading">Datenschutz</h3>
             <p id="about-privacy-text">Diese App sammelt keine persönlichen Daten, hat keine Benutzerkonten, keine Werbung und keine Analyse. Sie funktioniert vollständig offline und benötigt keine Internetverbindung.</p>
@@ -1173,36 +1392,84 @@
             <ul>
                 <li><span id="about-wordlist-text">Wortliste: FrequencyWords &amp; Wiktionary, CC BY-SA 4.0 &ndash; </span><a id="about-wordlist-link" href="words-de-LICENSE.txt">Lizenz</a></li>
                 <li><span id="about-font-text">Schriftart: Andika, SIL Open Font License 1.1 &ndash; </span><a id="about-font-link" href="fonts/OFL.txt">Lizenz</a></li>
+                <li><a id="about-third-party-link" href="third-party-notices.txt">Lizenzen der App-Bibliotheken</a></li>
             </ul>
             <p><a id="about-privacy-link" href="datenschutz.html">Vollst&auml;ndige Datenschutzerkl&auml;rung</a></p>
             <div class="about-actions">
                 <button id="about-close" class="primary" type="button"><span id="about-close-label">Schlie&szlig;en</span></button>
             </div>
         </dialog>
+        <dialog id="report-dialog" class="about-dialog" aria-labelledby="report-title">
+            <button id="report-x" class="about-x" type="button" aria-label="Schlie&szlig;en">&times;</button>
+            <h2 id="report-title">Bericht</h2>
+            <p id="report-no-data" hidden>Noch keine Übungsergebnisse.</p>
+            <dl id="report-summary" class="report-summary">
+                <div><dt id="report-cards-label">Geübte Karten</dt><dd id="report-cards">0</dd></div>
+                <div><dt id="report-correct-label">Richtig</dt><dd id="report-correct">0</dd></div>
+                <div><dt id="report-needs-label">Nochmal üben</dt><dd id="report-needs">0</dd></div>
+                <div><dt id="report-accuracy-label">Genauigkeit</dt><dd id="report-accuracy">&ndash;</dd></div>
+                <div><dt id="report-time-label">Übungszeit</dt><dd id="report-time">&ndash;</dd></div>
+            </dl>
+            <div class="report-table-wrap">
+                <table class="report-table" id="report-table" hidden>
+                    <thead><tr><th id="report-col-card">Karte</th><th id="report-col-correct">Richtig</th><th id="report-col-needs">Nochmal</th><th id="report-col-accuracy">Genauigkeit</th></tr></thead>
+                    <tbody id="report-rows"></tbody>
+                </table>
+            </div>
+            <div class="report-actions">
+                <button id="report-export" class="primary" type="button">Als CSV exportieren</button>
+                <button id="report-close" class="quiet" type="button">Schlie&szlig;en</button>
+            </div>
+            <p id="report-status" class="report-status" role="status"></p>
+        </dialog>
     </main>
-    <footer><span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span><br><button type="button" id="open-about" class="link-button"><span id="footer-about-label">Rechtliches &amp; Datenschutz</span></button></footer>
+    <footer>
+        <span id="footer-tagline">Buchstabenzeit &middot; Jeden Tag ein kleines St&uuml;ck weiter.</span>
+        <div class="footer-actions">
+            <button type="button" id="export-report" class="link-button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+                <span id="footer-report-label">Bericht</span>
+            </button>
+            <button type="button" id="open-reminders" class="link-button" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                <span id="open-reminders-label">Übungserinnerungen</span>
+            </button>
+            <button type="button" id="toggle-haptics" class="link-button" aria-pressed="true">
+                <svg class="haptics-on" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6a2 2 0 0 0 4 0V5a2 2 0 0 1 4 0v6a2 2 0 0 0 4 0V9a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-1a8 8 0 0 1-8-8V9a2 2 0 0 1 4 0v2a2 2 0 0 0 4 0V5a2 2 0 0 1 4 0"/></svg>
+                <svg class="haptics-off" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6a2 2 0 0 0 4 0V5a2 2 0 0 1 4 0v6a2 2 0 0 0 4 0V9a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-1a8 8 0 0 1-8-8V9a2 2 0 0 1 4 0v2a2 2 0 0 0 4 0V5a2 2 0 0 1 4 0"/><path d="M4 4l16 16"/></svg>
+                <span id="footer-haptics-label">Vibration</span>
+            </button>
+            <button type="button" id="open-about" class="link-button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span id="footer-about-label">Rechtliches &amp; Datenschutz</span>
+            </button>
+        </div>
+    </footer>
     <script type="module">
-        import { createSpeechAdapter } from './speech-adapter.js';
+        import { createPlatformAdapter } from './platform.mjs';
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard } from './scoring.mjs';
-        import { createStorage, readLanguage, writeLanguage } from './storage.mjs';
         import { readableSentenceCards } from './sentences/cards.mjs';
         import { t } from './i18n.mjs';
         
-        window.__speech = createSpeechAdapter();
+        const platform = createPlatformAdapter();
+        window.__platform = platform;
+        window.__speech = platform.speech;
         window.__speech.warm();
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard };
         window.__sentences = { readableSentenceCards };
-        window.__storage = createStorage(window.localStorage);
+        window.__storage = platform.progress;
         window.__i18n = { t };
     </script>
     <!-- Must be a module: module scripts run in order after parsing, so window.__storage, __sounds and __scoring (set above) exist first. -->
     <script type="module">
         'use strict';
         import { bestNextUnits } from './coverage.mjs';
-        import { readLanguage, writeLanguage, readSelection, writeSelection, getTtsLanguageCode, getWordListFilename } from './storage.mjs';
+        import { getTtsLanguageCode, getWordListFilename } from './storage.mjs';
+        import { buildReport, toCsv, REPORT_FILENAME, MAX_CARD_PRACTICE_MS } from './platform.mjs';
+        import { mountReminderSettings } from './reminder-settings.mjs';
         
         const consonants = new Set(['m', 's', 't', 'p', 'n']);
         const vowels = new Set(['a', 'e', 'o']);
@@ -1217,21 +1484,28 @@
         let sentenceTexts = { de: null, en: null };
         let deckStarting = false;
         let startLoading = false;
-        let stats = window.__storage.read();
+        let cardShownAt = null;
+        let stats = window.__platform.progress.read();
         let currentPattern = 'PATTERNS';
         let isInFlopMode = false;
         let noPatternHintShown = false;
-        let currentLanguage = readLanguage(window.localStorage);
+        let currentLanguage = window.__platform.progress.readLanguage();
+        let appVersion = null;
+        const reminderSettings = mountReminderSettings({
+            document, reminders: window.__platform.reminders, translate: key => tr(key),
+        });
 
         function setLanguage(lang) {
             currentLanguage = lang;
-            writeLanguage(window.localStorage, lang);
+            window.__platform.progress.writeLanguage(lang);
             document.documentElement.lang = lang;
             document.title = tr('app.title_full');
 
             // Update language button states
             document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.lang === lang);
+                const active = btn.dataset.lang === lang;
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-pressed', String(active));
             });
 
             // Reset selected letters and rebuild them for the new language
@@ -1240,7 +1514,7 @@
             vowels.clear();
             specials.clear();
 
-            const saved = readSelection(window.localStorage, lang);
+            const saved = window.__platform.progress.readSelection(lang);
             if (saved) {
                 // Keep only units that exist in this language's alphabets
                 for (const letter of saved.consonants) if (sounds.consonants.includes(letter)) consonants.add(letter);
@@ -1287,6 +1561,7 @@
         }
 
         function updateAllText() {
+            reminderSettings.render();
             updateSetupScreenText();
             updatePracticeScreenText();
             updateCompleteScreenText();
@@ -1359,7 +1634,12 @@
             byId('confirm-end-yes').textContent = tr('dialog.confirm_end.confirm');
 
             byId('about-title').textContent = tr('dialog.about.title');
-            byId('about-version').textContent = tr('dialog.about.version');
+            // The version number has a single source: versionName in
+            // android/app/build.gradle, surfaced by @capacitor/app getInfo().
+            // On the web no native version exists, so the label stands alone.
+            byId('about-version').textContent = appVersion
+                ? `${tr('dialog.about.version')} ${appVersion}`
+                : tr('dialog.about.version');
             byId('about-intro').textContent = tr('dialog.about.intro');
             byId('about-privacy-heading').textContent = tr('dialog.about.privacy');
             byId('about-privacy-text').textContent = tr('dialog.about.privacy_text');
@@ -1369,19 +1649,39 @@
             byId('about-font-text').textContent = tr('dialog.about.font');
             byId('about-wordlist-link').textContent = tr('dialog.about.license_link');
             byId('about-font-link').textContent = tr('dialog.about.license_link');
+            byId('about-third-party-link').textContent = tr('dialog.about.third_party');
             byId('about-privacy-link').textContent = tr('dialog.about.privacy_link');
-            // Update privacy policy link based on current language
+            // Update privacy policy and word-list license links based on current language
             byId('about-privacy-link').href = currentLanguage === 'en' ? 'datenschutz-en.html' : 'datenschutz.html';
+            byId('about-wordlist-link').href = currentLanguage === 'en' ? 'words-en-LICENSE.txt' : 'words-de-LICENSE.txt';
             byId('about-close-label').textContent = tr('dialog.about.close');
+            byId('about-x').setAttribute('aria-label', tr('dialog.about.close'));
+
+            byId('report-title').textContent = tr('report.title');
+            byId('report-no-data').textContent = tr('report.no_data');
+            byId('report-cards-label').textContent = tr('report.cards_practiced');
+            byId('report-correct-label').textContent = tr('report.correct');
+            byId('report-needs-label').textContent = tr('report.needs_practice');
+            byId('report-accuracy-label').textContent = tr('report.accuracy');
+            byId('report-time-label').textContent = tr('report.practice_time');
+            byId('report-export').textContent = tr('report.export_csv');
+            byId('report-close').textContent = tr('dialog.about.close');
+            byId('report-x').setAttribute('aria-label', tr('dialog.about.close'));
+            byId('report-col-card').textContent = tr('report.col.card');
+            byId('report-col-correct').textContent = tr('report.col.correct');
+            byId('report-col-needs').textContent = tr('report.col.needs');
+            byId('report-col-accuracy').textContent = tr('report.col.accuracy');
         }
 
         function updateFooterText() {
             byId('footer-tagline').textContent = tr('footer.tagline');
+            byId('footer-report-label').textContent = tr('footer.parent_report');
             byId('footer-about-label').textContent = tr('footer.about_button');
+            byId('footer-haptics-label').textContent = tr('footer.haptics');
         }
 
         function updateSelectionCounts() {
-            writeSelection(window.localStorage, currentLanguage, currentSelection());
+            window.__platform.progress.writeSelection(currentLanguage, currentSelection());
             byId('consonant-count').textContent = `${consonants.size} ${tr('unit.selected')}`;
             byId('vowel-count').textContent = `${vowels.size} ${tr('unit.selected')}`;
             byId('specials-count').textContent = `${specials.size} ${tr('unit.selected')}`;
@@ -1697,6 +1997,7 @@
 
         function showScreen(screen) {
             for (const name of ['setup', 'practice', 'complete']) byId(name).hidden = name !== screen;
+            byId('open-about').hidden = screen !== 'setup';
         }
 
         function updateCardFontSize(text, minimum = 0) {
@@ -1749,6 +2050,7 @@
             byId('progress').max = total;
             byId('progress').value = cleared;
             if (!queue.length) {
+                cardShownAt = null;
                 showScreen('complete');
                 byId('complete-summary').textContent = `${total} ${tr(total === 1 ? 'unit.card' : 'unit.cards')} ${tr('unit.in')} ${attempts} ${tr(attempts === 1 ? 'unit.attempt' : 'unit.attempts_dat')} ${tr('complete.summary_suffix')}`;
                 byId('complete-title').focus();
@@ -1756,6 +2058,11 @@
                 return;
             }
             byId('syllable').textContent = queue[0].text;
+            // The card text follows the exercise language, which can differ
+            // from the platform UI language, so state it explicitly for
+            // screen readers instead of relying on document inheritance.
+            byId('syllable').lang = currentLanguage;
+            cardShownAt = Date.now();
             updateCardFontSize(queue[0].text, queue[0].kind === 'sentence' ? 22 : 0);
             byId('review-label').hidden = queue[0].misses === 0;
             byId('speak-card').setAttribute('aria-disabled', String(!window.__scoring.isSpeakableCard(queue[0])));
@@ -2043,14 +2350,21 @@
             window.__speech?.cancel();
             const card = queue.shift();
             attempts++;
-            
+
+            // Credit the time the card was on screen, capped so an idle tab
+            // cannot inflate the practice total in the parent report.
+            if (cardShownAt !== null) {
+                window.__platform.progress.addPracticeMs(Math.min(Date.now() - cardShownAt, MAX_CARD_PRACTICE_MS));
+                cardShownAt = null;
+            }
+
             const { recordAttempt } = window.__scoring;
             // Any correct answer in flop mode resets the card stats to 0, 0 (recovery).
             recordAttempt(stats, card.text, correct, {
                 flop: isInFlopMode,
                 recovery: isInFlopMode && correct
             });
-            window.__storage.write(stats);
+            window.__platform.progress.write(stats);
             
             if (correct) {
                 cleared++;
@@ -2060,6 +2374,9 @@
                 queue.push(card);
                 byId('feedback').textContent = queue.length === 1 ? tr('feedback.try_again') : tr('feedback.try_later');
             }
+            // Distinct tactile feedback per grade; the adapter suppresses it
+            // under Reduce Motion and stays silent where haptics are absent.
+            window.__platform.haptics.grade?.(correct)?.catch?.(() => {});
             renderCard();
         }
 
@@ -2090,10 +2407,18 @@
             document.querySelector('#setup button').focus();
         }
 
+        /** Cache the native app version once so every about-dialog render uses it. */
+        async function loadAppVersion() {
+            const info = await window.__platform.app.getInfo?.();
+            appVersion = info?.version ?? null;
+            updateDialogText();
+        }
+
         document.querySelectorAll('.lang-btn').forEach(btn => {
             btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
         });
         setLanguage(currentLanguage);
+        loadAppVersion();
         document.querySelectorAll('input[name="mode"]').forEach(input => {
             input.addEventListener('change', updatePatternControls);
         });
@@ -2111,8 +2436,8 @@
         byId('change-letters').addEventListener('click', returnToSetup);
         byId('again').addEventListener('click', startDeck);
 
-        const App = window.Capacitor?.Plugins?.App;
-        if (App) {
+        const App = window.__platform.app;
+        if (App.isSupported()) {
             App.addListener('backButton', () => {
                 const openDialog = document.querySelector('dialog[open]');
                 if (openDialog) { openDialog.close(); return; }
@@ -2137,6 +2462,72 @@
         });
         byId('about-x').addEventListener('click', () => byId('about-dialog').close());
         byId('about-close').addEventListener('click', () => byId('about-dialog').close());
+
+        function formatPracticeTime(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return minutes > 0
+                ? `${minutes} ${tr('report.unit.min')} ${seconds} ${tr('report.unit.s')}`
+                : `${seconds} ${tr('report.unit.s')}`;
+        }
+
+        function renderReport() {
+            const report = buildReport(
+                window.__platform.progress.read(),
+                window.__platform.progress.readPracticeMs(),
+            );
+            const totals = report.totals;
+            byId('report-cards').textContent = String(totals.cards);
+            byId('report-correct').textContent = String(totals.correct);
+            byId('report-needs').textContent = String(totals.incorrect);
+            byId('report-accuracy').textContent = totals.attempts ? `${totals.accuracy.toFixed(1)} %` : '–';
+            byId('report-time').textContent = formatPracticeTime(totals.practiceSeconds);
+            byId('report-no-data').hidden = report.cards.length > 0;
+            byId('report-table').hidden = report.cards.length === 0;
+            const rows = byId('report-rows');
+            rows.textContent = '';
+            for (const row of report.cards) {
+                const trEl = document.createElement('tr');
+                for (const value of [row.card, String(row.correct), String(row.incorrect), `${row.accuracy.toFixed(1)} %`]) {
+                    const td = document.createElement('td');
+                    td.textContent = value;
+                    trEl.appendChild(td);
+                }
+                rows.appendChild(trEl);
+            }
+            byId('report-status').textContent = '';
+        }
+
+        byId('export-report').addEventListener('click', () => {
+            renderReport();
+            const dlg = byId('report-dialog');
+            dlg.showModal();
+            dlg.scrollTop = 0;
+            byId('report-close').focus({ preventScroll: true });
+        });
+        byId('report-close').addEventListener('click', () => byId('report-dialog').close());
+        byId('report-x').addEventListener('click', () => byId('report-dialog').close());
+        byId('report-export').addEventListener('click', async () => {
+            const status = byId('report-status');
+            try {
+                const csv = toCsv(buildReport(
+                    window.__platform.progress.read(),
+                    window.__platform.progress.readPracticeMs(),
+                ));
+                const result = await window.__platform.export.save(csv, REPORT_FILENAME);
+                status.textContent = tr(result?.saved ? 'report.export_ready' : 'report.export_failed');
+            } catch {
+                status.textContent = tr('report.export_failed');
+            }
+        });
+
+        const hapticsButton = byId('toggle-haptics');
+        hapticsButton.setAttribute('aria-pressed', String(window.__platform.haptics.isEnabled()));
+        hapticsButton.addEventListener('click', async () => {
+            const next = !window.__platform.haptics.isEnabled();
+            await window.__platform.haptics.setEnabled(next);
+            hapticsButton.setAttribute('aria-pressed', String(next));
+        });
     </script>
 </body>
 

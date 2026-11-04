@@ -4,15 +4,71 @@ This document describes how to turn a known-good source revision into a valid,
 versioned, signed Android App Bundle (`.aab`) for Google Play. The website
 (`lesen.derschweigert.de`) deploys separately and is unaffected by this process.
 
+> **External release gate:** producing a validly signed `.aab` and completing the
+> Play Console internal-track install and upgrade check are manual maintainer
+> actions. This repository's automated checks (shared JS tests, asset sync, and
+> `android-release.yml`) neither perform nor claim that gate.
+
 All commands run from `sites/lesen/`. Nothing secret is ever committed.
 
 ## Prerequisites (local)
 
-- Node.js 18+ and npm.
-- JDK 17 (e.g. `brew install openjdk@17`).
-- Android SDK command-line tools with `platform-tools`, `platforms;android-34`,
-  `build-tools;34.0.0`, and `android/local.properties` pointing at the SDK
+- Node.js 22+ and npm (Capacitor 8).
+- JDK 21 (e.g. `brew install openjdk@21`).
+- Android SDK command-line tools with `platform-tools`, `platforms;android-36`,
+  `build-tools;36.0.0`, and `android/local.properties` pointing at the SDK
   (`sdk.dir=/path/to/Android/sdk`). `local.properties` is gitignored.
+
+The locked native dependencies include `@capacitor/filesystem` and
+`@capacitor/share` for the parent report's on-device CSV export. Run Capacitor
+sync after restoring dependencies so both plugins reach the native project
+(`npm run sync` for Android, or `npx cap sync ios` for an existing iOS project).
+Installing the plugins alone is not export verification: test the adapter and
+the native share sheet before release. The plain website remains independent
+of these native dependencies.
+
+P3's locked native prerequisites also include `@capacitor/haptics` and
+`@capacitor/local-notifications`. Android inherits vibration and notification
+restore support from these plugins. The app removes the notification plugin's
+exact-alarm permission: practice reminders use inexact scheduling, not
+exact-alarm settings or prompts. No INTERNET permission is added. Installing
+these dependencies does not enable reminders or request permission; the adapter
+must keep reminders off by default, require the parental gate before prompting,
+remember denial without re-prompting, and suppress haptics under Reduce Motion.
+Verify the final APK's merged permissions as well as native reminder/haptics
+behaviour before release.
+
+## iOS project prerequisites (not release approval)
+
+The checked-in `ios/` shell is generated with the locked Capacitor 8 CLI and
+Swift Package Manager. Restore it with `npm ci`, `npm run copy-assets`, then
+`npx cap sync ios`; do not recreate or hand-edit `project.pbxproj`. The app
+localizations are German and English, and its icon and light/dark splash assets
+come from the existing images under `assets/`.
+
+The app's `PrivacyInfo.xcprivacy` is registered in the App target's Resources
+build phase, not merely present beside the source. It declares the Filesystem
+plugin's documented `NSPrivacyAccessedAPICategoryFileTimestamp` reason `C617.1`
+using Apple's `NSPrivacyAccessedAPITypeReasons` key. Tracking, tracking domains
+and collected data are empty/disabled; recheck declarations against actual
+native API usage whenever plugins change. Resource registration was performed
+using the `xcode` project API already shipped with the locked Capacitor CLI.
+
+An unsigned simulator build can be checked without signing credentials:
+
+```bash
+xcodebuild -project ios/App/App.xcodeproj -scheme App \
+  -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath /tmp/buchstabenzeit-ios CODE_SIGNING_ALLOWED=NO build
+plutil -lint /tmp/buchstabenzeit-ios/Build/Products/Debug-iphonesimulator/App.app/PrivacyInfo.xcprivacy
+```
+
+The generated project uses explicit source build phases. A new Swift file is
+not compiled just because it exists: use an already compiled source file or
+request maintainer-side project registration through supported project tooling.
+This scaffold and unsigned build do not prove native speech, silent-switch
+behaviour, physical-device behaviour, distribution signing or TestFlight/store
+readiness. Those remain separate implementation and external release gates.
 
 ## One-time: create your upload keystore
 
@@ -60,6 +116,31 @@ BZ_VERSION_CODE=2 BZ_VERSION_NAME=1.1 npm run build:release
 Keep a simple log (commit message or a table below) of: git revision, versionName,
 versionCode, date, and release notes.
 
+## Shell behaviour (safe areas, Back, version)
+
+The web shell in `static/` and the thin native activity carry the P4 polish:
+
+- **Safe areas.** `static/index.html` sets `viewport-fit=cover` and pads the
+  body with `env(safe-area-inset-*)` (falling back to `0px`). `MainActivity`
+  calls `WindowCompat.setDecorFitsSystemWindows(getWindow(), false)` and
+  `AppTheme.NoActionBar` keeps the status and navigation bars transparent, so
+  the edge-to-edge WebView reports real notch and gesture-bar insets.
+- **Back behaviour.** The `@capacitor/app` `backButton` listener closes an open
+  dialog first, asks for confirmation (End practice?) while a deck is running,
+  returns to setup from the completion screen, and only exits the app from
+  setup. Cancelling the dialog resumes practice.
+- **Lifecycle and speech.** `appStateChange` and `visibilitychange` cancel
+  in-flight speech when the app is backgrounded, so audio never continues while
+  the device is locked or another app is in front.
+- **Version, privacy, attribution.** The about dialog shows the version from a
+  single source: `versionName` in `android/app/build.gradle`, read once at
+  startup through the `@capacitor/app` plugin's `getInfo()`. On the plain
+  website there is no native version, so the label is shown alone. The dialog
+  links the bundled privacy policy (`datenschutz.html` /
+  `datenschutz-en.html`), the word-list licences (`words-de-LICENSE.txt` /
+  `words-en-LICENSE.txt`) and the font licence (`fonts/OFL.txt`); these files
+  are part of the verified offline bundle, so no network request is involved.
+
 ## Release steps (local)
 
 1. Choose a known-good commit on `android-app` and check it out.
@@ -74,6 +155,11 @@ versionCode, date, and release notes.
 8. Upload the `.aab` to the Play Console (internal testing first). Test an
    **upgrade** over the previous build, not just a clean install.
 
+Producing a validly signed `.aab` and completing the Play Console internal-track
+install/upgrade check are an **external release gate**. They are performed
+manually by the maintainer; the shared JS tests, `copy-assets`/`cap sync`, and
+the `android-release.yml` build neither perform nor claim this gate.
+
 ## Release record
 
 | Date | Git revision | versionName | versionCode | targetSdk | Track | Notes |
@@ -86,7 +172,10 @@ versionCode, date, and release notes.
 A release is reproducible from: the recorded **git revision** + the locked
 `package-lock.json` + the recorded **versionCode/versionName** + your upload
 keystore. Check out the revision, `npm ci`, and run `build:release` with the same
-version inputs.
+version inputs. `npm run sync` first re-copies `static/` into `www/` from that
+revision and verifies the required bundle files, then `cap sync android` copies
+that same output into the native project, so asset sync is reproducible rather
+than hand-edited.
 
 ## Continuous integration (GitHub Actions)
 
@@ -95,6 +184,12 @@ version inputs.
 `android-v*` tag). It is separate from the website `deploy.yml` and never runs on
 a website deploy or ordinary push. It uploads the `.aab` as a build artifact and
 does **not** publish to Google Play (v1 publication stays manual and owner-approved).
+
+The workflow uses Node 22, JDK 21 and Android SDK 36. It is maintainer-owned:
+release work should not edit it, and a change to it is an owner handoff. A
+passing shared JavaScript test run is not native build evidence: record an
+Android debug build and the required iOS simulator proof at the exact upgrade
+revision before advancing past the harness's Capacitor prerequisite milestone.
 
 Add these repository **secrets** (Settings → Secrets and variables → Actions):
 

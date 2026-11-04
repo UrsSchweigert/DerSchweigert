@@ -820,7 +820,7 @@ would and never builds or signs anything: the macOS release workflow remains the
   or opens App Transport Security, when the privacy manifest declares tracking or lacks a reason code per
   required-reason API under `NSPrivacyAccessedAPITypeReasons`, when the Xcode project does not bundle the privacy
   manifest and the web assets, or when a bundle loads anything over the network, references a file that is not
-  there, or is missing one of the 27 required runtime files.
+  there, or is missing one of the 29 required runtime files.
 * Every bundle present is checked, not the first one found: the source `static/`, the copied `www/`, and the
   generated `ios/App/App/public/`. A stale generated copy therefore cannot vouch for a source that has changed,
   and a clean source cannot excuse a broken copy.
