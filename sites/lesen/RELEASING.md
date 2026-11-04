@@ -79,7 +79,13 @@ cannot synthesize (Apple FB12994908): speaking with it ends at once in silence.
 The bridge therefore renders a short sample of each eligible voice into memory,
 without playback, once per voice; voices that yield no audio are skipped (and
 logged as `OfflineTts: … produced no audio`), and failed voices are re-checked
-when the app returns to the foreground. Before release, test both languages in airplane mode
+when the app returns to the foreground. Speech is not played with
+`AVSpeechSynthesizer.speak()`, which on iOS 17+ can finish in silence with
+downloaded voices inside third-party apps: the bridge renders it with `write()`
+and plays the audio through its own `AVAudioEngine` in the playback session,
+reporting completion only after the audio has played. The Xcode log shows
+`OfflineTts: speaking with <voice>` and `OfflineTts: playing via <route> at
+volume <0–1>` for each utterance. Before release, test both languages in airplane mode
 on a physical device with downloaded enhanced/premium voices, including a device
 without a matching compact voice. Confirm missing voices still produce the
 accessible explanation and that the silent switch does not mute playback.
