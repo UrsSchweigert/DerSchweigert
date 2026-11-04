@@ -450,9 +450,7 @@ def request_cancel(store: Store, plan_id: str, version: int, drain: bool) -> str
     state = store.state("plan", entity)
     if state is None:
         raise RunRefused("unknown plan %s v%d" % (plan_id, version))
-    run = store.get_run(plan_id)
-    run.update(cancel_requested=True, drain=drain)
-    store.put_run(plan_id, run)
+    run = store.update_run(plan_id, lambda current: current.update(cancel_requested=True, drain=drain))
     if not store.active_claims() and not run.get("checks"):
         if state in ("Approved", "Executing", "Paused", "Draft", "Proposed"):
             store.transition("plan", entity, "Cancelled", "operator", {"drain": drain})
@@ -486,21 +484,20 @@ def request_pause(store: Store, plan_id: str, version: int, now_flag: bool = Fal
                 raise RunRefused("phase %s is already Done in %s v%d, so it cannot gate the run. Name a later phase, "
                                  "or resume without a gate." % (after_phase, plan_id, version))
         else:
-            run = store.get_run(plan_id)
-            run["pause_after_phase"] = after_phase
-            store.put_run(plan_id, run)
+            store.update_run(plan_id, lambda run: run.update(pause_after_phase=after_phase))
             # Arming a gate changes nothing else: no plan or phase transition, and no work starts or stops here.
             return ("after %s" if state == "Executing" else "armed after %s") % after_phase
     if state != "Executing":
         raise RunRefused("only a running plan can be paused (plan is %s)" % state)
-    run = store.get_run(plan_id)
-    run.update(pause_requested=True, pause_now=bool(now_flag), paused_reason="paused by the operator")
-    store.put_run(plan_id, run)
+    run = store.update_run(plan_id, lambda current: current.update(
+        pause_requested=True, pause_now=bool(now_flag), paused_reason="paused by the operator"))
     if not store.active_claims() and not run.get("checks"):
         store.transition("plan", entity, "Paused", "operator", {"reason": "paused by the operator"})
-        run["ended_at"] = time.time()
-        run.pop("pause_requested", None)  # nothing was draining, so the request is already fulfilled
-        run.pop("pause_now", None)
-        store.put_run(plan_id, run)
+
+        def fulfilled(current):
+            current["ended_at"] = time.time()
+            current.pop("pause_requested", None)  # nothing was draining, so the request is already fulfilled
+            current.pop("pause_now", None)
+        store.update_run(plan_id, fulfilled)
         return "Paused"
     return state

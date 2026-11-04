@@ -10,7 +10,7 @@ import os
 import sqlite3
 import time
 from collections import namedtuple
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from . import machines
 
@@ -303,6 +303,16 @@ class Store:
 
     def put_run(self, plan_id: str, data: Dict[str, Any]) -> None:
         self.cx.execute("INSERT OR REPLACE INTO run_state VALUES(?,?)", (plan_id, json.dumps(data, sort_keys=True)))
+
+    def update_run(self, plan_id: str, mutate: Callable[[Dict[str, Any]], Any]) -> Dict[str, Any]:
+        """Change one run document in place. The read and the write share one transaction, so a writer that held a
+        snapshot across a slow call (opening a pull request, polling checks) cannot put back fields another writer
+        changed meanwhile — an operator's pause request, for example."""
+        with self.tx():
+            run = self.get_run(plan_id)
+            mutate(run)
+            self.put_run(plan_id, run)
+            return run
 
     # -- claims, leases, fencing ---------------------------------------------
 
