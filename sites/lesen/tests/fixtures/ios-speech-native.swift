@@ -168,7 +168,7 @@ AVSpeechSynthesisVoice.available = [
     austrian, british, samantha, anna,
     AVSpeechSynthesisVoice("com.provider.Network", "de-DE"),
     AVSpeechSynthesisVoice("com.apple.voice.enhanced.Anna", "de-DE", quality: .enhanced),
-    AVSpeechSynthesisVoice("com.apple.voice.compact.Provider", "de-DE", quality: .enhanced),
+    AVSpeechSynthesisVoice("com.provider.Enhanced", "de-DE", quality: .enhanced),
     AVSpeechSynthesisVoice("com.apple.ttsbundle.siri_unknown", "de-DE"),
     AVSpeechSynthesisVoice("com.apple.voice.compact.Personal", "de-DE", traits: .isPersonalVoice),
     AVSpeechSynthesisVoice("com.apple.voice.compact.Novelty", "de-DE", traits: .isNoveltyVoice),
@@ -201,7 +201,7 @@ expect(initialized.result?["languageAvailable"] as? Bool == true)
 expect(latestSynth().usesApplicationAudioSession)
 let german = listed()
 let germanVoices = german.result?["voices"] as! [[String: Any]]
-expect(german.result?["suitableCount"] as? Int == 2)
+expect(german.result?["suitableCount"] as? Int == 3)
 expect(germanVoices.first?["name"] as? String == anna.identifier)
 expect(germanVoices.allSatisfy { $0["networkRequired"] as? Bool == false && $0["notInstalled"] as? Bool == false })
 expect(listed("en_GB").result?["suitableCount"] as? Int == 2)
@@ -305,6 +305,39 @@ expect(!session.active, "No default/network fallback without a matching offline 
 let english = speak(["text": "Hello", "lang": "en-US"])
 latestSynth().finish()
 expect(english.result?["status"] as? String == "finished")
+
+let excludedVoices = [
+    AVSpeechSynthesisVoice("com.provider.Network", "de-DE"),
+    AVSpeechSynthesisVoice("com.provider.Enhanced", "de-DE", quality: .enhanced),
+    AVSpeechSynthesisVoice("com.apple.ttsbundle.siri_unknown", "de-DE"),
+    AVSpeechSynthesisVoice("com.apple.voice.compact.Personal", "de-DE", traits: .isPersonalVoice),
+    AVSpeechSynthesisVoice("com.apple.voice.premium.Novelty", "de-DE", quality: .premium, traits: .isNoveltyVoice),
+    AVSpeechSynthesisVoice("com.apple.voice.enhanced.Missing", "de-DE", quality: .enhanced, installed: false),
+    AVSpeechSynthesisVoice("com.apple.voice.premium.Missing", "en-US", quality: .premium, installed: false)
+]
+for (identifier, lang, quality) in [
+    ("com.apple.voice.enhanced.de-DE.Anna", "de-DE", AVSpeechSynthesisVoice.Quality.enhanced),
+    ("com.apple.voice.premium.de-DE.Petra", "de-DE", .premium),
+    ("com.apple.voice.enhanced.en-US.Samantha", "en-US", .enhanced),
+    ("com.apple.voice.premium.en-GB.Daniel", "en-GB", .premium),
+    ("com.apple.ttsbundle.Anna-premium", "de-DE", .enhanced),
+    ("com.apple.ttsbundle.Daniel-enhanced", "en-GB", .enhanced),
+    ("com.apple.voice.super-compact.de-DE.Anna", "de-DE", .default)
+] {
+    let downloaded = AVSpeechSynthesisVoice(identifier, lang, quality: quality)
+    AVSpeechSynthesisVoice.available = excludedVoices + [downloaded]
+    let voices = listed(lang).result?["voices"] as! [[String: Any]]
+    expect(voices.count == 1 && voices.first?["name"] as? String == identifier,
+           "A downloaded Apple voice must be usable without a compact voice: \(identifier)")
+    let playback = speak(["text": "Test", "lang": lang])
+    expect(playback.error == nil && latestSynth().current?.voice?.identifier == identifier)
+    latestSynth().finish()
+    expect(playback.result?["status"] as? String == "finished")
+}
+AVSpeechSynthesisVoice.available = excludedVoices
+expect(listed("de-DE").result?["suitableCount"] as? Int == 0)
+expect(listed("en-US").result?["suitableCount"] as? Int == 0)
+expect(speak().error?.contains("No installed offline voice") == true)
 
 var offMainCall: CAPPluginCall?
 DispatchQueue.global().async {

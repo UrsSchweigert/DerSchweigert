@@ -70,6 +70,15 @@ This scaffold and unsigned build do not prove native speech, silent-switch
 behaviour, physical-device behaviour, distribution signing or TestFlight/store
 readiness. Those remain separate implementation and external release gates.
 
+Native read-aloud accepts installed Apple compact, enhanced and premium speech
+assets for German and English, including legacy identifiers. Voice quality is
+not an offline-availability flag. Siri, unknown/third-party providers and
+personal/novelty voices remain excluded because their offline behaviour is not
+established by this bridge. Before release, test both languages in airplane mode
+on a physical device with downloaded enhanced/premium voices, including a device
+without a matching compact voice. Confirm missing voices still produce the
+accessible explanation and that the silent switch does not mute playback.
+
 ## One-time: create your upload keystore
 
 Google Play uses **Play App Signing**: Google holds the real *app signing key*;

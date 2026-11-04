@@ -42,6 +42,30 @@ test('android shell: the language switch shares the eyebrow row', async () => {
   assert.ok(head.includes('class="language-control"'), '.setup-head must hold the switch');
 });
 
+function cssRuleBody(html, selector) {
+  const at = html.indexOf(`${selector} {`);
+  assert.ok(at >= 0, `${selector} needs its own rule`);
+  return html.slice(at, html.indexOf('}', at));
+}
+
+test('mobile shell: the hero text column can shrink so the owl never overflows', async () => {
+  const html = await readSiteFile('static/index.html');
+
+  // The eyebrow plus two 44px flag buttons is wider than the column left beside
+  // the fixed-width owl on 360px phones; the page then grew sideways and panned.
+  assert.match(cssRuleBody(html, '        .intro-copy'), /min-width:\s*0/);
+  assert.match(cssRuleBody(html, '        .setup-head'), /flex-wrap:\s*wrap/);
+  assert.match(cssRuleBody(html, '        .hero-logo'), /flex:\s*none/);
+});
+
+test('mobile shell: double-tap zoom is disabled on every element', async () => {
+  const html = await readSiteFile('static/index.html');
+
+  assert.match(cssRuleBody(html, '        *'), /touch-action:\s*manipulation/);
+  assert.doesNotMatch(html, /touch-action:(?!\s*manipulation)/, 'no element may restore double-tap zoom');
+  assert.doesNotMatch(html, /user-scalable\s*=\s*no|maximum-scale/, 'pinch zoom must stay available');
+});
+
 test('android shell: the activity draws edge-to-edge for real insets', async () => {  const activity = await readSiteFile(
     'android/app/src/main/java/de/derschweigert/buchstabenzeit/MainActivity.java',
   );

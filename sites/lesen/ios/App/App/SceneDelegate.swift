@@ -234,16 +234,17 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
         let primary = lang.split(separator: "-").first
         return AVSpeechSynthesisVoice.speechVoices().filter { voice in
             let locale = voice.language.replacingOccurrences(of: "_", with: "-").lowercased()
-            guard locale.split(separator: "-").first == primary,
-                  voice.quality == .default else { return false }
+            guard locale.split(separator: "-").first == primary else { return false }
             if #available(iOS 17.0, *), !voice.voiceTraits.isEmpty { return false }
-            // There is no public networkRequired flag. Fail closed to installed Apple compact
-            // voices, not Siri/unknown identifiers. Provider voices are always .enhanced
-            // (AVSpeechSynthesisProvider.h); personal/novelty voices are excluded above.
+            // Quality describes fidelity, not network requirements. Accept installed Apple
+            // speech assets at every quality, but not Siri or third-party providers: iOS
+            // exposes no networkRequired flag for those voices.
             let id = voice.identifier
-            let compact = id.hasPrefix("com.apple.voice.compact.") ||
-                (id.hasPrefix("com.apple.ttsbundle.") && id.hasSuffix("-compact"))
-            return compact && AVSpeechSynthesisVoice(identifier: id) != nil
+            let appleAsset = ["compact", "super-compact", "enhanced", "premium"].contains {
+                id.hasPrefix("com.apple.voice.\($0).")
+            } || (id.hasPrefix("com.apple.ttsbundle.") &&
+                ["-compact", "-enhanced", "-premium"].contains { id.hasSuffix($0) })
+            return appleAsset && AVSpeechSynthesisVoice(identifier: id) != nil
         }.sorted { left, right in
             func rank(_ voice: AVSpeechSynthesisVoice) -> Int {
                 let locale = voice.language.replacingOccurrences(of: "_", with: "-").lowercased()

@@ -40,6 +40,10 @@
 
         * {
             box-sizing: border-box;
+            /* Disables double-tap zoom (notably in the iOS WebView) while
+               keeping scrolling and pinch zoom. Set on every element because
+               scrollable dialogs would otherwise restore the default. */
+            touch-action: manipulation;
         }
 
         html {
@@ -166,6 +170,10 @@
         }
 
         .intro-copy {
+            /* Without min-width: 0 the eyebrow row's content width plus the
+               fixed-width owl overflowed narrow phones and made the page pan. */
+            flex: 1 1 auto;
+            min-width: 0;
             max-width: 650px;
         }
 
@@ -216,6 +224,7 @@
 
         .setup-head {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
