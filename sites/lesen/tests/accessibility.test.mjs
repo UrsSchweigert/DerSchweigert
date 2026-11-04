@@ -134,6 +134,20 @@ test('a11y: the language buttons expose their pressed state', async () => {
   );
 });
 
+test('a11y: a language change turns the page, except under reduced motion', async () => {
+  const html = await readSiteFile('static/index.html');
+  const body = functionBody(html, 'switchLanguage');
+
+  assert.match(html, /\.lang-btn'\)\.forEach\(btn => \{\s*btn\.addEventListener\('click', \(\) => switchLanguage\(/);
+  assert.match(body, /prefers-reduced-motion: reduce/);
+  assert.match(body, /!document\.startViewTransition \|\| reduceMotion\) \{\s*setLanguage\(lang\);\s*return;/,
+    'WebViews without View Transitions and reduced motion must switch instantly');
+  assert.match(body, /document\.startViewTransition\(\(\) => setLanguage\(lang\)\)/);
+  assert.match(cssRule(html, '        .language-control'), /view-transition-name:\s*language-control/,
+    'the flags stay in place as an anchor while the page turns');
+  assert.match(html, /@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*::view-transition-old\(\*\)[^}]*animation:\s*none !important/);
+});
+
 test('a11y: the about close button name follows the UI language', async () => {
   const html = await readSiteFile('static/index.html');
   const body = functionBody(html, 'updateDialogText');

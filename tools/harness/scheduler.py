@@ -153,19 +153,19 @@ class Scheduler:
                     self.repo.pin_good(issue["issue_id"], issue["head_rev"])  # heads recorded before pinning existed
                 except Exception:
                     pass
-        run = self.store.get_run(self.plan_id)
-        run.setdefault("started_at", now)
-        if run.get("ended_at"):
-            run["started_at"] = min(now, run["started_at"] + max(0.0, now - run["ended_at"]))
-            run.pop("ended_at", None)
-        for key in ("paused_reason", "pause_requested", "pause_now"):
-            run.pop(key, None)
-        if state == "Approved":
-            # a fresh approval starts a new run of a (possibly new) version, not the cancelled one
-            run.pop("cancel_requested", None)
-            run.pop("drain", None)
-        run["cancel_requested"] = run.get("cancel_requested", False)
-        self.store.put_run(self.plan_id, run)
+        def resumed(run):
+            run.setdefault("started_at", now)
+            if run.get("ended_at"):
+                run["started_at"] = min(now, run["started_at"] + max(0.0, now - run["ended_at"]))
+                run.pop("ended_at", None)
+            for key in ("paused_reason", "pause_requested", "pause_now"):
+                run.pop(key, None)
+            if state == "Approved":
+                # a fresh approval starts a new run of a (possibly new) version, not the cancelled one
+                run.pop("cancel_requested", None)
+                run.pop("drain", None)
+            run["cancel_requested"] = run.get("cancel_requested", False)
+        self.store.update_run(self.plan_id, resumed)
 
     # -- one scheduling pass --------------------------------------------------
 
@@ -410,11 +410,11 @@ class Scheduler:
             handle = h.get("handle")
             if handle is not None and hasattr(handle, "last_activity"):
                 handle.last_activity = float(getattr(handle, "last_activity") or now) + gap
-        run = self.store.get_run(self.plan_id)
-        for job in (run.get("checks") or {}).values():
-            job["started_at"] = float(job.get("started_at") or now) + gap
-            job["lease_until"] = now + lease_s
-        self.store.put_run(self.plan_id, run)
+        def shift(run):
+            for job in (run.get("checks") or {}).values():
+                job["started_at"] = float(job.get("started_at") or now) + gap
+                job["lease_until"] = now + lease_s
+        self.store.update_run(self.plan_id, shift)
         self._emit("host_slept", seconds=round(gap, 1), attempts=len(self.handles))
 
     @contextlib.contextmanager
@@ -504,10 +504,10 @@ class Scheduler:
     def _forget_check(self, key: str, job_id: Optional[str]) -> None:
         if self.check_runs.get(key, {}).get("job_id") == job_id:
             self.check_runs.pop(key, None)
-        run = self.store.get_run(self.plan_id)
-        if run.setdefault("checks", {}).get(key, {}).get("job_id") == job_id:
-            run["checks"].pop(key, None)
-        self.store.put_run(self.plan_id, run)
+        def forget(run):
+            if run.setdefault("checks", {}).get(key, {}).get("job_id") == job_id:
+                run["checks"].pop(key, None)
+        self.store.update_run(self.plan_id, forget)
 
     def _start_checks(self, key, issue_id, head, base, commands, done, attempt_id=None) -> None:
         if key in self.store.get_run(self.plan_id).get("checks", {}):
@@ -516,14 +516,13 @@ class Scheduler:
         job_id = uuid.uuid4().hex
         self.check_runs[key] = {"handle": handle, "done": done, "attempt_id": attempt_id, "job_id": job_id}
         now = self.clock()
-        run = self.store.get_run(self.plan_id)
-        run.setdefault("checks", {})[key] = {
+        record = {
             "issue_id": issue_id, "head_rev": head, "base_rev": base, "runner": self.runner_id,
             "attempt_id": attempt_id, "job_id": job_id, "lease_until": now + self._plan()["policy"]["budgets"]["lease_s"],
             "started_at": now,
             "recovery": self.checker.recovery_data(handle),
         }
-        self.store.put_run(self.plan_id, run)
+        self.store.update_run(self.plan_id, lambda run: run.setdefault("checks", {}).__setitem__(key, record))
         self._poll_check(key)
 
     def _poll_check(self, key: str) -> None:
@@ -537,9 +536,8 @@ class Scheduler:
         if not self._check_job_live(key, job):
             return
         if results is None:
-            run = self.store.get_run(self.plan_id)
-            run["checks"][key]["lease_until"] = now + self._plan()["policy"]["budgets"]["lease_s"]
-            self.store.put_run(self.plan_id, run)
+            lease = now + self._plan()["policy"]["budgets"]["lease_s"]
+            self.store.update_run(self.plan_id, lambda run: run["checks"][key].update(lease_until=lease))
             return
         self._forget_check(key, job["job_id"])
         job["done"](results, now)
@@ -1015,8 +1013,7 @@ class Scheduler:
             self.repo.pin_good(issue["issue_id"], head)
         except Exception:
             pass  # without a pin, a repair attempt simply starts from the base branch
-        run["prs"] = run.get("prs", 0) + 1
-        self.store.put_run(self.plan_id, run)
+        self.store.update_run(self.plan_id, lambda current: current.update(prs=current.get("prs", 0) + 1))
         issue.update(head_rev=head, base_rev=base, patch_id=self.repo.patch_id(issue["branch"]), pr=pr.get("number"), pr_simulated=bool(pr.get("simulated")))
         meta.update(outcome="Succeeded", finished_at=now, revision=head)
         self.store.put_attempt(meta)
@@ -2094,9 +2091,7 @@ class Scheduler:
         phases = self._plan()["phases"]
         if all(self.store.state("phase", "%s/%s" % (self.entity, p["id"])) == "Done" for p in phases):
             self.store.transition("plan", self.entity, "Completed", self.runner_id, {}, now=now)
-            run = self.store.get_run(self.plan_id)
-            run["ended_at"] = now
-            self.store.put_run(self.plan_id, run)
+            self.store.update_run(self.plan_id, lambda run: run.update(ended_at=now))
             self._emit("plan_completed")
             self._open_promotion()
 
@@ -2120,9 +2115,8 @@ class Scheduler:
             self._emit("promotion_failed", error="%s: %s" % (type(exc).__name__, str(exc)[:200]))
             return
         if number:
-            run = self.store.get_run(self.plan_id)
-            run["promotion"] = {"base": base, "number": number, "problem": "", "merged": False}
-            self.store.put_run(self.plan_id, run)
+            self.store.update_run(self.plan_id, lambda run: run.update(
+                promotion={"base": base, "number": number, "problem": "", "merged": False}))
             self._emit("promotion_pr", number=number, base=base)
             self._ask_to_merge(base, number)
 
@@ -2158,9 +2152,7 @@ class Scheduler:
         if not merged:
             return
         promotion["merged"] = True
-        run = self.store.get_run(self.plan_id)
-        run["promotion"] = promotion
-        self.store.put_run(self.plan_id, run)
+        self.store.update_run(self.plan_id, lambda run: run.update(promotion=promotion))
         task_id = "promotion-%s-%d" % (self.plan_id, number)
         # The task machine is walked one step at a time: the harness resolves its own ask, it never skips a state.
         next_state = {"Requested": "Acknowledged", "Acknowledged": "Submitted", "Submitted": "Validated", "Validated": "Resolved"}
@@ -2176,9 +2168,8 @@ class Scheduler:
 
     def _promotion_problem(self, base: str, problem: str) -> None:
         """Record why the finished run cannot be offered, so the plan does not look simply "done" in the UI."""
-        run = self.store.get_run(self.plan_id)
-        run["promotion"] = {"base": base, "number": run.get("promotion", {}).get("number"), "problem": problem}
-        self.store.put_run(self.plan_id, run)
+        self.store.update_run(self.plan_id, lambda run: run.update(promotion={
+            "base": base, "number": (run.get("promotion") or {}).get("number"), "problem": problem}))
         self._emit("promotion_conflict", base=base, problem=problem)
 
     # -- pause, cancel ----------------------------------------------------------
@@ -2224,22 +2215,20 @@ class Scheduler:
         self._release_all(now, "Cancelled")
         if self.store.state("plan", self.entity) == "Executing":
             self.store.transition("plan", self.entity, "Paused", self.runner_id, {"reason": reason}, now=now)
-        run = self.store.get_run(self.plan_id)
-        run["paused_reason"] = reason
-        run.pop("pause_after_phase", None)
-        run["ended_at"] = now  # the run wall clock stops with the run, so a resumed run does not inherit idle time
-        run.pop("pause_requested", None)  # the request is why we are here; leaving it set reads as "still pausing"
-        run.pop("pause_now", None)
-        self.store.put_run(self.plan_id, run)
+        def stopped(run):
+            run["paused_reason"] = reason
+            run.pop("pause_after_phase", None)
+            run["ended_at"] = now  # the run wall clock stops with the run, so a resumed run does not inherit idle time
+            run.pop("pause_requested", None)  # the request is why we are here; leaving it set reads as "still pausing"
+            run.pop("pause_now", None)
+        self.store.update_run(self.plan_id, stopped)
         self._emit("paused", reason=reason)
 
     def pause_for(self, reason: str) -> None:
         self._pause(reason, self.clock())
 
     def request_cancel(self, drain: bool = False) -> None:
-        run = self.store.get_run(self.plan_id)
-        run.update(cancel_requested=True, drain=drain)
-        self.store.put_run(self.plan_id, run)
+        self.store.update_run(self.plan_id, lambda run: run.update(cancel_requested=True, drain=drain))
 
     def _cancel(self, now: float, drain: bool) -> None:
         if drain and (self.handles or self._has_checks()):
@@ -2247,9 +2236,7 @@ class Scheduler:
         self._release_all(now, "Cancelled")
         humantasks.cancel_for_issues(self.store, [i["issue_id"] for i in self.store.list_issues(self.plan_id)], now)
         self.store.transition("plan", self.entity, "Cancelled", self.runner_id, {"drain": drain}, now=now)
-        run = self.store.get_run(self.plan_id)
-        run["ended_at"] = now
-        self.store.put_run(self.plan_id, run)
+        self.store.update_run(self.plan_id, lambda run: run.update(ended_at=now))
         self._emit("cancelled", drain=drain)
 
     def active_attempts(self) -> List[str]:

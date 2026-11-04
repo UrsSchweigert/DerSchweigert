@@ -35,6 +35,14 @@ test('iOS speech: installed Apple de/en speech assets are eligible regardless of
   assert.doesNotMatch(scene, /AVSpeechSynthesisVoice\(language:|requestPersonalVoiceAuthorization|URLSession/);
 });
 
+test('iOS speech: listed voices are probed for real audio before they are offered', () => {
+  // iOS lists downloaded voices whose assets cannot synthesize (FB12994908).
+  assert.match(scene, /prober\?\.write\(sample\)/);
+  assert.match(scene, /\(buffer as\? AVAudioPCMBuffer\)\?\.frameLength \?\? 0\) > 0/);
+  assert.match(scene, /@objc func listOfflineVoices[\s\S]*?usableVoices\(lang: lang\)/);
+  assert.match(scene, /@objc func speak[\s\S]*?usableVoices\(lang: lang\)/);
+});
+
 test('iOS speech: shared adapter cancellation and native scene exit remain wired', async () => {
   const adapter = await readFile(new URL('static/speech-adapter.js', site), 'utf8');
   const html = await readFile(new URL('static/index.html', site), 'utf8');
@@ -57,7 +65,12 @@ test('iOS speech: playback uses the application session and waits for actual com
   assert.match(scene, /setActive\(true\)/);
   assert.match(scene, /setActive\(false, options: \.notifyOthersOnDeactivation\)/);
   assert.match(scene, /stopSpeaking\(at: \.immediate\)/);
-  assert.match(scene, /didFinish utterance:[\s\S]*?call\?\.resolve\(\["status": "finished"\]\)/);
+  // speak() can finish in silence with downloaded voices; speech is rendered and played by an engine.
+  assert.doesNotMatch(scene, /synthesizer\?\.speak\(/);
+  assert.match(scene, /synthesizer\?\.write\(next\)/);
+  assert.match(scene, /scheduleBuffer\(copy, completionCallbackType: \.dataPlayedBack\)/);
+  assert.match(scene, /func finishIfPlayedBack\(\)[\s\S]*?call\?\.resolve\(\["status": "finished"\]\)/);
+  assert.match(scene, /\.AVAudioEngineConfigurationChange/);
   assert.match(scene, /Speech synthesis did not start/);
   assert.match(scene, /Thread\.isMainThread/);
   assert.doesNotMatch(scene, /try\?/);

@@ -74,7 +74,23 @@ Native read-aloud accepts installed Apple compact, enhanced and premium speech
 assets for German and English, including legacy identifiers. Voice quality is
 not an offline-availability flag. Siri, unknown/third-party providers and
 personal/novelty voices remain excluded because their offline behaviour is not
-established by this bridge. Before release, test both languages in airplane mode
+established by this bridge. iOS can still list a downloaded voice whose assets
+cannot synthesize (Apple FB12994908): speaking with it ends at once in silence.
+The bridge therefore renders a short sample into memory, without playback,
+before using a voice; voices that yield no audio are skipped (and logged as
+`OfflineTts: … produced no audio`), and failed voices are re-checked when the
+app returns to the foreground. Voices are tried in order of preference (exact
+locale first, then premium, enhanced, compact), and probing stops at the first
+voice that works, so `listOfflineVoices` reports at most that one voice. The
+probe for German and English runs in the background as soon as the app
+initializes the bridge at launch, so the first read-aloud does not wait for it.
+Speech is not played with
+`AVSpeechSynthesizer.speak()`, which on iOS 17+ can finish in silence with
+downloaded voices inside third-party apps: the bridge renders it with `write()`
+and plays the audio through its own `AVAudioEngine` in the playback session,
+reporting completion only after the audio has played. The Xcode log shows
+`OfflineTts: speaking with <voice>` and `OfflineTts: playing via <route> at
+volume <0–1>` for each utterance. Before release, test both languages in airplane mode
 on a physical device with downloaded enhanced/premium voices, including a device
 without a matching compact voice. Confirm missing voices still produce the
 accessible explanation and that the silent switch does not mute playback.
