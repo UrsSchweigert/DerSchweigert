@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#eaf8ff">
     <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -28,7 +28,7 @@
         :root {
             --ink: #173c68;
             --muted: #58718a;
-            --green: #65ad35;
+            --green: #3f7a1a;
             --paper: #f5fbff;
             --line: #c9e5f4;
             --coral: #a94f00;
@@ -74,7 +74,9 @@
         }
 
         button:focus-visible,
-        input:focus-visible {
+        input:focus-visible,
+        summary:focus-visible,
+        a:focus-visible {
             outline: 3px solid var(--orange);
             outline-offset: 4px;
         }
@@ -506,6 +508,7 @@
         .quiet {
             border-radius: 14px;
             padding: 14px 22px;
+            min-height: 44px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -708,7 +711,7 @@
         }
 
         .correct:hover {
-            background: #4d9025;
+            background: #356b12;
         }
 
         .feedback {
@@ -802,6 +805,8 @@
             border: none;
             border-radius: 14px;
             max-width: 320px;
+            max-height: 80vh;
+            overflow-y: auto;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
@@ -874,9 +879,9 @@
             position: sticky;
             top: 0;
             float: right;
-            width: 40px;
-            height: 40px;
-            margin: -8px -8px 0 8px;
+            width: 44px;
+            height: 44px;
+            margin: -10px -10px 0 8px;
             border: none;
             border-radius: 50%;
             background: #e9f4ff;
@@ -899,7 +904,10 @@
             text-decoration: underline;
             cursor: pointer;
             font: inherit;
-            padding: 0;
+            padding: 0 2px;
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
         }
 
         .report-status {
@@ -1042,8 +1050,8 @@
     <main>
         <section id="setup" aria-labelledby="setup-title">
             <div class="language-control">
-                <button id="lang-de" class="lang-btn active" data-lang="de">DE</button>
-                <button id="lang-en" class="lang-btn" data-lang="en">EN</button>
+                <button id="lang-de" class="lang-btn active" data-lang="de" aria-pressed="true">DE</button>
+                <button id="lang-en" class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
             </div>
             <div class="setup-intro">
                 <div class="intro-copy">
@@ -1158,7 +1166,7 @@
             <div class="complete-mark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="m5 12 4 4L19 6" />
                 </svg></div>
-            <h1 id="complete-title" tabindex="-1">Alle Karten geschafft!</h1>
+            <h1 id="complete-title" tabindex="-1" aria-describedby="complete-summary">Alle Karten geschafft!</h1>
             <p id="complete-summary"></p>
             <div class="complete-actions"><button id="again" class="primary" type="button"><svg class="icon"
                         viewBox="0 0 24 24" aria-hidden="true">
@@ -1273,7 +1281,9 @@
 
             // Update language button states
             document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.lang === lang);
+                const active = btn.dataset.lang === lang;
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-pressed', String(active));
             });
 
             // Reset selected letters and rebuild them for the new language
@@ -1422,6 +1432,7 @@
             byId('about-privacy-link').href = currentLanguage === 'en' ? 'datenschutz-en.html' : 'datenschutz.html';
             byId('about-wordlist-link').href = currentLanguage === 'en' ? 'words-en-LICENSE.txt' : 'words-de-LICENSE.txt';
             byId('about-close-label').textContent = tr('dialog.about.close');
+            byId('about-x').setAttribute('aria-label', tr('dialog.about.close'));
         }
 
         function updateFooterText() {
@@ -1807,6 +1818,10 @@
                 return;
             }
             byId('syllable').textContent = queue[0].text;
+            // The card text follows the exercise language, which can differ
+            // from the platform UI language, so state it explicitly for
+            // screen readers instead of relying on document inheritance.
+            byId('syllable').lang = currentLanguage;
             cardShownAt = Date.now();
             updateCardFontSize(queue[0].text, queue[0].kind === 'sentence' ? 22 : 0);
             byId('review-label').hidden = queue[0].misses === 0;
