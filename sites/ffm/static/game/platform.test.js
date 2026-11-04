@@ -264,7 +264,8 @@ describe('app platform adapter', () => {
 
   it('has no api.js/access-flow.js import and no network primitive', async () => {
     const source = await readFile(new URL('../../mobile/game/platform-adapter.js', import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /^\s*import\s/m);
+    assert.doesNotMatch(source, /from '\.\/api\.js'/);
+    assert.doesNotMatch(source, /from '\.\/access-flow\.js'/);
     assert.doesNotMatch(source, /\bfetch\s*\(/);
     assert.doesNotMatch(source, /\bXMLHttpRequest\b/);
     assert.doesNotMatch(source, /\bnavigator\.sendBeacon\b/);

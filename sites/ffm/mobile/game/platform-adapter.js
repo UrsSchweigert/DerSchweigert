@@ -2,11 +2,15 @@
 //
 // The Capacitor bundle copies this file over www/game/platform-adapter.js, so
 // the game resolves it through platform.js like any other adapter. It is
-// deliberately self-contained: no api.js or access-flow.js import, no fetch or
-// other network call, and no Stripe, account or leaderboard code path.
+// deliberately local: no api.js or access-flow.js import, no fetch or other
+// network call, and no Stripe, account or leaderboard code path. Progress is
+// kept by ./progress-store.js, which talks to Capacitor Preferences.
 //
-// Later phases replace the stubs: local progress storage (phase 2), store
-// entitlement and purchases (phase 3), lifecycle and app UI (phase 4).
+// Later phases replace the stubs: store entitlement and purchases (phase 3),
+// lifecycle and app UI (phase 4).
+import { createPreferencesBackend, createProgressStore } from './progress-store.js';
+
+const progress = createProgressStore(createPreferencesBackend());
 
 export class PlatformUnavailableError extends Error {
   constructor(feature) {
@@ -76,7 +80,7 @@ const platform = {
   isLoggedIn: false,
   username: null,
 
-  // includeBaseline is unsupported until local progress exists in phase 2;
+  // includeBaseline stays unsupported: the app has no level-jump UI, and
   // main.js treats a missing baseline_score as 0.
   async getAuthorizedLevelConfig(levelIndex) {
     const cfg = FREE_LEVELS[levelIndex];
@@ -112,18 +116,24 @@ const platform = {
       && Number.isInteger(record.maxHearts) && record.maxHearts >= 1 && record.maxHearts <= 20;
   },
 
-  // Score recording and personal history become local storage in phase 2; the
-  // stub accepts scores without failing gameplay and reports no history.
+  // The app keeps per-level bests instead of one high score, so the web
+  // leaderboard's high-score call stays a no-op that never fails gameplay.
   async postHighScore() {
     return { saved: false };
   },
 
-  async postLevelScore() {
-    return { saved: false };
+  // A cleared level is recorded locally: the per-level best, the timestamped
+  // history behind the title-screen chart and the completed set. `saved`
+  // reports a new personal best, matching the web score endpoint.
+  async postLevelScore(level, score, difficulty) {
+    const best = await progress.writeBestScore(level, score, difficulty);
+    await progress.appendHistory({ level, score, difficulty });
+    await progress.markCompleted(level);
+    return { saved: best.saved };
   },
 
   async getScoreHistory() {
-    return { history: [] };
+    return { history: await progress.readHistory() };
   },
 
   async getLeaderboard() {
