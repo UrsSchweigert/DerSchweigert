@@ -110,6 +110,7 @@ const DE = {
 
   // About dialog full privacy policy link
   'dialog.about.privacy_link': 'Vollständige Datenschutzerklärung',
+  'dialog.about.terms_link': 'Nutzungsbedingungen',
 
   // About dialog close button
   'dialog.about.close': 'Schließen',
@@ -274,6 +275,7 @@ const EN = {
 
   // About dialog full privacy policy link
   'dialog.about.privacy_link': 'Full privacy policy',
+  'dialog.about.terms_link': 'Terms of use',
 
   // About dialog close button
   'dialog.about.close': 'Close',

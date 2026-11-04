@@ -93,7 +93,7 @@ locals {
       return request;
     }
 
-    var isPublicPath = uri === '/health' || uri === '/unlock' || uri === '/favicon.ico' || uri.startsWith('/static/') || uri.startsWith('/api/') || uri === '/contact' || uri === '/impressum' || uri === '/datenschutz';
+    var isPublicPath = uri === '/health' || uri === '/unlock' || uri === '/favicon.ico' || uri.startsWith('/static/') || uri.startsWith('/api/') || uri === '/contact' || uri === '/impressum' || uri === '/datenschutz' || uri === '/nutzungsbedingungen';
 
     if (pinProtectionEnabled && !isPublicPath && !hasPinCookie) {
       return {
@@ -106,10 +106,10 @@ locals {
       };
     }
 
-    // Legal pages are uploaded to S3 as impressum.html / datenschutz.html.
+    // Legal pages are uploaded to S3 as HTML files.
     // Rewrite the public, extensionless URLs so the default S3 behavior
     // resolves the correct object instead of 403-ing on a missing key.
-    if (uri === '/impressum' || uri === '/datenschutz') {
+    if (uri === '/impressum' || uri === '/datenschutz' || uri === '/nutzungsbedingungen') {
       request.uri = uri + '.html';
     }
 

@@ -1486,6 +1486,7 @@
                 <li><a id="about-third-party-link" href="third-party-notices.txt">Lizenzen der App-Bibliotheken</a></li>
             </ul>
             <p><a id="about-privacy-link" href="datenschutz.html">Vollst&auml;ndige Datenschutzerkl&auml;rung</a></p>
+            <p><a id="about-terms-link" href="https://www.derschweigert.de/nutzungsbedingungen">Nutzungsbedingungen</a></p>
             <div class="about-actions">
                 <button id="about-close" class="primary" type="button"><span id="about-close-label">Schlie&szlig;en</span></button>
             </div>
@@ -1745,6 +1746,7 @@
             // Update privacy policy and word-list license links based on current language
             byId('about-privacy-link').href = currentLanguage === 'en' ? 'datenschutz-en.html' : 'datenschutz.html';
             byId('about-wordlist-link').href = currentLanguage === 'en' ? 'words-en-LICENSE.txt' : 'words-de-LICENSE.txt';
+            byId('about-terms-link').textContent = tr('dialog.about.terms_link');
             byId('about-close-label').textContent = tr('dialog.about.close');
             byId('about-x').setAttribute('aria-label', tr('dialog.about.close'));
 

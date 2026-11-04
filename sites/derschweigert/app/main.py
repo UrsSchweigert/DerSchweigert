@@ -43,7 +43,7 @@ async def pin_protection(request: Request, call_next):
     # unmittelbar erreichbar" (easily recognizable, directly accessible)
     # without any access barrier, even while the rest of the site is behind
     # a pre-launch PIN wall.
-    public_paths = {"/health", "/unlock", "/api/admin/verify-pin", "/contact", "/api/contact", "/impressum", "/datenschutz"}
+    public_paths = {"/health", "/unlock", "/api/admin/verify-pin", "/contact", "/api/contact", "/impressum", "/datenschutz", "/nutzungsbedingungen"}
 
     # Apply PIN protection only if explicitly enabled
     if settings.pin_protection_enabled and settings.app_env == "production" and not path.startswith("/static") and path not in public_paths:
@@ -178,6 +178,11 @@ def impressum_page() -> HTMLResponse:
 @app.get("/datenschutz", response_class=HTMLResponse)
 def privacy_page() -> HTMLResponse:
     return HTMLResponse((TEMPLATES_DIR / "datenschutz.html").read_text(encoding="utf-8"))
+
+
+@app.get("/nutzungsbedingungen", response_class=HTMLResponse)
+def terms_page() -> HTMLResponse:
+    return HTMLResponse((TEMPLATES_DIR / "nutzungsbedingungen.html").read_text(encoding="utf-8"))
 
 
 @app.get("/admin", response_class=HTMLResponse)

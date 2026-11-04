@@ -89,6 +89,24 @@ test('an app-load dependency fails even on an allowlisted host', async t => {
   );
 });
 
+test('an unapproved external navigation link fails the bundle', async t => {
+  const dir = await makeBundle(t);
+  const indexPath = join(dir, 'index.html');
+  const html = await readFile(indexPath, 'utf8');
+  await writeFile(
+    indexPath,
+    html.replace(
+      '</head>',
+      '  <a href="https://example.com/terms">Terms</a>\n</head>',
+    ),
+  );
+  const problems = await verifyBundle(dir, realConfig);
+  assert.ok(
+    problems.some(problem => problem.includes('example.com/terms')),
+    problems.join('\n'),
+  );
+});
+
 test('an absolute module import in bundled code fails', async t => {
   const dir = await makeBundle(t);
   const modulePath = join(dir, 'i18n.mjs');
@@ -104,7 +122,9 @@ test('an absolute module import in bundled code fails', async t => {
 test('navigational legal and documentation links are allowed', async t => {
   const dir = await makeBundle(t);
   const privacy = await readFile(join(dir, 'datenschutz.html'), 'utf8');
+  const index = await readFile(join(dir, 'index.html'), 'utf8');
   assert.match(privacy, /https:\/\/www\.lda\.bayern\.de\//);
+  assert.match(index, /https:\/\/www\.derschweigert\.de\/nutzungsbedingungen/);
   const problems = await verifyBundle(dir, realConfig);
   assert.deepEqual(problems, [], problems.join('\n'));
 });

@@ -76,6 +76,19 @@ def test_datenschutz_is_accessible_without_pin_in_production():
     assert "Datenschutz" in response.text
 
 
+def test_nutzungsbedingungen_is_accessible_without_pin_in_production():
+    from app.config import get_settings
+    settings = get_settings()
+    settings.app_env = "production"
+    settings.pin_protection_enabled = True
+    response = client.get("/nutzungsbedingungen", follow_redirects=False)
+    assert response.status_code == 200
+    assert "Gemeinsame Nutzungsbedingungen" in response.text
+    assert '<section lang="en"' in response.text
+    assert "Shared Terms of Use" in response.text
+    assert "ffm.derschweigert.de/terms.html" in response.text
+
+
 def test_homepage_projects_focus_and_structure():
     """Verify homepage has project cards, Android app, contact mailto, and valid HTML structure."""
     from app.config import get_settings

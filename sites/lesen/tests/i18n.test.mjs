@@ -151,6 +151,7 @@ test("i18n: German dictionary covers dialog strings", () => {
     "dialog.confirm_end.cancel",
     "dialog.confirm_end.confirm",
     "dialog.about.title",
+    "dialog.about.terms_link",
   ];
   
   for (const key of dialogKeys) {
