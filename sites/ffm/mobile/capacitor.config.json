@@ -1,0 +1,16 @@
+{
+  "appId": "de.derschweigert.arithmoslayer",
+  "appName": "Arithmo Slayer",
+  "webDir": "www",
+  "backgroundColor": "#0a0a1a",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
