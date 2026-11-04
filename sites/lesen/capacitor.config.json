@@ -2,6 +2,7 @@
   "appId": "de.derschweigert.buchstabenzeit",
   "appName": "Buchstabenzeit",
   "webDir": "www",
+  "backgroundColor": "#f5fbff",
   "android": {
     "allowMixedContent": false,
     "webContentsDebuggingEnabled": false
