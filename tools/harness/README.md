@@ -896,7 +896,9 @@ It does not merge it: `main` moves when you decide, and the deploy that follows 
 may be deleted after promotion; `main` itself stays protected against deletion.
 
 Set `policy.run_branch` to `""` to work directly on the base branch as before, and `policy.base_branch` when the
-repository's base is not `main`. Both are part of the approval digest.
+repository's base is not `main`. Both are part of the approval digest; `harness plan --base-branch <branch>` sets
+`policy.base_branch`, which is how a plan lands its work on a branch that is not `main` (the run branch is cut from
+that branch and the run's pull requests target it).
 
 ## Where things live
 

@@ -48,7 +48,8 @@ def model_sources_arg(given: Optional[List[str]], repo_root: Optional[str] = Non
 def plan_command(store: Optional[Store], requirements: str, phases_path: Optional[str] = None,
                  plan_id: Optional[str] = None, fixture: bool = False, dry_run: bool = False,
                  model_sources: Optional[List[str]] = None, intent: Optional[str] = None,
-                 assets_dir: Optional[str] = None, overseer: Optional[bool] = None) -> Dict[str, Any]:
+                 assets_dir: Optional[str] = None, overseer: Optional[bool] = None,
+                 base_branch: Optional[str] = None) -> Dict[str, Any]:
     """Build a plan from requirements. Without phases the plan stays Draft and lists what is missing."""
     reqs = plans.parse_requirements(requirements)
     phases = None
@@ -75,6 +76,10 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
         policy = plans.with_overseer(policy or plans.DEFAULT_POLICY, overseer)
     if draft_routing is not None:
         policy = dict(policy or plans.DEFAULT_POLICY, model_routing=draft_routing)
+    if base_branch and base_branch.strip():
+        # The run branch is cut from this branch and its pull requests target it, so a plan may land its work on a
+        # branch that is not main. The choice is part of the approval digest.
+        policy = dict(policy or plans.DEFAULT_POLICY, base_branch=base_branch.strip().strip("/"))
     plan = plans.build_plan(plan_id, version, reqs, phases, policy=policy, fixture=fixture,
                             model_sources=model_sources or draft_sources, catalog=catalog, intent=intent)
 
@@ -618,6 +623,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--model-source", action="append", choices=list(models.SOURCES),
                    help="where the picker menu takes models from (repeatable; default: the phases file's choice, else copilot)")
     p.add_argument("--assets-dir", help="repository-relative asset output directory for this plan (for example apps/arithmoslayer/assets/)")
+    p.add_argument("--base-branch",
+                   help="branch the run branch is cut from and the branch run pull requests target (default: main)")
     p.add_argument("--overseer", dest="overseer", action="store_true", default=None,
                    help="let the top-tier overseer answer process blocks (retry, extend a budget, refine) before the owner is asked")
     p.add_argument("--no-overseer", dest="overseer", action="store_false", help="keep every block with the owner (default)")
@@ -817,7 +824,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd == "plan":
             store = None if args.dry_run and not os.path.exists(os.path.join(args.home or default_home(), "harness.sqlite")) else Store(args.home)
             result = plan_command(store, args.requirements, args.phases, args.plan_id, args.fixture, args.dry_run,
-                                  model_sources=args.model_source, assets_dir=args.assets_dir, overseer=args.overseer)
+                                  model_sources=args.model_source, assets_dir=args.assets_dir, overseer=args.overseer,
+                                  base_branch=args.base_branch)
             if store is not None and not args.dry_run and result.get("state") == "Proposed" and args.phases:
                 issue_path = args.issues
                 if issue_path is None:
