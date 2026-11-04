@@ -64,6 +64,30 @@ regenerate or hand-write it:
 
 Native files and `package*.json` are escalation paths; a worker needing a change there stops and escalates.
 
+## Model cost decisions (measured on the first run)
+
+The first run of this plan produced 15 issues and 40 agent runs, and it showed where the spend goes: about 14M input
+tokens (94% cached) and about 250k output, with two thirds of both on the strong tier. Twelve refiner passes ran,
+**ten of them re-plans after anchor churn** (`_stale_anchors`) and only two were a task's first plan. A next plan for
+this app should be built with that in mind:
+
+- **Do not set `policy.model_routing`.** It makes `_needs_plan` true for every issue, so each one buys a plan pass
+  even when its declared tier is already the cheapest. It also does not lower the refiner: `SIGNED_REFINER_FLOOR`
+  refuses a refiner below the standard band, and a DeepSeek-only menu has no standard model distinct from flash.
+- **Exempt documentation from planning.** Import an issue that only writes Markdown with `"tier_fit": "low"`, which
+  is the same statement a refiner makes, so no plan pass is owed (`p2-backup-doc`, `p5-releasing`). This needs the
+  harness change that accepts `tier_fit` on an imported issue; without it the import is refused with an unknown key.
+- **Keep the reviewer independent.** The reviewer must not be the implementer's model; that check is the cheapest
+  quality control in the run and is the reason both DeepSeek models are in the menu.
+- **Volume is the lever, not the price list.** Two issues that edit the same shared file both pay: the later one
+  re-plans after the merge. Prefer one issue per concern per file, and assert both native shells in one issue, the
+  purchase and its restore in one issue, documentation together with the work it documents.
+- **Prefer stable anchors.** An issue that only adds files anchors on the files it adds, which nobody else edits, so
+  it never re-plans. Anchoring on `sites/ffm/static/game/main.js`, `index.html` or `styles.css` ties it to every other
+  issue that touches the app shell.
+- **Batching has a floor.** The diff cap is 800 added lines and `split_pressure` fires above it; merging beyond that
+  costs a split into refiner-planned parts, which is more expensive than the run it saved.
+
 ## Execution and evidence boundaries
 
 - Inspect the current repository first. Reuse the proven Buchstabenzeit packaging pattern in `sites/lesen/`
