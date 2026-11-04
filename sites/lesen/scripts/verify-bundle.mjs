@@ -34,6 +34,7 @@ export const REQUIRED_FILES = Object.freeze([
   'words-en.json',
   'words-de-LICENSE.txt',
   'words-en-LICENSE.txt',
+  'third-party-notices.txt',
   'fonts/OFL.txt',
   'fonts/andika-latin-regular.woff2',
   'fonts/andika-latin-bold.woff2',
@@ -55,6 +56,7 @@ export const ALLOWED_URL_PREFIXES = Object.freeze([
 // Deterministic per-file allowlist for attribution, legal and documentation
 // links. These are navigational text only; the app never fetches them.
 export const ALLOWED_FILE_URL_PREFIXES = Object.freeze({
+  'third-party-notices.txt': Object.freeze(['https://ionic.io', 'http://www.apache.org/']),
   'datenschutz.html': Object.freeze([
     'https://derschweigert.de/',
     'https://www.lda.bayern.de/',

@@ -83,6 +83,11 @@ test('a11y: controls meet the 44px touch-target minimum', async () => {
   const language = cssRule(html, '.language-control button');
   assert.match(language, /min-width:\s*44px/);
   assert.match(language, /min-height:\s*44px/);
+
+  const reminder = cssRule(html, '.reminder-toggle');
+  assert.match(reminder, /display:\s*flex/);
+  assert.match(reminder, /min-height:\s*44px/);
+  assert.match(html, /<label class="reminder-toggle"><input id="reminders-enabled"/);
 });
 
 test('a11y: the confirm dialog stays scrollable when text is enlarged', async () => {

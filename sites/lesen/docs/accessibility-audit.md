@@ -66,11 +66,14 @@ No change required.
 | Start / grade / dialog buttons | `min-height: 44px`; `.action` 58px | pass |
 | About close button | 44x44 after fix (was 40x40) | fixed |
 | Footer link buttons | `min-height: 44px` after fix (was ~15px) | fixed |
-| Reminder checkbox | 17px box inside a full-row label | pass via label |
+| Reminder checkbox | 17px box inside `.reminder-toggle`, full-width flex label with `min-height: 44px` | fixed after rendered verification |
 
-The radio and checkbox inputs themselves are 17px, but each is wrapped in a
-label that is the full mode or sub-pattern row, so the effective pointer target
-is the row, not the glyph.
+The mode radio and sub-pattern checkbox inputs are wrapped in row labels.
+Independent rendered verification after the automated exit found the reminder
+checkbox label was actually inline and only 21px high, not the full-row target
+claimed in the original audit. Its explicit `.reminder-toggle` class now makes
+the clickable label full-width and at least 44px high. This is measured in the
+browser, not inferred from unrelated mode-row styling.
 
 ### Text scaling
 
@@ -127,7 +130,8 @@ hover state moved to `#356b12` (6.44:1). No other token changed.
   `speakCard` reuses `#feedback` for unsupported, missing-voice and playback
   errors.
 - Other status regions (`#report-status`, `#reminders-status`,
-  `#reminders-gate-error`) are only written when their own control is used, and
+  `#reminders-gate-error`) carry their own actions' status (reminders also
+  restore on startup and re-render on language changes), and
   `#setup-error` is a single `role="alert"` that is cleared before reuse.
 - Fixed: the completion summary was not announced when focus moved to the
   heading. `#complete-title` now references `#complete-summary` with
