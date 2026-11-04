@@ -161,13 +161,13 @@ bundle, preserves complete upstream notice texts and covers every runtime
 dependency at its locked version. All notices are local files, so the links work offline; the bundle
 check rejects any remote app-load dependency.
 
-## Known discrepancy (owner decision)
+## Attribution wording (corrected 2026-11-04)
 
 The English about-dialog string (`dialog.about.wordlist` in `static/i18n.mjs`)
-says "CC BY-SA 4.0", while `words-en.json` is licensed CC BY 4.0. The wording is
-left untouched because this issue must not alter existing attribution wording;
-correcting it is a separate owner-approved change to both the dialog text and
-this record.
+previously said "CC BY-SA 4.0" while `words-en.json` is licensed CC BY 4.0.
+As part of store-readiness the English label was corrected to "CC BY 4.0",
+matching the actual licence. The German label remains "CC BY-SA 4.0" because
+the German word list is ShareAlike.
 
 ## Review outcome
 

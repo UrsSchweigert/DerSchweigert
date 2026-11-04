@@ -82,7 +82,7 @@ test('bundled licence files keep their upstream attribution', async () => {
   }
 });
 
-test('about dialog attribution wording is unchanged in both languages', async () => {
+test('about dialog attribution wording is correct in both languages', async () => {
   const [html, i18n] = await Promise.all([
     readSiteFile('static/index.html'),
     readSiteFile('static/i18n.mjs'),
@@ -93,7 +93,7 @@ test('about dialog attribution wording is unchanged in both languages', async ()
   assert.ok(dialog.includes('Schriftart: Andika, SIL Open Font License 1.1'));
   assert.ok(i18n.includes("'dialog.about.wordlist': 'Wortliste: FrequencyWords & Wiktionary, CC BY-SA 4.0 – '"));
   assert.ok(i18n.includes("'dialog.about.font': 'Schriftart: Andika, SIL Open Font License 1.1 – '"));
-  assert.ok(i18n.includes("'dialog.about.wordlist': 'Word list: FrequencyWords & Wiktionary, CC BY-SA 4.0 – '"));
+  assert.ok(i18n.includes("'dialog.about.wordlist': 'Word list: FrequencyWords & Wiktionary, CC BY 4.0 – '"));
   assert.ok(i18n.includes("'dialog.about.font': 'Font: Andika, SIL Open Font License 1.1 – '"));
 });
 

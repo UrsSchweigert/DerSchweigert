@@ -256,7 +256,7 @@ const EN = {
   'dialog.about.privacy_text': 'This app collects no personal data, has no user accounts, no ads, and no analytics. It works completely offline and requires no internet connection.',
   'dialog.about.tts_privacy': 'Read aloud uses your device\'s installed text-to-speech feature. This is a separate service from your device; what data it processes is determined by your device settings, not by this app. Buchstabenzeit only requests locally installed voices and does not send any data to the internet.',
   'dialog.about.licenses': 'Content & Licenses',
-  'dialog.about.wordlist': 'Word list: FrequencyWords & Wiktionary, CC BY-SA 4.0 – ',
+  'dialog.about.wordlist': 'Word list: FrequencyWords & Wiktionary, CC BY 4.0 – ',
   'dialog.about.font': 'Font: Andika, SIL Open Font License 1.1 – ',
   
   // Pluralization support
