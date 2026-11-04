@@ -25,6 +25,16 @@ import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getL
 // local-only adapter. Resolved once, before any game code runs.
 const platform = await resolvePlatform();
 
+// The app caches the store entitlement on device. Refresh it on launch and on
+// every return to the foreground, so a refund made while the app was closed
+// revokes access and a purchase finished outside the app is picked up.
+if (platform.isApp) {
+  platform.refreshEntitlement().catch(() => false);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') platform.refreshEntitlement().catch(() => false);
+  });
+}
+
 // Resolves the active locale, translates every data-i18n-* element in the
 // page, and sets <html lang> before anything else runs.
 initI18n();
@@ -1389,7 +1399,8 @@ function clearPendingRecord() {
 }
 
 function resumePendingLevel() {
-  if (!platform.isLoggedIn) return;
+  // The app has no account but still resumes the level the paywall interrupted.
+  if (!platform.isLoggedIn && !platform.isApp) return;
   const pending = getPendingRecord();
   if (!pending) return;
   state.score = pending.score;
@@ -1488,6 +1499,17 @@ async function startLevel(levelIndex, includeBaseline = false) {
   }
 }
 
+// The app sells the unlock through StoreKit/Play Billing, so a locked level
+// opens the store paywall instead of the web registration/payment flow.
+async function showEntitlementPaywall() {
+  try {
+    const { createPaywall } = await import('./paywall.js');
+    await createPaywall({ platform, locale: getLocale(), onGranted: resumePendingLevel }).open();
+  } catch {
+    openBillingPanel();
+  }
+}
+
 function handleLevelConfigError(err, levelIndex) {
   const level = levelIndex + 1;
   let message = t('auth.failedToLoadLevel', { level });
@@ -1496,6 +1518,16 @@ function handleLevelConfigError(err, levelIndex) {
 
   if ([401, 402, 403].includes(err.statusCode) && level > 2) {
     savePendingRecord(levelIndex, state.score, state.difficulty, state.timerMax, state.maxHearts);
+  }
+  if (err.code === 'entitlement_required' && platform.isApp) {
+    // The pending record saved above lets the paywall resume this level after
+    // a successful purchase or restore.
+    authStatusMessage.textContent = t('auth.subscriptionRequired');
+    authStatusModal.style.display = 'none';
+    diffSelect.style.display = 'flex';
+    updateHUDLogoutVisibility();
+    showEntitlementPaywall();
+    return;
   }
   if (err.statusCode === 401) {
     message = t('auth.loginRequiredForPremium');

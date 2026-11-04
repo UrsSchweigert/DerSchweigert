@@ -3,14 +3,34 @@
 // The Capacitor bundle copies this file over www/game/platform-adapter.js, so
 // the game resolves it through platform.js like any other adapter. It is
 // deliberately local: no api.js or access-flow.js import, no fetch or other
-// network call, and no Stripe, account or leaderboard code path. Progress is
-// kept by ./progress-store.js, which talks to Capacitor Preferences.
+// network call, and no Stripe, account or leaderboard code path. Progress and
+// the store entitlement live on the device (./progress-store.js,
+// ./entitlement.js); purchases go through the native store (./purchase.js).
 //
-// Later phases replace the stubs: store entitlement and purchases (phase 3),
-// lifecycle and app UI (phase 4).
+// Later phases replace the stubs: lifecycle and app UI (phase 4).
 import { createPreferencesBackend, createProgressStore } from './progress-store.js';
+import { createPurchasesPlugin } from './purchase.js';
+import { createEntitlementStore } from './entitlement.js';
 
+// Progress and the entitlement cache share the Capacitor Preferences store.
 const progress = createProgressStore(createPreferencesBackend());
+const purchases = createPurchasesPlugin();
+const entitlement = createEntitlementStore({
+  backend: createPreferencesBackend(),
+  getPurchases: () => purchases.getPurchases(),
+});
+
+// level-data.js is generated into www/ at build time, so premium configs are
+// imported lazily and only once the cached entitlement allows them.
+let levelConfigsPromise = null;
+const loadLevelConfigs = () => {
+  if (!levelConfigsPromise) {
+    levelConfigsPromise = import('./level-data.js')
+      .then((module) => module.LevelConfig ?? null)
+      .catch(() => null);
+  }
+  return levelConfigsPromise;
+};
 
 export class PlatformUnavailableError extends Error {
   constructor(feature) {
@@ -33,7 +53,7 @@ const FREE_LEVELS = Object.freeze([
     fiendType: 'bonehead', fiendHP: 1, waveSize: 30, inputMode: 'multiple-choice' },
 ]);
 
-// Entitlement is owned by the store in phase 3; the stub never grants it.
+// Web-shaped billing fields the app merges the cached entitlement status into.
 const NOT_ENTITLED = Object.freeze({
   access_control_enabled: true,
   premium_access: false,
@@ -80,13 +100,25 @@ const platform = {
   isLoggedIn: false,
   username: null,
 
-  // includeBaseline stays unsupported: the app has no level-jump UI, and
-  // main.js treats a missing baseline_score as 0.
+  // Levels 1-2 are always free. Every other level needs the cached store
+  // entitlement and, once entitled, its generated config. includeBaseline
+  // stays unsupported: the app has no level-jump UI, and main.js treats a
+  // missing baseline_score as 0.
   async getAuthorizedLevelConfig(levelIndex) {
-    const cfg = FREE_LEVELS[levelIndex];
-    if (!cfg) {
+    if (Number.isInteger(levelIndex) && levelIndex >= 0 && levelIndex < FREE_LEVELS.length) {
+      return FREE_LEVELS[levelIndex];
+    }
+    if (!(await entitlement.getStatus()).premium_access) {
       const error = new PlatformUnavailableError(`Level ${levelIndex + 1} requires an entitlement`);
       error.code = 'entitlement_required';
+      error.statusCode = 402;
+      throw error;
+    }
+    const configs = await loadLevelConfigs();
+    const cfg = Array.isArray(configs) ? configs[levelIndex] : null;
+    if (!cfg) {
+      const error = new PlatformUnavailableError(`Level ${levelIndex + 1} config is unavailable`);
+      error.statusCode = 404;
       throw error;
     }
     return cfg;
@@ -154,8 +186,15 @@ const platform = {
     return [];
   },
 
+  // Billing is the cached store entitlement, not a subscription.
   async getBillingStatus() {
-    return { ...NOT_ENTITLED };
+    return { ...NOT_ENTITLED, ...(await entitlement.getStatus()) };
+  },
+
+  // Refresh the entitlement from the store on launch and on resume; keeps the
+  // cache when the store is unreachable (offline).
+  async refreshEntitlement() {
+    return entitlement.refresh();
   },
 };
 

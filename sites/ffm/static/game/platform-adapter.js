@@ -43,6 +43,12 @@ const platform = {
     return { completed: [] };
   },
 
+  // The web build sells access through Stripe checkout, so there is no local
+  // entitlement cache to refresh; the app adapter overrides this.
+  async refreshEntitlement() {
+    return { premium_access: false, source: 'none', offline: false };
+  },
+
   get isLoggedIn() {
     return api.isLoggedIn;
   },

@@ -62,10 +62,18 @@ export const ACCESS_FLOW_METHODS = Object.freeze([
   'validatePendingRecord',
 ]);
 
+// The app sells the unlock through StoreKit/Play Billing and caches the
+// entitlement on device, so it refreshes the cache instead of opening a web
+// checkout. The web adapter keeps this a no-op.
+export const ENTITLEMENT_METHODS = Object.freeze([
+  'refreshEntitlement',
+]);
+
 export const PLATFORM_METHODS = Object.freeze([
   ...ACCESS_FLOW_METHODS,
   ...API_METHODS,
   ...PERSONAL_METHODS,
+  ...ENTITLEMENT_METHODS,
 ]);
 
 // Session state exposed as properties rather than functions.
