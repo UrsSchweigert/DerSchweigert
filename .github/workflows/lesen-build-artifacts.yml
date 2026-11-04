@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches: ['main']
-    paths: ['sites/lesen/**']
+    paths: ['sites/lesen/**', '.github/workflows/lesen-build-artifacts.yml']
   pull_request:
-    paths: ['sites/lesen/**']
+    paths: ['sites/lesen/**', '.github/workflows/lesen-build-artifacts.yml']
 
 permissions:
   contents: read
