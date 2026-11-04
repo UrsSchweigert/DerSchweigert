@@ -1,28 +1,57 @@
-# Releasing Arithmo Slayer (Android shell)
+# Releasing Arithmo Slayer
 
-This document covers the committed Android shell under `sites/ffm/mobile/android/`
-and the steps that turn a known-good revision into a valid, versioned, signed
-Android App Bundle (`.aab`) for Google Play. The website (`ffm.derschweigert.de`)
-deploys separately from `sites/ffm/static/` and is unaffected by this process.
+This is the release handover for the Capacitor shell in `sites/ffm/mobile`. The
+Android project lives in `android/`, the iOS project in `ios/`, and both are
+generated and maintained by the owner with the real Capacitor tooling. The
+website (`ffm.derschweigert.de`) deploys separately from `sites/ffm/static/` and
+is unaffected by this process. Nothing in this repository produces a signed
+build, installs through TestFlight or the Play internal track, or submits to a
+store; those stay owner actions and are listed as open below.
 
-> **External release gate.** Producing a signed `.aab`, completing the Play
-> Console internal-track install/upgrade check and publishing are manual owner
-> actions. The offline tests, `copy-assets`, and the M2 native workflow neither
-> perform nor claim them. Nothing in this document is evidence until the
-> revision is filled in.
+> **External release gate.** Producing a signed `.aab` / `.ipa`, completing the
+> Play Console internal-track install/upgrade check, the TestFlight install and
+> publishing are manual owner actions. The offline tests, `copy-assets`, and the
+> M2 native workflow neither perform nor claim them. Nothing in this document is
+> evidence until the revision is filled in.
 
 All commands run from `sites/ffm/mobile/`. Nothing secret is ever committed.
+
+## What the committed shells prove, and what they do not
+
+`node --test tests/*.test.mjs` runs offline. `tests/android-shell.test.mjs` and
+`tests/ios-shell.test.mjs` assert the committed native shells only:
+
+- `tests/android-shell.test.mjs` — application id and namespace, the app label,
+  `android:allowBackup="true"` with no backup rule files, exactly one exported
+  launcher activity, no app-declared permission, the adaptive icon and splash
+  wiring, and the version defaults.
+- `tests/ios-shell.test.mjs` — `CFBundleDisplayName` `Arithmo Slayer`,
+  `CFBundleLocalizations` exactly `de` and `en`,
+  `ITSAppUsesNonExemptEncryption` false, the version keys bound to
+  `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, the
+  `de.derschweigert.arithmoslayer` bundle id in Debug and Release, the app icon
+  and launch screen wiring, and the privacy manifest (no tracking, no tracking
+  domains, no collected data, only `CA92.1` user-defaults access) compiled into
+  the app target's Resources phase.
+
+That is static evidence. Native compilation is the M2 owner job in
+`.github/workflows/ffm-native.yml` (`./gradlew assembleDebug` and `xcodebuild
+... CODE_SIGNING_ALLOWED=NO`); it is never claimed from a static check. A green
+static suite is a prerequisite, not device, signing, or store evidence.
 
 ## Prerequisites (local)
 
 - Node.js 22+ and npm (Capacitor 8).
-- JDK 21 (e.g. `brew install openjdk@21`).
-- Android SDK command-line tools with `platform-tools`, `platforms;android-36`
-  and `build-tools;36.0.0`, plus `android/local.properties` pointing at the SDK
+- **Android**: JDK 21 (e.g. `brew install openjdk@21`) and the Android SDK
+  command-line tools with `platform-tools`, `platforms;android-36` and
+  `build-tools;36.0.0`, plus `android/local.properties` pointing at the SDK
   (`sdk.dir=/path/to/Android/sdk`). `local.properties` is gitignored.
-- The native project is maintainer-owned and generated with the real Capacitor
-  tooling. Run `npx cap sync android` after changing dependencies; never
-  regenerate or hand-write `android/`.
+- **iOS**: macOS with Xcode and the iOS simulator runtime. The committed `ios/`
+  project is an SPM package; `./node_modules/.bin/cap sync ios` regenerates it
+  from `capacitor.config.json` and the installed plugins.
+- The native projects are maintainer-owned and generated with the real Capacitor
+  tooling. Run `npx cap sync android` / `npx cap sync ios` after changing
+  dependencies; never regenerate or hand-write `android/` or `ios/`.
 
 ## Asset sync
 
@@ -35,6 +64,10 @@ npm run copy-assets          # rebuild www/ from ../static plus the app overlay
 node scripts/bundle-check.mjs # offline bundle, 60 levels, no remote first-party URL
 npm run sync                 # copy-assets + cap sync android
 ```
+
+On a Mac with Xcode, `./node_modules/.bin/cap sync ios` regenerates the SPM
+project from `capacitor.config.json` and the installed plugins. The committed
+`ios/` project is the owner's output; do not hand-edit it from a worker branch.
 
 `copy-assets` also generates `www/game/level-data.js` from the private
 curriculum and strips the web account/checkout markup. The bundle check fails on
@@ -51,14 +84,20 @@ npm test                     # node --test tests/*.test.mjs
 application id and namespace, app label, `android:allowBackup="true"` with no
 backup rule files, exactly one exported launcher activity, the absence of any
 app-declared permission, the adaptive icon and splash wiring, and the version
-defaults. It fails if the identity, backup or permission posture regresses.
+defaults. `tests/ios-shell.test.mjs` asserts the committed iOS shell: bundle
+identity and version keys, the `de`/`en` localizations, the encryption
+exemption, the icon and launch screen wiring, and the privacy manifest in the
+app target's Resources phase. Both fail if the identity, backup/permission
+posture, localizations or the privacy manifest regress.
 
 These are static checks. They cannot compile the app, cannot see the merged
 manifest and cannot prove device behaviour; the M2 workflow
-`.github/workflows/ffm-native.yml` builds the Android debug APK on the run
-branch and is the only native compilation evidence.
+`.github/workflows/ffm-native.yml` builds the Android debug APK and the iOS
+simulator app on the run branch and is the only native compilation evidence.
 
 ## Versioning
+
+### Android
 
 Two values identify every upload:
 
@@ -104,7 +143,17 @@ Record each upload below. A row without a git revision is not evidence.
 | --- | --- | ---: | ---: | ---: | --- | --- |
 | | | | | | | |
 
-## Permissions and the merged manifest
+### iOS
+
+`ios/App/App.xcodeproj/project.pbxproj` holds one scheme for both
+configurations: `MARKETING_VERSION` (`CFBundleShortVersionString`, currently
+`1.0`) and `CURRENT_PROJECT_VERSION` (`CFBundleVersion`, currently `1`). Bump
+`MARKETING_VERSION` for a user-visible release and always increase
+`CURRENT_PROJECT_VERSION` for every upload, including re-uploads of the same
+marketing version. The plist reads both values, so no version literal is
+duplicated there.
+
+## Permissions and the merged manifest (Android)
 
 The app declares **no permission of its own**: the game is bundled and plays
 offline, and there is no account, analytics, ads or FFM API access. Google Play
@@ -140,26 +189,33 @@ A local `android/keystore.properties` (git-ignored) may hold the same values.
 If no keystore is configured, the release build must fail loudly instead of
 producing a silently unsigned bundle.
 
-## Product and store setup checklist
+## Product and store setup checklist (owner)
 
 - Product id `arithmoslayer_full_unlock`, one **non-consumable** (one-time
   permanent unlock of levels 3-60). No subscription, no consumable, no
   server-side verification: the entitlement is checked on device and cached.
 - Price set by the owner; the app shows the store's localised price and never a
   hard-coded one.
-- Paid Apps agreement signed, merchant account active.
-- Licence testers / sandbox accounts added for the internal track.
+- **Play Console**: Paid Apps agreement signed, merchant account active,
+  licence testers / sandbox accounts added for the internal track.
+- **App Store Connect**: create `arithmoslayer_full_unlock` with localised
+  metadata and a price tier, and enable the **In-App Purchase capability** on
+  the App target before the first sandbox test.
 - Store listing: Education category, children in the audience, DE and EN text,
   screenshots, the bundled privacy notice URL or text.
 - Data safety: "Data not collected", no tracking, no ads, no analytics.
+- Privacy answers must match `PrivacyInfo.xcprivacy`: no tracking, no data
+  collection, `CA92.1` user-defaults access only.
+- `ITSAppUsesNonExemptEncryption` is false because the app ships no custom
+  cryptography; confirm this at submission.
 - Content rating questionnaire, target audience declaration, and the parental
   gate noted where the questionnaire asks about purchases.
 - Physical-device checks and review submission are owner actions.
 
-## Sandbox procedure
+## Sandbox procedure (owner)
 
-Run on the internal testing track with a licence-tester account, on a physical
-device with a working store:
+Run on the internal track (Play) or with a sandbox Apple ID (App Store
+Connect), on a physical device with a working store:
 
 1. Fresh install, confirm levels 1-2 play offline and level 3+ shows the paywall.
 2. Purchase `arithmoslayer_full_unlock` through the parental gate; confirm the
@@ -170,10 +226,13 @@ device with a working store:
 4. Pending / Ask-to-Buy: confirm the app reports pending and grants the unlock
    only after the approval arrives.
 5. Cancelled purchase: confirm no unlock, no error state stuck on screen.
-6. Refund/revocation: refund in the Play Console, relaunch online, confirm the
+6. Refund/revocation: refund in the store console, relaunch online, confirm the
    entitlement is revoked and the paywall returns.
+7. Repeat a purchase and confirm the store reports "already owned" rather than
+   charging twice; cancel and deny the parental gate and confirm nothing
+   unlocks.
 
-## Internal track install
+## Internal track install (Android)
 
 1. Choose a known-good revision and check it out.
 2. `npm ci && npm test`.
@@ -185,18 +244,26 @@ device with a working store:
 7. Test an **upgrade** over the previous build, not only a clean install:
    progress and the unlock must survive.
 
+## TestFlight install (iOS owner)
+
+Producing the archive, signing it with the owner's team and provisioning
+profile, uploading it to App Store Connect and installing it through TestFlight
+are owner actions. No signing material or Apple credentials are committed, and
+no workflow in this repository performs the upload. Record the Xcode version and
+the uploaded build number in the release record.
+
 ## App Review notes
 
-- The app is fully offline. The only network use is Google Play Billing's own
-  purchase and restore flow.
+- The app is fully offline. The only network use is the store's own purchase
+  and restore flow (Google Play Billing or StoreKit).
 - There are no accounts, no login, no public leaderboard, no ads, no analytics
   and no data collection.
 - One non-consumable in-app purchase (`arithmoslayer_full_unlock`) unlocks
   levels 3-60. "Restore purchase" is visible on the paywall and title screen.
 - A parental gate (a written-out multiplication) guards the purchase, the
   restore and every external link, because the audience includes children.
-- Progress is stored on device and included in Android Auto Backup; there is no
-  cloud sync and no reset button.
+- Progress is stored on device and included in OS backup (Android Auto Backup /
+  iCloud); there is no cloud sync and no reset button.
 
 ## Manual gate checklist
 
@@ -204,21 +271,44 @@ Each row stays open until the revision and the observed result are recorded.
 Native compilation and store behaviour cannot be claimed from a passing
 JavaScript test.
 
-| Gate | Revision | Result | Evidence |
-| --- | --- | --- | --- |
-| M2 native build (debug APK) green on the run branch | | pending | |
-| Merged release manifest shows only BILLING, INTERNET, ACCESS_NETWORK_STATE | | pending | |
-| Signed `.aab` produced and `jarsigner` verified | | pending | |
-| Internal testing install from Play | | pending | |
-| Upgrade install keeps progress and unlock | | pending | |
-| Sandbox purchase and offline launch after purchase | | pending | |
-| Restore purchase on a fresh install | | pending | |
-| Pending / Ask-to-Buy purchase | | pending | |
-| Cancelled purchase | | pending | |
-| Refund / revocation | | pending | |
-| Android Back behaviour (pause → confirm → exit) | | pending | |
-| Interruption (call/background) pauses game and music | | pending | |
-| Safe areas on a notched device | | pending | |
+| Gate | Where | Evidence | Revision | State |
+| --- | --- | --- | --- | --- |
+| M2 native build (debug APK + iOS simulator) green on the run branch | CI | | | open |
+| Merged release manifest shows only BILLING, INTERNET, ACCESS_NETWORK_STATE | release build | | | open |
+| Signed `.aab` produced and `jarsigner` verified | local | | | open |
+| Internal testing install from Play | Play | | | open |
+| Upgrade install keeps progress and unlock | device | | | open |
+| Sandbox purchase and offline launch after purchase | device | | | open |
+| Restore purchase on a fresh install | device | | | open |
+| Pending / Ask-to-Buy purchase | device | | | open |
+| Cancelled purchase | device | | | open |
+| Refund / revocation | store console | | | open |
+| Android Back behaviour (pause → confirm → exit) | Android | | | open |
+| Interruption (call/background) pauses game and music | Android | | | open |
+| iOS silent switch silences BGM and effects, and unmuting restores them without a restart | iPhone | | | open |
+| Audio interruption (call, other app) pauses and resumes gameplay and BGM exactly once | iPhone, Android | | | open |
+| Controls clear notches, rounded corners and gesture bars in both orientations | notched phone | | | open |
+| App icon and launch screen match the artwork on the home screen and at launch | iPhone | | | open |
+| German and English system languages both show translated UI and legal pages | iPhone | | | open |
+| In-App Purchase capability is enabled and a sandbox purchase succeeds | App Store Connect + device | | | open |
+
+The iOS silent switch, the interruption and the safe-area gates are the
+`PENDING_MANUAL_GATES` exported by `game/lifecycle.js`;
+`tests/lifecycle.test.mjs` only asserts that list stays documented and never
+proves the behaviour.
+
+## iOS audio session and the silent switch
+
+The web game follows the device's ring/silent switch, exactly as it does in
+Safari: with the switch on silent, background music and effects are muted, and
+flipping it back restores them. The committed `AppDelegate.swift` and
+`SceneDelegate.swift` never set an `AVAudioSession` category, so iOS keeps the
+default `AVAudioSessionCategorySoloAmbient`, which honours the switch. Do not
+add `AVAudioSessionCategoryPlayback` without an owner decision: it makes the
+game audible while the phone is silenced and breaks the web intent. If an
+explicit category is ever needed, `AVAudioSessionCategoryAmbient` is the one
+that keeps the switch authoritative. This remains a device gate — the static
+tests only read the committed files.
 
 ## Open owner actions
 
@@ -234,15 +324,27 @@ accounts) and stay open until the evidence above exists.
 - **M3 release workflows.** Signed `.aab` and signed `.ipa`/TestFlight builds,
   triggered independently of the website deploy, plus the `signingConfigs` and
   the signing secrets named above.
-- **Version override (open owner action).** `android/app/build.gradle` hardcodes
-  `versionCode 1` / `versionName "1.0"`. Adding the `bzVersionCode` /
+- **Version override (Android, open owner action).** `android/app/build.gradle`
+  hardcodes `versionCode 1` / `versionName "1.0"`. Adding the `bzVersionCode` /
   `bzVersionName` resolution shown under Versioning is a native edit the owner
   must make; until then every release edits the native file by hand.
 - **Merged-manifest permission check.** Confirm BILLING, INTERNET and
   ACCESS_NETWORK_STATE arrive from Play Billing and that nothing else is
   declared; only the packaged manifest can show this.
-- **Store setup and publication.** Play Console app, product, price, listings,
-  data safety, content rating, licence testers, physical-device checks, review
-  submission and publication.
+- **In-App Purchase capability (iOS).** It is not declared in the committed
+  `project.pbxproj` (`TargetAttributes` has no `com.apple.InAppPurchase`
+  entry). Enable the capability in Xcode for the App target; `project.pbxproj`
+  is owner-merged, so a worker records this instead of editing it.
+- **iOS signing.** Team, bundle id registration for
+  `de.derschweigert.arithmoslayer`, provisioning and distribution certificates,
+  plus the App Store Connect app record. No signing secrets are defined for
+  this app yet; the owner decides their names and storage.
+- **Audio session.** Keep the default category, or record an owner decision for
+  an explicit one (see above).
+- **Native compilation.** The M2 macOS job is owner-run and only reports the
+  unsigned simulator build.
 - **M4 music tracks.** The owner commits the selected tracks with author and
   licence; until then the rotation runs over the existing track.
+- **Store setup and publication.** Play Console and App Store Connect app
+  records, product, price, listings, data safety, content rating, licence
+  testers, physical-device checks, review submission and publication.
