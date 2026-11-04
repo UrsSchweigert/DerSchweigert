@@ -6,6 +6,7 @@ build output, git-ignored and never edited by hand.
 
 ```sh
 npm run copy-assets                 # build www/ from ../static plus the app overlay
+node scripts/bundle-check.mjs       # verify www/ is complete and offline-only
 npm test                            # node --test tests/*.test.mjs
 ```
 
@@ -14,6 +15,16 @@ npm test                            # node --test tests/*.test.mjs
 `game/access-flow.js`, `cancel.html`, `widerruf.html`). It then overlays the app-only modules from `game/` onto
 `www/game`, so `game/platform-adapter.js` replaces the web adapter of the same name. `www/` is reproducible: the
 same inputs always produce the same bundle and a stale file from an earlier build is removed.
+
+After the copy it generates `www/game/level-data.js` from the private curriculum in `../app/level_data.json`
+(all 60 levels, including `baseline_score`). That module exists only in `www/`; the private curriculum is never
+written into `../static`, which deploys to the website. It also drops the web-only visitor-tracking inline script
+from `index.html`, because the app is offline and must not call the FFM API.
+
+`bundle-check` fails when a runtime file is missing, when the bundled level configuration is not the full 60
+levels, when any file references a remote first-party (`derschweigert.de`) URL, or when bundled code calls the FFM
+API (`fetch` to `/api`, XHR or beacon). Approved navigational legal links in `terms.html`/`terms.en.html` are the
+only first-party URLs allowed; they are text only and never loaded.
 
 Game code reaches the outside world only through `game/platform.js`. The web build resolves
 `static/game/platform-adapter.js`, which delegates to `api.js` and `access-flow.js`; the app build ships the

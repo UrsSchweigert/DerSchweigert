@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   APP_OVERLAY,
   EXCLUDED,
+  GENERATED_FILES,
   REQUIRED_FILES,
   copyAssets,
   isExcluded,
@@ -70,7 +71,8 @@ test('www/ holds the entry points and every kept game asset', async () => {
       await readFile(join(staticDir, 'game/main.js'), 'utf8'),
     );
 
-    const expected = (await listFiles(staticDir)).filter((rel) => !isExcluded(rel));
+    const expected = [...(await listFiles(staticDir)).filter((rel) => !isExcluded(rel)), ...GENERATED_FILES]
+      .sort();
     const copied = await listFiles(out);
     assert.deepEqual(copied, expected, 'www/ must contain exactly the non-excluded static files');
   });
