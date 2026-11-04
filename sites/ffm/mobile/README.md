@@ -94,7 +94,9 @@ no collected data, only the `CA92.1` user-defaults reason) in the app target's R
 is a report about the committed shell, not an invitation to edit it. `RELEASING.md` records the version scheme, the
 merged-manifest permission check, the signing-secret names, the sandbox and internal-track procedure, the App Review
 notes, the release handover and the manual gate checklist (including the iOS silent switch/audio session gate); every
-native or owner gap is an open action there, not a native edit from a worker branch.
+native or owner gap is an open action there, not a native edit from a worker branch. `tests/releasing.test.mjs`
+asserts that handover: the required sections and commands, the signing-secret names, the product id and store
+checklist, one open revision-placeholder row per manual gate, and M1-M4 plus the owner store actions as open.
 
 ## Escalation: maintainer-owned files
 

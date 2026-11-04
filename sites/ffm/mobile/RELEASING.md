@@ -267,30 +267,32 @@ the uploaded build number in the release record.
 
 ## Manual gate checklist
 
-Each row stays open until the revision and the observed result are recorded.
+Each row stays open until the `<revision>` placeholder is replaced with the
+git revision the check ran against and the observed result is recorded.
 Native compilation and store behaviour cannot be claimed from a passing
 JavaScript test.
 
 | Gate | Where | Evidence | Revision | State |
 | --- | --- | --- | --- | --- |
-| M2 native build (debug APK + iOS simulator) green on the run branch | CI | | | open |
-| Merged release manifest shows only BILLING, INTERNET, ACCESS_NETWORK_STATE | release build | | | open |
-| Signed `.aab` produced and `jarsigner` verified | local | | | open |
-| Internal testing install from Play | Play | | | open |
-| Upgrade install keeps progress and unlock | device | | | open |
-| Sandbox purchase and offline launch after purchase | device | | | open |
-| Restore purchase on a fresh install | device | | | open |
-| Pending / Ask-to-Buy purchase | device | | | open |
-| Cancelled purchase | device | | | open |
-| Refund / revocation | store console | | | open |
-| Android Back behaviour (pause → confirm → exit) | Android | | | open |
-| Interruption (call/background) pauses game and music | Android | | | open |
-| iOS silent switch silences BGM and effects, and unmuting restores them without a restart | iPhone | | | open |
-| Audio interruption (call, other app) pauses and resumes gameplay and BGM exactly once | iPhone, Android | | | open |
-| Controls clear notches, rounded corners and gesture bars in both orientations | notched phone | | | open |
-| App icon and launch screen match the artwork on the home screen and at launch | iPhone | | | open |
-| German and English system languages both show translated UI and legal pages | iPhone | | | open |
-| In-App Purchase capability is enabled and a sandbox purchase succeeds | App Store Connect + device | | | open |
+| M2 native build (debug APK + iOS simulator) green on the run branch | CI | | `<revision>` | open |
+| Merged release manifest shows only BILLING, INTERNET, ACCESS_NETWORK_STATE | release build | | `<revision>` | open |
+| Signed `.aab` produced and `jarsigner` verified | local | | `<revision>` | open |
+| Internal testing install from Play | Play | | `<revision>` | open |
+| Upgrade install keeps progress and unlock | device | | `<revision>` | open |
+| Sandbox purchase through the parental gate | device | | `<revision>` | open |
+| Offline launch after purchase keeps the unlock | device | | `<revision>` | open |
+| Restore purchase on a fresh install | device | | `<revision>` | open |
+| Pending / Ask-to-Buy purchase | device | | `<revision>` | open |
+| Cancelled purchase | device | | `<revision>` | open |
+| Refund / revocation | store console | | `<revision>` | open |
+| Android Back behaviour (pause → confirm → exit) | Android | | `<revision>` | open |
+| Interruption (call/background) pauses game and music | Android | | `<revision>` | open |
+| iOS silent switch silences BGM and effects, and unmuting restores them without a restart | iPhone | | `<revision>` | open |
+| Audio interruption (call, other app) pauses and resumes gameplay and BGM exactly once | iPhone, Android | | `<revision>` | open |
+| Controls clear notches, rounded corners and gesture bars in both orientations | notched phone | | `<revision>` | open |
+| App icon and launch screen match the artwork on the home screen and at launch | iPhone | | `<revision>` | open |
+| German and English system languages both show translated UI and legal pages | iPhone | | `<revision>` | open |
+| In-App Purchase capability is enabled and a sandbox purchase succeeds | App Store Connect + device | | `<revision>` | open |
 
 The iOS silent switch, the interruption and the safe-area gates are the
 `PENDING_MANUAL_GATES` exported by `game/lifecycle.js`;
