@@ -7,7 +7,8 @@
 // the store entitlement live on the device (./progress-store.js,
 // ./entitlement.js); purchases go through the native store (./purchase.js).
 //
-// Later phases replace the stubs: lifecycle and app UI (phase 4).
+// The app lifecycle seam (pause/resume, Android back, keep-awake) lives in
+// ./lifecycle.js and is wired by main.js inside its platform.isApp branch.
 import { createPreferencesBackend, createProgressStore } from './progress-store.js';
 import { createPurchasesPlugin } from './purchase.js';
 import { createEntitlementStore } from './entitlement.js';

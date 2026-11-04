@@ -31,7 +31,7 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
     btnPauseBack: element('back'), btnPauseSave: element('save'), btnPauseDiscard: element('discard'),
     input: { disable() {}, enable() {} },
     audio: { pauseBGM() {}, resumeBGM() {} },
-    resetHealHold() {}, activeFiend: null,
+    resetHealHold() {}, activeFiend: null, appLifecycle: null, syncKeepAwake() {},
     getCurrentInputMode() { return 'multiple-choice'; },
     t: key => key,
     clearPremiumSession() { quits++; context.gameRunning = false; },
