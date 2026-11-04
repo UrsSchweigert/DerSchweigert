@@ -12,6 +12,7 @@
  * Contains all user-visible strings from the application.
  */
 const DE = {
+  'dialog.about.third_party': 'Lizenzen der App-Bibliotheken',
   // Brand and main headings
   'app.title': 'Buchstabenzeit',
   'setup.title': 'Lesen lernen, Karte für Karte.',
@@ -158,6 +159,7 @@ const DE = {
  * Contains all user-visible strings from the application in English.
  */
 const EN = {
+  'dialog.about.third_party': 'App library licences',
   // Brand and main headings
   'app.title': 'Letter time',
   'setup.title': 'Learn to read, card by card.',

@@ -69,13 +69,22 @@ native apps, so their notices must survive redistribution.
 | `@capacitor/haptics` | 8.0.2 | MIT | Grading feedback |
 | `@capacitor/local-notifications` | 8.3.1 | MIT | Adult-gated practice reminders |
 | `@capacitor/share` | 8.0.3 | MIT | Sharing the saved report |
-| `@capacitor/synapse` | 1.0.4 | ISC | Transitive dependency of `@capacitor/filesystem` |
+| `@capacitor/synapse` | 1.0.4 | MIT (shipped notice; metadata says ISC) | Transitive dependency of `@capacitor/filesystem` |
 
-MIT and ISC both permit commercial use, modification and redistribution. The
-only obligation is to preserve the copyright and permission notice when a
-substantial portion is redistributed; the package licences ship inside the
-installed packages and the apps do not strip them. No copyleft obligation
-applies to the app code.
+MIT and ISC both permit commercial use, modification and redistribution and
+require preservation of their copyright and permission notice. Installing npm
+packages does **not** copy their root licence files into a Capacitor app.
+The initial review inferred that incorrectly; inspecting the built `.app`
+found only the word-list and font notices, not these runtime notices.
+
+`static/third-party-notices.txt` now preserves the actual locked packages'
+copyright and full permission/disclaimer texts. Identical notices are grouped:
+core/android/ios (Drifty), app/haptics/local-notifications/share (Ionic
+2020-present), filesystem/synapse (Ionic 2025). The original package `LICENSE`
+files, or `LICENSE.md` for synapse, are the source. Synapse 1.0.4's metadata
+declares ISC but its actual distributed notice is MIT; this record and the
+bundle preserve that notice instead of inventing an ISC copyright notice.
+No copyleft obligation applies to these runtime libraries.
 
 ## Build-only tooling
 
@@ -89,7 +98,7 @@ itself is redistributed.
 ## Reachability from the about dialog
 
 The about dialog in `static/index.html` (`#about-dialog`, "Inhalte & Lizenzen")
-links `words-de-LICENSE.txt` and `fonts/OFL.txt`, and its language switch points
+links `words-de-LICENSE.txt`, `fonts/OFL.txt` and `third-party-notices.txt`, and its language switch points
 the word-list link at `words-en-LICENSE.txt` for English. Both native shells
 render that same dialog because they bundle the same `static/` tree:
 
@@ -97,13 +106,13 @@ render that same dialog because they bundle the same `static/` tree:
 - iOS: `npm run copy-assets` then `npx cap sync ios` (`www/` →
   `ios/App/App/public`).
 
-The three licence files are part of `REQUIRED_FILES` in
+The four licence files are part of `REQUIRED_FILES` in
 `scripts/verify-bundle.mjs`, so `npm run copy-assets` (also the first step of
 `npm run sync`) and `node --test tests/*.test.mjs` fail if a build drops one. `tests/android-shell.test.mjs`
 already asserts that the about dialog links every bundled notice, and
 `tests/third-party-licences.test.mjs` checks that each link target exists in the
-bundle and that this record covers every runtime dependency at its locked
-version. All notices are local files, so the links work offline; the bundle
+bundle, preserves complete upstream notice texts and covers every runtime
+dependency at its locked version. All notices are local files, so the links work offline; the bundle
 check rejects any remote app-load dependency.
 
 ## Known discrepancy (owner decision)
@@ -116,7 +125,8 @@ this record.
 
 ## Review outcome
 
-Reviewed on 2026-11-04 for issue `lesen-licences`. Every runtime dependency and
+Reviewed on 2026-11-04 for issue `lesen-licences`, with a corrective packaged
+notice check after the P6 automated exit. Every runtime dependency and
 bundled content licence is identified above; none blocks the one-time paid
 distribution planned for v1, provided the notices stay bundled and reachable as
 described. New dependencies must add a row here (with resolved version and

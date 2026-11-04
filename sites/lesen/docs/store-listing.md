@@ -90,6 +90,113 @@ declaration or production configuration was changed, and nothing was submitted
 to Google Play or App Store Connect. Producing signed builds, capturing
 screenshots, running the device checks and publishing remain owner actions.
 
+## App Store — German v1 text draft
+
+These are actual draft fields, not publication instructions. The name is
+within 30 characters, subtitle within 30, keywords within 100 and description
+within 4,000. Review/support/privacy contact URLs and price remain maintainer
+inputs before submission; no invented contact data is supplied.
+
+### Name
+
+Buchstabenzeit
+
+### Subtitle
+
+Lesen üben, Karte für Karte
+
+### Keywords
+
+Lesen,Buchstaben,Silben,Wörter,Lesenlernen,Grundschule,Leseübung,offline
+
+### Description
+
+Kleine Schritte beim Lesenlernen: Ein Erwachsener wählt Buchstaben und
+Lesekarten aus, begleitet das Kind und markiert die Antworten. Übt Silben,
+Wörter und kurze Sätze in eurem eigenen Tempo — auf Deutsch oder Englisch.
+
+Die Leseübungen funktionieren nach der Installation vollständig offline.
+Der Lernfortschritt bleibt auf dem Gerät. Einen Elternbericht könnt ihr als
+CSV speichern oder über die Teilen-Funktion des Geräts weitergeben.
+
+Optionales Vorlesen nutzt eine passende, lokal installierte deutsche oder
+englische Stimme des Geräts. Nicht jedes Gerät hat eine geeignete Stimme.
+Fehlt sie, bleibt die Übung ohne Ton nutzbar; eine Netzwerkstimme wird nicht
+als Ersatz verwendet.
+
+Auf Wunsch erinnert eine tägliche lokale Mitteilung ans Üben. Erinnerungen
+sind zunächst aus und lassen sich nur nach einer Erwachsenenaufgabe
+einschalten. Unterschiedliche haptische Rückmeldungen begleiten richtige und
+erneut zu übende Karten; „Bewegung reduzieren“ wird berücksichtigt.
+
+Einmal kaufen, ohne Abo, Werbung oder Benutzerkonto. Die Leseübungen stehen
+auch kostenlos im Browser unter lesen.derschweigert.de bereit. Die App ergänzt
+die Installation für unterwegs und native Gerätefunktionen.
+
+### German review-note draft
+
+Kein Konto und keine Anmeldung erforderlich. Bitte die App nach der Installation
+im Flugmodus kalt starten und mit DE/EN die Sprache wechseln. Eine Kartenrunde
+starten und richtige sowie erneut zu übende Karten markieren; bei „Bewegung
+reduzieren“ bleiben haptische Rückmeldungen aus.
+
+„Vorlesen“ nutzt ausschließlich geeignete installierte Stimmen; ohne passende
+Stimme ist die Leseübung weiter ohne Ton nutzbar. „Bericht als CSV speichern“
+öffnet das Teilen-Menü für einen lokalen Bericht. „Übungserinnerungen“ in der
+Fußzeile öffnet zuerst eine Erwachsenen-Rechenaufgabe. Danach einschalten,
+Uhrzeit auswählen und speichern, um erstmals die Mitteilungsfreigabe anzufragen.
+Eine Ablehnung wird ohne erneute Aufforderungen gemerkt.
+
+Geräteprüfungen, Offline-Nachweise und Screenshots sind noch vor Einreichung
+am tatsächlich eingereichten Build zu bestätigen; diese Entwürfe behaupten
+keine bereits erfolgte TestFlight- oder App-Review-Freigabe.
+
+## Google Play — draft listing fields
+
+### German title
+
+Buchstabenzeit
+
+### German short description
+
+Gemeinsam Buchstaben, Silben und Wörter lesen üben — auch offline.
+
+### German full description
+
+Use the German description above as the full-description draft. The paid
+download, free-website transparency and conditional device speech statements
+apply unchanged to Android. The store console's price is not set by this file.
+
+### English title
+
+Buchstabenzeit
+
+### English short description
+
+Guided reading practice with letters, syllables and words — offline.
+
+### English full description
+
+Practise reading together, one card at a time. An adult chooses letters and
+cards, guides the child and marks each answer. Explore syllables, words and
+short sentences in German or English at your own pace.
+
+After installation, the reading exercises work offline. Progress stays on
+the device, and a parent report can be saved as CSV or shared using the
+device's share sheet.
+
+Optional read-aloud needs a suitable German or English voice already installed
+on the device. It is not available on every device. Without a suitable voice,
+practice continues without sound; there is no network-voice fallback.
+
+Daily local reminders are optional and off by default, with an adult challenge
+before enabling them. Distinct grading haptics respect Reduce Motion.
+
+One paid download: no subscription, advertising or account. The exercises
+are also free in the browser at lesen.derschweigert.de. The app adds an
+offline installation and native device features. Installation and payment
+still use the store.
+
 ## See also
 
 - `../RELEASING.md` — Android release process, paid-package ordering and shared

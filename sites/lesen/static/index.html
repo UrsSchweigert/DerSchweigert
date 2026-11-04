@@ -916,6 +916,13 @@
             color: var(--blue);
         }
 
+        .reminder-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 44px;
+        }
+
         @media (max-width: 680px) {
             main {
                 padding: 18px 20px 20px;
@@ -1194,7 +1201,7 @@
             </form>
             <form id="reminders-settings" hidden>
                 <fieldset disabled>
-                    <p><label><input id="reminders-enabled" type="checkbox"> <span id="reminders-enabled-label">Täglich ans Lesen erinnern</span></label></p>
+                    <p><label class="reminder-toggle"><input id="reminders-enabled" type="checkbox"> <span id="reminders-enabled-label">Täglich ans Lesen erinnern</span></label></p>
                     <label id="reminders-time-label" for="reminders-time">Ungefähre Uhrzeit auf diesem Gerät</label>
                     <input id="reminders-time" type="time" value="17:00" required>
                     <p><button id="reminders-save" class="primary" type="submit">Speichern</button></p>
@@ -1215,6 +1222,7 @@
             <ul>
                 <li><span id="about-wordlist-text">Wortliste: FrequencyWords &amp; Wiktionary, CC BY-SA 4.0 &ndash; </span><a id="about-wordlist-link" href="words-de-LICENSE.txt">Lizenz</a></li>
                 <li><span id="about-font-text">Schriftart: Andika, SIL Open Font License 1.1 &ndash; </span><a id="about-font-link" href="fonts/OFL.txt">Lizenz</a></li>
+                <li><a id="about-third-party-link" href="third-party-notices.txt">Lizenzen der App-Bibliotheken</a></li>
             </ul>
             <p><a id="about-privacy-link" href="datenschutz.html">Vollst&auml;ndige Datenschutzerkl&auml;rung</a></p>
             <div class="about-actions">
@@ -1427,6 +1435,7 @@
             byId('about-font-text').textContent = tr('dialog.about.font');
             byId('about-wordlist-link').textContent = tr('dialog.about.license_link');
             byId('about-font-link').textContent = tr('dialog.about.license_link');
+            byId('about-third-party-link').textContent = tr('dialog.about.third_party');
             byId('about-privacy-link').textContent = tr('dialog.about.privacy_link');
             // Update privacy policy and word-list license links based on current language
             byId('about-privacy-link').href = currentLanguage === 'en' ? 'datenschutz-en.html' : 'datenschutz.html';

@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { readFile, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -41,7 +42,7 @@ test('about dialog links point at licence files that are bundled', async () => {
   );
 
   const required = new Set(REQUIRED_FILES);
-  for (const target of ['words-de-LICENSE.txt', 'words-en-LICENSE.txt', 'fonts/OFL.txt']) {
+  for (const target of ['words-de-LICENSE.txt', 'words-en-LICENSE.txt', 'fonts/OFL.txt', 'third-party-notices.txt']) {
     assert.ok(required.has(target), `${target} must stay in REQUIRED_FILES`);
     assert.ok(await fileExists(join('static', target)), `static/${target} must be bundled`);
   }
@@ -113,7 +114,7 @@ test('the licence review record covers every runtime dependency', async () => {
     assert.match(record, row, `docs/third-party-licences.md must review ${name}@${version}`);
   }
 
-  assert.ok(record.includes('@capacitor/synapse'), 'transitive ISC dependency must be recorded');
+  assert.ok(record.includes('@capacitor/synapse'), 'transitive dependency and its actual notice must be recorded');
   assert.ok(record.includes('CC BY-SA 4.0'));
   assert.ok(record.includes('CC BY 4.0'));
   assert.ok(record.includes('SIL Open Font License 1.1'));
@@ -122,4 +123,25 @@ test('the licence review record covers every runtime dependency', async () => {
   }
   assert.ok(record.includes('ios/App/App/public'), 'the record must cover the iOS bundle');
   assert.ok(record.includes('www/'), 'the record must cover the Android bundle');
+});
+
+test('runtime notices preserve each complete upstream permission and disclaimer', async () => {
+  const [notices, manifest, lock, html] = await Promise.all([
+    readSiteFile('static/third-party-notices.txt'),
+    readSiteFile('package.json'),
+    readSiteFile('package-lock.json'),
+    readSiteFile('static/index.html'),
+  ]);
+  const resolved = JSON.parse(lock).packages;
+  for (const name of [...Object.keys(JSON.parse(manifest).dependencies), '@capacitor/synapse']) {
+    assert.ok(notices.includes(`${name} ${resolved[`node_modules/${name}`].version}`), name);
+  }
+  assert.match(aboutDialog(html), /href="third-party-notices\.txt"/);
+  const bodies = notices.split(/^={10,}$/m).filter((_, index) => index > 0 && index % 2 === 0)
+    .map(text => text.trim());
+  assert.deepEqual(bodies.map(text => createHash('sha256').update(text).digest('hex')), [
+    '7edf453d1584f19ee63f4507d4bbe05e6cce2fa9d334ad72dc40dcaf03cdc6bb',
+    'eb99a0d61b507ad0182e18e9d2a91537c1d9025c94e098e4e7603a53b4b5218a',
+    '7290a4bdbc2f004c5812e6ba8b2b6cde0caedb72902d3fde5f4f0ee622374307',
+  ], 'verbatim trimmed notices from the exact installed locked packages must not be abbreviated');
 });
