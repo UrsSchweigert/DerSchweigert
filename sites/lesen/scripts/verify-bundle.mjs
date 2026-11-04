@@ -56,6 +56,7 @@ export const ALLOWED_URL_PREFIXES = Object.freeze([
 // Deterministic per-file allowlist for attribution, legal and documentation
 // links. These are navigational text only; the app never fetches them.
 export const ALLOWED_FILE_URL_PREFIXES = Object.freeze({
+  'index.html': Object.freeze(['https://www.derschweigert.de/nutzungsbedingungen']),
   'third-party-notices.txt': Object.freeze(['https://ionic.io', 'http://www.apache.org/']),
   'datenschutz.html': Object.freeze([
     'https://derschweigert.de/',
@@ -124,12 +125,24 @@ function isRemote(target) {
   return /^https?:\/\//i.test(target);
 }
 
-/** Absolute http(s) targets of src/href attributes, e.g. a CDN script tag. */
+/** Remote app-load targets, except explicitly allowlisted navigational anchors. */
 function attributeRemoteTargets(html) {
   const targets = [];
+  const allowedNavigationTargets = new Set(
+    [...html.matchAll(/<a\b[^>]*>/gi)]
+      .map(([tag]) => tag.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i))
+      .map(match => match?.[1] ?? match?.[2] ?? match?.[3] ?? '')
+      .filter(target => isRemote(target) && urlAllowed('index.html', target)),
+  );
   for (const match of html.matchAll(ATTRIBUTE_URL_RE)) {
     const target = match[1] ?? match[2] ?? match[3] ?? '';
-    if (isRemote(target)) targets.push(target);
+    const attribute = match[0].match(/^\s*(src|href)/i)?.[1]?.toLowerCase();
+    if (
+      isRemote(target) &&
+      !(attribute === 'href' && allowedNavigationTargets.has(target))
+    ) {
+      targets.push(target);
+    }
   }
   return targets;
 }
