@@ -23,6 +23,10 @@ const dest = join(root, 'www');
 // same name in static/game/.
 export const APP_OVERLAY = join(root, 'game');
 
+// App-only legal pages (privacy, imprint, terms, licence; DE and EN). They
+// replace the web legal footer in the app and are copied to www/legal/.
+export const LEGAL_DIR = join(root, 'legal');
+
 // Web-only and development-only paths, matched against the path relative to
 // the bundle root (posix separators). Everything here must stay out of www/:
 // the app has no FFM API, account, checkout or web legal pages, and no tests.
@@ -93,6 +97,13 @@ export async function copyAssets(from = src, to = dest, overlay = APP_OVERLAY) {
     await cp(overlay, join(to, 'game'), {
       recursive: true,
       filter: keep(overlay, (relative) => `game/${relative}`),
+    });
+  }
+
+  if (await isDirectory(LEGAL_DIR)) {
+    await cp(LEGAL_DIR, join(to, 'legal'), {
+      recursive: true,
+      filter: keep(LEGAL_DIR, (relative) => `legal/${relative}`),
     });
   }
 
