@@ -4,7 +4,7 @@ Bundle id `de.derschweigert.buchstabenzeit`, display name **Buchstabenzeit**
 ("Letter time"). The app is a guided reading exercise for children: an adult
 picks letter cards, the child reads each card aloud, and the adult marks the
 answer. It is a Capacitor 8.6.0 shell around the web app in `../static/`, built
-as a universal iPhone/iPad app in German and English.
+as an iPhone app in German and English.
 
 This file is the review package for the four native capabilities, an
 airplane-mode demonstration a reviewer can follow without prior knowledge, and
@@ -23,7 +23,7 @@ screenshots attached to the submission, and signing are maintainer actions; see
 - German is the default language; the DE/EN buttons at the top right switch the
   whole interface, and the about dialog links to the language-matched bundled
   privacy page (`datenschutz.html` or `datenschutz-en.html`).
-- Haptics and reminder delivery need a physical iPhone or iPad. The simulator
+- Haptics and reminder delivery need a physical iPhone. The simulator
   has no haptics, no notification delivery and no real airplane mode, so
   simulator screenshots show layout only, never offline or tactile behaviour.
 - Optional speech uses the registered native `OfflineTts` bridge with
@@ -71,9 +71,8 @@ build phase and matches these capabilities:
 ## Airplane-mode demo script
 
 Prerequisites: a signed build installed through TestFlight (or a development
-build) on a physical iPhone, at least iOS 15 (the deployment target), and an
-iPad if the universal layout is being checked. No prior knowledge of the app is
-needed.
+build) on a physical iPhone with at least iOS 15 (the deployment target). No
+prior knowledge of the app is needed.
 
 1. **Turn the network off.** Open Settings → Airplane Mode and switch it on.
    Also switch Wi-Fi off in Control Center so no known network is rejoined.
@@ -109,9 +108,8 @@ needed.
    status reads "Bericht gespeichert." / "Report saved." (a failure reads
    "Bericht konnte nicht gespeichert werden." / "Report could not be saved.").
    **Expected:** nothing was uploaded and no permission prompt appeared.
-8. **Check the universal layout.** Rotate the device, repeat on an iPad, and
-   confirm the layout keeps clear of the notch/home indicator in portrait and
-   landscape. **Expected:** the interface stays usable and matches the
+8. **Check the layout in both orientations.** Rotate the device and confirm the
+   layout keeps clear of the notch/home indicator in portrait and landscape. **Expected:** the interface stays usable and matches the
    orientations declared in `Info.plist`.
 9. **Read the bundled privacy page offline.** Tap "Rechtliches & Datenschutz"
    in the footer, then "Vollständige Datenschutzerklärung". **Expected:** the
@@ -174,7 +172,6 @@ consistent:
 | `05-practice-card.png` | A practice card with the progress counters and the grade buttons |
 | `06-share-sheet.png` | The iOS share sheet open for `buchstabenzeit-report.csv` |
 | `07-report-saved.png` | Footer status "Bericht gespeichert." / "Report saved." after the sheet closes |
-| `08-ipad-landscape.png` | The universal layout on iPad in landscape |
 | `09-reminders-settings.png` | Adult-unlocked reminder time and saved status, without showing the challenge answer |
 
 On a simulator, `xcrun simctl io booted screenshot <file>` captures layout only.
@@ -193,7 +190,7 @@ Proven on Linux or in the maintainer-owned unsigned simulator CI job:
   remote app-load dependencies.
 - `capacitor.config.json` has no `server.url`; the webview loads bundled assets.
 - `Info.plist` parses with `CFBundleLocalizations` exactly `[de, en]`, and the
-  project targets iPhone and iPad (`TARGETED_DEVICE_FAMILY = "1,2"`).
+  project targets iPhone only (`TARGETED_DEVICE_FAMILY = 1`).
 - `PrivacyInfo.xcprivacy` parses, carries a reason for every required-reason
   category, and is in the App target's Resources build phase.
 - The project compiles for a generic iOS Simulator destination with

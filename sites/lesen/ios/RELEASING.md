@@ -2,7 +2,7 @@
 
 This document describes how to turn a known-good source revision into a
 versioned, signed iOS app, install it through TestFlight, and verify it on a
-physical iPhone and iPad. The website (`lesen.derschweigert.de`) and the Android
+physical iPhone. The website (`lesen.derschweigert.de`) and the Android
 release are separate and unaffected by this process.
 
 > **External release gate:** producing a validly signed `.ipa`, uploading it to
@@ -23,7 +23,7 @@ Proven by checked-in files and CI (no Apple account needed):
 - `capacitor.config.json` has no `server.url`, so the webview loads the bundled
   `www/` and never a remote server.
 - `ios/App/App/Info.plist` declares `CFBundleLocalizations` as `de` and `en`,
-  universal layout (`TARGETED_DEVICE_FAMILY = "1,2"`, iPhone and iPad
+  iPhone layout (`TARGETED_DEVICE_FAMILY = 1`, iPhone only
   orientations), and `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` version
   keys.
 - `ios/App/App/PrivacyInfo.xcprivacy` is registered in the App target's
@@ -209,8 +209,8 @@ App Store without an explicit owner-approved trigger, matching how
 
 ## TestFlight installation and per-release device checks
 
-Install the TestFlight build on at least one physical iPhone and one iPad (the
-app is universal), then repeat this checklist for **every** release and record
+Install the TestFlight build on at least one physical iPhone (the app is
+iPhone-only), then repeat this checklist for **every** release and record
 the result in the release record:
 
 1. **Offline cold launch.** Enable airplane mode, force-quit, and launch. The
