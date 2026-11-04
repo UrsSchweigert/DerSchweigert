@@ -76,10 +76,15 @@ not an offline-availability flag. Siri, unknown/third-party providers and
 personal/novelty voices remain excluded because their offline behaviour is not
 established by this bridge. iOS can still list a downloaded voice whose assets
 cannot synthesize (Apple FB12994908): speaking with it ends at once in silence.
-The bridge therefore renders a short sample of each eligible voice into memory,
-without playback, once per voice; voices that yield no audio are skipped (and
-logged as `OfflineTts: … produced no audio`), and failed voices are re-checked
-when the app returns to the foreground. Speech is not played with
+The bridge therefore renders a short sample into memory, without playback,
+before using a voice; voices that yield no audio are skipped (and logged as
+`OfflineTts: … produced no audio`), and failed voices are re-checked when the
+app returns to the foreground. Voices are tried in order of preference (exact
+locale first, then premium, enhanced, compact), and probing stops at the first
+voice that works, so `listOfflineVoices` reports at most that one voice. The
+probe for German and English runs in the background as soon as the app
+initializes the bridge at launch, so the first read-aloud does not wait for it.
+Speech is not played with
 `AVSpeechSynthesizer.speak()`, which on iOS 17+ can finish in silence with
 downloaded voices inside third-party apps: the bridge renders it with `write()`
 and plays the audio through its own `AVAudioEngine` in the playback session,

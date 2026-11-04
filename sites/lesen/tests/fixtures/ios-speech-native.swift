@@ -330,12 +330,17 @@ plugin.initialize(initialized)
 expect(initialized.result?["status"] as? String == "ready")
 expect(initialized.result?["languageAvailable"] as? Bool == true)
 expect(latestSynth().usesApplicationAudioSession)
+let enhancedAnna = "com.apple.voice.enhanced.Anna"
+expect(AVSpeechSynthesizer.probeWrites == [enhancedAnna, samantha.identifier],
+       "initialize probes the preferred German and English voice in the background")
 let german = listed()
 let germanVoices = german.result?["voices"] as! [[String: Any]]
-expect(german.result?["suitableCount"] as? Int == 3)
-expect(germanVoices.first?["name"] as? String == anna.identifier)
+expect(german.result?["suitableCount"] as? Int == 1, "Probing stops at the first working voice")
+expect(germanVoices.first?["name"] as? String == enhancedAnna, "An enhanced voice beats a compact one")
 expect(germanVoices.allSatisfy { $0["networkRequired"] as? Bool == false && $0["notInstalled"] as? Bool == false })
-expect(listed("en_GB").result?["suitableCount"] as? Int == 2)
+expect((listed("en_GB").result?["voices"] as! [[String: Any]]).first?["name"] as? String == british.identifier)
+expect(AVSpeechSynthesizer.probeWrites == [enhancedAnna, samantha.identifier, british.identifier],
+       "The warm-up result is reused")
 for bad in ["", "fr-FR", "english", "de-DE-bogus", " de", "en--US", "deutsch"] {
     expect(listed(bad).error != nil, "Reject malformed/unsupported language \(bad)")
 }
@@ -352,7 +357,7 @@ for bad in [[:], ["text": ""], ["text": " \n"], ["text": 1],
 }
 let first = speak()
 let synth = latestSynth()
-expect(synth.current?.voice?.identifier == anna.identifier)
+expect(synth.current?.voice?.identifier == enhancedAnna)
 expect(synth.current?.rate == 0.4 && synth.current?.pitchMultiplier == 1)
 expect(session.active && session.category == .playback && session.mode == .spokenAudio)
 expect(session.activationOptions == .duckOthers)
@@ -504,6 +509,20 @@ AVSpeechSynthesisVoice.available = excludedVoices
 expect(listed("de-DE").result?["suitableCount"] as? Int == 0)
 expect(listed("en-US").result?["suitableCount"] as? Int == 0)
 expect(speak().error?.contains("No installed offline voice") == true)
+
+// Premium beats enhanced beats compact; lower-ranked voices are never probed once one works.
+let compactKlara = AVSpeechSynthesisVoice("com.apple.voice.compact.de-DE.Klara", "de-DE")
+let enhancedKlara = AVSpeechSynthesisVoice("com.apple.voice.enhanced.de-DE.Klara", "de-DE", quality: .enhanced)
+let premiumKlara = AVSpeechSynthesisVoice("com.apple.voice.premium.de-DE.Klara", "de-DE", quality: .premium)
+AVSpeechSynthesisVoice.available = [compactKlara, enhancedKlara, premiumKlara]
+let probesBeforeQuality = AVSpeechSynthesizer.probeWrites.count
+let qualitySpeak = speak()
+expect(latestSynth().current?.voice?.identifier == premiumKlara.identifier, "Speak prefers a premium voice")
+latestPlayer().playBack()
+expect(qualitySpeak.result?["status"] as? String == "finished")
+expect(Array(AVSpeechSynthesizer.probeWrites[probesBeforeQuality...]) == [premiumKlara.identifier])
+AVSpeechSynthesisVoice.available = [compactKlara, enhancedKlara]
+expect((listed("de-DE").result?["voices"] as! [[String: Any]]).first?["name"] as? String == enhancedKlara.identifier)
 
 // iOS can list a downloaded voice that only yields silence (FB12994908); it must be skipped.
 let silentEnhanced = AVSpeechSynthesisVoice("com.apple.voice.enhanced.de-DE.Markus", "de-DE",
