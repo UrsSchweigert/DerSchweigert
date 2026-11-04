@@ -12,19 +12,26 @@ npm test                            # node --test tests/*.test.mjs
 
 `copy-assets` first cleans `www/` and copies `../static` without development-only and web-only files
 (`source-assets/`, `calibrate.*`, `export-sprites.html`, `_dragon_test.html`, `demo.html`, tests, `game/api.js`,
-`game/access-flow.js`, `cancel.html`, `widerruf.html`). It then overlays the app-only modules from `game/` onto
+`game/access-flow.js`, `game/cancel-request.js`, `game/withdrawal-request.js`, `cancel.html`, `widerruf.html`). It
+then overlays the app-only modules from `game/` onto
 `www/game`, so `game/platform-adapter.js` replaces the web adapter of the same name. `www/` is reproducible: the
 same inputs always produce the same bundle and a stale file from an earlier build is removed.
 
 After the copy it generates `www/game/level-data.js` from the private curriculum in `../app/level_data.json`
 (all 60 levels, including `baseline_score`). That module exists only in `www/`; the private curriculum is never
 written into `../static`, which deploys to the website. It also drops the web-only visitor-tracking inline script
-from `index.html`, because the app is offline and must not call the FFM API.
+from `index.html`, because the app is offline and must not call the FFM API, and every DOM region `index.html`
+marks with `<!-- app-omit:start -->` / `<!-- app-omit:end -->` comments: the login/register and account modals, the
+checkout and auth-status modals, the top-bar account buttons, the splash login row, the leaderboard's
+complete-profile prompt and the web-only cancellation and withdrawal links. The website keeps all of that markup;
+only the app copy strips it.
 
 `bundle-check` fails when a runtime file is missing, when the bundled level configuration is not the full 60
 levels, when any file references a remote first-party (`derschweigert.de`) URL, or when bundled code calls the FFM
-API (`fetch` to `/api`, XHR or beacon). Approved navigational legal links in `terms.html`/`terms.en.html` are the
-only first-party URLs allowed; they are text only and never loaded.
+API (`fetch` to `/api`, XHR or beacon), or when the app shell still carries account/checkout markup or links the
+web-only cancellation/withdrawal pages (`FORBIDDEN_UI_IDS` in `scripts/bundle-check.mjs`). Approved navigational
+legal links in `terms.html`/`terms.en.html` are the only first-party URLs allowed; they are text only and never
+loaded.
 
 Background music follows `game/tracks.json`: file, title, author, licence, optional `source` URL and optional
 `stage` tag. The web build ships the one existing track; the app overlay replaces that manifest with

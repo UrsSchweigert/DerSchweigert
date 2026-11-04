@@ -127,6 +127,7 @@ it('stops music when access is denied for premium level', () => {
       return key;
     },
     savePendingRecord() {},
+    platform: { isApp: false },
     diffSelect: { style: { display: 'none' } },
     authStatusMessage: { textContent: '' },
     authStatusModal: { style: { display: 'none' } },

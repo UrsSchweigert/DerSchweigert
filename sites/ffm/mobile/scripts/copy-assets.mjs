@@ -6,8 +6,9 @@
 //   1. ../static, without development-only and web-only files;
 //   2. game/, the app-only overlay, copied on top of www/game so an app module
 //      replaces the web one with the same name (mobile wins).
-// After the copy it generates game/level-data.js from the private curriculum
-// and removes web-only inline scripts (visitor tracking) from index.html.
+// After the copy it generates game/level-data.js from the private curriculum,
+// removes web-only inline scripts (visitor tracking) and the app-omit DOM
+// regions (account, checkout, web legal) from index.html.
 import { cp, rm, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { basename, dirname, join } from 'node:path';
@@ -36,6 +37,8 @@ export const EXCLUDED = [
   /^game\/_dragon_test\.html$/,
   /^game\/api\.js$/,
   /^game\/access-flow\.js$/,
+  /^game\/cancel-request\.js$/,
+  /^game\/withdrawal-request\.js$/,
   /(^|\/)tests?(\/|$)/,
   /(^|\/)[^/]+\.test\.js$/,
   /^export-sprites\.html$/,
@@ -58,6 +61,32 @@ const FFM_API_CALL_RE = /\bfetch\s*\(\s*['"`][^'"`]*\/api(?:\/|['"`])/;
 export function stripWebOnlyScripts(html) {
   return html.replace(INLINE_SCRIPT_RE, (block, body) =>
     FFM_API_CALL_RE.test(body) ? '' : block);
+}
+
+// Web-only DOM regions. index.html wraps the account, checkout, auth-status
+// and web-legal markup in paired comments so the website keeps that UI while
+// the app copy drops it (the app has no accounts, checkout or web legal
+// pages; see FORBIDDEN_UI_IDS in bundle-check.mjs). Each marker sits on its
+// own line and markers never nest.
+const APP_OMIT_START_RE = /^\s*<!--\s*app-omit:start\s*-->\s*$/;
+const APP_OMIT_END_RE = /^\s*<!--\s*app-omit:end\s*-->\s*$/;
+
+export function stripAppOnlyDom(html) {
+  const kept = [];
+  let omitting = false;
+  for (const line of html.split('\n')) {
+    if (omitting) {
+      if (APP_OMIT_END_RE.test(line)) omitting = false;
+      continue;
+    }
+    if (APP_OMIT_START_RE.test(line)) {
+      omitting = true;
+      continue;
+    }
+    kept.push(line);
+  }
+  if (omitting) throw new Error('Unclosed app-omit:start marker in index.html');
+  return kept.join('\n');
 }
 
 export function isExcluded(relative) {
@@ -111,7 +140,7 @@ export async function copyAssets(from = src, to = dest, overlay = APP_OVERLAY) {
 
   const indexPath = join(to, 'index.html');
   const html = await readFile(indexPath, 'utf8');
-  const stripped = stripWebOnlyScripts(html);
+  const stripped = stripAppOnlyDom(stripWebOnlyScripts(html));
   if (stripped !== html) await writeFile(indexPath, stripped);
 
   const missing = [];

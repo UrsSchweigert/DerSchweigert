@@ -107,6 +107,7 @@ Promise.race([
 // --- Checkout redirect handling ---
 // After Stripe checkout completes, user is redirected back with billing=success
 async function handleCheckoutRedirect() {
+  if (platform.isApp) return;
   const params = new URLSearchParams(window.location.search);
   if (params.get('billing') === 'success') {
     try {
@@ -766,6 +767,7 @@ async function refreshProfileAndLeaderboard() {
 
 // --- Splash login button ---
 function updateHUDLogoutVisibility() {
+  if (!logoutBtn) return;
   const splashVisible = diffSelect.style.display !== 'none';
   if (splashVisible || !platform.username) {
     logoutBtn.style.display = 'none';
@@ -775,6 +777,7 @@ function updateHUDLogoutVisibility() {
 }
 
 function applyAuthUIState() {
+  if (platform.isApp) return;
   if (platform.username) {
     loginBtn.style.display = 'none';
     userDisplay.textContent = platform.username;
@@ -792,7 +795,7 @@ function applyAuthUIState() {
   refreshProfileAndLeaderboard();
 }
 
-splashLoginBtn.addEventListener('click', () => {
+if (!platform.isApp) splashLoginBtn.addEventListener('click', () => {
   if (platform.username) {
     clearPremiumSession();
     platform.logout().then(() => {
@@ -837,9 +840,13 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
 });
 
 // --- Auth ---
+// The app bundle ships without the account, checkout and web-legal markup
+// (see mobile/scripts/copy-assets.mjs), so the web-only controls below are
+// only wired and driven when the web platform is active.
 const authForms = [loginForm, registerForm, forgotPasswordForm, resetPasswordForm];
 
 function showAuthForm(formToShow) {
+  if (platform.isApp) return;
   authForms.forEach(f => { f.style.display = (f === formToShow) ? '' : 'none'; });
   if (formToShow !== loginForm) {
     loginVerifyResend.style.display = 'none';
@@ -858,23 +865,23 @@ function showAuthForm(formToShow) {
   }
 }
 
-tabLogin.addEventListener('click', () => showAuthForm(loginForm));
-tabRegister.addEventListener('click', () => showAuthForm(registerForm));
+if (!platform.isApp) tabLogin.addEventListener('click', () => showAuthForm(loginForm));
+if (!platform.isApp) tabRegister.addEventListener('click', () => showAuthForm(registerForm));
 
-loginBtn.addEventListener('click', () => {
+if (!platform.isApp) loginBtn.addEventListener('click', () => {
   showAuthForm(loginForm);
   setAuthModalVisible(true);
 });
-closeAuth.addEventListener('click', () => {
+if (!platform.isApp) closeAuth.addEventListener('click', () => {
   setAuthModalVisible(false);
   showAuthForm(loginForm);
 });
-logoutBtn.addEventListener('click', async () => {
+if (!platform.isApp) logoutBtn.addEventListener('click', async () => {
   clearPremiumSession();
   await platform.logout();
   applyAuthUIState();
 });
-loginForm.addEventListener('submit', async e => {
+if (!platform.isApp) loginForm.addEventListener('submit', async e => {
   e.preventDefault();
   loginError.classList.remove('success-msg');
   loginVerifyResend.style.display = 'none';
@@ -898,7 +905,7 @@ loginForm.addEventListener('submit', async e => {
   }
 });
 
-loginResendBtn.addEventListener('click', async () => {
+if (!platform.isApp) loginResendBtn.addEventListener('click', async () => {
   const email = loginResendEmail.value.trim();
   if (!email) {
     loginError.textContent = t('auth.enterEmailToResend');
@@ -917,7 +924,7 @@ loginResendBtn.addEventListener('click', async () => {
   }
 });
 
-registerForm.addEventListener('submit', async e => {
+if (!platform.isApp) registerForm.addEventListener('submit', async e => {
   e.preventDefault();
   try {
     const consentCheckbox = document.getElementById('reg-consent-checkbox');
@@ -942,15 +949,15 @@ registerForm.addEventListener('submit', async e => {
   }
 });
 
-forgotPasswordLink.addEventListener('click', () => {
+if (!platform.isApp) forgotPasswordLink.addEventListener('click', () => {
   showAuthForm(forgotPasswordForm);
 });
 
-backToLoginLink.addEventListener('click', () => {
+if (!platform.isApp) backToLoginLink.addEventListener('click', () => {
   showAuthForm(loginForm);
 });
 
-forgotPasswordForm.addEventListener('submit', async e => {
+if (!platform.isApp) forgotPasswordForm.addEventListener('submit', async e => {
   e.preventDefault();
   const email = document.getElementById('forgot-password-email').value.trim();
   const msgEl = document.getElementById('forgot-password-message');
@@ -966,7 +973,7 @@ forgotPasswordForm.addEventListener('submit', async e => {
   }
 });
 
-resetPasswordForm.addEventListener('submit', async e => {
+if (!platform.isApp) resetPasswordForm.addEventListener('submit', async e => {
   e.preventDefault();
   const msgEl = document.getElementById('reset-password-message');
   const newPw = document.getElementById('reset-new-password').value;
@@ -994,7 +1001,7 @@ resetPasswordForm.addEventListener('submit', async e => {
   }
 });
 
-closeAuthStatus.addEventListener('click', () => {
+if (!platform.isApp) closeAuthStatus.addEventListener('click', () => {
   authStatusModal.style.display = 'none';
 });
 
@@ -1002,7 +1009,7 @@ leaderboardYearFilter.addEventListener('change', () => {
   renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
 });
 
-leaderboardCompleteProfile.addEventListener('click', async () => {
+if (!platform.isApp) leaderboardCompleteProfile.addEventListener('click', async () => {
   const yearInput = prompt(t('leaderboard.yearPromptMessage'));
   if (yearInput === null) return;
   const year = Number(yearInput);
@@ -1055,7 +1062,7 @@ checkoutForm?.addEventListener('submit', async e => {
   }
 });
 
-userDisplay.addEventListener('click', async () => {
+if (!platform.isApp) userDisplay.addEventListener('click', async () => {
   if (!platform.isLoggedIn) return;
   showAccountTab(tabAccountProfile, accountProfilePanel);
   setAccountModalVisible(true);
@@ -1063,11 +1070,13 @@ userDisplay.addEventListener('click', async () => {
 });
 
 function setAccountModalVisible(visible) {
+  if (!accountModal) return;
   accountModal.style.display = visible ? 'flex' : 'none';
   updateTopBarModalState();
 }
 
 function setAuthModalVisible(visible) {
+  if (!authModal) return;
   authModal.style.display = visible ? 'flex' : 'none';
   updateTopBarModalState();
 }
@@ -1078,11 +1087,12 @@ function updateTopBarModalState() {
   topBar.classList.toggle('behind-modal', visible);
 }
 
-closeAccount.addEventListener('click', () => {
+if (!platform.isApp) closeAccount.addEventListener('click', () => {
   setAccountModalVisible(false);
 });
 
 function showAccountTab(tabBtn, panel) {
+  if (platform.isApp) return;
   [accountProfilePanel, accountPasswordPanel, accountScoresPanel, accountBillingPanel, accountDangerPanel].forEach(p => { p.style.display = 'none'; });
   [tabAccountProfile, tabAccountPassword, tabAccountScores, tabAccountBilling, tabAccountDanger].forEach(t => t.classList.remove('active'));
   panel.style.display = '';
@@ -1092,22 +1102,22 @@ function showAccountTab(tabBtn, panel) {
   }
 }
 
-tabAccountProfile.addEventListener('click', () => showAccountTab(tabAccountProfile, accountProfilePanel));
-tabAccountPassword.addEventListener('click', () => showAccountTab(tabAccountPassword, accountPasswordPanel));
-tabAccountScores.addEventListener('click', () => showAccountTab(tabAccountScores, accountScoresPanel));
-tabAccountBilling.addEventListener('click', () => showAccountTab(tabAccountBilling, accountBillingPanel));
-tabAccountDanger.addEventListener('click', () => {
+if (!platform.isApp) tabAccountProfile.addEventListener('click', () => showAccountTab(tabAccountProfile, accountProfilePanel));
+if (!platform.isApp) tabAccountPassword.addEventListener('click', () => showAccountTab(tabAccountPassword, accountPasswordPanel));
+if (!platform.isApp) tabAccountScores.addEventListener('click', () => showAccountTab(tabAccountScores, accountScoresPanel));
+if (!platform.isApp) tabAccountBilling.addEventListener('click', () => showAccountTab(tabAccountBilling, accountBillingPanel));
+if (!platform.isApp) tabAccountDanger.addEventListener('click', () => {
   accountDeleteForm.reset();
   accountDeleteMessage.classList.remove('success-msg');
   accountDeleteMessage.textContent = '';
   showAccountTab(tabAccountDanger, accountDangerPanel);
 });
 
-btnStartCheckout.addEventListener('click', () => {
+if (!platform.isApp) btnStartCheckout.addEventListener('click', () => {
   checkoutModal.style.display = 'flex';
 });
 
-btnOpenPortal.addEventListener('click', async () => {
+if (!platform.isApp) btnOpenPortal.addEventListener('click', async () => {
   if (btnOpenPortal.disabled) return;
   const originalLabel = btnOpenPortal.textContent;
   btnOpenPortal.disabled = true;
@@ -1129,7 +1139,7 @@ btnOpenPortal.addEventListener('click', async () => {
   }
 });
 
-btnRedeemCode.addEventListener('click', async () => {
+if (!platform.isApp) btnRedeemCode.addEventListener('click', async () => {
   const code = billingRedeemCode.value.trim();
   if (!code) {
     billingRedeemMessage.classList.remove('success-msg');
@@ -1150,6 +1160,7 @@ btnRedeemCode.addEventListener('click', async () => {
 });
 
 async function loadBilling() {
+  if (platform.isApp) return;
   try {
     billingStatusDisplay.textContent = t('billing.loadingShort');
     billingActions.style.display = 'none';
@@ -1161,6 +1172,7 @@ async function loadBilling() {
 }
 
 function renderBillingStatus(status) {
+  if (platform.isApp) return;
   lastBillingStatus = status;
   billingStatusDisplay.textContent = '';
   billingActions.style.display = 'block';
@@ -1181,15 +1193,16 @@ function renderBillingStatus(status) {
 }
 
 function openBillingPanel() {
+  if (platform.isApp) return;
   setAccountModalVisible(true);
   showAccountTab(tabAccountBilling, accountBillingPanel);
 }
 
-document.getElementById('btn-refresh-billing').addEventListener('click', async () => {
+if (!platform.isApp) document.getElementById('btn-refresh-billing').addEventListener('click', async () => {
   await loadBilling();
   resumePendingLevel();
 });
-document.getElementById('btn-recover-gift').addEventListener('click', async () => {
+if (!platform.isApp) document.getElementById('btn-recover-gift').addEventListener('click', async () => {
   try {
     const response = await platform._fetch('/billing/recover', { method: 'POST' });
     const data = await response.json();
@@ -1200,7 +1213,7 @@ document.getElementById('btn-recover-gift').addEventListener('click', async () =
     billingStatusText.textContent = translateServerMessage(error.message);
   }
 });
-document.getElementById('btn-cancel-subscription').addEventListener('click', async () => {
+if (!platform.isApp) document.getElementById('btn-cancel-subscription').addEventListener('click', async () => {
   if (!window.confirm(t('billing.confirmCancelRenewals'))) return;
   try {
     const result = await platform.cancelSubscription();
@@ -1211,6 +1224,7 @@ document.getElementById('btn-cancel-subscription').addEventListener('click', asy
 });
 
 async function populateAccountModal() {
+  if (platform.isApp) return;
   accountProfileMessage.textContent = '';
   accountProfileMessage.classList.remove('success-msg');
   try {
@@ -1238,7 +1252,7 @@ async function populateAccountModal() {
   }
 }
 
-accountProfileForm.addEventListener('submit', async e => {
+if (!platform.isApp) accountProfileForm.addEventListener('submit', async e => {
   e.preventDefault();
   accountProfileMessage.classList.remove('success-msg');
   accountProfileMessage.textContent = '';
@@ -1281,7 +1295,7 @@ accountProfileForm.addEventListener('submit', async e => {
   }
 });
 
-accountPasswordForm.addEventListener('submit', async e => {
+if (!platform.isApp) accountPasswordForm.addEventListener('submit', async e => {
   e.preventDefault();
   accountPasswordMessage.classList.remove('success-msg');
   const current = accountCurrentPassword.value;
@@ -1317,12 +1331,12 @@ accountPasswordForm.addEventListener('submit', async e => {
 // Deleting an account requires: the checkbox acknowledgement (button stays
 // disabled without it), the current password, and a final native confirm()
 // dialog — three independent confirmations for an irreversible action.
-accountDeleteConfirmCheckbox.addEventListener('change', () => {
+if (!platform.isApp) accountDeleteConfirmCheckbox.addEventListener('change', () => {
   accountDeleteSubmit.disabled = !accountDeleteConfirmCheckbox.checked;
 });
-accountDeleteSubmit.disabled = true;
+if (!platform.isApp) accountDeleteSubmit.disabled = true;
 
-accountDeleteForm.addEventListener('submit', async e => {
+if (!platform.isApp) accountDeleteForm.addEventListener('submit', async e => {
   e.preventDefault();
   accountDeleteMessage.classList.remove('success-msg');
   accountDeleteMessage.textContent = '';
@@ -1428,7 +1442,7 @@ function clearPremiumSession() {
   state.timerActive = false;
   input.disable();
   setAccountModalVisible(false);
-  checkoutModal.style.display = 'none';
+  if (checkoutModal) checkoutModal.style.display = 'none';
   diffSelect.style.display = 'flex';
   hideLoadingOverlay();
   topBar.style.display = 'flex';
@@ -1527,12 +1541,16 @@ function handleLevelConfigError(err, levelIndex) {
   }
   if (err.code === 'entitlement_required' && platform.isApp) {
     // The pending record saved above lets the paywall resume this level after
-    // a successful purchase or restore.
-    authStatusMessage.textContent = t('auth.subscriptionRequired');
-    authStatusModal.style.display = 'none';
+    // a successful purchase or restore. The app has no auth-status overlay.
     diffSelect.style.display = 'flex';
     updateHUDLogoutVisibility();
     showEntitlementPaywall();
+    return;
+  }
+  if (platform.isApp) {
+    // The app has no auth-status overlay; return to the title screen.
+    diffSelect.style.display = 'flex';
+    updateHUDLogoutVisibility();
     return;
   }
   if (err.statusCode === 401) {
@@ -2444,7 +2462,7 @@ function handleUrlAuthTokens() {
   }
 }
 
-handleUrlAuthTokens();
+if (!platform.isApp) handleUrlAuthTokens();
 
 // The app build has no leaderboard; its title screen shows the local
 // personal-development panel instead (see refreshProfileAndLeaderboard).
@@ -2472,13 +2490,15 @@ onLocaleChange(() => {
   if (currentPersonalDevelopment) renderPersonalDevelopment(currentPersonalDevelopment);
   renderPersonalBest(currentProfile, accountPersonalBest);
   renderLevelJumpOptions(currentProfile);
-  if (platform.isLoggedIn) {
-    splashLoginBtn.textContent = t('splash.logout');
-    splashGreeting.textContent = t('splash.greeting', { username: platform.username });
-  } else {
-    splashLoginBtn.textContent = t('splash.loginRegister');
+  if (!platform.isApp) {
+    if (platform.isLoggedIn) {
+      splashLoginBtn.textContent = t('splash.logout');
+      splashGreeting.textContent = t('splash.greeting', { username: platform.username });
+    } else {
+      splashLoginBtn.textContent = t('splash.loginRegister');
+    }
+    if (lastBillingStatus) renderBillingStatus(lastBillingStatus);
   }
-  if (lastBillingStatus) renderBillingStatus(lastBillingStatus);
   if (levelClearOverlay.style.display !== 'none' && lastLevelClearNum !== null) {
     levelClearTitle.textContent = t('overlay.levelClearTitle', { level: lastLevelClearNum });
     levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
@@ -2493,6 +2513,7 @@ onLocaleChange(() => {
 platform.refresh()
   .catch(() => false)
   .finally(async () => {
+    if (platform.isApp) return;
     applyAuthUIState();
     await handleCheckoutRedirect();
     if (new URLSearchParams(location.search).get('account') === 'billing') {
