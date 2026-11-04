@@ -8,11 +8,16 @@ permissions:
   contents: read
   pull-requests: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
       needed: ${{ steps.paths.outputs.needed }}
+      native: ${{ steps.paths.outputs.native }}
     steps:
       - id: paths
         env:
@@ -26,7 +31,12 @@ jobs:
           if [ -z "$paths" ] || grep -Eq '^(sites/ffm/|\.github/workflows/ffm-native\.yml$)' <<< "$paths"; then
             needed=true
           fi
+          native=false
+          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(mobile/)?(ios/|android/|package\.json|package-lock\.json|capacitor\.config\.json)|\.github/workflows/ffm-native\.yml$)' <<< "$paths"; then
+            native=true
+          fi
           echo "needed=$needed" >> "$GITHUB_OUTPUT"
+          echo "native=$native" >> "$GITHUB_OUTPUT"
 
   android:
     needs: changes
@@ -60,7 +70,10 @@ jobs:
 
   ios:
     needs: changes
-    if: needs.changes.outputs.needed == 'true'
+    # A macOS runner bills at ten times the Linux rate, so the iOS build runs only when something the
+    # app bundle is made of changed. A game-code change is covered by the Android build and the checks;
+    # the iOS project is verified again on the promotion pull request into main.
+    if: needs.changes.outputs.native == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
     defaults:
@@ -88,12 +101,13 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Require both native builds when relevant
+      - name: Require the native builds the changed inputs need
         env:
           NEEDED: ${{ needs.changes.outputs.needed }}
           CHANGES: ${{ needs.changes.result }}
           ANDROID: ${{ needs.android.result }}
           IOS: ${{ needs.ios.result }}
+          NATIVE: ${{ needs.changes.outputs.native }}
         run: |
           set -euo pipefail
           if [ "$CHANGES" != success ]; then
@@ -102,8 +116,8 @@ jobs:
           fi
           if [ "$NEEDED" = false ]; then
             echo "Arithmo Slayer native inputs are unchanged."
-          elif [ "$NEEDED" = true ] && [ "$ANDROID" = success ] && [ "$IOS" = success ]; then
-            echo "Both native builds passed."
+          elif [ "$NEEDED" = true ] && [ "$ANDROID" = success ] && { [ "$NATIVE" != true ] || [ "$IOS" = success ]; }; then
+            echo "Native builds passed for the inputs that changed."
           else
             echo "::error::native builds are missing, pending, skipped, cancelled or failed"
             exit 1
