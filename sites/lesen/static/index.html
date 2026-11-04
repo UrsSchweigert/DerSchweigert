@@ -250,20 +250,24 @@
         }
 
         .language-control .flag {
+            /* A border, not a box-shadow ring: a 1px shadow spread lands on a
+               partially covered pixel column at the fractional right edge and
+               is rounded away, so the frame vanished on that side. */
             display: block;
             height: 18px;
             width: auto;
-            border-radius: 2px;
-            box-shadow: 0 0 0 1px rgba(7, 89, 183, .3);
-            transition: box-shadow .15s;
+            box-sizing: content-box;
+            border: 2px solid rgba(7, 89, 183, .3);
+            border-radius: 3px;
+            transition: border-color .15s;
         }
 
         .language-control button:hover .flag {
-            box-shadow: 0 0 0 2px rgba(7, 89, 183, .45);
+            border-color: rgba(7, 89, 183, .45);
         }
 
         .language-control button.active .flag {
-            box-shadow: 0 0 0 2px var(--blue);
+            border-color: var(--blue);
         }
 
         h2,
