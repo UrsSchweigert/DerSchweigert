@@ -24,7 +24,23 @@ def test_native_ci_gate_fails_closed(changes, needed, android, ios, passed):
     gate = WORKFLOW.read_text().split("\n  lesen-native:\n", 1)[1]
     script = textwrap.dedent(gate.split("        run: |\n", 1)[1])
     result = subprocess.run(["bash", "-c", script], env=dict(
-        os.environ, CHANGES=changes, NEEDED=needed, ANDROID=android, IOS=ios),
+        os.environ, CHANGES=changes, NEEDED=needed, ANDROID=android, IOS=ios, NATIVE="true"),
+        capture_output=True, text=True)
+    assert (result.returncode == 0) is passed
+
+
+@pytest.mark.parametrize("android,ios,passed", [
+    ("success", "success", True),
+    ("success", "skipped", True),  # no native input changed, so the macOS job is not owed
+    ("success", "failure", True),  # a macOS job that should not have run cannot fail the gate
+    ("failure", "skipped", False),
+    ("skipped", "success", False),
+])
+def test_the_gate_only_owes_the_ios_build_when_native_inputs_changed(android, ios, passed):
+    gate = WORKFLOW.read_text().split("\n  lesen-native:\n", 1)[1]
+    script = textwrap.dedent(gate.split("        run: |\n", 1)[1])
+    result = subprocess.run(["bash", "-c", script], env=dict(
+        os.environ, CHANGES="success", NEEDED="true", ANDROID=android, IOS=ios, NATIVE="false"),
         capture_output=True, text=True)
     assert (result.returncode == 0) is passed
 

@@ -116,7 +116,7 @@ jobs:
           fi
           if [ "$NEEDED" = false ]; then
             echo "Arithmo Slayer native inputs are unchanged."
-          elif [ "$NEEDED" = true ] && [ "$ANDROID" = success ] && { [ "$NATIVE" != true ] || [ "$IOS" = success ]; }; then
+          elif [ "$NEEDED" = true ] && [ "$ANDROID" = success ] && { [ "${NATIVE:-}" != true ] || [ "$IOS" = success ]; }; then
             echo "Native builds passed for the inputs that changed."
           else
             echo "::error::native builds are missing, pending, skipped, cancelled or failed"
