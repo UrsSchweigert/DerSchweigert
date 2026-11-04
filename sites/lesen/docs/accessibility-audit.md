@@ -66,7 +66,7 @@ No change required.
 | Start / grade / dialog buttons | `min-height: 44px`; `.action` 58px | pass |
 | About close button | 44x44 after fix (was 40x40) | fixed |
 | Footer link buttons | `min-height: 44px` after fix (was ~15px) | fixed |
-| Reminder checkbox | 17px box inside `.reminder-toggle`, full-width flex label with `min-height: 44px` | fixed after rendered verification |
+| Reminder toggle | 40×24 switch inside `.reminder-toggle`, full-width flex label with `min-height: 44px` | fixed after rendered verification |
 
 The mode radio and sub-pattern checkbox inputs are wrapped in row labels.
 Independent rendered verification after the automated exit found the reminder

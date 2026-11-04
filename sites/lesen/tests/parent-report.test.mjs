@@ -176,6 +176,23 @@ test('parent report: index.html wires the footer export button to the report hel
   assert.match(html, /report\.export_failed/);
 });
 
+test('parent report: index.html shows an in-app report card with CSV export from the card', async () => {
+  const html = await readFile(new URL('../static/index.html', import.meta.url), 'utf8');
+
+  assert.match(html, /<dialog id="report-dialog"/);
+  assert.match(html, /id="report-summary"/);
+  assert.match(html, /id="report-cards"/);
+  assert.match(html, /id="report-accuracy"/);
+  assert.match(html, /id="report-time"/);
+  assert.match(html, /id="report-table"/);
+  assert.match(html, /id="report-rows"/);
+  assert.match(html, /id="report-export"/);
+  assert.match(html, /byId\('export-report'\)[\s\S]*?report-dialog/);
+  assert.match(html, /byId\('report-export'\)[\s\S]*?window\.__platform\.export\.save\(/);
+  assert.match(html, /id="footer-report-label"/);
+  assert.match(html, /id="toggle-haptics"/);
+});
+
 test('parent report: entry point re-exports the platform contract', () => {
   assert.equal(buildReport, platform.buildReport);
   assert.equal(toCsv, platform.toCsv);

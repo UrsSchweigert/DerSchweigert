@@ -20,7 +20,7 @@ function element() {
 }
 
 async function setup({ permission = 'granted', requestResult = 'granted', supported = true,
-  store = new Map(), lang = 'de', failSchedule = false, failCancel = false } = {}) {
+  store = new Map(), lang = 'de', failSchedule = false, failCancel = false, deferPermission = false } = {}) {
   const nodes = new Map();
   const doc = element();
   doc.hidden = false;
@@ -29,9 +29,16 @@ async function setup({ permission = 'granted', requestResult = 'granted', suppor
     return nodes.get(id);
   };
   const calls = { request: 0, schedule: [], cancel: 0 };
+  let resolvePermission = null;
+  const permissionGate = deferPermission ? new Promise(resolve => { resolvePermission = resolve; }) : null;
   const plugin = {
     async checkPermissions() { return { display: permission }; },
-    async requestPermissions() { calls.request++; permission = requestResult; return { display: permission }; },
+    async requestPermissions() {
+      calls.request++;
+      if (permissionGate) await permissionGate;
+      permission = requestResult;
+      return { display: permission };
+    },
     async schedule(payload) {
       if (failSchedule) throw Error('schedule unavailable');
       calls.schedule.push(payload);
@@ -58,7 +65,7 @@ async function setup({ permission = 'granted', requestResult = 'granted', suppor
     get('reminders-answer').value = '33';
     await get('reminders-gate').emit('submit');
   }
-  return { calls, reminders, store, doc, get, unlock };
+  return { calls, reminders, store, doc, get, unlock, resolvePermission: () => resolvePermission?.() };
 }
 
 test('reminder settings: web build stays hidden and never prompts', async () => {
@@ -125,6 +132,22 @@ test('reminder settings: closing or backgrounding locks the gate again', async (
   get('reminders-enabled').checked = true;
   await get('reminders-settings').emit('submit');
   assert.equal(calls.schedule.length, 0);
+});
+
+test('reminder settings: the OS permission prompt does not close the dialog mid-save', async () => {
+  const { get, unlock, doc, calls, resolvePermission } = await setup({ permission: 'prompt', deferPermission: true });
+  await unlock();
+  get('reminders-enabled').checked = true;
+  get('reminders-time').value = '08:15';
+  const saving = get('reminders-settings').emit('submit');
+  // The native permission prompt backgrounds the app while the save is in flight.
+  doc.hidden = true;
+  await doc.emit('visibilitychange');
+  assert.equal(get('reminders-dialog').open, true, 'the dialog must stay open while saving');
+  resolvePermission();
+  await saving;
+  assert.equal(calls.schedule.length, 1);
+  assert.equal(get('reminders-status').textContent, t('de', 'reminders.status.scheduled'));
 });
 
 test('reminder settings: denial is visible and repeated saves never reprompt', async () => {

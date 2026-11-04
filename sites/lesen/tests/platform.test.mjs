@@ -15,6 +15,10 @@ import {
   REPORT_FILENAME,
   HAPTIC_CORRECT_PATTERN,
   HAPTIC_INCORRECT_PATTERN,
+  HAPTIC_CORRECT_MS,
+  HAPTIC_INCORRECT_MS,
+  HAPTIC_INCORRECT_GAP_MS,
+  HAPTICS_ENABLED_KEY,
   REMINDERS_ENABLED_KEY,
   REMINDERS_DENIED_KEY,
   REMINDERS_SCHEDULE_KEY,
@@ -748,6 +752,64 @@ test('web haptics: grade falls back to distinct impact styles without notificati
   assert.equal(await haptics.grade(false), 'native');
   assert.deepEqual(calls, ['MEDIUM', 'HEAVY']);
 });
+
+test('web haptics: grade prefers the vibrate engine over notification/impact', async () => {
+  const calls = [];
+  const win = {
+    Capacitor: {
+      Plugins: {
+        Haptics: {
+          vibrate: (options) => calls.push(['vibrate', options.duration]),
+          notification: (options) => calls.push(['notification', options.type]),
+          impact: (options) => calls.push(['impact', options.style]),
+        },
+      },
+    },
+  };
+  const haptics = createWebHaptics({ window: win });
+
+  assert.equal(await haptics.grade(true), 'native');
+  assert.equal(await haptics.grade(false), 'native');
+  assert.deepEqual(calls, [
+    ['vibrate', HAPTIC_CORRECT_MS],
+    ['vibrate', HAPTIC_INCORRECT_MS],
+    ['vibrate', HAPTIC_INCORRECT_MS],
+  ]);
+  assert.ok(HAPTIC_CORRECT_MS !== HAPTIC_INCORRECT_MS);
+});
+
+test('web haptics: grade is silent when the app switch is off', async () => {
+  const calls = [];
+  const win = {
+    Capacitor: {
+      Plugins: {
+        Haptics: {
+          vibrate: (options) => calls.push(options.duration),
+        },
+      },
+    },
+    navigator: {
+      vibrate: (pattern) => calls.push(['pattern', pattern]),
+    },
+  };
+  const store = createFakeStore();
+  const haptics = createWebHaptics({ window: win, store });
+
+  assert.equal(haptics.isEnabled(), true, 'haptics start on');
+  await haptics.setEnabled(false);
+  assert.equal(haptics.isEnabled(), false);
+  assert.equal(await haptics.grade(true), 'disabled');
+  assert.equal(await haptics.grade(false), 'disabled');
+  assert.deepEqual(calls, []);
+  assert.equal(store.getItem(HAPTICS_ENABLED_KEY), 'false');
+});
+
+test('web haptics: a stored off value starts disabled', async () => {
+  const store = createFakeStore({ [HAPTICS_ENABLED_KEY]: 'false' });
+  const haptics = createWebHaptics({ window: { navigator: { vibrate: () => true } }, store });
+  assert.equal(haptics.isEnabled(), false);
+});
+
 
 test('web haptics: grade vibrates distinct browser patterns per grade', async () => {
   const patterns = [];
