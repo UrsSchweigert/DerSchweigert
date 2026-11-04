@@ -12,6 +12,7 @@
  * Contains all user-visible strings from the application.
  */
 const DE = {
+  'dialog.about.third_party': 'Lizenzen der App-Bibliotheken',
   // Brand and main headings
   'app.title': 'Buchstabenzeit',
   'setup.title': 'Lesen lernen, Karte für Karte.',
@@ -85,7 +86,7 @@ const DE = {
   
   // About dialog
   'dialog.about.title': 'Über Buchstabenzeit',
-  'dialog.about.version': 'Version 1.0',
+  'dialog.about.version': 'Version',
   'dialog.about.intro': 'Buchstabenzeit ist eine begleitete Leseübung. Ein Erwachsener wählt die Karten aus, begleitet das Kind beim Lesen und markiert die Antworten.',
   'dialog.about.privacy': 'Datenschutz',
   'dialog.about.privacy_text': 'Diese App sammelt keine persönlichen Daten, hat keine Benutzerkonten, keine Werbung und keine Analyse. Sie funktioniert vollständig offline und benötigt keine Internetverbindung.',
@@ -131,6 +132,43 @@ const DE = {
   // Footer
   'footer.tagline': 'Buchstabenzeit · Jeden Tag ein kleines Stück weiter.',
   'footer.about_button': 'Rechtliches & Datenschutz',
+  'footer.parent_report': 'Bericht',
+  'footer.haptics': 'Vibration',
+
+  // Parent report card and export
+  'report.title': 'Bericht',
+  'report.no_data': 'Noch keine Übungsergebnisse.',
+  'report.cards_practiced': 'Geübte Karten',
+  'report.correct': 'Richtig',
+  'report.needs_practice': 'Nochmal üben',
+  'report.accuracy': 'Genauigkeit',
+  'report.practice_time': 'Übungszeit',
+  'report.unit.min': 'min',
+  'report.unit.s': 's',
+  'report.export_csv': 'Als CSV exportieren',
+  'report.col.card': 'Karte',
+  'report.col.correct': 'Richtig',
+  'report.col.needs': 'Nochmal',
+  'report.col.accuracy': 'Genauigkeit',
+
+  // Parent report export status
+  'report.export_ready': 'Bericht gespeichert.',
+  'report.export_failed': 'Bericht konnte nicht gespeichert werden.',
+  'reminders.title': 'Übungserinnerungen',
+  'reminders.explanation': 'Nur für Erwachsene: Eine tägliche Erinnerung auf diesem Gerät. Standardmäßig aus, ohne Server oder Push-Dienst.',
+  'reminders.question': 'Bitte löse zuerst: {a} × {b}',
+  'reminders.answer': 'Ergebnis',
+  'reminders.unlock': 'Einstellungen öffnen',
+  'reminders.gate_error': 'Das Ergebnis stimmt nicht. Bitte einen Erwachsenen um Hilfe.',
+  'reminders.enabled': 'Täglich ans Lesen erinnern',
+  'reminders.time': 'Ungefähre Uhrzeit auf diesem Gerät',
+  'reminders.save': 'Speichern',
+  'reminders.notification': 'Zeit für eine kleine Leseübung.',
+  'reminders.status.off': 'Erinnerungen sind aus.',
+  'reminders.status.scheduled': 'Die tägliche Erinnerung ist gespeichert.',
+  'reminders.status.denied': 'Mitteilungen sind nicht erlaubt. Du kannst sie in den Geräteeinstellungen freigeben. Die App fragt nicht erneut.',
+  'reminders.status.failed': 'Die Erinnerung konnte nicht geändert werden. Bitte versuche es erneut.',
+  'reminders.status.unsupported': 'Erinnerungen sind auf diesem Gerät nicht verfügbar.',
 };
 
 /**
@@ -138,6 +176,7 @@ const DE = {
  * Contains all user-visible strings from the application in English.
  */
 const EN = {
+  'dialog.about.third_party': 'App library licences',
   // Brand and main headings
   'app.title': 'Letter time',
   'setup.title': 'Learn to read, card by card.',
@@ -211,7 +250,7 @@ const EN = {
   
   // About dialog
   'dialog.about.title': 'About Letter time',
-  'dialog.about.version': 'Version 1.0',
+  'dialog.about.version': 'Version',
   'dialog.about.intro': 'Letter time is guided reading practice. An adult chooses the cards, guides the child through reading, and marks the answers.',
   'dialog.about.privacy': 'Privacy',
   'dialog.about.privacy_text': 'This app collects no personal data, has no user accounts, no ads, and no analytics. It works completely offline and requires no internet connection.',
@@ -257,6 +296,43 @@ const EN = {
   // Footer
   'footer.tagline': 'Letter time · Every day a little bit further.',
   'footer.about_button': 'Legal & Privacy',
+  'footer.parent_report': 'Report',
+  'footer.haptics': 'Haptics',
+
+  // Parent report card and export
+  'report.title': 'Report',
+  'report.no_data': 'No practice results yet.',
+  'report.cards_practiced': 'Cards practised',
+  'report.correct': 'Correct',
+  'report.needs_practice': 'Needs practice',
+  'report.accuracy': 'Accuracy',
+  'report.practice_time': 'Practice time',
+  'report.unit.min': 'min',
+  'report.unit.s': 's',
+  'report.export_csv': 'Export as CSV',
+  'report.col.card': 'Card',
+  'report.col.correct': 'Correct',
+  'report.col.needs': 'Needs practice',
+  'report.col.accuracy': 'Accuracy',
+
+  // Parent report export status
+  'report.export_ready': 'Report saved.',
+  'report.export_failed': 'Report could not be saved.',
+  'reminders.title': 'Practice reminders',
+  'reminders.explanation': 'For adults only: One daily reminder on this device. Off by default, with no server or push service.',
+  'reminders.question': 'First solve: {a} × {b}',
+  'reminders.answer': 'Answer',
+  'reminders.unlock': 'Open settings',
+  'reminders.gate_error': 'That answer is not correct. Please ask an adult for help.',
+  'reminders.enabled': 'Remind me to read every day',
+  'reminders.time': 'Approximate time on this device',
+  'reminders.save': 'Save',
+  'reminders.notification': 'Time for a little reading practice.',
+  'reminders.status.off': 'Reminders are off.',
+  'reminders.status.scheduled': 'The daily reminder is saved.',
+  'reminders.status.denied': 'Notifications are not allowed. You can enable them in device settings. The app will not ask again.',
+  'reminders.status.failed': 'The reminder could not be changed. Please try again.',
+  'reminders.status.unsupported': 'Reminders are not available on this device.',
 };
 
 /**

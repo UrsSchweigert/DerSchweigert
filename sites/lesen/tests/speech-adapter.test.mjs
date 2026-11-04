@@ -425,6 +425,44 @@ test('Native adapter speak with outcome callbacks', async t => {
     assert.equal(onNoVoiceCalled, true);
   });
 
+  await t.test('passes pitch through to plugin.speak', async () => {
+    let spoken = null;
+    const fakePlugin = {
+      initialize: async () => ({ status: 'ready', languageAvailable: true }),
+      listOfflineVoices: async () => ({ voices: ['voice1'], suitableCount: 1 }),
+      speak: async (options) => { spoken = options; },
+      stop: async () => {}
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    await adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8,
+      pitch: 1.2
+    });
+    assert.ok(spoken, 'plugin.speak should be called');
+    assert.equal(spoken.pitch, 1.2);
+    assert.equal(spoken.rate, 0.8);
+  });
+
+  await t.test('defaults pitch to 1.0 when omitted', async () => {
+    let spoken = null;
+    const fakePlugin = {
+      initialize: async () => ({ status: 'ready', languageAvailable: true }),
+      listOfflineVoices: async () => ({ voices: ['voice1'], suitableCount: 1 }),
+      speak: async (options) => { spoken = options; },
+      stop: async () => {}
+    };
+    const adapter = createNativeSpeechAdapter(fakePlugin);
+    await adapter.speak({
+      text: 'test',
+      lang: 'de-DE',
+      rate: 0.8
+    });
+    assert.ok(spoken, 'plugin.speak should be called');
+    assert.equal(spoken.pitch, 1.0);
+  });
+
   await t.test('calls plugin.speak when suitableCount >= 1', async () => {
     let pluginSpeakCalled = false;
     const fakePlugin = {
