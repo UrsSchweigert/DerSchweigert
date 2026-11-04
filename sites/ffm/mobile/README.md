@@ -86,6 +86,14 @@ Tests assert the app identity (`de.derschweigert.arithmoslayer`, `Arithmo Slayer
 of `server.url`, one Capacitor 8 version line, the development-file exclusions of `copy-assets`, and the native
 store metadata. A failing test here is a report about the committed shell, not an invitation to edit it.
 
+`tests/android-shell.test.mjs` asserts the Android shell offline: the `de.derschweigert.arithmoslayer` identity in
+`build.gradle` and `strings.xml`, `android:allowBackup="true"` with no backup rule file, exactly one exported
+launcher activity, no app-declared permission (Play Billing merges `BILLING` plus its network permissions), the
+adaptive icon and splash wiring, and the `versionCode`/`versionName` defaults. `RELEASING.md` records the version
+scheme, the merged-manifest permission check, the signing-secret names, the sandbox and internal-track procedure,
+the App Review notes and the manual gate checklist; every native or owner gap is an open action there, not a
+native edit from a worker branch.
+
 ## Escalation: maintainer-owned files
 
 These paths are owner-merged. Do not edit them from a worker branch; stop and escalate the exact change and its
