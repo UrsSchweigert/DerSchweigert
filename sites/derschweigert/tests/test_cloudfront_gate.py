@@ -92,6 +92,7 @@ for (const testCase of testCases) {
             resultStatus: result.statusCode || 200,
             resultDescription: result.statusDescription || 'OK',
             redirect: result.headers?.location?.value,
+            requestUri: event.request.uri,
             pass: (result.statusCode || 200) === testCase.expect_status
         });
     } catch (error) {
@@ -224,7 +225,7 @@ def test_cloudfront_gate_cookie_passes_when_enabled():
 
 
 def test_cloudfront_gate_legal_pages_public_both_flags():
-    """Verify legal pages (impressum/datenschutz) are always accessible, regardless of PIN setting."""
+    """Verify legal pages are always accessible, regardless of PIN setting."""
     tf_file = Path(__file__).parent.parent.parent.parent / 'infra' / 'terraform' / 'sites' / 'derschweigert' / 'main.tf'
     
     for pin_enabled in [False, True]:
@@ -245,14 +246,24 @@ def test_cloudfront_gate_legal_pages_public_both_flags():
                 "cookie": None,
                 "expect_status": 200,
                 "description": f"Datenschutz public when PIN {'enabled' if pin_enabled else 'disabled'}"
+            },
+            {
+                "uri": "/nutzungsbedingungen",
+                "host": "www.derschweigert.de",
+                "cookie": None,
+                "expect_status": 200,
+                "description": f"Nutzungsbedingungen public when PIN {'enabled' if pin_enabled else 'disabled'}"
             }
         ]
-        
+
         script = create_node_test_harness(function_code, test_cases)
         results = run_node_test(script)
-        
+
         for result in results:
             assert result['pass'], f"Test failed: {result.get('description')} - {result}"
+            if result["uri"] == "/nutzungsbedingungen":
+                assert result.get("redirect") is None
+                assert result["requestUri"] == "/nutzungsbedingungen.html"
 
 
 def test_cloudfront_gate_contact_gone_both_flags():

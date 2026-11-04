@@ -334,6 +334,8 @@ function App() {
             <a href="/impressum.html" target="_blank" rel="noopener" className="appFooter__link">{t.impressum}</a>
             <span className="appFooter__sep">·</span>
             <a href="/datenschutz.html" target="_blank" rel="noopener" className="appFooter__link">{t.datenschutz}</a>
+            <span className="appFooter__sep">·</span>
+            <a href="https://www.derschweigert.de/nutzungsbedingungen" target="_blank" rel="noopener" className="appFooter__link">{t.terms}</a>
           </div>
           <div className="appFooter__row">
             <a href="/donate.html" target="_blank" rel="noopener" className="appFooter__link">{t.donate}</a>
