@@ -954,9 +954,21 @@
         .report-actions {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 12px;
             justify-content: flex-end;
             margin-top: 14px;
+        }
+
+        .report-actions .primary,
+        .report-actions .quiet {
+            min-height: 40px;
+            padding: 8px 14px;
+            font-size: 14px;
+            border-radius: 10px;
+        }
+
+        .report-actions .primary {
+            box-shadow: 0 3px 0 var(--blue-dark), 0 5px 10px rgba(7, 89, 183, .14);
         }
 
         .link-button {
