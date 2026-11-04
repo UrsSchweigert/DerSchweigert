@@ -65,7 +65,12 @@ test('iOS speech: playback uses the application session and waits for actual com
   assert.match(scene, /setActive\(true\)/);
   assert.match(scene, /setActive\(false, options: \.notifyOthersOnDeactivation\)/);
   assert.match(scene, /stopSpeaking\(at: \.immediate\)/);
-  assert.match(scene, /didFinish utterance:[\s\S]*?call\?\.resolve\(\["status": "finished"\]\)/);
+  // speak() can finish in silence with downloaded voices; speech is rendered and played by an engine.
+  assert.doesNotMatch(scene, /synthesizer\?\.speak\(/);
+  assert.match(scene, /synthesizer\?\.write\(next\)/);
+  assert.match(scene, /scheduleBuffer\(copy, completionCallbackType: \.dataPlayedBack\)/);
+  assert.match(scene, /func finishIfPlayedBack\(\)[\s\S]*?call\?\.resolve\(\["status": "finished"\]\)/);
+  assert.match(scene, /\.AVAudioEngineConfigurationChange/);
   assert.match(scene, /Speech synthesis did not start/);
   assert.match(scene, /Thread\.isMainThread/);
   assert.doesNotMatch(scene, /try\?/);

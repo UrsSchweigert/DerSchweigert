@@ -56,7 +56,7 @@ class AVSpeechSynthesisVoice {
     let quality: Quality
     let voiceTraits: Traits
     let installed: Bool
-    let producesAudio: Bool
+    var producesAudio: Bool
     init(_ identifier: String, _ language: String, quality: Quality = .default,
          traits: Traits = [], installed: Bool = true, producesAudio: Bool = true) {
         self.identifier = identifier
@@ -86,38 +86,146 @@ let AVSpeechUtteranceDefaultSpeechRate: Float = 0.5
 let AVSpeechUtteranceMinimumSpeechRate: Float = 0
 let AVSpeechUtteranceMaximumSpeechRate: Float = 1
 protocol AVSpeechSynthesizerDelegate: AnyObject {
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance)
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance)
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance)
+}
+typealias AVAudioChannelCount = UInt32
+final class AVAudioFormat: Equatable {
+    let sampleRate: Double
+    let channelCount: AVAudioChannelCount
+    let isFloat: Bool
+    init?(standardFormatWithSampleRate sampleRate: Double, channels: AVAudioChannelCount) {
+        self.sampleRate = sampleRate
+        channelCount = channels
+        isFloat = true
+    }
+    init(int16SampleRate sampleRate: Double) {
+        self.sampleRate = sampleRate
+        channelCount = 1
+        isFloat = false
+    }
+    static func == (left: AVAudioFormat, right: AVAudioFormat) -> Bool {
+        left.sampleRate == right.sampleRate && left.channelCount == right.channelCount && left.isFloat == right.isFloat
+    }
 }
 class AVAudioBuffer {}
 class AVAudioPCMBuffer: AVAudioBuffer {
-    let frameLength: UInt32
-    init(frames: UInt32) { frameLength = frames }
+    // Synthesized speech arrives in this format; playback must convert and copy it.
+    static var speechFormat = AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1)!
+    let format: AVAudioFormat
+    let frameCapacity: UInt32
+    var frameLength: UInt32 = 0
+    init?(pcmFormat: AVAudioFormat, frameCapacity: UInt32) {
+        format = pcmFormat
+        self.frameCapacity = frameCapacity
+    }
+    convenience init(frames: UInt32) {
+        self.init(pcmFormat: Self.speechFormat, frameCapacity: max(frames, 1))!
+        frameLength = frames
+    }
+}
+final class AVAudioConverter {
+    static var conversions = 0
+    let from: AVAudioFormat
+    let to: AVAudioFormat
+    init?(from: AVAudioFormat, to: AVAudioFormat) { self.from = from; self.to = to }
+    func convert(to output: AVAudioPCMBuffer, from input: AVAudioPCMBuffer) throws {
+        expect(input.format == from && output.format == to && output.frameCapacity >= input.frameLength)
+        Self.conversions += 1
+        output.frameLength = input.frameLength
+    }
+}
+class AVAudioNode {}
+final class AVAudioMixerNode: AVAudioNode {}
+final class AVAudioPlayerNode: AVAudioNode {
+    enum CompletionCallbackType { case dataPlayedBack }
+    static var instances: [AVAudioPlayerNode] = []
+    var format: AVAudioFormat?
+    var playing = false
+    var scheduled: [(AVAudioPCMBuffer, (CompletionCallbackType) -> Void)] = []
+    var playedFrames = 0
+    override init() { super.init(); mainThread(); Self.instances.append(self) }
+    func outputFormat(forBus bus: Int) -> AVAudioFormat { format! }
+    func play() { mainThread(); playing = true }
+    func scheduleBuffer(_ buffer: AVAudioPCMBuffer, completionCallbackType: CompletionCallbackType,
+                        completionHandler: @escaping (CompletionCallbackType) -> Void) {
+        mainThread()
+        expect(buffer.format == format && buffer.frameLength > 0, "Only converted audio is scheduled")
+        scheduled.append((buffer, completionHandler))
+    }
+    // Like the real node, stopping completes every buffer that was still queued.
+    func stop() {
+        mainThread()
+        playing = false
+        let pending = scheduled
+        scheduled = []
+        pending.forEach { $0.1(.dataPlayedBack) }
+    }
+    func playBack() {
+        expect(playing, "Audio is only played back by a running player")
+        while !scheduled.isEmpty {
+            let (buffer, done) = scheduled.removeFirst()
+            playedFrames += Int(buffer.frameLength)
+            done(.dataPlayedBack)
+        }
+    }
+}
+final class AVAudioEngine {
+    static var instances: [AVAudioEngine] = []
+    static var failStart = false
+    let mainMixerNode = AVAudioMixerNode()
+    var attached: [AVAudioNode] = []
+    var running = false
+    init() { mainThread(); Self.instances.append(self) }
+    func attach(_ node: AVAudioNode) { mainThread(); attached.append(node) }
+    func connect(_ node: AVAudioNode, to mixer: AVAudioNode, format: AVAudioFormat?) {
+        mainThread()
+        expect(attached.contains { $0 === node } && mixer === mainMixerNode)
+        (node as? AVAudioPlayerNode)?.format = format
+    }
+    func start() throws {
+        mainThread()
+        expect(AVAudioSession.shared.active, "The engine starts inside the active playback session")
+        if Self.failStart { throw injectedError }
+        running = true
+    }
+    func stop() { mainThread(); running = false }
+}
+extension Notification.Name {
+    static let AVAudioEngineConfigurationChange = Notification.Name("engineConfigurationChange")
 }
 class AVSpeechSynthesizer {
     enum Boundary { case immediate }
     static var instances: [AVSpeechSynthesizer] = []
-    // Holds probe syntheses back so tests can interleave calls with an unfinished probe.
+    // Holds syntheses back so tests can interleave calls with unfinished rendering.
     static var deferWrites = false
     static var pendingWrites: [() -> Void] = []
-    static var writes: [String] = []
+    static var probeWrites: [String] = []
     weak var delegate: AVSpeechSynthesizerDelegate?
     var usesApplicationAudioSession = false
     var isSpeaking = false
     var isPaused = false
     var current: AVSpeechUtterance?
     var stopSucceeds = true
-    var wrote = false
     init() { mainThread(); Self.instances.append(self) }
-    func speak(_ utterance: AVSpeechUtterance) { mainThread(); isSpeaking = true; current = utterance }
+    func speak(_ utterance: AVSpeechUtterance) {
+        expect(false, "speak() is silent with downloaded voices on iOS 17+; speech must be rendered")
+    }
     func write(_ utterance: AVSpeechUtterance, toBufferCallback callback: @escaping (AVAudioBuffer) -> Void) {
         mainThread()
-        wrote = true
-        Self.writes.append(utterance.voice!.identifier)
-        let deliver = {
-            if utterance.voice!.producesAudio { callback(AVAudioPCMBuffer(frames: 240)) }
+        let voice = utterance.voice!
+        if !usesApplicationAudioSession { Self.probeWrites.append(voice.identifier) }
+        current = utterance
+        isSpeaking = true
+        let deliver = { [weak self] in
+            guard let self, self.current === utterance else { return }
+            if voice.producesAudio {
+                callback(AVAudioPCMBuffer(frames: 240))
+                callback(AVAudioPCMBuffer(frames: 120))
+            }
+            // Real synthesizers can repeat the empty end-of-speech marker.
             callback(AVAudioPCMBuffer(frames: 0))
+            callback(AVAudioPCMBuffer(frames: 0))
+            if self.current === utterance { self.isSpeaking = false }
         }
         if Self.deferWrites { Self.pendingWrites.append(deliver) } else { deliver() }
     }
@@ -135,16 +243,6 @@ class AVSpeechSynthesizer {
         current = nil
         return true
     }
-    func start() {
-        mainThread()
-        if let current { delegate?.speechSynthesizer(self, didStart: current) }
-    }
-    func finish() {
-        mainThread()
-        isSpeaking = false
-        if let current { delegate?.speechSynthesizer(self, didFinish: current) }
-        current = nil
-    }
 }
 class AVAudioSession: NSObject {
     enum Category { case playback }
@@ -159,6 +257,10 @@ class AVAudioSession: NSObject {
     static let mediaServicesWereResetNotification = Notification.Name("reset")
     static let shared = AVAudioSession()
     static func sharedInstance() -> AVAudioSession { mainThread(); return shared }
+    struct Port { struct PortType { let rawValue: String }; let portType: PortType }
+    struct Route { let outputs: [Port] }
+    var currentRoute = Route(outputs: [Port(portType: Port.PortType(rawValue: "Speaker"))])
+    var outputVolume: Float = 0.5
     var active = false
     var category: Category?
     var mode: Mode?
@@ -212,7 +314,8 @@ func stop() -> CAPPluginCall {
     plugin.stop(call)
     return call
 }
-func latestSynth() -> AVSpeechSynthesizer { AVSpeechSynthesizer.instances.last { !$0.wrote }! }
+func latestSynth() -> AVSpeechSynthesizer { AVSpeechSynthesizer.instances.last { $0.usesApplicationAudioSession }! }
+func latestPlayer() -> AVAudioPlayerNode { AVAudioPlayerNode.instances.last! }
 func listed(_ lang: Any? = nil) -> CAPPluginCall {
     let call = CAPPluginCall(lang.map { ["lang": $0] } ?? [:])
     plugin.listOfflineVoices(call)
@@ -249,28 +352,57 @@ for bad in [[:], ["text": ""], ["text": " \n"], ["text": 1],
 }
 let first = speak()
 let synth = latestSynth()
-expect(first.result == nil && first.error == nil, "No pretend success before playback")
 expect(synth.current?.voice?.identifier == anna.identifier)
 expect(synth.current?.rate == 0.4 && synth.current?.pitchMultiplier == 1)
 expect(session.active && session.category == .playback && session.mode == .spokenAudio)
 expect(session.activationOptions == .duckOthers)
-synth.start()
-expect(first.result == nil, "Start is not completion")
-synth.finish()
+let firstEngine = AVAudioEngine.instances.last!
+expect(firstEngine.running && latestPlayer().playing, "Rendered speech plays through the app's own engine")
+expect(latestPlayer().format == AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1))
+expect(latestPlayer().scheduled.count == 2, "Every rendered buffer is queued, end markers are not")
+expect(first.result == nil && first.error == nil, "Rendering is not completion; playback is")
+expect(CAPLog.messages.contains("OfflineTts: playing via Speaker at volume 0.5"))
+latestPlayer().playBack()
+expect(latestPlayer().playedFrames == 360)
 expect(first.result?["status"] as? String == "finished")
-expect(!session.active && session.deactivationOptions == .notifyOthersOnDeactivation)
+expect(!firstEngine.running && !session.active && session.deactivationOptions == .notifyOthersOnDeactivation)
 
+AVAudioPCMBuffer.speechFormat = AVAudioFormat(int16SampleRate: 24000)
+let conversionsBefore = AVAudioConverter.conversions
+let converted = speak()
+expect(latestPlayer().format == AVAudioFormat(standardFormatWithSampleRate: 24000, channels: 1))
+expect(AVAudioConverter.conversions == conversionsBefore + 2, "Integer speech is converted for playback")
+latestPlayer().playBack()
+expect(converted.result?["status"] as? String == "finished")
+AVAudioPCMBuffer.speechFormat = AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1)!
+
+AVSpeechSynthesizer.deferWrites = true
 let previous = speak()
-let previousUtterance = synth.current!
 let replacement = speak(["text": "Hello", "lang": "en-GB", "rate": 1.2, "pitch": 1.1])
 expect(previous.result?["status"] as? String == "cancelled")
 expect(synth.current?.voice?.identifier == british.identifier)
-plugin.speechSynthesizer(synth, didFinish: previousUtterance)
-expect(session.active && replacement.result == nil, "Stale callbacks cannot deactivate newer playback")
+AVSpeechSynthesizer.deliverWrites()
+expect(session.active && replacement.result == nil, "Stale rendering cannot touch newer playback")
+let replacedPlayer = latestPlayer()
+expect(replacedPlayer.scheduled.count == 2)
 expect(stop().result != nil)
 expect(replacement.result?["status"] as? String == "cancelled")
-expect(!session.active && !synth.isSpeaking)
+expect(!session.active && !replacedPlayer.playing && AVAudioEngine.instances.last!.running == false)
 expect(stop().result != nil)
+
+let playing = speak()
+AVSpeechSynthesizer.deliverWrites()
+let stalePlayer = latestPlayer()
+let newer = speak()
+expect(playing.result?["status"] as? String == "cancelled" && stalePlayer.scheduled.isEmpty)
+AVSpeechSynthesizer.deliverWrites()
+expect(latestPlayer() !== stalePlayer && newer.result == nil, "Each utterance gets a fresh player")
+NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: AVAudioEngine.instances.first!)
+expect(newer.result == nil, "Changes of an old engine are ignored")
+NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: AVAudioEngine.instances.last!)
+expect(newer.result?["status"] as? String == "cancelled", "A route change ends speech instead of hanging")
+expect(!session.active)
+AVSpeechSynthesizer.deferWrites = false
 
 let background = speak()
 plugin.setSceneActive(false)
@@ -285,7 +417,7 @@ expect(interrupted.result?["status"] as? String == "cancelled")
 expect(!session.active && speak().error != nil)
 NotificationCenter.default.post(name: AVAudioSession.interruptionNotification, object: session,
                                 userInfo: [AVAudioSessionInterruptionTypeKey: NSNumber(value: 0)])
-expect(!synth.isSpeaking && !session.active, "Interruption end must not auto-resume")
+expect(!latestPlayer().playing && !session.active, "Interruption end must not auto-resume")
 
 session.failCategory = true
 expect(speak().error?.contains("injected audio failure") == true)
@@ -293,12 +425,17 @@ session.failCategory = false
 session.failActivation = true
 expect(speak().error?.contains("injected audio failure") == true)
 session.failActivation = false
+AVAudioEngine.failStart = true
+let engineFailure = speak()
+expect(engineFailure.error?.contains("injected audio failure") == true && !session.active)
+AVAudioEngine.failStart = false
 let deactivationFailure = speak()
 session.failDeactivation = true
-synth.finish()
+latestPlayer().playBack()
 expect(deactivationFailure.error?.contains("injected audio failure") == true)
 session.failDeactivation = false
 expect(stop().result != nil && !session.active, "Failed deactivation can be retried")
+AVSpeechSynthesizer.deferWrites = true
 let failedStop = speak()
 synth.stopSucceeds = false
 expect(stop().error?.contains("Failed to stop") == true)
@@ -307,7 +444,6 @@ synth.stopSucceeds = true
 expect(stop().result != nil && !session.active)
 
 let unexpectedCancel = speak()
-synth.isSpeaking = false
 plugin.speechSynthesizer(synth, didCancel: synth.current!)
 expect(unexpectedCancel.error?.contains("unexpectedly cancelled") == true)
 let timedOut = speak()
@@ -315,12 +451,14 @@ let timeout = Mirror(reflecting: plugin).children.first { $0.label == "startTime
 timeout.perform()
 expect(timedOut.error?.contains("did not start") == true)
 expect(!session.active && !synth.isSpeaking)
+AVSpeechSynthesizer.pendingWrites = []
+AVSpeechSynthesizer.deferWrites = false
 let reset = speak()
 NotificationCenter.default.post(name: AVAudioSession.mediaServicesWereResetNotification, object: session)
 expect(reset.result?["status"] as? String == "cancelled")
 let afterReset = speak()
 expect(latestSynth() !== synth && latestSynth().usesApplicationAudioSession)
-latestSynth().finish()
+latestPlayer().playBack()
 expect(afterReset.result?["status"] as? String == "finished")
 
 AVSpeechSynthesisVoice.available = [samantha]
@@ -331,7 +469,7 @@ plugin.initialize(noGerman)
 expect(noGerman.result?["languageAvailable"] as? Bool == false)
 expect(!session.active, "No default/network fallback without a matching offline voice")
 let english = speak(["text": "Hello", "lang": "en-US"])
-latestSynth().finish()
+latestPlayer().playBack()
 expect(english.result?["status"] as? String == "finished")
 
 let excludedVoices = [
@@ -359,7 +497,7 @@ for (identifier, lang, quality) in [
            "A downloaded Apple voice must be usable without a compact voice: \(identifier)")
     let playback = speak(["text": "Test", "lang": lang])
     expect(playback.error == nil && latestSynth().current?.voice?.identifier == identifier)
-    latestSynth().finish()
+    latestPlayer().playBack()
     expect(playback.result?["status"] as? String == "finished")
 }
 AVSpeechSynthesisVoice.available = excludedVoices
@@ -378,18 +516,18 @@ expect((probed.result?["voices"] as! [[String: Any]]).first?["name"] as? String 
 expect(CAPLog.messages.contains { $0.contains(silentEnhanced.identifier) && $0.contains("no audio") })
 let fallback = speak()
 expect(latestSynth().current?.voice?.identifier == workingCompact.identifier, "Speak skips the silent voice")
-latestSynth().finish()
+latestPlayer().playBack()
 expect(fallback.result?["status"] as? String == "finished")
-let writesBefore = AVSpeechSynthesizer.writes.count
+let writesBefore = AVSpeechSynthesizer.probeWrites.count
 expect(listed("de-DE").result?["suitableCount"] as? Int == 1)
 let cachedSpeak = speak()
-latestSynth().finish()
+latestPlayer().playBack()
 expect(cachedSpeak.result?["status"] as? String == "finished")
-expect(AVSpeechSynthesizer.writes.count == writesBefore, "Probe results are cached")
+expect(AVSpeechSynthesizer.probeWrites.count == writesBefore, "Probe results are cached")
 plugin.setSceneActive(false)
 plugin.setSceneActive(true)
 expect(listed("de-DE").result?["suitableCount"] as? Int == 1)
-expect(Array(AVSpeechSynthesizer.writes[writesBefore...]) == [silentEnhanced.identifier],
+expect(Array(AVSpeechSynthesizer.probeWrites[writesBefore...]) == [silentEnhanced.identifier],
        "Returning from Settings re-probes only failed voices")
 
 let silentOnly = AVSpeechSynthesisVoice("com.apple.voice.enhanced.de-DE.Helena", "de-DE",
@@ -415,11 +553,12 @@ let superseded = speak()
 let latestSpeak = speak()
 expect(superseded.result?["status"] as? String == "cancelled")
 AVSpeechSynthesizer.deliverWrites()
-expect(AVSpeechSynthesizer.writes.filter { $0 == slowVoice.identifier }.count == 1,
+expect(AVSpeechSynthesizer.probeWrites.filter { $0 == slowVoice.identifier }.count == 1,
        "Concurrent requests share one probe")
 expect(waitingList.result?["suitableCount"] as? Int == 1)
 expect(latestSynth().current?.voice?.identifier == slowVoice.identifier)
-latestSynth().finish()
+AVSpeechSynthesizer.deliverWrites()
+latestPlayer().playBack()
 expect(latestSpeak.result?["status"] as? String == "finished")
 
 let hangingVoice = AVSpeechSynthesisVoice("com.apple.voice.compact.de-DE.Hanging", "de-DE")
@@ -433,6 +572,15 @@ AVSpeechSynthesizer.deliverWrites()
 expect(listed("de-DE").result?["suitableCount"] as? Int == 0, "A late probe answer is ignored")
 AVSpeechSynthesizer.deferWrites = false
 expect(!session.active)
+
+// A voice that passed its probe but renders nothing when speaking is rejected and skipped next time.
+let flaky = AVSpeechSynthesisVoice("com.apple.voice.enhanced.de-DE.Flaky", "de-DE", quality: .enhanced)
+AVSpeechSynthesisVoice.available = [flaky]
+expect(listed("de-DE").result?["suitableCount"] as? Int == 1)
+flaky.producesAudio = false
+expect(speak().error?.contains("produced no audio") == true)
+expect(!session.active)
+expect(listed("de-DE").result?["suitableCount"] as? Int == 0)
 
 var offMainCall: CAPPluginCall?
 DispatchQueue.global().async {
