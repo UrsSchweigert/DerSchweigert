@@ -1010,3 +1010,21 @@ would make an iOS plan unexecutable, which is a worse answer than a reviewed lis
 network the scanner does not model (a template literal built at runtime, a plugin that fetches on its own), passes
 it. It proves the shape, not the behaviour — the device evidence stays a manual test — and adding the script to
 the image invalidates the Tier A attestation until `harness isolation build` and `isolation verify` have run.
+
+## A run document is changed in one transaction, never written back from a snapshot (2026-11-04)
+
+`pause` looked broken in the first Arithmo Slayer run: the operator was told the pause was requested, a worker was
+dispatched right after, and `run_state` showed no `pause_requested` at all. The request had been made, and then
+silently erased. `_implementation_checked` read the run document before `open_pr` — a network call that can take
+seconds — and wrote its snapshot back afterwards to bump `prs`, putting the pre-pause document over the request.
+Any writer holding a dictionary across a slow call can lose the same way: a check lease renewal, a promotion, a
+cancel.
+
+`Store.update_run(plan_id, mutate)` reads, mutates, and writes inside one `BEGIN IMMEDIATE` transaction, and every
+run-document writer in `scheduler.py` and `runner.py` now goes through it. The lock is short and per-writing-runner,
+so the cost is one small transaction where a write already happened, and the operator's request can no longer be
+overwritten by a stale copy. The regression test pauses inside `open_pr` and would have failed before this: it
+asserts that the `prs` bump and the `pause_requested` flag are both present afterwards, and the run then stops.
+
+A field that must never be lost still needs a writer that respects it: `update_run` prevents a lost update, not a
+deliberate clear. `start()` may clear the pause flags because a resumed run is a new run; nothing else may.

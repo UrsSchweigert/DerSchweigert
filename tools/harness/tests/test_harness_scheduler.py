@@ -3,7 +3,8 @@ import json
 
 import pytest
 
-from harness import approval, humantasks, status
+from harness import approval, humantasks, runner, status
+from harness.checks import DryRunPublisher
 from harness.store import Store
 from harness_doubles import Env, FakeChecker
 
@@ -782,3 +783,45 @@ def test_a_splittable_task_does_not_get_the_strongest_tier(tmp_path, monkeypatch
 
     assert started and started[0][0] != "strong"
     assert any(e["event"] == "split_pressure" for e in env.sched.events)
+
+
+class PausingPublisher(DryRunPublisher):
+    """Opening a pull request is slow enough for an operator to pause meanwhile; the run document must not go back."""
+
+    def __init__(self, store):
+        super().__init__()
+        self.store = store
+        self.paused = False
+
+    def open_pr(self, issue, branch, head_rev):
+        opened = super().open_pr(issue, branch, head_rev)
+        if not self.paused:
+            self.paused = True
+            runner.request_pause(self.store, "fx", 1)
+        return opened
+
+
+def test_a_pause_requested_while_a_pull_request_opens_is_not_lost(tmp_path):
+    env = Env(tmp_path)
+    env.publisher = PausingPublisher(env.store)
+    env.sched.publisher = env.publisher
+    env.start()
+    for _ in range(8):
+        env.tick()
+        if env.publisher.intents:
+            break
+    assert env.publisher.paused  # the operator's pause landed inside open_pr
+    run = env.store.get_run("fx")
+    assert run["prs"] == 1, run
+    assert run.get("pause_requested") is True, run
+    env.run_until(lambda: env.store.state("plan", "fx@v1") == "Paused")
+    assert not env.store.active_claims()
+
+
+def test_the_run_document_is_never_written_back_from_a_stale_snapshot(tmp_path):
+    store = Store(str(tmp_path / "home"))
+    store.put_run("fx", {"started_at": 1.0, "prs": 0})
+    assert store.update_run("fx", lambda run: run.update(prs=1))["prs"] == 1
+    assert "started_at" not in store.get_run("fx") or store.get_run("fx")["started_at"] == 1.0
+    store.put_run("other", {"prs": 2})
+    assert store.get_run("other")["prs"] == 2
