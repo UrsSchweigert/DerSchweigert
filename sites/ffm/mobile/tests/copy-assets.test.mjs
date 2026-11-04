@@ -12,6 +12,7 @@ import {
   REQUIRED_FILES,
   copyAssets,
   isExcluded,
+  stripAppOnlyDom,
 } from '../scripts/copy-assets.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -197,6 +198,59 @@ test('the copy fails when a required file is missing', async () => {
     const out = await make('ffm-www-');
     await assert.rejects(copyAssets(web, out, join(web, 'missing')), /styles\.css/);
   });
+});
+
+// The app has no accounts, checkout or web legal pages, so the copied
+// index.html must not carry their markup (see app-omit markers in
+// static/index.html and FORBIDDEN_UI_IDS in bundle-check.mjs).
+const WEB_ONLY_UI = [
+  'login-btn',
+  'logout-btn',
+  'username-display',
+  'splash-login-btn',
+  'splash-user-greeting',
+  'auth-modal',
+  'account-modal',
+  'auth-status-modal',
+  'checkout-modal',
+  'billing-status-display',
+];
+
+test('the copied index.html drops the web-only account and checkout markup', async () => {
+  await withDirs(async (make) => {
+    const out = await make('ffm-www-');
+    await copyAssets(undefined, out, join(root, 'missing-overlay'));
+    const index = await readFile(join(out, 'index.html'), 'utf8');
+
+    for (const id of WEB_ONLY_UI) {
+      assert.ok(!index.includes(`id="${id}"`), `${id} must not be bundled`);
+    }
+    assert.ok(!/href="\/?(cancel|widerruf)\.html"/.test(index), 'web-only legal links must not be bundled');
+
+    // Gameplay and the language/mute controls stay untouched.
+    for (const id of ['game', 'difficulty-select', 'pause-overlay', 'game-over', 'level-clear', 'mute-btn', 'lang-toggle-btn']) {
+      assert.ok(index.includes(`id="${id}"`), `${id} must stay in the bundle`);
+    }
+    assert.ok(index.includes('href="impressum.html"'), 'the bundled imprint page stays linked');
+    assert.ok(index.includes('href="terms.html"'), 'the bundled terms page stays linked');
+  });
+});
+
+test('stripAppOnlyDom removes marked regions and rejects an unclosed marker', () => {
+  const html = [
+    '<div id="keep-before"></div>',
+    '<!-- app-omit:start -->',
+    '<div id="web-only"></div>',
+    '<!-- app-omit:end -->',
+    '<div id="keep-after"></div>',
+  ].join('\n');
+  const stripped = stripAppOnlyDom(html);
+  assert.equal(stripped, '<div id="keep-before"></div>\n<div id="keep-after"></div>');
+  assert.equal(stripAppOnlyDom('<p>plain</p>'), '<p>plain</p>');
+  assert.throws(
+    () => stripAppOnlyDom('<!-- app-omit:start -->\n<p>never closed</p>'),
+    /Unclosed app-omit:start/,
+  );
 });
 
 test('APP_OVERLAY points at the app-only game modules', () => {

@@ -69,6 +69,8 @@ const EXCLUDED_SAMPLES = [
   'game/platform.test.js',
   'game/api.js',
   'game/access-flow.js',
+  'game/cancel-request.js',
+  'game/withdrawal-request.js',
   'game/tests/helper.js',
   'export-sprites.html',
   'demo.html',

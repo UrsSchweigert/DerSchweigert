@@ -1,7 +1,8 @@
 // Verifies that the Capacitor offline bundle is complete and self-contained.
 // copy-assets.mjs builds www/; this check proves every runtime file is present,
-// the full level configuration is bundled, and nothing in www/ loads a remote
-// first-party resource or calls the FFM API.
+// the full level configuration is bundled, nothing in www/ loads a remote
+// first-party resource or calls the FFM API, and no web account/checkout UI
+// or web-only legal link survives the copy.
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
@@ -31,6 +32,38 @@ export const ALLOWED_NAVIGATION = Object.freeze({
   'terms.html': Object.freeze(['https://www.derschweigert.de/nutzungsbedingungen']),
   'terms.en.html': Object.freeze(['https://www.derschweigert.de/nutzungsbedingungen']),
 });
+
+// The app has no accounts, checkout or web legal pages, so its bundle must
+// carry none of that markup. copy-assets.mjs strips every region index.html
+// marks with app-omit comments; this list is the guard that keeps a future
+// edit from shipping the account UI again (web-only ids and the web-only
+// cancellation/withdrawal links).
+export const FORBIDDEN_UI_IDS = Object.freeze([
+  'auth-modal',
+  'account-modal',
+  'auth-status-modal',
+  'checkout-modal',
+  'login-btn',
+  'logout-btn',
+  'username-display',
+  'splash-login-btn',
+  'splash-user-greeting',
+  'login-form',
+  'register-form',
+  'forgot-password-form',
+  'reset-password-form',
+  'btn-redeem-code',
+  'btn-cancel-subscription',
+  'checkout-withdrawal-waiver-confirm',
+  'leaderboard-profile-prompt',
+  'leaderboard-complete-profile',
+]);
+
+const FORBIDDEN_UI_ID_RE = new RegExp(
+  `\\bid\\s*=\\s*["'](?:${FORBIDDEN_UI_IDS.join('|')}|billing-[\\w-]+)["']`,
+);
+// Web-only legal pages that are not copied into www/.
+const FORBIDDEN_NAV_RE = /href\s*=\s*["'][^"']*(?:cancel|widerruf)\.html["']/i;
 
 const TEXT_EXTENSIONS = new Set([
   '.html', '.js', '.mjs', '.json', '.css', '.txt', '.md', '.webmanifest', '.svg', '.xml',
@@ -142,6 +175,19 @@ export async function bundleCheck(bundleDir = DEFAULT_BUNDLE_DIR) {
         if (match) problems.push(`${rel}: FFM API call: ${match[0]}`);
       }
     }
+
+    if (extname(rel).toLowerCase() === '.html') {
+      const uiMatch = content.match(FORBIDDEN_UI_ID_RE);
+      if (uiMatch) problems.push(`${rel}: forbidden app UI: ${uiMatch[0]}`);
+    }
+
+    // Only the app shell must stop linking the web-only cancellation and
+    // withdrawal pages, which are not bundled. The bundled legal texts may
+    // still name them in prose.
+    if (rel === 'index.html') {
+      const navMatch = content.match(FORBIDDEN_NAV_RE);
+      if (navMatch) problems.push(`${rel}: web-only legal link: ${navMatch[0]}`);
+    }
   }
 
   problems.push(...(await levelDataProblems(bundleDir)));
@@ -161,7 +207,7 @@ if (invokedDirectly) {
     process.exitCode = 1;
   } else {
     console.log(
-      `Offline bundle OK: ${BUNDLE_FILES.length} required files, ${TOTAL_LEVELS} levels, no remote first-party URLs or FFM API calls.`,
+      `Offline bundle OK: ${BUNDLE_FILES.length} required files, ${TOTAL_LEVELS} levels, no remote first-party URLs, FFM API calls or web-only UI.`,
     );
   }
 }

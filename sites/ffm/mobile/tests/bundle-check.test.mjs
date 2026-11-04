@@ -75,6 +75,48 @@ test('the web-only visitor tracking script is not bundled', async () => {
   });
 });
 
+test('the app shell ships no account, checkout or web-legal UI', async () => {
+  await withBundle(async (dir) => {
+    const index = await readFile(join(dir, 'index.html'), 'utf8');
+    for (const id of ['login-btn', 'logout-btn', 'splash-login-btn', 'auth-modal', 'account-modal', 'auth-status-modal', 'checkout-modal', 'leaderboard-complete-profile']) {
+      assert.ok(!index.includes(`id="${id}"`), `${id} must not be bundled`);
+    }
+    assert.doesNotMatch(index, /href="\/?(cancel|widerruf)\.html"/);
+    assert.deepEqual(await bundleCheck(dir), []);
+
+    // The website keeps the same markup; only the app copy strips it.
+    const source = await readFile(join(staticDir, 'index.html'), 'utf8');
+    for (const id of ['login-btn', 'splash-login-btn', 'auth-modal', 'account-modal', 'checkout-modal']) {
+      assert.ok(source.includes(`id="${id}"`), `${id} must stay on the website`);
+    }
+    assert.match(source, /href="cancel\.html"/);
+  });
+});
+
+test('account or checkout markup fails the bundle check', async () => {
+  await withBundle(async (dir) => {
+    const indexPath = join(dir, 'index.html');
+    const index = await readFile(indexPath, 'utf8');
+    await writeFile(indexPath, index.replace('</body>', '<div id="account-modal"></div>\n</body>'));
+    const problems = await bundleCheck(dir);
+    assert.ok(problems.some((problem) => problem.includes('forbidden app UI')), problems.join('\n'));
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /forbidden app UI/);
+  });
+});
+
+test('a web-only cancellation link in the app shell fails the bundle check', async () => {
+  await withBundle(async (dir) => {
+    const indexPath = join(dir, 'index.html');
+    const index = await readFile(indexPath, 'utf8');
+    await writeFile(indexPath, index.replace('</body>', '<a href="cancel.html">Cancellation</a>\n</body>'));
+    const problems = await bundleCheck(dir);
+    assert.ok(problems.some((problem) => problem.includes('web-only legal link')), problems.join('\n'));
+  });
+});
+
 test('a missing required file fails the bundle check', async () => {
   await withBundle(async (dir) => {
     await rm(join(dir, 'game', 'level-data.js'));
