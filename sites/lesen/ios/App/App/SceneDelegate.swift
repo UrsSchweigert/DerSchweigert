@@ -128,6 +128,8 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
             self.prepareSynthesizer()
             self.initialized = true
             call.resolve(["status": "ready", "languageAvailable": !self.offlineVoices(lang: "de-de").isEmpty])
+            // The app warms the bridge at launch: probe now so the first read-aloud need not wait.
+            self.usableVoices(lang: "de-de") { _ in self.usableVoices(lang: "en-us") { _ in } }
         }
     }
 
@@ -355,15 +357,17 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
     /// Eligible voices that actually produced audio. iOS keeps listing downloaded voices
     /// whose assets are missing or unusable offline (FB12994908); speaking with one ends
     /// immediately in silence, and there is no API to tell. Each voice is synthesized once
-    /// into memory, without playback, and the result is cached.
+    /// into memory, without playback, and the result is cached. Probing stops at the first,
+    /// most preferred voice that works, so the result holds at most one voice.
     private func usableVoices(lang: String, _ completion: @escaping ([AVSpeechSynthesisVoice]) -> Void) {
         let candidates = offlineVoices(lang: lang)
         func check(_ index: Int) {
-            guard index < candidates.count else {
-                completion(candidates.filter { voiceProbes[$0.identifier] == true })
-                return
+            guard index < candidates.count else { return completion([]) }
+            let voice = candidates[index]
+            probe(voice) {
+                if self.voiceProbes[voice.identifier] == true { return completion([voice]) }
+                check(index + 1)
             }
-            probe(candidates[index]) { check(index + 1) }
         }
         check(0)
     }
@@ -419,8 +423,13 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
                 if primary == "de", locale == "de-de" { return 0 }
                 return locale == lang ? 1 : 2
             }
-            let leftRank = rank(left), rightRank = rank(right)
-            return leftRank == rightRank ? left.identifier < right.identifier : leftRank < rightRank
+            // Premium and enhanced voices sound far more natural than compact ones.
+            func quality(_ voice: AVSpeechSynthesisVoice) -> Int {
+                if #available(iOS 16.0, *), voice.quality == .premium { return 0 }
+                return voice.quality == .enhanced ? 1 : 2
+            }
+            let leftKey = (rank(left), quality(left)), rightKey = (rank(right), quality(right))
+            return leftKey == rightKey ? left.identifier < right.identifier : leftKey < rightKey
         }
     }
 
