@@ -2599,6 +2599,11 @@
             const next = !window.__platform.haptics.isEnabled();
             await window.__platform.haptics.setEnabled(next);
             hapticsButton.setAttribute('aria-pressed', String(next));
+            // Confirm the switch with the pulse grading uses, so the setting can
+            // be checked without answering an exercise first.
+            if (next) {
+                window.__platform.haptics.grade?.(true)?.catch?.(() => {});
+            }
         });
 
         /** Fade out the boot splash once the first app frame is painted. */
