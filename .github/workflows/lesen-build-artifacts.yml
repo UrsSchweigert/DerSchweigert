@@ -60,8 +60,18 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/lesen-derived" \
             CODE_SIGNING_ALLOWED=NO build
+      - name: Stage self-contained iOS project
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/lesen-ios"
+          rm -rf "$stage"
+          mkdir -p "$stage/sites/lesen"
+          cp -R ios "$stage/sites/lesen/ios"
+          mkdir -p "$stage/sites/lesen/node_modules"
+          cp -R node_modules/@capacitor "$stage/sites/lesen/node_modules/@capacitor"
+          tar -czf "$GITHUB_WORKSPACE/lesen-ios-project.tar.gz" -C "$stage" sites
       - uses: actions/upload-artifact@v4
         with:
           name: lesen-ios-xcode-project
-          path: sites/lesen/ios
+          path: lesen-ios-project.tar.gz
           if-no-files-found: error
