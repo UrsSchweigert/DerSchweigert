@@ -67,8 +67,13 @@ const EXCLUDED_SAMPLES = [
   'game/_dragon_test.html',
   'game/main.test.js',
   'game/platform.test.js',
+  'game/api.js',
+  'game/access-flow.js',
+  'game/tests/helper.js',
   'export-sprites.html',
   'demo.html',
+  'cancel.html',
+  'widerruf.html',
   '.DS_Store',
 ];
 
