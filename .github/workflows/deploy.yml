@@ -11,6 +11,10 @@ on:
   # without a code push. Does not change what gets deployed or any default.
   workflow_dispatch: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   # Read-only on pull request metadata, for the changed-file list behind the site gates below.

@@ -5,8 +5,13 @@ on:
   push:
     branches: ['main']
     paths: ['sites/lesen/**', '.github/workflows/lesen-build-artifacts.yml']
-  pull_request:
-    paths: ['sites/lesen/**', '.github/workflows/lesen-build-artifacts.yml']
+
+# No pull_request trigger on purpose: the iOS job needs a macOS runner, which bills at ten times the Linux rate, and
+# the review gate for a pull request is the native build in lesen-native.yml. Artifacts are cut for a release branch
+# push or by hand, not for every pull request that touches the app.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
