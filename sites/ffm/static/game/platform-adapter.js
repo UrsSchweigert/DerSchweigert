@@ -29,6 +29,20 @@ const platform = {
   isStripeRedirect,
   validatePendingRecord,
 
+  // The web build keeps its account and server leaderboard; the local
+  // personal-development panel is app-only, so its data stays empty here.
+  getAccountAvailability() {
+    return 'optional';
+  },
+
+  async getBestScores() {
+    return { best: [] };
+  },
+
+  async getCompletedLevels() {
+    return { completed: [] };
+  },
+
   get isLoggedIn() {
     return api.isLoggedIn;
   },

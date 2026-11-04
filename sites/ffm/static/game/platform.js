@@ -12,6 +12,8 @@
 //   - personal history      getScoreHistory
 //   - entitlement           getBillingStatus (premium_access) + billing flow
 //   - account/leaderboard   account methods + getLeaderboard + capability flags
+//   - personal development  getAccountAvailability + getBestScores +
+//                           getCompletedLevels (local data in the app build)
 
 // Every function a platform adapter must provide. These are exactly the
 // api.js methods and access-flow.js functions that main.js calls today.
@@ -42,6 +44,15 @@ export const API_METHODS = Object.freeze([
   'cancelSubscription',
 ]);
 
+// The personal-development surface behind the title screen. The app reads it
+// from the on-device progress store; the web build keeps its server-backed
+// leaderboard and reports empty personal data.
+export const PERSONAL_METHODS = Object.freeze([
+  'getAccountAvailability',
+  'getBestScores',
+  'getCompletedLevels',
+]);
+
 export const ACCESS_FLOW_METHODS = Object.freeze([
   'getAuthorizedLevelConfig',
   'setCurrentLevelConfig',
@@ -51,7 +62,11 @@ export const ACCESS_FLOW_METHODS = Object.freeze([
   'validatePendingRecord',
 ]);
 
-export const PLATFORM_METHODS = Object.freeze([...ACCESS_FLOW_METHODS, ...API_METHODS]);
+export const PLATFORM_METHODS = Object.freeze([
+  ...ACCESS_FLOW_METHODS,
+  ...API_METHODS,
+  ...PERSONAL_METHODS,
+]);
 
 // Session state exposed as properties rather than functions.
 export const PLATFORM_PROPERTIES = Object.freeze(['isLoggedIn', 'username']);
