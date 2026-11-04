@@ -330,3 +330,26 @@ def test_split_pressure_limits_are_validated_in_the_policy():
         "p", 1, plans.parse_requirements(REQ), phases, fixture=True,
         policy=dict(plans.DEFAULT_POLICY, split_pressure={"enabled": True, "max_files": -1})))
     assert any("whole number" in p for p in problems)
+
+
+def test_plan_can_land_its_work_on_a_branch_other_than_main(store):
+    result = cli.plan_command(store, REQ, PHASES, plan_id="fx", fixture=True,
+                              base_branch="feat/mobile-scaffold")
+    assert result["state"] == "Proposed", result
+    plan = store.get_plan("fx")["plan"]
+    assert plans.base_branch(plan) == "feat/mobile-scaffold"
+    assert plans.run_branch(plan) != plans.base_branch(plan)
+
+
+def test_base_branch_is_part_of_the_approval_digest(store):
+    main = cli.plan_command(store, REQ, PHASES, plan_id="fx", fixture=True, dry_run=True)
+    other = cli.plan_command(store, REQ, PHASES, plan_id="fx", fixture=True, dry_run=True,
+                             base_branch="feat/mobile-scaffold")
+    assert main["digest"] != other["digest"]
+
+
+def test_a_base_branch_equal_to_the_run_branch_is_rejected(store):
+    result = cli.plan_command(store, REQ, PHASES, plan_id="fx", fixture=True,
+                              base_branch=plans.run_branch({"plan_id": "fx", "policy": plans.DEFAULT_POLICY}))
+    assert result["state"] == "Draft"
+    assert any("run_branch" in problem for problem in result["problems"])

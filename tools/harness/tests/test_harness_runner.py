@@ -547,6 +547,19 @@ def test_import_issues_validates_against_the_approved_plan(tmp_path):
         runner.import_issues(store, "fx", None, load(dict(ISSUE, issue_id="z", surprise=1)), "b")
 
 
+def test_an_imported_issue_may_arrive_pre_planned(tmp_path):
+    store = make_plan(tmp_path)
+    f = tmp_path / "issues.json"
+    f.write_text(json.dumps([dict(ISSUE, issue_id="doc", tier_fit="LOW")]))
+
+    assert runner.import_issues(store, "fx", None, str(f), "base1") == ["doc"]
+    assert store.get_issue("doc")["tier_fit"] == "low"
+
+    f.write_text(json.dumps([dict(ISSUE, issue_id="bad", tier_fit="enormous")]))
+    with pytest.raises(runner.RunRefused, match="tier_fit"):
+        runner.import_issues(store, "fx", None, str(f), "base1")
+
+
 def test_cli_run_refuses_when_there_is_nothing_to_schedule(tmp_path, capsys):
     make_plan(tmp_path)
     assert cli.main(["--home", str(tmp_path / "home"), "run", "fx", "--dry-run"]) == 2

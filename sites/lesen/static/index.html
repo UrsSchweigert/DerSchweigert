@@ -243,6 +243,8 @@
             align-items: center;
             gap: 6px;
             flex: none;
+            /* Keeps the flags still while a language change turns the page. */
+            view-transition-name: language-control;
         }
 
         .language-control button {
@@ -1193,6 +1195,22 @@
                 font-size: 14px;
             }
 
+            /* Always stack the flags under the eyebrow on phones: "Buchstabenzeit"
+               no longer fits beside them while "Letter time" does, so a wrapping
+               row made the flags jump when switching language. */
+            .setup-head {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0;
+                margin-bottom: 6px;
+            }
+
+            .language-control {
+                /* Aligns the first flag, not its 44px touch target, with the text. */
+                margin-left: -5px;
+                gap: 2px;
+            }
+
             .hero-logo {
                 width: clamp(92px, 26vw, 150px);
                 margin-right: -8px;
@@ -1295,9 +1313,53 @@
             }
         }
 
+        /* Changing the language turns the page like a book instead of letting
+           text and buttons shift in place. The flags keep their own layer so
+           the eye has a fixed anchor. WebViews without View Transitions swap. */
+        ::view-transition-old(root),
+        ::view-transition-new(root) {
+            mix-blend-mode: normal;
+            backface-visibility: hidden;
+        }
+
+        ::view-transition-new(root) {
+            animation: page-reveal 520ms ease-out both;
+        }
+
+        ::view-transition-old(root) {
+            z-index: 1;
+            transform-origin: left center;
+            animation: page-turn 520ms cubic-bezier(0.45, 0.05, 0.55, 0.95) both;
+        }
+
+        :root.page-turn-back::view-transition-old(root) {
+            transform-origin: right center;
+            animation-name: page-turn-back;
+        }
+
+        @keyframes page-turn {
+            from { transform: perspective(1800px) rotateY(0deg); }
+            to { transform: perspective(1800px) rotateY(-90deg); filter: brightness(0.8); }
+        }
+
+        @keyframes page-turn-back {
+            from { transform: perspective(1800px) rotateY(0deg); }
+            to { transform: perspective(1800px) rotateY(90deg); filter: brightness(0.8); }
+        }
+
+        @keyframes page-reveal {
+            from { filter: brightness(0.92); }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             * {
                 transition: none !important;
+            }
+
+            ::view-transition-group(*),
+            ::view-transition-old(*),
+            ::view-transition-new(*) {
+                animation: none !important;
             }
         }
     </style>
@@ -1655,6 +1717,19 @@
             // screens/dialogs, so it is ready the next time they are shown).
             updateAllText();
             updateSelectionCounts();
+        }
+
+        /** A learner's language change turns the page instead of reflowing it in place. */
+        function switchLanguage(lang) {
+            if (lang === currentLanguage) return;
+            const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            if (!document.startViewTransition || reduceMotion) {
+                setLanguage(lang);
+                return;
+            }
+            // Forward towards the right-hand flag (English), back towards German.
+            document.documentElement.classList.toggle('page-turn-back', lang === 'de');
+            document.startViewTransition(() => setLanguage(lang));
         }
 
         function tr(key) {
@@ -2537,7 +2612,7 @@
         }
 
         document.querySelectorAll('.lang-btn').forEach(btn => {
-            btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+            btn.addEventListener('click', () => switchLanguage(btn.dataset.lang));
         });
         setLanguage(currentLanguage);
         loadAppVersion();

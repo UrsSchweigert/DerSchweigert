@@ -67,6 +67,19 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
     private var utterance: AVSpeechUtterance?
     private var speechCall: CAPPluginCall?
     private var startTimeout: DispatchWorkItem?
+    // A speak call that is waiting for its voices to be probed.
+    private var pendingSpeak: CAPPluginCall?
+    private var prober: AVSpeechSynthesizer?
+    private var voiceProbes: [String: Bool] = [:]
+    private var probeWaiters: [String: [() -> Void]] = [:]
+    private var probeTimeouts: [String: DispatchWorkItem] = [:]
+    // Speech is rendered with write() and played by our own engine: on iOS 17+ speak()
+    // can finish in silence with downloaded (enhanced/premium) voices in third-party apps.
+    private var engine: AVAudioEngine?
+    private var player: AVAudioPlayerNode?
+    private var renderEnded = false
+    private var renderedFrames = 0
+    private var queuedBuffers = 0
 
     override func load() {
         onMain {
@@ -74,15 +87,21 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
                                                    name: AVAudioSession.interruptionNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(self.audioServicesReset(_:)),
                                                    name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(self.audioEngineChanged(_:)),
+                                                   name: .AVAudioEngineConfigurationChange, object: nil)
         }
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
         startTimeout?.cancel()
+        probeTimeouts.values.forEach { $0.cancel() }
         let synth = synthesizer
         let call = speechCall
+        let pending = pendingSpeak
         let wasActive = sessionActive
+        let player = self.player
+        let engine = self.engine
         Self.onMain {
             synth?.delegate = nil
             if let synth, synth.isSpeaking || synth.isPaused {
@@ -90,7 +109,10 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
                     CAPLog.print("OfflineTts: failed to stop speech during teardown.")
                 }
             }
+            player?.stop()
+            engine?.stop()
             call?.reject("Speech bridge was closed.", "OFFLINE_TTS")
+            pending?.reject("Speech bridge was closed.", "OFFLINE_TTS")
             if wasActive {
                 do {
                     try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -106,6 +128,8 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
             self.prepareSynthesizer()
             self.initialized = true
             call.resolve(["status": "ready", "languageAvailable": !self.offlineVoices(lang: "de-de").isEmpty])
+            // The app warms the bridge at launch: probe now so the first read-aloud need not wait.
+            self.usableVoices(lang: "de-de") { _ in self.usableVoices(lang: "en-us") { _ in } }
         }
     }
 
@@ -113,10 +137,12 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
         perform(call) {
             try self.requireInitialized()
             let lang = try self.language(call)
-            let voices = self.offlineVoices(lang: lang).map { voice -> [String: Any] in
-                ["name": voice.name, "locale": voice.language, "networkRequired": false, "notInstalled": false]
+            self.usableVoices(lang: lang) { usable in
+                let voices = usable.map { voice -> [String: Any] in
+                    ["name": voice.name, "locale": voice.language, "networkRequired": false, "notInstalled": false]
+                }
+                call.resolve(["voices": voices, "suitableCount": voices.count])
             }
-            call.resolve(["voices": voices, "suitableCount": voices.count])
         }
     }
 
@@ -134,29 +160,133 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
             }
 
             try self.cancelSpeech()
-            guard let voice = self.offlineVoices(lang: lang).first else {
-                throw self.failure("No installed offline voice available for language: \(lang)")
+            self.pendingSpeak = call
+            self.usableVoices(lang: lang) { voices in
+                // A newer speak, stop or lifecycle cancellation has already settled this call.
+                guard self.pendingSpeak === call else { return }
+                self.pendingSpeak = nil
+                do {
+                    guard self.sceneIsActive, !self.interrupted else {
+                        throw self.failure("Speech is unavailable while the scene is inactive or audio is interrupted.")
+                    }
+                    guard let voice = voices.first else {
+                        throw self.failure("No installed offline voice available for language: \(lang)")
+                    }
+                    try self.play(call, text: text, voice: voice, rate: rate, pitch: pitch)
+                } catch {
+                    call.reject(error.localizedDescription, "OFFLINE_TTS", error)
+                }
             }
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, options: .duckOthers)
-            try session.setActive(true)
-            self.sessionActive = true
-            self.prepareSynthesizer()
+        }
+    }
 
-            let next = AVSpeechUtterance(string: text)
-            next.voice = voice
-            next.rate = min(AVSpeechUtteranceMaximumSpeechRate,
-                            max(AVSpeechUtteranceMinimumSpeechRate, Float(rate) * AVSpeechUtteranceDefaultSpeechRate))
-            next.pitchMultiplier = Float(pitch)
-            self.utterance = next
-            self.speechCall = call
-            let timeout = DispatchWorkItem { [weak self, weak next] in
+    private func play(_ call: CAPPluginCall, text: String, voice: AVSpeechSynthesisVoice,
+                      rate: Double, pitch: Double) throws {
+        CAPLog.print("OfflineTts: speaking with \(voice.identifier)")
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, mode: .spokenAudio, options: .duckOthers)
+        try session.setActive(true)
+        sessionActive = true
+        prepareSynthesizer()
+
+        let next = AVSpeechUtterance(string: text)
+        next.voice = voice
+        next.rate = min(AVSpeechUtteranceMaximumSpeechRate,
+                        max(AVSpeechUtteranceMinimumSpeechRate, Float(rate) * AVSpeechUtteranceDefaultSpeechRate))
+        next.pitchMultiplier = Float(pitch)
+        utterance = next
+        speechCall = call
+        renderEnded = false
+        renderedFrames = 0
+        queuedBuffers = 0
+        let timeout = DispatchWorkItem { [weak self, weak next] in
+            guard let self, let next, self.utterance === next else { return }
+            self.failSpeech("Speech synthesis did not start.")
+        }
+        startTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: timeout)
+        synthesizer?.write(next) { [weak self, weak next] buffer in
+            self?.onMain {
                 guard let self, let next, self.utterance === next else { return }
-                self.failSpeech("Speech synthesis did not start.")
+                self.render(buffer, of: next, voice: voice)
             }
-            self.startTimeout = timeout
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: timeout)
-            self.synthesizer?.speak(next)
+        }
+    }
+
+    private func render(_ buffer: AVAudioBuffer, of next: AVSpeechUtterance, voice: AVSpeechSynthesisVoice) {
+        guard let pcm = buffer as? AVAudioPCMBuffer, pcm.frameLength > 0 else {
+            // The end-of-speech marker is an empty buffer and may be delivered more than once.
+            guard !renderEnded else { return }
+            renderEnded = true
+            if renderedFrames == 0 {
+                voiceProbes[voice.identifier] = false
+                CAPLog.print("OfflineTts: \(voice.identifier) produced no audio and is skipped.")
+                failSpeech("Speech synthesis produced no audio.")
+            } else {
+                finishIfPlayedBack()
+            }
+            return
+        }
+        do {
+            let player = try startPlayback(sampleRate: pcm.format.sampleRate, channels: pcm.format.channelCount)
+            let format = player.outputFormat(forBus: 0)
+            guard let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: pcm.frameLength),
+                  let converter = AVAudioConverter(from: pcm.format, to: format) else {
+                throw failure("Unsupported speech audio format.")
+            }
+            // Copy: the synthesizer may reuse its buffer after the callback returns.
+            try converter.convert(to: copy, from: pcm)
+            renderedFrames += Int(pcm.frameLength)
+            queuedBuffers += 1
+            player.scheduleBuffer(copy, completionCallbackType: .dataPlayedBack) { [weak self, weak next] _ in
+                self?.onMain {
+                    guard let self, let next, self.utterance === next else { return }
+                    self.queuedBuffers -= 1
+                    self.finishIfPlayedBack()
+                }
+            }
+        } catch {
+            failSpeech(error.localizedDescription)
+        }
+    }
+
+    private func startPlayback(sampleRate: Double, channels: AVAudioChannelCount) throws -> AVAudioPlayerNode {
+        if let player { return player }
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: channels) else {
+            throw failure("Unsupported speech audio format.")
+        }
+        let engine = AVAudioEngine()
+        let player = AVAudioPlayerNode()
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
+        try engine.start()
+        self.engine = engine
+        self.player = player
+        player.play()
+        startTimeout?.cancel()
+        startTimeout = nil
+        let session = AVAudioSession.sharedInstance()
+        let route = session.currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ",")
+        CAPLog.print("OfflineTts: playing via \(route) at volume \(session.outputVolume)")
+        return player
+    }
+
+    private func stopPlayback() {
+        player?.stop()
+        engine?.stop()
+        player = nil
+        engine = nil
+    }
+
+    private func finishIfPlayedBack() {
+        guard renderEnded, queuedBuffers == 0 else { return }
+        stopPlayback()
+        let call = takeSpeechCall()
+        do {
+            try deactivateSession()
+            call?.resolve(["status": "finished"])
+        } catch {
+            call?.reject(error.localizedDescription, "OFFLINE_TTS", error)
         }
     }
 
@@ -170,7 +300,12 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
     func setSceneActive(_ active: Bool) {
         onMain {
             self.sceneIsActive = active
-            if !active { self.cancelForLifecycle() }
+            if active {
+                // The learner may have downloaded or repaired a voice in Settings meanwhile.
+                self.voiceProbes = self.voiceProbes.filter { $0.value }
+            } else {
+                self.cancelForLifecycle()
+            }
         }
     }
 
@@ -184,34 +319,23 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
         }
     }
 
+    @objc private func audioEngineChanged(_ notification: Notification) {
+        onMain {
+            // The engine stops itself on route/format changes, so queued audio would never finish.
+            guard let engine = self.engine, notification.object as AnyObject? === engine else { return }
+            self.cancelForLifecycle()
+        }
+    }
+
     @objc private func audioServicesReset(_ notification: Notification) {
         onMain {
             self.cancelForLifecycle()
             self.synthesizer?.delegate = nil
             self.synthesizer = nil
+            self.voiceProbes.removeAll()
+            if self.probeWaiters.isEmpty { self.prober = nil }
             self.sessionActive = false
             self.interrupted = false
-        }
-    }
-
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
-        onMain {
-            guard self.utterance === utterance else { return }
-            self.startTimeout?.cancel()
-            self.startTimeout = nil
-        }
-    }
-
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        onMain {
-            guard self.utterance === utterance else { return }
-            let call = self.takeSpeechCall()
-            do {
-                try self.deactivateSession()
-                call?.resolve(["status": "finished"])
-            } catch {
-                call?.reject(error.localizedDescription, "OFFLINE_TTS", error)
-            }
         }
     }
 
@@ -227,6 +351,54 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
             synthesizer = AVSpeechSynthesizer()
             synthesizer?.usesApplicationAudioSession = true
             synthesizer?.delegate = self
+        }
+    }
+
+    /// Eligible voices that actually produced audio. iOS keeps listing downloaded voices
+    /// whose assets are missing or unusable offline (FB12994908); speaking with one ends
+    /// immediately in silence, and there is no API to tell. Each voice is synthesized once
+    /// into memory, without playback, and the result is cached. Probing stops at the first,
+    /// most preferred voice that works, so the result holds at most one voice.
+    private func usableVoices(lang: String, _ completion: @escaping ([AVSpeechSynthesisVoice]) -> Void) {
+        let candidates = offlineVoices(lang: lang)
+        func check(_ index: Int) {
+            guard index < candidates.count else { return completion([]) }
+            let voice = candidates[index]
+            probe(voice) {
+                if self.voiceProbes[voice.identifier] == true { return completion([voice]) }
+                check(index + 1)
+            }
+        }
+        check(0)
+    }
+
+    private func probe(_ voice: AVSpeechSynthesisVoice, _ done: @escaping () -> Void) {
+        let id = voice.identifier
+        if voiceProbes[id] != nil { return done() }
+        if probeWaiters[id] != nil { probeWaiters[id]?.append(done); return }
+        probeWaiters[id] = [done]
+        if prober == nil { prober = AVSpeechSynthesizer() }
+        let sample = AVSpeechUtterance(string: voice.language.lowercased().hasPrefix("de") ? "Hallo" : "Hello")
+        sample.voice = voice
+        var settled = false
+        let settle = { [weak self] (usable: Bool) in
+            self?.onMain {
+                guard let self, !settled else { return }
+                settled = true
+                self.probeTimeouts.removeValue(forKey: id)?.cancel()
+                self.voiceProbes[id] = usable
+                if !usable { CAPLog.print("OfflineTts: \(id) produced no audio and is skipped.") }
+                self.probeWaiters.removeValue(forKey: id)?.forEach { $0() }
+            }
+        }
+        let timeout = DispatchWorkItem { settle(false) }
+        probeTimeouts[id] = timeout
+        // Generous: a downloaded neural voice can take seconds to load the first time.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: timeout)
+        // A working voice delivers audio frames first and an empty buffer only at the end;
+        // an unusable voice delivers the empty end-of-speech buffer straight away.
+        prober?.write(sample) { buffer in
+            settle(((buffer as? AVAudioPCMBuffer)?.frameLength ?? 0) > 0)
         }
     }
 
@@ -251,8 +423,13 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
                 if primary == "de", locale == "de-de" { return 0 }
                 return locale == lang ? 1 : 2
             }
-            let leftRank = rank(left), rightRank = rank(right)
-            return leftRank == rightRank ? left.identifier < right.identifier : leftRank < rightRank
+            // Premium and enhanced voices sound far more natural than compact ones.
+            func quality(_ voice: AVSpeechSynthesisVoice) -> Int {
+                if #available(iOS 16.0, *), voice.quality == .premium { return 0 }
+                return voice.quality == .enhanced ? 1 : 2
+            }
+            let leftKey = (rank(left), quality(left)), rightKey = (rank(right), quality(right))
+            return leftKey == rightKey ? left.identifier < right.identifier : leftKey < rightKey
         }
     }
 
@@ -296,14 +473,18 @@ final class OfflineTtsPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
     }
 
     private func cancelSpeech() throws {
-        let hadUtterance = utterance != nil
+        if let pending = pendingSpeak {
+            pendingSpeak = nil
+            pending.resolve(["status": "cancelled"])
+        }
         let call = takeSpeechCall()
         var failure: Error?
-        if let synthesizer, hadUtterance || synthesizer.isSpeaking || synthesizer.isPaused {
+        if let synthesizer, synthesizer.isSpeaking || synthesizer.isPaused {
             if !synthesizer.stopSpeaking(at: .immediate) {
                 failure = self.failure("Failed to stop speech synthesis.")
             }
         }
+        stopPlayback()
         do {
             try deactivateSession()
         } catch {
