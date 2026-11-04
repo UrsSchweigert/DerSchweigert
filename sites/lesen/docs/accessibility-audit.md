@@ -59,7 +59,7 @@ No change required.
 
 | Control | Size | Verdict |
 | --- | --- | --- |
-| Language DE/EN | `min-width/height: 44px` | pass |
+| Language flags | 44px button around an 18px flag, `aria-label` per language | pass |
 | Letter buttons | `min-height: 54px` (46px narrow), full grid column | pass |
 | Mode and pattern rows | whole row is the label, 13px vertical padding | pass |
 | Card-count input | 12px padding + 20px font (~46px) | pass |

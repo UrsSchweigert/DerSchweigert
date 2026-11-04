@@ -214,40 +214,56 @@
             filter: drop-shadow(0 12px 16px rgba(15, 84, 139, .14));
         }
 
-        .language-control {
-            /* In normal flow, right-aligned on its own row. Absolutely
-               positioning it put a 44px-tall block into the ~21px gap between
-               the eyebrow row and the hero logo, so it collided with the owl
-               whenever the safe-area inset did not happen to push it clear. */
+        .setup-head {
             display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            margin: 0 0 10px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .setup-head .eyebrow {
+            margin: 0;
+        }
+
+        .language-control {
+            /* In normal flow beside the eyebrow. An absolutely positioned
+               44px control landed in the ~21px gap before the hero logo and
+               collided with the owl on the website. */
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: none;
         }
 
         .language-control button {
+            /* Keeps the full 44px touch target; only the flag inside is small. */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             min-width: 44px;
             min-height: 44px;
-            padding: 8px 12px;
-            border: 2px solid var(--line);
-            border-radius: 8px;
-            background: var(--paper);
-            color: var(--ink);
-            font-size: 14px;
-            font-weight: 700;
+            padding: 0;
+            border: 0;
+            background: transparent;
             cursor: pointer;
-            transition: all .15s;
         }
 
-        .language-control button:hover {
-            border-color: var(--blue);
-            background: #e6f5ff;
+        .language-control .flag {
+            display: block;
+            height: 18px;
+            width: auto;
+            border-radius: 2px;
+            box-shadow: 0 0 0 1px rgba(7, 89, 183, .3);
+            transition: box-shadow .15s;
         }
 
-        .language-control button.active {
-            border-color: var(--blue);
-            background: var(--blue);
-            color: white;
+        .language-control button:hover .flag {
+            box-shadow: 0 0 0 2px rgba(7, 89, 183, .45);
+        }
+
+        .language-control button.active .flag {
+            box-shadow: 0 0 0 2px var(--blue);
         }
 
         h2,
@@ -1280,13 +1296,30 @@
     </div>
     <main>
         <section id="setup" aria-labelledby="setup-title">
-            <div class="language-control">
-                <button id="lang-de" class="lang-btn active" data-lang="de" aria-pressed="true">DE</button>
-                <button id="lang-en" class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
-            </div>
             <div class="setup-intro">
                 <div class="intro-copy">
-                    <p class="eyebrow" id="app-title">Buchstabenzeit</p>
+                    <div class="setup-head">
+                        <p class="eyebrow" id="app-title">Buchstabenzeit</p>
+                        <div class="language-control">
+                            <button id="lang-de" class="lang-btn active" data-lang="de" aria-pressed="true" lang="de" aria-label="Deutsch">
+                                <svg class="flag" viewBox="0 0 60 36" role="img" aria-hidden="true" focusable="false">
+                                    <rect width="60" height="12" fill="#000000" />
+                                    <rect y="12" width="60" height="12" fill="#dd0000" />
+                                    <rect y="24" width="60" height="12" fill="#ffce00" />
+                                </svg>
+                            </button>
+                            <button id="lang-en" class="lang-btn" data-lang="en" aria-pressed="false" lang="en" aria-label="English">
+                                <svg class="flag" viewBox="0 0 60 30" role="img" aria-hidden="true" focusable="false">
+                                    <clipPath id="flag-en-clip"><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z" /></clipPath>
+                                    <rect width="60" height="30" fill="#012169" />
+                                    <path d="M0,0 L60,30 M60,0 L0,30" stroke="#ffffff" stroke-width="6" />
+                                    <path d="M0,0 L60,30 M60,0 L0,30" clip-path="url(#flag-en-clip)" stroke="#c8102e" stroke-width="4" />
+                                    <path d="M30,0 V30 M0,15 H60" stroke="#ffffff" stroke-width="10" />
+                                    <path d="M30,0 V30 M0,15 H60" stroke="#c8102e" stroke-width="6" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                     <h1 id="setup-title">Lesen lernen, Karte f&uuml;r Karte.</h1>
                     <p class="intro-description" id="setup-intro">Stelle deine Buchstabenkarten zusammen und lies in deinem eigenen Tempo. Jeder kleine Schritt z&auml;hlt!</p>
                 </div>
