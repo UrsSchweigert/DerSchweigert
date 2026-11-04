@@ -162,3 +162,18 @@ test('a11y: completion announces its summary once, without auto speech', async (
   const render = functionBody(html, 'renderCard');
   assert.ok(!/\.speak\(/.test(render), 'cards must not be spoken automatically alongside the live region');
 });
+
+test('a11y: a boot splash covers the first paint and never traps the user', async () => {
+  const html = await readSiteFile('static/index.html');
+
+  assert.match(html, /<div id="boot-splash" aria-hidden="true">/);
+  assert.match(html, /#boot-splash\s*\{[^}]*position:\s*fixed/, 'splash must overlay the whole viewport');
+  assert.match(html, /#boot-splash\s*\{[^}]*background:\s*var\(--paper\)/, 'splash must use the brand background, not black');
+  assert.match(html, /html\s*\{[^}]*background-color:\s*var\(--paper\)/, 'html background prevents a black WebView flash');
+  assert.match(
+    html,
+    /@media \(prefers-reduced-motion: reduce\)\s*\{\s*#boot-splash img\s*\{\s*animation:\s*none/,
+    'the pulse must stop under reduced motion',
+  );
+  assert.match(html, /setTimeout\(hideBootSplash, 3000\)/, 'splash must remove itself even if startup stalls');
+});
