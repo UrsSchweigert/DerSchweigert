@@ -35,6 +35,14 @@ test('iOS speech: installed Apple de/en speech assets are eligible regardless of
   assert.doesNotMatch(scene, /AVSpeechSynthesisVoice\(language:|requestPersonalVoiceAuthorization|URLSession/);
 });
 
+test('iOS speech: listed voices are probed for real audio before they are offered', () => {
+  // iOS lists downloaded voices whose assets cannot synthesize (FB12994908).
+  assert.match(scene, /prober\?\.write\(sample\)/);
+  assert.match(scene, /\(buffer as\? AVAudioPCMBuffer\)\?\.frameLength \?\? 0\) > 0/);
+  assert.match(scene, /@objc func listOfflineVoices[\s\S]*?usableVoices\(lang: lang\)/);
+  assert.match(scene, /@objc func speak[\s\S]*?usableVoices\(lang: lang\)/);
+});
+
 test('iOS speech: shared adapter cancellation and native scene exit remain wired', async () => {
   const adapter = await readFile(new URL('static/speech-adapter.js', site), 'utf8');
   const html = await readFile(new URL('static/index.html', site), 'utf8');

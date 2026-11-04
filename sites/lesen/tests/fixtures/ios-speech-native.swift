@@ -56,19 +56,22 @@ class AVSpeechSynthesisVoice {
     let quality: Quality
     let voiceTraits: Traits
     let installed: Bool
+    let producesAudio: Bool
     init(_ identifier: String, _ language: String, quality: Quality = .default,
-         traits: Traits = [], installed: Bool = true) {
+         traits: Traits = [], installed: Bool = true, producesAudio: Bool = true) {
         self.identifier = identifier
         self.name = identifier
         self.language = language
         self.quality = quality
         self.voiceTraits = traits
         self.installed = installed
+        self.producesAudio = producesAudio
     }
     convenience init?(identifier: String) {
         mainThread()
         guard let voice = Self.available.first(where: { $0.identifier == identifier && $0.installed }) else { return nil }
-        self.init(voice.identifier, voice.language, quality: voice.quality, traits: voice.voiceTraits)
+        self.init(voice.identifier, voice.language, quality: voice.quality, traits: voice.voiceTraits,
+                  producesAudio: voice.producesAudio)
     }
     static func speechVoices() -> [AVSpeechSynthesisVoice] { mainThread(); return available }
 }
@@ -87,17 +90,42 @@ protocol AVSpeechSynthesizerDelegate: AnyObject {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance)
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance)
 }
+class AVAudioBuffer {}
+class AVAudioPCMBuffer: AVAudioBuffer {
+    let frameLength: UInt32
+    init(frames: UInt32) { frameLength = frames }
+}
 class AVSpeechSynthesizer {
     enum Boundary { case immediate }
     static var instances: [AVSpeechSynthesizer] = []
+    // Holds probe syntheses back so tests can interleave calls with an unfinished probe.
+    static var deferWrites = false
+    static var pendingWrites: [() -> Void] = []
+    static var writes: [String] = []
     weak var delegate: AVSpeechSynthesizerDelegate?
     var usesApplicationAudioSession = false
     var isSpeaking = false
     var isPaused = false
     var current: AVSpeechUtterance?
     var stopSucceeds = true
+    var wrote = false
     init() { mainThread(); Self.instances.append(self) }
     func speak(_ utterance: AVSpeechUtterance) { mainThread(); isSpeaking = true; current = utterance }
+    func write(_ utterance: AVSpeechUtterance, toBufferCallback callback: @escaping (AVAudioBuffer) -> Void) {
+        mainThread()
+        wrote = true
+        Self.writes.append(utterance.voice!.identifier)
+        let deliver = {
+            if utterance.voice!.producesAudio { callback(AVAudioPCMBuffer(frames: 240)) }
+            callback(AVAudioPCMBuffer(frames: 0))
+        }
+        if Self.deferWrites { Self.pendingWrites.append(deliver) } else { deliver() }
+    }
+    static func deliverWrites() {
+        let pending = pendingWrites
+        pendingWrites = []
+        pending.forEach { $0() }
+    }
     func stopSpeaking(at boundary: Boundary) -> Bool {
         mainThread()
         guard stopSucceeds else { return false }
@@ -184,7 +212,7 @@ func stop() -> CAPPluginCall {
     plugin.stop(call)
     return call
 }
-func latestSynth() -> AVSpeechSynthesizer { AVSpeechSynthesizer.instances.last! }
+func latestSynth() -> AVSpeechSynthesizer { AVSpeechSynthesizer.instances.last { !$0.wrote }! }
 func listed(_ lang: Any? = nil) -> CAPPluginCall {
     let call = CAPPluginCall(lang.map { ["lang": $0] } ?? [:])
     plugin.listOfflineVoices(call)
@@ -338,6 +366,73 @@ AVSpeechSynthesisVoice.available = excludedVoices
 expect(listed("de-DE").result?["suitableCount"] as? Int == 0)
 expect(listed("en-US").result?["suitableCount"] as? Int == 0)
 expect(speak().error?.contains("No installed offline voice") == true)
+
+// iOS can list a downloaded voice that only yields silence (FB12994908); it must be skipped.
+let silentEnhanced = AVSpeechSynthesisVoice("com.apple.voice.enhanced.de-DE.Markus", "de-DE",
+                                            quality: .enhanced, producesAudio: false)
+let workingCompact = AVSpeechSynthesisVoice("com.apple.voice.compact.de-DE.Markus", "de-DE")
+AVSpeechSynthesisVoice.available = [silentEnhanced, workingCompact]
+let probed = listed("de-DE")
+expect(probed.result?["suitableCount"] as? Int == 1)
+expect((probed.result?["voices"] as! [[String: Any]]).first?["name"] as? String == workingCompact.identifier)
+expect(CAPLog.messages.contains { $0.contains(silentEnhanced.identifier) && $0.contains("no audio") })
+let fallback = speak()
+expect(latestSynth().current?.voice?.identifier == workingCompact.identifier, "Speak skips the silent voice")
+latestSynth().finish()
+expect(fallback.result?["status"] as? String == "finished")
+let writesBefore = AVSpeechSynthesizer.writes.count
+expect(listed("de-DE").result?["suitableCount"] as? Int == 1)
+let cachedSpeak = speak()
+latestSynth().finish()
+expect(cachedSpeak.result?["status"] as? String == "finished")
+expect(AVSpeechSynthesizer.writes.count == writesBefore, "Probe results are cached")
+plugin.setSceneActive(false)
+plugin.setSceneActive(true)
+expect(listed("de-DE").result?["suitableCount"] as? Int == 1)
+expect(Array(AVSpeechSynthesizer.writes[writesBefore...]) == [silentEnhanced.identifier],
+       "Returning from Settings re-probes only failed voices")
+
+let silentOnly = AVSpeechSynthesisVoice("com.apple.voice.enhanced.de-DE.Helena", "de-DE",
+                                        quality: .enhanced, producesAudio: false)
+AVSpeechSynthesisVoice.available = [silentOnly]
+expect(listed("de-DE").result?["suitableCount"] as? Int == 0)
+expect(speak().error?.contains("No installed offline voice") == true)
+expect(!session.active, "A silent voice never starts playback")
+
+AVSpeechSynthesizer.deferWrites = true
+let slowVoice = AVSpeechSynthesisVoice("com.apple.voice.compact.de-DE.Yannick", "de-DE")
+AVSpeechSynthesisVoice.available = [slowVoice]
+let waiting = speak()
+expect(waiting.result == nil && waiting.error == nil, "Speak waits for the probe")
+expect(stop().result != nil)
+expect(waiting.result?["status"] as? String == "cancelled")
+let waitingList = listed("de-DE")
+let backgrounded = speak()
+plugin.setSceneActive(false)
+expect(backgrounded.result?["status"] as? String == "cancelled")
+plugin.setSceneActive(true)
+let superseded = speak()
+let latestSpeak = speak()
+expect(superseded.result?["status"] as? String == "cancelled")
+AVSpeechSynthesizer.deliverWrites()
+expect(AVSpeechSynthesizer.writes.filter { $0 == slowVoice.identifier }.count == 1,
+       "Concurrent requests share one probe")
+expect(waitingList.result?["suitableCount"] as? Int == 1)
+expect(latestSynth().current?.voice?.identifier == slowVoice.identifier)
+latestSynth().finish()
+expect(latestSpeak.result?["status"] as? String == "finished")
+
+let hangingVoice = AVSpeechSynthesisVoice("com.apple.voice.compact.de-DE.Hanging", "de-DE")
+AVSpeechSynthesisVoice.available = [hangingVoice]
+let hanging = speak()
+let probeTimeouts = Mirror(reflecting: plugin).children.first { $0.label == "probeTimeouts" }!.value
+    as! [String: DispatchWorkItem]
+probeTimeouts[hangingVoice.identifier]!.perform()
+expect(hanging.error?.contains("No installed offline voice") == true, "A probe that never answers fails")
+AVSpeechSynthesizer.deliverWrites()
+expect(listed("de-DE").result?["suitableCount"] as? Int == 0, "A late probe answer is ignored")
+AVSpeechSynthesizer.deferWrites = false
+expect(!session.active)
 
 var offMainCall: CAPPluginCall?
 DispatchQueue.global().async {

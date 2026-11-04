@@ -1193,6 +1193,22 @@
                 font-size: 14px;
             }
 
+            /* Always stack the flags under the eyebrow on phones: "Buchstabenzeit"
+               no longer fits beside them while "Letter time" does, so a wrapping
+               row made the flags jump when switching language. */
+            .setup-head {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0;
+                margin-bottom: 6px;
+            }
+
+            .language-control {
+                /* Aligns the first flag, not its 44px touch target, with the text. */
+                margin-left: -5px;
+                gap: 2px;
+            }
+
             .hero-logo {
                 width: clamp(92px, 26vw, 150px);
                 margin-right: -8px;

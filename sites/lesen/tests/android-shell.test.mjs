@@ -58,6 +58,17 @@ test('mobile shell: the hero text column can shrink so the owl never overflows',
   assert.match(cssRuleBody(html, '        .hero-logo'), /flex:\s*none/);
 });
 
+test('mobile shell: the flags keep their position when the language changes', async () => {
+  const html = await readSiteFile('static/index.html');
+
+  // A wrapping eyebrow row put the flags beside "Letter time" but under the
+  // wider "Buchstabenzeit" on 375-412px phones, so switching language moved them.
+  const phoneAt = html.indexOf('@media (max-width: 680px) {');
+  assert.ok(phoneAt > 0, 'the phone breakpoint must exist');
+  const phone = html.slice(phoneAt);
+  assert.match(cssRuleBody(phone, '            .setup-head'), /flex-direction:\s*column/);
+});
+
 test('mobile shell: double-tap zoom is disabled on every element', async () => {
   const html = await readSiteFile('static/index.html');
 
