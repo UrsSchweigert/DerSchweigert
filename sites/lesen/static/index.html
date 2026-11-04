@@ -214,10 +214,16 @@
             filter: drop-shadow(0 12px 16px rgba(15, 84, 139, .14));
         }
 
+        #setup {
+            /* Anchors .language-control to the setup block instead of the
+               viewport, so it inherits the body's safe-area padding. */
+            position: relative;
+        }
+
         .language-control {
             position: absolute;
-            top: 20px;
-            right: 28px;
+            top: 15px;
+            right: 8px;
             display: flex;
             gap: 8px;
             z-index: 10;

@@ -21,8 +21,25 @@ test('android shell: the viewport opts into safe-area insets', async () => {
   }
 });
 
-test('android shell: the activity draws edge-to-edge for real insets', async () => {
-  const activity = await readSiteFile(
+test('android shell: the absolute language switch anchors inside the safe area', async () => {
+  const html = await readSiteFile('static/index.html');
+
+  const setupAt = html.indexOf('#setup {');
+  assert.ok(setupAt > 0, '#setup needs its own rule');
+  const setup = html.slice(setupAt, html.indexOf('}', setupAt));
+  assert.match(
+    setup,
+    /position:\s*relative/,
+    '#setup must be the containing block, otherwise an absolute child is placed '
+      + 'against the viewport and ignores the body safe-area padding',
+  );
+
+  const controlAt = html.indexOf('.language-control {');
+  const control = html.slice(controlAt, html.indexOf('}', controlAt));
+  assert.match(control, /position:\s*absolute/);
+});
+
+test('android shell: the activity draws edge-to-edge for real insets', async () => {  const activity = await readSiteFile(
     'android/app/src/main/java/de/derschweigert/buchstabenzeit/MainActivity.java',
   );
   const styles = await readSiteFile('android/app/src/main/res/values/styles.xml');
