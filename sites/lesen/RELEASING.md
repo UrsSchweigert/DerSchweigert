@@ -42,9 +42,40 @@ behaviour before release.
 
 The checked-in `ios/` shell is generated with the locked Capacitor 8 CLI and
 Swift Package Manager. Restore it with `npm ci`, `npm run copy-assets`, then
-`npx cap sync ios`; do not recreate or hand-edit `project.pbxproj`. The app
+`npx cap sync ios`; do not recreate `project.pbxproj`. Maintain target settings
+through Xcode or the `xcode` project API shipped with the locked CLI. The app
 localizations are German and English, and its icon and light/dark splash assets
 come from the existing images under `assets/`.
+
+The iOS target supports both iPhone and iPad (`TARGETED_DEVICE_FAMILY = "1,2"`
+in Debug and Release). Keep both device families enabled: an iPhone-only build
+runs in compatibility mode on iPad instead of using the tablet layout.
+The iPad-specific orientation list includes all four orientations; iPhone keeps
+portrait and both landscape orientations. Check setup, mode selection and
+practice in portrait, landscape and resized iPad windows before release.
+Tablet-sized viewports (at least 768 x 600 CSS pixels) use larger letters,
+mode controls and practice cards. Setup stacks below 1200 CSS pixels to keep
+the letter targets spacious; wider windows show letters and modes side by side.
+Narrow windows and phone-sized landscape heights retain the compact layout.
+
+### iOS archive and manual screenshots
+
+Open `ios/App/App.xcodeproj` in Xcode and choose the **App** scheme.
+For screenshots, choose an iPhone or iPad simulator as the run destination,
+then **Product > Run**. In Simulator, choose **File > Save Screen** (`Cmd+S`)
+for each screen. Use an iPhone display producing 1206 x 2622 or 1179 x 2556
+pixels and a 13-inch iPad producing 2064 x 2752 pixels (or 12.9-inch iPad at
+2048 x 2732). Capture the app full-screen, not an iPhone compatibility window.
+
+For distribution, choose your Apple Developer team under **Signing &
+Capabilities**, enable automatic signing, and select **Any iOS Device (arm64)**.
+Check the version/build under **General**; each uploaded build number must be
+unused (the current project build is 2). Choose **Product > Archive**, then
+**Window > Organizer > Archives > Distribute App > App Store Connect**.
+Validate/upload with your account and select the processed build in App Store
+Connect. An archive built with `CODE_SIGNING_ALLOWED=NO` is only an unsigned
+build-verification artifact, not an installable or upload-ready IPA; create a
+signed archive in Xcode for distribution.
 
 The app's `PrivacyInfo.xcprivacy` is registered in the App target's Resources
 build phase, not merely present beside the source. It declares the Filesystem
