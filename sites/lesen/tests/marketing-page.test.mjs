@@ -28,6 +28,7 @@ test('marketing page links the official privacy, terms, imprint and contact page
   assert.match(page, /https:\/\/lesen\.derschweigert\.de\/datenschutz\.html/);
   assert.match(page, /https:\/\/derschweigert\.de\/nutzungsbedingungen/);
   assert.match(page, /https:\/\/derschweigert\.de\/impressum/);
+  assert.match(page, /href="https:\/\/derschweigert\.de\/#projects" data-i18n="projectReference"/);
   assert.match(page, /mailto:info@derschweigert\.de/);
 });
 
@@ -49,6 +50,7 @@ test('marketing page offers an English version and a return link to German', () 
   assert.match(language, /Google Play/);
   assert.match(language, /Apple App Store/);
   assert.match(language, /navLabel: 'Main navigation'/);
+  assert.match(language, /projectReference: 'See Buchstabenzeit on DerSchweigert'/);
   assert.doesNotMatch(language, /browser|free in the browser/i);
 });
 
