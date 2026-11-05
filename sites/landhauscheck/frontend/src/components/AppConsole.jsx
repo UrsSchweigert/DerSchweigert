@@ -6,6 +6,13 @@ function fmtCountdown(s) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// /api/v1/logs is PIN-protected; stats-login.html stores the PIN in the lhc_pin
+// cookie (not HttpOnly), so the diagnostics console can reuse it.
+function readStatsPin() {
+  const match = document.cookie.match(/(?:^|; )lhc_pin=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 export default function AppConsole({
   onClose,
   apiBaseUrl,
@@ -30,7 +37,9 @@ export default function AppConsole({
   useEffect(() => {
     setAwsLogsLoading(true);
     setAwsLogsError("");
-    fetch(`${apiBaseUrl}/api/v1/logs?minutes=10`)
+    fetch(`${apiBaseUrl}/api/v1/logs?minutes=10`, {
+      headers: { "X-Stats-Pin": readStatsPin() },
+    })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
         return r.json();

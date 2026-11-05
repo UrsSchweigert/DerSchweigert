@@ -10,8 +10,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Header, Query
 
+from app.api.routes.stats import _check_pin
 from app.core.config import get_settings
 
 router = APIRouter(tags=["logs"])
@@ -69,6 +70,12 @@ def _fetch_cloudwatch_logs(minutes: int) -> list[dict[str, Any]]:
 @router.get("/api/v1/logs")
 def get_logs(
     minutes: int = Query(default=10, ge=1, le=60),
+    x_stats_pin: str | None = Header(default=None),
 ) -> list[dict[str, Any]]:
-    """Return recent CloudWatch log entries for the console overlay."""
+    """Return recent CloudWatch log entries for the console overlay.
+
+    PIN-protected like the stats endpoints: the log group carries stack traces
+    and upstream error text, so it must not be readable by anonymous visitors.
+    """
+    _check_pin(x_stats_pin)
     return _fetch_cloudwatch_logs(minutes)

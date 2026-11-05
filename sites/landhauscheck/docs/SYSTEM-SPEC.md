@@ -235,7 +235,6 @@ Base path: `/api/v1/`
 | `GET` | `/chargers` | `lat`, `lng`, `poi_type` | JSON: nearby chargers/gas/toilet/ATM | 15 min client |
 | `GET` | `/notifications/manifest` | — | JSON: tomorrow's waste collections by ICS location | CloudFront 1 h |
 | `POST` | `/feature-request` | JSON body | `201` + Jira issue key | — |
-| `GET` | `/logs` | — | JSON: recent request log | — |
 
 ### 4.2 — Admin Endpoints (PIN-protected)
 
@@ -244,6 +243,7 @@ Base path: `/api/v1/`
 | `POST` | `/admin/verify-pin` | PIN in body | Sets `lhc_pin` + `lhc_devmode` cookies |
 | `GET` | `/admin/stats` | `X-Stats-Pin` header | Full stats JSON |
 | `POST` | `/admin/clear-devmode` | `X-Stats-Pin` header | Clears `lhc_devmode` cookie |
+| `GET` | `/logs` | `X-Stats-Pin` header | JSON: recent CloudWatch log events |
 
 ---
 

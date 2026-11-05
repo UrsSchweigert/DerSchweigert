@@ -1,6 +1,8 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
+from urllib.parse import quote
 
 
 HANDLER_PATH = Path(__file__).resolve().parents[1] / "lambda" / "handler.py"
@@ -79,3 +81,56 @@ def test_health_endpoint_available():
         "path": "/health",
     }, None)
     assert response["statusCode"] == 200
+
+
+def test_unlock_page_escapes_next_in_the_hidden_field():
+    """next is HTML-escaped, so it cannot break out of the value attribute."""
+    response = handler.lambda_handler({
+        "httpMethod": "GET",
+        "path": "/unlock",
+        "queryStringParameters": {"next": '"><script>alert(1)</script>'},
+    }, None)
+
+    assert response["statusCode"] == 200
+    assert "<script>alert(1)</script>" not in response["body"]
+    assert "&quot;&gt;&lt;script&gt;" in response["body"]
+
+
+def test_failed_unlock_does_not_reinject_markup():
+    """The error branch re-renders next from the POST body, so it must escape too."""
+    response = handler.lambda_handler({
+        "httpMethod": "POST",
+        "path": "/unlock",
+        "headers": {"content-type": "application/x-www-form-urlencoded"},
+        "body": "pin=wrong&next=" + quote('"><script>alert(1)</script>', safe=""),
+    }, None)
+
+    assert response["statusCode"] == 200
+    assert "<script>alert(1)</script>" not in response["body"]
+
+
+def test_unlock_submit_refuses_a_cross_site_redirect():
+    """Only a same-site path is a valid post-unlock destination."""
+    admin_pin = os.environ["ADMIN_PIN"]
+    for hostile in ("https://example.com/", "//example.com/", "/\\example.com", "javascript:alert(1)"):
+        response = handler.lambda_handler({
+            "httpMethod": "POST",
+            "path": "/unlock",
+            "headers": {"content-type": "application/x-www-form-urlencoded"},
+            "body": f"pin={quote(admin_pin, safe='')}&next={quote(hostile, safe='')}",
+        }, None)
+
+        assert response["statusCode"] == 302, hostile
+        assert response["headers"]["Location"] == "/", hostile
+
+
+def test_unlock_submit_keeps_a_same_site_path():
+    """A legitimate local path still survives the redirect check."""
+    response = handler.lambda_handler({
+        "httpMethod": "POST",
+        "path": "/unlock",
+        "headers": {"content-type": "application/x-www-form-urlencoded"},
+        "body": f"pin={quote(os.environ['ADMIN_PIN'], safe='')}&next=%2Fadmin",
+    }, None)
+
+    assert response["headers"]["Location"] == "/admin"
