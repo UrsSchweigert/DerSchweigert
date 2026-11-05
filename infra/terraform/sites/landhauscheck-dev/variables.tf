@@ -28,7 +28,11 @@ variable "stats_pin" {
   description = "PIN for /stats.html. Must match CloudFront Function and Lambda STATS_PIN env var."
   type        = string
   sensitive   = true
-  default     = "3009"
+
+  validation {
+    condition     = length(var.stats_pin) >= 6
+    error_message = "stats_pin must be at least 6 characters."
+  }
 }
 
 # ── API keys (use production values) ─────────────────────────────────────────

@@ -266,3 +266,11 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   Lambda non-functional until the very next step overwrites it — see
   `sites/ffm/README.md`'s "Deployment shape" section for the full trade-off
   and the fix if it's ever worth removing.
+
+## Licence
+
+Copyright (c) 2026 Urs Schweigert. Licensed under the
+[PolyForm Strict License 1.0.0](LICENSE): noncommercial use only, no
+distribution, no changes or derivative works. See [`NOTICE`](NOTICE).
+Third-party components (word lists, fonts, dependencies) keep their own
+licences, listed in `sites/lesen/docs/third-party-licences.md`.

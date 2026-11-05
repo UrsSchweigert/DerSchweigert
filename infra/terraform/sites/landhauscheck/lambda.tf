@@ -58,8 +58,8 @@ resource "aws_lambda_function" "backend" {
       GITHUB_TOKEN = aws_ssm_parameter.github_token.value
       GITHUB_REPO  = "UrsSchweigert/DerSchweigert"
       # Stats dashboard PIN — must match cloudfront.tf stats_pin_guard function.
-      # Change here + redeploy to rotate.
-      STATS_PIN = "3009"
+      # Both read var.stats_pin; rotate by changing the secret and redeploying.
+      STATS_PIN = var.stats_pin
     }
   }
 

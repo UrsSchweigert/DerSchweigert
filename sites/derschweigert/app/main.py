@@ -126,7 +126,7 @@ def unlock_page(request: Request) -> HTMLResponse:
 
 @app.post("/unlock")
 def unlock_submit(pin: str = Form(...), next: str = Form("/")):
-    if pin.strip() == settings.admin_pin:
+    if settings.admin_pin and pin.strip() == settings.admin_pin:
         response = RedirectResponse(url=next or "/", status_code=302)
         response.set_cookie(
             key=settings.admin_cookie_name,
@@ -195,7 +195,7 @@ def admin_page(request: Request) -> HTMLResponse:
 @app.post("/api/admin/verify-pin")
 def verify_pin(payload: dict):
     pin = str(payload.get("pin", "")).strip()
-    if pin != settings.admin_pin:
+    if not settings.admin_pin or pin != settings.admin_pin:
         raise HTTPException(status_code=401, detail="Invalid PIN")
 
     response = JSONResponse({"ok": True})

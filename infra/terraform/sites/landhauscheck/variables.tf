@@ -68,6 +68,17 @@ variable "jira_api_key" {
   sensitive   = true
   default     = "" # empty until configured; endpoint returns 503 gracefully
 }
+variable "stats_pin" {
+  description = "PIN for /stats.html (from the DERSCHWEIGERT_ADMIN_PIN GitHub secret, or TF_VAR_stats_pin locally). Used by the CloudFront Function and the Lambda STATS_PIN env var."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.stats_pin) >= 6
+    error_message = "stats_pin must be at least 6 characters."
+  }
+}
+
 variable "github_token" {
   description = "GitHub PAT (classic, repo scope) — used by the /api/v1/waste/contribute endpoint to create branches and pull requests for user-uploaded ICS files. Generate at https://github.com/settings/tokens"
   type        = string

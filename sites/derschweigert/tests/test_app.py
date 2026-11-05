@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from html.parser import HTMLParser
+import os
 from pathlib import Path
 import re
 
@@ -139,7 +140,7 @@ def test_pin_unlock_redirects_to_homepage():
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "production"
-    response = client.post("/unlock", data={"pin": "3009", "next": "/"}, follow_redirects=False)
+    response = client.post("/unlock", data={"pin": os.environ["ADMIN_PIN"], "next": "/"}, follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "/"
     assert "ams_pin=1" in response.headers.get("set-cookie", "")
@@ -178,7 +179,7 @@ def test_invalid_pin_is_rejected():
 
 
 def test_admin_pin_verification_sets_cookie():
-    response = client.post("/api/admin/verify-pin", json={"pin": "3009"})
+    response = client.post("/api/admin/verify-pin", json={"pin": os.environ["ADMIN_PIN"]})
     assert response.status_code == 200
     set_cookie = response.headers.get("set-cookie", "")
     assert "ams_pin" in set_cookie

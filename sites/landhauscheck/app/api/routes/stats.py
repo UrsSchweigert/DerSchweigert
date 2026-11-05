@@ -37,7 +37,7 @@ def _check_pin(x_stats_pin: str | None) -> None:
     """Raise 401 if the supplied PIN does not match STATS_PIN."""
     expected = get_settings().stats_pin or ""
     supplied = x_stats_pin or ""
-    if not secrets.compare_digest(supplied, expected):
+    if not expected or not secrets.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -58,7 +58,8 @@ def verify_pin(body: _PinRequest, response: Response) -> dict[str, bool]:
     Not HttpOnly so the stats.html badge JS can read it via document.cookie.
     The value is non-sensitive (just "1") so this is an acceptable trade-off.
     """
-    if not secrets.compare_digest(body.pin, get_settings().stats_pin or ""):
+    expected = get_settings().stats_pin or ""
+    if not expected or not secrets.compare_digest(body.pin, expected):
         raise HTTPException(status_code=401, detail="Invalid PIN")
     response.set_cookie(
         key="lhc_devmode",

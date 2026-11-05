@@ -7,7 +7,7 @@ app_name     = "basicwebapp-dev"
 environment  = "dev"
 domain_name  = "dev.landhauscheck.com"
 
-stats_pin         = "3009"
+stats_pin         = "change_me_min_6_chars"
 
 # HERE Maps API keys (same as production)
 here_api_key         = "your_here_server_api_key"

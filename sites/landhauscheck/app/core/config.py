@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     cloudwatch_log_group: str = "/aws/lambda/basicwebapp-backend"
     # Stats dashboard PIN — must match the CloudFront Function guard and the
     # X-Stats-Pin header sent by stats.html. Change via STATS_PIN env var.
-    stats_pin: str = "3009"
+    stats_pin: str = ""
 
     # ── Jira Cloud (feature request integration) ───────────────────────────
     # Used by the /api/v1/feature-request endpoint to create issues in Jira.

@@ -1,0 +1,17 @@
+Required Notice: Copyright (c) 2026 Urs Schweigert (https://derschweigert.de)
+
+The original work in this repository is licensed under the PolyForm Strict
+License 1.0.0 (see LICENSE): noncommercial use only, no distribution, and no
+changes or new works. Contact hello@derschweigert.de for other permissions.
+
+The names "DerSchweigert", "Buchstabenzeit", "Arithmo Slayer", "FFM" and
+"Landhauscheck" are not licensed for use.
+
+THIRD-PARTY MATERIAL IS NOT COVERED BY LICENSE. It remains under its own
+licence, which must be preserved. This includes the German (CC BY-SA 4.0) and
+English (CC BY 4.0) word lists and the Andika font (SIL OFL 1.1) in
+sites/lesen/static, and all npm, Python, Gradle and Swift dependencies. See
+sites/lesen/docs/third-party-licences.md,
+sites/lesen/static/third-party-notices.txt, and the licence files next to the
+material. Where a file carries its own licence, that licence controls for that
+file.
