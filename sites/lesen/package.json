@@ -24,7 +24,7 @@
     "@capacitor/share": "^8.0.3"
   },
   "devDependencies": {
-    "@capacitor/assets": "^3.0.5",
+    "@capacitor/assets": "^4.0.0",
     "@capacitor/cli": "8.6.0"
   },
   "engines": {
