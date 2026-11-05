@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -124,10 +125,24 @@ def unlock_page(request: Request) -> HTMLResponse:
     )
 
 
+# A service page name is a slug, never a path: without this, a request for
+# /services/..%2F..%2Fsecret could read any .html file the process can reach.
+_SERVICE_SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
+_SERVICES_DIR = Path(TEMPLATES_DIR) / "services"
+
+
+def safe_next(target: str) -> str:
+    """Only a same-site path is a valid post-unlock destination, so ?next= cannot become an open redirect."""
+    target = (target or "").strip()
+    if not target.startswith("/") or target.startswith("//") or "\\" in target or "\n" in target or "\r" in target:
+        return "/"
+    return target
+
+
 @app.post("/unlock")
 def unlock_submit(pin: str = Form(...), next: str = Form("/")):
     if settings.admin_pin and pin.strip() == settings.admin_pin:
-        response = RedirectResponse(url=next or "/", status_code=302)
+        response = RedirectResponse(url=safe_next(next), status_code=302)
         response.set_cookie(
             key=settings.admin_cookie_name,
             value="1",
@@ -164,8 +179,10 @@ def index() -> HTMLResponse:
 
 @app.get("/services/{slug}", response_class=HTMLResponse)
 def service_page(slug: str) -> HTMLResponse:
-    path = TEMPLATES_DIR / "services" / f"{slug}.html"
-    if not path.exists():
+    if not _SERVICE_SLUG.fullmatch(slug):
+        raise HTTPException(status_code=404, detail="Service not found")
+    path = (_SERVICES_DIR / (slug + ".html")).resolve()
+    if _SERVICES_DIR.resolve() not in path.parents or not path.is_file():
         raise HTTPException(status_code=404, detail="Service not found")
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
