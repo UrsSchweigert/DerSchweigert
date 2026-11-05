@@ -11,6 +11,21 @@
       "command": "sh /opt/harness/smoke/ios_shell.sh /work sites/lesen"
     },
     {
+      "name": "lesen unit tests",
+      "paths": ["sites/lesen/"],
+      "command": "node --test /work/sites/lesen/tests/*.test.mjs"
+    },
+    {
+      "name": "arithmo slayer web game unit tests",
+      "paths": ["sites/ffm/static/"],
+      "command": "node --test /work/sites/ffm/static/game/*.test.js"
+    },
+    {
+      "name": "arithmo slayer mobile shell tests",
+      "paths": ["sites/ffm/mobile/", "sites/ffm/static/"],
+      "command": "node --test /work/sites/ffm/mobile/tests/*.test.mjs"
+    },
+    {
       "name": "arithmoslayer Godot project loads headless",
       "paths": ["apps/arithmoslayer/"],
       "command": "sh /opt/harness/smoke/godot_project.sh /work apps/arithmoslayer"
