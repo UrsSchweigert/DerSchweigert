@@ -642,7 +642,7 @@ jobs:
 
       # OpenTofu, not Terraform: this stack's state was created and is maintained by
       # OpenTofu (see sites/landhauscheck/docs/SYSTEM.md), unlike the other sites here.
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: 1.11.5
 
