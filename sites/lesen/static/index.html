@@ -158,6 +158,7 @@
             margin: auto;
             color: var(--muted);
             font-size: 12px;
+            text-align: center;
         }
 
         .setup-intro {
@@ -722,6 +723,7 @@
         }
 
         #syllable {
+            --card-font-max: 100px;
             color: var(--blue);
             font-family: Andika, "Trebuchet MS", sans-serif;
             font-weight: 700;
@@ -1267,6 +1269,183 @@
 
             footer {
                 padding-left: 20px;
+            }
+        }
+
+        @media (min-width: 768px) and (min-height: 600px) {
+            body {
+                font-size: 20px;
+            }
+
+            main,
+            footer {
+                max-width: 1400px;
+            }
+
+            main {
+                padding: 32px;
+            }
+
+            h1 {
+                font-size: 44px;
+            }
+
+            .intro-description {
+                max-width: 700px;
+                font-size: 22px;
+            }
+
+            .eyebrow {
+                font-size: 18px;
+            }
+
+            .language-control button {
+                min-width: 60px;
+                min-height: 56px;
+            }
+
+            .language-control .flag {
+                height: 26px;
+            }
+
+            #setup-form {
+                padding: 32px;
+            }
+
+            .setup-grid {
+                grid-template-columns: 1fr;
+                gap: 36px;
+            }
+
+            .letters {
+                gap: 12px;
+            }
+
+            .letter {
+                min-height: 84px;
+                font-size: 38px;
+                border-radius: 18px;
+            }
+
+            #specials .letter {
+                font-size: 28px;
+            }
+
+            .letter.best::after {
+                font-size: 20px;
+            }
+
+            legend {
+                font-size: 24px;
+            }
+
+            .selection-count,
+            .star-hint,
+            .words-mode-note,
+            .adult-note,
+            .error {
+                font-size: 18px;
+            }
+
+            .deck-options {
+                border-left: 0;
+                border-top: 2px dashed var(--line);
+                padding: 28px 0 0;
+            }
+
+            .pattern {
+                min-height: 84px;
+                padding: 20px;
+            }
+
+            .pattern strong {
+                font-size: 28px;
+            }
+
+            .pattern span {
+                font-size: 18px;
+            }
+
+            .pattern-sub {
+                min-height: 56px;
+                padding: 8px 14px;
+            }
+
+            .pattern-subs span,
+            .number-label {
+                font-size: 22px;
+            }
+
+            .patterns input {
+                width: 24px;
+                height: 24px;
+            }
+
+            #card-count {
+                min-height: 68px;
+                font-size: 26px;
+            }
+
+            .primary,
+            .quiet {
+                min-height: 60px;
+                font-size: 22px;
+            }
+
+            .practice-top h1 {
+                font-size: 38px;
+            }
+
+            .practice-inner {
+                max-width: 1040px;
+            }
+
+            .stats {
+                font-size: 22px;
+            }
+
+            progress {
+                height: 12px;
+            }
+
+            .reading-card {
+                height: clamp(360px, 42vh, 620px);
+                border-radius: 32px;
+            }
+
+            #syllable {
+                --card-font-max: 180px;
+                font-size: var(--card-font-max);
+            }
+
+            .action {
+                min-height: 84px;
+                font-size: 24px;
+            }
+
+            .icon {
+                width: 28px;
+                height: 28px;
+            }
+
+            .feedback,
+            .review-label,
+            footer,
+            .link-button {
+                font-size: 18px;
+            }
+        }
+
+        @media (min-width: 1200px) and (min-height: 600px) {
+            .setup-grid {
+                grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+                gap: 32px;
+            }
+
+            .deck-options {
+                border-top: 0;
+                border-left: 2px dashed var(--line);
+                padding: 0 0 0 28px;
             }
         }
 
@@ -2201,10 +2380,11 @@
             const card = byId('syllable');
             const context = document.createElement('canvas').getContext('2d');
             const computedStyle = window.getComputedStyle(card);
-            context.font = `${computedStyle.fontWeight} 100px ${computedStyle.fontFamily}`;
+            const maximum = parseFloat(computedStyle.getPropertyValue('--card-font-max'));
+            context.font = `${computedStyle.fontWeight} ${maximum}px ${computedStyle.fontFamily}`;
             const textWidth = context.measureText(text).width;
             const availableWidth = card.parentElement.clientWidth - 48;
-            const fitted = Math.min(100, 100 * availableWidth / textWidth);
+            const fitted = Math.min(maximum, maximum * availableWidth / textWidth);
             card.style.fontSize = `${Math.max(minimum, fitted)}px`;
         }
 

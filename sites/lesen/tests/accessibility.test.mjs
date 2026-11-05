@@ -49,6 +49,11 @@ function contrastRatio(a, b) {
   return (light + 0.05) / (dark + 0.05);
 }
 
+test('the footer tagline is centered on every platform and viewport', async () => {
+  const html = await readSiteFile('static/index.html');
+  assert.match(html, /(?:^|\})\s*footer\s*\{[^}]*text-align:\s*center/);
+});
+
 test('a11y: the viewport allows pinch zoom and text scaling', async () => {
   const html = await readSiteFile('static/index.html');
   const viewport = html.match(/<meta name="viewport" content="([^"]+)"/)?.[1] ?? '';
