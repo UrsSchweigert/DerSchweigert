@@ -34,3 +34,23 @@ module "site" {
 
   tags = local.tags
 }
+
+module "marketing" {
+  source = "../../modules/static_site"
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  app_name            = "derschweigert-buchstabenzeit"
+  domain              = "buchstabenzeit.derschweigert.de"
+  route53_zone_id     = var.route53_zone_id
+  default_root_object = "index.html"
+
+  content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://lesen.derschweigert.de; font-src 'self' https://lesen.derschweigert.de; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
+  tags = merge(local.tags, {
+    Domain = "buchstabenzeit.derschweigert.de"
+  })
+}
