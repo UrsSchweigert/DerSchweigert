@@ -58,6 +58,7 @@ const englishText = {
   appStoreDescription: 'The iPhone and iPad app offers the same guided reading practice, with no subscription or account.',
   storeComing: 'Store link coming soon',
   storesDisclaimer: 'The apps are not available in the stores yet. We will add prices and direct store links when they launch.',
+  projectReference: 'See Buchstabenzeit on DerSchweigert',
   closingTitle: 'Growing together, one card at a time.',
   closingText: 'Buchstabenzeit is planned for Android and iPhone. Store links will be added at launch.',
   closingButton: 'Google Play & App Store',
