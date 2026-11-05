@@ -199,3 +199,22 @@ def test_apex_domain_redirects_to_www():
     response = client.get("/", headers={"host": "derschweigert.de"}, follow_redirects=False)
     assert response.status_code == 308
     assert response.headers["location"] == "https://www.derschweigert.de/"
+
+def test_a_service_page_cannot_be_read_through_a_path():
+    # The router already refuses an encoded slash, so the traversal was not reachable through this route; the guard
+    # makes that a property of the endpoint rather than of the router, and these cases pin it.
+    for attempt in ("..%2Findex", "%2e%2e%2findex", "..%2F..%2Fapp%2Fconfig", "services"):
+        response = client.get(f"/services/{attempt}")
+        assert response.status_code == 404, attempt
+
+
+def test_only_a_same_site_path_is_offered_after_unlock(monkeypatch):
+    from app import main as app_main
+
+    monkeypatch.setattr(app_main.settings, "admin_pin", "123456")
+    for hostile in ("https://example.com/", "//example.com/", "/\\example.com", "javascript:alert(1)"):
+        response = client.post("/unlock", data={"pin": "123456", "next": hostile}, follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/", hostile
+    response = client.post("/unlock", data={"pin": "123456", "next": "/admin"}, follow_redirects=False)
+    assert response.headers["location"] == "/admin"

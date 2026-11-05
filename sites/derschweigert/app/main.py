@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -124,10 +124,32 @@ def unlock_page(request: Request) -> HTMLResponse:
     )
 
 
+_SERVICES_DIR = Path(TEMPLATES_DIR) / "services"
+# The page a service name maps to is looked up in a fixed table, so the request value is only ever a key and never
+# part of a filename. A per-request path join is what an encoded traversal would have to defeat.
+SERVICES = {path.stem: path for path in _SERVICES_DIR.glob("*.html")}
+
+
+def safe_next(target: str) -> str:
+    """Only a same-site path is a valid post-unlock destination, so ?next= cannot become an open redirect.
+
+    The value is parsed rather than pattern-matched: anything carrying a scheme or a host is refused, and what is
+    kept is the parsed path and query, which cannot address another site.
+    """
+    parsed = urlparse((target or "").strip())
+    if parsed.scheme or parsed.netloc:
+        return "/"
+    path = parsed.path or "/"
+    # A backslash is a slash to some browsers, which would turn "/\\host" into "//host".
+    if not path.startswith("/") or path.startswith("//") or "\\" in path or "\n" in path or "\r" in path:
+        return "/"
+    return path + ("?" + parsed.query if parsed.query else "")
+
+
 @app.post("/unlock")
 def unlock_submit(pin: str = Form(...), next: str = Form("/")):
     if settings.admin_pin and pin.strip() == settings.admin_pin:
-        response = RedirectResponse(url=next or "/", status_code=302)
+        response = RedirectResponse(url=safe_next(next), status_code=302)
         response.set_cookie(
             key=settings.admin_cookie_name,
             value="1",
@@ -164,8 +186,8 @@ def index() -> HTMLResponse:
 
 @app.get("/services/{slug}", response_class=HTMLResponse)
 def service_page(slug: str) -> HTMLResponse:
-    path = TEMPLATES_DIR / "services" / f"{slug}.html"
-    if not path.exists():
+    path = SERVICES.get(slug)
+    if path is None:
         raise HTTPException(status_code=404, detail="Service not found")
     return HTMLResponse(path.read_text(encoding="utf-8"))
 

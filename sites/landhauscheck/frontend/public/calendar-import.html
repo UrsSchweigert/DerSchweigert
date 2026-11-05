@@ -490,11 +490,35 @@
 
     // ── URL params ────────────────────────────────────────────────────────────
     const params  = new URLSearchParams(window.location.search);
-    const lat     = params.get('lat');
-    const lng     = params.get('lng');
-    const apiBase = params.get('base') || window.location.origin;
-    const icsUrl  = (lat && lng)
-      ? `${apiBase}/api/v1/waste/calendar.ics?lat=${lat}&lng=${lng}`
+
+    // lat/lng become part of a URL and `base` is a whole origin, so neither is trusted as given: a crafted link
+    // must not be able to point the download buttons at another host or smuggle anything into the query.
+    function coordinate(raw) {
+      if (raw === null || raw === '') return null;
+      const value = Number(raw);
+      return Number.isFinite(value) && Math.abs(value) <= 180 ? value : null;
+    }
+
+    function safeApiBase(raw) {
+      const here = window.location.origin;
+      if (!raw) return here;
+      let candidate;
+      try {
+        candidate = new URL(raw);
+      } catch (error) {
+        return here;
+      }
+      if (candidate.protocol !== 'https:' && candidate.protocol !== 'http:') return here;
+      const sameHost = candidate.host === window.location.host;
+      const localDev = ['localhost', '127.0.0.1', '[::1]'].includes(candidate.hostname);
+      return (sameHost || localDev) ? candidate.origin : here;
+    }
+
+    const lat     = coordinate(params.get('lat'));
+    const lng     = coordinate(params.get('lng'));
+    const apiBase = safeApiBase(params.get('base'));
+    const icsUrl  = (lat !== null && lng !== null)
+      ? `${apiBase}/api/v1/waste/calendar.ics?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`
       : null;
     const webcalUrl = icsUrl ? icsUrl.replace(/^https?:/, 'webcal:') : null;
 
