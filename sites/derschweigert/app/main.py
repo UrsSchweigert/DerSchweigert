@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -125,18 +124,26 @@ def unlock_page(request: Request) -> HTMLResponse:
     )
 
 
-# A service page name is a slug, never a path: without this, a request for
-# /services/..%2F..%2Fsecret could read any .html file the process can reach.
-_SERVICE_SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 _SERVICES_DIR = Path(TEMPLATES_DIR) / "services"
+# The page a service name maps to is looked up in a fixed table, so the request value is only ever a key and never
+# part of a filename. A per-request path join is what an encoded traversal would have to defeat.
+SERVICES = {path.stem: path for path in _SERVICES_DIR.glob("*.html")}
 
 
 def safe_next(target: str) -> str:
-    """Only a same-site path is a valid post-unlock destination, so ?next= cannot become an open redirect."""
-    target = (target or "").strip()
-    if not target.startswith("/") or target.startswith("//") or "\\" in target or "\n" in target or "\r" in target:
+    """Only a same-site path is a valid post-unlock destination, so ?next= cannot become an open redirect.
+
+    The value is parsed rather than pattern-matched: anything carrying a scheme or a host is refused, and what is
+    kept is the parsed path and query, which cannot address another site.
+    """
+    parsed = urlparse((target or "").strip())
+    if parsed.scheme or parsed.netloc:
         return "/"
-    return target
+    path = parsed.path or "/"
+    # A backslash is a slash to some browsers, which would turn "/\\host" into "//host".
+    if not path.startswith("/") or path.startswith("//") or "\\" in path or "\n" in path or "\r" in path:
+        return "/"
+    return path + ("?" + parsed.query if parsed.query else "")
 
 
 @app.post("/unlock")
@@ -179,10 +186,8 @@ def index() -> HTMLResponse:
 
 @app.get("/services/{slug}", response_class=HTMLResponse)
 def service_page(slug: str) -> HTMLResponse:
-    if not _SERVICE_SLUG.fullmatch(slug):
-        raise HTTPException(status_code=404, detail="Service not found")
-    path = (_SERVICES_DIR / (slug + ".html")).resolve()
-    if _SERVICES_DIR.resolve() not in path.parents or not path.is_file():
+    path = SERVICES.get(slug)
+    if path is None:
         raise HTTPException(status_code=404, detail="Service not found")
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
