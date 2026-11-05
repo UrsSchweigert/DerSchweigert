@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           # No npm cache: the suite imports only node built-ins and files next to it, so nothing is installed here.
@@ -221,7 +221,7 @@ jobs:
         if: needs.changes.outputs.ffm_tests == 'true'
         env:
           PYTHONPATH: ${{ github.workspace }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: needs.changes.outputs.ffm_tests == 'true'
         with:
           node-version: '22'
@@ -263,7 +263,7 @@ jobs:
       - name: Backend unit tests
         if: needs.changes.outputs.lhc_tests == 'true'
         run: PYTHONPATH=sites/landhauscheck pytest sites/landhauscheck/tests -q --ignore=sites/landhauscheck/tests/smoke
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: needs.changes.outputs.lhc_tests == 'true'
         with:
           node-version: '20'
