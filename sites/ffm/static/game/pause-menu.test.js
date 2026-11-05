@@ -19,7 +19,7 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
   const context = {
     paused: false, gameRunning: true,
     state: { score: 1234, level: 2, isShapesMode: shapes, timerActive: true },
-    api: { isLoggedIn: loggedIn, async postHighScore(score, level) {
+    platform: { isLoggedIn: loggedIn, async postHighScore(score, level) {
       submissions++;
       assert.equal(score, 1234);
       assert.equal(level, 2);
@@ -31,7 +31,7 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
     btnPauseBack: element('back'), btnPauseSave: element('save'), btnPauseDiscard: element('discard'),
     input: { disable() {}, enable() {} },
     audio: { pauseBGM() {}, resumeBGM() {} },
-    resetHealHold() {}, activeFiend: null,
+    resetHealHold() {}, activeFiend: null, appLifecycle: null, syncKeepAwake() {},
     getCurrentInputMode() { return 'multiple-choice'; },
     t: key => key,
     clearPremiumSession() { quits++; context.gameRunning = false; },

@@ -6,7 +6,7 @@ import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, Snake
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
-import { api } from './api.js';
+import { resolvePlatform } from './platform.js';
 import { getFiendClass, sampleFiendClassId, FIEND_CLASSES } from './difficulty-classes.js';
 import { pickComboAbility, getComboFrameBand } from './combo-abilities.js';
 import {
@@ -19,8 +19,54 @@ import { CookieConsent } from './cookie-consent.js';
 import { preloadGameAssets } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
-import { getAuthorizedLevelConfig, setCurrentLevelConfig, getCurrentLevelConfig, incrementRequestGeneration, isStripeRedirect, validatePendingRecord } from './access-flow.js';
 import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
+
+// The active platform: web (api.js + access-flow.js) or the app bundle's
+// local-only adapter. Resolved once, before any game code runs.
+const platform = await resolvePlatform();
+
+// App-only lifecycle handle (see ./lifecycle.js, shipped by the app overlay).
+// Stays null on the web build and until the app plugin has been wired.
+let appLifecycle = null;
+
+// The app caches the store entitlement on device. Refresh it on launch and on
+// every return to the foreground, so a refund made while the app was closed
+// revokes access and a purchase finished outside the app is picked up.
+if (platform.isApp) {
+  platform.refreshEntitlement().catch(() => false);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') platform.refreshEntitlement().catch(() => false);
+  });
+  // The app bundles its own privacy, imprint, terms and licence pages (see
+  // ./legal.js); replace the web legal footer with localized links to them.
+  // The web build never loads this module and keeps its existing footer.
+  import('./legal.js')
+    .then(({ setupTitleLegalLinks }) => setupTitleLegalLinks({ getLocale, onLocaleChange }))
+    .catch(() => {});
+  // Pause gameplay and music while the app is in the background, resume only
+  // after an automatic pause, map the Android back button, and keep the
+  // screen awake only while a level is running. The web build never loads
+  // this module.
+  import('./lifecycle.js')
+    .then(({ createAppPlugin, createKeepAwakePlugin, createLifecycle }) => {
+      const app = createAppPlugin();
+      if (!app) return;
+      appLifecycle = createLifecycle({
+        app,
+        keepAwake: createKeepAwakePlugin(),
+        game: {
+          isPlaying: () => gameRunning && !paused,
+          isPaused: () => paused,
+          pause: pauseGame,
+          resume: resumeGame,
+          goBack: handleAppBack,
+        },
+      });
+      appLifecycle.start().catch(() => {});
+      syncKeepAwake();
+    })
+    .catch(() => {});
+}
 
 // Resolves the active locale, translates every data-i18n-* element in the
 // page, and sets <html lang> before anything else runs.
@@ -88,11 +134,12 @@ Promise.race([
 // --- Checkout redirect handling ---
 // After Stripe checkout completes, user is redirected back with billing=success
 async function handleCheckoutRedirect() {
+  if (platform.isApp) return;
   const params = new URLSearchParams(window.location.search);
   if (params.get('billing') === 'success') {
     try {
       // Get updated billing status
-      const status = await api.getBillingStatus();
+      const status = await platform.getBillingStatus();
       // Clean URL to remove billing parameter
       window.history.replaceState({}, document.title, window.location.pathname);
       // If user is entitled, resume pending level
@@ -187,7 +234,7 @@ const FIEND_PALETTES = {
 
 // --- Fiend factory ---
 function createFiend(levelIndex, x) {
-  const cfg = getCurrentLevelConfig();
+  const cfg = platform.getCurrentLevelConfig();
   if (!cfg) throw new Error('Level config not loaded');
   const problem = generateProblem(levelIndex, Date.now(), cfg);
   const spawnIndex = state.fiendsSpawned;
@@ -244,7 +291,7 @@ function createShapesFiend(x) {
 // than relying on state.level happening to alias a real level's inputMode.
 function getCurrentInputMode() {
   if (state.isShapesMode) return 'multiple-choice';
-  const cfg = getCurrentLevelConfig();
+  const cfg = platform.getCurrentLevelConfig();
   return cfg?.inputMode;
 }
 
@@ -313,6 +360,11 @@ const leaderboardPersonalBest = document.getElementById('leaderboard-personal-be
 const scoreHistoryChart = document.getElementById('score-history-chart');
 const leaderboardProfilePrompt = document.getElementById('leaderboard-profile-prompt');
 const leaderboardCompleteProfile = document.getElementById('leaderboard-complete-profile');
+const leaderboardSection = document.getElementById('leaderboard-section');
+const personalDevelopment = document.getElementById('personal-development');
+const personalBestList = document.getElementById('personal-best-list');
+const personalScoreHistoryChart = document.getElementById('personal-score-history-chart');
+const personalCompletedOverview = document.getElementById('personal-completed-overview');
 const levelJumpRow = document.getElementById('level-jump-row');
 const levelJumpSelect = document.getElementById('level-jump-select');
 
@@ -432,6 +484,7 @@ const SPELL_TARGET_Y_OFFSET = 60;
 const FIREBALL_FLIGHT_MS = 1350;
 let currentProfile = null;
 let currentLeaderboard = null;
+let currentPersonalDevelopment = null;
 let pendingResetToken = null;
 let lastBillingStatus = null;
 let lastLevelClearNum = null;
@@ -602,7 +655,7 @@ function renderLeaderboard(entries) {
     return;
   }
 
-  const currentUser = api.username;
+  const currentUser = platform.username;
   leaderboardList.innerHTML = entries.map((entry) => {
     const isCurrent = currentUser && entry.username === currentUser;
     const bucket = leaderboardBucketLabel(entry.first_grade_year);
@@ -639,16 +692,70 @@ function entriesForSelectedFilter(data) {
   return group ? group.entries : [];
 }
 
-async function refreshProfileAndLeaderboard() {
+function renderPersonalDevelopment(state) {
+  if (!personalDevelopment) return;
+  const best = state?.best || [];
+  const completed = state?.completed || [];
+
+  if (best.length === 0) {
+    personalBestList.innerHTML = `<li>${t('personalDevelopment.noProgress')}</li>`;
+  } else {
+    personalBestList.innerHTML = best
+      .map((entry) => `<li>${t('personalDevelopment.perLevelBest', {
+        level: entry.level,
+        score: entry.score,
+      })}</li>`)
+      .join('');
+  }
+
+  renderScoreHistory({ history: state?.history || [] }, personalScoreHistoryChart);
+
+  personalCompletedOverview.textContent = t('personalDevelopment.completed', {
+    completed: completed.length,
+    total: Math.max(TOTAL_LEVELS, completed.length),
+  });
+}
+
+async function refreshPersonalDevelopment() {
+  const state = { best: [], history: [], completed: [] };
   try {
-    currentLeaderboard = await api.getLeaderboard();
+    state.best = (await platform.getBestScores())?.best || [];
+  } catch {
+    state.best = [];
+  }
+  try {
+    state.history = (await platform.getScoreHistory())?.history || [];
+  } catch {
+    state.history = [];
+  }
+  try {
+    state.completed = (await platform.getCompletedLevels())?.completed || [];
+  } catch {
+    state.completed = [];
+  }
+  currentPersonalDevelopment = state;
+  renderPersonalDevelopment(state);
+}
+
+async function refreshProfileAndLeaderboard() {
+  if (await platform.getAccountAvailability() === 'none') {
+    leaderboardSection.style.display = 'none';
+    personalDevelopment.style.display = '';
+    await refreshPersonalDevelopment();
+    return;
+  }
+  leaderboardSection.style.display = '';
+  personalDevelopment.style.display = 'none';
+
+  try {
+    currentLeaderboard = await platform.getLeaderboard();
     syncLeaderboardFilterOptions(currentLeaderboard.grouped_entries || []);
     renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
   } catch {
     renderLeaderboard([]);
   }
 
-  if (!api.isLoggedIn) {
+  if (!platform.isLoggedIn) {
     currentProfile = null;
     renderPersonalBest(null, leaderboardPersonalBest);
     renderScoreHistory(null, scoreHistoryChart);
@@ -659,7 +766,7 @@ async function refreshProfileAndLeaderboard() {
   }
 
   try {
-    currentProfile = await api.getProfile();
+    currentProfile = await platform.getProfile();
     renderPersonalBest(currentProfile, leaderboardPersonalBest);
     renderLevelJumpOptions(currentProfile);
     const year = currentProfile?.user?.first_grade_year;
@@ -678,7 +785,7 @@ async function refreshProfileAndLeaderboard() {
   }
 
   try {
-    const historyResponse = await api.getScoreHistory();
+    const historyResponse = await platform.getScoreHistory();
     renderScoreHistory(historyResponse, scoreHistoryChart);
   } catch {
     renderScoreHistory(null, scoreHistoryChart);
@@ -687,8 +794,9 @@ async function refreshProfileAndLeaderboard() {
 
 // --- Splash login button ---
 function updateHUDLogoutVisibility() {
+  if (!logoutBtn) return;
   const splashVisible = diffSelect.style.display !== 'none';
-  if (splashVisible || !api.username) {
+  if (splashVisible || !platform.username) {
     logoutBtn.style.display = 'none';
   } else {
     logoutBtn.style.display = '';
@@ -696,12 +804,13 @@ function updateHUDLogoutVisibility() {
 }
 
 function applyAuthUIState() {
-  if (api.username) {
+  if (platform.isApp) return;
+  if (platform.username) {
     loginBtn.style.display = 'none';
-    userDisplay.textContent = api.username;
+    userDisplay.textContent = platform.username;
     userDisplay.style.display = '';
     splashLoginBtn.textContent = t('splash.logout');
-    splashGreeting.textContent = t('splash.greeting', { username: api.username });
+    splashGreeting.textContent = t('splash.greeting', { username: platform.username });
   } else {
     loginBtn.style.display = '';
     userDisplay.textContent = '';
@@ -713,10 +822,10 @@ function applyAuthUIState() {
   refreshProfileAndLeaderboard();
 }
 
-splashLoginBtn.addEventListener('click', () => {
-  if (api.username) {
+if (!platform.isApp) splashLoginBtn.addEventListener('click', () => {
+  if (platform.username) {
     clearPremiumSession();
-    api.logout().then(() => {
+    platform.logout().then(() => {
       applyAuthUIState();
     });
   } else {
@@ -758,9 +867,13 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
 });
 
 // --- Auth ---
+// The app bundle ships without the account, checkout and web-legal markup
+// (see mobile/scripts/copy-assets.mjs), so the web-only controls below are
+// only wired and driven when the web platform is active.
 const authForms = [loginForm, registerForm, forgotPasswordForm, resetPasswordForm];
 
 function showAuthForm(formToShow) {
+  if (platform.isApp) return;
   authForms.forEach(f => { f.style.display = (f === formToShow) ? '' : 'none'; });
   if (formToShow !== loginForm) {
     loginVerifyResend.style.display = 'none';
@@ -779,30 +892,30 @@ function showAuthForm(formToShow) {
   }
 }
 
-tabLogin.addEventListener('click', () => showAuthForm(loginForm));
-tabRegister.addEventListener('click', () => showAuthForm(registerForm));
+if (!platform.isApp) tabLogin.addEventListener('click', () => showAuthForm(loginForm));
+if (!platform.isApp) tabRegister.addEventListener('click', () => showAuthForm(registerForm));
 
-loginBtn.addEventListener('click', () => {
+if (!platform.isApp) loginBtn.addEventListener('click', () => {
   showAuthForm(loginForm);
   setAuthModalVisible(true);
 });
-closeAuth.addEventListener('click', () => {
+if (!platform.isApp) closeAuth.addEventListener('click', () => {
   setAuthModalVisible(false);
   showAuthForm(loginForm);
 });
-logoutBtn.addEventListener('click', async () => {
+if (!platform.isApp) logoutBtn.addEventListener('click', async () => {
   clearPremiumSession();
-  await api.logout();
+  await platform.logout();
   applyAuthUIState();
 });
-loginForm.addEventListener('submit', async e => {
+if (!platform.isApp) loginForm.addEventListener('submit', async e => {
   e.preventDefault();
   loginError.classList.remove('success-msg');
   loginVerifyResend.style.display = 'none';
   try {
     const u = document.getElementById('login-username').value;
     const p = document.getElementById('login-password').value;
-    await api.login(u, p);
+    await platform.login(u, p);
     setAuthModalVisible(false);
     loginError.textContent = '';
     applyAuthUIState();
@@ -819,14 +932,14 @@ loginForm.addEventListener('submit', async e => {
   }
 });
 
-loginResendBtn.addEventListener('click', async () => {
+if (!platform.isApp) loginResendBtn.addEventListener('click', async () => {
   const email = loginResendEmail.value.trim();
   if (!email) {
     loginError.textContent = t('auth.enterEmailToResend');
     return;
   }
   try {
-    await api.resendVerification(email, getTurnstileToken('resend'));
+    await platform.resendVerification(email, getTurnstileToken('resend'));
     loginError.classList.add('success-msg');
     loginError.textContent = t('auth.verificationResent');
     loginVerifyResend.style.display = 'none';
@@ -838,7 +951,7 @@ loginResendBtn.addEventListener('click', async () => {
   }
 });
 
-registerForm.addEventListener('submit', async e => {
+if (!platform.isApp) registerForm.addEventListener('submit', async e => {
   e.preventDefault();
   try {
     const consentCheckbox = document.getElementById('reg-consent-checkbox');
@@ -850,7 +963,7 @@ registerForm.addEventListener('submit', async e => {
     const em = document.getElementById('reg-email').value;
     const pw = document.getElementById('reg-password').value;
     const firstGradeYear = document.getElementById('reg-first-grade-year').value;
-    await api.register(u, em, pw, firstGradeYear, getTurnstileToken('register'));
+    await platform.register(u, em, pw, firstGradeYear, getTurnstileToken('register'));
     registerError.textContent = '';
     registerForm.reset();
     showAuthForm(loginForm);
@@ -863,20 +976,20 @@ registerForm.addEventListener('submit', async e => {
   }
 });
 
-forgotPasswordLink.addEventListener('click', () => {
+if (!platform.isApp) forgotPasswordLink.addEventListener('click', () => {
   showAuthForm(forgotPasswordForm);
 });
 
-backToLoginLink.addEventListener('click', () => {
+if (!platform.isApp) backToLoginLink.addEventListener('click', () => {
   showAuthForm(loginForm);
 });
 
-forgotPasswordForm.addEventListener('submit', async e => {
+if (!platform.isApp) forgotPasswordForm.addEventListener('submit', async e => {
   e.preventDefault();
   const email = document.getElementById('forgot-password-email').value.trim();
   const msgEl = document.getElementById('forgot-password-message');
   try {
-    await api.forgotPassword(email, getTurnstileToken('forgotPassword'));
+    await platform.forgotPassword(email, getTurnstileToken('forgotPassword'));
     msgEl.classList.add('success-msg');
     msgEl.textContent = t('auth.resetLinkSent');
   } catch (err) {
@@ -887,7 +1000,7 @@ forgotPasswordForm.addEventListener('submit', async e => {
   }
 });
 
-resetPasswordForm.addEventListener('submit', async e => {
+if (!platform.isApp) resetPasswordForm.addEventListener('submit', async e => {
   e.preventDefault();
   const msgEl = document.getElementById('reset-password-message');
   const newPw = document.getElementById('reset-new-password').value;
@@ -903,7 +1016,7 @@ resetPasswordForm.addEventListener('submit', async e => {
     return;
   }
   try {
-    await api.resetPassword(pendingResetToken, newPw);
+    await platform.resetPassword(pendingResetToken, newPw);
     msgEl.classList.add('success-msg');
     msgEl.textContent = t('auth.passwordResetDone');
     pendingResetToken = null;
@@ -915,7 +1028,7 @@ resetPasswordForm.addEventListener('submit', async e => {
   }
 });
 
-closeAuthStatus.addEventListener('click', () => {
+if (!platform.isApp) closeAuthStatus.addEventListener('click', () => {
   authStatusModal.style.display = 'none';
 });
 
@@ -923,7 +1036,7 @@ leaderboardYearFilter.addEventListener('change', () => {
   renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
 });
 
-leaderboardCompleteProfile.addEventListener('click', async () => {
+if (!platform.isApp) leaderboardCompleteProfile.addEventListener('click', async () => {
   const yearInput = prompt(t('leaderboard.yearPromptMessage'));
   if (yearInput === null) return;
   const year = Number(yearInput);
@@ -932,7 +1045,7 @@ leaderboardCompleteProfile.addEventListener('click', async () => {
     leaderboardProfilePrompt.style.display = '';
     return;
   }
-  const result = await api.updateProfile(year);
+  const result = await platform.updateProfile(year);
   if (result.error) {
     leaderboardProfilePrompt.textContent = translateServerMessage(result.error);
     leaderboardProfilePrompt.style.display = '';
@@ -960,13 +1073,13 @@ checkoutForm?.addEventListener('submit', async e => {
     return;
   }
   try {
-    const result = await api.startCheckout(adultConfirmed, termsAccepted, {
+    const result = await platform.startCheckout(adultConfirmed, termsAccepted, {
       version: CHECKOUT_DECLARATIONS_VERSION,
       language: getLocale(),
       immediateAccessConfirmed,
       withdrawalWaiverConfirmed
     });
-    if (isStripeRedirect(result.url, 'checkout.stripe.com')) {
+    if (platform.isStripeRedirect(result.url, 'checkout.stripe.com')) {
       window.location.href = result.url;
     } else {
       checkoutMessage.textContent = t('checkout.invalidUrl');
@@ -976,19 +1089,21 @@ checkoutForm?.addEventListener('submit', async e => {
   }
 });
 
-userDisplay.addEventListener('click', async () => {
-  if (!api.isLoggedIn) return;
+if (!platform.isApp) userDisplay.addEventListener('click', async () => {
+  if (!platform.isLoggedIn) return;
   showAccountTab(tabAccountProfile, accountProfilePanel);
   setAccountModalVisible(true);
   await populateAccountModal();
 });
 
 function setAccountModalVisible(visible) {
+  if (!accountModal) return;
   accountModal.style.display = visible ? 'flex' : 'none';
   updateTopBarModalState();
 }
 
 function setAuthModalVisible(visible) {
+  if (!authModal) return;
   authModal.style.display = visible ? 'flex' : 'none';
   updateTopBarModalState();
 }
@@ -999,11 +1114,12 @@ function updateTopBarModalState() {
   topBar.classList.toggle('behind-modal', visible);
 }
 
-closeAccount.addEventListener('click', () => {
+if (!platform.isApp) closeAccount.addEventListener('click', () => {
   setAccountModalVisible(false);
 });
 
 function showAccountTab(tabBtn, panel) {
+  if (platform.isApp) return;
   [accountProfilePanel, accountPasswordPanel, accountScoresPanel, accountBillingPanel, accountDangerPanel].forEach(p => { p.style.display = 'none'; });
   [tabAccountProfile, tabAccountPassword, tabAccountScores, tabAccountBilling, tabAccountDanger].forEach(t => t.classList.remove('active'));
   panel.style.display = '';
@@ -1013,30 +1129,30 @@ function showAccountTab(tabBtn, panel) {
   }
 }
 
-tabAccountProfile.addEventListener('click', () => showAccountTab(tabAccountProfile, accountProfilePanel));
-tabAccountPassword.addEventListener('click', () => showAccountTab(tabAccountPassword, accountPasswordPanel));
-tabAccountScores.addEventListener('click', () => showAccountTab(tabAccountScores, accountScoresPanel));
-tabAccountBilling.addEventListener('click', () => showAccountTab(tabAccountBilling, accountBillingPanel));
-tabAccountDanger.addEventListener('click', () => {
+if (!platform.isApp) tabAccountProfile.addEventListener('click', () => showAccountTab(tabAccountProfile, accountProfilePanel));
+if (!platform.isApp) tabAccountPassword.addEventListener('click', () => showAccountTab(tabAccountPassword, accountPasswordPanel));
+if (!platform.isApp) tabAccountScores.addEventListener('click', () => showAccountTab(tabAccountScores, accountScoresPanel));
+if (!platform.isApp) tabAccountBilling.addEventListener('click', () => showAccountTab(tabAccountBilling, accountBillingPanel));
+if (!platform.isApp) tabAccountDanger.addEventListener('click', () => {
   accountDeleteForm.reset();
   accountDeleteMessage.classList.remove('success-msg');
   accountDeleteMessage.textContent = '';
   showAccountTab(tabAccountDanger, accountDangerPanel);
 });
 
-btnStartCheckout.addEventListener('click', () => {
+if (!platform.isApp) btnStartCheckout.addEventListener('click', () => {
   checkoutModal.style.display = 'flex';
 });
 
-btnOpenPortal.addEventListener('click', async () => {
+if (!platform.isApp) btnOpenPortal.addEventListener('click', async () => {
   if (btnOpenPortal.disabled) return;
   const originalLabel = btnOpenPortal.textContent;
   btnOpenPortal.disabled = true;
   btnOpenPortal.textContent = t('billing.openingPortal');
   btnOpenPortal.setAttribute('aria-busy', 'true');
   try {
-    const result = await api.openBillingPortal();
-    if (isStripeRedirect(result.url, 'billing.stripe.com')) {
+    const result = await platform.openBillingPortal();
+    if (platform.isStripeRedirect(result.url, 'billing.stripe.com')) {
       window.location.href = result.url;
     } else {
       billingStatusText.textContent = t('billing.invalidPortalUrl');
@@ -1050,7 +1166,7 @@ btnOpenPortal.addEventListener('click', async () => {
   }
 });
 
-btnRedeemCode.addEventListener('click', async () => {
+if (!platform.isApp) btnRedeemCode.addEventListener('click', async () => {
   const code = billingRedeemCode.value.trim();
   if (!code) {
     billingRedeemMessage.classList.remove('success-msg');
@@ -1058,7 +1174,7 @@ btnRedeemCode.addEventListener('click', async () => {
     return;
   }
   try {
-    await api.redeemCode(code);
+    await platform.redeemCode(code);
     billingRedeemMessage.classList.add('success-msg');
     billingRedeemMessage.textContent = t('billing.codeRedeemed');
     billingRedeemCode.value = '';
@@ -1071,10 +1187,11 @@ btnRedeemCode.addEventListener('click', async () => {
 });
 
 async function loadBilling() {
+  if (platform.isApp) return;
   try {
     billingStatusDisplay.textContent = t('billing.loadingShort');
     billingActions.style.display = 'none';
-    const status = await api.getBillingStatus();
+    const status = await platform.getBillingStatus();
     renderBillingStatus(status);
   } catch (err) {
     billingStatusDisplay.textContent = translateServerMessage(err.message) || t('billing.loadFailed');
@@ -1082,6 +1199,7 @@ async function loadBilling() {
 }
 
 function renderBillingStatus(status) {
+  if (platform.isApp) return;
   lastBillingStatus = status;
   billingStatusDisplay.textContent = '';
   billingActions.style.display = 'block';
@@ -1098,21 +1216,22 @@ function renderBillingStatus(status) {
   document.getElementById('btn-cancel-subscription').style.display =
     status.subscription_id && !status.cancel_at_period_end &&
     !['canceled', 'incomplete_expired'].includes(status.subscription_status) ? 'block' : 'none';
-  billingRedeemSection.style.display = api.isLoggedIn && !founding ? 'block' : 'none';
+  billingRedeemSection.style.display = platform.isLoggedIn && !founding ? 'block' : 'none';
 }
 
 function openBillingPanel() {
+  if (platform.isApp) return;
   setAccountModalVisible(true);
   showAccountTab(tabAccountBilling, accountBillingPanel);
 }
 
-document.getElementById('btn-refresh-billing').addEventListener('click', async () => {
+if (!platform.isApp) document.getElementById('btn-refresh-billing').addEventListener('click', async () => {
   await loadBilling();
   resumePendingLevel();
 });
-document.getElementById('btn-recover-gift').addEventListener('click', async () => {
+if (!platform.isApp) document.getElementById('btn-recover-gift').addEventListener('click', async () => {
   try {
-    const response = await api._fetch('/billing/recover', { method: 'POST' });
+    const response = await platform._fetch('/billing/recover', { method: 'POST' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
     renderBillingStatus(data.access);
@@ -1121,10 +1240,10 @@ document.getElementById('btn-recover-gift').addEventListener('click', async () =
     billingStatusText.textContent = translateServerMessage(error.message);
   }
 });
-document.getElementById('btn-cancel-subscription').addEventListener('click', async () => {
+if (!platform.isApp) document.getElementById('btn-cancel-subscription').addEventListener('click', async () => {
   if (!window.confirm(t('billing.confirmCancelRenewals'))) return;
   try {
-    const result = await api.cancelSubscription();
+    const result = await platform.cancelSubscription();
     renderBillingStatus(result.access);
   } catch (error) {
     billingStatusText.textContent = translateServerMessage(error.message);
@@ -1132,10 +1251,11 @@ document.getElementById('btn-cancel-subscription').addEventListener('click', asy
 });
 
 async function populateAccountModal() {
+  if (platform.isApp) return;
   accountProfileMessage.textContent = '';
   accountProfileMessage.classList.remove('success-msg');
   try {
-    const profile = await api.getProfile();
+    const profile = await platform.getProfile();
     accountCurrentEmailDisplay.textContent = profile.user.email;
     accountNewEmail.value = '';
     accountFirstGradeYear.value = profile.user.first_grade_year ?? '';
@@ -1152,14 +1272,14 @@ async function populateAccountModal() {
   }
 
   try {
-    const historyResponse = await api.getScoreHistory();
+    const historyResponse = await platform.getScoreHistory();
     renderScoreHistory(historyResponse, accountScoreHistoryChart);
   } catch {
     renderScoreHistory(null, accountScoreHistoryChart);
   }
 }
 
-accountProfileForm.addEventListener('submit', async e => {
+if (!platform.isApp) accountProfileForm.addEventListener('submit', async e => {
   e.preventDefault();
   accountProfileMessage.classList.remove('success-msg');
   accountProfileMessage.textContent = '';
@@ -1174,7 +1294,7 @@ accountProfileForm.addEventListener('submit', async e => {
         accountProfileMessage.textContent = t('account.validYearRequired');
         return;
       }
-      const result = await api.updateProfile(year);
+      const result = await platform.updateProfile(year);
       if (result.error) {
         accountProfileMessage.textContent = translateServerMessage(result.error);
         return;
@@ -1186,7 +1306,7 @@ accountProfileForm.addEventListener('submit', async e => {
         accountProfileMessage.textContent = t('account.currentPasswordRequiredForEmail');
         return;
       }
-      const result = await api.changeEmail(newEmail, currentPassword);
+      const result = await platform.changeEmail(newEmail, currentPassword);
       accountPendingEmailNote.textContent = t('account.pendingEmailNote', { email: result.pending_email });
       accountPendingEmailNote.style.display = '';
       accountNewEmail.value = '';
@@ -1202,7 +1322,7 @@ accountProfileForm.addEventListener('submit', async e => {
   }
 });
 
-accountPasswordForm.addEventListener('submit', async e => {
+if (!platform.isApp) accountPasswordForm.addEventListener('submit', async e => {
   e.preventDefault();
   accountPasswordMessage.classList.remove('success-msg');
   const current = accountCurrentPassword.value;
@@ -1213,7 +1333,7 @@ accountPasswordForm.addEventListener('submit', async e => {
     return;
   }
   try {
-    await api.changePassword(current, next);
+    await platform.changePassword(current, next);
     accountPasswordForm.reset();
     // The backend revokes every previously issued access/refresh token the
     // moment the password changes (see app/jwt_utils.py's token_version
@@ -1223,7 +1343,7 @@ accountPasswordForm.addEventListener('submit', async e => {
     // leaving them in an apparently-logged-in UI that will 401 on its next
     // request.
     clearPremiumSession();
-    await api.logout();
+    await platform.logout();
     setAccountModalVisible(false);
     applyAuthUIState();
     loginError.textContent = t('auth.passwordChangedPleaseLogIn');
@@ -1238,12 +1358,12 @@ accountPasswordForm.addEventListener('submit', async e => {
 // Deleting an account requires: the checkbox acknowledgement (button stays
 // disabled without it), the current password, and a final native confirm()
 // dialog — three independent confirmations for an irreversible action.
-accountDeleteConfirmCheckbox.addEventListener('change', () => {
+if (!platform.isApp) accountDeleteConfirmCheckbox.addEventListener('change', () => {
   accountDeleteSubmit.disabled = !accountDeleteConfirmCheckbox.checked;
 });
-accountDeleteSubmit.disabled = true;
+if (!platform.isApp) accountDeleteSubmit.disabled = true;
 
-accountDeleteForm.addEventListener('submit', async e => {
+if (!platform.isApp) accountDeleteForm.addEventListener('submit', async e => {
   e.preventDefault();
   accountDeleteMessage.classList.remove('success-msg');
   accountDeleteMessage.textContent = '';
@@ -1262,7 +1382,7 @@ accountDeleteForm.addEventListener('submit', async e => {
   }
 
   try {
-    await api.deleteAccount(password);
+    await platform.deleteAccount(password);
     clearPremiumSession();
     setAccountModalVisible(false);
     accountDeleteForm.reset();
@@ -1311,7 +1431,7 @@ function getPendingRecord() {
     const str = sessionStorage.getItem('pending_level_record');
     if (!str) return null;
     const record = JSON.parse(str);
-    return validatePendingRecord(record) ? record : null;
+    return platform.validatePendingRecord(record) ? record : null;
   } catch {
     return null;
   }
@@ -1326,7 +1446,8 @@ function clearPendingRecord() {
 }
 
 function resumePendingLevel() {
-  if (!api.isLoggedIn) return;
+  // The app has no account but still resumes the level the paywall interrupted.
+  if (!platform.isLoggedIn && !platform.isApp) return;
   const pending = getPendingRecord();
   if (!pending) return;
   state.score = pending.score;
@@ -1341,18 +1462,19 @@ function resumePendingLevel() {
 function clearPremiumSession() {
   gameplayTimers.length = 0;
   levelRequestGeneration++;
-  incrementRequestGeneration();
-  setCurrentLevelConfig(null);
+  platform.incrementRequestGeneration();
+  platform.setCurrentLevelConfig(null);
   gameRunning = false;
   inputDisabled = true;
   state.timerActive = false;
   input.disable();
   setAccountModalVisible(false);
-  checkoutModal.style.display = 'none';
+  if (checkoutModal) checkoutModal.style.display = 'none';
   diffSelect.style.display = 'flex';
   hideLoadingOverlay();
   topBar.style.display = 'flex';
   audio.stopBGM();
+  syncKeepAwake();
   updateHUDLogoutVisibility();
 }
 
@@ -1373,7 +1495,7 @@ async function startLevel(levelIndex, includeBaseline = false) {
   // Increment generation and capture it to detect stale requests
   levelRequestGeneration++;
   const myGeneration = levelRequestGeneration;
-  const originalUsername = api.username;
+  const originalUsername = platform.username;
 
   // Stop any in-flight game state
   gameRunning = false;
@@ -1383,16 +1505,16 @@ async function startLevel(levelIndex, includeBaseline = false) {
 
   try {
     // Fetch level config (handles authorization for premium levels)
-    const cfg = await getAuthorizedLevelConfig(levelIndex, api, includeBaseline);
+    const cfg = await platform.getAuthorizedLevelConfig(levelIndex, includeBaseline);
 
     // Check if this request became stale (user logged in/out, or new level started)
-    if (myGeneration !== levelRequestGeneration || originalUsername !== api.username) {
+    if (myGeneration !== levelRequestGeneration || originalUsername !== platform.username) {
       hideLoadingOverlay();
       return; // Silently ignore stale request
     }
 
     // Don't set config until we've verified generation
-    setCurrentLevelConfig(cfg);
+    platform.setCurrentLevelConfig(cfg);
 
     renderer.setBackgroundByLevel(cfg.level);
 
@@ -1408,7 +1530,7 @@ async function startLevel(levelIndex, includeBaseline = false) {
       new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
     ]);
       // Final stale check before finishing
-      if (myGeneration !== levelRequestGeneration || originalUsername !== api.username) {
+      if (myGeneration !== levelRequestGeneration || originalUsername !== platform.username) {
         hideLoadingOverlay();
         return; // Silently ignore stale request
       }
@@ -1425,6 +1547,17 @@ async function startLevel(levelIndex, includeBaseline = false) {
   }
 }
 
+// The app sells the unlock through StoreKit/Play Billing, so a locked level
+// opens the store paywall instead of the web registration/payment flow.
+async function showEntitlementPaywall() {
+  try {
+    const { createPaywall } = await import('./paywall.js');
+    await createPaywall({ platform, locale: getLocale(), onGranted: resumePendingLevel }).open();
+  } catch {
+    openBillingPanel();
+  }
+}
+
 function handleLevelConfigError(err, levelIndex) {
   const level = levelIndex + 1;
   let message = t('auth.failedToLoadLevel', { level });
@@ -1433,6 +1566,20 @@ function handleLevelConfigError(err, levelIndex) {
 
   if ([401, 402, 403].includes(err.statusCode) && level > 2) {
     savePendingRecord(levelIndex, state.score, state.difficulty, state.timerMax, state.maxHearts);
+  }
+  if (err.code === 'entitlement_required' && platform.isApp) {
+    // The pending record saved above lets the paywall resume this level after
+    // a successful purchase or restore. The app has no auth-status overlay.
+    diffSelect.style.display = 'flex';
+    updateHUDLogoutVisibility();
+    showEntitlementPaywall();
+    return;
+  }
+  if (platform.isApp) {
+    // The app has no auth-status overlay; return to the title screen.
+    diffSelect.style.display = 'flex';
+    updateHUDLogoutVisibility();
+    return;
   }
   if (err.statusCode === 401) {
     message = t('auth.loginRequiredForPremium');
@@ -1499,6 +1646,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   updateHUDLogoutVisibility();
   hud.update(state);
   audio.startBGM(cfg.chapter);
+  syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
 }
 
@@ -1554,6 +1702,7 @@ function finishStartShapesMode() {
   gameOverOverlay.style.display = 'none';
   hud.update(state);
   audio.startBGM(1);
+  syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
 }
 
@@ -1621,7 +1770,7 @@ btnResumeGame.addEventListener('click', resumeGame);
 btnQuitGame.addEventListener('click', () => {
   pauseActions.style.display = 'none';
   pauseQuitActions.style.display = '';
-  const canSave = api.isLoggedIn && !state.isShapesMode;
+  const canSave = platform.isLoggedIn && !state.isShapesMode;
   btnPauseSave.style.display = canSave ? '' : 'none';
   pauseSaveNotice.textContent = canSave ? '' : t(state.isShapesMode
     ? 'overlay.shapesScoreNotice' : 'overlay.guestScoreNotice');
@@ -1633,13 +1782,13 @@ btnPauseBack.addEventListener('click', () => {
 });
 btnPauseDiscard.addEventListener('click', quitPausedGame);
 btnPauseSave.addEventListener('click', async () => {
-  if (btnPauseSave.disabled || !paused || !api.isLoggedIn || state.isShapesMode) return;
+  if (btnPauseSave.disabled || !paused || !platform.isLoggedIn || state.isShapesMode) return;
   btnPauseSave.disabled = true;
   btnPauseDiscard.disabled = true;
   btnPauseBack.disabled = true;
   pauseSaveError.textContent = '';
   try {
-    await api.postHighScore(state.score, state.level);
+    await platform.postHighScore(state.score, state.level);
     quitPausedGame();
     await refreshProfileAndLeaderboard();
   } catch (error) {
@@ -1660,6 +1809,7 @@ function quitPausedGame() {
   pauseOverlay.style.display = 'none';
   pauseQuitActions.style.display = 'none';
   diffSelect.scrollTop = 0;
+  syncKeepAwake();
 }
 
 const gameplayTimers = [];
@@ -1682,6 +1832,34 @@ function advanceGameplayTimers(dt) {
   }
 }
 
+// The screen may sleep on the title screen, in the pause menu, while the
+// heal tip is up and after game over; only a running level keeps it awake.
+function syncKeepAwake() {
+  appLifecycle?.setKeepAwake(gameRunning && !paused);
+}
+
+// Android Back: while playing it pauses, while paused it backs out of the
+// quit confirmation (or resumes), and everywhere else the lifecycle exits.
+function handleAppBack() {
+  if (pauseQuitActions.style.display !== 'none') {
+    pauseQuitActions.style.display = 'none';
+    pauseActions.style.display = '';
+    return true;
+  }
+  if (paused) {
+    if (healTipOverlay.style.display === 'flex') {
+      healTipOverlay.style.display = 'none';
+      paused = false;
+      audio.resumeBGM();
+      syncKeepAwake();
+      return true;
+    }
+    resumeGame();
+    return true;
+  }
+  return false;
+}
+
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
@@ -1691,6 +1869,7 @@ function pauseGame() {
   input.disable();
   audio.pauseBGM();
   resetHealHold();
+  syncKeepAwake();
 }
 
 function resumeGame() {
@@ -1701,6 +1880,7 @@ function resumeGame() {
   if (activeFiend && state.timerActive) {
     input.enable(getCurrentInputMode());
   }
+  syncKeepAwake();
 }
 
 // Shown once per playthrough, the first time hearts drop to half (or below)
@@ -1714,12 +1894,14 @@ function showHealTip() {
   paused = true;
   healTipOverlay.style.display = 'flex';
   audio.pauseBGM();
+  syncKeepAwake();
 }
 
 btnHealTipConfirm.addEventListener('click', () => {
   healTipOverlay.style.display = 'none';
   paused = false;
   audio.resumeBGM();
+  syncKeepAwake();
 });
 
 // Only one fiend on screen at a time; gap kept for requeue safety
@@ -1872,7 +2054,7 @@ function handleCorrectAnswer() {
             phase: 'back',
             targetX: HERO_X,
             onArrive: () => {
-              const cfg = getCurrentLevelConfig();
+              const cfg = platform.getCurrentLevelConfig();
               if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
               queueProblemActivation(fiend, { preserveTimer });
               inputDisabled = false;
@@ -1908,7 +2090,7 @@ function handleCorrectAnswer() {
           phase: 'back',
           targetX: HERO_X,
           onArrive: () => {
-            const cfg = getCurrentLevelConfig();
+            const cfg = platform.getCurrentLevelConfig();
             if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
             queueProblemActivation(fiend, { preserveTimer });
             inputDisabled = false;
@@ -1942,7 +2124,7 @@ function handleCorrectAnswer() {
           phase: 'back',
           targetX: HERO_X,
           onArrive: () => {
-            const cfg = getCurrentLevelConfig();
+            const cfg = platform.getCurrentLevelConfig();
             if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
             queueProblemActivation(fiend, { preserveTimer });
             inputDisabled = false;
@@ -2005,7 +2187,7 @@ function handleWrongAnswer() {
       scheduleGameplayTimeout(() => {
         if (activeFiend) {
           if (activeFiend.isElite) {
-            const cfg = getCurrentLevelConfig();
+            const cfg = platform.getCurrentLevelConfig();
             const regularHp = cfg?.fiendHP ?? 1;
             activeFiend.isElite = false;
             activeFiend.hp = Math.max(1, Math.min(activeFiend.hp, regularHp));
@@ -2053,6 +2235,7 @@ function updatePaceAdapter() {
 
 function triggerWaveClear() {
   gameRunning = false;
+  syncKeepAwake();
   hero.setState('victory');
   audio.playLevelClear();
 
@@ -2077,8 +2260,8 @@ function triggerLevelClear() {
 
   const completedLevelNum = state.level;          // 1-based display number
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
-  if (api.isLoggedIn) {
-    api.postLevelScore(completedLevelNum, state.score - levelStartScore, state.difficulty).catch(() => {});
+  if (platform.isLoggedIn) {
+    platform.postLevelScore(completedLevelNum, state.score - levelStartScore, state.difficulty).catch(() => {});
   }
   lastLevelClearNum = completedLevelNum;
   levelClearTitle.textContent = t('overlay.levelClearTitle', { level: completedLevelNum });
@@ -2093,11 +2276,11 @@ function triggerLevelClear() {
     state.score = levelStartScore;
     startLevel(completedIndex);
   };
-  btnSaveScoreReturnTitle.style.display = api.isLoggedIn ? 'block' : 'none';
+  btnSaveScoreReturnTitle.style.display = platform.isLoggedIn ? 'block' : 'none';
   btnSaveScoreReturnTitle.onclick = async () => {
-    if (!api.isLoggedIn) return;
+    if (!platform.isLoggedIn) return;
     try {
-      await api.postHighScore(state.score, state.level);
+      await platform.postHighScore(state.score, state.level);
       await refreshProfileAndLeaderboard();
       levelClearOverlay.style.display = 'none';
       audio.stopBGM();
@@ -2120,10 +2303,11 @@ function triggerGameOver() {
   levelClearOverlay.style.display = 'none';
   topBar.style.display = 'flex';
   audio.stopBGM();
+  syncKeepAwake();
   audio.playGameOver();
   // Shapes mode is unscored — never submit a high score for it.
-  if (api.isLoggedIn && !state.isShapesMode) {
-    api.postHighScore(state.score, state.level).then(() => {
+  if (platform.isLoggedIn && !state.isShapesMode) {
+    platform.postHighScore(state.score, state.level).then(() => {
       refreshProfileAndLeaderboard();
     }).catch(() => {});
   }
@@ -2319,7 +2503,7 @@ function handleUrlAuthTokens() {
     history.replaceState(null, '', window.location.pathname);
     authStatusModal.style.display = 'flex';
     authStatusMessage.textContent = t('auth.verifyingEmail');
-    api.verifyEmail(verifyToken)
+    platform.verifyEmail(verifyToken)
       .then(() => { authStatusMessage.textContent = t('auth.emailVerified'); })
       .catch(err => { authStatusMessage.textContent = t('auth.verificationFailed', { message: translateServerMessage(err.message) }); });
     return;
@@ -2329,7 +2513,7 @@ function handleUrlAuthTokens() {
     history.replaceState(null, '', window.location.pathname);
     authStatusModal.style.display = 'flex';
     authStatusMessage.textContent = t('auth.confirmingEmailChange');
-    api.confirmEmailChange(confirmEmailToken)
+    platform.confirmEmailChange(confirmEmailToken)
       .then(() => { authStatusMessage.textContent = t('auth.emailChangeConfirmed'); })
       .catch(err => { authStatusMessage.textContent = t('auth.emailChangeConfirmFailed', { message: translateServerMessage(err.message) }); });
     return;
@@ -2343,15 +2527,19 @@ function handleUrlAuthTokens() {
   }
 }
 
-handleUrlAuthTokens();
+if (!platform.isApp) handleUrlAuthTokens();
 
-// Show a loading placeholder immediately so the leaderboard section never
-// looks empty/broken while the first network round-trip is in flight, and
-// kick off the leaderboard fetch right away rather than waiting on
-// api.refresh() to settle first — the leaderboard doesn't need auth, so
-// serializing it behind the refresh round-trip only doubles the wait
-// (each hop can also hit a cold Lambda) before anything is shown.
-leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
+// The app build has no leaderboard; its title screen shows the local
+// personal-development panel instead (see refreshProfileAndLeaderboard).
+if (!platform.isApp) {
+  // Show a loading placeholder immediately so the leaderboard section never
+  // looks empty/broken while the first network round-trip is in flight, and
+  // kick off the leaderboard fetch right away rather than waiting on
+  // platform.refresh() to settle first — the leaderboard doesn't need auth, so
+  // serializing it behind the refresh round-trip only doubles the wait
+  // (each hop can also hit a cold Lambda) before anything is shown.
+  leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
+}
 refreshProfileAndLeaderboard();
 
 updateMuteButtonLabel();
@@ -2364,15 +2552,18 @@ onLocaleChange(() => {
   updateMuteButtonLabel();
   if (currentLeaderboard) renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
   if (currentProfile) renderPersonalBest(currentProfile, leaderboardPersonalBest);
+  if (currentPersonalDevelopment) renderPersonalDevelopment(currentPersonalDevelopment);
   renderPersonalBest(currentProfile, accountPersonalBest);
   renderLevelJumpOptions(currentProfile);
-  if (api.isLoggedIn) {
-    splashLoginBtn.textContent = t('splash.logout');
-    splashGreeting.textContent = t('splash.greeting', { username: api.username });
-  } else {
-    splashLoginBtn.textContent = t('splash.loginRegister');
+  if (!platform.isApp) {
+    if (platform.isLoggedIn) {
+      splashLoginBtn.textContent = t('splash.logout');
+      splashGreeting.textContent = t('splash.greeting', { username: platform.username });
+    } else {
+      splashLoginBtn.textContent = t('splash.loginRegister');
+    }
+    if (lastBillingStatus) renderBillingStatus(lastBillingStatus);
   }
-  if (lastBillingStatus) renderBillingStatus(lastBillingStatus);
   if (levelClearOverlay.style.display !== 'none' && lastLevelClearNum !== null) {
     levelClearTitle.textContent = t('overlay.levelClearTitle', { level: lastLevelClearNum });
     levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
@@ -2384,13 +2575,14 @@ onLocaleChange(() => {
   }
 });
 
-api.refresh()
+platform.refresh()
   .catch(() => false)
   .finally(async () => {
+    if (platform.isApp) return;
     applyAuthUIState();
     await handleCheckoutRedirect();
     if (new URLSearchParams(location.search).get('account') === 'billing') {
-      if (api.isLoggedIn) openBillingPanel();
+      if (platform.isLoggedIn) openBillingPanel();
       else {
         showAuthForm(loginForm);
         setAuthModalVisible(true);

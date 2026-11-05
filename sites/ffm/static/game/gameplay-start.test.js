@@ -20,6 +20,7 @@ it('hides the title when a blocked level successfully resumes', () => {
     updateHUDLogoutVisibility() {},
     hud: { update() {} },
     audio: { startBGM() {} },
+    syncKeepAwake() {},
     animFrameId: 1,
   };
   vm.createContext(context);
@@ -42,8 +43,10 @@ it('closes account and checkout dialogs while keeping title controls available a
       context.accountModal.style.display = visible ? 'flex' : 'none';
     },
     levelRequestGeneration: 0,
-    incrementRequestGeneration() {},
-    setCurrentLevelConfig() {},
+    platform: {
+      incrementRequestGeneration() {},
+      setCurrentLevelConfig() {},
+    },
     state: { timerActive: true },
     input: { disable() {} },
     accountModal: { style: { display: 'flex' } },
@@ -53,6 +56,7 @@ it('closes account and checkout dialogs while keeping title controls available a
     updateHUDLogoutVisibility() {},
     topBar: { style: { display: 'none' } },
     audio: { stopBGM() {} },
+    syncKeepAwake() {},
   };
   vm.createContext(context);
   vm.runInContext(`${fn}\nclearPremiumSession();`, context);
@@ -71,7 +75,7 @@ it('hides HUD logout button when splash screen is visible and shows it during ga
   assert.ok(applyFn, 'applyAuthUIState must exist');
 
   const context = {
-    api: { username: 'testuser' },
+    platform: { username: 'testuser' },
     diffSelect: { style: { display: 'flex' } },
     logoutBtn: { style: { display: '' } },
     loginBtn: { style: { display: '' } },
@@ -106,7 +110,7 @@ it('hides HUD logout button when splash screen is visible and shows it during ga
   assert.equal(context.logoutBtn.style.display, 'none', 'HUD logout should be hidden when splash is shown again');
 
   // Test when logged out
-  context.api.username = '';
+  context.platform.username = '';
   vm.runInContext('applyAuthUIState();', context);
   // HUD logout should be hidden when not logged in
   assert.equal(context.logoutBtn.style.display, 'none', 'HUD logout should be hidden when not logged in');
@@ -125,6 +129,7 @@ it('stops music when access is denied for premium level', () => {
       return key;
     },
     savePendingRecord() {},
+    platform: { isApp: false },
     diffSelect: { style: { display: 'none' } },
     authStatusMessage: { textContent: '' },
     authStatusModal: { style: { display: 'none' } },
