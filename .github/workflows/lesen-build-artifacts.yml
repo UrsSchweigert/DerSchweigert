@@ -2,10 +2,14 @@ name: Lesen build artifacts
 
 on:
   workflow_dispatch:
+  # A release tag, not every merge: the artifacts are what a release ships, and the tag is the moment they are needed.
+  # Pattern copied from android-release.yml, so "tag a release" works the same way for both apps.
+  push:
+    tags: ['lesen-v*']
 
-# Manual only, on purpose: the iOS job needs a macOS runner, which bills at ten times the Linux rate. Every change to
-# the app is already compiled by the native build in lesen-native.yml before it reaches main, so building again on
-# each push to main only duplicated that. Run this by hand when an artifact is actually needed.
+# Not on pull requests or on every push to main, on purpose: the iOS job needs a macOS runner, which bills at ten times
+# the Linux rate, and every change to the app is already compiled by the native build in lesen-native.yml before it
+# reaches main. A release tag or a manual run is the moment an artifact is actually needed.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

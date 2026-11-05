@@ -155,8 +155,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: sites/lesen/package-lock.json
+          # No npm cache: the suite imports only node built-ins and files next to it, so nothing is installed here.
+          # Caching a dependency tree this job never downloads would restore and save an empty cache on every run.
       - run: node --test sites/lesen/tests/*.test.mjs
 
   test:

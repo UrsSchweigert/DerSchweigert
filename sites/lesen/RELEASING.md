@@ -210,6 +210,13 @@ than hand-edited.
 a website deploy or ordinary push. It uploads the `.aab` as a build artifact and
 does **not** publish to Google Play (v1 publication stays manual and owner-approved).
 
+`.github/workflows/lesen-build-artifacts.yml` builds the unsigned Android APK and
+the Xcode project for inspection. It runs **on demand only** as well: a manual
+`workflow_dispatch`, or a `lesen-v*` tag. It no longer runs on every pull request
+or on every push to `main`, because the macOS runner it needs bills at ten times
+the Linux rate and `lesen-native.yml` already compiles the app before a merge.
+Run it (or tag the release) when an artifact is actually wanted.
+
 The workflow uses Node 22, JDK 21 and Android SDK 36. It is maintainer-owned:
 release work should not edit it, and a change to it is an owner handoff. A
 passing shared JavaScript test run is not native build evidence: record an
