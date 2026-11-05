@@ -10,7 +10,7 @@ permissions, branch protection, secrets and visibility, so those need the owner.
 | --- | --- |
 | Licence | PolyForm Strict 1.0.0 (`LICENSE`), `NOTICE` with third-party carve-out |
 | Hardcoded PINs removed | derschweigert admin PIN and landhauscheck stats PIN come from the `DERSCHWEIGERT_ADMIN_PIN` secret; code fails closed when unset |
-| Leaked Google Maps key | redacted from two fixtures; recorder now redacts key params |
+| Leaked API keys | Google Maps, HERE Transit and Tankerkönig keys redacted from the recorded fixtures; the recorder redacts `key`, `apikey`, `api_key` and `token` params; `tests/test_fixtures_carry_no_credentials.py` fails if one is committed again |
 | Fork-safe waste review | `waste-calendar-review.yml` now only acts on same-repo PRs, so a public fork cannot reuse a `waste/*` branch name to reach a `contents: write` job |
 | Dependabot | `.github/dependabot.yml` (Actions, pip, lesen npm; monthly) |
 
@@ -22,8 +22,10 @@ force-push and requires the `test` and `test-ffm` checks; `CODEOWNERS` exists.
 
 **Before making it public**
 1. Create the secret: `gh secret set DERSCHWEIGERT_ADMIN_PIN --repo UrsSchweigert/DerSchweigert`.
-2. Revoke any still-valid old credentials (the leaked GitHub PAT is already dead). Keep the Google
-   key restricted by referrer/API.
+2. Revoke or rotate every key that ever appeared in the repository — the Google Maps, HERE Transit and
+   Tankerkönig keys in the recorded fixtures, and any other credential named below. Redacting a file
+   does not remove it from history. Keep the Google key restricted by referrer/API only as a second
+   line of defence, not as the fix.
 3. Decide on rewriting history (`git filter-repo`) for the AWS account ID, email and street address in
    history. Rotating is the less disruptive option.
 4. Change visibility: Settings -> General -> Danger zone -> Change visibility.

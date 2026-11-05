@@ -1,6 +1,6 @@
 {
   "meta": {
-    "url": "https://transit.router.hereapi.com/v8/stations?in=47.7632%2C8.8376%3Br%3D750&apikey=ki9Kf0W6jqbeZMi2H_nwREkLM39ay4bfQj1H4MEqT2o",
+    "url": "https://transit.router.hereapi.com/v8/stations?in=47.7632%2C8.8376%3Br%3D750&apikey=REDACTED",
     "method": "GET",
     "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
   },
