@@ -1,9 +1,9 @@
 ---
+name: setup-project-harness
 description: "Stage-gated setup of a GitHub-backed incremental development harness with one plan approval, human escalation, and run monitoring."
-agent: agent
+disable-model-invocation: true
 argument-hint: "[requirements=...] [stage={next|1|2|3|4|5}]"
 ---
-
 # Set Up Project Harness
 
 Build an executable, token-efficient harness for incremental development in this existing repository. Agents propose and perform bounded work. Trusted code controls authorization, scheduling, state transitions, validation, and GitHub mutations. Deliver working code and tests, not advisory instructions.
