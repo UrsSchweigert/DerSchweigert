@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           paths="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR/files?per_page=100" --jq '.[] | .filename, (.previous_filename // empty)')"
           needed=false
-          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/|\.github/workflows/ffm-native\.yml$)' <<< "$paths"; then
+          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(static/|mobile/)|\.github/workflows/ffm-native\.yml$)' <<< "$paths"; then
             needed=true
           fi
           native=false
@@ -51,10 +51,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: sites/ffm/mobile/package-lock.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -84,6 +87,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: sites/ffm/mobile/package-lock.json
       - run: xcodebuild -version
       - run: npm ci
       - run: npm run copy-assets

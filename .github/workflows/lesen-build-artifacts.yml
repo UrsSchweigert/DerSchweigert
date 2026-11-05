@@ -2,13 +2,14 @@ name: Lesen build artifacts
 
 on:
   workflow_dispatch:
+  # A release tag, not every merge: the artifacts are what a release ships, and the tag is the moment they are needed.
+  # Pattern copied from android-release.yml, so "tag a release" works the same way for both apps.
   push:
-    branches: ['main']
-    paths: ['sites/lesen/**', '.github/workflows/lesen-build-artifacts.yml']
+    tags: ['lesen-v*']
 
-# No pull_request trigger on purpose: the iOS job needs a macOS runner, which bills at ten times the Linux rate, and
-# the review gate for a pull request is the native build in lesen-native.yml. Artifacts are cut for a release branch
-# push or by hand, not for every pull request that touches the app.
+# Not on pull requests or on every push to main, on purpose: the iOS job needs a macOS runner, which bills at ten times
+# the Linux rate, and every change to the app is already compiled by the native build in lesen-native.yml before it
+# reaches main. A release tag or a manual run is the moment an artifact is actually needed.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -28,10 +29,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: sites/lesen/package-lock.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -55,6 +59,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: sites/lesen/package-lock.json
       - run: npm ci
       - run: npm run copy-assets
       - run: npx cap sync ios

@@ -145,3 +145,20 @@ def test_the_real_godot_check_separates_a_working_project_from_a_broken_one(tmp_
             assert "scripts/broken.gd does not compile" in r.stdout
     finally:
         shutil.rmtree(project, ignore_errors=True)
+
+
+# -- the path-to-tests rules ----------------------------------------------------------------------------------
+
+def test_a_change_runs_the_unit_tests_of_the_area_it_touches_and_only_that_area():
+    rules = smoke.load_rules()
+    lesen = "node --test /work/sites/lesen/tests/*.test.mjs"
+    game = "node --test /work/sites/ffm/static/game/*.test.js"
+    mobile = "node --test /work/sites/ffm/mobile/tests/*.test.mjs"
+    assert lesen in smoke.commands_for(["sites/lesen/static/storage.mjs"], rules)
+    assert game not in smoke.commands_for(["sites/lesen/static/storage.mjs"], rules)
+    assert smoke.commands_for(["sites/ffm/static/game/main.js"], rules) == [game, mobile]
+    assert smoke.commands_for(["sites/ffm/mobile/package.json"], rules) == [mobile]
+    assert smoke.commands_for(["sites/ffm/app/main.py"], rules) == []
+    assert smoke.commands_for(["sites/derschweigert/app/main.py"], rules) == []
+    assert lesen in smoke.commands_for_allowlist(["sites/lesen/"], rules)
+    assert smoke.commands_for_allowlist(["sites/ffm/mobile/"], rules) == [mobile]

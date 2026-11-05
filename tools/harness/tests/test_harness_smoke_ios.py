@@ -154,11 +154,11 @@ def write_plist(path, value):
 
 def test_the_shipped_rule_covers_the_ios_shell_and_its_configuration():
     rules = smoke.load_rules()
-    assert smoke.commands_for(["sites/lesen/ios/App/App/Info.plist"], rules) == [COMMAND]
-    assert smoke.commands_for(["sites/lesen/capacitor.config.json"], rules) == [COMMAND]
+    assert COMMAND in smoke.commands_for(["sites/lesen/ios/App/App/Info.plist"], rules)
+    assert COMMAND in smoke.commands_for(["sites/lesen/capacitor.config.json"], rules)
     # The web source is the bundle the shell ships, so it is checked next to the browser rule, not instead of it.
     assert smoke.commands_for(["sites/lesen/static/index.html"], rules) == \
-        ["node /opt/harness/smoke/lesen.mjs /work", COMMAND]
+        ["node /opt/harness/smoke/lesen.mjs /work", COMMAND, "node --test /work/sites/lesen/tests/*.test.mjs"]
     # Other projects and the harness itself are untouched by it.
     assert COMMAND not in smoke.commands_for(["apps/arithmoslayer/project.godot"], rules)
     assert COMMAND not in smoke.commands_for(["tools/harness/smoke.py"], rules)

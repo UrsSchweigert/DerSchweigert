@@ -773,6 +773,10 @@ A result for an older commit is rejected as stale, and `inconclusive` stays open
 
 To see tasks on GitHub as well, run `harness sync-tasks PLAN_ID` (mirrors open tasks as issues and mentions you).
 
+## Tests follow the changed paths
+
+`smoke.json` also maps changed paths to the node unit suites of the area they belong to, on top of whatever validation the plan names: `sites/lesen/` runs the lesen tests, `sites/ffm/static/` runs the game and mobile-shell tests, `sites/ffm/mobile/` runs the mobile-shell tests. A worker cannot opt out, and a change elsewhere does not run them. The Python suites (ffm, derschweigert, landhauscheck, harness) need packages the sandbox does not carry, so they are enforced by the path-gated test jobs in `.github/workflows/deploy.yml` instead.
+
 ## Browser smoke check
 
 Unit tests cannot catch wiring between scripts, so changes under `sites/lesen/static/` also get a real-browser check. A headless Chromium in the worker image opens the page, checks that the letter groups render, the word counter reacts, a full practice session runs, statistics are saved, and the landscape layout fits. Any console error or failed request fails it.
