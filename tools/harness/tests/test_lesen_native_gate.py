@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 import subprocess
 import textwrap
@@ -50,7 +51,11 @@ def test_native_ci_is_unsigned_revision_bound_and_has_a_bounded_build_budget():
     assert "pull_request:\n    branches: ['harness/run/**']" in workflow
     assert "permissions:\n  contents: read\n  pull-requests: read" in workflow
     assert workflow.count("timeout-minutes: 30") == 2
-    assert workflow.count("uses: actions/checkout@v4") == 2
+    # Third-party action majors are deliberately not pinned here. A dependency bump arrives as its own reviewed pull
+    # request, and a test that fails on every one of them teaches people to edit the pin without reading the diff.
+    # What must hold is the shape of the gate: two checkouts, the Android SDK package the build needs, and no path
+    # that lets the aggregate report success without the builds.
+    assert len(re.findall(r"uses: actions/checkout@v\d+", workflow)) == 2
     assert "CODE_SIGNING_ALLOWED=NO" in workflow
     assert "needs: [changes, android, ios]\n    if: always()" in workflow
-    assert "uses: android-actions/setup-android@v3\n        with:\n          packages: platform-tools" in workflow
+    assert re.search(r"uses: android-actions/setup-android@v\d+\n\s+with:\n\s+packages: platform-tools", workflow)
