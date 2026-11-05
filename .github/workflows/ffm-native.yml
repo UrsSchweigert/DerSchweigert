@@ -3,6 +3,16 @@ name: Arithmo Slayer native build gate
 on:
   pull_request:
     branches: [main, 'harness/run/**']
+    # The workflow-level filter is a pre-filter only: a pull request that cannot touch the app does not start it at
+    # all. It is safe because `ffm-native` is not a required check on `main` or on `harness/run/**` — only `test` and
+    # `test-ffm` are — so a pull request that never starts it is not left waiting for a status. Do not add this check
+    # to a ruleset without removing this filter first: a path-filtered required check never reports for the pull
+    # requests it skips, and those merges would block forever.
+    # The `needed`/`native` logic inside stays as it is, so a pull request that does start the workflow still decides
+    # between the Android build and the macOS one on what actually changed.
+    paths:
+      - 'sites/ffm/**'
+      - '.github/workflows/ffm-native.yml'
 
 permissions:
   contents: read
