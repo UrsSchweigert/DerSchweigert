@@ -7,11 +7,12 @@ release are separate and unaffected by this process.
 
 > **External release gate:** producing a validly signed `.ipa`, uploading it to
 > App Store Connect, and completing a TestFlight install and upgrade check are
-> manual maintainer actions. Nothing in this repository performs or claims that
-> gate: the automated checks are the shared JavaScript tests, the offline-bundle
-> verification, and the unsigned simulator build in
-> `.github/workflows/lesen-native.yml`. A green simulator job is prerequisite
-> evidence, not device, signing, or store evidence.
+> maintainer actions, locally or through an owner-started Xcode Cloud build.
+> The checked-in Cloud bootstrap does not enable an Apple workflow or prove that
+> a signed build was uploaded. The shared JavaScript tests, offline-bundle
+> verification, and unsigned simulator build in
+> `.github/workflows/lesen-native.yml` are prerequisite evidence, not device,
+> signing, or store evidence.
 
 All commands run from `sites/lesen/`. Nothing secret is ever committed.
 
@@ -62,10 +63,11 @@ submission images.
 
 - macOS with **Xcode** whose installed iOS SDK still supports the app's
   deployment target. `ios/App/CapApp-SPM/Package.swift` pins
-  `platforms: [.iOS(.v15)]` and `swift-tools-version: 5.9`, so use a current
-  Xcode (15 or newer; record the exact version in the release record — the CI
-  job prints it with `xcodebuild -version` and `macos-latest` decides which one
-  runs there).
+  `platforms: [.iOS(.v15)]` and `swift-tools-version: 5.9`. The deployment target
+  does not determine Apple's current submission requirements: use an
+  [accepted Xcode/SDK version for App Store uploads](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)
+  (currently Xcode 26 or newer for iOS). Record the exact Xcode version in the
+  release record.
 - **Swift Package Manager**, which ships with Xcode. The project uses SPM only:
   there is no `Podfile` and no CocoaPods step. `ios/App/CapApp-SPM` is generated
   by the Capacitor CLI and resolves `capacitor-swift-pm` plus the five locked
@@ -152,11 +154,17 @@ Rules:
 
 ## Signing and secrets (owner prerequisites)
 
-Distribution signing needs material that must never enter this repository:
-an Apple Distribution certificate (`.p12` plus password), an App Store
-provisioning profile (`.mobileprovision`), and App Store Connect API key
-credentials (`.p8`, key id, issuer id). Keep them in the owner's password
-manager and in the CI secret store, not on disk in the work tree.
+Xcode automatic signing and Xcode Cloud can manage signing without exporting
+certificates or creating an App Store Connect API key. Sign in with the owner's
+Apple Account and select the paid developer team. The Cloud setup below does not
+need GitHub signing secrets.
+
+For a separately configured signed CI pipeline, exported signing and upload
+material must never enter this repository: an Apple Distribution certificate
+(`.p12` plus password), an App Store provisioning profile (`.mobileprovision`),
+and App Store Connect API key credentials (`.p8`, key id, issuer id). Keep these
+in the owner's password manager and in that CI system's secret store, not on
+disk in the work tree.
 
 A future dedicated signed-release workflow
 (`.github/workflows/ios-release.yml`) is maintainer-owned and is **not** created
@@ -184,6 +192,102 @@ decode the profile into `~/Library/MobileDevice/Provisioning Profiles`, and
 delete both after the build. The workflow should not upload to TestFlight or the
 App Store without an explicit owner-approved trigger, matching how
 `android-release.yml` builds without publishing.
+
+## Xcode Cloud (manual start, internal TestFlight)
+
+The repository includes:
+
+- The shared `App` scheme at
+  `App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme`, archiving in Release.
+- The executable `App/ci_scripts/ci_post_clone.sh`, next to the Xcode project.
+  It finds `sites/lesen` under `CI_PRIMARY_REPOSITORY_PATH` in Cloud (relative
+  to the script for local runs), uses Node.js 22+ (installing `node@22` through
+  Homebrew if necessary), runs `npm ci`, copies and verifies the offline bundle,
+  syncs Capacitor iOS and runs `npm test`. Any failed step stops the build.
+  Swift package resolution then has the local plugin packages under
+  `node_modules` available.
+
+Do not commit `node_modules`, `www`, copied native assets, signing material or
+Cloud build artifacts. No CocoaPods installation or additional upload script
+is needed. The script does not invoke `xcodebuild`: the Cloud archive action
+does the native build and signing.
+
+### One-time owner setup in Xcode and App Store Connect
+
+1. Commit and push the integration to the GitHub branch Cloud will build.
+   Cloud clones the remote commit; it cannot see uncommitted changes or the
+   package installed on a phone.
+2. Open `ios/App/App.xcodeproj`. In Xcode Settings > Accounts, sign in with the
+   Apple Account for the paid developer team. In the App target's Signing &
+   Capabilities, enable automatic signing and select that team for Release as
+   well as Debug. Use Xcode to save any required project setting changes, then
+   commit and push them too.
+3. Ensure App Store Connect has an iOS app record for
+   `de.derschweigert.buchstabenzeit`. In Product > Scheme > Manage Schemes,
+   confirm `App` is Shared.
+4. Choose Product > Xcode Cloud > Create Workflow (or Get Started). Select the
+   Buchstabenzeit product/team, and authorize Xcode Cloud's GitHub connection
+   for `UrsSchweigert/DerSchweigert`. Grant only the repository access needed.
+5. Configure the workflow as follows; these settings live in Apple's service,
+   not in a GitHub Actions YAML file:
+
+   | Setting | Value |
+   | --- | --- |
+   | Name | Buchstabenzeit - Manual TestFlight |
+   | Editing | Restrict editing, as Apple requires for App Store-eligible archives |
+   | Environment | Current supported released Xcode and compatible macOS; Clean enabled |
+   | Start conditions | Manual starts only, using the dormant condition described below |
+   | Action | Archive, iOS, scheme `App`, Release |
+   | Distribution preparation | **TestFlight and App Store** |
+   | Post-action | Internal TestFlight testing; select an internal tester group |
+   | Secrets/custom variables | None required by the bootstrap |
+
+   Apple's documented manual-start setup uses a start condition that never
+   matches. Set a tag condition for the exact reserved tag
+   `__buchstabenzeit_manual_only__`, **never create that tag**, and remove
+   default branch-change, pull-request and scheduled conditions. Start builds
+   explicitly in Xcode or App Store Connect instead.
+
+   Choose **TestFlight and App Store**, not **TestFlight (Internal Testing
+   Only)**: the latter cannot later be submitted to App Review. Selecting an
+   internal tester group still limits automatic distribution to that group.
+   No post-action submits to App Review or releases the app publicly.
+
+   Do not add a native Test action: this project has no XCTest target.
+   `npm test` already runs in the post-clone hook.
+6. If a version/build combination has already been uploaded manually, open
+   App Store Connect > app > Xcode Cloud > Settings > Build Number and set
+   Next Build Number above the previously uploaded number. Cloud automatically
+   increments build numbers and uses them for distributed builds. The marketing
+   version still comes from `MARKETING_VERSION`; update it through Xcode for a
+   new release and commit that change.
+7. Save the workflow and explicitly start its first build from the pushed
+   branch containing this integration. After merging, select `main` for
+   release builds. Check the post-clone log for npm restore, offline bundle
+   verification, Capacitor sync and passing tests, then check the Archive and
+   TestFlight post-action results.
+8. Complete any App Store Connect agreements/export-compliance requirements,
+   install from TestFlight and perform the device checks below. To publish,
+   select this processed build on the App Store version page, complete store
+   metadata and screenshots, and manually submit for App Review. Choose manual
+   release there if you want to decide when an approved version goes live.
+
+To reproduce the Cloud preparation locally, from a disposable checkout with
+Node.js 22+ and Xcode installed:
+
+```bash
+./ios/App/ci_scripts/ci_post_clone.sh
+```
+
+This restores dependencies and generated output; it does not sign, archive,
+upload or publish. A passing local run is not proof of a successful Cloud run.
+Record the remote commit, Cloud build number, Xcode version, archive/upload
+result and TestFlight device checks in the release record.
+
+Apple references:
+[custom scripts](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts),
+[distribution workflows](https://developer.apple.com/documentation/xcode/creating-a-workflow-that-builds-your-app-for-distribution),
+[build numbering](https://developer.apple.com/documentation/xcode/setting-the-next-build-number-for-xcode-cloud-builds).
 
 ## Producing and uploading the build
 
@@ -274,10 +378,11 @@ Capacitor project, and compiles it for a generic iOS Simulator destination with
 `CODE_SIGNING_ALLOWED=NO`. It is maintainer-owned: a change to it is an owner
 handoff, and this document does not add or modify workflows.
 
-The future `.github/workflows/ios-release.yml` for signed builds and TestFlight
-uploads is owner-created and maintainer-owned. Until it exists, signed builds
-are made locally as described above, and a signed `.ipa` plus a TestFlight
-install/upgrade check remain external gates.
+Signed builds can be made locally or through the separately activated Xcode
+Cloud workflow above. A future `.github/workflows/ios-release.yml` would be a
+separate owner-created, maintainer-owned alternative, not a prerequisite for
+Cloud. A successful signed archive/upload plus a TestFlight install/upgrade
+check remain external gates for either path.
 
 ## What stays out of source control
 
