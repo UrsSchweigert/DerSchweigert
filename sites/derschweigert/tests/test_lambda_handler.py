@@ -41,7 +41,7 @@ def test_contact_get_request_returns_410():
 def test_admin_pin_verification_works():
     """Admin PIN verification endpoint still works."""
     import os
-    admin_pin = os.getenv("ADMIN_PIN", "123456")
+    admin_pin = os.environ["ADMIN_PIN"]
     response = handler.lambda_handler({
         "httpMethod": "POST",
         "path": "/api/admin/verify-pin",

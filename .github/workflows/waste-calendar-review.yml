@@ -20,10 +20,12 @@ jobs:
     runs-on: ubuntu-latest
 
     # Only act on the bot's own PR branches — human PRs go through normal review.
+    # Fork PRs are excluded: a public fork could otherwise reuse a waste/* branch name.
     if: >
-      startsWith(github.head_ref, 'waste/contrib-') ||
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (startsWith(github.head_ref, 'waste/contrib-') ||
       startsWith(github.head_ref, 'waste/update-') ||
-      startsWith(github.head_ref, 'waste/expire-')
+      startsWith(github.head_ref, 'waste/expire-'))
 
     steps:
       - name: Checkout PR branch

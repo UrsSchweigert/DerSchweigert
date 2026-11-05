@@ -25,8 +25,8 @@ def lambda_handler(event, context):
             return _respond(405, {"detail": "Method not allowed"})
         body = json.loads(event.get("body") or "{}")
         pin = str(body.get("pin", "")).strip()
-        expected = os.getenv("ADMIN_PIN", "123456")
-        if pin != expected:
+        expected = os.getenv("ADMIN_PIN", "")
+        if not expected or pin != expected:
             return _respond(401, {"detail": "Invalid PIN"})
 
         return _respond(
@@ -143,9 +143,9 @@ def _handle_unlock_submit(event):
 
     pin = str(payload.get("pin", "")).strip()
     next_path = str(payload.get("next", "/")) or "/"
-    expected = os.getenv("ADMIN_PIN", "123456")
+    expected = os.getenv("ADMIN_PIN", "")
 
-    if pin == expected:
+    if expected and pin == expected:
         return {
             "statusCode": 302,
             "headers": {

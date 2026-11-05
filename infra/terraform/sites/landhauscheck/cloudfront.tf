@@ -72,8 +72,8 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
 # The PIN is also validated server-side in the FastAPI stats endpoint via
 # X-Stats-Pin header, providing defence in depth.
 #
-# ⚠️ PIN CHANGE: update the string "3009" here AND in lambda.tf STATS_PIN env var,
-# then run `tofu apply` + `bash scripts/deploy.sh aws --frontend-only`.
+# ⚠️ PIN CHANGE: the PIN comes from var.stats_pin (DERSCHWEIGERT_ADMIN_PIN secret), shared
+# with the Lambda STATS_PIN env var. Run `tofu apply` + `bash scripts/deploy.sh aws --frontend-only`.
 
 resource "aws_cloudfront_function" "stats_pin_guard" {
   name    = "${local.name}-stats-pin-guard"
@@ -85,7 +85,7 @@ resource "aws_cloudfront_function" "stats_pin_guard" {
     function handler(event) {
       var cookies = event.request.cookies;
       var pin = cookies['lhc_pin'];
-      if (!pin || pin.value !== '3009') {
+      if (!pin || pin.value !== '${var.stats_pin}') {
         return {
           statusCode: 302,
           statusDescription: 'Found',

@@ -10,7 +10,7 @@ client = TestClient(app)
 def test_stats_endpoint_returns_expected_shape() -> None:
     """Stats endpoint should return the expected top-level keys."""
 
-    response = client.get("/api/v1/admin/stats", headers={"X-Stats-Pin": "3009"})
+    response = client.get("/api/v1/admin/stats", headers={"X-Stats-Pin": "test-pin-000000"})
 
     assert response.status_code == 200
     payload = response.json()

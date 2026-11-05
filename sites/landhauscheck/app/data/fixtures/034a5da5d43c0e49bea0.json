@@ -1,6 +1,6 @@
 {
   "meta": {
-    "url": "https://creativecommons.tankerkoenig.de/json/list.php?lat=47.7632&lng=8.8376&rad=5.0&sort=dist&type=all&apikey=7bba44b9-b0b8-4529-bdf1-cfac59f36f32",
+    "url": "https://creativecommons.tankerkoenig.de/json/list.php?lat=47.7632&lng=8.8376&rad=5.0&sort=dist&type=all&apikey=REDACTED",
     "method": "GET",
     "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
   },

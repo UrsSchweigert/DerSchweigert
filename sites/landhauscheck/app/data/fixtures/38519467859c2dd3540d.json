@@ -1,6 +1,6 @@
 {
   "meta": {
-    "url": "https://maps.googleapis.com/maps/api/geocode/json?address=M%C3%A4gdebergstrasse+5%2C+Singen+Hohentwiel&key=AIzaSyAakvTPGT30Qr2Na0Un3nOQ3pcJin5_nLc",
+    "url": "https://maps.googleapis.com/maps/api/geocode/json?address=M%C3%A4gdebergstrasse+5%2C+Singen+Hohentwiel&key=REDACTED",
     "method": "GET",
     "note": "Auto-recorded by DEV_CACHE_MODE=record.  Review before committing."
   },

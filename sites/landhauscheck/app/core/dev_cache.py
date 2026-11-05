@@ -168,7 +168,7 @@ class DevCacheTransport(httpx.AsyncBaseTransport):
         _FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
         envelope = {
             "meta": {
-                "url": str(request.url),
+                "url": _KEY_PARAMS.sub(r"\1\2=REDACTED", str(request.url)),
                 "method": request.method,
                 "note": (
                     "Auto-recorded by DEV_CACHE_MODE=record.  "

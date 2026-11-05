@@ -142,7 +142,7 @@ module "api" {
     CANONICAL_HOST            = local.www_domain
     SITE_URL                  = "https://${local.www_domain}"
     CONTACT_EMAIL             = "hello@${local.domain}"
-    ADMIN_PIN                 = "3009"
+    ADMIN_PIN                 = var.admin_pin
     ADMIN_COOKIE_NAME         = "ams_pin"
     GITHUB_CONTACT_REPOSITORY = "UrsSchweigert/DerSchweigert"
     GITHUB_CONTACT_SECRET_ARN = aws_secretsmanager_secret.github_contact_token.arn

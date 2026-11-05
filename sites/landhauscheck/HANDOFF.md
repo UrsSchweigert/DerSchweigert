@@ -292,7 +292,7 @@ Click the clock to open. Full-screen in portrait (100vw×100dvh), 92vw×92vh in 
 - Every request to `/stats.html` is intercepted by the CF Function before S3 responds — the function checks for a `lhc_pin` cookie; if missing or wrong, it redirects to `/stats-login.html`
 - **`stats-login.html`**: Apple-style PIN entry page — POSTs to `/api/v1/admin/verify-pin` (backend validates against `STATS_PIN` env var). PIN is never written in HTML source. On 200, sets `lhc_pin` cookie (30 days, Secure, SameSite=Strict) and redirects to `/stats.html`.
 - **Defence in depth**: `GET /api/v1/admin/stats` also validates `X-Stats-Pin` header — stats.html reads the cookie and sends it as a header on every API fetch
-- **To change PIN**: update CF Function code in `cloudfront.tf` (cookie check value) + `STATS_PIN` in `lambda.tf` → `tofu apply` + deploy
+- **To change PIN**: update the `DERSCHWEIGERT_ADMIN_PIN` GitHub secret (Terraform var `stats_pin`, used by both the CF Function and `STATS_PIN` in `lambda.tf`) → redeploy
 
 ## Stats Page (landhauscheck.com/stats.html)
 - Summary cards: total requests, unique sessions (human only), active sessions (5min window), errors, Google/HERE/Meteo API call counts, **Abfall-Kalender** (ICS file count), **Kalender-Beiträge** (cumulative upload count)
