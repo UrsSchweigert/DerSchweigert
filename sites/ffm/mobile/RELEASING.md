@@ -69,6 +69,15 @@ On a Mac with Xcode, `./node_modules/.bin/cap sync ios` regenerates the SPM
 project from `capacitor.config.json` and the installed plugins. The committed
 `ios/` project is the owner's output; do not hand-edit it from a worker branch.
 
+The Xcode App target also copies and verifies the offline bundle and runs
+`cap sync ios` automatically before its resources are built, including for
+local archives. Node.js 22+ must be visible to Xcode; standard Homebrew paths
+are included. Run `npm ci` on a fresh checkout or after dependency changes.
+After changing Capacitor plugins or native dependencies, run `npm run copy-assets`
+and `npx cap sync ios` before opening/building the project, since Xcode resolves
+Swift packages before target build phases run. Missing or inconsistent
+dependencies and failed preparation stop the build.
+
 `copy-assets` also generates `www/game/level-data.js` from the private
 curriculum and strips the web account/checkout markup. The bundle check fails on
 a missing runtime file, an incomplete level set, a first-party remote URL or any

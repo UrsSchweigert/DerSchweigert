@@ -86,9 +86,10 @@ jobs:
               esac
               # Each shared suite runs only when something it reads changed. The derschweigert suite reads its own site and
               # that site's main.tf; the harness suite reads tools/ and the lesen-native workflow; the lesen suite reads
-              # sites/lesen and its Terraform deployment. All of them depend on the root requirements and pytest.ini
-              # (and the workflow, handled below).
+              # sites/lesen and its Terraform deployment. The shared iOS preparation script affects both native apps.
+              # The site and harness suites depend on the root requirements and pytest.ini (and the workflow below).
               case "$path" in
+                tools/ios/*) ffm_tests=true; lesen_tests=true; harness_tests=true ;;
                 sites/derschweigert/*|infra/terraform/sites/derschweigert/*) site_tests=true ;;
                 tools/*|docs/harness/*) harness_tests=true ;;
                 sites/lesen/*|infra/terraform/sites/lesen/*) lesen_tests=true ;;

@@ -77,6 +77,16 @@ Connect. An archive built with `CODE_SIGNING_ALLOWED=NO` is only an unsigned
 build-verification artifact, not an installable or upload-ready IPA; create a
 signed archive in Xcode for distribution.
 
+The App target automatically copies and verifies web assets and runs
+`cap sync ios` before its resources are built, including for local archives.
+Node.js 22+ must be visible to Xcode; the build phase also searches the standard
+Homebrew paths. Run `npm ci` in `sites/lesen` on a fresh checkout or after
+dependency changes. After changing Capacitor plugins or native dependencies,
+also run `npm run copy-assets && npx cap sync ios` before opening/building the
+project: Xcode resolves Swift packages before target build phases run. A missing
+or inconsistent dependency tree or a failed sync fails the build. Xcode Cloud
+continues to prepare dependencies in its post-clone script.
+
 The app's `PrivacyInfo.xcprivacy` is registered in the App target's Resources
 build phase, not merely present beside the source. It declares the Filesystem
 plugin's documented `NSPrivacyAccessedAPICategoryFileTimestamp` reason `C617.1`
