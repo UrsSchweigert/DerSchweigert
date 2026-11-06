@@ -98,7 +98,7 @@ Base path: `https://landhauscheck.com/api/v1/`
 | `POST` | `/admin/verify-pin` | Validates stats PIN, sets `lhc_pin` + `lhc_devmode` cookies | None (PIN in body) |
 | `GET` | `/admin/stats` | Full stats JSON | `X-Stats-Pin` header required |
 | `POST` | `/admin/clear-devmode` | Removes `lhc_devmode` cookie (re-enables tracking) | `X-Stats-Pin` header required |
-| `GET` | `/logs` | Recent request log | None |
+| `GET` | `/logs` | Recent CloudWatch log events for the diagnostics console | `X-Stats-Pin` header required |
 | `POST` | `/feature-request` | Create Jira Task in project LHC (donation thank-you) | None (PayPal redirect is implicit gate) |
 | `GET` | `/notifications/manifest` | Tomorrow's waste collections for all ICS locations (CloudFront-cached 1 h) | None |
 

@@ -1,8 +1,25 @@
 import json
 import os
-from urllib.parse import parse_qs, quote
+from html import escape as escape_html
+from urllib.parse import parse_qs, quote, urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+
+def _safe_next(target):
+    """Only a same-site path is a valid post-unlock destination.
+
+    Mirrors safe_next() in sites/derschweigert/app/main.py so the handler that
+    Terraform actually deploys cannot become an open redirect.
+    """
+    parsed = urlparse(str(target or "").strip())
+    if parsed.scheme or parsed.netloc:
+        return "/"
+    path = parsed.path or "/"
+    # A backslash is a slash to some browsers, which would turn "/\\host" into "//host".
+    if not path.startswith("/") or path.startswith("//") or "\\" in path or "\n" in path or "\r" in path:
+        return "/"
+    return path + ("?" + parsed.query if parsed.query else "")
 
 
 def lambda_handler(event, context):
@@ -91,7 +108,8 @@ def _create_github_issue(token, repository, name, email, message):
 def _handle_unlock_page(event, error=False):
     query = event.get("queryStringParameters") or {}
     next_path = query.get("next", "/")
-    escaped_next = next_path.replace("'", "&apos;")
+    # Escaped for a double-quoted attribute: quote=True also encodes " and '.
+    escaped_next = escape_html(str(next_path), quote=True)
     error_html = (
         '<p class="error">Falscher PIN. Bitte erneut versuchen.</p>' if error else ""
     )
@@ -149,7 +167,7 @@ def _handle_unlock_submit(event):
         return {
             "statusCode": 302,
             "headers": {
-                "Location": next_path,
+                "Location": _safe_next(next_path),
                 "Set-Cookie": "ams_pin=1; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax; Secure",
                 "Cache-Control": "no-store",
             },

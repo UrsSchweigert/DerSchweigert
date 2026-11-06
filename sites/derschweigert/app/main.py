@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
@@ -90,7 +91,8 @@ def health():
 @app.get("/unlock", response_class=HTMLResponse)
 def unlock_page(request: Request) -> HTMLResponse:
     next_path = request.query_params.get("next", "/")
-    escaped_next = next_path.replace("'", "&apos;")
+    # Escaped for a double-quoted attribute: quote=True also encodes " and '.
+    escaped_next = html.escape(next_path, quote=True)
     return HTMLResponse(
         f"""
         <!DOCTYPE html>
