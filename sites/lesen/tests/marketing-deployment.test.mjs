@@ -136,3 +136,23 @@ test('CI runs deployment regression tests for lesen infrastructure changes', () 
   assert.match(deploy, /needs: \[test, check-secrets, changes\]/);
   assert.match(deploy, /needs\.changes\.outputs\.lesen == 'true'/);
 });
+
+test('site and lesen deploys bypass skipped ancestors but still require all direct gates', () => {
+  for (const [job, output] of [['deploy', 'site'], ['deploy-lesen', 'lesen']]) {
+    const jobBody = workflow.split(`\n  ${job}:\n`)[1]?.split(/\n  [\w-]+:\n/)[0];
+    assert.ok(jobBody, `Missing job: ${job}`);
+    assert.match(jobBody, /needs: \[test, check-secrets, changes\]/);
+    const condition = jobBody.match(/    if: \|\n((?:      .+\n)+)/)?.[1];
+    assert.ok(condition, `Missing condition for ${job}`);
+    const terms = condition.trim().split(/\s*&&\s*/).sort();
+    assert.deepEqual(terms, [
+      '!cancelled()',
+      "github.ref == 'refs/heads/main'",
+      "needs.changes.result == 'success'",
+      `needs.changes.outputs.${output} == 'true'`,
+      "needs.check-secrets.result == 'success'",
+      "needs.check-secrets.outputs.has_secrets == 'true'",
+      "needs.test.result == 'success'",
+    ].sort());
+  }
+});
