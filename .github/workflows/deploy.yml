@@ -86,11 +86,12 @@ jobs:
               esac
               # Each shared suite runs only when something it reads changed. The derschweigert suite reads its own site and
               # that site's main.tf; the harness suite reads tools/ and the lesen-native workflow; the lesen suite reads
-              # sites/lesen. All of them depend on the root requirements and pytest.ini (and the workflow, handled below).
+              # sites/lesen and its Terraform deployment. All of them depend on the root requirements and pytest.ini
+              # (and the workflow, handled below).
               case "$path" in
                 sites/derschweigert/*|infra/terraform/sites/derschweigert/*) site_tests=true ;;
                 tools/*|docs/harness/*) harness_tests=true ;;
-                sites/lesen/*) lesen_tests=true ;;
+                sites/lesen/*|infra/terraform/sites/lesen/*) lesen_tests=true ;;
                 requirements.txt|pytest.ini) site_tests=true; harness_tests=true ;;
               esac
             done <<< "$changed"
@@ -297,7 +298,12 @@ jobs:
   deploy:
     needs: [test, check-secrets, changes]
     runs-on: ubuntu-latest
+    # !cancelled() + explicit results: `test` itself skips suites, and a skipped ancestor would otherwise skip this deploy.
     if: |
+      !cancelled() &&
+      needs.test.result == 'success' &&
+      needs.check-secrets.result == 'success' &&
+      needs.changes.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       needs.check-secrets.outputs.has_secrets == 'true' &&
       needs.changes.outputs.site == 'true'
@@ -693,7 +699,12 @@ jobs:
     # blocked the deploy.
     needs: [test, check-secrets, changes]
     runs-on: ubuntu-latest
+    # !cancelled() + explicit results: `test` itself skips suites, and a skipped ancestor would otherwise skip this deploy.
     if: |
+      !cancelled() &&
+      needs.test.result == 'success' &&
+      needs.check-secrets.result == 'success' &&
+      needs.changes.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       needs.check-secrets.outputs.has_secrets == 'true' &&
       needs.changes.outputs.lesen == 'true'
@@ -707,7 +718,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set deployment target
-        run: echo "Deploy target - lesen.derschweigert.de"
+        run: echo "Deploy targets - lesen.derschweigert.de and buchstabenzeit.derschweigert.de"
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -790,3 +801,31 @@ jobs:
         run: |
           sleep 10
           curl -sf https://lesen.derschweigert.de/ | grep -q '<title>Buchstabenzeit'
+
+      - name: Upload marketing site files
+        run: |
+          test -s sites/lesen/marketing/index.html
+          BUCKET=$(terraform -chdir=infra/terraform/sites/lesen output -raw marketing_site_bucket)
+          aws s3 sync sites/lesen/marketing/ "s3://$BUCKET/" \
+            --delete \
+            --cache-control "no-cache, must-revalidate" \
+            --exclude "index.html"
+          for ASSET in images/buchstabenzeit-logo.png favicon.png \
+            fonts/andika-latin-regular.woff2 fonts/andika-latin-bold.woff2 fonts/OFL.txt; do
+            aws s3 cp "sites/lesen/static/$ASSET" "s3://$BUCKET/$ASSET" \
+              --cache-control "no-cache, must-revalidate"
+          done
+          aws s3 cp sites/lesen/marketing/index.html \
+            "s3://$BUCKET/index.html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate marketing CloudFront cache
+        run: |
+          DIST_ID=$(terraform -chdir=infra/terraform/sites/lesen output -raw marketing_cloudfront_distribution_id)
+          INVALIDATION_ID=$(aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" --query 'Invalidation.Id' --output text)
+          aws cloudfront wait invalidation-completed --distribution-id "$DIST_ID" --id "$INVALIDATION_ID"
+
+      - name: Smoke test marketing site
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 10 \
+            https://buchstabenzeit.derschweigert.de/ | grep -q '<title>Buchstabenzeit'
