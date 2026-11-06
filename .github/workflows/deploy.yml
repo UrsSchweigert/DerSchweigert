@@ -298,7 +298,12 @@ jobs:
   deploy:
     needs: [test, check-secrets, changes]
     runs-on: ubuntu-latest
+    # !cancelled() + explicit results: `test` itself skips suites, and a skipped ancestor would otherwise skip this deploy.
     if: |
+      !cancelled() &&
+      needs.test.result == 'success' &&
+      needs.check-secrets.result == 'success' &&
+      needs.changes.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       needs.check-secrets.outputs.has_secrets == 'true' &&
       needs.changes.outputs.site == 'true'
@@ -694,7 +699,12 @@ jobs:
     # blocked the deploy.
     needs: [test, check-secrets, changes]
     runs-on: ubuntu-latest
+    # !cancelled() + explicit results: `test` itself skips suites, and a skipped ancestor would otherwise skip this deploy.
     if: |
+      !cancelled() &&
+      needs.test.result == 'success' &&
+      needs.check-secrets.result == 'success' &&
+      needs.changes.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       needs.check-secrets.outputs.has_secrets == 'true' &&
       needs.changes.outputs.lesen == 'true'
