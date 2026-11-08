@@ -96,8 +96,8 @@ test('the panel renders per-level best, the chart and the completed overview', a
   assert.match(source, /platform\.getAccountAvailability\(\) === 'none'/);
   assert.match(source, /leaderboardSection\.style\.display = 'none'/);
   assert.match(source, /personalDevelopment\.style\.display = ''/);
-  assert.match(source, /platform\.getBestScores\(\)/);
-  assert.match(source, /platform\.getCompletedLevels\(\)/);
+  assert.match(source, /platform\.getBestScores\(profileId\)/);
+  assert.match(source, /platform\.getCompletedLevels\(profileId\)/);
   assert.match(source, /platform\.getScoreHistory\(\)/);
 
   // The local chart reuses the existing SVG builder through renderScoreHistory.
@@ -119,6 +119,9 @@ test('the panel renders per-level best, the chart and the completed overview', a
   // store data, the chart receives the local history and the overview counts
   // the completed levels against TOTAL_LEVELS.
   const context = {
+    personalBestPage: 0,
+    PERSONAL_BEST_PAGE_SIZE: 3,
+    document: { getElementById() { return null; } },
     personalDevelopment: {},
     personalBestList: { innerHTML: '' },
     personalScoreHistoryChart: {},

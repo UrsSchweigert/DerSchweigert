@@ -10,6 +10,12 @@ it('hides the title when a blocked level successfully resumes', () => {
   assert.ok(fn, 'finishStartLevel must exist');
   const context = {
     gameplayTimers: [],
+    setAnswerInputVisible() {},
+    practiceRun: null,
+    answerClock: { reset() {} },
+    practiceBadgeRetryButton: null,
+    createAttemptSummary() { return {}; },
+    platform: { isApp: false },
     state: { score: 0 },
     diffSelect: { style: { display: 'flex' } },
     pauseOverlay: { style: {} },
@@ -19,7 +25,7 @@ it('hides the title when a blocked level successfully resumes', () => {
     resetHealHold() {},
     updateHUDLogoutVisibility() {},
     hud: { update() {} },
-    audio: { startBGM() {} },
+    audio: { startLevelBGM() {} },
     syncKeepAwake() {},
     animFrameId: 1,
   };
@@ -43,11 +49,13 @@ it('closes account and checkout dialogs while keeping title controls available a
       context.accountModal.style.display = visible ? 'flex' : 'none';
     },
     levelRequestGeneration: 0,
+    setAnswerInputVisible() {},
     platform: {
       incrementRequestGeneration() {},
       setCurrentLevelConfig() {},
     },
     state: { timerActive: true },
+    practiceRun: null,
     input: { disable() {} },
     accountModal: { style: { display: 'flex' } },
     checkoutModal: { style: { display: 'flex' } },
@@ -82,6 +90,7 @@ it('hides HUD logout button when splash screen is visible and shows it during ga
     userDisplay: { style: { display: '' }, textContent: '' },
     splashLoginBtn: { textContent: '' },
     splashGreeting: { textContent: '' },
+    renderPlayerIdentity() {},
     t: (key, data) => {
       if (key === 'splash.logout') return 'Logout';
       if (key === 'splash.greeting') return `Hello, ${data?.username}`;
@@ -129,6 +138,8 @@ it('stops music when access is denied for premium level', () => {
       return key;
     },
     savePendingRecord() {},
+    practiceRun: null,
+    showPracticeStatus() {},
     platform: { isApp: false },
     diffSelect: { style: { display: 'none' } },
     authStatusMessage: { textContent: '' },

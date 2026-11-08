@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TrackRotation, selectTrackIndex } from '../../static/game/track-rotation.js';
 import { MUSIC_TRACKS } from '../game/music-manifest.js';
+import { isExcluded } from '../scripts/copy-assets.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const staticDir = join(root, '..', 'static', 'game');
@@ -172,4 +173,64 @@ test('both bundled manifests list the existing track and credit every file', asy
       );
     }
   }
+});
+
+test('level music config ships in the app and refers to credited bundled tracks', async () => {
+  const config = JSON.parse(await readFile(join(staticDir, 'level-music.json'), 'utf8'));
+  const web = JSON.parse(await readFile(join(staticDir, 'tracks.json'), 'utf8')).tracks;
+  const mobile = JSON.parse(await readFile(join(root, 'game', 'tracks.json'), 'utf8')).tracks;
+  assert.equal(isExcluded('game/level-music.json'), false);
+  for (const [level, files] of Object.entries(config.levels)) {
+    assert.ok(Number.isInteger(Number(level)) && Number(level) >= 1 && Number(level) <= 60);
+    assert.ok(Array.isArray(files));
+    for (const file of files) {
+      assert.match(file, /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[a-zA-Z0-9._/-]+$/);
+      assert.ok(web.some(track => track.file === file), `${file} missing from web manifest`);
+      assert.ok(mobile.some(track => track.file === file), `${file} missing from mobile manifest`);
+      assert.ok(MUSIC_TRACKS.some(track => track.file === file), `${file} missing a credit`);
+      await readFile(join(staticDir, file));
+    }
+  }
+});
+
+test('prepares both elements before playback and releases graph hooks on rotation and stop', () => {
+  const state = { plays: 0, audios: [] };
+  const prepared = [], released = [];
+  const rotation = new TrackRotation({
+    tracks: THREE, makeAudio: fakeAudio(state), baseUrl: 'https://localhost/game/',
+    prepareAudio(element, file) {
+      assert.equal(element.src, `https://localhost/game/${file}`);
+      assert.equal(element.plays, 0);
+      prepared.push(element);
+      return element;
+    },
+    releaseAudio: element => released.push(element),
+  });
+  rotation.start();
+  assert.equal(prepared.length, 2);
+  const first = rotation.currentAudio, preload = rotation.nextAudio;
+  first.fireEnded();
+  assert.deepEqual(released, [first]);
+  assert.equal(rotation.currentAudio, preload);
+  assert.equal(prepared.length, 3);
+  rotation.pause();
+  rotation.resume();
+  assert.equal(prepared.length, 3, 'resume never captures an element twice');
+  rotation.stop();
+  assert.equal(released.length, 3);
+});
+
+test('a preparation hook may replace a captured element before listeners and playback bind', () => {
+  const state = { plays: 0, audios: [] };
+  const rotation = new TrackRotation({
+    tracks: THREE, makeAudio: fakeAudio(state),
+    prepareAudio: element => ({ ...element, src: element.src, replacement: true }),
+  });
+  rotation.start();
+  assert.equal(rotation.currentAudio.replacement, true);
+  assert.equal(rotation.currentAudio.plays, 1);
+  assert.equal(state.audios[0].plays, 0);
+  assert.equal(state.audios[0].onended, null);
+  rotation.currentAudio.fireEnded();
+  assert.equal(state.plays, 2);
 });

@@ -1,13 +1,15 @@
-import { it } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile, access } from 'node:fs/promises';
 import { AudioEngine } from './audio.js';
+import { MUSIC_TRACKS } from '../../mobile/game/music-manifest.js';
 
 const SINGLE = [{ file: 'background-music.mp3', title: 'Arithmo Slayer theme', stage: null }];
 
 function fakeAudio(state) {
   return {
     src: '', currentTime: 0, volume: 1, muted: false, loop: false, preload: '',
-    plays: 0, pauses: 0, onended: null,
+    plays: 0, pauses: 0, onended: null, onerror: null,
     play() {
       this.plays++;
       state.plays++;
@@ -16,12 +18,17 @@ function fakeAudio(state) {
     pause() { this.pauses++; },
     addEventListener(type, handler) {
       if (type === 'ended') this.onended = handler;
+      if (type === 'error') this.onerror = handler;
     },
     removeEventListener(type, handler) {
       if (type === 'ended' && this.onended === handler) this.onended = null;
+      if (type === 'error' && this.onerror === handler) this.onerror = null;
     },
     fireEnded() {
       if (this.onended) this.onended();
+    },
+    fireError() {
+      if (this.onerror) this.onerror({ target: this });
     },
   };
 }
@@ -161,4 +168,472 @@ it('keeps the bundled fallback track when the manifest cannot load', async () =>
   audio.startBGM(1);
   assert.equal(state.audios[0].file, 'background-music.mp3');
   assert.equal(state.plays, 1);
+});
+
+it('uses a level playlist instead of chapter tags and falls back for other levels', () => {
+  const state = { plays: 0, audios: [] };
+  const audio = new AudioEngine({
+    tracks: [{ file: 'a.mp3', stage: 1 }, { file: 'b.mp3', stage: 2 }],
+    levelMusic: { levels: { 11: ['b.mp3'] } },
+    baseUrl: null,
+    makeAudio: file => Object.assign(fakeAudio(state), { file }),
+  });
+  audio._ensureCtx = () => {};
+  audio.startLevelBGM(11, 1);
+  assert.equal(audio._rotation.currentTrack.file, 'b.mp3');
+  assert.equal(audio._rotation.nextTrack.file, 'b.mp3');
+  audio.startLevelBGM(12, 1);
+  assert.equal(audio._rotation.currentTrack.file, 'a.mp3');
+});
+
+it('selects a real credited bundled level track then restores the normal catalogue', async () => {
+  const actualWeb = JSON.parse(await readFile(new URL('./tracks.json', import.meta.url))).tracks;
+  const web = [...actualWeb, { file: 'other.mp3', stage: 1 }];
+  const mobile = JSON.parse(await readFile(new URL('../../mobile/game/tracks.json', import.meta.url))).tracks;
+  const file = 'background-music.mp3';
+  await access(new URL(`./${file}`, import.meta.url));
+  assert.ok(actualWeb.some(track => track.file === file));
+  assert.ok(mobile.some(track => track.file === file));
+  assert.ok(MUSIC_TRACKS.some(track => track.file === file));
+  const state = { plays: 0 };
+  const audio = new AudioEngine({
+    tracks: web,
+    levelMusic: { levels: { 1: [file] } },
+    baseUrl: null,
+    makeAudio: () => fakeAudio(state),
+  });
+  audio._ensureCtx = () => {};
+  audio.startLevelBGM(1, 1);
+  assert.equal(audio._rotation.currentTrack.file, file);
+  assert.notEqual(audio._rotation.tracks, web);
+  audio.startLevelBGM(2, 1);
+  assert.equal(audio._rotation.tracks, web);
+  assert.equal(audio._rotation.currentTrack.file, 'other.mp3');
+});
+
+it('reports a load error, falls back without blocking, and stops if the fallback fails', () => {
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const state = { plays: 0 };
+    const audio = new AudioEngine({
+      tracks: [{ file: 'missing.mp3' }, ...SINGLE],
+      levelMusic: { levels: { 1: ['missing.mp3'] } },
+      baseUrl: null,
+      makeAudio: () => fakeAudio(state),
+    });
+    audio._ensureCtx = () => {};
+    audio.startLevelBGM(1, 1);
+    const failed = audio._rotation.currentAudio;
+    failed.fireError();
+    assert.match(warnings[0][0], /Unable to load bundled music track/);
+    assert.equal(warnings[0][1], 'missing.mp3');
+    assert.equal(audio._rotation.currentTrack.file, 'background-music.mp3');
+    assert.equal(state.plays, 2);
+    assert.equal(failed.onerror, null);
+    audio._rotation.currentAudio.fireError();
+    assert.equal(warnings.length, 2);
+    assert.equal(audio._rotation.currentAudio, null);
+    assert.doesNotThrow(() => { audio.pauseBGM(); audio.resumeBGM(); audio.stopBGM(); });
+    assert.equal(state.plays, 2);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+it('defers fallback for a preload error while paused and preserves mute on resume', () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const state = { plays: 0 };
+    const audio = new AudioEngine({
+      tracks: [{ file: 'missing.mp3' }, ...SINGLE],
+      levelMusic: { levels: { 1: ['missing.mp3'] } },
+      baseUrl: null,
+      makeAudio: () => fakeAudio(state),
+    });
+    audio._ensureCtx = () => {};
+    audio.startLevelBGM(1, 1);
+    audio.pauseBGM();
+    audio.toggleMute();
+    audio._rotation.nextAudio.fireError();
+    assert.equal(state.plays, 1);
+    assert.equal(audio._rotation.currentTrack.file, 'missing.mp3');
+    audio.resumeBGM();
+    assert.equal(audio._rotation.currentTrack.file, 'background-music.mp3');
+    assert.equal(audio._rotation.currentAudio.muted, true);
+    assert.equal(state.plays, 1);
+    audio.toggleMute();
+    assert.equal(state.plays, 2);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+it('applies late config only to the current session, preserving pause and mute', async () => {
+  let resolveManifest, resolveLevels;
+  const state = { plays: 0, audios: [] };
+  const audio = new AudioEngine({
+    fetchManifest: () => new Promise(resolve => { resolveManifest = resolve; }),
+    fetchLevelMusic: () => new Promise(resolve => { resolveLevels = resolve; }),
+    baseUrl: null,
+    makeAudio: file => Object.assign(fakeAudio(state), { file }),
+  });
+  audio._ensureCtx = () => {};
+  audio.startLevelBGM(1, 1);
+  audio.pauseBGM();
+  audio.toggleMute();
+  resolveLevels({ levels: { 1: ['a.mp3'], 2: ['b.mp3'] } });
+  resolveManifest({ tracks: [{ file: 'a.mp3' }, { file: 'b.mp3' }] });
+  await Promise.all([audio._manifestReady, audio._levelMusicReady]);
+  assert.equal(state.plays, 1);
+  assert.equal(audio._rotation.currentTrack.file, 'background-music.mp3');
+  audio.resumeBGM();
+  assert.equal(audio._rotation.currentTrack.file, 'a.mp3');
+  assert.equal(audio._rotation.currentAudio.volume, 0.35);
+  assert.equal(state.plays, 1);
+  audio.toggleMute();
+  assert.equal(state.plays, 2);
+  audio.startLevelBGM(2, 1);
+  assert.equal(audio._rotation.currentTrack.file, 'b.mp3');
+  audio.stopBGM();
+  audio.resumeBGM();
+  assert.equal(audio._rotation.currentAudio, null);
+});
+
+it('reports invalid level lists and falls back without blocking playback', () => {
+  const state = { plays: 0, audios: [] };
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const audio = new AudioEngine({
+      tracks: SINGLE,
+      levelMusic: { levels: { 1: ['https://example.com/song.mp3'], 2: ['missing.mp3'] } },
+      baseUrl: null,
+      makeAudio: file => Object.assign(fakeAudio(state), { file }),
+    });
+    audio._ensureCtx = () => {};
+    audio.startLevelBGM(1, 1);
+    audio.startLevelBGM(2, 1);
+    assert.equal(audio._rotation.currentTrack.file, 'background-music.mp3');
+    assert.equal(state.plays, 2);
+    assert.equal(warnings.length, 2);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+it('does not start music if level configuration arrives after stop', async () => {
+  let resolveLevels;
+  const state = { plays: 0, audios: [] };
+  const audio = new AudioEngine({
+    tracks: SINGLE,
+    fetchLevelMusic: () => new Promise(resolve => { resolveLevels = resolve; }),
+    baseUrl: null,
+    makeAudio: file => Object.assign(fakeAudio(state), { file }),
+  });
+  audio._ensureCtx = () => {};
+  audio.startLevelBGM(1, 1);
+  audio.stopBGM();
+  resolveLevels({ levels: { 1: ['background-music.mp3'] } });
+  await audio._levelMusicReady;
+  assert.equal(state.plays, 1);
+  assert.equal(audio._rotation.currentAudio, null);
+});
+
+it('uses the latest level when a delayed configuration arrives', async () => {
+  let resolveLevels;
+  const state = { plays: 0, audios: [] };
+  const audio = new AudioEngine({
+    tracks: [{ file: 'a.mp3' }, { file: 'b.mp3' }],
+    fetchLevelMusic: () => new Promise(resolve => { resolveLevels = resolve; }),
+    baseUrl: null,
+    makeAudio: file => Object.assign(fakeAudio(state), { file }),
+  });
+  audio._ensureCtx = () => {};
+  audio.startLevelBGM(1, 1);
+  audio.startLevelBGM(2, 1);
+  resolveLevels({ levels: { 1: ['a.mp3'], 2: ['b.mp3'] } });
+  await audio._levelMusicReady;
+  assert.equal(audio._rotation.currentTrack.file, 'b.mp3');
+});
+
+it('reports a level configuration loading failure and continues fallback playback', async () => {
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const state = { plays: 0, audios: [] };
+    const audio = new AudioEngine({
+      tracks: SINGLE,
+      fetchLevelMusic: async () => { throw new Error('offline'); },
+      baseUrl: null,
+      makeAudio: file => Object.assign(fakeAudio(state), { file }),
+    });
+    audio._ensureCtx = () => {};
+    audio.startLevelBGM(1, 1);
+    await audio._levelMusicReady;
+    assert.equal(audio._rotation.currentTrack.file, 'background-music.mp3');
+    assert.equal(state.plays, 1);
+    assert.equal(warnings.length, 1);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+describe('shared sound buses and event cues', () => {
+    function fakeContext({ media = true, failConnectAt = 0 } = {}) {
+      const context = {
+        currentTime: 10, sampleRate: 1000, state: 'suspended',
+        nodes: [], sources: [], resumes: 0,
+        resume() { this.resumes++; this.state = 'running'; return Promise.resolve(); },
+      };
+      const param = () => ({
+        value: 0, events: [],
+        setValueAtTime(value, time) { this.value = value; this.events.push(['set', value, time]); },
+        exponentialRampToValueAtTime(value, time) { this.events.push(['ramp', value, time]); },
+      });
+      const node = kind => {
+        const n = {
+          kind, connections: [], disconnected: false,
+          connect(target) { this.connections.push(target); },
+          disconnect() { this.disconnected = true; this.connections = []; },
+        };
+        context.nodes.push(n);
+        return n;
+      };
+      const voice = kind => Object.assign(node(kind), {
+        starts: [], stops: [], onended: null,
+        start(time) { this.starts.push(time); },
+        stop(time) { this.stops.push(time); },
+      });
+      context.destination = node('destination');
+      context.createGain = () => Object.assign(node('gain'), { gain: param() });
+      context.createOscillator = () => Object.assign(voice('oscillator'), { frequency: param() });
+      context.createBufferSource = () => voice('buffer');
+      context.createBuffer = (_, length) => ({ getChannelData: () => new Float32Array(length) });
+      context.createBiquadFilter = () => Object.assign(node('filter'), { frequency: param(), Q: param() });
+      context.createDynamicsCompressor = () => Object.assign(node('compressor'),
+        Object.fromEntries(['threshold', 'knee', 'ratio', 'attack', 'release'].map(key => [key, param()])));
+      if (media) context.createMediaElementSource = element => {
+        assert.ok(!context.sources.some(source => source.element === element), 'one source per element');
+        const source = Object.assign(node('media'), { element });
+        context.sources.push(source);
+        if (context.sources.length === failConnectAt) source.connect = () => { throw new Error('unsupported route'); };
+        return source;
+      };
+      return context;
+    }
+
+    function soundEngine(options = {}) {
+      const state = { plays: 0, audios: [] };
+      const context = options.context ?? fakeContext();
+      const audio = new AudioEngine({
+        tracks: [{ file: 'a.mp3' }, { file: 'b.mp3' }],
+        makeContext: () => context,
+        baseUrl: 'https://localhost/game/',
+        makeAudio: file => {
+          const element = Object.assign(fakeAudio(state), { file });
+          state.audios.push(element);
+          return element;
+        },
+        ...options,
+      });
+      return { audio, state, context };
+    }
+
+    it('all effect paths route through one adjustable headroom bus and protection', () => {
+      const { audio, context } = soundEngine();
+      audio.setEffectsVolume(0.5);
+      for (const method of [
+        'playCorrect', 'playWrong', 'playTimeout', 'playHeal', 'playCampaignVictory',
+        'playSwordSwing', 'playFireballCast', 'playFireballHit', 'playLightningCast',
+        'playLightningHit', 'playDragonRoar', 'playDragonBreath', 'playEnemyDeath',
+        'playHeroHurt', 'playLevelClear', 'playGameOver',
+      ]) audio[method]();
+      assert.equal(context.resumes, 1, 'context resumes on the gesture path');
+      assert.equal(audio._effectsBus.gain.value, 0.2);
+      assert.equal(audio._effectsBus.connections[0].kind, 'compressor');
+      assert.equal(audio._effectsBus.connections[0].connections[0], context.destination);
+      for (const n of context.nodes.filter(n => n.kind === 'gain' && n !== audio._musicBus && n !== audio._effectsBus)) {
+        assert.deepEqual(n.connections, [audio._effectsBus], 'including noise and sword envelopes');
+      }
+      audio.setEffectsVolume(0);
+      assert.equal(audio._effectsBus.gain.value, 0, 'already-playing effects follow the bus');
+      audio.setEffectsVolume(1);
+      assert.equal(audio._effectsBus.gain.value, 0.4);
+    });
+
+    it('mute cuts playing and future scheduled effects without reviving them on unmute', () => {
+      const { audio, context, state } = soundEngine();
+      audio.playCampaignVictory();
+      audio.playSwordSwing();
+      const voices = [...audio._voices];
+      audio.toggleMute();
+      assert.equal(audio._effectsBus.gain.value, 0);
+      assert.equal(audio._voices.size, 0);
+      for (const voice of voices) {
+        assert.equal(voice.source.stops.at(-1), undefined, 'stop immediately');
+        assert.ok(voice.nodes.every(node => node.disconnected));
+      }
+      const count = context.nodes.length;
+      audio.playHeal();
+      audio.playTimeout();
+      assert.equal(context.nodes.length, count);
+      audio.setEffectsVolume(0.25);
+      assert.equal(audio._effectsBus.gain.value, 0);
+      audio.toggleMute();
+      assert.equal(audio._effectsBus.gain.value, 0.1);
+      assert.equal(state.plays, 0, 'title unmute does not play music');
+    });
+
+    it('finished voices release their source/envelope/filter graph', () => {
+      const { audio } = soundEngine();
+      audio.playSwordSwing();
+      for (const voice of [...audio._voices]) {
+        voice.source.onended();
+        assert.ok(voice.nodes.every(node => node.disconnected));
+      }
+      assert.equal(audio._voices.size, 0);
+    });
+
+    it('volume APIs reject invalid input, clamp finite values, and never pretend music support', () => {
+      const { audio } = soundEngine();
+      assert.equal(audio.effectsVolume, 1);
+      assert.equal(audio.musicVolume, 0.35);
+      for (const value of [NaN, Infinity, -Infinity, '0.5', null, undefined, {}]) {
+        assert.throws(() => audio.setEffectsVolume(value), TypeError);
+        assert.throws(() => audio.setMusicVolume(value), TypeError);
+      }
+      assert.equal(audio.setEffectsVolume(-1), 0);
+      assert.equal(audio.getEffectsVolume(), 0);
+      assert.equal(audio.setEffectsVolume(2), 1);
+      assert.deepEqual(audio.musicVolumeCapability, { supported: false, status: 'unverified-media-routing' });
+      assert.throws(() => audio.setMusicVolume(0.5), /unverified-media-routing/);
+      assert.equal(audio.getMusicVolume(), 0.35);
+      audio.startBGM();
+      assert.equal(audio._mediaSources.size, 0);
+      assert.equal(audio._rotation.currentAudio.volume, 0.35, 'default music playback unchanged');
+    });
+
+    it('opted-in music uses one shared realtime gain route for current/preload/successor', () => {
+      const { audio, context, state } = soundEngine({ musicGainRouting: true });
+      assert.throws(() => audio.setMusicVolume(0.1), /awaiting-media-route/);
+      audio.startBGM();
+      assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'available' });
+      assert.equal(context.sources.length, 2);
+      const first = audio._rotation.currentAudio;
+      first.currentTime = 17;
+      for (const source of context.sources) {
+        assert.deepEqual(source.connections, [audio._musicBus]);
+        assert.equal(source.element.volume, 1);
+        assert.match(source.element.src, /^https:\/\/localhost\/game\//);
+      }
+      assert.equal(audio.setMusicVolume(2), 1);
+      assert.equal(audio.setMusicVolume(-2), 0);
+      audio.setMusicVolume(0.2);
+      assert.equal(audio._musicBus.gain.value, 0.2);
+      assert.equal(first.currentTime, 17);
+      audio.pauseBGM();
+      audio.toggleMute();
+      audio.toggleMute();
+      assert.equal(state.plays, 1);
+      assert.equal(first.currentTime, 17);
+      audio.resumeBGM();
+      assert.equal(state.plays, 2);
+      first.fireEnded();
+      assert.equal(context.sources[0].disconnected, true);
+      assert.equal(context.sources.length, 3);
+      assert.equal(audio._mediaSources.size, 2, 'current and one silent preload only');
+      assert.equal(audio._rotation.nextAudio.plays, 0);
+      audio.toggleMute();
+      assert.equal(audio._musicBus.gain.value, 0);
+      audio.stopBGM();
+      assert.equal(audio._mediaSources.size, 0);
+      assert.ok(context.sources.every(source => source.disconnected));
+      audio.toggleMute();
+      assert.equal(audio._musicBus.gain.value, 0.2);
+      assert.equal(state.plays, 3, 'stop/unmute does not restart');
+    });
+
+    it('unsupported media source keeps default music playback with an explicit unavailable capability', () => {
+      const warn = console.warn;
+      console.warn = () => {};
+      try {
+        for (const options of [
+          { context: fakeContext({ media: false }) },
+          { baseUrl: 'capacitor://localhost/game/' },
+          { tracks: [{ file: 'https://other.example/song.mp3' }] },
+          { context: fakeContext({ failConnectAt: 1 }) },
+          { context: fakeContext({ failConnectAt: 2 }) },
+        ]) {
+          const { audio, state } = soundEngine({ musicGainRouting: true, ...options });
+          audio.startBGM();
+          assert.equal(state.plays, 1);
+          assert.deepEqual(audio.musicVolumeCapability, { supported: false, status: 'unsupported-media-routing' });
+          assert.throws(() => audio.setMusicVolume(0.5), /unsupported-media-routing/);
+          assert.equal(audio._musicBus.gain.value, 0.35);
+          audio._rotation.currentAudio.fireEnded();
+          assert.equal(state.plays, 2);
+          assert.equal(audio._rotation.currentAudio.volume, 0.35);
+        }
+      } finally {
+        console.warn = warn;
+      }
+    });
+
+    it('new event cues are distinct and correct feedback avoids harsh waveforms', () => {
+      const signatures = [];
+      for (const method of ['playCorrect', 'playWrong', 'playTimeout', 'playHeal', 'playCampaignVictory', 'playHeroHurt', 'playLevelClear']) {
+        const { audio, context } = soundEngine();
+        audio[method]();
+        const tones = context.nodes.filter(node => node.kind === 'oscillator');
+        signatures.push(JSON.stringify(tones.map(n => [n.type, n.frequency.value, n.starts[0], n.stops[0]])));
+        if (method === 'playCorrect') {
+          assert.ok(tones.every(n => ['sine', 'triangle'].includes(n.type)));
+          assert.ok(context.nodes.filter(n => n.kind === 'gain' && n !== audio._effectsBus && n !== audio._musicBus)
+            .every(n => n.gain.value <= 0.12));
+        }
+      }
+      assert.equal(new Set(signatures).size, signatures.length);
+    });
+
+    it('a later source failure restores default gain and disables adjustment during rotation', () => {
+      const warn = console.warn;
+      console.warn = () => {};
+      try {
+        const { audio, state } = soundEngine({
+          musicGainRouting: true, context: fakeContext({ failConnectAt: 3 }),
+        });
+        audio.startBGM();
+        audio.setMusicVolume(0);
+        audio._rotation.currentAudio.fireEnded();
+        assert.equal(audio.musicVolumeCapability.supported, false);
+        assert.equal(audio.getMusicVolume(), 0.35);
+        assert.equal(audio._musicBus.gain.value, 0.35);
+        assert.equal(audio._rotation.nextAudio.volume, 0.35);
+        assert.equal(state.plays, 2);
+        audio.stopBGM();
+      } finally {
+        console.warn = warn;
+      }
+    });
+
+    it('retains effects headroom if compressor API is unavailable and initializes muted buses', () => {
+      const context = fakeContext();
+      delete context.createDynamicsCompressor;
+      const { audio } = soundEngine({ context });
+      audio.toggleMute();
+      audio.playCorrect();
+      assert.equal(audio._effectsBus.gain.value, 0);
+      assert.equal(audio._musicBus.gain.value, 0);
+      assert.equal(audio._voices.size, 0);
+      assert.deepEqual(audio._effectsBus.connections, [context.destination]);
+      audio.toggleMute();
+      audio.playCorrect();
+      assert.equal(audio._effectsBus.gain.value, 0.4);
+      assert.equal(audio._voices.size, 2);
+    });
 });

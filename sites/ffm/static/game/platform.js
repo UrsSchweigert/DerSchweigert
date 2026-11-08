@@ -76,8 +76,8 @@ export const PLATFORM_METHODS = Object.freeze([
   ...ENTITLEMENT_METHODS,
 ]);
 
-// Session state exposed as properties rather than functions.
-export const PLATFORM_PROPERTIES = Object.freeze(['isLoggedIn', 'username']);
+// localProfiles is null on the web and a local-only profile adapter in the app.
+export const PLATFORM_PROPERTIES = Object.freeze(['isLoggedIn', 'username', 'localProfiles']);
 
 // Boolean flags describing what the active platform can do. Game code checks
 // these instead of probing the adapter's shape.
@@ -105,6 +105,16 @@ export function assertPlatformAdapter(adapter) {
   for (const name of PLATFORM_CAPABILITIES) {
     if (typeof adapter[name] !== 'boolean') {
       throw new TypeError(`Platform adapter capability must be a boolean: ${name}`);
+    }
+    if (adapter.isApp) {
+      for (const name of [
+        'initialize', 'getActiveProfile', 'listProfiles', 'createProfile', 'selectProfile',
+        'renameProfile', 'deleteProfile', 'getBestScores', 'getScoreHistory', 'getCompletedLevels', 'recordLevel',
+      ]) {
+        if (typeof adapter.localProfiles?.[name] !== 'function') {
+          throw new TypeError(`App platform is missing local profile method: ${name}`);
+        }
+      }
     }
   }
   return adapter;

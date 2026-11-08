@@ -41,3 +41,17 @@ export function getComboFrameBand(combo) {
   }
   return null;
 }
+
+export function getComboRewardProgress(combo) {
+  if (!Number.isSafeInteger(combo) || combo < 0) {
+    throw new TypeError('Combo must be a non-negative safe integer');
+  }
+  const upcoming = [...COMBO_ABILITY_RULES].reverse().find(rule => combo <= rule.minCombo);
+  const active = COMBO_ABILITY_RULES.find(rule => combo > rule.minCombo);
+  const rule = upcoming ?? active;
+  return {
+    ability: rule.ability,
+    remaining: upcoming ? rule.minCombo + 1 - combo : 0,
+    chance: rule.chance,
+  };
+}

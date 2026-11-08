@@ -1,0 +1,99 @@
+name: Arithmo Slayer build artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['ffm-v*']
+
+# Native changes are already compiled by ffm-native.yml. Reserve the macOS
+# artifact runner for release tags and explicit manual requests, not every merge.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sites/ffm/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sites/ffm/mobile/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffm-debug-apk
+          path: sites/ffm/mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  ios-xcode-project:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sites/ffm/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sites/ffm/mobile/package-lock.json
+      - run: npm ci
+      - run: npm run copy-assets
+      - run: node scripts/bundle-check.mjs
+      - run: ./node_modules/.bin/cap sync ios
+      - name: Compile unsigned and resolve Swift dependencies
+        run: |
+          set -euo pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$GITHUB_WORKSPACE/.ffm-derived" \
+            -clonedSourcePackagesDirPath "$GITHUB_WORKSPACE/.ffm-swift-packages" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Stage and pack the complete build inputs
+        run: |
+          set -euo pipefail
+          stage="$(node scripts/stage-ios-project.mjs "$GITHUB_WORKSPACE/.ffm-swift-packages")"
+          tar -czf "$GITHUB_WORKSPACE/ffm-ios-project.tar.gz" -C "$stage" sites tools swift-packages
+      - name: Verify the extracted project archives unsigned without package downloads
+        run: |
+          set -euo pipefail
+          extracted="$GITHUB_WORKSPACE/.ffm-extracted"
+          mkdir "$extracted"
+          tar -xzf "$GITHUB_WORKSPACE/ffm-ios-project.tar.gz" -C "$extracted"
+          cd "$extracted/sites/ffm/mobile"
+          node scripts/stage-ios-project.mjs --relocate "$extracted"
+          npm ls --all --omit=optional --parseable >/dev/null
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/.ffm-extracted-derived" \
+            -clonedSourcePackagesDirPath "$extracted/swift-packages" \
+            -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -skipPackageUpdates \
+            -archivePath "$GITHUB_WORKSPACE/.ffm-unsigned.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO archive
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffm-ios-xcode-project
+          path: ffm-ios-project.tar.gz
+          if-no-files-found: error

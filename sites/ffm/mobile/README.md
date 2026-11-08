@@ -76,10 +76,104 @@ denied parental gate leave the cache and the levels untouched.
 resumes only when that pause was automatic (a pause the player chose stays), maps Android Back to
 pause → back out of the quit confirmation → exit, and drives `@capacitor-community/keep-awake` so the screen
 stays awake only while a level is running. Orientation follows the device — the native shells lock nothing
-and the responsive 16:9 canvas plus the `env(safe-area-inset-*)` padding in `static/styles.css` match the web
-layout in portrait and landscape. `tests/lifecycle.test.mjs` drives the module with fake App, KeepAwake and
+and both iOS build configurations target iPhone and iPad. The uncropped 800×450 scene maximizes remaining
+space: scene left/answers right in landscape, scene above/answers below in portrait. All 5 or 10 arithmetic
+answers remain simultaneously visible with at least 44×44 CSS-pixel targets. `viewport-layout.js` follows
+`visualViewport` resize/scroll (including keyboards) and four-edge safe-area CSS without restarting, pausing,
+or saving gameplay. Ordinary title, family, progress, gate, paywall, pause and result screens use compact or
+paginated stages, not scrolling; legal documents and the legal-links stage retain scrolling and full content.
+`tests/lifecycle.test.mjs` drives the module with fake App, KeepAwake and
 game objects. Three behaviours need a real device and stay manual gates, listed in `PENDING_MANUAL_GATES`:
 the iOS silent switch, audio interruptions from calls or other apps, and safe areas on notched devices.
+Keyboard staging, all ordinary-screen actions, long DE/EN labels, both phone orientations and tablet rotation
+also need physical-device verification; JS geometry/static shell checks are not native build or device evidence.
+
+Local family profiles are the app default. Each profile has separate names, scores and cleared-level
+checkpoints, and switching is allowed only on the title screen. This unlaunched app has no legacy-profile
+migration. Every cleared level is saved locally automatically, including level 60, and title progress refreshes
+when returning. An incomplete current level is not banked; replaying does not erase an existing checkpoint.
+Storage/load errors are visible in profile or progress status rather than silently appearing as lost progress.
+
+Play continues at the active player's first unfinished arithmetic level, even when earlier replays leave gaps.
+The Levels stage also offers only that player's cleared levels for replay; clearing all 60 defaults to replaying
+level 1 rather than requesting level 61. Difficulty still comes from the Play cards, purchases remain device-wide,
+and native continuation/replay begins at score zero without server-style baseline points. Defeat retry restores
+the selected difficulty's hearts and timer while keeping the level-start score checkpoint; Shapes retries restore
+their nine hearts. Completing the campaign uses victory messaging, not defeat audio.
+
+The active question, hearts, timer, combo and score have readable DOM readouts independent of canvas scaling,
+with a visible Pause button. Title/progress/pause identify the active family player. Answer buttons accept pointer,
+click, Enter and Space activation without submitting twice; holding to heal remains compatible with another touch.
+Level 11 introduces ten choices using level 10's familiar arithmetic before level 12 increases the range.
+Short landscape screens omit the introductory sentence and ellipsize long names on Play; the family screen
+keeps the full name and all profile actions.
+
+Gameplay reports defeated encounters (not answered or mastered questions), upcoming combo spells using the
+actual 6/11/21 thresholds, and the dragon's 80% chance. Mistake corrections and timeout feedback remain in
+the readable question area. Shapes counts agree across the canvas, DOM and answers for the full 1-10 range.
+Healing progress describes the left quarter of the playfield; recovery still takes nine seconds and is interrupted
+by injury. Experimental recovery is separate from ordinary hold-to-heal.
+
+Arithmetic results include correct first answers out of questions attempted and best consecutive-correct streak.
+A requeued copy is not a new first attempt; corrected answers, mistakes and timeouts are tracked separately.
+Native cleared-level summaries are saved atomically with that player's score and completion receipt, and compared
+only with the same player's previous clear of the same level and difficulty. Existing records without summaries
+keep their progress; they do not receive fabricated statistics. These accomplishments are personal arcade goals,
+not mastery certification. Web summaries are transient and do not change the score API.
+
+Pause, healing-tip and result overlays isolate the background and manage keyboard focus. Native quit offers one
+Return to Title action and explains that cleared progress stays saved while the unfinished attempt is not banked.
+
+### Optional practice and introductions
+
+Practice uses authorized level content without banking scores, clearing campaign
+levels or changing unlocks. Targeted practice revisits up to five distinct recent
+mistakes without a timer. Short, assisted, elite and recovery trials stop after ten
+encounters; assisted practice is untimed. Elite trials use at least three enemy HP
+and restart the timer for each new question. Recovery trials grant one heart after
+five distinct correct replies (corrected retries count once), at most two hearts
+per attempt; full-health credit is discarded rather than banked. Spell kills never
+count as correct replies or recovery credit. Finite Shapes practice resolves ten
+questions and finishes only after the final correction has been shown; Endless
+Shapes remains available.
+
+Descriptive practice badges are stored per family player with atomic, retryable
+session receipts. They do not certify mastery, create currency or alter campaign
+history. See [BACKUP.md](BACKUP.md) for their persistence contract and
+[the system documentation](../README.md#experimental-practice-and-score-comparability)
+for the required score-version boundary before any trial is promoted.
+
+Optional untimed worked examples introduce subtraction, multiplication and division
+at levels 5, 25 and 34 after authorization, with Continue/Skip and no score writes.
+Canonical product/dividend ranges remain unchanged; the generator supports explicit
+`maxProduct`/`maxDividend` constraints for a separately reviewed curriculum change.
+
+### Visual and audio validation boundary
+
+The shared interface uses dusk-forest, ivory and brass colors with reduced-motion
+support. Gameplay keeps 22px questions, 16px numeric HUD and 18px answers; answer
+column sizing measures text so five-digit choices retain at least 44px targets.
+The native bundle is validated in simulated phone/tablet portrait and landscape
+viewports, but this is not physical-device touch or safe-area evidence.
+
+Effects share an adjustable, muted gain bus with conservative headroom. Correct,
+wrong, timeout, actual healing and campaign-victory events have distinct cues;
+wrong/timeout feedback does not also stack the hurt cue. Device-wide audio
+preferences are separate from family progress. Music gain routing remains
+unverified on native local media: its slider is explicitly disabled with an
+explanation, rather than offering a successful no-op. See [MUSIC.md](MUSIC.md)
+for the opt-in routing spike and listening gates. No new songs or hero/weapon
+art are included.
+
+Shared wiring calls `initViewportLayout({win,doc})` once; its `{refresh,destroy}` API is layout-only. Title
+navigation buttons use `data-title-target`, and parent wiring toggles `hidden` on matching `data-title-page`
+stages (`play`, `progress`, `history`, `family`, `leaderboard`, `levels`, `legal`). `#local-profiles` is initially hidden and
+contains `#profile-root`; the website keeps family controls hidden. Progress uses `#personal-development-error`
+and `#personal-best-prev`, `#personal-best-page`, `#personal-best-next` (three records per page); leaderboard
+has matching `#leaderboard-prev/page/next` controls. `#personal-history-toggle` opens the separate history
+stage (chart and completed overview), leaving three best rows visible even on tiny landscape screens.
+Full chart/history content must be staged/paginated by
+shared wiring, never truncated to fit. All arithmetic answer choices remain on one screen.
 
 The native projects (`android/`, `ios/`) were generated by the maintainer with the real Capacitor tooling.
 Tests assert the app identity (`de.derschweigert.arithmoslayer`, `Arithmo Slayer`), `webDir` `www`, the absence
@@ -97,6 +191,32 @@ notes, the release handover and the manual gate checklist (including the iOS sil
 native or owner gap is an open action there, not a native edit from a worker branch. `tests/releasing.test.mjs`
 asserts that handover: the required sections and commands, the signing-secret names, the product id and store
 checklist, one open revision-placeholder row per manual gate, and M1-M4 plus the owner store actions as open.
+
+## Xcode and Xcode Cloud
+
+Open `ios/App/App.xcodeproj` and select the shared **App** scheme. Local Run and
+Archive already prepare and verify assets automatically via `tools/ios/prepare-capacitor.sh`.
+On a fresh checkout, run `npm ci`, `npm run copy-assets`, and
+`./node_modules/.bin/cap sync ios` before opening Xcode, so package resolution has its inputs.
+
+For Xcode Cloud, create a workflow in Xcode's **Product > Xcode Cloud > Create Workflow**:
+choose this repository, `ios/App/App.xcodeproj` under `sites/ffm/mobile`, and the shared
+**App** scheme. The committed `ios/App/ci_scripts/ci_post_clone.sh` restores locked npm
+dependencies, prepares and verifies the offline bundle, syncs native plugins, and runs
+mobile tests before Xcode resolves packages. It uses Node.js 22+ or installs Homebrew's
+`node@22` on the Cloud runner if needed. Preparation failures stop the build.
+
+Configure branch triggers, signing team, App Store Connect association and optional
+TestFlight distribution in Apple's UI. Those account settings are not repository files
+and are not automatically provisioned here. No store upload runs from GitHub Actions.
+
+The **Arithmo Slayer build artifacts** GitHub workflow supports manual runs and `ffm-v*`
+tags. See `RELEASING.md` for artifact contents and how to open the prepared Xcode project.
+After extracting the Xcode artifact, keep its directory layout and run
+`node scripts/stage-ios-project.mjs --relocate /absolute/path/to/extracted-artifact`
+from its `sites/ffm/mobile` directory to rebase the included Swift package cache.
+The documented unsigned archive command uses that cache without package downloads;
+opening the project in Xcode normally may still use the network.
 
 ## Escalation: maintainer-owned files
 

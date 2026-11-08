@@ -16,19 +16,21 @@
 export const LIFECYCLE_EVENTS = Object.freeze(['appStateChange', 'backButton']);
 
 /**
- * Layout the app inherits from the web build: the 16:9 canvas is centred in
- * whatever viewport the device offers, in portrait and in both landscapes.
+ * The uncropped 16:9 playfield uses the space left by its sibling answers:
+ * scene left/answers right in landscape, stacked in portrait.
  * The shells deliberately keep every orientation unlocked (AndroidManifest
  * has no `screenOrientation`, Info.plist lists portrait plus both
- * landscapes), and `static/styles.css` already pads the title, top bar,
- * overlays and legal footer with `env(safe-area-inset-*)`, so notches,
- * rounded corners and gesture bars never cover controls — exactly like the
- * website. There is no runtime orientation lock to add.
+ * landscapes), and viewport-layout.js follows the visual viewport for
+ * keyboard/resizes without mutating game state. CSS contains controls within
+ * all four safe-area insets. Device behaviour remains a manual gate.
  */
 export const LAYOUT = Object.freeze({
   orientation: 'any',
   aspectRatio: '800 / 450',
   safeArea: 'env(safe-area-inset-*)',
+  landscape: 'scene-left-answers-right',
+  portrait: 'scene-above-answers-below',
+  minimumTarget: 44,
 });
 
 /**

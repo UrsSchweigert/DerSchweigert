@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 import {
   LAYOUT,
   LIFECYCLE_EVENTS,
@@ -241,6 +242,9 @@ test('the layout contract matches the web build and needs no orientation lock', 
   assert.equal(LAYOUT.orientation, 'any');
   assert.equal(LAYOUT.aspectRatio, '800 / 450');
   assert.match(LAYOUT.safeArea, /safe-area-inset/);
+  assert.equal(LAYOUT.landscape, 'scene-left-answers-right');
+  assert.equal(LAYOUT.portrait, 'scene-above-answers-below');
+  assert.equal(LAYOUT.minimumTarget, 44);
 
   const index = await readFile(join(staticDir, 'index.html'), 'utf8');
   assert.match(index, /viewport-fit=cover/);
@@ -293,8 +297,34 @@ test('main.js wires the lifecycle only in the app build', async () => {
   assert.match(resumeGame, /audio\.resumeBGM\(\)/);
   assert.match(resumeGame, /syncKeepAwake\(\)/);
 
-  for (const fn of ['finishStartLevel', 'finishStartShapesMode', 'triggerWaveClear', 'triggerGameOver', 'clearPremiumSession', 'quitPausedGame', 'showHealTip']) {
+  for (const fn of ['finishStartLevel', 'triggerWaveClear', 'triggerGameOver', 'clearPremiumSession', 'quitPausedGame', 'showHealTip']) {
     const body = source.match(new RegExp(`function ${fn}\\([\\s\\S]*?\\n\\}`))?.[0] ?? '';
     assert.ok(body.includes('syncKeepAwake()'), `${fn} syncs keep-awake`);
+  }
+});
+
+test('the shared authorized startup activates keep-awake for finite and Endless Shapes', async () => {
+  const source = await readFile(join(staticDir, 'game', 'main.js'), 'utf8');
+  const finish = source.match(/function finishStartLevel\([\s\S]*?\n\}/)?.[0];
+  assert.ok(finish);
+  for (const endless of [false, true]) {
+    const calls = [];
+    const context = {
+      practiceRun: { kind: 'shapes', endless }, state: { score: 0 },
+      setAnswerInputVisible() {},
+      gameplayTimers: [], answerClock: { reset() {} }, createAttemptSummary: () => ({}),
+      resetHealHold() {}, practiceBadgeRetryButton: null,
+      diffSelect: { style: {} }, pauseOverlay: { style: {} }, topBar: { style: {} },
+      levelClearOverlay: { style: {} }, gameOverOverlay: { style: {} },
+      updateHUDLogoutVisibility() {}, hud: { update() {} },
+      audio: { startLevelBGM() {} }, animFrameId: 1,
+      syncKeepAwake: () => calls.push(context.gameRunning && !context.paused),
+    };
+    vm.createContext(context);
+    vm.runInContext(finish, context);
+    context.finishStartLevel(0, { level: 1, chapter: 1, waveSize: 30 });
+    assert.equal(context.state.isShapesMode, true);
+    assert.equal(context.spawnQueue.length, 0);
+    assert.deepEqual(calls, [true]);
   }
 });

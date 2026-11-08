@@ -24,10 +24,27 @@
   </div>
 
   <div id="game-wrap">
+  <section id="gameplay-chrome" hidden aria-label="Game status" data-i18n-aria-label="hud.status">
+    <div id="active-question" aria-live="polite" aria-atomic="true"></div>
+    <div id="gameplay-feedback" aria-live="polite" aria-atomic="true"></div>
+    <div class="gameplay-readouts" aria-live="off">
+      <span><span data-i18n="hud.hearts">Hearts</span> <strong id="accessible-hearts">0/0</strong></span>
+      <span><span data-i18n="hud.time">Time</span> <strong id="accessible-timer">—</strong><progress id="accessible-timer-progress" max="1" value="0" aria-label="Time remaining" data-i18n-aria-label="hud.timeRemaining"></progress></span>
+      <span id="accessible-combo-wrap"><span data-i18n="hud.combo">Combo</span> <strong id="accessible-combo">0</strong></span>
+      <span id="accessible-score-wrap"><span data-i18n="hud.score">Score</span> <strong id="accessible-score">0</strong></span>
+      <span id="encounter-progress"></span>
+      <span id="combo-reward"></span>
+      <span id="heal-progress"></span>
+    </div>
+    <button id="btn-pause-game" type="button" data-i18n="overlay.pause">Pause</button>
+  </section>
+  <div id="playfield">
   <canvas id="game" width="800" height="450"></canvas>
+  <div id="combo-frame"></div>
+  </div><!-- #playfield -->
 
   <div id="input-zone">
-    <div id="mc-buttons">
+    <div id="mc-buttons" role="group" aria-labelledby="active-question">
       <button class="mc-btn" type="button" touch-action="manipulation" data-index="0"></button>
       <button class="mc-btn" type="button" touch-action="manipulation" data-index="1"></button>
       <button class="mc-btn" type="button" touch-action="manipulation" data-index="2"></button>
@@ -39,7 +56,6 @@
     </div>
     <div id="timer-bar-container"></div>
   </div><!-- #input-zone -->
-  <div id="combo-frame"></div>
   </div><!-- #game-wrap -->
 
   <div id="top-bar">
@@ -66,7 +82,15 @@
     <div class="splash-bg" aria-hidden="true"></div>
     <div class="splash-content">
       <h1 class="splash-title">Arithmo Slayer</h1>
+      <div class="title-pages">
+      <section data-title-page="play" class="title-page title-play">
+      <div class="title-play-intro">
       <p class="splash-intro" data-i18n="splash.intro">Train your math reflexes, beat the clock, and climb the rankings one correct answer at a time.</p>
+      <div class="playing-as-row" hidden>
+        <p class="player-identity"><span data-i18n="profiles.playingAsLabel">Playing as</span> <strong id="playing-as"></strong></p>
+        <button type="button" data-title-target="family" data-i18n="profiles.switchPlayer">Switch player</button>
+      </div>
+      <p id="continue-level" class="splash-subtitle"></p>
       <!-- app-omit:start -->
       <div class="splash-login-row">
         <button id="splash-login-btn" class="splash-btn splash-btn--secondary" data-i18n="splash.loginRegister">Login / Register</button>
@@ -74,33 +98,6 @@
       </div>
       <!-- app-omit:end -->
       <p class="splash-subtitle" data-i18n="splash.chooseDifficulty">Choose your difficulty:</p>
-      <section id="leaderboard-section" class="splash-leaderboard" aria-live="polite">
-        <div class="leaderboard-header">
-          <h2 class="leaderboard-title" data-i18n="leaderboard.title">Leaderboard</h2>
-          <select id="leaderboard-year-filter" class="leaderboard-filter">
-            <option value="" data-i18n="leaderboard.allYears">All years</option>
-          </select>
-        </div>
-        <p class="leaderboard-note" data-i18n="leaderboard.note">Showing high scores set in the last 2 weeks.</p>
-        <p id="leaderboard-personal-best" class="leaderboard-personal-best" style="display:none"></p>
-        <div id="score-history-chart" class="score-history-chart" style="display:none"></div>
-        <!-- app-omit:start -->
-        <p id="leaderboard-profile-prompt" class="leaderboard-profile-prompt" style="display:none"></p>
-        <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none" data-i18n="leaderboard.completeProfile">Complete profile</button>
-        <!-- app-omit:end -->
-        <ol id="leaderboard-list" class="leaderboard-list"></ol>
-      </section>
-      <section id="personal-development" class="splash-leaderboard" aria-live="polite" style="display:none">
-        <h2 class="leaderboard-title" data-i18n="personalDevelopment.title">My progress</h2>
-        <ol id="personal-best-list" class="leaderboard-list"></ol>
-        <div id="personal-score-history-chart" class="score-history-chart" style="display:none"></div>
-        <p id="personal-completed-overview" class="leaderboard-personal-best"></p>
-      </section>
-      <div id="level-jump-row" class="level-jump-row" style="display:none">
-        <label for="level-jump-select" data-i18n="leaderboard.jumpLabel">Jump to a level you've already cleared:</label>
-        <select id="level-jump-select">
-          <option value="" data-i18n="levels.startFromOne">Start from Level 1</option>
-        </select>
       </div>
       <div class="splash-diff-buttons">
         <button class="diff-btn splash-diff-btn" data-difficulty="shapes" data-timer="25" data-hearts="9">
@@ -120,6 +117,80 @@
           <span class="diff-detail" data-i18n="difficulty.hard.detail">5 seconds · 3 hearts</span>
         </button>
       </div>
+      </section>
+      <section data-title-page="leaderboard" class="title-page" hidden>
+      <section id="leaderboard-section" class="splash-leaderboard" aria-live="polite">
+        <div class="leaderboard-header">
+          <h2 class="leaderboard-title" data-i18n="leaderboard.title">Leaderboard</h2>
+          <select id="leaderboard-year-filter" class="leaderboard-filter">
+            <option value="" data-i18n="leaderboard.allYears">All years</option>
+          </select>
+        </div>
+        <p class="leaderboard-note" data-i18n="leaderboard.note">Showing high scores set in the last 2 weeks.</p>
+        <p id="leaderboard-personal-best" class="leaderboard-personal-best" style="display:none"></p>
+        <div id="score-history-chart" class="score-history-chart" style="display:none"></div>
+        <!-- app-omit:start -->
+        <p id="leaderboard-profile-prompt" class="leaderboard-profile-prompt" style="display:none"></p>
+        <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none" data-i18n="leaderboard.completeProfile">Complete profile</button>
+        <!-- app-omit:end -->
+        <ol id="leaderboard-list" class="leaderboard-list"></ol>
+      </section>
+      <nav class="screen-pagination" aria-label="Leaderboard pages">
+        <button id="leaderboard-prev" type="button" aria-label="Previous page">◀</button>
+        <span id="leaderboard-page" role="status">1</span>
+        <button id="leaderboard-next" type="button" aria-label="Next page">▶</button>
+      </nav>
+      </section>
+      <section data-title-page="progress" class="title-page" hidden>
+      <section id="personal-development" class="splash-leaderboard" aria-live="polite" style="display:none">
+        <h2 class="leaderboard-title" data-i18n="personalDevelopment.title">My progress</h2>
+        <p class="player-identity" hidden><span data-i18n="profiles.progressForLabel">Progress for</span> <strong id="progress-player-name"></strong></p>
+        <p id="personal-development-error" class="screen-status error-msg" role="status"></p>
+        <ol id="personal-best-list" class="leaderboard-list"></ol>
+      </section>
+        <details id="practice-panel" class="compact-disclosure">
+          <summary data-i18n="practice.title">Practice sessions</summary>
+          <div class="practice-controls">
+            <label for="practice-kind" data-i18n="practice.sessionType">Session type</label>
+            <select id="practice-kind">
+              <option value="targeted" data-i18n="practice.kind.targeted">Targeted practice</option>
+              <option value="short" data-i18n="practice.kind.short">Short practice</option>
+              <option value="assisted" data-i18n="practice.kind.assisted">Assisted practice</option>
+              <option value="elite" data-i18n="practice.kind.elite">Elite practice</option>
+              <option value="recovery" data-i18n="practice.kind.recovery">Recovery practice</option>
+              <option value="shapes" data-i18n="practice.kind.shapes">Shape counting</option>
+            </select>
+            <label for="practice-level-select" data-i18n="practice.level">Level</label>
+            <select id="practice-level-select"></select>
+            <div id="practice-badges" class="practice-badges" aria-label="Practice badges" data-i18n-aria-label="practice.badges"></div>
+            <p id="practice-status" class="screen-status" role="status" aria-live="polite"></p>
+            <button type="button" id="btn-start-practice" class="action-primary" data-i18n="practice.start">Start practice</button>
+          </div>
+        </details>
+        <nav class="screen-pagination" aria-label="Progress pages">
+          <button id="personal-best-prev" type="button" aria-label="Previous page">◀</button>
+        <span id="personal-best-page" role="status">1</span>
+        <button id="personal-best-next" type="button" aria-label="Next page">▶</button>
+        <button id="personal-history-toggle" type="button" data-title-target="history" data-i18n-aria-label="scoreHistory.title" aria-label="Score history">📈</button>
+      </nav>
+      </section>
+      <section data-title-page="history" class="title-page" hidden>
+        <div id="personal-score-history-chart" class="score-history-chart" style="display:none"></div>
+        <p id="personal-completed-overview" class="leaderboard-personal-best"></p>
+      </section>
+      <section id="local-profiles" data-title-page="family" class="title-page" hidden>
+        <div id="profile-root"></div>
+      </section>
+      <section data-title-page="levels" class="title-page" hidden>
+      <div id="level-jump-row" class="level-jump-row" style="display:none">
+        <label for="level-jump-select" data-i18n="leaderboard.jumpLabel">Jump to a level you've already cleared:</label>
+        <select id="level-jump-select">
+          <option value="" data-i18n="levels.startFromOne">Start from Level 1</option>
+        </select>
+      </div>
+      <button type="button" data-title-target="play">▶</button>
+      </section>
+      <section data-title-page="legal" class="title-page title-legal" hidden>
       <p class="splash-legal-links">
         <a href="impressum.html" data-i18n="legal.impressum">Impressum</a> · <a href="datenschutz.html" data-i18n="legal.privacy">Datenschutz</a> ·
         <!-- app-omit:start -->
@@ -128,6 +199,16 @@
         <a href="terms.html" data-i18n="legal.terms">Terms</a> ·
         <button type="button" id="cookie-settings-link" class="splash-legal-link-btn" data-i18n="cookie.settingsLink">Cookie settings</button>
       </p>
+      </section>
+      </div>
+      <nav class="title-navigation" aria-label="Title pages">
+        <button type="button" data-title-target="play" data-i18n="nav.play">Play</button>
+        <button id="title-progress-btn" type="button" data-title-target="progress" data-i18n="nav.progress">Progress</button>
+        <button id="title-family-btn" type="button" data-title-target="family" data-i18n="nav.players" hidden>Players</button>
+        <button id="title-levels-btn" type="button" data-title-target="levels" data-i18n="nav.levels" hidden>Levels</button>
+        <button id="title-leaderboard-btn" type="button" data-title-target="leaderboard" data-i18n="nav.leaderboard">Ranks</button>
+        <button type="button" data-title-target="legal" data-i18n="nav.terms">Terms</button>
+      </nav>
     </div>
   </div>
 
@@ -298,6 +379,7 @@
     <div class="overlay-card">
       <h2 id="level-clear-title">Level Clear!</h2>
       <p id="level-clear-score"></p>
+      <p id="level-attempt-summary"></p>
       <button class="diff-btn" id="btn-next-level" data-i18n="overlay.nextLevel">Next Level</button>
       <button class="diff-btn" id="btn-replay-level" data-i18n="overlay.replayLevel">Play Same Level Again</button>
       <button class="diff-btn" id="btn-save-score-return-title" style="display:none" data-i18n-html="overlay.saveScoreReturnTitleHtml">Save Score &amp; Return to Title</button>
@@ -306,8 +388,9 @@
 
   <div id="game-over" class="overlay" style="display:none">
     <div class="overlay-card">
-      <h2 data-i18n="overlay.gameOverTitle">Game Over</h2>
+      <h2 id="game-over-title" data-i18n="overlay.gameOverTitle">Game Over</h2>
       <p id="game-over-score"></p>
+      <p id="defeat-attempt-summary"></p>
       <button class="diff-btn" id="btn-retry-level" data-i18n="overlay.retryLevel">Try This Level Again</button>
       <button class="diff-btn" id="btn-return-title" data-i18n="overlay.returnTitle">Return to Title</button>
     </div>
@@ -316,17 +399,40 @@
   <div id="pause-overlay" class="overlay" style="display:none">
     <div class="overlay-card">
       <h2 data-i18n="overlay.pausedTitle">Paused</h2>
+      <p class="player-identity" hidden><span data-i18n="profiles.playingAsLabel">Playing as</span> <strong id="pause-player-name"></strong></p>
       <div id="pause-actions">
         <button class="diff-btn" id="btn-resume-game" data-i18n="overlay.resume">Resume</button>
         <button class="diff-btn" id="btn-quit-game" data-i18n="overlay.returnTitle">Return to Title</button>
       </div>
       <div id="pause-quit-actions" style="display:none">
-        <p data-i18n="overlay.quitScorePrompt">Save your score before leaving?</p>
+        <p id="pause-quit-title" data-i18n="overlay.quitScorePrompt">Save your score before leaving?</p>
         <p id="pause-save-notice"></p>
         <p id="pause-save-error" class="error-msg" role="alert"></p>
         <button class="diff-btn" id="btn-pause-save" data-i18n-html="overlay.saveScoreReturnTitleHtml">Save Score &amp; Return to Title</button>
         <button class="diff-btn" id="btn-pause-discard" data-i18n="overlay.discardScore">Discard Score &amp; Return to Title</button>
         <button class="diff-btn" id="btn-pause-back" data-i18n="overlay.backToPause">Back</button>
+      </div>
+      <details id="audio-settings" class="compact-disclosure">
+        <summary data-i18n="audio.settings">Audio settings</summary>
+        <div class="audio-controls">
+          <label for="music-volume" data-i18n="audio.musicVolume">Music volume</label>
+          <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35" disabled aria-describedby="music-volume-status">
+          <p id="music-volume-status" class="screen-status" role="status" data-i18n="audio.musicVolumeUnavailable">Music volume control is not available on this device.</p>
+          <label for="effects-volume" data-i18n="audio.effectsVolume">Effects volume</label>
+          <input id="effects-volume" type="range" min="0" max="1" step="0.05" value="1">
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div id="skill-intro" class="overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="skill-intro-title" aria-describedby="skill-intro-body">
+    <div class="overlay-card skill-intro-card">
+      <h2 id="skill-intro-title" data-i18n="practice.intro.title">Learn a new skill</h2>
+      <p id="skill-intro-body" data-i18n="practice.intro.body">See a worked example before you begin.</p>
+      <p id="skill-intro-example" class="skill-intro-example" data-i18n="practice.intro.example"></p>
+      <div class="skill-intro-actions">
+        <button type="button" class="diff-btn action-primary" id="btn-skill-intro-continue" data-i18n="practice.intro.continue">Continue</button>
+        <button type="button" class="diff-btn" id="btn-skill-intro-skip" data-i18n="practice.intro.skip">Skip example</button>
       </div>
     </div>
   </div>
@@ -334,7 +440,7 @@
   <div id="heal-tip-overlay" class="overlay" style="display:none">
     <div class="overlay-card">
       <h2 data-i18n="overlay.healTipTitle">Low on Hearts!</h2>
-      <p data-i18n-html="overlay.healTipBodyHtml">On multiple-choice levels, hold your finger on the <strong>left edge</strong> of the screen while you play to slowly heal your hearts — no tapping required! It only works while you solve problems in your head, so try not to count on your fingers.</p>
+      <p data-i18n="overlay.healTipBody">On multiple-choice levels, hold the left quarter of the playfield for 9 seconds to heal one heart.</p>
       <button class="diff-btn" id="btn-heal-tip-confirm" data-i18n="overlay.healTipConfirm">Got it!</button>
     </div>
   </div>

@@ -18,6 +18,7 @@ const platform = {
   isApp: false,
   hasAccount: true,
   hasLeaderboard: true,
+  localProfiles: null,
 
   getAuthorizedLevelConfig(levelIndex, includeBaseline = false) {
     return getAuthorizedLevelConfig(levelIndex, api, includeBaseline);

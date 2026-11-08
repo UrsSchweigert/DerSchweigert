@@ -91,23 +91,6 @@ export class Renderer {
     // the canvas itself, making it visible on left/right only. See
     // index.html/styles.css for #combo-frame.
     this._comboFrameEl = canvas.parentElement && canvas.parentElement.querySelector('#combo-frame');
-    // The frame's bottom edge should end where the game background art
-    // actually ends — i.e. at the top of #input-zone, not the bottom of the
-    // whole game-wrap — since #input-zone's own opaque panel (and its
-    // height, which varies between the multiple-choice buttons and
-    // free-text layouts) already covers everything below that. Kept in
-    // sync via ResizeObserver rather than a one-off read, since orientation
-    // changes / viewport resizes / input-mode switches can all change it.
-    const inputZoneEl = canvas.parentElement && canvas.parentElement.querySelector('#input-zone');
-    if (this._comboFrameEl && inputZoneEl) {
-      const syncBottom = () => { this._comboFrameEl.style.bottom = inputZoneEl.offsetHeight + 'px'; };
-      if (typeof ResizeObserver !== 'undefined') {
-        new ResizeObserver(syncBottom).observe(inputZoneEl);
-      } else {
-        syncBottom();
-        window.addEventListener('resize', syncBottom);
-      }
-    }
   }
 
   clear() {
@@ -124,9 +107,8 @@ export class Renderer {
   // Drawn as a DOM overlay (#combo-frame) rather than onto the canvas: the
   // HUD bar (top) is painted over the canvas edges, so a border stroked
   // directly on the canvas is only ever visible on the left/right. The
-  // overlay sits above it, and stops at the top of #input-zone (see the
-  // ResizeObserver in the constructor), so it frames the background art
-  // exactly, on all four sides.
+  // overlay belongs to #playfield, so it frames the uncropped scene on all
+  // four sides independently of the sibling answer panel.
   drawComboFrame(band, ts) {
     const el = this._comboFrameEl;
     if (!el) return;

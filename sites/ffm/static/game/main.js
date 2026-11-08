@@ -6,9 +6,13 @@ import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, Snake
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import { InputManager } from './input.js';
+import { createCompletionId, createLevelCompletion } from './level-completion.js';
+import { initViewportLayout } from './viewport-layout.js';
+import { createRetryableInitialization } from './retryable-init.js';
+import { getCampaignProgress, resetLevelAttempt } from './campaign-progress.js';
 import { resolvePlatform } from './platform.js';
 import { getFiendClass, sampleFiendClassId, FIEND_CLASSES } from './difficulty-classes.js';
-import { pickComboAbility, getComboFrameBand } from './combo-abilities.js';
+import { pickComboAbility, getComboFrameBand, getComboRewardProgress } from './combo-abilities.js';
 import {
   FIEND_ENTRY_TRIGGER_X,
   getFiendWalkSpeed,
@@ -20,10 +24,24 @@ import { preloadGameAssets } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
 import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
+import { createGameplayChrome } from './gameplay-chrome.js';
+import { createAttemptSummary } from './attempt-summary.js';
+import { initGameplayModalFocus } from './modal-focus.js';
+import { resolveDragonBreath, createAnswerClock } from './encounter-flow.js';
+import {
+  collectTargetedProblems,
+  createEarnedRecovery,
+  createPracticeSession,
+  getPracticeBadgeIds,
+  getPracticeEliteHp,
+} from './practice-session.js';
+import { getSkillIntro } from './skill-intro.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
 const platform = await resolvePlatform();
+const gameplayChrome = createGameplayChrome({ translate: t });
+initGameplayModalFocus({ doc: document });
 
 // App-only lifecycle handle (see ./lifecycle.js, shipped by the app overlay).
 // Stays null on the web build and until the app plugin has been wired.
@@ -71,6 +89,7 @@ if (platform.isApp) {
 // Resolves the active locale, translates every data-i18n-* element in the
 // page, and sets <html lang> before anything else runs.
 initI18n();
+initViewportLayout();
 
 // The page's CSP is `script-src 'self' https://challenges.cloudflare.com`
 // with no 'unsafe-inline'/nonce, so an inline <script type="module"> in
@@ -79,7 +98,11 @@ initI18n();
 // never show, and Turnstile would never load). Wiring it up here instead,
 // in a same-origin file loaded via <script src>, is what actually executes.
 window.ffmCookieConsent = new CookieConsent();
-window.ffmCookieConsent.init();
+if (!platform.isApp) window.ffmCookieConsent.init();
+else {
+  document.getElementById('cookie-banner').style.display = 'none';
+  document.getElementById('cookie-settings-link').hidden = true;
+}
 document.getElementById('cookie-accept')?.addEventListener('click', () => {
   window.ffmCookieConsent.accept();
 });
@@ -242,15 +265,20 @@ function createFiend(levelIndex, x) {
   const fiendTypeKey = String(sampleFiendType(cfg.level, spawnIndex) || cfg.fiendType || '').toLowerCase();
   const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey] ?? OPERATOR_FIEND[problem.operation] ?? Slimeling;
   const isElite = Math.random() < GAME_CONFIG.eliteFiendChance;
-  const hp = isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
+  const practiceElite = practiceRun?.kind === 'elite';
+  const hp = practiceElite ? getPracticeEliteHp(cfg.fiendHP)
+    : isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
   const tier = Math.min(3, Math.floor(levelIndex / 15));
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[tier] : undefined;
   const fiend = new FiendClass(x, GROUND_Y, hp, palette);
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
   fiend.problem = problem;
-  fiend.isElite = isElite;
+  fiend.isElite = practiceElite || isElite;
   fiend.fiendClassId = sampleFiendClassId(cfg.level, spawnIndex);
+  if (practiceRun && practiceRun.kind !== 'targeted' && problem.operation) {
+    practiceRun.operations.add(problem.operation);
+  }
   return fiend;
 }
 
@@ -310,8 +338,41 @@ let state = {
   timerMax: 10,
   timerRemaining: 10,
   timerActive: false,
-  isShapesMode: false, // "Shapes" mode: infinite, unscored shape-counting practice
+  isShapesMode: false, // separate from practiceRun so shape UI stays mode-specific
 };
+let attemptSummary = createAttemptSummary();
+let completionFeedback = null;
+let lastCastAbility = null;
+const answerClock = createAnswerClock();
+let waveClearing = false;
+
+function renderAttemptAccomplishment(id, result = completionFeedback) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  const summary = attemptSummary.snapshot();
+  element.hidden = Boolean(practiceRun) || state.isShapesMode || summary.firstAttemptTotal === 0;
+  if (element.hidden) {
+    element.textContent = '';
+    return;
+  }
+  const lines = [
+    t('attempt.firstReplies', { correct: summary.firstAttemptCorrect, total: summary.firstAttemptTotal }),
+    t('attempt.bestStreak', { streak: summary.bestStreak }),
+  ];
+  const previous = result?.previousAttemptSummary;
+  if (previous && summary.firstAttemptCorrect * previous.firstAttemptTotal >
+      previous.firstAttemptCorrect * summary.firstAttemptTotal) {
+    lines.push(t('attempt.accuracyImproved'));
+  } else if (previous && summary.bestStreak > previous.bestStreak) {
+    lines.push(t('attempt.streakImproved', { improvement: summary.bestStreak - previous.bestStreak }));
+  } else if (result?.saved) {
+    lines.push(t('attempt.personalBest'));
+  } else {
+    lines.push(t(summary.firstAttemptCorrect === summary.firstAttemptTotal
+      ? 'attempt.keepAccuracy' : 'attempt.replayGoal'));
+  }
+  element.textContent = lines.join('\n');
+}
 
 // --- DOM refs ---
 const canvas = document.getElementById('game');
@@ -367,6 +428,20 @@ const personalScoreHistoryChart = document.getElementById('personal-score-histor
 const personalCompletedOverview = document.getElementById('personal-completed-overview');
 const levelJumpRow = document.getElementById('level-jump-row');
 const levelJumpSelect = document.getElementById('level-jump-select');
+const practiceKindSelect = document.getElementById('practice-kind');
+const practiceLevelSelect = document.getElementById('practice-level-select');
+const practiceBadges = document.getElementById('practice-badges');
+const practiceStatus = document.getElementById('practice-status');
+const btnStartPractice = document.getElementById('btn-start-practice');
+const skillIntroOverlay = document.getElementById('skill-intro');
+const skillIntroTitle = document.getElementById('skill-intro-title');
+const skillIntroBody = document.getElementById('skill-intro-body');
+const skillIntroExample = document.getElementById('skill-intro-example');
+const btnSkillIntroContinue = document.getElementById('btn-skill-intro-continue');
+const btnSkillIntroSkip = document.getElementById('btn-skill-intro-skip');
+const musicVolumeInput = document.getElementById('music-volume');
+const musicVolumeStatus = document.getElementById('music-volume-status');
+const effectsVolumeInput = document.getElementById('effects-volume');
 
 const checkoutModal = document.getElementById('checkout-modal');
 const closeCheckout = document.getElementById('close-checkout');
@@ -444,6 +519,72 @@ const renderer = new Renderer(canvas);
 const hud = new HUD(renderer);
 const audio = new AudioEngine();
 
+const AUDIO_PREFERENCES_KEY = 'arithmo-audio-preferences-v1';
+
+function audioPreferenceStatus() {
+  if (!musicVolumeStatus) return;
+  const capability = audio.musicVolumeCapability;
+  musicVolumeStatus.textContent = t(capability.supported
+    ? 'audio.musicVolumeReady' : 'audio.musicVolumeUnavailable');
+  if (musicVolumeInput) musicVolumeInput.disabled = !capability.supported;
+}
+
+function persistAudioPreferences() {
+  try {
+    const preferences = {
+      effects: audio.getEffectsVolume(),
+      music: audio.getMusicVolume(),
+    };
+    window.localStorage.setItem(AUDIO_PREFERENCES_KEY, JSON.stringify(preferences));
+    audioPreferenceStatus();
+  } catch (error) {
+    console.error('Unable to persist audio preferences', error);
+    if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesSaveFailed');
+  }
+}
+
+function initializeAudioPreferences() {
+  try {
+    const raw = window.localStorage.getItem(AUDIO_PREFERENCES_KEY);
+    if (raw !== null) {
+      const saved = JSON.parse(raw);
+      if (Number.isFinite(saved?.effects) && saved.effects >= 0 && saved.effects <= 1) {
+        audio.setEffectsVolume(saved.effects);
+        if (effectsVolumeInput) effectsVolumeInput.value = String(saved.effects);
+      }
+      if (Number.isFinite(saved?.music) && saved.music >= 0 && saved.music <= 1 &&
+          audio.musicVolumeCapability.supported) {
+        audio.setMusicVolume(saved.music);
+        if (musicVolumeInput) musicVolumeInput.value = String(saved.music);
+      }
+    }
+  } catch (error) {
+    console.error('Unable to load audio preferences', error);
+    if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesLoadFailed');
+  }
+  audioPreferenceStatus();
+}
+
+effectsVolumeInput?.addEventListener('input', () => {
+  try {
+    audio.setEffectsVolume(Number(effectsVolumeInput.value));
+    persistAudioPreferences();
+  } catch (error) {
+    console.error('Unable to change effects volume', error);
+    if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesSaveFailed');
+  }
+});
+musicVolumeInput?.addEventListener('input', () => {
+  try {
+    audio.setMusicVolume(Number(musicVolumeInput.value));
+    persistAudioPreferences();
+  } catch (error) {
+    console.error('Unable to change music volume', error);
+    audioPreferenceStatus();
+  }
+});
+initializeAudioPreferences();
+
 // --- Entity state ---
 let hero = new Hero();
 let fiends = [];
@@ -453,7 +594,6 @@ let activeFiend = null;
 let spawnInterval = 4.0;
 let spawnTimer = 0;
 let answerTimes = [];
-let questionStartTime = 0;
 let inputDisabled = false;
 let pendingProblemActivation = null;
 let gameRunning = false;
@@ -488,6 +628,23 @@ let currentPersonalDevelopment = null;
 let pendingResetToken = null;
 let lastBillingStatus = null;
 let lastLevelClearNum = null;
+let runProfileId = null;
+let completedLevelSave = null;
+let completionPending = false;
+let profileUI = null;
+let personalBestPage = 0;
+const PERSONAL_BEST_PAGE_SIZE = 3;
+let leaderboardPage = 0;
+let profileMutationPending = false;
+let levelStarting = false;
+let campaignWon = false;
+let activeLocalPlayer = null;
+let practiceRun = null;
+let missedProblemsByLevel = new Map();
+let missedProblemsOwner = null;
+let practiceBadgeRetryButton = null;
+let pendingSkillIntro = null;
+let activeSkillIntro = null;
 
 // --- Cloudflare Turnstile CAPTCHA (register/forgot-password/resend-verification) ---
 // Site key is public by design (Cloudflare's own docs embed it directly in
@@ -546,6 +703,12 @@ function resetTurnstileWidget(key) {
 
 // --- Input ---
 const input = new InputManager(handleAnswer);
+document.getElementById('input-zone').hidden = true;
+
+function setAnswerInputVisible(visible) {
+  const zone = document.getElementById('input-zone');
+  if (zone) zone.hidden = !visible;
+}
 
 function leaderboardBucketLabel(value) {
   return value === null || value === undefined ? t('leaderboard.unclassified') : String(value);
@@ -641,8 +804,10 @@ function renderLevelJumpOptions(profile) {
   if (levels.length === 0) {
     levelJumpRow.style.display = 'none';
     levelJumpSelect.innerHTML = `<option value="">${t('levels.startFromOne')}</option>`;
+    document.getElementById('title-levels-btn').hidden = true;
     return;
   }
+  document.getElementById('title-levels-btn').hidden = false;
   const options = [`<option value="">${t('levels.startFromOne')}</option>`]
     .concat(levels.map((lvl) => `<option value="${lvl}">${t('levels.level', { level: lvl })}</option>`));
   levelJumpSelect.innerHTML = options.join('');
@@ -650,13 +815,20 @@ function renderLevelJumpOptions(profile) {
 }
 
 function renderLeaderboard(entries) {
+  const pages = Math.max(1, Math.ceil((entries?.length ?? 0) / PERSONAL_BEST_PAGE_SIZE));
+  leaderboardPage = Math.min(leaderboardPage, pages - 1);
+  document.getElementById('leaderboard-prev').disabled = leaderboardPage === 0;
+  document.getElementById('leaderboard-next').disabled = leaderboardPage >= pages - 1;
+  document.getElementById('leaderboard-page').textContent = t('common.page', { page: leaderboardPage + 1, pages });
   if (!entries || entries.length === 0) {
     leaderboardList.innerHTML = `<li>${t('leaderboard.empty')}</li>`;
     return;
   }
 
   const currentUser = platform.username;
-  leaderboardList.innerHTML = entries.map((entry) => {
+  leaderboardList.innerHTML = entries.slice(
+    leaderboardPage * PERSONAL_BEST_PAGE_SIZE, (leaderboardPage + 1) * PERSONAL_BEST_PAGE_SIZE,
+  ).map((entry) => {
     const isCurrent = currentUser && entry.username === currentUser;
     const bucket = leaderboardBucketLabel(entry.first_grade_year);
     return `<li class="${isCurrent ? 'current-user' : ''}">#${entry.rank} ${escHtml(entry.username)} — ${escHtml(entry.high_score)} (${escHtml(bucket)})</li>`;
@@ -700,7 +872,11 @@ function renderPersonalDevelopment(state) {
   if (best.length === 0) {
     personalBestList.innerHTML = `<li>${t('personalDevelopment.noProgress')}</li>`;
   } else {
-    personalBestList.innerHTML = best
+    const pageCount = Math.max(1, Math.ceil(best.length / PERSONAL_BEST_PAGE_SIZE));
+    personalBestPage = Math.min(personalBestPage, pageCount - 1);
+    personalBestList.innerHTML = best.slice(
+      personalBestPage * PERSONAL_BEST_PAGE_SIZE, (personalBestPage + 1) * PERSONAL_BEST_PAGE_SIZE,
+    )
       .map((entry) => `<li>${t('personalDevelopment.perLevelBest', {
         level: entry.level,
         score: entry.score,
@@ -714,27 +890,241 @@ function renderPersonalDevelopment(state) {
     completed: completed.length,
     total: Math.max(TOTAL_LEVELS, completed.length),
   });
+  const pages = Math.max(1, Math.ceil(best.length / PERSONAL_BEST_PAGE_SIZE));
+  const previous = document.getElementById('personal-best-prev');
+  const next = document.getElementById('personal-best-next');
+  const pageLabel = document.getElementById('personal-best-page');
+  if (previous) previous.disabled = personalBestPage === 0;
+  if (next) next.disabled = personalBestPage >= pages - 1;
+  if (pageLabel) pageLabel.textContent = t('common.page', { page: personalBestPage + 1, pages });
 }
 
+function renderLocalCampaign(completed, { resetSelection = false } = {}) {
+  const progress = getCampaignProgress(completed);
+  const previous = resetSelection ? '' : levelJumpSelect.value;
+  const label = progress.complete ? t('campaign.complete') : t('campaign.continueAt', { level: progress.nextLevel });
+  const selectorLabel = levelJumpRow.querySelector('label');
+  selectorLabel.dataset.i18n = 'campaign.chooseLevel';
+  selectorLabel.textContent = t('campaign.chooseLevel');
+  levelJumpSelect.innerHTML = `<option value="">${escHtml(label)}</option>` +
+    progress.cleared.map(level => `<option value="${level}">${escHtml(t('campaign.replay', { level }))}</option>`).join('');
+  if (progress.cleared.includes(Number(previous))) levelJumpSelect.value = previous;
+  else levelJumpSelect.value = '';
+  levelJumpRow.style.display = '';
+  document.getElementById('title-levels-btn').hidden = false;
+  const continuation = document.getElementById('continue-level');
+  if (continuation) continuation.textContent = levelJumpSelect.value
+    ? t('campaign.replay', { level: levelJumpSelect.value }) : label;
+}
+
+function renderPlayerIdentity() {
+  const name = platform.isApp ? activeLocalPlayer?.name : platform.username;
+  for (const id of ['playing-as', 'progress-player-name', 'pause-player-name']) {
+    const element = document.getElementById(id);
+    if (!element) continue;
+    element.textContent = name || '';
+    element.title = name || '';
+    element.hidden = !name;
+    for (const selector of ['.playing-as-row', '.player-identity']) {
+      const row = element.closest(selector);
+      if (row) row.hidden = !name || !platform.isApp;
+    }
+  }
+  document.getElementById('switch-player-btn')?.toggleAttribute('hidden', !platform.isApp);
+}
+
+function practiceOwnerId() {
+  return platform.isApp ? platform.localProfiles.getActiveProfile()?.id ?? null
+    : platform.username || 'guest';
+}
+
+function clearMissedProblemsForOwner(ownerId = practiceOwnerId()) {
+  missedProblemsByLevel.clear();
+  missedProblemsOwner = ownerId;
+}
+
+function rememberMissedProblem(problem, levelIndex) {
+  if (!problem || practiceRun || state.isShapesMode) return;
+  const ownerId = runProfileId ?? practiceOwnerId();
+  if (missedProblemsOwner !== ownerId) clearMissedProblemsForOwner(ownerId);
+  const level = levelIndex + 1;
+  const missed = missedProblemsByLevel.get(level) ?? [];
+  if (!missed.includes(problem) && missed.length < 5) missed.push(problem);
+  missedProblemsByLevel.set(level, missed);
+}
+
+function getTargetedProblems(level) {
+  const ownerId = practiceOwnerId();
+  if (missedProblemsOwner !== ownerId) clearMissedProblemsForOwner(ownerId);
+  return collectTargetedProblems(missedProblemsByLevel.get(level) ?? []);
+}
+
+function showPracticeStatus(message, isError = false) {
+  if (!practiceStatus) return;
+  practiceStatus.textContent = message;
+  practiceStatus.classList.toggle('error-msg', isError);
+}
+
+function setPracticeLevelOptions() {
+  if (!practiceLevelSelect) return;
+  practiceLevelSelect.innerHTML = Array.from({ length: TOTAL_LEVELS }, (_, index) =>
+    `<option value="${index + 1}">${escHtml(t('levels.level', { level: index + 1 }))}</option>`).join('');
+}
+
+async function refreshPracticeBadges() {
+  if (!practiceBadges) return;
+  if (!platform.isApp) {
+    practiceBadges.textContent = '';
+    return;
+  }
+  try {
+    await ensureLocalProfiles();
+    const profileId = platform.localProfiles.getActiveProfile().id;
+    const result = await platform.localProfiles.getPracticeBadges(profileId);
+    if (profileId !== platform.localProfiles.getActiveProfile().id) return;
+    const badges = Array.isArray(result?.badges) ? result.badges : [];
+    practiceBadges.textContent = badges.map(id => t(`practice.badge.${id}`)).join(' · ');
+  } catch (error) {
+    console.error('Unable to load practice badges', error);
+    showPracticeStatus(t('practice.badgesLoadFailed'), true);
+  }
+}
+
+async function startPracticeSession(kind = practiceKindSelect?.value, sourceLevel = Number(practiceLevelSelect?.value || 1), { endless = false } = {}) {
+  if (levelStarting || profileMutationPending || pendingSkillIntro) return;
+  if (!['targeted', 'short', 'assisted', 'elite', 'recovery', 'shapes'].includes(kind)) {
+    showPracticeStatus(t('practice.invalidMode'), true);
+    return;
+  }
+  levelStarting = true;
+  if (btnStartPractice) btnStartPractice.disabled = true;
+  try {
+    if (!Number.isInteger(sourceLevel) || sourceLevel < 1 || sourceLevel > TOTAL_LEVELS) {
+      throw new RangeError('Choose a practice level from 1 to 60');
+    }
+    if (platform.isApp) {
+      await ensureLocalProfiles();
+      await profileUI?.whenIdle();
+      runProfileId = platform.localProfiles.getActiveProfile().id;
+    } else {
+      runProfileId = null;
+    }
+    const targetProblems = kind === 'targeted' ? getTargetedProblems(sourceLevel) : [];
+    if (kind === 'targeted' && targetProblems.length === 0) {
+      showPracticeStatus(t('practice.noMissedProblems', { level: sourceLevel }), true);
+      return;
+    }
+    practiceRun = {
+      kind,
+      endless: kind === 'shapes' && endless,
+      sourceLevel,
+      sessionId: createCompletionId(),
+      session: createPracticeSession({ kind, problems: targetProblems }),
+      targetProblems,
+      recovery: createEarnedRecovery(),
+      operations: new Set(),
+      savedBadges: false,
+      badgeSavePending: false,
+    };
+    state.isShapesMode = kind === 'shapes';
+    state.score = 0;
+    state.combo = 0;
+    const practiceDifficulty = {
+      easy: { timer: 15, hearts: 7 },
+      medium: { timer: 10, hearts: 5 },
+      hard: { timer: 5, hearts: 3 },
+    }[state.difficulty] ?? { timer: 10, hearts: 5 };
+    state.timerMax = practiceDifficulty.timer;
+    state.timerRemaining = state.timerMax;
+    state.maxHearts = practiceDifficulty.hearts;
+    state.hearts = state.maxHearts;
+    healTipShown = true;
+    if (state.difficulty === 'shapes') state.difficulty = 'medium';
+    if (kind === 'shapes') {
+      state.timerMax = 25;
+      state.timerRemaining = 25;
+      state.maxHearts = 9;
+      state.hearts = state.maxHearts;
+    }
+    showPracticeStatus('');
+    await startLevel(sourceLevel - 1);
+  } catch (error) {
+    console.error('Unable to start practice', error);
+    practiceRun = null;
+    state.isShapesMode = false;
+    showPracticeStatus(t(error?.code === 'invalid_practice' ? 'practice.noMissedProblems' : 'practice.startFailed', {
+      level: sourceLevel,
+    }), true);
+  } finally {
+    levelStarting = false;
+    if (btnStartPractice) btnStartPractice.disabled = false;
+  }
+}
+
+function showSkillIntro(intro, levelIndex, cfg, baselineScore) {
+  if (!skillIntroOverlay || !skillIntroBody || !btnSkillIntroContinue || !btnSkillIntroSkip) {
+    finishStartLevel(levelIndex, cfg, baselineScore);
+    return;
+  }
+  activeSkillIntro = intro;
+  renderSkillIntro();
+  skillIntroOverlay.style.display = 'flex';
+  pendingSkillIntro = () => {
+    pendingSkillIntro = null;
+    activeSkillIntro = null;
+    skillIntroOverlay.style.display = 'none';
+    finishStartLevel(levelIndex, cfg, baselineScore);
+    clearPendingRecord();
+    setAccountModalVisible(false);
+  };
+}
+
+function renderSkillIntro() {
+  if (!activeSkillIntro) return;
+  const [explanation, example] = activeSkillIntro.stages;
+  const values = {
+    ...explanation.values,
+    a: activeSkillIntro.exampleProblem.a,
+    b: activeSkillIntro.exampleProblem.b,
+    answer: activeSkillIntro.exampleProblem.answer,
+  };
+  if (skillIntroTitle) skillIntroTitle.textContent = t('practice.intro.title', { level: activeSkillIntro.level });
+  if (skillIntroBody) skillIntroBody.textContent = t(explanation.localizationKey, values);
+  if (skillIntroExample) skillIntroExample.textContent = t(example.localizationKey, values);
+}
+
+btnSkillIntroContinue?.addEventListener('click', () => pendingSkillIntro?.());
+btnSkillIntroSkip?.addEventListener('click', () => pendingSkillIntro?.());
+btnStartPractice?.addEventListener('click', () => startPracticeSession());
+practiceKindSelect?.addEventListener('change', () => showPracticeStatus(''));
+practiceLevelSelect?.addEventListener('change', () => showPracticeStatus(''));
+setPracticeLevelOptions();
+
 async function refreshPersonalDevelopment() {
-  const state = { best: [], history: [], completed: [] };
+  const profileId = platform.isApp ? platform.localProfiles.getActiveProfile().id : null;
   try {
-    state.best = (await platform.getBestScores())?.best || [];
-  } catch {
-    state.best = [];
+    const [best, history, completed] = await Promise.all([
+      platform.getBestScores(profileId), platform.getScoreHistory(profileId), platform.getCompletedLevels(profileId),
+    ]);
+    if (platform.isApp && profileId !== platform.localProfiles.getActiveProfile().id) return;
+    currentPersonalDevelopment = {
+      best: best.best, history: history.history, completed: completed.completed,
+    };
+    renderPersonalDevelopment(currentPersonalDevelopment);
+    renderLocalCampaign(currentPersonalDevelopment.completed);
+    activeLocalPlayer = platform.localProfiles.getActiveProfile();
+    renderPlayerIdentity();
+    showProgressError('');
+  } catch (error) {
+    if (platform.isApp && profileId !== platform.localProfiles.getActiveProfile().id) return;
+    console.error('Unable to load local progress', error);
+    showProgressError(t('personalDevelopment.loadFailed'));
   }
-  try {
-    state.history = (await platform.getScoreHistory())?.history || [];
-  } catch {
-    state.history = [];
-  }
-  try {
-    state.completed = (await platform.getCompletedLevels())?.completed || [];
-  } catch {
-    state.completed = [];
-  }
-  currentPersonalDevelopment = state;
-  renderPersonalDevelopment(state);
+}
+
+function showProgressError(message) {
+  const error = document.getElementById('personal-development-error');
+  if (error) error.textContent = message;
 }
 
 async function refreshProfileAndLeaderboard() {
@@ -805,6 +1195,7 @@ function updateHUDLogoutVisibility() {
 
 function applyAuthUIState() {
   if (platform.isApp) return;
+  renderPlayerIdentity();
   if (platform.username) {
     loginBtn.style.display = 'none';
     userDisplay.textContent = platform.username;
@@ -836,34 +1227,54 @@ if (!platform.isApp) splashLoginBtn.addEventListener('click', () => {
 
 // --- Difficulty select ---
 document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
+    if (profileMutationPending || levelStarting || pendingSkillIntro) return;
     if (btn.dataset.difficulty === 'shapes') {
-      state.difficulty = 'shapes';
+      await startPracticeSession('shapes', 1, { endless: true });
+      return;
+    }
+    levelStarting = true;
+    try {
+      if (platform.isApp) {
+        await ensureLocalProfiles();
+        await profileUI?.whenIdle();
+      }
+      practiceRun = null;
+      state.isShapesMode = false;
+      state.difficulty = btn.dataset.difficulty;
       state.timerMax = parseInt(btn.dataset.timer);
       state.timerRemaining = state.timerMax;
       state.maxHearts = parseInt(btn.dataset.hearts);
       state.hearts = state.maxHearts;
-      state.score = 0;
-      levelStartScore = 0;
       healTipShown = false;
+      const jumpValue = levelJumpSelect.value;
+      let targetLevel = jumpValue ? parseInt(jumpValue, 10) : 1;
+      if (platform.isApp) {
+        const profileId = platform.localProfiles.getActiveProfile().id;
+        const { completed } = await platform.getCompletedLevels(profileId);
+        const progress = getCampaignProgress(completed);
+        if (jumpValue && !progress.cleared.includes(targetLevel)) {
+          throw new Error('Selected replay level has not been completed by this player');
+        }
+        if (!jumpValue) targetLevel = progress.nextLevel ?? 1;
+      }
+      const targetIndex = targetLevel - 1;
+      state.score = 0;
+      levelStartScore = state.score;
       diffSelect.style.display = 'none';
-      startShapesMode();
-      return;
+      await startLevel(targetIndex, true);
+    } catch (error) {
+      console.error('Unable to start the selected campaign', error);
+      diffSelect.style.display = 'flex';
+      showTitlePage('progress');
+      showProgressError(t('personalDevelopment.loadFailed'));
+    } finally {
+      levelStarting = false;
     }
-    state.difficulty = btn.dataset.difficulty;
-    state.timerMax = parseInt(btn.dataset.timer);
-    state.timerRemaining = state.timerMax;
-    state.maxHearts = parseInt(btn.dataset.hearts);
-    state.hearts = state.maxHearts;
-    healTipShown = false;
-    const jumpValue = levelJumpSelect.value;
-    const targetLevel = jumpValue ? parseInt(jumpValue, 10) : 1;
-    const targetIndex = targetLevel - 1;
-    state.score = 0;
-    levelStartScore = state.score;
-    diffSelect.style.display = 'none';
-    startLevel(targetIndex, true);
   });
+});
+levelJumpSelect.addEventListener('change', () => {
+  if (platform.isApp && currentPersonalDevelopment) renderLocalCampaign(currentPersonalDevelopment.completed);
 });
 
 // --- Auth ---
@@ -1460,6 +1871,7 @@ function resumePendingLevel() {
 }
 
 function clearPremiumSession() {
+  setAnswerInputVisible(false);
   gameplayTimers.length = 0;
   levelRequestGeneration++;
   platform.incrementRequestGeneration();
@@ -1468,6 +1880,8 @@ function clearPremiumSession() {
   inputDisabled = true;
   state.timerActive = false;
   input.disable();
+  practiceRun = null;
+  state.isShapesMode = false;
   setAccountModalVisible(false);
   if (checkoutModal) checkoutModal.style.display = 'none';
   diffSelect.style.display = 'flex';
@@ -1490,6 +1904,9 @@ function clearPremiumSession() {
 // setup behind both checks means gameplay never starts painting until
 // everything it needs is genuinely ready.
 async function startLevel(levelIndex, includeBaseline = false) {
+  setAnswerInputVisible(false);
+  if (profileMutationPending) return;
+  levelStarting = true;
   showLoadingOverlay();
 
   // Increment generation and capture it to detect stale requests
@@ -1504,6 +1921,11 @@ async function startLevel(levelIndex, includeBaseline = false) {
   input.disable();
 
   try {
+    if (platform.isApp) {
+      await ensureLocalProfiles();
+      await profileUI?.whenIdle();
+      runProfileId = platform.localProfiles.getActiveProfile().id;
+    }
     // Fetch level config (handles authorization for premium levels)
     const cfg = await platform.getAuthorizedLevelConfig(levelIndex, includeBaseline);
 
@@ -1520,7 +1942,7 @@ async function startLevel(levelIndex, includeBaseline = false) {
 
     // Apply baseline score to state if requested and available
     let baselineScore = 0;
-    if (includeBaseline && cfg.baseline_score !== undefined) {
+    if (!platform.isApp && includeBaseline && cfg.baseline_score !== undefined) {
       baselineScore = cfg.baseline_score;
     }
 
@@ -1535,6 +1957,11 @@ async function startLevel(levelIndex, includeBaseline = false) {
         return; // Silently ignore stale request
       }
       hideLoadingOverlay();
+      const intro = getSkillIntro(cfg.level);
+      if (intro) {
+        showSkillIntro(intro, levelIndex, cfg, baselineScore);
+        return;
+      }
       finishStartLevel(levelIndex, cfg, baselineScore);
       clearPendingRecord();
       setAccountModalVisible(false);
@@ -1544,6 +1971,8 @@ async function startLevel(levelIndex, includeBaseline = false) {
     if (myGeneration === levelRequestGeneration) {
       handleLevelConfigError(err, levelIndex);
     }
+  } finally {
+    if (myGeneration === levelRequestGeneration) levelStarting = false;
   }
 }
 
@@ -1561,10 +1990,20 @@ async function showEntitlementPaywall() {
 function handleLevelConfigError(err, levelIndex) {
   const level = levelIndex + 1;
   let message = t('auth.failedToLoadLevel', { level });
+  const isPractice = Boolean(practiceRun);
 
   audio.stopBGM();
+  if (isPractice) {
+    showPracticeStatus(t('practice.startFailed', { level }), true);
+    practiceRun = null;
+    state.isShapesMode = false;
+  }
+  if (platform.isApp && err.code === 'storage_unavailable') {
+    showProgressError(t('profiles.storageError'));
+    showTitlePage('progress');
+  }
 
-  if ([401, 402, 403].includes(err.statusCode) && level > 2) {
+  if (!isPractice && [401, 402, 403].includes(err.statusCode) && level > 2) {
     savePendingRecord(levelIndex, state.score, state.difficulty, state.timerMax, state.maxHearts);
   }
   if (err.code === 'entitlement_required' && platform.isApp) {
@@ -1588,7 +2027,7 @@ function handleLevelConfigError(err, levelIndex) {
   } else if (err.statusCode === 402) {
     message = t('auth.subscriptionRequired');
     // Save pending record for L3+ so user can resume after purchasing
-    if (level > 2) {
+    if (!isPractice && level > 2) {
       savePendingRecord(levelIndex, state.score, state.difficulty, state.timerMax, state.maxHearts);
     }
     // Show account modal with billing tab
@@ -1605,8 +2044,18 @@ function handleLevelConfigError(err, levelIndex) {
 }
 
 function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
+  setAnswerInputVisible(true);
   gameplayTimers.length = 0;
-  state.isShapesMode = false;
+  waveClearing = false;
+  answerTimes = [];
+  spawnInterval = practiceRun ? 2.0 : 4.0;
+  answerClock.reset();
+  attemptSummary = createAttemptSummary();
+  completionFeedback = null;
+  lastCastAbility = null;
+  state.isShapesMode = practiceRun?.kind === 'shapes';
+  campaignWon = false;
+  completedLevelSave = null;
   currentLevelIndex = levelIndex;
   levelStartScore = state.score;
   state.level = cfg.level;
@@ -1630,9 +2079,12 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
     levelStartScore = baselineScore;
   }
 
-  const waveSize = cfg.waveSize;
-  for (let i = 0; i < waveSize; i++) {
-    spawnQueue.push(levelIndex);
+  if (practiceRun?.kind === 'targeted') {
+    spawnQueue = [...practiceRun.targetProblems];
+  } else if (practiceRun && !state.isShapesMode) {
+    spawnQueue = Array.from({ length: 10 }, () => levelIndex);
+  } else if (!practiceRun) {
+    for (let i = 0; i < cfg.waveSize; i++) spawnQueue.push(levelIndex);
   }
   spawnTimer = 2.0;
   state.combo = 0;
@@ -1643,65 +2095,10 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   topBar.style.display = 'none';
   levelClearOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
+  if (practiceBadgeRetryButton) practiceBadgeRetryButton.hidden = true;
   updateHUDLogoutVisibility();
   hud.update(state);
-  audio.startBGM(cfg.chapter);
-  syncKeepAwake();
-  if (!animFrameId) gameLoop(performance.now());
-}
-
-// Bootstraps the "Shapes" mode: an infinite, unscored shape-counting
-// practice loop. Deliberately independent of startLevel/finishStartLevel
-// (no LevelConfig entry, no waveSize/spawnQueue prefill, no level-clear) —
-// see createShapesFiend/spawnNextFiend/checkAllDefeated for how the
-// "infinite" spawning and "never clears" behavior is achieved.
-function startShapesMode() {
-  levelRequestGeneration++;
-  const generation = levelRequestGeneration;
-  showLoadingOverlay();
-  renderer.setBackgroundByLevel(1); // reuse the Grade-1 stage art; no dedicated asset needed
-
-  const ready = Promise.all([assetsLoaded, renderer.waitForBackgroundLoad()]);
-  Promise.race([
-    ready,
-    new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
-  ]).then(() => {
-    if (generation !== levelRequestGeneration) return;
-    hideLoadingOverlay();
-    finishStartShapesMode();
-  });
-}
-
-function finishStartShapesMode() {
-  gameplayTimers.length = 0;
-  currentLevelIndex = 0;
-  state.isShapesMode = true;
-  levelStartScore = state.score; // stays 0 — this mode never scores
-  state.level = 1;
-  state.waveNumber = 1;
-  state.enemiesDefeated = 0;
-  state.fiendsSpawned = 0;
-  spawnQueue = [];
-  requeuedFiends = [];
-  fiends = [];
-  activeFiend = null;
-  inputDisabled = false;
-  pendingProblemActivation = null;
-  activeLightningBolts = [];
-  activeFireballs = [];
-  activeDragons = [];
-  resetHealHold();
-
-  spawnTimer = 2.0;
-  state.combo = 0;
-  gameRunning = true;
-  paused = false;
-  pauseOverlay.style.display = 'none';
-  topBar.style.display = 'none';
-  levelClearOverlay.style.display = 'none';
-  gameOverOverlay.style.display = 'none';
-  hud.update(state);
-  audio.startBGM(1);
+  audio.startLevelBGM(cfg.level, cfg.chapter);
   syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
 }
@@ -1734,7 +2131,7 @@ function resetHealHold() {
 // never both — so pointerdown decides which, and the paired
 // pointerup/cancel/leave only ever tears down the heal-hold side of it.
 canvas.addEventListener('pointerdown', (e) => {
-  if (!gameRunning || paused) return;
+  if (!gameRunning || paused || practiceRun) return;
   if (getCurrentInputMode() !== 'multiple-choice') return;
   const x = canvasLogicalX(e.clientX);
   if (isInHealZone(x, CANVAS_W)) {
@@ -1758,7 +2155,7 @@ canvas.addEventListener('click', (e) => {
   // A click landing in the heal zone is part of the hold-to-heal gesture,
   // never the pause toggle — even a quick tap there just starts/stops a
   // (very short) heal attempt rather than pausing the game.
-  if (isInHealZone(canvasLogicalX(e.clientX), CANVAS_W)) return;
+  if (!practiceRun && isInHealZone(canvasLogicalX(e.clientX), CANVAS_W)) return;
   if (paused) {
     resumeGame();
   } else if (gameRunning) {
@@ -1770,11 +2167,22 @@ btnResumeGame.addEventListener('click', resumeGame);
 btnQuitGame.addEventListener('click', () => {
   pauseActions.style.display = 'none';
   pauseQuitActions.style.display = '';
-  const canSave = platform.isLoggedIn && !state.isShapesMode;
+  const canSave = (platform.isApp || platform.isLoggedIn) && !practiceRun && !state.isShapesMode;
   btnPauseSave.style.display = canSave ? '' : 'none';
-  pauseSaveNotice.textContent = canSave ? '' : t(state.isShapesMode
+  pauseSaveNotice.textContent = canSave ? '' : t(practiceRun
+    ? 'practice.unscoredNotice' : state.isShapesMode
     ? 'overlay.shapesScoreNotice' : 'overlay.guestScoreNotice');
+  if (platform.isApp && !practiceRun && !state.isShapesMode) {
+    btnPauseSave.textContent = t('overlay.returnTitle');
+    pauseSaveNotice.textContent = t('overlay.completedProgressNotice');
+  }
   pauseSaveError.textContent = '';
+  const quitTitle = document.getElementById('pause-quit-title');
+  quitTitle.dataset.i18n = platform.isApp ? 'overlay.quitAttemptTitle' : 'overlay.quitScorePrompt';
+  quitTitle.textContent = t(quitTitle.dataset.i18n);
+  btnPauseDiscard.style.display = platform.isApp && !practiceRun && !state.isShapesMode ? 'none' : '';
+  btnPauseDiscard.dataset.i18n = platform.isApp || practiceRun ? 'overlay.returnTitle' : 'overlay.discardScore';
+  btnPauseDiscard.textContent = t(btnPauseDiscard.dataset.i18n);
 });
 btnPauseBack.addEventListener('click', () => {
   pauseQuitActions.style.display = 'none';
@@ -1782,16 +2190,18 @@ btnPauseBack.addEventListener('click', () => {
 });
 btnPauseDiscard.addEventListener('click', quitPausedGame);
 btnPauseSave.addEventListener('click', async () => {
-  if (btnPauseSave.disabled || !paused || !platform.isLoggedIn || state.isShapesMode) return;
+  if (btnPauseSave.disabled || !paused || (!platform.isApp && !platform.isLoggedIn) || practiceRun || state.isShapesMode) return;
   btnPauseSave.disabled = true;
   btnPauseDiscard.disabled = true;
   btnPauseBack.disabled = true;
   pauseSaveError.textContent = '';
   try {
-    await platform.postHighScore(state.score, state.level);
+    if (completedLevelSave) await completedLevelSave();
+    if (!platform.isApp) await platform.postHighScore(state.score, state.level);
     quitPausedGame();
     await refreshProfileAndLeaderboard();
   } catch (error) {
+    console.error('Unable to save before returning to title', error);
     pauseSaveError.textContent = t('overlay.saveScoreFailed');
   } finally {
     btnPauseSave.disabled = false;
@@ -1810,6 +2220,7 @@ function quitPausedGame() {
   pauseQuitActions.style.display = 'none';
   diffSelect.scrollTop = 0;
   syncKeepAwake();
+  refreshProfileAndLeaderboard();
 }
 
 const gameplayTimers = [];
@@ -1841,6 +2252,18 @@ function syncKeepAwake() {
 // Android Back: while playing it pauses, while paused it backs out of the
 // quit confirmation (or resumes), and everywhere else the lifecycle exits.
 function handleAppBack() {
+  if (pendingSkillIntro) {
+    btnSkillIntroSkip?.click();
+    return true;
+  }
+  if (levelClearOverlay.style.display === 'flex') {
+    btnSaveScoreReturnTitle.click();
+    return true;
+  }
+  if (gameOverOverlay.style.display === 'flex') {
+    btnReturnTitle.click();
+    return true;
+  }
   if (pauseQuitActions.style.display !== 'none') {
     pauseQuitActions.style.display = 'none';
     pauseActions.style.display = '';
@@ -1871,6 +2294,7 @@ function pauseGame() {
   resetHealHold();
   syncKeepAwake();
 }
+document.getElementById('btn-pause-game').addEventListener('click', pauseGame);
 
 function resumeGame() {
   if (!paused) return;
@@ -1908,11 +2332,25 @@ btnHealTipConfirm.addEventListener('click', () => {
 const FIEND_MIN_GAP = 145;
 
 function spawnNextFiend() {
+  if (state.isShapesMode && !practiceRun?.endless && practiceRun?.session.isComplete()) return;
   // Wait until the previous fiend is completely gone
   if (fiends.length > 0) return;
 
   let fiend;
-  if (spawnQueue.length > 0) {
+  if (state.isShapesMode && (!practiceRun?.endless || requeuedFiends.length === 0)) {
+    fiend = createShapesFiend(CANVAS_W + 20);
+  } else if (practiceRun?.kind === 'targeted' && requeuedFiends.length > 0) {
+    fiend = requeuedFiends.shift();
+    fiend.x = CANVAS_W + 20;
+    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
+    fiend.wasRequeued = true;
+    fiend.setState('walk');
+  } else if (practiceRun?.kind === 'targeted' && spawnQueue.length > 0) {
+    const problem = spawnQueue.shift();
+    fiend = createFiend(practiceRun.sourceLevel - 1, CANVAS_W + 20);
+    fiend.problem = problem;
+    if (problem.operation) practiceRun.operations.add(problem.operation);
+  } else if (spawnQueue.length > 0) {
     const levelIndex = spawnQueue.shift();
     fiend = createFiend(levelIndex, CANVAS_W + 20);  // problem already assigned inside
   } else if (requeuedFiends.length > 0) {
@@ -1921,11 +2359,6 @@ function spawnNextFiend() {
     fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
     fiend.wasRequeued = true;
     fiend.setState('walk');
-  } else if (state.isShapesMode) {
-    // Shapes mode never populates spawnQueue/requeuedFiends — it always
-    // falls through to here, giving the "infinite" one-fiend-at-a-time
-    // stream this mode needs.
-    fiend = createShapesFiend(CANVAS_W + 20);
   }
   if (fiend) {
     fiend.on('retreated', () => { onFiendRetreated(fiend); });
@@ -1946,12 +2379,20 @@ function onFiendDead(fiend) {
 }
 
 function checkAllDefeated() {
-  // Shapes mode is an endless practice loop with no wave/level-clear
-  // concept at all — never treat it as "cleared".
-  if (state.isShapesMode) return false;
+  if (state.isShapesMode) {
+    if (practiceRun?.endless) return false;
+    return practiceRun?.session.isComplete() &&
+      spawnQueue.length === 0 && requeuedFiends.length === 0 &&
+      fiends.every(f => f.isDead || f.state === 'retreat');
+  }
   return spawnQueue.length === 0 &&
          requeuedFiends.length === 0 &&
          fiends.every(f => f.isDead || f.state === 'retreat');
+}
+
+function recordPracticeEncounterDefeated() {
+  if (!practiceRun || state.isShapesMode || practiceRun.kind === 'targeted') return;
+  practiceRun.session.recordEncounterDefeated();
 }
 
 function handleAnswer(value) {
@@ -1969,9 +2410,23 @@ function handleAnswer(value) {
 }
 
 function handleCorrectAnswer() {
-  const elapsed = (Date.now() - questionStartTime) / 1000;
+  attemptSummary.recordAnswer(activeFiend.problem, true);
+  audio.playCorrect?.();
+  const elapsed = answerClock.read();
+  const problem = activeFiend.problem;
+  if (practiceRun && !practiceRun.endless) {
+    if (practiceRun.kind !== 'targeted' || practiceRun.targetProblems.includes(problem)) {
+      practiceRun.session.recordAnswer(problem, true);
+    }
+    if (practiceRun.kind === 'recovery' &&
+        practiceRun.recovery.recordCorrect(problem, { hearts: state.hearts, maxHearts: state.maxHearts })) {
+      const previousHearts = state.hearts;
+      state.hearts = Math.min(state.maxHearts, state.hearts + 1);
+      if (state.hearts > previousHearts) audio.playHeal?.();
+    }
+  }
 
-  if (!activeFiend.wasRequeued) {
+  if (!practiceRun && !activeFiend.wasRequeued) {
     answerTimes.push(elapsed);
     if (answerTimes.length > 5) answerTimes.shift();
     updatePaceAdapter();
@@ -1988,18 +2443,21 @@ function handleCorrectAnswer() {
   // Shapes mode is deliberately unscored (no score/combo/leaderboard) —
   // combo staying at 0 also naturally keeps pickComboAbility() below from
   // ever triggering fireball/lightning/dragon, so this mode is melee-only.
-  if (!state.isShapesMode) {
+  if (!practiceRun && !state.isShapesMode) {
     state.score += points;
     state.combo++;
+  } else {
+    state.combo = 0;
   }
   state.timerActive = false;
 
   const fiend = activeFiend;
   // Decided once up front (not inside strikeNow) so the lunge gate below can
   // tell ranged spells apart from a melee hit before the hero starts moving.
-  const ability = pickComboAbility(state.combo);
+  const ability = practiceRun ? null : pickComboAbility(state.combo);
 
   const strikeNow = () => {
+    lastCastAbility = ability;
     if (ability === 'lightning') {
       // Hero strikes in place at the base location; the bolt is launched
       // from just right of his sprite toward the fiend.
@@ -2014,6 +2472,7 @@ function handleCorrectAnswer() {
         audio.playLightningHit();
         audio.playEnemyDeath();
         state.enemiesDefeated++;
+        recordPracticeEncounterDefeated();
         activeFiend = null;
         heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
           hero.setState('idle');
@@ -2040,6 +2499,7 @@ function handleCorrectAnswer() {
         if (fiend.isDead) {
           audio.playEnemyDeath();
           state.enemiesDefeated++;
+          recordPracticeEncounterDefeated();
           activeFiend = null;
           heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
             scheduleGameplayTimeout(() => {
@@ -2048,7 +2508,7 @@ function handleCorrectAnswer() {
             }, 300);
           }};
         } else {
-          const preserveTimer = shouldPreserveTimerAfterHit(fiend);
+          const preserveTimer = shouldPreserveProblemTimer(fiend);
           activeFiend = null;
           heroLunge = {
             phase: 'back',
@@ -2072,6 +2532,7 @@ function handleCorrectAnswer() {
       if (fiend.isDead) {
         audio.playEnemyDeath();
         state.enemiesDefeated++;
+        recordPracticeEncounterDefeated();
         activeFiend = null;
         input.disable();
         inputDisabled = true;
@@ -2082,7 +2543,7 @@ function handleCorrectAnswer() {
           }, 300);
         }};
       } else {
-        const preserveTimer = shouldPreserveTimerAfterHit(fiend);
+        const preserveTimer = shouldPreserveProblemTimer(fiend);
         activeFiend = null;
         input.disable();
         inputDisabled = true;
@@ -2106,6 +2567,7 @@ function handleCorrectAnswer() {
       if (fiend.isDead) {
         audio.playEnemyDeath();
         state.enemiesDefeated++;
+        recordPracticeEncounterDefeated();
         activeFiend = null;
         input.disable();
         inputDisabled = true;
@@ -2116,7 +2578,7 @@ function handleCorrectAnswer() {
           }, 300);
         }};
       } else {
-        const preserveTimer = shouldPreserveTimerAfterHit(fiend);
+        const preserveTimer = shouldPreserveProblemTimer(fiend);
         activeFiend = null;
         input.disable();
         inputDisabled = true;
@@ -2148,13 +2610,20 @@ function handleCorrectAnswer() {
   }
 }
 
-function handleWrongAnswer() {
+function handleWrongAnswer({ timeout = false } = {}) {
+  const problem = activeFiend.problem;
+  attemptSummary.recordAnswer(problem, false, { timeout });
+  if (!practiceRun) rememberMissedProblem(problem, currentLevelIndex);
+  if (practiceRun && !['targeted', 'shapes'].includes(practiceRun.kind)) {
+    practiceRun.session.recordAnswer(problem, false, { timeout });
+  }
+  activeFiend._answerFeedback = timeout ? 'timeout' : 'incorrect';
   state.combo = 0;
   hero.setState('hurt');
   activeFiend._redFlash = 0.5;  // red flash = wrong answer
   activeFiend.setState('attack');
-  audio.playWrong();
-  audio.playHeroHurt();
+  if (timeout) audio.playTimeout?.();
+  else audio.playWrong?.();
   state.timerActive = false;
   state.hearts--;
   hud.update(state);
@@ -2169,7 +2638,7 @@ function handleWrongAnswer() {
   // First time hearts drop to half (or below) in this playthrough: pause and
   // explain the hold-to-heal mechanic before letting the wrong-answer
   // sequence (reveal/retreat, scheduled below) continue.
-  if (!healTipShown && state.hearts <= state.maxHearts / 2) {
+  if (!practiceRun && !healTipShown && state.hearts <= state.maxHearts / 2) {
     healTipShown = true;
     showHealTip();
   }
@@ -2181,19 +2650,31 @@ function handleWrongAnswer() {
       // displayMode: 'shapes') — fall back to a plain "Answer: N" reveal.
       activeFiend._revealText = p.question
         ? p.question.replace(' = ?', ' = ' + p.answer)
-        : `Answer: ${p.answer}`;
+        : t('feedback.shapesAnswer', { count: p.answer });
       activeFiend.setState('reveal');
 
       scheduleGameplayTimeout(() => {
         if (activeFiend) {
-          if (activeFiend.isElite) {
+          if (activeFiend.isElite && practiceRun?.kind !== 'elite') {
             const cfg = platform.getCurrentLevelConfig();
             const regularHp = cfg?.fiendHP ?? 1;
             activeFiend.isElite = false;
             activeFiend.hp = Math.max(1, Math.min(activeFiend.hp, regularHp));
           }
-          requeuedFiends.push(activeFiend);
-          activeFiend.setState('retreat');
+          if (state.isShapesMode && !practiceRun.endless) {
+            const completedFiend = activeFiend;
+            practiceRun.session.recordAnswer(problem, false, { timeout });
+            fiends = fiends.filter(fiend => fiend !== completedFiend);
+            activeFiend = null;
+            if (practiceRun.session.isComplete()) finishPracticeSession();
+            else {
+              inputDisabled = false;
+              spawnTimer = spawnInterval;
+            }
+          } else {
+            requeuedFiends.push(activeFiend);
+            activeFiend.setState('retreat');
+          }
         }
       }, 2000);
     }
@@ -2210,20 +2691,27 @@ function activatePendingProblem() {
 
   const { fiend, preserveTimer } = pendingProblemActivation;
   pendingProblemActivation = null;
+  lastCastAbility = null;
   const mode = getCurrentInputMode();
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x);
   activeFiend = fiend;
   state.timerRemaining = getProblemTimerRemaining(state.timerMax, state.timerRemaining, preserveTimer);
-  state.timerActive = true;
-  questionStartTime = Date.now();
+  state.timerActive = !['assisted', 'targeted'].includes(practiceRun?.kind);
+  answerClock.reset();
   if (mode === 'multiple-choice') {
-    const mcOptions = [fiend.problem.answer, ...(fiend.problem.distractors || [])].sort(() => Math.random() - 0.5);
+    const mcOptions = fiend.problem.options ??
+      [fiend.problem.answer, ...(fiend.problem.distractors || [])].sort(() => Math.random() - 0.5);
     input.setMCOptions(mcOptions);
   }
   input.enable(mode);
 }
 
+function shouldPreserveProblemTimer(fiend) {
+  return practiceRun?.kind === 'elite' ? false : shouldPreserveTimerAfterHit(fiend);
+}
+
 function updatePaceAdapter() {
+  if (practiceRun) return;
   if (answerTimes.length < 3) return;
   const avg = answerTimes.reduce((a, b) => a + b, 0) / answerTimes.length;
   if (avg < state.timerMax * 0.4) {
@@ -2234,14 +2722,23 @@ function updatePaceAdapter() {
 }
 
 function triggerWaveClear() {
+  if (waveClearing) return;
+  waveClearing = true;
   gameRunning = false;
   syncKeepAwake();
   hero.setState('victory');
-  audio.playLevelClear();
 
-  // Restore all hearts and show green healing aura
+  if (practiceRun) {
+    scheduleGameplayTimeout(finishPracticeSession, 1200);
+    return;
+  }
+  if (state.level < TOTAL_LEVELS) audio.playLevelClear?.();
+  const healed = state.hearts < state.maxHearts;
   state.hearts = state.maxHearts;
-  hero._healAura = GAME_CONFIG.healingAuraDuration;
+  if (healed) {
+    hero._healAura = GAME_CONFIG.healingAuraDuration;
+    audio.playHeal?.();
+  }
   hud.update(state);
 
   scheduleGameplayTimeout(() => {
@@ -2249,84 +2746,194 @@ function triggerWaveClear() {
   }, 2000);
 }
 
+function ensurePracticeBadgeRetryButton() {
+  if (!gameOverOverlay || practiceBadgeRetryButton) return practiceBadgeRetryButton;
+  practiceBadgeRetryButton = document.createElement('button');
+  practiceBadgeRetryButton.type = 'button';
+  practiceBadgeRetryButton.id = 'btn-retry-practice-badges';
+  practiceBadgeRetryButton.className = 'diff-btn';
+  practiceBadgeRetryButton.textContent = t('practice.retryBadgeSave');
+  practiceBadgeRetryButton.hidden = true;
+  practiceBadgeRetryButton.addEventListener('click', savePracticeBadges);
+  gameOverOverlay.appendChild(practiceBadgeRetryButton);
+  return practiceBadgeRetryButton;
+}
+
+async function savePracticeBadges() {
+  if (!platform.isApp || !practiceRun?.completed || practiceRun.savedBadges || practiceRun.badgeSavePending) return;
+  if (!runProfileId || typeof platform.localProfiles.recordPractice !== 'function') return;
+  practiceRun.badgeSavePending = true;
+  const retryButton = ensurePracticeBadgeRetryButton();
+  if (retryButton) retryButton.disabled = true;
+  try {
+    const badgeIds = practiceRun.badgeIds ?? getPracticeBadgeIds(
+      [...practiceRun.operations], practiceRun.kind,
+    );
+    practiceRun.badgeIds = badgeIds;
+    const result = await platform.localProfiles.recordPractice({
+      profileId: runProfileId,
+      sessionId: practiceRun.sessionId,
+      badgeIds,
+    });
+    if (!result?.persisted) throw new Error('Practice badges were not persisted');
+    practiceRun.savedBadges = true;
+    if (retryButton) retryButton.hidden = true;
+    await refreshPracticeBadges();
+  } catch (error) {
+    console.error('Unable to save practice badges', error);
+    gameOverScore.textContent = t('practice.badgesSaveFailed');
+    if (retryButton) retryButton.hidden = false;
+  } finally {
+    practiceRun.badgeSavePending = false;
+    if (retryButton) retryButton.disabled = false;
+  }
+}
+
+function finishPracticeSession() {
+  if (!practiceRun || practiceRun.endless || practiceRun.completed) return;
+  practiceRun.completed = true;
+  triggerGameOver(true);
+  savePracticeBadges();
+}
+
+function returnToTitle() {
+  setAnswerInputVisible(false);
+  practiceRun = null;
+  state.isShapesMode = false;
+  pendingSkillIntro = null;
+  activeSkillIntro = null;
+  if (skillIntroOverlay) skillIntroOverlay.style.display = 'none';
+  diffSelect.style.display = 'flex';
+  updateHUDLogoutVisibility();
+  refreshProfileAndLeaderboard();
+  profileUI?.refresh();
+  refreshPracticeBadges();
+}
+
 function triggerLevelClear() {
+  setAnswerInputVisible(false);
+  if (practiceRun) {
+    finishPracticeSession();
+    return;
+  }
   spawnQueue = [];
   requeuedFiends = [];
 
-  if (state.level >= TOTAL_LEVELS) {
-    triggerGameOver();
-    return;
-  }
-
   const completedLevelNum = state.level;          // 1-based display number
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
-  if (platform.isLoggedIn) {
-    platform.postLevelScore(completedLevelNum, state.score - levelStartScore, state.difficulty).catch(() => {});
+  if (!practiceRun && !completedLevelSave && (platform.isApp || platform.isLoggedIn)) {
+    completedLevelSave = createLevelCompletion(platform, {
+      level: completedLevelNum, score: state.score - levelStartScore,
+      difficulty: state.difficulty, profileId: runProfileId, completionId: createCompletionId(),
+      ...(platform.isApp ? { attemptSummary: attemptSummary.snapshot() } : {}),
+    });
   }
   lastLevelClearNum = completedLevelNum;
   levelClearTitle.textContent = t('overlay.levelClearTitle', { level: completedLevelNum });
   levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
+  renderAttemptAccomplishment('level-attempt-summary');
   topBar.style.display = 'flex';
-  btnNextLevel.onclick = () => {
-    levelClearOverlay.style.display = 'none';
-    startLevel(completedIndex + 1);
-  };
-  btnReplayLevel.onclick = () => {
-    levelClearOverlay.style.display = 'none';
-    state.score = levelStartScore;
-    startLevel(completedIndex);
-  };
-  btnSaveScoreReturnTitle.style.display = platform.isLoggedIn ? 'block' : 'none';
-  btnSaveScoreReturnTitle.onclick = async () => {
-    if (!platform.isLoggedIn) return;
+  const finishCompletion = async action => {
+    if (completionPending) return;
+    completionPending = true;
+    for (const button of [btnNextLevel, btnReplayLevel, btnSaveScoreReturnTitle]) button.disabled = true;
     try {
-      await platform.postHighScore(state.score, state.level);
-      await refreshProfileAndLeaderboard();
-      levelClearOverlay.style.display = 'none';
-      audio.stopBGM();
-      diffSelect.style.display = 'flex';
-      updateHUDLogoutVisibility();
-    } catch {
+      if (completedLevelSave) {
+        completionFeedback = await completedLevelSave();
+        renderAttemptAccomplishment('level-attempt-summary');
+      }
+      await action();
+    } catch (error) {
+      console.error('Unable to save completed level', error);
       levelClearScore.textContent = t('overlay.saveScoreFailed');
+    } finally {
+      completionPending = false;
+      for (const button of [btnNextLevel, btnReplayLevel, btnSaveScoreReturnTitle]) button.disabled = false;
     }
   };
+  btnNextLevel.textContent = t(completedLevelNum >= TOTAL_LEVELS ? 'overlay.finishGame' : 'overlay.nextLevel');
+  btnNextLevel.onclick = () => finishCompletion(() => {
+    if (completedLevelNum >= TOTAL_LEVELS) triggerGameOver(true);
+    else {
+      levelClearOverlay.style.display = 'none';
+      startLevel(completedIndex + 1);
+    }
+  });
+  btnReplayLevel.onclick = () => finishCompletion(() => {
+    levelClearOverlay.style.display = 'none';
+    resetLevelAttempt(state, levelStartScore);
+    startLevel(completedIndex);
+  });
+  btnSaveScoreReturnTitle.style.display = '';
+  if (platform.isApp || !platform.isLoggedIn) {
+    btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
+  }
+  btnSaveScoreReturnTitle.onclick = () => finishCompletion(async () => {
+    if (!practiceRun && !platform.isApp && platform.isLoggedIn) await platform.postHighScore(state.score, state.level);
+    await refreshProfileAndLeaderboard();
+    levelClearOverlay.style.display = 'none';
+    audio.stopBGM();
+    diffSelect.style.display = 'flex';
+    updateHUDLogoutVisibility();
+    profileUI?.refresh();
+  });
   levelClearOverlay.style.display = 'flex';
+  if (completedLevelSave) return finishCompletion(() => refreshProfileAndLeaderboard());
 }
 
-function triggerGameOver() {
+function triggerGameOver(won = false) {
+  setAnswerInputVisible(false);
+  campaignWon = won;
   gameplayTimers.length = 0;
   gameRunning = false;
   resetHealHold();
   input.disable();
   inputDisabled = true;
   state.timerActive = false;
+  if (won && !practiceRun) audio.playCampaignVictory?.();
   levelClearOverlay.style.display = 'none';
   topBar.style.display = 'flex';
   audio.stopBGM();
   syncKeepAwake();
-  audio.playGameOver();
+  if (!won) audio.playGameOver();
+  const resultTitle = document.getElementById('game-over-title');
+  if (resultTitle) resultTitle.textContent = t(practiceRun
+    ? won ? 'practice.resultsTitle' : 'overlay.gameOverTitle'
+    : won ? 'campaign.victory' : 'overlay.gameOverTitle');
   // Shapes mode is unscored — never submit a high score for it.
-  if (platform.isLoggedIn && !state.isShapesMode) {
+  if (platform.isLoggedIn && !practiceRun && !state.isShapesMode) {
     platform.postHighScore(state.score, state.level).then(() => {
       refreshProfileAndLeaderboard();
     }).catch(() => {});
   }
-  gameOverScore.textContent = state.isShapesMode
-    ? t('overlay.shapesTryAgain')
+  gameOverScore.textContent = practiceRun?.endless ? t('overlay.shapesTryAgain') : practiceRun
+    ? t('practice.completed', {
+      correct: practiceRun.session.snapshot().correctAnswers,
+      resolved: practiceRun.session.snapshot().resolvedProblems,
+      encounters: practiceRun.session.snapshot().encountersDefeated,
+    })
+    : state.isShapesMode ? t('overlay.shapesTryAgain')
     : t('overlay.scoreLine', { score: state.score });
+  renderAttemptAccomplishment('defeat-attempt-summary', won ? completionFeedback : null);
+  btnRetryLevel.textContent = practiceRun ? t('practice.retry')
+    : won ? t('campaign.replay', { level: state.level }) : t('overlay.retryLevel');
   btnRetryLevel.onclick = () => {
     gameOverOverlay.style.display = 'none';
-    if (state.isShapesMode) {
-      startShapesMode();
-      return;
+    if (practiceRun) {
+      const { kind, sourceLevel, endless } = practiceRun;
+      resetLevelAttempt(state, 0);
+      return startPracticeSession(kind, sourceLevel, { endless });
     }
-    state.score = levelStartScore;
+    if (state.isShapesMode) {
+      resetLevelAttempt(state, 0);
+      return startPracticeSession('shapes', 1);
+    }
+    resetLevelAttempt(state, levelStartScore);
     startLevel(currentLevelIndex);
   };
   btnReturnTitle.onclick = () => {
     gameOverOverlay.style.display = 'none';
-    diffSelect.style.display = 'flex';
-    updateHUDLogoutVisibility();
+    returnToTitle();
   };
   gameOverOverlay.style.display = 'flex';
 }
@@ -2338,7 +2945,7 @@ function updateTimer(dt) {
   if (state.timerRemaining <= 0) {
     state.timerRemaining = 0;
     state.timerActive = false;
-    handleWrongAnswer();
+    handleWrongAnswer({ timeout: true });
   }
 }
 
@@ -2356,6 +2963,7 @@ function gameLoop(ts) {
   if (!paused) advanceGameplayTimers(dt);
 
   if (gameRunning && !paused) {
+    answerClock.advance(dt, state.timerActive && !inputDisabled);
     updateTimer(dt);
 
     if (!activeFiend && !inputDisabled) {
@@ -2379,7 +2987,7 @@ function gameLoop(ts) {
     // would grant while already full is simply a harmless no-op (capped
     // below), not a dead/silent interaction.
     const isMCLevel = getCurrentInputMode() === 'multiple-choice';
-    const canHeal = isMCLevel && hero.state !== 'hurt';
+    const canHeal = !practiceRun && isMCLevel && hero.state !== 'hurt';
     const healResult = updateHealHold(healHoldProgress, dt, {
       isHolding: isHealHolding,
       canHeal,
@@ -2387,7 +2995,9 @@ function gameLoop(ts) {
     });
     healHoldProgress = healResult.progress;
     if (healResult.healed) {
+      const previousHearts = state.hearts;
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
+      if (state.hearts > previousHearts) audio.playHeal?.();
       hud.update(state);
     }
     hero._holdHealActive = isHealHolding && canHeal;
@@ -2400,8 +3010,18 @@ function gameLoop(ts) {
       d.update(dt);
       if (d.breathJustCompleted) {
         audio.playDragonBreath();
-        fiends.forEach(f => { if (!f.isDead) { f.hp = 0; f.setState('death'); } });
-        triggerWaveClear();
+        state.enemiesDefeated += resolveDragonBreath(fiends);
+        if (activeFiend?.isDead || activeFiend?.state === 'death') {
+          activeFiend = null;
+          pendingProblemActivation = null;
+          state.timerActive = false;
+          input.disable();
+        }
+        if (checkAllDefeated()) triggerWaveClear();
+        else {
+          inputDisabled = false;
+          spawnTimer = spawnInterval;
+        }
       }
     });
     activeDragons = activeDragons.filter(d => !d.isDone);
@@ -2491,6 +3111,48 @@ function gameLoop(ts) {
     healFillRatio: hero._holdHealActive ? hero._holdHealRatio : 0,
   });
   hud.draw();
+  const gameplayVisible = gameRunning && diffSelect.style.display === 'none' &&
+    levelClearOverlay.style.display === 'none';
+  if (document.body.dataset.gameplay !== String(gameplayVisible)) {
+    document.body.dataset.gameplay = String(gameplayVisible);
+  }
+  gameplayChrome.setVisible(gameplayVisible && !paused);
+  const reward = getComboRewardProgress(state.combo);
+  const cfg = platform.getCurrentLevelConfig();
+  const abilityName = t(`reward.${reward.ability}`);
+  const rewardLabel = reward.remaining > 0
+    ? t(reward.chance < 1 ? 'reward.upcomingChance' : 'reward.upcoming', {
+      count: reward.remaining, ability: abilityName, chance: Math.round(reward.chance * 100),
+    })
+    : t('reward.activeChance', { ability: abilityName, chance: Math.round(reward.chance * 100) });
+  const feedback = activeFiend?.state === 'reveal' ? {
+    kind: activeFiend._answerFeedback,
+    question: activeFiend.problem.question
+      ? activeFiend.problem.question.replace(' = ?', ` = ${activeFiend.problem.answer}`)
+      : t('feedback.shapesAnswer', { count: activeFiend.problem.answer }),
+  } : null;
+  const practiceProgress = practiceRun?.session.snapshot();
+  gameplayChrome.update({
+    ...state, paused, reveal: inputDisabled || ['reveal', 'retreat', 'death'].includes(activeFiend?.state),
+    questionActive: Boolean(activeFiend && !inputDisabled &&
+      !['reveal', 'retreat', 'death'].includes(activeFiend.state)),
+    healingEnabled: !practiceRun,
+    progressLabel: practiceRun?.endless ? '' : state.isShapesMode
+      ? t('practice.questionProgress', { resolved: practiceProgress.resolvedProblems, total: 10 })
+      : t('gameplay.encounters', {
+        defeated: state.enemiesDefeated,
+        total: practiceRun
+          ? practiceRun.kind === 'targeted' ? practiceRun.targetProblems.length : 10
+          : cfg?.waveSize ?? 0,
+      }),
+    rewardLabel: practiceRun || state.isShapesMode ? '' : lastCastAbility && inputDisabled
+      ? t('reward.cast', { ability: t(`reward.${lastCastAbility}`) }) : rewardLabel,
+    healLabel: practiceRun ? '' : t('gameplay.healProgress', {
+      percent: Math.round(getHealHoldRatio(healHoldProgress, GAME_CONFIG.healHoldSecondsPerHeart) * 100),
+    }),
+    healHint: practiceRun ? '' : t('overlay.healTipBody'),
+    feedback,
+  }, activeFiend?.problem ?? null);
 }
 
 function handleUrlAuthTokens() {
@@ -2540,7 +3202,79 @@ if (!platform.isApp) {
   // (each hop can also hit a cold Lambda) before anything is shown.
   leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
 }
-refreshProfileAndLeaderboard();
+const ensureLocalProfiles = createRetryableInitialization(async () => {
+  if (platform.isApp) {
+    await platform.localProfiles.initialize({ defaultName: t('profiles.defaultName') });
+    activeLocalPlayer = platform.localProfiles.getActiveProfile();
+    renderPlayerIdentity();
+    const { mountProfileUI } = await import('./profile-ui.js');
+    const root = document.getElementById('profile-root');
+    if (root && !profileUI) {
+      profileUI = mountProfileUI({
+        root, adapter: platform.localProfiles, translate: t,
+        onBusyChange: busy => {
+          profileMutationPending = busy;
+          for (const button of document.querySelectorAll('#difficulty-select .diff-btn')) button.disabled = busy;
+          if (btnStartPractice) btnStartPractice.disabled = busy;
+        },
+        canSwitch: () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting,
+        onSelected: async () => {
+          clearMissedProblemsForOwner(platform.localProfiles.getActiveProfile().id);
+          personalBestPage = 0;
+          currentPersonalDevelopment = null;
+          activeLocalPlayer = platform.localProfiles.getActiveProfile();
+          renderPlayerIdentity();
+          levelJumpSelect.value = '';
+          await refreshPracticeBadges();
+          personalBestList.textContent = '';
+          personalCompletedOverview.textContent = '';
+          personalScoreHistoryChart.textContent = '';
+          await refreshProfileAndLeaderboard();
+        },
+        onError: error => {
+          console.error('Local profile operation failed', error);
+          showProgressError(t('profiles.storageError'));
+        },
+      });
+      await profileUI.refresh();
+    }
+  }
+  await refreshProfileAndLeaderboard();
+});
+ensureLocalProfiles().then(refreshPracticeBadges).catch(error => {
+  console.error('Unable to initialize family profiles', error);
+  showProgressError(t('profiles.storageError'));
+});
+for (const [id, delta] of [['personal-best-prev', -1], ['personal-best-next', 1]]) {
+  document.getElementById(id)?.addEventListener('click', () => {
+    personalBestPage = Math.max(0, personalBestPage + delta);
+    renderPersonalDevelopment(currentPersonalDevelopment);
+  });
+}
+for (const [id, delta] of [['leaderboard-prev', -1], ['leaderboard-next', 1]]) {
+  document.getElementById(id)?.addEventListener('click', () => {
+    leaderboardPage = Math.max(0, leaderboardPage + delta);
+    renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
+  });
+}
+function showTitlePage(name) {
+  for (const section of document.querySelectorAll('[data-title-page]')) {
+    section.hidden = section.dataset.titlePage !== name;
+  }
+  for (const button of document.querySelectorAll('.title-navigation [data-title-target]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.titleTarget === name));
+  }
+}
+for (const button of document.querySelectorAll('[data-title-target]')) {
+  button.addEventListener('click', () => {
+    showTitlePage(button.dataset.titleTarget);
+    if (button.dataset.titleTarget === 'family') profileUI?.refresh();
+  });
+}
+document.getElementById('title-leaderboard-btn').hidden = platform.isApp;
+document.getElementById('title-progress-btn').hidden = false;
+document.getElementById('title-family-btn').hidden = !platform.isApp;
+showTitlePage('play');
 
 updateMuteButtonLabel();
 
@@ -2549,12 +3283,26 @@ updateMuteButtonLabel();
 // visible UI immediately without a reload or re-fetch (gameplay state,
 // including an in-progress level, is untouched).
 onLocaleChange(() => {
+  renderAttemptAccomplishment('level-attempt-summary');
+  renderAttemptAccomplishment('defeat-attempt-summary', campaignWon ? completionFeedback : null);
+  if (platform.isApp) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
+  profileUI?.refresh();
+  if (platform.isApp && !state.isShapesMode) {
+    btnPauseSave.textContent = t('overlay.returnTitle');
+    pauseSaveNotice.textContent = t('overlay.completedProgressNotice');
+  }
   updateMuteButtonLabel();
+  audioPreferenceStatus();
+  renderSkillIntro();
+  if (practiceBadgeRetryButton) practiceBadgeRetryButton.textContent = t('practice.retryBadgeSave');
+  refreshPracticeBadges();
   if (currentLeaderboard) renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
   if (currentProfile) renderPersonalBest(currentProfile, leaderboardPersonalBest);
   if (currentPersonalDevelopment) renderPersonalDevelopment(currentPersonalDevelopment);
   renderPersonalBest(currentProfile, accountPersonalBest);
-  renderLevelJumpOptions(currentProfile);
+  if (platform.isApp && currentPersonalDevelopment) renderLocalCampaign(currentPersonalDevelopment.completed);
+  else renderLevelJumpOptions(currentProfile);
+  renderPlayerIdentity();
   if (!platform.isApp) {
     if (platform.isLoggedIn) {
       splashLoginBtn.textContent = t('splash.logout');
@@ -2567,9 +3315,23 @@ onLocaleChange(() => {
   if (levelClearOverlay.style.display !== 'none' && lastLevelClearNum !== null) {
     levelClearTitle.textContent = t('overlay.levelClearTitle', { level: lastLevelClearNum });
     levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
+    btnNextLevel.textContent = t(state.level >= TOTAL_LEVELS ? 'overlay.finishGame' : 'overlay.nextLevel');
+    if (!platform.isApp && !platform.isLoggedIn) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   }
   if (gameOverOverlay.style.display !== 'none') {
-    gameOverScore.textContent = state.isShapesMode
+    const resultTitle = document.getElementById('game-over-title');
+    if (resultTitle) resultTitle.textContent = t(practiceRun
+      ? campaignWon ? 'practice.resultsTitle' : 'overlay.gameOverTitle'
+      : campaignWon ? 'campaign.victory' : 'overlay.gameOverTitle');
+    btnRetryLevel.textContent = practiceRun ? t('practice.retry')
+      : campaignWon ? t('campaign.replay', { level: state.level }) : t('overlay.retryLevel');
+    gameOverScore.textContent = practiceRun?.endless ? t('overlay.shapesTryAgain') : practiceRun
+      ? t('practice.completed', {
+        correct: practiceRun.session.snapshot().correctAnswers,
+        resolved: practiceRun.session.snapshot().resolvedProblems,
+        encounters: practiceRun.session.snapshot().encountersDefeated,
+      })
+      : state.isShapesMode
       ? t('overlay.shapesTryAgain')
       : t('overlay.scoreLine', { score: state.score });
   }

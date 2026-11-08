@@ -11,13 +11,15 @@ const block = source.slice(source.indexOf("btnResumeGame.addEventListener("),
 function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) {
   const handlers = {};
   const element = name => ({
-    style: {}, textContent: '', disabled: false,
+    style: {}, dataset: {}, textContent: '', disabled: false,
     addEventListener(event, callback) { handlers[name] = callback; },
   });
   let submissions = 0;
   let quits = 0;
   const context = {
-    paused: false, gameRunning: true,
+    document: { getElementById() { return element(); } },
+    paused: false, gameRunning: true, completedLevelSave: null,
+    practiceRun: null,
     state: { score: 1234, level: 2, isShapesMode: shapes, timerActive: true },
     platform: { isLoggedIn: loggedIn, async postHighScore(score, level) {
       submissions++;
@@ -38,6 +40,7 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
     clearPendingRecord() {},
     diffSelect: { scrollTop: 100 },
     async refreshProfileAndLeaderboard() {},
+    console: { error() {} },
   };
   vm.createContext(context);
   vm.runInContext(block, context);

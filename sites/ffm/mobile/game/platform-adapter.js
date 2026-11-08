@@ -9,12 +9,13 @@
 //
 // The app lifecycle seam (pause/resume, Android back, keep-awake) lives in
 // ./lifecycle.js and is wired by main.js inside its platform.isApp branch.
-import { createPreferencesBackend, createProgressStore } from './progress-store.js';
+import { createPreferencesBackend } from './progress-store.js';
+import { createLocalProfileAdapter } from './local-profile-adapter.js';
 import { createPurchasesPlugin } from './purchase.js';
 import { createEntitlementStore } from './entitlement.js';
 
 // Progress and the entitlement cache share the Capacitor Preferences store.
-const progress = createProgressStore(createPreferencesBackend());
+const localProfiles = createLocalProfileAdapter({ backend: createPreferencesBackend() });
 const purchases = createPurchasesPlugin();
 const entitlement = createEntitlementStore({
   backend: createPreferencesBackend(),
@@ -100,11 +101,12 @@ const platform = {
   hasLeaderboard: false,
   isLoggedIn: false,
   username: null,
+  localProfiles,
 
   // Levels 1-2 are always free. Every other level needs the cached store
   // entitlement and, once entitled, its generated config. includeBaseline
-  // stays unsupported: the app has no level-jump UI, and main.js treats a
-  // missing baseline_score as 0.
+  // stays unsupported: local continuation/replay starts a fresh score and
+  // main.js ignores server-style baseline_score in native campaigns.
   async getAuthorizedLevelConfig(levelIndex) {
     if (Number.isInteger(levelIndex) && levelIndex >= 0 && levelIndex < FREE_LEVELS.length) {
       return FREE_LEVELS[levelIndex];
@@ -158,15 +160,26 @@ const platform = {
   // A cleared level is recorded locally: the per-level best, the timestamped
   // history behind the title-screen chart and the completed set. `saved`
   // reports a new personal best, matching the web score endpoint.
-  async postLevelScore(level, score, difficulty) {
-    const best = await progress.writeBestScore(level, score, difficulty);
-    await progress.appendHistory({ level, score, difficulty });
-    await progress.markCompleted(level);
-    return { saved: best.saved };
+  async postLevelScore(level, score, difficulty, options = {}) {
+    const attemptSummary = options.attemptSummary ? { ...options.attemptSummary } : undefined;
+    const profileId = options.profileId;
+    const completionId = options.completionId ?? globalThis.crypto.randomUUID();
+    await localProfiles.initialize();
+    const result = await localProfiles.recordLevel({
+      profileId: profileId ?? localProfiles.getActiveProfile().id,
+      completionId,
+      level, score, difficulty,
+      ...(attemptSummary ? { attemptSummary } : {}),
+    });
+    return {
+      saved: result.bestImproved,
+      ...(attemptSummary ? { previousAttemptSummary: result.previousAttemptSummary } : {}),
+    };
   },
 
-  async getScoreHistory() {
-    return { history: await progress.readHistory() };
+  async getScoreHistory(profileId) {
+    await localProfiles.initialize();
+    return localProfiles.getScoreHistory(profileId ?? localProfiles.getActiveProfile().id);
   },
 
   // The app has no account: the title screen renders the local
@@ -175,12 +188,14 @@ const platform = {
     return 'none';
   },
 
-  async getBestScores() {
-    return { best: await progress.readBestScores() };
+  async getBestScores(profileId) {
+    await localProfiles.initialize();
+    return localProfiles.getBestScores(profileId ?? localProfiles.getActiveProfile().id);
   },
 
-  async getCompletedLevels() {
-    return { completed: await progress.readCompletedLevels() };
+  async getCompletedLevels(profileId) {
+    await localProfiles.initialize();
+    return localProfiles.getCompletedLevels(profileId ?? localProfiles.getActiveProfile().id);
   },
 
   async getLeaderboard() {

@@ -61,6 +61,19 @@ test('the privacy manifest declares no tracking and only the UserDefaults reason
   assert.deepEqual(reasons, ['CA92.1']);
 });
 
+test('both build configurations support iPhone and iPad without locking rotation', async () => {
+  const pbx = await text(PBXPROJ);
+  assert.equal((pbx.match(/TARGETED_DEVICE_FAMILY = "1,2";/g) ?? []).length, 2);
+  const plist = await text(INFO_PLIST);
+  assert.deepEqual(stringsInArray(plist, 'UISupportedInterfaceOrientations'), [
+    'UIInterfaceOrientationPortrait', 'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight',
+  ]);
+  assert.deepEqual(stringsInArray(plist, 'UISupportedInterfaceOrientations~ipad'), [
+    'UIInterfaceOrientationPortrait', 'UIInterfaceOrientationPortraitUpsideDown',
+    'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight',
+  ]);
+});
+
 test('the privacy manifest is compiled into the app target', async () => {
   const pbx = await text(PBXPROJ);
   assert.match(pbx, /PrivacyInfo\.xcprivacy \*\/ = \{isa = PBXFileReference;/);

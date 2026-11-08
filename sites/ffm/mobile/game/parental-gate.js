@@ -144,7 +144,7 @@ export function buildGateMarkup({ locale = DEFAULT_LOCALE, challenge } = {}) {
   const answerLabel = translate('gate.answerLabel', loc);
   const hint = translate('gate.hint', loc);
   return [
-    '<div class="parental-gate" role="dialog" aria-modal="true"',
+    '<div class="parental-gate parental-gate-card overlay-card" role="dialog" aria-modal="true"',
     '     aria-labelledby="parental-gate-title" aria-describedby="parental-gate-description">',
     `  <h2 id="parental-gate-title">${escapeHtml(title)}</h2>`,
     `  <p id="parental-gate-description">${escapeHtml(description)}</p>`,
