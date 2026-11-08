@@ -1865,9 +1865,17 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 }
 .title-play-intro .splash-intro { max-width: 30ch; font-size: 14px; line-height: 1.5; }
 .title-play-intro .splash-subtitle, #continue-level { max-width: 26ch; line-height: 1.5; }
+.title-play-intro .splash-intro, .title-play-intro .splash-subtitle,
+.title-play-intro .player-identity, .title-play-intro #continue-level {
+  color: #fff;
+  text-shadow: 0 2px 4px #000, 0 0 8px #000, 0 0 16px #000;
+}
 .splash-diff-buttons {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(4, minmax(44px, 72px));
+  grid-template-rows: repeat(4, minmax(44px, 1fr));
+  height: 100%;
+  max-height: 312px;
+  align-content: stretch;
   width: min(100%, 560px);
   justify-self: center;
   gap: 8px;
@@ -1947,7 +1955,7 @@ body:not(.legal-body) {
     background-image: linear-gradient(rgba(9, 20, 17, 0.68), rgba(9, 20, 17, 0.86)),
       url('game/title-art-wide.png');
   }
-  .splash-diff-buttons { grid-template-rows: repeat(4, minmax(44px, 72px)); gap: 6px; }
+  .splash-diff-buttons { gap: 6px; }
 }
 
 @media (orientation: portrait) {
@@ -1955,8 +1963,9 @@ body:not(.legal-body) {
   .splash-diff-buttons { padding-inline: 4px; box-sizing: border-box; }
 }
 @media (orientation: portrait) and (max-height: 650px) {
-  .splash-diff-buttons { grid-template-rows: repeat(4, minmax(44px, 48px)); gap: 6px; }
+  .splash-diff-buttons { gap: 6px; }
   .title-play-intro { padding: 6px 10px; gap: 4px; }
+  .title-play-intro .splash-intro { display: none; }
 }
 @media (orientation: landscape) and (min-height: 500px) {
   .splash-content { grid-template-rows: 232px minmax(0, 1fr) 44px; }
@@ -1973,7 +1982,7 @@ body:not(.legal-body) {
 @media (orientation: landscape) and (max-height: 400px) {
   .splash-content { grid-template-rows: 44px minmax(0, 1fr) 44px; }
   .splash-title { align-self: center; }
-  .splash-diff-buttons { grid-template-rows: repeat(4, minmax(44px, 1fr)); gap: 4px; }
+  .splash-diff-buttons { grid-template-rows: repeat(4, minmax(44px, 1fr)); gap: 2px; }
   .splash-diff-btn { padding: 4px 8px; gap: 6px; }
   .title-play-intro { padding: 4px 8px; gap: 4px; }
   .title-play-intro .splash-intro { font-size: 11px; line-height: 1.3; }

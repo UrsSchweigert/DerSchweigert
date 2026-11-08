@@ -82,6 +82,9 @@ answers remain simultaneously visible with at least 44×44 CSS-pixel targets. `v
 `visualViewport` resize/scroll (including keyboards) and four-edge safe-area CSS without restarting, pausing,
 or saving gameplay. Ordinary title, family, progress, gate, paywall, pause and result screens use compact or
 paginated stages, not scrolling; legal documents and the legal-links stage retain scrolling and full content.
+Title mode rows share the available height above navigation, with at least 44px touch targets and a 6px
+navigation gap. Compact portrait screens omit the decorative introduction to preserve those controls;
+player and mode-selection text stays white with dark shadows over the sharp artwork.
 `tests/lifecycle.test.mjs` drives the module with fake App, KeepAwake and
 game objects. Three behaviours need a real device and stay manual gates, listed in `PENDING_MANUAL_GATES`:
 the iOS silent switch, audio interruptions from calls or other apps, and safe areas on notched devices.

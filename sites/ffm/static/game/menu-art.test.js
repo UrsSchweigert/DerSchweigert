@@ -47,3 +47,9 @@ test('title lettering has accessible text and all shell surfaces share native sa
   assert.match(css, /@media \(orientation: landscape\) and \(min-height: 500px\)[\s\S]*\.title-logo \{ height: 184px/);
   assert.match(css, /\.title-play-intro\s*\{[^}]*height:\s*auto[^}]*background:\s*none/s);
 });
+
+test('title modes shrink to available space and introduction stays readable over art', () => {
+  assert.match(css, /\.splash-diff-buttons\s*\{[^}]*grid-template-rows:\s*repeat\(4, minmax\(44px, 1fr\)\)[^}]*height:\s*100%[^}]*max-height:\s*312px/s);
+  assert.match(css, /@media \(orientation: portrait\) and \(max-height: 650px\)\s*\{[^}]*\}[^}]*\}[^}]*\.title-play-intro \.splash-intro \{ display: none; \}/s);
+  assert.match(css, /\.title-play-intro \.player-identity, \.title-play-intro #continue-level\s*\{[^}]*color:\s*#fff[^}]*text-shadow:/s);
+});
