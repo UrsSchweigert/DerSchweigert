@@ -2164,6 +2164,14 @@ canvas.addEventListener('click', (e) => {
 });
 
 btnResumeGame.addEventListener('click', resumeGame);
+function closeAudioSettings() {
+  const settings = document.getElementById('audio-settings');
+  if (!settings?.open) return false;
+  settings.open = false;
+  settings.querySelector('summary')?.focus();
+  return true;
+}
+document.getElementById('btn-audio-back').addEventListener('click', closeAudioSettings);
 btnQuitGame.addEventListener('click', () => {
   pauseActions.style.display = 'none';
   pauseQuitActions.style.display = '';
@@ -2270,6 +2278,7 @@ function handleAppBack() {
     return true;
   }
   if (paused) {
+    if (closeAudioSettings()) return true;
     if (healTipOverlay.style.display === 'flex') {
       healTipOverlay.style.display = 'none';
       paused = false;
@@ -2286,6 +2295,7 @@ function handleAppBack() {
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
+  closeAudioSettings();
   pauseActions.style.display = '';
   pauseQuitActions.style.display = 'none';
   pauseOverlay.style.display = 'flex';
@@ -2299,9 +2309,10 @@ document.getElementById('btn-pause-game').addEventListener('click', pauseGame);
 function resumeGame() {
   if (!paused) return;
   paused = false;
+  closeAudioSettings();
   pauseOverlay.style.display = 'none';
   audio.resumeBGM();
-  if (activeFiend && state.timerActive) {
+  if (activeFiend && !inputDisabled) {
     input.enable(getCurrentInputMode());
   }
   syncKeepAwake();

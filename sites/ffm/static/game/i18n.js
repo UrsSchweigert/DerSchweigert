@@ -516,6 +516,7 @@ const DICTIONARY = {
   'overlay.returnTitle': { en: 'Return to Title', de: 'Zurück zum Titel' },
   'overlay.pausedTitle': { en: 'Paused', de: 'Pausiert' },
   'overlay.resume': { en: 'Resume', de: 'Weiterspielen' },
+  'overlay.backToGame': { en: 'Back to game', de: 'Zurück zum Spiel' },
   'overlay.quitScorePrompt': { en: 'Save your score before leaving?', de: 'Punkte vor dem Verlassen speichern?' },
   'overlay.discardScore': { en: 'Discard Score & Return to Title', de: 'Punkte verwerfen & zurück zum Titel' },
   'overlay.backToPause': { en: 'Back', de: 'Zurück' },

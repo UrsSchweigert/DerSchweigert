@@ -16,9 +16,13 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
   });
   let submissions = 0;
   let quits = 0;
+  const audioSettings = { open: false, querySelector: () => ({ focus() {} }) };
   const context = {
-    document: { getElementById() { return element(); } },
-    paused: false, gameRunning: true, completedLevelSave: null,
+    document: { getElementById(id) {
+      if (id === 'audio-settings') return audioSettings;
+      return element(id);
+    } },
+    paused: false, gameRunning: true, inputDisabled: false, completedLevelSave: null,
     practiceRun: null,
     state: { score: 1234, level: 2, isShapesMode: shapes, timerActive: true },
     platform: { isLoggedIn: loggedIn, async postHighScore(score, level) {
@@ -45,8 +49,45 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
   vm.createContext(context);
   vm.runInContext(block, context);
   vm.runInContext('pauseGame();', context);
-  return { context, handlers, submissions: () => submissions, quits: () => quits };
+  return { context, handlers, audioSettings, submissions: () => submissions, quits: () => quits };
 }
+
+it('audio Back returns to pause without resuming gameplay', () => {
+  const { context, handlers, audioSettings } = setup();
+  audioSettings.open = true;
+  handlers['btn-audio-back']();
+  assert.equal(audioSettings.open, false);
+  assert.equal(context.paused, true);
+  assert.equal(context.pauseOverlay.style.display, 'flex');
+});
+
+it('Android Back closes audio settings before returning to the game', () => {
+  const { context, audioSettings } = setup();
+  Object.assign(context, {
+    pendingSkillIntro: null,
+    levelClearOverlay: { style: { display: 'none' } },
+    gameOverOverlay: { style: { display: 'none' } },
+    healTipOverlay: { style: { display: 'none' } },
+  });
+  vm.runInContext(source.match(/function handleAppBack\(\)[\s\S]*?\n\}/)[0], context);
+  audioSettings.open = true;
+  assert.equal(context.handleAppBack(), true);
+  assert.equal(audioSettings.open, false);
+  assert.equal(context.paused, true);
+  assert.equal(context.handleAppBack(), true);
+  assert.equal(context.paused, false);
+});
+
+it('Back to game restores enabled answers in untimed practice', () => {
+  const { context, handlers } = setup();
+  let enabled = 0;
+  context.activeFiend = {};
+  context.state.timerActive = false;
+  context.input.enable = () => { enabled++; };
+  handlers.resume();
+  assert.equal(enabled, 1);
+  assert.equal(context.paused, false);
+});
 
 it('requires an explicit resume choice; quit confirmation and back keep gameplay paused', () => {
   const { context, handlers } = setup();

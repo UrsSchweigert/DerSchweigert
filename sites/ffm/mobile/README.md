@@ -151,7 +151,23 @@ Canonical product/dividend ranges remain unchanged; the generator supports expli
 ### Visual and audio validation boundary
 
 The shared interface uses dusk-forest, ivory and brass colors with reduced-motion
-support. Gameplay keeps 22px questions, 16px numeric HUD and 18px answers; answer
+support. Title stages use redesigned, text-free fantasy artwork without blur.
+Landscape uses a dedicated wide composition; portrait uses a centered crop and
+additional inner padding. Other
+overlays and the portrait answer section use darkened, blurred versions. Mode
+choices are a vertical stack of oblong rows; player controls share the brass/forest
+palette, and pause/audio labels and actions are consistently centered. Decorative
+layers cannot intercept controls. Interface words remain intact; sentences may wrap
+at spaces, and compact navigation uses a proportional font to fit complete labels.
+The title uses large generated lettering art with an accessible heading and image
+label, centered independently of utility buttons. Other headings use the original
+monospace font. The introduction has no tall background panel; padded, short text
+lines leave the artwork visible. Shared four-edge inset variables default to native
+safe-area values and allow explicit notch/status-bar geometry fixtures.
+Pause offers Back to game, audio settings offer Back to pause, and
+quit confirmation retains its Back action. Android Back closes audio settings
+before resuming gameplay. Returning to untimed practice restores answer input.
+Gameplay keeps 22px questions, 16px numeric HUD and 18px answers; answer
 column sizing measures text so five-digit choices retain at least 44px targets.
 The native bundle is validated in simulated phone/tablet portrait and landscape
 viewports, but this is not physical-device touch or safe-area evidence.
