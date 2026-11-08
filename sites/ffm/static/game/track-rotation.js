@@ -48,11 +48,14 @@ export function selectTrackIndex(tracks, { stage = null, avoidIndex = -1, rng = 
  * The `makeAudio(file)` factory is injectable so tests can use a fake element.
  */
 export class TrackRotation {
-  constructor({ tracks = [], makeAudio, volume = DEFAULT_VOLUME, rng = Math.random, baseUrl = null } = {}) {
+  constructor({ tracks = [], makeAudio, volume = DEFAULT_VOLUME, rng = Math.random, baseUrl = null,
+    onError = null, prepareAudio = null, releaseAudio = null } = {}) {
     if (typeof makeAudio !== 'function') {
       throw new TypeError('TrackRotation needs a makeAudio(file) factory');
     }
     this._makeAudio = makeAudio;
+    this._prepareAudio = prepareAudio;
+    this._releaseAudio = releaseAudio;
     this._volume = volume;
     this._rng = rng;
     this._baseUrl = baseUrl;
@@ -65,6 +68,10 @@ export class TrackRotation {
     this._next = null;
     this._nextIndex = -1;
     this._onEnded = () => this.advance();
+    this._onError = (event) => {
+      console.warn('Unable to load bundled music track:', event?.target?.src ?? 'unknown track');
+      if (typeof onError === 'function') onError(event?.target);
+    };
   }
 
   get tracks() { return this._tracks; }
@@ -177,12 +184,13 @@ export class TrackRotation {
   }
 
   _create(track) {
-    const audio = this._makeAudio(track.file);
+    let audio = this._makeAudio(track.file);
     audio.src = this._resolve(track.file);
     audio.loop = false;
     audio.preload = 'auto';
     audio.volume = this._volume;
     audio.muted = this._muted;
+    if (this._prepareAudio) audio = this._prepareAudio(audio, track.file);
     this._bindEnded(audio);
     return audio;
   }
@@ -203,26 +211,31 @@ export class TrackRotation {
     if (!audio) return;
     try {
       const result = audio.play();
-      if (result && typeof result.catch === 'function') result.catch(() => {});
-    } catch {
-      // Autoplay can be blocked before the first user gesture; the next
-      // resumeBGM call retries, matching the previous engine.
+      if (result && typeof result.catch === 'function') {
+        result.catch(error => console.warn('Unable to play bundled music track:', error));
+      }
+    } catch (error) {
+      console.warn('Unable to play bundled music track:', error);
     }
   }
 
   _bindEnded(audio) {
     if (typeof audio.addEventListener === 'function') {
       audio.addEventListener('ended', this._onEnded);
+      audio.addEventListener('error', this._onError);
     } else {
       audio.onended = this._onEnded;
+      audio.onerror = this._onError;
     }
   }
 
   _unbindEnded(audio) {
     if (typeof audio.removeEventListener === 'function') {
       audio.removeEventListener('ended', this._onEnded);
+      audio.removeEventListener('error', this._onError);
     } else if (audio.onended === this._onEnded) {
       audio.onended = null;
+      if (audio.onerror === this._onError) audio.onerror = null;
     }
   }
 
@@ -230,6 +243,7 @@ export class TrackRotation {
     this._unbindEnded(audio);
     audio.pause();
     audio.currentTime = 0;
+    if (this._releaseAudio) this._releaseAudio(audio);
   }
 
   _release() {

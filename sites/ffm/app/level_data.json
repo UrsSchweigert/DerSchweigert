@@ -174,7 +174,7 @@
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 145275
     },
     {
@@ -198,7 +198,7 @@
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 162975
     },
     {
@@ -223,7 +223,7 @@
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 191925
     },
     {
@@ -248,7 +248,7 @@
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 211125
     },
     {
@@ -261,19 +261,19 @@
       ],
       "operandRange": {
         "a": [
-          1,
-          20
+          2,
+          12
         ],
         "b": [
           1,
-          15
+          7
         ]
       },
-      "maxResult": 20,
+      "maxResult": 19,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 241575
     },
     {
@@ -298,7 +298,7 @@
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 263025
     },
     {
@@ -323,7 +323,7 @@
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 296175
     },
     {
@@ -348,7 +348,7 @@
       "fiendType": "magelitch",
       "fiendHP": 2,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 319875
     },
     {
@@ -373,7 +373,7 @@
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 398775
     },
     {
@@ -398,7 +398,7 @@
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 423975
     },
     {
@@ -423,7 +423,7 @@
       "fiendType": "bonehead",
       "fiendHP": 2,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 460425
     },
     {
@@ -448,7 +448,7 @@
       "fiendType": "birdfoe",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 522825
     },
     {
@@ -473,7 +473,7 @@
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 560775
     },
     {
@@ -498,7 +498,7 @@
       "fiendType": "slimeling",
       "fiendHP": 2,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 588975
     },
     {
@@ -523,7 +523,7 @@
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 676875
     },
     {
@@ -548,7 +548,7 @@
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 706575
     },
     {
@@ -573,7 +573,7 @@
       "fiendType": "magelitch",
       "fiendHP": 2,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 747525
     },
     {
@@ -598,7 +598,7 @@
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 818925
     },
     {
@@ -624,7 +624,7 @@
       "fiendType": "bonehead",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 861375
     },
     {
@@ -650,7 +650,7 @@
       "fiendType": "birdfoe",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 986475
     },
     {
@@ -676,7 +676,7 @@
       "fiendType": "toadlord",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 1145325
     },
     {
@@ -702,7 +702,7 @@
       "fiendType": "slimeling",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 1274925
     },
     {
@@ -728,7 +728,7 @@
       "fiendType": "wolffoe",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 1438275
     },
     {
@@ -754,7 +754,7 @@
       "fiendType": "bonehead",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 1572375
     },
     {
@@ -780,7 +780,7 @@
       "fiendType": "magelitch",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 1740225
     },
     {
@@ -806,7 +806,7 @@
       "fiendType": "bonehead",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 1878825
     },
     {
@@ -832,7 +832,7 @@
       "fiendType": "toadlord",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 2051175
     },
     {
@@ -859,7 +859,7 @@
       "fiendType": "magelitch",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 2194275
     },
     {
@@ -886,7 +886,7 @@
       "fiendType": "wolffoe",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 2371125
     },
     {
@@ -913,7 +913,7 @@
       "fiendType": "snakefoe",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 2518725
     },
     {
@@ -940,7 +940,7 @@
       "fiendType": "toadlord",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 2700075
     },
     {
@@ -967,7 +967,7 @@
       "fiendType": "birdfoe",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 2861175
     },
     {
@@ -994,7 +994,7 @@
       "fiendType": "magelitch",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 3020925
     },
     {
@@ -1021,7 +1021,7 @@
       "fiendType": "bonehead",
       "fiendHP": 3,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 3171225
     },
     {
@@ -1048,7 +1048,7 @@
       "fiendType": "toadlord",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 3322875
     },
     {
@@ -1075,7 +1075,7 @@
       "fiendType": "magelitch",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 3547275
     },
     {
@@ -1102,7 +1102,7 @@
       "fiendType": "wolffoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 3776475
     },
     {
@@ -1129,7 +1129,7 @@
       "fiendType": "snakefoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 4008675
     },
     {
@@ -1156,7 +1156,7 @@
       "fiendType": "toadlord",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 4245075
     },
     {
@@ -1183,7 +1183,7 @@
       "fiendType": "magelitch",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 4483275
     },
     {
@@ -1210,7 +1210,7 @@
       "fiendType": "snakefoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 4725675
     },
     {
@@ -1237,7 +1237,7 @@
       "fiendType": "wolffoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 4972875
     },
     {
@@ -1264,7 +1264,7 @@
       "fiendType": "magelitch",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 5223075
     },
     {
@@ -1291,7 +1291,7 @@
       "fiendType": "snakefoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 5477475
     },
     {
@@ -1318,7 +1318,7 @@
       "fiendType": "wolffoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 5733675
     },
     {
@@ -1345,7 +1345,7 @@
       "fiendType": "toadlord",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 5994075
     },
     {
@@ -1372,7 +1372,7 @@
       "fiendType": "birdfoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 6259275
     },
     {
@@ -1399,7 +1399,7 @@
       "fiendType": "magelitch",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 6527475
     },
     {
@@ -1426,7 +1426,7 @@
       "fiendType": "snakefoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 6799875
     },
     {
@@ -1453,7 +1453,7 @@
       "fiendType": "wolffoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 7074075
     },
     {
@@ -1480,7 +1480,7 @@
       "fiendType": "magelitch",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 7352475
     },
     {
@@ -1507,7 +1507,7 @@
       "fiendType": "snakefoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 7635675
     },
     {
@@ -1534,7 +1534,7 @@
       "fiendType": "wolffoe",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 7921875
     },
     {
@@ -1561,7 +1561,7 @@
       "fiendType": "toadlord",
       "fiendHP": 4,
       "waveSize": 30,
-      "inputMode": "free-text",
+      "inputMode": "multiple-choice",
       "baseline_score": 8212275
     }
   ]

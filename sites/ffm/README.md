@@ -64,14 +64,77 @@ Browser
   - wrong answer or timeout hurts the hero
   - the correct equation is revealed for 2 seconds
   - the fiend retreats and is appended to `requeuedFiends`
-- Input mode is data-driven per level:
-  - `multiple-choice` uses the four DOM buttons
-  - `free-text` uses the text input and Strike button
+- All arithmetic levels use multiple choice: five unique nearby answers in levels 1-10,
+  ten in levels 11-60. Choices are seeded and shuffled; Shapes practice keeps four answers.
+- Gameplay uses an uncropped logical 800x450 scene above answers in portrait and beside
+  answers in landscape. Ordinary app screens use tabs/pagination rather than scrolling;
+  full legal documents remain scrollable. Four-edge safe areas and keyboards constrain the viewport.
 - Score is computed client-side from base points + speed bonus + combo bonus, with an elite multiplier for rare elite fiends.
-- **Combo-ability pulsating border** (`#combo-frame` in `index.html`/`styles.css`, driven by `Renderer.drawComboFrame()` in `renderer.js`): while the combo counter is past a threshold (`getComboFrameBand()` in `game/combo-abilities.js` — fireball at >5, lightning at >10, dragon at >20), a DOM overlay pulses a border colored to match that ability's sprite palette, telegraphing which ability is "charged". It's a DOM overlay rather than a canvas-drawn border because the HUD bar at the top is painted over the canvas edges, so a canvas border alone is only ever visible on the left/right. Its `bottom` is kept in sync with `#input-zone`'s live rendered height via a `ResizeObserver` (set up in the `Renderer` constructor) so the frame's south edge tracks the actual background-art/input-panel boundary, which shifts between the multiple-choice and free-text input layouts, instead of the fixed canvas bottom edge.
+- **Combo-ability pulsating border** (`#combo-frame`, driven by `Renderer.drawComboFrame()`):
+  the DOM overlay follows `#playfield`, independent of whether answers are below or beside it.
+  Its ability colors and combo thresholds remain unchanged.
 - **Per-stage background images**: `Renderer.setBackgroundByLevel()` swaps in one of `stage-1.png`..`stage-6.png` (one per 10-level chapter) as the level advances. `background.png` is a legacy, visually distinct scene (no longer used by any stage) kept only as a last-resort fallback if the real stage image's `Image` element fires an `error` event — it must not be loaded eagerly alongside the real image, or a network/decode race can let it flash on screen first as the "wrong" background.
-- On game over the frontend posts only the **overall high score** to `/api/high-score`.
-- The per-level `/api/score` endpoint exists in the backend, but the current frontend does not call it.
+- Signed-in web players submit cleared-level score deltas to `/api/score` and overall
+  scores to `/api/high-score`. Mobile saves cleared-level personal bests/history locally
+  without online login, including the final level, and refreshes title statistics.
+  Retry/replay resets the current run checkpoint, not already saved progress.
+- Mobile family players have separate local progress; purchases remain device-wide.
+  Switching is title-only and blocked during pending profile writes or level startup.
+  Unfinished-level points are not banked. Storage failures are visible and retryable.
+  Play continues at that player's first unfinished level; cleared levels can be replayed.
+  All 60 completed means replay from level 1, never level 61. Native runs do not receive
+  server baseline points. Defeat retry restores difficulty hearts and the timer while
+  retaining the level-start score, including unscored Shapes practice.
+- Readable gameplay feedback includes wrong-answer/timeout corrections, encounter progress,
+  upcoming spell thresholds and healing progress. Results show first-answer accuracy and best streak;
+  native summaries compare only the same player's previous level/difficulty clear. These are
+  optional personal replay goals, not proficiency certification.
+- Authors can assign bundled songs per level without an in-app picker; see
+  [mobile/MUSIC.md](mobile/MUSIC.md) for the catalogue, credits, assignment and rebuild steps.
+
+### Experimental practice and score comparability
+
+Practice is deliberately separate from the scored campaign. Targeted corrections,
+ten-encounter short rounds, untimed assistance, tougher elite encounters and earned
+recovery trials must never submit high scores, mark campaign levels complete, unlock
+content or contribute to ordinary replay comparisons. Finite Shapes practice counts
+ten resolved questions; its final correction remains visible before the result.
+Endless Shapes remains available. Premium practice uses the same authorization boundary
+as ordinary levels. Local badges describe activities, not proficiency or certification.
+
+The campaign keeps its existing local records and difficulty labels. Dragon breath
+only defeats currently present combat enemies; pending spawns and retreating correction
+queues survive. Spell kills are encounter progress, not correct replies or recovery
+credit. Answer latency samples only active gameplay and resets between attempts.
+
+Before promoting any experimental rule into scored play, assign an explicit ruleset
+identifier to the resulting records and compare scores only within the same ruleset,
+level and difficulty. Preserve existing records as legacy campaign records; do not
+silently reinterpret them, backfill badges from scores or mix trial results into old
+leaderboards. Promotion and any backend/schema migration require a separate reviewed
+change. No experimental rule is promoted by this implementation.
+
+### Arithmetic curriculum contracts
+
+- Levels 1–10 present five unique choices; levels 11–60 present ten. Choice generation
+  is seeded, shuffles the correct answer's position, and uses operation-aware error
+  candidates followed by a randomized nearby fallback. Every choice is a non-negative
+  safe integer within `R = max(choiceCount - 1, ceil(abs(answer) * 0.10))` of the answer.
+- `operandRange.a` and `.b` are inclusive non-negative integer ranges for the two
+  operands in addition, subtraction, and multiplication. Subtraction draws `b` from its
+  configured range while requiring `b <= a`; addition/subtraction results must also
+  respect `maxResult`.
+- Division is the deliberate exception: `operandRange.a` is the exact integer quotient
+  range, and `.b` is the positive divisor range. The displayed dividend is
+  `quotient * divisor`, so division remains exact. For multiplication and division,
+  `maxResult` is metadata only, not a hard runtime cap: factor products and division
+  dividends can legitimately exceed it in the canonical levels.
+- An impossible or malformed operation/range contract raises an explicit level-specific
+  error instead of silently substituting operands.
+- Level 11 keeps level 10's `a: 2–12`, `b: 1–7`, `maxResult: 19`, and `+`/`-` arithmetic
+  envelope while increasing the choice count to ten. Level 12 retains the next planned
+  arithmetic step (`a` and `b` up to 20, `maxResult: 20`); the premium-level boundary
+  and timer/scoring rules are unchanged.
 
 ### Auth/profile/leaderboard
 

@@ -12,7 +12,9 @@ on:
     # between the Android build and the macOS one on what actually changed.
     paths:
       - 'sites/ffm/**'
+      - 'tools/ios/**'
       - '.github/workflows/ffm-native.yml'
+      - '.github/workflows/ffm-build-artifacts.yml'
 
 permissions:
   contents: read
@@ -38,11 +40,11 @@ jobs:
           set -euo pipefail
           paths="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR/files?per_page=100" --jq '.[] | .filename, (.previous_filename // empty)')"
           needed=false
-          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(static/|mobile/)|\.github/workflows/ffm-native\.yml$)' <<< "$paths"; then
+          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(static/|mobile/|app/level_data\.json$)|tools/ios/|\.github/workflows/ffm-(native|build-artifacts)\.yml$)' <<< "$paths"; then
             needed=true
           fi
           native=false
-          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(mobile/)?(ios/|android/|package\.json|package-lock\.json|capacitor\.config\.json)|\.github/workflows/ffm-native\.yml$)' <<< "$paths"; then
+          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(mobile/)?(ios/|android/|scripts/|tests/build-artifacts\.test\.mjs$|package\.json|package-lock\.json|capacitor\.config\.json)|tools/ios/|\.github/workflows/ffm-(native|build-artifacts)\.yml$)' <<< "$paths"; then
             native=true
           fi
           echo "needed=$needed" >> "$GITHUB_OUTPUT"
@@ -86,7 +88,7 @@ jobs:
     # A macOS runner bills at ten times the Linux rate, so the iOS build runs only when something the
     # app bundle is made of changed. A game-code change is covered by the Android build and the checks;
     # the iOS project is verified again on the promotion pull request into main.
-    if: needs.changes.outputs.native == 'true'
+    if: needs.changes.outputs.native == 'true' || (needs.changes.outputs.needed == 'true' && github.event.pull_request.base.ref == 'main')
     runs-on: macos-latest
     timeout-minutes: 30
     defaults:
@@ -122,7 +124,7 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           ANDROID: ${{ needs.android.result }}
           IOS: ${{ needs.ios.result }}
-          NATIVE: ${{ needs.changes.outputs.native }}
+          IOS_REQUIRED: ${{ needs.changes.outputs.native == 'true' || (needs.changes.outputs.needed == 'true' && github.event.pull_request.base.ref == 'main') }}
         run: |
           set -euo pipefail
           if [ "$CHANGES" != success ]; then
@@ -131,7 +133,7 @@ jobs:
           fi
           if [ "$NEEDED" = false ]; then
             echo "Arithmo Slayer native inputs are unchanged."
-          elif [ "$NEEDED" = true ] && [ "$ANDROID" = success ] && { [ "${NATIVE:-}" != true ] || [ "$IOS" = success ]; }; then
+          elif [ "$NEEDED" = true ] && [ "$ANDROID" = success ] && { [ "${IOS_REQUIRED:-}" != true ] || [ "$IOS" = success ]; }; then
             echo "Native builds passed for the inputs that changed."
           else
             echo "::error::native builds are missing, pending, skipped, cancelled or failed"

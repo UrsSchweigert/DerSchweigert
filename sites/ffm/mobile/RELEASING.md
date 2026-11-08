@@ -69,10 +69,61 @@ On a Mac with Xcode, `./node_modules/.bin/cap sync ios` regenerates the SPM
 project from `capacitor.config.json` and the installed plugins. The committed
 `ios/` project is the owner's output; do not hand-edit it from a worker branch.
 
+The Xcode App target also copies and verifies the offline bundle and runs
+`cap sync ios` automatically before its resources are built, including for
+local archives. Node.js 22+ must be visible to Xcode; standard Homebrew paths
+are included. Run `npm ci` on a fresh checkout or after dependency changes.
+After changing Capacitor plugins or native dependencies, run `npm run copy-assets`
+and `npx cap sync ios` before opening/building the project, since Xcode resolves
+Swift packages before target build phases run. Missing or inconsistent
+dependencies and failed preparation stop the build.
+
 `copy-assets` also generates `www/game/level-data.js` from the private
 curriculum and strips the web account/checkout markup. The bundle check fails on
 a missing runtime file, an incomplete level set, a first-party remote URL or any
 call to the FFM API.
+
+## GitHub build artifacts
+
+`.github/workflows/ffm-build-artifacts.yml` runs only on manual dispatch or a
+`ffm-v*` tag, not on every merge. It uploads `ffm-debug-apk` (an installable
+Android debug APK, not a Play release) and `ffm-ios-xcode-project`
+(`ffm-ios-project.tar.gz`). The latter is verified by compiling unsigned and
+then archiving the extracted project unsigned with package downloads disabled.
+Neither artifact job signs a distribution release, uploads to a store or needs
+an Apple team or signing secrets.
+
+The tarball retains the `sites/ffm/mobile/ios/App/App.xcodeproj` layout, all
+mobile npm dependencies (including CLI/dev and transitive dependencies), source
+static assets, the private curriculum, app overlay, legal pages, manifests,
+build scripts, optional mobile `assets/` and `tools/ios/prepare-capacitor.sh`.
+It also includes the resolved Swift package cache: npm dependencies alone
+do not include Capacitor's remote
+Swift package. Do not move just the Xcode project out of this tree.
+
+On a Mac with compatible Xcode/iOS SDKs and Node.js 22+ and npm visible to Xcode,
+extract into a new directory and archive offline without reinstalling npm:
+
+```sh
+tar -xzf ffm-ios-project.tar.gz
+artifact_root="$PWD"
+cd sites/ffm/mobile
+node scripts/stage-ios-project.mjs --relocate "$artifact_root"
+npm ls --all --omit=optional --parseable
+xcodebuild -project ios/App/App.xcodeproj -scheme App \
+  -destination 'generic/platform=iOS' \
+  -clonedSourcePackagesDirPath "$artifact_root/swift-packages" \
+  -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -skipPackageUpdates \
+  -archivePath "$artifact_root/ArithmoSlayer-unsigned.xcarchive" \
+  CODE_SIGNING_ALLOWED=NO archive
+```
+
+The reusable `node scripts/stage-ios-project.mjs /path/to/resolved/SourcePackages`
+stages the same inputs in a fresh `.ffm-ios-stage-*` directory at the repository
+root; run asset preparation and `cap sync ios`, and resolve/build Swift packages
+before staging. The offline route above uses the included cache explicitly;
+ordinary Xcode GUI package resolution may still request the network. Signing,
+TestFlight and store distribution remain separate owner actions.
 
 ## Tests
 

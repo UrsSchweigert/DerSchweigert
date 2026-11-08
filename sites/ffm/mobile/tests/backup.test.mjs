@@ -30,7 +30,9 @@ test('progress is stored through the Capacitor Preferences backend', async () =>
 
   const adapter = await text('game/platform-adapter.js');
   assert.match(adapter, /import \{[^}]*createPreferencesBackend[^}]*\} from '\.\/progress-store\.js'/);
-  assert.match(adapter, /createProgressStore\(createPreferencesBackend\(\)\)/);
+  assert.match(adapter, /createLocalProfileAdapter\(\{ backend: createPreferencesBackend\(\) \}\)/);
+  const profiles = await text('game/profile-store.js');
+  assert.doesNotMatch(profiles, /\blocalStorage\b|\bindexedDB\b|@capacitor\/filesystem/);
 
   const pkg = JSON.parse(await text('package.json'));
   assert.match(pkg.dependencies['@capacitor/preferences'], /^8\.\d+\.\d+$/);

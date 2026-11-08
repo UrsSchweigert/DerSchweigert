@@ -31,6 +31,7 @@ function fakeAdapter(overrides = {}) {
     hasLeaderboard: true,
     isLoggedIn: false,
     username: null,
+    localProfiles: null,
   };
   for (const name of PLATFORM_METHODS) adapter[name] = async () => undefined;
   return Object.assign(adapter, overrides);
@@ -47,12 +48,13 @@ describe('platform interface', () => {
       assert.ok(PLATFORM_METHODS.includes(name), name);
     }
     assert.equal(new Set(PLATFORM_METHODS).size, PLATFORM_METHODS.length);
-    assert.deepEqual([...PLATFORM_PROPERTIES], ['isLoggedIn', 'username']);
+    assert.deepEqual([...PLATFORM_PROPERTIES], ['isLoggedIn', 'username', 'localProfiles']);
     assert.deepEqual([...PLATFORM_CAPABILITIES], ['isApp', 'hasAccount', 'hasLeaderboard']);
   });
 
   it('routes every game-to-platform call through the adapter', async () => {
     const source = await readFile(new URL('./main.js', import.meta.url), 'utf8');
+    const completionSource = await readFile(new URL('./level-completion.js', import.meta.url), 'utf8');
     const imports = source.match(/^import\s[^\n]*$/gm) || [];
     assert.ok(
       imports.some((line) => /from '\.\/platform\.js'/.test(line)),
@@ -65,7 +67,7 @@ describe('platform interface', () => {
     assert.match(source, /const platform = await resolvePlatform\(\);/);
 
     const calls = new Set(
-      [...source.matchAll(/\bplatform\.([A-Za-z_]\w*)/g)]
+      [...`${source}\n${completionSource}`.matchAll(/\bplatform\.([A-Za-z_]\w*)/g)]
         .map((match) => match[1])
         .filter((name) => name !== 'js'),
     );
@@ -220,12 +222,12 @@ describe('app platform adapter', () => {
     );
   });
 
-  it('reports no entitlement and no personal history', async () => {
+  it('reports no entitlement and explicitly rejects unavailable local storage', async () => {
     assert.equal((await appPlatform.getBillingStatus()).premium_access, false);
-    assert.deepEqual(await appPlatform.getScoreHistory(), { history: [] });
+    await assert.rejects(appPlatform.getScoreHistory(), { code: 'storage_unavailable' });
     assert.deepEqual(await appPlatform.getLeaderboard(), []);
     assert.deepEqual(await appPlatform.postHighScore(10, 1), { saved: false });
-    assert.deepEqual(await appPlatform.postLevelScore(1, 10, 'easy'), { saved: false });
+    await assert.rejects(appPlatform.postLevelScore(1, 10, 'easy'), { code: 'storage_unavailable' });
   });
 
   it('validates pending records like the web adapter', () => {
@@ -253,7 +255,7 @@ describe('app platform adapter', () => {
     try {
       await appPlatform.getAuthorizedLevelConfig(0);
       await appPlatform.getBillingStatus();
-      await appPlatform.getScoreHistory();
+      await assert.rejects(appPlatform.getScoreHistory(), { code: 'storage_unavailable' });
       await appPlatform.postHighScore(1, 1);
       await assert.rejects(appPlatform.login('ada', 'secret'));
     } finally {

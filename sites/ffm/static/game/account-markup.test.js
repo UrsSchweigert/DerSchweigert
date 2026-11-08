@@ -7,15 +7,18 @@ const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const source = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 
-it('starts the title screen at the top without shrinking overflowing content', () => {
+it('uses paginated title sections instead of a scrolling title screen', () => {
   const screen = css.match(/^\.splash-screen\s*\{([^}]*)\}/m)?.[1];
   const content = css.match(/^\.splash-content\s*\{([^}]*)\}/m)?.[1];
   assert.ok(screen);
   assert.ok(content);
   assert.match(screen, /justify-content:\s*flex-start;/);
-  assert.match(screen, /overflow-y:\s*auto;/);
-  assert.match(content, /flex-shrink:\s*0;/);
+  assert.match(screen, /overflow-y:\s*hidden;/);
+  assert.match(content, /flex-shrink:\s*1;/);
   assert.match(content, /margin:\s*0 auto;/);
+  for (const page of ['play', 'progress', 'family', 'history', 'legal']) {
+    assert.ok(html.includes(`data-title-page="${page}"`), page);
+  }
 });
 
 it('keeps the top bar behind and inactive until both account and auth panels close', () => {
@@ -71,13 +74,13 @@ it('lets translated account tabs wrap', () => {
   assert.match(css, /#account-tabs \.tab-btn\s*\{[^}]*flex:\s*1 1 110px;[^}]*min-width:\s*0;/);
 });
 
-it('bounds every overlay card to the viewport and lets overflowing content scroll', () => {
+it('bounds ordinary overlay cards to the usable viewport without scrolling', () => {
   const card = css.match(/^\.overlay-card\s*\{([^}]*)\}/m)?.[1];
   assert.ok(card, 'shared overlay card styles must exist');
   assert.match(card, /box-sizing:\s*border-box;/);
   assert.match(card, /width:\s*calc\(100% - 32px\);/);
-  assert.match(card, /max-height:\s*calc\(100vh - 32px\);[\s\S]*max-height:\s*calc\(100dvh - 32px\);/);
-  assert.match(card, /overflow-y:\s*auto;/);
+  assert.match(card, /max-height:\s*100%;/);
+  assert.match(card, /overflow-y:\s*hidden;/);
   assert.match(card, /overscroll-behavior:\s*contain;/);
   assert.match(card, /overflow-wrap:\s*anywhere;/);
   for (const name of ['auth-modal', 'account-modal', 'checkout-modal', 'auth-status-modal', 'level-clear', 'game-over']) {

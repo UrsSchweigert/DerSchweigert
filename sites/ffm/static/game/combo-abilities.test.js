@@ -1,7 +1,16 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { COMBO_ABILITY_RULES, pickComboAbility, getComboFrameBand } from './combo-abilities.js';
+import { COMBO_ABILITY_RULES, pickComboAbility, getComboFrameBand, getComboRewardProgress } from './combo-abilities.js';
+
+it('reward hints use the real strict thresholds and never promise a guaranteed dragon', () => {
+  for (const [combo, ability, remaining, chance] of [
+    [0, 'fireball', 6, 1], [5, 'fireball', 1, 1], [6, 'lightning', 5, 1],
+    [10, 'lightning', 1, 1], [11, 'dragon', 10, 0.8], [20, 'dragon', 1, 0.8],
+    [21, 'dragon', 0, 0.8],
+  ]) assert.deepEqual(getComboRewardProgress(combo), { ability, remaining, chance });
+  for (const value of [-1, 1.5, NaN]) assert.throws(() => getComboRewardProgress(value), TypeError);
+});
 
 describe('pickComboAbility', () => {
   it('returns null for combos 0, 1, 3, 5 with rollFn () => 0', () => {

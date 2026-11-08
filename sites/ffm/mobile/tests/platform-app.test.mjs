@@ -88,10 +88,10 @@ test('the app adapter needs no api.js and never touches the network', async () =
   try {
     await platform.getAuthorizedLevelConfig(0);
     await platform.getBillingStatus();
-    await platform.getScoreHistory();
+    await assert.rejects(platform.getScoreHistory(), { code: 'storage_unavailable' });
     await platform.getLeaderboard();
     await platform.postHighScore(10, 1);
-    await platform.postLevelScore(1, 10, 'easy');
+    await assert.rejects(platform.postLevelScore(1, 10, 'easy'), { code: 'storage_unavailable' });
     for (const name of PLATFORM_METHODS) {
       await Promise.resolve(platform[name]()).catch(() => {});
     }
