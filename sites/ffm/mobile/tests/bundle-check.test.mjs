@@ -141,7 +141,7 @@ test('a missing core play module fails the bundle check', async () => {
 
 test('the app-only overlay UI module and stylesheet are bundled', async () => {
   await withBundle(async (dir) => {
-    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/timer-bar.js', 'game/level-numerals.js']) {
+    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/timer-bar.js', 'game/level-numerals.js', 'game/bubble-timer.js']) {
       assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
     }
     const source = await readFile(join(dir, 'game', 'mobile-ui.js'), 'utf8');
@@ -155,6 +155,10 @@ test('the app-only overlay UI module and stylesheet are bundled', async () => {
     assert.match(levelNumerals, /export function createLevelNumerals/);
     assert.match(levelNumerals, /export function resolveLevelSelection/);
     assert.doesNotMatch(levelNumerals, /https?:\/\//, 'the level numerals must stay offline');
+    const bubbleTimer = await readFile(join(dir, 'game', 'bubble-timer.js'), 'utf8');
+    assert.match(bubbleTimer, /export function createBubbleTimer/);
+    assert.match(bubbleTimer, /export const BUBBLE_COUNT/);
+    assert.doesNotMatch(bubbleTimer, /https?:\/\//, 'the bubble timer must stay offline');
     assert.deepEqual(await bundleCheck(dir), []);
   });
 });

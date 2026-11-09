@@ -84,6 +84,10 @@ if (platform.isApp) {
         doc: document,
         translate: t,
       }));
+      return import('./bubble-timer.js');
+    })
+    .then(({ createBubbleTimer }) => {
+      mobileUi?.registerWidget('bubble-timer', createBubbleTimer({ doc: document }));
     })
     .catch(() => {});
   // Pause gameplay and music while the app is in the background, resume only

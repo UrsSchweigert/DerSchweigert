@@ -162,7 +162,7 @@ test('the app overlay ships the mobile UI seam module and stylesheet', async () 
     const out = await make('ffm-www-');
     await copyAssets(undefined, out);
 
-    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/timer-bar.js', 'game/level-numerals.js']) {
+    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/timer-bar.js', 'game/level-numerals.js', 'game/bubble-timer.js']) {
       const info = await stat(join(out, rel)).catch(() => null);
       assert.ok(info?.isFile(), `${rel} must be bundled`);
     }
@@ -181,6 +181,10 @@ test('the app overlay ships the mobile UI seam module and stylesheet', async () 
     assert.equal(
       await readFile(join(out, 'game', 'level-numerals.js'), 'utf8'),
       await readFile(join(root, 'game', 'level-numerals.js'), 'utf8'),
+    );
+    assert.equal(
+      await readFile(join(out, 'game', 'bubble-timer.js'), 'utf8'),
+      await readFile(join(root, 'game', 'bubble-timer.js'), 'utf8'),
     );
   });
 });
