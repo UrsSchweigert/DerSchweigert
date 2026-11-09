@@ -162,3 +162,30 @@
     box-shadow: 0 0 4px var(--bubble-color, #4caf50);
   }
 }
+
+/* Shapes question header, restructured by shapes-header.js into exactly two
+ * rows: the localized instruction and one unbroken row of shapes.
+ *
+ * The renderer writes the per-row font size inline, scaled from the measured
+ * header width, so a count of 1-10 never wraps between shapes and never needs
+ * clipping or ellipsis. Only the header text is restructured: #input-zone,
+ * #mc-buttons and the 44px answer targets keep their web geometry. */
+#active-question[data-shapes-header="two-rows"] {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  row-gap: 0;
+}
+
+#active-question[data-shapes-header="two-rows"] .app-shapes-header-instruction,
+#active-question[data-shapes-header="two-rows"] .app-shapes-header-shapes {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-family: monospace;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}

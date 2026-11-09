@@ -88,6 +88,10 @@ if (platform.isApp) {
     })
     .then(({ createBubbleTimer }) => {
       mobileUi?.registerWidget('bubble-timer', createBubbleTimer({ doc: document }));
+      return import('./shapes-header.js');
+    })
+    .then(({ createShapesHeader }) => {
+      gameplayChrome.setShapesHeader(createShapesHeader({ doc: document }));
     })
     .catch(() => {});
   // Pause gameplay and music while the app is in the background, resume only

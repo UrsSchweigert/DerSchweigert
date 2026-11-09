@@ -28,6 +28,7 @@ export const BUNDLE_FILES = Object.freeze([
   'game/timer-bar.js',
   'game/level-numerals.js',
   'game/bubble-timer.js',
+  'game/shapes-header.js',
 ]);
 
 const FIRST_PARTY_HOST_RE = /(^|\.)derschweigert\.de$/i;
