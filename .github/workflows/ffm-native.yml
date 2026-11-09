@@ -43,8 +43,11 @@ jobs:
           if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(static/|mobile/|app/level_data\.json$)|tools/ios/|\.github/workflows/ffm-(native|build-artifacts)\.yml$)' <<< "$paths"; then
             needed=true
           fi
+          # The macOS build bills at ten times the Linux rate, so it runs only for the app's native and build inputs.
+          # JavaScript, script and test changes are covered by the Android build and the Node checks here; iOS is
+          # built again on the promotion pull request into main.
           native=false
-          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(mobile/)?(ios/|android/|scripts/|tests/build-artifacts\.test\.mjs$|package\.json|package-lock\.json|capacitor\.config\.json)|tools/ios/|\.github/workflows/ffm-(native|build-artifacts)\.yml$)' <<< "$paths"; then
+          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(mobile/)?(ios/|android/|package\.json|package-lock\.json|capacitor\.config\.json)|tools/ios/|\.github/workflows/ffm-(native|build-artifacts)\.yml$)' <<< "$paths"; then
             native=true
           fi
           echo "needed=$needed" >> "$GITHUB_OUTPUT"

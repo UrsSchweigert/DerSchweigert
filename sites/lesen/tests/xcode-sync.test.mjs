@@ -31,8 +31,12 @@ test('shared preparation changes run the affected test and native build gates', 
   assert.match(deploy, /tools\/ios\/\*\) ffm_tests=true; lesen_tests=true; harness_tests=true ;;/);
   for (const workflow of ['lesen-native.yml', 'ffm-native.yml']) {
     const text = await readFile(new URL(`.github/workflows/${workflow}`, root), 'utf8');
-    assert.equal((text.match(/tools\/ios\//g) ?? []).length, workflow === 'ffm-native.yml' ? 3 : 2);
+    assert.equal((text.match(/tools\/ios\//g) ?? []).length, 3);
+    assert.match(text, /^\s+- 'tools\/ios\/\*\*'$/m);
   }
+  // The Buchstabenzeit gate must not start for a pull request that cannot touch it.
+  const lesenNative = await readFile(new URL('.github/workflows/lesen-native.yml', root), 'utf8');
+  assert.match(lesenNative, /paths:\n\s+- 'sites\/lesen\/\*\*'/);
 });
 
 test('shared preparation validates dependencies, verifies the bundle and syncs iOS; errors stop the build', async () => {
