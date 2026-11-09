@@ -123,6 +123,7 @@ def _plans(store: Store, report: Dict[str, Any], now: float) -> None:
                                 "approval": appr, "paused_reason": run.get("paused_reason", ""), "cancel_requested": bool(run.get("cancel_requested")),
                                 "pause_requested": bool(run.get("pause_requested")),
                                 "pause_after_phase": run.get("pause_after_phase", ""),
+                                "usage_window_until": run.get("window_until", 0),
                                 "base_branch": plans.base_branch(plan), "run_branch": plans.run_branch(plan),
                                 "promotion": run.get("promotion") or {}})
         limit = budgets.get("pull_requests_per_run")  # None means unlimited

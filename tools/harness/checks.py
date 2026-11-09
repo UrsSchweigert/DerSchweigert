@@ -167,7 +167,8 @@ class SandboxChecker(Checker):
         if handle.proc is None:
             handle.tail, handle.timed_out = "", False
             wrapped = ["timeout", "--kill-after=5", str(self.timeout), "sh", "-c", command]
-            handle.proc = isolation.start_worker(handle.workdir, wrapped, self.token_file, name=handle.name)
+            token = self.token_file if os.path.exists(self.token_file) else None  # a store without a Copilot token still runs checks
+            handle.proc = isolation.start_worker(handle.workdir, wrapped, token, name=handle.name)
             handle.started_at = self.clock()
             proc = handle.proc
 

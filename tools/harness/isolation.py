@@ -23,6 +23,7 @@ IMAGE = "harness-worker:1"
 ATTESTATION_TTL_S = 24 * 3600
 WORKER_UID = 10001
 COPILOT_TOKEN_ENV = "COPILOT_GITHUB_TOKEN"
+CLAUDE_TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"  # a subscription token from `claude setup-token`; never ANTHROPIC_API_KEY, which bills the API
 
 _CREDENTIAL_NAME = re.compile(r"(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL|PRIVATE_KEY|^GH_|^GITHUB_|^SSH_AUTH_SOCK$|^AWS_|^BLENDERMCP_|^HARNESS_)", re.I)
 
@@ -83,32 +84,35 @@ def docker_args(workdir: str, command: List[str], pass_env: Optional[List[str]] 
     return args + [image] + command
 
 
-def pass_env_names(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None) -> List[str]:
-    """Names forwarded into the worker for one attempt: the Copilot token and/or a BYOK provider profile."""
-    names = [COPILOT_TOKEN_ENV] if copilot_token_file else []
+def pass_env_names(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None,
+                   token_env: str = COPILOT_TOKEN_ENV) -> List[str]:
+    """Names forwarded into the worker for one attempt: the runtime token and/or a BYOK provider profile."""
+    names = [token_env] if copilot_token_file else []
     return names + list(provider or {})
 
 
-def _worker_env(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
+def _worker_env(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None,
+                token_env: str = COPILOT_TOKEN_ENV) -> Dict[str, str]:
     env = scrub_env(os.environ)
     if copilot_token_file:
         with open(copilot_token_file) as fh:
-            env[COPILOT_TOKEN_ENV] = fh.read().strip()
+            env[token_env] = fh.read().strip()
     for name, value in (provider or {}).items():
         env[name] = value
     return env
 
 
-def worker_env_for_attempt(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
+def worker_env_for_attempt(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None,
+                           token_env: str = COPILOT_TOKEN_ENV) -> Dict[str, str]:
     """The environment for one worker process: scrubbed host env plus the credential the attempt needs."""
-    return _worker_env(copilot_token_file, provider)
+    return _worker_env(copilot_token_file, provider, token_env)
 
 
 def start_worker(workdir: str, command: List[str], copilot_token_file: Optional[str], *, name: str,
-                 provider: Optional[Mapping[str, str]] = None) -> subprocess.Popen:
-    args = docker_args(workdir, command, pass_env_names(copilot_token_file, provider), name=name)
+                 provider: Optional[Mapping[str, str]] = None, token_env: str = COPILOT_TOKEN_ENV) -> subprocess.Popen:
+    args = docker_args(workdir, command, pass_env_names(copilot_token_file, provider, token_env), name=name)
     return subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                            env=_worker_env(copilot_token_file, provider))
+                            env=_worker_env(copilot_token_file, provider, token_env))
 
 
 def cancel_worker(name: str, proc: Optional[subprocess.Popen] = None) -> None:
@@ -124,10 +128,10 @@ def cancel_worker(name: str, proc: Optional[subprocess.Popen] = None) -> None:
 
 
 def run_worker(workdir: str, command: List[str], copilot_token_file: Optional[str] = None, timeout: int = 1800,
-               provider: Optional[Mapping[str, str]] = None) -> subprocess.CompletedProcess:
+               provider: Optional[Mapping[str, str]] = None, token_env: str = COPILOT_TOKEN_ENV) -> subprocess.CompletedProcess:
     """Run a command in the sandbox. Credentials travel in the docker client's environment, not its arguments."""
-    return _docker(docker_args(workdir, command, pass_env_names(copilot_token_file, provider)), timeout=timeout,
-                   env=_worker_env(copilot_token_file, provider))
+    return _docker(docker_args(workdir, command, pass_env_names(copilot_token_file, provider, token_env)), timeout=timeout,
+                   env=_worker_env(copilot_token_file, provider, token_env))
 
 
 # -- verification -------------------------------------------------------------

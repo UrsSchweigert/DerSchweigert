@@ -66,9 +66,10 @@ def _environment(store: Store, home: str, args, execute, ask) -> None:
         if execute(["isolation", "build"]) != 0:
             raise Stop("the worker image could not be built")
     print("  worker image: %s" % isolation.IMAGE, flush=True)
-    if not os.path.exists(os.path.join(home, "copilot.token")):
-        raise Stop("copilot.token is missing from %s; see the one-time setup in tools/harness/README.md" % home)
-    print("  copilot.token: present", flush=True)
+    present = [name for name in ("claude.token", "copilot.token") if os.path.exists(os.path.join(home, name))]
+    if not present:
+        raise Stop("claude.token (or copilot.token) is missing from %s; see the one-time setup in tools/harness/README.md" % home)
+    print("  %s: present" % ", ".join(present), flush=True)
     iso = approval.detect_isolation(store)
     if iso["tier"] != "A":
         print("  sandbox: %s" % iso["reason"], flush=True)
@@ -114,11 +115,12 @@ def _sources(store: Store, args, execute, ask) -> List[str]:
         print("  using the operator default %s (set HARNESS_MODEL_SOURCES to change it)" % ",".join(standing), flush=True)
         return standing
     catalog = models.load_catalog(store.home)
+    default = ["claude"] if os.path.exists(os.path.join(store.home, "claude.token")) else DEFAULT_SOURCES
     for attempt in range(3):
         accepted = _accepted_models(store)
         for source in models.SOURCES:
             print("  " + _source_line(catalog, source, accepted), flush=True)
-        chosen = parse_sources(ask("  sources to allow [%s]: " % ",".join(DEFAULT_SOURCES)), DEFAULT_SOURCES)
+        chosen = parse_sources(ask("  sources to allow [%s]: " % ",".join(default)), default)
         if accepted is None:
             if _yes(ask, "  probe them now to see what this runtime accepts (10-60 s)?"):
                 execute(["models"] + sum([["--source", source] for source in chosen], []))

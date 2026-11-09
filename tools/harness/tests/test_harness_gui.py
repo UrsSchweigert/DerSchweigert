@@ -644,7 +644,7 @@ def test_the_models_panel_shows_the_menu_and_the_cached_probe(gui_server, tmp_pa
     (tmp_path / "home" / "models.json").write_text(json.dumps(
         {"checked_at": 100, "candidates": ["claude-haiku-4.5"], "models": ["claude-haiku-4.5"]}))
     state = models_state(gui_server)
-    assert state["sources"] == ["copilot", "deepseek", "local"]
+    assert state["sources"] == ["copilot", "claude", "deepseek", "local"]
     assert state["menu"]["low"][0] == "claude-haiku-4.5" and state["catalog"]["copilot"]["strong"]
     assert state["cache"]["available"] == ["claude-haiku-4.5"] and state["cache"]["checked_at"] == 100
     assert state["read_only"] is False and state["probing"] is False and state["probe"] is None

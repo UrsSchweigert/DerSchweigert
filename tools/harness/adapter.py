@@ -320,3 +320,117 @@ class CopilotCliAdapter(Adapter):
 
     def cleanup(self, handle: _Handle) -> None:
         shutil.rmtree(handle.workdir, ignore_errors=True)
+
+
+# A subscription limit is a window, not an error: the worker did nothing wrong and nothing is spent by waiting.
+WINDOW_TEXT = re.compile(r"limit reached|hit your .{0,20}limit|reached your .{0,40}limit|usage limit", re.I)
+WINDOW_EPOCH = (re.compile(r"limit reached\s*\|\s*(\d{9,13})", re.I), re.compile(r"resets?_?at\"?\s*[:=]\s*\"?(\d{9,13})", re.I))
+WINDOW_MAX_S = 8 * 24 * 3600  # a reset further away than the weekly window is a parsing mistake
+
+
+def usage_window_reset(text: str, now: float) -> Optional[float]:
+    """Epoch seconds when the usage window reopens, if the output says so."""
+    for pattern in WINDOW_EPOCH:
+        found = pattern.search(text)
+        if found:
+            value = float(found.group(1))
+            value = value / 1000 if value > 1e11 else value
+            if now < value <= now + WINDOW_MAX_S:
+                return value
+    return None
+
+
+class ClaudeCodeAdapter(CopilotCliAdapter):
+    """Claude Code CLI in the same sandbox, billed against the Claude subscription window instead of per call."""
+
+    name = "claude-code"
+
+    def __init__(self, store_home: str, source_repo: str, base: str = "main"):
+        super().__init__(store_home, source_repo, base)
+        self.token_file = os.path.join(store_home, "claude.token")
+
+    def provider_for(self, model_id: str) -> Optional[Dict[str, str]]:
+        return None  # BYOK endpoints are a Copilot CLI feature
+
+    def _credential(self, candidates: Optional[List[str]]) -> tuple:
+        if not os.path.exists(self.token_file):
+            return None, "claude.token is missing from the store; run `claude setup-token` and save the result there"
+        return self.token_file, ""
+
+    def probe(self, candidates: Optional[List[str]] = None) -> Dict[str, Any]:
+        if not isolation.docker_available():
+            return {"available": False, "reason": "docker is not available", "models": None}
+        if isolation.image_id() is None:
+            return {"available": False, "reason": "worker image is not built", "models": None}
+        token_file, problem = self._credential(candidates)
+        if problem:
+            return {"available": False, "reason": problem, "models": None}
+        accepted = None
+        if candidates:
+            work = isolation.new_workdir("models-")
+            try:
+                accepted = []
+                for m in candidates:
+                    res = isolation.run_worker(work, ["claude", "-p", "reply OK", "--model", m], token_file, timeout=120,
+                                               token_env=isolation.CLAUDE_TOKEN_ENV)
+                    output = res.stdout + res.stderr
+                    # A closed window says nothing about the id, so it must not hide a model from the menu.
+                    if res.returncode == 0 or WINDOW_TEXT.search(output):
+                        accepted.append(m)
+            finally:
+                shutil.rmtree(work, ignore_errors=True)
+        return {"available": True, "reason": "sandbox and image present; claude.token configured", "models": accepted}
+
+    def start(self, req: WorkRequest, prompt: Optional[str] = None) -> _Handle:
+        work = self._prepare(req, prompt)
+        name = "harness-%s-%s" % (re.sub(r"[^A-Za-z0-9_.-]", "_", req.attempt_id), os.urandom(3).hex())
+        model = ["--model", req.model] if req.model else []
+        script = ("export DISABLE_AUTOUPDATER=1 && cd /work/repo && git config user.name harness && git config user.email harness@localhost && "
+                  "claude -p \"$(cat /work/prompt.txt)\" %s --dangerously-skip-permissions --output-format stream-json --verbose; echo $? > /work/exit_code"
+                  % " ".join(model))
+        args = isolation.docker_args(work, ["sh", "-c", script], pass_env=isolation.pass_env_names(self.token_file, None, isolation.CLAUDE_TOKEN_ENV), name=name)
+        env = isolation.worker_env_for_attempt(self.token_file, None, isolation.CLAUDE_TOKEN_ENV)
+        proc = subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+        handle = _Handle(req, work, proc, name)
+
+        def pump():
+            for line in proc.stdout:
+                handle.last_activity = time.time()
+                handle.tail = (handle.tail + [line.rstrip()])[-20:]
+
+        threading.Thread(target=pump, daemon=True).start()
+        return handle
+
+    def poll(self, handle: _Handle, now: float) -> Poll:
+        result = super().poll(handle, now)
+        if result.state == "finished" and result.error and result.error.get("kind") in ("rate_limit", "runtime_crash", "no_result", "credentials"):
+            text = "\n".join(handle.tail)
+            if WINDOW_TEXT.search(text):
+                return Poll("finished", handle.last_activity, None,
+                            {"kind": "usage_window", "detail": "the Claude usage window is closed", "reset_at": usage_window_reset(text, now)})
+        return result
+
+    def describe(self, handle: _Handle) -> str:
+        """The latest tool call from the stream-json output, else the latest line."""
+        for line in reversed(handle.tail):
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            content = (event.get("message") or {}).get("content") if isinstance(event, dict) else None
+            for block in reversed(content if isinstance(content, list) else []):
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    return ("● %s" % block.get("name", "tool"))[:100]
+        return super().describe(handle)
+
+
+def runtime_name(home: str) -> str:
+    """HARNESS_RUNTIME wins; otherwise a store holding claude.token runs Claude Code, anything else the Copilot CLI."""
+    chosen = os.environ.get("HARNESS_RUNTIME", "").strip().lower()
+    if chosen in ("claude", "copilot"):
+        return chosen
+    return "claude" if os.path.exists(os.path.join(home, "claude.token")) else "copilot"
+
+
+def adapter_for(home: str, source_repo: str, base: str = "main") -> CopilotCliAdapter:
+    return (ClaudeCodeAdapter if runtime_name(home) == "claude" else CopilotCliAdapter)(home, source_repo, base)

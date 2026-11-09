@@ -56,6 +56,8 @@ MERGE_PENDING = ("in progress", "queued", "waiting for status", "expected \u2014
 # refusals ("merge commit is expected to be signed") that are real failures.
 MERGE_CHECK_EXPECTED = re.compile(r"required status checks?\b[^\n]{0,200}?\b(?:is|are) expected")
 MERGE_PENDING_TIMEOUT_S = 30 * 60
+WINDOW_FALLBACK_S = 30 * 60  # used when the runtime does not say when the usage window reopens
+WINDOW_MARGIN_S = 60
 MAX_DECISION_TEXT = 2000
 HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "analyst": "the strong analysis gave no usable result",
                   "overseer": "the overseer gave no usable decision"}
@@ -121,6 +123,7 @@ class Scheduler:
         self.check_runs: Dict[str, Dict[str, Any]] = {}
         self.events: List[Dict[str, Any]] = []
         self._admitted_phases: Optional[set] = None  # recomputed each tick; None means no pause-after-phase gate is armed
+        self._window_reset: Optional[float] = None  # reset time reported by the attempt that just hit the usage window
 
     # -- plan and policy ------------------------------------------------------
 
@@ -596,6 +599,7 @@ class Scheduler:
             if kind == "cancelled":
                 self._release(meta["attempt_id"])
                 return
+            self._window_reset = poll.error.get("reset_at")
             self._record_failure(meta, kind, now, poll.error.get("detail", kind), tail=self._attempt_tail(h))
             return
         result = poll.result
@@ -664,6 +668,8 @@ class Scheduler:
         if repeated_check_failure:
             decision = {"action": "block", "reason": "identical check failure repeated without changed command or inputs"}
         self._emit("attempt_failed", attempt=attempt_id, issue=issue_id, kind=kind, failure_class=fclass, action=decision["action"])
+        if decision["action"] == "window":
+            self._open_window(now)
         if decision["action"] == "analyze":
             self._emit("analysis_scheduled", issue=issue_id, trigger="stuck_report")
         state = self.store.state("issue", issue_id)
@@ -691,6 +697,13 @@ class Scheduler:
         if meta["role"] == "implementer":
             self._requeue(issue, state, now)
         self.store.put_issue(issue)
+
+    def _open_window(self, now: float) -> None:
+        """Hold dispatch until the subscription window reopens. The reset time comes from the runtime when it says so."""
+        reset = (self._window_reset or now + WINDOW_FALLBACK_S) + WINDOW_MARGIN_S
+        self._window_reset = None
+        self.store.update_run(self.plan_id, lambda run: run.__setitem__("window_until", max(run.get("window_until", 0), reset)))
+        self._emit("usage_window", until=reset)
 
     def _requeue(self, issue: Dict[str, Any], state: str, now: float) -> None:
         if state == "In Progress":
@@ -1719,6 +1732,8 @@ class Scheduler:
         run = self.store.get_run(self.plan_id)
         if self.store.state("plan", self.entity) != "Executing" or run.get("pause_requested") or run.get("cancel_requested"):
             return
+        if run.get("window_until", 0) > now:
+            return  # the usage window is closed; running workers finish, nothing new starts
         problem = self._disk_problem()
         if problem:
             self._pause(problem, now)

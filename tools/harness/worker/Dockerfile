@@ -16,7 +16,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
 # drivers are only opened by display drivers, and workers run headless.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git python3 python3-pip ca-certificates libfontconfig1 \
-    && npm install -g @github/copilot@1.0.103 playwright@1.64.1 \
+    && npm install -g @github/copilot@1.0.103 @anthropic-ai/claude-code playwright@1.64.1 \
     && npx playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/* \
     && npm cache clean --force

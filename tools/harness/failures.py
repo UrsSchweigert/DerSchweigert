@@ -19,8 +19,10 @@ KIND_CLASS = {
     "protected_branch": POLICY, "diff_too_large": POLICY,
     "isolation": SYSTEMIC, "credentials": SYSTEMIC, "budget": SYSTEMIC,
     "worker_blocked": REPORTED,
+    "usage_window": "window",
 }
 CONFIGURATION = "configuration"
+WINDOW = "window"  # the subscription usage window is closed
 
 
 def signature(kind: str, evidence: Any) -> str:
@@ -58,6 +60,8 @@ def decide(failure_class: str, issue: Dict[str, Any], budgets: Dict[str, Any], n
     """
     if failure_class == SYSTEMIC:
         return {"action": "pause"}
+    if failure_class == WINDOW:
+        return {"action": "window"}  # spends no budget: dispatch waits for the window to reopen
     if failure_class == REPORTED:
         if issue.get("consults", 0) >= budgets.get("delegator_consults_per_issue", 0):
             return {"action": "block", "reason": "the worker reported it cannot solve the task"}

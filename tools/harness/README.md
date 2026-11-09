@@ -288,6 +288,7 @@ You need:
 
 * `broker.token`: a GitHub token the harness uses to open and merge pull requests. Keep it in the store folder only, never in the repository.
 * `copilot.token`: a fine-grained token with only the **Copilot Requests** account permission and no repository access. Workers receive only this one. It expires, so renew it before the date it was issued for.
+* `claude.token` (Claude Code runtime): run `claude setup-token` where you are signed in to your Claude subscription and save the printed token to `claude.token` with mode 600. Workers receive it as `CLAUDE_CODE_OAUTH_TOKEN`. Do not set `ANTHROPIC_API_KEY`: that bills the API instead of your plan. A store with `claude.token` runs Claude Code (`HARNESS_RUNTIME=copilot` forces the Copilot CLI) and the model source is `claude` (aliases `haiku`, `sonnet`, `opus`; pick it with `HARNESS_MODEL_SOURCES=claude`). The subscription has usage windows, not a call budget: a worker that hits the limit fails as `usage_window`, spends no retry budget, and the runner starts nothing new until the window reopens (`usage_window_until` in `status`; 30 minutes when the CLI gives no reset time). Rebuild the worker image to get the `claude` CLI.
 * Optional: Blender (`blender` on your PATH) for procedural assets.
 * Godot is not installed on your machine: the pinned Godot 4 editor, gdtoolkit (`gdlint`, `gdformat`), and the GUT test
   runner live in the worker image. Changing any of them means rebuilding the image and rerunning `isolation verify`.

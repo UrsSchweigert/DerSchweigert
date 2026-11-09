@@ -384,7 +384,11 @@ class Investigator:
             if poll.error:
                 kind = poll.error.get("kind", "runtime_crash")
                 if kind == "credentials":
-                    raise InvestigationError("the runtime rejected its credentials: check copilot.token")
+                    raise InvestigationError("the runtime rejected its credentials: check claude.token (or copilot.token)")
+                if kind == "usage_window":
+                    reset = poll.error.get("reset_at")
+                    raise InvestigationError("the Claude usage window is closed%s; rerun when it reopens"
+                                             % (", it reopens at %s" % time.strftime("%H:%M", time.localtime(reset)) if reset else ""))
                 if kind in TRANSIENT_KINDS or kind in ("timeout", "inactivity"):
                     transient += 1
                     self.log("transient failure (%s), retrying" % kind)

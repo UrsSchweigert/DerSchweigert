@@ -351,8 +351,8 @@ def providers_command(args) -> int:
     if source not in models.SOURCES:
         print("error: choose a source from %s" % ", ".join(models.SOURCES), file=sys.stderr)
         return 2
-    if source == "copilot":
-        print("error: copilot uses copilot.token, not a provider profile", file=sys.stderr)
+    if source in ("copilot", "claude"):
+        print("error: %s uses its own token file, not a provider profile" % source, file=sys.stderr)
         return 2
     if args.action == "rm":
         removed = providers.remove(home, source)
@@ -412,11 +412,11 @@ def investigate_command(args) -> int:
             raise runner.RunRefused("investigate refused, Tier B: %s. Run `isolation verify` first" % iso["reason"])
         root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
         clone = runner.trusted_clone(store.home, root, "main")
-        from .adapter import CopilotCliAdapter
-        adapter = CopilotCliAdapter(store.home, clone.path, "main")
+        from .adapter import adapter_for
+        adapter = adapter_for(store.home, clone.path, "main")
         probe = adapter.probe()
         if not probe["available"]:
-            raise runner.RunRefused("the Copilot CLI sandbox adapter is unavailable: %s" % probe["reason"])
+            raise runner.RunRefused("the %s sandbox adapter is unavailable: %s" % (adapter.name, probe["reason"]))
         sources = model_sources_arg(args.model_source, root)
         policy = plans.with_model_sources(plans.DEFAULT_POLICY, sources, models.load_catalog(store.home))
         tiers = policy["model_tiers"]

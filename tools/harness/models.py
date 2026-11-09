@@ -10,11 +10,17 @@ from . import schemas
 TIERS = ("low", "standard", "strong")
 
 # Sources the picker menu can draw from. A plan records the chosen ones, so the menu is bound by its approval digest.
-SOURCES = ("copilot", "deepseek", "local")
+SOURCES = ("copilot", "claude", "deepseek", "local")
 
 # Candidate ids per source and tier. Availability is still probed: ids this runtime rejects are dropped from the menu.
 # A store-level model_catalog.json can replace any source/tier list when a runtime uses different ids.
 MODEL_CATALOG: Dict[str, Dict[str, List[str]]] = {
+    # Claude Code CLI aliases; the CLI resolves them to its current model of each family.
+    "claude": {
+        "low": ["haiku"],
+        "standard": ["sonnet"],
+        "strong": ["opus"],
+    },
     "copilot": {
         "low": ["claude-haiku-4.5"],
         "standard": ["claude-sonnet-5"],
