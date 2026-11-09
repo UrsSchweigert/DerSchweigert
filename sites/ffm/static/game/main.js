@@ -1922,6 +1922,11 @@ function resumePendingLevel() {
 function clearPremiumSession() {
   setAnswerInputVisible(false);
   gameplayTimers.length = 0;
+  // Drop in-flight projectiles too, so no collision callback can fire after
+  // the session (or a paused game) has been abandoned.
+  activeLightningBolts = [];
+  activeFireballs = [];
+  activeDragons = [];
   levelRequestGeneration++;
   platform.incrementRequestGeneration();
   platform.setCurrentLevelConfig(null);
@@ -2469,6 +2474,62 @@ function handleAnswer(value) {
   }
 }
 
+// Shared resolution for a lightning strike, whether it was triggered by the
+// app build's projectile collision or the web build's arrival timer. Called at
+// most once per cast.
+function resolveLightningHit(fiend) {
+  fiend.hp = 0;
+  fiend.setState('death');
+  audio.playLightningHit();
+  audio.playEnemyDeath();
+  state.enemiesDefeated++;
+  recordPracticeEncounterDefeated();
+  activeFiend = null;
+  heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+    hero.setState('idle');
+    scheduleGameplayTimeout(() => {
+      if (checkAllDefeated()) triggerWaveClear();
+      else { spawnTimer = spawnInterval; inputDisabled = false; }
+    }, 300);
+  }};
+  hud.update(state);
+}
+
+// Shared resolution for a fireball hit (see resolveLightningHit). The fireball
+// damages the fiend through Fiend.hit(), so a nonlethal hit keeps it alive and
+// only re-queues its problem.
+function resolveFireballHit(fiend) {
+  audio.playFireballHit();
+  fiend.hit();
+
+  if (fiend.isDead) {
+    audio.playEnemyDeath();
+    state.enemiesDefeated++;
+    recordPracticeEncounterDefeated();
+    activeFiend = null;
+    heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+      scheduleGameplayTimeout(() => {
+        if (checkAllDefeated()) triggerWaveClear();
+        else { spawnTimer = spawnInterval; inputDisabled = false; }
+      }, 300);
+    }};
+  } else {
+    const preserveTimer = shouldPreserveProblemTimer(fiend);
+    activeFiend = null;
+    heroLunge = {
+      phase: 'back',
+      targetX: HERO_X,
+      onArrive: () => {
+        const cfg = platform.getCurrentLevelConfig();
+        if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
+        queueProblemActivation(fiend, { preserveTimer });
+        inputDisabled = false;
+      }
+    };
+  }
+  hud.update(state);
+}
+
 function handleCorrectAnswer() {
   attemptSummary.recordAnswer(activeFiend.problem, true);
   audio.playCorrect?.();
@@ -2522,67 +2583,32 @@ function handleCorrectAnswer() {
       // Hero strikes in place at the base location; the bolt is launched
       // from just right of his sprite toward the fiend.
       hero.setState('swing');
-      activeLightningBolts.push(new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
+      // The app build lets the projectile's own collision decide the hit, so
+      // the bolt lands exactly when the sprite reaches the fiend's bounds.
+      // The web build keeps its fixed arrival timer unchanged.
+      const collides = platform.isApp;
+      activeLightningBolts.push(collides
+        ? new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
+          { target: fiend, onHit: () => resolveLightningHit(fiend) })
+        : new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
       audio.playLightningCast();
       input.disable();
       inputDisabled = true;
-      scheduleGameplayTimeout(() => {
-        fiend.hp = 0;
-        fiend.setState('death');
-        audio.playLightningHit();
-        audio.playEnemyDeath();
-        state.enemiesDefeated++;
-        recordPracticeEncounterDefeated();
-        activeFiend = null;
-        heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-          hero.setState('idle');
-          scheduleGameplayTimeout(() => {
-            if (checkAllDefeated()) triggerWaveClear();
-            else { spawnTimer = spawnInterval; inputDisabled = false; }
-          }, 300);
-        }};
-        hud.update(state);
-      }, 600);
+      if (!collides) scheduleGameplayTimeout(() => resolveLightningHit(fiend), 600);
     } else if (ability === 'fireball') {
       // Hero strikes in place at the base location; the fireball is launched
       // from just right of his sprite toward the fiend, and the hit lands
       // when it actually arrives rather than the instant it's cast.
       hero.setState('swing');
-      activeFireballs.push(new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
+      const collides = platform.isApp;
+      activeFireballs.push(collides
+        ? new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
+          { target: fiend, onHit: () => resolveFireballHit(fiend) })
+        : new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
       audio.playFireballCast();
       input.disable();
       inputDisabled = true;
-      scheduleGameplayTimeout(() => {
-        audio.playFireballHit();
-        fiend.hit();
-
-        if (fiend.isDead) {
-          audio.playEnemyDeath();
-          state.enemiesDefeated++;
-          recordPracticeEncounterDefeated();
-          activeFiend = null;
-          heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-            scheduleGameplayTimeout(() => {
-              if (checkAllDefeated()) triggerWaveClear();
-              else { spawnTimer = spawnInterval; inputDisabled = false; }
-            }, 300);
-          }};
-        } else {
-          const preserveTimer = shouldPreserveProblemTimer(fiend);
-          activeFiend = null;
-          heroLunge = {
-            phase: 'back',
-            targetX: HERO_X,
-            onArrive: () => {
-              const cfg = platform.getCurrentLevelConfig();
-              if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
-              queueProblemActivation(fiend, { preserveTimer });
-              inputDisabled = false;
-            }
-          };
-        }
-        hud.update(state);
-      }, FIREBALL_FLIGHT_MS);
+      if (!collides) scheduleGameplayTimeout(() => resolveFireballHit(fiend), FIREBALL_FLIGHT_MS);
     } else if (ability === 'dragon') {
       activeDragons.push(new DragonSummon(CANVAS_W, GROUND_Y));
       hero.setState('swing');
@@ -2945,6 +2971,9 @@ function triggerGameOver(won = false) {
   setAnswerInputVisible(false);
   campaignWon = won;
   gameplayTimers.length = 0;
+  activeLightningBolts = [];
+  activeFireballs = [];
+  activeDragons = [];
   gameRunning = false;
   resetHealHold();
   input.disable();

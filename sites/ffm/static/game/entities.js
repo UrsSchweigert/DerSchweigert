@@ -869,18 +869,18 @@ export class Fiend extends Entity {
     ctx.restore();
   }
 
-  // Draws the selected fiend-class sprite if its image has loaded. Returns true if
-  // it drew (caller skips its procedural body), false to fall back to procedural art.
-  // Target box enlarged from 20*P to 38*P: fiend source art was being downscaled far
-  // more aggressively than the hero spritesheet, making fiends look tiny/out of place
-  // next to the hero. 38*P puts fiends at a comparable on-screen scale to the hero
-  // (hero draws at a fixed 150-160px tall).
-  _drawClassSprite(ctx, targetW = 38 * P, targetH = 38 * P) {
-    if (!this.fiendClassId) return false;
-    const img = getFiendClassSprite(this.fiendClassId);
-    if (!img || !img.complete || !img.naturalWidth) return false;
-
-    const aspect = img.naturalWidth / img.naturalHeight;
+  // Box the class sprite is (or would be) drawn into, in canvas coordinates.
+  // Shared by drawing and projectile collision so a hit lands exactly on the
+  // pixels the player sees instead of on a separate approximation.
+  _spriteBox() {
+    // Target box enlarged from 20*P to 38*P: fiend source art was being downscaled far
+    // more aggressively than the hero spritesheet, making fiends look tiny/out of place
+    // next to the hero. 38*P puts fiends at a comparable on-screen scale to the hero
+    // (hero draws at a fixed 150-160px tall).
+    const targetW = 38 * P, targetH = 38 * P;
+    const img = this.fiendClassId ? getFiendClassSprite(this.fiendClassId) : null;
+    const hasSprite = Boolean(img && img.complete && img.naturalWidth);
+    const aspect = hasSprite ? img.naturalWidth / img.naturalHeight : 1;
     let drawW = targetW;
     let drawH = targetW / aspect;
     if (drawH > targetH) { drawH = targetH; drawW = targetH * aspect; }
@@ -892,8 +892,25 @@ export class Fiend extends Entity {
     // this.y — the same ground line the hero's feet stand on — instead of
     // the sprite's raw (padded) bounding-box bottom landing there. No
     // separate drawn shadow is needed once the base actually lines up.
-    const bottomPadRatio = getFiendClass(this.fiendClassId).bottomPadRatio ?? 0;
+    const bottomPadRatio = this.fiendClassId
+      ? (getFiendClass(this.fiendClassId).bottomPadRatio ?? 0) : 0;
     const by = ~~(this.y - drawH + drawH * bottomPadRatio);
+    return { img: hasSprite ? img : null, drawW, drawH, bx, by };
+  }
+
+  // Axis-aligned bounds of the visible sprite, used as the authoritative hit
+  // target for hero projectiles.
+  getHitBounds() {
+    const { bx, by, drawW, drawH } = this._spriteBox();
+    return { left: bx, right: bx + drawW, top: by, bottom: by + drawH };
+  }
+
+  // Draws the selected fiend-class sprite if its image has loaded. Returns true if
+  // it drew (caller skips its procedural body), false to fall back to procedural art.
+  _drawClassSprite(ctx) {
+    if (!this.fiendClassId) return false;
+    const { img, drawW, drawH, bx, by } = this._spriteBox();
+    if (!img) return false;
     // Fiends' art faces left (their walk-in direction, toward the hero). When
     // retreating after a wrong answer they move right, so mirror the sprite
     // horizontally to face the direction of travel — same technique
@@ -1667,8 +1684,47 @@ function _getTintedSprite(hueRotateDeg) {
   return off;
 }
 
+// Slab test for a line segment against an axis-aligned box. Returns true when
+// any part of the segment (including both endpoints) touches the box, so a
+// projectile that jumps from one side to the other within a single large frame
+// step still registers the hit instead of tunnelling through.
+function _segmentIntersectsBox(x0, y0, x1, y1, box) {
+  const dx = x1 - x0, dy = y1 - y0;
+  let tMin = 0, tMax = 1;
+  for (const [origin, delta, low, high] of [
+    [x0, dx, box.left, box.right],
+    [y0, dy, box.top, box.bottom],
+  ]) {
+    if (Math.abs(delta) < 1e-9) {
+      if (origin < low || origin > high) return false;
+      continue;
+    }
+    let t1 = (low - origin) / delta;
+    let t2 = (high - origin) / delta;
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    tMin = Math.max(tMin, t1);
+    tMax = Math.min(tMax, t2);
+    if (tMin > tMax) return false;
+  }
+  return true;
+}
+
+// Smallest box covering both inputs. Fiends update before projectiles each
+// frame, so the union of the previous and current bounds covers everything the
+// fiend swept through since the last projectile step — a fast fiend cannot
+// cross the projectile without registering.
+function _unionBoxes(a, b) {
+  return {
+    left: Math.min(a.left, b.left),
+    right: Math.max(a.right, b.right),
+    top: Math.min(a.top, b.top),
+    bottom: Math.max(a.bottom, b.bottom),
+  };
+}
+
 class SpellProjectile {
-  constructor(startX, startY, targetX, targetY, { life, hueRotateDeg = 0, trailColor, streaks = 2, spriteScale = 1 }) {
+  constructor(startX, startY, targetX, targetY,
+    { life, hueRotateDeg = 0, trailColor, streaks = 2, spriteScale = 1, target = null, onHit = null }) {
     this.startX = startX;
     this.startY = startY;
     this.targetX = targetX;
@@ -1679,6 +1735,12 @@ class SpellProjectile {
     this._trailColor = trailColor;
     this._streaks = streaks;
     this._scale   = spriteScale;
+    // When a live target is supplied (app build), collision decides the hit.
+    // Without one (web build) the caller keeps its timer-driven resolution.
+    this.target   = target;
+    this.onHit    = onHit;
+    this._hit     = false;
+    this._lastTargetBounds = target?.getHitBounds?.() ?? null;
     // Fixed heading computed once at launch so the projectile travels in a
     // straight line directly at the fiend's position, rather than curving.
     this._angle = Math.atan2(targetY - startY, targetX - startX);
@@ -1686,7 +1748,37 @@ class SpellProjectile {
 
   get isDone() { return this._life <= 0; }
 
-  update(dt) { this._life -= dt; }
+  update(dt) {
+    if (this._hit) return;
+    const from = this._posAt(1 - this._life / this._maxLife);
+    this._life -= dt;
+    if (!this.target) return;
+
+    const target = this.target;
+    // A target that died or left the fight before the projectile arrived ends
+    // it silently: no damage, no hit sound, no reaction.
+    if (target.isDead || target.state === 'death' || target.state === 'retreat' || target.removed) {
+      this._life = 0;
+      this.target = null;
+      return;
+    }
+
+    const to = this._posAt(1 - this._life / this._maxLife);
+    const current = target.getHitBounds?.();
+    if (!current) return;
+    const bounds = this._lastTargetBounds ? _unionBoxes(this._lastTargetBounds, current) : current;
+    this._lastTargetBounds = current;
+    if (!_segmentIntersectsBox(from.x, from.y, to.x, to.y, bounds)) return;
+
+    // Resolve at most once, then stop drawing and drop the target reference so
+    // no later frame (or callback) can apply a second hit.
+    this._hit = true;
+    this._life = 0;
+    this.hitX = to.x;
+    this.hitY = to.y;
+    this.target = null;
+    this.onHit?.();
+  }
 
   _posAt(t) {
     const ct = Math.max(0, Math.min(1, t));
@@ -1752,25 +1844,27 @@ class SpellProjectile {
 }
 
 export class LightningBolt extends SpellProjectile {
-  constructor(startX, startY, targetX, targetY) {
+  constructor(startX, startY, targetX, targetY, opts = {}) {
     super(startX, startY, targetX, targetY, {
       life: 0.35,
       hueRotateDeg: 190,
       trailColor: '#8fd8ff',
       streaks: 3,
       spriteScale: 4,
+      ...opts,
     });
   }
 }
 
 export class Fireball extends SpellProjectile {
-  constructor(startX, startY, targetX, targetY) {
+  constructor(startX, startY, targetX, targetY, opts = {}) {
     super(startX, startY, targetX, targetY, {
       life: 1.35, // 1/3rd the travel speed of a plain projectile (3x the flight time)
       hueRotateDeg: 0,
       trailColor: '#ffcf40',
       streaks: 2,
       spriteScale: 3,
+      ...opts,
     });
   }
 }
