@@ -3,6 +3,14 @@ name: Buchstabenzeit native build gate
 on:
   pull_request:
     branches: ['harness/run/**']
+    # Same pre-filter as ffm-native.yml: a pull request that cannot touch Buchstabenzeit does not start a run at all,
+    # so each Arithmo Slayer pull request no longer pays for a Buchstabenzeit gate. `lesen-native` is not a required
+    # check on any live branch, so skipping it never leaves a pull request waiting for a status.
+    paths:
+      - 'sites/lesen/**'
+      - 'tools/ios/**'
+      - '.github/workflows/lesen-native.yml'
+      - '.github/workflows/lesen-build-artifacts.yml'
 
 permissions:
   contents: read
