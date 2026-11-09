@@ -211,6 +211,32 @@ def preflight_plan(store: Store, plan_id: str, version: Optional[int], repo_root
     return result
 
 
+def watch_command(args) -> int:
+    """Read-only supervision. Exit 2 is the alert, so a caller can branch on it without parsing output."""
+    from . import watch as watch_mod
+    home = args.home or default_home()
+    github = None
+    if not args.no_github:
+        try:
+            repo = args.repo or detect_repo()
+        except Exception:  # noqa: BLE001 - the local records are still worth watching without a repo
+            repo = None
+        if repo:
+            store = Store(home, readonly=True)
+            try:
+                prs = {i["issue_id"]: i["pr"] for i in store.list_issues(args.plan_id) if i.get("pr")}
+            finally:
+                store.close()
+            if prs:
+                client = GhCli(repo, token_file=broker_token_file(home))
+                github = {"repo": repo, "pr_numbers": prs, "run": client._run}
+    result = watch_mod.watch(home, args.plan_id, interval_s=args.interval, max_minutes=args.max_minutes,
+                             once=args.once, missing_check_minutes=args.missing_check_minutes,
+                             stall_minutes=args.stall_minutes, github=github)
+    print(json.dumps(result, indent=2, sort_keys=True) if args.json else watch_mod.render(result))
+    return 2 if result["status"] == "alert" else 0
+
+
 def isolation_command(action: str, home: Optional[str]) -> int:
     home = home or default_home()
     if action == "build":
@@ -752,6 +778,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     s = sub.add_parser("status", help="read-only status")
     s.add_argument("--plan", help="show only this plan, e.g. bugfixes-001-md")
     s.add_argument("--json", action="store_true")
+    wt = sub.add_parser("watch", help="read-only supervision: alert when a running plan stalls")
+    wt.add_argument("plan_id")
+    wt.add_argument("--interval", type=float, default=60.0, help="seconds between checks")
+    wt.add_argument("--max-minutes", type=float, help="stop after this long; default keeps watching")
+    wt.add_argument("--once", action="store_true", help="evaluate one window and exit")
+    wt.add_argument("--missing-check-minutes", type=float, default=5.0,
+                    help="how long a required check may stay unreported before it is an alert")
+    wt.add_argument("--stall-minutes", type=float, default=10.0,
+                    help="how long an issue may sit In Review without an event before it is an alert")
+    wt.add_argument("--repo", help="GitHub owner/name for the pull-request probe (detected when omitted)")
+    wt.add_argument("--no-github", action="store_true", help="stay local: do not call gh")
+    wt.add_argument("--json", action="store_true")
     rp = sub.add_parser("report", help="publish the run's state as a markdown page on a git branch")
     rp.add_argument("plan_id")
     rp.add_argument("--interval", type=float, default=300.0, help="seconds between updates (default 300)")
@@ -873,6 +911,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return providers_command(args)
         if args.cmd == "models":
             return models_command(args)
+        if args.cmd == "watch":
+            return watch_command(args)
         if args.cmd == "probe":
             print(json.dumps(GhCli(args.repo or detect_repo(), token_file=broker_token_file(args.home)).capabilities(), indent=2, sort_keys=True))
             return 0
