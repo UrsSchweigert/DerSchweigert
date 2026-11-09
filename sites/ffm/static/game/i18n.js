@@ -66,8 +66,16 @@ const DICTIONARY = {
     en: 'Latest score: {score} · Saved results: {count} (oldest to newest)',
     de: 'Letzte Punktzahl: {score} · Gespeicherte Ergebnisse: {count} (älteste zuerst)',
   },
+  'scoreHistory.unfinishedNote': {
+    en: 'Includes unfinished attempts that did not clear the level.',
+    de: 'Enthält unfertige Versuche, die das Level nicht geschafft haben.',
+  },
   'personalDevelopment.title': { en: 'My progress', de: 'Mein Fortschritt' },
   'personalDevelopment.perLevelBest': { en: 'Level {level}: {score} points', de: 'Level {level}: {score} Punkte' },
+  'personalDevelopment.perLevelBestUnfinished': {
+    en: 'Level {level}: {score} points (unfinished attempt, not cleared)',
+    de: 'Level {level}: {score} Punkte (unfertiger Versuch, nicht geschafft)',
+  },
   'personalDevelopment.completed': { en: '{completed} of {total} levels completed', de: '{completed} von {total} Leveln geschafft' },
   'personalDevelopment.noProgress': {
     en: 'No progress yet — clear a level to start your history.',
@@ -234,7 +242,10 @@ const DICTIONARY = {
     de: 'Spielerdaten konnten nicht gespeichert oder geladen werden. Bitte versuche es erneut.',
   },
   'overlay.finishGame': { en: 'Finish game', de: 'Spiel abschließen' },
-  'overlay.quitAttemptTitle': { en: 'Leave this attempt?', de: 'Diesen Versuch beenden?' },
+  'overlay.unfinishedSaveNotice': {
+    en: 'This level stays unfinished: only the reached score is saved to your progress.',
+    de: 'Dieses Level bleibt unfertig: Nur die erreichte Punktzahl wird in deinem Fortschritt gespeichert.',
+  },
   'attempt.firstReplies': { en: 'First answers: {correct}/{total} correct', de: 'Erste Antworten: {correct}/{total} richtig' },
   'attempt.bestStreak': { en: 'Best streak: {streak}', de: 'Beste Serie: {streak}' },
   'attempt.accuracyImproved': { en: 'More accurate than your last clear at this difficulty!', de: 'Genauer als beim letzten Abschluss auf dieser Schwierigkeit!' },
@@ -252,10 +263,6 @@ const DICTIONARY = {
   'feedback.shapesAnswer': { en: 'There are {count} shapes.', de: 'Es sind {count} Formen.' },
   'gameplay.encounters': { en: 'Defeated: {defeated}/{total}', de: 'Besiegt: {defeated}/{total}' },
   'gameplay.healProgress': { en: 'Heal: {percent}%', de: 'Heilen: {percent}%' },
-  'overlay.completedProgressNotice': {
-    en: 'Cleared levels stay saved. Points from this unfinished level are not recorded.',
-    de: 'Geschaffte Level bleiben gespeichert. Punkte aus diesem unfertigen Level werden nicht gespeichert.',
-  },
 
   // Difficulty buttons
   'difficulty.shapes.label': { en: 'Shapes', de: 'Formen' },

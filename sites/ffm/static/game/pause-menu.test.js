@@ -8,7 +8,8 @@ const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const block = source.slice(source.indexOf("btnResumeGame.addEventListener("),
   source.indexOf('// Shown once per playthrough'));
 
-function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) {
+function setup({ loggedIn = true, app = false, shapes = false, practice = false,
+  save = async () => {} } = {}) {
   const handlers = {};
   const element = name => ({
     style: {}, dataset: {}, textContent: '', disabled: false,
@@ -16,6 +17,8 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
   });
   let submissions = 0;
   let quits = 0;
+  let refreshes = 0;
+  const partials = [];
   const audioSettings = { open: false, querySelector: () => ({ focus() {} }) };
   const context = {
     document: { getElementById(id) {
@@ -23,14 +26,29 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
       return element(id);
     } },
     paused: false, gameRunning: true, inputDisabled: false, completedLevelSave: null,
-    practiceRun: null,
-    state: { score: 1234, level: 2, isShapesMode: shapes, timerActive: true },
-    platform: { isLoggedIn: loggedIn, async postHighScore(score, level) {
-      submissions++;
-      assert.equal(score, 1234);
-      assert.equal(level, 2);
-      await save();
-    } },
+    practiceRun: practice ? { kind: 'targeted' } : shapes ? { kind: 'shapes' } : null,
+    runProfileId: app ? 'profile-1' : null,
+    levelStartScore: 1000,
+    createCompletionId: () => 'partial-id-1',
+    state: { score: 1234, level: 2, difficulty: 'easy', isShapesMode: shapes, timerActive: true },
+    platform: {
+      isApp: app,
+      isLoggedIn: loggedIn,
+      localProfiles: app ? {
+        getActiveProfile: () => ({ id: 'profile-1' }),
+        async recordPartialAttempt(input) {
+          partials.push(input);
+          await save();
+          return { persisted: true, bestImproved: true };
+        },
+      } : null,
+      async postHighScore(score, level) {
+        submissions++;
+        assert.equal(score, 1234);
+        assert.equal(level, 2);
+        await save();
+      },
+    },
     pauseOverlay: element(), pauseActions: element(), pauseQuitActions: element(),
     pauseSaveNotice: element(), pauseSaveError: element(),
     btnResumeGame: element('resume'), btnQuitGame: element('quit'),
@@ -43,13 +61,16 @@ function setup({ loggedIn = true, shapes = false, save = async () => {} } = {}) 
     clearPremiumSession() { quits++; context.gameRunning = false; },
     clearPendingRecord() {},
     diffSelect: { scrollTop: 100 },
-    async refreshProfileAndLeaderboard() {},
+    async refreshProfileAndLeaderboard() { refreshes++; },
     console: { error() {} },
   };
   vm.createContext(context);
   vm.runInContext(block, context);
   vm.runInContext('pauseGame();', context);
-  return { context, handlers, audioSettings, submissions: () => submissions, quits: () => quits };
+  return {
+    context, handlers, audioSettings, submissions: () => submissions, quits: () => quits,
+    refreshes: () => refreshes, partials: () => partials,
+  };
 }
 
 it('audio Back returns to pause without resuming gameplay', () => {
@@ -133,6 +154,60 @@ it('keeps the game paused with a visible error if saving fails', async () => {
   assert.equal(context.paused, true);
   assert.equal(context.pauseSaveError.textContent, 'overlay.saveScoreFailed');
   assert.equal(context.btnPauseSave.disabled, false);
+});
+
+it('offers save and discard with an unfinished notice in the app', () => {
+  const { context, handlers } = setup({ app: true });
+  handlers.quit();
+  assert.equal(context.btnPauseSave.style.display, '');
+  assert.equal(context.btnPauseDiscard.style.display, '');
+  assert.equal(context.btnPauseDiscard.dataset.i18n, 'overlay.discardScore');
+  assert.equal(context.pauseSaveNotice.textContent, 'overlay.unfinishedSaveNotice');
+});
+
+it('app save banks only the level score as one unfinished attempt and refreshes progress', async () => {
+  const { context, handlers, submissions, quits, partials, refreshes } = setup({ app: true });
+  handlers.quit();
+  await handlers.save();
+  assert.deepEqual(partials().map((input) =>
+    [input.profileId, input.completionId, input.level, input.score, input.difficulty]),
+  [['profile-1', 'partial-id-1', 2, 234, 'easy']]);
+  assert.equal(submissions(), 0);
+  assert.equal(quits(), 1);
+  assert.equal(context.paused, false);
+  assert.equal(refreshes(), 2);
+});
+
+it('a failed app save stays paused and retries with the same attempt ID', async () => {
+  let attempts = 0;
+  const { context, handlers, quits, partials, refreshes } = setup({
+    app: true,
+    save: async () => { if (++attempts === 1) throw new Error('offline'); },
+  });
+  handlers.quit();
+  await handlers.save();
+  assert.equal(quits(), 0);
+  assert.equal(refreshes(), 0);
+  assert.equal(context.paused, true);
+  assert.equal(context.pauseSaveError.textContent, 'overlay.saveScoreFailed');
+  assert.equal(context.btnPauseSave.disabled, false);
+  await handlers.save();
+  assert.equal(quits(), 1);
+  assert.deepEqual(partials().map((input) => input.completionId), ['partial-id-1', 'partial-id-1']);
+});
+
+it('the app offers no save in practice or Shapes and writes nothing', async () => {
+  for (const options of [{ app: true, practice: true }, { app: true, shapes: true }]) {
+    const { context, handlers, quits, partials } = setup(options);
+    handlers.quit();
+    assert.equal(context.btnPauseSave.style.display, 'none');
+    assert.equal(context.btnPauseDiscard.dataset.i18n, 'overlay.returnTitle');
+    await handlers.save();
+    assert.equal(partials().length, 0);
+    assert.equal(context.paused, true);
+    handlers.discard();
+    assert.equal(quits(), 1);
+  }
 });
 
 for (const options of [{ loggedIn: false }, { shapes: true }, {}]) {

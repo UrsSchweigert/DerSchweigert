@@ -838,7 +838,9 @@ function renderScoreHistory(historyResponse, container) {
   container.innerHTML = buildScoreHistorySvg(history) +
     `<p class="score-history-summary">${escHtml(t('scoreHistory.latest', {
       score: history.at(-1).score, count: history.length,
-    }))}</p>`;
+    }))}</p>` +
+    (history.some((entry) => entry.unfinished === true)
+      ? `<p class="score-history-summary">${escHtml(t('scoreHistory.unfinishedNote'))}</p>` : '');
   container.style.display = '';
 }
 
@@ -921,7 +923,9 @@ function renderPersonalDevelopment(state) {
     personalBestList.innerHTML = best.slice(
       personalBestPage * PERSONAL_BEST_PAGE_SIZE, (personalBestPage + 1) * PERSONAL_BEST_PAGE_SIZE,
     )
-      .map((entry) => `<li>${t('personalDevelopment.perLevelBest', {
+      .map((entry) => `<li>${t(entry.unfinished === true
+        ? 'personalDevelopment.perLevelBestUnfinished'
+        : 'personalDevelopment.perLevelBest', {
         level: entry.level,
         score: entry.score,
       })}</li>`)
@@ -2229,24 +2233,26 @@ function closeAudioSettings() {
   return true;
 }
 document.getElementById('btn-audio-back').addEventListener('click', closeAudioSettings);
+// One ID per paused attempt: a failed save retried while still paused reuses
+// it, so the profile store's receipt makes the retry idempotent.
+let pausedPartialId = null;
+
 btnQuitGame.addEventListener('click', () => {
   pauseActions.style.display = 'none';
   pauseQuitActions.style.display = '';
   const canSave = (platform.isApp || platform.isLoggedIn) && !practiceRun && !state.isShapesMode;
   btnPauseSave.style.display = canSave ? '' : 'none';
-  pauseSaveNotice.textContent = canSave ? '' : t(practiceRun
-    ? 'practice.unscoredNotice' : state.isShapesMode
-    ? 'overlay.shapesScoreNotice' : 'overlay.guestScoreNotice');
-  if (platform.isApp && !practiceRun && !state.isShapesMode) {
-    btnPauseSave.textContent = t('overlay.returnTitle');
-    pauseSaveNotice.textContent = t('overlay.completedProgressNotice');
-  }
+  pauseSaveNotice.textContent = canSave
+    ? (platform.isApp ? t('overlay.unfinishedSaveNotice') : '')
+    : t(practiceRun
+      ? 'practice.unscoredNotice' : state.isShapesMode
+      ? 'overlay.shapesScoreNotice' : 'overlay.guestScoreNotice');
   pauseSaveError.textContent = '';
   const quitTitle = document.getElementById('pause-quit-title');
-  quitTitle.dataset.i18n = platform.isApp ? 'overlay.quitAttemptTitle' : 'overlay.quitScorePrompt';
-  quitTitle.textContent = t(quitTitle.dataset.i18n);
-  btnPauseDiscard.style.display = platform.isApp && !practiceRun && !state.isShapesMode ? 'none' : '';
-  btnPauseDiscard.dataset.i18n = platform.isApp || practiceRun ? 'overlay.returnTitle' : 'overlay.discardScore';
+  quitTitle.dataset.i18n = 'overlay.quitScorePrompt';
+  quitTitle.textContent = t('overlay.quitScorePrompt');
+  btnPauseDiscard.style.display = '';
+  btnPauseDiscard.dataset.i18n = practiceRun || state.isShapesMode ? 'overlay.returnTitle' : 'overlay.discardScore';
   btnPauseDiscard.textContent = t(btnPauseDiscard.dataset.i18n);
 });
 btnPauseBack.addEventListener('click', () => {
@@ -2262,7 +2268,20 @@ btnPauseSave.addEventListener('click', async () => {
   pauseSaveError.textContent = '';
   try {
     if (completedLevelSave) await completedLevelSave();
-    if (!platform.isApp) await platform.postHighScore(state.score, state.level);
+    if (platform.isApp) {
+      // Bank the reached score only: recordPartialAttempt keeps the level
+      // unfinished and leaves completed/continuation untouched.
+      await platform.localProfiles.recordPartialAttempt({
+        profileId: runProfileId ?? platform.localProfiles.getActiveProfile().id,
+        completionId: pausedPartialId ?? createCompletionId(),
+        level: state.level,
+        score: Math.max(0, state.score - levelStartScore),
+        difficulty: state.difficulty,
+      });
+    } else {
+      await platform.postHighScore(state.score, state.level);
+    }
+    pausedPartialId = null;
     quitPausedGame();
     await refreshProfileAndLeaderboard();
   } catch (error) {
@@ -2352,6 +2371,7 @@ function handleAppBack() {
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
+  pausedPartialId = createCompletionId();
   closeAudioSettings();
   pauseActions.style.display = '';
   pauseQuitActions.style.display = 'none';
@@ -3425,9 +3445,8 @@ onLocaleChange(() => {
   renderAttemptAccomplishment('defeat-attempt-summary', campaignWon ? completionFeedback : null);
   if (platform.isApp) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   profileUI?.refresh();
-  if (platform.isApp && !state.isShapesMode) {
-    btnPauseSave.textContent = t('overlay.returnTitle');
-    pauseSaveNotice.textContent = t('overlay.completedProgressNotice');
+  if (platform.isApp && !practiceRun && !state.isShapesMode) {
+    pauseSaveNotice.textContent = t('overlay.unfinishedSaveNotice');
   }
   updateMuteButtonLabel();
   audioPreferenceStatus();
