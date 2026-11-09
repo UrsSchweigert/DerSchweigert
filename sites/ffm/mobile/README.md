@@ -190,6 +190,26 @@ the limitation when device gain control is unavailable. See [MUSIC.md](MUSIC.md)
 for the routing path and the physical-device listening gates. No new songs or
 hero/weapon art are included.
 
+#### Physical-device audio gates
+
+Automated tests use fake media elements and Web Audio contexts, so they prove
+the gain graph, persistence and UI wiring only. Before claiming native audible
+output, record the revision under test and verify all of these on a physical
+iOS and Android device:
+
+- Bundled music and effects are audible through the speaker and headphones.
+- The app music slider changes live gain at 0, 0.2 and 1 while a track plays,
+  and the effects slider changes the next effect cue.
+- The iOS silent switch silences music and effects; unmuting restores them.
+- A call or alarm interruption pauses music and gameplay, and returning resumes
+  both exactly once with mute and gain preserved.
+- Background/foreground transitions do not duplicate playback.
+
+Revision to test: `<revision>` — replace with the commit SHA (and device/OS
+build) that passed these gates. Any native audio-session change needed to pass
+them is owner-reviewed: this branch changes no `android/`, `ios/`,
+`build.gradle`, `AndroidManifest.xml`, `Info.plist` or `capacitor.config.json`.
+
 Shared wiring calls `initViewportLayout({win,doc})` once; its `{refresh,destroy}` API is layout-only. Title
 navigation buttons use `data-title-target`, and parent wiring toggles `hidden` on matching `data-title-page`
 stages (`play`, `progress`, `history`, `family`, `leaderboard`, `levels`, `legal`). `#local-profiles` is initially hidden and

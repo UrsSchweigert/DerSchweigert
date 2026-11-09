@@ -59,6 +59,10 @@ let appLifecycle = null;
 // level-selection updates through it.
 let mobileUi = null;
 
+// App-only top-bar gain control (see ./volume-control.js, shipped by the app
+// overlay). Stays null on the web build and until the overlay module loads.
+let volumeControl = null;
+
 // The app caches the store entitlement on device. Refresh it on launch and on
 // every return to the foreground, so a refund made while the app was closed
 // revokes access and a purchase finished outside the app is picked up.
@@ -99,6 +103,20 @@ if (platform.isApp) {
     })
     .then(({ createShapesHeader }) => {
       gameplayChrome.setShapesHeader(createShapesHeader({ doc: document }));
+    })
+    .catch(() => {});
+  // App-only music/effects gain control in the top bar, wired to the same
+  // engine and persisted preferences as the pause-menu audio settings. It is
+  // created after the engine exists because the overlay import resolves after
+  // this synchronous module body.
+  import('./volume-control.js')
+    .then(({ createVolumeControl }) => {
+      volumeControl = createVolumeControl({
+        doc: document,
+        audio,
+        translate: t,
+        persist: persistAudioPreferences,
+      });
     })
     .catch(() => {});
   // Pause gameplay and music while the app is in the background, resume only
@@ -568,18 +586,28 @@ const audio = new AudioEngine({
 });
 
 function audioPreferenceStatus() {
-  if (!musicVolumeStatus) return;
-  const capability = audio.musicVolumeCapability;
-  musicVolumeStatus.textContent = t(capability.supported
-    ? 'audio.musicVolumeReady' : 'audio.musicVolumeUnavailable');
-  if (musicVolumeInput) musicVolumeInput.disabled = !capability.supported;
+  if (musicVolumeStatus) {
+    const capability = audio.musicVolumeCapability;
+    musicVolumeStatus.textContent = t(capability.supported
+      ? 'audio.musicVolumeReady' : 'audio.musicVolumeUnavailable');
+    if (musicVolumeInput) {
+      musicVolumeInput.disabled = !capability.supported;
+      musicVolumeInput.value = String(audio.getMusicVolume());
+    }
+  }
+  if (effectsVolumeInput) effectsVolumeInput.value = String(audio.getEffectsVolume());
+  // The app-only top-bar control mirrors the same engine state and localized
+  // capability explanation. `typeof` keeps the extracted-function tests that
+  // run this helper outside main.js working without the overlay handle.
+  if (typeof volumeControl !== 'undefined') volumeControl?.refresh();
 }
 
 function flushDeferredMusicVolume() {
-  if (deferredMusicVolume === null) return;
-  deferredMusicVolume = applyDeferredMusicVolume(audio, deferredMusicVolume);
-  if (deferredMusicVolume === null && musicVolumeInput) {
-    musicVolumeInput.value = String(audio.getMusicVolume());
+  if (deferredMusicVolume !== null) {
+    deferredMusicVolume = applyDeferredMusicVolume(audio, deferredMusicVolume);
+    if (deferredMusicVolume === null && musicVolumeInput) {
+      musicVolumeInput.value = String(audio.getMusicVolume());
+    }
   }
   audioPreferenceStatus();
 }

@@ -189,3 +189,90 @@
   overflow-wrap: normal;
   word-break: keep-all;
 }
+
+/* App-only music/effects gain control, injected by volume-control.js into
+ * #top-bar immediately after #mute-btn.
+ *
+ * The top bar is right-anchored because the app now has three controls (mute,
+ * gain, language) instead of the two the shared 112px offset assumed. The
+ * <details> summary is a 44px target, and the panel opens below the bar without
+ * changing the flex row's geometry. Every slider keeps the shared 44px input
+ * minimum, and the status line is the live explanation when music routing is
+ * unavailable. */
+#top-bar {
+  left: auto;
+  right: calc(100vw - var(--viewport-left, 0px) - var(--viewport-width, 100vw)
+    + var(--safe-area-right, 0px) + 8px);
+}
+
+.app-audio-control {
+  position: relative;
+}
+
+#top-bar .app-audio-control > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  background: #1a1a3a;
+  color: #f0f0f0;
+  border: 2px solid #4040a0;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 14px;
+  list-style: none;
+  touch-action: manipulation;
+}
+
+#top-bar .app-audio-control > summary::-webkit-details-marker {
+  display: none;
+}
+
+#top-bar .app-audio-control > summary:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+.app-audio-control-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 201;
+  display: grid;
+  gap: 8px;
+  width: min(280px, calc(100vw - 16px));
+  padding: 10px;
+  box-sizing: border-box;
+  background: rgba(10, 28, 21, 0.97);
+  border: 1px solid var(--brass-deep, #a77a34);
+  border-radius: 6px;
+  color: var(--ivory, #f0f0f0);
+}
+
+.app-audio-control-row {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-audio-control-row label {
+  color: var(--ivory-muted, #d8d8d8);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.app-audio-control-row input[type="range"] {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+}
+
+.app-audio-control-panel .screen-status {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.25;
+  margin: 0;
+}
