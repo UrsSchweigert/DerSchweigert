@@ -1,0 +1,14 @@
+/* mobile-ui.css — App-only overlay styles for the Capacitor build.
+ *
+ * Shipped by copy-assets as www/game/mobile-ui.css and injected at runtime by
+ * mobile-ui.js. The web build never loads this file, so every rule here is
+ * app-only. Keep it free of remote URLs: the bundle must stay offline.
+ *
+ * This seam adds no visual change yet. Later mobile UI issues build on these
+ * custom properties instead of forking the shared stylesheet.
+ */
+
+:root {
+  --ffm-mobile-ui-ready: 1;
+  --ffm-mobile-timer-color: #4caf50;
+}

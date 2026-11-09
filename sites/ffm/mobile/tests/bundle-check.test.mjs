@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { copyAssets } from '../scripts/copy-assets.mjs';
+import { copyAssets, APP_OVERLAY } from '../scripts/copy-assets.mjs';
 import { bundleCheck, DEFAULT_BUNDLE_DIR } from '../scripts/bundle-check.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,7 +15,9 @@ const staticDir = join(root, '..', 'static');
 async function withBundle(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'ffm-bundle-'));
   try {
-    await copyAssets(undefined, dir, join(root, 'missing-overlay'));
+    // Build the real app bundle, overlay included: bundle-check requires the
+    // app-only overlay UI seam alongside the shared play modules.
+    await copyAssets(undefined, dir, APP_OVERLAY);
     return await fn(dir);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -134,6 +136,30 @@ test('a missing core play module fails the bundle check', async () => {
     await rm(join(dir, 'game', 'levels.js'));
     const problems = await bundleCheck(dir);
     assert.ok(problems.some((problem) => problem.includes('game/levels.js')), problems.join('\n'));
+  });
+});
+
+test('the app-only overlay UI module and stylesheet are bundled', async () => {
+  await withBundle(async (dir) => {
+    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css']) {
+      assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
+    }
+    const source = await readFile(join(dir, 'game', 'mobile-ui.js'), 'utf8');
+    assert.match(source, /export function mountMobileUi/);
+    assert.doesNotMatch(source, /https?:\/\//, 'the overlay must stay offline');
+    assert.deepEqual(await bundleCheck(dir), []);
+  });
+});
+
+test('a missing overlay UI module fails the bundle check', async () => {
+  await withBundle(async (dir) => {
+    await rm(join(dir, 'game', 'mobile-ui.js'));
+    const problems = await bundleCheck(dir);
+    assert.ok(problems.some((problem) => problem.includes('game/mobile-ui.js')), problems.join('\n'));
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /missing required file: game\/mobile-ui\.js/);
   });
 });
 

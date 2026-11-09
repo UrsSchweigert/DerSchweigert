@@ -47,6 +47,11 @@ initGameplayModalFocus({ doc: document });
 // Stays null on the web build and until the app plugin has been wired.
 let appLifecycle = null;
 
+// App-only overlay UI handle (see ./mobile-ui.js, shipped by the app overlay).
+// Stays null on the web build; later mobile issues feed timer and
+// level-selection updates through it.
+let mobileUi = null;
+
 // The app caches the store entitlement on device. Refresh it on launch and on
 // every return to the foreground, so a refund made while the app was closed
 // revokes access and a purchase finished outside the app is picked up.
@@ -60,6 +65,15 @@ if (platform.isApp) {
   // The web build never loads this module and keeps its existing footer.
   import('./legal.js')
     .then(({ setupTitleLegalLinks }) => setupTitleLegalLinks({ getLocale, onLocaleChange }))
+    .catch(() => {});
+  // Mount the app-only overlay UI: injects www/game/mobile-ui.css and
+  // publishes the widget/timer/level hooks later mobile issues consume. A
+  // missing or failing module leaves the game untouched; the web build never
+  // loads it.
+  import('./mobile-ui.js')
+    .then(({ mountMobileUi }) => {
+      mobileUi = mountMobileUi({ doc: document });
+    })
     .catch(() => {});
   // Pause gameplay and music while the app is in the background, resume only
   // after an automatic pause, map the Android back button, and keep the
