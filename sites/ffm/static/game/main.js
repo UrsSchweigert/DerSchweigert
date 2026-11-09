@@ -714,6 +714,7 @@ let runProfileId = null;
 let completedLevelSave = null;
 let completionPending = false;
 let profileUI = null;
+let entitlementPanel = null;
 let personalBestPage = 0;
 const PERSONAL_BEST_PAGE_SIZE = 3;
 let leaderboardPage = 0;
@@ -3445,6 +3446,16 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
       });
       await profileUI.refresh();
     }
+    const { mountEntitlementPanel } = await import('./entitlement-panel.js');
+    const entitlementRoot = document.getElementById('entitlement-root');
+    if (entitlementRoot && !entitlementPanel) {
+      entitlementPanel = mountEntitlementPanel({
+        root: entitlementRoot,
+        platform,
+        getLocale,
+        totalLevels: TOTAL_LEVELS,
+      });
+    }
   }
   await refreshProfileAndLeaderboard();
 });
@@ -3475,7 +3486,10 @@ function showTitlePage(name) {
 for (const button of document.querySelectorAll('[data-title-target]')) {
   button.addEventListener('click', () => {
     showTitlePage(button.dataset.titleTarget);
-    if (button.dataset.titleTarget === 'family') profileUI?.refresh();
+    if (button.dataset.titleTarget === 'family') {
+      profileUI?.refresh();
+      entitlementPanel?.refresh();
+    }
   });
 }
 document.getElementById('title-leaderboard-btn').hidden = platform.isApp;
@@ -3494,6 +3508,7 @@ onLocaleChange(() => {
   renderAttemptAccomplishment('defeat-attempt-summary', campaignWon ? completionFeedback : null);
   if (platform.isApp) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   profileUI?.refresh();
+  entitlementPanel?.render();
   if (platform.isApp && !practiceRun && !state.isShapesMode) {
     pauseSaveNotice.textContent = t('overlay.unfinishedSaveNotice');
   }

@@ -276,3 +276,69 @@
   line-height: 1.25;
   margin: 0;
 }
+
+/* Player-section entitlement panel, mounted by entitlement-panel.js into
+ * #entitlement-root on the app-only Players page.
+ *
+ * The shared stylesheet gives #profile-root and .profile-ui height:100%, which
+ * would push the panel out of the page; the Players page scrolls instead so
+ * both the profile list and the purchase status stay reachable on short
+ * screens. Every rule here is app-only because the web build never loads this
+ * stylesheet or the panel module. */
+#local-profiles {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#local-profiles #profile-root,
+#local-profiles .profile-ui {
+  height: auto;
+}
+
+#entitlement-root {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.entitlement-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--brass-deep, #a77a34);
+  border-radius: 6px;
+  background: rgba(10, 28, 21, 0.72);
+  color: var(--ivory, #f0f0f0);
+}
+
+.entitlement-panel h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.entitlement-panel p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.entitlement-status { color: var(--brass-light, #e4c577); }
+.entitlement-panel[data-entitlement-status="full"] .entitlement-status { color: #80f080; }
+.entitlement-panel[data-entitlement-status="offline"] .entitlement-status { color: #ffe080; }
+.entitlement-panel[data-entitlement-status="error"] .entitlement-status { color: #ff8080; }
+
+.entitlement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.entitlement-actions .diff-btn {
+  flex: 1 1 140px;
+  min-height: 44px;
+}
+
+.entitlement-outcome { color: #ffe080; }
+.entitlement-outcome.error-msg { color: #ff8080; }
