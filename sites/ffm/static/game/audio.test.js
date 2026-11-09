@@ -558,13 +558,111 @@ describe('shared sound buses and event cues', () => {
       assert.equal(state.plays, 3, 'stop/unmute does not restart');
     });
 
+    it('prefetches custom-scheme bundled tracks to same-origin blobs on the music gain bus', async () => {
+      const requested = [];
+      const { audio, context, state } = soundEngine({
+        musicGainRouting: true,
+        baseUrl: 'capacitor://localhost/game/',
+        fetchTrack: async (url) => {
+          requested.push(url);
+          return { ok: true, blob: async () => new Blob(['bundled-audio']) };
+        },
+      });
+      await audio._bundledReady;
+      assert.deepEqual(requested, [
+        'capacitor://localhost/game/a.mp3',
+        'capacitor://localhost/game/b.mp3',
+      ], 'each bundled track is fetched exactly once from the bundle origin');
+      audio.startBGM();
+      assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'available' });
+      const current = audio._rotation.currentAudio;
+      assert.match(current.src, /^blob:/, 'the element plays a same-origin blob URL');
+      assert.equal(current.volume, 1, 'gain now lives on the shared bus');
+      assert.equal(state.plays, 1);
+      assert.equal(context.sources.length, 2, 'current and preload are both captured');
+      for (const source of context.sources) {
+        assert.deepEqual(source.connections, [audio._musicBus]);
+        assert.match(source.element.src, /^blob:/);
+      }
+      for (const value of [0, 0.2, 1]) {
+        assert.equal(audio.setMusicVolume(value), value);
+        assert.equal(audio._musicBus.gain.value, value);
+      }
+      assert.equal(current.currentTime, 0);
+      audio.stopBGM();
+      assert.equal(audio._mediaSources.size, 0);
+    });
+
+    it('swaps a late bundled blob into the playing element and resumes it once', async () => {
+      let resolveFetch;
+      let fetchStarted;
+      const started = new Promise(resolve => { fetchStarted = resolve; });
+      const { audio, context, state } = soundEngine({
+        musicGainRouting: true,
+        baseUrl: 'capacitor://localhost/game/',
+        tracks: [{ file: 'a.mp3' }],
+        fetchTrack: () => {
+          fetchStarted();
+          return new Promise((resolve) => { resolveFetch = resolve; });
+        },
+      });
+      await started;
+      audio.startBGM();
+      const current = audio._rotation.currentAudio;
+      assert.equal(current.src, 'capacitor://localhost/game/a.mp3');
+      assert.deepEqual(audio.musicVolumeCapability, { supported: false, status: 'awaiting-media-route' });
+      assert.equal(state.plays, 1, 'direct playback starts while the blob is pending');
+      resolveFetch({ ok: true, blob: async () => new Blob(['bundled-audio']) });
+      await audio._bundledReady;
+      assert.match(current.src, /^blob:/);
+      assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'available' });
+      assert.equal(context.sources.length, 2, 'current and its single-track preload are captured');
+      assert.equal(context.sources[0].element, current);
+      assert.match(audio._rotation.nextAudio.src, /^blob:/);
+      assert.equal(state.plays, 2, 'the swapped element resumes exactly once');
+      assert.equal(current.currentTime, 0);
+    });
+
+    it('keeps direct bundled playback when the blob fetch fails', async () => {
+      const warn = console.warn;
+      console.warn = () => {};
+      try {
+        const { audio, state } = soundEngine({
+          musicGainRouting: true,
+          baseUrl: 'capacitor://localhost/game/',
+          tracks: [{ file: 'a.mp3' }],
+          fetchTrack: async () => { throw new Error('offline'); },
+        });
+        await audio._bundledReady;
+        audio.startBGM();
+        assert.equal(state.plays, 1);
+        assert.deepEqual(audio.musicVolumeCapability, { supported: false, status: 'unsupported-media-routing' });
+        assert.throws(() => audio.setMusicVolume(0.5), /unsupported-media-routing/);
+        assert.equal(audio._rotation.currentAudio.src, 'capacitor://localhost/game/a.mp3');
+        assert.equal(audio._rotation.currentAudio.volume, 0.35);
+        assert.equal(audio._musicBus.gain.value, 0.35);
+      } finally {
+        console.warn = warn;
+      }
+    });
+
+    it('resumes a suspended context from startLevelBGM and effect gestures', () => {
+      const { audio, context } = soundEngine({ levelMusic: { levels: {} } });
+      assert.equal(context.state, 'suspended');
+      audio.startLevelBGM(1, 1);
+      assert.equal(context.resumes, 1, 'level music unlocks the context');
+      assert.equal(context.state, 'running');
+      context.state = 'suspended';
+      audio.playCorrect();
+      assert.equal(context.resumes, 2, 'an effect gesture resumes it again');
+    });
+
     it('unsupported media source keeps default music playback with an explicit unavailable capability', () => {
       const warn = console.warn;
       console.warn = () => {};
       try {
         for (const options of [
           { context: fakeContext({ media: false }) },
-          { baseUrl: 'capacitor://localhost/game/' },
           { tracks: [{ file: 'https://other.example/song.mp3' }] },
           { context: fakeContext({ failConnectAt: 1 }) },
           { context: fakeContext({ failConnectAt: 2 }) },

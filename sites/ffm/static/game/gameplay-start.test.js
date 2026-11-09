@@ -26,6 +26,7 @@ it('hides the title when a blocked level successfully resumes', () => {
     updateHUDLogoutVisibility() {},
     hud: { update() {} },
     audio: { startLevelBGM() {} },
+    flushDeferredMusicVolume() {},
     syncKeepAwake() {},
     animFrameId: 1,
   };

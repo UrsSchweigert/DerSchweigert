@@ -182,11 +182,13 @@ viewports, but this is not physical-device touch or safe-area evidence.
 Effects share an adjustable, muted gain bus with conservative headroom. Correct,
 wrong, timeout, actual healing and campaign-victory events have distinct cues;
 wrong/timeout feedback does not also stack the hurt cue. Device-wide audio
-preferences are separate from family progress. Music gain routing remains
-unverified on native local media: its slider is explicitly disabled with an
-explanation, rather than offering a successful no-op. See [MUSIC.md](MUSIC.md)
-for the opt-in routing spike and listening gates. No new songs or hero/weapon
-art are included.
+preferences (effects, music, mute) persist separately from family progress. In
+the app shell bundled music is fetched once from the bundle origin and played
+from same-origin blob URLs so it can share the Web Audio gain path; the music
+slider becomes available only after that capture succeeds, and the UI states
+the limitation when device gain control is unavailable. See [MUSIC.md](MUSIC.md)
+for the routing path and the physical-device listening gates. No new songs or
+hero/weapon art are included.
 
 Shared wiring calls `initViewportLayout({win,doc})` once; its `{refresh,destroy}` API is layout-only. Title
 navigation buttons use `data-title-target`, and parent wiring toggles `hidden` on matching `data-title-page`
