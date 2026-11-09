@@ -29,6 +29,7 @@ export const BUNDLE_FILES = Object.freeze([
   'game/level-numerals.js',
   'game/bubble-timer.js',
   'game/shapes-header.js',
+  'game/volume-control.js',
 ]);
 
 const FIRST_PARTY_HOST_RE = /(^|\.)derschweigert\.de$/i;
