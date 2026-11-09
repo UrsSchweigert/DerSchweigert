@@ -27,7 +27,8 @@ import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getL
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
-import { resolveDragonBreath, createAnswerClock } from './encounter-flow.js';
+import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
+import { dragonFinishPerFiendValue } from './level-baseline-score.js';
 import {
   collectTargetedProblems,
   createEarnedRecovery,
@@ -378,6 +379,7 @@ let completionFeedback = null;
 let lastCastAbility = null;
 const answerClock = createAnswerClock();
 let waveClearing = false;
+let dragonFinishResolved = false;
 
 function renderAttemptAccomplishment(id, result = completionFeedback) {
   const element = document.getElementById(id);
@@ -2101,6 +2103,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   setAnswerInputVisible(true);
   gameplayTimers.length = 0;
   waveClearing = false;
+  dragonFinishResolved = false;
   answerTimes = [];
   spawnInterval = practiceRun ? 2.0 : 4.0;
   answerClock.reset();
@@ -2807,6 +2810,37 @@ function updatePaceAdapter() {
   }
 }
 
+// A successful dragon breath in the app's campaign ends the level: every
+// encounter still queued, requeued or on screen is cleared at once, paid a
+// deterministic bonus proportional to how many remain, and then handed to the
+// normal single level-clear path. Web, practice and Shapes keep today's
+// single-fiend breath and are never campaign-completed here.
+function finishDragonLevel() {
+  if (dragonFinishResolved) return true;
+  if (!platform.isApp || practiceRun || state.isShapesMode) return false;
+  dragonFinishResolved = true;
+
+  const remainingEncounters = countDragonRemainingEncounters({ fiends, spawnQueue, requeuedFiends });
+  const perFiendValue = dragonFinishPerFiendValue(platform.getCurrentLevelConfig());
+  state.score += remainingEncounters * perFiendValue;
+  state.enemiesDefeated += remainingEncounters;
+
+  spawnQueue = [];
+  requeuedFiends = [];
+  fiends = [];
+  activeFiend = null;
+  pendingProblemActivation = null;
+  heroLunge = null;
+  activeLightningBolts = [];
+  activeFireballs = [];
+  state.timerActive = false;
+  inputDisabled = true;
+  input.disable();
+  hud.update(state);
+  triggerWaveClear();
+  return true;
+}
+
 function triggerWaveClear() {
   if (waveClearing) return;
   waveClearing = true;
@@ -3099,17 +3133,19 @@ function gameLoop(ts) {
       d.update(dt);
       if (d.breathJustCompleted) {
         audio.playDragonBreath();
-        state.enemiesDefeated += resolveDragonBreath(fiends);
-        if (activeFiend?.isDead || activeFiend?.state === 'death') {
-          activeFiend = null;
-          pendingProblemActivation = null;
-          state.timerActive = false;
-          input.disable();
-        }
-        if (checkAllDefeated()) triggerWaveClear();
-        else {
-          inputDisabled = false;
-          spawnTimer = spawnInterval;
+        if (!finishDragonLevel()) {
+          state.enemiesDefeated += resolveDragonBreath(fiends);
+          if (activeFiend?.isDead || activeFiend?.state === 'death') {
+            activeFiend = null;
+            pendingProblemActivation = null;
+            state.timerActive = false;
+            input.disable();
+          }
+          if (checkAllDefeated()) triggerWaveClear();
+          else {
+            inputDisabled = false;
+            spawnTimer = spawnInterval;
+          }
         }
       }
     });
