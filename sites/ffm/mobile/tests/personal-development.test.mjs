@@ -129,6 +129,9 @@ test('the panel renders per-level best, the chart and the completed overview', a
     TOTAL_LEVELS: 60,
     t: (key, vars) => {
       if (key === 'personalDevelopment.perLevelBest') return `Level ${vars.level}: ${vars.score} points`;
+      if (key === 'personalDevelopment.perLevelBestUnfinished') {
+        return `Level ${vars.level}: ${vars.score} points (unfinished)`;
+      }
       if (key === 'personalDevelopment.completed') return `${vars.completed} of ${vars.total} levels completed`;
       return 'no progress';
     },
@@ -146,6 +149,13 @@ test('the panel renders per-level best, the chart and the completed overview', a
   assert.equal(JSON.stringify(context.chartPayload), JSON.stringify({ history: [{ level: 2, score: 40 }] }));
   assert.equal(context.chartContainer, context.personalScoreHistoryChart);
   assert.equal(context.personalCompletedOverview.textContent, '2 of 60 levels completed');
+
+  vm.runInNewContext(
+    `${renderPersonal}\nrenderPersonalDevelopment({ best: [{ level: 2, score: 40, unfinished: true }], history: [{ level: 2, score: 40, unfinished: true }], completed: [] });`,
+    context,
+  );
+  assert.match(context.personalBestList.innerHTML, /Level 2: 40 points \(unfinished\)/);
+  assert.doesNotMatch(context.personalBestList.innerHTML, /40 points<\/li>/);
 
   vm.runInNewContext(
     `${renderPersonal}\nrenderPersonalDevelopment({ best: [], history: [], completed: [] });`,
