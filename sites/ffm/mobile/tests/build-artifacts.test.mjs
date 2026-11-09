@@ -188,7 +188,7 @@ test('artifact workflow is manual/tag-only, unsigned and verifies the extracted 
   assert.ok(yaml.indexOf('CODE_SIGNING_ALLOWED=NO archive') < yaml.lastIndexOf('actions/upload-artifact'));
 });
 
-test('native path detection covers curriculum, packaging and native preparation without broadening macOS for game PRs', async () => {
+test('native path detection covers curriculum and packaging without broadening macOS for game changes', async () => {
   const yaml = await workflow('ffm-native.yml');
   assert.match(yaml, /- '\.github\/workflows\/ffm-build-artifacts\.yml'/);
   assert.match(yaml, /Do not add this check[\s\S]*to a ruleset without removing this filter first/);
@@ -198,9 +198,9 @@ test('native path detection covers curriculum, packaging and native preparation 
     ['sites/ffm/app/level_data.json', true, false],
     ['sites/ffm/static/game/main.js', true, false],
     ['sites/ffm/mobile/game/main.js', true, false],
-    ['sites/ffm/mobile/scripts/copy-assets.mjs', true, true],
-    ['sites/ffm/mobile/scripts/stage-ios-project.mjs', true, true],
-    ['sites/ffm/mobile/tests/build-artifacts.test.mjs', true, true],
+    ['sites/ffm/mobile/scripts/copy-assets.mjs', true, false],
+    ['sites/ffm/mobile/scripts/stage-ios-project.mjs', true, false],
+    ['sites/ffm/mobile/tests/build-artifacts.test.mjs', true, false],
     ['sites/ffm/mobile/package-lock.json', true, true],
     ['sites/ffm/mobile/ios/App/App.xcodeproj/project.pbxproj', true, true],
     ['tools/ios/prepare-capacitor.sh', true, true],
