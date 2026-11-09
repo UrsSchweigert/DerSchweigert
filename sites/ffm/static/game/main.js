@@ -5,6 +5,12 @@ import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './re
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon } from './entities.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
+import {
+  applyAudioPreferences,
+  applyDeferredMusicVolume,
+  readAudioPreferences,
+  writeAudioPreferences,
+} from './audio-preferences.js';
 import { InputManager } from './input.js';
 import { createCompletionId, createLevelCompletion } from './level-completion.js';
 import { initViewportLayout } from './viewport-layout.js';
@@ -552,9 +558,14 @@ const closeAuthStatus = document.getElementById('close-auth-status');
 // --- Engine instances ---
 const renderer = new Renderer(canvas);
 const hud = new HUD(renderer);
-const audio = new AudioEngine();
-
-const AUDIO_PREFERENCES_KEY = 'arithmo-audio-preferences-v1';
+// The app shell serves bundled tracks from the WebView's own origin, so their
+// media elements can share the effects gain path. The web build keeps its
+// unverified status until a deployment is validated.
+let deferredMusicVolume = null;
+const audio = new AudioEngine({
+  musicGainRouting: platform.isApp,
+  onMusicVolumeReady: () => flushDeferredMusicVolume(),
+});
 
 function audioPreferenceStatus() {
   if (!musicVolumeStatus) return;
@@ -564,38 +575,40 @@ function audioPreferenceStatus() {
   if (musicVolumeInput) musicVolumeInput.disabled = !capability.supported;
 }
 
-function persistAudioPreferences() {
-  try {
-    const preferences = {
-      effects: audio.getEffectsVolume(),
-      music: audio.getMusicVolume(),
-    };
-    window.localStorage.setItem(AUDIO_PREFERENCES_KEY, JSON.stringify(preferences));
-    audioPreferenceStatus();
-  } catch (error) {
-    console.error('Unable to persist audio preferences', error);
-    if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesSaveFailed');
+function flushDeferredMusicVolume() {
+  if (deferredMusicVolume === null) return;
+  deferredMusicVolume = applyDeferredMusicVolume(audio, deferredMusicVolume);
+  if (deferredMusicVolume === null && musicVolumeInput) {
+    musicVolumeInput.value = String(audio.getMusicVolume());
   }
+  audioPreferenceStatus();
+}
+
+function persistAudioPreferences() {
+  if (writeAudioPreferences(window.localStorage, audio)) {
+    audioPreferenceStatus();
+    return;
+  }
+  console.error('Unable to persist audio preferences');
+  if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesSaveFailed');
 }
 
 function initializeAudioPreferences() {
+  let saved = null;
   try {
-    const raw = window.localStorage.getItem(AUDIO_PREFERENCES_KEY);
-    if (raw !== null) {
-      const saved = JSON.parse(raw);
-      if (Number.isFinite(saved?.effects) && saved.effects >= 0 && saved.effects <= 1) {
-        audio.setEffectsVolume(saved.effects);
-        if (effectsVolumeInput) effectsVolumeInput.value = String(saved.effects);
-      }
-      if (Number.isFinite(saved?.music) && saved.music >= 0 && saved.music <= 1 &&
-          audio.musicVolumeCapability.supported) {
-        audio.setMusicVolume(saved.music);
-        if (musicVolumeInput) musicVolumeInput.value = String(saved.music);
-      }
-    }
+    saved = readAudioPreferences(window.localStorage);
+    deferredMusicVolume = applyAudioPreferences(audio, saved);
   } catch (error) {
     console.error('Unable to load audio preferences', error);
     if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesLoadFailed');
+  }
+  if (saved) {
+    if (saved.effects !== null && effectsVolumeInput) {
+      effectsVolumeInput.value = String(audio.getEffectsVolume());
+    }
+    if (saved.music !== null && musicVolumeInput && audio.musicVolumeCapability.supported) {
+      musicVolumeInput.value = String(audio.getMusicVolume());
+    }
   }
   audioPreferenceStatus();
 }
@@ -612,11 +625,17 @@ effectsVolumeInput?.addEventListener('input', () => {
 musicVolumeInput?.addEventListener('input', () => {
   try {
     audio.setMusicVolume(Number(musicVolumeInput.value));
+    deferredMusicVolume = null;
     persistAudioPreferences();
   } catch (error) {
     console.error('Unable to change music volume', error);
     audioPreferenceStatus();
   }
+});
+// A saved gain can arrive before the first track is routed; retry whenever the
+// player opens the settings.
+document.getElementById('audio-settings')?.addEventListener('toggle', (event) => {
+  if (event.target.open) flushDeferredMusicVolume();
 });
 initializeAudioPreferences();
 
@@ -1869,6 +1888,7 @@ function updateMuteButtonLabel() {
 
 muteBtn.addEventListener('click', () => {
   audio.toggleMute();
+  persistAudioPreferences();
   updateMuteButtonLabel();
 });
 
@@ -2160,6 +2180,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   updateHUDLogoutVisibility();
   hud.update(state);
   audio.startLevelBGM(cfg.level, cfg.chapter);
+  flushDeferredMusicVolume();
   syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
 }

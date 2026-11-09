@@ -17,7 +17,7 @@ function volumeValue(value) {
 export class AudioEngine {
   constructor({ tracks = null, manifestUrl = null, makeAudio = null, fetchManifest = null,
     levelMusic = null, levelMusicUrl = null, fetchLevelMusic = null, baseUrl,
-    makeContext = null, musicGainRouting = false } = {}) {
+    makeContext = null, musicGainRouting = false, fetchTrack = null, onMusicVolumeReady = null } = {}) {
     this._ctx = null;
     this._makeContext = makeContext ?? (() => new (globalThis.AudioContext ?? globalThis.webkitAudioContext)());
     this._effectsVolume = 1;
@@ -28,8 +28,18 @@ export class AudioEngine {
     this._mediaSources = new Map();
     this._musicGainRouting = musicGainRouting;
     this._musicVolumeStatus = musicGainRouting ? 'awaiting-media-route' : 'unverified-media-routing';
+    this._onMusicVolumeReady = onMusicVolumeReady;
     this._makeAudio = makeAudio ?? (() => new Audio());
     this._musicBaseUrl = baseUrl === undefined ? new URL('./', import.meta.url).href : baseUrl;
+    this._fetchTrack = fetchTrack ?? (typeof globalThis.fetch === 'function'
+      ? url => globalThis.fetch(url) : null);
+    // Custom-scheme bundle assets (capacitor: on iOS) cannot be captured by
+    // Web Audio directly. Fetch each one once and play it from a same-origin
+    // blob URL so it can share the effects gain path.
+    this._blobUrls = new Map();
+    this._blobTasks = new Map();
+    this._pendingBlobElements = new Map();
+    this._bundledReady = Promise.resolve();
     this._muted = false;
     this._tracks = tracks ?? FALLBACK_TRACKS;
     this._levelMusic = levelMusic;
@@ -53,6 +63,7 @@ export class AudioEngine {
     } else {
       this._manifestReady = Promise.resolve();
     }
+    this._queueBundledTracks(this._tracks);
   }
 
   async _loadManifest(fetchManifest) {
@@ -68,6 +79,7 @@ export class AudioEngine {
       }
       this._tracks = tracks;
       this._refreshMusic();
+      this._queueBundledTracks(this._tracks);
     } catch (error) {
       console.warn('Unable to load music manifest; using bundled fallback:', error);
     }
@@ -197,32 +209,36 @@ export class AudioEngine {
 
   _routeMusicAudio(element, file) {
     if (!this._musicGainRouting) return element;
-    let source;
     try {
-      // A media source can produce silence for cross-origin/custom-scheme media.
-      // Never attach one without a same-origin HTTP(S) URL and explicit opt-in.
-      const url = new URL(element.src);
-      const base = new URL(this._musicBaseUrl);
-      if (!/^https?:$/.test(url.protocol) || url.origin !== base.origin) {
-        throw new Error('Media gain routing requires same-origin HTTP(S) assets');
-      }
+      if (!this._musicBaseUrl) throw new Error('Music gain routing needs a bundle base URL');
       if (typeof this._ctx?.createMediaElementSource !== 'function') {
         throw new Error('Media element sources unavailable');
       }
-      source = this._ctx.createMediaElementSource(element);
-      source.connect(this._musicBus);
-      element.volume = 1;
-      this._mediaSources.set(element, source);
-      this._musicVolumeStatus = 'available';
+      const base = new URL(this._musicBaseUrl);
+      const url = new URL(element.src, base);
+      if (!this._isRoutableMusicUrl(url, base)) {
+        throw new Error('Media gain routing requires same-origin bundled or HTTP(S) assets');
+      }
+      const blobUrl = this._blobUrls.get(file);
+      if (blobUrl) {
+        element.src = blobUrl;
+        return this._captureMusicElement(element);
+      }
+      if (url.protocol === 'blob:' || /^https?:$/.test(url.protocol)) {
+        return this._captureMusicElement(element);
+      }
+      // A custom-scheme bundle asset is swapped for its same-origin blob once
+      // the one-time fetch resolves; capture happens in _applyBundledBlob.
+      if (!this._fetchTrack) throw new Error('Bundled music fetch unavailable');
+      const pending = this._pendingBlobElements.get(file) ?? new Set();
+      pending.add(element);
+      this._pendingBlobElements.set(file, pending);
       return element;
     } catch (error) {
-      source?.disconnect();
-      this._musicGainRouting = false;
-      this._musicVolumeStatus = 'unsupported-media-routing';
-      this._musicVolume = DEFAULT_VOLUME;
-      this._updateBusGains();
+      this._disableMusicRouting();
       console.warn('Music volume control unavailable; preserving default playback:', error);
-      if (!source) return element;
+      const captured = error?.mediaSource ?? null;
+      if (!captured) return element;
       // Once captured, an element cannot reliably return to direct playback.
       const replacement = this._makeAudio(file);
       for (const key of ['src', 'loop', 'preload', 'muted']) replacement[key] = element[key];
@@ -230,6 +246,128 @@ export class AudioEngine {
       element.pause();
       return replacement;
     }
+  }
+
+  // Blob URLs inherit this document's origin, so they are always capturable.
+  // HTTP(S) needs an exact origin match; a custom bundle scheme (capacitor:)
+  // only needs to match the bundle's own scheme and host.
+  _isRoutableMusicUrl(url, base) {
+    if (url.protocol === 'blob:') return true;
+    if (/^https?:$/.test(url.protocol)) {
+      return /^https?:$/.test(base.protocol) && url.origin === base.origin;
+    }
+    return url.protocol === base.protocol && url.host === base.host;
+  }
+
+  _usesBundledBlobTracks() {
+    if (!this._musicGainRouting || !this._musicBaseUrl || !this._fetchTrack) return false;
+    try {
+      return !/^https?:$/.test(new URL(this._musicBaseUrl).protocol);
+    } catch {
+      return false;
+    }
+  }
+
+  _queueBundledTracks(tracks) {
+    if (!this._usesBundledBlobTracks()) return;
+    const files = [...new Set((Array.isArray(tracks) ? tracks : [])
+      .map(track => track?.file)
+      .filter(file => typeof file === 'string' && file))];
+    this._bundledReady = this._bundledReady.then(() =>
+      Promise.all(files.map(file => this._fetchBundledTrack(file))));
+  }
+
+  _fetchBundledTrack(file) {
+    if (this._blobUrls.has(file)) return Promise.resolve(this._blobUrls.get(file));
+    const existing = this._blobTasks.get(file);
+    if (existing) return existing;
+    const url = new URL(file, this._musicBaseUrl).href;
+    const task = Promise.resolve()
+      .then(() => this._fetchTrack(url))
+      .then((response) => {
+        if (!response || response.ok === false) {
+          throw new Error(`bundled music ${response?.status ?? 'unavailable'}`);
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        if (!blob || blob.size === 0) throw new Error('empty bundled music');
+        const objectUrl = URL.createObjectURL(blob);
+        this._blobUrls.set(file, objectUrl);
+        this._applyBundledBlob(file, objectUrl);
+        return objectUrl;
+      })
+      .catch((error) => {
+        console.warn('Unable to prepare bundled music for gain routing:', error);
+        this._disableMusicRouting();
+        return null;
+      });
+    this._blobTasks.set(file, task);
+    return task;
+  }
+
+  _applyBundledBlob(file, objectUrl) {
+    const elements = this._pendingBlobElements.get(file);
+    if (!elements) return;
+    this._pendingBlobElements.delete(file);
+    for (const element of elements) {
+      const wasCurrent = this._rotation?.currentAudio === element;
+      const shouldPlay = wasCurrent && this._rotation.active && !this._muted &&
+        !this._musicSession?.paused;
+      const directSrc = element.src;
+      try {
+        element.src = objectUrl;
+        this._captureMusicElement(element);
+        if (shouldPlay) this._playMedia(element);
+      } catch (error) {
+        element.src = directSrc;
+        console.warn('Unable to route bundled music through the gain bus:', error);
+        this._disableMusicRouting();
+      }
+    }
+  }
+
+  _captureMusicElement(element) {
+    if (this._mediaSources.has(element)) return element;
+    const source = this._ctx.createMediaElementSource(element);
+    try {
+      source.connect(this._musicBus);
+    } catch (error) {
+      source.disconnect?.();
+      error.mediaSource = source;
+      throw error;
+    }
+    element.volume = 1;
+    this._mediaSources.set(element, source);
+    this._markMusicRoutingAvailable();
+    return element;
+  }
+
+  _markMusicRoutingAvailable() {
+    if (this._musicVolumeStatus === 'available') return;
+    this._musicVolumeStatus = 'available';
+    try {
+      this._onMusicVolumeReady?.();
+    } catch (error) {
+      console.warn('Music volume ready callback failed:', error);
+    }
+  }
+
+  _playMedia(element) {
+    try {
+      const result = element.play();
+      result?.catch?.(error => console.warn('Unable to play bundled music track:', error));
+    } catch (error) {
+      console.warn('Unable to play bundled music track:', error);
+    }
+  }
+
+  _disableMusicRouting() {
+    this._musicGainRouting = false;
+    this._musicVolumeStatus = 'unsupported-media-routing';
+    this._musicVolume = DEFAULT_VOLUME;
+    this._pendingBlobElements.clear();
+    this._updateBusGains();
   }
 
   _releaseMusicAudio(element) {
@@ -517,16 +655,24 @@ export class AudioEngine {
     return this._muted;
   }
 
-  toggleMute() {
-    this._muted = !this._muted;
+  // Idempotent so a restored preference can be applied without toggling.
+  setMuted(value) {
+    const muted = Boolean(value);
+    if (this._muted === muted) return this._muted;
+    this._muted = muted;
     this._updateBusGains();
-    if (this._muted) {
+    if (muted) {
       for (const voice of this._voices) {
         voice.source.stop();
         voice.nodes.forEach(node => node.disconnect());
       }
       this._voices.clear();
     }
-    this._rotation.setMuted(this._muted);
+    this._rotation.setMuted(muted);
+    return this._muted;
+  }
+
+  toggleMute() {
+    return this.setMuted(!this._muted);
   }
 }

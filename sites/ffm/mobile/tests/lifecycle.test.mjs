@@ -318,6 +318,7 @@ test('the shared authorized startup activates keep-awake for finite and Endless 
       levelClearOverlay: { style: {} }, gameOverOverlay: { style: {} },
       updateHUDLogoutVisibility() {}, hud: { update() {} },
       audio: { startLevelBGM() {} }, animFrameId: 1,
+      flushDeferredMusicVolume() {},
       syncKeepAwake: () => calls.push(context.gameRunning && !context.paused),
     };
     vm.createContext(context);
