@@ -25,6 +25,7 @@ export const BUNDLE_FILES = Object.freeze([
   'game/platform-adapter.js',
   'game/mobile-ui.js',
   'game/mobile-ui.css',
+  'game/timer-bar.js',
 ]);
 
 const FIRST_PARTY_HOST_RE = /(^|\.)derschweigert\.de$/i;

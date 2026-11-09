@@ -73,6 +73,10 @@ if (platform.isApp) {
   import('./mobile-ui.js')
     .then(({ mountMobileUi }) => {
       mobileUi = mountMobileUi({ doc: document });
+      return import('./timer-bar.js');
+    })
+    .then(({ createTimerBar }) => {
+      mobileUi?.registerWidget('timer-bar', createTimerBar({ doc: document }));
     })
     .catch(() => {});
   // Pause gameplay and music while the app is in the background, resume only
@@ -3119,7 +3123,10 @@ function gameLoop(ts) {
         renderer.drawSpeechBubble(f.x, f.y - 20 * LOGICAL_PX, bubbleText, f === activeFiend);
       }
     }
-    if (f === activeFiend && state.timerActive) {
+    // The app draws the question timer as the DOM header bar (see
+    // mobile/game/timer-bar.js) with continuous colours, so the canvas bar
+    // stays a web-only visual and keeps its banded colours byte-for-byte.
+    if (f === activeFiend && state.timerActive && !platform.isApp) {
       const ratio = state.timerRemaining / state.timerMax;
       renderer.drawTimerBar(f.x - 44, f.y - 22 * LOGICAL_PX, 88, ratio);
     }
@@ -3187,6 +3194,16 @@ function gameLoop(ts) {
     healHint: practiceRun ? '' : t('overlay.healTipBody'),
     feedback,
   }, activeFiend?.problem ?? null);
+  // Publish the live timer state once per frame for the app-only header bar
+  // (and any later portrait timer). Reading state.timerRemaining here keeps it
+  // in sync through pause, correction, retry and preserved elite timers; the
+  // hook is null on the web build, so this is a no-op there.
+  mobileUi?.updateTimerState({
+    remaining: state.timerRemaining,
+    max: state.timerMax,
+    untimed: !(state.timerMax > 0) || practiceProgress?.untimed === true,
+    paused,
+  });
 }
 
 function handleUrlAuthTokens() {

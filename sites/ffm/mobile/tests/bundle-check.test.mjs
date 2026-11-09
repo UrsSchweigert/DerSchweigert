@@ -141,12 +141,16 @@ test('a missing core play module fails the bundle check', async () => {
 
 test('the app-only overlay UI module and stylesheet are bundled', async () => {
   await withBundle(async (dir) => {
-    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css']) {
+    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/timer-bar.js']) {
       assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
     }
     const source = await readFile(join(dir, 'game', 'mobile-ui.js'), 'utf8');
     assert.match(source, /export function mountMobileUi/);
     assert.doesNotMatch(source, /https?:\/\//, 'the overlay must stay offline');
+    const timerBar = await readFile(join(dir, 'game', 'timer-bar.js'), 'utf8');
+    assert.match(timerBar, /export function createTimerBar/);
+    assert.match(timerBar, /export function timerBarRgb/);
+    assert.doesNotMatch(timerBar, /https?:\/\//, 'the timer bar must stay offline');
     assert.deepEqual(await bundleCheck(dir), []);
   });
 });
