@@ -1047,3 +1047,41 @@ when it is set, and a signed refiner below the standard band is still refused, s
 refinement to `deepseek-flash`. The cheaper levers that remain are volume, and they belong to whoever writes the
 plan: fewer, larger issues; documentation exempt from planning; and issues whose anchors are stable, because every
 issue that edits the same file after an earlier merge buys another re-plan.
+
+## Run-branch pull requests no longer run the pipeline's suites (2026-11-09)
+
+The repository went public for a while only to stay under the Actions minute limit, and it is going back to private,
+where minutes are metered per job (rounded up, macOS at ten times). Job data for 2026-10-15 to 2026-11-09 priced the
+pipeline at roughly 6,200 billed minutes. `Deploy to production` was about 4,200 of them, and most of that was the
+rounding of many one-minute gate jobs (`check-secrets`, `changes`, `test`, `test-lhc`), not test time.
+
+* A pull request into `harness/run/**` now skips `changes` and every suite in `deploy.yml`. `test` and `test-ffm` still
+  report success, because they are the required contexts of the `harness run branches` ruleset and the harness refuses
+  to merge without strict required checks. The tests that gate a run-branch merge are the plan's checks, which the
+  harness runs in its Docker sandbox on the current head and base, plus the independent review.
+* The full suite still runs on the promotion pull request into `main` and on every other pull request, so `main` keeps
+  the full gate. A plan with `run_branch: ""` merges into `main` and keeps
+  full CI too, because the switch keys on the pull request's base branch.
+* `check-secrets` runs only on `main`, the one ref that deploys. Pull requests no longer pay a minute for it.
+* `test-lhc` is a plain conditional job again: skipped (and unbilled) when landhauscheck is untouched. The required
+  `test` gate now verifies it like the other suites, and `deploy-lhc` depends on `test` instead of `test-lhc`, so a
+  terraform-only landhauscheck change still deploys. A failing landhauscheck suite now blocks the merge, because it
+  was not a required context before. `test` and `test-ffm` stay real, always-running jobs: a job skipped by `if`
+  counts as a pass for GitHub, but its check run concludes `skipped`, and `completion_evidence` in `github.py`
+  accepts only `success` for a required context.
+* Consequence: the server-side required checks on a run branch are now a formality, so the real gate there is the
+  plan's `validation_commands`. A plan that wants CI-level coverage before promotion must list the broader suites in
+  them.
+* Production deploys run only on manual dispatch of `deploy.yml` (ref `main`); a push to `main` deploys nothing, so
+  promote, then dispatch. The dispatch has one boolean input per site (default on), tests exactly the ticked sites on
+  that commit, and every deploy job waits for `test` (`deploy-ffm` also for `test-ffm`), so nothing deploys untested.
+  The concurrency group cancels only pull request runs, so a second dispatch cannot interrupt a terraform apply.
+* `ffm-native.yml` and `lesen-native.yml` run only on manual dispatch, with an `ios` input (default on) that skips the
+  macOS build. Nothing triggers them from a pull request, a run branch or a push, so a native build is found broken
+  only when someone starts one. The sandbox has no Android SDK and no macOS, so a plan that changes native inputs has
+  no automatic CI evidence and must ask the owner to run the workflow before promotion. The per-run-branch ruleset
+  `Lesen native build gate` requires `lesen-native` on a pull request that no longer runs it, so it must be deleted
+  before that run branch syncs `main` or promotes, or its pull requests wait forever. The harness never edits rulesets,
+  so that is the owner's change.
+* Private repositories on the free plan cannot enforce rulesets or branch protection, so `merge_protection` fails
+  closed there exactly as it did on 2026-10-26. Autonomous merging needs a plan that enforces them.

@@ -48,8 +48,9 @@ def test_the_gate_only_owes_the_ios_build_when_native_inputs_changed(android, io
 
 def test_native_ci_is_unsigned_revision_bound_and_has_a_bounded_build_budget():
     workflow = WORKFLOW.read_text()
-    assert "pull_request:\n    branches: ['harness/run/**']" in workflow
-    assert "permissions:\n  contents: read\n  pull-requests: read" in workflow
+    assert "on:\n  workflow_dispatch:" in workflow
+    assert "pull_request:" not in workflow and "\n  push:" not in workflow
+    assert "permissions:\n  contents: read\n\njobs:" in workflow
     assert workflow.count("timeout-minutes: 30") == 2
     # Third-party action majors are deliberately not pinned here. A dependency bump arrives as its own reviewed pull
     # request, and a test that fails on every one of them teaches people to edit the pin without reading the diff.

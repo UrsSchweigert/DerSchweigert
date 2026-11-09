@@ -1,19 +1,33 @@
 name: Deploy to production
 
+# Production deploys on manual dispatch only (Actions > Run workflow, ref main). Pull requests run the tests; a dispatch
+# re-tests every site it is asked to deploy on the exact commit, and no deploy job runs unless `test` passed.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main, 'harness/run/**']   # a harness run lands on its own protected branch first
-  # Allows re-running the deploy from the Actions UI (same `main` ref, no new
-  # commit needed) after changing the non-secret FFM billing/access
-  # repository variables below — e.g. to apply a newly provisioned Stripe ID
-  # without a code push. Does not change what gets deployed or any default.
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      derschweigert:
+        description: Test and deploy derschweigert.de
+        type: boolean
+        default: true
+      ffm:
+        description: Test and deploy ffm.derschweigert.de (also applies the FFM billing/access repository variables)
+        type: boolean
+        default: true
+      lesen:
+        description: Test and deploy lesen.derschweigert.de
+        type: boolean
+        default: true
+      lhc:
+        description: Test and deploy landhauscheck
+        type: boolean
+        default: true
 
+# A pull request run is superseded by its next push. A deploy is never cancelled half way through a terraform apply.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -25,7 +39,13 @@ jobs:
   # skipped job awkward and a workflow that never starts leaves its checks "expected" forever, so the gates below are
   # explicit outputs that every other job reads. Anything uncertain reports every site as changed, because over-testing
   # is cheap and a silently untested deploy is not.
+  #
+  # A pull request into a harness run branch is the one exception: the harness already ran the plan's checks in its
+  # sandbox, and the full suite runs on the promotion pull request into main. Private-repo Actions minutes are metered
+  # per job, so that case skips this job and the suites and lets only `test` and `test-ffm` (the required contexts of
+  # the run-branch ruleset) report success. Every other event is unchanged.
   changes:
+    if: github.event_name != 'pull_request' || !startsWith(github.base_ref, 'harness/run/')
     runs-on: ubuntu-latest
     outputs:
       ffm_tests: ${{ steps.diff.outputs.ffm_tests }}
@@ -44,6 +64,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          EVENT: ${{ github.event_name }}
+          IN_SITE: ${{ inputs.derschweigert }}
+          IN_FFM: ${{ inputs.ffm }}
+          IN_LESEN: ${{ inputs.lesen }}
+          IN_LHC: ${{ inputs.lhc }}
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -107,6 +132,15 @@ jobs:
               lesen_tests=true
             fi
           fi
+          # A manual run deploys exactly the sites ticked, and tests exactly those on this commit. The harness suite
+          # gates pull requests; it is not part of what is deployed.
+          if [ "$EVENT" = workflow_dispatch ]; then
+            site=$IN_SITE; site_tests=$IN_SITE
+            ffm=$IN_FFM; ffm_tests=$IN_FFM
+            lesen=$IN_LESEN; lesen_tests=$IN_LESEN
+            lhc=$IN_LHC; lhc_tests=$IN_LHC
+            harness_tests=false
+          fi
           echo "changed -> ffm_tests=$ffm_tests deploy ffm=$ffm lesen=$lesen site=$site lhc_tests=$lhc_tests deploy lhc=$lhc site_tests=$site_tests harness_tests=$harness_tests lesen_tests=$lesen_tests"
           printf 'ffm_tests=%s\nffm=%s\nlesen=%s\nsite=%s\nlhc_tests=%s\nlhc=%s\nsite_tests=%s\nharness_tests=%s\nlesen_tests=%s\n' \
             "$ffm_tests" "$ffm" "$lesen" "$site" "$lhc_tests" "$lhc" "$site_tests" "$harness_tests" "$lesen_tests" >> "$GITHUB_OUTPUT"
@@ -162,10 +196,12 @@ jobs:
       - run: node --test sites/lesen/tests/*.test.mjs
 
   test:
-    needs: [changes, test-site, test-harness, test-lesen]
+    needs: [changes, test-site, test-harness, test-lesen, test-lhc]
     # always() so a failed `changes` or suite shows up here as a red check instead of leaving this required check skipped.
     if: always()
     runs-on: ubuntu-latest
+    env:
+      RUN_BRANCH_PR: ${{ github.event_name == 'pull_request' && startsWith(github.base_ref, 'harness/run/') }}
     steps:
       - name: Require every suite the change needed
         env:
@@ -173,13 +209,19 @@ jobs:
           SITE_NEEDED: ${{ needs.changes.outputs.site_tests }}
           HARNESS_NEEDED: ${{ needs.changes.outputs.harness_tests }}
           LESEN_NEEDED: ${{ needs.changes.outputs.lesen_tests }}
+          LHC_NEEDED: ${{ needs.changes.outputs.lhc_tests }}
           SITE: ${{ needs.test-site.result }}
           HARNESS: ${{ needs.test-harness.result }}
           LESEN: ${{ needs.test-lesen.result }}
+          LHC: ${{ needs.test-lhc.result }}
         run: |
           set -euo pipefail
+          if [ "$RUN_BRANCH_PR" = true ]; then
+            echo "::notice::pull request into a harness run branch: the harness ran the plan's checks in its sandbox; the full suite runs on the promotion pull request into main"
+            exit 0
+          fi
           if [ "$CHANGES" != success ]; then
-            echo "::error::the changes job produced no result, so nothing proves the shared code and lesen were tested"
+            echo "::error::the changes job produced no result, so nothing proves the suites were tested"
             exit 1
           fi
           failed=0
@@ -191,6 +233,7 @@ jobs:
           check derschweigert "$SITE_NEEDED" "$SITE"
           check harness "$HARNESS_NEEDED" "$HARNESS"
           check lesen "$LESEN_NEEDED" "$LESEN"
+          check landhauscheck "$LHC_NEEDED" "$LHC"
           exit "$failed"
 
   test-ffm:
@@ -198,15 +241,20 @@ jobs:
     # always() so a failed `changes` job shows up here as a red check instead of leaving this required check skipped.
     if: always()
     runs-on: ubuntu-latest
+    env:
+      RUN_BRANCH_PR: ${{ github.event_name == 'pull_request' && startsWith(github.base_ref, 'harness/run/') }}
     steps:
+      - name: Pull request into a harness run branch
+        if: env.RUN_BRANCH_PR == 'true'
+        run: echo "::notice::pull request into a harness run branch; sites/ffm tests ran in the harness sandbox and run again on the promotion pull request into main"
       - name: Refuse to report an untested ffm as passing
-        if: needs.changes.outputs.ffm_tests == ''
+        if: env.RUN_BRANCH_PR != 'true' && needs.changes.outputs.ffm_tests == ''
         run: |
           echo "::error::the changes job produced no result, so nothing proves sites/ffm was tested"
           exit 1
       - name: sites/ffm code is unchanged
         if: needs.changes.outputs.ffm_tests == 'false'
-        run: echo "::notice::sites/ffm code unchanged; its tests are skipped for this change"
+        run: echo "::notice::sites/ffm tests are skipped here (code unchanged, or not selected for this manual run)"
       - uses: actions/checkout@v4
         if: needs.changes.outputs.ffm_tests == 'true'
       - uses: actions/setup-python@v7
@@ -232,58 +280,45 @@ jobs:
 
   test-lhc:
     needs: [changes]
-    # always() so a failed `changes` job shows up here as a red check instead of leaving this required check skipped.
-    if: always()
+    # Not a required context, so it may be skipped when landhauscheck is untouched. `test` fails when this suite was
+    # needed and did not succeed, and when `changes` produced nothing, so a skip here can never read as a pass.
+    if: needs.changes.outputs.lhc_tests == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Refuse to report an untested landhauscheck as passing
-        if: needs.changes.outputs.lhc_tests == ''
-        run: |
-          echo "::error::the changes job produced no result, so nothing proves sites/landhauscheck was tested"
-          exit 1
-      - name: sites/landhauscheck code is unchanged
-        if: needs.changes.outputs.lhc_tests == 'false'
-        run: echo "::notice::sites/landhauscheck code unchanged; its tests are skipped for this change"
       - uses: actions/checkout@v4
-        if: needs.changes.outputs.lhc_tests == 'true'
       - uses: actions/setup-python@v7
-        if: needs.changes.outputs.lhc_tests == 'true'
         with:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: sites/landhauscheck/requirements-dev.txt
       - name: Install backend dev dependencies
-        if: needs.changes.outputs.lhc_tests == 'true'
         run: python -m pip install -r sites/landhauscheck/requirements-dev.txt
       # Scope matches the pre-migration CI (backend package only); scripts/ was never linted.
       - name: Lint
-        if: needs.changes.outputs.lhc_tests == 'true'
         run: |
           cd sites/landhauscheck
           ruff check app tests alembic
       # tests/smoke needs a running BASE_URL, so it is a deploy-time check, not a unit test.
       - name: Backend unit tests
-        if: needs.changes.outputs.lhc_tests == 'true'
         run: PYTHONPATH=sites/landhauscheck pytest sites/landhauscheck/tests -q --ignore=sites/landhauscheck/tests/smoke
       - uses: actions/setup-node@v7
-        if: needs.changes.outputs.lhc_tests == 'true'
         with:
           node-version: '20'
           cache: npm
           cache-dependency-path: sites/landhauscheck/frontend/package-lock.json
       - name: Frontend unit tests
-        if: needs.changes.outputs.lhc_tests == 'true'
         run: |
           cd sites/landhauscheck/frontend
           npm ci
           npm test
       - name: Frontend build
-        if: needs.changes.outputs.lhc_tests == 'true'
         run: |
           cd sites/landhauscheck/frontend
           npm run build
 
+  # Only `main` deploys, so a pull request has no use for the answer and need not pay a metered minute for it.
   check-secrets:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       has_secrets: ${{ steps.check.outputs.has_secrets }}
@@ -410,10 +445,16 @@ jobs:
           aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
 
   deploy-ffm:
-    needs: [test-ffm, check-secrets, changes]
+    needs: [test, test-ffm, check-secrets, changes]
     runs-on: ubuntu-latest
     # `ffm` (not `ffm_tests`) because a terraform-only change must still be applied, even though it runs no app tests.
+    # Like the other deploys it waits for the whole `test` gate, and for its own suite, which `test` does not cover.
     if: |
+      !cancelled() &&
+      needs.test.result == 'success' &&
+      needs.test-ffm.result == 'success' &&
+      needs.check-secrets.result == 'success' &&
+      needs.changes.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       needs.check-secrets.outputs.has_secrets == 'true' &&
       needs.changes.outputs.ffm == 'true'
@@ -578,10 +619,16 @@ jobs:
           curl -sf https://ffm.derschweigert.de/api/health | grep '"ok":true'
 
   deploy-lhc:
-    needs: [test-lhc, check-secrets, changes]
+    needs: [test, check-secrets, changes]
     runs-on: ubuntu-latest
     # `lhc` (not `lhc_tests`) because a terraform-only change must still be applied, even though it runs no app tests.
+    # !cancelled() + explicit results: `test-lhc` skips when landhauscheck code is untouched, and `test` already requires it
+    # whenever it was needed.
     if: |
+      !cancelled() &&
+      needs.test.result == 'success' &&
+      needs.check-secrets.result == 'success' &&
+      needs.changes.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       needs.check-secrets.outputs.has_secrets == 'true' &&
       needs.changes.outputs.lhc == 'true'
@@ -592,7 +639,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       # deploy.sh guards prod with an interactive "did you test on dev?" prompt. In CI the
-      # test-lhc job is that gate, so the prompt is pre-answered.
+      # `test` job (which requires test-lhc when needed) is that gate, so the prompt is pre-answered.
       DEPLOY_CONFIRMED: 'yes'
       # Used by deploy.sh to build releases.json from the GitHub releases API.
       GH_TOKEN: ${{ github.token }}

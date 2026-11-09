@@ -1,42 +1,32 @@
 name: Buchstabenzeit native build gate
 
+# On demand only (Actions > Run workflow): the Android and macOS builds are the most expensive jobs in the repository
+# (macOS bills at ten times the Linux rate), and nothing runs them automatically. Run it before a release or after a
+# change to the native project. A ruleset must not require `lesen-native`, because no pull request or push runs it.
 on:
-  pull_request:
-    branches: ['harness/run/**']
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: Also build the iOS simulator app on macOS (ten times the Linux rate)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
-  pull-requests: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      needed: ${{ steps.paths.outputs.needed }}
-      native: ${{ steps.paths.outputs.native }}
+      needed: ${{ steps.select.outputs.needed }}
+      native: ${{ steps.select.outputs.native }}
     steps:
-      - id: paths
+      - id: select
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
+          IOS: ${{ inputs.ios }}
         run: |
-          set -euo pipefail
-          paths="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR/files?per_page=100" --jq '.[] | .filename, (.previous_filename // empty)')"
-          needed=false
-          if [ -z "$paths" ] || grep -Eq '^(sites/lesen/(static/|android/|ios/|assets/|scripts/|package\.json|package-lock\.json|capacitor\.config\.json)|tools/ios/|\.github/workflows/lesen-native\.yml$)' <<< "$paths"; then
-            needed=true
-          fi
-          native=false
-          if [ -z "$paths" ] || grep -Eq '^(sites/lesen/(mobile/)?(ios/|android/|package\.json|package-lock\.json|capacitor\.config\.json)|tools/ios/|\.github/workflows/lesen-native\.yml$)' <<< "$paths"; then
-            native=true
-          fi
-          echo "needed=$needed" >> "$GITHUB_OUTPUT"
-          echo "native=$native" >> "$GITHUB_OUTPUT"
+          echo "needed=true" >> "$GITHUB_OUTPUT"
+          echo "native=$IOS" >> "$GITHUB_OUTPUT"
 
   android:
     needs: changes
@@ -72,9 +62,7 @@ jobs:
 
   ios:
     needs: changes
-    # A macOS runner bills at ten times the Linux rate, so the iOS build runs only when something the
-    # app bundle is made of changed. A game-code change is covered by the Android build and the checks;
-    # the iOS project is verified again on the promotion pull request into main.
+    # A macOS runner bills at ten times the Linux rate, so the iOS build is opt-out on dispatch.
     if: needs.changes.outputs.native == 'true'
     runs-on: macos-latest
     timeout-minutes: 30

@@ -54,7 +54,7 @@ Words used throughout:
 
 What an issue goes through: a **refiner** re-checks it if the code under it changed, and plans it once when its declared implementer tier is `standard` or `strong` (the plan and the tier the plan really needs are what the implementer gets), an **implementer** builds it in a throwaway copy of the repository, the harness runs the issue's own check commands, an **independent reviewer** (a different model) reviews the diff, the harness opens a pull request and merges it when every gate passes, and it reruns the checks on the merged `main`. Only then is the issue Done. A phase is Done when all its issues are Done and its exit checks pass.
 
-**Every merge to `main` deploys to production.** This repository's deploy workflow runs on `main`, so each autonomous merge of a `sites/lesen` change goes live. Keep that in mind when you approve a plan.
+**A merge to `main` does not deploy by itself.** Production changes only when you dispatch the `Deploy to production` workflow on `main`, which tests the sites you tick on that commit first. A plan with `run_branch: ""` still merges straight into `main`, so approve it knowing the next dispatch will ship the result.
 
 ### Model selection
 
@@ -209,13 +209,15 @@ unchanged completed issue preserves its historical evidence; completed work
 cannot be redefined. Pending required CI checks can wait up to 30 minutes,
 independently of scheduler polling frequency, without spending repair budget.
 
-For Buchstabenzeit run branches, `.github/workflows/lesen-native.yml` builds an
-Android debug APK and an unsigned iOS simulator app from the PR revision.
-Until the iOS phase adds its actual project, CI generates a temporary Capacitor
-shell from the locked packages. The aggregate `lesen-native` check fails closed
-for absent, failed, cancelled or skipped required builds. A run-branch ruleset
-must require that check; merely adding the workflow does not enforce it.
-Neither build proves physical-device behavior, signing, or publication.
+For Buchstabenzeit, `.github/workflows/lesen-native.yml` builds an
+Android debug APK and an unsigned iOS simulator app when you start it from the
+Actions tab (the `ios` input can skip the macOS build). It does not run on pull
+requests, run branches or pushes, so no ruleset may require the `lesen-native`
+check and a run's native work has no automatic CI evidence. Until the iOS phase
+adds its actual project, CI generates a temporary Capacitor shell from the
+locked packages. The aggregate `lesen-native` check fails closed for absent,
+failed, cancelled or skipped required builds. Neither build proves
+physical-device behavior, signing, or publication.
 
 ### When a worker is stuck
 
@@ -895,8 +897,13 @@ Protection is the repository ruleset `harness run branches`, which covers `refs/
 rules as `main`: no direct pushes, no force pushes, and the strict required checks `test` and `test-ffm` before a
 merge. The harness verifies those rules before it runs, exactly as it does for `main`, and never changes them.
 
+To save metered Actions minutes, a pull request into a run branch makes `deploy.yml` report `test` and `test-ffm` without
+running the suites. The checks that gate those merges are the plan's `validation_commands`, run in the sandbox, so list
+the broader suites there. The promotion pull request into `main` runs the full pipeline.
+
 When every phase is Done, the harness opens a pull request from the run branch into `main` and emits `promotion_pr`.
-It does not merge it: `main` moves when you decide, and the deploy that follows belongs to that merge. Run branches
+It does not merge it: `main` moves when you decide, and production only changes when you then dispatch the deploy
+workflow. Run branches
 may be deleted after promotion; `main` itself stays protected against deletion.
 
 Set `policy.run_branch` to `""` to work directly on the base branch as before, and `policy.base_branch` when the

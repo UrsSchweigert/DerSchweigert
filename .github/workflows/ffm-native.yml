@@ -1,54 +1,32 @@
 name: Arithmo Slayer native build gate
 
+# On demand only (Actions > Run workflow): the Android and macOS builds are the most expensive jobs in the repository
+# (macOS bills at ten times the Linux rate), and nothing runs them automatically. Run it before a release or after a
+# change to the native project. A ruleset must not require `ffm-native`, because no pull request or push runs it.
 on:
-  pull_request:
-    branches: [main, 'harness/run/**']
-    # The workflow-level filter is a pre-filter only: a pull request that cannot touch the app does not start it at
-    # all. It is safe because `ffm-native` is not a required check on `main` or on `harness/run/**` — only `test` and
-    # `test-ffm` are — so a pull request that never starts it is not left waiting for a status. Do not add this check
-    # to a ruleset without removing this filter first: a path-filtered required check never reports for the pull
-    # requests it skips, and those merges would block forever.
-    # The `needed`/`native` logic inside stays as it is, so a pull request that does start the workflow still decides
-    # between the Android build and the macOS one on what actually changed.
-    paths:
-      - 'sites/ffm/**'
-      - 'tools/ios/**'
-      - '.github/workflows/ffm-native.yml'
-      - '.github/workflows/ffm-build-artifacts.yml'
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: Also build the iOS simulator app on macOS (ten times the Linux rate)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
-  pull-requests: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      needed: ${{ steps.paths.outputs.needed }}
-      native: ${{ steps.paths.outputs.native }}
+      needed: ${{ steps.select.outputs.needed }}
+      native: ${{ steps.select.outputs.native }}
     steps:
-      - id: paths
+      - id: select
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
+          IOS: ${{ inputs.ios }}
         run: |
-          set -euo pipefail
-          paths="$(gh api --paginate "repos/$REPOSITORY/pulls/$PR/files?per_page=100" --jq '.[] | .filename, (.previous_filename // empty)')"
-          needed=false
-          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(static/|mobile/|app/level_data\.json$)|tools/ios/|\.github/workflows/ffm-(native|build-artifacts)\.yml$)' <<< "$paths"; then
-            needed=true
-          fi
-          native=false
-          if [ -z "$paths" ] || grep -Eq '^(sites/ffm/(mobile/)?(ios/|android/|scripts/|tests/build-artifacts\.test\.mjs$|package\.json|package-lock\.json|capacitor\.config\.json)|tools/ios/|\.github/workflows/ffm-(native|build-artifacts)\.yml$)' <<< "$paths"; then
-            native=true
-          fi
-          echo "needed=$needed" >> "$GITHUB_OUTPUT"
-          echo "native=$native" >> "$GITHUB_OUTPUT"
+          echo "needed=true" >> "$GITHUB_OUTPUT"
+          echo "native=$IOS" >> "$GITHUB_OUTPUT"
 
   android:
     needs: changes
@@ -85,10 +63,8 @@ jobs:
 
   ios:
     needs: changes
-    # A macOS runner bills at ten times the Linux rate, so the iOS build runs only when something the
-    # app bundle is made of changed. A game-code change is covered by the Android build and the checks;
-    # the iOS project is verified again on the promotion pull request into main.
-    if: needs.changes.outputs.native == 'true' || (needs.changes.outputs.needed == 'true' && github.event.pull_request.base.ref == 'main')
+    # A macOS runner bills at ten times the Linux rate, so the iOS build is opt-out on dispatch.
+    if: needs.changes.outputs.native == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
     defaults:
@@ -124,7 +100,7 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           ANDROID: ${{ needs.android.result }}
           IOS: ${{ needs.ios.result }}
-          IOS_REQUIRED: ${{ needs.changes.outputs.native == 'true' || (needs.changes.outputs.needed == 'true' && github.event.pull_request.base.ref == 'main') }}
+          IOS_REQUIRED: ${{ needs.changes.outputs.native == 'true' }}
         run: |
           set -euo pipefail
           if [ "$CHANGES" != success ]; then

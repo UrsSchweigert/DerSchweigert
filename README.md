@@ -32,7 +32,7 @@ pytest.ini            # points pytest at sites/derschweigert/tests and tools/har
 
 ## Development harness
 
-`tools/harness/` is a stage-gated harness that turns a requirements file into reviewed, merged pull requests: an investigator drafts a plan, you approve it once, and sandboxed AI workers build it issue by issue. Every merge to `main` deploys to production. Start with the manual: [`tools/harness/README.md`](tools/harness/README.md).
+`tools/harness/` is a stage-gated harness that turns a requirements file into reviewed, merged pull requests: an investigator drafts a plan, you approve it once, and sandboxed AI workers build it issue by issue. Every merge to `main` is tested on its pull request, and production changes when you dispatch the deploy workflow. Start with the manual: [`tools/harness/README.md`](tools/harness/README.md).
 
 ## Local development (derschweigert.de)
 

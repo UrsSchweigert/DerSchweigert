@@ -255,7 +255,7 @@ does **not** publish to Google Play (v1 publication stays manual and owner-appro
 the Xcode project for inspection. It runs **on demand only** as well: a manual
 `workflow_dispatch`, or a `lesen-v*` tag. It no longer runs on every pull request
 or on every push to `main`, because the macOS runner it needs bills at ten times
-the Linux rate and `lesen-native.yml` already compiles the app before a merge.
+the Linux rate, and `lesen-native.yml` is the on-demand native build to run before a release.
 Run it (or tag the release) when an artifact is actually wanted.
 
 The workflow uses Node 22, JDK 21 and Android SDK 36. It is maintainer-owned:

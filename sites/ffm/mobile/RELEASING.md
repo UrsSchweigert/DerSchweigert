@@ -144,7 +144,7 @@ posture, localizations or the privacy manifest regress.
 These are static checks. They cannot compile the app, cannot see the merged
 manifest and cannot prove device behaviour; the M2 workflow
 `.github/workflows/ffm-native.yml` builds the Android debug APK and the iOS
-simulator app on the run branch and is the only native compilation evidence.
+simulator app when started manually from the Actions tab and is the only native compilation evidence.
 
 ## Versioning
 
