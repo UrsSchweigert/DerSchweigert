@@ -13,7 +13,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_BUNDLE_DIR = join(here, '..', 'www');
 
 // Runtime modules the core game needs offline, on top of the copy-assets
-// entry points. Bundle-check is the place that knows the play graph.
+// entry points. Bundle-check is the place that knows the play graph. The
+// app-only overlay UI seam must reach www/game/ as well (see
+// mobile/game/mobile-ui.js and its stylesheet).
 export const BUNDLE_FILES = Object.freeze([
   ...REQUIRED_FILES,
   'game/levels.js',
@@ -21,6 +23,8 @@ export const BUNDLE_FILES = Object.freeze([
   'game/entities.js',
   'game/platform.js',
   'game/platform-adapter.js',
+  'game/mobile-ui.js',
+  'game/mobile-ui.css',
 ]);
 
 const FIRST_PARTY_HOST_RE = /(^|\.)derschweigert\.de$/i;
