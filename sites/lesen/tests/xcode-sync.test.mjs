@@ -26,12 +26,13 @@ test('both iOS targets prepare assets before the Resources phase in every build'
   }
 });
 
-test('shared preparation changes run the affected test and native build gates', async () => {
+test('shared preparation changes run the affected tests; native builds are on demand', async () => {
   const deploy = await readFile(new URL('.github/workflows/deploy.yml', root), 'utf8');
   assert.match(deploy, /tools\/ios\/\*\) ffm_tests=true; lesen_tests=true; harness_tests=true ;;/);
   for (const workflow of ['lesen-native.yml', 'ffm-native.yml']) {
     const text = await readFile(new URL(`.github/workflows/${workflow}`, root), 'utf8');
-    assert.equal((text.match(/tools\/ios\//g) ?? []).length, workflow === 'ffm-native.yml' ? 3 : 2);
+    assert.match(text, /\non:\n  workflow_dispatch:/);
+    assert.doesNotMatch(text, /\n  (push|pull_request):/);
   }
 });
 
