@@ -61,8 +61,14 @@ async function fixture({ count = 1, height = 800, translate } = {}) {
   await adapter.initialize({ defaultName: 'First' });
   for (let index = 1; index < count; index++) await adapter.createProfile(`Player ${index + 1}`);
   const listeners = new Map();
+  const viewportListeners = new Map();
   const view = {
     innerHeight: height,
+    visualViewport: {
+      height,
+      addEventListener(name, listener) { viewportListeners.set(name, listener); },
+      removeEventListener(name, listener) { if (viewportListeners.get(name) === listener) viewportListeners.delete(name); },
+    },
     addEventListener(name, listener) { listeners.set(name, listener); },
     removeEventListener(name, listener) { if (listeners.get(name) === listener) listeners.delete(name); },
   };
@@ -80,7 +86,7 @@ async function fixture({ count = 1, height = 800, translate } = {}) {
     onBusyChange: (busy) => { busyChanges.push(busy); },
   });
   await ui.refresh();
-  return { root, adapter, backend, ui, selected, errors, busyChanges, view, listeners, block: () => { allowed = false; } };
+  return { root, adapter, backend, ui, selected, errors, busyChanges, view, listeners, viewportListeners, block: () => { allowed = false; } };
 }
 
 test('profile choices are paginated without scrolling and adapt to tiny landscape', async () => {
@@ -93,12 +99,37 @@ test('profile choices are paginated without scrolling and adapt to tiny landscap
   assert.equal(rows(root).length, 1);
   assert.equal(findButton(root, 'Next').disabled, true);
   view.innerHeight = 320;
+  view.visualViewport.height = 320;
   listeners.get('resize')();
   assert.ok(rows(root).length <= 2);
   ui.destroy();
   assert.equal(root.children.length, 0);
   assert.equal(listeners.size, 0);
 });
+
+for (const label of ['New player', 'Rename']) {
+  test(`${label} keeps the focused input and draft intact across keyboard and rotation resizes`, async () => {
+    const { root, adapter, ui, view, listeners, viewportListeners } = await fixture();
+    findButton(root, label).click();
+    const input = root.querySelector('input');
+    input.value = 'Draft name';
+    input.dispatch('input');
+    view.visualViewport.height = 280;
+    viewportListeners.get('resize')();
+    view.innerHeight = 375;
+    listeners.get('resize')();
+    assert.equal(root.querySelector('input'), input);
+    assert.equal(root.ownerDocument.activeElement, input);
+    assert.equal(input.disabled, false);
+    assert.equal(input.value, 'Draft name');
+    assert.ok(findButton(root, 'Cancel'));
+    root.querySelector('form').dispatch('submit');
+    await ui.whenIdle();
+    assert.equal(adapter.getActiveProfile().name, 'Draft name');
+    ui.destroy();
+    assert.equal(viewportListeners.size, 0);
+  });
+}
 
 test('selection persists and reports the committed profile', async () => {
   const { root, adapter, selected } = await fixture({ count: 2 });

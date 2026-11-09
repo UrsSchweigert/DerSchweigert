@@ -226,7 +226,11 @@ export function mountProfileUI({
       if (!destroyed) render();
     }
   }
-  const resize = () => render();
+  const resize = () => {
+    // Replacing an editing input on keyboard resize dismisses the iOS keyboard.
+    if (stage?.type === 'create' || stage?.type === 'rename') return;
+    render();
+  };
   view?.addEventListener('resize', resize);
   view?.visualViewport?.addEventListener('resize', resize);
   render();

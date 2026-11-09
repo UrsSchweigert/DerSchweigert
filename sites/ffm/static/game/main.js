@@ -746,42 +746,48 @@ function renderPersonalBest(profile, container) {
 
 function buildScoreHistorySvg(history) {
   const width = 300;
-  const height = 100;
-  const padding = 8;
+  const height = 140;
+  const left = 54;
+  const right = 12;
+  const top = 14;
+  const bottom = 28;
 
   if (!history || history.length === 0) {
     return '';
   }
 
   const scores = history.map((entry) => entry.score);
-  const minScore = Math.min(...scores);
-  const maxScore = Math.max(...scores);
-  const range = maxScore - minScore;
+  const maxScore = Math.max(1, ...scores);
 
-  const innerWidth = width - padding * 2;
-  const innerHeight = height - padding * 2;
+  const innerWidth = width - left - right;
+  const innerHeight = height - top - bottom;
 
   const points = history.map((entry, i) => {
     const x = history.length === 1
-      ? padding + innerWidth / 2
-      : padding + (i / (history.length - 1)) * innerWidth;
-    const y = range === 0
-      ? padding + innerHeight / 2
-      : padding + innerHeight - ((entry.score - minScore) / range) * innerHeight;
+      ? left + innerWidth / 2
+      : left + (i / (history.length - 1)) * innerWidth;
+    const y = top + innerHeight - (entry.score / maxScore) * innerHeight;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
 
   const circles = points.map((p) => {
     const [x, y] = p.split(',');
-    return `<circle cx="${x}" cy="${y}" r="2.5" fill="#4dd0e1" />`;
+    return `<circle cx="${x}" cy="${y}" r="4" fill="#f3ce77" />`;
   }).join('');
 
   const polyline = history.length > 1
-    ? `<polyline points="${points.join(' ')}" fill="none" stroke="#4dd0e1" stroke-width="2" />`
+    ? `<polyline points="${points.join(' ')}" fill="none" stroke="#f3ce77" stroke-width="2" />`
     : '';
 
-  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="100" role="img" aria-label="${t('scoreHistory.ariaLabel')}">` +
-    `<line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#555" stroke-width="1" />` +
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="${t('scoreHistory.ariaLabel')}">` +
+    `<title>${escHtml(t('scoreHistory.latest', { score: history.at(-1).score, count: history.length }))}</title>` +
+    `<path d="M${left} ${top}V${height - bottom}H${width - right}" fill="none" stroke="#b5bcae" />` +
+    `<g fill="#fff" font-size="12" font-family="system-ui, sans-serif">` +
+    `<text x="${left - 6}" y="${top + 4}" text-anchor="end">${maxScore}</text>` +
+    `<text x="${left - 6}" y="${height - bottom + 4}" text-anchor="end">0</text>` +
+    `<text x="${history.length === 1 ? left + innerWidth / 2 : left}" y="${height - 7}"${history.length === 1 ? ' text-anchor="middle"' : ''}>1</text>` +
+    (history.length > 1 ? `<text x="${width - right}" y="${height - 7}" text-anchor="end">${history.length}</text>` : '') +
+    `</g>` +
     polyline + circles +
     `</svg>`;
 }
@@ -790,11 +796,14 @@ function renderScoreHistory(historyResponse, container) {
   if (!container) return;
   const history = historyResponse?.history || [];
   if (history.length === 0) {
-    container.style.display = 'none';
-    container.innerHTML = '';
+    container.style.display = '';
+    container.innerHTML = `<p class="score-history-summary">${escHtml(t('scoreHistory.empty'))}</p>`;
     return;
   }
-  container.innerHTML = buildScoreHistorySvg(history);
+  container.innerHTML = buildScoreHistorySvg(history) +
+    `<p class="score-history-summary">${escHtml(t('scoreHistory.latest', {
+      score: history.at(-1).score, count: history.length,
+    }))}</p>`;
   container.style.display = '';
 }
 
