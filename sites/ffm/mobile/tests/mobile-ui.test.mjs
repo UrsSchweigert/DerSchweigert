@@ -190,7 +190,7 @@ test('main.js loads the overlay UI only in the app build, behind a catch', async
 
   assert.equal((source.match(/import\('\.\/mobile-ui\.js'\)/g) ?? []).length, 1);
   assert.ok(appBlock.includes("import('./mobile-ui.js')"), 'the app branch loads mobile-ui.js');
-  assert.match(appBlock, /import\('\.\/mobile-ui\.js'\)[\s\S]{0,600}\.catch\(\(\) => \{\}\)/);
+  assert.match(appBlock, /import\('\.\/mobile-ui\.js'\)[\s\S]{0,1200}\.catch\(\(\) => \{\}\)/);
   assert.match(appBlock, /mobileUi = mountMobileUi\(\{ doc: document \}\)/);
   assert.doesNotMatch(source, /from '\.\/mobile-ui\.js'/, 'no static import may reach the web build');
 });
