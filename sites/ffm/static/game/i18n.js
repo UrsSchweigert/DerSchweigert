@@ -204,6 +204,7 @@ const DICTIONARY = {
   'campaign.complete': { en: 'Campaign complete — replay your favourites', de: 'Abenteuer geschafft — spiele deine Lieblingslevel erneut' },
   'campaign.victory': { en: 'Adventure complete!', de: 'Abenteuer geschafft!' },
   'campaign.chooseLevel': { en: 'Continue or replay a cleared level:', de: 'Weiterspielen oder ein geschafftes Level wiederholen:' },
+  'title.levelNumerals': { en: 'Starting level {level}', de: 'Startlevel {level}' },
   'profiles.navigation': { en: 'Players', de: 'Spieler' },
   'splash.play': { en: 'Play', de: 'Spielen' },
   'splash.levels': { en: 'Levels', de: 'Level' },

@@ -4,9 +4,9 @@
  * mobile-ui.js. The web build never loads this file, so every rule here is
  * app-only. Keep it free of remote URLs: the bundle must stay offline.
  *
- * The seam itself adds no web visual change; the header timer bar below is
- * app-only. Later mobile UI issues build on these custom properties instead
- * of forking the shared stylesheet.
+ * The seam itself adds no web visual change; the header timer bar and title
+ * level numerals below are app-only. Later mobile UI issues build on these
+ * custom properties instead of forking the shared stylesheet.
  */
 
 :root {
@@ -54,4 +54,41 @@
 
 @media (prefers-reduced-motion: reduce) {
   .app-header-timer-fill { transition: none; }
+}
+
+/* Decorative starting/continuation level numerals, injected by
+ * level-numerals.js into #difficulty-select.
+ *
+ * They sit in the empty upper-left corner of the title row, inside the
+ * overlay's safe-area padding, and never take pointer events. Monospace keeps
+ * two digits narrow enough to clear the centred logo at 320px portrait, while
+ * the clamp caps the glyph size on tablets; old-style figures are requested
+ * where the platform font supports them and degrade to the normal glyphs. */
+.title-level-numerals {
+  position: absolute;
+  top: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 10px);
+  left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 10px);
+  z-index: 3;
+  display: block;
+  max-width: 24vw;
+  font-family: monospace;
+  font-size: clamp(18px, 7vw, 56px);
+  line-height: 1;
+  font-variant-numeric: oldstyle-nums;
+  font-feature-settings: "onum" 1;
+  color: var(--brass-light, #e4c577);
+  text-shadow: 0 2px 0 #070e0b, 0 0 18px rgba(196, 154, 72, 0.45);
+  opacity: 0.85;
+  pointer-events: none;
+  user-select: none;
+}
+
+.title-level-numerals[hidden] {
+  display: none;
+}
+
+@media (orientation: landscape) {
+  .title-level-numerals {
+    font-size: clamp(16px, 4.5vw, 44px);
+  }
 }

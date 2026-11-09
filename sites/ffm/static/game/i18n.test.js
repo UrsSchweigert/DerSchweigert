@@ -204,6 +204,13 @@ describe('t()', () => {
     assert.equal(t('this.key.does.not.exist'), 'this.key.does.not.exist');
   });
 
+  it('describes the decorative title level numerals in both locales', () => {
+    setLocale('en');
+    assert.equal(t('title.levelNumerals', { level: 5 }), 'Starting level 5');
+    setLocale('de');
+    assert.equal(t('title.levelNumerals', { level: 5 }), 'Startlevel 5');
+  });
+
   it('uses German terms/privacy links in the German checkout consent', () => {
     setLocale('de');
     const consent = t('checkout.consentTermsHtml');
