@@ -139,6 +139,14 @@ test('a missing core play module fails the bundle check', async () => {
   });
 });
 
+test('the offline bundle ships the player manual in both languages', async () => {
+  await withBundle(async (dir) => {
+    for (const rel of ['legal/manual.de.html', 'legal/manual.en.html']) {
+      assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
+    }
+  });
+});
+
 test('the app-only overlay UI module and stylesheet are bundled', async () => {
   await withBundle(async (dir) => {
     for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/entitlement-panel.js', 'game/first-open-notice.js', 'game/timer-bar.js', 'game/level-numerals.js', 'game/bubble-timer.js', 'game/shapes-header.js']) {

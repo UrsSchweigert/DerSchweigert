@@ -20,12 +20,16 @@ export { resolveLocale };
 /** The four bundled legal pages, one DE and one EN file each. */
 export const LEGAL_PAGE_KINDS = Object.freeze(['privacy', 'imprint', 'terms', 'licence']);
 
+/** The bundled player manual, one DE and one EN file each. */
+export const MANUAL_LOCALES = Object.freeze(['de', 'en']);
+
 /** Title-screen link labels, keyed like the game's i18n dictionary. */
 export const STRINGS = Object.freeze({
   'legal.privacy': { en: 'Privacy', de: 'Datenschutz' },
   'legal.imprint': { en: 'Legal notice', de: 'Impressum' },
   'legal.terms': { en: 'Terms', de: 'AGB' },
   'legal.licence': { en: 'Licence & credits', de: 'Lizenz & Credits' },
+  'legal.manual': { en: 'Manual', de: 'Handbuch' },
 });
 
 export function legalText(key, locale = DEFAULT_LOCALE) {
@@ -45,11 +49,17 @@ export function legalPagePath(kind, locale = DEFAULT_LOCALE) {
   return `legal/${kind}.${resolveLocale(locale)}.html`;
 }
 
-/** Localized title-screen links to every bundled legal page. */
+/** Bundle-relative path of the player manual in the requested language. */
+export function manualPagePath(locale = DEFAULT_LOCALE) {
+  return `legal/manual.${resolveLocale(locale)}.html`;
+}
+
+/** Localized title-screen links to every bundled legal page, manual first. */
 export function buildTitleLegalLinks(locale = DEFAULT_LOCALE) {
   const loc = resolveLocale(locale);
-  return LEGAL_PAGE_KINDS
-    .map((kind) => `<a href="${legalPagePath(kind, loc)}">${legalText(`legal.${kind}`, loc)}</a>`)
+  const manual = `<a href="${manualPagePath(loc)}">${legalText('legal.manual', loc)}</a>`;
+  return [manual, ...LEGAL_PAGE_KINDS
+    .map((kind) => `<a href="${legalPagePath(kind, loc)}">${legalText(`legal.${kind}`, loc)}</a>`)]
     .join(' · ');
 }
 
