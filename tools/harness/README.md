@@ -209,12 +209,15 @@ unchanged completed issue preserves its historical evidence; completed work
 cannot be redefined. Pending required CI checks can wait up to 30 minutes,
 independently of scheduler polling frequency, without spending repair budget.
 
-For Buchstabenzeit run branches, `.github/workflows/lesen-native.yml` builds an
-Android debug APK and an unsigned iOS simulator app from the PR revision.
-Until the iOS phase adds its actual project, CI generates a temporary Capacitor
-shell from the locked packages. The aggregate `lesen-native` check fails closed
-for absent, failed, cancelled or skipped required builds. A run-branch ruleset
-must require that check; merely adding the workflow does not enforce it.
+For Buchstabenzeit and Arithmo Slayer, `.github/workflows/lesen-native.yml` and
+`.github/workflows/ffm-native.yml` build an Android debug APK and an unsigned
+iOS simulator app automatically **only after a merge to `main`**. Nothing runs
+them from a pull request, so a run branch has no automatic native-build evidence:
+run the workflow by hand when a change needs it, and treat the post-merge run as
+the confirmation of the merged tree. Until the iOS phase adds its actual project,
+CI generates a temporary Capacitor shell from the locked packages. The aggregate
+`*-native` check fails closed for absent, failed, cancelled or skipped builds, and
+no ruleset may require either check, because no pull request produces it.
 Neither build proves physical-device behavior, signing, or publication.
 
 ### When a worker is stuck

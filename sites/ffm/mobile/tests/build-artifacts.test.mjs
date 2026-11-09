@@ -188,53 +188,18 @@ test('artifact workflow is manual/tag-only, unsigned and verifies the extracted 
   assert.ok(yaml.indexOf('CODE_SIGNING_ALLOWED=NO archive') < yaml.lastIndexOf('actions/upload-artifact'));
 });
 
-test('native path detection covers curriculum and packaging without broadening macOS for game changes', async () => {
+test('native builds run only after a merge to main and require both platforms', async () => {
   const yaml = await workflow('ffm-native.yml');
-  assert.match(yaml, /- '\.github\/workflows\/ffm-build-artifacts\.yml'/);
-  assert.match(yaml, /Do not add this check[\s\S]*to a ruleset without removing this filter first/);
-  const detect = yaml.slice(yaml.indexOf('          needed=false'), yaml.indexOf('\n  android:'))
-    .split('\n').map((line) => line.replace(/^          /, '')).join('\n');
-  const cases = [
-    ['sites/ffm/app/level_data.json', true, false],
-    ['sites/ffm/static/game/main.js', true, false],
-    ['sites/ffm/mobile/game/main.js', true, false],
-    ['sites/ffm/mobile/scripts/copy-assets.mjs', true, false],
-    ['sites/ffm/mobile/scripts/stage-ios-project.mjs', true, false],
-    ['sites/ffm/mobile/tests/build-artifacts.test.mjs', true, false],
-    ['sites/ffm/mobile/package-lock.json', true, true],
-    ['sites/ffm/mobile/ios/App/App.xcodeproj/project.pbxproj', true, true],
-    ['tools/ios/prepare-capacitor.sh', true, true],
-    ['.github/workflows/ffm-build-artifacts.yml', true, true],
-    ['.github/workflows/ffm-native.yml', true, true],
-    ['sites/ffm/app/unrelated.py', false, false],
-    ['sites/ffm/README.md', false, false],
-    ['', true, true],
-    ['renamed-away.txt\nsites/ffm/app/level_data.json', true, false],
-  ];
-  await withFixture(async (scratch) => {
-    for (const [path, needed, native] of cases) {
-      const output = join(scratch, 'paths');
-      await writeFile(output, '');
-      execute('bash', ['-c', `set -euo pipefail\npaths="$CHANGED_PATHS"\n${detect}`], scratch,
-        { CHANGED_PATHS: path, GITHUB_OUTPUT: output });
-      assert.equal(await readFile(output, 'utf8'), `needed=${needed}\nnative=${native}\n`, path);
-    }
-  });
-  const iosCondition = "needs.changes.outputs.native == 'true' || (needs.changes.outputs.needed == 'true' && github.event.pull_request.base.ref == 'main')";
-  assert.ok(yaml.includes(`if: ${iosCondition}`));
-  assert.ok(yaml.includes(`IOS_REQUIRED: \${{ ${iosCondition} }}`));
-});
-
-test('native final gate rejects missing promotion iOS builds but accepts skipped run-branch game builds', async () => {
-  const yaml = await workflow('ffm-native.yml');
+  assert.match(yaml, /\n  push:\n    branches: \[main\]/);
+  assert.doesNotMatch(yaml, /\n  pull_request:/);
+  for (const path of ['sites/ffm/**', 'tools/ios/**', '.github/workflows/ffm-build-artifacts.yml']) {
+    assert.ok(yaml.includes(`      - '${path}'`), `the push filter must cover ${path}`);
+  }
   const gate = yaml.slice(yaml.lastIndexOf('          set -euo pipefail'))
     .split('\n').map((line) => line.replace(/^          /, '')).join('\n');
-  for (const [required, ios, expected] of [['true', 'skipped', 1], ['true', 'failure', 1],
-    ['true', 'success', 0], ['false', 'skipped', 0]]) {
-    const result = spawnSync('bash', ['-c', gate], { encoding: 'utf8', env: {
-      ...process.env, CHANGES: 'success', NEEDED: 'true', ANDROID: 'success',
-      IOS_REQUIRED: required, IOS: ios,
-    } });
-    assert.equal(result.status, expected, `${required}/${ios}: ${result.stdout}`);
+  for (const [android, ios, expected] of [['success', 'success', 0], ['success', 'skipped', 1],
+    ['failure', 'success', 1], ['skipped', 'success', 1]]) {
+    const result = spawnSync('bash', ['-c', gate], { encoding: 'utf8', env: { ...process.env, ANDROID: android, IOS: ios } });
+    assert.equal(result.status, expected, `${android}/${ios}: ${result.stdout}`);
   }
 });
