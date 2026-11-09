@@ -373,10 +373,11 @@ signing path.
 ## Continuous integration
 
 `.github/workflows/lesen-native.yml` contains the existing `ios` job. It runs on
-macOS, installs the locked dependencies, runs `npm run copy-assets`, syncs the
-Capacitor project, and compiles it for a generic iOS Simulator destination with
-`CODE_SIGNING_ALLOWED=NO`. It is maintainer-owned: a change to it is an owner
-handoff, and this document does not add or modify workflows.
+macOS after a merge to `main`, installs the locked dependencies, runs `npm run
+copy-assets`, syncs the Capacitor project, and compiles it for a generic iOS
+Simulator destination with `CODE_SIGNING_ALLOWED=NO`. It is maintainer-owned: a
+change to it is an owner handoff, and this document does not add or modify
+workflows.
 
 Signed builds can be made locally or through the separately activated Xcode
 Cloud workflow above. A future `.github/workflows/ios-release.yml` would be a
