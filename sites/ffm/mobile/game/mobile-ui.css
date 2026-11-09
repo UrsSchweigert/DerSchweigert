@@ -342,3 +342,47 @@
 
 .entitlement-outcome { color: #ffe080; }
 .entitlement-outcome.error-msg { color: #ff8080; }
+
+/* Title-screen legal navigation, rendered by legal.js into .splash-legal-links
+ * on the app's Terms page. The web build keeps its own footer styling; these
+ * brass/forest chips only reach the app because mobile-ui.css is injected at
+ * runtime, and every link keeps a 44px tap target that wraps on narrow phones. */
+.splash-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--ivory-muted, #d3ccb9);
+}
+
+.splash-legal-links a,
+.splash-legal-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--brass-deep, #80602d);
+  border-radius: 6px;
+  background: rgba(196, 154, 72, 0.1);
+  color: var(--brass-light, #e4c577);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.splash-legal-links a:hover,
+.splash-legal-link-btn:hover {
+  border-color: var(--brass-light, #e4c577);
+  color: var(--focus-ring, #fff0bd);
+}
+
+.splash-legal-links a:focus-visible,
+.splash-legal-link-btn:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}
