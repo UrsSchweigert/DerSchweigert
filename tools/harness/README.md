@@ -400,6 +400,24 @@ Optional extras: `harness sync PLAN_ID` creates a requirements issue, milestones
 
 ## Everyday use
 
+**Supervise a run**
+
+```sh
+harness watch bugfixes-001-md      # poll every minute; exit 2 means something is stuck
+```
+
+The scheduler waits instead of asking: a required check that never reports keeps
+a merge pending for up to 30 minutes, and nothing pings you. `watch` reads the
+run's own records and exits **2** with a short report when a required check stays
+unreported past `--missing-check-minutes` (default 5), when an issue sits `In
+Review` with no event for `--stall-minutes` (default 10), or when two check jobs
+were abandoned within 15 minutes. With `--repo` (or the detected remote) it also
+asks `gh pr view` whether an open pull request of the run has failing checks,
+which catches a red or half-created workflow the harness only sees as a missing
+check; `--no-github` keeps it local. It exits 0 when the plan stops or the
+`--max-minutes` deadline passes, so a wrapper can loop it. It never writes to the
+store, GitHub or the repository.
+
 **Watch progress**
 
 ```sh
@@ -866,6 +884,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `gui` | Local monitoring and management; auto-starts the remote dashboard when `HARNESS_GUI_PIN` is set | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--no-tunnel`, `--repo OWNER/NAME` |
 | `remote` | PIN-locked loopback relay that proxies the local GUI for a tunnel (operator override) | `--upstream URL` (http://127.0.0.1:8765), `--host 127.0.0.1\|localhost`, `--port` (8443, or 0), `--pin`, `--session-hours` (12) |
 | `status` | Everything at a glance (read-only) | `--json` |
+| `watch PLAN_ID` | Read-only supervision: exit 2 with an alert when a running plan stalls | `--once`, `--interval`, `--max-minutes`, `--missing-check-minutes`, `--stall-minutes`, `--no-github`, `--json` |
 | `report <plan>` | Publish the run's state as a markdown page on `harness/status/<plan>` | `--once`, `--interval`, `--no-push`, `--branch`, `--repo` |
 | `issue ID` | One issue in detail (read-only) | `--json` |
 | `tasks` | Open human tasks, explained | none |
