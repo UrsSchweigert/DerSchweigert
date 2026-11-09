@@ -77,6 +77,13 @@ if (platform.isApp) {
     })
     .then(({ createTimerBar }) => {
       mobileUi?.registerWidget('timer-bar', createTimerBar({ doc: document }));
+      return import('./level-numerals.js');
+    })
+    .then(({ createLevelNumerals }) => {
+      mobileUi?.registerWidget('level-numerals', createLevelNumerals({
+        doc: document,
+        translate: t,
+      }));
     })
     .catch(() => {});
   // Pause gameplay and music while the app is in the background, resume only
@@ -942,6 +949,13 @@ function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   const continuation = document.getElementById('continue-level');
   if (continuation) continuation.textContent = levelJumpSelect.value
     ? t('campaign.replay', { level: levelJumpSelect.value }) : label;
+  // Publish the active starting/replay selection for the app-only title
+  // numerals. The hook is null on the web build, so this is a no-op there.
+  if (platform.isApp) {
+    mobileUi?.updateLevelSelection(levelJumpSelect.value
+      ? { level: Number(levelJumpSelect.value), mode: 'replay' }
+      : { level: progress.nextLevel ?? 1, mode: 'continuation' });
+  }
 }
 
 function renderPlayerIdentity() {
