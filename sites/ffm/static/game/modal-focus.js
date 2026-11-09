@@ -1,7 +1,7 @@
 // Only gameplay dialogs are managed here; account and title dialogs have their own owners.
 export function initGameplayModalFocus({ doc = globalThis.document } = {}) {
   const win = doc?.defaultView;
-  const overlays = ['pause-overlay', 'heal-tip-overlay', 'level-clear', 'game-over', 'skill-intro']
+  const overlays = ['pause-overlay', 'heal-tip-overlay', 'level-clear', 'game-over', 'skill-intro', 'first-open-notice']
     .map(id => doc?.getElementById(id)).filter(Boolean);
   if (!doc?.body || !win || !overlays.length) return { refresh() {}, destroy() {} };
   const selector = 'button, input, select, textarea, a[href], [tabindex]';

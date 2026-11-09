@@ -1,4 +1,6 @@
-const KINDS = new Set(['targeted', 'short', 'assisted', 'elite', 'recovery', 'shapes']);
+/** Every practice mode the game offers; the single source of truth. */
+export const PRACTICE_KINDS = Object.freeze(['targeted', 'short', 'assisted', 'elite', 'recovery', 'shapes']);
+const KINDS = new Set(PRACTICE_KINDS);
 const isProblem = (problem) => problem !== null && typeof problem === 'object' && !Array.isArray(problem);
 const invalid = (message) => Object.assign(new TypeError(message), { code: 'invalid_practice' });
 

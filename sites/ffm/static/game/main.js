@@ -36,6 +36,7 @@ import { initGameplayModalFocus } from './modal-focus.js';
 import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
 import { dragonFinishPerFiendValue } from './level-baseline-score.js';
 import {
+  PRACTICE_KINDS,
   collectTargetedProblems,
   createEarnedRecovery,
   createPracticeSession,
@@ -207,7 +208,9 @@ const assetsLoaded = preloadGameAssets((loaded, total) => {
 // rendering until its assets (including that level's own stage background,
 // via renderer.waitForBackgroundLoad()) are actually ready.
 const LOADING_SAFETY_TIMEOUT_MS = 30000;
-Promise.race([
+// Resolves once the first-paint loading screen is hidden, so the app-only
+// first-open notice appears over the title screen rather than behind it.
+const loadingDone = Promise.race([
   assetsLoaded,
   new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
 ]).then(hideLoadingOverlay);
@@ -715,6 +718,7 @@ let completedLevelSave = null;
 let completionPending = false;
 let profileUI = null;
 let entitlementPanel = null;
+let firstOpenNotice = null;
 let personalBestPage = 0;
 const PERSONAL_BEST_PAGE_SIZE = 3;
 let leaderboardPage = 0;
@@ -3463,6 +3467,31 @@ ensureLocalProfiles().then(refreshPracticeBadges).catch(error => {
   console.error('Unable to initialize family profiles', error);
   showProgressError(t('profiles.storageError'));
 });
+// App-only first-open thank-you notice (see ./first-open-notice.js). Its
+// acknowledgement is device-wide, so it is not tied to the active profile,
+// and every string comes from the i18n dictionary. The notice shows once the
+// loading screen is gone; both reopen buttons stay hidden on the web build
+// because this branch never runs there.
+if (platform.isApp) {
+  import('./first-open-notice.js')
+    .then(({ createFirstOpenNotice }) => {
+      firstOpenNotice = createFirstOpenNotice({
+        platform,
+        translate: t,
+        getLocale,
+        totalLevels: TOTAL_LEVELS,
+        practiceKinds: PRACTICE_KINDS,
+      });
+      for (const id of ['first-open-notice-help', 'btn-notice-help']) {
+        const button = document.getElementById(id);
+        if (!button) continue;
+        button.hidden = false;
+        button.addEventListener('click', () => firstOpenNotice?.open());
+      }
+      return loadingDone.then(() => firstOpenNotice?.maybeShow());
+    })
+    .catch(() => {});
+}
 for (const [id, delta] of [['personal-best-prev', -1], ['personal-best-next', 1]]) {
   document.getElementById(id)?.addEventListener('click', () => {
     personalBestPage = Math.max(0, personalBestPage + delta);
@@ -3509,6 +3538,7 @@ onLocaleChange(() => {
   if (platform.isApp) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   profileUI?.refresh();
   entitlementPanel?.render();
+  firstOpenNotice?.render();
   if (platform.isApp && !practiceRun && !state.isShapesMode) {
     pauseSaveNotice.textContent = t('overlay.unfinishedSaveNotice');
   }

@@ -26,6 +26,7 @@ export const BUNDLE_FILES = Object.freeze([
   'game/mobile-ui.js',
   'game/mobile-ui.css',
   'game/entitlement-panel.js',
+  'game/first-open-notice.js',
   'game/timer-bar.js',
   'game/level-numerals.js',
   'game/bubble-timer.js',

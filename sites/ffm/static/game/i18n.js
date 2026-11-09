@@ -108,6 +108,26 @@ const DICTIONARY = {
   'nav.players': { en: 'Players', de: 'Spieler' },
   'nav.levels': { en: 'Levels', de: 'Level' },
   'nav.leaderboard': { en: 'Ranking', de: 'Rangliste' },
+  // First-open thank-you notice (app build)
+  'notice.title': { en: 'Thank you!', de: 'Danke!' },
+  'notice.thanks': {
+    en: 'Thank you for playing Arithmo Slayer. This short note explains how the game is paid for.',
+    de: 'Danke, dass du Arithmo Slayer spielst. Dieser kurze Hinweis erklärt, wie das Spiel bezahlt wird.',
+  },
+  'notice.model': {
+    en: 'The game is paid once: one purchase unlocks every level, and there are no recurring charges.',
+    de: 'Das Spiel wird einmal bezahlt: Ein Kauf schaltet alle Level frei, und es gibt keine laufenden Kosten.',
+  },
+  'notice.modes': {
+    en: 'These practice modes are free to try: {modes}.',
+    de: 'Diese Übungsarten kannst du kostenlos ausprobieren: {modes}.',
+  },
+  'notice.device': {
+    en: 'This note is saved on this device and only appears once. You can open it again under Players or in the pause menu.',
+    de: 'Dieser Hinweis wird auf diesem Gerät gespeichert und erscheint nur einmal. Du kannst ihn unter Spieler oder im Pausenmenü erneut öffnen.',
+  },
+  'notice.continue': { en: 'Continue', de: 'Weiter' },
+  'notice.reopen': { en: 'What is free?', de: 'Was ist kostenlos?' },
   'practice.title': { en: 'Practice sessions', de: 'Übungseinheiten' },
   'practice.sessionType': { en: 'Session type', de: 'Übungsart' },
   'practice.kind.targeted': { en: 'Targeted practice', de: 'Gezieltes Üben' },
