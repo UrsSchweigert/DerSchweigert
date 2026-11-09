@@ -1,0 +1,142 @@
+/* legal.css — App-only forest/ivory/brass restyle for the bundled legal pages.
+ *
+ * Every legal/*.html page links this file after the shared ../styles.css, so it
+ * only overrides the plain document look; the website never loads it and the
+ * app bundle ships it as www/legal/legal.css. There are no @import rules,
+ * remote url() values or font files, so the pages stay fully offline.
+ *
+ * Safe-area padding, 16px prose and a wrapping footer keep the text readable
+ * on a 320px portrait screen without a fixed-width layout. Nothing here sets
+ * overflow or a fixed height, so body.legal-body from the shared stylesheet
+ * keeps scrolling the document.
+ */
+
+:root {
+  --legal-ink: #091411;
+  --legal-forest: #18352d;
+  --legal-forest-deep: #10211b;
+  --legal-ivory: #f3ead6;
+  --legal-ivory-muted: #d3ccb9;
+  --legal-brass: #c49a48;
+  --legal-brass-light: #e4c577;
+  --legal-brass-deep: #80602d;
+  --legal-focus: #fff0bd;
+}
+
+html:has(body.legal-body) { background: var(--legal-ink); }
+
+body.legal-body {
+  background: var(--legal-ink);
+  color: var(--legal-ivory);
+}
+
+.legal-page {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(196, 154, 72, 0.16), transparent 58%),
+    linear-gradient(160deg, var(--legal-forest), var(--legal-ink) 62%, var(--legal-forest-deep));
+  color: var(--legal-ivory);
+  font-family: monospace;
+  min-height: 100vh;
+  padding:
+    calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 20px)
+    calc(var(--safe-area-right, env(safe-area-inset-right, 0px)) + 18px)
+    calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 36px)
+    calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 18px);
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+}
+
+.legal-content {
+  max-width: 68ch;
+  line-height: 1.65;
+}
+
+.legal-content h1 {
+  margin: 8px 0 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--legal-brass-deep);
+  color: var(--legal-brass-light);
+  font-size: 26px;
+  line-height: 1.25;
+  text-shadow: 0 2px 0 #070e0b, 0 0 18px rgba(196, 154, 72, 0.35);
+}
+
+.legal-content h2 {
+  margin: 24px 0 10px;
+  color: var(--legal-brass-light);
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.legal-content p,
+.legal-content li {
+  font-size: 16px;
+}
+
+.legal-content ul,
+.legal-content ol {
+  padding-left: 22px;
+}
+
+.legal-content a {
+  color: var(--legal-brass-light);
+  text-decoration-color: var(--legal-brass-deep);
+}
+
+.legal-content a:hover { color: var(--legal-focus); }
+
+.legal-content a:focus-visible,
+.legal-footer-nav a:focus-visible {
+  outline: 2px solid var(--legal-focus);
+  outline-offset: 2px;
+}
+
+.legal-content hr { border-top: 1px solid var(--legal-brass-deep); }
+
+.legal-content code {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(196, 154, 72, 0.12);
+  color: var(--legal-ivory);
+  font-size: 0.95em;
+}
+
+/* Additive privacy emphasis: highlights existing guarantees, replaces none. */
+.legal-emphasis {
+  margin: 18px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--legal-brass);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: rgba(196, 154, 72, 0.1);
+}
+
+.legal-emphasis p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.legal-emphasis strong { color: var(--legal-brass-light); }
+
+.legal-footer-nav {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--legal-brass-deep);
+  color: var(--legal-ivory-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.legal-footer-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin: 0 4px;
+  padding: 0 6px;
+  vertical-align: middle;
+  color: var(--legal-brass-light);
+  font-size: 16px;
+  text-decoration-color: var(--legal-brass-deep);
+}
