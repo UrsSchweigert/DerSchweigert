@@ -386,3 +386,104 @@
   outline: 2px solid var(--focus-ring, #fff0bd);
   outline-offset: 2px;
 }
+
+/* Contextual help, injected by help-overlay.js (app-only).
+ *
+ * Three question-mark buttons open a short staged dialog: one in the play
+ * area, one in the pause menu and one in the title navigation. The play-area
+ * button takes the chrome's second column so it never covers the question,
+ * the answer input or the timer bar, and the pause button keeps the third
+ * column. Every control keeps a 44px tap target and the dialog scrolls on
+ * short screens instead of clipping its copy. */
+.app-help-button {
+  align-self: center;
+  justify-self: end;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  font: bold 20px/1 system-ui, sans-serif;
+  color: var(--brass-light, #e4c577);
+  background: rgba(196, 154, 72, 0.16);
+  border: 2px solid var(--brass-deep, #80602d);
+  border-radius: 8px;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.app-help-button:hover,
+.app-help-button:focus-visible {
+  border-color: var(--brass-light, #e4c577);
+  color: var(--focus-ring, #fff0bd);
+}
+
+.app-help-button:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}
+
+#gameplay-chrome { grid-template-columns: minmax(0, 1fr) auto auto; }
+#gameplay-chrome #active-question,
+#gameplay-chrome #gameplay-feedback { grid-column: 1; }
+#gameplay-chrome .app-help-button[data-help-host="play"] { grid-column: 2; }
+#gameplay-chrome #btn-pause-game { grid-column: 3; }
+
+.title-navigation .app-help-button {
+  justify-self: stretch;
+  min-width: 44px;
+  padding: 4px;
+  font-size: clamp(11px, 1.5vw, 15px);
+}
+
+.app-help-overlay { z-index: 120; }
+
+.app-help-card {
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: clamp(13px, 2vw, 16px);
+}
+
+.app-help-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app-help-close {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  font: bold 24px/1 system-ui, sans-serif;
+  color: inherit;
+  background: transparent;
+  border: 2px solid var(--brass-deep, #80602d);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.app-help-tips {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+  line-height: 1.35;
+}
+
+.app-help-manual-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  margin-top: 4px;
+  border: 1px solid var(--brass-deep, #80602d);
+  border-radius: 6px;
+  color: var(--brass-light, #e4c577);
+  text-decoration: none;
+}
+
+.app-help-manual-link:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}

@@ -49,7 +49,7 @@ import { getSkillIntro } from './skill-intro.js';
 // local-only adapter. Resolved once, before any game code runs.
 const platform = await resolvePlatform();
 const gameplayChrome = createGameplayChrome({ translate: t });
-initGameplayModalFocus({ doc: document });
+const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 
 // App-only lifecycle handle (see ./lifecycle.js, shipped by the app overlay).
 // Stays null on the web build and until the app plugin has been wired.
@@ -63,6 +63,11 @@ let mobileUi = null;
 // App-only top-bar gain control (see ./volume-control.js, shipped by the app
 // overlay). Stays null on the web build and until the overlay module loads.
 let volumeControl = null;
+
+// App-only contextual help handle (see ./help-overlay.js, shipped by the app
+// overlay). Stays null on the web build; its question-mark buttons live in the
+// play area, the pause menu and the title navigation.
+let helpOverlay = null;
 
 // The app caches the store entitlement on device. Refresh it on launch and on
 // every return to the foreground, so a refund made while the app was closed
@@ -117,6 +122,26 @@ if (platform.isApp) {
         audio,
         translate: t,
         persist: persistAudioPreferences,
+      });
+    })
+    .catch(() => {});
+  // App-only contextual help: question-mark buttons in the play area, pause
+  // menu and title navigation open staged help with a link to the manual.
+  import('./help-overlay.js')
+    .then(({ mountHelpOverlay }) => {
+      helpOverlay = mountHelpOverlay({
+        doc: document,
+        translate: t,
+        getLocale,
+        getGameMode: () => practiceRun?.kind ?? (state.isShapesMode ? 'shapes' : null),
+        getTitlePage: () => activeTitlePage,
+        game: {
+          isPlaying: () => gameRunning && !paused,
+          pause: pauseForHelp,
+          resume: resumeFromHelp,
+        },
+        registerOverlay: gameplayModalFocus.registerOverlay,
+        refreshFocus: gameplayModalFocus.refresh,
       });
     })
     .catch(() => {});
@@ -719,6 +744,7 @@ let completionPending = false;
 let profileUI = null;
 let entitlementPanel = null;
 let firstOpenNotice = null;
+let activeTitlePage = 'play';
 let personalBestPage = 0;
 const PERSONAL_BEST_PAGE_SIZE = 3;
 let leaderboardPage = 0;
@@ -2390,6 +2416,10 @@ function syncKeepAwake() {
 // Android Back: while playing it pauses, while paused it backs out of the
 // quit confirmation (or resumes), and everywhere else the lifecycle exits.
 function handleAppBack() {
+  if (helpOverlay?.isOpen?.()) {
+    helpOverlay.close();
+    return true;
+  }
   if (pendingSkillIntro) {
     btnSkillIntroSkip?.click();
     return true;
@@ -2442,6 +2472,27 @@ function resumeGame() {
   paused = false;
   closeAudioSettings();
   pauseOverlay.style.display = 'none';
+  audio.resumeBGM();
+  if (activeFiend && !inputDisabled) {
+    input.enable(getCurrentInputMode());
+  }
+  syncKeepAwake();
+}
+
+// Contextual help pauses a live level without the pause menu or a partial-run
+// record, so closing it restores the exact same state and lets play continue.
+function pauseForHelp() {
+  if (paused) return;
+  paused = true;
+  input.disable();
+  audio.pauseBGM();
+  resetHealHold();
+  syncKeepAwake();
+}
+
+function resumeFromHelp() {
+  if (!paused) return;
+  paused = false;
   audio.resumeBGM();
   if (activeFiend && !inputDisabled) {
     input.enable(getCurrentInputMode());
@@ -3505,6 +3556,7 @@ for (const [id, delta] of [['leaderboard-prev', -1], ['leaderboard-next', 1]]) {
   });
 }
 function showTitlePage(name) {
+  activeTitlePage = name;
   for (const section of document.querySelectorAll('[data-title-page]')) {
     section.hidden = section.dataset.titlePage !== name;
   }
@@ -3539,6 +3591,7 @@ onLocaleChange(() => {
   profileUI?.refresh();
   entitlementPanel?.render();
   firstOpenNotice?.render();
+  helpOverlay?.refresh();
   if (platform.isApp && !practiceRun && !state.isShapesMode) {
     pauseSaveNotice.textContent = t('overlay.unfinishedSaveNotice');
   }

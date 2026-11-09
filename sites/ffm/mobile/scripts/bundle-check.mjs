@@ -32,6 +32,7 @@ export const BUNDLE_FILES = Object.freeze([
   'game/bubble-timer.js',
   'game/shapes-header.js',
   'game/volume-control.js',
+  'game/help-overlay.js',
   'legal/legal.css',
   'legal/manual.de.html',
   'legal/manual.en.html',

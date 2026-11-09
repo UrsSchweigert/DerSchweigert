@@ -85,6 +85,7 @@ it('audio Back returns to pause without resuming gameplay', () => {
 it('Android Back closes audio settings before returning to the game', () => {
   const { context, audioSettings } = setup();
   Object.assign(context, {
+    helpOverlay: null,
     pendingSkillIntro: null,
     levelClearOverlay: { style: { display: 'none' } },
     gameOverOverlay: { style: { display: 'none' } },
