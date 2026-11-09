@@ -1458,9 +1458,34 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 .leaderboard-list li { padding: 4px; overflow-wrap: anywhere; }
 .leaderboard-list li:last-child { margin-bottom: 0; }
 .title-page[data-title-page="history"] { justify-content: center; }
-.title-page[data-title-page="history"] .score-history-chart { margin: 0; }
+.title-page[data-title-page="history"] .score-history-chart {
+  margin: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.title-page[data-title-page="history"] .score-history-chart svg {
+  flex: 1;
+  min-height: 0;
+}
 .leaderboard-note, .leaderboard-personal-best { margin: 0; font-size: 12px; }
 .score-history-chart { min-height: 0; max-height: 100%; }
+.score-history-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 180px;
+  background: rgba(6, 18, 13, 0.9);
+  border-radius: 6px;
+}
+.score-history-chart .score-history-summary {
+  margin: 6px 0;
+  color: var(--ivory);
+  font-size: 13px;
+  text-align: center;
+  flex-shrink: 0;
+}
 .level-jump-row { flex-direction: column; width: 100%; gap: 6px; }
 #level-jump-select { width: 100%; min-width: 0; }
 
@@ -1471,7 +1496,8 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 .profile-row button[aria-pressed="true"] { border-color: #80f080; }
 .profile-form, .profile-confirmation { display: grid; gap: 6px; min-height: 0; align-content: center; flex: 1; }
 .profile-form label { display: grid; gap: 4px; min-width: 0; }
-.profile-name-input { width: 100%; min-width: 0; }
+.profile-name-input { width: 100%; min-width: 0; font-size: 16px; }
+.parental-gate-form input { font-size: 16px; }
 .profile-actions { flex-wrap: nowrap; }
 .profile-status { color: #ffe080; }
 .profile-status.error-msg { color: #ff8080; }
@@ -1962,7 +1988,7 @@ body:not(.legal-body) {
   .title-pages { padding-inline: clamp(4px, 2vw, 20px); box-sizing: border-box; }
   .splash-diff-buttons { padding-inline: 4px; box-sizing: border-box; }
 }
-@media (orientation: portrait) and (max-height: 650px) {
+@media (orientation: portrait) and (max-height: 850px) {
   .splash-diff-buttons { gap: 6px; }
   .title-play-intro { padding: 6px 10px; gap: 4px; }
   .title-play-intro .splash-intro { display: none; }

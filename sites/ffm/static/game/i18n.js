@@ -58,6 +58,14 @@ const DICTIONARY = {
   'levels.startFromOne': { en: 'Start from Level 1', de: 'Ab Level 1 starten' },
   'levels.level': { en: 'Level {level}', de: 'Level {level}' },
   'scoreHistory.ariaLabel': { en: 'Score history chart', de: 'Punkteverlauf-Diagramm' },
+  'scoreHistory.empty': {
+    en: 'Finish a scored level to see your progress here.',
+    de: 'Schließe ein Level mit Punkten ab, um deinen Fortschritt hier zu sehen.',
+  },
+  'scoreHistory.latest': {
+    en: 'Latest score: {score} · Saved results: {count} (oldest to newest)',
+    de: 'Letzte Punktzahl: {score} · Gespeicherte Ergebnisse: {count} (älteste zuerst)',
+  },
   'personalDevelopment.title': { en: 'My progress', de: 'Mein Fortschritt' },
   'personalDevelopment.perLevelBest': { en: 'Level {level}: {score} points', de: 'Level {level}: {score} Punkte' },
   'personalDevelopment.completed': { en: '{completed} of {total} levels completed', de: '{completed} von {total} Leveln geschafft' },
