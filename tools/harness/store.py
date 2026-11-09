@@ -298,6 +298,24 @@ class Store:
     def update_human_task(self, task_id: str, payload: Dict[str, Any]) -> None:
         self.cx.execute("UPDATE human_tasks SET payload=? WHERE task_id=?", (json.dumps(payload, sort_keys=True), task_id))
 
+    def events(self, plan_id: Optional[str] = None, since: Optional[float] = None,
+               limit: int = 2000) -> List[Dict[str, Any]]:
+        """The run's own event log, oldest first, so a watcher reads one consistent window."""
+        query, args, where = "SELECT ts, type, plan_id, issue_id, attempt_id, data FROM events", [], []
+        if plan_id:
+            where.append("plan_id=?")
+            args.append(plan_id)
+        if since is not None:
+            where.append("ts>=?")
+            args.append(since)
+        if where:
+            query += " WHERE " + " AND ".join(where)
+        query += " ORDER BY ts DESC LIMIT ?"
+        args.append(limit)
+        rows = [dict(r) for r in self.cx.execute(query, args)]
+        rows.reverse()
+        return rows
+
     def get_run(self, plan_id: str) -> Dict[str, Any]:
         return self._get_doc("run_state", "plan_id", plan_id) or {}
 
