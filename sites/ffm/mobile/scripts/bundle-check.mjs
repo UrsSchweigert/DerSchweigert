@@ -33,6 +33,8 @@ export const BUNDLE_FILES = Object.freeze([
   'game/shapes-header.js',
   'game/volume-control.js',
   'legal/legal.css',
+  'legal/manual.de.html',
+  'legal/manual.en.html',
 ]);
 
 const FIRST_PARTY_HOST_RE = /(^|\.)derschweigert\.de$/i;
