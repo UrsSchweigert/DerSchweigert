@@ -64,7 +64,15 @@ function nameValue(name) {
 function validEntry(entry) {
   return object(entry) && levelValid(entry.level) && scoreValid(entry.score)
     && (entry.difficulty === null || typeof entry.difficulty === 'string')
-    && typeof entry.achieved_at === 'string' && optionalAttemptValid(entry);
+    && typeof entry.achieved_at === 'string' && optionalAttemptValid(entry)
+    && (!own(entry, 'unfinished') || entry.unfinished === true);
+}
+
+function validPartialReceipt(receipt) {
+  return object(receipt) && Object.keys(receipt).length === 4
+    && levelValid(receipt.level) && scoreValid(receipt.score)
+    && (receipt.difficulty === null || typeof receipt.difficulty === 'string')
+    && typeof receipt.bestImproved === 'boolean';
 }
 
 function validateDocument(doc) {
@@ -79,6 +87,9 @@ function validateDocument(doc) {
         || !profile.history.every(validEntry)
         || !Array.isArray(profile.completed) || !profile.completed.every(levelValid)
         || !object(profile.completions) || !validPractice(profile)) return false;
+    if (own(profile, 'partialAttempts')
+        && (!object(profile.partialAttempts)
+          || !Object.values(profile.partialAttempts).every(validPartialReceipt))) return false;
     if (own(profile, 'attemptLast')) {
       if (!Array.isArray(profile.attemptLast)) return false;
       const keys = new Set();
@@ -250,6 +261,47 @@ export function createProfileStore(backend, {
       return find(doc, id).attemptLast?.find((entry) =>
         entry.level === level && entry.difficulty === difficulty)?.attemptSummary ?? null;
     }),
+    // A pause-exit save banks the reached score without clearing the level:
+    // best and history gain an `unfinished` entry, completed never changes.
+    recordPartialAttempt(input) {
+      const { profileId, completionId, level, score, difficulty = null } = input ?? {};
+      if (typeof profileId !== 'string' || !profileId || typeof completionId !== 'string'
+          || !completionId || !levelValid(level) || !scoreValid(score)
+          || (difficulty !== null && typeof difficulty !== 'string')) {
+        return Promise.reject(error('invalid_partial', 'A profile, partial ID, level and valid score are required'));
+      }
+      const resultFor = (receipt) => ({ persisted: true, bestImproved: receipt.bestImproved });
+      return serialize(async () => {
+        const next = clone(requireDocument());
+        const profile = find(next, profileId);
+        if (own(profile.partialAttempts ?? {}, completionId)) {
+          const receipt = profile.partialAttempts[completionId];
+          if (receipt.level !== level || receipt.score !== score || receipt.difficulty !== difficulty) {
+            throw error('partial_conflict', 'Partial attempt ID was already used for a different result');
+          }
+          return resultFor(receipt);
+        }
+        const best = profile.best.find((entry) => entry.level === level);
+        const bestImproved = score > (best?.score ?? 0);
+        const timestamp = now();
+        const entry = { level, score, difficulty, achieved_at: timestamp instanceof Date ? timestamp.toISOString() : timestamp,
+          unfinished: true };
+        if (!validEntry(entry)) throw error('invalid_partial', 'A valid timestamp is required');
+        if (bestImproved) {
+          profile.best = profile.best.filter((item) => item.level !== level);
+          profile.best.push(entry);
+          profile.best.sort((a, b) => a.level - b.level);
+        }
+        profile.history.push(entry);
+        profile.history = profile.history.slice(-SCORE_HISTORY_LIMIT);
+        profile.partialAttempts ??= {};
+        Object.defineProperty(profile.partialAttempts, completionId, {
+          value: { level, score, difficulty, bestImproved }, enumerable: true,
+        });
+        await commit(next);
+        return resultFor({ bestImproved });
+      });
+    },
     recordLevel(input) {
       // Capture nested counters as well as the owner before waiting on writes.
       const { profileId, completionId, level, score, difficulty = null } = input ?? {};

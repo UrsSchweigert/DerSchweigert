@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createProfileStore, PROFILE_KEY, PROFILE_SCHEMA_VERSION } from '../game/profile-store.js';
 import { SCORE_HISTORY_LIMIT, PROGRESS_KEYS } from '../game/progress-store.js';
+import { getCampaignProgress } from '../../static/game/campaign-progress.js';
 
 function fixture(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -23,6 +24,9 @@ function fixture(initial = {}) {
   return { store, backend, data, options };
 }
 const completion = (profileId, completionId, score = 10, level = 1) => ({
+  profileId, completionId, level, score, difficulty: 'easy',
+});
+const partial = (profileId, completionId, score = 10, level = 1) => ({
   profileId, completionId, level, score, difficulty: 'easy',
 });
 const storageError = { code: 'storage_unavailable' };
@@ -413,4 +417,187 @@ test('optional summaries are strictly validated in input and persisted document 
       assert.equal(data.get(PROFILE_KEY), raw);
     }
   }
+});
+
+test('a partial attempt banks best and flagged history without completing or continuing the level', async () => {
+  const { store, backend, data } = fixture();
+  const { id } = await store.initialize();
+  backend.writes.length = 0;
+  assert.deepEqual(await store.recordPartialAttempt(partial(id, 'pause-1', 40)), {
+    persisted: true, bestImproved: true,
+  });
+  assert.equal(backend.writes.length, 1);
+  assert.equal(backend.writes[0].key, PROFILE_KEY);
+  const stored = JSON.parse(data.get(PROFILE_KEY)).profiles[0];
+  const expected = {
+    level: 1, score: 40, difficulty: 'easy',
+    achieved_at: '2026-11-08T12:00:00.000Z', unfinished: true,
+  };
+  assert.deepEqual(stored.best, [expected]);
+  assert.deepEqual(stored.history, [expected]);
+  assert.deepEqual(stored.completed, []);
+  assert.deepEqual(stored.completions, {});
+  assert.equal(Object.hasOwn(stored, 'attemptLast'), false);
+  assert.deepEqual(await store.getBestScores(id), { best: [expected] });
+  assert.deepEqual(await store.getScoreHistory(id), { history: [expected] });
+  assert.deepEqual(await store.getCompletedLevels(id), { completed: [] });
+  assert.equal(getCampaignProgress((await store.getCompletedLevels(id)).completed).nextLevel, 1);
+});
+
+test('partial attempts keep the higher best, append each attempt and stay idempotent by ID', async () => {
+  const { store, backend } = fixture();
+  const { id } = await store.initialize();
+  await store.recordPartialAttempt(partial(id, 'pause-1', 40));
+  const writes = backend.writes.length;
+  assert.deepEqual(await store.recordPartialAttempt(partial(id, 'pause-2', 30)), {
+    persisted: true, bestImproved: false,
+  });
+  await store.recordPartialAttempt(partial(id, 'pause-3', 5, 2));
+  assert.deepEqual((await store.getBestScores(id)).best.map((entry) => [entry.level, entry.score]),
+    [[1, 40], [2, 5]]);
+  assert.deepEqual((await store.getScoreHistory(id)).history.map((entry) => [entry.level, entry.score]),
+    [[1, 40], [1, 30], [2, 5]]);
+  assert.equal((await store.getScoreHistory(id)).history.every((entry) => entry.unfinished), true);
+  assert.deepEqual(await store.getCompletedLevels(id), { completed: [] });
+  assert.deepEqual(await store.recordPartialAttempt(partial(id, 'pause-1', 40)), {
+    persisted: true, bestImproved: true,
+  });
+  assert.equal(backend.writes.length, writes + 2);
+  await assert.rejects(store.recordPartialAttempt(partial(id, 'pause-1', 41)),
+    { code: 'partial_conflict' });
+  assert.deepEqual(await store.recordPartialAttempt(partial(id, '__proto__', 7, 3)), {
+    persisted: true, bestImproved: true,
+  });
+  assert.deepEqual(await store.recordPartialAttempt(partial(id, '__proto__', 7, 3)), {
+    persisted: true, bestImproved: true,
+  });
+  assert.deepEqual((await store.getBestScores(id)).best.map((entry) => [entry.level, entry.score]),
+    [[1, 40], [2, 5], [3, 7]]);
+  assert.equal((await store.getScoreHistory(id)).history.length, 4);
+});
+
+test('partial and completed writes share one serialized queue and partial never clears a level', async () => {
+  const { store, backend, data } = fixture();
+  const { id } = await store.initialize();
+  const pending = store.recordPartialAttempt(partial(id, 'pause', 80));
+  await Promise.all([
+    pending,
+    store.recordLevel(completion(id, 'clear', 50)),
+    store.recordPartialAttempt(partial(id, 'pause-later', 90, 2)),
+  ]);
+  const stored = JSON.parse(data.get(PROFILE_KEY)).profiles[0];
+  assert.deepEqual(stored.completed, [1]);
+  assert.deepEqual(stored.best.map((entry) => [entry.level, entry.score, entry.unfinished ?? false]),
+    [[1, 80, true], [2, 90, true]]);
+  assert.deepEqual(stored.history.map((entry) => [entry.level, entry.score, entry.unfinished ?? false]),
+    [[1, 80, true], [1, 50, false], [2, 90, true]]);
+  assert.deepEqual(stored.completions.clear, {
+    level: 1, score: 50, difficulty: 'easy', bestImproved: false,
+  });
+  assert.deepEqual(stored.partialAttempts.pause, {
+    level: 1, score: 80, difficulty: 'easy', bestImproved: true,
+  });
+  assert.equal(getCampaignProgress((await store.getCompletedLevels(id)).completed).nextLevel, 2);
+});
+
+test('a failed partial write rejects unchanged and retries once without duplicating history', async () => {
+  const { store, backend, data, options } = fixture();
+  const { id } = await store.initialize();
+  await store.recordLevel(completion(id, 'legacy-clear', 50));
+  const before = data.get(PROFILE_KEY);
+  backend.failWrites = true;
+  await assert.rejects(store.recordPartialAttempt(partial(id, 'pause', 80)), storageError);
+  assert.equal(data.get(PROFILE_KEY), before);
+  assert.deepEqual(await store.getCompletedLevels(id), { completed: [1] });
+  assert.deepEqual((await store.getBestScores(id)).best.map((entry) => entry.score), [50]);
+  assert.deepEqual((await store.getScoreHistory(id)).history.map((entry) => entry.unfinished ?? false), [false]);
+  backend.failWrites = false;
+  const result = await store.recordPartialAttempt(partial(id, 'pause', 80));
+  assert.deepEqual(result, { persisted: true, bestImproved: true });
+  const writes = backend.writes.length;
+  assert.deepEqual(await store.recordPartialAttempt(partial(id, 'pause', 80)), result);
+  assert.equal(backend.writes.length, writes);
+  const reloaded = createProfileStore(backend, options);
+  await reloaded.initialize();
+  const stored = JSON.parse(data.get(PROFILE_KEY)).profiles[0];
+  assert.deepEqual(stored.completed, [1]);
+  assert.deepEqual(stored.history.map((entry) => [entry.score, entry.unfinished ?? false]),
+    [[50, false], [80, true]]);
+  assert.equal((await reloaded.getScoreHistory(id)).history.length, 2);
+});
+
+test('partial history stays capped and receipts survive reload and truncation', async () => {
+  const { store, backend, options } = fixture();
+  const { id } = await store.initialize();
+  const original = partial(id, 'pause-original', 3);
+  await store.recordPartialAttempt(original);
+  for (let index = 0; index < SCORE_HISTORY_LIMIT + 3; index++) {
+    await store.recordPartialAttempt(partial(id, `pause-${index}`, index, 2));
+  }
+  const reloaded = createProfileStore(backend, options);
+  await reloaded.initialize();
+  const before = await reloaded.getScoreHistory(id);
+  assert.equal(before.history.length, SCORE_HISTORY_LIMIT);
+  assert.equal(before.history.every((entry) => entry.unfinished), true);
+  const writes = backend.writes.length;
+  assert.deepEqual(await reloaded.recordPartialAttempt(original), {
+    persisted: true, bestImproved: true,
+  });
+  assert.equal(backend.writes.length, writes);
+  assert.deepEqual(await reloaded.getScoreHistory(id), before);
+  await assert.rejects(reloaded.recordPartialAttempt({ ...original, score: 999 }),
+    { code: 'partial_conflict' });
+});
+
+test('partial documents are strictly validated without requiring receipts on legacy profiles', async () => {
+  const { store, backend, data, options } = fixture();
+  const { id } = await store.initialize();
+  await store.recordPartialAttempt(partial(id, 'pause', 10));
+  const validDocument = JSON.parse(data.get(PROFILE_KEY));
+  const mutations = [
+    (profile) => { profile.partialAttempts.pause.score = -1; },
+    (profile) => { profile.partialAttempts.pause.extra = true; },
+    (profile) => { profile.partialAttempts.pause.bestImproved = 'yes'; },
+    (profile) => { profile.partialAttempts.pause.level = 0; },
+    (profile) => { profile.partialAttempts.pause = []; },
+    (profile) => { profile.partialAttempts = []; },
+    (profile) => { profile.history[0].unfinished = false; },
+    (profile) => { profile.history[0].unfinished = 'yes'; },
+    (profile) => { profile.best[0].unfinished = false; },
+  ];
+  for (const mutate of mutations) {
+    const doc = structuredClone(validDocument);
+    mutate(doc.profiles[0]);
+    const raw = JSON.stringify(doc);
+    data.set(PROFILE_KEY, raw);
+    const reloaded = createProfileStore(backend, options);
+    await assert.rejects(reloaded.initialize(), storageError);
+    assert.equal(data.get(PROFILE_KEY), raw);
+  }
+  data.delete(PROFILE_KEY);
+  const legacy = createProfileStore(backend, options);
+  await legacy.initialize();
+  const { id: legacyId } = legacy.getActiveProfile();
+  await legacy.recordLevel(completion(legacyId, 'legacy', 25, 3));
+  const legacyDoc = JSON.parse(data.get(PROFILE_KEY));
+  assert.equal(Object.hasOwn(legacyDoc.profiles[0], 'partialAttempts'), false);
+  const reopened = createProfileStore(backend, options);
+  await reopened.initialize();
+  assert.deepEqual(await reopened.getCompletedLevels(legacyId), { completed: [3] });
+  assert.equal((await reopened.getScoreHistory(legacyId)).history[0].unfinished, undefined);
+});
+
+test('invalid partial inputs reject before writing', async () => {
+  const { store, backend } = fixture();
+  const { id } = await store.initialize();
+  const writes = backend.writes.length;
+  for (const input of [
+    null, partial('', 'pause'), partial(id, ''), partial(id, 'pause', -1),
+    partial(id, 'pause', 10, 0), partial(id, 'pause', Number.NaN),
+    { ...partial(id, 'pause'), difficulty: 3 },
+  ]) await assert.rejects(store.recordPartialAttempt(input), { code: 'invalid_partial' });
+  await assert.rejects(store.recordPartialAttempt(partial(undefined, 'pause')), { code: 'invalid_partial' });
+  await assert.rejects(store.recordPartialAttempt(partial('missing', 'pause')), { code: 'profile_not_found' });
+  assert.equal(backend.writes.length, writes);
+  assert.deepEqual(await store.getScoreHistory(id), { history: [] });
 });
