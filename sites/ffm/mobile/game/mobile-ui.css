@@ -4,11 +4,54 @@
  * mobile-ui.js. The web build never loads this file, so every rule here is
  * app-only. Keep it free of remote URLs: the bundle must stay offline.
  *
- * This seam adds no visual change yet. Later mobile UI issues build on these
- * custom properties instead of forking the shared stylesheet.
+ * The seam itself adds no web visual change; the header timer bar below is
+ * app-only. Later mobile UI issues build on these custom properties instead
+ * of forking the shared stylesheet.
  */
 
 :root {
   --ffm-mobile-ui-ready: 1;
   --ffm-mobile-timer-color: #4caf50;
+}
+
+/* Question timer bar, injected by timer-bar.js into #gameplay-chrome.
+ *
+ * The bar owns its own header grid row and is explicitly centred inside it,
+ * so it never inherits the row's stretch alignment and sits off-centre. The
+ * fill width and colour are set from the remaining-time ratio; the untimed
+ * state is a distinct neutral stripe, not a full or empty progress bar. */
+.app-header-timer {
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: stretch;
+  height: 8px;
+  margin: 2px 0;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.app-header-timer-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background-color: var(--ffm-mobile-timer-color);
+  transition: width 120ms linear, background-color 120ms linear;
+}
+
+.app-header-timer--untimed .app-header-timer-fill {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 0 4px,
+    rgba(255, 255, 255, 0) 4px 8px
+  );
+}
+
+.app-header-timer--paused .app-header-timer-fill {
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header-timer-fill { transition: none; }
 }
