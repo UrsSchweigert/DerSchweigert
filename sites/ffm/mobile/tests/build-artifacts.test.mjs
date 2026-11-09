@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chmod, cp, mkdir, mkdtemp, readFile, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { IOS_PROJECT_INPUTS, relocateSwiftPackages, stageIosProject } from '../scripts/stage-ios-project.mjs';
@@ -12,8 +13,8 @@ const workflow = (name) => readFile(join(repository, '.github/workflows', name),
 const lockPath = 'sites/ffm/mobile/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved';
 
 async function withFixture(run) {
-  // Project-local scratch space only; never mutate the real native project.
-  const scratch = await mkdtemp(join(mobile, '.artifact-test-'));
+  // Docker's macOS bind mount can retain phantom symlinks during cleanup.
+  const scratch = await mkdtemp(join(tmpdir(), 'ffm-artifact-test-'));
   try {
     return await run(scratch);
   } finally {

@@ -131,6 +131,11 @@ TestFlight and store distribution remain separate owner actions.
 npm test                     # node --test tests/*.test.mjs
 ```
 
+Artifact staging tests use isolated fixtures in the OS temporary directory,
+not the real native project. In the harness container this keeps tar/symlink
+operations on its native temporary filesystem rather than the macOS bind
+mount, where cleanup can fail with phantom symlinks and `ENOTEMPTY`.
+
 `tests/android-shell.test.mjs` asserts the committed Android shell offline:
 application id and namespace, app label, `android:allowBackup="true"` with no
 backup rule files, exactly one exported launcher activity, the absence of any
