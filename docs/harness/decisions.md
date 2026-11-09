@@ -1063,6 +1063,10 @@ rounding of many one-minute gate jobs (`check-secrets`, `changes`, `test`, `test
   the full gate. A plan with `run_branch: ""` merges into `main` and keeps
   full CI too, because the switch keys on the pull request's base branch.
 * `check-secrets` runs only on `main`, the one ref that deploys. Pull requests no longer pay a minute for it.
+* Jobs that no ruleset requires have display names that say what they test or deploy (for example `Tests: harness
+  tooling`, `Deploy ffm.derschweigert.de`); job ids are unchanged because docs, tests and `needs` use them. `test` and
+  `test-ffm` keep their names: a check's name is the job's name, so renaming either one blocks every merge until the
+  rulesets require the new name.
 * `test-lhc` is a plain conditional job again: skipped (and unbilled) when landhauscheck is untouched. The required
   `test` gate now verifies it like the other suites, and `deploy-lhc` depends on `test` instead of `test-lhc`, so a
   terraform-only landhauscheck change still deploys. A failing landhauscheck suite now blocks the merge, because it

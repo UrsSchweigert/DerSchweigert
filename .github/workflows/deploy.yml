@@ -45,6 +45,7 @@ jobs:
   # per job, so that case skips this job and the suites and lets only `test` and `test-ffm` (the required contexts of
   # the run-branch ruleset) report success. Every other event is unchanged.
   changes:
+    name: 'Detect changed sites'
     if: github.event_name != 'pull_request' || !startsWith(github.base_ref, 'harness/run/')
     runs-on: ubuntu-latest
     outputs:
@@ -149,6 +150,7 @@ jobs:
   # one required check: it fails unless every suite its change needed passed, so deploy and branch protection are
   # unchanged.
   test-site:
+    name: 'Tests: derschweigert.de'
     needs: [changes]
     if: needs.changes.outputs.site_tests == 'true'
     runs-on: ubuntu-latest
@@ -166,6 +168,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
 
   test-harness:
+    name: 'Tests: harness tooling'
     needs: [changes]
     if: needs.changes.outputs.harness_tests == 'true'
     runs-on: ubuntu-latest
@@ -183,6 +186,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
 
   test-lesen:
+    name: 'Tests: lesen.derschweigert.de'
     needs: [changes]
     if: needs.changes.outputs.lesen_tests == 'true'
     runs-on: ubuntu-latest
@@ -195,6 +199,7 @@ jobs:
           # Caching a dependency tree this job never downloads would restore and save an empty cache on every run.
       - run: node --test sites/lesen/tests/*.test.mjs
 
+  # Required status check on `main` and `harness run branches`: gate for the suites below. Renaming it needs a ruleset change.
   test:
     needs: [changes, test-site, test-harness, test-lesen, test-lhc]
     # always() so a failed `changes` or suite shows up here as a red check instead of leaving this required check skipped.
@@ -236,6 +241,7 @@ jobs:
           check landhauscheck "$LHC_NEEDED" "$LHC"
           exit "$failed"
 
+  # Required status check on `main` and `harness run branches`: keeps its name. Renaming it needs a ruleset change.
   test-ffm:
     needs: [changes]
     # always() so a failed `changes` job shows up here as a red check instead of leaving this required check skipped.
@@ -279,6 +285,7 @@ jobs:
         if: needs.changes.outputs.ffm_tests == 'true'
 
   test-lhc:
+    name: 'Tests: landhauscheck'
     needs: [changes]
     # Not a required context, so it may be skipped when landhauscheck is untouched. `test` fails when this suite was
     # needed and did not succeed, and when `changes` produced nothing, so a skip here can never read as a pass.
@@ -318,6 +325,7 @@ jobs:
 
   # Only `main` deploys, so a pull request has no use for the answer and need not pay a metered minute for it.
   check-secrets:
+    name: 'Check deploy secrets'
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
@@ -332,6 +340,7 @@ jobs:
           fi
 
   deploy:
+    name: 'Deploy derschweigert.de'
     needs: [test, check-secrets, changes]
     runs-on: ubuntu-latest
     # !cancelled() + explicit results: `test` itself skips suites, and a skipped ancestor would otherwise skip this deploy.
@@ -445,6 +454,7 @@ jobs:
           aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
 
   deploy-ffm:
+    name: 'Deploy ffm.derschweigert.de'
     needs: [test, test-ffm, check-secrets, changes]
     runs-on: ubuntu-latest
     # `ffm` (not `ffm_tests`) because a terraform-only change must still be applied, even though it runs no app tests.
@@ -619,6 +629,7 @@ jobs:
           curl -sf https://ffm.derschweigert.de/api/health | grep '"ok":true'
 
   deploy-lhc:
+    name: 'Deploy landhauscheck'
     needs: [test, check-secrets, changes]
     runs-on: ubuntu-latest
     # `lhc` (not `lhc_tests`) because a terraform-only change must still be applied, even though it runs no app tests.
@@ -743,6 +754,7 @@ jobs:
           done
 
   deploy-lesen:
+    name: 'Deploy lesen.derschweigert.de'
     # `test` runs lesen's node tests, so the deploy must wait for it; without this dependency a red lesen suite never
     # blocked the deploy.
     needs: [test, check-secrets, changes]
