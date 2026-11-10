@@ -49,6 +49,8 @@ import { createLevelNumerals } from './level-numerals.js';
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
 const platform = await resolvePlatform();
+// Lets styles.css scope web-only layout rules without touching the app.
+document.documentElement.dataset.platform = platform.isApp ? 'app' : 'web';
 const gameplayChrome = createGameplayChrome({ translate: t });
 const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 
@@ -730,6 +732,7 @@ const SPELL_TARGET_Y_OFFSET = 60;
 // lands right as the sprite reaches the fiend instead of the instant it's cast.
 const FIREBALL_FLIGHT_MS = 1350;
 let currentProfile = null;
+let webScoreHistory = null;
 let currentLeaderboard = null;
 let currentPersonalDevelopment = null;
 let pendingResetToken = null;
@@ -1273,6 +1276,20 @@ function showProgressError(message) {
   if (error) error.textContent = message;
 }
 
+// The web build has no local progress, so the 📈 history page shows the
+// account's score history and high score instead of staying blank.
+function renderWebHistoryPage() {
+  if (platform.isApp) return;
+  if (!platform.isLoggedIn) {
+    personalScoreHistoryChart.innerHTML = `<p class="score-history-summary">${escHtml(t('scoreHistory.loginRequired'))}</p>`;
+    personalScoreHistoryChart.style.display = '';
+    renderPersonalBest(null, personalCompletedOverview);
+    return;
+  }
+  renderScoreHistory(webScoreHistory, personalScoreHistoryChart);
+  renderPersonalBest(currentProfile, personalCompletedOverview);
+}
+
 async function refreshProfileAndLeaderboard() {
   if (await platform.getAccountAvailability() === 'none') {
     leaderboardSection.style.display = 'none';
@@ -1295,6 +1312,8 @@ async function refreshProfileAndLeaderboard() {
     currentProfile = null;
     renderPersonalBest(null, leaderboardPersonalBest);
     renderScoreHistory(null, scoreHistoryChart);
+    webScoreHistory = null;
+    renderWebHistoryPage();
     renderLevelJumpOptions(null);
     leaderboardProfilePrompt.style.display = 'none';
     leaderboardCompleteProfile.style.display = 'none';
@@ -1321,11 +1340,13 @@ async function refreshProfileAndLeaderboard() {
   }
 
   try {
-    const historyResponse = await platform.getScoreHistory();
-    renderScoreHistory(historyResponse, scoreHistoryChart);
+    webScoreHistory = await platform.getScoreHistory();
+    renderScoreHistory(webScoreHistory, scoreHistoryChart);
   } catch {
+    webScoreHistory = null;
     renderScoreHistory(null, scoreHistoryChart);
   }
+  renderWebHistoryPage();
 }
 
 // --- Splash login button ---
@@ -3619,6 +3640,7 @@ onLocaleChange(() => {
   if (currentLeaderboard) renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
   if (currentProfile) renderPersonalBest(currentProfile, leaderboardPersonalBest);
   if (currentPersonalDevelopment) renderPersonalDevelopment(currentPersonalDevelopment);
+  renderWebHistoryPage();
   renderPersonalBest(currentProfile, accountPersonalBest);
   if (platform.isApp && currentPersonalDevelopment) renderLocalCampaign(currentPersonalDevelopment.completed);
   else renderLevelJumpOptions(currentProfile);

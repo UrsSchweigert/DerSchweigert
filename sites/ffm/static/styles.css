@@ -1521,6 +1521,20 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 .profile-status { color: #ffe080; }
 .profile-status.error-msg { color: #ff8080; }
 
+/* Web only: .splash-content still carries the old flex rule's
+ * justify-content: center, which shrinks its implicit grid column to each
+ * page's content. Give every title page the same centred width instead. */
+:root[data-platform="web"] .splash-content {
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+}
+:root[data-platform="web"] .title-pages,
+:root[data-platform="web"] .title-navigation {
+  width: min(100%, 560px);
+  justify-self: center;
+  box-sizing: border-box;
+}
+
 /* Legal text is deliberately the sole scrollable title page. */
 .title-legal { overflow-y: auto; overscroll-behavior: contain; }
 .splash-legal-links { font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
