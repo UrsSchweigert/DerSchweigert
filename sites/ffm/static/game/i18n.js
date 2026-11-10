@@ -57,6 +57,7 @@ const DICTIONARY = {
   'leaderboard.jumpLabel': { en: "Jump to a level you've already cleared:", de: 'Springe zu einem bereits geschafften Level:' },
   'levels.startFromOne': { en: 'Start from Level 1', de: 'Ab Level 1 starten' },
   'levels.level': { en: 'Level {level}', de: 'Level {level}' },
+  'levels.locked': { en: 'Level {level} (locked)', de: 'Level {level} (gesperrt)' },
   'scoreHistory.ariaLabel': { en: 'Score history chart', de: 'Punkteverlauf-Diagramm' },
   'scoreHistory.empty': {
     en: 'Finish a scored level to see your progress here.',
@@ -163,7 +164,7 @@ const DICTIONARY = {
   'help.progress.tip2': { en: 'Only cleared levels unlock the next level.', de: 'Nur geschaffte Level schalten das nächste Level frei.' },
   'help.progress.tip3': { en: 'Switch players on the Players tab.', de: 'Spieler wechselst du im Spieler-Tab.' },
   'help.levels.title': { en: 'Level select', de: 'Level-Auswahl' },
-  'help.levels.summary': { en: 'Jump to a level you have already cleared.', de: 'Springe zu einem Level, das du bereits geschafft hast.' },
+  'help.levels.summary': { en: 'Tap a level number to start there next. Dimmed numbers are not unlocked yet.', de: 'Tippe auf eine Levelnummer, um dort als Nächstes zu starten. Blasse Nummern sind noch nicht freigeschaltet.' },
   'help.levels.tip1': { en: 'Replaying a cleared level never erases its checkpoint.', de: 'Ein geschafftes Level erneut zu spielen löscht seinen Fortschritt nie.' },
   'help.levels.tip2': { en: 'When all 60 levels are cleared, play restarts at level 1.', de: 'Wenn alle 60 Level geschafft sind, beginnt das Spiel wieder bei Level 1.' },
   'help.levels.tip3': { en: 'Training modes never unlock campaign levels.', de: 'Übungsarten schalten nie Abenteuerlevel frei.' },

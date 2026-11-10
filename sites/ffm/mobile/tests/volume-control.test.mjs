@@ -312,6 +312,29 @@ test('mute zeroes the buses without losing the chosen slider gains', () => {
   assert.equal(audio._effectsBus.gain.value, 0.6 * 0.4);
 });
 
+test('mute and unmute through the menu keep both sliders, and opening it re-reads the engine', () => {
+  const { doc, muteBtn } = fakeDocument();
+  const { audio } = routedEngine({ start: false });
+  const control = createVolumeControl({ doc, audio, translate: key => key });
+  muteBtn.addEventListener('click', () => {
+    audio.toggleMute();
+    control.refresh();
+  });
+  for (const expected of ['🔇', '🔊']) {
+    muteBtn.dispatch('click');
+    assert.equal(control.summary.textContent, expected);
+    assert.ok(control.musicInput, `music slider stays after ${expected}`);
+    assert.ok(control.effectsInput);
+    assert.equal(control.status.textContent, 'audio.musicVolumeReady');
+  }
+
+  audio._disableMusicRouting();
+  control.element.open = true;
+  control.element.dispatch('toggle');
+  assert.equal(control.musicInput, null, 'opening the menu shows the current route state');
+  assert.equal(control.status.textContent, 'audio.musicVolumeUnavailable');
+});
+
 test('the control is keyboard and screen-reader accessible with 44px targets', async () => {
   const { doc } = fakeDocument();
   const { audio } = routedEngine();

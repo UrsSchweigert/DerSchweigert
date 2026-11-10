@@ -174,12 +174,25 @@ test('widget registration validates its inputs and can be undone', () => {
 
 test('the documented hook surface is stable', () => {
   assert.equal(MOBILE_UI_STYLESHEET, './mobile-ui.css');
-  assert.deepEqual([...WIDGET_UPDATES], ['updateTimerState', 'updateLevelSelection']);
+  assert.deepEqual([...WIDGET_UPDATES], ['updateTimerState', 'updateLevelSelection', 'updateEncounterProgress']);
   const { doc } = fakeDocument();
   const ui = createMobileUi({ doc });
-  for (const name of ['attach', 'detach', 'registerWidget', 'unregisterWidget', 'updateTimerState', 'updateLevelSelection']) {
+  for (const name of ['attach', 'detach', 'registerWidget', 'unregisterWidget', 'updateTimerState', 'updateLevelSelection', 'updateEncounterProgress']) {
     assert.equal(typeof ui[name], 'function', `${name} must be part of the hook surface`);
   }
+});
+
+test('encounter progress is forwarded and replayed to late widgets', () => {
+  const { doc } = fakeDocument();
+  const ui = createMobileUi({ doc });
+  const seen = [];
+  ui.registerWidget('early', { updateEncounterProgress: (progress) => seen.push(['early', progress]) });
+  ui.updateEncounterProgress({ defeated: 3, total: 30 });
+  ui.registerWidget('late', { updateEncounterProgress: (progress) => seen.push(['late', progress]) });
+  assert.deepEqual(seen, [
+    ['early', { defeated: 3, total: 30 }],
+    ['late', { defeated: 3, total: 30 }],
+  ]);
 });
 
 test('main.js loads the overlay UI only in the app build, behind a catch', async () => {

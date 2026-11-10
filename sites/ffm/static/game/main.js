@@ -45,6 +45,7 @@ import {
 } from './practice-session.js';
 import { getSkillIntro } from './skill-intro.js';
 import { createLevelNumerals } from './level-numerals.js';
+import { createLevelGrid } from './level-grid.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -97,10 +98,10 @@ if (platform.isApp) {
     })
     .then(({ createTimerBar }) => {
       mobileUi?.registerWidget('timer-bar', createTimerBar({ doc: document }));
-      return import('./bubble-timer.js');
+      return import('./encounter-swords.js');
     })
-    .then(({ createBubbleTimer }) => {
-      mobileUi?.registerWidget('bubble-timer', createBubbleTimer({ doc: document }));
+    .then(({ createEncounterSwords }) => {
+      mobileUi?.registerWidget('encounter-swords', createEncounterSwords({ doc: document }));
       return import('./shapes-header.js');
     })
     .then(({ createShapesHeader }) => {
@@ -513,7 +514,7 @@ const personalBestList = document.getElementById('personal-best-list');
 const personalScoreHistoryChart = document.getElementById('personal-score-history-chart');
 const personalCompletedOverview = document.getElementById('personal-completed-overview');
 const levelJumpRow = document.getElementById('level-jump-row');
-const levelJumpSelect = document.getElementById('level-jump-select');
+const levelGrid = createLevelGrid({ doc: document, onSelect: onLevelGridSelect });
 const practiceKindSelect = document.getElementById('practice-kind');
 const practiceLevelSelect = document.getElementById('practice-level-select');
 const practiceBadges = document.getElementById('practice-badges');
@@ -610,6 +611,7 @@ let deferredMusicVolume = null;
 const audio = new AudioEngine({
   musicGainRouting: platform.isApp,
   onMusicVolumeReady: () => flushDeferredMusicVolume(),
+  onMusicVolumeUnavailable: () => audioPreferenceStatus(),
 });
 
 function audioPreferenceStatus() {
@@ -923,28 +925,30 @@ function renderScoreHistory(historyResponse, container) {
 }
 
 function renderLevelJumpOptions(profile) {
-  const previous = levelJumpSelect.value;
   const scores = profile && profile.scores ? profile.scores : [];
   const levels = [...new Set(scores.map((s) => s.level))].sort((a, b) => a - b);
   if (levels.length === 0) {
     levelJumpRow.style.display = 'none';
-    levelJumpSelect.innerHTML = `<option value="">${t('levels.startFromOne')}</option>`;
+    levelGrid.render({ total: TOTAL_LEVELS, defaultLevel: 1, available: [] });
     document.getElementById('title-levels-btn').hidden = true;
     updateTitleStartingLevel();
     return;
   }
   document.getElementById('title-levels-btn').hidden = false;
-  const options = [`<option value="">${t('levels.startFromOne')}</option>`]
-    .concat(levels.map((lvl) => `<option value="${lvl}">${t('levels.level', { level: lvl })}</option>`));
-  levelJumpSelect.innerHTML = options.join('');
-  if (levels.includes(Number(previous))) levelJumpSelect.value = previous;
+  levelGrid.render({
+    total: TOTAL_LEVELS,
+    defaultLevel: 1,
+    available: levels,
+    labelFor: ({ level, state }) => t(state === 'default' ? 'levels.startFromOne'
+      : state === 'locked' ? 'levels.locked' : 'levels.level', { level }),
+  });
   levelJumpRow.style.display = '';
   updateTitleStartingLevel();
 }
 
 function updateTitleStartingLevel(nextLevel = 1, continuationLabel = null) {
-  const level = Number(levelJumpSelect.value) || nextLevel;
-  const mode = levelJumpSelect.value ? 'replay' : 'continuation';
+  const level = Number(levelGrid.value) || nextLevel;
+  const mode = levelGrid.value ? 'replay' : 'continuation';
   titleLevelNumerals.updateLevelSelection({ level, mode });
   const continuation = document.getElementById('continue-level');
   if (continuation) continuation.textContent = platform.isApp
@@ -1042,15 +1046,18 @@ function renderPersonalDevelopment(state) {
 
 function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   const progress = getCampaignProgress(completed);
-  const previous = resetSelection ? '' : levelJumpSelect.value;
+  if (resetSelection) levelGrid.value = '';
   const label = progress.complete ? t('campaign.complete') : t('campaign.continueAt', { level: progress.nextLevel });
-  const selectorLabel = levelJumpRow.querySelector('label');
+  const selectorLabel = document.getElementById('level-jump-label');
   selectorLabel.dataset.i18n = 'campaign.chooseLevel';
   selectorLabel.textContent = t('campaign.chooseLevel');
-  levelJumpSelect.innerHTML = `<option value="">${escHtml(label)}</option>` +
-    progress.cleared.map(level => `<option value="${level}">${escHtml(t('campaign.replay', { level }))}</option>`).join('');
-  if (progress.cleared.includes(Number(previous))) levelJumpSelect.value = previous;
-  else levelJumpSelect.value = '';
+  levelGrid.render({
+    total: TOTAL_LEVELS,
+    defaultLevel: progress.nextLevel ?? 1,
+    available: progress.cleared,
+    labelFor: ({ level, state }) => t(state === 'locked' ? 'levels.locked'
+      : state === 'default' && !progress.complete ? 'campaign.continueAt' : 'campaign.replay', { level }),
+  });
   levelJumpRow.style.display = '';
   document.getElementById('title-levels-btn').hidden = false;
   updateTitleStartingLevel(progress.nextLevel ?? 1, label);
@@ -1414,7 +1421,7 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
       state.maxHearts = parseInt(btn.dataset.hearts);
       state.hearts = state.maxHearts;
       healTipShown = false;
-      const jumpValue = levelJumpSelect.value;
+      const jumpValue = levelGrid.value;
       let targetLevel = jumpValue ? parseInt(jumpValue, 10) : 1;
       if (platform.isApp) {
         const profileId = platform.localProfiles.getActiveProfile().id;
@@ -1440,10 +1447,11 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
     }
   });
 });
-levelJumpSelect.addEventListener('change', () => {
+function onLevelGridSelect() {
   if (platform.isApp && currentPersonalDevelopment) renderLocalCampaign(currentPersonalDevelopment.completed);
   else updateTitleStartingLevel();
-});
+  showTitlePage('play');
+}
 
 // --- Auth ---
 // The app bundle ships without the account, checkout and web-legal markup
@@ -3421,19 +3429,22 @@ function gameLoop(ts) {
       : t('feedback.shapesAnswer', { count: activeFiend.problem.answer }),
   } : null;
   const practiceProgress = practiceRun?.session.snapshot();
+  const encounterProgress = practiceRun?.endless ? null : state.isShapesMode
+    ? { defeated: practiceProgress.resolvedProblems, total: 10 }
+    : {
+      defeated: state.enemiesDefeated,
+      total: practiceRun
+        ? practiceRun.kind === 'targeted' ? practiceRun.targetProblems.length : 10
+        : cfg?.waveSize ?? 0,
+    };
   gameplayChrome.update({
     ...state, paused, reveal: inputDisabled || ['reveal', 'retreat', 'death'].includes(activeFiend?.state),
     questionActive: Boolean(activeFiend && !inputDisabled &&
       !['reveal', 'retreat', 'death'].includes(activeFiend.state)),
     healingEnabled: !practiceRun,
-    progressLabel: practiceRun?.endless ? '' : state.isShapesMode
-      ? t('practice.questionProgress', { resolved: practiceProgress.resolvedProblems, total: 10 })
-      : t('gameplay.encounters', {
-        defeated: state.enemiesDefeated,
-        total: practiceRun
-          ? practiceRun.kind === 'targeted' ? practiceRun.targetProblems.length : 10
-          : cfg?.waveSize ?? 0,
-      }),
+    progressLabel: !encounterProgress ? '' : state.isShapesMode
+      ? t('practice.questionProgress', { resolved: encounterProgress.defeated, total: encounterProgress.total })
+      : t('gameplay.encounters', encounterProgress),
     rewardLabel: practiceRun || state.isShapesMode ? '' : lastCastAbility && inputDisabled
       ? t('reward.cast', { ability: t(`reward.${lastCastAbility}`) }) : rewardLabel,
     healLabel: practiceRun ? '' : t('gameplay.healProgress', {
@@ -3452,6 +3463,8 @@ function gameLoop(ts) {
     untimed: !(state.timerMax > 0) || practiceProgress?.untimed === true,
     paused,
   });
+  // The app's portrait sword row mirrors the "Defeated" readout above.
+  mobileUi?.updateEncounterProgress(encounterProgress ?? { defeated: 0, total: 0 });
 }
 
 function handleUrlAuthTokens() {
@@ -3523,7 +3536,7 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
           currentPersonalDevelopment = null;
           activeLocalPlayer = platform.localProfiles.getActiveProfile();
           renderPlayerIdentity();
-          levelJumpSelect.value = '';
+          levelGrid.value = '';
           await refreshPracticeBadges();
           personalBestList.textContent = '';
           personalCompletedOverview.textContent = '';

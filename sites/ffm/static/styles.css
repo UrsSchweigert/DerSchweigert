@@ -1315,6 +1315,7 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   gap: 6px;
 }
 #top-bar button, #top-bar span { padding: 4px 8px; }
+#username-display { display: flex; align-items: center; justify-content: center; }
 /* Website-only account controls may need more than the native two buttons. */
 #top-bar:has(#login-btn) {
   left: auto;
@@ -1370,6 +1371,8 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 .splash-intro { font-size: 12px; line-height: 1.35; max-width: none; }
 .splash-subtitle { font-size: 13px; }
 .splash-login-row { flex-direction: row; gap: 6px; }
+.splash-login-row .splash-btn { flex: none; }
+.splash-greeting { min-width: 0; overflow-wrap: break-word; text-align: center; }
 .splash-diff-buttons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1505,8 +1508,51 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   text-align: center;
   flex-shrink: 0;
 }
-.level-jump-row { flex-direction: column; width: 100%; gap: 6px; }
-#level-jump-select { width: 100%; min-width: 0; }
+.title-page[data-title-page="levels"] { align-items: center; }
+.level-jump-row {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  gap: 6px;
+}
+.level-jump-label { margin: 0; color: var(--ivory); font-size: 13px; text-align: center; text-shadow: 1px 1px 4px #000, 0 0 6px #000; }
+.level-jump-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  grid-auto-rows: 56px;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border-radius: 6px;
+  background: rgba(6, 18, 13, 0.84);
+}
+.level-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.level-tile svg { display: block; width: auto; height: 100%; max-width: 100%; }
+.level-tile[data-state="default"] { border-color: rgba(95, 208, 104, 0.55); }
+.level-tile:hover:not(:disabled) svg { filter: drop-shadow(0 0 4px rgba(228, 197, 119, 0.7)); }
+.level-tile[aria-pressed="true"] {
+  border-color: var(--brass-light);
+  box-shadow: 0 0 10px rgba(228, 197, 119, 0.65);
+}
+.level-tile:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+.level-tile:disabled { cursor: default; opacity: 0.32; filter: grayscale(1); }
 
 .profile-ui { display: flex; flex-direction: column; gap: 6px; }
 .profile-list { display: grid; gap: 6px; min-height: 0; }
@@ -1584,7 +1630,7 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   .splash-diff-buttons { height: 100%; grid-template-rows: repeat(2, minmax(44px, 128px)); }
   .title-play-intro { gap: 4px; }
   .playing-as-row { flex-wrap: wrap; gap: 4px; }
-  .splash-login-row { flex-wrap: nowrap; }
+  .splash-login-row { flex-wrap: wrap; row-gap: 2px; }
   .splash-login-row .splash-btn { font-size: 11px; padding: 4px; }
   .profile-ui {
     display: grid;

@@ -1,7 +1,7 @@
 // shapes-header.js — App-only two-row Shapes question header.
 //
 // main.js loads this module only behind `platform.isApp` (chained onto the
-// mobile-ui.js/timer-bar.js/level-numerals.js/bubble-timer.js imports), so the
+// mobile-ui.js/timer-bar.js/level-numerals.js/encounter-swords.js imports), so the
 // web build never imports it and keeps the single-line shapes prompt painted
 // by gameplay-chrome.js.
 //

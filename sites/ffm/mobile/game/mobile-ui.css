@@ -55,23 +55,22 @@
   .app-header-timer-fill { transition: none; }
 }
 
-/* Portrait answer bubble timer, injected by bubble-timer.js into #input-zone
+/* Portrait encounter swords, injected by encounter-swords.js into #input-zone
  * immediately before #mc-buttons.
  *
  * The row only exists in portrait: the default is display:none, so landscape
  * and the web build (which never loads this stylesheet) show nothing. It owns
- * a full-width flex line above the answer buttons, keeps a constant bubble
- * budget, and paints the filled bubbles from --bubble-color, the same
- * continuous colour the header bar uses. Animation is CSS-only and bounded;
- * the paused and backgrounded states freeze it, and reduced motion removes
- * every animation so only a static fill remains. */
-.app-answer-bubble-timer {
+ * a full-width 22px flex line above the answer buttons with one little sword
+ * per enemy; beaten enemies fill green from left to right. Each sword is a
+ * clip-path silhouette (tip, blade, cross-guard, grip, pommel), so it scales
+ * with the slot and needs no image. Reduced motion drops the fill pop. */
+.app-encounter-swords {
   display: none;
   flex: 0 0 100%;
   box-sizing: border-box;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 2px;
   height: 22px;
   margin: 0 calc(var(--safe-area-right, 0px) + 2px) 0 calc(var(--safe-area-left, 0px) + 2px);
   padding: 0 2px;
@@ -79,50 +78,47 @@
   user-select: none;
 }
 
-#game-wrap[data-layout="portrait"] .app-answer-bubble-timer {
+#game-wrap[data-layout="portrait"] .app-encounter-swords {
   display: flex;
 }
 
-.app-answer-bubble-timer-bubble {
-  flex: 0 1 20px;
-  width: clamp(8px, 5vw, 20px);
-  aspect-ratio: 1;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.38);
+#game-wrap[data-layout="portrait"] .app-encounter-swords[hidden] {
+  display: none;
 }
 
-.app-answer-bubble-timer-bubble--filled {
-  border-color: transparent;
-  background: var(--bubble-color, #4caf50);
-  box-shadow: 0 0 6px var(--bubble-color, #4caf50);
-  animation: ffm-bubble-pulse 1.4s ease-in-out infinite;
-  animation-delay: calc(var(--bubble-index, 0) * -0.14s);
+.app-encounter-sword {
+  flex: 0 1 12px;
+  min-width: 0;
+  height: 20px;
 }
 
-.app-answer-bubble-timer[data-timer-state="paused"] .app-answer-bubble-timer-bubble,
-.app-answer-bubble-timer[data-timer-state="untimed"] .app-answer-bubble-timer-bubble,
-.app-answer-bubble-timer[data-backgrounded="true"] .app-answer-bubble-timer-bubble {
-  animation-play-state: paused;
+.app-encounter-sword::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.24);
+  clip-path: polygon(50% 0, 62% 9%, 62% 62%, 90% 62%, 90% 71%, 58% 71%, 58% 88%,
+    66% 88%, 66% 100%, 34% 100%, 34% 88%, 42% 88%, 42% 71%, 10% 71%, 10% 62%,
+    38% 62%, 38% 9%);
 }
 
-@keyframes ffm-bubble-pulse {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-    box-shadow: 0 0 4px var(--bubble-color, #4caf50);
-  }
-  50% {
-    transform: translateY(-2px) scale(1.08);
-    box-shadow: 0 0 10px var(--bubble-color, #4caf50);
-  }
+.app-encounter-sword--filled {
+  filter: drop-shadow(0 0 2px #4caf50);
+  animation: ffm-sword-fill 0.35s ease-out;
+}
+
+.app-encounter-sword--filled::before {
+  background: linear-gradient(180deg, #c8f7c5 0%, #5fd068 45%, #2e8b3a 100%);
+}
+
+@keyframes ffm-sword-fill {
+  0% { transform: scale(1.5); }
+  100% { transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-answer-bubble-timer-bubble--filled {
-    animation: none;
-    transform: none;
-    box-shadow: 0 0 4px var(--bubble-color, #4caf50);
-  }
+  .app-encounter-sword--filled { animation: none; }
 }
 
 /* Shapes question header, restructured by shapes-header.js into exactly two
@@ -406,11 +402,18 @@
   outline-offset: 2px;
 }
 
+/* The extra help column must not pull .gameplay-readouts into the question's
+ * row as an auto-width column: that collapsed the question column to 0px and
+ * broke "48 × 12 = ?" onto several lines. Every child gets an explicit row:
+ * the question has the full first line to itself (and never wraps), the
+ * readouts share the next line with the help and pause buttons. */
 #gameplay-chrome { grid-template-columns: minmax(0, 1fr) auto auto; }
-#gameplay-chrome #active-question,
-#gameplay-chrome #gameplay-feedback { grid-column: 1; }
-#gameplay-chrome .app-help-button[data-help-host="play"] { grid-column: 2; }
-#gameplay-chrome #btn-pause-game { grid-column: 3; }
+#gameplay-chrome #active-question { grid-column: 1 / -1; grid-row: 1; white-space: nowrap; }
+#gameplay-chrome #gameplay-feedback { grid-column: 1 / -1; grid-row: 2; }
+#gameplay-chrome .gameplay-readouts { grid-column: 1; grid-row: 3; }
+#gameplay-chrome .app-help-button[data-help-host="play"] { grid-column: 2; grid-row: 3; }
+#gameplay-chrome #btn-pause-game { grid-column: 3; grid-row: 3; }
+#gameplay-chrome .app-header-timer { grid-row: 4; }
 
 .title-navigation .app-help-button {
   justify-self: stretch;

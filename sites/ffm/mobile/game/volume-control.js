@@ -181,6 +181,11 @@ export function createVolumeControl({
     summary.focus?.();
     event.stopPropagation();
   });
+  // Re-read the engine whenever the menu opens so it never shows options from
+  // an earlier routing state.
+  details.addEventListener('toggle', () => {
+    if (details.open) refresh();
+  });
   refresh();
 
   return {

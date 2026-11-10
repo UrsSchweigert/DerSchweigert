@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { getCampaignProgress, resetLevelAttempt } from './campaign-progress.js';
+import { createLevelGrid } from './level-grid.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 const difficulty = source.slice(source.indexOf("document.querySelectorAll('#difficulty-select .diff-btn').forEach"),
-  source.indexOf("levelJumpSelect.addEventListener('change'"));
+  source.indexOf('function onLevelGridSelect('));
 
 function setup({ completed = [1, 2], selected = '', fail = false, difficultyKind = 'hard' } = {}) {
   let handler;
@@ -28,7 +29,7 @@ function setup({ completed = [1, 2], selected = '', fail = false, difficultyKind
     profileUI: { async whenIdle() {} },
     state: { score: 800, hearts: 0 }, levelStartScore: 100,
     diffSelect: { style: { display: 'flex' } },
-    levelJumpSelect: { value: selected },
+    levelGrid: { value: selected },
     getCampaignProgress, resetLevelAttempt,
     async startLevel(index, baseline) { starts.push([index, baseline]); },
     async startPracticeSession(...args) { starts.push(args); },
@@ -49,16 +50,14 @@ test('Play continues at the first unfinished level without inventing a score bas
 });
 
 test('web title shows selected start level and preserves a valid replay on refresh', () => {
-  const select = {
-    value: '5',
-    set innerHTML(value) { this.html = value; this.value = ''; },
-  };
+  const grid = createLevelGrid({ doc: null });
   let selection;
   const continuation = { textContent: '' };
   const context = {
     platform: { isApp: false },
-    levelJumpSelect: select,
+    levelGrid: grid,
     levelJumpRow: { style: {} },
+    TOTAL_LEVELS: 60,
     titleLevelNumerals: { updateLevelSelection(value) { selection = value; } },
     document: { getElementById: id => id === 'continue-level' ? continuation : {} },
     t: (key, vars) => `${key}:${vars?.level ?? ''}`,
@@ -67,33 +66,34 @@ test('web title shows selected start level and preserves a valid replay on refre
   vm.runInContext(source.match(/function updateTitleStartingLevel\([\s\S]*?\n\}/)[0], context);
   vm.runInContext(source.match(/function renderLevelJumpOptions\([\s\S]*?\n\}/)[0], context);
   context.renderLevelJumpOptions({ scores: [{ level: 5 }] });
-  assert.equal(select.value, '5');
+  assert.equal(grid.entries.length, 60);
+  assert.deepEqual(grid.entries.filter(entry => entry.state !== 'locked').map(entry => entry.level), [1, 5]);
+  grid.value = '5';
+  context.renderLevelJumpOptions({ scores: [{ level: 5 }] });
+  assert.equal(grid.value, '5');
   assert.equal(selection.level, 5);
   assert.equal(selection.mode, 'replay');
   assert.equal(continuation.textContent, 'title.levelNumerals:5');
   context.renderLevelJumpOptions(null);
-  assert.equal(select.value, '');
+  assert.equal(grid.value, '');
   assert.equal(selection.level, 1);
   assert.equal(selection.mode, 'continuation');
   assert.equal(continuation.textContent, 'title.levelNumerals:1');
 });
 
 test('native title artwork follows continuation, replay, player reset and campaign completion', () => {
-  const select = {
-    value: '',
-    set innerHTML(value) { this.html = value; this.value = ''; },
-  };
+  const grid = createLevelGrid({ doc: null });
   let selection;
   const continuation = { textContent: '' };
   const context = {
     platform: { isApp: true },
     getCampaignProgress,
-    levelJumpSelect: select,
-    levelJumpRow: { style: {}, querySelector: () => ({ dataset: {} }) },
+    levelGrid: grid,
+    levelJumpRow: { style: {} },
+    TOTAL_LEVELS: 60,
     titleLevelNumerals: { updateLevelSelection(value) { selection = value; } },
-    document: { getElementById: id => id === 'continue-level' ? continuation : {} },
+    document: { getElementById: id => id === 'continue-level' ? continuation : { dataset: {}, hidden: false } },
     t: (key, vars) => `${key}:${vars?.level ?? ''}`,
-    escHtml: value => value,
   };
   vm.createContext(context);
   for (const name of ['updateTitleStartingLevel', 'renderLocalCampaign']) {
@@ -102,16 +102,37 @@ test('native title artwork follows continuation, replay, player reset and campai
   context.renderLocalCampaign([1, 3]);
   assert.equal(selection.level, 2);
   assert.equal(selection.mode, 'continuation');
-  select.value = '3';
+  assert.deepEqual(grid.entries.filter(entry => entry.state !== 'locked').map(entry => [entry.level, entry.value]),
+    [[1, '1'], [2, ''], [3, '3']]);
+  grid.value = '3';
   context.renderLocalCampaign([1, 3]);
   assert.equal(selection.level, 3);
   assert.equal(selection.mode, 'replay');
+  grid.value = '7';
+  assert.equal(grid.value, '', 'a locked level can never be selected');
+  grid.value = '3';
   context.renderLocalCampaign([], { resetSelection: true });
   assert.equal(selection.level, 1);
   assert.equal(selection.mode, 'continuation');
   context.renderLocalCampaign(Array.from({ length: 60 }, (_, i) => i + 1));
   assert.equal(selection.level, 1);
   assert.equal(continuation.textContent, 'campaign.complete:');
+});
+
+test('picking a level tile updates the title and returns to the Play page', () => {
+  const pages = [];
+  let refreshed = 0;
+  const context = {
+    platform: { isApp: false }, currentPersonalDevelopment: null,
+    updateTitleStartingLevel() { refreshed += 1; },
+    renderLocalCampaign() { throw new Error('web must not render the native campaign'); },
+    showTitlePage(name) { pages.push(name); },
+  };
+  vm.createContext(context);
+  vm.runInContext(source.match(/function onLevelGridSelect\([\s\S]*?\n\}/)[0], context);
+  context.onLevelGridSelect('5');
+  assert.equal(refreshed, 1);
+  assert.deepEqual(pages, ['play']);
 });
 
 test('the existing title Shapes button launches Endless without depending on the finite practice selector', async () => {
