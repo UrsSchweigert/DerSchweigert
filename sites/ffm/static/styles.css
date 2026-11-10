@@ -2119,3 +2119,20 @@ body:not(.legal-body) {
     transform: none !important;
   }
 }
+
+/* Fade to black between the intro and the menu pages (see showTitlePage in
+   main.js). Sits above every overlay so the swap is never visible. */
+#screen-fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 170ms ease;
+  z-index: 300;
+}
+
+#screen-fade.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}

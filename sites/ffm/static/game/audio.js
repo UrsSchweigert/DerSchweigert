@@ -106,26 +106,34 @@ export class AudioEngine {
   }
 
   _tracksForLevel(level) {
-    const files = this._levelMusic?.levels?.[level];
+    return this._tracksFromConfig(this._levelMusic?.levels?.[level], `level ${level}`);
+  }
+
+  _tracksForMenu() {
+    return this._tracksFromConfig(this._levelMusic?.menu, 'the menu');
+  }
+
+  _tracksFromConfig(files, label) {
     if (files === undefined || (Array.isArray(files) && files.length === 0)) return this._tracks;
     if (!Array.isArray(files) || files.some(file => typeof file !== 'string' ||
       !/^[a-zA-Z0-9._/-]+$/.test(file) || file.startsWith('/') || file.split('/').includes('..'))) {
-      console.warn(`Invalid bundled music list for level ${level}; using normal rotation`);
+      console.warn(`Invalid bundled music list for ${label}; using normal rotation`);
       return this._tracks;
     }
     const tracks = [...new Set(files)].map(file => this._tracks.find(track => track.file === file));
     if (tracks.some(track => !track)) {
-      console.warn(`Unknown bundled music track for level ${level}; using normal rotation`);
+      console.warn(`Unknown bundled music track for ${label}; using normal rotation`);
       return this._tracks;
     }
-    // Per-level lists override chapter tags, including for the preload.
+    // Configured lists override chapter tags, including for the preload.
     return tracks.map(track => ({ ...track, stage: null }));
   }
 
   _refreshMusic() {
     const session = this._musicSession;
     const tracks = session?.failed ? FALLBACK_TRACKS
-      : session?.level != null ? this._tracksForLevel(session.level) : this._tracks;
+      : session?.level != null ? this._tracksForLevel(session.level)
+      : session?.menu ? this._tracksForMenu() : this._tracks;
     const unchanged = tracks.length === this._rotation.tracks.length &&
       tracks.every((track, i) => track.file === this._rotation.tracks[i].file &&
         track.stage === this._rotation.tracks[i].stage);
@@ -635,6 +643,29 @@ export class AudioEngine {
     this._musicSession = { level: null, chapter: chapter ?? null, paused: false };
     this._refreshMusic();
     this._rotation.start(chapter ?? null);
+  }
+
+  /**
+   * Start the title/menu playlist. Idempotent on purpose: navigating between
+   * title pages must not restart or interrupt whatever is already playing, so
+   * only the first call of a menu session creates playback.
+   */
+  startMenuBGM() {
+    this._ensureCtx();
+    if (this._musicSession?.menu) {
+      if (!this._rotation.active) this.resumeBGM();
+      return;
+    }
+    const begin = () => {
+      this._rotation.stop();
+      this._musicSession = { level: null, menu: true, chapter: null, paused: false };
+      this._refreshMusic();
+      this._rotation.start(null);
+    };
+    // Waiting for level-music.json keeps the first menu track from being
+    // swapped (and restarted) a moment after it starts.
+    if (this._levelMusicReady) begin();
+    else this._levelMusicReady = this._loadLevelMusic().then(begin, begin);
   }
 
   startLevelBGM(level, chapter) {
