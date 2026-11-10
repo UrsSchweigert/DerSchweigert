@@ -19,13 +19,15 @@
       "motion": [
         {
           "t": 0,
-          "x": 0,
-          "scale": 1
+          "x": 20,
+          "y": 0,
+          "scale": 1.0
         },
         {
           "t": 44,
-          "x": -24,
-          "scale": 1.03
+          "x": -40,
+          "y": 12,
+          "scale": 1.05
         }
       ]
     },
@@ -33,17 +35,21 @@
       "id": "village",
       "role": "midground",
       "src": "village.png",
-      "x": -70,
-      "y": 310,
-      "width": 2080,
+      "x": -130,
+      "y": 280,
+      "width": 2200,
       "motion": [
         {
           "t": 0,
-          "x": 0
+          "x": 100,
+          "y": 0,
+          "scale": 1.0
         },
         {
           "t": 44,
-          "x": -50
+          "x": -100,
+          "y": -6,
+          "scale": 1.03
         }
       ]
     },
@@ -57,28 +63,95 @@
       "motion": [
         {
           "t": 0,
-          "x": 0,
+          "x": 60,
           "y": 120,
           "opacity": 0,
-          "scale": 1
+          "scale": 1.0
         },
         {
           "t": 22.6,
-          "x": -30,
+          "x": 10,
           "y": 120,
           "opacity": 0,
-          "scale": 1
+          "scale": 1.0
         },
         {
           "t": 25.6,
-          "x": -45,
+          "x": -10,
           "y": 0,
           "opacity": 1,
-          "scale": 1.01
+          "scale": 1.02
+        },
+        {
+          "t": 28.0,
+          "x": -25,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.025
+        },
+        {
+          "t": 28.5,
+          "x": -28,
+          "y": 0,
+          "opacity": 0,
+          "scale": 1.03
         },
         {
           "t": 44,
-          "x": -80,
+          "x": -140,
+          "y": 0,
+          "opacity": 0,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "hero-raised",
+      "role": "character",
+      "poseOf": "hero",
+      "src": "hero-raised.png",
+      "x": 1100,
+      "y": 150,
+      "width": 430,
+      "motion": [
+        {
+          "t": 0,
+          "x": 60,
+          "y": 120,
+          "opacity": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 22.6,
+          "x": 10,
+          "y": 120,
+          "opacity": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 25.6,
+          "x": -10,
+          "y": 0,
+          "opacity": 0,
+          "scale": 1.02
+        },
+        {
+          "t": 28.0,
+          "x": -25,
+          "y": 0,
+          "opacity": 0,
+          "scale": 1.025
+        },
+        {
+          "t": 28.5,
+          "x": -28,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.03
+        },
+        {
+          "t": 44,
+          "x": -140,
           "y": 0,
           "opacity": 1,
           "scale": 1.03
@@ -89,17 +162,21 @@
       "id": "foreground",
       "role": "foreground",
       "src": "foreground.png",
-      "x": -140,
-      "y": 760,
-      "width": 2200,
+      "x": -240,
+      "y": 770,
+      "width": 2400,
       "motion": [
         {
           "t": 0,
-          "x": 0
+          "x": 220,
+          "y": 10,
+          "scale": 1.0
         },
         {
           "t": 44,
-          "x": -140
+          "x": -220,
+          "y": -14,
+          "scale": 1.05
         }
       ]
     }
@@ -132,6 +209,16 @@
         "radius": 230,
         "color": "rgba(150,215,255,0.55)",
         "from": 23.2,
+        "pulse": 2.4,
+        "to": 28.5
+      },
+      {
+        "layer": "hero-raised",
+        "x": 1306,
+        "y": 200,
+        "radius": 260,
+        "color": "rgba(150,215,255,0.6)",
+        "from": 28.0,
         "pulse": 2.4
       }
     ],
@@ -197,23 +284,23 @@
     },
     {
       "start": 28.0,
-      "end": 33.2,
+      "end": 34.4,
       "text": {
-        "en": "As you lift it, a question shines along the blade. You speak the answer.",
-        "de": "Als du es hebst, leuchtet eine Frage auf der Klinge. Du sprichst die Antwort."
+        "en": "As you lift it, a question shines along the blade. You feel a calling and respond with your heart.",
+        "de": "Als du es hebst, leuchtet eine Frage auf der Klinge. Du spürst einen Ruf und antwortest mit deinem Herzen."
       }
     },
     {
-      "start": 33.6,
-      "end": 38.2,
+      "start": 34.8,
+      "end": 38.8,
       "text": {
         "en": "The sword lights up. Beyond the fence, something stirs.",
         "de": "Das Schwert erstrahlt. Hinter dem Zaun regt sich etwas."
       }
     },
     {
-      "start": 38.6,
-      "end": 42.6,
+      "start": 39.2,
+      "end": 43.2,
       "text": {
         "en": "Your journey begins at home.",
         "de": "Deine Reise beginnt zu Hause."

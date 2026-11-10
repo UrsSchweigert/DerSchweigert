@@ -34,6 +34,17 @@
       "retouch": "Recoloured blue rim-light strands in the hair to golden blonde to match the reference sheet."
     },
     {
+      "id": "hero-raised",
+      "cutout": true,
+      "poseOf": "hero",
+      "raw": "sources/intro/hero-raised-raw.png",
+      "references": [
+        "references/hero-reference-sheet.png",
+        "sources/intro/hero-raw.png"
+      ],
+      "prompt": "Same hero and rune-stone as the references (next moment of the same scene): standing upright on the cracked rune-stone, three-quarter view facing right, raising the glowing crystal-blue + − × ÷ sword high above his head with both hands, calm determined heartfelt resolve, scarf and cloak billowing; single paper cutout with cream border on plain pure white, nothing cropped."
+    },
+    {
       "id": "foreground",
       "cutout": true,
       "raw": "sources/intro/foreground-raw.png",

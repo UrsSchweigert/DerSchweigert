@@ -50,6 +50,11 @@ up. Integration into the level flow is a separate step (see below).
 Motion keyframes accept `x`, `y`, `scale`, `rotate`, `opacity` and are eased
 with smoothstep. Layers scale around 50% / 60% of the stage.
 
+A character can change pose mid-scene: add the second pose as its own layer
+with `"poseOf": "<base layer id>"`, the same role and motion, and crossfade the
+two with `opacity` keyframes (ideally under a `flash`). Poses share their base
+layer's depth plane, so they don't count towards the 3-4 planes.
+
 ## Producing a scene
 
 Every layer is rendered with the same reference-image model (GPT image), so

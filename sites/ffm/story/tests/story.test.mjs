@@ -51,11 +51,18 @@ for (const id of sceneDirs) {
   describe(`scene ${id}`, () => {
     const scene = loadScene(id);
 
-    it('has 3 or 4 layers with known roles and existing PNGs', () => {
-      assert.ok(scene.layers.length >= 3 && scene.layers.length <= 4);
+    it('has 3 or 4 depth planes with known roles and existing PNGs', () => {
+      // Alternate poses (poseOf) share their base layer's plane.
+      const planes = scene.layers.filter(layer => !layer.poseOf);
+      assert.ok(planes.length >= 3 && planes.length <= 4);
       assert.equal(scene.layers[0].role, 'backdrop');
       assert.equal(new Set(scene.layers.map(layer => layer.id)).size, scene.layers.length);
       for (const layer of scene.layers) {
+        if (layer.poseOf) {
+          const base = scene.layers.find(other => other.id === layer.poseOf);
+          assert.ok(base && !base.poseOf, `${layer.id}: poseOf must name a base layer`);
+          assert.equal(layer.role, base.role, `${layer.id}: pose must keep the base role`);
+        }
         assert.ok(ROLES.has(layer.role), `${layer.id}: role ${layer.role}`);
         const file = join(scenesDir, id, layer.src);
         assert.ok(existsSync(file), `${layer.id}: ${layer.src} missing`);
