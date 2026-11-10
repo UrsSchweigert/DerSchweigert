@@ -911,6 +911,11 @@ function formatTrendDate(value) {
     { day: 'numeric', month: 'short', year: '2-digit' });
 }
 
+function trendTimestamp(value) {
+  const time = typeof value === 'string' ? Date.parse(value) : NaN;
+  return Number.isNaN(time) ? null : time;
+}
+
 function buildScoreHistorySvg(history, summaryKey = 'scoreHistory.highScore') {
   const width = 300;
   const height = 140;
@@ -928,15 +933,30 @@ function buildScoreHistorySvg(history, summaryKey = 'scoreHistory.highScore') {
 
   const innerWidth = width - left - right;
   const innerHeight = height - top - bottom;
-  // Dates show the development over time; results without one fall back to
-  // their position in the history.
-  const firstLabel = formatTrendDate(history[0].achieved_at) || '1';
-  const lastLabel = formatTrendDate(history.at(-1).achieved_at) || String(history.length);
+  // Each result is plotted on the day it was achieved, so the horizontal
+  // distance between dots reflects the real gap between results. Histories
+  // without usable timestamps, or all within one instant, keep even spacing.
+  const times = history.map((entry) => trendTimestamp(entry.achieved_at));
+  const dated = times.every((time) => time !== null);
+  const firstTime = dated ? Math.min(...times) : 0;
+  const lastTime = dated ? Math.max(...times) : 0;
+  const timeSpan = lastTime - firstTime;
+
+  const xForIndex = (i) => {
+    if (history.length === 1) return left + innerWidth / 2;
+    if (!dated || timeSpan === 0) return left + (i / (history.length - 1)) * innerWidth;
+    return left + ((times[i] - firstTime) / timeSpan) * innerWidth;
+  };
+
+  const firstLabel = dated && timeSpan > 0
+    ? formatTrendDate(firstTime)
+    : formatTrendDate(history[0].achieved_at) || '1';
+  const lastLabel = dated && timeSpan > 0
+    ? formatTrendDate(lastTime)
+    : formatTrendDate(history.at(-1).achieved_at) || String(history.length);
 
   const points = history.map((entry, i) => {
-    const x = history.length === 1
-      ? left + innerWidth / 2
-      : left + (i / (history.length - 1)) * innerWidth;
+    const x = xForIndex(i);
     const y = top + innerHeight - (entry.score / maxScore) * innerHeight;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
