@@ -78,6 +78,7 @@ const EXCLUDED_SAMPLES = [
   'story/references/hero-reference-sheet.png',
   'story/tools/cutout.py',
   'story/preview.html',
+  'story/reel.html',
   'story/README.md',
   'story/ART-BIBLE.md',
   'story/tests/story.test.mjs',

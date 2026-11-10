@@ -563,6 +563,7 @@ jobs:
             --exclude "story/tools/*" \
             --exclude "story/tests/*" \
             --exclude "story/preview.html" \
+            --exclude "story/reel.html" \
             --exclude "story/README.md" \
             --exclude "story/ART-BIBLE.md"
           # Excluded keys are not deleted by sync; remove old dev artifacts explicitly.
@@ -575,7 +576,7 @@ jobs:
             --include "game/hero-spritesheet-upload.png" \
             --include "story/sources/*" --include "story/references/*" \
             --include "story/tools/*" --include "story/tests/*" \
-            --include "story/preview.html" --include "story/README.md" \
+            --include "story/preview.html" --include "story/reel.html" --include "story/README.md" \
             --include "story/ART-BIBLE.md"
           aws s3 cp sites/ffm/static/index.html \
             "s3://$BUCKET/index.html" \
