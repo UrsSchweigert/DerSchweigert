@@ -76,7 +76,10 @@ are **gold**; danger is crimson or sickly violet, never gore.
 - **Blue ice dragon**: ancient ally; matches `static/game/dragon.png` (crystal
   spikes, pale blue-white belly), restyled as a paper cutout.
 - **Fiends**: the existing fiend classes (`static/game/fiend-sprites/`),
-  restyled as paper cutouts; slightly comical, never gory.
+  restyled as paper cutouts; slightly comical, never gory. Each act opening
+  shows the classes that actually appear in that act (see
+  `getFiendClassWeights` in `game/difficulty-classes.js`), as one cutout group
+  on its own layer so the fight the player is about to have is on screen.
 - **The Hollow King**: never shown as a body — a floating crown with shadow
   beneath it.
 

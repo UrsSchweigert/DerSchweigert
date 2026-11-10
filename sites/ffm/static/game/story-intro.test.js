@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { OPEN_SHOWN_KEY, createStoryIntro } from './story-intro.js';
+import { FIRST_LEVEL, OPEN_SHOWN_KEY, createStoryIntro } from './story-intro.js';
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -29,49 +29,62 @@ test('the first open plays the intro once and marks the install', async () => {
   assert.deepEqual(calls, ['intro']);
   assert.equal(storage.data.get(OPEN_SHOWN_KEY), '1');
   assert.equal(intro.hasShownAtOpen(), true);
-  assert.equal(intro.hasPlayedThisRun(), true);
+  assert.equal(intro.hasPlayedThisRun('intro'), true);
 });
 
-test('the first run does not repeat the intro when level 1 starts', async () => {
+const ACT_OPENS = { 1: 'act-1', 11: 'act-2', 21: 'act-3', 31: 'act-4', 41: 'act-5', 51: 'act-6' };
+const sceneForLevel = async level => ACT_OPENS[level] ?? null;
+
+test('the first run does not stack act I on top of the prologue', async () => {
   const storage = memoryStorage();
   const { calls, play } = recorder();
-  const intro = createStoryIntro({ play, storage });
+  const intro = createStoryIntro({ play, storage, sceneForLevel });
 
   await intro.playOnOpen();
-  assert.equal(await intro.playBeforeLevel(1), null);
+  assert.equal(await intro.playBeforeLevel(FIRST_LEVEL), null);
   assert.deepEqual(calls, ['intro']);
 });
 
-test('a later run plays the intro before level 1', async () => {
+test('a later run opens act I at level 1', async () => {
   const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
   const { calls, play } = recorder();
-  const intro = createStoryIntro({ play, storage });
+  const intro = createStoryIntro({ play, storage, sceneForLevel });
 
   assert.equal(await intro.playOnOpen(), null);
   assert.deepEqual(calls, []);
-  assert.equal(await intro.playBeforeLevel(1), 'ended');
-  assert.deepEqual(calls, ['intro']);
+  assert.equal(await intro.playBeforeLevel(FIRST_LEVEL), 'ended');
+  assert.deepEqual(calls, ['act-1']);
 });
 
-test('the intro plays at most once per run', async () => {
+test('each act opening plays once per run, at its own first level', async () => {
   const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
   const { calls, play } = recorder('skipped');
-  const intro = createStoryIntro({ play, storage });
+  const intro = createStoryIntro({ play, storage, sceneForLevel });
 
-  assert.equal(await intro.playBeforeLevel(1), 'skipped');
-  assert.equal(await intro.playBeforeLevel(1), null);
-  assert.equal(await intro.playBeforeLevel('1'), null);
-  assert.deepEqual(calls, ['intro']);
+  assert.equal(await intro.playBeforeLevel(11), 'skipped');
+  assert.equal(await intro.playBeforeLevel(11), null);
+  assert.equal(await intro.playBeforeLevel('11'), null);
+  assert.equal(await intro.playBeforeLevel(21), 'skipped');
+  assert.deepEqual(calls, ['act-2', 'act-3']);
 });
 
-test('only level 1 triggers the intro', async () => {
+test('levels inside an act, and levels before or after one, play nothing', async () => {
+  const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
+  const { calls, play } = recorder();
+  const intro = createStoryIntro({ play, storage, sceneForLevel });
+
+  for (const level of [0, 2, 3, 10, 12, 20, 60, null, undefined]) {
+    assert.equal(await intro.playBeforeLevel(level), null);
+  }
+  assert.deepEqual(calls, []);
+});
+
+test('without a scene lookup the acts stay silent', async () => {
   const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
   const { calls, play } = recorder();
   const intro = createStoryIntro({ play, storage });
 
-  for (const level of [0, 2, 3, 60, null, undefined]) {
-    assert.equal(await intro.playBeforeLevel(level), null);
-  }
+  assert.equal(await intro.playBeforeLevel(1), null);
   assert.deepEqual(calls, []);
 });
 
@@ -85,7 +98,6 @@ test('unavailable storage still shows the intro, once', async () => {
 
   assert.equal(intro.hasShownAtOpen(), false);
   assert.equal(await intro.playOnOpen(), 'ended');
-  assert.equal(await intro.playBeforeLevel(1), null);
   assert.deepEqual(calls, ['intro']);
 });
 

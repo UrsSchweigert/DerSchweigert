@@ -1,9 +1,11 @@
-// story-intro.js — decides when the campaign intro (a story diorama, see
-// ../story/) plays. Two rules:
+// story-intro.js — decides which story diorama (see ../story/) plays, and when.
+// Three rules:
 //
-//   * the very first time the app is opened, the intro plays once;
-//   * starting level 1 plays it again on every later run — but never twice in
-//     the same run, so the first run does not repeat what it just showed.
+//   * the very first time the app is opened, the intro (prologue) plays once;
+//   * starting the first level of an act plays that act's opening scene, at
+//     most once per scene per run;
+//   * on the very first run the act I opening is skipped when the prologue has
+//     just played, so a new player is not shown two scenes before level 1.
 //
 // The "opened before" flag is device-wide (localStorage, like the locale
 // choice): it describes this install, not a player's progress, so it survives
@@ -11,7 +13,7 @@
 
 export const OPEN_SHOWN_KEY = 'arithmoslayer:story-intro-open-shown';
 export const INTRO_SCENE = 'intro';
-export const INTRO_LEVEL = 1;
+export const FIRST_LEVEL = 1;
 
 function defaultStorage() {
   try {
@@ -40,46 +42,54 @@ function markShownAtOpen(storage) {
 
 /**
  * @param {object} options
- * @param {() => Promise<string|null>} options.play - plays a story scene and
- *   resolves when it is over; may resolve to null if it was unavailable.
+ * @param {(sceneId: string) => Promise<string|null>} options.play - plays a
+ *   story scene and resolves when it is over; may resolve to null.
+ * @param {(level: number) => Promise<string|null>} [options.sceneForLevel] -
+ *   resolves the scene id that opens the act a level belongs to, or null.
  * @param {object|null} [options.storage] - localStorage-compatible store;
  *   defaults to the page's localStorage.
- * @param {string} [options.scene] - scene id to play.
- * @returns {object} intro controller
+ * @param {string} [options.scene] - the prologue scene id.
+ * @returns {object} story controller
  */
-export function createStoryIntro({ play, storage, scene = INTRO_SCENE } = {}) {
+export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForLevel } = {}) {
   if (typeof play !== 'function') throw new TypeError('createStoryIntro needs a play() function');
   const store = storage === undefined ? defaultStorage() : storage;
-  let playedThisRun = false;
+  const playedThisRun = new Set();
 
-  async function playOnce() {
-    if (playedThisRun) return null;
-    playedThisRun = true;
+  async function playOnce(sceneId) {
+    if (playedThisRun.has(sceneId)) return null;
+    playedThisRun.add(sceneId);
     try {
-      return await play(scene);
+      return await play(sceneId);
     } catch (error) {
       // A broken or missing scene must never block the game.
-      console.error('Unable to play the story intro', error);
+      console.error(`Unable to play story scene ${sceneId}`, error);
       return null;
     }
   }
 
   return {
     hasShownAtOpen: () => hasShownAtOpen(store),
-    hasPlayedThisRun: () => playedThisRun,
+    hasPlayedThisRun: (sceneId = scene) => playedThisRun.has(sceneId),
 
-    /** Call once at boot: plays on the first open of this install. */
+    /** Call once at boot: plays the prologue on the first open of an install. */
     async playOnOpen() {
       if (hasShownAtOpen(store)) return null;
       // Marked before playing, so an interrupted intro cannot loop forever.
       markShownAtOpen(store);
-      return playOnce();
+      return playOnce(scene);
     },
 
-    /** Call when a level is about to start; the intro belongs to level 1. */
+    /** Call when a level is about to start: opens the act that level begins. */
     async playBeforeLevel(levelNumber) {
-      if (Number(levelNumber) !== INTRO_LEVEL) return null;
-      return playOnce();
+      if (typeof sceneForLevel !== 'function') return null;
+      const level = Number(levelNumber);
+      // The prologue has just played in this run, so the first act opening
+      // would be a second scene before the player has done anything.
+      if (level === FIRST_LEVEL && playedThisRun.has(scene)) return null;
+      const sceneId = await sceneForLevel(level);
+      if (!sceneId) return null;
+      return playOnce(sceneId);
     },
   };
 }

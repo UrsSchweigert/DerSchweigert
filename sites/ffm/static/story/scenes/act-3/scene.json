@@ -1,0 +1,174 @@
+{
+  "id": "act-3",
+  "slot": {
+    "type": "act",
+    "act": 3,
+    "fromLevel": 21
+  },
+  "title": {
+    "en": "Act 3 · The Remembering Wood",
+    "de": "Akt 3 · Der erinnernde Wald"
+  },
+  "duration": 16,
+  "layers": [
+    {
+      "id": "backdrop",
+      "role": "backdrop",
+      "src": "backdrop.webp",
+      "x": -48,
+      "y": -150,
+      "width": 2016,
+      "motion": [
+        {
+          "t": 0,
+          "x": 20,
+          "y": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -40,
+          "y": 12,
+          "scale": 1.05
+        }
+      ]
+    },
+    {
+      "id": "midground",
+      "role": "midground",
+      "src": "midground.webp",
+      "x": -90,
+      "y": 98,
+      "width": 2100,
+      "motion": [
+        {
+          "t": 0,
+          "x": 100,
+          "y": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -100,
+          "y": -6,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "fiends",
+      "role": "character",
+      "src": "fiends.webp",
+      "x": 820,
+      "y": 584,
+      "width": 620,
+      "motion": [
+        {
+          "t": 0,
+          "x": 60,
+          "y": 0,
+          "opacity": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 2.0,
+          "x": 40,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -40,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "foreground",
+      "role": "foreground",
+      "src": "foreground.webp",
+      "x": -290,
+      "y": 756,
+      "width": 2500,
+      "motion": [
+        {
+          "t": 0,
+          "x": 220,
+          "y": 10,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -220,
+          "y": -14,
+          "scale": 1.05
+        }
+      ]
+    }
+  ],
+  "lighting": {
+    "ambient": "linear-gradient(180deg, #16204a55 0%, rgba(18,22,48,0.08) 55%, rgba(20,14,6,0.30) 100%)",
+    "glows": [
+      {
+        "layer": "midground",
+        "x": 960,
+        "y": 620,
+        "radius": 300,
+        "color": "rgba(255,200,110,0.20)",
+        "from": 0,
+        "pulse": 5
+      },
+      {
+        "layer": "fiends",
+        "x": 1380,
+        "y": 760,
+        "radius": 220,
+        "color": "rgba(160,210,255,0.22)",
+        "from": 2.0,
+        "pulse": 3.4
+      }
+    ],
+    "motes": {
+      "count": 18,
+      "color": "#cfe6ff"
+    },
+    "events": [
+      {
+        "type": "dim",
+        "at": 11.8,
+        "duration": 2.4,
+        "color": "#0b1024",
+        "intensity": 0.5
+      }
+    ]
+  },
+  "subtitles": [
+    {
+      "start": 0.8,
+      "end": 6.0,
+      "text": {
+        "en": "Lanterns wake among the trees as you pass.",
+        "de": "Laternen erwachen zwischen den Bäumen."
+      }
+    },
+    {
+      "start": 6.4,
+      "end": 11.6,
+      "text": {
+        "en": "These stones remember an older promise.",
+        "de": "Diese Steine erinnern ein älteres Versprechen."
+      }
+    },
+    {
+      "start": 12.0,
+      "end": 16,
+      "text": {
+        "en": "Act III · The Remembering Wood",
+        "de": "Akt III · Der erinnernde Wald"
+      }
+    }
+  ]
+}

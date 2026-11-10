@@ -243,10 +243,10 @@ const loadingDone = Promise.race([
   new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
 ]).then(hideLoadingOverlay);
 
-// --- Story intro (see ../story/) ---
-// The campaign intro is a layered story diorama: it plays on the first open of
-// the install and again before level 1 on every later run (see ./story-intro.js).
-// The player loads lazily and a missing scene never blocks the game.
+// --- Story dioramas (see ../story/) ---
+// The prologue plays on the first open of the install; each act's opening plays
+// when its first level starts (see ./story-intro.js). The player loads lazily,
+// and a missing scene or index never blocks the game.
 const storyBase = new URL('../story/', import.meta.url);
 async function playStoryScene(sceneId) {
   const sceneBase = new URL(`scenes/${sceneId}/`, storyBase);
@@ -269,7 +269,19 @@ async function playStoryScene(sceneId) {
     player.destroy();
   }
 }
-const storyIntro = createStoryIntro({ play: playStoryScene });
+// The scene index maps a level to the act opening that belongs to it; it is
+// fetched once, on first use.
+let storyIndex = null;
+async function storySceneForLevel(level) {
+  storyIndex ??= fetch(new URL('scenes/index.json', storyBase))
+    .then((response) => (response.ok ? response.json() : { scenes: [] }))
+    .catch(() => ({ scenes: [] }));
+  const { scenes = [] } = await storyIndex;
+  const entry = scenes.find((candidate) => candidate.slot?.type === 'act'
+    && candidate.slot.fromLevel === Number(level));
+  return entry?.id ?? null;
+}
+const storyIntro = createStoryIntro({ play: playStoryScene, sceneForLevel: storySceneForLevel });
 // Plays after the loading screen is gone, so it is never hidden behind it.
 const introAtOpen = loadingDone.then(() => storyIntro.playOnOpen());
 

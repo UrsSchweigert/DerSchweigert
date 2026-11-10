@@ -7,13 +7,18 @@ over near-white pixels only, so light areas *inside* the artwork (the cream
 cut border, moonlit highlights) stay opaque. The result is trimmed to its
 content plus a small margin and saved as an RGBA PNG.
 
-Usage: cutout.py RAW.png OUT.png [--tolerance 24] [--max-width 1600]
+Usage: cutout.py RAW.png OUT.png [--tolerance 24] [--max-width 1600] [--enclosed]
+
+--enclosed also removes near-white areas that the silhouette closes off, such
+as the gaps between two columns joined by a banner and a railing. Those pockets
+cannot be reached from the image edge, so the plain flood fill leaves them
+opaque and they show up as white blocks once the layer sits over a backdrop.
 """
 import argparse
 import sys
 from collections import deque
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageChops, ImageFilter
 
 
 def background_mask(img, tolerance):
@@ -44,16 +49,37 @@ def background_mask(img, tolerance):
     return mask
 
 
+def enclosed_mask(img, tolerance):
+    """Near-white components anywhere in the image, not just at the edges."""
+    w, h = img.size
+    px = img.load()
+    floor = 255 - tolerance
+    mask = Image.new('L', (w, h), 0)
+    mp = mask.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px[x, y][:3]
+            if min(r, g, b) >= floor and max(r, g, b) - min(r, g, b) <= tolerance:
+                mp[x, y] = 255
+    return mask
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('raw')
     parser.add_argument('out')
     parser.add_argument('--tolerance', type=int, default=24)
     parser.add_argument('--max-width', type=int, default=1600)
+    parser.add_argument('--enclosed', action='store_true',
+                        help='also clear near-white pockets the silhouette encloses')
     args = parser.parse_args(argv)
 
     img = Image.open(args.raw).convert('RGBA')
     bg = background_mask(img, args.tolerance)
+    if args.enclosed:
+        # Union with every near-white pixel, so closed-off gaps turn transparent
+        # while the cream paper border (not near-white) stays opaque.
+        bg = ImageChops.lighter(bg, enclosed_mask(img, args.tolerance))
     # Grow the background by one pixel and soften it, so the light fringe left
     # by anti-aliasing against white disappears into a clean, slightly
     # feathered paper edge.

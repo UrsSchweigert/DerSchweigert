@@ -1,0 +1,53 @@
+{
+  "scene": "act-6",
+  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP.",
+  "generator": {
+    "endpoint": "gpt-image",
+    "license": "commercial use of outputs permitted"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "seed": 6601,
+      "size": {
+        "width": 1536,
+        "height": 864
+      },
+      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: a palace throne room in blue and gold, tall marble columns, a long runner carpet, an empty stone throne on a dais at the far end under a shaft of cold light, golden filigree, deep blue shadows, calm polished floor across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
+      "raw": "sources/act-6/backdrop-gpt.png"
+    },
+    {
+      "id": "midground",
+      "cutout": true,
+      "seed": 6602,
+      "size": {
+        "width": 1536,
+        "height": 1024
+      },
+      "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: two tall marble columns with gold capitals, two hanging blue banners, and a wide flight of marble steps leading up to a stone throne.",
+      "raw": "sources/act-6/midground-gpt.png"
+    },
+    {
+      "id": "foreground",
+      "cutout": true,
+      "seed": 6603,
+      "size": {
+        "width": 1536,
+        "height": 1024
+      },
+      "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: a marble step edge, scattered gold petals, the corner of a fallen blue banner.",
+      "raw": "sources/act-6/foreground-gpt.png"
+    },
+    {
+      "id": "fiends",
+      "cutout": true,
+      "raw": "sources/act-6/fiends-raw.png",
+      "references": [
+        "static/game/fiend-sprites/ (the act's own classes)",
+        "sources/intro/village-raw.png"
+      ],
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+    }
+  ]
+}

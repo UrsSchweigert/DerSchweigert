@@ -16,7 +16,7 @@ install and again before level 1 (see [Integration](#integration)).
 | Path | Contents |
 | --- | --- |
 | `player/` | `diorama-player.js` (ES module, no game dependency) and its CSS |
-| `scenes/index.json` | every scene and the slot it plays in |
+| `scenes/index.json` | every scene and the slot it plays in (`intro`, `act`, `level`, `finish`) |
 | `scenes/<id>/scene.json` | layers, motion, lighting, subtitles (source of truth) |
 | `scenes/<id>/*.webp` | final layers (backdrop opaque, others with alpha) |
 | `scenes/<id>/subtitles.{en,de}.vtt` | generated WebVTT copies of the cues |
@@ -122,12 +122,15 @@ here, and its 77-token prompt limit makes it fragile.
 The intro is wired in `game/main.js` through
 [game/story-intro.js](../game/story-intro.js), which owns the "when":
 
-- **First open of an install** — the intro plays once, right after the loading
-  screen, before the title screen is used. The device-wide flag
+- **First open of an install** — the prologue (`intro`) plays once, right after
+  the loading screen, before the title screen is used. The device-wide flag
   `arithmoslayer:story-intro-open-shown` (localStorage) records that.
-- **Starting level 1** — the intro plays again on every later run, but at most
-  once per run, so the first run never repeats what it just showed. Other
-  levels, practice runs and shapes mode never trigger it.
+- **Act openings** — `scenes/index.json` maps each act to its first level
+  (1, 11, 21, 31, 41, 51); starting that level plays the act's opening. Each
+  scene plays at most once per run.
+- **No stacking on the first run** — when the prologue has just played, the
+  act I opening is skipped, so a new player never gets two scenes before the
+  first level. Other levels, practice runs and shapes mode play nothing.
 
 Playing a scene:
 

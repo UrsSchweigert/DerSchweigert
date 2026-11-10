@@ -1,0 +1,174 @@
+{
+  "id": "act-6",
+  "slot": {
+    "type": "act",
+    "act": 6,
+    "fromLevel": 51
+  },
+  "title": {
+    "en": "Act 6 · The Empty Throne",
+    "de": "Akt 6 · Der leere Thron"
+  },
+  "duration": 16,
+  "layers": [
+    {
+      "id": "backdrop",
+      "role": "backdrop",
+      "src": "backdrop.webp",
+      "x": -48,
+      "y": -150,
+      "width": 2016,
+      "motion": [
+        {
+          "t": 0,
+          "x": 20,
+          "y": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -40,
+          "y": 12,
+          "scale": 1.05
+        }
+      ]
+    },
+    {
+      "id": "midground",
+      "role": "midground",
+      "src": "midground.webp",
+      "x": 100,
+      "y": 199,
+      "width": 1720,
+      "motion": [
+        {
+          "t": 0,
+          "x": 100,
+          "y": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -100,
+          "y": -6,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "fiends",
+      "role": "character",
+      "src": "fiends.webp",
+      "x": 820,
+      "y": 573,
+      "width": 620,
+      "motion": [
+        {
+          "t": 0,
+          "x": 60,
+          "y": 0,
+          "opacity": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 2.0,
+          "x": 40,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -40,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "foreground",
+      "role": "foreground",
+      "src": "foreground.webp",
+      "x": -290,
+      "y": 782,
+      "width": 2500,
+      "motion": [
+        {
+          "t": 0,
+          "x": 220,
+          "y": 10,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -220,
+          "y": -14,
+          "scale": 1.05
+        }
+      ]
+    }
+  ],
+  "lighting": {
+    "ambient": "linear-gradient(180deg, #1b2a6a55 0%, rgba(18,22,48,0.08) 55%, rgba(20,14,6,0.30) 100%)",
+    "glows": [
+      {
+        "layer": "midground",
+        "x": 960,
+        "y": 620,
+        "radius": 300,
+        "color": "rgba(190,220,255,0.24)",
+        "from": 0,
+        "pulse": 5
+      },
+      {
+        "layer": "fiends",
+        "x": 1380,
+        "y": 760,
+        "radius": 220,
+        "color": "rgba(160,210,255,0.22)",
+        "from": 2.0,
+        "pulse": 3.4
+      }
+    ],
+    "motes": {
+      "count": 18,
+      "color": "#e8d79a"
+    },
+    "events": [
+      {
+        "type": "dim",
+        "at": 11.8,
+        "duration": 2.4,
+        "color": "#0b1024",
+        "intensity": 0.5
+      }
+    ]
+  },
+  "subtitles": [
+    {
+      "start": 0.8,
+      "end": 6.0,
+      "text": {
+        "en": "A throne that should have been empty.",
+        "de": "Ein Thron, der leer hätte bleiben sollen."
+      }
+    },
+    {
+      "start": 6.4,
+      "end": 11.6,
+      "text": {
+        "en": "One ward remains. The crown is waiting.",
+        "de": "Ein Siegel bleibt. Die Krone wartet."
+      }
+    },
+    {
+      "start": 12.0,
+      "end": 16,
+      "text": {
+        "en": "Act VI · The Empty Throne",
+        "de": "Akt VI · Der leere Thron"
+      }
+    }
+  ]
+}

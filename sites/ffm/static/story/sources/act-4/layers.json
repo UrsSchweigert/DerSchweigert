@@ -1,0 +1,53 @@
+{
+  "scene": "act-4",
+  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP.",
+  "generator": {
+    "endpoint": "gpt-image",
+    "license": "commercial use of outputs permitted"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "seed": 4401,
+      "size": {
+        "width": 1536,
+        "height": 864
+      },
+      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: the wardkeepers' hall, a long timber hall with a green copper roof among ancient trees, deer banners hanging from the eaves, wide stone steps, standing rune-stones along the approach, late afternoon light, calm stone path across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
+      "raw": "sources/act-4/backdrop-gpt.png"
+    },
+    {
+      "id": "midground",
+      "cutout": true,
+      "seed": 4402,
+      "size": {
+        "width": 1536,
+        "height": 1024
+      },
+      "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: a long timber hall facade with a green copper roof, two hanging deer banners, broad stone steps up to its door, flanking rune-stones.",
+      "raw": "sources/act-4/midground-gpt.png"
+    },
+    {
+      "id": "foreground",
+      "cutout": true,
+      "seed": 4403,
+      "size": {
+        "width": 1536,
+        "height": 1024
+      },
+      "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: fallen leaves, low ferns, two broken stone fragments.",
+      "raw": "sources/act-4/foreground-gpt.png"
+    },
+    {
+      "id": "fiends",
+      "cutout": true,
+      "raw": "sources/act-4/fiends-raw.png",
+      "references": [
+        "static/game/fiend-sprites/ (the act's own classes)",
+        "sources/intro/village-raw.png"
+      ],
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+    }
+  ]
+}
