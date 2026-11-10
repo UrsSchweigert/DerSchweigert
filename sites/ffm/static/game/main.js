@@ -3714,6 +3714,11 @@ function startMenuMusic() {
   if (gameRunning || diffSelect.style.display === 'none') return;
   audio.startMenuBGM();
 }
+// Ask for the menu track immediately: browsers that allow it (or that have
+// already granted this site playback) start it before the intro, so the intro
+// is not silent. A blocked attempt leaves the session resumable, and the
+// listeners below retry it inside the next real gesture.
+startMenuMusic();
 document.addEventListener('pointerdown', startMenuMusic, { passive: true });
 document.addEventListener('keydown', startMenuMusic);
 

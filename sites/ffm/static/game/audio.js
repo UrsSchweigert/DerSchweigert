@@ -50,12 +50,15 @@ export class AudioEngine {
     this._levelMusicReady = levelMusic ? Promise.resolve() : null;
     this._musicSession = null;
     this._musicRefreshPending = false;
+    this._menuRequest = 0;
+    this._menuPlayBlocked = false;
     this._rotation = new TrackRotation({
       tracks: this._tracks,
       makeAudio: this._makeAudio,
       volume: DEFAULT_VOLUME,
       baseUrl: this._musicBaseUrl,
       onError: element => this._handleTrackError(element),
+      onPlayBlocked: () => { this._menuPlayBlocked = true; },
       prepareAudio: (element, file) => this._routeMusicAudio(element, file),
       releaseAudio: element => this._releaseMusicAudio(element),
     });
@@ -639,6 +642,8 @@ export class AudioEngine {
 
   startBGM(chapter) {
     this._ensureCtx();
+    this._menuRequest += 1;
+    this._menuPlayBlocked = false;
     this._rotation.stop();
     this._musicSession = { level: null, chapter: chapter ?? null, paused: false };
     this._refreshMusic();
@@ -647,16 +652,29 @@ export class AudioEngine {
 
   /**
    * Start the title/menu playlist. Idempotent on purpose: navigating between
-   * title pages must not restart or interrupt whatever is already playing, so
-   * only the first call of a menu session creates playback.
+   * title pages must not restart or interrupt whatever is already playing.
+   *
+   * Safe to call without a user gesture. If the browser blocks the first
+   * attempt under its autoplay rules the session stays resumable, so the next
+   * call inside a real gesture retries playback instead of leaving the title
+   * permanently silent.
    */
   startMenuBGM() {
     this._ensureCtx();
     if (this._musicSession?.menu) {
-      if (!this._rotation.active) this.resumeBGM();
+      // Only a paused session or a blocked first attempt needs a retry; while
+      // the track is playing this stays a no-op so switching title pages
+      // cannot restart it.
+      if (this._menuPlayBlocked || this._musicSession.paused) {
+        this._menuPlayBlocked = false;
+        this.resumeBGM();
+      }
       return;
     }
+    const request = ++this._menuRequest;
     const begin = () => {
+      // A level, a stop or a newer request took over while the playlist loaded.
+      if (request !== this._menuRequest) return;
       this._rotation.stop();
       this._musicSession = { level: null, menu: true, chapter: null, paused: false };
       this._refreshMusic();
@@ -670,6 +688,8 @@ export class AudioEngine {
 
   startLevelBGM(level, chapter) {
     this._ensureCtx();
+    this._menuRequest += 1;
+    this._menuPlayBlocked = false;
     this._rotation.stop();
     this._musicSession = { level, chapter: chapter ?? null, paused: false };
     this._refreshMusic();
@@ -678,6 +698,8 @@ export class AudioEngine {
   }
 
   stopBGM() {
+    this._menuRequest += 1;
+    this._menuPlayBlocked = false;
     this._musicSession = null;
     this._musicRefreshPending = false;
     this._rotation.stop();
