@@ -74,7 +74,9 @@ are **gold**; danger is crimson or sickly violet, never gore.
 - Stage is 1920×1080. Keep faces, the sword, and anything the subtitle refers
   to inside the **safe area x 240-1680, y 108-972**, which stays visible from
   4:3 tablets to 20:9 phones.
-- Leave the lower ~20% calm: the parchment subtitle strip sits there.
+- Leave the lower ~20% calm: the parchment subtitle strip sits there. Foreground
+  vegetation may rise into the lower third, but keep it low-contrast and
+  free of faces or story-critical detail behind the strip.
 - Backdrops overscan the stage by at least 5% so motion never exposes an edge.
 - Motion is slow and theatrical: total drift ≤ 4% scale, background moves
   least, foreground most. No shaking.

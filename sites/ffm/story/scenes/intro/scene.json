@@ -162,9 +162,9 @@
       "id": "foreground",
       "role": "foreground",
       "src": "foreground.png",
-      "x": -240,
-      "y": 770,
-      "width": 2400,
+      "x": -260,
+      "y": 470,
+      "width": 2500,
       "motion": [
         {
           "t": 0,
