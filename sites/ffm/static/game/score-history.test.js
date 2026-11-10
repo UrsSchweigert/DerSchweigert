@@ -73,6 +73,42 @@ test('web history plots the best score so far, never a drop', () => {
   assert.doesNotMatch(chart.innerHTML, />3<\/text>/, 'the x-axis shows dates, not result numbers');
 });
 
+function plottedPoints(chart) {
+  return [...chart.innerHTML.matchAll(/<circle cx="([^"]+)" cy="([^"]+)"/g)]
+    .map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
+}
+
+test('each result is plotted on its day, so real gaps stay visible', () => {
+  const chart = render([
+    { score: 500, achieved_at: '2026-11-01T10:00:00Z' },
+    { score: 600, achieved_at: '2026-11-02T10:00:00Z' },
+    { score: 900, achieved_at: '2026-11-11T10:00:00Z' },
+  ]);
+  const [first, second, third] = plottedPoints(chart);
+  // Plot area runs from x=54 to x=288; one day of ten is 23.4px, nine are 210.6px.
+  assert.ok(Math.abs(first.x - 54) < 0.2, 'the oldest result sits on the left axis');
+  assert.ok(Math.abs(second.x - 77.4) < 0.2, 'the next day is one tenth along the axis');
+  assert.ok(Math.abs(third.x - 288) < 0.2, 'the newest result sits on the right axis');
+  assert.ok(third.x - second.x > 5 * (second.x - first.x) + 50, 'nine days are wider than one');
+});
+
+test('results recorded on the same day stay on that day, not spread over the axis', () => {
+  const chart = render([
+    { score: 100, achieved_at: '2026-11-01T08:00:00Z' },
+    { score: 200, achieved_at: '2026-11-01T16:00:00Z' },
+    { score: 300, achieved_at: '2026-11-15T16:00:00Z' },
+  ]);
+  const [first, second, third] = plottedPoints(chart);
+  assert.ok(second.x > first.x, 'a later result of the same day is not drawn before an earlier one');
+  assert.ok(second.x - first.x < 15, 'same-day results stay within one day of the axis');
+  assert.ok(third.x - second.x > 10 * (second.x - first.x), 'the two-week gap dominates');
+});
+
+test('histories without timestamps keep even spacing', () => {
+  const points = plottedPoints(render([{ score: 10 }, { score: 20 }, { score: 30 }]));
+  assert.deepEqual(points.map((point) => point.x), [54, 171, 288]);
+});
+
 test('the app chart shows the total high score trend with its own label', () => {
   const history = [
     { level: 1, score: 300, achieved_at: '2026-11-01T10:00:00Z' },
