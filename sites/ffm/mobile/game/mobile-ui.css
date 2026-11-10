@@ -55,11 +55,21 @@
   .app-header-timer-fill { transition: none; }
 }
 
-/* Portrait drops the bar: the chrome already prints the countdown as the
- * "Time 12s" readout, and the play area starts directly beneath the header,
- * so the extra stripe only costs a row. Landscape keeps the bar. */
-@media (orientation: portrait) {
-  .app-header-timer { display: none; }
+/* The bar is the app's only visual countdown, so it now runs in both
+ * orientations: one green-to-red stripe across the whole header. The browser's
+ * own <progress> stripe beside "Time 15s" (20px, see #accessible-timer-progress
+ * in styles.css) would be a second, smaller bar next to it, so it is hidden
+ * visually and kept for assistive tech. */
+#accessible-timer-progress {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Portrait encounter swords, injected by encounter-swords.js into #input-zone
