@@ -33,8 +33,8 @@ let currentLocale = null;
 const DICTIONARY = {
   // Splash screen
   'splash.intro': {
-    en: 'Math training for young and old: sharpen your mental arithmetic, beat the clock, and climb the rankings one correct answer at a time.',
-    de: 'Kopfrechentraining für Jung und Alt: schärfe dein Kopfrechnen, schlage die Uhr und klettere in der Rangliste nach oben – eine richtige Antwort nach der anderen.',
+    en: 'Math training for young and old: sharpen your mental arithmetic, beat the clock and climb the rankings.',
+    de: 'Kopfrechentraining für Jung und Alt: schärfe dein Kopfrechnen, schlage die Uhr und klettere in der Rangliste nach oben.',
   },
   'splash.replayIntro': { en: 'Replay the intro', de: 'Intro erneut ansehen' },
   'splash.loginRegister': { en: 'Login / Register', de: 'Anmelden / Registrieren' },
