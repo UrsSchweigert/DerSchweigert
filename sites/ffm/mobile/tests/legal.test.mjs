@@ -298,7 +298,9 @@ test('the app title screen styles its legal navigation in the fantasy palette', 
   assert.ok(marker >= 0, 'mobile-ui.css owns the app-only title-screen legal nav');
   const block = css.slice(marker);
   assert.match(block, /\.splash-legal-links\s*\{/);
-  assert.match(block, /flex-wrap:\s*wrap/);
+  assert.match(block, /flex-direction:\s*column/);
+  assert.match(block, /background:\s*linear-gradient\(145deg, #203e32, #10241c\)/);
+  assert.doesNotMatch(buildTitleLegalLinks('en'), / · /);
   assert.match(block, /\.splash-legal-link-btn/);
   assert.match(block, /min-height:\s*44px/);
   assert.match(block, /var\(--brass-light/);

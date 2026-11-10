@@ -152,7 +152,7 @@
           <summary data-i18n="practice.title">Practice sessions</summary>
           <div class="practice-controls">
             <label for="practice-kind" data-i18n="practice.sessionType">Session type</label>
-            <select id="practice-kind">
+            <select id="practice-kind" aria-describedby="practice-description practice-unscored">
               <option value="targeted" data-i18n="practice.kind.targeted">Targeted practice</option>
               <option value="short" data-i18n="practice.kind.short">Short practice</option>
               <option value="assisted" data-i18n="practice.kind.assisted">Assisted practice</option>
@@ -160,6 +160,8 @@
               <option value="recovery" data-i18n="practice.kind.recovery">Recovery practice</option>
               <option value="shapes" data-i18n="practice.kind.shapes">Shape counting</option>
             </select>
+            <p id="practice-description" data-i18n="practice.description.targeted">Revisit up to five recent mistakes from the selected level, without a timer. Play that level first to collect mistakes.</p>
+            <p id="practice-unscored" data-i18n="practice.unscoredDescription">All training is unscored and does not advance the campaign or unlock levels.</p>
             <label for="practice-level-select" data-i18n="practice.level">Level</label>
             <select id="practice-level-select"></select>
             <div id="practice-badges" class="practice-badges" aria-label="Practice badges" data-i18n-aria-label="practice.badges"></div>

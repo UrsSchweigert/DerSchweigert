@@ -95,8 +95,8 @@ test('mute and gains survive a simulated restart through the preferences seam', 
   let deferred = applyAudioPreferences(second, saved);
   assert.equal(second.muted, true);
   assert.equal(second.getEffectsVolume(), 0.6);
-  assert.equal(second.getMusicVolume(), 0.35, 'music gain waits for the media route');
-  assert.equal(deferred, 0.2);
+  assert.equal(second.getMusicVolume(), 0.2, 'music gain is restored before the first playback');
+  assert.equal(deferred, null);
 
   second.startBGM();
   assert.equal(second.musicVolumeCapability.supported, true);
@@ -108,7 +108,7 @@ test('mute and gains survive a simulated restart through the preferences seam', 
   assert.equal(second._musicBus.gain.value, 0.2);
 });
 
-test('a saved music gain is deferred until routing is available', () => {
+test('a saved music gain applies before playback when routing is configured', () => {
   const audio = new AudioEngine({
     tracks: [{ file: 'a.mp3' }],
     baseUrl: 'https://localhost/game/',
@@ -119,11 +119,12 @@ test('a saved music gain is deferred until routing is available', () => {
   const deferred = applyAudioPreferences(audio, {
     effects: null, music: 0.5, muted: false,
   });
-  assert.equal(deferred, 0.5, 'awaiting-media-route cannot accept a gain yet');
-  assert.equal(audio.getMusicVolume(), 0.35);
+  assert.equal(deferred, null, 'the configured gain path accepts preferences before playback');
+  assert.equal(audio.getMusicVolume(), 0.5);
   audio.startBGM();
   assert.equal(applyDeferredMusicVolume(audio, deferred), null);
   assert.equal(audio.getMusicVolume(), 0.5);
+  assert.equal(audio._musicBus.gain.value, 0.5);
 });
 
 test('malformed or out-of-range preferences are ignored safely', () => {

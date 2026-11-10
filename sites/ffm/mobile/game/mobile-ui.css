@@ -4,8 +4,7 @@
  * mobile-ui.js. The web build never loads this file, so every rule here is
  * app-only. Keep it free of remote URLs: the bundle must stay offline.
  *
- * The seam itself adds no web visual change; the header timer bar and title
- * level numerals below are app-only. Later mobile UI issues build on these
+ * The header timer bar below is app-only. Mobile UI widgets build on these
  * custom properties instead of forking the shared stylesheet.
  */
 
@@ -54,43 +53,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .app-header-timer-fill { transition: none; }
-}
-
-/* Decorative starting/continuation level numerals, injected by
- * level-numerals.js into #difficulty-select.
- *
- * They sit in the empty upper-left corner of the title row, inside the
- * overlay's safe-area padding, and never take pointer events. Monospace keeps
- * two digits narrow enough to clear the centred logo at 320px portrait, while
- * the clamp caps the glyph size on tablets; old-style figures are requested
- * where the platform font supports them and degrade to the normal glyphs. */
-.title-level-numerals {
-  position: absolute;
-  top: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 10px);
-  left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 10px);
-  z-index: 3;
-  display: block;
-  max-width: 24vw;
-  font-family: monospace;
-  font-size: clamp(18px, 7vw, 56px);
-  line-height: 1;
-  font-variant-numeric: oldstyle-nums;
-  font-feature-settings: "onum" 1;
-  color: var(--brass-light, #e4c577);
-  text-shadow: 0 2px 0 #070e0b, 0 0 18px rgba(196, 154, 72, 0.45);
-  opacity: 0.85;
-  pointer-events: none;
-  user-select: none;
-}
-
-.title-level-numerals[hidden] {
-  display: none;
-}
-
-@media (orientation: landscape) {
-  .title-level-numerals {
-    font-size: clamp(16px, 4.5vw, 44px);
-  }
 }
 
 /* Portrait answer bubble timer, injected by bubble-timer.js into #input-zone
@@ -191,10 +153,9 @@
 }
 
 /* App-only music/effects gain control, injected by volume-control.js into
- * #top-bar immediately after #mute-btn.
+ * #top-bar, with #mute-btn inside its panel.
  *
- * The top bar is right-anchored because the app now has three controls (mute,
- * gain, language) instead of the two the shared 112px offset assumed. The
+ * The top bar is right-anchored and shows one speaker plus the language control. The
  * <details> summary is a 44px target, and the panel opens below the bar without
  * changing the flex row's geometry. Every slider keeps the shared 44px input
  * minimum, and the status line is the live explanation when music routing is
@@ -217,9 +178,10 @@
   min-height: 44px;
   padding: 0 8px;
   box-sizing: border-box;
-  background: #1a1a3a;
-  color: #f0f0f0;
-  border: 2px solid #4040a0;
+  background: var(--ink-900);
+  color: var(--ivory);
+  border: 2px solid var(--brass-deep);
+  border-radius: 4px;
   cursor: pointer;
   font-family: monospace;
   font-size: 14px;
@@ -232,7 +194,7 @@
 }
 
 #top-bar .app-audio-control > summary:focus {
-  outline: 2px solid #6060d0;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -295,6 +257,27 @@
   height: auto;
 }
 
+#local-profiles #profile-root {
+  flex: 0 0 auto;
+}
+
+#local-profiles:has(.profile-form, .profile-confirmation) > :not(#profile-root) {
+  display: none;
+}
+
+#local-profiles .profile-form,
+#local-profiles .profile-confirmation {
+  flex: none;
+  padding: 12px;
+  border: 1px solid var(--brass-deep);
+  border-radius: 6px;
+  background: var(--ink-900);
+}
+
+#local-profiles .profile-name-input {
+  box-sizing: border-box;
+}
+
 #entitlement-root {
   flex: 0 0 auto;
   min-width: 0;
@@ -345,15 +328,16 @@
 
 /* Title-screen legal navigation, rendered by legal.js into .splash-legal-links
  * on the app's Terms page. The web build keeps its own footer styling; these
- * brass/forest chips only reach the app because mobile-ui.css is injected at
- * runtime, and every link keeps a 44px tap target that wraps on narrow phones. */
+ * brass/forest buttons only reach the app because mobile-ui.css is injected at
+ * runtime, and every link keeps a 44px tap target in a vertical stack. */
 .splash-legal-links {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 4px 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   margin: 0;
+  width: min(100%, 560px);
+  align-self: center;
   font-size: 14px;
   color: var(--ivory-muted, #d3ccb9);
 }
@@ -366,9 +350,9 @@
   min-height: 44px;
   padding: 0 10px;
   border: 1px solid var(--brass-deep, #80602d);
-  border-radius: 6px;
-  background: rgba(196, 154, 72, 0.1);
-  color: var(--brass-light, #e4c577);
+  border-radius: 5px;
+  background: linear-gradient(145deg, #203e32, #10241c);
+  color: var(--ivory, #f3ead6);
   font: inherit;
   font-size: 14px;
   text-decoration: none;
@@ -379,6 +363,7 @@
 .splash-legal-link-btn:hover {
   border-color: var(--brass-light, #e4c577);
   color: var(--focus-ring, #fff0bd);
+  background: linear-gradient(145deg, #315641, #19372b);
 }
 
 .splash-legal-links a:focus-visible,

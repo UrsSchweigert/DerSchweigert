@@ -162,7 +162,8 @@ test('the app-only overlay UI module and stylesheet are bundled', async () => {
     const levelNumerals = await readFile(join(dir, 'game', 'level-numerals.js'), 'utf8');
     assert.match(levelNumerals, /export function createLevelNumerals/);
     assert.match(levelNumerals, /export function resolveLevelSelection/);
-    assert.doesNotMatch(levelNumerals, /https?:\/\//, 'the level numerals must stay offline');
+    assert.doesNotMatch(levelNumerals.replace('xmlns="http://www.w3.org/2000/svg"', ''),
+      /https?:\/\//, 'the SVG namespace is metadata; no numeral asset may load remotely');
     const bubbleTimer = await readFile(join(dir, 'game', 'bubble-timer.js'), 'utf8');
     assert.match(bubbleTimer, /export function createBubbleTimer/);
     assert.match(bubbleTimer, /export const BUBBLE_COUNT/);

@@ -48,6 +48,72 @@ test('Play continues at the first unfinished level without inventing a score bas
   assert.equal(context.state.hearts, 3);
 });
 
+test('web title shows selected start level and preserves a valid replay on refresh', () => {
+  const select = {
+    value: '5',
+    set innerHTML(value) { this.html = value; this.value = ''; },
+  };
+  let selection;
+  const continuation = { textContent: '' };
+  const context = {
+    platform: { isApp: false },
+    levelJumpSelect: select,
+    levelJumpRow: { style: {} },
+    titleLevelNumerals: { updateLevelSelection(value) { selection = value; } },
+    document: { getElementById: id => id === 'continue-level' ? continuation : {} },
+    t: (key, vars) => `${key}:${vars?.level ?? ''}`,
+  };
+  vm.createContext(context);
+  vm.runInContext(source.match(/function updateTitleStartingLevel\([\s\S]*?\n\}/)[0], context);
+  vm.runInContext(source.match(/function renderLevelJumpOptions\([\s\S]*?\n\}/)[0], context);
+  context.renderLevelJumpOptions({ scores: [{ level: 5 }] });
+  assert.equal(select.value, '5');
+  assert.equal(selection.level, 5);
+  assert.equal(selection.mode, 'replay');
+  assert.equal(continuation.textContent, 'title.levelNumerals:5');
+  context.renderLevelJumpOptions(null);
+  assert.equal(select.value, '');
+  assert.equal(selection.level, 1);
+  assert.equal(selection.mode, 'continuation');
+  assert.equal(continuation.textContent, 'title.levelNumerals:1');
+});
+
+test('native title artwork follows continuation, replay, player reset and campaign completion', () => {
+  const select = {
+    value: '',
+    set innerHTML(value) { this.html = value; this.value = ''; },
+  };
+  let selection;
+  const continuation = { textContent: '' };
+  const context = {
+    platform: { isApp: true },
+    getCampaignProgress,
+    levelJumpSelect: select,
+    levelJumpRow: { style: {}, querySelector: () => ({ dataset: {} }) },
+    titleLevelNumerals: { updateLevelSelection(value) { selection = value; } },
+    document: { getElementById: id => id === 'continue-level' ? continuation : {} },
+    t: (key, vars) => `${key}:${vars?.level ?? ''}`,
+    escHtml: value => value,
+  };
+  vm.createContext(context);
+  for (const name of ['updateTitleStartingLevel', 'renderLocalCampaign']) {
+    vm.runInContext(source.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))[0], context);
+  }
+  context.renderLocalCampaign([1, 3]);
+  assert.equal(selection.level, 2);
+  assert.equal(selection.mode, 'continuation');
+  select.value = '3';
+  context.renderLocalCampaign([1, 3]);
+  assert.equal(selection.level, 3);
+  assert.equal(selection.mode, 'replay');
+  context.renderLocalCampaign([], { resetSelection: true });
+  assert.equal(selection.level, 1);
+  assert.equal(selection.mode, 'continuation');
+  context.renderLocalCampaign(Array.from({ length: 60 }, (_, i) => i + 1));
+  assert.equal(selection.level, 1);
+  assert.equal(continuation.textContent, 'campaign.complete:');
+});
+
 test('the existing title Shapes button launches Endless without depending on the finite practice selector', async () => {
   const { start, starts } = setup({ difficultyKind: 'shapes' });
   await start();

@@ -180,7 +180,7 @@ test('the app overlay ships the mobile UI seam module and stylesheet', async () 
     );
     assert.equal(
       await readFile(join(out, 'game', 'level-numerals.js'), 'utf8'),
-      await readFile(join(root, 'game', 'level-numerals.js'), 'utf8'),
+      await readFile(join(root, '..', 'static', 'game', 'level-numerals.js'), 'utf8'),
     );
     assert.equal(
       await readFile(join(out, 'game', 'bubble-timer.js'), 'utf8'),

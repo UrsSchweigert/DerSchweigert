@@ -63,15 +63,19 @@ on every cue and on `startBGM`/`startLevelBGM`.
 `available` after the first successful capture, and
 `unsupported-media-routing` when capture is unavailable (missing API,
 cross-origin file, custom-scheme fetch failure, or graph attachment failure).
+The configured app route accepts gain settings while awaiting first playback;
+`supported` is true in both the awaiting and available states. This does not
+certify audible output: a later routing failure still disables adjustment.
 On failure the engine restores default direct playback at 0.35 and the slider
 stays disabled with an explicit explanation. `setMusicVolume` throws rather
 than reporting a successful no-op. Default status outside the app shell is
 `unverified-media-routing`.
 
 Mute, effects gain and music gain persist through `audio-preferences.js`
-(`arithmo-audio-preferences-v1` in localStorage). A saved music gain is
-deferred until routing reports `available`, then applied when the first track
-is routed, when gameplay starts or when the audio settings disclosure opens.
+(`arithmo-audio-preferences-v1` in localStorage). A saved music gain applies
+before first playback when the app route is configured. Unavailable routes
+keep the existing deferred-preference handling. The app title has one speaker
+menu for music, effects and mute; the pause menu mirrors its gain settings.
 
 ### Physical-device gates still required
 

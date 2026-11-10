@@ -520,8 +520,9 @@ describe('shared sound buses and event cues', () => {
 
     it('opted-in music uses one shared realtime gain route for current/preload/successor', () => {
       const { audio, context, state } = soundEngine({ musicGainRouting: true });
-      assert.throws(() => audio.setMusicVolume(0.1), /awaiting-media-route/);
+      assert.equal(audio.setMusicVolume(0.1), 0.1, 'gain can be chosen before first playback');
       audio.startBGM();
+      assert.equal(audio._musicBus.gain.value, 0.1);
       assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'available' });
       assert.equal(context.sources.length, 2);
       const first = audio._rotation.currentAudio;
@@ -610,13 +611,15 @@ describe('shared sound buses and event cues', () => {
       audio.startBGM();
       const current = audio._rotation.currentAudio;
       assert.equal(current.src, 'capacitor://localhost/game/a.mp3');
-      assert.deepEqual(audio.musicVolumeCapability, { supported: false, status: 'awaiting-media-route' });
+      assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'awaiting-media-route' });
+      audio.setMusicVolume(0.2);
       assert.equal(state.plays, 1, 'direct playback starts while the blob is pending');
       resolveFetch({ ok: true, blob: async () => new Blob(['bundled-audio']) });
       await audio._bundledReady;
       assert.match(current.src, /^blob:/);
       assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'available' });
       assert.equal(context.sources.length, 2, 'current and its single-track preload are captured');
+      assert.equal(audio._musicBus.gain.value, 0.2, 'late routing keeps the chosen gain');
       assert.equal(context.sources[0].element, current);
       assert.match(audio._rotation.nextAudio.src, /^blob:/);
       assert.equal(state.plays, 2, 'the swapped element resumes exactly once');

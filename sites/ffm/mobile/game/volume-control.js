@@ -2,8 +2,8 @@
 //
 // main.js loads this module only behind `platform.isApp`, chained after the
 // mobile-ui overlay, so the web build never imports it and keeps its existing
-// pause-menu audio settings untouched. The control inserts an app-only
-// <details> disclosure immediately after #mute-btn, with labelled range inputs
+// pause-menu audio settings untouched. The control wraps #mute-btn in one
+// <details> speaker menu, with labelled range inputs
 // for the effects bus and — only when the engine reports a supported route —
 // the music bus. Values go straight to AudioEngine.setEffectsVolume and
 // AudioEngine.setMusicVolume, then the caller persists them through the
@@ -78,6 +78,7 @@ export function createVolumeControl({
   const anchor = doc?.getElementById?.(anchorId) ?? null;
   const parent = anchor?.parentNode ?? null;
   if (!anchor || !parent || typeof doc?.createElement !== 'function') return inertControl();
+  const originalMuteText = anchor.textContent;
 
   const text = (key) => {
     const value = translate(key);
@@ -162,6 +163,10 @@ export function createVolumeControl({
     setText(effects.label, text('audio.effectsVolume'));
     setValue(effects.input, finiteNumber(audio?.getEffectsVolume?.(), 1));
     summary.setAttribute('aria-label', text('audio.settings'));
+    summary.textContent = audio?.muted ? '🔇' : '🔊';
+    const muteLabel = text(audio?.muted ? 'topbar.unmuteAriaLabel' : 'topbar.muteAriaLabel');
+    anchor.textContent = muteLabel;
+    anchor.setAttribute('aria-label', muteLabel);
     const message = text(available ? 'audio.musicVolumeReady' : 'audio.musicVolumeUnavailable');
     setText(status, message);
     details.setAttribute('data-music-available', String(available));
@@ -169,6 +174,13 @@ export function createVolumeControl({
   }
 
   parent.insertBefore(details, anchor.nextSibling ?? null);
+  panel.appendChild(anchor);
+  details.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    details.open = false;
+    summary.focus?.();
+    event.stopPropagation();
+  });
   refresh();
 
   return {
@@ -180,6 +192,8 @@ export function createVolumeControl({
     get musicAvailable() { return music !== null; },
     refresh,
     destroy() {
+      parent.insertBefore(anchor, details);
+      anchor.textContent = originalMuteText;
       details.remove?.();
     },
   };
