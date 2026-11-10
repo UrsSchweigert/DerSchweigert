@@ -3104,7 +3104,14 @@ function triggerWaveClear() {
     scheduleGameplayTimeout(finishPracticeSession, 1200);
     return;
   }
-  if (state.level < TOTAL_LEVELS) audio.playLevelClear?.();
+  // Level-complete fanfare: the bundled hymn, or the synth cue when it cannot
+  // be decoded. The call stays inline because tests evaluate these functions
+  // on their own.
+  if (state.level < TOTAL_LEVELS) {
+    const hymn = audio.playVictoryHymn?.();
+    if (hymn?.then) hymn.then((started) => { if (!started) audio.playLevelClear?.(); });
+    else audio.playLevelClear?.();
+  }
   const healed = state.hearts < state.maxHearts;
   state.hearts = state.maxHearts;
   if (healed) {
@@ -3267,7 +3274,13 @@ function triggerGameOver(won = false) {
   input.disable();
   inputDisabled = true;
   state.timerActive = false;
-  if (won && !practiceRun) audio.playCampaignVictory?.();
+  if (won && !practiceRun) {
+    // The hymn replaces the synth finale; playCampaignVictory stays as the
+    // fallback for a build where the track cannot be decoded.
+    const hymn = audio.playVictoryHymn?.();
+    if (hymn?.then) hymn.then((started) => { if (!started) audio.playCampaignVictory?.(); });
+    else audio.playCampaignVictory?.();
+  }
   levelClearOverlay.style.display = 'none';
   topBar.style.display = 'flex';
   audio.stopBGM();

@@ -394,6 +394,8 @@ describe('shared sound buses and event cues', () => {
         value: 0, events: [],
         setValueAtTime(value, time) { this.value = value; this.events.push(['set', value, time]); },
         exponentialRampToValueAtTime(value, time) { this.events.push(['ramp', value, time]); },
+        linearRampToValueAtTime(value, time) { this.events.push(['linear', value, time]); },
+        cancelScheduledValues(time) { this.events.push(['cancel', time]); },
       });
       const node = kind => {
         const n = {
@@ -497,6 +499,86 @@ describe('shared sound buses and event cues', () => {
         assert.ok(voice.nodes.every(node => node.disconnected));
       }
       assert.equal(audio._voices.size, 0);
+    });
+
+    it('shapes every synth cue with a short attack and release', () => {
+      const { audio, context } = soundEngine();
+      audio.playCorrect();
+      const gains = context.nodes.filter(n => n.kind === 'gain' && n !== audio._effectsBus && n !== audio._musicBus);
+      assert.equal(gains.length, 2, 'one envelope per cue tone');
+      for (const gain of gains) {
+        const events = gain.gain.events;
+        assert.equal(events[0][0], 'set');
+        assert.equal(events[0][1], 0.0001, 'starts from silence');
+        assert.equal(events[1][0], 'ramp', 'ramps up over the attack');
+        assert.ok(events[1][1] > 0.0001, 'reaches the cue level');
+        assert.equal(events.at(-1)[1], 0.0001, 'releases to silence');
+      }
+    });
+
+    it('does not shape the victory hymn: it keeps its own attack', async () => {
+      const { audio, context } = soundEngine({
+        fetchTrack: async () => ({ arrayBuffer: async () => new ArrayBuffer(8) }),
+      });
+      context.decodeAudioData = async () => ({ duration: 4 });
+      assert.equal(await audio.playVictoryHymn(), true);
+      const voice = audio._victoryVoice;
+      assert.ok(voice, 'the hymn is tracked as a voice');
+      const gain = voice.nodes[1];
+      assert.deepEqual(gain.connections, [audio._effectsBus], 'plays on the effects bus');
+      assert.deepEqual(gain.gain.events, [['set', 1, 10]], 'full level from the first sample, no ramp');
+      assert.deepEqual(voice.source.starts, [10]);
+    });
+
+    it('ducks the music under the hymn and restores it when the fanfare ends', async () => {
+      const { audio, context } = soundEngine({
+        fetchTrack: async () => ({ arrayBuffer: async () => new ArrayBuffer(8) }),
+      });
+      context.decodeAudioData = async () => ({ duration: 4 });
+      audio.startBGM();
+      await audio.playVictoryHymn();
+      assert.deepEqual(audio._musicBus.gain.events.slice(-2), [['set', 0.35, 10], ['linear', 0.35 * 0.3, 10.15]],
+        'music dips to 30 % while the fanfare rings');
+
+      const voice = audio._victoryVoice;
+      voice.source.onended();
+      assert.ok(voice.nodes.every(node => node.disconnected));
+      assert.equal(audio._voices.has(voice), false);
+      assert.equal(audio._musicDuck, 1);
+      assert.deepEqual(audio._musicBus.gain.events.at(-1), ['linear', 0.35, 10.15], 'the music comes back up');
+    });
+
+    it('plays the hymn once: one shot, never looped, never restarted', async () => {
+      const { audio, context } = soundEngine({
+        fetchTrack: async () => ({ arrayBuffer: async () => new ArrayBuffer(8) }),
+      });
+      context.decodeAudioData = async () => ({ duration: 4 });
+      assert.equal(await audio.playVictoryHymn(), true);
+      const first = audio._victoryVoice;
+      assert.equal(first.source.loop, false, 'the fanfare is a one-shot, not a loop');
+      assert.deepEqual(first.source.starts, [10]);
+
+      assert.equal(await audio.playVictoryHymn(), true);
+      assert.equal(audio._victoryVoice, first, 'a repeated call is a no-op while it rings');
+      assert.deepEqual(first.source.starts, [10], 'it is never restarted');
+      assert.equal(first.source.stops.length, 0);
+
+      audio.startLevelBGM(2, 1);
+      assert.equal(first.source.stops.length, 1, 'new background music ends the fanfare');
+      assert.equal(audio._victoryVoice, null);
+      assert.equal(audio._musicDuck, 1, 'and that releases the music duck');
+    });
+
+    it('reports an unavailable hymn so the caller can fall back', async () => {
+      const warn = console.warn;
+      console.warn = () => {};
+      try {
+        const { audio } = soundEngine({ fetchTrack: () => Promise.reject(new Error('offline')) });
+        assert.equal(await audio.playVictoryHymn(), false);
+        assert.equal(audio._victoryVoice, null);
+      } finally {
+        console.warn = warn;
+      }
     });
 
     it('volume APIs reject invalid input, clamp finite values, and never pretend music support', () => {

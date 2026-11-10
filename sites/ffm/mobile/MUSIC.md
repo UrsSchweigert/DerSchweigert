@@ -84,6 +84,29 @@ zeros the buses and stops scheduled effect voices, so unmuting does not revive
 old effects. Music pause/resume, title unmute and single-preload rotation retain
 their existing behavior.
 
+Every synthesized cue is shaped with an 8 ms attack and an exponential release
+to `_shapeEnvelope`, so no effect starts or ends on a hard edge. Bundled music
+gets the same treatment at both ends: the `MusicLoop` fade gain ramps a track in
+over 180 ms and out over 150 ms, including when a track replaces another, is
+paused or stopped. The victory hymn is the deliberate exception — it keeps its
+full attack and release.
+
+### Victory hymn
+
+`victory-hymn.mp3` (`static/game/`, CC0, celestialghost8) plays once at the end
+of every level and at campaign completion through `playVictoryHymn()`. It is
+decoded through the same `AudioContext` as the effects and plays on the effects
+bus, so the effects volume and mute settings apply to it. While it rings, the
+music bus is ducked to 30 % and restored when the fanfare ends; starting new
+background music (`startBGM`/`startMenuBGM`/`startLevelBGM`) stops a still
+ringing fanfare so the next level does not begin under a duck.
+
+`playVictoryHymn()` resolves to `false` when the track cannot be decoded or the
+engine has no fetch path. `main.js` then falls back to the synthesized
+`playLevelClear()` / `playCampaignVictory()` cue. The track is warm-cached after
+the first level, and it is deliberately absent from `tracks.json` so rotation
+never picks it as background music; its credit lives in `music-manifest.js`.
+
 `setEffectsVolume(number)` and `setMusicVolume(number)` clamp finite numbers to
 0–1 and return the resulting value. Non-numeric/NaN/infinite inputs throw
 `TypeError`. Read values with `effectsVolume`/`musicVolume` or
@@ -152,5 +175,7 @@ UI states the limitation when device gain control is unavailable.
 - `playTimeout()`: separated descending sine pulses for an expired task.
 - `playHeal()`: rising sine triad when healing actually occurs.
 - `playCampaignVictory()`: longer rising triangle finale for campaign completion,
-  instead of stacking the regular `playLevelClear()` fanfare.
+  kept as the fallback when the bundled victory hymn cannot play.
+- `playVictoryHymn()`: plays the bundled CC0 victory fanfare once, ducking the
+  background music; resolves to `false` when the track is unavailable.
 - Existing weapon, damage, level-clear and game-over APIs remain available.

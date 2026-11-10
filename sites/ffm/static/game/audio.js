@@ -8,6 +8,14 @@ import { MusicLoop } from './music-loop.js';
 const FALLBACK_TRACKS = Object.freeze([Object.freeze({ file: 'background-music.mp3' })]);
 const EFFECTS_HEADROOM = 0.4;
 
+// Short attack and release ramps on the synth cues: an instant start or a hard
+// cut at the end reads as a click. The victory hymn below is deliberately left
+// out of this shaping because its attack is the point.
+const EFFECT_ATTACK = 0.008;
+const MUSIC_FADE = 0.15;
+const VICTORY_HYMN = './victory-hymn.mp3';
+const HYMN_MUSIC_DUCK = 0.3;
+
 function volumeValue(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new TypeError('Volume must be a finite number');
@@ -24,6 +32,9 @@ export class AudioEngine {
     this._makeContext = makeContext ?? (() => new (globalThis.AudioContext ?? globalThis.webkitAudioContext)());
     this._effectsVolume = 1;
     this._musicVolume = DEFAULT_VOLUME;
+    this._musicDuck = 1;
+    this._victoryTask = null;
+    this._victoryVoice = null;
     this._effectsBus = null;
     this._musicBus = null;
     this._voices = new Set();
@@ -196,7 +207,23 @@ export class AudioEngine {
   _updateBusGains() {
     if (!this._ctx) return;
     this._effectsBus.gain.setValueAtTime(this._muted ? 0 : this._effectsVolume * EFFECTS_HEADROOM, this._ctx.currentTime);
-    this._musicBus.gain.setValueAtTime(this._muted ? 0 : this._musicVolume, this._ctx.currentTime);
+    this._musicBus.gain.setValueAtTime(this._muted ? 0 : this._musicVolume * this._musicDuck, this._ctx.currentTime);
+  }
+
+  // Background music dips under the victory hymn and comes back afterwards.
+  _setMusicDuck(factor) {
+    this._musicDuck = factor;
+    if (!this._ctx || !this._musicBus) return;
+    const gain = this._musicBus.gain;
+    const now = this._ctx.currentTime;
+    const target = this._muted ? 0 : this._musicVolume * factor;
+    if (typeof gain.linearRampToValueAtTime !== 'function') {
+      gain.setValueAtTime(target, now);
+      return;
+    }
+    if (typeof gain.cancelScheduledValues === 'function') gain.cancelScheduledValues(now);
+    gain.setValueAtTime(typeof gain.value === 'number' ? gain.value : target, now);
+    gain.linearRampToValueAtTime(target, now + MUSIC_FADE);
   }
 
   get effectsVolume() { return this._effectsVolume; }
@@ -415,6 +442,18 @@ export class AudioEngine {
     };
   }
 
+  // A short attack and an exponential release keep a cue from starting or
+  // ending on a hard edge. Exponential ramps need a non-zero value, hence the
+  // floor instead of a plain zero.
+  _shapeEnvelope(param, peak, startTime, duration) {
+    const level = Math.max(0.0001, peak);
+    const attack = Math.min(EFFECT_ATTACK, duration / 3);
+    param.setValueAtTime(0.0001, startTime);
+    if (attack > 0) param.exponentialRampToValueAtTime(level, startTime + attack);
+    else param.setValueAtTime(level, startTime);
+    param.exponentialRampToValueAtTime(0.0001, startTime + duration);
+  }
+
   _playTone(freq, type, duration, startTime, gain = 0.3) {
     this._ensureCtx();
     if (this._muted) return;
@@ -424,8 +463,7 @@ export class AudioEngine {
     
     osc.type = type;
     osc.frequency.setValueAtTime(freq, startTime);
-    gainNode.gain.setValueAtTime(gain, startTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    this._shapeEnvelope(gainNode.gain, gain, startTime, duration);
     
     osc.connect(gainNode);
     gainNode.connect(this._effectsBus);
@@ -474,6 +512,96 @@ export class AudioEngine {
       this._playTone(f, 'triangle', i === 6 ? 0.45 : 0.16, t + i * 0.14, 0.16));
   }
 
+  /**
+   * Play the bundled victory hymn once and duck the background music under it.
+   *
+   * Resolves to false when the track cannot be decoded, so the caller can fall
+   * back to the synth fanfare. The hymn keeps its own attack and release: it is
+   * the one cue that is meant to hit hard.
+   */
+  async playVictoryHymn() {
+    this._ensureCtx();
+    if (this._muted) return true;
+    if (!this._ctx || typeof this._ctx.decodeAudioData !== 'function' || !this._fetchTrack) return false;
+    // One fanfare per level: a second call while it rings must not restart it.
+    if (this._victoryVoice) return true;
+    let buffer;
+    try {
+      buffer = await this._victoryBuffer();
+    } catch (error) {
+      console.warn('Victory hymn unavailable:', error);
+      return false;
+    }
+    if (!buffer || this._muted || !this._ctx) return true;
+    this._startVictoryHymn(buffer);
+    return true;
+  }
+
+  // Decoded once per session; a failed load is forgotten so the next level can
+  // retry instead of sticking the game on the fallback cue.
+  _victoryBuffer() {
+    if (!this._victoryTask) {
+      const task = this._loadTrackBytes(VICTORY_HYMN)
+        .then(bytes => this._ctx.decodeAudioData(bytes));
+      this._victoryTask = task;
+      task.catch(() => {
+        if (this._victoryTask === task) this._victoryTask = null;
+      });
+    }
+    return this._victoryTask;
+  }
+
+  _startVictoryHymn(buffer) {
+    const now = this._ctx.currentTime;
+    const source = this._ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = false;
+    const gain = this._ctx.createGain();
+    gain.gain.setValueAtTime(1, now);
+    source.connect(gain);
+    gain.connect(this._effectsBus);
+    const voice = { source, nodes: [source, gain] };
+    this._victoryVoice = voice;
+    this._voices.add(voice);
+    source.onended = () => {
+      this._voices.delete(voice);
+      if (this._victoryVoice === voice) this._victoryVoice = null;
+      this._setMusicDuck(1);
+      voice.nodes.forEach(node => {
+        try {
+          node.disconnect();
+        } catch {
+          // Already released.
+        }
+      });
+    };
+    this._setMusicDuck(HYMN_MUSIC_DUCK);
+    source.start(now);
+  }
+
+  // Called when new background music starts: the fanfare must not outlive the
+  // level-clear screen or keep the next level's music ducked.
+  _stopVictoryHymn() {
+    const voice = this._victoryVoice;
+    if (!voice && this._musicDuck === 1) return;
+    this._victoryVoice = null;
+    this._setMusicDuck(1);
+    if (!voice) return;
+    this._voices.delete(voice);
+    try {
+      voice.source.stop();
+    } catch {
+      // Already stopped.
+    }
+    voice.nodes.forEach(node => {
+      try {
+        node.disconnect();
+      } catch {
+        // Already released.
+      }
+    });
+  }
+
   playSwordSwing() {
     this._ensureCtx();
     if (this._muted) return;
@@ -493,8 +621,7 @@ export class AudioEngine {
     osc.type = type;
     osc.frequency.setValueAtTime(freqStart, startTime);
     osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), startTime + duration);
-    gainNode.gain.setValueAtTime(gain, startTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    this._shapeEnvelope(gainNode.gain, gain, startTime, duration);
 
     osc.connect(gainNode);
     gainNode.connect(this._effectsBus);
@@ -520,8 +647,7 @@ export class AudioEngine {
     const src = this._ctx.createBufferSource();
     src.buffer = buf;
     const gainNode = this._ctx.createGain();
-    gainNode.gain.setValueAtTime(gain, startTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    this._shapeEnvelope(gainNode.gain, gain, startTime, duration);
 
     const nodes = [src, gainNode];
     let tail = src;
@@ -645,6 +771,7 @@ export class AudioEngine {
 
   startBGM(chapter) {
     this._ensureCtx();
+    this._stopVictoryHymn();
     this._menuRequest += 1;
     this._menuPlayBlocked = false;
     this._rotation.stop();
@@ -664,6 +791,7 @@ export class AudioEngine {
    */
   startMenuBGM() {
     this._ensureCtx();
+    this._stopVictoryHymn();
     if (this._musicSession?.menu) {
       // Only a paused session or a blocked first attempt needs a retry; while
       // the track is playing this stays a no-op so switching title pages
@@ -691,6 +819,7 @@ export class AudioEngine {
 
   startLevelBGM(level, chapter) {
     this._ensureCtx();
+    this._stopVictoryHymn();
     this._menuRequest += 1;
     this._menuPlayBlocked = false;
     this._rotation.stop();
@@ -804,6 +933,7 @@ export class AudioEngine {
         voice.nodes.forEach(node => node.disconnect());
       }
       this._voices.clear();
+      this._victoryVoice = null;
     }
     this._rotation.setMuted(muted);
     return this._muted;

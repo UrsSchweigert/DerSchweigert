@@ -5,18 +5,36 @@ import { MusicLoop } from './music-loop.js';
 
 function fakeContext({ duration = 30 } = {}) {
   const sources = [];
+  const gains = [];
   return {
     currentTime: 0,
     sources,
+    gains,
     decodeAudioData: async () => ({ duration }),
+    createGain() {
+      const gain = {
+        connected: null, disconnected: false,
+        gain: {
+          value: 1, events: [],
+          setValueAtTime(value, time) { this.value = value; this.events.push(['set', value, time]); },
+          linearRampToValueAtTime(value, time) { this.events.push(['linear', value, time]); },
+          cancelScheduledValues(time) { this.events.push(['cancel', time]); },
+        },
+        connect(node) { this.connected = node; },
+        disconnect() { this.disconnected = true; },
+      };
+      gains.push(gain);
+      return gain;
+    },
     createBufferSource() {
       const source = {
         buffer: null, loop: false, loopStart: 0, loopEnd: 0,
-        connected: null, started: null, stopped: false, disconnected: false,
+        connected: null, started: null, stopped: false, stoppedAt: null,
+        disconnected: false, onended: null,
         connect(node) { this.connected = node; },
         disconnect() { this.disconnected = true; },
         start(when, offset) { this.started = { when, offset }; },
-        stop() { this.stopped = true; },
+        stop(when) { this.stopped = true; this.stoppedAt = when ?? null; },
       };
       sources.push(source);
       return source;
@@ -44,10 +62,43 @@ test('plays the track as a seamless loop on the music bus', async () => {
   assert.equal(source.loop, true, 'the source must loop itself');
   assert.equal(source.loopStart, 0);
   assert.equal(source.loopEnd, 44.65);
-  assert.equal(source.connected, destination, 'plays straight into the music bus');
+  const fade = source.connected;
+  assert.equal(fade.connected, destination, 'plays through the fade node into the music bus');
+  assert.deepEqual(fade.gain.events, [['set', 0, 0], ['linear', 1, 0.18]],
+    'the track ramps in instead of starting on a hard edge');
   assert.deepEqual(source.started, { when: 0, offset: 0 });
   assert.equal(loop.file, 'menu.mp3');
   assert.equal(loop.playing, true);
+});
+
+test('stop and pause fade the track out instead of cutting it', async () => {
+  const { ctx, loop } = setup({ duration: 20 });
+  await loop.play('menu.mp3');
+  const first = ctx.sources[0];
+  const fade = first.connected;
+  ctx.currentTime = 2;
+  loop.pause();
+  assert.equal(first.stopped, true);
+  assert.equal(first.stoppedAt, 2.15, 'the source ends after the 150 ms fade');
+  assert.deepEqual(fade.gain.events.at(-1), ['linear', 0, 2.15]);
+
+  await loop.play('menu.mp3');
+  ctx.currentTime = 5;
+  loop.stop();
+  const second = ctx.sources[1];
+  assert.equal(second.stoppedAt, 5.15);
+  assert.deepEqual(second.connected.gain.events.at(-1), ['linear', 0, 5.15]);
+});
+
+test('a replaced track crossfades from the old one', async () => {
+  const { ctx, loop } = setup();
+  await loop.play('menu.mp3');
+  const first = ctx.sources[0];
+  ctx.currentTime = 4;
+  await loop.play('level.mp3');
+  assert.equal(first.stoppedAt, 4.15, 'the outgoing track fades under the new one');
+  const second = ctx.sources[1];
+  assert.deepEqual(second.connected.gain.events, [['set', 0, 4], ['linear', 1, 4.18]]);
 });
 
 test('never restarts a track that is already loaded', async () => {
