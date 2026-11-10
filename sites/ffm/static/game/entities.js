@@ -20,7 +20,7 @@ const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victor
 // col 2 of the walk row sits in the bottom half of its cell — skip it
 const _walkCols = [0, 1, 3, 1];
 const _dragonSprite = new Image();
-_dragonSprite.src = new URL('./dragon.png', import.meta.url).href;
+_dragonSprite.src = new URL('./dragon.webp', import.meta.url).href;
 const _fireballSprite = new Image();
 _fireballSprite.src = new URL('./fireball.png', import.meta.url).href;
 

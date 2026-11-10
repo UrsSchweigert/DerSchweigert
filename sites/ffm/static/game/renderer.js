@@ -6,14 +6,14 @@ export const CANVAS_H   = 450;
 export const GROUND_Y   = 312;   // y where hero / front fiends anchor; lifted so feet stay visible above the terrain
 export const HERO_X     = 110;
 
-const FALLBACK_BG_SRC = new URL('./background.png', import.meta.url).href;
+const FALLBACK_BG_SRC = new URL('./background.webp', import.meta.url).href;
 const STAGE_BG_SOURCES = [
-  new URL('./stage-1.png', import.meta.url).href,
-  new URL('./stage-2.png', import.meta.url).href,
-  new URL('./stage-3.png', import.meta.url).href,
-  new URL('./stage-4.png', import.meta.url).href,
-  new URL('./stage-5.png', import.meta.url).href,
-  new URL('./stage-6.png', import.meta.url).href,
+  new URL('./stage-1.webp', import.meta.url).href,
+  new URL('./stage-2.webp', import.meta.url).href,
+  new URL('./stage-3.webp', import.meta.url).href,
+  new URL('./stage-4.webp', import.meta.url).href,
+  new URL('./stage-5.webp', import.meta.url).href,
+  new URL('./stage-6.webp', import.meta.url).href,
 ];
 
 // 5×7 pixel font — chars needed for math questions + HUD labels

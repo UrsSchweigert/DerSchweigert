@@ -71,6 +71,8 @@ const EXCLUDED_SAMPLES = [
   'game/access-flow.js',
   'game/cancel-request.js',
   'game/withdrawal-request.js',
+  'game/hero-spritesheet.png',
+  'game/hero-spritesheet-upload.png',
   'game/tests/helper.js',
   'story/sources/intro/hero-raw.png',
   'story/references/hero-reference-sheet.png',

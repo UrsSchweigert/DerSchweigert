@@ -339,7 +339,7 @@ input[type=number] {
 .splash-bg {
   position: absolute;
   inset: 0;
-  background: url('game/splash-bg.png') center center / cover no-repeat;
+  background: url('game/splash-bg.webp') center center / cover no-repeat;
   background-position: center center;
   filter: brightness(0.55) saturate(1.1);
   transform: scale(1.05);
@@ -1692,7 +1692,7 @@ body { color: var(--ivory); }
   inset: 0;
   background:
     linear-gradient(180deg, rgba(3, 10, 20, 0.12), transparent 40%, rgba(3, 10, 20, 0.22)),
-    url('game/title-art.png') center / cover no-repeat;
+    url('game/title-art.webp') center / cover no-repeat;
   background-color: #030a14;
   filter: none;
   transform: none;
@@ -1794,7 +1794,7 @@ body { color: var(--ivory); }
   pointer-events: none;
   background:
     linear-gradient(rgba(9, 20, 17, 0.68), rgba(9, 20, 17, 0.86)),
-    url('game/title-art.png') center / cover no-repeat;
+    url('game/title-art.webp') center / cover no-repeat;
   filter: blur(5px) saturate(0.7);
 }
 .overlay-card {
@@ -2015,7 +2015,7 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   z-index: -1;
   pointer-events: none;
   background: linear-gradient(rgba(9, 20, 17, 0.55), rgba(9, 20, 17, 0.78)),
-    url('game/title-art.png') center 70% / cover no-repeat;
+    url('game/title-art.webp') center 70% / cover no-repeat;
   filter: blur(6px);
 }
 
@@ -2058,13 +2058,13 @@ body:not(.legal-body) {
 @media (orientation: landscape) {
   .splash-bg {
     background-image: linear-gradient(rgba(3, 10, 20, 0.12), rgba(3, 10, 20, 0.22)),
-      url('game/title-art-wide.png');
+      url('game/title-art-wide.webp');
     background-size: auto, cover;
     background-position: center;
   }
   .overlay:not(.splash-screen)::before {
     background-image: linear-gradient(rgba(9, 20, 17, 0.68), rgba(9, 20, 17, 0.86)),
-      url('game/title-art-wide.png');
+      url('game/title-art-wide.webp');
   }
   .splash-diff-buttons { gap: 6px; }
 }

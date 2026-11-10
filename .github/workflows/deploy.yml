@@ -556,6 +556,8 @@ jobs:
             --exclude "game/calibrate.html" \
             --exclude "game/_dragon_test.html" \
             --exclude "export-sprites.html" \
+            --exclude "game/hero-spritesheet.png" \
+            --exclude "game/hero-spritesheet-upload.png" \
             --exclude "story/sources/*" \
             --exclude "story/references/*" \
             --exclude "story/tools/*" \
@@ -569,6 +571,8 @@ jobs:
             --include "game/calibrate.html" --include "game/_dragon_test.html" \
             --include "export-sprites.html" --include "game/level-fiend-allocator.html" \
             --include "game/level-fiend-allocator.js" \
+            --include "game/hero-spritesheet.png" \
+            --include "game/hero-spritesheet-upload.png" \
             --include "story/sources/*" --include "story/references/*" \
             --include "story/tools/*" --include "story/tests/*" \
             --include "story/preview.html" --include "story/README.md" \

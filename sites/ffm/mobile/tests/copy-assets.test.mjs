@@ -64,7 +64,7 @@ test('www/ holds the entry points and every kept game asset', async () => {
     for (const rel of REQUIRED_FILES) {
       assert.ok((await stat(join(out, rel))).isFile(), `${rel} must be bundled`);
     }
-    for (const rel of ['game/background.png', 'game/levels.js', 'game/renderer.js', 'game/fiend-sprites']) {
+    for (const rel of ['game/background.webp', 'game/levels.js', 'game/renderer.js', 'game/fiend-sprites']) {
       const info = await stat(join(out, rel)).catch(() => null);
       assert.ok(info, `${rel} must be bundled`);
     }
