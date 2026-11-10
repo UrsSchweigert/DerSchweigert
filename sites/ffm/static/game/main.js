@@ -46,6 +46,7 @@ import {
 import { getSkillIntro } from './skill-intro.js';
 import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
+import { highScoreTrend, runningBestTrend } from './score-trend.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -859,7 +860,14 @@ function renderPersonalBest(profile, container) {
   container.style.display = '';
 }
 
-function buildScoreHistorySvg(history) {
+function formatTrendDate(value) {
+  const timestamp = value ? new Date(value) : null;
+  if (!timestamp || Number.isNaN(timestamp.getTime())) return '';
+  return timestamp.toLocaleDateString(typeof getLocale === 'function' ? getLocale() : undefined,
+    { day: 'numeric', month: 'short', year: '2-digit' });
+}
+
+function buildScoreHistorySvg(history, summaryKey = 'scoreHistory.highScore') {
   const width = 300;
   const height = 140;
   const left = 54;
@@ -876,6 +884,10 @@ function buildScoreHistorySvg(history) {
 
   const innerWidth = width - left - right;
   const innerHeight = height - top - bottom;
+  // Dates show the development over time; results without one fall back to
+  // their position in the history.
+  const firstLabel = formatTrendDate(history[0].achieved_at) || '1';
+  const lastLabel = formatTrendDate(history.at(-1).achieved_at) || String(history.length);
 
   const points = history.map((entry, i) => {
     const x = history.length === 1
@@ -895,13 +907,13 @@ function buildScoreHistorySvg(history) {
     : '';
 
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="${t('scoreHistory.ariaLabel')}">` +
-    `<title>${escHtml(t('scoreHistory.latest', { score: history.at(-1).score, count: history.length }))}</title>` +
+    `<title>${escHtml(t(summaryKey, { score: history.at(-1).score, count: history.length }))}</title>` +
     `<path d="M${left} ${top}V${height - bottom}H${width - right}" fill="none" stroke="#b5bcae" />` +
     `<g fill="#fff" font-size="12" font-family="system-ui, sans-serif">` +
     `<text x="${left - 6}" y="${top + 4}" text-anchor="end">${maxScore}</text>` +
     `<text x="${left - 6}" y="${height - bottom + 4}" text-anchor="end">0</text>` +
-    `<text x="${history.length === 1 ? left + innerWidth / 2 : left}" y="${height - 7}"${history.length === 1 ? ' text-anchor="middle"' : ''}>1</text>` +
-    (history.length > 1 ? `<text x="${width - right}" y="${height - 7}" text-anchor="end">${history.length}</text>` : '') +
+    `<text x="${history.length === 1 ? left + innerWidth / 2 : left}" y="${height - 7}"${history.length === 1 ? ' text-anchor="middle"' : ''}>${escHtml(firstLabel)}</text>` +
+    (history.length > 1 ? `<text x="${width - right}" y="${height - 7}" text-anchor="end">${escHtml(lastLabel)}</text>` : '') +
     `</g>` +
     polyline + circles +
     `</svg>`;
@@ -909,14 +921,17 @@ function buildScoreHistorySvg(history) {
 
 function renderScoreHistory(historyResponse, container) {
   if (!container) return;
-  const history = historyResponse?.history || [];
+  // The app passes a precomputed total-high-score trend; web history is a list
+  // of submitted run totals, shown as the best score reached so far.
+  const history = historyResponse?.trend ?? runningBestTrend(historyResponse?.history || []);
+  const summaryKey = historyResponse?.trend ? 'scoreHistory.totalHighScore' : 'scoreHistory.highScore';
   if (history.length === 0) {
     container.style.display = '';
     container.innerHTML = `<p class="score-history-summary">${escHtml(t('scoreHistory.empty'))}</p>`;
     return;
   }
-  container.innerHTML = buildScoreHistorySvg(history) +
-    `<p class="score-history-summary">${escHtml(t('scoreHistory.latest', {
+  container.innerHTML = buildScoreHistorySvg(history, summaryKey) +
+    `<p class="score-history-summary">${escHtml(t(summaryKey, {
       score: history.at(-1).score, count: history.length,
     }))}</p>` +
     (history.some((entry) => entry.unfinished === true)
@@ -1029,7 +1044,7 @@ function renderPersonalDevelopment(state) {
       .join('');
   }
 
-  renderScoreHistory({ history: state?.history || [] }, personalScoreHistoryChart);
+  renderScoreHistory({ trend: highScoreTrend(state?.history || [], best) }, personalScoreHistoryChart);
 
   personalCompletedOverview.textContent = t('personalDevelopment.completed', {
     completed: completed.length,
