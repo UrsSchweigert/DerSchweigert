@@ -12,8 +12,9 @@
 //   });
 //   ui.updateTimerState({ remaining, max, paused, running });
 //   ui.updateLevelSelection({ level, chapter, mode });
+//   ui.updateEncounterProgress({ defeated, total });
 //
-// Timer and level-selection payloads are passed through unchanged; widgets own
+// Timer, level-selection and encounter-progress payloads are passed through unchanged; widgets own
 // their own rendering. A widget that throws is isolated, so one broken widget
 // can never break the game loop, and a missing/failing module never breaks
 // startup because main.js catches the import.
@@ -34,7 +35,7 @@ export const MOBILE_UI_STYLESHEET_URL = new URL(MOBILE_UI_STYLESHEET, import.met
 export const STYLESHEET_ATTRIBUTE = 'data-mobile-ui-stylesheet';
 
 /** Widget methods the hook surface forwards. */
-export const WIDGET_UPDATES = Object.freeze(['updateTimerState', 'updateLevelSelection']);
+export const WIDGET_UPDATES = Object.freeze(['updateTimerState', 'updateLevelSelection', 'updateEncounterProgress']);
 
 /**
  * Inject the app-only stylesheet once per document.
@@ -83,6 +84,7 @@ export function createMobileUi({
   const widgets = new Map();
   let timerState = null;
   let levelSelection = null;
+  let encounterProgress = null;
   let stylesheetLink = null;
   let attached = false;
 
@@ -94,6 +96,9 @@ export function createMobileUi({
     if (timerState !== null) updateWidget(widget, 'updateTimerState', timerState, warn, name);
     if (levelSelection !== null) {
       updateWidget(widget, 'updateLevelSelection', levelSelection, warn, name);
+    }
+    if (encounterProgress !== null) {
+      updateWidget(widget, 'updateEncounterProgress', encounterProgress, warn, name);
     }
   };
 
@@ -121,9 +126,9 @@ export function createMobileUi({
       attached = false;
     },
     /**
-     * Register a widget and replay the latest timer/level state to it.
+     * Register a widget and replay the latest timer/level/encounter state to it.
      * @param {string} name unique widget name
-     * @param {object} widget object with optional updateTimerState/updateLevelSelection
+     * @param {object} widget object with any of the WIDGET_UPDATES methods
      * @returns {() => void} unregister function
      */
     registerWidget(name, widget) {
@@ -156,6 +161,11 @@ export function createMobileUi({
     updateLevelSelection(selection) {
       levelSelection = selection;
       notify('updateLevelSelection', selection);
+    },
+    /** Forward the defeated/total encounter count to every widget. */
+    updateEncounterProgress(progress) {
+      encounterProgress = progress;
+      notify('updateEncounterProgress', progress);
     },
   };
 }

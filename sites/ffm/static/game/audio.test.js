@@ -649,6 +649,63 @@ describe('shared sound buses and event cues', () => {
       }
     });
 
+    it('routes a Capacitor iOS media response (status 0) and keeps it across mute', async () => {
+      const requests = [];
+      let unavailable = 0;
+      const { audio, context } = soundEngine({
+        musicGainRouting: true,
+        baseUrl: 'capacitor://localhost/game/',
+        tracks: [{ file: 'a.mp3' }],
+        onMusicVolumeUnavailable: () => { unavailable++; },
+        fetchTrack: async (url, init) => {
+          requests.push({ url, init });
+          return { ok: false, status: 0, blob: async () => new Blob(['bundled-audio']) };
+        },
+      });
+      await audio._bundledReady;
+      assert.deepEqual(requests, [{
+        url: 'capacitor://localhost/game/a.mp3',
+        init: { headers: { Range: 'bytes=0-' } },
+      }], 'a full byte range asks Capacitor for a real HTTP response');
+      assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'awaiting-media-route' });
+      audio.toggleMute();
+      audio.toggleMute();
+      assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'awaiting-media-route' },
+        'mute and unmute on the title keep the music slider');
+      audio.startBGM();
+      assert.match(audio._rotation.currentAudio.src, /^blob:/);
+      assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'available' });
+      audio.toggleMute();
+      audio.toggleMute();
+      assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'available' },
+        'mute and unmute while music plays keep the music slider');
+      assert.equal(audio.setMusicVolume(0.2), 0.2);
+      assert.equal(context.sources.length, 2);
+      assert.equal(unavailable, 0);
+    });
+
+    it('reports a lost music route once so the UI can drop the slider immediately', async () => {
+      const warn = console.warn;
+      console.warn = () => {};
+      try {
+        let unavailable = 0;
+        const { audio } = soundEngine({
+          musicGainRouting: true,
+          baseUrl: 'capacitor://localhost/game/',
+          tracks: [{ file: 'a.mp3' }, { file: 'b.mp3' }],
+          onMusicVolumeUnavailable: () => {
+            unavailable++;
+            assert.equal(audio.musicVolumeCapability.supported, false);
+          },
+          fetchTrack: async () => ({ ok: false, status: 404, blob: async () => new Blob(['x']) }),
+        });
+        await audio._bundledReady;
+        assert.equal(unavailable, 1);
+      } finally {
+        console.warn = warn;
+      }
+    });
+
     it('resumes a suspended context from startLevelBGM and effect gestures', () => {
       const { audio, context } = soundEngine({ levelMusic: { levels: {} } });
       assert.equal(context.state, 'suspended');

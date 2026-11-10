@@ -149,7 +149,7 @@ test('the offline bundle ships the player manual in both languages', async () =>
 
 test('the app-only overlay UI module and stylesheet are bundled', async () => {
   await withBundle(async (dir) => {
-    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/entitlement-panel.js', 'game/first-open-notice.js', 'game/timer-bar.js', 'game/level-numerals.js', 'game/bubble-timer.js', 'game/shapes-header.js']) {
+    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/entitlement-panel.js', 'game/first-open-notice.js', 'game/timer-bar.js', 'game/level-numerals.js', 'game/encounter-swords.js', 'game/shapes-header.js']) {
       assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
     }
     const source = await readFile(join(dir, 'game', 'mobile-ui.js'), 'utf8');
@@ -164,10 +164,10 @@ test('the app-only overlay UI module and stylesheet are bundled', async () => {
     assert.match(levelNumerals, /export function resolveLevelSelection/);
     assert.doesNotMatch(levelNumerals.replace('xmlns="http://www.w3.org/2000/svg"', ''),
       /https?:\/\//, 'the SVG namespace is metadata; no numeral asset may load remotely');
-    const bubbleTimer = await readFile(join(dir, 'game', 'bubble-timer.js'), 'utf8');
-    assert.match(bubbleTimer, /export function createBubbleTimer/);
-    assert.match(bubbleTimer, /export const BUBBLE_COUNT/);
-    assert.doesNotMatch(bubbleTimer, /https?:\/\//, 'the bubble timer must stay offline');
+    const encounterSwords = await readFile(join(dir, 'game', 'encounter-swords.js'), 'utf8');
+    assert.match(encounterSwords, /export function createEncounterSwords/);
+    assert.match(encounterSwords, /export const MAX_SWORDS/);
+    assert.doesNotMatch(encounterSwords, /https?:\/\//, 'the encounter swords must stay offline');
     const shapesHeader = await readFile(join(dir, 'game', 'shapes-header.js'), 'utf8');
     assert.match(shapesHeader, /export function createShapesHeader/);
     assert.match(shapesHeader, /export function layoutShapesHeader/);

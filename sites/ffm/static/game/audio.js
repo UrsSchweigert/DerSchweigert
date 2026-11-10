@@ -17,7 +17,8 @@ function volumeValue(value) {
 export class AudioEngine {
   constructor({ tracks = null, manifestUrl = null, makeAudio = null, fetchManifest = null,
     levelMusic = null, levelMusicUrl = null, fetchLevelMusic = null, baseUrl,
-    makeContext = null, musicGainRouting = false, fetchTrack = null, onMusicVolumeReady = null } = {}) {
+    makeContext = null, musicGainRouting = false, fetchTrack = null, onMusicVolumeReady = null,
+    onMusicVolumeUnavailable = null } = {}) {
     this._ctx = null;
     this._makeContext = makeContext ?? (() => new (globalThis.AudioContext ?? globalThis.webkitAudioContext)());
     this._effectsVolume = 1;
@@ -29,10 +30,11 @@ export class AudioEngine {
     this._musicGainRouting = musicGainRouting;
     this._musicVolumeStatus = musicGainRouting ? 'awaiting-media-route' : 'unverified-media-routing';
     this._onMusicVolumeReady = onMusicVolumeReady;
+    this._onMusicVolumeUnavailable = onMusicVolumeUnavailable;
     this._makeAudio = makeAudio ?? (() => new Audio());
     this._musicBaseUrl = baseUrl === undefined ? new URL('./', import.meta.url).href : baseUrl;
     this._fetchTrack = fetchTrack ?? (typeof globalThis.fetch === 'function'
-      ? url => globalThis.fetch(url) : null);
+      ? (url, init) => globalThis.fetch(url, init) : null);
     // Custom-scheme bundle assets (capacitor: on iOS) cannot be captured by
     // Web Audio directly. Fetch each one once and play it from a same-origin
     // blob URL so it can share the effects gain path.
@@ -286,10 +288,14 @@ export class AudioEngine {
     const existing = this._blobTasks.get(file);
     if (existing) return existing;
     const url = new URL(file, this._musicBaseUrl).href;
+    // Capacitor iOS answers a plain media request with a non-HTTP response,
+    // which WebKit's fetch reports as status 0 / ok === false. A full byte
+    // range makes it answer with a real 206; status 0 stays accepted for older
+    // shells because the non-empty blob check below still guards the data.
     const task = Promise.resolve()
-      .then(() => this._fetchTrack(url))
+      .then(() => this._fetchTrack(url, { headers: { Range: 'bytes=0-' } }))
       .then((response) => {
-        if (!response || response.ok === false) {
+        if (!response || (response.ok === false && response.status !== 0)) {
           throw new Error(`bundled music ${response?.status ?? 'unavailable'}`);
         }
         return response.blob();
@@ -367,11 +373,18 @@ export class AudioEngine {
   }
 
   _disableMusicRouting() {
+    const wasUnsupported = this._musicVolumeStatus === 'unsupported-media-routing';
     this._musicGainRouting = false;
     this._musicVolumeStatus = 'unsupported-media-routing';
     this._musicVolume = DEFAULT_VOLUME;
     this._pendingBlobElements.clear();
     this._updateBusGains();
+    if (wasUnsupported) return;
+    try {
+      this._onMusicVolumeUnavailable?.();
+    } catch (error) {
+      console.warn('Music volume unavailable callback failed:', error);
+    }
   }
 
   _releaseMusicAudio(element) {
