@@ -1,0 +1,14 @@
+{
+    "servers": {
+        "fal": {
+            "type": "stdio",
+            "command": "${userHome}/.local/bin/uv",
+            "args": [
+                "run",
+                "--quiet",
+                "--script",
+                "${workspaceFolder}/tools/fal_mcp_server.py"
+            ]
+        }
+    }
+}

@@ -1,0 +1,47 @@
+{
+    "version": "2.0.0",
+    "inputs": [
+        {
+            "id": "falPrompt",
+            "type": "promptString",
+            "description": "Image prompt"
+        },
+        {
+            "id": "falModel",
+            "type": "pickString",
+            "description": "FAL model",
+            "options": [
+                "fal-ai/flux-1/schnell",
+                "fal-ai/flux-1/dev",
+                "fal-ai/flux-1/pro",
+                "fal-ai/flux/dev",
+                "fal-ai/flux-pro/v1.1"
+            ],
+            "default": "fal-ai/flux-1/schnell"
+        },
+        {
+            "id": "falSize",
+            "type": "pickString",
+            "description": "Image size",
+            "options": ["landscape_4_3", "landscape_16_9", "square_hd", "portrait_4_3", "1024x1024"],
+            "default": "landscape_4_3"
+        }
+    ],
+    "tasks": [
+        {
+            "label": "FAL: Generate image",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "tools/fal_image.py",
+                "${input:falPrompt}",
+                "-m",
+                "${input:falModel}",
+                "-s",
+                "${input:falSize}"
+            ],
+            "group": "none",
+            "problemMatcher": []
+        }
+    ]
+}
