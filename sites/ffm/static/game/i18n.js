@@ -58,14 +58,18 @@ const DICTIONARY = {
   'levels.startFromOne': { en: 'Start from Level 1', de: 'Ab Level 1 starten' },
   'levels.level': { en: 'Level {level}', de: 'Level {level}' },
   'levels.locked': { en: 'Level {level} (locked)', de: 'Level {level} (gesperrt)' },
-  'scoreHistory.ariaLabel': { en: 'Score history chart', de: 'Punkteverlauf-Diagramm' },
+  'scoreHistory.ariaLabel': { en: 'High score development chart', de: 'Diagramm zur Highscore-Entwicklung' },
   'scoreHistory.empty': {
     en: 'Finish a scored level to see your progress here.',
     de: 'Schließe ein Level mit Punkten ab, um deinen Fortschritt hier zu sehen.',
   },
-  'scoreHistory.latest': {
-    en: 'Latest score: {score} · Saved results: {count} (oldest to newest)',
-    de: 'Letzte Punktzahl: {score} · Gespeicherte Ergebnisse: {count} (älteste zuerst)',
+  'scoreHistory.highScore': {
+    en: 'High score: {score} · Saved results: {count} (oldest to newest)',
+    de: 'Highscore: {score} · Gespeicherte Ergebnisse: {count} (älteste zuerst)',
+  },
+  'scoreHistory.totalHighScore': {
+    en: 'Total high score (sum of your level bests): {score} · Saved results: {count} (oldest to newest)',
+    de: 'Gesamt-Highscore (Summe deiner Level-Bestwerte): {score} · Gespeicherte Ergebnisse: {count} (älteste zuerst)',
   },
   'scoreHistory.unfinishedNote': {
     en: 'Includes unfinished attempts that did not clear the level.',
@@ -159,7 +163,7 @@ const DICTIONARY = {
   'help.pause.tip2': { en: 'Return to Title asks whether to save the reached score or discard it.', de: 'Zum Titel fragt, ob die erreichten Punkte gespeichert oder verworfen werden.' },
   'help.pause.tip3': { en: 'Save keeps the level unfinished; Discard records nothing.', de: 'Speichern lässt das Level unfertig; Verwerfen zeichnet nichts auf.' },
   'help.progress.title': { en: 'Your progress', de: 'Dein Fortschritt' },
-  'help.progress.summary': { en: 'Per-level bests and score history for the active player.', de: 'Level-Bestwerte und Punkteverlauf des aktiven Spielers.' },
+  'help.progress.summary': { en: 'Per-level bests and how the total high score developed over time for the active player.', de: 'Level-Bestwerte und die Entwicklung des Gesamt-Highscores des aktiven Spielers.' },
   'help.progress.tip1': { en: 'Unfinished attempts are labelled and do not mark a level cleared.', de: 'Unfertige Versuche sind gekennzeichnet und schließen kein Level ab.' },
   'help.progress.tip2': { en: 'Only cleared levels unlock the next level.', de: 'Nur geschaffte Level schalten das nächste Level frei.' },
   'help.progress.tip3': { en: 'Switch players on the Players tab.', de: 'Spieler wechselst du im Spieler-Tab.' },
@@ -319,7 +323,7 @@ const DICTIONARY = {
   'profiles.navigation': { en: 'Players', de: 'Spieler' },
   'splash.play': { en: 'Play', de: 'Spielen' },
   'splash.levels': { en: 'Levels', de: 'Level' },
-  'scoreHistory.title': { en: 'Score history', de: 'Punkteverlauf' },
+  'scoreHistory.title': { en: 'High score development', de: 'Highscore-Entwicklung' },
   'profiles.create': { en: 'Add player', de: 'Spieler hinzufügen' },
   'profiles.rename': { en: 'Rename', de: 'Umbenennen' },
   'profiles.delete': { en: 'Delete player', de: 'Spieler löschen' },

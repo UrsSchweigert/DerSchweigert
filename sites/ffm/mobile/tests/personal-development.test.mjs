@@ -10,6 +10,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { highScoreTrend } from '../../static/game/score-trend.js';
 
 // api.js captures window.location.origin at import time.
 globalThis.window = { location: { origin: 'https://game.example' } };
@@ -100,12 +101,13 @@ test('the panel renders per-level best, the chart and the completed overview', a
   assert.match(source, /platform\.getCompletedLevels\(profileId\)/);
   assert.match(source, /platform\.getScoreHistory\(\)/);
 
-  // The local chart reuses the existing SVG builder through renderScoreHistory.
+  // The local chart reuses the existing SVG builder through renderScoreHistory,
+  // fed with the total high score trend instead of single level scores.
   const renderPersonal = source.match(/function renderPersonalDevelopment\([\s\S]*?\n\}/)?.[0];
   assert.ok(renderPersonal, 'renderPersonalDevelopment must exist');
-  assert.match(renderPersonal, /renderScoreHistory\(\{ history:[\s\S]*?\}, personalScoreHistoryChart\)/);
+  assert.match(renderPersonal, /renderScoreHistory\(\{ trend: highScoreTrend\([\s\S]*?\) \}, personalScoreHistoryChart\)/);
   const renderHistory = source.match(/function renderScoreHistory\([\s\S]*?\n\}/)?.[0];
-  assert.match(renderHistory, /buildScoreHistorySvg\(history\)/);
+  assert.match(renderHistory, /buildScoreHistorySvg\(history, summaryKey\)/);
   assert.match(renderPersonal, /personalCompletedOverview\.textContent = t\('personalDevelopment\.completed'/);
 
   assert.match(html, /id="leaderboard-section"/);
@@ -127,6 +129,7 @@ test('the panel renders per-level best, the chart and the completed overview', a
     personalScoreHistoryChart: {},
     personalCompletedOverview: { textContent: '' },
     TOTAL_LEVELS: 60,
+    highScoreTrend,
     t: (key, vars) => {
       if (key === 'personalDevelopment.perLevelBest') return `Level ${vars.level}: ${vars.score} points`;
       if (key === 'personalDevelopment.perLevelBestUnfinished') {
@@ -141,12 +144,14 @@ test('the panel renders per-level best, the chart and the completed overview', a
     },
   };
   vm.runInNewContext(
-    `${renderPersonal}\nrenderPersonalDevelopment({ best: [{ level: 2, score: 40 }, { level: 5, score: 90 }], history: [{ level: 2, score: 40 }], completed: [2, 5] });`,
+    `${renderPersonal}\nrenderPersonalDevelopment({ best: [{ level: 2, score: 40 }, { level: 5, score: 90 }], history: [{ level: 2, score: 40 }, { level: 5, score: 90 }, { level: 2, score: 10 }], completed: [2, 5] });`,
     context,
   );
   assert.match(context.personalBestList.innerHTML, /Level 2: 40 points/);
   assert.match(context.personalBestList.innerHTML, /Level 5: 90 points/);
-  assert.equal(JSON.stringify(context.chartPayload), JSON.stringify({ history: [{ level: 2, score: 40 }] }));
+  assert.equal(JSON.stringify(context.chartPayload), JSON.stringify({ trend: [
+    { score: 40, achieved_at: null }, { score: 130, achieved_at: null }, { score: 130, achieved_at: null },
+  ] }), 'the chart plots the summed level bests, not single level scores');
   assert.equal(context.chartContainer, context.personalScoreHistoryChart);
   assert.equal(context.personalCompletedOverview.textContent, '2 of 60 levels completed');
 

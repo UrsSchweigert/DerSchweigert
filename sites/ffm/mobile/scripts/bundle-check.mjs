@@ -30,6 +30,7 @@ export const BUNDLE_FILES = Object.freeze([
   'game/timer-bar.js',
   'game/level-numerals.js',
   'game/level-grid.js',
+  'game/score-trend.js',
   'game/encounter-swords.js',
   'game/shapes-header.js',
   'game/volume-control.js',
