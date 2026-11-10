@@ -2,8 +2,8 @@
 // every scene.json, so the cues are also usable by standard <track>/video
 // tooling. scene.json stays the single source of truth.
 //
-//   node sites/ffm/story/tools/build-subtitles.mjs          write the files
-//   node sites/ffm/story/tools/build-subtitles.mjs --check  fail if any is stale
+//   node sites/ffm/static/story/tools/build-subtitles.mjs          write the files
+//   node sites/ffm/static/story/tools/build-subtitles.mjs --check  fail if any is stale
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

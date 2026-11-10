@@ -39,6 +39,11 @@ export const EXCLUDED = [
   /^game\/access-flow\.js$/,
   /^game\/cancel-request\.js$/,
   /^game\/withdrawal-request\.js$/,
+  // Story dioramas ship only what the player needs at runtime; the generation
+  // sources, the approved reference sheets, the art bible and the dev preview
+  // stay on the web side.
+  /^story\/(sources|references|tools)(\/|$)/,
+  /^story\/(preview\.html|README\.md|ART-BIBLE\.md)$/,
   /(^|\/)tests?(\/|$)/,
   /(^|\/)[^/]+\.test\.js$/,
   /^export-sprites\.html$/,

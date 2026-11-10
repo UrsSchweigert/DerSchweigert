@@ -11,9 +11,14 @@
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
+  /* Invisible while the layers load, so the title underneath stays usable. */
+  pointer-events: none;
 }
 
-.diorama.is-playing { opacity: 1; }
+.diorama.is-playing {
+  opacity: 1;
+  pointer-events: auto;
+}
 
 .diorama__stage {
   position: absolute;

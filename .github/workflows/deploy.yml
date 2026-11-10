@@ -229,6 +229,8 @@ jobs:
           node-version: '22'
       - run: node --test sites/ffm/static/game/*.test.js
         if: needs.changes.outputs.ffm_tests == 'true'
+      - run: node --test sites/ffm/static/story/tests/*.test.mjs
+        if: needs.changes.outputs.ffm_tests == 'true'
 
   test-lhc:
     needs: [changes]
@@ -553,13 +555,24 @@ jobs:
             --exclude "*.test.js" \
             --exclude "game/calibrate.html" \
             --exclude "game/_dragon_test.html" \
-            --exclude "export-sprites.html"
+            --exclude "export-sprites.html" \
+            --exclude "story/sources/*" \
+            --exclude "story/references/*" \
+            --exclude "story/tools/*" \
+            --exclude "story/tests/*" \
+            --exclude "story/preview.html" \
+            --exclude "story/README.md" \
+            --exclude "story/ART-BIBLE.md"
           # Excluded keys are not deleted by sync; remove old dev artifacts explicitly.
           aws s3 rm "s3://$BUCKET/" --recursive \
             --exclude "*" --include "*.test.js" \
             --include "game/calibrate.html" --include "game/_dragon_test.html" \
             --include "export-sprites.html" --include "game/level-fiend-allocator.html" \
-            --include "game/level-fiend-allocator.js"
+            --include "game/level-fiend-allocator.js" \
+            --include "story/sources/*" --include "story/references/*" \
+            --include "story/tools/*" --include "story/tests/*" \
+            --include "story/preview.html" --include "story/README.md" \
+            --include "story/ART-BIBLE.md"
           aws s3 cp sites/ffm/static/index.html \
             "s3://$BUCKET/index.html" \
             --cache-control "no-cache, no-store, must-revalidate"

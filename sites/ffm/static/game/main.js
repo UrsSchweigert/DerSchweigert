@@ -46,6 +46,7 @@ import {
 import { getSkillIntro } from './skill-intro.js';
 import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
+import { createStoryIntro } from './story-intro.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -239,6 +240,36 @@ const loadingDone = Promise.race([
   assetsLoaded,
   new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
 ]).then(hideLoadingOverlay);
+
+// --- Story intro (see ../story/) ---
+// The campaign intro is a layered story diorama: it plays on the first open of
+// the install and again before level 1 on every later run (see ./story-intro.js).
+// The player loads lazily and a missing scene never blocks the game.
+const storyBase = new URL('../story/', import.meta.url);
+async function playStoryScene(sceneId) {
+  const sceneBase = new URL(`scenes/${sceneId}/`, storyBase);
+  const [{ createDioramaPlayer }, scene] = await Promise.all([
+    import(new URL('player/diorama-player.js', storyBase).href),
+    fetch(new URL('scene.json', sceneBase)).then((response) => {
+      if (!response.ok) throw new Error(`Story scene ${sceneId}: HTTP ${response.status}`);
+      return response.json();
+    }),
+  ]);
+  const player = createDioramaPlayer({
+    container: document.body,
+    scene,
+    baseUrl: sceneBase,
+    locale: getLocale(),
+  });
+  try {
+    return await player.play();
+  } finally {
+    player.destroy();
+  }
+}
+const storyIntro = createStoryIntro({ play: playStoryScene });
+// Plays after the loading screen is gone, so it is never hidden behind it.
+const introAtOpen = loadingDone.then(() => storyIntro.playOnOpen());
 
 // --- Checkout redirect handling ---
 // After Stripe checkout completes, user is redirected back with billing=success
@@ -1435,6 +1466,9 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
       const targetIndex = targetLevel - 1;
       state.score = 0;
       levelStartScore = state.score;
+      // Level 1 opens the story: play the intro unless it already ran this
+      // session (the first app open shows it before the title appears).
+      await storyIntro.playBeforeLevel(targetLevel);
       diffSelect.style.display = 'none';
       await startLevel(targetIndex, true);
     } catch (error) {
@@ -3588,7 +3622,10 @@ if (platform.isApp) {
         button.hidden = false;
         button.addEventListener('click', () => firstOpenNotice?.open());
       }
-      return loadingDone.then(() => firstOpenNotice?.maybeShow());
+      return loadingDone
+        // The story intro comes first, so the notice is not hidden behind it.
+        .then(() => introAtOpen)
+        .then(() => firstOpenNotice?.maybeShow());
     })
     .catch(() => {});
 }

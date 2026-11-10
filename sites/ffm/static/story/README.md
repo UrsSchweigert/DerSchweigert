@@ -5,9 +5,11 @@ Full-screen, layered paper-theatre scenes for the campaign story
 and the finish. Each scene is 3-4 PNG cutout layers moving in relation to one
 another, a lighting overlay, and English/German subtitles on top.
 
-This folder is **not shipped yet**: it lives outside `static/`, so neither the
-website deploy nor the app bundle (`mobile/scripts/copy-assets.mjs`) picks it
-up. Integration into the level flow is a separate step (see below).
+This folder ships with the game: the website deploy syncs `static/`, and the
+app bundle copies what `mobile/scripts/copy-assets.mjs` keeps (the generation
+sources, reference sheets, art bible and `preview.html` stay web-side). Only
+the intro is wired into the game so far — it plays on the first open of an
+install and again before level 1 (see [Integration](#integration)).
 
 ## Layout
 
@@ -76,7 +78,7 @@ took about 30 minutes per backdrop on a 16 GB Mac.
    `sources/<id>/<layer>-raw.png`, then cut out:
 
    ```sh
-   python3 sites/ffm/story/tools/cutout.py sources/<id>/hero-raw.png scenes/<id>/hero.png
+   python3 sites/ffm/static/story/tools/cutout.py sources/<id>/hero-raw.png scenes/<id>/hero.png
    ```
 
    Record any manual retouch of a raw render in `layers.json`.
@@ -84,26 +86,41 @@ took about 30 minutes per backdrop on a 16 GB Mac.
    subtitles, preview, and run the tests:
 
    ```sh
-   node sites/ffm/story/tools/build-subtitles.mjs
-   python3 -m http.server 8190 --directory sites/ffm/story   # open /preview.html
-   node --test sites/ffm/story/tests/*.test.mjs
+   node sites/ffm/static/story/tools/build-subtitles.mjs
+   python3 -m http.server 8190 --directory sites/ffm/static/story   # open /preview.html
+   node --test sites/ffm/static/story/tests/*.test.mjs
    ```
 
 5. **Review** — an independent reviewer compares every layer and preview frame
    with `ART-BIBLE.md` and the reference sheet before the scene is accepted.
 
-## Inserting scenes between levels (later)
+## Integration
+
+The intro is wired in `game/main.js` through
+[game/story-intro.js](../game/story-intro.js), which owns the "when":
+
+- **First open of an install** — the intro plays once, right after the loading
+  screen, before the title screen is used. The device-wide flag
+  `arithmoslayer:story-intro-open-shown` (localStorage) records that.
+- **Starting level 1** — the intro plays again on every later run, but at most
+  once per run, so the first run never repeats what it just showed. Other
+  levels, practice runs and shapes mode never trigger it.
+
+Playing a scene:
 
 ```js
-import { createDioramaPlayer } from './story/player/diorama-player.js';
+import { createDioramaPlayer } from '../story/player/diorama-player.js';
 
 const player = createDioramaPlayer({ container: document.body, scene, baseUrl, locale: getLocale() });
 const result = await player.play(); // 'ended' or 'skipped'
 player.destroy();
 ```
 
-Planned slots: the intro before level 1 on a new campaign, the `before` scene
-of a level when the player starts it from the level-clear "Next level" button,
-and the finish after level 60's "Finish game". Pause the player with
-`pause()`/`resume()` from the app lifecycle hooks. Scenes stay optional and
-skippable, and practice/shapes sessions never show them.
+The stylesheet (`story/player/diorama-player.css`) is linked from
+`index.html`. Scenes stay optional and skippable: a missing or broken scene
+logs and continues into the level.
+
+Still to come: an act opening before each act's first level, a `before` scene
+when a level is started from the level-clear "Next level" button, and the
+finish after level 60's "Finish game". Pause the player with `pause()` and
+`resume()` from the app lifecycle hooks.

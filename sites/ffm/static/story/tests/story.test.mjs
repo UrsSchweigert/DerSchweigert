@@ -1,5 +1,5 @@
 // Story diorama checks: scene manifests, layer assets, subtitles, and the
-// player's pure helpers. Run: node --test sites/ffm/story/tests/*.test.mjs
+// player's pure helpers. Run: node --test sites/ffm/static/story/tests/*.test.mjs
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -121,7 +121,7 @@ for (const id of sceneDirs) {
       for (const locale of LOCALES) {
         const file = join(scenesDir, id, `subtitles.${locale}.vtt`);
         assert.equal(readFileSync(file, 'utf8'), toVtt(scene, locale),
-          `${file} is stale: run node sites/ffm/story/tools/build-subtitles.mjs`);
+          `${file} is stale: run node sites/ffm/static/story/tools/build-subtitles.mjs`);
       }
     });
 
