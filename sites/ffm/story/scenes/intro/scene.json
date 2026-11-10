@@ -1,0 +1,223 @@
+{
+  "id": "intro",
+  "slot": {
+    "type": "intro"
+  },
+  "title": {
+    "en": "The Broken Wards",
+    "de": "Die zerbrochenen Siegel"
+  },
+  "duration": 44,
+  "layers": [
+    {
+      "id": "backdrop",
+      "role": "backdrop",
+      "src": "backdrop.png",
+      "x": -48,
+      "y": -150,
+      "width": 2016,
+      "motion": [
+        {
+          "t": 0,
+          "x": 0,
+          "scale": 1
+        },
+        {
+          "t": 44,
+          "x": -24,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "village",
+      "role": "midground",
+      "src": "village.png",
+      "x": -70,
+      "y": 310,
+      "width": 2080,
+      "motion": [
+        {
+          "t": 0,
+          "x": 0
+        },
+        {
+          "t": 44,
+          "x": -50
+        }
+      ]
+    },
+    {
+      "id": "hero",
+      "role": "character",
+      "src": "hero.png",
+      "x": 1010,
+      "y": 170,
+      "width": 580,
+      "motion": [
+        {
+          "t": 0,
+          "x": 0,
+          "y": 120,
+          "opacity": 0,
+          "scale": 1
+        },
+        {
+          "t": 22.6,
+          "x": -30,
+          "y": 120,
+          "opacity": 0,
+          "scale": 1
+        },
+        {
+          "t": 25.6,
+          "x": -45,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.01
+        },
+        {
+          "t": 44,
+          "x": -80,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "foreground",
+      "role": "foreground",
+      "src": "foreground.png",
+      "x": -140,
+      "y": 760,
+      "width": 2200,
+      "motion": [
+        {
+          "t": 0,
+          "x": 0
+        },
+        {
+          "t": 44,
+          "x": -140
+        }
+      ]
+    }
+  ],
+  "lighting": {
+    "ambient": "linear-gradient(180deg, rgba(40,52,110,0.30) 0%, rgba(20,26,60,0.10) 55%, rgba(30,18,10,0.35) 100%)",
+    "glows": [
+      {
+        "layer": "backdrop",
+        "x": 1428,
+        "y": 130,
+        "radius": 300,
+        "color": "rgba(255,236,170,0.35)",
+        "from": 0,
+        "pulse": 6
+      },
+      {
+        "layer": "village",
+        "x": 500,
+        "y": 560,
+        "radius": 280,
+        "color": "rgba(255,190,90,0.22)",
+        "from": 0,
+        "pulse": 3.2
+      },
+      {
+        "layer": "hero",
+        "x": 1406,
+        "y": 595,
+        "radius": 230,
+        "color": "rgba(150,215,255,0.55)",
+        "from": 23.2,
+        "pulse": 2.4
+      }
+    ],
+    "motes": {
+      "count": 24,
+      "color": "#cfe6ff"
+    },
+    "events": [
+      {
+        "type": "dim",
+        "at": 11.4,
+        "duration": 3.8,
+        "color": "#0b0f26"
+      },
+      {
+        "type": "flash",
+        "at": 28,
+        "duration": 1.2,
+        "color": "#bfe8ff"
+      }
+    ]
+  },
+  "subtitles": [
+    {
+      "start": 0.8,
+      "end": 5.4,
+      "text": {
+        "en": "For generations, six great wards have kept the kingdom safe.",
+        "de": "Seit Generationen schützen sechs große Schutzsiegel das Königreich."
+      }
+    },
+    {
+      "start": 5.8,
+      "end": 11.0,
+      "text": {
+        "en": "Their runes guide the rivers, guard the harvest, and hold the night beyond the door.",
+        "de": "Ihre Runen lenken die Flüsse, behüten die Ernte und halten die Nacht vor der Tür."
+      }
+    },
+    {
+      "start": 11.4,
+      "end": 15.0,
+      "text": {
+        "en": "Last night, something broke them.",
+        "de": "Letzte Nacht hat etwas sie zerbrochen."
+      }
+    },
+    {
+      "start": 15.4,
+      "end": 22.2,
+      "text": {
+        "en": "Now strange creatures walk the roads, and a voice from the distant palace calls itself the Hollow King.",
+        "de": "Nun ziehen seltsame Kreaturen über die Wege, und eine Stimme aus dem fernen Palast nennt sich der Hohle König."
+      }
+    },
+    {
+      "start": 22.6,
+      "end": 27.7,
+      "text": {
+        "en": "At your village gate, you find an old sword buried beneath a fallen rune-stone.",
+        "de": "Am Tor deines Dorfes findest du ein altes Schwert unter einem umgestürzten Runenstein."
+      }
+    },
+    {
+      "start": 28.0,
+      "end": 33.2,
+      "text": {
+        "en": "As you lift it, a question shines along the blade. You speak the answer.",
+        "de": "Als du es hebst, leuchtet eine Frage auf der Klinge. Du sprichst die Antwort."
+      }
+    },
+    {
+      "start": 33.6,
+      "end": 38.2,
+      "text": {
+        "en": "The sword lights up. Beyond the fence, something stirs.",
+        "de": "Das Schwert erstrahlt. Hinter dem Zaun regt sich etwas."
+      }
+    },
+    {
+      "start": 38.6,
+      "end": 42.6,
+      "text": {
+        "en": "Your journey begins at home.",
+        "de": "Deine Reise beginnt zu Hause."
+      }
+    }
+  ]
+}

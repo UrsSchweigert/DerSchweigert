@@ -1,0 +1,197 @@
+/* diorama-player.css — full-screen paper-theatre story scenes. */
+
+.diorama {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background: #120e0a;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.diorama.is-playing { opacity: 1; }
+
+.diorama__stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+  overflow: hidden;
+}
+
+.diorama__layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 60%;
+  will-change: transform, opacity;
+}
+
+.diorama__img {
+  position: absolute;
+  display: block;
+  height: auto;
+  pointer-events: none;
+  /* Cardboard cutouts stand slightly apart: a soft contact shadow sells depth. */
+  filter: drop-shadow(0 14px 12px rgba(20, 10, 0, 0.45)) drop-shadow(0 2px 2px rgba(20, 10, 0, 0.35));
+}
+
+.diorama__img--flat { filter: none; }
+
+.diorama__ambient,
+.diorama__flash,
+.diorama__dim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  z-index: 40;
+}
+
+.diorama__dim {
+  opacity: 0;
+  z-index: 58;
+}
+
+.diorama__flash {
+  mix-blend-mode: screen;
+  opacity: 0;
+  z-index: 60;
+}
+
+.diorama__glow {
+  position: absolute;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.diorama__motes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 55;
+}
+
+.diorama__mote {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow: 0 0 10px 3px currentColor;
+  mix-blend-mode: screen;
+  animation: diorama-mote 9s linear infinite;
+}
+
+@keyframes diorama-mote {
+  0% { transform: translate(0, 0); opacity: 0; }
+  15% { opacity: 0.9; }
+  80% { opacity: 0.7; }
+  100% { transform: translate(60px, -260px); opacity: 0; }
+}
+
+/* Aged-paper surface over everything: fibre noise plus warm, uneven toning. */
+.diorama__paper {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+  background:
+    radial-gradient(ellipse at 20% 15%, rgba(255, 236, 200, 0) 0%, rgba(140, 95, 40, 0.25) 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.62  0 0 0 0 0.5  0 0 0 0 0.34  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.diorama__vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(18, 10, 2, 0.75) 100%);
+}
+
+.diorama__subtitle {
+  position: absolute;
+  left: 50%;
+  bottom: max(5vh, calc(env(safe-area-inset-bottom) + 12px));
+  width: min(82vw, 1100px);
+  margin: 0;
+  padding: 0.55em 1.1em 0.65em;
+  transform: translate(-50%, 8px);
+  box-sizing: border-box;
+  /* A torn parchment strip pinned over the scene. */
+  background:
+    linear-gradient(180deg, rgba(255, 246, 222, 0.96), rgba(236, 219, 182, 0.96));
+  color: #2b1a0c;
+  border-radius: 3px 6px 4px 7px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 0 22px rgba(140, 95, 40, 0.35);
+  font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+  font-size: clamp(16px, 2.6vw, 30px);
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  z-index: 10;
+}
+
+.diorama__subtitle.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.diorama__subtitle:empty { display: none; }
+
+/* Landscape phones: a slimmer strip so it covers less of the scene. */
+@media (max-height: 500px) {
+  .diorama__subtitle {
+    bottom: max(3vh, calc(env(safe-area-inset-bottom) + 8px));
+    width: min(88vw, 1100px);
+    padding: 0.35em 1em 0.45em;
+    font-size: clamp(14px, 2.05vw, 20px);
+    line-height: 1.3;
+  }
+}
+
+.diorama__controls {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  display: flex;
+  gap: 10px;
+  z-index: 11;
+}
+
+.diorama__btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 2px solid rgba(255, 236, 200, 0.75);
+  border-radius: 6px;
+  background: rgba(30, 20, 10, 0.55);
+  color: #fff3dc;
+  font: 600 16px/1 Georgia, serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.diorama__btn:hover,
+.diorama__btn:focus-visible {
+  background: rgba(60, 38, 16, 0.8);
+  outline: 2px solid #ffd27a;
+  outline-offset: 2px;
+}
+
+.diorama__btn[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .diorama,
+  .diorama__subtitle { transition: none; }
+}
+
+.diorama--reduced .diorama__mote { display: none; }

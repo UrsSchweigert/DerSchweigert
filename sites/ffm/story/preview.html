@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Arithmo Slayer — story diorama preview</title>
+  <link rel="stylesheet" href="player/diorama-player.css">
+  <style>
+    body { margin: 0; background: #1b140d; color: #f5e6c8; font: 16px/1.4 Georgia, serif; }
+    .picker { padding: 24px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .picker button, .picker select { min-height: 44px; padding: 0 16px; font: inherit; }
+    .hint { padding: 0 24px; opacity: 0.75; }
+  </style>
+</head>
+<body>
+  <!--
+    Development preview, not shipped with the game. Serve sites/ffm/story over
+    HTTP (ES modules do not load from file://):
+      python3 -m http.server 8190 --directory sites/ffm/story
+    then open http://127.0.0.1:8190/preview.html
+    Query parameters: scene=<id>  lang=en|de  t=<seconds> (freeze on that frame)
+    reduced=1 (force reduced motion)  autoplay=1
+  -->
+  <div class="picker">
+    <label>Scene <select id="scene"></select></label>
+    <label>Language <select id="lang"><option value="en">English</option><option value="de">Deutsch</option></select></label>
+    <button type="button" id="play">Play</button>
+  </div>
+  <p class="hint">Landscape phone or tablet, full screen. Esc or “Skip” closes the scene.</p>
+  <script type="module">
+    import { createDioramaPlayer } from './player/diorama-player.js';
+
+    const params = new URLSearchParams(location.search);
+    const index = await (await fetch('scenes/index.json')).json();
+    const sceneSelect = document.getElementById('scene');
+    const langSelect = document.getElementById('lang');
+    for (const entry of index.scenes) {
+      const option = new Option(`${entry.id} — ${entry.slot.type}${entry.slot.level ? ' ' + entry.slot.level : ''}`, entry.id);
+      sceneSelect.add(option);
+    }
+    if (params.get('scene')) sceneSelect.value = params.get('scene');
+    if (params.get('lang')) langSelect.value = params.get('lang');
+
+    async function playSelected() {
+      const id = sceneSelect.value;
+      const baseUrl = new URL(`scenes/${id}/`, location.href);
+      const scene = await (await fetch(new URL('scene.json', baseUrl))).json();
+      const player = createDioramaPlayer({
+        container: document.body,
+        scene,
+        baseUrl,
+        locale: langSelect.value,
+        reducedMotion: params.get('reduced') === '1' ? true : undefined,
+      });
+      window.__diorama = player;
+      const done = player.play();
+      if (params.has('t')) {
+        // Wait one frame so play() has loaded the layers before freezing.
+        await new Promise(r => setTimeout(r, 50));
+        const check = setInterval(() => {
+          if (player.element.classList.contains('is-playing')) {
+            clearInterval(check);
+            player.pause();
+            player.seek(Number(params.get('t')));
+            document.documentElement.dataset.ready = '1';
+          }
+        }, 20);
+      }
+      const result = await done;
+      player.destroy();
+      document.getElementById('play').focus();
+      console.info(`scene ${id}: ${result}`);
+    }
+
+    document.getElementById('play').addEventListener('click', playSelected);
+    if (params.get('autoplay') === '1' || params.has('t')) playSelected();
+  </script>
+</body>
+</html>
