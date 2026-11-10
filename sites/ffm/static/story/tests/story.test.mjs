@@ -31,13 +31,42 @@ function pngInfo(file) {
     at += 12 + length;
   }
   return {
-    width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), colorType: buf[25], chunks,
+    width: buf.readUInt32BE(16),
+    height: buf.readUInt32BE(20),
+    hasAlpha: buf[25] === 6 || (buf[25] === 3 && chunks.has('tRNS')),
   };
 }
 
-/** Cutouts are either RGBA or a palette PNG with a tRNS alpha table. */
-function hasAlphaChannel(info) {
-  return info.colorType === 6 || (info.colorType === 3 && info.chunks.has('tRNS'));
+/** WebP: VP8X carries the canvas size, VP8 the frame size, VP8L a bitfield. */
+function webpInfo(file) {
+  const buf = readFileSync(file);
+  assert.equal(buf.subarray(0, 4).toString('latin1'), 'RIFF', `${file} is not a RIFF file`);
+  assert.equal(buf.subarray(8, 12).toString('latin1'), 'WEBP', `${file} is not a WebP`);
+  const chunk = buf.subarray(12, 16).toString('latin1');
+  if (chunk === 'VP8X') {
+    return {
+      width: buf.readUIntLE(24, 3) + 1,
+      height: buf.readUIntLE(27, 3) + 1,
+      hasAlpha: (buf[20] & 0x10) !== 0,
+    };
+  }
+  if (chunk === 'VP8 ') {
+    return {
+      width: buf.readUInt16LE(26) & 0x3fff,
+      height: buf.readUInt16LE(28) & 0x3fff,
+      hasAlpha: false,
+    };
+  }
+  if (chunk === 'VP8L') {
+    const bits = buf.readUInt32LE(21);
+    return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1, hasAlpha: true };
+  }
+  throw new Error(`${file}: unknown WebP chunk ${chunk}`);
+}
+
+/** Size and transparency of a shipped layer (PNG or WebP). */
+function imageInfo(file) {
+  return file.endsWith('.webp') ? webpInfo(file) : pngInfo(file);
 }
 
 function loadScene(id) {
@@ -80,10 +109,11 @@ for (const id of sceneDirs) {
         assert.ok(ROLES.has(layer.role), `${layer.id}: role ${layer.role}`);
         const file = join(scenesDir, id, layer.src);
         assert.ok(existsSync(file), `${layer.id}: ${layer.src} missing`);
-        const info = pngInfo(file);
+        assert.match(layer.src, /\.(webp|png)$/, `${layer.id}: layers must be webp or png`);
+        const info = imageInfo(file);
         assert.ok(info.width >= 400 && info.width <= 2400, `${layer.id}: width ${info.width}`);
         if (layer.role !== 'backdrop') {
-          assert.ok(hasAlphaChannel(info), `${layer.id}: cutout layers need an alpha channel`);
+          assert.ok(info.hasAlpha, `${layer.id}: cutout layers need an alpha channel`);
         }
       }
     });
@@ -91,7 +121,7 @@ for (const id of sceneDirs) {
     it('keeps the backdrop covering the whole stage throughout its motion', () => {
       const backdrop = scene.layers[0];
       const file = join(scenesDir, id, backdrop.src);
-      const { width, height } = pngInfo(file);
+      const { width, height } = imageInfo(file);
       const drawnH = backdrop.width * height / width;
       // Layer wrappers scale about 50% / 60% of the stage (see .diorama__layer).
       const ox = STAGE_W * 0.5;
