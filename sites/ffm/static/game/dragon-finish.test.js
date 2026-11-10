@@ -1,7 +1,7 @@
-// dragon-finish.test.js — in the app's campaign a successful dragon breath
-// resolves every remaining encounter once, pays a deterministic proportional
-// bonus, and hands off to the existing single level-clear path. The web build
-// keeps today's single-fiend breath.
+// dragon-finish.test.js — in the campaign (web and app) a successful dragon
+// breath resolves every remaining encounter once, pays a deterministic
+// proportional bonus, and hands off to the existing single level-clear path.
+// Practice and Shapes keep today's present-fiends-only breath.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -79,45 +79,49 @@ test('the per-fiend dragon bonus is the level baseline divided by the wave, dete
   assert.equal(dragonFinishPerFiendValue({ level: 1, waveSize: 0, fiendHP: 1 }), 0);
 });
 
-test('an app campaign dragon breath awards the proportional bonus once and clears the level once', () => {
-  const live = { isDead: false, state: 'idle' };
-  const dead = { isDead: true, state: 'death' };
-  const requeued = { isDead: false, state: 'walk' };
-  const { context, calls } = createContext({
-    spawnQueue: [0, 0, 0],
-    requeuedFiends: [requeued],
-    fiends: [live, dead, requeued],
-  });
-  const remaining = 3 + 2; // 3 queued, plus the live and requeued fiends (dead excluded, requeued deduped)
-  const expectedBonus = remaining * dragonFinishPerFiendValue(CONFIG);
+test('a campaign dragon breath awards the proportional bonus once and clears the level once', () => {
+  for (const isApp of [true, false]) {
+    const live = { isDead: false, state: 'idle' };
+    const dead = { isDead: true, state: 'death' };
+    const requeued = { isDead: false, state: 'walk' };
+    const { context, calls } = createContext({
+      isApp,
+      spawnQueue: [0, 0, 0],
+      requeuedFiends: [requeued],
+      fiends: [live, dead, requeued],
+    });
+    const remaining = 3 + 2; // 3 queued, plus the live and requeued fiends (dead excluded, requeued deduped)
+    const expectedBonus = remaining * dragonFinishPerFiendValue(CONFIG);
+    const platformLabel = isApp ? 'app' : 'web';
 
-  assert.equal(vm.runInContext('finishDragonLevel()', context), true);
-  assert.equal(context.state.score, expectedBonus);
-  assert.equal(context.state.enemiesDefeated, remaining);
-  assert.equal(context.spawnQueue.length, 0, 'no queued spawn survives');
-  assert.equal(context.requeuedFiends.length, 0, 'no requeued fiend survives');
-  assert.equal(context.fiends.length, 0, 'no enemy survives');
-  assert.equal(context.activeFiend, null);
-  assert.equal(context.pendingProblemActivation, null);
-  assert.equal(context.heroLunge, null);
-  assert.equal(context.activeLightningBolts.length, 0);
-  assert.equal(context.activeFireballs.length, 0);
-  assert.equal(context.state.timerActive, false, 'the question timer stops');
-  assert.equal(context.inputDisabled, true);
-  assert.equal(calls.inputDisabled, 1);
-  assert.equal(calls.waves, 1, 'the single level-clear path runs once');
+    assert.equal(vm.runInContext('finishDragonLevel()', context), true, `${platformLabel} campaign finishes`);
+    assert.equal(context.state.score, expectedBonus);
+    assert.equal(context.state.enemiesDefeated, remaining);
+    assert.equal(context.spawnQueue.length, 0, 'no queued spawn survives');
+    assert.equal(context.requeuedFiends.length, 0, 'no requeued fiend survives');
+    assert.equal(context.fiends.length, 0, 'no enemy survives');
+    assert.equal(context.activeFiend, null);
+    assert.equal(context.pendingProblemActivation, null);
+    assert.equal(context.heroLunge, null);
+    assert.equal(context.activeLightningBolts.length, 0);
+    assert.equal(context.activeFireballs.length, 0);
+    assert.equal(context.state.timerActive, false, 'the question timer stops');
+    assert.equal(context.inputDisabled, true);
+    assert.equal(calls.inputDisabled, 1);
+    assert.equal(calls.waves, 1, 'the single level-clear path runs once');
 
-  assert.equal(vm.runInContext('finishDragonLevel()', context), true);
-  assert.equal(context.state.score, expectedBonus, 'a second breath adds no score');
-  assert.equal(context.state.enemiesDefeated, remaining);
-  assert.equal(calls.waves, 1, 'the completion write is not repeated');
+    assert.equal(vm.runInContext('finishDragonLevel()', context), true);
+    assert.equal(context.state.score, expectedBonus, 'a second breath adds no score');
+    assert.equal(context.state.enemiesDefeated, remaining);
+    assert.equal(calls.waves, 1, 'the completion write is not repeated');
+  }
 });
 
-test('web, practice and Shapes never finish the campaign from a dragon breath', () => {
+test('practice and Shapes never finish the campaign from a dragon breath', () => {
   for (const options of [
-    { isApp: false },
     { practiceRun: { kind: 'targeted' } },
     { isShapesMode: true },
+    { isApp: false, practiceRun: { kind: 'targeted' } },
   ]) {
     const { context, calls } = createContext({
       ...options,
@@ -136,11 +140,11 @@ test('web, practice and Shapes never finish the campaign from a dragon breath', 
   }
 });
 
-test('the breath handler keeps the web single-fiend resolveDragonBreath path behind the app gate', () => {
+test('the breath handler keeps the present-fiends-only resolveDragonBreath path behind the campaign gate', () => {
   assert.match(
     source,
     /if \(d\.breathJustCompleted\) \{\s*audio\.playDragonBreath\(\);\s*if \(!finishDragonLevel\(\)\) \{\s*state\.enemiesDefeated \+= resolveDragonBreath\(fiends\);/,
   );
-  assert.match(source, /function finishDragonLevel\(\) \{\s*if \(dragonFinishResolved\) return true;\s*if \(!platform\.isApp \|\| practiceRun \|\| state\.isShapesMode\) return false;/);
+  assert.match(source, /function finishDragonLevel\(\) \{\s*if \(dragonFinishResolved\) return true;\s*if \(practiceRun \|\| state\.isShapesMode\) return false;/);
   assert.match(source, /waveClearing = false;\s*dragonFinishResolved = false;/);
 });
