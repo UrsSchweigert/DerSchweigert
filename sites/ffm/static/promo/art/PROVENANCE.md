@@ -259,3 +259,62 @@ keyed out (r≈g<b, b−max(r,g) ≈ 55) so each still can use a contact shadow 
 matches its own background light. Sprites and orbs are resampled premultiplied
 (no dark fringe on the black-matted edges). Delivery: 1600×900 WebP q88
 method 6, 277 / 237 / 223 KB — no HUD, no text, no UI.
+
+## action/ — hero limb repair (2026-11-10, retouch pass)
+
+Owner report: in all three action stills the hero's **arms and hands** were
+mangled by the earlier AI upscaling pass — the sword hand was a mitten/blob
+merged with the hilt (no thumb, no fingers), the other arm ended in a rounded
+stump with no hand, and the forearm-to-hand joint plus the shoulder/pauldron
+junction were mushy. Everything else on these stills was already approved.
+
+**Only the hero's limbs were re-edited.** Background, ground, fiend, spell orb,
+sword, cape, hair and head are the untouched pixels of the previous pass.
+
+| File | Limbs repaired | Size |
+| --- | --- | --- |
+| `action/fight.webp` | hilt hand (mitten → fist with separate fingers + thumb on the grip) and the arm below the pauldron (stump → forearm into a fist) | 1600×900, 268 KB |
+| `action/fireball.webp` | sword hand (shapeless blob → hand with four fingers and a thumb curled round the hilt, forearm joined to the wrist) | 1600×900, 230 KB |
+| `action/lightning.webp` | same casting-pose repair as `fireball` | 1600×900, 217 KB |
+
+**Model.** The `image_generation` tool (Copilot's GPT image model — the one the
+owner calls "GPT Flash"; the tool returns no model id/version, outputs were
+1323×1189 PNGs with the input aspect preserved). Three generations were made
+(fight twice — the first lengthened the arm and added bracers, so it was
+rejected and re-prompted).
+
+**Method.** Per still: crop the hero region with a generous margin (fight
+400×360 at x 320–719, y 140–499; fireball and lightning 480×360 at x 20–499 /
+60–539, y 140–499) → upscale **2× NEAREST** → edit with the prompt "repair ONLY
+the hero's arms/hands, same pose, same character, outfit, hair, sword, pixel
+block size and framing, do not touch background/other characters/spell effect,
+no new accessories" → **2× BOX** back to crop size (best alignment offset
+(0,0) for all three, so no resampling shift) → composite through a hard mask
+onto the pre-edit still.
+
+Mask: the hero plates (`render4/spr/hero-swing{0,2}-refined.png`) were tested
+as silhouettes. `hero-swing0` registers exactly on `fight` (plate scale 3.10 at
+offset 302,42 — cross-checked by masked SSD and by contour-gradient search),
+but neither plate registers on the two casting stills: their hero is the
+deformed upscale the owner complained about, so the plate silhouette (and its
+baked-in spell arc) does not line up. For those, and for the tighter fight
+pass, the limb mask is hand-traced polygons over the arms/hands/shoulders —
+verified against 4–6× gridded crops — then **dilated 6 px** and **Gaussian
+feathered 3 px**. A per-channel gain/offset was fitted on the pixels outside
+the mask and applied to the repair layer before masking so the pasted limb
+carries the original's colour statistics. Delivery: WebP q88 method 6.
+
+Verification (composite, before encoding): every changed pixel lies inside the
+mask — changed-outside-mask = **0** for all three (fight 28 252, fireball
+13 347, lightning 13 008 changed pixels, all inside). At file level the
+residual difference outside the mask is WebP re-encode noise only: its
+distribution matches re-encoding the untouched originals at the same settings
+(e.g. fight, pixels differing by >5 levels outside the mask: 50 120 here vs
+54 361 for a plain re-encode). Pixel-block density inside the repaired limbs
+matches the original (adjacent-pixel flatness 0.37–0.50 vs 0.41–0.49 before,
+untouched background 0.55–0.71 unchanged).
+
+Reviewer should look at: the seam along the top edge of the repaired arm (it
+runs along the arm silhouette but crosses the wheat field in `fireball` and the
+grass in `lightning`), and the fact that the repaired forearms read slightly
+lighter than the untouched skin.
