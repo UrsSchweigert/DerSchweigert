@@ -263,6 +263,46 @@ test('the actual game-over retry restores hearts, time and checkpoint, including
   }
 });
 
+test('the level-clear fanfare fires exactly once and only for a cleared level', () => {
+  const result = source.match(/function triggerWaveClear\([\s\S]*?\n\}/)[0];
+
+  function run({ level = 3, practice = false } = {}) {
+    const calls = { hymns: 0, cues: 0, heals: 0, scheduled: 0 };
+    const context = {
+      waveClearing: false,
+      gameRunning: true,
+      practiceRun: practice ? { endless: false, completed: false } : null,
+      state: { level, hearts: 1, maxHearts: 3 },
+      TOTAL_LEVELS: 60,
+      GAME_CONFIG: { healingAuraDuration: 1 },
+      syncKeepAwake() {},
+      hero: { setState() {}, _healAura: 0 },
+      hud: { update() {} },
+      audio: {
+        playVictoryHymn() { calls.hymns++; return Promise.resolve(true); },
+        playLevelClear() { calls.cues++; },
+        playHeal() { calls.heals++; },
+      },
+      scheduleGameplayTimeout() { calls.scheduled++; },
+      triggerLevelClear() {},
+      finishPracticeSession() { calls.scheduled++; },
+    };
+    vm.createContext(context);
+    vm.runInContext(result, context);
+    context.triggerWaveClear();
+    context.triggerWaveClear();   // the waveClearing guard must swallow the repeat
+    return calls;
+  }
+
+  const cleared = run();
+  assert.equal(cleared.hymns, 1, 'one fanfare per cleared level, even if the clear fires twice');
+  assert.equal(cleared.cues, 0, 'the synth cue is only the fallback');
+  assert.equal(cleared.scheduled, 1, 'the clear overlay is scheduled once');
+
+  assert.equal(run({ level: 60 }).hymns, 0, 'the final level hands over to triggerGameOver');
+  assert.equal(run({ practice: true }).hymns, 0, 'practice runs have no fanfare');
+});
+
 test('successful completion uses victory wording and never plays defeat audio', () => {
   const result = source.match(/function triggerGameOver\([\s\S]*?\n\}/)[0];
   const title = { textContent: '' };

@@ -10,6 +10,11 @@
 // loses nothing. This player owns that source for a single-track playlist and
 // is driven by AudioEngine for volume, mute, pause and stop.
 
+// A short ramp at both ends keeps a track change from being a hard cut. The
+// loop itself stays seamless: the fade lives on a node after the source.
+const FADE_IN = 0.18;
+const FADE_OUT = 0.15;
+
 export class MusicLoop {
   /**
    * @param {object} options
@@ -31,6 +36,7 @@ export class MusicLoop {
     this._buffer = null;
     this._file = null;
     this._source = null;
+    this._fade = null;
     this._offset = 0;
     this._startedAt = 0;
   }
@@ -67,7 +73,7 @@ export class MusicLoop {
   pause() {
     if (!this._source) return;
     this._offset = this._position();
-    this._stopSource();
+    this._stopSource({ fade: true });
   }
 
   resume() {
@@ -77,7 +83,7 @@ export class MusicLoop {
 
   /** Stop output and rewind; the decoded track stays cached for a replay. */
   stop() {
-    this._stopSource();
+    this._stopSource({ fade: true });
     this._offset = 0;
   }
 
@@ -89,7 +95,7 @@ export class MusicLoop {
   }
 
   _start(offset) {
-    this._stopSource();
+    this._stopSource({ fade: true });
     if (!this._buffer) return null;
     const duration = this._buffer.duration;
     const start = duration > 0 ? offset % duration : 0;
@@ -98,27 +104,79 @@ export class MusicLoop {
     source.loop = true;
     source.loopStart = 0;
     source.loopEnd = duration;
-    source.connect(this._destination);
+    const fade = this._createFade();
+    if (fade) {
+      source.connect(fade);
+      fade.connect(this._destination);
+    } else {
+      source.connect(this._destination);
+    }
     source.start(0, start);
+    this._fadeIn(fade);
     this._offset = start;
     this._startedAt = this._ctx.currentTime;
     this._source = source;
+    this._fade = fade;
     return source;
   }
 
-  _stopSource() {
+  _createFade() {
+    if (typeof this._ctx.createGain !== 'function') return null;
+    return this._ctx.createGain();
+  }
+
+  _fadeIn(fade) {
+    if (!fade || typeof fade.gain.linearRampToValueAtTime !== 'function') return;
+    const now = this._ctx.currentTime;
+    try {
+      fade.gain.setValueAtTime(0, now);
+      fade.gain.linearRampToValueAtTime(1, now + FADE_IN);
+    } catch {
+      // Envelope automation unsupported: play at full level.
+    }
+  }
+
+  _stopSource({ fade = false } = {}) {
     const source = this._source;
     if (!source) return;
+    const node = this._fade;
     this._source = null;
+    this._fade = null;
+    if (fade && node && typeof node.gain.linearRampToValueAtTime === 'function') {
+      const now = this._ctx.currentTime;
+      try {
+        if (typeof node.gain.cancelScheduledValues === 'function') node.gain.cancelScheduledValues(now);
+        node.gain.setValueAtTime(typeof node.gain.value === 'number' ? node.gain.value : 1, now);
+        node.gain.linearRampToValueAtTime(0, now + FADE_OUT);
+      } catch {
+        // Fall through to the immediate stop below.
+      }
+      try {
+        source.stop(now + FADE_OUT);
+        source.onended = () => this._release(source, node);
+        return;
+      } catch {
+        // Already stopped: release right away.
+      }
+    }
     try {
       source.stop();
     } catch {
       // Already stopped: nothing to release.
     }
+    this._release(source, node);
+  }
+
+  _release(source, node) {
     try {
       source.disconnect();
     } catch {
       // Disconnecting a torn-down node is not an error worth reporting.
+    }
+    try {
+      node?.disconnect();
+    } catch {
+      // Same for the fade node.
     }
   }
 }

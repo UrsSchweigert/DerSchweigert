@@ -88,6 +88,53 @@ test('without a scene lookup the acts stay silent', async () => {
   assert.deepEqual(calls, []);
 });
 
+test('every diorama starts the title playlist before the scene begins', async () => {
+  const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
+  const events = [];
+  const intro = createStoryIntro({
+    play: async (scene) => { events.push(`play:${scene}`); return 'ended'; },
+    beforeScene: () => events.push('music'),
+    storage,
+    sceneForLevel,
+  });
+
+  await intro.playBeforeLevel(11);
+  assert.deepEqual(events, ['music', 'play:act-2'], 'the menu playlist starts, then the act opens');
+
+  // A repeated level inside the same act plays the scene once, so it does not
+  // restart the music either.
+  await intro.playBeforeLevel(11);
+  assert.deepEqual(events, ['music', 'play:act-2']);
+});
+
+test('the prologue also gets the title music', async () => {
+  const storage = memoryStorage();
+  const events = [];
+  const intro = createStoryIntro({
+    play: async (scene) => { events.push(`play:${scene}`); return 'ended'; },
+    beforeScene: () => events.push('music'),
+    storage,
+  });
+
+  await intro.playOnOpen();
+  assert.deepEqual(events, ['music', 'play:intro']);
+});
+
+test('failing to start the music never costs the player the scene', async t => {
+  const storage = memoryStorage();
+  const errors = t.mock.method(console, 'error', () => {});
+  const { calls, play } = recorder();
+  const intro = createStoryIntro({
+    play,
+    beforeScene: () => { throw new Error('no audio context'); },
+    storage,
+  });
+
+  assert.equal(await intro.playOnOpen(), 'ended');
+  assert.deepEqual(calls, ['intro']);
+  assert.equal(errors.mock.callCount(), 1);
+});
+
 test('unavailable storage still shows the intro, once', async () => {
   const broken = {
     getItem() { throw new Error('blocked'); },

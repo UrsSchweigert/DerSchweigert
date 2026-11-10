@@ -281,7 +281,13 @@ async function storySceneForLevel(level) {
     && candidate.slot.fromLevel === Number(level));
   return entry?.id ?? null;
 }
-const storyIntro = createStoryIntro({ play: playStoryScene, sceneForLevel: storySceneForLevel });
+const storyIntro = createStoryIntro({
+  play: playStoryScene,
+  sceneForLevel: storySceneForLevel,
+  // A diorama is title-screen material: run it on the menu playlist instead of
+  // whatever music the field was playing. Idempotent while the menu track runs.
+  beforeScene: () => startMenuMusic(),
+});
 // Plays after the loading screen is gone, so it is never hidden behind it.
 const introAtOpen = loadingDone.then(() => storyIntro.playOnOpen());
 
@@ -3104,7 +3110,14 @@ function triggerWaveClear() {
     scheduleGameplayTimeout(finishPracticeSession, 1200);
     return;
   }
-  if (state.level < TOTAL_LEVELS) audio.playLevelClear?.();
+  // Level-complete fanfare: the bundled hymn, or the synth cue when it cannot
+  // be decoded. The call stays inline because tests evaluate these functions
+  // on their own.
+  if (state.level < TOTAL_LEVELS) {
+    const hymn = audio.playVictoryHymn?.();
+    if (hymn?.then) hymn.then((started) => { if (!started) audio.playLevelClear?.(); });
+    else audio.playLevelClear?.();
+  }
   const healed = state.hearts < state.maxHearts;
   state.hearts = state.maxHearts;
   if (healed) {
@@ -3267,7 +3280,13 @@ function triggerGameOver(won = false) {
   input.disable();
   inputDisabled = true;
   state.timerActive = false;
-  if (won && !practiceRun) audio.playCampaignVictory?.();
+  if (won && !practiceRun) {
+    // The hymn replaces the synth finale; playCampaignVictory stays as the
+    // fallback for a build where the track cannot be decoded.
+    const hymn = audio.playVictoryHymn?.();
+    if (hymn?.then) hymn.then((started) => { if (!started) audio.playCampaignVictory?.(); });
+    else audio.playCampaignVictory?.();
+  }
   levelClearOverlay.style.display = 'none';
   topBar.style.display = 'flex';
   audio.stopBGM();

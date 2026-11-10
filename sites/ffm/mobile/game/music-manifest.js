@@ -77,4 +77,14 @@ export const MUSIC_TRACKS = Object.freeze([
     source: 'https://opengameart.org/content/12-music-loops',
     stage: null,
   }),
+  // Level-complete fanfare. Not a rotation track: it plays once, on top of the
+  // level music, so it stays out of tracks.json.
+  Object.freeze({
+    file: 'victory-hymn.mp3',
+    title: 'Victory',
+    author: 'celestialghost8',
+    licence: 'CC0 1.0 Universal (public domain dedication)',
+    source: 'https://opengameart.org/content/victory',
+    stage: null,
+  }),
 ]);
