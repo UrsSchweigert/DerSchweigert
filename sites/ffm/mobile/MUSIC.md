@@ -35,6 +35,17 @@ resumes instead of restarting after a background pause. The intro and the menu
 pages swap behind a 170 ms fade to black (`#screen-fade`); reduced-motion users
 get an immediate swap instead.
 
+The menu track is also requested once during start-up, before any gesture, so
+that a browser which permits playback starts the intro with music instead of
+silence. When the browser refuses (an ordinary `NotAllowedError` under its
+autoplay policy, which is not logged as a failure), the session stays
+resumable and the next gesture starts the track; repeated gestures while it is
+already playing do nothing. Both native shells allow media autoplay
+(`mediaTypesRequiringUserActionForPlayback = []` on iOS,
+`setMediaPlaybackRequiresUserGesture(false)` on Android), so the app starts
+with music too. On iOS the Web Audio context can still be suspended until the
+first touch; the menu track then becomes audible from that point.
+
 The game starts with the existing bundled fallback while configuration loads.
 Invalid lists or unavailable configuration log a warning and use the normal
 rotation; they do not block play. No player migration or song picker is needed.

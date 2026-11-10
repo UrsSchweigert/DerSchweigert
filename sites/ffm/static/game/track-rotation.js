@@ -49,7 +49,7 @@ export function selectTrackIndex(tracks, { stage = null, avoidIndex = -1, rng = 
  */
 export class TrackRotation {
   constructor({ tracks = [], makeAudio, volume = DEFAULT_VOLUME, rng = Math.random, baseUrl = null,
-    onError = null, prepareAudio = null, releaseAudio = null } = {}) {
+    onError = null, onPlayBlocked = null, prepareAudio = null, releaseAudio = null } = {}) {
     if (typeof makeAudio !== 'function') {
       throw new TypeError('TrackRotation needs a makeAudio(file) factory');
     }
@@ -68,6 +68,7 @@ export class TrackRotation {
     this._next = null;
     this._nextIndex = -1;
     this._onEnded = () => this.advance();
+    this._onPlayBlocked = onPlayBlocked;
     this._onError = (event) => {
       console.warn('Unable to load bundled music track:', event?.target?.src ?? 'unknown track');
       if (typeof onError === 'function') onError(event?.target);
@@ -209,13 +210,21 @@ export class TrackRotation {
 
   _play(audio) {
     if (!audio) return;
+    // NotAllowedError only means the browser wants a user gesture first; the
+    // next startMenuBGM()/resume() during a gesture retries playback, so it is
+    // not worth a warning on every first visit.
+    const warn = (error) => {
+      if (error?.name === 'NotAllowedError') {
+        if (typeof this._onPlayBlocked === 'function') this._onPlayBlocked(error);
+        return;
+      }
+      console.warn('Unable to play bundled music track:', error);
+    };
     try {
       const result = audio.play();
-      if (result && typeof result.catch === 'function') {
-        result.catch(error => console.warn('Unable to play bundled music track:', error));
-      }
+      if (result && typeof result.catch === 'function') result.catch(warn);
     } catch (error) {
-      console.warn('Unable to play bundled music track:', error);
+      warn(error);
     }
   }
 
