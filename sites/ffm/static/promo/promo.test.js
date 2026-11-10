@@ -381,7 +381,9 @@ test('the hero keeps the landscape layers and no character sprites', () => {
 test('the hero is a centred poster, not a left column', () => {
   const copy = css.match(/\.hero-copy \{[\s\S]*?\n\}/)[0];
   assert.match(copy, /text-align: center/, 'the hero copy block must be centred');
-  assert.match(copy, /margin-inline: auto/, 'the centred block needs symmetric margins');
+  // The hero is a two-column grid now, so the centring comes from the grid:
+  // both tracks centre their own content on a shared centre line.
+  assert.match(css, /\.hero-inner \{[\s\S]*?align-items: center/, 'the hero grid centres both columns');
   const logo = css.match(/\.hero-logo-wrap \{[\s\S]*?\n\}/)[0];
   assert.match(logo, /margin-inline: auto/, 'the title art must be centred on its own too');
   const ctas = css.match(/\.hero-ctas \{[\s\S]*?\n\}/)[0];
@@ -497,22 +499,29 @@ test('difficulty cards carry matching iconography and a text equivalent', () => 
   }
 });
 
-test('the family section shows the real screenshot in a CSS phone mockup', () => {
-  const family = sectionMarkup('familie');
-  assert.match(family, /class="phone"/, 'the phone chrome is built in CSS');
-  assert.match(family, /src="\/promo\/art\/ui\/title-screen\.webp"/);
+test('the hero carries the app screenshot in a CSS phone mockup', () => {
+  const hero = sectionMarkup('hero');
+  assert.match(hero, /class="phone"/, 'the phone chrome is built in CSS');
+  assert.match(hero, /src="\/promo\/art\/ui\/title-screen\.webp"/);
   assert.ok(!/title-screen\.png/.test(html), 'the 2.79 MB PNG must never be referenced');
 
-  const shot = family.match(/<img[^>]*title-screen\.webp[^>]*>/)[0];
+  const shot = hero.match(/<img[^>]*title-screen\.webp[^>]*>/)[0];
   assert.match(shot, /width="1170"/);
   assert.match(shot, /height="2532"/);
-  assert.match(shot, /loading="lazy"/);
   assert.match(shot, /decoding="async"/);
 
   const webp = join(webRoot, '/promo/art/ui/title-screen.webp');
   assert.ok(existsSync(webp), 'the webp screenshot must exist');
   assert.ok(readFileSync(webp).length < 600_000, 'the webp must stay the light-weight asset');
 
+  // The mockup lives in the hero only; leaving a copy in the family section
+  // would show the same screenshot twice.
+  const family = sectionMarkup('familie');
+  assert.ok(!/title-screen\.webp/.test(family), 'the phone must not be duplicated in the family section');
+});
+
+test('the family section shows distinct profile portraits', () => {
+  const family = sectionMarkup('familie');
   // Distinct hero portraits replace the letter avatars: all three must read as
   // different people, so each family member maps to its own avatar file.
   for (const avatar of ['avatar-1', 'avatar-2', 'avatar-3']) {
@@ -545,14 +554,17 @@ test('the store buttons are disabled badges, never links', () => {
   assert.ok(DICTIONARY['hero.ctaPlayStore'].en.includes('Coming soon'));
 });
 
-test('the layout stacks the phone below the copy on narrow screens', () => {
-  const wide = css.match(/\.family-inner \{[\s\S]*?\n\}/)[0];
-  assert.match(wide, /grid-template-columns: minmax\(0, 1fr\) clamp\(/, 'the phone column is bounded');
-  assert.ok(!/1fr\) auto/.test(wide), 'an auto track would be sized by the 1170 px screenshot');
+test('the hero splits two to one and stacks the phone below the copy', () => {
+  const wide = css.match(/\.hero-inner \{[\s\S]*?\n\}/)[0];
+  assert.match(wide, /grid-template-columns: minmax\(0, 2fr\) minmax\(0, 1fr\)/, 'art two thirds, phone one third');
+  assert.match(wide, /align-items: center/, 'art and phone are aligned on their own centre lines');
+
   const stack = css.match(/@media \(max-width: 900px\) \{[\s\S]*?\n\}\n/)[0];
-  assert.match(stack, /\.family-inner \{\s*grid-template-columns: minmax\(0, 1fr\);/, 'one column below 900px');
-  const phone = css.match(/\.family-phone \{[\s\S]*?\n\}/)[0];
-  assert.match(phone, /max-width: 100%/, 'the mockup can never be wider than its column');
+  assert.match(stack, /\.hero-inner \{\s*grid-template-columns: minmax\(0, 1fr\);/, 'one column below 900px');
+
+  const phone = css.match(/\.hero-phone \{[\s\S]*?\n\}/)[0];
+  assert.match(phone, /max-width: min\(100%, 300px\)/, 'the mockup is bounded, never sized by the 1170 px screenshot');
+  assert.match(phone, /justify-self: center/, 'the device is centred in its own column');
 });
 
 test('translations keep numeric ranges on one line', () => {
