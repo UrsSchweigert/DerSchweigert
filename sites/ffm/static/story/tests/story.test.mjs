@@ -123,7 +123,9 @@ for (const id of sceneDirs) {
         assert.ok(existsSync(file), `${layer.id}: ${layer.src} missing`);
         assert.match(layer.src, /\.(webp|png)$/, `${layer.id}: layers must be webp or png`);
         const info = imageInfo(file);
-        assert.ok(info.width >= 400 && info.width <= 2400, `${layer.id}: width ${info.width}`);
+        // Foreground strips are mirror-tiled wider than the 1920 stage so they
+        // can cover its base through the whole parallax drift.
+        assert.ok(info.width >= 400 && info.width <= 2600, `${layer.id}: width ${info.width}`);
         if (layer.role !== 'backdrop') {
           assert.ok(info.hasAlpha, `${layer.id}: cutout layers need an alpha channel`);
         }
