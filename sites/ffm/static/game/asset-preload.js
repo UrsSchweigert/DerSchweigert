@@ -23,11 +23,11 @@ const STAGE_COUNT = 6;
 export function buildAssetManifest() {
   const urls = [
     new URL('./hero-spritesheet-clean.png', import.meta.url).href,
-    new URL('./dragon.png', import.meta.url).href,
+    new URL('./dragon.webp', import.meta.url).href,
     new URL('./fireball.png', import.meta.url).href,
   ];
   for (let i = 1; i <= STAGE_COUNT; i++) {
-    urls.push(new URL(`./stage-${i}.png`, import.meta.url).href);
+    urls.push(new URL(`./stage-${i}.webp`, import.meta.url).href);
   }
   for (const cls of FIEND_CLASSES) {
     urls.push(new URL(cls.spritePath, import.meta.url).href);

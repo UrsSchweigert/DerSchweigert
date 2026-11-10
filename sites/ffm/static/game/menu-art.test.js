@@ -5,13 +5,14 @@ import { readFile } from 'node:fs/promises';
 const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
 
 test('sharp title and blurred overlays use redesigned bundled art without intercepting controls', async () => {
-  const art = await readFile(new URL('./title-art.png', import.meta.url));
-  assert.deepEqual([...art.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-  assert.match(css, /\.splash-bg\s*\{[^}]*url\('game\/title-art\.png'\)[^}]*filter:\s*none[^}]*pointer-events:\s*none/s);
-  assert.match(css, /\.overlay:not\(\.splash-screen\)::before\s*\{[^}]*pointer-events:\s*none[^}]*url\('game\/title-art\.png'\)[^}]*cover/s);
-  const wide = await readFile(new URL('./title-art-wide.png', import.meta.url));
-  assert.deepEqual([...wide.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-  assert.match(css, /@media \(orientation: landscape\)[\s\S]*url\('game\/title-art-wide\.png'\)/);
+  const art = await readFile(new URL('./title-art.webp', import.meta.url));
+  assert.equal(art.subarray(0, 4).toString('latin1'), 'RIFF');
+  assert.equal(art.subarray(8, 12).toString('latin1'), 'WEBP');
+  assert.match(css, /\.splash-bg\s*\{[^}]*url\('game\/title-art\.webp'\)[^}]*filter:\s*none[^}]*pointer-events:\s*none/s);
+  assert.match(css, /\.overlay:not\(\.splash-screen\)::before\s*\{[^}]*pointer-events:\s*none[^}]*url\('game\/title-art\.webp'\)[^}]*cover/s);
+  const wide = await readFile(new URL('./title-art-wide.webp', import.meta.url));
+  assert.equal(wide.subarray(8, 12).toString('latin1'), 'WEBP');
+  assert.match(css, /@media \(orientation: landscape\)[\s\S]*url\('game\/title-art-wide\.webp'\)/);
 });
 
 test('interface text wraps at word boundaries and compact navigation keeps whole labels', () => {
@@ -30,7 +31,7 @@ test('title is centered independently of utility buttons and headings retain the
 test('mode choices form oblong rows and portrait answers have a decorative blurred background', () => {
   assert.match(css, /\.splash-diff-buttons\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*repeat\(4,/s);
   assert.match(css, /\.splash-diff-btn\s*\{[^}]*flex-direction:\s*row/s);
-  assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone::before\s*\{[^}]*pointer-events:\s*none[^}]*title-art\.png[^}]*blur\(6px\)/s);
+  assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone::before\s*\{[^}]*pointer-events:\s*none[^}]*title-art\.webp[^}]*blur\(6px\)/s);
   assert.match(css, /\.playing-as-row button\s*\{[^}]*var\(--brass-deep\)/s);
   assert.match(css, /#audio-settings > summary\s*\{\s*justify-content:\s*center/);
 });
@@ -38,8 +39,8 @@ test('mode choices form oblong rows and portrait answers have a decorative blurr
 test('title lettering has accessible text and all shell surfaces share native safe insets', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /<h1 class="splash-title" aria-label="Arithmo Slayer"><img[^>]*alt="Arithmo Slayer"/);
-  const logo = await readFile(new URL('./title-logo.png', import.meta.url));
-  assert.deepEqual([...logo.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  const logo = await readFile(new URL('./title-logo.webp', import.meta.url));
+  assert.equal(logo.subarray(8, 12).toString('latin1'), 'WEBP');
   for (const edge of ['top', 'right', 'bottom', 'left']) {
     assert.ok(css.includes(`--safe-area-${edge}: env(safe-area-inset-${edge}, 0px)`));
     assert.ok(css.includes(`var(--safe-area-${edge})`));

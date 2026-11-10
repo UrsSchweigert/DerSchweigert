@@ -1,0 +1,57 @@
+{
+  "scene": "intro",
+  "note": "Art packet for the intro diorama. Every layer is a GPT image render (1536x1024) against the listed references; cutout layers were rendered on pure white and processed with tools/cutout.py.",
+  "layers": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "raw": "sources/intro/backdrop-raw.png",
+      "references": [
+        "references/hero-reference-sheet.png",
+        "../static/game/title-art-wide.png"
+      ],
+      "prompt": "Backdrop layer for a layered paper-theatre story diorama. Match the paper-cutout look and palette of the hero sheet (hand-painted illustration on aged cardstock, visible fibres) and the moonlit mood of the title art. Wide night landscape filling the entire image, flat front view: deep midnight-blue starry sky, large softly glowing full moon in the upper right third, layered scissor-cut paper clouds, rolling slate-blue hills and distant mountains of torn-paper strips, a small dark palace with thin spires on a far right hill under the moon, calm darker blue-green meadow in the lower 35%, faint warm glow on the left horizon. No characters, text, frame, border or vignette; even neutral lighting."
+    },
+    {
+      "id": "village",
+      "cutout": true,
+      "raw": "sources/intro/village-raw.png",
+      "references": [
+        "sources/intro/backdrop-raw.png",
+        "../static/game/stage-1.png"
+      ],
+      "prompt": "Midground layer: one wide continuous paper cutout of a small cosy village at night on plain pure white, in the backdrop's paper style, content from stage-1: timber-and-stone cottage with red tiled roof and chimney, stone windmill, small round stone tower, round leafy trees, long wooden rail fence along the front with carved runes that are dark and dull (wards broken), one fence section slightly broken, warm glowing windows. Thin cream scissor-cut border around the whole silhouette; no characters, text or ground shadow.",
+      "retouch": "Removed a cross finial from the cottage roof peak and rebuilt the cream border there (religious symbols are out of scope per ART-BIBLE)."
+    },
+    {
+      "id": "hero",
+      "cutout": true,
+      "raw": "sources/intro/hero-raw.png",
+      "references": [
+        "references/hero-reference-sheet.png"
+      ],
+      "prompt": "Same hero as the reference sheet, three-quarter view facing right, kneeling on one knee on a cracked fallen grey rune-stone slab, pulling the glowing crystal-blue + - x / sword up out of the crack with both hands, surprised wonder, scarf and cloak lifted by wind; single paper cutout with cream cut border on plain pure white background.",
+      "retouch": "Recoloured blue rim-light strands in the hair to golden blonde to match the reference sheet."
+    },
+    {
+      "id": "hero-raised",
+      "cutout": true,
+      "poseOf": "hero",
+      "raw": "sources/intro/hero-raised-raw.png",
+      "references": [
+        "references/hero-reference-sheet.png",
+        "sources/intro/hero-raw.png"
+      ],
+      "prompt": "Same hero and rune-stone as the references (next moment of the same scene): standing upright on the cracked rune-stone, three-quarter view facing right, raising the glowing crystal-blue + − × ÷ sword high above his head with both hands, calm determined heartfelt resolve, scarf and cloak billowing; single paper cutout with cream border on plain pure white, nothing cropped."
+    },
+    {
+      "id": "foreground",
+      "cutout": true,
+      "raw": "sources/intro/foreground-raw.png",
+      "references": [
+        "sources/intro/village-raw.png"
+      ],
+      "prompt": "Foreground layer: one wide continuous paper cutout strip of night meadow foliage on plain pure white, in the reference's paper style and moonlit palette: tall grass tufts, curling ferns, small cream and soft-blue wildflowers, round mossy stones, one old leaning broken fence post on the far left; darker and larger in scale; uneven organic top edge, taller at both ends; thin cream border; no characters, text or ground shadow."
+    }
+  ]
+}

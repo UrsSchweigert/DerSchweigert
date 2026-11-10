@@ -24,7 +24,9 @@ Browser
   │   ├─ input.js       (answer UI + keyboard handling)
   │   ├─ audio.js       (SFX + BGM)
   │   ├─ hud.js         (hearts / score / level)
+  │   ├─ story-intro.js (when the story intro plays)
   │   └─ api.js         (auth/profile/leaderboard/high score client)
+  ├─ story/             (layered paper-theatre story dioramas; see story/README.md)
   └─ /api/*
       └─ Flask app
           ├─ auth.py    (/api/auth/*)
@@ -48,6 +50,8 @@ Browser
 - Infra stack: `infra/terraform/sites/ffm/main.tf`
 - Backend tests: `sites/ffm/tests/test_app.py`
 - Curriculum tests: `sites/ffm/static/game/levels.test.js`
+- Story dioramas (intro, later act openings and the finish): `sites/ffm/static/story/`
+  — art bible, scene format and pipeline in `sites/ffm/static/story/README.md`
 
 ## Important current behavior
 

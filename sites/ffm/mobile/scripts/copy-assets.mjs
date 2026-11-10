@@ -35,10 +35,15 @@ export const EXCLUDED = [
   /^game\/source-assets(\/|$)/,
   /^game\/calibrate\./,
   /^game\/_dragon_test\.html$/,
-  /^game\/api\.js$/,
-  /^game\/access-flow\.js$/,
-  /^game\/cancel-request\.js$/,
-  /^game\/withdrawal-request\.js$/,
+  /^game\/(api|access-flow|cancel-request|withdrawal-request)\.js$/,
+  // The raw hero sheets are inputs for export-sprites.html (a dev tool); the
+  // game itself loads hero-spritesheet-clean.png.
+  /^game\/hero-spritesheet(-upload)?\.png$/,
+  // Story dioramas ship only what the player needs at runtime; the generation
+  // sources, the approved reference sheets, the art bible and the dev preview
+  // stay on the web side.
+  /^story\/(sources|references|tools)(\/|$)/,
+  /^story\/(preview\.html|README\.md|ART-BIBLE\.md)$/,
   /(^|\/)tests?(\/|$)/,
   /(^|\/)[^/]+\.test\.js$/,
   /^export-sprites\.html$/,

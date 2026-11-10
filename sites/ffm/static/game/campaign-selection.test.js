@@ -12,6 +12,7 @@ const difficulty = source.slice(source.indexOf("document.querySelectorAll('#diff
 function setup({ completed = [1, 2], selected = '', fail = false, difficultyKind = 'hard' } = {}) {
   let handler;
   const starts = [];
+  const introPlays = [];
   const btn = { dataset: { difficulty: difficultyKind, timer: '5', hearts: '3' },
     addEventListener(_event, callback) { handler = callback; } };
   const context = {
@@ -33,18 +34,21 @@ function setup({ completed = [1, 2], selected = '', fail = false, difficultyKind
     getCampaignProgress, resetLevelAttempt,
     async startLevel(index, baseline) { starts.push([index, baseline]); },
     async startPracticeSession(...args) { starts.push(args); },
+    storyIntro: { async playBeforeLevel(level) { introPlays.push(level); } },
     showTitlePage() {}, showProgressError() {}, t: key => key,
     console: { error() {} },
   };
   vm.createContext(context);
   vm.runInContext(difficulty, context);
-  return { context, start: () => handler(), starts };
+  return { context, start: () => handler(), starts, introPlays };
 }
 
 test('Play continues at the first unfinished level without inventing a score baseline', async () => {
-  const { start, starts, context } = setup({ completed: [1, 3] });
+  const { start, starts, context, introPlays } = setup({ completed: [1, 3] });
   await start();
   assert.deepEqual(starts, [[1, true]]);
+  // The story intro belongs to level 1 and is asked for before the level starts.
+  assert.deepEqual(introPlays, [2]);
   assert.equal(context.state.score, 0);
   assert.equal(context.state.hearts, 3);
 });

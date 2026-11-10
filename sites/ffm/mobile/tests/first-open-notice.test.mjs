@@ -208,7 +208,8 @@ test('main.js, index.html and the modal focus helper wire the notice app-only', 
   assert.match(main, /totalLevels: TOTAL_LEVELS/);
   assert.match(main, /firstOpenNotice\?\.render\(\)/);
   assert.match(main, /'first-open-notice-help', 'btn-notice-help'/);
-  assert.match(main, /loadingDone\.then\(\(\) => firstOpenNotice\?\.maybeShow\(\)\)/);
+  assert.match(main, /\.then\(\(\) => introAtOpen\)[\s\S]*?\.then\(\(\) => firstOpenNotice\?\.maybeShow\(\)\)/,
+    'the notice waits for the story intro so the two never overlap');
 
   const index = await readFile(join(root, '..', 'static', 'index.html'), 'utf8');
   assert.match(index, /<div id="first-open-notice" class="overlay" style="display:none"><\/div>/);

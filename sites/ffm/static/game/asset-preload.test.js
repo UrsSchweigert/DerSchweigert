@@ -19,14 +19,14 @@ describe('buildAssetManifest', () => {
   it('includes the hero, dragon, and fireball sprites', () => {
     const urls = buildAssetManifest();
     assert.ok(urls.some((u) => u.endsWith('hero-spritesheet-clean.png')));
-    assert.ok(urls.some((u) => u.endsWith('dragon.png')));
+    assert.ok(urls.some((u) => u.endsWith('dragon.webp')));
     assert.ok(urls.some((u) => u.endsWith('fireball.png')));
   });
 
   it('includes all 6 stage backgrounds', () => {
     const urls = buildAssetManifest();
     for (let i = 1; i <= 6; i++) {
-      assert.ok(urls.some((u) => u.endsWith(`stage-${i}.png`)), `missing stage-${i}.png`);
+      assert.ok(urls.some((u) => u.endsWith(`stage-${i}.webp`)), `missing stage-${i}.webp`);
     }
   });
 
