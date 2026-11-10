@@ -229,6 +229,8 @@ jobs:
           node-version: '22'
       - run: node --test sites/ffm/static/game/*.test.js
         if: needs.changes.outputs.ffm_tests == 'true'
+      - run: node --test sites/ffm/static/promo/*.test.js
+        if: needs.changes.outputs.ffm_tests == 'true'
       - run: node --test sites/ffm/static/story/tests/*.test.mjs
         if: needs.changes.outputs.ffm_tests == 'true'
 
@@ -565,7 +567,9 @@ jobs:
             --exclude "story/preview.html" \
             --exclude "story/reel.html" \
             --exclude "story/README.md" \
-            --exclude "story/ART-BIBLE.md"
+            --exclude "story/ART-BIBLE.md" \
+            --exclude "promo/tools/*" \
+            --exclude "promo/README.md"
           # Excluded keys are not deleted by sync; remove old dev artifacts explicitly.
           aws s3 rm "s3://$BUCKET/" --recursive \
             --exclude "*" --include "*.test.js" \
@@ -577,7 +581,8 @@ jobs:
             --include "story/sources/*" --include "story/references/*" \
             --include "story/tools/*" --include "story/tests/*" \
             --include "story/preview.html" --include "story/reel.html" --include "story/README.md" \
-            --include "story/ART-BIBLE.md"
+            --include "story/ART-BIBLE.md" \
+            --include "promo/tools/*" --include "promo/README.md"
           aws s3 cp sites/ffm/static/index.html \
             "s3://$BUCKET/index.html" \
             --cache-control "no-cache, no-store, must-revalidate"
@@ -591,9 +596,53 @@ jobs:
 
       - name: Smoke test
         run: |
+          set -euo pipefail
+          BASE=https://ffm.derschweigert.de
+
+          # Attaching the viewer-request function makes CloudFront redeploy the
+          # distribution (minutes). Wait for it so the first deploy after a
+          # Terraform change does not probe the previous configuration and see
+          # 403s for /play and /promo/.
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?contains(Aliases.Items,'ffm.derschweigert.de')].Id | [0]" \
+            --output text)
+          aws cloudfront wait distribution-deployed --id "$DIST_ID"
+
           sleep 10
-          curl -sf https://ffm.derschweigert.de/ > /dev/null
-          curl -sf https://ffm.derschweigert.de/api/health | grep '"ok":true'
+
+          # "/" must serve the promotional landing page (CloudFront viewer-request
+          # function), not the game. Keep these markers in sync with
+          # sites/ffm/static/promo/index.html: the body carries id="promo-root"
+          # and the page loads promo.css.
+          ROOT_HTML="$RUNNER_TEMP/ffm-root.html"
+          curl -sf "$BASE/" -o "$ROOT_HTML"
+          grep -qi '<!doctype html' "$ROOT_HTML"
+          grep -q 'promo-root' "$ROOT_HTML"
+          grep -q 'promo\.css' "$ROOT_HTML"
+
+          for path in / /promo /promo/ /promo/promo.css /promo/promo.js /play /index.html /game/main.js; do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE$path")"
+            echo "$path -> $code"
+            [[ "$code" == "200" ]] || { echo "::error::$path returned $code"; exit 1; }
+          done
+
+          # /play/ must NOT serve the game shell: the shell's asset references
+          # are relative (styles.css, game/main.js, ...), so at /play/ they
+          # would resolve to /play/... and 403. It must instead be a permanent
+          # redirect to /play, where they resolve to the bucket root.
+          play_slash="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "$BASE/play/")"
+          echo "/play/ -> $play_slash"
+          [[ "$play_slash" == "301 $BASE/play" ]] || {
+            echo "::error::/play/ returned '$play_slash', expected '301 $BASE/play'"
+            exit 1
+          }
+
+          # /play must serve the game shell, i.e. the object that loads game/main.js.
+          PLAY_HTML="$RUNNER_TEMP/ffm-play.html"
+          curl -sf "$BASE/play" -o "$PLAY_HTML"
+          grep -q 'game/main\.js' "$PLAY_HTML"
+
+          curl -sf "$BASE/api/health" | grep '"ok":true'
 
   deploy-lhc:
     needs: [test-lhc, check-secrets, changes]

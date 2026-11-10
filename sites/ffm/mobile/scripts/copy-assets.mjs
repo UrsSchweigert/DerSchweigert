@@ -51,6 +51,8 @@ export const EXCLUDED = [
   /^demo\.html$/,
   /^cancel\.html$/,
   /^widerruf\.html$/,
+  // The promo landing page is web-only; the app has no marketing page.
+  /^promo(\/|$)/,
 ];
 
 export const REQUIRED_FILES = ['index.html', 'styles.css', 'game/main.js', 'game/level-data.js'];

@@ -86,6 +86,9 @@ const EXCLUDED_SAMPLES = [
   'demo.html',
   'cancel.html',
   'widerruf.html',
+  'promo/index.html',
+  'promo/promo.css',
+  'promo/tools/render-og.py',
   '.DS_Store',
 ];
 
