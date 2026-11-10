@@ -211,3 +211,20 @@ test('the overlay stylesheet centres the header bar in its grid row', async () =
   assert.match(css, /\.app-header-timer--paused \.app-header-timer-fill\s*\{/);
   assert.doesNotMatch(css, /https?:\/\//, 'the overlay stylesheet must stay offline');
 });
+
+test('portrait drops the header bar and keeps the numeric countdown', async () => {
+  const css = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
+  const portrait = css.match(/@media \(orientation: portrait\) \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(portrait, 'portrait media query missing');
+  assert.match(portrait, /\.app-header-timer \{ display: none; \}/,
+    'the portrait header must not draw the stripe');
+  assert.doesNotMatch(css, /@media \(orientation: landscape\)[\s\S]*?\.app-header-timer \{[^}]*display: none/,
+    'landscape keeps the bar');
+
+  // The seconds stay in the shared header regardless of the bar.
+  const html = await readFile(join(staticDir, 'index.html'), 'utf8');
+  assert.match(html, /<span data-i18n="hud\.time">Time<\/span> <strong id="accessible-timer">/);
+  const chrome = await readFile(join(staticDir, 'game', 'gameplay-chrome.js'), 'utf8');
+  assert.match(chrome, /text\('accessible-timer',[\s\S]{0,120}state\.timerRemaining/,
+    'the header keeps printing the remaining seconds');
+});

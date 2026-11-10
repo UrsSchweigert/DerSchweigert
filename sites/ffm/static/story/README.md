@@ -131,8 +131,19 @@ The intro is wired in `game/main.js` through
 - **No stacking on the first run** — when the prologue has just played, the
   act I opening is skipped, so a new player never gets two scenes before the
   first level. Other levels, practice runs and shapes mode play nothing.
+- **Replay on demand** — the dragon-circle replay button at the start of the
+  title bar, left of Login (`#btn-replay-intro`), plays the prologue again,
+  however often the player asks for it. It never rewrites the first-open flag,
+  and `story-intro.js` keeps one scene on screen at a time.
 
 Playing a scene:
+
+The scene is always presented in landscape. A portrait window or a
+portrait-held phone gets the same treatment: the player is laid out in the
+screen's landscape box (width and height swapped) and rotated 90°, so the
+16:9 stage fills the screen edge to edge instead of sitting in a letterbox
+band. Turning the device to landscape mid-scene drops back to an unrotated
+box on the next resize, and no native orientation lock is involved.
 
 ```js
 import { createDioramaPlayer } from '../story/player/diorama-player.js';

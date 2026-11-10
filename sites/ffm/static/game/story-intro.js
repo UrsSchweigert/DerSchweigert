@@ -58,10 +58,10 @@ export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForL
   if (typeof play !== 'function') throw new TypeError('createStoryIntro needs a play() function');
   const store = storage === undefined ? defaultStorage() : storage;
   const playedThisRun = new Set();
+  // Only one scene may be on screen: the player mounts a full-screen overlay.
+  let inFlight = null;
 
-  async function playOnce(sceneId) {
-    if (playedThisRun.has(sceneId)) return null;
-    playedThisRun.add(sceneId);
+  async function showScene(sceneId) {
     try {
       beforeScene?.();
     } catch (error) {
@@ -73,6 +73,17 @@ export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForL
       // A broken or missing scene must never block the game.
       console.error(`Unable to play story scene ${sceneId}`, error);
       return null;
+    }
+  }
+
+  async function playOnce(sceneId) {
+    if (playedThisRun.has(sceneId) || inFlight) return null;
+    playedThisRun.add(sceneId);
+    inFlight = showScene(sceneId);
+    try {
+      return await inFlight;
+    } finally {
+      inFlight = null;
     }
   }
 
@@ -98,6 +109,20 @@ export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForL
       const sceneId = await sceneForLevel(level);
       if (!sceneId) return null;
       return playOnce(sceneId);
+    },
+
+    /** Call when the player asks for the prologue again, e.g. from the title
+     * screen: it plays even though it already ran in this install. */
+    async replay() {
+      if (inFlight) return null;
+      // Counted as played so the act I opening still does not stack on it.
+      playedThisRun.add(scene);
+      inFlight = showScene(scene);
+      try {
+        return await inFlight;
+      } finally {
+        inFlight = null;
+      }
     },
   };
 }

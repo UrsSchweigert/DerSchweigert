@@ -1,8 +1,15 @@
 // Tests for ./story-intro.js — when the campaign intro plays.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 
 import { FIRST_LEVEL, OPEN_SHOWN_KEY, createStoryIntro } from './story-intro.js';
+import { setLocale, t } from './i18n.js';
+
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -163,4 +170,77 @@ test('a missing scene never blocks the game', async t => {
 
 test('a play() function is required', () => {
   assert.throws(() => createStoryIntro({}), /play\(\) function/);
+});
+
+test('the player can ask for the prologue again after it played at open', async () => {
+  const storage = memoryStorage();
+  const events = [];
+  const intro = createStoryIntro({
+    play: async (scene) => { events.push(`play:${scene}`); return 'skipped'; },
+    beforeScene: () => events.push('music'),
+    storage,
+  });
+
+  await intro.playOnOpen();
+  assert.equal(await intro.replay(), 'skipped');
+  assert.deepEqual(events, ['music', 'play:intro', 'music', 'play:intro'],
+    'the replay runs the prologue again with the title playlist under it');
+  assert.equal(storage.data.get(OPEN_SHOWN_KEY), '1', 'a replay never rewrites the install flag');
+});
+
+test('a second scene never stacks on the one already playing', async () => {
+  const storage = memoryStorage();
+  const calls = [];
+  let release = null;
+  const intro = createStoryIntro({
+    play: (scene) => { calls.push(scene); return new Promise((resolve) => { release = resolve; }); },
+    storage,
+  });
+
+  const opening = intro.playOnOpen();
+  assert.equal(await intro.replay(), null, 'the running prologue is not duplicated');
+  assert.deepEqual(calls, ['intro']);
+
+  release('ended');
+  assert.equal(await opening, 'ended');
+
+  const second = intro.replay();
+  release('skipped');
+  assert.equal(await second, 'skipped');
+  assert.deepEqual(calls, ['intro', 'intro'], 'once the screen is free, a replay is allowed');
+});
+
+test('a manual replay still keeps the act I opening from stacking on it', async () => {
+  const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
+  const { calls, play } = recorder();
+  const intro = createStoryIntro({ play, storage, sceneForLevel });
+
+  assert.equal(await intro.replay(), 'ended');
+  assert.equal(await intro.playBeforeLevel(FIRST_LEVEL), null);
+  assert.deepEqual(calls, ['intro']);
+});
+
+test('the title bar offers a circular dragon-arrow replay button left of Login', async () => {
+  const bar = html.match(/<div id="top-bar">([\s\S]*?)<div id="cookie-banner"/)?.[1];
+  assert.ok(bar, 'top bar markup missing');
+  const replayAt = bar.indexOf('id="btn-replay-intro"');
+  assert.ok(replayAt >= 0, 'replay button must sit in the title bar');
+  assert.ok(replayAt < bar.indexOf('id="login-btn"'), 'the replay button leads the bar, left of Login');
+  assert.match(bar, /<button type="button" id="btn-replay-intro" class="intro-replay-btn"[^>]*data-i18n-aria-label="splash\.replayIntro"/);
+  assert.match(bar, /id="btn-replay-intro"[\s\S]{0,300}<img class="intro-replay-icon" src="game\/intro-replay\.webp"[^>]*alt=""/);
+  assert.match(main, /document\.getElementById\('btn-replay-intro'\)\?\.addEventListener\('click', \(\) => \{\s*storyIntro\.replay\(\);/);
+  const button = styles.match(/^#top-bar #btn-replay-intro \{([^}]*)\}/m)?.[1];
+  assert.ok(button, '#top-bar #btn-replay-intro rule missing');
+  assert.match(button, /width:\s*44px;/);
+  assert.match(button, /height:\s*44px;/);
+  assert.match(button, /border-radius:\s*50%;/);
+  assert.match(styles, /^\.intro-replay-icon \{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*object-fit:\s*contain;/m);
+  const icon = await readFile(new URL('./intro-replay.webp', import.meta.url));
+  assert.equal(icon.subarray(0, 4).toString('latin1'), 'RIFF', 'the replay icon must be a real WebP');
+  assert.equal(icon.subarray(8, 12).toString('latin1'), 'WEBP');
+  setLocale('en');
+  assert.equal(t('splash.replayIntro'), 'Replay the intro');
+  setLocale('de');
+  assert.equal(t('splash.replayIntro'), 'Intro erneut ansehen');
+  setLocale('en');
 });

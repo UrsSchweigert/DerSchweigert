@@ -7,7 +7,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  STAGE_W, STAGE_H, STAGE_SAFE, cueAt, sampleMotion, stageTransform, pickText,
+  COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cueAt, landscapeBox,
+  sampleMotion, stageTransform, pickText,
 } from '../player/diorama-player.js';
 import { LOCALES, toVtt } from '../tools/build-subtitles.mjs';
 
@@ -205,9 +206,45 @@ describe('player helpers', () => {
     }
   });
 
-  it('fits the whole stage in portrait instead of cropping it', () => {
-    const { scale } = stageTransform(390, 844);
-    assert.ok(STAGE_W * scale <= 390.5);
+  it('turns a portrait screen into a landscape box instead of letterboxing', () => {
+    assert.deepEqual(landscapeBox(390, 844), { turned: true, width: 844, height: 390 });
+    assert.deepEqual(landscapeBox(844, 390), { turned: false, width: 844, height: 390 });
+    assert.deepEqual(landscapeBox(1024, 1024), { turned: false, width: 1024, height: 1024 });
+    assert.deepEqual(landscapeBox(0, 0), { turned: false, width: 0, height: 0 });
+
+    // The turned box is always landscape, so the stage covers it edge to edge.
+    for (const [w, h] of [[390, 844], [320, 700], [820, 1180]]) {
+      const box = landscapeBox(w, h);
+      const { scale, x, y } = stageTransform(box.width, box.height);
+      assert.ok(STAGE_W * scale >= box.width - 0.5 && STAGE_H * scale >= box.height - 0.5,
+        `${w}x${h} does not fill the turned box`);
+      assert.ok(x <= 0.5 && y <= 0.5, `${w}x${h} leaves a gap at the top/left`);
+    }
+  });
+
+  it('flags the short landscape boxes that need the slim subtitle strip', () => {
+    for (const [w, h] of [[844, 390], [390, 844], [926, 428]]) {
+      assert.ok(landscapeBox(w, h).height < COMPACT_BOX_HEIGHT, `${w}x${h} should be compact`);
+    }
+    for (const [w, h] of [[1180, 820], [1024, 768], [2732, 2048]]) {
+      assert.ok(landscapeBox(w, h).height >= COMPACT_BOX_HEIGHT, `${w}x${h} should not be compact`);
+    }
+  });
+
+  it('rotates the player for portrait screens and keeps the strip tied to the box', () => {
+    const css = readFileSync(join(storyDir, 'player', 'diorama-player.css'), 'utf8');
+    const turned = css.match(/\.diorama\.is-turned \{([^}]*)\}/)?.[1];
+    assert.ok(turned, 'the turned player rule is missing');
+    assert.match(turned, /width:\s*var\(--diorama-box-width/);
+    assert.match(turned, /height:\s*var\(--diorama-box-height/);
+    assert.match(turned, /translate\(-50%, -50%\) rotate\(90deg\)/);
+    assert.match(css, /\.diorama\.is-compact \.diorama__subtitle \{/,
+      'the slim strip follows the box, not the screen');
+    assert.doesNotMatch(css, /@media \(max-height: 500px\)/,
+      'screen-height media queries cannot see a turned box');
+    const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
+    assert.match(player, /root\.classList\.toggle\('is-turned', box\.turned\)/);
+    assert.match(player, /root\.classList\.toggle\('is-compact', box\.height < COMPACT_BOX_HEIGHT\)/);
   });
 
   it('interpolates motion between keyframes and holds the ends', () => {

@@ -54,18 +54,39 @@ export function sampleMotion(keyframes, t) {
   return full[full.length - 1];
 }
 
-/** Scale and offset that make the stage cover (landscape) or fit (portrait) the viewport. */
+/**
+ * The landscape box the stage is always laid out in.
+ *
+ * A story scene is a 16:9 paper theatre, so a portrait screen is turned
+ * instead of letterboxed: the box is the screen with width and height swapped
+ * and the whole player is rotated to match, which is why the scene fills a
+ * portrait screen exactly as it fills a landscape one. The player never has to
+ * ask the shell for an orientation lock, and turning the device to landscape
+ * mid-scene simply drops back to an unrotated box.
+ * @param {number} viewW viewport width
+ * @param {number} viewH viewport height
+ * @returns {{turned: boolean, width: number, height: number}}
+ */
+export function landscapeBox(viewW, viewH) {
+  const width = Number(viewW) || 0;
+  const height = Number(viewH) || 0;
+  const turned = height > width;
+  return { turned, width: turned ? height : width, height: turned ? width : height };
+}
+
+/** Scale and offset that make the stage cover its landscape box, keeping the
+ * normalised safe area visible. */
 export function stageTransform(viewW, viewH) {
-  const cover = viewW >= viewH;
-  const scale = cover
-    ? Math.max(viewW / STAGE_W, viewH / STAGE_H)
-    : Math.min(viewW / STAGE_W, viewH / STAGE_H);
+  const scale = Math.max(viewW / STAGE_W, viewH / STAGE_H);
   return {
     scale,
     x: (viewW - STAGE_W * scale) / 2,
     y: (viewH - STAGE_H * scale) / 2,
   };
 }
+
+/** A landscape box shorter than this gets the slimmer subtitle strip. */
+export const COMPACT_BOX_HEIGHT = 500;
 
 function el(tag, className, parent) {
   const node = document.createElement(tag);
@@ -168,8 +189,28 @@ export function createDioramaPlayer({
   let resolvePlay = null;
   let finished = false;
 
+  // The scene is always landscape: a portrait screen gets the box rotated 90°
+  // (see landscapeBox) so the paper theatre fills it edge to edge. The root is
+  // position:fixed, so the document element is the viewport it is painted in —
+  // and unlike the root's own box it does not change when the turn is applied.
   const fit = () => {
-    const { scale, x, y } = stageTransform(root.clientWidth || window.innerWidth, root.clientHeight || window.innerHeight);
+    const doc = root.ownerDocument?.documentElement;
+    const box = landscapeBox(
+      doc?.clientWidth || window.innerWidth || root.clientWidth,
+      doc?.clientHeight || window.innerHeight || root.clientHeight,
+    );
+    root.classList.toggle('is-turned', box.turned);
+    root.classList.toggle('is-compact', box.height < COMPACT_BOX_HEIGHT);
+    if (box.turned) {
+      // The rotated box is centred on the screen, so its own width/height are
+      // the screen's height/width.
+      root.style.setProperty('--diorama-box-width', `${box.width}px`);
+      root.style.setProperty('--diorama-box-height', `${box.height}px`);
+    } else {
+      root.style.removeProperty('--diorama-box-width');
+      root.style.removeProperty('--diorama-box-height');
+    }
+    const { scale, x, y } = stageTransform(box.width, box.height);
     stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
   };
   const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;

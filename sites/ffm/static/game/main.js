@@ -290,6 +290,11 @@ const storyIntro = createStoryIntro({
 });
 // Plays after the loading screen is gone, so it is never hidden behind it.
 const introAtOpen = loadingDone.then(() => storyIntro.playOnOpen());
+// The title screen offers the prologue again on demand; the player's own skip
+// and the in-flight guard in story-intro.js keep it to one scene at a time.
+document.getElementById('btn-replay-intro')?.addEventListener('click', () => {
+  storyIntro.replay();
+});
 
 // --- Checkout redirect handling ---
 // After Stripe checkout completes, user is redirected back with billing=success

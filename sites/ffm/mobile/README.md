@@ -72,6 +72,11 @@ denied parental gate leave the cache and the levels untouched.
 
 `game/lifecycle.js` is the app lifecycle seam. `main.js` imports it only in the app build (inside the
 `platform.isApp` branch) and wires a small game facade. The module listens to `@capacitor/app`'s
+Story scenes always play in a landscape box: a portrait-held device gets the
+diorama laid out in the swapped (landscape) box and rotated 90°, so the paper
+theatre fills the screen and the player turns the phone. Gameplay itself is
+unaffected.
+
 `appStateChange` and `backButton` events: it pauses gameplay and BGM when the app leaves the foreground,
 resumes only when that pause was automatic (a pause the player chose stays), maps Android Back to
 pause → back out of the quit confirmation → exit, and drives `@capacitor-community/keep-awake` so the screen
@@ -174,14 +179,23 @@ closes. Terms navigation and manual navigation use stacked forest/brass buttons;
 the manual offers a game-return action above its contents and at the bottom.
 The title uses large generated lettering art with an accessible heading and image
 label, centered independently of utility buttons. Other headings use the original
-monospace font. The introduction has no tall background panel; padded, short text
-lines leave the artwork visible. Shared four-edge inset variables default to native
+monospace font. The introduction welcomes young and old to mental-math training;
+it has no tall background panel, and padded, short text lines leave the artwork
+visible. A round replay control at the start of the title bar, left of Login, plays
+the prologue again.
+Shared four-edge inset variables default to native
 safe-area values and allow explicit notch/status-bar geometry fixtures.
 Pause offers Back to game, audio settings offer Back to pause, and
-quit confirmation retains its Back action. Android Back closes audio settings
+quit confirmation retains its Back action. Pause actions and the audio disclosure
+share one 560px column and one 44px control height, so hiding the save button
+(guests, practice, shapes) never leaves an empty grid cell.
+Android Back closes audio settings
 before resuming gameplay. Returning to untimed practice restores answer input.
 Gameplay keeps 22px questions, 16px numeric HUD and 18px answers; answer
 column sizing measures text so five-digit choices retain at least 44px targets.
+In portrait the header shows the countdown as text only ("Time 12s"): the app's
+timer stripe is hidden there, since the play area starts right under the chrome.
+Landscape keeps the stripe.
 The native bundle is validated in simulated phone/tablet portrait and landscape
 viewports, but this is not physical-device touch or safe-area evidence.
 

@@ -51,6 +51,14 @@ test('title lettering has accessible text and all shell surfaces share native sa
 
 test('title modes shrink to available space and introduction stays readable over art', () => {
   assert.match(css, /\.splash-diff-buttons\s*\{[^}]*grid-template-rows:\s*repeat\(4, minmax\(44px, 1fr\)\)[^}]*height:\s*100%[^}]*max-height:\s*312px/s);
-  assert.match(css, /@media \(orientation: portrait\) and \(max-height: 850px\)\s*\{[^}]*\}[^}]*\}[^}]*\.title-play-intro \.splash-intro \{ display: none; \}/s);
+  // Only short portrait screens drop the welcome text; roomy phones keep it.
+  assert.match(css, /@media \(orientation: portrait\) and \(max-height: 700px\)\s*\{[^}]*\}[^}]*\}[^}]*\.title-play-intro \.splash-intro \{ display: none; \}/s);
   assert.match(css, /\.title-play-intro \.player-identity, \.title-play-intro #continue-level\s*\{[^}]*color:\s*#fff[^}]*text-shadow:/s);
+});
+
+test('the welcome text keeps padding and a readable measure on every screen', () => {
+  const intro = css.match(/^\.title-play-intro \{([^}]*height: auto[^}]*)\}/m)?.[1];
+  assert.ok(intro, 'title-play-intro block missing');
+  assert.match(intro, /padding:\s*24px 28px;/);
+  assert.match(css, /\.title-play-intro \.splash-intro\s*\{[^}]*max-width:\s*min\(46ch, 100%\)[^}]*line-height:\s*1\.55/s);
 });
