@@ -1,3 +1,187 @@
 {
-  "levels": {}
+  "menu": [
+    "retro-05-ending.mp3"
+  ],
+  "levels": {
+    "1": [
+      "retro-02-level-1.mp3"
+    ],
+    "2": [
+      "retro-02-level-1.mp3"
+    ],
+    "3": [
+      "retro-03-level-2.mp3"
+    ],
+    "4": [
+      "retro-03-level-2.mp3"
+    ],
+    "5": [
+      "retro-04-level-3.mp3"
+    ],
+    "6": [
+      "retro-04-level-3.mp3"
+    ],
+    "7": [
+      "loop-01-super-action-6.mp3"
+    ],
+    "8": [
+      "loop-01-super-action-6.mp3"
+    ],
+    "9": [
+      "loop-02-super-action-7.mp3"
+    ],
+    "10": [
+      "loop-02-super-action-7.mp3"
+    ],
+    "11": [
+      "loop-03-super-action-9.mp3"
+    ],
+    "12": [
+      "loop-03-super-action-9.mp3"
+    ],
+    "13": [
+      "loop-04-dangerous-encounter.mp3"
+    ],
+    "14": [
+      "loop-04-dangerous-encounter.mp3"
+    ],
+    "15": [
+      "retro-02-level-1.mp3"
+    ],
+    "16": [
+      "retro-02-level-1.mp3"
+    ],
+    "17": [
+      "retro-03-level-2.mp3"
+    ],
+    "18": [
+      "retro-03-level-2.mp3"
+    ],
+    "19": [
+      "retro-04-level-3.mp3"
+    ],
+    "20": [
+      "retro-04-level-3.mp3"
+    ],
+    "21": [
+      "loop-01-super-action-6.mp3"
+    ],
+    "22": [
+      "loop-01-super-action-6.mp3"
+    ],
+    "23": [
+      "loop-02-super-action-7.mp3"
+    ],
+    "24": [
+      "loop-02-super-action-7.mp3"
+    ],
+    "25": [
+      "loop-03-super-action-9.mp3"
+    ],
+    "26": [
+      "loop-03-super-action-9.mp3"
+    ],
+    "27": [
+      "loop-04-dangerous-encounter.mp3"
+    ],
+    "28": [
+      "loop-04-dangerous-encounter.mp3"
+    ],
+    "29": [
+      "retro-02-level-1.mp3"
+    ],
+    "30": [
+      "retro-02-level-1.mp3"
+    ],
+    "31": [
+      "retro-03-level-2.mp3"
+    ],
+    "32": [
+      "retro-03-level-2.mp3"
+    ],
+    "33": [
+      "retro-04-level-3.mp3"
+    ],
+    "34": [
+      "retro-04-level-3.mp3"
+    ],
+    "35": [
+      "loop-01-super-action-6.mp3"
+    ],
+    "36": [
+      "loop-01-super-action-6.mp3"
+    ],
+    "37": [
+      "loop-02-super-action-7.mp3"
+    ],
+    "38": [
+      "loop-02-super-action-7.mp3"
+    ],
+    "39": [
+      "loop-03-super-action-9.mp3"
+    ],
+    "40": [
+      "loop-03-super-action-9.mp3"
+    ],
+    "41": [
+      "loop-04-dangerous-encounter.mp3"
+    ],
+    "42": [
+      "loop-04-dangerous-encounter.mp3"
+    ],
+    "43": [
+      "retro-02-level-1.mp3"
+    ],
+    "44": [
+      "retro-02-level-1.mp3"
+    ],
+    "45": [
+      "retro-03-level-2.mp3"
+    ],
+    "46": [
+      "retro-03-level-2.mp3"
+    ],
+    "47": [
+      "retro-04-level-3.mp3"
+    ],
+    "48": [
+      "retro-04-level-3.mp3"
+    ],
+    "49": [
+      "loop-01-super-action-6.mp3"
+    ],
+    "50": [
+      "loop-01-super-action-6.mp3"
+    ],
+    "51": [
+      "loop-02-super-action-7.mp3"
+    ],
+    "52": [
+      "loop-02-super-action-7.mp3"
+    ],
+    "53": [
+      "loop-03-super-action-9.mp3"
+    ],
+    "54": [
+      "loop-03-super-action-9.mp3"
+    ],
+    "55": [
+      "loop-04-dangerous-encounter.mp3"
+    ],
+    "56": [
+      "loop-04-dangerous-encounter.mp3"
+    ],
+    "57": [
+      "retro-02-level-1.mp3"
+    ],
+    "58": [
+      "retro-02-level-1.mp3"
+    ],
+    "59": [
+      "retro-03-level-2.mp3"
+    ],
+    "60": [
+      "retro-03-level-2.mp3"
+    ]
+  }
 }

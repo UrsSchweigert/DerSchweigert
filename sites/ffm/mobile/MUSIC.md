@@ -1,12 +1,15 @@
 # Bundled level music
 
-The web game and the mobile app use `static/game/level-music.json`. Map a
-1-based level number to a list of bundled track filenames, for example:
+The web game and the mobile app use `static/game/level-music.json`. It holds the
+title/menu playlist under `menu` and maps a 1-based level number to a list of
+bundled track filenames under `levels`, for example:
 
 ```json
 {
+  "menu": ["retro-05-ending.mp3"],
   "levels": {
-    "1": ["background-music.mp3"],
+    "1": ["retro-02-level-1.mp3"],
+    "2": ["retro-02-level-1.mp3"],
     "11": ["first.mp3", "second.mp3"]
   }
 }
@@ -19,6 +22,18 @@ and `mobile/game/tracks.json`, and credited in `mobile/game/music-manifest.js`.
 Place the audio file in `static/game` so the app's normal asset copy includes
 it. Do not use remote URLs; add songs and their licence/source credits only
 when the owner supplies them. The example's extra files are illustrative.
+
+The shipped configuration plays `retro-05-ending.mp3` on the intro and every
+menu page, and cycles seven gameplay tracks over two levels each (levels 1-2,
+3-4, 5-6, and so on, restarting the cycle after 14 levels).
+
+The menu playlist is one continuous session: it starts on the first user
+gesture (browser autoplay rules), and switching title pages never touches the
+audio engine, so the track keeps playing from its current position across the
+intro and between menus. `startMenuBGM()` is idempotent for that reason, and it
+resumes instead of restarting after a background pause. The intro and the menu
+pages swap behind a 170 ms fade to black (`#screen-fade`); reduced-motion users
+get an immediate swap instead.
 
 The game starts with the existing bundled fallback while configuration loads.
 Invalid lists or unavailable configuration log a warning and use the normal
