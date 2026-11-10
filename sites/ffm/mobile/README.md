@@ -166,6 +166,12 @@ choices are a vertical stack of oblong rows; player controls share the brass/for
 palette, and pause/audio labels and actions are consistently centered. Decorative
 layers cannot intercept controls. Interface words remain intact; sentences may wrap
 at spaces, and compact navigation uses a proportional font to fit complete labels.
+Both website and app show the selected starting level as hand-drawn, illuminated
+SVG numerals in the title's upper-left corner, with a localized accessible label.
+Progress explains the selected training mode beside its selector. In the app,
+player-name editing and deletion hide purchase/notice content until the stage
+closes. Terms navigation and manual navigation use stacked forest/brass buttons;
+the manual offers a game-return action above its contents and at the bottom.
 The title uses large generated lettering art with an accessible heading and image
 label, centered independently of utility buttons. Other headings use the original
 monospace font. The introduction has no tall background panel; padded, short text
@@ -185,8 +191,9 @@ wrong/timeout feedback does not also stack the hurt cue. Device-wide audio
 preferences (effects, music, mute) persist separately from family progress. In
 the app shell bundled music is fetched once from the bundle origin and played
 from same-origin blob URLs so it can share the Web Audio gain path; the music
-slider becomes available only after that capture succeeds, and the UI states
-the limitation when device gain control is unavailable. See [MUSIC.md](MUSIC.md)
+slider accepts a gain before first playback and applies it to the routed track.
+One title speaker menu contains music, effects and mute controls; the UI states
+the limitation only when routing is unavailable. See [MUSIC.md](MUSIC.md)
 for the routing path and the physical-device listening gates. No new songs or
 hero/weapon art are included.
 

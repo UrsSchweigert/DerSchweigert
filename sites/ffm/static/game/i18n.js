@@ -260,10 +260,38 @@ const DICTIONARY = {
     de: '{a} ÷ {b} = {answer}. Weil {b} × {answer} = {a}, geht die Division ohne Rest auf.',
   },
   'audio.settings': { en: 'Audio settings', de: 'Toneinstellungen' },
+  'practice.unscoredDescription': {
+    en: 'All training is unscored and does not advance the campaign or unlock levels.',
+    de: 'Training ist immer ohne Punkte und schaltet weder Kampagnenfortschritt noch Level frei.',
+  },
+  'practice.description.targeted': {
+    en: 'Revisit up to five recent mistakes from the selected level, without a timer. Play that level first to collect mistakes.',
+    de: 'Wiederhole bis zu fünf kürzlich falsch gelöste Aufgaben aus dem gewählten Level, ohne Zeitlimit. Spiele das Level zuerst, um Fehler zu sammeln.',
+  },
+  'practice.description.short': {
+    en: 'A timed session of ten encounters from the selected level.',
+    de: 'Eine kurze Runde mit zehn Gegnerbegegnungen aus dem gewählten Level, mit Zeitlimit.',
+  },
+  'practice.description.assisted': {
+    en: 'Ten encounters from the selected level, without a timer. Take as much time as you need.',
+    de: 'Zehn Gegnerbegegnungen aus dem gewählten Level, ohne Zeitlimit. Nimm dir so viel Zeit, wie du brauchst.',
+  },
+  'practice.description.elite': {
+    en: 'Ten encounters against enemies with at least three hearts. Each new question restarts the timer.',
+    de: 'Zehn Begegnungen mit Gegnern, die mindestens drei Herzen haben. Jede neue Frage startet den Timer neu.',
+  },
+  'practice.description.recovery': {
+    en: 'Ten encounters. Five distinct correct answers restore one missing heart, up to twice per session.',
+    de: 'Zehn Gegnerbegegnungen. Fünf verschiedene richtige Antworten geben ein fehlendes Herz zurück, höchstens zweimal pro Runde.',
+  },
+  'practice.description.shapes': {
+    en: 'Count the shapes in ten questions. The Shapes button on the Play screen instead starts an endless session.',
+    de: 'Zähle die Formen in zehn Fragen. Die Formen-Taste auf der Spielen-Seite startet dagegen eine endlose Runde.',
+  },
   'audio.musicVolume': { en: 'Music volume', de: 'Musiklautstärke' },
   'audio.musicVolumeUnavailable': {
-    en: 'Music volume control is disabled until audio routing is verified on this device.',
-    de: 'Die Musiklautstärke ist deaktiviert, bis die Audioausgabe auf diesem Gerät überprüft wurde.',
+    en: 'Music volume control is not available on this device. Use the device volume buttons.',
+    de: 'Die Musiklautstärke ist auf diesem Gerät nicht einstellbar. Nutze die Lautstärketasten des Geräts.',
   },
   'audio.musicVolumeReady': { en: 'Music volume control is available.', de: 'Die Musiklautstärke kann angepasst werden.' },
   'audio.effectsVolume': { en: 'Effects volume', de: 'Effektlautstärke' },

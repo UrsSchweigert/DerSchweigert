@@ -56,11 +56,13 @@ function makeElement(tagName) {
       delete element.attributes[name];
     },
     appendChild(child) {
+      child.parentNode?.removeChild(child);
       child.parentNode = element;
       element.children.push(child);
       return child;
     },
     insertBefore(child, reference) {
+      child.parentNode?.removeChild(child);
       child.parentNode = element;
       const index = reference ? element.children.indexOf(reference) : -1;
       if (index >= 0) element.children.splice(index, 0, child);
@@ -190,7 +192,7 @@ function memoryStorage() {
 }
 
 test('the control applies real music and effects gain at 0, 0.2 and 1 and persists it', () => {
-  const { doc, topBar } = fakeDocument();
+  const { doc, topBar, muteBtn } = fakeDocument();
   const { audio } = routedEngine();
   assert.deepEqual(audio.musicVolumeCapability, { supported: true, status: 'available' });
 
@@ -202,7 +204,8 @@ test('the control applies real music and effects gain at 0, 0.2 and 1 and persis
     persist: () => writeAudioPreferences(storage, audio),
   });
 
-  assert.equal(topBar.children[1], control.element, 'inserted immediately after the mute button');
+  assert.deepEqual(topBar.children, [control.element], 'only one speaker remains in the top bar');
+  assert.ok(control.element.children[1].children.includes(muteBtn), 'mute moves into the speaker menu');
   assert.ok(control.musicInput, 'a supported route offers the music slider');
   assert.ok(control.effectsInput);
 
@@ -250,24 +253,41 @@ test('an unavailable gain path omits the music slider and explains it in DE and 
   setLocale('de', { persist: false });
   control.refresh();
   assert.equal(control.status.textContent, t('audio.musicVolumeUnavailable'));
-  assert.match(control.status.textContent, /deaktiviert/i);
+  assert.match(control.status.textContent, /nicht einstellbar/i);
   assert.equal(control.musicInput, null, 'refresh keeps the dead slider out');
   setLocale('en', { persist: false });
 });
 
-test('the music slider appears only after the media route becomes available', () => {
+test('the music slider accepts a saved gain before the first track is played', () => {
   const { doc } = fakeDocument();
   const { audio } = routedEngine({ start: false });
   const control = createVolumeControl({ doc, audio, translate: key => key });
 
-  assert.equal(control.musicInput, null);
-  assert.equal(control.element.getAttribute('data-music-available'), 'false');
+  assert.ok(control.musicInput);
+  control.musicInput.value = '0.2';
+  control.musicInput.dispatch('input');
+  assert.equal(audio.getMusicVolume(), 0.2);
+  assert.equal(control.element.getAttribute('data-music-available'), 'true');
 
   audio.startBGM();
   assert.equal(audio.musicVolumeCapability.supported, true);
+  assert.equal(audio._musicBus.gain.value, 0.2);
   control.refresh();
   assert.ok(control.musicInput);
   assert.equal(control.element.getAttribute('data-music-available'), 'true');
+});
+
+test('destroy restores the original mute button without losing its handlers', () => {
+  const { doc, topBar, muteBtn } = fakeDocument();
+  let muted = false;
+  muteBtn.addEventListener('click', () => { muted = !muted; });
+  const control = createVolumeControl({ doc, audio: routedEngine().audio });
+  muteBtn.dispatch('click');
+  assert.equal(muted, true);
+  control.destroy();
+  assert.deepEqual(topBar.children, [muteBtn]);
+  muteBtn.dispatch('click');
+  assert.equal(muted, false);
 });
 
 test('mute zeroes the buses without losing the chosen slider gains', () => {

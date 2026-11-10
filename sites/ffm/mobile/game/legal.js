@@ -60,7 +60,7 @@ export function buildTitleLegalLinks(locale = DEFAULT_LOCALE) {
   const manual = `<a href="${manualPagePath(loc)}">${legalText('legal.manual', loc)}</a>`;
   return [manual, ...LEGAL_PAGE_KINDS
     .map((kind) => `<a href="${legalPagePath(kind, loc)}">${legalText(`legal.${kind}`, loc)}</a>`)]
-    .join(' · ');
+    .join('\n');
 }
 
 /**
@@ -76,7 +76,6 @@ export function setupTitleLegalLinks({ doc = globalThis.document, getLocale, onL
     const locale = typeof getLocale === 'function' ? getLocale() : doc.documentElement?.lang;
     container.innerHTML = buildTitleLegalLinks(locale);
     for (const control of controls) {
-      container.appendChild(doc.createTextNode(' · '));
       container.appendChild(control);
     }
   };

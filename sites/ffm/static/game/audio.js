@@ -188,7 +188,11 @@ export class AudioEngine {
   getEffectsVolume() { return this.effectsVolume; }
   getMusicVolume() { return this.musicVolume; }
   get musicVolumeCapability() {
-    return { supported: this._musicVolumeStatus === 'available', status: this._musicVolumeStatus };
+    // Choose gain before first playback creates the configured app media route.
+    return {
+      supported: this._musicVolumeStatus === 'available' || this._musicVolumeStatus === 'awaiting-media-route',
+      status: this._musicVolumeStatus,
+    };
   }
 
   setEffectsVolume(value) {

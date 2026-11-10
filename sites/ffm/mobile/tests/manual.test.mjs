@@ -54,10 +54,20 @@ test('both manual locales exist and carry every documented section', async () =>
       assert.match(html, new RegExp(`data-manual-section="${section}"`), `${locale} documents ${section}`);
     }
     assert.match(html, /href="\.\.\/index\.html"/, `${locale} links back to the game`);
+    assert.equal((html.match(/href="\.\.\/index\.html"/g) ?? []).length, 2,
+      `${locale} returns to the game from top and bottom`);
+    assert.ok(html.indexOf('class="legal-return-nav"') < html.indexOf('<ol>'),
+      `${locale} offers return before the contents`);
     assert.match(html, new RegExp(`href="manual\\.${other}\\.html"`), `${locale} links the other locale`);
     assert.match(html, new RegExp(`href="privacy\\.${locale}\\.html"`), `${locale} links its privacy page`);
     assert.match(html, /src="\.\.\/game\/legal\.js"/);
   }
+});
+
+test('manual navigation uses opaque forest buttons and a primary game-return action', async () => {
+  const css = await readFile(join(manualDir, 'legal.css'), 'utf8');
+  assert.match(css, /\.legal-content nav ol a\s*\{[^}]*background:\s*linear-gradient\(145deg, #203e32, #10241c\)/s);
+  assert.match(css, /\.legal-footer-nav a\[href="\.\.\/index\.html"\]\s*\{[^}]*background:\s*linear-gradient\(145deg, #d5b05c, #a77a34\)/s);
 });
 
 test('the manual content matches the settled campaign, dragon, score and training rules', async () => {

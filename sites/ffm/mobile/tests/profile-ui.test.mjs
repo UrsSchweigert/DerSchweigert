@@ -2,6 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mountProfileUI } from '../game/profile-ui.js';
 import { createLocalProfileAdapter } from '../game/local-profile-adapter.js';
+import { readFile } from 'node:fs/promises';
+
+test('profile editing is a non-shrinking opaque stage without purchase or notice content', async () => {
+  const css = await readFile(new URL('../game/mobile-ui.css', import.meta.url), 'utf8');
+  assert.match(css, /#local-profiles #profile-root\s*\{\s*flex:\s*0 0 auto/);
+  assert.match(css, /#local-profiles:has\(\.profile-form, \.profile-confirmation\) > :not\(#profile-root\)\s*\{\s*display:\s*none/);
+  assert.match(css, /#local-profiles \.profile-confirmation\s*\{[^}]*background:\s*var\(--ink-900\)/s);
+  assert.match(css, /#local-profiles \.profile-name-input\s*\{\s*box-sizing:\s*border-box/);
+});
 
 // A small DOM fixture exercises actual listeners without installing a DOM dependency.
 class Element {

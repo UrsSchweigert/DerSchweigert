@@ -1,12 +1,4 @@
-// level-numerals.test.mjs — the app-only decorative title level numerals.
-//
-// level-numerals.js ships through the overlay as www/game/level-numerals.js
-// and is imported by main.js only behind platform.isApp. These tests pin the
-// pure selection resolver, the role="img" numeral the widget adds, the
-// localized accessible description, the app-only wiring in main.js, and a
-// deterministic layout fixture proving the numerals clear the logo and the
-// intro/login/button rows at small phone, ordinary phone and tablet sizes
-// before and after rotation.
+// Shared illuminated title level numerals and their offline bundle contract.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
@@ -15,9 +7,9 @@ import { fileURLToPath } from 'node:url';
 import {
   LEVEL_NUMERALS_CLASS,
   LEVEL_NUMERALS_MODE_ATTRIBUTE,
-  createLevelNumerals,
+  buildLevelNumeralMarkup, createLevelNumerals,
   resolveLevelSelection,
-} from '../game/level-numerals.js';
+} from '../../static/game/level-numerals.js';
 import { TOTAL_LEVELS } from '../../static/game/levels.js';
 import { setLocale, t } from '../../static/game/i18n.js';
 
@@ -72,7 +64,7 @@ test('resolveLevelSelection accepts only usable curriculum levels', () => {
     { level: 3, mode: 'continuation' }, 'an unknown mode never becomes a replay');
 
   for (const invalid of [null, undefined, {}, { level: 0 }, { level: -2 }, { level: 2.5 },
-    { level: 'x' }, { level: Number.NaN }, 'level']) {
+    { level: 'x' }, { level: Number.NaN }, { level: 1e21 }, 'level']) {
     assert.equal(resolveLevelSelection(invalid), null, `${JSON.stringify(invalid)} must not draw`);
   }
 });
@@ -91,21 +83,21 @@ test('the widget appends one decorative role="img" numeral and updates it', () =
   setLocale('en');
   assert.deepEqual(widget.updateLevelSelection({ level: 5, mode: 'continuation' }),
     { level: 5, mode: 'continuation' });
-  assert.equal(element.textContent, '5');
+  assert.equal(element.innerHTML, buildLevelNumeralMarkup(5));
   assert.equal(element.getAttribute('aria-label'), 'Starting level 5');
   assert.equal(element.getAttribute(LEVEL_NUMERALS_MODE_ATTRIBUTE), 'continuation');
   assert.equal(element.hidden, false);
 
   setLocale('de');
   widget.updateLevelSelection({ level: 12, mode: 'replay' });
-  assert.equal(element.textContent, '12');
+  assert.equal(element.innerHTML, buildLevelNumeralMarkup(12));
   assert.equal(element.getAttribute('aria-label'), 'Startlevel 12',
     'a locale switch re-localizes the accessible description');
   assert.equal(element.getAttribute(LEVEL_NUMERALS_MODE_ATTRIBUTE), 'replay');
 
   widget.updateLevelSelection(null);
   assert.equal(element.hidden, true, 'an empty selection hides the numerals');
-  assert.equal(element.textContent, '');
+  assert.equal(element.innerHTML, '');
   assert.equal(element.getAttribute('aria-label'), null);
 });
 
@@ -116,55 +108,33 @@ test('the widget is a no-op without a title container', () => {
   assert.equal(widget.selection.level, 4);
 });
 
-test('main.js publishes exactly one selection from renderLocalCampaign and only in the app', async () => {
+test('main.js shares the same title widget for web starts and native continuation/replay', async () => {
   const source = await readFile(join(staticDir, 'game', 'main.js'), 'utf8');
 
-  assert.equal((source.match(/\.updateLevelSelection\(/g) ?? []).length, 1,
-    'the level selection is published exactly once');
-  const renderStart = source.indexOf('function renderLocalCampaign(');
-  assert.ok(renderStart >= 0, 'main.js keeps renderLocalCampaign');
-  const renderEnd = source.indexOf('\n}\n', renderStart);
-  const publish = source.indexOf('mobileUi?.updateLevelSelection(', renderStart);
-  assert.ok(publish > renderStart && publish < renderEnd,
-    'the publication lives inside renderLocalCampaign');
-
-  const guarded = source.slice(renderStart, publish);
-  assert.match(guarded, /if \(platform\.isApp\) \{/, 'the publication is app-only');
-  assert.match(source.slice(publish), /level: Number\(levelJumpSelect\.value\), mode: 'replay'/);
-  assert.match(source.slice(publish), /level: progress\.nextLevel \?\? 1, mode: 'continuation'/);
-
-  // The app branch registers the widget; the web build never imports it.
-  assert.match(source, /mobileUi\?\.registerWidget\('level-numerals', createLevelNumerals\(\{/);
-  assert.equal((source.match(/import\('\.\/level-numerals\.js'\)/g) ?? []).length, 1);
-  const appStart = source.indexOf('if (platform.isApp) {');
-  const appEnd = source.indexOf('\n}\n', appStart);
-  assert.ok(source.slice(appStart, appEnd).includes("import('./level-numerals.js')"),
-    'the app branch imports the numeral module dynamically');
-  assert.ok(!source.slice(0, appStart).includes('level-numerals'),
-    'no module code references the numerals before the app guard');
-  assert.ok(!source.slice(appEnd).includes("import('./level-numerals.js')"),
-    'the web build never imports the numeral module');
+  assert.match(source, /import \{ createLevelNumerals \} from '\.\/level-numerals\.js'/);
+  assert.equal((source.match(/createLevelNumerals\(\{/g) ?? []).length, 1);
+  assert.match(source, /titleLevelNumerals\.updateLevelSelection\(\{ level: 1 \}\)/);
+  assert.match(source, /updateTitleStartingLevel\(progress\.nextLevel \?\? 1, label\)/);
+  assert.match(source, /else updateTitleStartingLevel\(\)/);
+  assert.doesNotMatch(source, /registerWidget\('level-numerals'/);
 });
 
-test('the web title screen and web source stay untouched', async () => {
-  await assert.rejects(
-    stat(join(staticDir, 'game', 'level-numerals.js')),
-    { code: 'ENOENT' },
-    'the module ships only through the app overlay',
-  );
-  const index = await readFile(join(staticDir, 'index.html'), 'utf8');
+test('the artwork uses offline vector paths, never platform fonts or text glyphs', async () => {
+  assert.ok((await stat(join(staticDir, 'game', 'level-numerals.js'))).isFile());
+  for (let level = 1; level <= TOTAL_LEVELS; level++) {
+    const markup = buildLevelNumeralMarkup(level);
+    assert.match(markup, /<svg/);
+    assert.match(markup, /<path/);
+    assert.doesNotMatch(markup, /<text|font-family|<image/);
+    assert.match(markup, /aria-hidden="true"/);
+  }
+  assert.throws(() => buildLevelNumeralMarkup('<script>'), RangeError);
   const css = await readFile(join(staticDir, 'styles.css'), 'utf8');
-  assert.doesNotMatch(index, /level-numerals|title-level-numerals/,
-    'the web page carries no numeral markup');
-  assert.doesNotMatch(css, /title-level-numerals/,
-    'the web stylesheet carries no numeral rules');
+  assert.match(css, /\.title-level-numerals/);
 });
 
 // --- Deterministic title layout fixture ---------------------------------
-// The CSS media queries in static/styles.css set the title row and logo size;
-// mobile-ui.css positions the numerals at the safe-area top-left with a vw
-// clamp. These helpers mirror those declarations so the non-overlap proof is
-// explicit and runs without a browser.
+// Mirrors the shared title layout; actual DOM geometry is also checked in-browser.
 const LOGO_ASPECT = 1408 / 680;
 const TITLE_GAP = 6;
 
@@ -192,13 +162,6 @@ function logoHeight({ width, height }) {
   return heightPx;
 }
 
-function numeralFontSize({ width, height }) {
-  const preferred = isLandscape({ width, height }) ? 4.5 * width / 100 : 7 * width / 100;
-  const minimum = isLandscape({ width, height }) ? 16 : 18;
-  const maximum = isLandscape({ width, height }) ? 44 : 56;
-  return Math.min(maximum, Math.max(minimum, preferred));
-}
-
 function titleGeometry({ width, height, safeTop = 0, safeLeft = 0, safeRight = 0, digits = 2 }) {
   const contentTop = safeTop + 8;
   const contentLeft = safeLeft + 8;
@@ -211,14 +174,15 @@ function titleGeometry({ width, height, safeTop = 0, safeLeft = 0, safeRight = 0
   const logoTop = centered
     ? contentTop + (rowHeight - logoPx) / 2
     : contentTop + rowHeight - logoPx;
-  const font = numeralFontSize({ width, height });
-  const numeralWidth = Math.min(digits * 0.6 * font, width * 0.24);
+  const numeralWidth = isLandscape({ width, height }) && height <= 400
+    ? 44 : Math.min(Math.min(96, Math.max(44, width * 0.14)), width * 0.2);
+  const numeralHeight = Math.min(width <= 600 ? 44 : 84, numeralWidth * 86 / (digits * 30 + 22));
   return {
     numerals: {
-      left: safeLeft + 10,
-      right: safeLeft + 10 + numeralWidth,
-      top: safeTop + 10,
-      bottom: safeTop + 10 + font,
+      left: safeLeft + 8,
+      right: safeLeft + 8 + numeralWidth,
+      top: safeTop + 8,
+      bottom: safeTop + 8 + numeralHeight,
     },
     logo: {
       left: logoCenter - logoWidth / 2,
@@ -276,21 +240,15 @@ test('the numerals clear the logo and the intro/login/button rows at every fixtu
   }
 });
 
-test('the overlay stylesheet positions the numerals with the measured values', async () => {
-  const css = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
+test('the shared stylesheet positions the artwork without text glyph fallbacks', async () => {
+  const css = await readFile(join(staticDir, 'styles.css'), 'utf8');
 
   assert.match(css, /\.title-level-numerals\s*\{[^}]*position:\s*absolute/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*top:\s*calc\(var\(--safe-area-top[^}]*\+\s*10px\)/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*left:\s*calc\(var\(--safe-area-left[^}]*\+\s*10px\)/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*font-family:\s*monospace/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*font-size:\s*clamp\(18px,\s*7vw,\s*56px\)/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*max-width:\s*24vw/);
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*top:\s*calc\(var\(--safe-area-top[^}]*\+\s*8px\)/);
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*left:\s*calc\(var\(--safe-area-left[^}]*\+\s*8px\)/);
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*width:\s*clamp\(44px,\s*14vw,\s*96px\)/);
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*max-width:\s*20vw/);
   assert.match(css, /\.title-level-numerals\s*\{[^}]*pointer-events:\s*none/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*font-variant-numeric:\s*oldstyle-nums/);
   assert.match(css, /\.title-level-numerals\[hidden\]\s*\{\s*display:\s*none/);
-  assert.match(css, /@media \(orientation: landscape\)\s*\{\s*\.title-level-numerals\s*\{[^}]*clamp\(16px,\s*4\.5vw,\s*44px\)/);
-
-  assert.doesNotMatch(css, /https?:\/\//, 'the overlay stylesheet must stay offline');
-  assert.doesNotMatch(css, /@font-face|@import/, 'no external font service or import');
-  assert.doesNotMatch(css, /url\(/, 'the numerals use CSS glyphs only, never an image asset');
+  assert.doesNotMatch(css.match(/\.title-level-numerals\s*\{[^}]*\}/)[0], /font-/);
 });

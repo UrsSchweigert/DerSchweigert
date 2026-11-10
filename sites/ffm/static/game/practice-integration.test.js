@@ -12,6 +12,8 @@ import {
 import { resetLevelAttempt } from './campaign-progress.js';
 import { getSkillIntro } from './skill-intro.js';
 import { generateShapesProblem } from './shapes.js';
+import { PRACTICE_KINDS } from './practice-session.js';
+import { setLocale, t } from './i18n.js';
 import {
   applyAudioPreferences,
   applyDeferredMusicVolume,
@@ -28,6 +30,33 @@ const fn = name => {
 const element = () => ({ style: {}, textContent: '', hidden: false, disabled: false });
 const problem = (operation = '+', answer = 2) => ({
   operation, answer, question: `1 ${operation} 1 = ?`, options: [answer, answer + 1],
+});
+
+test('Progress explains every selected training mode in DE/EN alongside the unscored notice', () => {
+  const description = { dataset: {}, textContent: '' };
+  const context = {
+    practiceKindSelect: { value: 'targeted' },
+    document: { getElementById: id => id === 'practice-description' ? description : null },
+    t,
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('renderPracticeDescription'), context);
+  for (const locale of ['de', 'en']) {
+    setLocale(locale, { persist: false });
+    for (const kind of PRACTICE_KINDS) {
+      context.practiceKindSelect.value = kind;
+      context.renderPracticeDescription();
+      const key = `practice.description.${kind}`;
+      assert.equal(description.dataset.i18n, key);
+      assert.equal(description.textContent, t(key));
+      assert.notEqual(description.textContent, key);
+      assert.ok(description.textContent.length > 40);
+    }
+    assert.notEqual(t('practice.unscoredDescription'), 'practice.unscoredDescription');
+  }
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /data-title-page="progress"[\s\S]*id="practice-kind" aria-describedby="practice-description practice-unscored"/);
+  assert.match(source, /practiceKindSelect\?\.addEventListener\('change',[\s\S]*?renderPracticeDescription\(\)/);
 });
 
 function practiceStartContext(kind, targetProblems = []) {

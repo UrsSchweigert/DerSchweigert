@@ -44,6 +44,7 @@ import {
   getPracticeEliteHp,
 } from './practice-session.js';
 import { getSkillIntro } from './skill-intro.js';
+import { createLevelNumerals } from './level-numerals.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -94,13 +95,6 @@ if (platform.isApp) {
     })
     .then(({ createTimerBar }) => {
       mobileUi?.registerWidget('timer-bar', createTimerBar({ doc: document }));
-      return import('./level-numerals.js');
-    })
-    .then(({ createLevelNumerals }) => {
-      mobileUi?.registerWidget('level-numerals', createLevelNumerals({
-        doc: document,
-        translate: t,
-      }));
       return import('./bubble-timer.js');
     })
     .then(({ createBubbleTimer }) => {
@@ -122,9 +116,10 @@ if (platform.isApp) {
         audio,
         translate: t,
         persist: persistAudioPreferences,
+        warn: (message, error) => console.warn(message, error),
       });
     })
-    .catch(() => {});
+    .catch(error => console.error('Unable to mount app audio settings', error));
   // App-only contextual help: question-mark buttons in the play area, pause
   // menu and title navigation open staged help with a link to the manual.
   import('./help-overlay.js')
@@ -174,6 +169,8 @@ if (platform.isApp) {
 // page, and sets <html lang> before anything else runs.
 initI18n();
 initViewportLayout();
+const titleLevelNumerals = createLevelNumerals({ doc: document, translate: t });
+titleLevelNumerals.updateLevelSelection({ level: 1 });
 
 // The page's CSP is `script-src 'self' https://challenges.cloudflare.com`
 // with no 'unsafe-inline'/nonce, so an inline <script type="module"> in
@@ -923,19 +920,34 @@ function renderScoreHistory(historyResponse, container) {
 }
 
 function renderLevelJumpOptions(profile) {
+  const previous = levelJumpSelect.value;
   const scores = profile && profile.scores ? profile.scores : [];
   const levels = [...new Set(scores.map((s) => s.level))].sort((a, b) => a - b);
   if (levels.length === 0) {
     levelJumpRow.style.display = 'none';
     levelJumpSelect.innerHTML = `<option value="">${t('levels.startFromOne')}</option>`;
     document.getElementById('title-levels-btn').hidden = true;
+    updateTitleStartingLevel();
     return;
   }
   document.getElementById('title-levels-btn').hidden = false;
   const options = [`<option value="">${t('levels.startFromOne')}</option>`]
     .concat(levels.map((lvl) => `<option value="${lvl}">${t('levels.level', { level: lvl })}</option>`));
   levelJumpSelect.innerHTML = options.join('');
+  if (levels.includes(Number(previous))) levelJumpSelect.value = previous;
   levelJumpRow.style.display = '';
+  updateTitleStartingLevel();
+}
+
+function updateTitleStartingLevel(nextLevel = 1, continuationLabel = null) {
+  const level = Number(levelJumpSelect.value) || nextLevel;
+  const mode = levelJumpSelect.value ? 'replay' : 'continuation';
+  titleLevelNumerals.updateLevelSelection({ level, mode });
+  const continuation = document.getElementById('continue-level');
+  if (continuation) continuation.textContent = platform.isApp
+    ? (mode === 'replay' ? t('campaign.replay', { level })
+      : continuationLabel ?? t('campaign.continueAt', { level }))
+    : t('title.levelNumerals', { level });
 }
 
 function renderLeaderboard(entries) {
@@ -1038,16 +1050,7 @@ function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   else levelJumpSelect.value = '';
   levelJumpRow.style.display = '';
   document.getElementById('title-levels-btn').hidden = false;
-  const continuation = document.getElementById('continue-level');
-  if (continuation) continuation.textContent = levelJumpSelect.value
-    ? t('campaign.replay', { level: levelJumpSelect.value }) : label;
-  // Publish the active starting/replay selection for the app-only title
-  // numerals. The hook is null on the web build, so this is a no-op there.
-  if (platform.isApp) {
-    mobileUi?.updateLevelSelection(levelJumpSelect.value
-      ? { level: Number(levelJumpSelect.value), mode: 'replay' }
-      : { level: progress.nextLevel ?? 1, mode: 'continuation' });
-  }
+  updateTitleStartingLevel(progress.nextLevel ?? 1, label);
 }
 
 function renderPlayerIdentity() {
@@ -1229,7 +1232,17 @@ function renderSkillIntro() {
 btnSkillIntroContinue?.addEventListener('click', () => pendingSkillIntro?.());
 btnSkillIntroSkip?.addEventListener('click', () => pendingSkillIntro?.());
 btnStartPractice?.addEventListener('click', () => startPracticeSession());
-practiceKindSelect?.addEventListener('change', () => showPracticeStatus(''));
+function renderPracticeDescription() {
+  const description = document.getElementById('practice-description');
+  if (!description || !practiceKindSelect) return;
+  const key = `practice.description.${practiceKindSelect.value}`;
+  description.dataset.i18n = key;
+  description.textContent = t(key);
+}
+practiceKindSelect?.addEventListener('change', () => {
+  showPracticeStatus('');
+  renderPracticeDescription();
+});
 practiceLevelSelect?.addEventListener('change', () => showPracticeStatus(''));
 setPracticeLevelOptions();
 
@@ -1408,6 +1421,7 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
 });
 levelJumpSelect.addEventListener('change', () => {
   if (platform.isApp && currentPersonalDevelopment) renderLocalCampaign(currentPersonalDevelopment.completed);
+  else updateTitleStartingLevel();
 });
 
 // --- Auth ---
@@ -1943,6 +1957,7 @@ if (!platform.isApp) accountDeleteForm.addEventListener('submit', async e => {
 function updateMuteButtonLabel() {
   muteBtn.textContent = audio.muted ? '🔇' : '🔊';
   muteBtn.setAttribute('aria-label', t(audio.muted ? 'topbar.unmuteAriaLabel' : 'topbar.muteAriaLabel'));
+  volumeControl?.refresh();
 }
 
 muteBtn.addEventListener('click', () => {
@@ -3598,6 +3613,7 @@ onLocaleChange(() => {
   updateMuteButtonLabel();
   audioPreferenceStatus();
   renderSkillIntro();
+  renderPracticeDescription();
   if (practiceBadgeRetryButton) practiceBadgeRetryButton.textContent = t('practice.retryBadgeSave');
   refreshPracticeBadges();
   if (currentLeaderboard) renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
