@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Arithmo Slayer — story reel</title>
+  <link rel="stylesheet" href="player/diorama-player.css">
+  <style>
+    body { margin: 0; background: #120e0a; color: #f5e6c8; font: 16px/1.4 Georgia, serif; }
+    .reel-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2000;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(10, 8, 6, 0.72);
+      font-size: 14px;
+      letter-spacing: 0.02em;
+    }
+    .reel-bar button {
+      min-height: 36px;
+      min-width: 36px;
+      padding: 0 14px;
+      font: inherit;
+      color: #fff3dc;
+      background: rgba(60, 38, 16, 0.85);
+      border: 1px solid rgba(255, 236, 200, 0.6);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .reel-bar button[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <!--
+    Development reel: plays every story diorama in order. Not shipped with the
+    game. Serve sites/ffm/static/story over HTTP (ES modules need it) and open
+    /reel.html. Query parameters: lang=en|de, scene=<id> to play just one.
+  -->
+  <div class="reel-bar">
+    <span id="label">Loading…</span>
+    <button type="button" id="restart" hidden>Play again</button>
+  </div>
+  <script type="module">
+    import { createDioramaPlayer } from './player/diorama-player.js';
+
+    const params = new URLSearchParams(location.search);
+    const locale = params.get('lang') ?? 'en';
+    const only = params.get('scene');
+    const label = document.getElementById('label');
+    const restart = document.getElementById('restart');
+
+    const index = await (await fetch('scenes/index.json')).json();
+    const entries = only ? index.scenes.filter((entry) => entry.id === only) : index.scenes;
+
+    async function play(id) {
+      const baseUrl = new URL(`scenes/${id}/`, location.href);
+      const scene = await (await fetch(new URL('scene.json', baseUrl))).json();
+      const player = createDioramaPlayer({
+        container: document.body,
+        scene,
+        baseUrl,
+        locale,
+      });
+      try {
+        return await player.play();
+      } finally {
+        player.destroy();
+      }
+    }
+
+    let running = false;
+    async function run() {
+      if (running) return;
+      running = true;
+      restart.hidden = true;
+      for (const [position, entry] of entries.entries()) {
+        label.textContent = `${position + 1} / ${entries.length} · ${entry.id}`;
+        await play(entry.id);
+        // A short breath between scenes; Skip ends one early, not the reel.
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      label.textContent = entries.length === 1 ? 'End of scene' : 'That is all of them';
+      restart.hidden = false;
+      running = false;
+    }
+
+    restart.addEventListener('click', () => { void run(); });
+    restart.focus();
+    void run();
+  </script>
+</body>
+</html>

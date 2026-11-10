@@ -43,7 +43,8 @@ export const EXCLUDED = [
   // sources, the approved reference sheets, the art bible and the dev preview
   // stay on the web side.
   /^story\/(sources|references|tools)(\/|$)/,
-  /^story\/(preview\.html|README\.md|ART-BIBLE\.md)$/,
+  /^story\/(preview|reel)\.html$/,
+  /^story\/(README|ART-BIBLE)\.md$/,
   /(^|\/)tests?(\/|$)/,
   /(^|\/)[^/]+\.test\.js$/,
   /^export-sprites\.html$/,
