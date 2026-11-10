@@ -106,10 +106,15 @@ ten resolved questions; its final correction remains visible before the result.
 Endless Shapes remains available. Premium practice uses the same authorization boundary
 as ordinary levels. Local badges describe activities, not proficiency or certification.
 
-The campaign keeps its existing local records and difficulty labels. Dragon breath
-only defeats currently present combat enemies; pending spawns and retreating correction
-queues survive. Spell kills are encounter progress, not correct replies or recovery
-credit. Answer latency samples only active gameplay and resets between attempts.
+The campaign keeps its existing local records and difficulty labels. A successful
+dragon breath ends a campaign level on both the web and the app build: it clears every
+encounter still queued, requeued or on screen, pays a deterministic baseline-per-wave
+bonus for each of them, and hands off to the normal level-clear path. Practice and
+Shapes keep the older present-fiends-only breath; pending spawns and retreating
+correction queues survive there. Spell kills are encounter progress, not correct
+replies or recovery credit. Answer latency samples only active gameplay and resets
+between attempts. Web level and high scores recorded before the web build adopted
+this rule are legacy records; compare them only among themselves.
 
 Before promoting any experimental rule into scored play, assign an explicit ruleset
 identifier to the resulting records and compare scores only within the same ruleset,

@@ -3068,14 +3068,14 @@ function updatePaceAdapter() {
   }
 }
 
-// A successful dragon breath in the app's campaign ends the level: every
-// encounter still queued, requeued or on screen is cleared at once, paid a
-// deterministic bonus proportional to how many remain, and then handed to the
-// normal single level-clear path. Web, practice and Shapes keep today's
-// single-fiend breath and are never campaign-completed here.
+// A successful dragon breath in the campaign — web and app alike — ends the
+// level: every encounter still queued, requeued or on screen is cleared at
+// once, paid a deterministic bonus proportional to how many remain, and then
+// handed to the normal single level-clear path. Practice and Shapes keep
+// today's present-fiends-only breath and are never campaign-completed here.
 function finishDragonLevel() {
   if (dragonFinishResolved) return true;
-  if (!platform.isApp || practiceRun || state.isShapesMode) return false;
+  if (practiceRun || state.isShapesMode) return false;
   dragonFinishResolved = true;
 
   const remainingEncounters = countDragonRemainingEncounters({ fiends, spawnQueue, requeuedFiends });
