@@ -1293,6 +1293,38 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 #level-attempt-summary, #defeat-attempt-summary { white-space: pre-line; overflow-wrap: normal; }
 #level-attempt-summary:empty, #defeat-attempt-summary:empty { display: none; }
 .overlay-card .diff-btn { margin: 0; padding: 6px; font-size: 14px; }
+/* The first-open thank-you notice sits above the app top bar (z-index 200) so
+   no edge of the game frame floats over the dialog, and its card scrolls
+   instead of clipping the continue button on short screens or large text.
+   It is sized from the layout viewport, never from --viewport-*: those follow
+   the visual viewport (pinch or double-tap zoom, the iOS URL bar), and a
+   zoomed-out value would blow the dialog up and push its action off the
+   screen, leaving no way out. */
+#first-open-notice {
+  z-index: 900;
+  inset: 0;
+  width: auto;
+  height: auto;
+  /* A little air between the card and the screen edges, on top of the safe area. */
+  padding: calc(var(--safe-area-top) + 16px)
+    calc(var(--safe-area-right) + 16px)
+    calc(var(--safe-area-bottom) + 16px)
+    calc(var(--safe-area-left) + 16px);
+}
+.first-open-notice-card {
+  overflow-y: auto;
+  padding: clamp(16px, 5vw, 28px);
+  gap: 10px;
+}
+.first-open-notice-card > * { flex-shrink: 0; }
+/* Centred copy with a little air above the single action: a calm note rather
+   than a wall of left-aligned text. */
+.first-open-notice-card p { text-align: center; }
+.first-open-notice-card [data-notice-action="continue"] {
+  margin-top: 10px;
+  /* No double-tap zoom on the one action that closes the dialog. */
+  touch-action: manipulation;
+}
 /* Pause actions wrap into equal-width rows: every button in a row shares one
    width, and a short last row stretches its button to the full row instead of
    leaving a gap (the save button is hidden for guests, practice and shapes). */
