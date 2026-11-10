@@ -224,3 +224,38 @@ row under a section that promises "no sign-up, no account".
 
 The old `ui/title-screen.png` master was deleted with this re-capture so the
 folder ships no multi-megabyte PNG.
+
+## action/ — recompose: early acts, cropped framing (2026-11-10, later pass)
+
+Owner feedback on the pass above: no late-act room (the act-6 throne hall read
+as "playing the game"), crop the stage instead of shipping the whole
+1536×1024 plate, drop the HUD, and use the game's own **flame** for the
+lightning spell — `LightningBolt` is a `SpellProjectile` that draws
+`game/fireball.png` through a hue filter, not a bolt from the sky.
+
+**No new image was generated.** The five refined plates made for the previous
+pass (session `render4/spr/*-refined.png`) are reused unchanged; only their
+placement is new.
+
+| File | Stage (act) | Crop window (source px) / zoom | Hero plate | Fiend plate | Spell |
+| --- | --- | --- | --- | --- | --- |
+| `action/fight.webp` | `game/stage-1.webp` (act 1, village square, daylight) | x 300–1199, y 297–802 at **1.78×** | `hero-swing0-refined` (mid-swing) | `goblin-swordsman-refined` | none — procedural impact spark where the blades meet |
+| `action/fireball.webp` | `game/stage-2.webp` (act 2, harvest fields, sunset) | x 476–1476, y 182–745 at **1.60×** | `hero-swing2-refined` (casting) | `wraith-refined` | `game/fireball.png`, 312 px wide, warm trail |
+| `action/lightning.webp` | `game/stage-3.webp` (act 3, the wood, dusk) | x 323–1212, y 260–760 at **1.80×** | `hero-swing2-refined` (casting) | `orc-warlord-refined` | `game/fireball.png` under the game's own lightning tint, 392 px wide, cool trail |
+
+The ground line sits at y = 540 in every still (lower 40 % of the frame), the
+horizon stays inside the frame, and hero head-to-boot is 340–350 px against
+340–350 px for the fiend — the ~1.0 parity of the previous pass.
+
+Lightning orb: the lightning spell is `LightningBolt` (`entities.js`), which
+draws the fireball sprite with `_hueRotateMatrix(190)` — hue-rotate 190° ×
+`saturate(1.6)` × `brightness(1.15)`, clamped 0–255 — so the orb here is
+`game/fireball.png` put through exactly that matrix, cropped to its alpha
+bounding box (`_orb-fire.png` is the same sprite untinted). It is drawn 26 %
+larger than the fireball orb, mirroring the game's `spriteScale` 4 vs 3.
+
+Also: the fiend plates carry a flat violet ellipse baked under the feet; it is
+keyed out (r≈g<b, b−max(r,g) ≈ 55) so each still can use a contact shadow that
+matches its own background light. Sprites and orbs are resampled premultiplied
+(no dark fringe on the black-matted edges). Delivery: 1600×900 WebP q88
+method 6, 277 / 237 / 223 KB — no HUD, no text, no UI.
