@@ -48,6 +48,7 @@ import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
 import { createStoryIntro } from './story-intro.js';
 import { highScoreTrend, runningBestTrend } from './score-trend.js';
+import { frameDelta } from './frame-delta.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -2132,6 +2133,7 @@ function clearPremiumSession() {
   hideLoadingOverlay();
   topBar.style.display = 'flex';
   audio.stopBGM();
+  if (typeof startMenuMusic === 'function') startMenuMusic();
   syncKeepAwake();
   updateHUDLogoutVisibility();
 }
@@ -3154,6 +3156,7 @@ function returnToTitle() {
   activeSkillIntro = null;
   if (skillIntroOverlay) skillIntroOverlay.style.display = 'none';
   diffSelect.style.display = 'flex';
+  if (typeof startMenuMusic === 'function') startMenuMusic();
   updateHUDLogoutVisibility();
   refreshProfileAndLeaderboard();
   profileUI?.refresh();
@@ -3224,6 +3227,7 @@ function triggerLevelClear() {
     levelClearOverlay.style.display = 'none';
     audio.stopBGM();
     diffSelect.style.display = 'flex';
+    if (typeof startMenuMusic === 'function') startMenuMusic();
     updateHUDLogoutVisibility();
     profileUI?.refresh();
   });
@@ -3304,14 +3308,13 @@ function updateTimer(dt) {
 
 // --- Main game loop ---
 let animFrameId = null;
-let lastTs = 0;
+let lastTs = null;
 
 function gameLoop(ts) {
   animFrameId = requestAnimationFrame(gameLoop);
 
-  const rawDt = (ts - lastTs) / 1000;
+  const dt = frameDelta(ts, lastTs);
   lastTs = ts;
-  const dt = Math.min(rawDt, 0.1);
 
   if (!paused) advanceGameplayTimers(dt);
 
@@ -3668,7 +3671,12 @@ for (const [id, delta] of [['leaderboard-prev', -1], ['leaderboard-next', 1]]) {
     renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
   });
 }
-function showTitlePage(name) {
+const TITLE_FADE_MS = 170;
+const screenFade = document.getElementById('screen-fade');
+let titleFadeRun = 0;
+let titlePageReady = false;
+
+function applyTitlePage(name) {
   activeTitlePage = name;
   for (const section of document.querySelectorAll('[data-title-page]')) {
     section.hidden = section.dataset.titlePage !== name;
@@ -3676,6 +3684,25 @@ function showTitlePage(name) {
   for (const button of document.querySelectorAll('.title-navigation [data-title-target]')) {
     button.setAttribute('aria-pressed', String(button.dataset.titleTarget === name));
   }
+}
+
+// The intro and the menu pages swap behind a fade to black. The very first
+// call runs without the fade so the splash never flashes at load, and the
+// running counter drops stale timers when the player taps quickly.
+function showTitlePage(name) {
+  const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  if (!screenFade || reduceMotion || !titlePageReady || name === activeTitlePage) {
+    titlePageReady = true;
+    applyTitlePage(name);
+    return;
+  }
+  const run = ++titleFadeRun;
+  screenFade.classList.add('is-visible');
+  setTimeout(() => {
+    if (run !== titleFadeRun) return;
+    applyTitlePage(name);
+    screenFade.classList.remove('is-visible');
+  }, TITLE_FADE_MS);
 }
 for (const button of document.querySelectorAll('[data-title-target]')) {
   button.addEventListener('click', () => {
@@ -3690,6 +3717,22 @@ document.getElementById('title-leaderboard-btn').hidden = platform.isApp;
 document.getElementById('title-progress-btn').hidden = false;
 document.getElementById('title-family-btn').hidden = !platform.isApp;
 showTitlePage('play');
+
+// Title/menu music is one continuous session: it starts on the first user
+// gesture (autoplay policy) and, because switching title pages never touches
+// the audio engine, it keeps playing across the intro and between menus. A
+// running level owns the audio instead, so it is skipped while on the field.
+function startMenuMusic() {
+  if (gameRunning || diffSelect.style.display === 'none') return;
+  audio.startMenuBGM();
+}
+// Ask for the menu track immediately: browsers that allow it (or that have
+// already granted this site playback) start it before the intro, so the intro
+// is not silent. A blocked attempt leaves the session resumable, and the
+// listeners below retry it inside the next real gesture.
+startMenuMusic();
+document.addEventListener('pointerdown', startMenuMusic, { passive: true });
+document.addEventListener('keydown', startMenuMusic);
 
 updateMuteButtonLabel();
 

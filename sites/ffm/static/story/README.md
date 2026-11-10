@@ -59,11 +59,23 @@ layer's depth plane, so they don't count towards the 3-4 planes.
 
 ## Producing a scene
 
-Every layer is rendered with the same reference-image model (GPT image), so
-scenery and characters share one paper style. A local DiffusionKit /
-FLUX.1-schnell scenery pass was tried for the pilot and dropped: it cannot take
-reference images, ignores negative prompts, truncates prompts at 77 tokens, and
-took about 30 minutes per backdrop on a 16 GB Mac.
+Use only generators approved in [ART-BIBLE.md](ART-BIBLE.md): `flux-1/schnell`
+(Apache-2.0) or a `flux-pro` API model for commercial work. FLUX.1 [dev] is
+excluded — its licence does not permit commercial use of the outputs.
+
+The intro pilot was rendered entirely with the GPT image model, which takes
+several reference images at once and held the hero on-model across poses. Two
+faster, cheaper paths were verified on 2026-11-10:
+
+- **Scenery** — `fal-ai/flux-1/schnell`: about 4 seconds and $0.003 per image,
+  re-runnable from a seed, and strong on the paper-cardstock look.
+- **Characters** — `fal-ai/flux-pro/kontext` ($0.04 per image): fed
+  `references/hero-reference-sheet.png`, it kept the hair, scarf, clasp and
+  sword on a new pose. It takes one reference per call, so check the hem,
+  tatters and props against the sheet.
+
+Local DiffusionKit is not practical for the set: about 30 minutes per render
+here, and its 77-token prompt limit makes it fragile.
 
 1. **Art packet** — write `sources/<id>/layers.json` from the story text and
    `ART-BIBLE.md`: one prompt per layer plus the reference images it is

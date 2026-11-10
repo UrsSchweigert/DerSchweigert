@@ -1583,8 +1583,49 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 
 /* Legal text is deliberately the sole scrollable title page. */
 .title-legal { overflow-y: auto; overscroll-behavior: contain; }
-.splash-legal-links { font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.splash-legal-links a, .splash-legal-link-btn { display: inline-flex; align-items: center; justify-content: center; font-size: 14px; padding: 4px; }
+
+/* Web build: the Terms tab mirrors the app's legal navigation — a vertical
+ * stack of forest/brass chips instead of a faint inline link row. The app
+ * gets the same look from its runtime overlay (mobile/game/mobile-ui.css),
+ * so these rules stay web-only. */
+:root[data-platform="web"] .splash-legal-links {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin: 0;
+  width: min(100%, 560px);
+  align-self: center;
+  font-size: 14px;
+  color: var(--ivory-muted);
+}
+:root[data-platform="web"] .splash-legal-links a,
+:root[data-platform="web"] .splash-legal-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--brass-deep);
+  border-radius: 5px;
+  background: linear-gradient(145deg, #203e32, #10241c);
+  color: var(--ivory);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+:root[data-platform="web"] .splash-legal-links a:hover,
+:root[data-platform="web"] .splash-legal-link-btn:hover {
+  border-color: var(--brass-light);
+  color: var(--focus-ring);
+  background: linear-gradient(145deg, #315641, #19372b);
+}
+:root[data-platform="web"] .splash-legal-links a:focus-visible,
+:root[data-platform="web"] .splash-legal-link-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 .legal-body button, .legal-body input, .legal-body select { min-height: 44px; }
 
 /* Keyboard editing is its own stage; form save/cancel remain available. */
@@ -2118,4 +2159,21 @@ body:not(.legal-body) {
     transition-duration: 0.01ms !important;
     transform: none !important;
   }
+}
+
+/* Fade to black between the intro and the menu pages (see showTitlePage in
+   main.js). Sits above every overlay so the swap is never visible. */
+#screen-fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 170ms ease;
+  z-index: 300;
+}
+
+#screen-fade.is-visible {
+  opacity: 1;
+  pointer-events: auto;
 }

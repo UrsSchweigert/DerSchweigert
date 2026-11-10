@@ -1,12 +1,15 @@
 # Bundled level music
 
-The web game and the mobile app use `static/game/level-music.json`. Map a
-1-based level number to a list of bundled track filenames, for example:
+The web game and the mobile app use `static/game/level-music.json`. It holds the
+title/menu playlist under `menu` and maps a 1-based level number to a list of
+bundled track filenames under `levels`, for example:
 
 ```json
 {
+  "menu": ["retro-05-ending.mp3"],
   "levels": {
-    "1": ["background-music.mp3"],
+    "1": ["retro-02-level-1.mp3"],
+    "2": ["retro-02-level-1.mp3"],
     "11": ["first.mp3", "second.mp3"]
   }
 }
@@ -19,6 +22,51 @@ and `mobile/game/tracks.json`, and credited in `mobile/game/music-manifest.js`.
 Place the audio file in `static/game` so the app's normal asset copy includes
 it. Do not use remote URLs; add songs and their licence/source credits only
 when the owner supplies them. The example's extra files are illustrative.
+
+The shipped configuration plays `retro-05-ending.mp3` on the intro and every
+menu page, and cycles seven gameplay tracks over two levels each (levels 1-2,
+3-4, 5-6, and so on, restarting the cycle after 14 levels).
+
+The menu playlist is one continuous session: it starts on the first user
+gesture (browser autoplay rules), and switching title pages never touches the
+audio engine, so the track keeps playing from its current position across the
+intro and between menus. `startMenuBGM()` is idempotent for that reason, and it
+resumes instead of restarting after a background pause. The intro and the menu
+pages swap behind a 170 ms fade to black (`#screen-fade`); reduced-motion users
+get an immediate swap instead.
+
+The menu track is also requested once during start-up, before any gesture, so
+that a browser which permits playback starts the intro with music instead of
+silence. When the browser refuses (an ordinary `NotAllowedError` under its
+autoplay policy, which is not logged as a failure), the session stays
+resumable and the next gesture starts the track; repeated gestures while it is
+already playing do nothing. Both native shells allow media autoplay
+(`mediaTypesRequiringUserActionForPlayback = []` on iOS,
+`setMediaPlaybackRequiresUserGesture(false)` on Android), so the app starts
+with music too. On iOS the Web Audio context can still be suspended until the
+first touch; the menu track then becomes audible from that point.
+
+## Gapless looping
+
+A single-track playlist — the menu track and every level track — is played
+through `static/game/music-loop.js`: the file is fetched once, decoded with
+`decodeAudioData` and looped with an `AudioBufferSourceNode` (`loop = true`,
+`loopEnd` at the decoded duration) into the same music bus, so volume and mute
+keep working through the bus gain.
+
+This matters because a media element loses about 25 ms at every wrap: whether
+the rotation advances to the preloaded element or the element itself is looped,
+the pipeline re-runs the MP3 decoder at the seam (measured 24.5 ms in Chrome,
+and the same with a bare `<audio loop>`). A decoded buffer carries no encoder
+padding — Chrome's decoder trims it — so the buffer path wraps with no gap at
+all.
+
+Multi-track playlists, and any context without `decodeAudioData`, keep the
+media-element rotation. If fetching or decoding the single track fails, the
+engine logs a warning and falls back to the rotation for the same playlist. One
+decoded track is kept in memory at a time (~30 MB for the longest track) and
+reused when the same file starts again, so the two levels that share a track
+and a return to the title do not decode twice.
 
 The game starts with the existing bundled fallback while configuration loads.
 Invalid lists or unavailable configuration log a warning and use the normal

@@ -15,6 +15,28 @@ approved character reference is
 - Lighting is a **runtime overlay** (ambient tint, glows, motes, flashes), so
   layers stay reusable and are painted with neutral, even light.
 
+## Approved generators (licensing)
+
+Arithmo Slayer is a paid app, so a layer may only be produced with a model that
+allows commercial use. Verified 2026-11-10:
+
+| Generator | Licence | Allowed |
+| --- | --- | --- |
+| `fal-ai/flux-1/schnell` (also local `mlx-FLUX.1-schnell-4bit-quantized`) | Apache-2.0: "personal, scientific, and commercial purposes" | Yes |
+| `fal-ai/flux-pro/kontext` (and other `flux-pro` endpoints) | Commercial API access from Black Forest Labs | Yes |
+| The GPT image model used for the intro pilot | Provider terms permit commercial use of outputs | Yes |
+| `fal-ai/flux-1/dev`, `flux-kontext/dev`, local `mlx-FLUX.1-dev` | FLUX.1 [dev] Non-Commercial License | **No** |
+
+FLUX.1 [dev] is excluded on purpose. Its licence contradicts itself (§2(d) says
+outputs may be used commercially, §4(a)(i) forbids using "any data produced by
+the Model" for commercial purposes), which is not a risk worth taking on a paid
+product for children.
+
+Reference-conditioned work (the hero, the dragon, recurring fiends) needs an
+endpoint that accepts an input image: use `flux-pro/kontext` with the approved
+reference sheet, or the GPT image model, which takes several references at once.
+Text-only `flux-1/schnell` cannot see the reference and will drift off-model.
+
 ## Palette
 
 | Use | Colour |
@@ -92,4 +114,6 @@ are **gold**; danger is crimson or sickly violet, never gore.
   a cross on a roof), or extra characters;
 - cutouts have a white halo, missing cream border, or cropped edges;
 - the palette or lighting breaks the act's setting;
-- it is frightening or violent beyond the in-game tone.
+- it is frightening or violent beyond the in-game tone;
+- it was produced with a generator that is not approved above (for example any
+  FLUX.1 [dev] model), however good it looks.

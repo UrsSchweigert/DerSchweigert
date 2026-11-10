@@ -795,3 +795,174 @@ describe('shared sound buses and event cues', () => {
       assert.equal(audio._voices.size, 2);
     });
 });
+
+it('plays the configured menu track as a loop and never restarts it on repeat calls', () => {
+  const state = { plays: 0 };
+  const audio = new AudioEngine({
+    tracks: [{ file: 'a.mp3' }, { file: 'menu.mp3' }],
+    levelMusic: { menu: ['menu.mp3'], levels: {} },
+    baseUrl: null,
+    makeAudio: () => fakeAudio(state),
+  });
+  audio._ensureCtx = () => {};
+  audio.startMenuBGM();
+  const current = audio._rotation.currentAudio;
+  assert.equal(audio._rotation.currentTrack.file, 'menu.mp3');
+  assert.equal(state.plays, 1);
+
+  // Switching between the intro and the menu pages calls this again; the
+  // single-track playlist must keep playing instead of restarting.
+  current.currentTime = 21;
+  audio.startMenuBGM();
+  audio.startMenuBGM();
+  assert.equal(state.plays, 1);
+  assert.equal(audio._rotation.currentAudio, current);
+  assert.equal(current.currentTime, 21);
+
+  // A one-track playlist loops itself when the track ends.
+  current.fireEnded();
+  assert.equal(audio._rotation.currentTrack.file, 'menu.mp3');
+  assert.equal(state.plays, 2);
+});
+
+it('swaps between menu and level playlists', () => {
+  const state = { plays: 0 };
+  const audio = new AudioEngine({
+    tracks: [{ file: 'a.mp3' }, { file: 'menu.mp3' }, { file: 'level.mp3' }],
+    levelMusic: { menu: ['menu.mp3'], levels: { 1: ['level.mp3'] } },
+    baseUrl: null,
+    makeAudio: () => fakeAudio(state),
+  });
+  audio._ensureCtx = () => {};
+  audio.startMenuBGM();
+  assert.equal(audio._rotation.currentTrack.file, 'menu.mp3');
+  audio.startLevelBGM(1, 1);
+  assert.equal(audio._rotation.currentTrack.file, 'level.mp3');
+  audio.startMenuBGM();
+  assert.equal(audio._rotation.currentTrack.file, 'menu.mp3');
+});
+
+it('resumes a paused menu session instead of restarting it', () => {
+  const state = { plays: 0 };
+  const audio = new AudioEngine({
+    tracks: [{ file: 'menu.mp3' }],
+    levelMusic: { menu: ['menu.mp3'], levels: {} },
+    baseUrl: null,
+    makeAudio: () => fakeAudio(state),
+  });
+  audio._ensureCtx = () => {};
+  audio.startMenuBGM();
+  const current = audio._rotation.currentAudio;
+  current.currentTime = 7;
+  audio.pauseBGM();
+  audio.startMenuBGM();
+  assert.equal(audio._rotation.currentAudio, current);
+  assert.equal(current.currentTime, 7);
+  assert.equal(state.plays, 2);
+});
+
+it('ships the chosen menu track and repeats every level track for two levels', async () => {
+  const config = JSON.parse(await readFile(new URL('./level-music.json', import.meta.url)));
+  const { TOTAL_LEVELS } = await import('./levels.js');
+  const CYCLE = [
+    'retro-02-level-1.mp3',
+    'retro-03-level-2.mp3',
+    'retro-04-level-3.mp3',
+    'loop-01-super-action-6.mp3',
+    'loop-02-super-action-7.mp3',
+    'loop-03-super-action-9.mp3',
+    'loop-04-dangerous-encounter.mp3',
+  ];
+  assert.deepEqual(config.menu, ['retro-05-ending.mp3']);
+  assert.deepEqual(
+    Object.keys(config.levels).map(Number).sort((a, b) => a - b),
+    Array.from({ length: TOTAL_LEVELS }, (_, index) => index + 1),
+    'every level has a playlist entry',
+  );
+  for (let level = 1; level <= TOTAL_LEVELS; level += 1) {
+    const expected = CYCLE[Math.floor((level - 1) / 2) % CYCLE.length];
+    assert.deepEqual(config.levels[String(level)], [expected], `level ${level} plays ${expected}`);
+  }
+
+  // Everything the playlists reference must ship with the game and be credited
+  // in both the web and the app manifests.
+  const web = JSON.parse(await readFile(new URL('./tracks.json', import.meta.url))).tracks;
+  const mobile = JSON.parse(await readFile(new URL('../../mobile/game/tracks.json', import.meta.url))).tracks;
+  const referenced = new Set([...Object.values(config.levels).flat(), ...config.menu]);
+  for (const file of referenced) {
+    await access(new URL(`./${file}`, import.meta.url));
+    assert.ok(web.some(track => track.file === file), `${file} is credited in tracks.json`);
+    assert.ok(mobile.some(track => track.file === file), `${file} is credited in the app manifest`);
+    assert.ok(MUSIC_TRACKS.some(track => track.file === file), `${file} is credited on the licence pages`);
+  }
+});
+
+it('starts the menu track on the first gesture after autoplay blocked it', async () => {
+  const state = { plays: 0 };
+  let blockAutoplay = true;
+  const audio = new AudioEngine({
+    tracks: [{ file: 'menu.mp3' }],
+    levelMusic: { menu: ['menu.mp3'], levels: {} },
+    baseUrl: null,
+    makeAudio: () => {
+      const element = fakeAudio(state);
+      const realPlay = element.play;
+      element.play = function () {
+        // Exactly what a browser does before any user gesture.
+        if (blockAutoplay) return Promise.reject(new DOMException('blocked', 'NotAllowedError'));
+        return realPlay.call(this);
+      };
+      return element;
+    },
+  });
+  audio._ensureCtx = () => {};
+  const warn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args);
+
+  try {
+    // Page load: the attempt is made, the browser refuses, nothing is logged
+    // as a failure because a gesture may still arrive.
+    audio.startMenuBGM();
+    await Promise.resolve();
+    assert.equal(state.plays, 0);
+    assert.equal(warnings.length, 0, 'a blocked autoplay attempt is not a warning');
+
+    // The first click: the same session is retried and now plays.
+    blockAutoplay = false;
+    audio.startMenuBGM();
+    assert.equal(state.plays, 1);
+    assert.equal(audio._rotation.currentTrack.file, 'menu.mp3');
+
+    // Later clicks while it plays must not restart it.
+    const current = audio._rotation.currentAudio;
+    audio.startMenuBGM();
+    audio.startMenuBGM();
+    assert.equal(state.plays, 1);
+    assert.equal(audio._rotation.currentAudio, current);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+it('a level that starts while the playlist loads is not replaced by menu music', async () => {
+  const state = { plays: 0 };
+  const audio = new AudioEngine({
+    tracks: [{ file: 'menu.mp3' }, { file: 'level.mp3' }],
+    levelMusic: { menu: ['menu.mp3'], levels: { 1: ['level.mp3'] } },
+    baseUrl: null,
+    makeAudio: () => fakeAudio(state),
+  });
+  audio._ensureCtx = () => {};
+  let releaseLevelMusic;
+  audio._levelMusicReady = new Promise((resolve) => { releaseLevelMusic = resolve; });
+
+  audio.startMenuBGM();          // waits for the playlist
+  audio.startLevelBGM(1, 1);     // the player got into a level first
+  assert.equal(audio._rotation.currentTrack.file, 'level.mp3');
+
+  releaseLevelMusic();           // the playlist arrives late
+  await audio._levelMusicReady;
+  await Promise.resolve();
+  assert.equal(audio._rotation.currentTrack.file, 'level.mp3', 'menu music must not hijack the level');
+});

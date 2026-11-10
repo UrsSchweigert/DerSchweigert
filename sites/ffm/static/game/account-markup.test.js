@@ -107,10 +107,29 @@ it('keeps account deletion inside its initially hidden panel', () => {
 });
 
 it('uses the scrollable layout and readable notices on billing legal pages', () => {
+  const legalCss = fs.readFileSync(new URL('../legal.css', import.meta.url), 'utf8');
+  assert.match(legalCss, /\.warning\s*\{[^}]*color:\s*#332701;/, 'legal.css');
   for (const name of ['cancel.html', 'terms.html', 'terms.en.html']) {
     const page = fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
     assert.match(page, /<body class="legal-body">/, name);
-    assert.match(page, /\.warning\s*\{[^}]*color:\s*#332701;/, name);
+  }
+  const cancel = fs.readFileSync(new URL('../cancel.html', import.meta.url), 'utf8');
+  assert.match(cancel, /\.warning\s*\{[^}]*color:\s*#332701;/, 'cancel.html');
+});
+
+it('restyles the web terms pages with the app legal stylesheet', () => {
+  const legalCss = fs.readFileSync(new URL('../legal.css', import.meta.url), 'utf8');
+  assert.match(legalCss, /--brass-light|--legal-brass-light/, 'brass headings');
+  assert.match(legalCss, /min-height:\s*44px/, '44px footer targets');
+  for (const name of ['terms.html', 'terms.en.html']) {
+    const page = fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+    const shared = page.indexOf('href="styles.css"');
+    const legal = page.indexOf('href="legal.css"');
+    assert.ok(shared >= 0, `${name} keeps the shared stylesheet`);
+    assert.ok(legal > shared, `${name} loads legal.css after styles.css`);
+    assert.match(page, /<div class="legal-page"><div class="legal-content">/, name);
+    assert.match(page, /<p class="legal-footer-nav">/, name);
+    assert.doesNotMatch(page, /<style>|<div class="container">/, name);
   }
 });
 

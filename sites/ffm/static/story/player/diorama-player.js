@@ -22,8 +22,8 @@ export const STAGE_H = 1080;
 export const STAGE_SAFE = { x: 240, y: 108, w: 1440, h: 864 };
 
 const DEFAULT_LABELS = {
-  en: { skip: 'Skip', next: 'Continue' },
-  de: { skip: 'Überspringen', next: 'Weiter' },
+  en: { skip: 'Skip' },
+  de: { skip: 'Überspringen' },
 };
 
 export function pickText(text, locale) {
@@ -91,7 +91,7 @@ function loadImage(src) {
  * @param {string|URL} options.baseUrl URL of the scene folder (layer src are relative to it)
  * @param {'en'|'de'} [options.locale]
  * @param {boolean} [options.reducedMotion] defaults to the prefers-reduced-motion media query
- * @param {object} [options.labels] { skip, next } button labels
+ * @param {object} [options.labels] { skip } skip-button label
  */
 export function createDioramaPlayer({
   container, scene, baseUrl, locale = 'en', reducedMotion, labels,
@@ -160,10 +160,6 @@ export function createDioramaPlayer({
   const skipBtn = el('button', 'diorama__btn diorama__btn--skip', controls);
   skipBtn.type = 'button';
   skipBtn.textContent = text.skip;
-  const nextBtn = el('button', 'diorama__btn diorama__btn--next', controls);
-  nextBtn.type = 'button';
-  nextBtn.textContent = text.next;
-  nextBtn.hidden = true;
 
   let raf = 0;
   let startTs = 0;
@@ -222,9 +218,8 @@ export function createDioramaPlayer({
     elapsed = Math.min(duration, (ts - startTs) / 1000);
     render(elapsed);
     if (elapsed >= duration) {
-      nextBtn.hidden = false;
-      skipBtn.hidden = true;
-      nextBtn.focus();
+      // The scene ends by itself so the title screen follows without a click.
+      finish('ended');
       return;
     }
     raf = requestAnimationFrame(tick);
@@ -238,16 +233,15 @@ export function createDioramaPlayer({
   }
 
   skipBtn.addEventListener('click', () => finish('skipped'));
-  nextBtn.addEventListener('click', () => finish('ended'));
   const previousFocus = document.activeElement;
   const onKey = event => {
     if (event.key === 'Escape') {
       event.preventDefault();
       finish('skipped');
     } else if (event.key === 'Tab') {
-      // Modal: keep focus on the scene's own (single visible) button.
+      // Modal: keep focus on the scene's own button.
       event.preventDefault();
-      (nextBtn.hidden ? skipBtn : nextBtn).focus();
+      skipBtn.focus();
     }
   };
   document.addEventListener('keydown', onKey);
