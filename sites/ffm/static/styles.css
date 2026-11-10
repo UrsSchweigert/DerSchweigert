@@ -1293,7 +1293,12 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 #level-attempt-summary, #defeat-attempt-summary { white-space: pre-line; overflow-wrap: normal; }
 #level-attempt-summary:empty, #defeat-attempt-summary:empty { display: none; }
 .overlay-card .diff-btn { margin: 0; padding: 6px; font-size: 14px; }
-#pause-actions, #pause-quit-actions { display: grid; gap: 6px; }
+/* Pause actions wrap into equal-width rows: every button in a row shares one
+   width, and a short last row stretches its button to the full row instead of
+   leaving a gap (the save button is hidden for guests, practice and shapes). */
+#pause-actions, #pause-quit-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#pause-actions > button, #pause-quit-actions > button { flex: 1 1 220px; }
+#pause-quit-actions > p { flex: 1 1 100%; }
 .screen-actions, .paywall-actions { display: grid; gap: 6px; }
 .parental-gate-form { min-width: 0; gap: 6px; }
 .parental-gate-actions { display: flex; gap: 6px; }
@@ -1308,19 +1313,39 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 .screen-status:empty, .profile-status:empty, .paywall-status:empty,
 .gate-status:empty, #pause-save-error:empty, #pause-save-notice:empty { display: none; }
 
+/* The title bar is right-anchored and grows leftwards, so the number of
+   utility buttons (app: replay/mute/language, web: replay/login/mute/
+   language) never pushes it off the right edge. */
 #top-bar {
   top: calc(var(--viewport-top) + var(--safe-area-top) + 8px);
-  right: auto;
-  left: calc(var(--viewport-left) + var(--viewport-width) - var(--safe-area-right) - 112px);
+  left: auto;
+  right: calc(100vw - var(--viewport-left) - var(--viewport-width) + var(--safe-area-right) + 8px);
   gap: 6px;
 }
 #top-bar button, #top-bar span { padding: 4px 8px; }
-#username-display { display: flex; align-items: center; justify-content: center; }
-/* Website-only account controls may need more than the native two buttons. */
-#top-bar:has(#login-btn) {
-  left: auto;
-  right: calc(100vw - var(--viewport-left) - var(--viewport-width) + var(--safe-area-right) + 8px);
+/* Round control that replays the prologue diorama (see ../story/), first in the
+   title bar so it sits left of Login. The art is a brass dragon curled into a
+   circular arrow (game/intro-replay.webp), so the button is only the 44px frame
+   it sits in. Two IDs keep it clear of the `#top-bar button` box rules. */
+#top-bar #btn-replay-intro {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(9, 20, 17, 0.55), rgba(9, 20, 17, 0) 72%);
+  cursor: pointer;
+  touch-action: manipulation;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
 }
+.intro-replay-icon { display: block; width: 100%; height: 100%; object-fit: contain; }
+#top-bar #btn-replay-intro:hover {
+  background: radial-gradient(circle, rgba(32, 70, 58, 0.8), rgba(9, 20, 17, 0) 72%);
+}
+#top-bar #btn-replay-intro:hover .intro-replay-icon { filter: brightness(1.15); }
+#top-bar #btn-replay-intro:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+#username-display { display: flex; align-items: center; justify-content: center; }
 
 .splash-screen { justify-content: center; overflow: hidden; }
 .splash-bg { transform: none; }
@@ -1663,7 +1688,7 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 
 @media (orientation: landscape), (max-height: 400px) {
   .title-play {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
     grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
   }
@@ -1694,8 +1719,6 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   .paywall-card > p:not(.paywall-status), .parental-gate-card > p:not(.gate-status) { grid-column: 1; }
   .paywall-actions, .parental-gate-form { grid-column: 2; grid-row: 1 / span 3; }
   .paywall-status, .gate-status { grid-column: 1 / -1; }
-  #pause-quit-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  #pause-quit-actions p { grid-column: 1 / -1; }
   #level-clear .overlay-card, #game-over .overlay-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #level-clear .overlay-card h2, #level-clear .overlay-card p,
   #game-over .overlay-card h2, #game-over .overlay-card p { grid-column: 1 / -1; }
@@ -1993,9 +2016,27 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 #pause-overlay:has(#audio-settings[open]) #pause-actions { display: none; }
 #pause-overlay:has(#audio-settings[open]) .player-identity { display: none; }
 #btn-audio-back { grid-column: 1 / -1; width: 100%; }
-#pause-overlay .overlay-card { align-items: stretch; text-align: center; }
-#audio-settings { width: 100%; max-width: 560px; align-self: center; }
+/* The pause dialog keeps the title screen's 560px control column, so the
+   action buttons and the audio disclosure share one width on wide screens. */
+#pause-overlay .overlay-card {
+  align-items: stretch;
+  text-align: center;
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+}
+#audio-settings { width: 100%; align-self: center; }
 #audio-settings > summary { justify-content: center; }
+/* Match the disclosure summary to the pause buttons it sits under. */
+#pause-overlay .compact-disclosure > summary {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 6px;
+  color: var(--ivory);
+  border-color: var(--brass-deep);
+  font-size: 14px;
+  font-weight: 400;
+}
 .audio-controls { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
 .audio-controls label { width: 100%; }
 .audio-controls input[type="range"] { max-width: 400px; }
@@ -2007,7 +2048,7 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 }
 .playing-as-row button:hover { border-color: var(--brass-light); background: var(--forest-800); }
 .title-play-intro {
-  padding: 16px 20px;
+  padding: 24px 28px;
   box-sizing: border-box;
   align-self: center;
   height: auto;
@@ -2015,7 +2056,7 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   background: none;
   text-shadow: 0 2px 3px #000, 0 0 8px #000, 0 0 16px #000;
 }
-.title-play-intro .splash-intro { max-width: 30ch; font-size: 14px; line-height: 1.5; }
+.title-play-intro .splash-intro { max-width: min(46ch, 100%); font-size: 14px; line-height: 1.55; }
 .title-play-intro .splash-subtitle, #continue-level { max-width: 26ch; line-height: 1.5; }
 .title-play-intro .splash-intro, .title-play-intro .splash-subtitle,
 .title-play-intro .player-identity, .title-play-intro #continue-level {
@@ -2114,7 +2155,10 @@ body:not(.legal-body) {
   .title-pages { padding-inline: clamp(4px, 2vw, 20px); box-sizing: border-box; }
   .splash-diff-buttons { padding-inline: 4px; box-sizing: border-box; }
 }
-@media (orientation: portrait) and (max-height: 850px) {
+/* Only genuinely short portrait screens drop the introduction hint; phones
+   with room keep it, so the title screen reads as a welcome rather than a
+   bare menu. */
+@media (orientation: portrait) and (max-height: 700px) {
   .splash-diff-buttons { gap: 6px; }
   .title-play-intro { padding: 6px 10px; gap: 4px; }
   .title-play-intro .splash-intro { display: none; }

@@ -33,9 +33,10 @@ let currentLocale = null;
 const DICTIONARY = {
   // Splash screen
   'splash.intro': {
-    en: 'Train your math reflexes, beat the clock, and climb the rankings one correct answer at a time.',
-    de: 'Trainiere deine Kopfrechen-Reflexe, schlage die Uhr und klettere in der Rangliste nach oben – eine richtige Antwort nach der anderen.',
+    en: 'Math training for young and old: sharpen your mental arithmetic, beat the clock, and climb the rankings one correct answer at a time.',
+    de: 'Kopfrechentraining für Jung und Alt: schärfe dein Kopfrechnen, schlage die Uhr und klettere in der Rangliste nach oben – eine richtige Antwort nach der anderen.',
   },
+  'splash.replayIntro': { en: 'Replay the intro', de: 'Intro erneut ansehen' },
   'splash.loginRegister': { en: 'Login / Register', de: 'Anmelden / Registrieren' },
   'splash.logout': { en: 'Logout', de: 'Abmelden' },
   'splash.greeting': { en: 'Welcome, {username}!', de: 'Willkommen, {username}!' },

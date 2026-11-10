@@ -55,6 +55,13 @@
   .app-header-timer-fill { transition: none; }
 }
 
+/* Portrait drops the bar: the chrome already prints the countdown as the
+ * "Time 12s" readout, and the play area starts directly beneath the header,
+ * so the extra stripe only costs a row. Landscape keeps the bar. */
+@media (orientation: portrait) {
+  .app-header-timer { display: none; }
+}
+
 /* Portrait encounter swords, injected by encounter-swords.js into #input-zone
  * immediately before #mc-buttons.
  *
