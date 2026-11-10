@@ -99,6 +99,10 @@ are **gold**; danger is crimson or sickly violet, never gore.
 - Stage is 1920×1080. Keep faces, the sword, and anything the subtitle refers
   to inside the **safe area x 240-1680, y 108-972**, which stays visible from
   4:3 tablets to 20:9 phones.
+- A foreground must cover the band between the midground's base and the bottom
+  of the stage — no empty backdrop showing through underneath it. Mirror-tile
+  a strip that is too short to span the stage (see `tools/tile-foreground.py`),
+  keeping the join off-centre when the strip has a strong central object.
 - A foreground strip is read by its **top edge**: that edge must be the
   vegetation itself — grass tips, fern fronds, seed heads, a broken step — never
   a straight horizontal crop. Anchor the foreground by its vegetation line (its
