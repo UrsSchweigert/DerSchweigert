@@ -212,18 +212,23 @@ test('the overlay stylesheet centres the header bar in its grid row', async () =
   assert.doesNotMatch(css, /https?:\/\//, 'the overlay stylesheet must stay offline');
 });
 
-test('portrait drops the header bar and keeps the numeric countdown', async () => {
+test('the header bar is the only visual countdown in the app', async () => {
   const css = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
-  const portrait = css.match(/@media \(orientation: portrait\) \{([\s\S]*?)\n\}/)?.[1];
-  assert.ok(portrait, 'portrait media query missing');
-  assert.match(portrait, /\.app-header-timer \{ display: none; \}/,
-    'the portrait header must not draw the stripe');
-  assert.doesNotMatch(css, /@media \(orientation: landscape\)[\s\S]*?\.app-header-timer \{[^}]*display: none/,
-    'landscape keeps the bar');
+  // The stripe runs in every orientation; portrait no longer drops it.
+  assert.doesNotMatch(css, /\.app-header-timer \{[^}]*display: none/,
+    'the header bar must not be dropped in any orientation');
+  assert.doesNotMatch(css, /@media \(orientation: portrait\)[\s\S]{0,200}\.app-header-timer/,
+    'portrait keeps the bar');
+  // The browser's own <progress> stripe beside "Time 15s" is hidden visually
+  // (kept in the accessibility tree) so only one bar is drawn.
+  assert.match(css, /#accessible-timer-progress\s*\{[^}]*clip-path:\s*inset\(50%\)/,
+    'the small progress stripe must be visually hidden');
 
   // The seconds stay in the shared header regardless of the bar.
   const html = await readFile(join(staticDir, 'index.html'), 'utf8');
   assert.match(html, /<span data-i18n="hud\.time">Time<\/span> <strong id="accessible-timer">/);
+  assert.match(html, /<progress id="accessible-timer-progress"[^>]*aria-label="Time remaining"/,
+    'the progress element stays for assistive tech');
   const chrome = await readFile(join(staticDir, 'game', 'gameplay-chrome.js'), 'utf8');
   assert.match(chrome, /text\('accessible-timer',[\s\S]{0,120}state\.timerRemaining/,
     'the header keeps printing the remaining seconds');
