@@ -70,6 +70,10 @@ const DICTIONARY = {
     en: 'Includes unfinished attempts that did not clear the level.',
     de: 'Enthält unfertige Versuche, die das Level nicht geschafft haben.',
   },
+  'scoreHistory.loginRequired': {
+    en: 'Log in to save your scores and see your score history here.',
+    de: 'Melde dich an, um deine Punkte zu speichern und deinen Punkteverlauf hier zu sehen.',
+  },
   'personalDevelopment.title': { en: 'My progress', de: 'Mein Fortschritt' },
   'personalDevelopment.perLevelBest': { en: 'Level {level}: {score} points', de: 'Level {level}: {score} Punkte' },
   'personalDevelopment.perLevelBestUnfinished': {
