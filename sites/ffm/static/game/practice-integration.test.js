@@ -12,6 +12,12 @@ import {
 import { resetLevelAttempt } from './campaign-progress.js';
 import { getSkillIntro } from './skill-intro.js';
 import { generateShapesProblem } from './shapes.js';
+import {
+  applyAudioPreferences,
+  applyDeferredMusicVolume,
+  readAudioPreferences,
+  writeAudioPreferences,
+} from './audio-preferences.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 const fn = name => {
@@ -123,6 +129,7 @@ test('level setup bounds enemy queues and resets practice pacing without changin
       practiceBadgeRetryButton: null,
       updateHUDLogoutVisibility() {}, hud: { update() {} },
       audio: { startLevelBGM() {} }, syncKeepAwake() {},
+      flushDeferredMusicVolume() {},
       animFrameId: 1, cfg: null,
     };
     vm.createContext(context);
@@ -654,12 +661,15 @@ test('audio settings apply and persist effects volume while keeping unverified m
   const values = new Map([['arithmo-audio-preferences-v1', JSON.stringify({ effects: 0.4, music: 0.2 })]]);
   const applied = [];
   const context = {
-    AUDIO_PREFERENCES_KEY: 'arithmo-audio-preferences-v1',
+    readAudioPreferences, writeAudioPreferences, applyAudioPreferences, applyDeferredMusicVolume,
+    deferredMusicVolume: null,
     audio: {
       musicVolumeCapability: { supported: false, status: 'unverified-media-routing' },
+      muted: false,
       getEffectsVolume: () => 0.4, getMusicVolume: () => 0.35,
       setEffectsVolume(value) { applied.push(['effects', value]); },
       setMusicVolume(value) { applied.push(['music', value]); },
+      setMuted(value) { this.muted = Boolean(value); },
     },
     window: { localStorage: {
       getItem: key => values.get(key) ?? null,
@@ -675,9 +685,11 @@ test('audio settings apply and persist effects volume while keeping unverified m
   vm.runInContext(`${fn('audioPreferenceStatus')}\n${fn('initializeAudioPreferences')}\n${fn('persistAudioPreferences')}`, context);
   context.initializeAudioPreferences();
   assert.deepEqual(applied, [['effects', 0.4]]);
+  assert.equal(context.deferredMusicVolume, 0.2, 'music gain waits for a supported route');
   assert.equal(context.musicVolumeInput.disabled, true);
   assert.equal(context.musicVolumeInput.value, '0.35');
   assert.equal(context.musicVolumeStatus.textContent, 'audio.musicVolumeUnavailable');
   context.persistAudioPreferences();
-  assert.deepEqual(JSON.parse(values.get('arithmo-audio-preferences-v1')), { effects: 0.4, music: 0.35 });
+  assert.deepEqual(JSON.parse(values.get('arithmo-audio-preferences-v1')),
+    { effects: 0.4, music: 0.35, muted: false });
 });

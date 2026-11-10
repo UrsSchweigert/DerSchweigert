@@ -1,9 +1,13 @@
 // Only gameplay dialogs are managed here; account and title dialogs have their own owners.
 export function initGameplayModalFocus({ doc = globalThis.document } = {}) {
   const win = doc?.defaultView;
-  const overlays = ['pause-overlay', 'heal-tip-overlay', 'level-clear', 'game-over', 'skill-intro']
+  const overlays = ['pause-overlay', 'heal-tip-overlay', 'level-clear', 'game-over', 'skill-intro', 'first-open-notice']
     .map(id => doc?.getElementById(id)).filter(Boolean);
-  if (!doc?.body || !win || !overlays.length) return { refresh() {}, destroy() {} };
+  if (!doc?.body || !win) {
+    return {
+      refresh() {}, registerOverlay() { return () => {}; }, unregisterOverlay() { return false; }, destroy() {},
+    };
+  }
   const selector = 'button, input, select, textarea, a[href], [tabindex]';
   const savedInert = new Map();
   let active = null;
@@ -73,7 +77,7 @@ export function initGameplayModalFocus({ doc = globalThis.document } = {}) {
   function focusin(event) {
     if (active && !active.contains(event.target)) focusFirst();
   }
-  for (const overlay of overlays) {
+  function prepare(overlay) {
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     const heading = overlay.querySelector('h2');
@@ -82,10 +86,6 @@ export function initGameplayModalFocus({ doc = globalThis.document } = {}) {
       overlay.setAttribute('aria-labelledby', heading.id);
     }
     if (!overlay.hasAttribute('tabindex')) overlay.setAttribute('tabindex', '-1');
-  }
-  const observer = win.MutationObserver ? new win.MutationObserver(refresh) : null;
-  const observed = new Set();
-  for (const overlay of overlays) {
     const targets = [overlay, ...overlay.querySelectorAll(selector)];
     for (const target of targets) {
       for (let node = target; node && overlay.contains(node); node = node.parentElement) {
@@ -97,11 +97,38 @@ export function initGameplayModalFocus({ doc = globalThis.document } = {}) {
       }
     }
   }
+  // Later overlays (for example the app-only help dialog) join the same trap:
+  // registering applies the dialog ARIA, observes visibility and makes the
+  // element the active dialog whenever it is the last visible one.
+  function registerOverlay(overlay) {
+    if (destroyed || !overlay || overlays.includes(overlay)) return () => {};
+    overlays.push(overlay);
+    prepare(overlay);
+    refresh();
+    return () => unregisterOverlay(overlay);
+  }
+  function unregisterOverlay(overlay) {
+    const index = overlays.indexOf(overlay);
+    if (index < 0) return false;
+    overlays.splice(index, 1);
+    if (active === overlay) {
+      active = null;
+      restoreBackground();
+      previousFocus = null;
+    }
+    refresh();
+    return true;
+  }
+  const observer = win.MutationObserver ? new win.MutationObserver(refresh) : null;
+  const observed = new Set();
+  for (const overlay of overlays) prepare(overlay);
   doc.addEventListener('keydown', keydown);
   doc.addEventListener('focusin', focusin);
   refresh();
   return {
     refresh,
+    registerOverlay,
+    unregisterOverlay,
     destroy() {
       destroyed = true;
       observer?.disconnect();

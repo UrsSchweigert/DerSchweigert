@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { copyAssets } from '../scripts/copy-assets.mjs';
+import { copyAssets, APP_OVERLAY } from '../scripts/copy-assets.mjs';
 import { bundleCheck, DEFAULT_BUNDLE_DIR } from '../scripts/bundle-check.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,7 +15,9 @@ const staticDir = join(root, '..', 'static');
 async function withBundle(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'ffm-bundle-'));
   try {
-    await copyAssets(undefined, dir, join(root, 'missing-overlay'));
+    // Build the real app bundle, overlay included: bundle-check requires the
+    // app-only overlay UI seam alongside the shared play modules.
+    await copyAssets(undefined, dir, APP_OVERLAY);
     return await fn(dir);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -134,6 +136,66 @@ test('a missing core play module fails the bundle check', async () => {
     await rm(join(dir, 'game', 'levels.js'));
     const problems = await bundleCheck(dir);
     assert.ok(problems.some((problem) => problem.includes('game/levels.js')), problems.join('\n'));
+  });
+});
+
+test('the offline bundle ships the player manual in both languages', async () => {
+  await withBundle(async (dir) => {
+    for (const rel of ['legal/manual.de.html', 'legal/manual.en.html']) {
+      assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
+    }
+  });
+});
+
+test('the app-only overlay UI module and stylesheet are bundled', async () => {
+  await withBundle(async (dir) => {
+    for (const rel of ['game/mobile-ui.js', 'game/mobile-ui.css', 'game/entitlement-panel.js', 'game/first-open-notice.js', 'game/timer-bar.js', 'game/level-numerals.js', 'game/bubble-timer.js', 'game/shapes-header.js']) {
+      assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
+    }
+    const source = await readFile(join(dir, 'game', 'mobile-ui.js'), 'utf8');
+    assert.match(source, /export function mountMobileUi/);
+    assert.doesNotMatch(source, /https?:\/\//, 'the overlay must stay offline');
+    const timerBar = await readFile(join(dir, 'game', 'timer-bar.js'), 'utf8');
+    assert.match(timerBar, /export function createTimerBar/);
+    assert.match(timerBar, /export function timerBarRgb/);
+    assert.doesNotMatch(timerBar, /https?:\/\//, 'the timer bar must stay offline');
+    const levelNumerals = await readFile(join(dir, 'game', 'level-numerals.js'), 'utf8');
+    assert.match(levelNumerals, /export function createLevelNumerals/);
+    assert.match(levelNumerals, /export function resolveLevelSelection/);
+    assert.doesNotMatch(levelNumerals, /https?:\/\//, 'the level numerals must stay offline');
+    const bubbleTimer = await readFile(join(dir, 'game', 'bubble-timer.js'), 'utf8');
+    assert.match(bubbleTimer, /export function createBubbleTimer/);
+    assert.match(bubbleTimer, /export const BUBBLE_COUNT/);
+    assert.doesNotMatch(bubbleTimer, /https?:\/\//, 'the bubble timer must stay offline');
+    const shapesHeader = await readFile(join(dir, 'game', 'shapes-header.js'), 'utf8');
+    assert.match(shapesHeader, /export function createShapesHeader/);
+    assert.match(shapesHeader, /export function layoutShapesHeader/);
+    assert.doesNotMatch(shapesHeader, /https?:\/\//, 'the shapes header must stay offline');
+    const entitlementPanel = await readFile(join(dir, 'game', 'entitlement-panel.js'), 'utf8');
+    assert.match(entitlementPanel, /export function mountEntitlementPanel/);
+    assert.match(entitlementPanel, /export function buildEntitlementMarkup/);
+    assert.doesNotMatch(entitlementPanel, /https?:\/\//, 'the entitlement panel must stay offline');
+    const firstOpenNotice = await readFile(join(dir, 'game', 'first-open-notice.js'), 'utf8');
+    assert.match(firstOpenNotice, /export function mountFirstOpenNotice/);
+    assert.match(firstOpenNotice, /export function buildNoticeMarkup/);
+    assert.match(firstOpenNotice, /export const NOTICE_KEY/);
+    assert.doesNotMatch(firstOpenNotice, /https?:\/\//, 'the first-open notice must stay offline');
+    for (const rel of ['game/purchase.js', 'game/entitlement.js', 'game/paywall.js', 'game/parental-gate.js']) {
+      assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must ship with the panel`);
+    }
+    assert.deepEqual(await bundleCheck(dir), []);
+  });
+});
+
+test('a missing overlay UI module fails the bundle check', async () => {
+  await withBundle(async (dir) => {
+    await rm(join(dir, 'game', 'mobile-ui.js'));
+    const problems = await bundleCheck(dir);
+    assert.ok(problems.some((problem) => problem.includes('game/mobile-ui.js')), problems.join('\n'));
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /missing required file: game\/mobile-ui\.js/);
   });
 });
 

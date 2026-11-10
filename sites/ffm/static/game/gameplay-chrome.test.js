@@ -84,6 +84,42 @@ test('one through ten shapes match the actual problem type and count', () => {
   }
 });
 
+test('an installed app-only shapes header owns the two-row shapes markup', () => {
+  const { chrome, elements } = fixture();
+  const calls = [];
+  let cleared = 0;
+  chrome.setShapesHeader({
+    render(args) { calls.push(args); },
+    clear() { cleared++; },
+  });
+  const problem = { displayMode: 'shapes', shapeType: 'circle', count: 7 };
+  chrome.update({ timerActive: true }, problem);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].element, elements['active-question']);
+  assert.equal(calls[0].problem, problem);
+  assert.equal(calls[0].instruction, 'Count the shapes');
+  assert.equal(elements['active-question'].textContent, '', 'the chrome leaves the markup to the widget');
+
+  chrome.update({ timerActive: true, paused: true }, problem);
+  assert.equal(cleared, 1, 'leaving shapes clears the two-row markup');
+  assert.equal(elements['active-question'].textContent, '');
+
+  chrome.update({ timerActive: true }, { question: '2 + 2 = ?' });
+  assert.equal(elements['active-question'].textContent, '2 + 2 = ?');
+  assert.equal(cleared, 2);
+
+  chrome.setShapesHeader(null);
+  chrome.update({ timerActive: true }, problem);
+  assert.equal(elements['active-question'].textContent, 'Count the shapes: ● ● ● ● ● ● ●');
+});
+
+test('a failing shapes header falls back to the single-line prompt', () => {
+  const { chrome, elements } = fixture();
+  chrome.setShapesHeader({ render() { throw new Error('boom'); } });
+  chrome.update({ timerActive: true }, { displayMode: 'shapes', shapeType: 'square', count: 3 });
+  assert.equal(elements['active-question'].textContent, 'Count the shapes: ■ ■ ■');
+});
+
 test('reveal feedback and supplied progress never expose the queued question', () => {
   const { chrome, elements } = fixture();
   const state = { reveal: true, timerActive: true, progressLabel: 'Defeated 4 / 30',

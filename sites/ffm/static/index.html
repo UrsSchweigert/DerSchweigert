@@ -180,6 +180,8 @@
       </section>
       <section id="local-profiles" data-title-page="family" class="title-page" hidden>
         <div id="profile-root"></div>
+        <div id="entitlement-root"></div>
+        <button type="button" id="first-open-notice-help" class="splash-btn splash-btn--secondary" data-i18n="notice.reopen" hidden>What is free?</button>
       </section>
       <section data-title-page="levels" class="title-page" hidden>
       <div id="level-jump-row" class="level-jump-row" style="display:none">
@@ -402,6 +404,7 @@
       <p class="player-identity" hidden><span data-i18n="profiles.playingAsLabel">Playing as</span> <strong id="pause-player-name"></strong></p>
       <div id="pause-actions">
         <button class="diff-btn" id="btn-resume-game" data-i18n="overlay.backToGame">Back to game</button>
+        <button class="diff-btn" id="btn-notice-help" data-i18n="notice.reopen" hidden>What is free?</button>
         <button class="diff-btn" id="btn-quit-game" data-i18n="overlay.returnTitle">Return to Title</button>
       </div>
       <div id="pause-quit-actions" style="display:none">
@@ -445,6 +448,8 @@
       <button class="diff-btn" id="btn-heal-tip-confirm" data-i18n="overlay.healTipConfirm">Got it!</button>
     </div>
   </div>
+
+  <div id="first-open-notice" class="overlay" style="display:none"></div>
 
   <!-- app-omit:start -->
   <footer style="display:none; margin-top: 20px; padding: 20px; text-align: center; font-size: 12px; color: #888;">

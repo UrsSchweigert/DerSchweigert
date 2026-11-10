@@ -3,6 +3,7 @@
 export function createGameplayChrome({ doc = globalThis.document, translate } = {}) {
   const element = id => doc?.getElementById(id);
   const chrome = element('gameplay-chrome');
+  let shapesHeader = null;
   const text = (id, value) => {
     const el = element(id);
     if (el && el.textContent !== String(value)) el.textContent = String(value);
@@ -12,23 +13,48 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
     if (!chrome) return;
     chrome.hidden = !visible;
     if (!visible) {
+      shapesHeader?.clear?.();
       text('active-question', '');
       text('gameplay-feedback', '');
     }
+  }
+  /**
+   * The app-only two-row Shapes header (see mobile/game/shapes-header.js)
+   * takes over #active-question while it is installed. The web build never
+   * installs one and keeps the single-line prompt below.
+   */
+  function setShapesHeader(renderer) {
+    shapesHeader = renderer && typeof renderer.render === 'function' ? renderer : null;
+    return shapesHeader;
   }
   function update(state = {}, problem = null) {
     if (!chrome) return;
     const active = !!problem && !state.paused && !state.reveal && !!(state.questionActive ?? state.timerActive);
     let question = '';
+    let questionOwned = false;
     if (active) {
       if (problem.displayMode === 'shapes') {
-        const symbol = { circle: '●', triangle: '▲', square: '■' }[problem.shapeType] || '■';
-        question = `${message('hud.countShapes', 'Count the shapes')}: ${Array.from({ length: Math.max(0, Math.min(10, Math.floor(Number(problem.count) || 0))) }, () => symbol).join(' ')}`;
+        const instruction = message('hud.countShapes', 'Count the shapes');
+        if (shapesHeader) {
+          try {
+            shapesHeader.render({ element: element('active-question'), problem, instruction });
+            questionOwned = true;
+          } catch {
+            questionOwned = false;
+          }
+        }
+        if (!questionOwned) {
+          const symbol = { circle: '●', triangle: '▲', square: '■' }[problem.shapeType] || '■';
+          question = `${instruction}: ${Array.from({ length: Math.max(0, Math.min(10, Math.floor(Number(problem.count) || 0))) }, () => symbol).join(' ')}`;
+        }
       } else {
         question = problem.question || '';
       }
     }
-    text('active-question', question);
+    if (!questionOwned) {
+      shapesHeader?.clear?.();
+      text('active-question', question);
+    }
     const feedback = !state.paused && state.reveal && state.feedback;
     const feedbackPrefix = feedback?.kind === 'incorrect' ? message('hud.incorrect', 'Incorrect')
       : feedback?.kind === 'timeout' ? message('hud.timeout', 'Time ran out') : '';
@@ -61,5 +87,5 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
     const pause = element('btn-pause-game');
     if (pause) pause.disabled = !!state.paused;
   }
-  return { update, setVisible };
+  return { update, setVisible, setShapesHeader };
 }

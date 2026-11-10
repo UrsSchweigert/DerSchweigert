@@ -40,32 +40,57 @@ their existing behavior.
 0–1 and return the resulting value. Non-numeric/NaN/infinite inputs throw
 `TypeError`. Read values with `effectsVolume`/`musicVolume` or
 `getEffectsVolume()`/`getMusicVolume()`. Defaults are effects 1, music 0.35.
-The engine does not persist settings; the shell owns device-wide preferences
-and guarded storage access.
+`setMuted(boolean)` is idempotent and `toggleMute()` delegates to it.
 
-HTML media `volume` is not reliable on iOS. Consequently music adjustment is
-**disabled by default**: inspect `musicVolumeCapability` (`{ supported, status }`)
-and disable the music slider with an explicit explanation when unsupported.
-`setMusicVolume` throws an error rather than reporting a successful no-op.
-Existing direct media playback and its default volume remain unchanged.
+The app shell (`platform.isApp`) enables `musicGainRouting`, so bundled music
+shares the same Web Audio gain path as synthesized effects. On iOS the bundle
+is served from the `capacitor:` scheme, which Web Audio cannot capture directly:
+the engine fetches each bundled track once from the bundle origin, swaps the
+media element to a same-origin `blob:` URL, and only then calls
+`createMediaElementSource` and connects it to the shared music bus. Android's
+`https://localhost` bundle origin is captured directly. The fallback track is
+prefetched at construction and manifest tracks right after `tracks.json` loads;
+a blob that arrives after rotation starts is swapped into the live element and
+resumes exactly once. Preloading, rotation, offline playback and per-level
+playlists keep working because only the element's `src` changes.
 
-The constructor option `musicGainRouting: true` is for a validated deployment
-or manual spike, not an iOS support claim. It attaches same-origin HTTP(S)
-current/preloaded media elements to a shared Web Audio gain bus, after the
-existing gesture context unlock. Before capture the status is
-`awaiting-media-route`; success is `available`; missing API, custom schemes,
-cross-origin files or source-connection failures report
-`unsupported-media-routing` and preserve default direct playback. A captured
-element is replaced if graph attachment fails. Source nodes disconnect when
-tracks are released. Default status is `unverified-media-routing`.
+Effects keep their existing `_effectsBus` with 0.4 headroom and compressor; the
+music bus is separate and carries the user's music gain. Mute zeros both buses.
+Gesture unlock and suspended-context resume use the existing `_ensureCtx` path
+on every cue and on `startBGM`/`startLevelBGM`.
 
-Before enabling this option in a native shell, manually verify audible
-playback of bundled local URLs on actual iOS/Capacitor devices, live gain at
-0/0.2/1 while playing, rotation and preload, interruption/pause/resume, mute,
-and gesture unlock. Also listen to layered effects on device speakers and
-headphones for peak levels and fatigue. Fake-context tests verify graph and
-API behavior only; no native volume spike or listening-quality validation has
-been performed. Music ducking is deliberately not enabled pending that spike.
+`musicVolumeCapability` reports `awaiting-media-route` before capture,
+`available` after the first successful capture, and
+`unsupported-media-routing` when capture is unavailable (missing API,
+cross-origin file, custom-scheme fetch failure, or graph attachment failure).
+On failure the engine restores default direct playback at 0.35 and the slider
+stays disabled with an explicit explanation. `setMusicVolume` throws rather
+than reporting a successful no-op. Default status outside the app shell is
+`unverified-media-routing`.
+
+Mute, effects gain and music gain persist through `audio-preferences.js`
+(`arithmo-audio-preferences-v1` in localStorage). A saved music gain is
+deferred until routing reports `available`, then applied when the first track
+is routed, when gameplay starts or when the audio settings disclosure opens.
+
+### Physical-device gates still required
+
+The automated tests use fake media elements and contexts; they prove graph,
+API and persistence behaviour only. Before claiming native audible output,
+verify on a physical iOS and Android device:
+
+- Bundled music is audible and the music slider changes live gain at 0, 0.2
+  and 1 while a track plays.
+- The iOS silent switch silences BGM and effects, and unmuting restores them.
+- A call/alarm interruption pauses BGM and gameplay, and returning resumes both
+  exactly once with mute and gain preserved.
+- Background/foreground transitions do not duplicate playback.
+- Rotation, preload and per-level playlists keep playing offline.
+- Layered effects on device speakers/headphones do not clip or fatigue.
+
+No native project or plugin change is part of this path. There is no
+system-volume control: the app controls only its own Web Audio gain, and the
+UI states the limitation when device gain control is unavailable.
 
 ### Gameplay event API
 

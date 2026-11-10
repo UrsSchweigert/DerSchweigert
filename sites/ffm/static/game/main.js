@@ -5,6 +5,12 @@ import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './re
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon } from './entities.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
+import {
+  applyAudioPreferences,
+  applyDeferredMusicVolume,
+  readAudioPreferences,
+  writeAudioPreferences,
+} from './audio-preferences.js';
 import { InputManager } from './input.js';
 import { createCompletionId, createLevelCompletion } from './level-completion.js';
 import { initViewportLayout } from './viewport-layout.js';
@@ -27,8 +33,10 @@ import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getL
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
-import { resolveDragonBreath, createAnswerClock } from './encounter-flow.js';
+import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
+import { dragonFinishPerFiendValue } from './level-baseline-score.js';
 import {
+  PRACTICE_KINDS,
   collectTargetedProblems,
   createEarnedRecovery,
   createPracticeSession,
@@ -41,11 +49,25 @@ import { getSkillIntro } from './skill-intro.js';
 // local-only adapter. Resolved once, before any game code runs.
 const platform = await resolvePlatform();
 const gameplayChrome = createGameplayChrome({ translate: t });
-initGameplayModalFocus({ doc: document });
+const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 
 // App-only lifecycle handle (see ./lifecycle.js, shipped by the app overlay).
 // Stays null on the web build and until the app plugin has been wired.
 let appLifecycle = null;
+
+// App-only overlay UI handle (see ./mobile-ui.js, shipped by the app overlay).
+// Stays null on the web build; later mobile issues feed timer and
+// level-selection updates through it.
+let mobileUi = null;
+
+// App-only top-bar gain control (see ./volume-control.js, shipped by the app
+// overlay). Stays null on the web build and until the overlay module loads.
+let volumeControl = null;
+
+// App-only contextual help handle (see ./help-overlay.js, shipped by the app
+// overlay). Stays null on the web build; its question-mark buttons live in the
+// play area, the pause menu and the title navigation.
+let helpOverlay = null;
 
 // The app caches the store entitlement on device. Refresh it on launch and on
 // every return to the foreground, so a refund made while the app was closed
@@ -60,6 +82,68 @@ if (platform.isApp) {
   // The web build never loads this module and keeps its existing footer.
   import('./legal.js')
     .then(({ setupTitleLegalLinks }) => setupTitleLegalLinks({ getLocale, onLocaleChange }))
+    .catch(() => {});
+  // Mount the app-only overlay UI: injects www/game/mobile-ui.css and
+  // publishes the widget/timer/level hooks later mobile issues consume. A
+  // missing or failing module leaves the game untouched; the web build never
+  // loads it.
+  import('./mobile-ui.js')
+    .then(({ mountMobileUi }) => {
+      mobileUi = mountMobileUi({ doc: document });
+      return import('./timer-bar.js');
+    })
+    .then(({ createTimerBar }) => {
+      mobileUi?.registerWidget('timer-bar', createTimerBar({ doc: document }));
+      return import('./level-numerals.js');
+    })
+    .then(({ createLevelNumerals }) => {
+      mobileUi?.registerWidget('level-numerals', createLevelNumerals({
+        doc: document,
+        translate: t,
+      }));
+      return import('./bubble-timer.js');
+    })
+    .then(({ createBubbleTimer }) => {
+      mobileUi?.registerWidget('bubble-timer', createBubbleTimer({ doc: document }));
+      return import('./shapes-header.js');
+    })
+    .then(({ createShapesHeader }) => {
+      gameplayChrome.setShapesHeader(createShapesHeader({ doc: document }));
+    })
+    .catch(() => {});
+  // App-only music/effects gain control in the top bar, wired to the same
+  // engine and persisted preferences as the pause-menu audio settings. It is
+  // created after the engine exists because the overlay import resolves after
+  // this synchronous module body.
+  import('./volume-control.js')
+    .then(({ createVolumeControl }) => {
+      volumeControl = createVolumeControl({
+        doc: document,
+        audio,
+        translate: t,
+        persist: persistAudioPreferences,
+      });
+    })
+    .catch(() => {});
+  // App-only contextual help: question-mark buttons in the play area, pause
+  // menu and title navigation open staged help with a link to the manual.
+  import('./help-overlay.js')
+    .then(({ mountHelpOverlay }) => {
+      helpOverlay = mountHelpOverlay({
+        doc: document,
+        translate: t,
+        getLocale,
+        getGameMode: () => practiceRun?.kind ?? (state.isShapesMode ? 'shapes' : null),
+        getTitlePage: () => activeTitlePage,
+        game: {
+          isPlaying: () => gameRunning && !paused,
+          pause: pauseForHelp,
+          resume: resumeFromHelp,
+        },
+        registerOverlay: gameplayModalFocus.registerOverlay,
+        refreshFocus: gameplayModalFocus.refresh,
+      });
+    })
     .catch(() => {});
   // Pause gameplay and music while the app is in the background, resume only
   // after an automatic pause, map the Android back button, and keep the
@@ -149,7 +233,9 @@ const assetsLoaded = preloadGameAssets((loaded, total) => {
 // rendering until its assets (including that level's own stage background,
 // via renderer.waitForBackgroundLoad()) are actually ready.
 const LOADING_SAFETY_TIMEOUT_MS = 30000;
-Promise.race([
+// Resolves once the first-paint loading screen is hidden, so the app-only
+// first-open notice appears over the title screen rather than behind it.
+const loadingDone = Promise.race([
   assetsLoaded,
   new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
 ]).then(hideLoadingOverlay);
@@ -345,6 +431,7 @@ let completionFeedback = null;
 let lastCastAbility = null;
 const answerClock = createAnswerClock();
 let waveClearing = false;
+let dragonFinishResolved = false;
 
 function renderAttemptAccomplishment(id, result = completionFeedback) {
   const element = document.getElementById(id);
@@ -517,50 +604,67 @@ const closeAuthStatus = document.getElementById('close-auth-status');
 // --- Engine instances ---
 const renderer = new Renderer(canvas);
 const hud = new HUD(renderer);
-const audio = new AudioEngine();
-
-const AUDIO_PREFERENCES_KEY = 'arithmo-audio-preferences-v1';
+// The app shell serves bundled tracks from the WebView's own origin, so their
+// media elements can share the effects gain path. The web build keeps its
+// unverified status until a deployment is validated.
+let deferredMusicVolume = null;
+const audio = new AudioEngine({
+  musicGainRouting: platform.isApp,
+  onMusicVolumeReady: () => flushDeferredMusicVolume(),
+});
 
 function audioPreferenceStatus() {
-  if (!musicVolumeStatus) return;
-  const capability = audio.musicVolumeCapability;
-  musicVolumeStatus.textContent = t(capability.supported
-    ? 'audio.musicVolumeReady' : 'audio.musicVolumeUnavailable');
-  if (musicVolumeInput) musicVolumeInput.disabled = !capability.supported;
+  if (musicVolumeStatus) {
+    const capability = audio.musicVolumeCapability;
+    musicVolumeStatus.textContent = t(capability.supported
+      ? 'audio.musicVolumeReady' : 'audio.musicVolumeUnavailable');
+    if (musicVolumeInput) {
+      musicVolumeInput.disabled = !capability.supported;
+      musicVolumeInput.value = String(audio.getMusicVolume());
+    }
+  }
+  if (effectsVolumeInput) effectsVolumeInput.value = String(audio.getEffectsVolume());
+  // The app-only top-bar control mirrors the same engine state and localized
+  // capability explanation. `typeof` keeps the extracted-function tests that
+  // run this helper outside main.js working without the overlay handle.
+  if (typeof volumeControl !== 'undefined') volumeControl?.refresh();
+}
+
+function flushDeferredMusicVolume() {
+  if (deferredMusicVolume !== null) {
+    deferredMusicVolume = applyDeferredMusicVolume(audio, deferredMusicVolume);
+    if (deferredMusicVolume === null && musicVolumeInput) {
+      musicVolumeInput.value = String(audio.getMusicVolume());
+    }
+  }
+  audioPreferenceStatus();
 }
 
 function persistAudioPreferences() {
-  try {
-    const preferences = {
-      effects: audio.getEffectsVolume(),
-      music: audio.getMusicVolume(),
-    };
-    window.localStorage.setItem(AUDIO_PREFERENCES_KEY, JSON.stringify(preferences));
+  if (writeAudioPreferences(window.localStorage, audio)) {
     audioPreferenceStatus();
-  } catch (error) {
-    console.error('Unable to persist audio preferences', error);
-    if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesSaveFailed');
+    return;
   }
+  console.error('Unable to persist audio preferences');
+  if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesSaveFailed');
 }
 
 function initializeAudioPreferences() {
+  let saved = null;
   try {
-    const raw = window.localStorage.getItem(AUDIO_PREFERENCES_KEY);
-    if (raw !== null) {
-      const saved = JSON.parse(raw);
-      if (Number.isFinite(saved?.effects) && saved.effects >= 0 && saved.effects <= 1) {
-        audio.setEffectsVolume(saved.effects);
-        if (effectsVolumeInput) effectsVolumeInput.value = String(saved.effects);
-      }
-      if (Number.isFinite(saved?.music) && saved.music >= 0 && saved.music <= 1 &&
-          audio.musicVolumeCapability.supported) {
-        audio.setMusicVolume(saved.music);
-        if (musicVolumeInput) musicVolumeInput.value = String(saved.music);
-      }
-    }
+    saved = readAudioPreferences(window.localStorage);
+    deferredMusicVolume = applyAudioPreferences(audio, saved);
   } catch (error) {
     console.error('Unable to load audio preferences', error);
     if (musicVolumeStatus) musicVolumeStatus.textContent = t('audio.preferencesLoadFailed');
+  }
+  if (saved) {
+    if (saved.effects !== null && effectsVolumeInput) {
+      effectsVolumeInput.value = String(audio.getEffectsVolume());
+    }
+    if (saved.music !== null && musicVolumeInput && audio.musicVolumeCapability.supported) {
+      musicVolumeInput.value = String(audio.getMusicVolume());
+    }
   }
   audioPreferenceStatus();
 }
@@ -577,11 +681,17 @@ effectsVolumeInput?.addEventListener('input', () => {
 musicVolumeInput?.addEventListener('input', () => {
   try {
     audio.setMusicVolume(Number(musicVolumeInput.value));
+    deferredMusicVolume = null;
     persistAudioPreferences();
   } catch (error) {
     console.error('Unable to change music volume', error);
     audioPreferenceStatus();
   }
+});
+// A saved gain can arrive before the first track is routed; retry whenever the
+// player opens the settings.
+document.getElementById('audio-settings')?.addEventListener('toggle', (event) => {
+  if (event.target.open) flushDeferredMusicVolume();
 });
 initializeAudioPreferences();
 
@@ -632,6 +742,9 @@ let runProfileId = null;
 let completedLevelSave = null;
 let completionPending = false;
 let profileUI = null;
+let entitlementPanel = null;
+let firstOpenNotice = null;
+let activeTitlePage = 'play';
 let personalBestPage = 0;
 const PERSONAL_BEST_PAGE_SIZE = 3;
 let leaderboardPage = 0;
@@ -803,7 +916,9 @@ function renderScoreHistory(historyResponse, container) {
   container.innerHTML = buildScoreHistorySvg(history) +
     `<p class="score-history-summary">${escHtml(t('scoreHistory.latest', {
       score: history.at(-1).score, count: history.length,
-    }))}</p>`;
+    }))}</p>` +
+    (history.some((entry) => entry.unfinished === true)
+      ? `<p class="score-history-summary">${escHtml(t('scoreHistory.unfinishedNote'))}</p>` : '');
   container.style.display = '';
 }
 
@@ -886,7 +1001,9 @@ function renderPersonalDevelopment(state) {
     personalBestList.innerHTML = best.slice(
       personalBestPage * PERSONAL_BEST_PAGE_SIZE, (personalBestPage + 1) * PERSONAL_BEST_PAGE_SIZE,
     )
-      .map((entry) => `<li>${t('personalDevelopment.perLevelBest', {
+      .map((entry) => `<li>${t(entry.unfinished === true
+        ? 'personalDevelopment.perLevelBestUnfinished'
+        : 'personalDevelopment.perLevelBest', {
         level: entry.level,
         score: entry.score,
       })}</li>`)
@@ -924,6 +1041,13 @@ function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   const continuation = document.getElementById('continue-level');
   if (continuation) continuation.textContent = levelJumpSelect.value
     ? t('campaign.replay', { level: levelJumpSelect.value }) : label;
+  // Publish the active starting/replay selection for the app-only title
+  // numerals. The hook is null on the web build, so this is a no-op there.
+  if (platform.isApp) {
+    mobileUi?.updateLevelSelection(levelJumpSelect.value
+      ? { level: Number(levelJumpSelect.value), mode: 'replay' }
+      : { level: progress.nextLevel ?? 1, mode: 'continuation' });
+  }
 }
 
 function renderPlayerIdentity() {
@@ -1823,6 +1947,7 @@ function updateMuteButtonLabel() {
 
 muteBtn.addEventListener('click', () => {
   audio.toggleMute();
+  persistAudioPreferences();
   updateMuteButtonLabel();
 });
 
@@ -1882,6 +2007,11 @@ function resumePendingLevel() {
 function clearPremiumSession() {
   setAnswerInputVisible(false);
   gameplayTimers.length = 0;
+  // Drop in-flight projectiles too, so no collision callback can fire after
+  // the session (or a paused game) has been abandoned.
+  activeLightningBolts = [];
+  activeFireballs = [];
+  activeDragons = [];
   levelRequestGeneration++;
   platform.incrementRequestGeneration();
   platform.setCurrentLevelConfig(null);
@@ -2056,6 +2186,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   setAnswerInputVisible(true);
   gameplayTimers.length = 0;
   waveClearing = false;
+  dragonFinishResolved = false;
   answerTimes = [];
   spawnInterval = practiceRun ? 2.0 : 4.0;
   answerClock.reset();
@@ -2108,6 +2239,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   updateHUDLogoutVisibility();
   hud.update(state);
   audio.startLevelBGM(cfg.level, cfg.chapter);
+  flushDeferredMusicVolume();
   syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
 }
@@ -2181,24 +2313,26 @@ function closeAudioSettings() {
   return true;
 }
 document.getElementById('btn-audio-back').addEventListener('click', closeAudioSettings);
+// One ID per paused attempt: a failed save retried while still paused reuses
+// it, so the profile store's receipt makes the retry idempotent.
+let pausedPartialId = null;
+
 btnQuitGame.addEventListener('click', () => {
   pauseActions.style.display = 'none';
   pauseQuitActions.style.display = '';
   const canSave = (platform.isApp || platform.isLoggedIn) && !practiceRun && !state.isShapesMode;
   btnPauseSave.style.display = canSave ? '' : 'none';
-  pauseSaveNotice.textContent = canSave ? '' : t(practiceRun
-    ? 'practice.unscoredNotice' : state.isShapesMode
-    ? 'overlay.shapesScoreNotice' : 'overlay.guestScoreNotice');
-  if (platform.isApp && !practiceRun && !state.isShapesMode) {
-    btnPauseSave.textContent = t('overlay.returnTitle');
-    pauseSaveNotice.textContent = t('overlay.completedProgressNotice');
-  }
+  pauseSaveNotice.textContent = canSave
+    ? (platform.isApp ? t('overlay.unfinishedSaveNotice') : '')
+    : t(practiceRun
+      ? 'practice.unscoredNotice' : state.isShapesMode
+      ? 'overlay.shapesScoreNotice' : 'overlay.guestScoreNotice');
   pauseSaveError.textContent = '';
   const quitTitle = document.getElementById('pause-quit-title');
-  quitTitle.dataset.i18n = platform.isApp ? 'overlay.quitAttemptTitle' : 'overlay.quitScorePrompt';
-  quitTitle.textContent = t(quitTitle.dataset.i18n);
-  btnPauseDiscard.style.display = platform.isApp && !practiceRun && !state.isShapesMode ? 'none' : '';
-  btnPauseDiscard.dataset.i18n = platform.isApp || practiceRun ? 'overlay.returnTitle' : 'overlay.discardScore';
+  quitTitle.dataset.i18n = 'overlay.quitScorePrompt';
+  quitTitle.textContent = t('overlay.quitScorePrompt');
+  btnPauseDiscard.style.display = '';
+  btnPauseDiscard.dataset.i18n = practiceRun || state.isShapesMode ? 'overlay.returnTitle' : 'overlay.discardScore';
   btnPauseDiscard.textContent = t(btnPauseDiscard.dataset.i18n);
 });
 btnPauseBack.addEventListener('click', () => {
@@ -2214,7 +2348,20 @@ btnPauseSave.addEventListener('click', async () => {
   pauseSaveError.textContent = '';
   try {
     if (completedLevelSave) await completedLevelSave();
-    if (!platform.isApp) await platform.postHighScore(state.score, state.level);
+    if (platform.isApp) {
+      // Bank the reached score only: recordPartialAttempt keeps the level
+      // unfinished and leaves completed/continuation untouched.
+      await platform.localProfiles.recordPartialAttempt({
+        profileId: runProfileId ?? platform.localProfiles.getActiveProfile().id,
+        completionId: pausedPartialId ?? createCompletionId(),
+        level: state.level,
+        score: Math.max(0, state.score - levelStartScore),
+        difficulty: state.difficulty,
+      });
+    } else {
+      await platform.postHighScore(state.score, state.level);
+    }
+    pausedPartialId = null;
     quitPausedGame();
     await refreshProfileAndLeaderboard();
   } catch (error) {
@@ -2269,6 +2416,10 @@ function syncKeepAwake() {
 // Android Back: while playing it pauses, while paused it backs out of the
 // quit confirmation (or resumes), and everywhere else the lifecycle exits.
 function handleAppBack() {
+  if (helpOverlay?.isOpen?.()) {
+    helpOverlay.close();
+    return true;
+  }
   if (pendingSkillIntro) {
     btnSkillIntroSkip?.click();
     return true;
@@ -2304,6 +2455,7 @@ function handleAppBack() {
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
+  pausedPartialId = createCompletionId();
   closeAudioSettings();
   pauseActions.style.display = '';
   pauseQuitActions.style.display = 'none';
@@ -2320,6 +2472,27 @@ function resumeGame() {
   paused = false;
   closeAudioSettings();
   pauseOverlay.style.display = 'none';
+  audio.resumeBGM();
+  if (activeFiend && !inputDisabled) {
+    input.enable(getCurrentInputMode());
+  }
+  syncKeepAwake();
+}
+
+// Contextual help pauses a live level without the pause menu or a partial-run
+// record, so closing it restores the exact same state and lets play continue.
+function pauseForHelp() {
+  if (paused) return;
+  paused = true;
+  input.disable();
+  audio.pauseBGM();
+  resetHealHold();
+  syncKeepAwake();
+}
+
+function resumeFromHelp() {
+  if (!paused) return;
+  paused = false;
   audio.resumeBGM();
   if (activeFiend && !inputDisabled) {
     input.enable(getCurrentInputMode());
@@ -2429,6 +2602,62 @@ function handleAnswer(value) {
   }
 }
 
+// Shared resolution for a lightning strike, whether it was triggered by the
+// app build's projectile collision or the web build's arrival timer. Called at
+// most once per cast.
+function resolveLightningHit(fiend) {
+  fiend.hp = 0;
+  fiend.setState('death');
+  audio.playLightningHit();
+  audio.playEnemyDeath();
+  state.enemiesDefeated++;
+  recordPracticeEncounterDefeated();
+  activeFiend = null;
+  heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+    hero.setState('idle');
+    scheduleGameplayTimeout(() => {
+      if (checkAllDefeated()) triggerWaveClear();
+      else { spawnTimer = spawnInterval; inputDisabled = false; }
+    }, 300);
+  }};
+  hud.update(state);
+}
+
+// Shared resolution for a fireball hit (see resolveLightningHit). The fireball
+// damages the fiend through Fiend.hit(), so a nonlethal hit keeps it alive and
+// only re-queues its problem.
+function resolveFireballHit(fiend) {
+  audio.playFireballHit();
+  fiend.hit();
+
+  if (fiend.isDead) {
+    audio.playEnemyDeath();
+    state.enemiesDefeated++;
+    recordPracticeEncounterDefeated();
+    activeFiend = null;
+    heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
+      scheduleGameplayTimeout(() => {
+        if (checkAllDefeated()) triggerWaveClear();
+        else { spawnTimer = spawnInterval; inputDisabled = false; }
+      }, 300);
+    }};
+  } else {
+    const preserveTimer = shouldPreserveProblemTimer(fiend);
+    activeFiend = null;
+    heroLunge = {
+      phase: 'back',
+      targetX: HERO_X,
+      onArrive: () => {
+        const cfg = platform.getCurrentLevelConfig();
+        if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
+        queueProblemActivation(fiend, { preserveTimer });
+        inputDisabled = false;
+      }
+    };
+  }
+  hud.update(state);
+}
+
 function handleCorrectAnswer() {
   attemptSummary.recordAnswer(activeFiend.problem, true);
   audio.playCorrect?.();
@@ -2482,67 +2711,32 @@ function handleCorrectAnswer() {
       // Hero strikes in place at the base location; the bolt is launched
       // from just right of his sprite toward the fiend.
       hero.setState('swing');
-      activeLightningBolts.push(new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
+      // The app build lets the projectile's own collision decide the hit, so
+      // the bolt lands exactly when the sprite reaches the fiend's bounds.
+      // The web build keeps its fixed arrival timer unchanged.
+      const collides = platform.isApp;
+      activeLightningBolts.push(collides
+        ? new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
+          { target: fiend, onHit: () => resolveLightningHit(fiend) })
+        : new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
       audio.playLightningCast();
       input.disable();
       inputDisabled = true;
-      scheduleGameplayTimeout(() => {
-        fiend.hp = 0;
-        fiend.setState('death');
-        audio.playLightningHit();
-        audio.playEnemyDeath();
-        state.enemiesDefeated++;
-        recordPracticeEncounterDefeated();
-        activeFiend = null;
-        heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-          hero.setState('idle');
-          scheduleGameplayTimeout(() => {
-            if (checkAllDefeated()) triggerWaveClear();
-            else { spawnTimer = spawnInterval; inputDisabled = false; }
-          }, 300);
-        }};
-        hud.update(state);
-      }, 600);
+      if (!collides) scheduleGameplayTimeout(() => resolveLightningHit(fiend), 600);
     } else if (ability === 'fireball') {
       // Hero strikes in place at the base location; the fireball is launched
       // from just right of his sprite toward the fiend, and the hit lands
       // when it actually arrives rather than the instant it's cast.
       hero.setState('swing');
-      activeFireballs.push(new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
+      const collides = platform.isApp;
+      activeFireballs.push(collides
+        ? new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
+          { target: fiend, onHit: () => resolveFireballHit(fiend) })
+        : new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
       audio.playFireballCast();
       input.disable();
       inputDisabled = true;
-      scheduleGameplayTimeout(() => {
-        audio.playFireballHit();
-        fiend.hit();
-
-        if (fiend.isDead) {
-          audio.playEnemyDeath();
-          state.enemiesDefeated++;
-          recordPracticeEncounterDefeated();
-          activeFiend = null;
-          heroLunge = { phase: 'back', targetX: HERO_X, onArrive: () => {
-            scheduleGameplayTimeout(() => {
-              if (checkAllDefeated()) triggerWaveClear();
-              else { spawnTimer = spawnInterval; inputDisabled = false; }
-            }, 300);
-          }};
-        } else {
-          const preserveTimer = shouldPreserveProblemTimer(fiend);
-          activeFiend = null;
-          heroLunge = {
-            phase: 'back',
-            targetX: HERO_X,
-            onArrive: () => {
-              const cfg = platform.getCurrentLevelConfig();
-              if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
-              queueProblemActivation(fiend, { preserveTimer });
-              inputDisabled = false;
-            }
-          };
-        }
-        hud.update(state);
-      }, FIREBALL_FLIGHT_MS);
+      if (!collides) scheduleGameplayTimeout(() => resolveFireballHit(fiend), FIREBALL_FLIGHT_MS);
     } else if (ability === 'dragon') {
       activeDragons.push(new DragonSummon(CANVAS_W, GROUND_Y));
       hero.setState('swing');
@@ -2741,6 +2935,37 @@ function updatePaceAdapter() {
   }
 }
 
+// A successful dragon breath in the app's campaign ends the level: every
+// encounter still queued, requeued or on screen is cleared at once, paid a
+// deterministic bonus proportional to how many remain, and then handed to the
+// normal single level-clear path. Web, practice and Shapes keep today's
+// single-fiend breath and are never campaign-completed here.
+function finishDragonLevel() {
+  if (dragonFinishResolved) return true;
+  if (!platform.isApp || practiceRun || state.isShapesMode) return false;
+  dragonFinishResolved = true;
+
+  const remainingEncounters = countDragonRemainingEncounters({ fiends, spawnQueue, requeuedFiends });
+  const perFiendValue = dragonFinishPerFiendValue(platform.getCurrentLevelConfig());
+  state.score += remainingEncounters * perFiendValue;
+  state.enemiesDefeated += remainingEncounters;
+
+  spawnQueue = [];
+  requeuedFiends = [];
+  fiends = [];
+  activeFiend = null;
+  pendingProblemActivation = null;
+  heroLunge = null;
+  activeLightningBolts = [];
+  activeFireballs = [];
+  state.timerActive = false;
+  inputDisabled = true;
+  input.disable();
+  hud.update(state);
+  triggerWaveClear();
+  return true;
+}
+
 function triggerWaveClear() {
   if (waveClearing) return;
   waveClearing = true;
@@ -2905,6 +3130,9 @@ function triggerGameOver(won = false) {
   setAnswerInputVisible(false);
   campaignWon = won;
   gameplayTimers.length = 0;
+  activeLightningBolts = [];
+  activeFireballs = [];
+  activeDragons = [];
   gameRunning = false;
   resetHealHold();
   input.disable();
@@ -3030,17 +3258,19 @@ function gameLoop(ts) {
       d.update(dt);
       if (d.breathJustCompleted) {
         audio.playDragonBreath();
-        state.enemiesDefeated += resolveDragonBreath(fiends);
-        if (activeFiend?.isDead || activeFiend?.state === 'death') {
-          activeFiend = null;
-          pendingProblemActivation = null;
-          state.timerActive = false;
-          input.disable();
-        }
-        if (checkAllDefeated()) triggerWaveClear();
-        else {
-          inputDisabled = false;
-          spawnTimer = spawnInterval;
+        if (!finishDragonLevel()) {
+          state.enemiesDefeated += resolveDragonBreath(fiends);
+          if (activeFiend?.isDead || activeFiend?.state === 'death') {
+            activeFiend = null;
+            pendingProblemActivation = null;
+            state.timerActive = false;
+            input.disable();
+          }
+          if (checkAllDefeated()) triggerWaveClear();
+          else {
+            inputDisabled = false;
+            spawnTimer = spawnInterval;
+          }
         }
       }
     });
@@ -3105,7 +3335,10 @@ function gameLoop(ts) {
         renderer.drawSpeechBubble(f.x, f.y - 20 * LOGICAL_PX, bubbleText, f === activeFiend);
       }
     }
-    if (f === activeFiend && state.timerActive) {
+    // The app draws the question timer as the DOM header bar (see
+    // mobile/game/timer-bar.js) with continuous colours, so the canvas bar
+    // stays a web-only visual and keeps its banded colours byte-for-byte.
+    if (f === activeFiend && state.timerActive && !platform.isApp) {
       const ratio = state.timerRemaining / state.timerMax;
       renderer.drawTimerBar(f.x - 44, f.y - 22 * LOGICAL_PX, 88, ratio);
     }
@@ -3173,6 +3406,16 @@ function gameLoop(ts) {
     healHint: practiceRun ? '' : t('overlay.healTipBody'),
     feedback,
   }, activeFiend?.problem ?? null);
+  // Publish the live timer state once per frame for the app-only header bar
+  // (and any later portrait timer). Reading state.timerRemaining here keeps it
+  // in sync through pause, correction, retry and preserved elite timers; the
+  // hook is null on the web build, so this is a no-op there.
+  mobileUi?.updateTimerState({
+    remaining: state.timerRemaining,
+    max: state.timerMax,
+    untimed: !(state.timerMax > 0) || practiceProgress?.untimed === true,
+    paused,
+  });
 }
 
 function handleUrlAuthTokens() {
@@ -3258,6 +3501,16 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
       });
       await profileUI.refresh();
     }
+    const { mountEntitlementPanel } = await import('./entitlement-panel.js');
+    const entitlementRoot = document.getElementById('entitlement-root');
+    if (entitlementRoot && !entitlementPanel) {
+      entitlementPanel = mountEntitlementPanel({
+        root: entitlementRoot,
+        platform,
+        getLocale,
+        totalLevels: TOTAL_LEVELS,
+      });
+    }
   }
   await refreshProfileAndLeaderboard();
 });
@@ -3265,6 +3518,31 @@ ensureLocalProfiles().then(refreshPracticeBadges).catch(error => {
   console.error('Unable to initialize family profiles', error);
   showProgressError(t('profiles.storageError'));
 });
+// App-only first-open thank-you notice (see ./first-open-notice.js). Its
+// acknowledgement is device-wide, so it is not tied to the active profile,
+// and every string comes from the i18n dictionary. The notice shows once the
+// loading screen is gone; both reopen buttons stay hidden on the web build
+// because this branch never runs there.
+if (platform.isApp) {
+  import('./first-open-notice.js')
+    .then(({ createFirstOpenNotice }) => {
+      firstOpenNotice = createFirstOpenNotice({
+        platform,
+        translate: t,
+        getLocale,
+        totalLevels: TOTAL_LEVELS,
+        practiceKinds: PRACTICE_KINDS,
+      });
+      for (const id of ['first-open-notice-help', 'btn-notice-help']) {
+        const button = document.getElementById(id);
+        if (!button) continue;
+        button.hidden = false;
+        button.addEventListener('click', () => firstOpenNotice?.open());
+      }
+      return loadingDone.then(() => firstOpenNotice?.maybeShow());
+    })
+    .catch(() => {});
+}
 for (const [id, delta] of [['personal-best-prev', -1], ['personal-best-next', 1]]) {
   document.getElementById(id)?.addEventListener('click', () => {
     personalBestPage = Math.max(0, personalBestPage + delta);
@@ -3278,6 +3556,7 @@ for (const [id, delta] of [['leaderboard-prev', -1], ['leaderboard-next', 1]]) {
   });
 }
 function showTitlePage(name) {
+  activeTitlePage = name;
   for (const section of document.querySelectorAll('[data-title-page]')) {
     section.hidden = section.dataset.titlePage !== name;
   }
@@ -3288,7 +3567,10 @@ function showTitlePage(name) {
 for (const button of document.querySelectorAll('[data-title-target]')) {
   button.addEventListener('click', () => {
     showTitlePage(button.dataset.titleTarget);
-    if (button.dataset.titleTarget === 'family') profileUI?.refresh();
+    if (button.dataset.titleTarget === 'family') {
+      profileUI?.refresh();
+      entitlementPanel?.refresh();
+    }
   });
 }
 document.getElementById('title-leaderboard-btn').hidden = platform.isApp;
@@ -3307,9 +3589,11 @@ onLocaleChange(() => {
   renderAttemptAccomplishment('defeat-attempt-summary', campaignWon ? completionFeedback : null);
   if (platform.isApp) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   profileUI?.refresh();
-  if (platform.isApp && !state.isShapesMode) {
-    btnPauseSave.textContent = t('overlay.returnTitle');
-    pauseSaveNotice.textContent = t('overlay.completedProgressNotice');
+  entitlementPanel?.render();
+  firstOpenNotice?.render();
+  helpOverlay?.refresh();
+  if (platform.isApp && !practiceRun && !state.isShapesMode) {
+    pauseSaveNotice.textContent = t('overlay.unfinishedSaveNotice');
   }
   updateMuteButtonLabel();
   audioPreferenceStatus();

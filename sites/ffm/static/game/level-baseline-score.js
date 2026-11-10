@@ -70,3 +70,13 @@ export function calculateLevelBaselineScore(config) {
   }
   return Math.round(total);
 }
+
+/** Deterministic score paid per still-unresolved fiend when a dragon breath
+ *  finishes the level: the level's flawless baseline spread evenly across its
+ *  wave. No randomness and no speed/combo multiplier, so the same level and
+ *  the same number of remaining fiends always award the same bonus. */
+export function dragonFinishPerFiendValue(config) {
+  const waveSize = config?.waveSize;
+  if (!Number.isFinite(waveSize) || waveSize <= 0) return 0;
+  return Math.round(calculateLevelBaselineScore(config) / waveSize);
+}

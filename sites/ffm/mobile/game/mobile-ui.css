@@ -1,0 +1,489 @@
+/* mobile-ui.css — App-only overlay styles for the Capacitor build.
+ *
+ * Shipped by copy-assets as www/game/mobile-ui.css and injected at runtime by
+ * mobile-ui.js. The web build never loads this file, so every rule here is
+ * app-only. Keep it free of remote URLs: the bundle must stay offline.
+ *
+ * The seam itself adds no web visual change; the header timer bar and title
+ * level numerals below are app-only. Later mobile UI issues build on these
+ * custom properties instead of forking the shared stylesheet.
+ */
+
+:root {
+  --ffm-mobile-ui-ready: 1;
+  --ffm-mobile-timer-color: #4caf50;
+}
+
+/* Question timer bar, injected by timer-bar.js into #gameplay-chrome.
+ *
+ * The bar owns its own header grid row and is explicitly centred inside it,
+ * so it never inherits the row's stretch alignment and sits off-centre. The
+ * fill width and colour are set from the remaining-time ratio; the untimed
+ * state is a distinct neutral stripe, not a full or empty progress bar. */
+.app-header-timer {
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: stretch;
+  height: 8px;
+  margin: 2px 0;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.app-header-timer-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background-color: var(--ffm-mobile-timer-color);
+  transition: width 120ms linear, background-color 120ms linear;
+}
+
+.app-header-timer--untimed .app-header-timer-fill {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 0 4px,
+    rgba(255, 255, 255, 0) 4px 8px
+  );
+}
+
+.app-header-timer--paused .app-header-timer-fill {
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header-timer-fill { transition: none; }
+}
+
+/* Decorative starting/continuation level numerals, injected by
+ * level-numerals.js into #difficulty-select.
+ *
+ * They sit in the empty upper-left corner of the title row, inside the
+ * overlay's safe-area padding, and never take pointer events. Monospace keeps
+ * two digits narrow enough to clear the centred logo at 320px portrait, while
+ * the clamp caps the glyph size on tablets; old-style figures are requested
+ * where the platform font supports them and degrade to the normal glyphs. */
+.title-level-numerals {
+  position: absolute;
+  top: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 10px);
+  left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 10px);
+  z-index: 3;
+  display: block;
+  max-width: 24vw;
+  font-family: monospace;
+  font-size: clamp(18px, 7vw, 56px);
+  line-height: 1;
+  font-variant-numeric: oldstyle-nums;
+  font-feature-settings: "onum" 1;
+  color: var(--brass-light, #e4c577);
+  text-shadow: 0 2px 0 #070e0b, 0 0 18px rgba(196, 154, 72, 0.45);
+  opacity: 0.85;
+  pointer-events: none;
+  user-select: none;
+}
+
+.title-level-numerals[hidden] {
+  display: none;
+}
+
+@media (orientation: landscape) {
+  .title-level-numerals {
+    font-size: clamp(16px, 4.5vw, 44px);
+  }
+}
+
+/* Portrait answer bubble timer, injected by bubble-timer.js into #input-zone
+ * immediately before #mc-buttons.
+ *
+ * The row only exists in portrait: the default is display:none, so landscape
+ * and the web build (which never loads this stylesheet) show nothing. It owns
+ * a full-width flex line above the answer buttons, keeps a constant bubble
+ * budget, and paints the filled bubbles from --bubble-color, the same
+ * continuous colour the header bar uses. Animation is CSS-only and bounded;
+ * the paused and backgrounded states freeze it, and reduced motion removes
+ * every animation so only a static fill remains. */
+.app-answer-bubble-timer {
+  display: none;
+  flex: 0 0 100%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 22px;
+  margin: 0 calc(var(--safe-area-right, 0px) + 2px) 0 calc(var(--safe-area-left, 0px) + 2px);
+  padding: 0 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+#game-wrap[data-layout="portrait"] .app-answer-bubble-timer {
+  display: flex;
+}
+
+.app-answer-bubble-timer-bubble {
+  flex: 0 1 20px;
+  width: clamp(8px, 5vw, 20px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.app-answer-bubble-timer-bubble--filled {
+  border-color: transparent;
+  background: var(--bubble-color, #4caf50);
+  box-shadow: 0 0 6px var(--bubble-color, #4caf50);
+  animation: ffm-bubble-pulse 1.4s ease-in-out infinite;
+  animation-delay: calc(var(--bubble-index, 0) * -0.14s);
+}
+
+.app-answer-bubble-timer[data-timer-state="paused"] .app-answer-bubble-timer-bubble,
+.app-answer-bubble-timer[data-timer-state="untimed"] .app-answer-bubble-timer-bubble,
+.app-answer-bubble-timer[data-backgrounded="true"] .app-answer-bubble-timer-bubble {
+  animation-play-state: paused;
+}
+
+@keyframes ffm-bubble-pulse {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 4px var(--bubble-color, #4caf50);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.08);
+    box-shadow: 0 0 10px var(--bubble-color, #4caf50);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-answer-bubble-timer-bubble--filled {
+    animation: none;
+    transform: none;
+    box-shadow: 0 0 4px var(--bubble-color, #4caf50);
+  }
+}
+
+/* Shapes question header, restructured by shapes-header.js into exactly two
+ * rows: the localized instruction and one unbroken row of shapes.
+ *
+ * The renderer writes the per-row font size inline, scaled from the measured
+ * header width, so a count of 1-10 never wraps between shapes and never needs
+ * clipping or ellipsis. Only the header text is restructured: #input-zone,
+ * #mc-buttons and the 44px answer targets keep their web geometry. */
+#active-question[data-shapes-header="two-rows"] {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  row-gap: 0;
+}
+
+#active-question[data-shapes-header="two-rows"] .app-shapes-header-instruction,
+#active-question[data-shapes-header="two-rows"] .app-shapes-header-shapes {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-family: monospace;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+/* App-only music/effects gain control, injected by volume-control.js into
+ * #top-bar immediately after #mute-btn.
+ *
+ * The top bar is right-anchored because the app now has three controls (mute,
+ * gain, language) instead of the two the shared 112px offset assumed. The
+ * <details> summary is a 44px target, and the panel opens below the bar without
+ * changing the flex row's geometry. Every slider keeps the shared 44px input
+ * minimum, and the status line is the live explanation when music routing is
+ * unavailable. */
+#top-bar {
+  left: auto;
+  right: calc(100vw - var(--viewport-left, 0px) - var(--viewport-width, 100vw)
+    + var(--safe-area-right, 0px) + 8px);
+}
+
+.app-audio-control {
+  position: relative;
+}
+
+#top-bar .app-audio-control > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  background: #1a1a3a;
+  color: #f0f0f0;
+  border: 2px solid #4040a0;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 14px;
+  list-style: none;
+  touch-action: manipulation;
+}
+
+#top-bar .app-audio-control > summary::-webkit-details-marker {
+  display: none;
+}
+
+#top-bar .app-audio-control > summary:focus {
+  outline: 2px solid #6060d0;
+  outline-offset: 2px;
+}
+
+.app-audio-control-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 201;
+  display: grid;
+  gap: 8px;
+  width: min(280px, calc(100vw - 16px));
+  padding: 10px;
+  box-sizing: border-box;
+  background: rgba(10, 28, 21, 0.97);
+  border: 1px solid var(--brass-deep, #a77a34);
+  border-radius: 6px;
+  color: var(--ivory, #f0f0f0);
+}
+
+.app-audio-control-row {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-audio-control-row label {
+  color: var(--ivory-muted, #d8d8d8);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.app-audio-control-row input[type="range"] {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+}
+
+.app-audio-control-panel .screen-status {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+/* Player-section entitlement panel, mounted by entitlement-panel.js into
+ * #entitlement-root on the app-only Players page.
+ *
+ * The shared stylesheet gives #profile-root and .profile-ui height:100%, which
+ * would push the panel out of the page; the Players page scrolls instead so
+ * both the profile list and the purchase status stay reachable on short
+ * screens. Every rule here is app-only because the web build never loads this
+ * stylesheet or the panel module. */
+#local-profiles {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#local-profiles #profile-root,
+#local-profiles .profile-ui {
+  height: auto;
+}
+
+#entitlement-root {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.entitlement-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--brass-deep, #a77a34);
+  border-radius: 6px;
+  background: rgba(10, 28, 21, 0.72);
+  color: var(--ivory, #f0f0f0);
+}
+
+.entitlement-panel h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.entitlement-panel p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.entitlement-status { color: var(--brass-light, #e4c577); }
+.entitlement-panel[data-entitlement-status="full"] .entitlement-status { color: #80f080; }
+.entitlement-panel[data-entitlement-status="offline"] .entitlement-status { color: #ffe080; }
+.entitlement-panel[data-entitlement-status="error"] .entitlement-status { color: #ff8080; }
+
+.entitlement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.entitlement-actions .diff-btn {
+  flex: 1 1 140px;
+  min-height: 44px;
+}
+
+.entitlement-outcome { color: #ffe080; }
+.entitlement-outcome.error-msg { color: #ff8080; }
+
+/* Title-screen legal navigation, rendered by legal.js into .splash-legal-links
+ * on the app's Terms page. The web build keeps its own footer styling; these
+ * brass/forest chips only reach the app because mobile-ui.css is injected at
+ * runtime, and every link keeps a 44px tap target that wraps on narrow phones. */
+.splash-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--ivory-muted, #d3ccb9);
+}
+
+.splash-legal-links a,
+.splash-legal-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--brass-deep, #80602d);
+  border-radius: 6px;
+  background: rgba(196, 154, 72, 0.1);
+  color: var(--brass-light, #e4c577);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.splash-legal-links a:hover,
+.splash-legal-link-btn:hover {
+  border-color: var(--brass-light, #e4c577);
+  color: var(--focus-ring, #fff0bd);
+}
+
+.splash-legal-links a:focus-visible,
+.splash-legal-link-btn:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}
+
+/* Contextual help, injected by help-overlay.js (app-only).
+ *
+ * Three question-mark buttons open a short staged dialog: one in the play
+ * area, one in the pause menu and one in the title navigation. The play-area
+ * button takes the chrome's second column so it never covers the question,
+ * the answer input or the timer bar, and the pause button keeps the third
+ * column. Every control keeps a 44px tap target and the dialog scrolls on
+ * short screens instead of clipping its copy. */
+.app-help-button {
+  align-self: center;
+  justify-self: end;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  font: bold 20px/1 system-ui, sans-serif;
+  color: var(--brass-light, #e4c577);
+  background: rgba(196, 154, 72, 0.16);
+  border: 2px solid var(--brass-deep, #80602d);
+  border-radius: 8px;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.app-help-button:hover,
+.app-help-button:focus-visible {
+  border-color: var(--brass-light, #e4c577);
+  color: var(--focus-ring, #fff0bd);
+}
+
+.app-help-button:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}
+
+#gameplay-chrome { grid-template-columns: minmax(0, 1fr) auto auto; }
+#gameplay-chrome #active-question,
+#gameplay-chrome #gameplay-feedback { grid-column: 1; }
+#gameplay-chrome .app-help-button[data-help-host="play"] { grid-column: 2; }
+#gameplay-chrome #btn-pause-game { grid-column: 3; }
+
+.title-navigation .app-help-button {
+  justify-self: stretch;
+  min-width: 44px;
+  padding: 4px;
+  font-size: clamp(11px, 1.5vw, 15px);
+}
+
+.app-help-overlay { z-index: 120; }
+
+.app-help-card {
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: clamp(13px, 2vw, 16px);
+}
+
+.app-help-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app-help-close {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  font: bold 24px/1 system-ui, sans-serif;
+  color: inherit;
+  background: transparent;
+  border: 2px solid var(--brass-deep, #80602d);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.app-help-tips {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+  line-height: 1.35;
+}
+
+.app-help-manual-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  margin-top: 4px;
+  border: 1px solid var(--brass-deep, #80602d);
+  border-radius: 6px;
+  color: var(--brass-light, #e4c577);
+  text-decoration: none;
+}
+
+.app-help-manual-link:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}

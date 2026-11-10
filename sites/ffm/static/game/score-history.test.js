@@ -45,3 +45,14 @@ test('zero, equal and changing scores retain finite plotted points and ordered h
     assert.doesNotMatch(chart.innerHTML, /NaN|Infinity/);
   }
 });
+
+test('unfinished attempts are labelled without presenting them as clears', () => {
+  const cleared = render([{ score: 1200 }]);
+  assert.ok(!cleared.innerHTML.includes(t('scoreHistory.unfinishedNote')));
+
+  const mixed = render([{ score: 1200 }, { score: 400, unfinished: true }]);
+  assert.ok(mixed.innerHTML.includes(t('scoreHistory.unfinishedNote')));
+  assert.match(mixed.innerHTML, /Latest score: 400/);
+  assert.match(mixed.innerHTML, /Saved results: 2/);
+  assert.equal((mixed.innerHTML.match(/<circle /g) ?? []).length, 2);
+});
