@@ -1258,10 +1258,18 @@ button, input, select, .splash-legal-links a {
 button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 
 .overlay, #loading-overlay {
-  left: var(--viewport-left);
-  top: var(--viewport-top);
-  width: var(--viewport-width);
-  height: var(--viewport-height);
+  /* --viewport-* follows the visual viewport: an on-screen keyboard shrinks it
+     and the dialog should shrink with it. But a zoomed-out visual viewport
+     reports a larger area than the screen, and sizing a dialog from it blew
+     every overlay up until its actions were out of reach. Clamp the box to the
+     layout viewport and keep the visual offsets inside it, so a dialog is
+     always on screen - over the keyboard case, which still wins. */
+  --overlay-width: min(var(--viewport-width, 100vw), 100vw);
+  --overlay-height: min(var(--viewport-height, 100vh), 100vh);
+  left: max(0px, min(var(--viewport-left, 0px), calc(100vw - var(--overlay-width))));
+  top: max(0px, min(var(--viewport-top, 0px), calc(100vh - var(--overlay-height))));
+  width: var(--overlay-width);
+  height: var(--overlay-height);
   box-sizing: border-box;
   padding: calc(var(--safe-area-top) + 8px)
     calc(var(--safe-area-right) + 8px)
