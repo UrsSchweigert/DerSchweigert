@@ -98,12 +98,12 @@ export const DICTIONARY = {
   'art.act6': { de: 'Akt 6 · Der leere Thron', en: 'Act 6 · The Empty Throne' },
   'art.actionTitle': { de: 'Der Held im Kampf', en: 'The hero in combat' },
   'art.actionText': {
-    de: 'Drei Momente aus dem Kampf, gemalt im Stil der Bühnen: Nahkampf, Feuerball und Blitzschlag als Combo-Finale.',
+    de: 'Drei Momente aus dem Kampf, gemalt im Stil der Bühnen: Nahkampf, Feuerball und die Blitzkugel als Combo-Finale.',
     en: 'Three moments from combat, painted in the style of the stages: melee, fireball and a lightning combo finish.',
   },
   'art.actionFight': { de: 'Nahkampf – der Hieb sitzt.', en: 'Melee — the swing lands.' },
   'art.actionFireball': { de: 'Feuerball auf Distanz.', en: 'Fireball at range.' },
-  'art.actionLightning': { de: 'Blitzschlag als Combo-Finale.', en: 'Lightning as the combo finale.' },
+  'art.actionLightning': { de: 'Blitzkugel als Combo-Finale.', en: 'Lightning ball as the combo finale.' },
   'art.fiendsTitle': { de: '36 Feinde und ein Drache', en: '36 fiends and a dragon' },
   'art.fiendsText': {
     de: '36 einzeln gezeichnete Feind-Sprites in zwei Sets, vom Schleim bis zum Skelett-Krieger, dazu ein Drache als Boss. 16-Bit-Nostalgie, gemalt wie ein Papiertheater.',
