@@ -99,6 +99,10 @@ are **gold**; danger is crimson or sickly violet, never gore.
 - Stage is 1920×1080. Keep faces, the sword, and anything the subtitle refers
   to inside the **safe area x 240-1680, y 108-972**, which stays visible from
   4:3 tablets to 20:9 phones.
+- A foreground strip is read by its **top edge**: that edge must be the
+  vegetation itself — grass tips, fern fronds, seed heads, a broken step — never
+  a straight horizontal crop. Anchor the foreground by its vegetation line (its
+  top) and let its mass run off the bottom of the stage.
 - Leave the lower ~20% calm: the parchment subtitle strip sits there. Foreground
   vegetation may rise into the lower third, but keep it low-contrast and
   free of faces or story-critical detail behind the strip.
@@ -113,6 +117,7 @@ are **gold**; danger is crimson or sickly violet, never gore.
 - it contains text, letters, logos, watermarks, religious symbols (for example
   a cross on a roof), or extra characters;
 - cutouts have a white halo, missing cream border, or cropped edges;
+- a foreground shows a straight horizontal cut instead of a vegetation edge;
 - the palette or lighting breaks the act's setting;
 - it is frightening or violent beyond the in-game tone;
 - it was produced with a generator that is not approved above (for example any
