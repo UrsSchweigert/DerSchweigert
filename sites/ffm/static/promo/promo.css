@@ -429,11 +429,20 @@ ul {
   filter: brightness(0.6) saturate(0.85) drop-shadow(0 -10px 40px rgba(0, 0, 0, 0.7));
 }
 
+/* Hero poster: the title art takes two thirds of the row, the phone the
+   rest. Each column centres its own content, so art and device stay
+   optically aligned regardless of their intrinsic sizes. */
+.hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: clamp(24px, 3.5vw, 56px);
+  align-items: center;
+}
+
 .hero-copy {
   position: relative;
   z-index: 2;
-  max-width: 860px;
-  margin-inline: auto;
+  min-width: 0;
   text-align: center;
 }
 
@@ -1461,9 +1470,9 @@ ul {
   position: relative;
   z-index: 1;
   display: grid;
-  /* The phone column is bounded explicitly: an `auto` track would be sized
-     by the 1170 px screenshot and squeeze the copy column once it loads. */
-  grid-template-columns: minmax(0, 1fr) clamp(220px, 21vw, 268px);
+  /* The phone mockup moved into the hero, so this section is a single
+     column again. */
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(20px, 3vw, 44px);
   align-items: start;
 }
@@ -1474,11 +1483,15 @@ ul {
 
 /* Phone chrome built in CSS: rounded body, bezel, speaker/notch and a subtle
    screen glare. No frame image, no external asset. */
-.family-phone {
+.hero-phone {
   margin: 0;
   justify-self: center;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   width: 100%;
-  max-width: 100%;
+  max-width: min(100%, 300px);
 }
 
 .phone {
@@ -1530,7 +1543,7 @@ ul {
   background: linear-gradient(118deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 26%, transparent 46%);
 }
 
-.family-phone figcaption {
+.hero-phone figcaption {
   margin-top: 0.75em;
   color: var(--ivory-muted);
   font-family: var(--mono);
@@ -1911,12 +1924,12 @@ ul {
     --header-inner-h: 119px;
   }
 
-  /* The family section stacks: copy first, phone below it. */
-  .family-inner {
+  /* The hero stacks: title art first, phone below it. */
+  .hero-inner {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .family-phone {
+  .hero-phone {
     width: min(240px, 100%);
     max-width: 100%;
   }
