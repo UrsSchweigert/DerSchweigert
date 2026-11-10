@@ -1,0 +1,139 @@
+/* legal.css — Web restyle for the standalone Terms documents.
+ *
+ * Mirrors the app's bundled legal pages (mobile/legal/legal.css) so terms.html
+ * and terms.en.html look the same in the browser as on iOS and Android:
+ * forest/ivory/brass palette, monospace prose, brass headings and 44px footer
+ * links. It loads after the shared styles.css, which keeps the scrollable
+ * `body.legal-body` layout and safe-area variables. There are no @import
+ * rules, remote url() values or font files.
+ *
+ * The stylesheet is web-only; the app bundle ships its own copy under
+ * legal/legal.css.
+ */
+
+html:has(body.legal-body) { background: var(--ink-950, #091411); }
+
+body.legal-body {
+  background: var(--ink-950, #091411);
+  color: var(--ivory, #f3ead6);
+}
+
+.legal-page {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(196, 154, 72, 0.16), transparent 58%),
+    linear-gradient(160deg, var(--forest-850, #18352d), var(--ink-950, #091411) 62%, var(--ink-900, #10211b));
+  color: var(--ivory, #f3ead6);
+  font-family: monospace;
+  min-height: 100vh;
+  padding:
+    calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 20px)
+    calc(var(--safe-area-right, env(safe-area-inset-right, 0px)) + 18px)
+    calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 36px)
+    calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 18px);
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+}
+
+.legal-content {
+  max-width: 68ch;
+  line-height: 1.65;
+}
+
+.legal-content h1 {
+  margin: 8px 0 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--brass-deep, #80602d);
+  color: var(--brass-light, #e4c577);
+  font-size: 26px;
+  line-height: 1.25;
+  text-shadow: 0 2px 0 #070e0b, 0 0 18px rgba(196, 154, 72, 0.35);
+}
+
+.legal-content h2 {
+  margin: 24px 0 10px;
+  color: var(--brass-light, #e4c577);
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.legal-content p,
+.legal-content li {
+  font-size: 16px;
+}
+
+.legal-content ul,
+.legal-content ol {
+  padding-left: 22px;
+}
+
+.legal-content a {
+  color: var(--brass-light, #e4c577);
+  text-decoration-color: var(--brass-deep, #80602d);
+}
+
+.legal-content a:hover { color: var(--focus-ring, #fff0bd); }
+
+.legal-content a:focus-visible,
+.legal-footer-nav a:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}
+
+.legal-content hr { border-top: 1px solid var(--brass-deep, #80602d); }
+
+.legal-content code {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(196, 154, 72, 0.12);
+  color: var(--ivory, #f3ead6);
+  font-size: 0.95em;
+}
+
+/* Notices stay light-on-dark so they remain readable inside the restyle. */
+.warning {
+  background: #fff3cd;
+  color: #332701;
+  border: 1px solid #ffc107;
+  padding: 1em;
+  border-radius: 4px;
+  margin: 1em 0;
+}
+
+.legal-footer-nav {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--brass-deep, #80602d);
+  color: var(--ivory-muted, #d3ccb9);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.legal-footer-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin: 0 4px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid var(--brass-deep, #80602d);
+  border-radius: 5px;
+  background: linear-gradient(145deg, #203e32, #10241c);
+  color: var(--ivory, #f3ead6);
+  font-size: 16px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.legal-footer-nav a:hover {
+  border-color: var(--brass, #c49a48);
+  background: linear-gradient(145deg, #315641, #19372b);
+}
+
+.legal-footer-nav a[href="index.html"] {
+  border-color: #f0d48b;
+  background: linear-gradient(145deg, #d5b05c, #a77a34);
+  color: #15140f;
+  font-weight: 700;
+}

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { setLocale, t } from './i18n.js';
 
 const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 test('main.js marks the root element as web or app before rendering', () => {
@@ -17,6 +18,17 @@ test('web title pages share one centred width, scoped to the web build only', ()
   assert.match(block, /justify-content: stretch;/);
   assert.match(styles, /:root\[data-platform="web"\] \.title-pages,\s*:root\[data-platform="web"\] \.title-navigation \{[^}]*width: min\(100%, 560px\);/);
   assert.doesNotMatch(styles, /:root\[data-platform="app"\]/);
+});
+
+test('the web Terms tab mirrors the app legal navigation stack', () => {
+  const legalTab = html.match(/<section data-title-page="legal"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(legalTab, 'legal title page missing');
+  assert.doesNotMatch(legalTab, /·/, 'stacked links need no inline separators');
+  const block = styles.match(/:root\[data-platform="web"\] \.splash-legal-links \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(block, 'web legal stack missing');
+  assert.match(block, /flex-direction: column;/);
+  assert.match(block, /width: min\(100%, 560px\);/);
+  assert.match(styles, /:root\[data-platform="web"\] \.splash-legal-links a,[\s\S]*?min-height: 44px/);
 });
 
 test('the web 📈 history page is filled from the account score history', () => {
