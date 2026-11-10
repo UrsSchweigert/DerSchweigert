@@ -1,6 +1,7 @@
 // audio.js — Web Audio API chiptune engine for Arithmo Slayer
 
 import { DEFAULT_VOLUME, TrackRotation } from './track-rotation.js';
+import { MusicLoop } from './music-loop.js';
 
 // Used until tracks.json loads (and when it cannot be fetched), so the game
 // always has the one bundled track. The manifest holds the credited metadata.
@@ -52,6 +53,8 @@ export class AudioEngine {
     this._musicRefreshPending = false;
     this._menuRequest = 0;
     this._menuPlayBlocked = false;
+    this._loop = null;
+    this._loopOwnsMusic = false;
     this._rotation = new TrackRotation({
       tracks: this._tracks,
       makeAudio: this._makeAudio,
@@ -647,7 +650,7 @@ export class AudioEngine {
     this._rotation.stop();
     this._musicSession = { level: null, chapter: chapter ?? null, paused: false };
     this._refreshMusic();
-    this._rotation.start(chapter ?? null);
+    this._startPlaylist(chapter ?? null);
   }
 
   /**
@@ -678,7 +681,7 @@ export class AudioEngine {
       this._rotation.stop();
       this._musicSession = { level: null, menu: true, chapter: null, paused: false };
       this._refreshMusic();
-      this._rotation.start(null);
+      this._startPlaylist(null);
     };
     // Waiting for level-music.json keeps the first menu track from being
     // swapped (and restarted) a moment after it starts.
@@ -693,8 +696,67 @@ export class AudioEngine {
     this._rotation.stop();
     this._musicSession = { level, chapter: chapter ?? null, paused: false };
     this._refreshMusic();
-    this._rotation.start(chapter ?? null);
+    this._startPlaylist(chapter ?? null);
     if (!this._levelMusicReady) this._levelMusicReady = this._loadLevelMusic();
+  }
+
+  /**
+   * Play the freshly refreshed playlist. A single-track playlist (the menu and
+   * every level) loops through a decoded buffer, which wraps with no gap; longer
+   * playlists, and any context without decode support, keep the media-element
+   * rotation.
+   */
+  _startPlaylist(chapter) {
+    const tracks = this._rotation.tracks;
+    const canLoop = tracks.length === 1 && this._ctx &&
+      typeof this._ctx.decodeAudioData === 'function' && typeof this._ctx.createBufferSource === 'function';
+    if (canLoop) {
+      const file = tracks[0].file;
+      this._loopOwnsMusic = true;
+      this._rotation.stop();
+      this._startLoop(file);
+      return;
+    }
+    this._loopOwnsMusic = false;
+    this._loop?.stop();
+    this._rotation.start(chapter ?? null);
+  }
+
+  _startLoop(file) {
+    try {
+      this._loop ??= new MusicLoop({
+        ctx: this._ctx,
+        destination: this._musicBus,
+        load: name => this._loadTrackBytes(name),
+      });
+    } catch (error) {
+      this._fallBackToRotation(error);
+      return;
+    }
+    this._loop.play(file).catch(error => this._fallBackToRotation(error));
+  }
+
+  _fallBackToRotation(error) {
+    // A playlist that cannot be decoded still plays through a media element.
+    console.warn('Seamless music loop unavailable; using the media element path:', error);
+    this._loopOwnsMusic = false;
+    this._loop?.stop();
+    if (!this._musicSession || this._musicSession.paused) return;
+    this._rotation.start(this._musicSession.chapter ?? null);
+  }
+
+  _loadTrackBytes(file) {
+    const url = new URL(file, this._musicBaseUrl).href;
+    if (!this._fetchTrack) return Promise.reject(new Error('No fetch available for bundled music'));
+    // A full byte range is what answers with a real body on the capacitor:
+    // scheme; status 0 stays accepted for older shells.
+    return Promise.resolve(this._fetchTrack(url, { headers: { Range: 'bytes=0-' } }))
+      .then(response => {
+        if (!response || (response.ok === false && response.status !== 0)) {
+          throw new Error(`bundled music ${response?.status ?? 'unavailable'}`);
+        }
+        return response.arrayBuffer();
+      });
   }
 
   stopBGM() {
@@ -702,11 +764,14 @@ export class AudioEngine {
     this._menuPlayBlocked = false;
     this._musicSession = null;
     this._musicRefreshPending = false;
+    this._loopOwnsMusic = false;
+    this._loop?.stop();
     this._rotation.stop();
   }
 
   pauseBGM() {
     if (this._musicSession) this._musicSession.paused = true;
+    this._loop?.pause();
     this._rotation.pause();
   }
 
@@ -715,7 +780,9 @@ export class AudioEngine {
     this._musicSession.paused = false;
     if (this._musicRefreshPending) {
       this._refreshMusic();
-      this._rotation.start(this._musicSession.chapter);
+      this._startPlaylist(this._musicSession.chapter);
+    } else if (this._loopOwnsMusic) {
+      this._loop?.resume();
     } else {
       this._rotation.resume();
     }

@@ -46,6 +46,28 @@ already playing do nothing. Both native shells allow media autoplay
 with music too. On iOS the Web Audio context can still be suspended until the
 first touch; the menu track then becomes audible from that point.
 
+## Gapless looping
+
+A single-track playlist — the menu track and every level track — is played
+through `static/game/music-loop.js`: the file is fetched once, decoded with
+`decodeAudioData` and looped with an `AudioBufferSourceNode` (`loop = true`,
+`loopEnd` at the decoded duration) into the same music bus, so volume and mute
+keep working through the bus gain.
+
+This matters because a media element loses about 25 ms at every wrap: whether
+the rotation advances to the preloaded element or the element itself is looped,
+the pipeline re-runs the MP3 decoder at the seam (measured 24.5 ms in Chrome,
+and the same with a bare `<audio loop>`). A decoded buffer carries no encoder
+padding — Chrome's decoder trims it — so the buffer path wraps with no gap at
+all.
+
+Multi-track playlists, and any context without `decodeAudioData`, keep the
+media-element rotation. If fetching or decoding the single track fails, the
+engine logs a warning and falls back to the rotation for the same playlist. One
+decoded track is kept in memory at a time (~30 MB for the longest track) and
+reused when the same file starts again, so the two levels that share a track
+and a return to the title do not decode twice.
+
 The game starts with the existing bundled fallback while configuration loads.
 Invalid lists or unavailable configuration log a warning and use the normal
 rotation; they do not block play. No player migration or song picker is needed.
