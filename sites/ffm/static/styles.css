@@ -1735,7 +1735,11 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   .splash-intro { font-size: 11px; }
   .splash-diff-buttons { height: 100%; grid-template-rows: repeat(2, minmax(44px, 128px)); }
   .title-play-intro { gap: 4px; }
-  .playing-as-row { flex-wrap: wrap; gap: 4px; }
+  /* Compact heights force the player line onto its own row (see
+     [data-viewport-compact] below), which drops "Switch player" onto a second
+     flex line: centre it like the rest of the intro instead of leaving it at
+     the left edge. */
+  .playing-as-row { flex-wrap: wrap; justify-content: center; gap: 4px; }
   .splash-login-row { flex-wrap: wrap; row-gap: 2px; }
   .splash-login-row .splash-btn { font-size: 11px; padding: 4px; }
   .profile-ui {
