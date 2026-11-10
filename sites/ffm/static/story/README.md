@@ -22,7 +22,7 @@ install and again before level 1 (see [Integration](#integration)).
 | `scenes/<id>/subtitles.{en,de}.vtt` | generated WebVTT copies of the cues |
 | `sources/<id>/` | art packet (`layers.json`: prompts, references, retouches) and raw renders |
 | `references/` | approved hero reference sheet |
-| `tools/` | cutout and subtitle scripts |
+| `tools/` | cutout, compression and subtitle scripts |
 | `ART-BIBLE.md` | consistency rules every layer is reviewed against |
 | `preview.html` | development preview |
 
@@ -82,7 +82,15 @@ took about 30 minutes per backdrop on a 16 GB Mac.
    ```
 
    Record any manual retouch of a raw render in `layers.json`.
-4. **Scene** — write `scene.json`, add it to `scenes/index.json`, generate
+4. **Compress** — the shipped layers are palette PNGs (256 colours, dithering;
+   cutouts keep an alpha table), which cuts an intro-sized scene from ~9 MB to
+   ~2 MB without a visible difference at display size:
+
+   ```sh
+   python3 sites/ffm/static/story/tools/compress.py sites/ffm/static/story/scenes/<id>/*.png
+   ```
+
+5. **Scene** — write `scene.json`, add it to `scenes/index.json`, generate
    subtitles, preview, and run the tests:
 
    ```sh
@@ -91,7 +99,7 @@ took about 30 minutes per backdrop on a 16 GB Mac.
    node --test sites/ffm/static/story/tests/*.test.mjs
    ```
 
-5. **Review** — an independent reviewer compares every layer and preview frame
+6. **Review** — an independent reviewer compares every layer and preview frame
    with `ART-BIBLE.md` and the reference sheet before the scene is accepted.
 
 ## Integration

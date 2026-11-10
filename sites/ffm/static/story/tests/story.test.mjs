@@ -23,7 +23,21 @@ const MAX_CPS = 17;
 function pngInfo(file) {
   const buf = readFileSync(file);
   assert.equal(buf.subarray(1, 4).toString('latin1'), 'PNG', `${file} is not a PNG`);
-  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), colorType: buf[25] };
+  // Walk the chunks so a palette cutout's alpha table (tRNS) is visible too.
+  const chunks = new Set();
+  for (let at = 8; at + 8 <= buf.length;) {
+    const length = buf.readUInt32BE(at);
+    chunks.add(buf.subarray(at + 4, at + 8).toString('latin1'));
+    at += 12 + length;
+  }
+  return {
+    width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), colorType: buf[25], chunks,
+  };
+}
+
+/** Cutouts are either RGBA or a palette PNG with a tRNS alpha table. */
+function hasAlphaChannel(info) {
+  return info.colorType === 6 || (info.colorType === 3 && info.chunks.has('tRNS'));
 }
 
 function loadScene(id) {
@@ -69,7 +83,7 @@ for (const id of sceneDirs) {
         const info = pngInfo(file);
         assert.ok(info.width >= 400 && info.width <= 2400, `${layer.id}: width ${info.width}`);
         if (layer.role !== 'backdrop') {
-          assert.equal(info.colorType, 6, `${layer.id}: cutout layers need an alpha channel`);
+          assert.ok(hasAlphaChannel(info), `${layer.id}: cutout layers need an alpha channel`);
         }
       }
     });
