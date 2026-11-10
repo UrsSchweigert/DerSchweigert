@@ -78,9 +78,21 @@ describe('scene index', () => {
     assert.deepEqual(index.scenes.map(entry => entry.id).sort(), sceneDirs);
   });
 
+  it('opens each act once, at that act\'s first level', () => {
+    const acts = index.scenes.filter(entry => entry.slot.type === 'act');
+    assert.deepEqual(acts.map(entry => entry.slot.act).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6]);
+    const starts = acts.map(entry => entry.slot.fromLevel).sort((a, b) => a - b);
+    assert.deepEqual(starts, [1, 11, 21, 31, 41, 51]);
+  });
+
   it('gives every scene a valid insertion slot', () => {
     for (const { id, slot } of index.scenes) {
-      assert.ok(['intro', 'level', 'finish'].includes(slot.type), `${id}: slot.type`);
+      assert.ok(['intro', 'act', 'level', 'finish'].includes(slot.type), `${id}: slot.type`);
+      if (slot.type === 'act') {
+        assert.ok(Number.isInteger(slot.act) && slot.act >= 1 && slot.act <= 6, `${id}: slot.act`);
+        assert.ok(Number.isInteger(slot.fromLevel) && slot.fromLevel >= 1 && slot.fromLevel <= 60,
+          `${id}: slot.fromLevel`);
+      }
       if (slot.type === 'level') {
         assert.ok(Number.isInteger(slot.level) && slot.level >= 1 && slot.level <= 60, `${id}: slot.level`);
         assert.ok(['before', 'after'].includes(slot.when), `${id}: slot.when`);

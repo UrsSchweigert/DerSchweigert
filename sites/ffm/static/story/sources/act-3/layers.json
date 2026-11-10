@@ -1,0 +1,53 @@
+{
+  "scene": "act-3",
+  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP.",
+  "generator": {
+    "endpoint": "gpt-image",
+    "license": "commercial use of outputs permitted"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "seed": 3303,
+      "size": {
+        "width": 1536,
+        "height": 864
+      },
+      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: a night forest of tall dark trees with glowing paper lanterns hanging from the branches, three standing rune-stones lit from within with cold blue light, ferns and blue wildflowers at their feet, deep midnight-blue palette with warm lantern gold, calm simple mossy ground across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
+      "raw": "sources/act-3/backdrop-gpt.png"
+    },
+    {
+      "id": "midground",
+      "cutout": true,
+      "seed": 3302,
+      "size": {
+        "width": 1536,
+        "height": 1024
+      },
+      "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: three tall dark tree trunks, three standing rune-stones glowing faintly blue, two hanging paper lanterns.",
+      "raw": "sources/act-3/midground-gpt.png"
+    },
+    {
+      "id": "foreground",
+      "cutout": true,
+      "seed": 3301,
+      "size": {
+        "width": 1536,
+        "height": 1024
+      },
+      "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: curling ferns, blue wildflowers, two mossy stones.",
+      "raw": "sources/act-3/foreground-gpt.png"
+    },
+    {
+      "id": "fiends",
+      "cutout": true,
+      "raw": "sources/act-3/fiends-raw.png",
+      "references": [
+        "static/game/fiend-sprites/ (the act's own classes)",
+        "sources/intro/village-raw.png"
+      ],
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+    }
+  ]
+}

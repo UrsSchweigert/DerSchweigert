@@ -1,0 +1,174 @@
+{
+  "id": "act-1",
+  "slot": {
+    "type": "act",
+    "act": 1,
+    "fromLevel": 1
+  },
+  "title": {
+    "en": "Act 1 · The First Light",
+    "de": "Akt 1 · Das erste Licht"
+  },
+  "duration": 16,
+  "layers": [
+    {
+      "id": "backdrop",
+      "role": "backdrop",
+      "src": "backdrop.webp",
+      "x": -48,
+      "y": -150,
+      "width": 2016,
+      "motion": [
+        {
+          "t": 0,
+          "x": 20,
+          "y": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -40,
+          "y": 12,
+          "scale": 1.05
+        }
+      ]
+    },
+    {
+      "id": "midground",
+      "role": "midground",
+      "src": "midground.webp",
+      "x": -90,
+      "y": 217,
+      "width": 2100,
+      "motion": [
+        {
+          "t": 0,
+          "x": 100,
+          "y": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -100,
+          "y": -6,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "fiends",
+      "role": "character",
+      "src": "fiends.webp",
+      "x": 820,
+      "y": 633,
+      "width": 620,
+      "motion": [
+        {
+          "t": 0,
+          "x": 60,
+          "y": 0,
+          "opacity": 0,
+          "scale": 1.0
+        },
+        {
+          "t": 2.0,
+          "x": 40,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -40,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "foreground",
+      "role": "foreground",
+      "src": "foreground.webp",
+      "x": -290,
+      "y": 777,
+      "width": 2500,
+      "motion": [
+        {
+          "t": 0,
+          "x": 220,
+          "y": 10,
+          "scale": 1.0
+        },
+        {
+          "t": 16,
+          "x": -220,
+          "y": -14,
+          "scale": 1.05
+        }
+      ]
+    }
+  ],
+  "lighting": {
+    "ambient": "linear-gradient(180deg, #4a5a8a55 0%, rgba(18,22,48,0.08) 55%, rgba(20,14,6,0.30) 100%)",
+    "glows": [
+      {
+        "layer": "midground",
+        "x": 960,
+        "y": 620,
+        "radius": 300,
+        "color": "rgba(255,214,160,0.26)",
+        "from": 0,
+        "pulse": 5
+      },
+      {
+        "layer": "fiends",
+        "x": 1380,
+        "y": 760,
+        "radius": 220,
+        "color": "rgba(160,210,255,0.22)",
+        "from": 2.0,
+        "pulse": 3.4
+      }
+    ],
+    "motes": {
+      "count": 18,
+      "color": "#ffd9a8"
+    },
+    "events": [
+      {
+        "type": "dim",
+        "at": 11.8,
+        "duration": 2.4,
+        "color": "#0b1024",
+        "intensity": 0.5
+      }
+    ]
+  },
+  "subtitles": [
+    {
+      "start": 0.8,
+      "end": 6.0,
+      "text": {
+        "en": "Dawn. The village is quiet, and one rune is still dark.",
+        "de": "Der Morgen. Das Dorf ist still, und eine Rune ist noch dunkel."
+      }
+    },
+    {
+      "start": 6.4,
+      "end": 11.6,
+      "text": {
+        "en": "Ten wards, ten villages. Wake the first one here.",
+        "de": "Zehn Siegel, zehn Dörfer. Wecke hier das erste."
+      }
+    },
+    {
+      "start": 12.0,
+      "end": 16,
+      "text": {
+        "en": "Act I · The First Light",
+        "de": "Akt I · Das erste Licht"
+      }
+    }
+  ]
+}

@@ -1,6 +1,59 @@
 {
   "version": 1,
   "scenes": [
-    { "id": "intro", "slot": { "type": "intro" } }
+    {
+      "id": "intro",
+      "slot": {
+        "type": "intro"
+      }
+    },
+    {
+      "id": "act-1",
+      "slot": {
+        "type": "act",
+        "act": 1,
+        "fromLevel": 1
+      }
+    },
+    {
+      "id": "act-2",
+      "slot": {
+        "type": "act",
+        "act": 2,
+        "fromLevel": 11
+      }
+    },
+    {
+      "id": "act-3",
+      "slot": {
+        "type": "act",
+        "act": 3,
+        "fromLevel": 21
+      }
+    },
+    {
+      "id": "act-4",
+      "slot": {
+        "type": "act",
+        "act": 4,
+        "fromLevel": 31
+      }
+    },
+    {
+      "id": "act-5",
+      "slot": {
+        "type": "act",
+        "act": 5,
+        "fromLevel": 41
+      }
+    },
+    {
+      "id": "act-6",
+      "slot": {
+        "type": "act",
+        "act": 6,
+        "fromLevel": 51
+      }
+    }
   ]
 }

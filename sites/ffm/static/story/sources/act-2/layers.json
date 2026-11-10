@@ -1,0 +1,53 @@
+{
+  "scene": "act-2",
+  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP.",
+  "generator": {
+    "endpoint": "gpt-image",
+    "license": "commercial use of outputs permitted"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "seed": 2201,
+      "size": {
+        "width": 1536,
+        "height": 864
+      },
+      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: sunset over golden wheat fields, warm orange and rose sky, the low sun behind a ridge, rows of ripe wheat, a wooden windmill and haystacks, a line of golden runes running along the field edge, calm field across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
+      "raw": "sources/act-2/backdrop-gpt.png"
+    },
+    {
+      "id": "midground",
+      "cutout": true,
+      "seed": 2202,
+      "size": {
+        "width": 1536,
+        "height": 1024
+      },
+      "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: a wooden windmill with sails, three wheat sheaves, a fence of carved rune posts, two haystacks.",
+      "raw": "sources/act-2/midground-gpt.png"
+    },
+    {
+      "id": "foreground",
+      "cutout": true,
+      "seed": 2203,
+      "size": {
+        "width": 1536,
+        "height": 1024
+      },
+      "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: ripe wheat stalks, red poppies, a tied sheaf of cut wheat.",
+      "raw": "sources/act-2/foreground-gpt.png"
+    },
+    {
+      "id": "fiends",
+      "cutout": true,
+      "raw": "sources/act-2/fiends-raw.png",
+      "references": [
+        "static/game/fiend-sprites/ (the act's own classes)",
+        "sources/intro/village-raw.png"
+      ],
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+    }
+  ]
+}
