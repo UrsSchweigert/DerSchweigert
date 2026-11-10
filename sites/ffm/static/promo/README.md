@@ -8,7 +8,7 @@ single ES module: no build step, no dependencies, no external requests.
 | --- | --- |
 | `index.html` | The page. Ships **German**; every translatable string carries a `data-i18n*` key. |
 | `promo.css` | All styling, animations and the reduced-motion overrides. |
-| `promo.js` | Locale dictionary + `setLocale()`, sprite-frame cycling, scroll parallax, reveal observer. |
+| `promo.js` | Locale dictionary + `setLocale()`, scroll parallax, reveal observer. |
 | `og-image.png` | 1200×630 social preview, composited from the key art + logo. |
 | `promo.test.js` | `node:test` regression suite (see below). |
 | `tools/render-og.py` | Regenerates `og-image.png` with Pillow. |
@@ -32,6 +32,36 @@ would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 `promo.test.js` fails on any `src`/`href` that is not root-absolute,
 `https://arithmoslayer.de/…`, `mailto:` or a `#anchor`.
 
+## What the page shows
+
+| Section | Anchor | Content |
+| --- | --- | --- |
+| Hero | `#hero` | Centred poster: kicker, logo with shine, headline, the two CTAs plus the two disabled store badges, payment-split subline. The stage is landscape only (act-1 backdrop, sunrise gradient, intro village, parallax) — no characters. |
+| Age cards | `#generationen` | Kindergarten / Grundschule / Erwachsene: `art/heroes/hero-*.webp` standing on `art/stages/stage-*.webp`, one aspect ratio and one hero baseline for all three. |
+| Handcrafted | `#kunst` | Story wrap-up, the six finished acts from `art/acts/act-1…6.webp` in the keyboard-scrollable filmstrip with their real titles, three action stills (`art/action/{fight,fireball,lightning}.webp`), and the fiend parade with the dragon. |
+| How it plays | `#spiel` | Four difficulty cards with inline-SVG iconography (shape trio for Shapes, one to three swords for Easy/Medium/Hard) and a visually hidden "difficulty n of 3" sentence. |
+| Pricing | `#preise` | Subscription vs. one-time purchase and the comparison table. |
+| Family | `#familie` | Profile cards with the `head-*.webp` portraits, a CSS-built phone mockup around `art/ui/title-screen.webp`, store chips. |
+| FAQ / footer | `#faq` | Legal links, support address. |
+
+Every `<img>` carries `width`/`height`; only the hero backdrop uses
+`fetchpriority="high"`, everything below the fold is `loading="lazy"` +
+`decoding="async"`.
+
+## Art
+
+`art/` is generated off-page and is **not** edited here:
+
+* `art/heroes/` — three full figures (512×640, transparent) and three head
+  portraits (256/240/232 px, transparent) for the age cards and profiles.
+* `art/stages/` — three 1600×1000 stages, small → mid → grand.
+* `art/acts/` — the six finished 1920×1080 act dioramas.
+* `art/action/` — three 1600×900 gameplay stills (melee, fireball, lightning).
+  Underscore-prefixed files in that folder are intermediates and are never
+  referenced.
+* `art/ui/title-screen.webp` — the real app screenshot (1170×2532). The 2.79 MB
+  `.png` next to it is the source and must stay unreferenced.
+
 ## Tests
 
 ```sh
@@ -43,6 +73,14 @@ translation keys, inline scripts, external origins, bare relative URLs,
 missing art files, a wrong og-image size, a missing `/play` link, missing
 `id="promo-root"` on `<body>` (the deploy smoke test greps for it), ranges that
 can break after the en dash, and lost CSP/a11y plumbing.
+
+The redesign is pinned as well: the hero stage may not reference a character
+sprite, the three age cards must pair `hero-child`/`hero-teen`/`hero-adult`
+with `stage-small`/`stage-mid`/`stage-grand`, all six `art/acts/act-N.webp`
+must be referenced and exist, the three action stills must exist (`.png` or
+`.webp`), the icon counts per difficulty card are asserted by counting
+`data-icon="sword"` / `data-icon="shape"`, the phone mockup must use the webp
+screenshot, and the store buttons must be disabled buttons without `href`.
 
 ## Why there are no inline scripts
 
@@ -66,6 +104,9 @@ lives in `promo.css`.
 * The header toggle (`#promo-lang-toggle`) swaps `textContent`, translatable
   attributes and `<html lang>` without a reload. The document `<title>`/meta
   description stay German on purpose (canonical German page).
+* `splitRanges()` rebuilds the `Level 1–2` guard on every runtime translation:
+  numeric ranges are written back into `<span class="nb">`, so German never
+  breaks after the en dash even though `textContent` is replaced.
 
 ## Regenerating the social image
 

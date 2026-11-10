@@ -69,14 +69,6 @@
         <div class="layer layer-sunrise"></div>
         <img class="layer layer-village" src="/story/scenes/intro/village.webp" alt="" width="1536" height="536"
              decoding="async" data-parallax="0.06">
-        <img class="layer layer-fiend layer-fiend-1" src="/game/fiend-sprites/set1-08.png" alt="" width="244" height="246"
-             decoding="async">
-        <img class="layer layer-fiend layer-fiend-2" src="/game/fiend-sprites/set1-06.png" alt="" width="251" height="279"
-             decoding="async">
-        <img class="layer layer-fiend layer-fiend-3" src="/game/fiend-sprites/set1-02.png" alt="" width="256" height="303"
-             decoding="async">
-        <img class="layer layer-hero" src="/game/hero-sprites-transparent/animation-frames/idle/idle_frame0.png"
-             alt="" width="200" height="180" decoding="async" data-sprite="hero">
       </div>
 
       <div class="wrap hero-copy">
@@ -92,9 +84,17 @@
 
         <div class="hero-ctas">
           <a class="btn btn-primary" href="/play" data-i18n="hero.ctaWeb">Im Browser spielen</a>
-          <a class="btn btn-ghost" href="#preise" data-i18n="hero.ctaApp">Zur App-Version</a>
+          <button class="btn btn-store" type="button" disabled data-store-cta="appstore">
+            <img class="store-icon" src="/promo/art/ui/badge-appstore.svg" alt="" width="24" height="24" decoding="async">
+            <span data-i18n="hero.ctaAppStore">Bald im App Store</span>
+          </button>
+          <button class="btn btn-store" type="button" disabled data-store-cta="playstore">
+            <img class="store-icon" src="/promo/art/ui/badge-playstore.svg" alt="" width="24" height="24" decoding="async">
+            <span data-i18n="hero.ctaPlayStore">Bald bei Google Play</span>
+          </button>
         </div>
 
+        <p class="hero-links"><a href="#preise" data-i18n="hero.ctaApp">Zur App-Version</a></p>
         <p class="hero-print" data-i18n="hero.print">Level <span class="nb">1–2</span> gratis – ohne Konto zum Ausprobieren.</p>
       </div>
     </section>
@@ -104,31 +104,34 @@
       <div class="wrap">
         <header class="section-head reveal">
           <p class="kicker" data-i18n="gen.kicker">Für jede Generation</p>
-          <h2 id="gen-title" data-i18n="gen.title">Ein Spiel, drei Tempi</h2>
-          <p class="lead" data-i18n="gen.lead">Vom ersten Formen-Zählen bis zum schnellen Kopfrechnen im Alltag: Jede Generation findet ihr eigenes Tempo – und ihre eigene Schwierigkeit.</p>
+          <h2 id="gen-title" data-i18n="gen.title">Vom Zählen zum Kopfrechnen</h2>
+          <p class="lead" data-i18n="gen.lead">Drei Stufen, eine Reise: Im Kindergarten werden Formen gezählt, in der Grundschule beginnt das Rechnen, und Erwachsene trainieren den Reflex – die Bühne wächst mit.</p>
         </header>
 
         <ul class="gen-grid">
           <li class="gen-card reveal">
-            <div class="gen-art">
-              <img src="/game/fiend-sprites/set1-04.png" alt="" width="237" height="285" loading="lazy" decoding="async">
+            <div class="gen-stage">
+              <img class="gen-stage-bg" src="/promo/art/stages/stage-small.webp" alt="" width="1600" height="1000" loading="lazy" decoding="async">
+              <img class="gen-hero" src="/promo/art/heroes/hero-child.webp" alt="" width="512" height="640" loading="lazy" decoding="async">
             </div>
-            <h3 data-i18n="gen.kids.title">Kinder</h3>
-            <p data-i18n="gen.kids.text">Der Modus Shapes zählt Formen – ohne Punkte, ohne Ende. Ein sanfter Einstieg, der einfach Spaß macht.</p>
+            <h3 data-i18n="gen.kindergarten.title">Kindergarten</h3>
+            <p data-i18n="gen.kindergarten.text">Der Formen-Modus ist der sanfte Einstieg: Formen zählen, 25 Sekunden pro Frage, 9 Herzen – ohne Punkte und ohne Ende.</p>
           </li>
           <li class="gen-card reveal">
-            <div class="gen-art">
-              <img src="/game/hero-sprites-transparent/animation-frames/victory/victory_frame1.png" alt="" width="200" height="180" loading="lazy" decoding="async">
+            <div class="gen-stage">
+              <img class="gen-stage-bg" src="/promo/art/stages/stage-mid.webp" alt="" width="1600" height="1000" loading="lazy" decoding="async">
+              <img class="gen-hero" src="/promo/art/heroes/hero-teen.webp" alt="" width="512" height="640" loading="lazy" decoding="async">
+            </div>
+            <h3 data-i18n="gen.primary.title">Grundschule</h3>
+            <p data-i18n="gen.primary.text">Hier beginnt das Rechnen: Easy gibt 15 Sekunden und 7 Herzen, und der Feldzug über 60 Level öffnet sich Akt für Akt.</p>
+          </li>
+          <li class="gen-card reveal">
+            <div class="gen-stage">
+              <img class="gen-stage-bg" src="/promo/art/stages/stage-grand.webp" alt="" width="1600" height="1000" loading="lazy" decoding="async">
+              <img class="gen-hero" src="/promo/art/heroes/hero-adult.webp" alt="" width="512" height="640" loading="lazy" decoding="async">
             </div>
             <h3 data-i18n="gen.adults.title">Erwachsene</h3>
-            <p data-i18n="gen.adults.text">Reflexe und Tempo: Auf Hard bleiben dir 5 Sekunden pro Aufgabe. Combo-Fähigkeiten belohnen Antworten in Serie.</p>
-          </li>
-          <li class="gen-card reveal">
-            <div class="gen-art">
-              <img src="/game/hero-sprites-transparent/animation-frames/walk/walk_frame1.png" alt="" width="200" height="180" loading="lazy" decoding="async">
-            </div>
-            <h3 data-i18n="gen.seniors.title">Großeltern</h3>
-            <p data-i18n="gen.seniors.text">Auf Easy hast du 15 Sekunden und 7 Herzen – und die Anzeigen sind groß und ruhig. Kopfrechnen im eigenen Takt.</p>
+            <p data-i18n="gen.adults.text">Reflex-Training: Hard gibt 5 Sekunden und 3 Herzen, Combos belohnen Serien, und die Bestenliste vergleicht Jahrgänge.</p>
           </li>
         </ul>
       </div>
@@ -142,33 +145,34 @@
           <h2 id="kunst-title" data-i18n="art.title">Sechs Akte aus Papier, Licht und Farbe</h2>
           <p class="lead" data-i18n="art.lead">Jeder Akt ist ein gemaltes Parallax-Diorama: Himmel, Mittelgrund und Vordergrund als eigene Papierschichten, die sich beim Scrollen verschieben. 60 Level auf sechs Bühnen – nichts davon von der Stange.</p>
         </header>
+        <p class="art-story reveal" data-i18n="art.story">Zehn Runen, zehn Dörfer. Eine Rune ist noch dunkel – und ein Schwertkämpfer mit geliehener Klinge zieht aus, um sie zu wecken. Sechs Akte lang richtet er die Ernte-Rune, durchquert einen Wald, der sich an ein älteres Versprechen erinnert, steht in einer Halle, deren Hüter ihre Kraft längst gegeben haben, handelt auf einem Nachtmarkt, auf dem jedes erleuchtete Fenster Teil der Rune ist – und steigt am Ende zu einem Thron, der leer hätte bleiben sollen. Das Kopfrechnen ist die Klinge: jede richtige Antwort trifft tiefer.</p>
       </div>
 
       <div class="filmstrip-wrap">
         <div class="filmstrip" data-filmstrip tabindex="0" role="region" aria-label="Die sechs Akte" data-i18n-aria-label="art.stripLabel">
           <figure class="frame">
-            <img src="/story/scenes/act-1/backdrop.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async" data-frame-img>
-            <figcaption><span class="frame-num">01</span><span data-i18n="art.act">Akt</span></figcaption>
+            <img src="/promo/art/acts/act-1.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async" data-frame-img>
+            <figcaption data-i18n="art.act1">Akt 1 · Das erste Licht</figcaption>
           </figure>
           <figure class="frame">
-            <img src="/story/scenes/act-2/backdrop.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async" data-frame-img>
-            <figcaption><span class="frame-num">02</span><span data-i18n="art.act">Akt</span></figcaption>
+            <img src="/promo/art/acts/act-2.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async" data-frame-img>
+            <figcaption data-i18n="art.act2">Akt 2 · Die schwindende Ernte</figcaption>
           </figure>
           <figure class="frame">
-            <img src="/story/scenes/act-3/backdrop.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async" data-frame-img>
-            <figcaption><span class="frame-num">03</span><span data-i18n="art.act">Akt</span></figcaption>
+            <img src="/promo/art/acts/act-3.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async" data-frame-img>
+            <figcaption data-i18n="art.act3">Akt 3 · Der erinnernde Wald</figcaption>
           </figure>
           <figure class="frame">
-            <img src="/story/scenes/act-4/backdrop.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async" data-frame-img>
-            <figcaption><span class="frame-num">04</span><span data-i18n="art.act">Akt</span></figcaption>
+            <img src="/promo/art/acts/act-4.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async" data-frame-img>
+            <figcaption data-i18n="art.act4">Akt 4 · Das Versprechen der Hüter</figcaption>
           </figure>
           <figure class="frame">
-            <img src="/story/scenes/act-5/backdrop.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async" data-frame-img>
-            <figcaption><span class="frame-num">05</span><span data-i18n="art.act">Akt</span></figcaption>
+            <img src="/promo/art/acts/act-5.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async" data-frame-img>
+            <figcaption data-i18n="art.act5">Akt 5 · Der Nachtmarkt</figcaption>
           </figure>
           <figure class="frame">
-            <img src="/story/scenes/act-6/backdrop.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async" data-frame-img>
-            <figcaption><span class="frame-num">06</span><span data-i18n="art.act">Akt</span></figcaption>
+            <img src="/promo/art/acts/act-6.webp" alt="" width="1920" height="1080" loading="lazy" decoding="async" data-frame-img>
+            <figcaption data-i18n="art.act6">Akt 6 · Der leere Thron</figcaption>
           </figure>
         </div>
         <p class="strip-hint" data-i18n="art.stripHint">Seitlich wischen oder scrollen, um alle sechs Akte zu sehen.</p>
@@ -176,17 +180,21 @@
 
       <div class="wrap art-grid">
         <div class="art-panel reveal">
-          <h3 data-i18n="art.spriteTitle">Der Held in Bewegung</h3>
-          <p data-i18n="art.spriteText">Der Held ist als Sprite-Sheet animiert: Warten, Laufen, Hieb, Sieg. Probiere die Animationen aus – jede Bewegung ist Frame für Frame gezeichnet.</p>
-          <div class="sprite-stage">
-            <img class="sprite-big" src="/game/hero-sprites-transparent/animation-frames/idle/idle_frame0.png"
-                 alt="" width="200" height="180" loading="lazy" decoding="async" data-sprite="hero">
-            <div class="sprite-controls" role="group" aria-label="Animation wählen" data-i18n-aria-label="art.poseGroup">
-              <button type="button" class="chip is-active" data-pose="idle" aria-pressed="true" data-i18n="art.poseIdle">Warten</button>
-              <button type="button" class="chip" data-pose="walk" aria-pressed="false" data-i18n="art.poseWalk">Gehen</button>
-              <button type="button" class="chip" data-pose="swing" aria-pressed="false" data-i18n="art.poseSwing">Hieb</button>
-              <button type="button" class="chip" data-pose="victory" aria-pressed="false" data-i18n="art.poseVictory">Sieg</button>
-            </div>
+          <h3 data-i18n="art.actionTitle">Der Held im Kampf</h3>
+          <p data-i18n="art.actionText">Drei Momente aus dem Kampf, gemalt im Stil der Bühnen: Nahkampf, Feuerball und Blitzschlag als Combo-Finale.</p>
+          <div class="action-row">
+            <figure class="action-shot">
+              <img src="/promo/art/action/fight.webp" alt="" width="1600" height="900" loading="lazy" decoding="async">
+              <figcaption data-i18n="art.actionFight">Nahkampf – der Hieb sitzt.</figcaption>
+            </figure>
+            <figure class="action-shot">
+              <img src="/promo/art/action/fireball.webp" alt="" width="1600" height="900" loading="lazy" decoding="async">
+              <figcaption data-i18n="art.actionFireball">Feuerball auf Distanz.</figcaption>
+            </figure>
+            <figure class="action-shot">
+              <img src="/promo/art/action/lightning.webp" alt="" width="1600" height="900" loading="lazy" decoding="async">
+              <figcaption data-i18n="art.actionLightning">Blitzschlag als Combo-Finale.</figcaption>
+            </figure>
           </div>
         </div>
 
@@ -218,23 +226,44 @@
         </header>
 
         <ul class="difficulty-grid">
-          <li class="diff-card reveal">
+          <li class="diff-card reveal" data-difficulty="shapes">
+            <span class="diff-icons" aria-hidden="true">
+              <svg data-icon="shape" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><rect x="3" y="4" width="12" height="12" rx="1"></rect></svg>
+              <svg data-icon="shape" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 3 22 20H2z"></path></svg>
+              <svg data-icon="shape" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"></circle></svg>
+            </span>
             <span class="diff-name" data-i18n="play.shapes.name">Shapes</span>
+            <span class="sr-only" data-i18n="play.shapes.icons">Formen-Modus: Quadrat, Dreieck und Kreis zählen</span>
             <span class="diff-meta" data-i18n="play.shapes.meta">25 Sekunden · 9 Herzen · ohne Punkte</span>
             <p data-i18n="play.shapes.text">Der Einstieg ohne Druck: Formen zählen ohne Punkte und ohne Ende – 25 Sekunden pro Frage, 9 Herzen.</p>
           </li>
-          <li class="diff-card reveal">
+          <li class="diff-card reveal" data-difficulty="easy">
+            <span class="diff-icons" aria-hidden="true">
+              <svg data-icon="sword" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 0.8 15 5.4v9.6h-6V5.4zM5.6 15h12.8v2.4H5.6zM10.4 17.4h3.2v4.4h-3.2zM9 21.8h6v1.6H9z"></path></svg>
+            </span>
             <span class="diff-name" data-i18n="play.easy.name">Easy</span>
+            <span class="sr-only" data-i18n="play.easy.icons">Schwierigkeit 1 von 3</span>
             <span class="diff-meta" data-i18n="play.easy.meta">15 Sekunden · 7 Herzen</span>
             <p data-i18n="play.easy.text">Viel Zeit, viele Leben. Ideal zum Ankommen.</p>
           </li>
-          <li class="diff-card reveal">
+          <li class="diff-card reveal" data-difficulty="medium">
+            <span class="diff-icons" aria-hidden="true">
+              <svg data-icon="sword" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 0.8 15 5.4v9.6h-6V5.4zM5.6 15h12.8v2.4H5.6zM10.4 17.4h3.2v4.4h-3.2zM9 21.8h6v1.6H9z"></path></svg>
+              <svg data-icon="sword" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 0.8 15 5.4v9.6h-6V5.4zM5.6 15h12.8v2.4H5.6zM10.4 17.4h3.2v4.4h-3.2zM9 21.8h6v1.6H9z"></path></svg>
+            </span>
             <span class="diff-name" data-i18n="play.medium.name">Medium</span>
+            <span class="sr-only" data-i18n="play.medium.icons">Schwierigkeit 2 von 3</span>
             <span class="diff-meta" data-i18n="play.medium.meta">10 Sekunden · 5 Herzen</span>
             <p data-i18n="play.medium.text">Der Takt für jeden Tag: flott, aber fair.</p>
           </li>
-          <li class="diff-card reveal">
+          <li class="diff-card reveal" data-difficulty="hard">
+            <span class="diff-icons" aria-hidden="true">
+              <svg data-icon="sword" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 0.8 15 5.4v9.6h-6V5.4zM5.6 15h12.8v2.4H5.6zM10.4 17.4h3.2v4.4h-3.2zM9 21.8h6v1.6H9z"></path></svg>
+              <svg data-icon="sword" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 0.8 15 5.4v9.6h-6V5.4zM5.6 15h12.8v2.4H5.6zM10.4 17.4h3.2v4.4h-3.2zM9 21.8h6v1.6H9z"></path></svg>
+              <svg data-icon="sword" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 0.8 15 5.4v9.6h-6V5.4zM5.6 15h12.8v2.4H5.6zM10.4 17.4h3.2v4.4h-3.2zM9 21.8h6v1.6H9z"></path></svg>
+            </span>
             <span class="diff-name" data-i18n="play.hard.name">Hard</span>
+            <span class="sr-only" data-i18n="play.hard.icons">Schwierigkeit 3 von 3</span>
             <span class="diff-meta" data-i18n="play.hard.meta">5 Sekunden · 3 Herzen</span>
             <p data-i18n="play.hard.text">Volle Konzentration. Ein Fehler tut weh.</p>
           </li>
@@ -394,69 +423,81 @@
     <section class="section section-family" id="familie" aria-labelledby="familie-title">
       <img class="family-bg" src="/story/scenes/act-2/backdrop.webp" alt="" width="1536" height="1024" loading="lazy" decoding="async">
       <div class="wrap family-inner">
-        <header class="section-head reveal">
-          <p class="kicker" data-i18n="family.kicker">Familie</p>
-          <h2 id="familie-title" data-i18n="family.title">Ein Kauf – die ganze Familie trainiert.</h2>
-          <p class="lead" data-i18n="family.lead">Die App ist um lokale Familien-Profile herum gebaut: Jede Person bekommt einen eigenen Namen, eigene Scores und eigene Level-Checkpoints – ohne Anmeldung, ohne Konto.</p>
-        </header>
+        <div class="family-copy">
+          <header class="section-head reveal">
+            <p class="kicker" data-i18n="family.kicker">Familie</p>
+            <h2 id="familie-title" data-i18n="family.title">Ein Kauf – die ganze Familie trainiert.</h2>
+            <p class="lead" data-i18n="family.lead">Die App ist um lokale Familien-Profile herum gebaut: Jede Person bekommt einen eigenen Namen, eigene Scores und eigene Level-Checkpoints – ohne Anmeldung, ohne Konto.</p>
+          </header>
 
-        <div class="family-profiles reveal" role="list">
-          <div class="profile-card" role="listitem">
-            <span class="avatar" aria-hidden="true">M</span>
-            <span class="profile-name">Mara</span>
-            <span class="profile-meta" data-i18n="family.profileMeta">Eigenes Profil</span>
+          <div class="family-profiles reveal" role="list">
+            <div class="profile-card" role="listitem">
+              <img class="avatar avatar--photo" src="/promo/art/avatars/avatar-1.webp" alt="" width="256" height="256" loading="lazy" decoding="async">
+              <span class="profile-name">Mara</span>
+              <span class="profile-meta" data-i18n="family.profileMeta">Eigenes Profil</span>
+            </div>
+            <div class="profile-card" role="listitem">
+              <img class="avatar avatar--photo" src="/promo/art/avatars/avatar-2.webp" alt="" width="256" height="256" loading="lazy" decoding="async">
+              <span class="profile-name">Jonas</span>
+              <span class="profile-meta" data-i18n="family.profileMeta">Eigenes Profil</span>
+            </div>
+            <div class="profile-card" role="listitem">
+              <img class="avatar avatar--photo" src="/promo/art/avatars/avatar-3.webp" alt="" width="256" height="256" loading="lazy" decoding="async">
+              <span class="profile-name">Ruth</span>
+              <span class="profile-meta" data-i18n="family.profileMeta">Eigenes Profil</span>
+            </div>
+            <div class="profile-card profile-card--device" role="listitem">
+              <span class="avatar avatar--device" aria-hidden="true">★</span>
+              <span class="profile-name" data-i18n="family.deviceName">Dieses Gerät</span>
+              <span class="profile-meta" data-i18n="family.deviceMeta">1 Kauf · 3 Profile</span>
+            </div>
           </div>
-          <div class="profile-card" role="listitem">
-            <span class="avatar" aria-hidden="true">J</span>
-            <span class="profile-name">Jonas</span>
-            <span class="profile-meta" data-i18n="family.profileMeta">Eigenes Profil</span>
-          </div>
-          <div class="profile-card" role="listitem">
-            <span class="avatar" aria-hidden="true">R</span>
-            <span class="profile-name">Ruth</span>
-            <span class="profile-meta" data-i18n="family.profileMeta">Eigenes Profil</span>
-          </div>
-          <div class="profile-card profile-card--device" role="listitem">
-            <span class="avatar avatar--device" aria-hidden="true">★</span>
-            <span class="profile-name" data-i18n="family.deviceName">Dieses Gerät</span>
-            <span class="profile-meta" data-i18n="family.deviceMeta">1 Kauf · 3 Profile</span>
+          <p class="demo-note" data-i18n="family.demoNote">Beispielhafte Profile</p>
+
+          <ul class="family-points">
+            <li class="reveal">
+              <h3 data-i18n="family.p1.title">Eigene Profile</h3>
+              <p data-i18n="family.p1.text">Name, Scores und Level-Checkpoints pro Person, gespeichert auf dem Gerät.</p>
+            </li>
+            <li class="reveal">
+              <h3 data-i18n="family.p2.title">Wechsel auf dem Titelbildschirm</h3>
+              <p data-i18n="family.p2.text">Spieler wechseln mit einem Tipp – ohne An- und Abmelden.</p>
+            </li>
+            <li class="reveal">
+              <h3 data-i18n="family.p3.title">Geräteweit</h3>
+              <p data-i18n="family.p3.text">Ein Kauf auf dem Gerät schaltet Level <span class="nb">3–60</span> für alle Profile frei.</p>
+            </li>
+            <li class="reveal">
+              <h3 data-i18n="family.p4.title">Kein Konto, kein Login</h3>
+              <p data-i18n="family.p4.text">Spielbar ohne Internet – nur Kauf und Wiederherstellung brauchen eine Verbindung.</p>
+            </li>
+          </ul>
+
+          <div class="family-cta">
+            <p class="family-badge" data-i18n="family.badge">Gilt für iOS und Android</p>
+            <div class="store-badges">
+              <span class="store-badge">
+                <span class="store-badge-app" aria-hidden="true">iOS</span>
+                <span data-i18n="prices.app.iosBadge">Bald im App Store</span>
+              </span>
+              <span class="store-badge">
+                <span class="store-badge-app" aria-hidden="true">Android</span>
+                <span data-i18n="prices.app.androidBadge">Bald bei Google Play</span>
+              </span>
+            </div>
+            <a class="btn btn-ghost btn-sm" href="/play" data-i18n="family.ctaFallback">Bis dahin im Browser spielen</a>
           </div>
         </div>
-        <p class="demo-note" data-i18n="family.demoNote">Beispielhafte Profile</p>
 
-        <ul class="family-points">
-          <li class="reveal">
-            <h3 data-i18n="family.p1.title">Eigene Profile</h3>
-            <p data-i18n="family.p1.text">Name, Scores und Level-Checkpoints pro Person, gespeichert auf dem Gerät.</p>
-          </li>
-          <li class="reveal">
-            <h3 data-i18n="family.p2.title">Wechsel auf dem Titelbildschirm</h3>
-            <p data-i18n="family.p2.text">Spieler wechseln mit einem Tipp – ohne An- und Abmelden.</p>
-          </li>
-          <li class="reveal">
-            <h3 data-i18n="family.p3.title">Geräteweit</h3>
-            <p data-i18n="family.p3.text">Ein Kauf auf dem Gerät schaltet Level <span class="nb">3–60</span> für alle Profile frei.</p>
-          </li>
-          <li class="reveal">
-            <h3 data-i18n="family.p4.title">Kein Konto, kein Login</h3>
-            <p data-i18n="family.p4.text">Spielbar ohne Internet – nur Kauf und Wiederherstellung brauchen eine Verbindung.</p>
-          </li>
-        </ul>
-
-        <div class="family-cta">
-          <p class="family-badge" data-i18n="family.badge">Gilt für iOS und Android</p>
-          <div class="store-badges">
-            <span class="store-badge">
-              <span class="store-badge-app" aria-hidden="true">iOS</span>
-              <span data-i18n="prices.app.iosBadge">Bald im App Store</span>
-            </span>
-            <span class="store-badge">
-              <span class="store-badge-app" aria-hidden="true">Android</span>
-              <span data-i18n="prices.app.androidBadge">Bald bei Google Play</span>
-            </span>
+        <figure class="family-phone reveal">
+          <div class="phone">
+            <span class="phone-notch" aria-hidden="true"></span>
+            <div class="phone-screen">
+              <img src="/promo/art/ui/title-screen.webp" alt="Titelbildschirm der App: Logo, Profilauswahl und Startknopf" width="1170" height="2532" loading="lazy" decoding="async">
+            </div>
           </div>
-          <a class="btn btn-ghost btn-sm" href="/play" data-i18n="family.ctaFallback">Bis dahin im Browser spielen</a>
-        </div>
+          <figcaption data-i18n="family.phoneCaption">Titelbildschirm der App · in Vorbereitung</figcaption>
+        </figure>
       </div>
     </section>
 

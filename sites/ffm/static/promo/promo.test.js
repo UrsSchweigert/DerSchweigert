@@ -12,7 +12,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize } from 'node:path';
 
-import { DICTIONARY, SUPPORTED_LOCALES, DEFAULT_LOCALE, STORAGE_KEY } from './promo.js';
+import { DICTIONARY, SUPPORTED_LOCALES, DEFAULT_LOCALE, STORAGE_KEY, splitRanges } from './promo.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // sites/ffm/static is the web root, so "/game/…" resolves below it.
@@ -337,4 +337,240 @@ test('reduced-motion and no-scroll regressions are handled in CSS', () => {
   assert.match(css, /overflow-x: clip/);
   assert.match(css, /:focus-visible/);
   assert.match(css, /min-height: 44px/);
+});
+
+// --- redesign (owner review) --------------------------------------------
+// These lock in the 2026 rework: centred poster hero, age cards with staged
+// heroes, the six act dioramas, action stills instead of the sprite demo,
+// difficulty iconography, and the phone mockup with the real screenshot.
+
+/** Markup of one section, from its `id="…"` up to the next <section> tag. */
+function sectionMarkup(id) {
+  const start = html.indexOf(`id="${id}"`);
+  assert.ok(start > -1, `section #${id} must exist`);
+  const next = html.indexOf('<section', start);
+  return html.slice(start, next === -1 ? html.length : next);
+}
+
+test('the hero keeps the landscape layers and no character sprites', () => {
+  const hero = sectionMarkup('hero');
+
+  assert.ok(!/\/game\/fiend-sprites\//.test(hero), 'the hero stage must not show fiend sprites');
+  assert.ok(!/hero-sprites-transparent/.test(hero), 'the hero stage must not show the animated sprite');
+  assert.ok(!/data-sprite=/.test(hero), 'no sprite-cycling hooks may be left in the hero');
+
+  // Not vacuous: the parallax landscape must still be there.
+  assert.match(hero, /class="layer layer-sky"[^>]*data-parallax="0\.16"/);
+  assert.match(hero, /class="layer layer-sunrise"/);
+  assert.match(hero, /class="layer layer-village"[^>]*data-parallax="0\.06"/);
+  assert.match(hero, /src="\/story\/scenes\/act-1\/backdrop\.webp"/);
+  assert.match(hero, /src="\/story\/scenes\/intro\/village\.webp"/);
+  assert.match(hero, /fetchpriority="high"/, 'the hero backdrop stays the high-priority image');
+
+  // ... and nothing anywhere still drives sprite frames.
+  assert.ok(!/data-sprite/.test(js), 'the sprite cycling code must be gone from promo.js');
+  assert.ok(!/hero-sprites-transparent/.test(js), 'promo.js must not preload hero sprite frames');
+});
+
+test('the hero is a centred poster, not a left column', () => {
+  const copy = css.match(/\.hero-copy \{[\s\S]*?\n\}/)[0];
+  assert.match(copy, /text-align: center/, 'the hero copy block must be centred');
+  assert.match(copy, /margin-inline: auto/, 'the centred block needs symmetric margins');
+  const logo = css.match(/\.hero-logo-wrap \{[\s\S]*?\n\}/)[0];
+  assert.match(logo, /margin-inline: auto/, 'the title art must be centred on its own too');
+  const ctas = css.match(/\.hero-ctas \{[\s\S]*?\n\}/)[0];
+  assert.match(ctas, /justify-content: center/);
+});
+
+test('the age cards pair one hero with one growing stage each', () => {
+  const gen = sectionMarkup('generationen');
+  const cards = gen.split('<li class="gen-card').slice(1);
+  assert.equal(cards.length, 3, 'exactly three age cards');
+
+  const pairs = [
+    ['hero-child', 'stage-small'],
+    ['hero-teen', 'stage-mid'],
+    ['hero-adult', 'stage-grand'],
+  ];
+  pairs.forEach(([heroName, stageName], index) => {
+    const hero = `/promo/art/heroes/${heroName}.webp`;
+    const stage = `/promo/art/stages/${stageName}.webp`;
+    assert.equal((gen.match(new RegExp(hero.replace(/\./g, '\\.'), 'g')) || []).length, 1, `${hero} must appear once`);
+    assert.equal((gen.match(new RegExp(stage.replace(/\./g, '\\.'), 'g')) || []).length, 1, `${stage} must appear once`);
+    assert.ok(cards[index].includes(hero), `card ${index + 1} must show ${heroName}`);
+    assert.ok(cards[index].includes(stage), `card ${index + 1} must stage ${stageName}`);
+    assert.ok(existsSync(join(webRoot, stage)), `${stage} must exist`);
+    assert.ok(existsSync(join(webRoot, hero)), `${hero} must exist`);
+  });
+
+  for (const key of ['gen.kindergarten.title', 'gen.primary.title', 'gen.adults.title']) {
+    assert.ok(gen.includes(`data-i18n="${key}"`), `missing card heading ${key}`);
+  }
+});
+
+test('all six act dioramas are shown with their real titles', () => {
+  for (let act = 1; act <= 6; act += 1) {
+    const url = `/promo/art/acts/act-${act}.webp`;
+    assert.ok(html.includes(`src="${url}"`), `missing ${url} in the markup`);
+    assert.ok(existsSync(join(webRoot, url)), `missing ${url} on disk`);
+    assert.ok(html.includes(`data-i18n="art.act${act}"`), `act ${act} needs its own caption key`);
+    assert.match(DICTIONARY[`art.act${act}`].de, new RegExp(`^Akt ${act} · \\S`));
+    assert.match(DICTIONARY[`art.act${act}`].en, new RegExp(`^Act ${act} · \\S`));
+  }
+  const frame = html.match(/<img[^>]*\/promo\/art\/acts\/act-1\.webp[^>]*>/)[0];
+  assert.match(frame, /width="1920"/);
+  assert.match(frame, /height="1080"/);
+  assert.match(frame, /loading="lazy"/);
+  assert.match(frame, /decoding="async"/);
+  // The filmstrip stays a focusable, announced scroll region.
+  assert.match(html, /<div class="filmstrip" data-filmstrip tabindex="0" role="region"/);
+});
+
+test('three action stills replace the sprite demo', () => {
+  const stills = [
+    ['fight', 'art.actionFight'],
+    ['fireball', 'art.actionFireball'],
+    ['lightning', 'art.actionLightning'],
+  ];
+  for (const [name, key] of stills) {
+    const ext = ['.webp', '.png'].find((candidate) => existsSync(join(here, 'art/action', `${name}${candidate}`)));
+    assert.ok(ext, `action art for "${name}" is missing on disk`);
+    const url = `/promo/art/action/${name}${ext}`;
+    assert.ok(html.includes(`src="${url}"`), `missing ${url} in the markup`);
+    const tag = html.match(new RegExp(`<img[^>]*${name.replace('.', '\\.')}${ext.replace('.', '\\.')}[^>]*>`))[0];
+    assert.match(tag, /width="1600"/);
+    assert.match(tag, /height="900"/);
+    assert.match(tag, /loading="lazy"/);
+    assert.ok(html.includes(`data-i18n="${key}"`), `missing caption ${key}`);
+  }
+  assert.ok(!/data-pose/.test(html), 'the pose chips must be gone from the markup');
+  assert.ok(!/data-pose/.test(js), 'the pose chip behaviour must be gone from promo.js');
+  assert.ok(!/sprite-stage/.test(html) && !/sprite-stage/.test(css), 'the sprite stage is gone');
+  // The crafted-sprite selling point stays.
+  assert.match(html, /data-i18n="art.fiendsTitle"/);
+  assert.match(html, /src="\/game\/dragon\.webp"/);
+});
+
+test('difficulty cards carry matching iconography and a text equivalent', () => {
+  const cards = html.split('<li class="diff-card').slice(1);
+  assert.equal(cards.length, 4, 'four difficulty cards');
+
+  const byName = new Map();
+  for (const card of cards) {
+    const match = card.match(/data-difficulty="([a-z]+)"/);
+    assert.ok(match, 'every difficulty card needs a data-difficulty marker');
+    byName.set(match[1], card);
+  }
+
+  const countIcons = (marker, card) => (card.match(new RegExp(`data-icon="${marker}"`, 'g')) || []).length;
+
+  assert.equal(countIcons('shape', byName.get('shapes')), 3, 'Shapes shows a square, a triangle and a circle');
+  assert.equal(countIcons('sword', byName.get('shapes')), 0, 'Shapes is not a sword difficulty');
+  assert.equal(countIcons('sword', byName.get('easy')), 1, 'Easy is one sword');
+  assert.equal(countIcons('sword', byName.get('medium')), 2, 'Medium is two swords');
+  assert.equal(countIcons('sword', byName.get('hard')), 3, 'Hard is three swords');
+  assert.equal(countIcons('sword', cards.join('')), 6, 'no stray swords outside the three difficulties');
+
+  const shapeIcons = byName.get('shapes').match(/<span class="diff-icons"[\s\S]*?<\/span>/)[0];
+  assert.match(shapeIcons, /<rect/, 'the shape trio needs a square');
+  assert.match(shapeIcons, /<path/, 'the shape trio needs a triangle');
+  assert.match(shapeIcons, /<circle/, 'the shape trio needs a circle');
+
+  for (const [name, card] of byName) {
+    assert.match(card, /<span class="sr-only" data-i18n="play\.\w+\.icons">/, `${name} needs a text equivalent`);
+  }
+  // Icons are inline SVG, decorative, and inherit the text colour.
+  const svgs = html.match(/<svg data-icon="[a-z]+"[^>]*>/g) || [];
+  assert.equal(svgs.length, 9, 'three shape icons plus six swords');
+  for (const tag of svgs) {
+    assert.match(tag, /aria-hidden="true"/);
+    assert.match(tag, /fill="currentColor"/);
+  }
+  for (const key of ['play.shapes.icons', 'play.easy.icons', 'play.medium.icons', 'play.hard.icons']) {
+    assert.ok(key in DICTIONARY, `${key} must be translatable`);
+  }
+});
+
+test('the family section shows the real screenshot in a CSS phone mockup', () => {
+  const family = sectionMarkup('familie');
+  assert.match(family, /class="phone"/, 'the phone chrome is built in CSS');
+  assert.match(family, /src="\/promo\/art\/ui\/title-screen\.webp"/);
+  assert.ok(!/title-screen\.png/.test(html), 'the 2.79 MB PNG must never be referenced');
+
+  const shot = family.match(/<img[^>]*title-screen\.webp[^>]*>/)[0];
+  assert.match(shot, /width="1170"/);
+  assert.match(shot, /height="2532"/);
+  assert.match(shot, /loading="lazy"/);
+  assert.match(shot, /decoding="async"/);
+
+  const webp = join(webRoot, '/promo/art/ui/title-screen.webp');
+  assert.ok(existsSync(webp), 'the webp screenshot must exist');
+  assert.ok(readFileSync(webp).length < 600_000, 'the webp must stay the light-weight asset');
+
+  // Distinct hero portraits replace the letter avatars: all three must read as
+  // different people, so each family member maps to its own avatar file.
+  for (const avatar of ['avatar-1', 'avatar-2', 'avatar-3']) {
+    assert.ok(family.includes(`/promo/art/avatars/${avatar}.webp`), `missing ${avatar} portrait`);
+  }
+  assert.ok(!/<span class="avatar" aria-hidden="true">[MJR]<\/span>/.test(html), 'letter avatars must be gone');
+  assert.match(family, /data-i18n="family.demoNote"/, 'the example-profiles disclaimer stays');
+});
+
+test('the store buttons are disabled badges, never links', () => {
+  const ctas = html.match(/<div class="hero-ctas">[\s\S]*?\n        <\/div>/)[0];
+  assert.match(ctas, /class="btn btn-primary" href="\/play"/, 'the browser button stays the primary action');
+  assert.ok(ctas.includes('data-store-cta="appstore"'), 'App Store badge in the CTA row');
+  assert.ok(ctas.includes('data-store-cta="playstore"'), 'Google Play badge in the CTA row');
+
+  const buttons = [...html.matchAll(/<button[^>]*data-store-cta="[a-z]+"[^>]*>/g)].map((match) => match[0]);
+  assert.equal(buttons.length, 2);
+  for (const tag of buttons) {
+    assert.match(tag, /\btype="button"/);
+    assert.match(tag, /\bdisabled\b/, 'the apps are unreleased, so the buttons are disabled');
+    assert.ok(!/\bhref=/.test(tag), 'store buttons must not navigate anywhere');
+  }
+  assert.ok(!/apps\.apple\.com|play\.google\.com|itunes\.apple\.com/.test(html), 'no invented store URLs');
+  assert.match(html, /src="\/promo\/art\/ui\/badge-appstore\.svg"/);
+  assert.match(html, /src="\/promo\/art\/ui\/badge-playstore\.svg"/);
+  // The "coming soon" marker has to be visible in the label itself.
+  assert.ok(DICTIONARY['hero.ctaAppStore'].de.includes('Bald'));
+  assert.ok(DICTIONARY['hero.ctaAppStore'].en.includes('Coming soon'));
+  assert.ok(DICTIONARY['hero.ctaPlayStore'].de.includes('Bald'));
+  assert.ok(DICTIONARY['hero.ctaPlayStore'].en.includes('Coming soon'));
+});
+
+test('the layout stacks the phone below the copy on narrow screens', () => {
+  const wide = css.match(/\.family-inner \{[\s\S]*?\n\}/)[0];
+  assert.match(wide, /grid-template-columns: minmax\(0, 1fr\) clamp\(/, 'the phone column is bounded');
+  assert.ok(!/1fr\) auto/.test(wide), 'an auto track would be sized by the 1170 px screenshot');
+  const stack = css.match(/@media \(max-width: 900px\) \{[\s\S]*?\n\}\n/)[0];
+  assert.match(stack, /\.family-inner \{\s*grid-template-columns: minmax\(0, 1fr\);/, 'one column below 900px');
+  const phone = css.match(/\.family-phone \{[\s\S]*?\n\}/)[0];
+  assert.match(phone, /max-width: 100%/, 'the mockup can never be wider than its column');
+});
+
+test('translations keep numeric ranges on one line', () => {
+  assert.deepEqual(splitRanges('Level 1–2 gratis'), [
+    { text: 'Level ', nb: false },
+    { text: '1–2', nb: true },
+    { text: ' gratis', nb: false },
+  ]);
+  assert.deepEqual(splitRanges('Levels 1–2 free, premium unlocks 3–60'), [
+    { text: 'Levels ', nb: false },
+    { text: '1–2', nb: true },
+    { text: ' free, premium unlocks ', nb: false },
+    { text: '3–60', nb: true },
+  ]);
+  assert.deepEqual(splitRanges('No ranges here'), [{ text: 'No ranges here', nb: false }]);
+  // translateDom must rebuild the .nb wrapper instead of flattening it.
+  assert.match(js, /span\.className = 'nb'/);
+  assert.match(js, /setTranslatableText\(el, t\(/);
+  // Every dictionary value with a range is covered by the guard.
+  const ranged = Object.entries(DICTIONARY).filter(([, entry]) => /\d+–\d+/.test(entry.de + entry.en));
+  assert.ok(ranged.length >= 4, 'the page still states several ranges');
+  for (const [key, entry] of ranged) {
+    for (const locale of ['de', 'en']) {
+      assert.ok(splitRanges(entry[locale]).some((run) => run.nb), `${key}.${locale} range must be wrapped`);
+    }
+  }
 });

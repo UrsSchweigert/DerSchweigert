@@ -1,10 +1,8 @@
 // promo.js — landing page behaviour for /promo/.
 //
-// Three jobs, all of them optional enhancements on top of a fully static
-// German page:
+// Two jobs, both optional enhancements on top of a fully static German page:
 //   1. locale switching (German default, English on demand, no reload),
-//   2. sprite-frame cycling for the hero animations,
-//   3. scroll parallax and reveal animations (IntersectionObserver + rAF).
+//   2. scroll parallax and reveal animations (IntersectionObserver + rAF).
 //
 // Everything that touches `document`, `window`, `navigator` or
 // `localStorage` is guarded so this module can be imported from plain Node
@@ -45,6 +43,8 @@ export const DICTIONARY = {
     en: 'Fast arithmetic, hand-painted paper stages and a dragon that is waiting: subscription in the browser, the app for iPhone and Android is coming as a one-time purchase – no subscription, no renewal.',
   },
   'hero.ctaWeb': { de: 'Im Browser spielen', en: 'Play in the browser' },
+  'hero.ctaAppStore': { de: 'Bald im App Store', en: 'Coming soon to the App Store' },
+  'hero.ctaPlayStore': { de: 'Bald bei Google Play', en: 'Coming soon to Google Play' },
   'hero.ctaApp': { de: 'Zur App-Version', en: 'About the app version' },
   'hero.print': {
     de: 'Level 1–2 gratis – ohne Konto zum Ausprobieren.',
@@ -53,25 +53,25 @@ export const DICTIONARY = {
 
   // Für jede Generation
   'gen.kicker': { de: 'Für jede Generation', en: 'For every generation' },
-  'gen.title': { de: 'Ein Spiel, drei Tempi', en: 'One game, three tempos' },
+  'gen.title': { de: 'Vom Zählen zum Kopfrechnen', en: 'From counting to mental arithmetic' },
   'gen.lead': {
-    de: 'Vom ersten Formen-Zählen bis zum schnellen Kopfrechnen im Alltag: Jede Generation findet ihr eigenes Tempo – und ihre eigene Schwierigkeit.',
-    en: 'From counting shapes for the very first time to quick mental math in everyday life: every generation finds its own tempo – and its own difficulty.',
+    de: 'Drei Stufen, eine Reise: Im Kindergarten werden Formen gezählt, in der Grundschule beginnt das Rechnen, und Erwachsene trainieren den Reflex – die Bühne wächst mit.',
+    en: 'Three steps, one journey: kindergarten counts shapes, primary school starts the arithmetic, and adults train their reflexes – the stage grows with you.',
   },
-  'gen.kids.title': { de: 'Kinder', en: 'Kids' },
-  'gen.kids.text': {
-    de: 'Der Modus Shapes zählt Formen – ohne Punkte, ohne Ende. Ein sanfter Einstieg, der einfach Spaß macht.',
-    en: 'Shapes mode counts shapes – no score, no end. A gentle start that is simply fun.',
+  'gen.kindergarten.title': { de: 'Kindergarten', en: 'Kindergarten' },
+  'gen.kindergarten.text': {
+    de: 'Der Formen-Modus ist der sanfte Einstieg: Formen zählen, 25 Sekunden pro Frage, 9 Herzen – ohne Punkte und ohne Ende.',
+    en: 'Shapes mode is the gentle start: count shapes, 25 seconds per question, 9 hearts – no score and no end.',
   },
-  'gen.adults.title': { de: 'Erwachsene', en: 'Grown-ups' },
+  'gen.primary.title': { de: 'Grundschule', en: 'Primary school' },
+  'gen.primary.text': {
+    de: 'Hier beginnt das Rechnen: Easy gibt 15 Sekunden und 7 Herzen, und der Feldzug über 60 Level öffnet sich Akt für Akt.',
+    en: 'Where the arithmetic starts: Easy gives 15 seconds and 7 hearts, and the 60-level campaign opens up act by act.',
+  },
+  'gen.adults.title': { de: 'Erwachsene', en: 'Adults' },
   'gen.adults.text': {
-    de: 'Reflexe und Tempo: Auf Hard bleiben dir 5 Sekunden pro Aufgabe. Combo-Fähigkeiten belohnen Antworten in Serie.',
-    en: 'Reflexes and speed: on Hard you get 5 seconds per question. Combo abilities reward correct answers in a row.',
-  },
-  'gen.seniors.title': { de: 'Großeltern', en: 'Grandparents' },
-  'gen.seniors.text': {
-    de: 'Auf Easy hast du 15 Sekunden und 7 Herzen – und die Anzeigen sind groß und ruhig. Kopfrechnen im eigenen Takt.',
-    en: 'On Easy you get 15 seconds and 7 hearts – and the readouts are large and calm. Mental math at your own pace.',
+    de: 'Reflex-Training: Hard gibt 5 Sekunden und 3 Herzen, Combos belohnen Serien, und die Bestenliste vergleicht Jahrgänge.',
+    en: 'Reflex training: Hard gives 5 seconds and 3 hearts, combos reward streaks, and the leaderboard compares year groups.',
   },
 
   // Handgemachte Kunst
@@ -81,22 +81,29 @@ export const DICTIONARY = {
     de: 'Jeder Akt ist ein gemaltes Parallax-Diorama: Himmel, Mittelgrund und Vordergrund als eigene Papierschichten, die sich beim Scrollen verschieben. 60 Level auf sechs Bühnen – nichts davon von der Stange.',
     en: 'Every act is a painted parallax diorama: sky, midground and foreground as separate layers of paper that shift as you scroll. 60 levels on six stages – none of it off the shelf.',
   },
-  'art.act': { de: 'Akt', en: 'Act' },
+  'art.story': {
+    de: 'Zehn Runen, zehn Dörfer. Eine Rune ist noch dunkel – und ein Schwertkämpfer mit geliehener Klinge zieht aus, um sie zu wecken. Sechs Akte lang richtet er die Ernte-Rune, durchquert einen Wald, der sich an ein älteres Versprechen erinnert, steht in einer Halle, deren Hüter ihre Kraft längst gegeben haben, handelt auf einem Nachtmarkt, auf dem jedes erleuchtete Fenster Teil der Rune ist – und steigt am Ende zu einem Thron, der leer hätte bleiben sollen. Das Kopfrechnen ist die Klinge: jede richtige Antwort trifft tiefer.',
+    en: 'Ten wards, ten villages. One rune is still dark — and a swordsman with a borrowed blade sets out to wake it. Across six acts he mends the harvest ward, walks a wood that remembers an older promise, stands in a hall whose keepers already gave their strength, trades in a night market where every lit window is part of the ward, and finally climbs to a throne that should have stayed empty. The arithmetic is the blade: every correct answer cuts deeper.',
+  },
   'art.stripLabel': { de: 'Die sechs Akte', en: 'The six acts' },
   'art.stripHint': {
     de: 'Seitlich wischen oder scrollen, um alle sechs Akte zu sehen.',
     en: 'Swipe or scroll sideways to see all six acts.',
   },
-  'art.spriteTitle': { de: 'Der Held in Bewegung', en: 'The hero in motion' },
-  'art.spriteText': {
-    de: 'Der Held ist als Sprite-Sheet animiert: Warten, Laufen, Hieb, Sieg. Probiere die Animationen aus – jede Bewegung ist Frame für Frame gezeichnet.',
-    en: 'The hero is animated from a sprite sheet: idle, walk, swing, victory. Try the animations – every movement is drawn frame by frame.',
+  'art.act1': { de: 'Akt 1 · Das erste Licht', en: 'Act 1 · The First Light' },
+  'art.act2': { de: 'Akt 2 · Die schwindende Ernte', en: 'Act 2 · The Fading Harvest' },
+  'art.act3': { de: 'Akt 3 · Der erinnernde Wald', en: 'Act 3 · The Remembering Wood' },
+  'art.act4': { de: 'Akt 4 · Das Versprechen der Hüter', en: "Act 4 · The Keepers' Promise" },
+  'art.act5': { de: 'Akt 5 · Der Nachtmarkt', en: 'Act 5 · The Night Market' },
+  'art.act6': { de: 'Akt 6 · Der leere Thron', en: 'Act 6 · The Empty Throne' },
+  'art.actionTitle': { de: 'Der Held im Kampf', en: 'The hero in combat' },
+  'art.actionText': {
+    de: 'Drei Momente aus dem Kampf, gemalt im Stil der Bühnen: Nahkampf, Feuerball und Blitzschlag als Combo-Finale.',
+    en: 'Three moments from combat, painted in the style of the stages: melee, fireball and a lightning combo finish.',
   },
-  'art.poseGroup': { de: 'Animation wählen', en: 'Choose animation' },
-  'art.poseIdle': { de: 'Warten', en: 'Idle' },
-  'art.poseWalk': { de: 'Gehen', en: 'Walk' },
-  'art.poseSwing': { de: 'Hieb', en: 'Swing' },
-  'art.poseVictory': { de: 'Sieg', en: 'Victory' },
+  'art.actionFight': { de: 'Nahkampf – der Hieb sitzt.', en: 'Melee — the swing lands.' },
+  'art.actionFireball': { de: 'Feuerball auf Distanz.', en: 'Fireball at range.' },
+  'art.actionLightning': { de: 'Blitzschlag als Combo-Finale.', en: 'Lightning as the combo finale.' },
   'art.fiendsTitle': { de: '36 Feinde und ein Drache', en: '36 fiends and a dragon' },
   'art.fiendsText': {
     de: '36 einzeln gezeichnete Feind-Sprites in zwei Sets, vom Schleim bis zum Skelett-Krieger, dazu ein Drache als Boss. 16-Bit-Nostalgie, gemalt wie ein Papiertheater.',
@@ -112,18 +119,25 @@ export const DICTIONARY = {
     en: 'You pick the tempo, the game brings the questions: Easy, Medium and Hard lead through the same 60 levels in six acts – Shapes is the free-form practice mode alongside.',
   },
   'play.shapes.name': { de: 'Shapes', en: 'Shapes' },
+  'play.shapes.icons': {
+    de: 'Formen-Modus: Quadrat, Dreieck und Kreis zählen',
+    en: 'Shapes mode: counting squares, triangles and circles',
+  },
   'play.shapes.meta': { de: '25 Sekunden · 9 Herzen · ohne Punkte', en: '25 seconds · 9 hearts · no score' },
   'play.shapes.text': {
     de: 'Der Einstieg ohne Druck: Formen zählen ohne Punkte und ohne Ende – 25 Sekunden pro Frage, 9 Herzen.',
     en: 'The no-pressure entry: count shapes with no score and no end – 25 seconds per question, 9 hearts.',
   },
   'play.easy.name': { de: 'Easy', en: 'Easy' },
+  'play.easy.icons': { de: 'Schwierigkeit 1 von 3', en: 'Difficulty 1 of 3' },
   'play.easy.meta': { de: '15 Sekunden · 7 Herzen', en: '15 seconds · 7 hearts' },
   'play.easy.text': { de: 'Viel Zeit, viele Leben. Ideal zum Ankommen.', en: 'Plenty of time, plenty of lives. Ideal to settle in.' },
   'play.medium.name': { de: 'Medium', en: 'Medium' },
+  'play.medium.icons': { de: 'Schwierigkeit 2 von 3', en: 'Difficulty 2 of 3' },
   'play.medium.meta': { de: '10 Sekunden · 5 Herzen', en: '10 seconds · 5 hearts' },
   'play.medium.text': { de: 'Der Takt für jeden Tag: flott, aber fair.', en: 'The everyday tempo: brisk but fair.' },
   'play.hard.name': { de: 'Hard', en: 'Hard' },
+  'play.hard.icons': { de: 'Schwierigkeit 3 von 3', en: 'Difficulty 3 of 3' },
   'play.hard.meta': { de: '5 Sekunden · 3 Herzen', en: '5 seconds · 3 hearts' },
   'play.hard.text': { de: 'Volle Konzentration. Ein Fehler tut weh.', en: 'Full focus. One mistake hurts.' },
   'play.featureCombo.title': { de: 'Combo-Fähigkeiten', en: 'Combo abilities' },
@@ -261,6 +275,7 @@ export const DICTIONARY = {
     en: 'Playable without internet – only purchase and restore need a connection.',
   },
   'family.badge': { de: 'Gilt für iOS und Android', en: 'For iOS and Android' },
+  'family.phoneCaption': { de: 'Titelbildschirm der App · in Vorbereitung', en: 'App title screen · in preparation' },
   'family.ctaFallback': { de: 'Bis dahin im Browser spielen', en: 'Play in the browser in the meantime' },
 
   // FAQ
@@ -368,6 +383,39 @@ export function onLocaleChange(listener) {
   return () => listeners.delete(listener);
 }
 
+/**
+ * Splits a translation into runs so numeric ranges can be kept on one line.
+ * An en dash is a line-break opportunity, which is how "Level 1–/2" appears at
+ * 320 px; the static markup uses <span class="nb"> for that, and a runtime
+ * translation has to rebuild the same guard instead of flattening it.
+ */
+export function splitRanges(value) {
+  return String(value)
+    .split(/(\d+–\d+)/)
+    .filter((part) => part !== '')
+    .map((part) => ({ text: part, nb: /^\d+–\d+$/.test(part) }));
+}
+
+/** Writes `value` into `el`, wrapping numeric ranges in .nb spans. */
+function setTranslatableText(el, value) {
+  const runs = splitRanges(value);
+  if (runs.length === 1 && !runs[0].nb) {
+    el.textContent = value;
+    return;
+  }
+  el.textContent = '';
+  for (const run of runs) {
+    if (!run.nb) {
+      el.append(run.text);
+      continue;
+    }
+    const span = document.createElement('span');
+    span.className = 'nb';
+    span.textContent = run.text;
+    el.append(span);
+  }
+}
+
 /** Replaces the text of every [data-i18n] node and the translatable attributes. */
 export function translateDom(root) {
   const scope = root || (hasDocument() ? document : null);
@@ -375,7 +423,7 @@ export function translateDom(root) {
   const locale = getLocale();
 
   scope.querySelectorAll('[data-i18n]').forEach((el) => {
-    el.textContent = t(el.getAttribute('data-i18n'), locale);
+    setTranslatableText(el, t(el.getAttribute('data-i18n'), locale));
   });
   scope.querySelectorAll('[data-i18n-aria-label]').forEach((el) => {
     el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria-label'), locale));
@@ -424,82 +472,12 @@ export function toggleLocale() {
   return setLocale(getLocale() === 'de' ? 'en' : 'de');
 }
 
-// --- Sprite animation -------------------------------------------------
-// Frames come from the shared transparent hero sheets at the bucket root.
-const SPRITES = {
-  idle: { fps: 4, frames: ['idle/idle_frame0.png', 'idle/idle_frame1.png'] },
-  walk: { fps: 10, frames: ['walk/walk_frame0.png', 'walk/walk_frame1.png', 'walk/walk_frame2.png', 'walk/walk_frame3.png'] },
-  swing: { fps: 12, frames: ['swing/swing_frame0.png', 'swing/swing_frame1.png', 'swing/swing_frame2.png'] },
-  victory: { fps: 3, frames: ['victory/victory_frame0.png', 'victory/victory_frame1.png'] },
-};
-
-function spriteUrl(frame) {
-  return `/game/hero-sprites-transparent/animation-frames/${frame}`;
-}
-
 function prefersReducedMotion() {
   try {
     return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   } catch {
     return false;
   }
-}
-
-function initSprites() {
-  const nodes = Array.from(document.querySelectorAll('[data-sprite]'));
-  if (!nodes.length) return;
-
-  // Preload every frame once so the first cycle does not flicker.
-  Object.values(SPRITES).forEach((set) => {
-    set.frames.forEach((frame) => {
-      const img = new Image();
-      img.src = spriteUrl(frame);
-    });
-  });
-
-  let pose = 'idle';
-  let frameIndex = 0;
-  let last = 0;
-  let raf = 0;
-
-  const paint = () => {
-    const src = spriteUrl(SPRITES[pose].frames[frameIndex]);
-    nodes.forEach((el) => {
-      if (el.getAttribute('src') !== src) el.setAttribute('src', src);
-    });
-  };
-
-  const setPose = (next) => {
-    if (!SPRITES[next]) return;
-    pose = next;
-    frameIndex = 0;
-    last = 0;
-    paint();
-    document.querySelectorAll('[data-pose]').forEach((button) => {
-      const active = button.getAttribute('data-pose') === pose;
-      button.classList.toggle('is-active', active);
-      button.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-  };
-
-  document.querySelectorAll('[data-pose]').forEach((button) => {
-    button.addEventListener('click', () => setPose(button.getAttribute('data-pose')));
-  });
-
-  paint();
-  if (prefersReducedMotion()) return;
-
-  const tick = (now) => {
-    raf = requestAnimationFrame(tick);
-    if (document.visibilityState === 'hidden') return;
-    const interval = 1000 / SPRITES[pose].fps;
-    if (now - last < interval) return;
-    last = now;
-    frameIndex = (frameIndex + 1) % SPRITES[pose].frames.length;
-    paint();
-  };
-  raf = requestAnimationFrame(tick);
-  window.addEventListener('pagehide', () => cancelAnimationFrame(raf), { once: true });
 }
 
 // --- Scroll effects ---------------------------------------------------
@@ -581,7 +559,6 @@ function boot() {
     button.addEventListener('click', () => toggleLocale());
   }
 
-  initSprites();
   initParallax();
   initReveal();
 }
