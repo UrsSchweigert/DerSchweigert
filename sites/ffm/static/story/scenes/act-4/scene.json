@@ -60,7 +60,7 @@
       "role": "character",
       "src": "fiends.webp",
       "x": 820,
-      "y": 614,
+      "y": 569,
       "width": 620,
       "motion": [
         {
@@ -91,7 +91,7 @@
       "role": "foreground",
       "src": "foreground.webp",
       "x": -290,
-      "y": 714,
+      "y": 593,
       "width": 2500,
       "motion": [
         {
