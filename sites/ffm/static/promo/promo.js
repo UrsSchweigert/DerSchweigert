@@ -275,7 +275,7 @@ export const DICTIONARY = {
     en: 'Playable without internet – only purchase and restore need a connection.',
   },
   'family.badge': { de: 'Gilt für iOS und Android', en: 'For iOS and Android' },
-  'family.phoneCaption': { de: 'Titelbildschirm der App · in Vorbereitung', en: 'App title screen · in preparation' },
+  'family.phoneCaption': { de: 'Titelbildschirm der App', en: 'App title screen' },
   'family.ctaFallback': { de: 'Bis dahin im Browser spielen', en: 'Play in the browser in the meantime' },
 
   // FAQ
