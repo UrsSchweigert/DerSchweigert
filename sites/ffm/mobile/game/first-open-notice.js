@@ -1,21 +1,24 @@
 // first-open-notice.js — App-only thank-you notice shown on the first launch.
 //
-// The app is paid for once, so a first launch shows a short thank-you that
-// explains the one-time model, lists the free levels and practice modes, and
-// offers a single continue action. Nothing here sells anything: there is no
-// purchase prompt and no gating change, and dismissing only records an
+// The app is paid for once, so a first launch shows a short thank-you: thanks,
+// the purpose in one line, a plea to try (the practice modes are free) and the
+// one-time unlock of the remaining levels. Nothing here sells anything: there
+// is no purchase prompt and no gating change, and dismissing only records an
 // acknowledgement.
 //
 // The free-level sentence comes from the real gating probe in
-// ./entitlement-panel.js (the same rule the Players panel uses), and the
-// practice modes come from PRACTICE_KINDS in the shared practice session
-// module, so the notice cannot drift from what the game actually serves.
+// ./entitlement-panel.js (the same rule the Players panel uses) and the unlock
+// range starts right after it, so the notice cannot drift from what the game
+// actually serves. The practice-mode line only appears when the shared practice
+// session module offers modes (PRACTICE_KINDS), so it cannot drift either.
 //
 // The acknowledgement lives in the Capacitor Preferences store under its own
 // device-wide key, never in per-player progress, so it survives profile
 // switches and app restarts and reappears only on a fresh install. When the
 // store is unavailable the notice is still shown and the continue button
-// still closes it.
+// still closes it. A dismiss opens a short cool-down (REOPEN_GUARD_MS) so the
+// activation that closed the notice cannot immediately re-open the same
+// dialog, and Escape closes it like the continue button.
 
 import { DEFAULT_LOCALE, resolveLocale } from './parental-gate.js';
 import { freeContentText, probeFreeLevels } from './entitlement-panel.js';
@@ -26,6 +29,9 @@ export const NOTICE_KEY = 'arithmoslayer:first-open-notice';
 
 /** The only acknowledgement schema version this module understands. */
 export const NOTICE_SCHEMA_VERSION = 1;
+
+/** Cool-down after a dismiss during which a reopen request is ignored. */
+export const REOPEN_GUARD_MS = 700;
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -88,9 +94,11 @@ export function createNoticeStore(backend) {
 }
 
 /**
- * Accessible notice markup. All copy comes from the i18n dictionary through
+ * Accessible notice markup: thanks, purpose, a short plea to try, then the
+ * one-time unlock. All copy comes from the i18n dictionary through
  * `translate`; the free-level sentence reuses the shared gating-derived
- * helper and the practice labels reuse the existing practice.* keys.
+ * helper, and the unlock range starts right after it, so the notice cannot
+ * claim something the game does not serve.
  * @param {{locale?: string, translate: Function, freeCount?: number,
  *   totalLevels?: number|null, practiceKinds?: string[]}} options
  * @returns {string} dialog markup for the caller to insert
@@ -104,21 +112,28 @@ export function buildNoticeMarkup({
 } = {}) {
   const loc = resolveLocale(locale);
   const tr = typeof translate === 'function' ? translate : (key) => key;
-  const modes = practiceKinds
-    .map((kind) => tr(`practice.kind.${kind}`))
-    .filter((label) => typeof label === 'string' && label && !label.startsWith('practice.kind.'))
-    .join(', ');
+  const total = Number.isInteger(totalLevels) && totalLevels > 0 ? totalLevels : null;
+  const free = Number.isInteger(freeCount) && freeCount > 0 ? freeCount : 0;
   const lines = [
     '<div class="overlay-card first-open-notice-card">',
     `  <h2 id="first-open-notice-title">${escapeHtml(tr('notice.title'))}</h2>`,
     `  <p class="notice-thanks">${escapeHtml(tr('notice.thanks'))}</p>`,
-    `  <p class="notice-model">${escapeHtml(tr('notice.model'))}</p>`,
-    `  <p class="notice-free">${escapeHtml(freeContentText(freeCount, totalLevels, loc))}</p>`,
+    `  <p class="notice-purpose">${escapeHtml(tr('notice.purpose'))}</p>`,
   ];
-  if (modes) {
-    lines.push(`  <p class="notice-modes">${escapeHtml(tr('notice.modes', { modes }))}</p>`);
+  if (practiceKinds.length > 0) {
+    lines.push(`  <p class="notice-try">${escapeHtml(tr('notice.try'))}</p>`);
   }
-  lines.push(`  <p class="notice-device">${escapeHtml(tr('notice.device'))}</p>`);
+  if (free > 0 && total && free < total) {
+    lines.push(`  <p class="notice-unlock">${escapeHtml(
+      `${freeContentText(free, total, loc)} ${tr('notice.unlock', { from: free + 1, total })}`,
+    )}</p>`);
+  } else if (free > 0) {
+    // Everything is unlocked: there is no range left to explain.
+    lines.push(`  <p class="notice-unlock">${escapeHtml(freeContentText(free, total, loc))}</p>`);
+  } else {
+    // The gating could not be probed: claim no free range rather than none at all.
+    lines.push(`  <p class="notice-unlock">${escapeHtml(tr('notice.unlockAll'))}</p>`);
+  }
   lines.push(`  <button type="button" class="diff-btn action-primary" data-notice-action="continue">${escapeHtml(tr('notice.continue'))}</button>`);
   lines.push('</div>');
   return lines.join('\n');
@@ -130,8 +145,13 @@ export function createNoticeView({ root } = {}) {
   return {
     render(markup, handlers = {}) {
       root.innerHTML = markup;
-      root.querySelector('[data-notice-action="continue"]')
-        ?.addEventListener('click', handlers.continue);
+      const action = handlers.continue;
+      if (typeof action === 'function') {
+        // One shot: a duplicate activation (a second click from the same tap,
+        // a ghost click, or a stray Enter) must not re-open the notice.
+        root.querySelector('[data-notice-action="continue"]')
+          ?.addEventListener('click', action, { once: true });
+      }
       root.setAttribute('role', 'dialog');
       root.setAttribute('aria-modal', 'true');
       root.setAttribute('aria-labelledby', 'first-open-notice-title');
@@ -171,6 +191,7 @@ export function createFirstOpenNotice({
   doc = globalThis.document,
   probe = probeFreeLevels,
   onAcknowledged = () => {},
+  now = () => Date.now(),
 } = {}) {
   const store = createNoticeStore(backend ?? createPreferencesBackend());
   const host = root ?? doc?.getElementById?.('first-open-notice') ?? null;
@@ -179,6 +200,10 @@ export function createFirstOpenNotice({
   let freeCount = 0;
   let visible = false;
   let destroyed = false;
+  // A dismiss is followed by a short cool-down: the tap that closed the notice
+  // can deliver a second activation (ghost click, double tap, a reopening
+  // button under the finger) and must not bring the same dialog back.
+  let dismissedAt = -Infinity;
 
   async function computeFreeCount() {
     const max = Number.isInteger(totalLevels) && totalLevels > 0 ? totalLevels : undefined;
@@ -201,8 +226,11 @@ export function createFirstOpenNotice({
     }), { continue: dismiss });
   }
 
-  async function open() {
+  async function open({ urgent = false } = {}) {
     if (destroyed) return false;
+    // Already on screen: re-rendering it would only restart the dialog.
+    if (visible) return false;
+    if (!urgent && now() - dismissedAt < REOPEN_GUARD_MS) return false;
     visible = true;
     await computeFreeCount();
     if (destroyed) return false;
@@ -215,6 +243,7 @@ export function createFirstOpenNotice({
   async function dismiss() {
     if (!visible) return false;
     visible = false;
+    dismissedAt = now();
     // Hide first so a slow or unavailable device store can never block the
     // continue action; the acknowledgement is best effort.
     screen.hide();
@@ -227,12 +256,21 @@ export function createFirstOpenNotice({
   async function maybeShow() {
     if (destroyed) return false;
     if (await store.isAcknowledged()) return false;
-    return open();
+    return open({ urgent: true });
   }
+
+  // Escape closes the notice like the continue button, so a dialog that fills
+  // a small screen always has a way out.
+  function keydown(event) {
+    if (event?.key !== 'Escape' || !visible) return;
+    void dismiss();
+  }
+  doc?.addEventListener?.('keydown', keydown);
 
   function destroy() {
     destroyed = true;
     visible = false;
+    doc?.removeEventListener?.('keydown', keydown);
     screen.hide?.();
   }
 

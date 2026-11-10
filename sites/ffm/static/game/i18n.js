@@ -33,8 +33,8 @@ let currentLocale = null;
 const DICTIONARY = {
   // Splash screen
   'splash.intro': {
-    en: 'Math training for young and old: sharpen your mental arithmetic, beat the clock, and climb the rankings one correct answer at a time.',
-    de: 'Kopfrechentraining für Jung und Alt: schärfe dein Kopfrechnen, schlage die Uhr und klettere in der Rangliste nach oben – eine richtige Antwort nach der anderen.',
+    en: 'Math training for young and old: sharpen your mental arithmetic, beat the clock and climb the rankings.',
+    de: 'Kopfrechentraining für Jung und Alt: schärfe dein Kopfrechnen, schlage die Uhr und klettere in der Rangliste nach oben.',
   },
   'splash.replayIntro': { en: 'Replay the intro', de: 'Intro erneut ansehen' },
   'splash.loginRegister': { en: 'Login / Register', de: 'Anmelden / Registrieren' },
@@ -118,23 +118,30 @@ const DICTIONARY = {
   'nav.players': { en: 'Players', de: 'Spieler' },
   'nav.levels': { en: 'Levels', de: 'Level' },
   'nav.leaderboard': { en: 'Ranking', de: 'Rangliste' },
-  // First-open thank-you notice (app build)
+  // First-open thank-you notice (app build): thanks, purpose, a short plea to
+  // try, then the one-time unlock. Kept to four kind sentences on purpose.
+  // Arithmo Slayer is a brain exercise, not a game, so the copy avoids game
+  // words and describes training instead.
   'notice.title': { en: 'Thank you!', de: 'Danke!' },
   'notice.thanks': {
-    en: 'Thank you for playing Arithmo Slayer. This short note explains how the game is paid for.',
-    de: 'Danke, dass du Arithmo Slayer spielst. Dieser kurze Hinweis erklärt, wie das Spiel bezahlt wird.',
+    en: 'Thank you for trying Arithmo Slayer.',
+    de: 'Danke, dass du Arithmo Slayer ausprobierst.',
   },
-  'notice.model': {
-    en: 'The game is paid once: one purchase unlocks every level, and there are no recurring charges.',
-    de: 'Das Spiel wird einmal bezahlt: Ein Kauf schaltet alle Level frei, und es gibt keine laufenden Kosten.',
+  'notice.purpose': {
+    en: 'Mental arithmetic as brain training – at your own pace.',
+    de: 'Kopfrechnen als Gehirntraining – im eigenen Tempo.',
   },
-  'notice.modes': {
-    en: 'These practice modes are free to try: {modes}.',
-    de: 'Diese Übungsarten kannst du kostenlos ausprobieren: {modes}.',
+  'notice.try': {
+    en: 'Just give it a try: the practice modes are free as well, no account needed.',
+    de: 'Probier es einfach aus: Auch die Übungsarten sind gratis, ohne Konto.',
   },
-  'notice.device': {
-    en: 'This note is saved on this device and only appears once. You can open it again under Players or in the pause menu.',
-    de: 'Dieser Hinweis wird auf diesem Gerät gespeichert und erscheint nur einmal. Du kannst ihn unter Spieler oder im Pausenmenü erneut öffnen.',
+  'notice.unlock': {
+    en: 'One purchase unlocks levels {from}–{total} – no subscription, no recurring charges.',
+    de: 'Ein einmaliger Kauf schaltet danach Level {from}–{total} frei – ohne Abo, ohne laufende Kosten.',
+  },
+  'notice.unlockAll': {
+    en: 'One purchase unlocks the remaining levels – no subscription, no recurring charges.',
+    de: 'Ein einmaliger Kauf schaltet alle Level frei – ohne Abo, ohne laufende Kosten.',
   },
   'notice.continue': { en: 'Continue', de: 'Weiter' },
   'notice.reopen': { en: 'What is free?', de: 'Was ist kostenlos?' },
