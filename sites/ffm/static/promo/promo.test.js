@@ -23,6 +23,12 @@ const html = read('index.html');
 const css = read('promo.css');
 const js = read('promo.js');
 
+// Escapes every regex metacharacter, backslash included, so a path can be
+// matched literally. Escaping only the dot (the obvious case for asset paths)
+// is incomplete sanitization: a backslash or any other metacharacter would
+// still change the pattern's meaning.
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const ENTITIES = {
   '&amp;': '&',
   '&lt;': '<',
@@ -395,8 +401,8 @@ test('the age cards pair one hero with one growing stage each', () => {
   pairs.forEach(([heroName, stageName], index) => {
     const hero = `/promo/art/heroes/${heroName}.webp`;
     const stage = `/promo/art/stages/${stageName}.webp`;
-    assert.equal((gen.match(new RegExp(hero.replace(/\./g, '\\.'), 'g')) || []).length, 1, `${hero} must appear once`);
-    assert.equal((gen.match(new RegExp(stage.replace(/\./g, '\\.'), 'g')) || []).length, 1, `${stage} must appear once`);
+    assert.equal((gen.match(new RegExp(escapeRegExp(hero), 'g')) || []).length, 1, `${hero} must appear once`);
+    assert.equal((gen.match(new RegExp(escapeRegExp(stage), 'g')) || []).length, 1, `${stage} must appear once`);
     assert.ok(cards[index].includes(hero), `card ${index + 1} must show ${heroName}`);
     assert.ok(cards[index].includes(stage), `card ${index + 1} must stage ${stageName}`);
     assert.ok(existsSync(join(webRoot, stage)), `${stage} must exist`);
@@ -437,7 +443,7 @@ test('three action stills replace the sprite demo', () => {
     assert.ok(ext, `action art for "${name}" is missing on disk`);
     const url = `/promo/art/action/${name}${ext}`;
     assert.ok(html.includes(`src="${url}"`), `missing ${url} in the markup`);
-    const tag = html.match(new RegExp(`<img[^>]*${name.replace('.', '\\.')}${ext.replace('.', '\\.')}[^>]*>`))[0];
+    const tag = html.match(new RegExp(`<img[^>]*${escapeRegExp(name)}${escapeRegExp(ext)}[^>]*>`))[0];
     assert.match(tag, /width="1600"/);
     assert.match(tag, /height="900"/);
     assert.match(tag, /loading="lazy"/);
