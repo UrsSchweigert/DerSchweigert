@@ -281,7 +281,13 @@ async function storySceneForLevel(level) {
     && candidate.slot.fromLevel === Number(level));
   return entry?.id ?? null;
 }
-const storyIntro = createStoryIntro({ play: playStoryScene, sceneForLevel: storySceneForLevel });
+const storyIntro = createStoryIntro({
+  play: playStoryScene,
+  sceneForLevel: storySceneForLevel,
+  // A diorama is title-screen material: run it on the menu playlist instead of
+  // whatever music the field was playing. Idempotent while the menu track runs.
+  beforeScene: () => startMenuMusic(),
+});
 // Plays after the loading screen is gone, so it is never hidden behind it.
 const introAtOpen = loadingDone.then(() => storyIntro.playOnOpen());
 

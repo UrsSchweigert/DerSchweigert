@@ -46,6 +46,13 @@ already playing do nothing. Both native shells allow media autoplay
 with music too. On iOS the Web Audio context can still be suspended until the
 first touch; the menu track then becomes audible from that point.
 
+Story dioramas — the prologue and every act opening — run on the `menu`
+playlist. `createStoryIntro`'s `beforeScene` hook calls `startMenuMusic()` right
+before the scene starts, so an act opening never plays over level music and
+never starts in silence once the engine has audio. The hook is idempotent, and
+the level's own track takes over (with the usual crossfade) when the diorama
+ends.
+
 ## Gapless looping
 
 A single-track playlist — the menu track and every level track — is played

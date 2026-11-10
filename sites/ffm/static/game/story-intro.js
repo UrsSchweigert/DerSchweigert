@@ -46,12 +46,15 @@ function markShownAtOpen(storage) {
  *   story scene and resolves when it is over; may resolve to null.
  * @param {(level: number) => Promise<string|null>} [options.sceneForLevel] -
  *   resolves the scene id that opens the act a level belongs to, or null.
+ * @param {() => void} [options.beforeScene] - runs immediately before a scene
+ *   starts; the game uses it to put the title playlist under the diorama. A
+ *   failure here must never cost the player the scene.
  * @param {object|null} [options.storage] - localStorage-compatible store;
  *   defaults to the page's localStorage.
  * @param {string} [options.scene] - the prologue scene id.
  * @returns {object} story controller
  */
-export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForLevel } = {}) {
+export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForLevel, beforeScene } = {}) {
   if (typeof play !== 'function') throw new TypeError('createStoryIntro needs a play() function');
   const store = storage === undefined ? defaultStorage() : storage;
   const playedThisRun = new Set();
@@ -59,6 +62,11 @@ export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForL
   async function playOnce(sceneId) {
     if (playedThisRun.has(sceneId)) return null;
     playedThisRun.add(sceneId);
+    try {
+      beforeScene?.();
+    } catch (error) {
+      console.error('Unable to start the music for the story scene', error);
+    }
     try {
       return await play(sceneId);
     } catch (error) {
