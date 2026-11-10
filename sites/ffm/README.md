@@ -446,6 +446,82 @@ Freeing a version slot (the policy sits at the 5-version cap) was done by deleti
 
 **Recommendation, not yet done:** bring `derschweigert-deploy-scope` under Terraform management so this can't silently drift out of sync again. Skipped in the 2026-09-05 session to avoid widening the blast radius of an already-eventful production deploy.
 
+## Promotional landing page and URL routing
+
+`/` no longer serves the game directly: it serves the promotional landing page
+that lives in `sites/ffm/static/promo/`. The game keeps its old file path and
+is reachable at `/play`.
+
+URL map in production (all three aliases — `ffm.derschweigert.de`,
+`arithmoslayer.de`, `www.arithmoslayer.de` — share one distribution):
+
+| Request | Served |
+| --- | --- |
+| `/` | `promo/index.html` (promotional landing page) |
+| `/promo`, `/promo/` | `promo/index.html` |
+| `/play` | `index.html` (the game) |
+| `/play/` | 301 redirect to `/play` (the game's assets are relative) |
+| `/index.html` | `index.html` (unchanged; the mobile/legacy entry point) |
+| everything else (assets, legal pages, `/api/*`, `/unlock*`) | unchanged |
+
+The promo page sits in its own `sites/ffm/static/promo/` directory rather than
+at the bucket root because `static/index.html` must stay exactly where it is:
+the Capacitor bundler (`sites/ffm/mobile/scripts/copy-assets.mjs`) and the six
+mobile test files copy and assert that path. A separate directory also keeps
+the promo page's CSS/JS/tests together without touching the game bundle.
+
+**Routing is done by a CloudFront Function, not by the bucket.** The S3 origin
+has no directory-index support and the distribution has no 403/404 rewrite, so
+without the function `/play` and `/promo/` both return 403.
+`default_root_object = "index.html"` only covers the bare `/` request, which is
+why it is kept: if the function is ever detached, `/` falls back to the game
+instead of failing. The function is
+`infra/terraform/sites/ffm/cloudfront/landing-rewrite.js`, wired in through
+`module "site"`'s `viewer_request_function_code`; the module attaches it to the
+default cache behavior only, so the `/api/*` and `/unlock*` behaviors are
+untouched.
+
+Two routing details are easy to get wrong:
+
+- **`/play/` is a 301 to `/play`, not a rewrite.** The game shell
+  (`static/index.html`) references its assets relatively (`styles.css`,
+  `game/main.js`, `favicon.png`, …), so serving it at `/play/` would make the
+  browser request `/play/styles.css` and friends, which the bucket does not
+  have (403). At `/play` the relative paths resolve to the bucket root and
+  work, so the function answers `/play/` with a `301 Moved Permanently` and
+  `Location: /play` instead of rewriting it.
+- **The promo page's assets are referenced root-absolutely (`/promo/promo.css`,
+  `/promo/promo.js`, `/promo/og-image.png`, …).** `/` and `/promo/` are
+  rewritten to `/promo/index.html` internally, but the browser URL stays `/`,
+  so relative asset paths would resolve to `/promo.css` and 404. The absolute
+  prefix is what makes the same HTML work at `/`, `/promo` and `/promo/`
+  without a redirect.
+
+**A Terraform change is required for `/play` to work.** The `deploy-ffm` job's
+`sites/ffm/static/` → bucket sync only uploads files and cannot create a
+CloudFront Function. A static-only deploy therefore uploads `promo/` but leaves
+the current URL behaviour in place until the job's `terraform apply` has run
+and CloudFront has finished deploying the function.
+
+Local preview (the rewrites do not exist on a plain static server, so open the
+files directly):
+
+```bash
+cd sites/ffm/static && python3 -m http.server
+# http://localhost:8000/promo/index.html   -> promo page
+# http://localhost:8000/index.html         -> game
+```
+
+CI coverage: `test-ffm` runs `node --test sites/ffm/static/promo/*.test.js`,
+and `deploy-ffm`'s smoke test asserts that `/` serves the promo page
+(`id="promo-root"` plus `promo.css`), that `/promo/`, `/promo/promo.css`,
+`/promo/promo.js`, `/play`, `/index.html` and `/game/main.js` return 200, that
+`/play/` returns 301 with `Location: /play`, and that `/play`'s body loads
+`game/main.js`. If the promo page's root marker is ever renamed, update that
+smoke-test grep in the same change. The dev-only promo files (`promo/tools/*`,
+`promo/README.md`) are excluded from the bucket sync and deleted from the
+bucket by the `aws s3 rm` cleanup in the same step.
+
 ## Local development and validation
 
 Known-good automated checks:

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
+     fill="currentColor" color="#c49a48" aria-hidden="true" focusable="false">
+  <title>Google Play</title>
+  <rect x="2.6" y="2.6" width="18.8" height="18.8" rx="4.8" fill="none"
+        stroke="currentColor" stroke-width="1.5"/>
+  <path stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"
+        d="M8.9 7.1 17.2 12l-8.3 4.9z"/>
+</svg>
