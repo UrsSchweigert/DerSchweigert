@@ -48,6 +48,7 @@ import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
 import { createStoryIntro } from './story-intro.js';
 import { highScoreTrend, runningBestTrend } from './score-trend.js';
+import { frameDelta } from './frame-delta.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -3295,14 +3296,13 @@ function updateTimer(dt) {
 
 // --- Main game loop ---
 let animFrameId = null;
-let lastTs = 0;
+let lastTs = null;
 
 function gameLoop(ts) {
   animFrameId = requestAnimationFrame(gameLoop);
 
-  const rawDt = (ts - lastTs) / 1000;
+  const dt = frameDelta(ts, lastTs);
   lastTs = ts;
-  const dt = Math.min(rawDt, 0.1);
 
   if (!paused) advanceGameplayTimers(dt);
 
