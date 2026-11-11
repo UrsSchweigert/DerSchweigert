@@ -158,6 +158,26 @@ test('DOM chrome and identity markup have accessible semantics and no noisy time
   assert.doesNotMatch(html, /data-title-target="practice"/);
 });
 
+test('an installed shapes header reserves the two-row question height for the level', () => {
+  const elements = { 'gameplay-chrome': { dataset: {}, hidden: true } };
+  const chrome = createGameplayChrome({ doc: { getElementById: id => elements[id] } });
+  chrome.setShapesHeader({ render() {}, clear() {} });
+  chrome.update({ timerActive: true, isShapesMode: true }, null);
+  assert.equal(elements['gameplay-chrome'].dataset.twoRowQuestion, 'true',
+    'the question row keeps its two-row height between problems');
+  chrome.update({ timerActive: true, isShapesMode: true, reveal: true }, null);
+  assert.equal(elements['gameplay-chrome'].dataset.twoRowQuestion, 'true',
+    'the reveal keeps the same height');
+  chrome.update({ timerActive: true, isShapesMode: false }, { question: '2 + 2 = ?' });
+  assert.equal(elements['gameplay-chrome'].dataset.twoRowQuestion, 'false');
+
+  const web = { 'gameplay-chrome': { dataset: {} } };
+  const webChrome = createGameplayChrome({ doc: { getElementById: id => web[id] } });
+  webChrome.update({ timerActive: true, isShapesMode: true }, null);
+  assert.equal(web['gameplay-chrome'].dataset.twoRowQuestion, 'false',
+    'without the app-only two-row renderer there is nothing to reserve');
+});
+
 test('absent DOM remains a no-op', () => {
   const chrome = createGameplayChrome({ doc: null });
   assert.doesNotThrow(() => { chrome.update(); chrome.setVisible(true); });

@@ -152,6 +152,15 @@
   row-gap: 0;
 }
 
+/* The two rows are reserved for the whole Shapes level, not only while a
+ * problem is on screen: gameplay-chrome.js marks the level and the question
+ * row keeps its 52px (2 x 26px rows) between problems and during the reveal.
+ * A collapsing row would change the header height, and viewport-layout.js
+ * rescales the whole scene from the measured header. */
+#gameplay-chrome[data-two-row-question="true"] #active-question {
+  min-height: 52px;
+}
+
 #active-question[data-shapes-header="two-rows"] .app-shapes-header-instruction,
 #active-question[data-shapes-header="two-rows"] .app-shapes-header-shapes {
   display: block;
@@ -486,6 +495,20 @@
   border-radius: 6px;
   color: var(--brass-light, #e4c577);
   text-decoration: none;
+}
+
+/* The manual is a separate page, so following it ends a running level. The
+ * warning sits directly above the link it belongs to and reads as a caution,
+ * without a red alert block. */
+.app-help-warning {
+  margin: 0 0 4px;
+  padding: 6px 8px;
+  border-left: 3px solid #d8a85a;
+  border-radius: 4px;
+  background: rgba(216, 168, 90, 0.12);
+  color: #ffe6b5;
+  font-size: clamp(12px, 1.8vw, 14px);
+  line-height: 1.35;
 }
 
 .app-help-manual-link:focus-visible {

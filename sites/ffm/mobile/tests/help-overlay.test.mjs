@@ -39,7 +39,7 @@ function fakeView() {
   return view;
 }
 
-function fixture({ playing = true, answer = '12' } = {}) {
+function fixture({ playing = true, answer = '12', activeRun = playing } = {}) {
   const listeners = {};
   const input = { value: answer, selectionStart: 1, selectionEnd: 1, focusCalls: 0 };
   input.setSelectionRange = (start, end) => { input.selectionStart = start; input.selectionEnd = end; };
@@ -53,6 +53,8 @@ function fixture({ playing = true, answer = '12' } = {}) {
   };
   const game = { playing, pauseCalls: 0, resumeCalls: 0, score: 120, timer: 7.5, input };
   game.isPlaying = () => game.playing;
+  game.hasActiveRun = () => game.activeRun ?? playing;
+  game.activeRun = activeRun;
   game.pause = () => { game.pauseCalls += 1; game.playing = false; input.value = ''; };
   game.resume = () => { game.resumeCalls += 1; game.playing = true; };
   const view = fakeView();
@@ -143,6 +145,45 @@ test('help opened from the pause menu never resumes the game on close', () => {
   assert.equal(f.game.resumeCalls, 0);
 });
 
+test('the manual link warns that opening it ends the run, in every play context', () => {
+  for (const locale of ['en', 'de']) {
+    for (const context of ['play', 'practice', 'pause']) {
+      const warned = buildHelpMarkup({
+        context, locale, translate: t, mode: 'shapes', hasActiveRun: true,
+      });
+      assert.match(warned, /class="app-help-warning" id="help-manual-warning" role="note"/,
+        `${context}/${locale} warns before the manual link`);
+      assert.match(warned, /class="app-help-manual-link"[^>]*aria-describedby="help-manual-warning"/,
+        `${context}/${locale} ties the warning to the link`);
+      assert.match(warned, /href="legal\/manual\.\w+\.html"/, 'the link still works');
+      const stale = buildHelpMarkup({ context, locale, translate: t, hasActiveRun: false });
+      assert.doesNotMatch(stale, /app-help-warning/, `${context}/${locale} only warns during a run`);
+      assert.doesNotMatch(stale, /aria-describedby="help-manual-warning"/);
+    }
+  }
+  // The title screen and the other title tabs have no run to lose.
+  for (const context of ['title', 'progress', 'levels', 'players', 'ranks', 'terms']) {
+    const html = buildHelpMarkup({ context, locale: 'en', translate: t, hasActiveRun: true });
+    assert.doesNotMatch(html, /app-help-warning/, `${context} never warns about the manual`);
+  }
+  assert.match(buildHelpMarkup({ context: 'pause', locale: 'en', translate: t, hasActiveRun: true }),
+    /ends this level/);
+  setLocale('de', { persist: false });
+  assert.match(buildHelpMarkup({ context: 'pause', locale: 'de', translate: t, hasActiveRun: true }),
+    /Fortschritt dieses Durchgangs geht verloren/);
+  setLocale('en', { persist: false });
+});
+
+test('help opened from the pause menu warns before the full manual', () => {
+  const f = fixture({ playing: false, activeRun: true });
+  assert.equal(f.controller.open('pause'), true);
+  assert.match(f.view.markup, /Opening the full manual ends this level/);
+  assert.match(f.view.markup, /aria-describedby="help-manual-warning"/);
+  f.game.activeRun = false;
+  f.controller.refresh();
+  assert.doesNotMatch(f.view.markup, /app-help-warning/, 'a finished run stops warning');
+});
+
 test('Escape closes help and a locale switch re-renders the open dialog', () => {
   const f = fixture();
   f.controller.open('title');
@@ -163,7 +204,7 @@ test('the play-area, pause and title controls ship only through the app overlay'
   const appStart = main.indexOf('if (platform.isApp) {');
   const appBlock = main.slice(appStart, main.indexOf('\n}\n', appStart));
   assert.ok(appBlock.includes("import('./help-overlay.js')"), 'mounted inside the app branch');
-  assert.match(appBlock, /game: \{\s*isPlaying: \(\) => gameRunning && !paused,\s*pause: pauseForHelp,\s*resume: resumeFromHelp,/);
+  assert.match(appBlock, /game: \{\s*isPlaying: \(\) => gameRunning && !paused,[\s\S]*?hasActiveRun: \(\) => gameRunning,\s*pause: pauseForHelp,\s*resume: resumeFromHelp,/);
   assert.match(appBlock, /registerOverlay: gameplayModalFocus\.registerOverlay/);
   assert.match(main, /function pauseForHelp\(\)/);
   assert.match(main, /function resumeFromHelp\(\)/);

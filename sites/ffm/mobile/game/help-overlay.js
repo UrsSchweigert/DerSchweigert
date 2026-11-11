@@ -19,6 +19,12 @@ export const TITLE_PAGE_CONTEXTS = Object.freeze({
   leaderboard: 'ranks', history: 'progress', legal: 'terms',
 });
 
+/** Help contexts that belong to a running level; only these can lose a run. */
+export const RUN_CONTEXTS = Object.freeze(['play', 'practice', 'pause']);
+
+/** Id shared by the manual warning and the link's aria-describedby. */
+export const MANUAL_WARNING_ID = 'help-manual-warning';
+
 const TIP_SUFFIXES = Object.freeze(['tip1', 'tip2', 'tip3']);
 
 function escapeHtml(value) {
@@ -46,7 +52,7 @@ export function titlePageContext(page) {
 
 /** Concise staged help markup: title, summary, up to three tips, manual link, close. */
 export function buildHelpMarkup({
-  context = 'title', locale = DEFAULT_LOCALE, translate, mode = null,
+  context = 'title', locale = DEFAULT_LOCALE, translate, mode = null, hasActiveRun = false,
 } = {}) {
   const loc = resolveLocale(locale);
   if (!HELP_CONTEXTS.includes(context)) throw new RangeError(`unknown help context: ${context}`);
@@ -62,6 +68,9 @@ export function buildHelpMarkup({
       return text === key ? null : text;
     })
     .filter(Boolean);
+  // The manual is a separate page, so following it abandons a running level.
+  // Warn about that before the link, in every context that is part of a run.
+  const warnsAboutManual = Boolean(hasActiveRun) && RUN_CONTEXTS.includes(context);
   const lines = [
     `<div class="overlay-card app-help-card" data-help-context="${escapeHtml(context)}">`,
     '  <div class="app-help-header">',
@@ -75,7 +84,11 @@ export function buildHelpMarkup({
     for (const tip of tips) lines.push(`    <li>${escapeHtml(tip)}</li>`);
     lines.push('  </ul>');
   }
-  lines.push(`  <a class="app-help-manual-link" href="${escapeHtml(manualPagePath(loc))}">${escapeHtml(translateOr(translate, 'help.manual'))}</a>`);
+  if (warnsAboutManual) {
+    lines.push(`  <p class="app-help-warning" id="${MANUAL_WARNING_ID}" role="note">${escapeHtml(translateOr(translate, 'help.manualWarning'))}</p>`);
+  }
+  const describedBy = warnsAboutManual ? ` aria-describedby="${MANUAL_WARNING_ID}"` : '';
+  lines.push(`  <a class="app-help-manual-link" href="${escapeHtml(manualPagePath(loc))}"${describedBy}>${escapeHtml(translateOr(translate, 'help.manual'))}</a>`);
   lines.push('</div>');
   return lines.join('\n');
 }
@@ -180,8 +193,10 @@ export function createHelpView({ doc = globalThis.document, translate } = {}) {
 /**
  * Create the help controller. `view`, `game` and `doc` are injectable so tests
  * can drive open/close without a browser. `game` supplies `isPlaying()`,
- * `pause()` and `resume()`: help pauses only a running level and resumes only
- * when this open paused it.
+ * `hasActiveRun()`, `pause()` and `resume()`: help pauses only a running level
+ * and resumes only when this open paused it. `hasActiveRun()` is true for any
+ * level that is still in progress (also while it is paused), and the manual
+ * warning is shown whenever the run cannot survive leaving the page.
  */
 export function createHelpController({
   doc = globalThis.document,
@@ -207,7 +222,11 @@ export function createHelpController({
 
   function render() {
     screen.render(buildHelpMarkup({
-      context: openContext, locale: getLocale(), translate, mode: openMode,
+      context: openContext,
+      locale: getLocale(),
+      translate,
+      mode: openMode,
+      hasActiveRun: Boolean(game?.hasActiveRun?.()),
     }), { close });
   }
 

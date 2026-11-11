@@ -138,6 +138,9 @@ if (platform.isApp) {
         getTitlePage: () => activeTitlePage,
         game: {
           isPlaying: () => gameRunning && !paused,
+          // A paused level is still a run: opening the manual from the pause
+          // menu would end it, so help warns before the link (help-overlay.js).
+          hasActiveRun: () => gameRunning,
           pause: pauseForHelp,
           resume: resumeFromHelp,
         },

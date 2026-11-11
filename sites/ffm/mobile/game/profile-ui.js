@@ -76,9 +76,12 @@ export function mountProfileUI({
       throw Object.assign(new Error('Profile changes are blocked during a game'), { code: 'profile_switch_blocked' });
     }
   };
-  const button = (label, action, { blocked = false, className = '', ariaLabel } = {}) => {
+  const button = (label, action, { blocked = false, className = '', ariaLabel, pageDirection = null } = {}) => {
     const element = node('button', className, label);
     element.type = 'button';
+    // A drawn triangle marks the direction (see styles.css); the label keeps
+    // the button's spoken name, so the arrow adds no extra text.
+    if (pageDirection) element.setAttribute('data-page-direction', pageDirection);
     element.disabled = busy || (blocked && !canSwitch());
     if (ariaLabel) element.setAttribute('aria-label', ariaLabel);
     element.addEventListener('click', () => { void action(); });
@@ -137,7 +140,7 @@ export function mountProfileUI({
       input.addEventListener('input', () => { stage.name = input.value; });
       label.append(input);
       const controls = node('div', 'profile-actions');
-      const save = node('button', '', text('profiles.save'));
+      const save = node('button', 'action-primary', text('profiles.save'));
       save.type = 'submit';
       save.disabled = busy || !canSwitch();
       controls.append(save, button(text('profiles.cancel'), () => {
@@ -160,7 +163,7 @@ export function mountProfileUI({
       controls.append(
         button(text('profiles.confirm'), () => action(
           () => adapter.deleteProfile(id, { confirmed: true }), true,
-        ), { blocked: true }),
+        ), { blocked: true, className: 'action-danger' }),
         button(text('profiles.cancel'), () => { stage = null; message = ''; render(); }),
       );
       confirmation.append(controls);
@@ -194,9 +197,9 @@ export function mountProfileUI({
       const controls = node('div', 'profile-actions');
       controls.append(button(text('profiles.create'), () => openStage({ type: 'create', name: '' }), { blocked: true }));
       const pagination = node('div', 'profile-pagination');
-      const previous = button(text('profiles.previous'), () => { page--; render(); });
+      const previous = button(text('profiles.previous'), () => { page--; render(); }, { pageDirection: 'previous' });
       previous.disabled ||= page <= 0;
-      const next = button(text('profiles.next'), () => { page++; render(); });
+      const next = button(text('profiles.next'), () => { page++; render(); }, { pageDirection: 'next' });
       next.disabled ||= page >= pages - 1;
       const indicator = node('span', '', text('profiles.page', { page: page + 1, pages }));
       pagination.append(previous, indicator, next);

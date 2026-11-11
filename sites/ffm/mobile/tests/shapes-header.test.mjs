@@ -281,21 +281,26 @@ describe('app-only delivery', () => {
 });
 
 // --- 44px answer-target budget -----------------------------------------
-// The single-line prompt already wrapped onto two 28px lines for the longest
-// shapes prompts, so the deliberate two-row header reuses that 56px budget.
-// Below it, #input-zone keeps its web padding/flex gap and the answer grid
-// keeps its 44px minimum row height.
+// The header keeps one height for the whole level: the two reserved question
+// rows (2 x 26px), the reserved reveal line (20px), the readouts row with the
+// 44px pause/help buttons and the app timer bar. Measured on the built app
+// bundle at 390x844 (150px) and 568x320 (140px); the values below are the
+// rounded-up budgets the answer grid has to fit under, so a later header change
+// that eats into the targets fails here first.
+// Below the header, #input-zone keeps its web padding/flex gap and the answer
+// grid keeps its 44px minimum row height.
 const INPUT_PADDING = 16;
 const FLEX_GAP = 6;
 const BUBBLE_ROW = 22;
-const SHAPES_HEADER_BUDGET = 2 * 28;
+const SHAPES_HEADER_BUDGET_PORTRAIT = 150;
+const SHAPES_HEADER_BUDGET_LANDSCAPE = 140;
 
 test('the two-row header keeps 44px answer targets at 320px portrait', () => {
   for (const viewport of [
     { width: 320, height: 568 },
     { width: 320, height: 480 },
   ]) {
-    const availableHeight = viewport.height - SHAPES_HEADER_BUDGET;
+    const availableHeight = viewport.height - SHAPES_HEADER_BUDGET_PORTRAIT;
     const layout = calculateSceneLayout(viewport.width, availableHeight, 4, false);
     assert.equal(layout.columns * layout.rows, 4, 'four buttons stay in one visible grid');
     const inputZone = availableHeight - layout.sceneHeight - FLEX_GAP;
@@ -308,7 +313,7 @@ test('the two-row header keeps 44px answer targets at 320px portrait', () => {
 });
 
 test('the two-row header keeps 44px answer targets at 320px landscape', () => {
-  const availableHeight = 320 - SHAPES_HEADER_BUDGET;
+  const availableHeight = 320 - SHAPES_HEADER_BUDGET_LANDSCAPE;
   const layout = calculateSceneLayout(568, availableHeight, 4, true);
   assert.equal(layout.landscape, true);
   assert.equal(layout.columns * layout.rows, 4);

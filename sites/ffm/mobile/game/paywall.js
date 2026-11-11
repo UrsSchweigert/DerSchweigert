@@ -67,7 +67,7 @@ export function buildPaywallMarkup({ locale = DEFAULT_LOCALE, price = null } = {
     `  <h2 id="paywall-title">${escapeHtml(paywallText('paywall.title', loc))}</h2>`,
     `  <p id="paywall-description">${escapeHtml(paywallText('paywall.description', loc))}</p>`,
     '  <div class="paywall-actions">',
-    `    <button type="button" class="diff-btn" data-paywall-action="buy">${escapeHtml(buy)}</button>`,
+    `    <button type="button" class="diff-btn action-primary" data-paywall-action="buy">${escapeHtml(buy)}</button>`,
     `    <button type="button" class="diff-btn" data-paywall-action="restore">${escapeHtml(paywallText('paywall.restore', loc))}</button>`,
     `    <button type="button" class="diff-btn" data-paywall-action="close">${escapeHtml(paywallText('paywall.close', loc))}</button>`,
     '  </div>',

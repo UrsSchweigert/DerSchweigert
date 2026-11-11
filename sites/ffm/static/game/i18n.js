@@ -41,6 +41,12 @@ const DICTIONARY = {
   'splash.logout': { en: 'Logout', de: 'Abmelden' },
   'splash.greeting': { en: 'Welcome, {username}!', de: 'Willkommen, {username}!' },
   'splash.chooseDifficulty': { en: 'Choose your difficulty:', de: 'Wähle deinen Schwierigkeitsgrad:' },
+  // Web only: the title screen advertises the two apps that are in the stores'
+  // review pipelines. They are announced, not linked, until each listing is
+  // live (the app bundle omits this block entirely).
+  'splash.storesLabel': { en: 'The app for iPhone and Android', de: 'Die App für iPhone und Android' },
+  'splash.storeAppStore': { en: 'Soon in the App Store', de: 'Bald im App Store' },
+  'splash.storePlayStore': { en: 'Soon on Google Play', de: 'Bald bei Google Play' },
   'leaderboard.title': { en: 'Leaderboard', de: 'Bestenliste' },
   'leaderboard.allYears': { en: 'All years', de: 'Alle Jahrgänge' },
   'leaderboard.unclassified': { en: 'Unclassified', de: 'Nicht eingeordnet' },
@@ -61,8 +67,8 @@ const DICTIONARY = {
   'levels.locked': { en: 'Level {level} (locked)', de: 'Level {level} (gesperrt)' },
   'scoreHistory.ariaLabel': { en: 'High score development chart', de: 'Diagramm zur Highscore-Entwicklung' },
   'scoreHistory.empty': {
-    en: 'Finish a scored level to see your progress here.',
-    de: 'Schließe ein Level mit Punkten ab, um deinen Fortschritt hier zu sehen.',
+    en: 'Finish a scored level to see your training history here.',
+    de: 'Schließe ein Level mit Punkten ab, um deinen Verlauf hier zu sehen.',
   },
   'scoreHistory.highScore': {
     en: 'High score: {score} · Saved results: {count} (oldest to newest)',
@@ -80,7 +86,7 @@ const DICTIONARY = {
     en: 'Log in to save your scores and see your score history here.',
     de: 'Melde dich an, um deine Punkte zu speichern und deinen Punkteverlauf hier zu sehen.',
   },
-  'personalDevelopment.title': { en: 'My progress', de: 'Mein Fortschritt' },
+  'personalDevelopment.title': { en: 'Practice', de: 'Training' },
   'personalDevelopment.perLevelBest': { en: 'Level {level}: {score} points', de: 'Level {level}: {score} Punkte' },
   'personalDevelopment.perLevelBestUnfinished': {
     en: 'Level {level}: {score} points (unfinished attempt, not cleared)',
@@ -88,21 +94,21 @@ const DICTIONARY = {
   },
   'personalDevelopment.completed': { en: '{completed} of {total} levels completed', de: '{completed} von {total} Leveln geschafft' },
   'personalDevelopment.noProgress': {
-    en: 'No progress yet — clear a level to start your history.',
-    de: 'Noch kein Fortschritt – schaffe ein Level, um deinen Verlauf zu starten.',
+    en: 'Nothing here yet — clear a level to start your history.',
+    de: 'Noch kein Eintrag – schaffe ein Level, um deinen Verlauf zu starten.',
   },
   'common.close': { en: 'Close', de: 'Schließen' },
   'common.page': { en: '{page} / {pages}', de: '{page} / {pages}' },
   'common.previous': { en: 'Previous', de: 'Zurück' },
   'common.next': { en: 'Next', de: 'Weiter' },
   'personalDevelopment.loadFailed': {
-    en: 'Could not load your progress. Please try again.',
-    de: 'Dein Fortschritt konnte nicht geladen werden. Bitte versuche es erneut.',
+    en: 'Could not load your training data. Please try again.',
+    de: 'Deine Trainingsdaten konnten nicht geladen werden. Bitte versuche es erneut.',
   },
   'profiles.defaultName': { en: 'Player 1', de: 'Spieler 1' },
   'profiles.title': { en: 'Family players', de: 'Spieler der Familie' },
   'profiles.playingAsLabel': { en: 'Playing as', de: 'Spieler' },
-  'profiles.progressForLabel': { en: 'Progress for', de: 'Fortschritt von' },
+  'profiles.progressForLabel': { en: 'Practice for', de: 'Training für' },
   'profiles.switchPlayer': { en: 'Switch player', de: 'Spieler wechseln' },
   'hud.status': { en: 'Game status', de: 'Spielstatus' },
   'hud.hearts': { en: 'Hearts', de: 'Herzen' },
@@ -114,7 +120,9 @@ const DICTIONARY = {
   'hud.incorrect': { en: 'Not quite', de: 'Noch nicht ganz' },
   'hud.timeout': { en: 'Time ran out', de: 'Zeit abgelaufen' },
   'nav.play': { en: 'Play', de: 'Spielen' },
-  'nav.progress': { en: 'Progress', de: 'Fortschritt' },
+  // The tab is the training hub (practice sessions plus personal bests), so it
+  // is named for what the player does there, not for the stored results.
+  'nav.progress': { en: 'Practice', de: 'Training' },
   'nav.players': { en: 'Players', de: 'Spieler' },
   'nav.levels': { en: 'Levels', de: 'Level' },
   'nav.leaderboard': { en: 'Ranking', de: 'Rangliste' },
@@ -150,6 +158,13 @@ const DICTIONARY = {
   'help.openAria': { en: 'Open help for this screen', de: 'Hilfe zu diesem Bildschirm öffnen' },
   'help.close': { en: 'Close help', de: 'Hilfe schließen' },
   'help.manual': { en: 'Read the full manual', de: 'Ganzes Handbuch lesen' },
+  // The manual is a real page: following the link leaves the game, so a live
+  // run cannot survive it. The help card shows this warning whenever a run is
+  // still unsaved.
+  'help.manualWarning': {
+    en: 'Opening the full manual ends this level: the progress of this run is lost.',
+    de: 'Das ganze Handbuch beendet dieses Level: Der Fortschritt dieses Durchgangs geht verloren.',
+  },
   'help.title.title': { en: 'Title screen', de: 'Startbildschirm' },
   'help.title.summary': { en: 'Choose a difficulty, then start a campaign level or a training session.', de: 'Wähle einen Schwierigkeitsgrad und starte dann ein Abenteuerlevel oder eine Übungseinheit.' },
   'help.title.tip1': { en: 'Levels 1–2 are free; one purchase unlocks levels 3–60.', de: 'Level 1–2 sind kostenlos; ein Kauf schaltet Level 3–60 frei.' },
@@ -170,7 +185,7 @@ const DICTIONARY = {
   'help.pause.tip1': { en: 'Back to game resumes exactly where you stopped.', de: 'Zurück zum Spiel macht genau dort weiter, wo du aufgehört hast.' },
   'help.pause.tip2': { en: 'Return to Title asks whether to save the reached score or discard it.', de: 'Zum Titel fragt, ob die erreichten Punkte gespeichert oder verworfen werden.' },
   'help.pause.tip3': { en: 'Save keeps the level unfinished; Discard records nothing.', de: 'Speichern lässt das Level unfertig; Verwerfen zeichnet nichts auf.' },
-  'help.progress.title': { en: 'Your progress', de: 'Dein Fortschritt' },
+  'help.progress.title': { en: 'Your training', de: 'Dein Training' },
   'help.progress.summary': { en: 'Per-level bests and how the total high score developed over time for the active player.', de: 'Level-Bestwerte und die Entwicklung des Gesamt-Highscores des aktiven Spielers.' },
   'help.progress.tip1': { en: 'Unfinished attempts are labelled and do not mark a level cleared.', de: 'Unfertige Versuche sind gekennzeichnet und schließen kein Level ab.' },
   'help.progress.tip2': { en: 'Only cleared levels unlock the next level.', de: 'Nur geschaffte Level schalten das nächste Level frei.' },

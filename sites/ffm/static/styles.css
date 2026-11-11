@@ -72,12 +72,18 @@ body {
   overflow-wrap: normal;
 }
 
+/* The reveal line is always reserved. Feedback only appears for a wrong
+ * answer or a timeout, but the header must not change height then: the
+ * playfield and the answer grid are laid out from the measured header (see
+ * viewport-layout.js), so a growing header would rescale the scene. */
 #gameplay-feedback {
   grid-column: 1 / -1;
+  min-height: 20px;
   font-weight: bold;
   overflow-wrap: normal;
 }
-#gameplay-feedback:empty, .gameplay-readouts > span:empty { display: none; }
+#gameplay-feedback:empty { visibility: hidden; }
+.gameplay-readouts > span:empty { display: none; }
 .gameplay-readouts {
   display: flex;
   flex-wrap: wrap;
@@ -1431,7 +1437,7 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   height: 100%;
 }
 .title-page { display: flex; flex-direction: column; gap: 6px; }
-.title-play { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.title-play { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
 .title-play-intro { display: grid; align-content: center; justify-items: center; gap: 6px; min-width: 0; }
 .splash-intro { font-size: 12px; line-height: 1.35; max-width: none; }
 .splash-subtitle { font-size: 13px; }
@@ -1459,6 +1465,45 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 }
 .diff-label { font-size: clamp(14px, 2.5vw, 22px); }
 .diff-detail { display: block; font-size: 12px; line-height: 1.2; color: #c5ccee; }
+/* Web only: the two store listings are announced before they are live, so the
+ * row is a quiet badge pair, not a call to action. The app build omits it. */
+.splash-store-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.splash-store-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid rgba(196, 154, 72, 0.45);
+  border-radius: 999px;
+  background: rgba(9, 20, 17, 0.45);
+  color: var(--ivory-muted);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: left;
+}
+/* Not in the stores yet: a dashed outline says "announced, not available".
+ * A live listing drops the modifier and becomes a solid link chip. */
+.splash-store-badge.store-badge--pending { border-style: dashed; }
+.splash-store-icon { flex: 0 0 auto; width: 18px; height: 18px; }
+/* Phones: both badges stay on one line only with the smaller chip metrics. */
+@media (max-width: 420px) {
+  .splash-store-badge {
+    gap: 4px;
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  .splash-store-icon { width: 16px; height: 16px; }
+}
 .player-identity { margin: 0; font-size: 14px; line-height: 1.2; overflow-wrap: anywhere; }
 .playing-as-row { display: flex; align-items: center; gap: 6px; min-width: 0; width: 100%; }
 .playing-as-row .player-identity { flex: 1; min-width: 0; }
@@ -1524,6 +1569,33 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   flex-shrink: 0;
 }
 .screen-pagination { margin-top: auto; }
+/* Paging controls draw a small brass triangle instead of showing a glyph, so
+ * the direction reads at a glance and in every language. The triangle is an
+ * empty pseudo-element: the button's spoken label stays "Previous page" /
+ * "Next page" and its text content stays empty. */
+.screen-pagination button, .profile-pagination button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+:is(.screen-pagination, .profile-pagination) button[data-page-direction]::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+:is(.screen-pagination, .profile-pagination) button[data-page-direction="previous"]::before {
+  border-right: 7px solid var(--brass-light);
+}
+:is(.screen-pagination, .profile-pagination) button[data-page-direction="next"]::before {
+  border-left: 7px solid var(--brass-light);
+}
+:is(.screen-pagination, .profile-pagination) button[data-page-direction]:disabled::before {
+  opacity: 0.4;
+}
 .splash-leaderboard {
   max-width: none;
   padding: 6px;
@@ -1705,8 +1777,15 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 }
 :root[data-viewport-compact="true"] .profile-form {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  /* Side by side, the caption above the name field would push the field below
+     the Save/Cancel row. Bottom-aligned actions line the buttons up with the
+     field's bottom edge at every width. */
+  align-items: end;
 }
-:root[data-viewport-compact="true"] .profile-form .profile-actions { flex-wrap: wrap; }
+:root[data-viewport-compact="true"] .profile-form .profile-actions {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
 :root[data-viewport-compact="true"] .title-play .splash-intro { display: none; }
 :root[data-viewport-compact="true"] .playing-as-row .player-identity { flex-basis: 100%; }
 :root[data-viewport-compact="true"] .playing-as-row strong {
@@ -1729,9 +1808,12 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 @media (orientation: landscape), (max-height: 400px) {
   .title-play {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
     align-items: stretch;
   }
+  /* The store badges belong to the whole page, not to either column. */
+  .title-play .splash-store-row { grid-column: 1 / -1; grid-row: 2; }
+  .splash-store-badge { min-height: 28px; padding: 3px 8px; font-size: 11px; }
   .splash-intro { font-size: 11px; }
   .splash-diff-buttons { height: 100%; grid-template-rows: repeat(2, minmax(44px, 128px)); }
   .title-play-intro { gap: 4px; }
@@ -1752,8 +1834,8 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   .profile-ui > .profile-actions { grid-column: 2; grid-row: 1; flex-direction: column; }
   .profile-status { grid-column: 1 / -1; grid-row: 2; }
   .profile-form, .profile-confirmation { grid-column: 1 / -1; grid-row: 1; }
-  .profile-form { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
-  .profile-form .profile-actions { flex-wrap: wrap; }
+  .profile-form { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: end; }
+  .profile-form .profile-actions { flex-wrap: wrap; align-items: flex-end; }
   .paywall-card, .parental-gate-card {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1929,16 +2011,52 @@ body { color: var(--ivory); }
   border: 1px solid var(--brass-deep);
 }
 .diff-btn:hover { background: linear-gradient(145deg, #386248, #214231); border-color: var(--brass-light); }
-.action-primary, #btn-next-level, #btn-resume-game, #btn-skill-intro-continue {
+/* Button hierarchy. Every button in the game is one of three tiers, so the
+ * important control on a screen is recognisable before the label is read:
+ *
+ *   primary  brass fill, a thicker 2px line and a diamond marker. One per
+ *            screen: start practice, resume, next level, save a score.
+ *   danger   red 2px line for the irreversible half of a confirmation:
+ *            discard a score, delete a player.
+ *   quiet    everything else (navigation tabs, pagination, secondary
+ *            actions): brass-deep hairline, muted label.
+ *
+ * The tier rules use :is() with one id each, so they also win over the
+ * element-qualified quiet rules below (e.g. .profile-ui button) without
+ * repeating the tier declarations for every host element. */
+:is(.action-primary, #btn-next-level, #btn-resume-game, #btn-pause-save, #btn-skill-intro-continue) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   background: linear-gradient(145deg, #d5b05c, #a77a34);
   color: #15140f;
-  border: 1px solid #f0d48b;
+  border: 2px solid #f7e2a4;
   font-weight: 700;
   text-shadow: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 8px rgba(0, 0, 0, 0.3);
 }
-.action-primary:hover, #btn-next-level:hover, #btn-resume-game:hover, #btn-skill-intro-continue:hover {
+:is(.action-primary, #btn-next-level, #btn-resume-game, #btn-pause-save, #btn-skill-intro-continue)::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: currentColor;
+  opacity: 0.55;
+}
+:is(.action-primary, #btn-next-level, #btn-resume-game, #btn-pause-save, #btn-skill-intro-continue):hover {
   background: linear-gradient(145deg, #ecd07d, #c09446);
+}
+:is(.action-danger, #btn-pause-discard) {
+  background: linear-gradient(145deg, #4a2620, #2c1613);
+  color: #ffd9d2;
+  border: 2px solid #d0675c;
+  font-weight: 700;
+}
+:is(.action-danger, #btn-pause-discard):hover {
+  background: linear-gradient(145deg, #5d2f27, #3a1d18);
+  border-color: #f0847a;
 }
 #btn-replay-level, #btn-retry-level, #btn-return-title, #btn-quit-game,
 #btn-skill-intro-skip { border-color: #9e895e; }
@@ -2179,6 +2297,10 @@ body:not(.legal-body) {
 .title-navigation button {
   font-family: system-ui, sans-serif;
   white-space: nowrap;
+  /* Six tabs (plus help) share the title width; a 2px side padding is what
+   * keeps an eight-character label like "Practice"/"Training" inside its
+   * button at 390px instead of spilling over the border. */
+  padding-inline: 2px;
 }
 
 @media (orientation: landscape) {
