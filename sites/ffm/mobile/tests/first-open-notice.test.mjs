@@ -276,6 +276,8 @@ test('an already-unlocked player is not offered the "What is free?" entries', as
     'a finished purchase removes them immediately');
   assert.match(main, /refreshEntitlement\(\)\.then\(\(\) => syncNoticeHelp\(\), \(\) => false\)/,
     'the launch and resume refreshes re-check the cache');
+  assert.match(main, /syncNoticeHelp\(\)\.then\(\(unlocked\) => \{\s*if \(unlocked\) return;/,
+    'the entries are revealed only after the status says locked, so an owner never sees them');
 });
 
 test('main.js, index.html and the modal focus helper wire the notice app-only', async () => {
