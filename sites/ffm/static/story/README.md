@@ -61,7 +61,12 @@ layer's depth plane, so they don't count towards the 3-4 planes.
 ## Voice-over (`narration/`)
 
 Every scene ships a recorded narrator. It is optional: a scene without a
-`narration/` folder plays silently on the authored cue times.
+`narration/` folder plays silently on the authored cue times, and locales are
+independent — the prologue is voiced in German and English, while the act
+openings are voiced in English only, because the German takes of those short
+lines did not sound German and were dropped (a German act opening reads on its
+authored cue times instead). The tests require an English voice-over on every
+scene and validate whichever other locales are present.
 
 ```
 scenes/<id>/narration/de/narration.mp3   single track, scene duration, mono, -2 dBFS

@@ -184,9 +184,19 @@ for (const id of sceneDirs) {
       }
     });
 
-    it('ships voice-over that matches its subtitles in every locale', () => {
-      for (const locale of LOCALES) {
-        const dir = join(scenesDir, id, 'narration', locale);
+    it('ships voice-over that matches its subtitles in every narrated locale', () => {
+      const narrationDir = join(scenesDir, id, 'narration');
+      const voicedLocales = existsSync(narrationDir)
+        ? readdirSync(narrationDir, { withFileTypes: true }).filter(entry => entry.isDirectory())
+          .map(entry => entry.name).sort()
+        : [];
+      // English carries every scene; a locale that is not voiced on purpose
+      // simply has no folder and plays on its authored cue times.
+      assert.ok(voicedLocales.includes('en'), `${id}: English voice-over missing`);
+      for (const locale of voicedLocales) assert.ok(LOCALES.includes(locale), `${id}: ${locale} is not a scene locale`);
+
+      for (const locale of voicedLocales) {
+        const dir = join(narrationDir, locale);
         const timingFile = join(dir, 'timing.json');
         assert.ok(existsSync(timingFile), `${id}/${locale}: narration/timing.json missing`);
         const timing = JSON.parse(readFileSync(timingFile, 'utf8'));
