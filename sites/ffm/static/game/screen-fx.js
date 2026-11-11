@@ -549,6 +549,27 @@ export function createScreenFx(options = {}) {
     return instance._paused;
   };
 
+  // Shake is computed once per frame and shared: the layer offsets its own
+  // particles with it, and the game reads the same value to move the canvas, so
+  // the sprites and the effects shake together instead of independently.
+  instance._computeShake = function computeShake() {
+    if (!instance._shake) {
+      instance._shakeOffset = { x: 0, y: 0 };
+      return instance._shakeOffset;
+    }
+    const decay = clamp01(instance._shake.time / (instance._shake.duration || 1));
+    const amplitude = instance._shake.amplitude * decay;
+    instance._shakeOffset = {
+      x: (Math.random() * 2 - 1) * amplitude,
+      y: (Math.random() * 2 - 1) * amplitude,
+    };
+    return instance._shakeOffset;
+  };
+
+  instance.getShakeOffset = function getShakeOffset() {
+    return instance._shakeOffset || { x: 0, y: 0 };
+  };
+
   instance.getDprTier = function getDprTier() {
     return instance._dpr;
   };
@@ -686,21 +707,15 @@ export function createScreenFx(options = {}) {
     layerCtx.clearRect(0, 0, cssW, cssH);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
-    const hasContent = instance._particles.length > 0 || instance._washes.length > 0 || instance._vignettes.length > 0;
+    const hasContent = instance._particles.length > 0 || instance._washes.length > 0
+      || instance._vignettes.length > 0 || Boolean(instance._shake);
     if (!hasContent) return;
 
     const map = instance.mapping();
-    let shakeX = 0;
-    let shakeY = 0;
-    if (instance._shake) {
-      const decay = clamp01(instance._shake.time / (instance._shake.duration || 1));
-      const amplitude = instance._shake.amplitude * decay;
-      shakeX = (Math.random() * 2 - 1) * amplitude;
-      shakeY = (Math.random() * 2 - 1) * amplitude;
-    }
+    const shake = instance._computeShake();
 
     layerCtx.save();
-    layerCtx.translate(map.offsetX + shakeX, map.offsetY + shakeY);
+    layerCtx.translate(map.offsetX + shake.x, map.offsetY + shake.y);
     layerCtx.scale(map.scale, map.scale);
     for (const particle of instance._particles) {
       if (instance._blendOf(particle) === 'source-over' && particle.type === 'smoke') instance._drawParticle(layerCtx, particle);

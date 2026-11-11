@@ -122,7 +122,7 @@ function layerCtx(canvases) {
 }
 
 test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a function', () => {
-  assert.equal(EFFECT_NAMES.length, 12);
+  assert.equal(EFFECT_NAMES.length, 13);
   const table = createEffectTable();
   // The four granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
@@ -282,4 +282,17 @@ test('the heal column reaches from above the viewport down to the hero', () => {
   const rects = layerCtx(canvases).calls.filter((call) => call.method === 'fillRect');
   assert.ok(rects.length > 0, 'the beam is drawn');
   assert.ok(rects.some((call) => call.args[1] < 0), 'a beam starts above the playfield top');
+});
+
+test('the heal charge cue grows with progress', () => {
+  const low = make();
+  low.fx.play('healCharge', { x: 110, y: 280, progress: 0.1 });
+  const lowCount = low.fx.getParticleCount();
+
+  const high = make();
+  high.fx.play('healCharge', { x: 110, y: 280, progress: 0.9 });
+  const highCount = high.fx.getParticleCount();
+
+  assert.ok(lowCount > 0, 'the cue spawns something as soon as the hold starts');
+  assert.ok(highCount > lowCount, 'it grows as the hold approaches the threshold');
 });

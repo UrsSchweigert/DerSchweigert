@@ -808,6 +808,10 @@ function spellLaunchPoint() {
 }
 // Must match Fireball's `life` (in entities.js) in milliseconds, so the hit
 // lands right as the sprite reaches the fiend instead of the instant it's cast.
+// The hero sprite is 150-160px tall, so its visual centre sits roughly 78px
+// above the ground line. Healing light is centred there rather than at the feet.
+const HERO_CENTRE_ABOVE_GROUND = 78;
+
 const FIREBALL_FLIGHT_MS = 1350;
 let currentProfile = null;
 let webScoreHistory = null;
@@ -2858,6 +2862,24 @@ function recordPracticeEncounterDefeated() {
 // Screen-FX geometry helpers. Reached through globalThis for the same reason as
 // the layer itself: several tests eval single functions out of this module in a
 // bare VM, where a module binding would throw and an absent global is a no-op.
+// Charge cue while hold-to-heal accumulates: a small green build-up that
+// follows the hero, throttled so it does not spawn a particle every frame.
+let healChargeAccum = 0;
+function emitHealCharge(holding, secondsHeld, dt) {
+  if (!holding || secondsHeld <= 0) {
+    healChargeAccum = 0;
+    return;
+  }
+  healChargeAccum += dt;
+  if (healChargeAccum < 0.12) return;
+  healChargeAccum = 0;
+  globalThis.ffmScreenFx?.play('healCharge', {
+    x: hero.x,
+    y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND,
+    progress: Math.min(1, secondsHeld / GAME_CONFIG.healHoldSecondsPerHeart),
+  });
+}
+
 globalThis.ffmFx = {
   // Centre of a fiend's visible sprite, so impacts land on the body rather than
   // at its feet or above its head. getHitBounds() is the box the projectiles
@@ -2987,7 +3009,7 @@ function handleCorrectAnswer(origin) {
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
       if (state.hearts > previousHearts) {
         audio.playHeal?.();
-        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - 30 });
+        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
       }
     }
   }
@@ -3172,7 +3194,7 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
   activeFiend._answerFeedback = timeout ? 'timeout' : 'incorrect';
   state.combo = 0;
   globalThis.ffmScreenFx?.play('wrongAnswer', origin ? { origin } : undefined);
-  globalThis.ffmScreenFx?.schedule(0.12, () => globalThis.ffmScreenFx?.play('heroHurt', { x: HERO_X, y: GROUND_Y - 30 }));
+  globalThis.ffmScreenFx?.schedule(0.12, () => globalThis.ffmScreenFx?.play('heroHurt', { x: HERO_X, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND }));
   hero.setState('hurt');
   activeFiend._redFlash = 0.5;  // red flash = wrong answer
   activeFiend.setState('attack');
@@ -3330,7 +3352,7 @@ function triggerWaveClear() {
   if (healed) {
     hero._healAura = GAME_CONFIG.healingAuraDuration;
     audio.playHeal?.();
-    globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - 30 });
+    globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
   }
   hud.update(state);
 
@@ -3565,7 +3587,21 @@ function gameLoop(ts) {
   const dt = frameDelta(ts, lastTs);
   lastTs = ts;
 
-  if (!paused && globalThis.ffmScreenFx?.isActive()) globalThis.ffmScreenFx?.frame(dt);
+  if (!paused && globalThis.ffmScreenFx?.isActive()) {
+    globalThis.ffmScreenFx?.frame(dt);
+    // Whole-screen shake: the canvas moves with the same offset the layer uses
+    // for its particles, plus a hair of scale so no gap shows at the edges.
+    const shake = globalThis.ffmScreenFx?.getShakeOffset?.();
+    const sx = shake ? shake.x : 0;
+    const sy = shake ? shake.y : 0;
+    if (sx || sy) {
+      canvas.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) scale(1.015)`;
+    } else if (canvas.style.transform) {
+      canvas.style.transform = '';
+    }
+  } else if (canvas.style.transform) {
+    canvas.style.transform = '';
+  }
 
   if (!paused) advanceGameplayTimers(dt);
 
@@ -3601,12 +3637,13 @@ function gameLoop(ts) {
       secondsPerHeart: GAME_CONFIG.healHoldSecondsPerHeart,
     });
     healHoldProgress = healResult.progress;
+    emitHealCharge(isHealHolding && canHeal, healHoldProgress, dt);
     if (healResult.healed) {
       const previousHearts = state.hearts;
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
       if (state.hearts > previousHearts) {
         audio.playHeal?.();
-        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - 30 });
+        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
       }
       hud.update(state);
     }

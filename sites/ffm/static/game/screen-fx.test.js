@@ -553,3 +553,18 @@ test('a viewport change reallocates the layer to the new size', () => {
   assert.notEqual(fx.canvas.width, initial, 'the backing store follows the viewport');
   assert.equal(fx.canvas.style.width, '400px');
 });
+
+test('the shake offset is exposed, bounded by the amplitude and decays to zero', () => {
+  const { fx } = make();
+  fx.shake(6, 0.2);
+  assert.deepEqual(fx.getShakeOffset(), { x: 0, y: 0 }, 'no offset before a frame is drawn');
+
+  fx.spark(0, 0, 0, 60, '#ffffff', 1);
+  fx.frame(1 / 60);
+  const offset = fx.getShakeOffset();
+  assert.ok(Math.abs(offset.x) <= 6 && Math.abs(offset.y) <= 6, 'bounded by the amplitude');
+  assert.ok(offset.x !== 0 || offset.y !== 0, 'the layer is actually shaking');
+
+  for (let i = 0; i < 30; i++) fx.frame(1 / 60);
+  assert.deepEqual(fx.getShakeOffset(), { x: 0, y: 0 }, 'it returns to rest when the shake expires');
+});

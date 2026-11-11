@@ -25,6 +25,7 @@ export const EFFECT_NAMES = [
   'gameOver',
   'dragonFinisher',
   'heal',
+  'healCharge',
   'swordGain',
 ];
 
@@ -248,25 +249,51 @@ function lightning(api, payload) {
   }
 }
 
+// Small, growing charge cue that tracks the hero while the hold-to-heal
+// accumulates. Deliberately quiet: it must not compete with a strike that may
+// be happening at the same moment.
+function healCharge(api, payload) {
+  const x = payload && payload.x !== undefined ? payload.x : 110;
+  const y = payload && payload.y !== undefined ? payload.y : 282;
+  const raw = payload && payload.progress !== undefined ? payload.progress : 0.5;
+  const p = Math.max(0, Math.min(1, raw));
+  const radius = 18 + 46 * p;
+  const motes = Math.max(1, Math.round(count(api, 2 + 4 * p)));
+  for (let i = 0; i < motes; i++) {
+    const angle = rand(0, TAU);
+    const r = rand(0.55, 1) * radius;
+    const px = x + Math.cos(angle) * r;
+    const py = y + Math.sin(angle) * r * 0.55;
+    api.mote(px, py, (x - px) * 1.6, (y - py) * 1.6 - 12, pick(PALETTES.green), rand(1.2, 1.8 + 1.4 * p));
+  }
+  api.ring(x, y, '#b6f08a', 4, 10 + 30 * p, 0.3, 1 + p);
+}
+
 function heal(api, payload) {
   const x = payload && payload.x !== undefined ? payload.x : 110;
   const y = payload && payload.y !== undefined ? payload.y : 282;
   // A column of light from above the viewport down onto the hero. Three beams
   // of different widths give it texture; embers and motes keep it moving.
-  const top = -80;
+  // Start above the viewport, not above the playfield: converting CSS y=0 into
+  // world space lets the column run from the very top of the screen down to the
+  // hero, crossing the HUD and the question row on the way.
+  const map = api.mapping ? api.mapping() : null;
+  const top = map && map.scale ? (-map.offsetY / map.scale) - 60 : -200;
   const span = y - top + 40;
-  api.beam(x, top, 70, span, '#7cf08a', 0.95, 0.85);
-  api.beam(x - 20, top, 18, span, '#eaffe0', 0.8, 0.6);
-  api.beam(x + 16, top, 11, span, '#b6f08a', 0.85, 0.5);
-  api.flash(x, y - 6, '#b6f08a', 38, 0.3, 0.7);
-  api.ring(x, y, '#b6f08a', 8, 96, 0.6, 3);
-  for (let i = 0; i < count(api, 12); i++) {
-    api.mote(x + rand(-34, 34), rand(top + 60, y), rand(-10, 10), rand(30, 90), pick(PALETTES.green), rand(1.6, 3.2));
+  api.beam(x, top, 100, span, '#7cf08a', 1.05, 1);
+  api.beam(x - 26, top, 30, span, '#eaffe0', 0.9, 0.8);
+  api.beam(x + 20, top, 18, span, '#b6f08a', 0.95, 0.65);
+  api.beam(x, top, 10, span, '#ffffff', 0.8, 0.55);
+  api.flash(x, y - 6, '#b6f08a', 52, 0.34, 0.85);
+  api.ring(x, y, '#b6f08a', 8, 120, 0.65, 4);
+  for (let i = 0; i < count(api, 18); i++) {
+    api.mote(x + rand(-44, 44), rand(top + 60, y), rand(-10, 10), rand(30, 90), pick(PALETTES.green), rand(1.8, 3.6));
   }
   for (let i = 0; i < count(api, 10); i++) {
     api.ember(x + rand(-26, 26), rand(y - 80, y), rand(-10, 10), rand(-70, -20), pick(PALETTES.green), rand(0.5, 1.1));
   }
   api.addVignette('#2f8f2a', 0, 0.22, 0.6);
+  api.shake(3.5, 0.3);
 }
 
 function swordGain(api, payload) {
@@ -353,12 +380,13 @@ function dragonFinisher(api, payload) {
       }
     });
     api.addWash('#cfefff', 0.08, 0.9);
-    api.shake(2, 0.9);
+    api.shake(4, 0.85);
   });
   api.schedule(1.2, () => {
     api.ring(origin.x, origin.y, '#cfefff', 20, 900, 0.8, 7);
     api.ring(origin.x, origin.y, '#7fd4ff', 10, 620, 0.6, 3);
     api.flash(origin.x, origin.y, '#ffffff', 60, 0.2, 0.55);
+    api.shake(8, 0.45);
     for (let i = 0; i < count(api, 16); i++) {
       api.spark(origin.x, origin.y, rand(0, TAU), rand(60, 280), pick(PALETTES.ice), rand(0.3, 0.7));
     }
@@ -384,6 +412,7 @@ export function createEffectTable() {
     gameOver,
     dragonFinisher,
     heal,
+    healCharge,
     swordGain,
     // Granular pieces: the game drives these per frame / per hit so the trail
     // and the blast stay locked to the real projectile rather than a guess.
