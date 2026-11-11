@@ -100,6 +100,18 @@ test('the committed shell carries the app icon and launch screen', async () => {
   assert.ok((await stat(join(root, 'ios/App/App/Base.lproj/LaunchScreen.storyboard'))).isFile());
 });
 
+test('the App target declares the In-App Purchase capability and no entitlements file', async () => {
+  const pbx = await text(PBXPROJ);
+  // Xcode records an added capability as SystemCapabilities on the app target,
+  // which is what makes Signing & Capabilities list it.
+  assert.match(pbx, /SystemCapabilities = \{\s*com\.apple\.InAppPurchase = \{\s*enabled = 1;\s*\};/);
+
+  // In-App Purchase has no entitlement key and is enabled by default on every
+  // explicit App ID, so no entitlements file belongs to the target.
+  assert.doesNotMatch(pbx, /CODE_SIGN_ENTITLEMENTS/);
+  await assert.rejects(stat(join(root, 'ios/App/App/App.entitlements')), { code: 'ENOENT' });
+});
+
 test('the open iOS shell gaps are escalated instead of silently accepted', async () => {
   const doc = await text('RELEASING.md');
   for (const phrase of ['In-App Purchase capability', 'silent switch', 'AVAudioSession', 'PENDING_MANUAL_GATES']) {

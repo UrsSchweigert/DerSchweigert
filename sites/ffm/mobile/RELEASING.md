@@ -257,8 +257,10 @@ producing a silently unsigned bundle.
 - **Play Console**: Paid Apps agreement signed, merchant account active,
   licence testers / sandbox accounts added for the internal track.
 - **App Store Connect**: create `arithmoslayer_full_unlock` with localised
-  metadata and a price tier, and enable the **In-App Purchase capability** on
-  the App target before the first sandbox test.
+  metadata and a price tier before the first sandbox test. The **In-App Purchase
+  capability** is already declared on the committed App target, so nothing has
+  to be enabled in Xcode or in the portal (see the note under open owner
+  actions).
 - Store listing: Education category, children in the audience, DE and EN text,
   screenshots, the bundled privacy notice URL or text.
 - Data safety: "Data not collected", no tracking, no ads, no analytics.
@@ -391,10 +393,16 @@ accounts) and stay open until the evidence above exists.
 - **Merged-manifest permission check.** Confirm BILLING, INTERNET and
   ACCESS_NETWORK_STATE arrive from Play Billing and that nothing else is
   declared; only the packaged manifest can show this.
-- **In-App Purchase capability (iOS).** It is not declared in the committed
-  `project.pbxproj` (`TargetAttributes` has no `com.apple.InAppPurchase`
-  entry). Enable the capability in Xcode for the App target; `project.pbxproj`
-  is owner-merged, so a worker records this instead of editing it.
+- **In-App Purchase capability (iOS).** The committed `project.pbxproj`
+  declares `SystemCapabilities` → `com.apple.InAppPurchase` for the App target,
+  so Xcode's Signing & Capabilities pane lists it as part of the target. Nothing
+  else is needed for signing: Apple's capability definition carries no
+  entitlement key and sets `enabledByDefault`, so every explicit App ID already
+  has In-App Purchase and the target deliberately has no `App.entitlements` file
+  or `CODE_SIGN_ENTITLEMENTS` setting. Enabling "StoreKit External Purchases or
+  Offers (EU)" is a different capability and must stay off. The remaining owner
+  actions are the App Store Connect product, the Paid Applications agreement and
+  the sandbox purchase in the gate checklist.
 - **iOS signing.** Team, bundle id registration for
   `de.derschweigert.arithmoslayer`, provisioning and distribution certificates,
   plus the App Store Connect app record. No signing secrets are defined for
