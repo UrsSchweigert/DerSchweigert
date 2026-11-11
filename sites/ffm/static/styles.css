@@ -2185,11 +2185,14 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   line-height: 1.25;
   color: var(--ivory);
 }
-/* The level hint sits under the level selector and spans the control column. */
+/* The level hint sits under the level selector and spans the control column.
+ * It is a one-line label for the chosen level, not running text, so it stays
+ * centred (the dialog-wide left alignment for passages does not apply to it). */
 #practice-level-hint {
   grid-column: 1 / -1;
   margin: 0 0 4px;
   color: var(--brass-light);
+  text-align: center;
 }
 #practice-level-hint:empty { display: none; }
 /* Back out of the submenu to the Training tab it belongs to. Quiet, full width,

@@ -166,6 +166,8 @@ test('the training tab explains the selected level from its authorized config', 
   assert.match(source, /onLocaleChange\(\(\) => \{[\s\S]*?updatePracticeLevelHint\(\)/);
   const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
   assert.match(css, /#practice-level-hint \{[^}]*grid-column: 1 \/ -1;/s);
+  assert.match(css, /#practice-level-hint \{[^}]*text-align: center;/s,
+    'the level explanation is a one-line label, so it stays centred under its selector');
   assert.match(css, /#practice-level-hint:empty \{ display: none; \}/);
 
   // Only one hint element: the web and app builds share the markup.
