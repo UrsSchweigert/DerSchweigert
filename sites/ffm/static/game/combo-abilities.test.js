@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { COMBO_ABILITY_RULES, pickComboAbility, getComboFrameBand, getComboRewardProgress } from './combo-abilities.js';
+import { COMBO_ABILITY_RULES, pickComboAbility, getComboFrameBand, getComboRewardProgress, isAbilityBandStart } from './combo-abilities.js';
 
 it('reward hints use the real strict thresholds and never promise a guaranteed dragon', () => {
   for (const [combo, ability, remaining, chance] of [
@@ -102,6 +102,20 @@ describe('getComboFrameBand', () => {
   it('returns dragon for combos above 20, regardless of ability roll outcome', () => {
     for (const combo of [21, 30, 100]) {
       assert.strictEqual(getComboFrameBand(combo), 'dragon');
+    }
+  });
+});
+
+describe('isAbilityBandStart', () => {
+  it('fires exactly once per band, on the first combo above each threshold', () => {
+    const starts = [];
+    for (let combo = 0; combo <= 30; combo++) if (isAbilityBandStart(combo)) starts.push(combo);
+    assert.deepEqual(starts, [6, 11, 21], 'fireball, lightning and dragon bands');
+  });
+
+  it('never treats a combo inside a band as a new band', () => {
+    for (const combo of [0, 5, 7, 10, 12, 20, 22]) {
+      assert.equal(isAbilityBandStart(combo), false, `combo ${combo}`);
     }
   });
 });

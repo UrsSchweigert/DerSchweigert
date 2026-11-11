@@ -17,6 +17,63 @@ const VICTORY_HYMN = './victory-hymn.mp3';
 const HYMN_MUSIC_DUCK = 0.3;
 const HYMN_DUCK_REASON = 'victory-hymn';
 
+// Bundled sound effects, relative to the bundle root (the game directory).
+// Every cue is a set of variants; a cue plays a different variant than its
+// previous turn, so the same hit answered twice never sounds machine-stamped.
+const SFX_DIR = 'sfx/';
+const CUE_VARIANTS = 3;
+export const FIEND_SFX_TYPES = Object.freeze([
+  'slimeling', 'bonehead', 'toadlord', 'magelitch', 'birdfoe', 'wolffoe', 'snakefoe',
+]);
+
+function cueFiles(base) {
+  return Object.freeze(Array.from({ length: CUE_VARIANTS }, (_, i) => `${base}-${i + 1}.mp3`));
+}
+
+export const SFX_CUES = Object.freeze({
+  'sword-slash': cueFiles('sword-slash'),
+  'hero-hurt': cueFiles('hero-hurt'),
+  'fire-cast': cueFiles('fire-cast'),
+  'fire-impact': cueFiles('fire-impact'),
+  'bolt-cast': cueFiles('bolt-cast'),
+  'bolt-impact': cueFiles('bolt-impact'),
+  'heal-charge': Object.freeze(['heal-charge-1.mp3']),
+  'heal-bloom': cueFiles('heal-bloom'),
+  'dragon-roar': cueFiles('dragon-roar'),
+  'answer-sparkle': cueFiles('answer-sparkle'),
+  'game-over': Object.freeze(['game-over-1.mp3']),
+  'win-pop': Object.freeze(['win-pop-1.mp3']),
+  'sword-gain': Object.freeze(['sword-gain-1.mp3']),
+  ...Object.fromEntries(FIEND_SFX_TYPES.flatMap(type => [
+    [`fiend-${type}-hit`, cueFiles(`fiend-${type}-hit`)],
+    [`fiend-${type}-death`, cueFiles(`fiend-${type}-death`)],
+  ])),
+});
+
+// Sample cues are mixed above their own level so they carry over the music and
+// the synth cues around them; the effects bus keeps its 0.4 headroom, so the
+// ceiling is the compressor, not the mixer.
+const SWORD_SLASH_GAIN = 1.6;
+const HERO_HURT_GAIN = 1.45;
+const SPELL_CAST_GAIN = 1.4;
+const SPELL_IMPACT_GAIN = 1.5;
+const DRAGON_ROAR_GAIN = 1.5;
+const HEAL_GAIN = 2.7;
+// The charge bed is deliberately quiet: it runs under a strike that may be
+// happening at the same moment. It grows with progress instead of starting loud.
+const HEAL_CHARGE_GAIN = 1.1;
+const HEAL_CHARGE_GAIN_RANGE = 0.9;
+const HEAL_CHARGE_RATE_RANGE = 0.45;
+// A glitter under the "yes" tones, not a cue of its own.
+const ANSWER_SPARKLE_GAIN = 0.5;
+const GAME_OVER_GAIN = 1.4;
+const WIN_POP_GAIN = 1.1;
+const SWORD_GAIN_GAIN = 1.2;
+// A fiend's own hit and death sit under the sword and the spell blast, so they
+// are mixed lower than the cues that carry the beat.
+const FIEND_HIT_GAIN = 1.2;
+const FIEND_DEATH_GAIN = 1.45;
+
 function volumeValue(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new TypeError('Volume must be a finite number');
@@ -28,8 +85,9 @@ export class AudioEngine {
   constructor({ tracks = null, manifestUrl = null, makeAudio = null, fetchManifest = null,
     levelMusic = null, levelMusicUrl = null, fetchLevelMusic = null, baseUrl,
     makeContext = null, musicGainRouting = false, fetchTrack = null, onMusicVolumeReady = null,
-    onMusicVolumeUnavailable = null } = {}) {
+    onMusicVolumeUnavailable = null, random = null } = {}) {
     this._ctx = null;
+    this._random = random ?? Math.random;
     this._makeContext = makeContext ?? (() => new (globalThis.AudioContext ?? globalThis.webkitAudioContext)());
     this._effectsVolume = 1;
     this._musicVolume = DEFAULT_VOLUME;
@@ -39,6 +97,15 @@ export class AudioEngine {
     this._musicDucks = new Map();
     this._victoryTask = null;
     this._victoryVoice = null;
+    // Decoded sound-effect buffers and the variants already played, keyed by
+    // file and by cue name respectively. A failed file is remembered so a
+    // missing asset does not refetch on every single hit.
+    this._cueBuffers = new Map();
+    this._cueTasks = new Map();
+    this._cueFailed = new Set();
+    this._cueLast = new Map();
+    this._fiendCueTypes = new Set();
+    this._healChargeVoice = null;
     this._effectsBus = null;
     this._musicBus = null;
     this._voices = new Set();
@@ -201,6 +268,20 @@ export class AudioEngine {
       this._effectsBus.connect(this._output);
       this._musicBus.connect(this._output);
       this._updateBusGains();
+      this._preloadCue('sword-slash');
+      this._preloadCue('hero-hurt');
+      this._preloadCue('fire-cast');
+      this._preloadCue('fire-impact');
+      this._preloadCue('bolt-cast');
+      this._preloadCue('bolt-impact');
+      this._preloadCue('heal-charge');
+      this._preloadCue('heal-bloom');
+      this._preloadCue('dragon-roar');
+      this._preloadCue('answer-sparkle');
+      this._preloadCue('game-over');
+      this._preloadCue('win-pop');
+      this._preloadCue('sword-gain');
+      this._fiendCueTypes.forEach(type => this._warmFiendCues(type));
     }
     if (this._ctx.state === 'suspended') {
       const resumed = this._ctx.resume();
@@ -467,6 +548,7 @@ export class AudioEngine {
       nodes.forEach(node => node.disconnect());
       this._voices.delete(voice);
     };
+    return voice;
   }
 
   // A short attack and an exponential release keep a cue from starting or
@@ -506,6 +588,9 @@ export class AudioEngine {
     const t = this._ctx.currentTime;
     this._playTone(523, 'sine', 0.09, t, 0.12);
     this._playTone(659, 'triangle', 0.1, t + 0.07, 0.1);
+    // Glitter on top of the tones rather than instead of them: the two rising
+    // tones are the answer being right, the sparkle is the reward.
+    this._playCue('answer-sparkle', { gain: ANSWER_SPARKLE_GAIN });
   }
 
   playWrong() {
@@ -527,6 +612,9 @@ export class AudioEngine {
   playHeal() {
     this._ensureCtx();
     if (this._muted) return;
+
+    if (this._playCue('heal-bloom', { gain: HEAL_GAIN })) return;
+
     const t = this._ctx.currentTime;
     [392, 494, 587].forEach((f, i) => this._playTone(f, 'sine', 0.16, t + i * 0.09, 0.14));
   }
@@ -629,13 +717,126 @@ export class AudioEngine {
     });
   }
 
+  // A bundle file is fetched and decoded once. The cache is keyed per file, so
+  // variants of one cue load independently and a cue that is not used stays
+  // unfetched. Failures are remembered for the session: retrying a missing
+  // asset on every hit would only flood the console and the network.
+  _loadCueFile(file) {
+    if (this._cueBuffers.has(file)) return Promise.resolve(this._cueBuffers.get(file));
+    if (this._cueFailed.has(file)) return Promise.resolve(null);
+    if (this._cueTasks.has(file)) return this._cueTasks.get(file);
+    const ctx = this._ctx;
+    if (!ctx || typeof ctx.decodeAudioData !== 'function' || !this._fetchTrack) {
+      return Promise.resolve(null);
+    }
+    const task = this._loadTrackBytes(`${SFX_DIR}${file}`)
+      .then(bytes => ctx.decodeAudioData(bytes))
+      .then(
+        buffer => {
+          this._cueTasks.delete(file);
+          this._cueBuffers.set(file, buffer);
+          return buffer;
+        },
+        error => {
+          this._cueTasks.delete(file);
+          this._cueFailed.add(file);
+          console.warn(`Sound effect ${file} unavailable; using the synth cue:`, error);
+          return null;
+        },
+      );
+    this._cueTasks.set(file, task);
+    return task;
+  }
+
+  _preloadCue(cue) {
+    (SFX_CUES[cue] ?? []).forEach(file => this._loadCueFile(file));
+  }
+
+  _warmFiendCues(type) {
+    this._preloadCue(`fiend-${type}-hit`);
+    this._preloadCue(`fiend-${type}-death`);
+  }
+
+  /**
+   * Warm a fiend type's hit and death cues when it first walks in, so the first
+   * kill of a type already carries its own sound instead of the synth cue.
+   * Unknown types are ignored: they fall back to the generic cues.
+   */
+  prepareFiend(type) {
+    if (!FIEND_SFX_TYPES.includes(type)) return;
+    this._fiendCueTypes.add(type);
+    if (this._ctx) this._warmFiendCues(type);
+  }
+
+  // Picks the next variant of a cue, never the one that just played, so a
+  // three-variant cue cannot repeat itself back to back.
+  _nextCueFile(cue) {
+    const files = SFX_CUES[cue];
+    if (!files || files.length === 0) return null;
+    const last = this._cueLast.get(cue);
+    let index = Math.floor(this._random() * files.length);
+    if (files.length > 1 && index === last) index = (index + 1) % files.length;
+    this._cueLast.set(cue, index);
+    return files[index];
+  }
+
+  // Returns false when the chosen variant is not decoded yet (the load is
+  // started) or cannot be loaded, which is the caller's cue to synthesize.
+  _playCue(cue, { gain = 1, delay = 0 } = {}) {
+    if (this._muted) return false;
+    const file = this._nextCueFile(cue);
+    if (!file) return false;
+    const buffer = this._cueBuffers.get(file);
+    if (!buffer) {
+      this._loadCueFile(file);
+      return false;
+    }
+    this._playSample(buffer, { gain, delay });
+    return true;
+  }
+
+  _playSample(buffer, { gain = 1, delay = 0, loop = false } = {}) {
+    const start = this._ctx.currentTime + Math.max(0, delay);
+    const source = this._ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = loop;
+    const gainNode = this._ctx.createGain();
+    gainNode.gain.setValueAtTime(gain, start);
+    source.connect(gainNode);
+    gainNode.connect(this._effectsBus);
+    const voice = this._trackVoice(source, [source, gainNode]);
+    voice.gain = gainNode;
+    source.start(start);
+    return voice;
+  }
+
+  /**
+   * The hit cue: one of the bundled slash variants, and the synth swish until
+   * they are decoded (or for good when they cannot be loaded), so a hit is
+   * never silent.
+   */
   playSwordSwing() {
     this._ensureCtx();
     if (this._muted) return;
-    
+
+    if (this._playCue('sword-slash', { gain: SWORD_SLASH_GAIN })) return;
+
     this._playNoiseBurst(0.06, this._ctx.currentTime, 0.2, 2400, 'bandpass', 900, 2);
-    
+
     this._playTone(1200, 'square', 0.05, this._ctx.currentTime + 0.05);
+  }
+
+  /**
+   * A fiend's own impact when the blade lands but it survives. `type` is the
+   * fiend type key from levels.js; an unknown type keeps the shared crack.
+   */
+  playFiendHit(type) {
+    this._ensureCtx();
+    if (this._muted) return;
+
+    if (this._playCue(`fiend-${type}-hit`, { gain: FIEND_HIT_GAIN })) return;
+
+    this._playImpactCrack(this._ctx.currentTime, 0.25, 3000, 'bandpass');
   }
 
   _playSweep(freqStart, freqEnd, type, duration, startTime, gain = 0.3) {
@@ -702,9 +903,15 @@ export class AudioEngine {
     this._playNoiseBurst(0.035, startTime, gain, filterFreq, filterType);
   }
 
+  /**
+   * A fireball leaving the hero's hand. The sample runs as long as the
+   * projectile is in the air (1.35 s of flight), so the launch covers the
+   * travel instead of blipping once; the impact cue picks up where it ends.
+   */
   playFireballCast() {
     this._ensureCtx();
     if (this._muted) return;
+    if (this._playCue('fire-cast', { gain: SPELL_CAST_GAIN })) return;
     const t = this._ctx.currentTime;
     // A fast, narrow bandpass sweep reads as a real air-splitting "swish"
     // rather than plain hiss; a rising pitched sawtooth underneath gives the
@@ -713,9 +920,14 @@ export class AudioEngine {
     this._playSweep(250, 720, 'sawtooth', 0.2, t, 0.16);
   }
 
+  /**
+   * A fireball landing: one of the three blast samples, with the layered synth
+   * impact until they are decoded (or for good when they cannot be loaded).
+   */
   playFireballHit() {
     this._ensureCtx();
     if (this._muted) return;
+    if (this._playCue('fire-impact', { gain: SPELL_IMPACT_GAIN })) return;
     const t = this._ctx.currentTime;
     // Layered impact: an instant crack transient for the "smack", a fast
     // pitch-drop thump for punch, and a rumbling boom tail for weight.
@@ -724,9 +936,13 @@ export class AudioEngine {
     this._playNoiseBurst(0.4, t, 0.35, 1000, 'lowpass');
   }
 
+  /**
+   * A lightning bolt leaving the hero's hand, sized to its 0.46 s flight.
+   */
   playLightningCast() {
     this._ensureCtx();
     if (this._muted) return;
+    if (this._playCue('bolt-cast', { gain: SPELL_CAST_GAIN })) return;
     const t = this._ctx.currentTime;
     // Bright, fast bandpass sweep for the "zzzt" swish, plus a jittery
     // descending buzz to sell the electric crackle.
@@ -734,9 +950,14 @@ export class AudioEngine {
     this._playSweep(2800, 500, 'square', 0.14, t, 0.15);
   }
 
+  /**
+   * A lightning strike landing: one of the three crack samples, with the synth
+   * snap and thunder until they are decoded (or for good when they cannot be).
+   */
   playLightningHit() {
     this._ensureCtx();
     if (this._muted) return;
+    if (this._playCue('bolt-impact', { gain: SPELL_IMPACT_GAIN })) return;
     const t = this._ctx.currentTime;
     // A sharp snap transient reads as the electric strike, backed by a
     // short thunderclap rumble for impact weight.
@@ -748,6 +969,9 @@ export class AudioEngine {
   playDragonRoar() {
     this._ensureCtx();
     if (this._muted) return;
+
+    if (this._playCue('dragon-roar', { gain: DRAGON_ROAR_GAIN })) return;
+
     const t = this._ctx.currentTime;
     // Deep, descending guttural tones with a rumbling noise bed.
     this._playTone(140, 'sawtooth', 0.5, t, 0.3);
@@ -765,17 +989,89 @@ export class AudioEngine {
     this._playNoiseBurst(0.5, t, 0.3, 2500, 'highpass');
   }
 
-  playEnemyDeath() {
+  /**
+   * Hold-to-heal charge: one looping bed that starts with the hold, climbs in
+   * pitch and level as the charge grows, and stops on release. `progress` is
+   * 0..1, or null/0 to stop. Safe to call every frame.
+   */
+  setHealCharge(progress) {
+    if (progress === null || progress === undefined || !(progress > 0)) {
+      this.stopHealCharge();
+      return;
+    }
     this._ensureCtx();
     if (this._muted) return;
+    const amount = Math.min(1, progress);
+    const existing = this._healChargeVoice;
+    const voice = existing && this._voices.has(existing) ? existing : this._startHealCharge();
+    if (!voice) return;
+    this._setParam(voice.source.playbackRate, 1 + HEAL_CHARGE_RATE_RANGE * amount);
+    this._setParam(voice.gain.gain, HEAL_CHARGE_GAIN + HEAL_CHARGE_GAIN_RANGE * amount);
+  }
+
+  // One bed at a time: the charge is a state, not an event, so repeated frames
+  // must never stack a second loop on top of the first.
+  _startHealCharge() {
+    const buffer = this._cueBuffers.get('heal-charge-1.mp3');
+    if (!buffer) {
+      this._loadCueFile('heal-charge-1.mp3');
+      return null;
+    }
+    const voice = this._playSample(buffer, { gain: HEAL_CHARGE_GAIN, loop: true });
+    this._healChargeVoice = voice;
+    return voice;
+  }
+
+  stopHealCharge() {
+    const voice = this._healChargeVoice;
+    this._healChargeVoice = null;
+    if (!voice) return;
+    this._voices.delete(voice);
+    try {
+      voice.source.stop();
+    } catch {
+      // Already stopped.
+    }
+    voice.nodes.forEach(node => {
+      try {
+        node.disconnect();
+      } catch {
+        // Already released.
+      }
+    });
+  }
+
+  _setParam(param, value) {
+    if (!param) return;
+    if (typeof param.setValueAtTime === 'function') param.setValueAtTime(value, this._ctx.currentTime);
+    else param.value = value;
+  }
+
+  /**
+   * The defeat cue for a fiend type, falling back to the generic synth descent
+   * while the type's samples load (or when the type is unknown).
+   */
+  playEnemyDeath(type) {
+    this._ensureCtx();
+    if (this._muted) return;
+
+    if (type && this._playCue(`fiend-${type}-death`, { gain: FIEND_DEATH_GAIN })) return;
+
     const t = this._ctx.currentTime;
     [660, 550, 440, 330].forEach((f, i) => this._playTone(f, 'square', 0.05, t + i * 0.06));
   }
 
-  playHeroHurt() {
+  /**
+   * The hero taking a hit. `delay` lets main.js land the cue with the strike
+   * animation instead of on the answer beep itself.
+   */
+  playHeroHurt(delay = 0) {
     this._ensureCtx();
     if (this._muted) return;
-    const t = this._ctx.currentTime;
+
+    if (this._playCue('hero-hurt', { gain: HERO_HURT_GAIN, delay })) return;
+
+    const t = this._ctx.currentTime + Math.max(0, delay);
     this._playTone(80, 'sine', 0.2, t, 0.4);
     this._playTone(220, 'triangle', 0.15, t + 0.05, 0.2);
   }
@@ -788,9 +1084,27 @@ export class AudioEngine {
     notes.forEach((f, i) => this._playTone(f, 'square', 0.08, t + i * 0.1));
   }
 
+  // The confetti pop that lands with the levelWon burst, under the hymn.
+  playWinPop() {
+    this._ensureCtx();
+    if (this._muted) return;
+    this._playCue('win-pop', { gain: WIN_POP_GAIN });
+  }
+
+  // The combo just reached a new ability band: the sword answers with a chime
+  // before the spell that band unlocks.
+  playSwordGain() {
+    this._ensureCtx();
+    if (this._muted) return;
+    this._playCue('sword-gain', { gain: SWORD_GAIN_GAIN });
+  }
+
   playGameOver() {
     this._ensureCtx();
     if (this._muted) return;
+
+    if (this._playCue('game-over', { gain: GAME_OVER_GAIN })) return;
+
     const notes = [440, 392, 349, 330, 294, 261];
     const t = this._ctx.currentTime;
     notes.forEach((f, i) => this._playTone(f, 'sawtooth', 0.12, t + i * 0.15));
@@ -901,15 +1215,17 @@ export class AudioEngine {
     this._rotation.start(this._musicSession.chapter ?? null);
   }
 
+  // Fetches any bundled audio file (music track, hymn or sound effect) as
+  // bytes; the caller decodes it.
   _loadTrackBytes(file) {
     const url = new URL(file, this._musicBaseUrl).href;
-    if (!this._fetchTrack) return Promise.reject(new Error('No fetch available for bundled music'));
+    if (!this._fetchTrack) return Promise.reject(new Error('No fetch available for bundled audio'));
     // A full byte range is what answers with a real body on the capacitor:
     // scheme; status 0 stays accepted for older shells.
     return Promise.resolve(this._fetchTrack(url, { headers: { Range: 'bytes=0-' } }))
       .then(response => {
         if (!response || (response.ok === false && response.status !== 0)) {
-          throw new Error(`bundled music ${response?.status ?? 'unavailable'}`);
+          throw new Error(`bundled audio ${response?.status ?? 'unavailable'}`);
         }
         return response.arrayBuffer();
       });
