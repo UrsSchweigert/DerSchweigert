@@ -2130,6 +2130,10 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 .compact-disclosure > summary {
   display: flex;
   align-items: center;
+  /* Every disclosure label is centred in its bar: the summary is a button, and
+   * its text should read like the button label it is (practice sessions and
+   * audio settings share this rule). */
+  justify-content: center;
   min-height: 44px;
   padding: 4px 10px;
   color: var(--brass-light);
@@ -2165,6 +2169,15 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 #practice-description, #practice-unscored, #practice-badges, #practice-status, #btn-start-practice, #music-volume-status {
   grid-column: 1 / -1;
 }
+/* The level hint sits under the level selector and spans the control column. */
+#practice-level-hint {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--brass-light);
+}
+#practice-level-hint:empty { display: none; }
 #practice-badges { min-width: 0; overflow-wrap: anywhere; color: var(--brass-light); }
 #practice-status, #music-volume-status { font-size: 14px; line-height: 1.3; }
 #practice-description, #practice-unscored {
@@ -2188,7 +2201,6 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   margin-inline: auto;
 }
 #audio-settings { width: 100%; align-self: center; }
-#audio-settings > summary { justify-content: center; }
 /* Match the disclosure summary to the pause buttons it sits under. */
 #pause-overlay .compact-disclosure > summary {
   box-sizing: border-box;

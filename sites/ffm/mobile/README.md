@@ -182,7 +182,11 @@ layers cannot intercept controls. Interface words remain intact; sentences may w
 at spaces, and compact navigation uses a proportional font to fit complete labels.
 Both website and app show the selected starting level as hand-drawn, illuminated
 SVG numerals in the title's upper-left corner, with a localized accessible label.
-The Practice tab (German: Training) explains the selected training mode beside its selector. In the app,
+The Practice tab (German: Training) explains the selected training mode beside its selector and names the
+selected level's arithmetic in one line ("Level 15: addition and subtraction, results up to 20 · 10 answer
+choices"), read from the same authorized level config the session runs on, so it cannot drift from the
+curriculum; a locked level says so instead of inventing a summary. Disclosure labels ("Practice sessions",
+"Audio settings") are centred in their bars. In the app,
 player-name editing and deletion hide purchase/notice content until the stage
 closes. Terms navigation and manual navigation use stacked forest/brass buttons;
 the manual offers a game-return action above its contents and at the bottom.
