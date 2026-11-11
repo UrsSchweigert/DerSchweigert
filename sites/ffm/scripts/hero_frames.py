@@ -81,7 +81,8 @@ GENERATED_POSES: list[dict] = [
     # pixel. Measured and corrected against the frame each pose derives from.
     # The cast pose was drawn facing away from the fight; the game always faces
     # the fiend on the right, so the frame is mirrored on the way in.
-    {"file": "cast.png", "id": "cast", "match": (0, 1), "strip_shadow": True, "flip": True},
+    # upright pose: match the idle frame's total height, not just the head
+    {"file": "cast.png", "id": "cast", "match_height": (0, 1), "strip_shadow": True, "flip": True},
     {"file": "swing-impact.png", "id": "swing-impact", "scale": 0.172, "strip_shadow": True},
     # `match` names the sheet pose whose head size this frame must adopt; the
     # scale is measured at build time (hair-height ratio), so a generated pose
@@ -246,7 +247,12 @@ def _generated_frame(spec: dict) -> tuple[Image.Image, Image.Image] | None:
     if spec.get("flip"):
         image = image.transpose(Image.FLIP_LEFT_RIGHT)
     scale = spec.get("scale")
-    if spec.get("match"):
+    if spec.get("match_height"):
+        reference = _sheet_frame(*spec["match_height"])
+        ref_h = int(np.ptp(np.nonzero(np.array(reference)[:, :, 3] > 128)[0])) + 1
+        got_h = int(np.ptp(np.nonzero(np.array(image)[:, :, 3] > 128)[0])) + 1
+        scale = ref_h / got_h if got_h else scale
+    elif spec.get("match"):
         reference = _sheet_frame(*spec["match"])
         ref_hair, hair = _hair_height(reference), _hair_height(image)
         scale = (ref_hair / hair) if hair else scale

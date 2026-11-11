@@ -19,5 +19,5 @@ export const HERO_FRAMES = {
   'dead': { x: 0, y: 477, w: 189, h: 81, px: 116, py: 80 },
   'victory-raise': { x: 191, y: 477, w: 128, h: 195, px: 64, py: 194 },
   'victory-plant': { x: 321, y: 477, w: 142, h: 181, px: 70, py: 180 },
-  'cast': { x: 0, y: 674, w: 129, h: 123, px: 74, py: 122 },
+  'cast': { x: 0, y: 674, w: 175, h: 167, px: 100, py: 166 },
 };
