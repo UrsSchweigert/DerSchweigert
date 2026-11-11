@@ -522,3 +522,34 @@ test('every particle is spawned at the shared size scale', () => {
   assert.equal(ember.size, 3 * PARTICLE_SIZE_SCALE);
   assert.ok(PARTICLE_SIZE_SCALE > 1, 'the layer reads larger than the authored unit scale');
 });
+
+test('frame re-measures the playfield so effects follow a resized layout', () => {
+  const env = fixture();
+  const fx = createScreenFx({ document: env.doc });
+  const before = fx.mapping();
+  assert.equal(before.scale, 1);
+
+  env.playfield.left = 100;
+  env.playfield.top = 50;
+  env.playfield.width = 400;
+  env.playfield.height = 225;
+
+  fx.frame(1 / 60);
+  const after = fx.mapping();
+  assert.equal(after.width, 400);
+  assert.equal(after.scale, 0.5);
+  assert.equal(after.offsetX, 100);
+  assert.equal(after.offsetY, 50);
+  assert.deepEqual(fx.worldToScreen(400, 225), { x: 300, y: 162.5 });
+});
+
+test('a viewport change reallocates the layer to the new size', () => {
+  const env = fixture();
+  const fx = createScreenFx({ document: env.doc });
+  const initial = fx.canvas.width;
+  env.doc.documentElement.clientWidth = 400;
+  env.doc.documentElement.clientHeight = 300;
+  fx.frame(1 / 60);
+  assert.notEqual(fx.canvas.width, initial, 'the backing store follows the viewport');
+  assert.equal(fx.canvas.style.width, '400px');
+});

@@ -345,6 +345,23 @@ export function createScreenFx(options = {}) {
         ctx.fill();
         break;
       }
+      case 'beam': {
+        const halfWidth = particle.size / 2;
+        const span = particle.height || 200;
+        const gradient = ctx.createLinearGradient(particle.x, particle.y, particle.x, particle.y + span);
+        gradient.addColorStop(0, withAlpha(color, 0.75));
+        gradient.addColorStop(0.6, withAlpha(color, 0.4));
+        gradient.addColorStop(1, withAlpha(color, 0));
+        ctx.fillStyle = gradient;
+        ctx.fillRect(particle.x - halfWidth, particle.y, particle.size, span);
+        // Brighter inner shafts give the column a streaked, textured read
+        // instead of a flat rectangle of light.
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.fillStyle = withAlpha(color, 0.55);
+        ctx.fillRect(particle.x - halfWidth * 0.45, particle.y, particle.size * 0.18, span * 0.9);
+        ctx.fillRect(particle.x + halfWidth * 0.2, particle.y, particle.size * 0.1, span * 0.78);
+        break;
+      }
       case 'smoke': {
         const radius = Math.max(1, particle.size * (1 + (1 - lifeFactor) * 0.8));
         ctx.fillStyle = color;
@@ -452,6 +469,25 @@ export function createScreenFx(options = {}) {
     instance._smallCtx = instance._small.getContext('2d');
     instance._blurACtx = instance._blurA.getContext('2d');
     instance._blurBCtx = instance._blurB.getContext('2d');
+  };
+
+  // The playfield moves and resizes (window resize, orientation change, the HUD
+  // hiding), so the layer re-measures before every frame. Without this the
+  // canvas kept its construction-time size and every effect drifted away from
+  // the sprites as soon as the viewport changed.
+  instance._syncLayout = function syncLayout() {
+    if (instance._destroyed) return;
+    const viewport = instance._viewportSize();
+    if (viewport.width !== instance._cssW || viewport.height !== instance._cssH) {
+      instance.resize();
+      return;
+    }
+    const rect = instance._readRect();
+    const current = instance._rect;
+    if (!current || rect.left !== current.left || rect.top !== current.top
+      || rect.width !== current.width || rect.height !== current.height) {
+      instance._rect = rect;
+    }
   };
 
   instance.mapping = function mapping() {
@@ -707,6 +743,7 @@ export function createScreenFx(options = {}) {
   };
 
   instance.frame = function frame(dtSeconds) {
+    instance._syncLayout();
     instance.step(dtSeconds);
     instance.render();
   };
@@ -824,6 +861,24 @@ export function createScreenFx(options = {}) {
       life: duration,
       maxLife: duration,
       radius: radius || 30,
+      color,
+      alpha: (alpha !== undefined ? alpha : 1) * instance._alphaScale(),
+      blend: 'lighter',
+    });
+  };
+
+  instance.beam = function beam(x, y, width, height, color, durationSeconds, alpha) {
+    const duration = durationSeconds || 0.9;
+    return instance._addParticle({
+      type: 'beam',
+      x,
+      y,
+      size: width,
+      // A beam spans a distance rather than being a sprite, so its height is
+      // authored in world units and deliberately not scaled with particle size.
+      height,
+      life: duration,
+      maxLife: duration,
       color,
       alpha: (alpha !== undefined ? alpha : 1) * instance._alphaScale(),
       blend: 'lighter',
@@ -980,6 +1035,7 @@ export function createScreenFx(options = {}) {
   instance.destroy = function destroy() {
     if (instance._destroyed) return;
     instance._destroyed = true;
+    instance._detachViewport?.();
     const canvas = instance.canvas;
     if (canvas && canvas.parentNode && typeof canvas.parentNode.removeChild === 'function') {
       canvas.parentNode.removeChild(canvas);
@@ -995,6 +1051,19 @@ export function createScreenFx(options = {}) {
     instance._timers = [];
     instance._emitters = [];
   };
+
+  // Re-measure on viewport changes even while no effect is running, so the next
+  // one starts from current geometry rather than the previous size.
+  const view = (doc && doc.defaultView) || (typeof globalThis !== 'undefined' ? globalThis : null);
+  const onViewportChange = () => instance._syncLayout();
+  instance._detachViewport = function detachViewport() {
+    view?.removeEventListener?.('resize', onViewportChange);
+    view?.removeEventListener?.('orientationchange', onViewportChange);
+    view?.visualViewport?.removeEventListener?.('resize', onViewportChange);
+  };
+  view?.addEventListener?.('resize', onViewportChange);
+  view?.addEventListener?.('orientationchange', onViewportChange);
+  view?.visualViewport?.addEventListener?.('resize', onViewportChange);
 
   instance.resize();
 
