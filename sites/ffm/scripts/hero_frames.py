@@ -15,7 +15,8 @@ grid and packs by content instead:
     there is still a single image request.
 
 Sources
-  The pixel master is `static/game/hero-spritesheet-clean.png` (6 states x 4
+  The pixel master is `static/game/source-assets/hero-spritesheet-clean.png`
+  (6 states x 4
   poses). Only poses that are drawn at the master's native scale are used; the
   sheet also contains a few poses that were shrunk during the old packing and
   those are rejected by the SCALE check below rather than shipped.
@@ -42,7 +43,7 @@ from PIL import Image
 
 FFM_ROOT = Path(__file__).resolve().parents[1]
 GAME = FFM_ROOT / "static" / "game"
-MASTER_SHEET = GAME / "hero-spritesheet-clean.png"
+MASTER_SHEET = GAME / "source-assets" / "hero-spritesheet-clean.png"
 POSE_DIR = GAME / "source-assets" / "hero-poses"
 OUT_ATLAS = GAME / "hero" / "hero-atlas.webp"
 OUT_META = GAME / "hero" / "hero-frames.js"

@@ -595,7 +595,7 @@ the old fixed 6x4 sprite grid:
 
 - `sites/ffm/scripts/hero_frames.py` builds `static/game/hero/hero-atlas.webp`
   and `static/game/hero/hero-frames.js` (per-frame rect + foot pivot) out of
-  `static/game/hero-spritesheet-clean.png` and the generated poses in
+  `static/game/source-assets/hero-spritesheet-clean.png` and the generated poses in
   `static/game/source-assets/hero-poses/`. Frames are extracted as their largest
   connected blob, so a neighbouring pose can never bleed into a frame, and each
   frame carries an explicit foot contact point instead of one hand-tuned offset.
