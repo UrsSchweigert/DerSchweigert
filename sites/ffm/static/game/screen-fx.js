@@ -127,6 +127,8 @@ export function createScreenFx(options = {}) {
     _shake: null,
     _washTimes: [],
     _dtBuffer: [],
+    _timers: [],
+    _emitters: [],
 
     _rect: { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT },
     _cssW: WORLD_WIDTH,
@@ -508,12 +510,87 @@ export function createScreenFx(options = {}) {
     return instance._particles.length;
   };
 
+  instance.countScale = function countScale() {
+    return instance._countScale();
+  };
+
+  instance.alphaScale = function alphaScale() {
+    return instance._alphaScale();
+  };
+
+  instance.setEffects = function setEffects(map) {
+    if (!map || typeof map !== 'object') return;
+    instance._effects = map;
+  };
+
+  instance.schedule = function schedule(seconds, fn) {
+    if (instance._destroyed) return null;
+    const delay = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+    const timer = { at: instance._time + delay, fn };
+    instance._timers.push(timer);
+    return timer;
+  };
+
+  instance.emitter = function emitter(seconds, ratePerSecond, fn) {
+    if (instance._destroyed) return null;
+    const duration = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+    const rate = Math.max(0, Number.isFinite(ratePerSecond) ? ratePerSecond : 0);
+    if (duration <= 0 || rate <= 0) return null;
+    const emitter = { remaining: duration, duration, rate, fn, carry: 0, fired: 0 };
+    instance._emitters.push(emitter);
+    return emitter;
+  };
+
+  instance._advanceScheduler = function advanceScheduler(dt) {
+    const dueTimers = [];
+    instance._timers = instance._timers.filter((timer) => {
+      if (timer.at <= instance._time) {
+        dueTimers.push(timer);
+        return false;
+      }
+      return true;
+    });
+    for (const timer of dueTimers) timer.fn();
+
+    const expired = [];
+    const emitters = instance._emitters.slice();
+    for (const emitter of emitters) {
+      emitter.remaining -= dt;
+      emitter.carry += emitter.rate * dt;
+      const ticks = Math.floor(emitter.carry);
+      emitter.carry -= ticks;
+      if (ticks > 0) {
+        const duration = emitter.duration > 0 ? emitter.duration : 1;
+        const progress = clamp01(1 - Math.max(0, emitter.remaining) / duration);
+        for (let i = 0; i < ticks; i++) {
+          emitter.fn(progress);
+          emitter.fired++;
+        }
+        emitter.lastProgress = progress;
+      }
+      if (emitter.remaining <= 0) {
+        // Guarantee the endpoint: a rate*dt < 1 emitter would otherwise expire
+        // without ever firing, and a duration that is not a step multiple would
+        // end at progress < 1.
+        if (emitter.rate > 0 && (emitter.lastProgress || 0) < 0.999) {
+          emitter.fn(1);
+          emitter.fired++;
+        }
+        expired.push(emitter);
+      }
+    }
+    if (expired.length) {
+      instance._emitters = instance._emitters.filter((emitter) => expired.indexOf(emitter) === -1);
+    }
+  };
+
   instance.step = function step(dtSeconds) {
     if (instance._destroyed) return;
     const dt = clamp(Number.isFinite(dtSeconds) ? dtSeconds : 0, 0, MAX_STEP);
     if (instance._paused) return;
     instance._trackPerformance(dt);
     instance._time += dt;
+    instance._advanceScheduler(dt);
     for (const particle of instance._particles) {
       particle.px = particle.x;
       particle.py = particle.y;
@@ -715,6 +792,10 @@ export function createScreenFx(options = {}) {
   };
 
   instance.flash = function flash(x, y, color, radius, durationSeconds, alpha) {
+    // Suppressed entirely under reduced motion: an emitter-driven flash (the
+    // lightning head) otherwise strobes at its tick rate even when the user
+    // asked for less motion.
+    if (instance._destroyed || instance._reducedMotion) return null;
     const duration = durationSeconds || 0.3;
     return instance._addParticle({
       type: 'flash',
@@ -863,6 +944,19 @@ export function createScreenFx(options = {}) {
     instance._shake.time = Math.max(instance._shake.time, duration);
   };
 
+  // Reset everything in flight without tearing down the layer or its canvas.
+  // Used when the game state is replaced (new level, restart) so a torrent or
+  // a scheduled impact from the previous encounter cannot bleed into the next.
+  instance.clear = function clear() {
+    if (instance._destroyed) return;
+    instance._particles = [];
+    instance._washes = [];
+    instance._vignettes = [];
+    instance._shake = null;
+    instance._timers = [];
+    instance._emitters = [];
+  };
+
   instance.destroy = function destroy() {
     if (instance._destroyed) return;
     instance._destroyed = true;
@@ -878,6 +972,8 @@ export function createScreenFx(options = {}) {
     instance._shake = null;
     instance._washTimes = [];
     instance._dtBuffer = [];
+    instance._timers = [];
+    instance._emitters = [];
   };
 
   instance.resize();

@@ -346,3 +346,155 @@ test('fast frames never raise the DPR tier after a drop', () => {
   for (let i = 0; i < 400; i++) fx.step(0.005);
   assert.equal(fx.getDprTier(), dropped, 'a long run of fast frames does not climb back');
 });
+
+test('schedule fires once, not before its delay, and never synchronously', () => {
+  const { fx } = make();
+  let fired = 0;
+  fx.schedule(0.2, () => { fired += 1; });
+  assert.equal(fired, 0, 'a timer never fires during schedule()');
+  fx.step(0.05);
+  fx.step(0.05);
+  fx.step(0.05);
+  assert.equal(fired, 0, 'not fired before the delay elapses');
+  fx.step(0.05);
+  assert.equal(fired, 1, 'fires exactly once when the delay elapses');
+  fx.step(0.2);
+  assert.equal(fired, 1, 'does not fire again on later steps');
+
+  let zeroFired = 0;
+  fx.schedule(0, () => { zeroFired += 1; });
+  assert.equal(zeroFired, 0, 'a zero-delay timer is not synchronous');
+  fx.step(0.01);
+  assert.equal(zeroFired, 1, 'a zero-delay timer fires on the next step');
+});
+
+test('emitter fires roughly rate×duration times with rising progress', () => {
+  const { fx } = make();
+  const seen = [];
+  fx.emitter(1, 10, (progress) => seen.push(progress));
+  for (let i = 0; i < 20; i++) fx.step(0.05);
+  assert.equal(seen.length, 10, 'fires exactly rate × duration times');
+  assert.ok(seen[0] < 0.2, 'first progress starts near 0');
+  assert.ok(Math.abs(seen[seen.length - 1] - 1) < 1e-9, 'last progress reaches 1');
+  for (let i = 1; i < seen.length; i++) {
+    assert.ok(seen[i] >= seen[i - 1], 'progress rises monotonically');
+  }
+});
+
+test('pause freezes scheduled timers and emitters', () => {
+  const { fx } = make();
+  let fired = 0;
+  fx.schedule(0.1, () => { fired += 1; });
+  const seen = [];
+  fx.emitter(0.2, 10, (progress) => seen.push(progress));
+  fx.pause();
+  for (let i = 0; i < 10; i++) fx.step(0.05);
+  assert.equal(fired, 0, 'timers do not fire while paused');
+  assert.equal(seen.length, 0, 'emitters do not tick while paused');
+  fx.resume();
+  for (let i = 0; i < 5; i++) fx.step(0.05);
+  assert.equal(fired, 1, 'the timer fires after resume');
+  assert.equal(seen.length, 2, 'the emitter completes its ticks after resume');
+});
+
+test('destroy clears scheduled timers and emitters', () => {
+  const { fx } = make();
+  let fired = 0;
+  fx.schedule(0.1, () => { fired += 1; });
+  fx.emitter(1, 10, () => {});
+  fx.destroy();
+  fx.step(0.05);
+  assert.equal(fired, 0);
+  assert.equal(fx._timers.length, 0);
+  assert.equal(fx._emitters.length, 0);
+});
+
+test('setEffects replaces the effect table and ignores non-object input', () => {
+  const { fx } = make();
+  assert.equal(fx.play('boom', {}), false);
+  fx.setEffects({
+    boom(api) {
+      api.ember(0, 0, 0, 0, '#ffffff', 0.1);
+    },
+  });
+  assert.equal(fx.play('boom', {}), true);
+  fx.setEffects(null);
+  assert.equal(fx.play('boom', {}), true, 'null input leaves the table intact');
+  fx.setEffects('not-an-object');
+  assert.equal(fx.play('boom', {}), true, 'string input leaves the table intact');
+  fx.setEffects({ other() {} });
+  assert.equal(fx.play('boom', {}), false, 'the old effect is gone after replacement');
+  assert.equal(fx.play('other', {}), true);
+});
+
+test('countScale and alphaScale reflect intensity and reduced motion', () => {
+  const normal = make();
+  assert.equal(normal.fx.countScale(), DEFAULT_INTENSITY);
+  assert.equal(normal.fx.alphaScale(), 1);
+  normal.fx.setIntensity(0.5);
+  assert.equal(normal.fx.countScale(), 0.5);
+  assert.equal(normal.fx.alphaScale(), 1, 'alpha is unaffected by intensity');
+
+  const reduced = make({ reducedMotion: true });
+  assert.equal(reduced.fx.countScale(), 0.4 * DEFAULT_INTENSITY);
+  assert.equal(reduced.fx.alphaScale(), 0.5);
+  reduced.fx.setIntensity(1.3);
+  assert.ok(Math.abs(reduced.fx.countScale() - 0.4 * 1.3) < 1e-9);
+  assert.equal(reduced.fx.alphaScale(), 0.5, 'alpha is unaffected by intensity under reduced motion');
+});
+
+test('clear drops live particles, pending timers and running emitters', () => {
+  const { fx } = make();
+  fx.spark(0, 0, 0, 60, '#ffffff', 1);
+  fx.schedule(0.2, () => fx.spark(0, 0, 0, 60, '#ffffff', 1));
+  fx.emitter(0.5, 60, () => fx.spark(0, 0, 0, 60, '#ffffff', 1));
+  fx.addWash('#ffffff', 0.2, 1);
+  fx.shake(3, 0.5);
+  assert.ok(fx.getParticleCount() > 0);
+
+  fx.clear();
+  assert.equal(fx.getParticleCount(), 0, 'particles are dropped immediately');
+
+  for (let i = 0; i < 60; i++) fx.step(0.02);
+  assert.equal(fx.getParticleCount(), 0, 'cleared timers and emitters never respawn');
+  fx.render();
+  assert.equal(fx.getParticleCount(), 0);
+});
+
+test('an emitter slower than one tick per step still fires once at the end', () => {
+  const { fx } = make();
+  const seen = [];
+  fx.emitter(0.5, 1, (progress) => seen.push(progress));
+  for (let i = 0; i < 40; i++) fx.step(1 / 60);
+  assert.ok(seen.length >= 1, 'rate * dt < 1 still produces a tick');
+  assert.equal(seen[seen.length - 1], 1, 'the guaranteed tick reports progress 1');
+});
+
+test('an emitter whose duration is not a step multiple still reaches progress 1', () => {
+  const { fx } = make();
+  const seen = [];
+  fx.emitter(0.62, 10, (progress) => seen.push(progress));
+  for (let i = 0; i < 60; i++) fx.step(1 / 60);
+  assert.ok(seen.length > 0);
+  assert.equal(seen[seen.length - 1], 1, 'the endpoint is always reported');
+});
+
+test('an emitter with a zero or negative rate never fires', () => {
+  const { fx } = make();
+  let calls = 0;
+  fx.emitter(0.5, 0, () => { calls++; });
+  fx.emitter(-1, 60, () => { calls++; });
+  for (let i = 0; i < 60; i++) fx.step(1 / 60);
+  assert.equal(calls, 0);
+});
+
+test('reduced motion suppresses flashes entirely', () => {
+  const reduced = make({ reducedMotion: true });
+  assert.equal(reduced.fx.flash(10, 10, '#ffffff', 30, 0.2, 1), null);
+  reduced.fx.step(0.01);
+  assert.equal(reduced.fx.getParticleCount(), 0);
+
+  const normal = make();
+  normal.fx.flash(10, 10, '#ffffff', 30, 0.2, 1);
+  assert.equal(normal.fx.getParticleCount(), 1);
+});
