@@ -25,12 +25,12 @@ STAGE_DIR = FFM_ROOT / "build" / "dragon-variants"
 
 # (source sprite, output name, hue rotation in degrees)
 VARIANTS = [
-    ("set1-05", "dragon-1", 145),   # young, viridian
-    ("set1-05", "dragon-2", 300),   # young, ember
-    ("set2-05", "dragon-3", 145),   # old, viridian
-    ("set2-05", "dragon-4", 300),   # old, ember
-    ("set3-05", "dragon-5", 145),   # ancient, viridian
-    ("set3-05", "dragon-6", 300),   # ancient, ember
+    ("set1-05", "dragon-1", 145),   # young, molten red (blue + 145 deg)
+    ("set1-05", "dragon-2", 300),   # young, verdant green (blue + 300 deg)
+    ("set2-05", "dragon-3", 145),   # old, molten red
+    ("set2-05", "dragon-4", 300),   # old, verdant green
+    ("set3-05", "dragon-5", 145),   # ancient, molten red
+    ("set3-05", "dragon-6", 300),   # ancient, verdant green
 ]
 
 

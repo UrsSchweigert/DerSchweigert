@@ -46,11 +46,11 @@ const SCORE_STEP = 50;
 // of it needs a calibration pass after any sprite art changes.
 const BOTTOM_PAD_RATIO = [
   // young (set 1)
-  0.055, 0.05, 0.05, 0.03, 0.02, 0.03, 0.1, 0.095, 0.06, 0.17, 0.06, 0.15, 0.085, 0.08, 0.095, 0.08, 0.075, 0.07,
+  0.04, 0.035, 0.045, 0.0, 0.02, 0.03, 0.1, 0.095, 0.06, 0.0, 0.06, 0.05, 0.045, 0.02, 0.055, 0.0, 0.015, 0.01,
   // old (set 2)
-  0.09, 0.08, 0.095, 0.075, 0.06, 0.08, 0.14, 0.11, 0.08, 0.14, 0.08, 0.15, 0.08, 0.08, 0.1, 0.055, 0.06, 0.08,
-  // ancient (set 3), seeded from the old set
-  0.09, 0.08, 0.095, 0.075, 0.06, 0.08, 0.14, 0.11, 0.08, 0.14, 0.08, 0.15, 0.08, 0.08, 0.1, 0.055, 0.06, 0.08,
+  0.05, 0.04, 0.035, 0.015, 0.06, 0.02, 0.06, 0.05, 0.02, 0.0, 0.04, 0.11, 0.0, 0.06, 0.06, 0.015, 0.04, 0.04,
+  // ancient (set 3)
+  0.05, 0.04, 0.035, 0.035, 0.04, 0.04, 0.08, 0.09, 0.06, 0.08, 0.04, 0.15, 0.08, 0.08, 0.04, 0.055, 0.02, 0.04,
   // dragon variants: young, young, old, old, ancient, ancient
   0.02, 0.02, 0.06, 0.06, 0.06, 0.06,
 ];
@@ -63,13 +63,15 @@ const STAGES = [
 ];
 
 // Levels 55-60 get the dragon line: three stages, each in two colour shifts.
+// dragon-1/3/5 rotate the blue dragon to a molten red, dragon-2/4/6 to a
+// verdant green, so the names follow the sprite rather than the download order.
 const DRAGON_VARIANTS = [
-  { name: 'Young Dragon (Verdant)', sprite: 'dragon-1' },
-  { name: 'Young Dragon (Ember)', sprite: 'dragon-2' },
-  { name: 'Old Dragon (Verdant)', sprite: 'dragon-3' },
-  { name: 'Old Dragon (Ember)', sprite: 'dragon-4' },
-  { name: 'Ancient Dragon (Verdant)', sprite: 'dragon-5' },
-  { name: 'Ancient Dragon (Ember)', sprite: 'dragon-6' },
+  { name: 'Young Dragon (Ember)', sprite: 'dragon-1' },
+  { name: 'Young Dragon (Verdant)', sprite: 'dragon-2' },
+  { name: 'Old Dragon (Ember)', sprite: 'dragon-3' },
+  { name: 'Old Dragon (Verdant)', sprite: 'dragon-4' },
+  { name: 'Ancient Dragon (Ember)', sprite: 'dragon-5' },
+  { name: 'Ancient Dragon (Verdant)', sprite: 'dragon-6' },
 ];
 
 const STAGE_CLASS_COUNT = STAGES.length * CREATURE_NAMES.length;   // 54
