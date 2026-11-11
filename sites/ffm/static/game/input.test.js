@@ -154,3 +154,42 @@ it('native keyboard/click activation and secondary touch never submit twice when
     globalThis.document = original;
   }
 });
+
+it('reports the tapped button position, and the button centre when there was no press', () => {
+  const elements = Object.fromEntries(['answer-input', 'strike-btn', 'mc-buttons', 'free-text-zone']
+    .map(id => [id, new Element()]));
+  for (let i = 0; i < 4; i++) elements['mc-buttons'].appendChild(new Element());
+  const doc = new Element();
+  doc.getElementById = id => elements[id];
+  doc.createElement = () => new Element();
+  const original = globalThis.document;
+  globalThis.document = doc;
+  try {
+    const answers = [];
+    const input = new InputManager((value, point) => answers.push({ value, point }));
+    input.setMCOptions([7, 8, 9, 10]);
+    input.enable('multiple-choice');
+    const [first, second] = elements['mc-buttons'].children;
+    second.textContent = '8';
+    first.getBoundingClientRect = () => ({ left: 100, top: 200, width: 60, height: 40 });
+    second.getBoundingClientRect = () => ({ left: 400, top: 300, width: 80, height: 44 });
+
+    doc.dispatch('pointerdown', { clientX: 421, clientY: 318 });
+    second.dispatch('click', { detail: 1 });
+    assert.deepEqual(answers.pop(), { value: '8', point: { x: 421, y: 318 } });
+
+    // Keyboard Enter/Space produces a click with no pointerdown at all.
+    input.enable('multiple-choice');
+    first.dispatch('click', { detail: 0 });
+    assert.deepEqual(answers.pop(), { value: '7', point: { x: 130, y: 220 } });
+
+    // A press far older than the freshness window is ignored in favour of the button.
+    input.enable('multiple-choice');
+    doc.dispatch('pointerdown', { clientX: 5, clientY: 5 });
+    input._lastPress.time -= 5000;
+    second.dispatch('click', { detail: 1 });
+    assert.deepEqual(answers.pop(), { value: '8', point: { x: 440, y: 322 } });
+  } finally {
+    globalThis.document = original;
+  }
+});
