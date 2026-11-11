@@ -273,6 +273,10 @@ const loadingDone = Promise.race([
 // when its first level starts (see ./story-intro.js). The player loads lazily,
 // and a missing scene or index never blocks the game.
 const storyBase = new URL('../story/', import.meta.url);
+// The narrator carries a story scene, so the title playlist steps back under it
+// and comes back up when the scene ends. Silent playback has nothing to clear
+// the way for, so it leaves the music alone.
+const STORY_NARRATION_DUCK = 0.3;
 async function playStoryScene(sceneId) {
   const sceneBase = new URL(`scenes/${sceneId}/`, storyBase);
   const [{ createDioramaPlayer }, scene] = await Promise.all([
@@ -291,9 +295,11 @@ async function playStoryScene(sceneId) {
     // it stands when the scene opens.
     muted: audio.muted,
   });
+  audio.setMusicDuck('story-narration', audio.muted ? null : STORY_NARRATION_DUCK);
   try {
     return await player.play();
   } finally {
+    audio.setMusicDuck('story-narration', null);
     player.destroy();
   }
 }

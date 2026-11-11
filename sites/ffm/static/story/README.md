@@ -194,6 +194,12 @@ const result = await player.play(); // 'ended' or 'skipped'
 player.destroy();
 ```
 
+The game hands the player the current mute choice and dips the title playlist
+under the narration while the scene runs (`audio.setMusicDuck('story-narration',
+0.3)`, released in a `finally`), so the narrator is never buried in the music.
+That dip stacks with the victory hymn's: each reason keeps its own level and
+the lowest wins.
+
 The stylesheet (`story/player/diorama-player.css`) is linked from
 `index.html`. Scenes stay optional and skippable: a missing or broken scene
 logs and continues into the level.
