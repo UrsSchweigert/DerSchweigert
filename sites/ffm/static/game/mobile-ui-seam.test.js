@@ -55,6 +55,9 @@ function context({ isApp, calls, loadMobileUi }) {
     syncKeepAwake() {},
     getLocale: () => 'en',
     onLocaleChange() {},
+    // Module-scope helper the app branch calls after an entitlement refresh
+    // (see main.js): the branch only calls it, so the seam stubs it.
+    syncNoticeHelp() { calls.push('notice-help'); },
     loadLegal() {
       calls.push('legal');
       return Promise.resolve({ setupTitleLegalLinks() {} });

@@ -246,8 +246,10 @@ describe('app-only delivery', () => {
       'the module must not exist in the web deploy',
     );
     const webCss = await readFile(join(staticDir, 'styles.css'), 'utf8');
-    assert.doesNotMatch(webCss, /app-shapes-header|data-shapes-header/,
-      'the web stylesheet carries no shapes-header rules');
+    assert.doesNotMatch(webCss, /app-shapes-header/,
+      'the app widget classes stay in the overlay');
+    assert.match(webCss, /#active-question\[data-shapes-header="two-rows"\] \{\s*display: grid;/,
+      'the web build lays out the two shapes rows itself');
     const index = await readFile(join(staticDir, 'index.html'), 'utf8');
     assert.doesNotMatch(index, /app-shapes-header|data-shapes-header/,
       'the web page carries no shapes-header markup');

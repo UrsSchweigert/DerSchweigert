@@ -1,0 +1,22 @@
+{
+  "voice": "Brian",
+  "model": "fal-ai/elevenlabs/tts/eleven-v3",
+  "audio": "narration.mp3",
+  "duration": 16.0,
+  "lines": [
+    {
+      "stem": "line01.mp3",
+      "cue": 0,
+      "cueStart": 0.8,
+      "start": 0.8,
+      "duration": 3.249
+    },
+    {
+      "stem": "line02.mp3",
+      "cue": 1,
+      "cueStart": 6.4,
+      "start": 6.4,
+      "duration": 3.098
+    }
+  ]
+}

@@ -233,12 +233,16 @@ test('the overlay stylesheet draws portrait-only green swords', async () => {
   assert.doesNotMatch(css, /https?:\/\//, 'the overlay stylesheet must stay offline');
 });
 
-test('the app header gives the question its own unbroken first line', async () => {
+test('the app header keeps the question unbroken and gives the readouts the full width', async () => {
   const css = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
-  assert.match(css, /#gameplay-chrome #active-question \{ grid-column: 1 \/ -1; grid-row: 1; white-space: nowrap; \}/);
-  assert.match(css, /#gameplay-chrome \.gameplay-readouts \{ grid-column: 1; grid-row: 3; \}/,
-    'the readouts can no longer auto-place into an auto-width column beside the question');
-  assert.match(css, /#gameplay-chrome #btn-pause-game \{ grid-column: 3; grid-row: 3; \}/);
+  assert.match(css, /#gameplay-chrome #active-question \{ grid-column: 1; grid-row: 1; white-space: nowrap; \}/,
+    'the question keeps the left column and never wraps');
+  assert.match(css, /#gameplay-chrome \.app-help-button\[data-help-host="play"\] \{ grid-column: 2; grid-row: 1; \}/,
+    'the buttons sit on the question row, out of the readouts\' width');
+  assert.match(css, /#gameplay-chrome #btn-pause-game \{ grid-column: 3; grid-row: 1; \}/);
+  assert.match(css, /#gameplay-chrome \.gameplay-readouts \{ grid-column: 1 \/ -1; grid-row: 2; \}/,
+    'the readout row spans the full width, so its line count stays put');
+  assert.match(css, /#gameplay-chrome \.app-header-timer \{ grid-row: 3; \}/);
 });
 
 // --- 320px portrait touch-target budget --------------------------------

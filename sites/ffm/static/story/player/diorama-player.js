@@ -36,6 +36,77 @@ export function cueAt(subtitles, t) {
   return subtitles.find(cue => t >= cue.start && t < cue.end) ?? null;
 }
 
+const NARRATION_LOCALES = new Set(['de', 'en']);
+
+/** Locale folder the voice-over lives in; an unknown locale reads English. */
+export function narrationLocale(locale) {
+  return NARRATION_LOCALES.has(locale) ? locale : 'en';
+}
+
+/**
+ * Subtitle cues with the recorded voice-over folded in.
+ *
+ * A scene may ship narration/<locale>/timing.json (see ../README.md), which
+ * names the cue each recorded line belongs to plus its real start and length.
+ * Such a cue appears when its line is actually heard and stays up until the
+ * line ends, so a slow take never leaves the text behind. Cues the voice-over
+ * does not speak (act title cards) keep their authored timing, and no cue runs
+ * into the next one.
+ *
+ * @param {Array<{start: number, end: number, text: object|string}>} subtitles
+ * @param {{lines?: Array<{cue?: number, start?: number, duration?: number}>}|null} timing
+ * @returns {Array<{start: number, end: number, text: object|string}>}
+ */
+export function voicedCues(subtitles, timing) {
+  const lines = (timing?.lines ?? []).filter(
+    line => Number.isFinite(line?.start) && Number.isInteger(line?.cue) && subtitles[line.cue],
+  );
+  if (!lines.length) return subtitles;
+  const byCue = new Map(lines.map(line => [line.cue, line]));
+  const ordered = [...byCue.values()].sort((a, b) => a.start - b.start);
+  const nextStart = new Map(ordered.map((line, i) => [line.cue, ordered[i + 1]?.start ?? Infinity]));
+
+  return subtitles.map((cue, index) => {
+    const line = byCue.get(index);
+    if (!line) return cue;
+    // Never bleed into the following text: the next recorded line, or an
+    // unvoiced cue such as an act title card that keeps its authored time.
+    const next = subtitles[index + 1];
+    const nextCueStart = next ? (byCue.get(index + 1)?.start ?? next.start) : Infinity;
+    const limit = Math.min(nextStart.get(index) ?? Infinity, nextCueStart);
+    const voicedEnd = line.start + (Number(line.duration) || 0);
+    const end = Math.min(limit, Math.max(cue.end, voicedEnd));
+    return end > line.start ? { ...cue, start: line.start, end } : cue;
+  });
+}
+
+/** The scene's voice-over timing, or null when the scene has none. */
+async function loadNarrationTiming(base, locale) {
+  try {
+    const response = await fetch(new URL(`narration/${locale}/timing.json`, base));
+    if (!response.ok) return null;
+    const timing = await response.json();
+    return timing?.lines?.length ? timing : null;
+  } catch {
+    // Narration is optional: a missing or broken manifest just means no voice.
+    return null;
+  }
+}
+
+/**
+ * The scene's voice-over track, started but not awaited: the scene clock never
+ * waits on the network. Playback catches up to the scene as soon as the track
+ * is audible (see the 'playing' listener in play()).
+ */
+function loadNarrationAudio(base, locale, timing) {
+  const url = new URL(`narration/${locale}/${timing.audio ?? 'narration.mp3'}`, base);
+  const audio = new Audio(url.href);
+  audio.preload = 'auto';
+  audio.volume = 1;
+  audio.load();
+  return audio;
+}
+
 /** Linear interpolation of a layer's motion keyframes at time t (seconds). */
 export function sampleMotion(keyframes, t) {
   if (!keyframes?.length) return { x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 };
@@ -112,10 +183,12 @@ function loadImage(src) {
  * @param {string|URL} options.baseUrl URL of the scene folder (layer src are relative to it)
  * @param {'en'|'de'} [options.locale]
  * @param {boolean} [options.reducedMotion] defaults to the prefers-reduced-motion media query
+ * @param {boolean} [options.narration] play the scene's recorded voice-over (default true)
+ * @param {boolean} [options.muted] start without sound; the scene still runs
  * @param {object} [options.labels] { skip } skip-button label
  */
 export function createDioramaPlayer({
-  container, scene, baseUrl, locale = 'en', reducedMotion, labels,
+  container, scene, baseUrl, locale = 'en', reducedMotion, narration = true, muted = false, labels,
 }) {
   const reduce = reducedMotion ?? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   const text = { ...(DEFAULT_LABELS[locale] ?? DEFAULT_LABELS.en), ...labels };
@@ -188,6 +261,11 @@ export function createDioramaPlayer({
   let shownCue = null;
   let resolvePlay = null;
   let finished = false;
+  // Cue list and clock source: the voice-over, when the scene ships one, is
+  // both the timeline and the truth for when each line is on screen.
+  let cues = scene.subtitles;
+  let narrationAudio = null;
+  let audioClocked = false;
 
   // The scene is always landscape: a portrait screen gets the box rotated 90°
   // (see landscapeBox) so the paper theatre fills it edge to edge. The root is
@@ -242,7 +320,7 @@ export function createDioramaPlayer({
       target.style.background = ev.color;
       target.style.opacity = String((ev.intensity ?? (ev.type === 'flash' ? 1 : 0.6)) * strength);
     }
-    const cue = cueAt(scene.subtitles, t);
+    const cue = cueAt(cues, t);
     if (cue !== shownCue) {
       shownCue = cue;
       subtitle.classList.remove('is-visible');
@@ -254,9 +332,26 @@ export function createDioramaPlayer({
     }
   }
 
+  /** True while the voice-over itself can drive the clock. */
+  function audioDrives() {
+    return Boolean(narrationAudio)
+      && !narrationAudio.paused && !narrationAudio.ended && narrationAudio.readyState >= 2;
+  }
+
   function tick(ts) {
-    if (!startTs) startTs = ts - elapsed * 1000;
-    elapsed = Math.min(duration, (ts - startTs) / 1000);
+    if (audioDrives()) {
+      audioClocked = true;
+      elapsed = Math.min(duration, narrationAudio.currentTime);
+    } else {
+      // Hand the clock back to requestAnimationFrame the moment the voice-over
+      // ends or stalls, so the scene still reaches its last frame.
+      if (audioClocked) {
+        audioClocked = false;
+        startTs = ts - elapsed * 1000;
+      }
+      if (!startTs) startTs = ts - elapsed * 1000;
+      elapsed = Math.min(duration, (ts - startTs) / 1000);
+    }
     render(elapsed);
     if (elapsed >= duration) {
       // The scene ends by itself so the title screen follows without a click.
@@ -266,10 +361,20 @@ export function createDioramaPlayer({
     raf = requestAnimationFrame(tick);
   }
 
+  function stopNarration() {
+    if (!narrationAudio) return;
+    narrationAudio.pause();
+    narrationAudio.removeAttribute('src');
+    narrationAudio.load();
+    narrationAudio = null;
+  }
+
   function finish(reason) {
     if (finished) return;
     finished = true;
     cancelAnimationFrame(raf);
+    raf = 0;
+    stopNarration();
     resolvePlay?.(reason);
   }
 
@@ -289,13 +394,33 @@ export function createDioramaPlayer({
 
   return {
     element: root,
-    /** Loads every layer, then plays; resolves with 'ended' or 'skipped'. */
+    /** Loads every layer (and the voice-over), then plays; resolves with 'ended' or 'skipped'. */
     async play() {
       const base = new URL(baseUrl, document.baseURI);
-      await Promise.all(layerEls.map(async ({ layer, img }) => {
-        const loaded = await loadImage(new URL(layer.src, base).href);
-        img.src = loaded.src;
-      }));
+      const voice = narrationLocale(locale);
+      const [timing] = await Promise.all([
+        narration ? loadNarrationTiming(base, voice) : null,
+        Promise.all(layerEls.map(async ({ layer, img }) => {
+          const loaded = await loadImage(new URL(layer.src, base).href);
+          img.src = loaded.src;
+        })),
+      ]);
+      if (timing) cues = voicedCues(scene.subtitles, timing);
+      if (timing && !muted && !finished) {
+        narrationAudio = loadNarrationAudio(base, voice, timing);
+        // If the track only becomes audible after the scene started, slip it
+        // forward to the scene clock instead of rewinding the picture to it.
+        narrationAudio.addEventListener('playing', () => {
+          const { currentTime, duration: audioDuration } = narrationAudio ?? {};
+          if (elapsed > 0.2 && Math.abs(currentTime - elapsed) > 0.2) {
+            try {
+              narrationAudio.currentTime = Math.min(elapsed, audioDuration || elapsed);
+            } catch {
+              // A track that cannot seek simply plays from where it is.
+            }
+          }
+        });
+      }
       fit();
       resizeObserver?.observe(root);
       window.addEventListener('resize', fit);
@@ -303,24 +428,41 @@ export function createDioramaPlayer({
       skipBtn.focus();
       return new Promise(resolve => {
         resolvePlay = resolve;
-        if (finished) resolve('skipped');
-        else raf = requestAnimationFrame(tick);
+        if (finished) {
+          resolve('skipped');
+          return;
+        }
+        if (narrationAudio) {
+          // A blocked autoplay only costs the voice; the scene runs on the
+          // requestAnimationFrame clock either way.
+          narrationAudio.play().catch(() => {});
+        }
+        raf = requestAnimationFrame(tick);
       });
     },
     /** Jump to a time (seconds); used by the preview scrubber and tests. */
     seek(t) {
       elapsed = Math.max(0, Math.min(duration, t));
       startTs = 0;
+      if (narrationAudio && Number.isFinite(narrationAudio.duration)) {
+        try {
+          narrationAudio.currentTime = Math.min(elapsed, narrationAudio.duration);
+        } catch {
+          // Seeking a stream that is not ready yet is not worth failing over.
+        }
+      }
       render(elapsed);
     },
     /** Freeze on the current frame (preview stills, app backgrounding). */
     pause() {
       cancelAnimationFrame(raf);
       raf = 0;
+      narrationAudio?.pause();
     },
     resume() {
       if (finished || raf || elapsed >= duration) return;
       startTs = 0;
+      narrationAudio?.play().catch(() => {});
       raf = requestAnimationFrame(tick);
     },
     skip() { finish('skipped'); },

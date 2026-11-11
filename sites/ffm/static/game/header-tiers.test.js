@@ -13,26 +13,56 @@ const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const appCss = readFileSync(new URL('../../mobile/game/mobile-ui.css', import.meta.url), 'utf8');
 
-test('the reveal line is reserved instead of collapsing when it is empty', () => {
-  const rule = css.match(/^#gameplay-feedback \{([^}]*)\}/m)?.[1];
-  assert.ok(rule, 'gameplay feedback rule missing');
-  assert.match(rule, /min-height:\s*20px;/, 'one line stays reserved');
-  assert.doesNotMatch(rule, /display:\s*none/);
-  assert.match(css, /^#gameplay-feedback:empty \{ visibility: hidden; \}/m,
-    'empty feedback hides without giving up its row');
-  assert.match(css, /\.gameplay-readouts > span:empty \{ display: none; \}/,
-    'the readouts still collapse when they are empty');
+test('no reveal row is reserved, so the header has no standing empty line', () => {
+  // The correction replaces the question instead of a line reserved below it:
+  // a reserved row left a gap in the header for the whole level.
+  assert.doesNotMatch(css, /#gameplay-feedback/, 'the reveal element is gone');
+  assert.doesNotMatch(html, /id="gameplay-feedback"/, 'and so is its markup');
+  assert.match(css, /\.gameplay-readouts > span:empty \{ visibility: hidden; \}/,
+    'an empty marker keeps its cell so the line count cannot change');
 });
 
-test('the app reserves the two-row Shapes question for the whole level', () => {
-  assert.match(appCss, /#gameplay-chrome\[data-two-row-question="true"\] #active-question \{\s*min-height: 52px;/,
-    'two 26px rows stay reserved between problems and during the reveal');
+test('the question rows are reserved per mode on both builds', () => {
+  // Shapes asks a question and shows the shapes, so it reserves two rows for
+  // the whole level; the campaign asks one problem question and reserves one.
+  // Both stylesheets must turn the same marker into a fixed height.
+  assert.match(appCss, /#gameplay-chrome\[data-question-rows="2"\] #active-question \{\s*min-height: 52px;/,
+    'the app keeps two 26px rows between problems and during the reveal');
+  assert.match(css, /#gameplay-chrome\[data-question-rows="2"\] #active-question \{ min-height: 56px; \}/,
+    'the web keeps two 28px rows');
+  assert.match(css, /#gameplay-chrome\[data-question-rows="1"\] #active-question \{\s*white-space: nowrap;/,
+    'the campaign question is one line that cannot wrap into a second one');
 });
 
-test('the two-row question marker is app-only and level-scoped', () => {
+test('the shapes question is drawn as two unbroken rows on the web too', () => {
+  assert.match(css, /#active-question\[data-shapes-header="two-rows"\] \{\s*display: grid;\s*grid-template-rows: auto auto;/,
+    'the two rows are a grid, not a wrapped sentence');
+  const row = css.match(/#active-question\[data-shapes-header="two-rows"\] > span \{([^}]*)\}/)?.[1];
+  assert.ok(row, 'each row needs its own rule');
+  assert.match(row, /white-space: nowrap;/, 'a shape row never breaks between symbols');
+  assert.match(row, /overflow-wrap: normal;/);
+});
+
+test('the readout row cannot reflow between problems', () => {
+  // As a wrapping flex row, a shorter value ("Time —" between problems instead
+  // of "Time 12s") packed one more marker into the first line and the header
+  // lost a whole line - 22px on a phone, which relaid the scene out.
+  const rule = css.match(/^\.gameplay-readouts \{([^}]*)\}/m)?.[1];
+  assert.ok(rule, 'readout rule missing');
+  assert.match(rule, /display: grid;/, 'a grid, so the line count is width-only');
+  assert.match(rule, /grid-template-columns: repeat\(auto-fit, minmax\(106px, 1fr\)\);/);
+  assert.doesNotMatch(rule, /flex-wrap/, 'no wrapping that follows the content');
+});
+
+test('the correction cannot run under the help and pause buttons', () => {
+  assert.match(css, /#active-question:not\(\[data-shapes-header\]\) \{\s*white-space: nowrap;\s*overflow: hidden;\s*text-overflow: ellipsis;/,
+    'the answer row stops at the buttons in both modes');
+});
+
+test('the mode marker is level-scoped and published on every build', () => {
   const chrome = readFileSync(new URL('./gameplay-chrome.js', import.meta.url), 'utf8');
   assert.match(chrome, /function setQuestionReserve\(shapesLevel\)/);
-  assert.match(chrome, /const value = shapesHeader && shapesLevel \? 'true' : 'false';/);
+  assert.match(chrome, /const value = shapesLevel \? '2' : '1';/);
   assert.match(chrome, /setQuestionReserve\(!!state\.isShapesMode\);/,
     'every update republishes the level-scoped reservation');
 });

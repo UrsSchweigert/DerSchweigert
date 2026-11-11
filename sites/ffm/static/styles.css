@@ -72,21 +72,61 @@ body {
   overflow-wrap: normal;
 }
 
-/* The reveal line is always reserved. Feedback only appears for a wrong
- * answer or a timeout, but the header must not change height then: the
- * playfield and the answer grid are laid out from the measured header (see
- * viewport-layout.js), so a growing header would rescale the scene. */
-#gameplay-feedback {
-  grid-column: 1 / -1;
-  min-height: 20px;
-  font-weight: bold;
-  overflow-wrap: normal;
+/* The question row is reserved per mode: Shapes needs two rows (the
+ * "Count the shapes" instruction and the shapes themselves), the campaign
+ * needs one (the problem). gameplay-chrome.js publishes the marker for the
+ * whole level, so the row keeps its height between problems and during the
+ * reveal. The campaign's single row never wraps: a second line would grow the
+ * header and rescale the scene (see viewport-layout.js). */
+#gameplay-chrome[data-question-rows="2"] #active-question { min-height: 56px; }
+/* Shapes writes its question as two block rows (instruction, shapes) - see
+ * gameplay-chrome.js. Each row stays on one line, so the mode's two reserved
+ * rows are exactly what is drawn. */
+#active-question[data-shapes-header="two-rows"] {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  row-gap: 0;
 }
-#gameplay-feedback:empty { visibility: hidden; }
-.gameplay-readouts > span:empty { display: none; }
+#active-question[data-shapes-header="two-rows"] > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  font: bold 22px/28px monospace;
+}
+
+#gameplay-chrome[data-question-rows="1"] #active-question {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The correction is plain text in either mode, so it needs the same guard: it
+ * must stop at the help/pause buttons instead of running under them. */
+#active-question:not([data-shapes-header]) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A wrong answer or a timeout writes the correction into #active-question, in
+ * place of the problem. There is deliberately no separate reveal row: it would
+ * either stand empty (an unexplained gap in the header) or grow the header on
+ * the reveal, and viewport-layout.js lays the scene out from the measured
+ * header.
+ */
+/* The readouts are a grid, not a wrapping flex row: as flex, a shorter value
+ * ("Time —" between problems instead of "Time 12s") packed one more marker
+ * into the first line and shifted every later marker up, so the header lost a
+ * line (22px) and viewport-layout.js laid the scene out again. A fixed minimum
+ * column makes the column count depend only on the available width, so the
+ * line count stays the same for every problem and every value length. Empty
+ * markers keep their cell for the same reason. */
 .gameplay-readouts {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(106px, 1fr));
   align-content: center;
   gap: 2px 8px;
   min-width: 0;
@@ -94,7 +134,14 @@ body {
   line-height: 20px;
 }
 
-.gameplay-readouts > span { overflow-wrap: normal; }
+.gameplay-readouts > span:empty { visibility: hidden; }
+.gameplay-readouts > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+}
 #accessible-timer-progress { width: 20px; height: 8px; margin-left: 4px; }
 #btn-pause-game {
   align-self: center;
@@ -113,7 +160,7 @@ body {
   #active-question { font-size: 22px; line-height: 28px; min-height: 28px; }
   .gameplay-readouts { font-size: 16px; line-height: 20px; gap: 2px 6px; }
   #btn-pause-game { grid-column: 2; grid-row: 1 / span 3; }
-  #active-question, #gameplay-feedback { grid-column: 1; }
+  #active-question { grid-column: 1; }
 }
 
 #game {
@@ -2417,4 +2464,12 @@ body:not(.legal-body) {
 #screen-fade.is-visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Late override: the phone-width readout size. Earlier rules in this file set
+ * 16px for the readouts (and a landscape block repeats it), so this has to come
+ * last to win. Three ~108px columns fit the longest marker ("Defeated: 0/30")
+ * at 15px; at 16px it clipped by a pixel and showed an ellipsis. */
+@media (max-width: 430px) {
+  .gameplay-readouts { font-size: 15px; }
 }

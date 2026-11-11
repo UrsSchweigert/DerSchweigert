@@ -7,9 +7,9 @@ another, a lighting overlay, and English/German subtitles on top.
 
 This folder ships with the game: the website deploy syncs `static/`, and the
 app bundle copies what `mobile/scripts/copy-assets.mjs` keeps (the generation
-sources, reference sheets, art bible and `preview.html` stay web-side). Only
-the intro is wired into the game so far — it plays on the first open of an
-install and again before level 1 (see [Integration](#integration)).
+sources, reference sheets, art bible and `preview.html` stay web-side). The
+intro plays on the first open of an install and again before level 1, and every
+act opening plays when its first level starts (see [Integration](#integration)).
 
 ## Layout
 
@@ -20,6 +20,7 @@ install and again before level 1 (see [Integration](#integration)).
 | `scenes/<id>/scene.json` | layers, motion, lighting, subtitles (source of truth) |
 | `scenes/<id>/*.webp` | final layers (backdrop opaque, others with alpha) |
 | `scenes/<id>/subtitles.{en,de}.vtt` | generated WebVTT copies of the cues |
+| `scenes/<id>/narration/<lang>/` | recorded voice-over: one track, its stems and `timing.json` |
 | `sources/<id>/` | art packet (`layers.json`: prompts, references, retouches) and raw renders |
 | `references/` | approved hero reference sheet |
 | `tools/` | cutout, encoding and subtitle scripts |
@@ -56,6 +57,67 @@ A character can change pose mid-scene: add the second pose as its own layer
 with `"poseOf": "<base layer id>"`, the same role and motion, and crossfade the
 two with `opacity` keyframes (ideally under a `flash`). Poses share their base
 layer's depth plane, so they don't count towards the 3-4 planes.
+
+## Voice-over (`narration/`)
+
+Every scene ships a recorded narrator. It is optional: a scene without a
+`narration/` folder plays silently on the authored cue times, and locales are
+independent — the prologue is voiced in German and English, while the act
+openings are voiced in English only, because the German takes of those short
+lines did not sound German and were dropped (a German act opening reads on its
+authored cue times instead). The tests require an English voice-over on every
+scene and validate whichever other locales are present.
+
+```
+scenes/<id>/narration/de/narration.mp3   single track, scene duration, mono, -2 dBFS
+scenes/<id>/narration/de/line01.mp3      one stem per narrated cue, in cue order
+scenes/<id>/narration/de/timing.json     where each stem sits on the scene clock
+```
+
+```jsonc
+{
+  "voice": "Brian",
+  "model": "fal-ai/elevenlabs/tts/eleven-v3",
+  "audio": "narration.mp3",
+  "duration": 44,                          // must equal scene.duration
+  "lines": [
+    { "stem": "line01.mp3", "cue": 0,      // index into scene.subtitles
+      "cueStart": 0.8, "start": 0.8, "duration": 3.94 }
+  ]
+}
+```
+
+The player (`voicedCues`) shows a narrated cue from its line's real `start` and
+holds it until the line ends, so the text follows the voice instead of the
+authored window; cues the narrator skips keep their authored timing — that is
+why act title cards ("Act I · The First Light") stay on screen unvoiced. Lines
+never overlap: when a take runs longer than its window, the following lines
+slide back just enough to clear it, and `timing.json` records the offset.
+
+The track is the clock: while it plays, `audio.currentTime` drives the scene,
+and the requestAnimationFrame clock takes over again if it ends or stalls.
+`createDioramaPlayer({ muted })` skips the track but keeps the cue timing; a
+missing or undecodable track only costs the sound.
+
+`tests/story.test.mjs` checks the manifest against the scene: one stem per
+narrated cue, for every locale that ships, no overlap, every line inside the
+scene, and no cue that loses its text before the line ends.
+
+### Re-recording a locale
+
+The tracks are made outside this repo (ElevenLabs v3 "Brian" at stability 0.25
+through fal.ai: one line per spoken cue with an audio tag in front such as
+`[ominous] …`, then trimmed, placed at the cue start, mixed to mono MP3 at
+128 kbit/s with about 2 dB of headroom). The settings of an existing take are
+in its `timing.json`.
+
+To replace a locale, write `narration/<lang>/{narration.mp3,lineNN.mp3,timing.json}`
+into the scene folder and run
+`node --test sites/ffm/static/story/tests/story.test.mjs`. No code change is
+needed: the player uses any locale folder it finds and falls back to the
+authored cue times when there is none — which is why the German act openings
+are silent until their German takes are re-recorded; dropping `narration/de/`
+back into those folders is all it takes.
 
 ## Producing a scene
 
@@ -152,6 +214,12 @@ const player = createDioramaPlayer({ container: document.body, scene, baseUrl, l
 const result = await player.play(); // 'ended' or 'skipped'
 player.destroy();
 ```
+
+The game hands the player the current mute choice and dips the title playlist
+under the narration while the scene runs (`audio.setMusicDuck('story-narration',
+0.3)`, released in a `finally`), so the narrator is never buried in the music.
+That dip stacks with the victory hymn's: each reason keeps its own level and
+the lowest wins.
 
 The stylesheet (`story/player/diorama-player.css`) is linked from
 `index.html`. Scenes stay optional and skippable: a missing or broken scene

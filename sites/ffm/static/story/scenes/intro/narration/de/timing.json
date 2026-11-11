@@ -1,0 +1,64 @@
+{
+  "voice": "Brian",
+  "model": "fal-ai/elevenlabs/tts/eleven-v3",
+  "audio": "narration.mp3",
+  "duration": 44.0,
+  "lines": [
+    {
+      "stem": "line01.mp3",
+      "cue": 0,
+      "cueStart": 0.8,
+      "start": 0.8,
+      "duration": 3.945
+    },
+    {
+      "stem": "line02.mp3",
+      "cue": 1,
+      "cueStart": 5.8,
+      "start": 5.8,
+      "duration": 5.32
+    },
+    {
+      "stem": "line03.mp3",
+      "cue": 2,
+      "cueStart": 11.4,
+      "start": 11.4,
+      "duration": 2.868
+    },
+    {
+      "stem": "line04.mp3",
+      "cue": 3,
+      "cueStart": 15.4,
+      "start": 15.4,
+      "duration": 7.777
+    },
+    {
+      "stem": "line05.mp3",
+      "cue": 4,
+      "cueStart": 22.6,
+      "start": 23.227,
+      "duration": 5.953
+    },
+    {
+      "stem": "line06.mp3",
+      "cue": 5,
+      "cueStart": 28.0,
+      "start": 29.23,
+      "duration": 6.914
+    },
+    {
+      "stem": "line07.mp3",
+      "cue": 6,
+      "cueStart": 34.8,
+      "start": 36.194,
+      "duration": 5.012
+    },
+    {
+      "stem": "line08.mp3",
+      "cue": 7,
+      "cueStart": 39.2,
+      "start": 41.256,
+      "duration": 1.859
+    }
+  ]
+}
