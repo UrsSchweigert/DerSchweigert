@@ -483,7 +483,10 @@ export class Hero extends Entity {
 
     const aura = this._healAura > 0 || this._holdHealActive;
     if (aura) this._drawHealAura(ctx, 'back');
-    if (frame.shadow === 0) this._drawGroundShadow(ctx, footX, footY, frame);
+    // Generated poses ship without a baked shadow; the set is authoritative
+    // here rather than the atlas metadata so a stale cached metadata module
+    // can never leave the hero floating.
+    if (!frame.shadow) this._drawGroundShadow(ctx, footX, footY, frame);
 
     ctx.save();
     // Pixel art: never let the canvas resample the sprite.
@@ -511,20 +514,22 @@ export class Hero extends Entity {
   // Generated poses ship without a baked shadow; this draws the same soft
   // ellipse the sheet art carries, under the same foot pivot.
   _drawGroundShadow(ctx, x, y, frame) {
-    const rx = Math.max(26, frame.w * 0.42);
-    const ry = 6;
-    const cy = y + 2;
+    const rx = Math.max(30, frame.w * 0.46);
+    const ry = 7;
     ctx.save();
-    ctx.translate(x, cy);
+    // Squashed space centred on the foot pivot. The gradient and the arc must
+    // share that origin: the earlier version ran a second translate *inside*
+    // the scaled space, so the "restore" was scaled too and the ellipse landed
+    // off-canvas - which is why no shadow ever appeared.
+    ctx.translate(x, y + 1);
     ctx.scale(1, ry / rx);
-    ctx.translate(-x, -cy);
-    const gradient = ctx.createRadialGradient(x, cy, 0, x, cy, rx);
-    gradient.addColorStop(0, 'rgba(0,0,0,0.34)');
-    gradient.addColorStop(0.65, 'rgba(0,0,0,0.16)');
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+    gradient.addColorStop(0, 'rgba(0,0,0,0.45)');
+    gradient.addColorStop(0.6, 'rgba(0,0,0,0.22)');
     gradient.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(x, cy, rx, 0, Math.PI * 2);
+    ctx.arc(0, 0, rx, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
