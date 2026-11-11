@@ -139,6 +139,7 @@ export class Hero extends Entity {
     this.anim = new HeroAnimator();
     this.anim.play('idle');
     this._castFx = null;      // 'fire' | 'bolt' — drives the cast glow palette
+    this._holdPose = false;   // keep a finished one-shot clip on its last pose
   }
 
   update(dt) {
@@ -147,13 +148,24 @@ export class Hero extends Entity {
     // longer uses it.
     this._tick += dt * 60;
     if (this._healAura > 0) this._healAura = Math.max(0, this._healAura - dt);
-    // One-shot clips park on their last pose; move on to the clip the game
-    // expects to see afterwards (usually idle) instead of holding the pose.
+    // A one-shot clip parks on its last pose and then moves on to the clip the
+    // game expects to see afterwards (usually idle) - unless the pose is being
+    // held on purpose, which is how the strike's last frame survives the drift
+    // back to the waiting spot.
+    if (this._holdPose) return;
     if (this.anim.finished) {
       const next = this.anim.clips[this.anim.clip]?.next;
       if (next && next !== this.anim.clip) this._applyClip(next);
     }
   }
+
+  /** Hold the running one-shot clip on its last pose instead of handing over to
+   *  `next`. Used for the knockback drift home, which has to read as a recoil
+   *  out of the strike rather than the hero walking backwards. */
+  holdPose() { this._holdPose = true; }
+
+  /** Undo holdPose(): a finished clip hands over to `next` again. */
+  releasePose() { this._holdPose = false; }
 
   // Renders the pulsating green healing aura behind/in front of the hero
   // sprite. Shared by both the post-level-clear heal flash (`_healAura`
@@ -235,6 +247,7 @@ export class Hero extends Entity {
     if (!clip) return;
     this._state = s;
     this._castFx = null;
+    this._holdPose = false;
     // One-shot clips replay from the top when re-triggered (a second correct
     // answer must swing again); looping clips keep their phase so repeated
     // setState('idle') calls do not restart the breathing cycle.
@@ -244,6 +257,7 @@ export class Hero extends Entity {
   /** Start the spell-casting clip; `fx` picks the cast glow palette. */
   cast(fx) {
     this._castFx = fx ?? null;
+    this._holdPose = false;
     this.anim.play('cast', { restart: true });
     this._state = 'cast';
   }
@@ -251,6 +265,7 @@ export class Hero extends Entity {
   _applyClip(name) {
     if (!this.anim.play(name)) return;
     this._state = CLIP_STATES[name] ?? this._state;
+    this._holdPose = false;
     if (name !== 'cast') this._castFx = null;
   }
 
