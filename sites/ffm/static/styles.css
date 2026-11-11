@@ -1250,7 +1250,10 @@ button, input, select, .splash-legal-links a {
   min-height: 44px;
 }
 
-button { overflow-wrap: normal; word-break: normal; hyphens: none; }
+/* Interface words stay intact and sentences wrap at spaces. `break-word` is the
+ * safety net only: a single word wider than its button (a long German label on
+ * a 320px phone) wraps inside the border instead of spilling over the edge. */
+button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 
 .overlay, #loading-overlay {
   /* --viewport-* follows the visual viewport: an on-screen keyboard shrinks it
@@ -1289,6 +1292,19 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 }
 
 .overlay-card p { margin: 0; line-height: 1.35; }
+
+/* Running text in dialogs and panels reads left-aligned, inset from the card
+ * edge, and keeps air before the action that ends the passage. Centred copy is
+ * reserved for the welcome text, headings and one-line labels (a player name,
+ * the "choose your difficulty" prompt). */
+:is(.overlay-card, .paywall-card, .parental-gate-card, .entitlement-panel,
+    .practice-controls, .app-help-card, .first-open-notice-card) p:not(.player-identity),
+:is(.overlay-card, .paywall-card, .parental-gate-card, .entitlement-panel,
+    .practice-controls, .app-help-card, .first-open-notice-card) :is(ul, ol) {
+  text-align: left;
+  padding-inline: 8px;
+  margin-block-end: 8px;
+}
 #level-clear .overlay-card, #game-over .overlay-card { overflow-y: auto; }
 #level-clear .overlay-card > *, #game-over .overlay-card > * { flex-shrink: 0; }
 #level-attempt-summary, #defeat-attempt-summary { white-space: pre-line; overflow-wrap: normal; }
@@ -1320,7 +1336,7 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 .first-open-notice-card > * { flex-shrink: 0; }
 /* Centred copy with a little air above the single action: a calm note rather
    than a wall of left-aligned text. */
-.first-open-notice-card p { text-align: center; }
+.first-open-notice-card p { text-align: left; }
 .first-open-notice-card [data-notice-action="continue"] {
   margin-top: 10px;
   /* No double-tap zoom on the one action that closes the dialog. */
@@ -1391,7 +1407,7 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   margin: 0;
   flex-shrink: 1;
   display: grid;
-  grid-template-rows: 88px minmax(0, 1fr) 44px;
+  grid-template-rows: 88px minmax(0, 1fr) minmax(44px, auto);
   gap: 6px;
 }
 .splash-title {
@@ -1410,11 +1426,11 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
   object-fit: contain;
 }
 @media (orientation: portrait) {
-  .splash-content { grid-template-rows: 112px minmax(0, 1fr) 44px; }
+  .splash-content { grid-template-rows: 112px minmax(0, 1fr) minmax(44px, auto); }
   .title-logo { height: 64px; }
 }
 @media (orientation: portrait) and (min-width: 380px) and (min-height: 700px) {
-  .splash-content { grid-template-rows: 184px minmax(0, 1fr) 44px; }
+  .splash-content { grid-template-rows: 184px minmax(0, 1fr) minmax(44px, auto); }
   .title-logo { height: 136px; }
 }
 .title-pages, .title-page, #profile-root, .profile-ui {
@@ -1517,14 +1533,18 @@ button { overflow-wrap: normal; word-break: normal; hyphens: none; }
 @media (orientation: landscape) and (max-height: 400px) {
   .title-level-numerals { width: 44px; }
 }
+/* Tabs take the width their label needs and wrap onto a second row when six
+ * of them (plus help) do not fit. A pressed tab is bold and therefore wider, so
+ * a fixed six-column grid used to clip "Training" on 320px phones. */
 .title-navigation {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(44px, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
   width: 100%;
   min-width: 0;
 }
+.title-navigation button { flex: 1 1 auto; min-width: 44px; }
 .title-navigation button, .screen-pagination button,
 .profile-ui button, .title-page > button {
   background: #1a1a3a;
@@ -2155,6 +2175,16 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 #practice-description, #practice-unscored, #practice-badges, #practice-status, #btn-start-practice, #music-volume-status {
   grid-column: 1 / -1;
 }
+/* The practice panel is a submenu of the Training tab: its summary carries the
+ * tab's own heading style (monospace, --text-heading, ivory, bold) instead of
+ * the quiet disclosure-label look. */
+#practice-panel > summary {
+  font-family: var(--font-prose);
+  font-size: var(--text-heading);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ivory);
+}
 /* The level hint sits under the level selector and spans the control column. */
 #practice-level-hint {
   grid-column: 1 / -1;
@@ -2162,6 +2192,13 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   color: var(--brass-light);
 }
 #practice-level-hint:empty { display: none; }
+/* Back out of the submenu to the Training tab it belongs to. Quiet, full width,
+ * and the last control, mirroring the audio settings' own back button. */
+#btn-close-practice {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 44px;
+}
 #practice-badges { min-width: 0; overflow-wrap: anywhere; color: var(--brass-light); }
 #practice-description, #practice-unscored {
   margin: 4px 0;
@@ -2323,18 +2360,18 @@ body:not(.legal-body) {
   .title-play-intro .splash-intro { display: none; }
 }
 @media (orientation: landscape) and (min-height: 500px) {
-  .splash-content { grid-template-rows: 232px minmax(0, 1fr) 44px; }
+  .splash-content { grid-template-rows: 232px minmax(0, 1fr) minmax(44px, auto); }
   .title-logo { height: 184px; }
   .title-play-intro { padding: 20px 24px; }
   .playing-as-row { flex-direction: column; gap: 10px; }
 }
 @media (orientation: portrait) and (min-width: 700px) {
-  .splash-content { grid-template-rows: 232px minmax(0, 1fr) 44px; }
+  .splash-content { grid-template-rows: 232px minmax(0, 1fr) minmax(44px, auto); }
   .title-logo { height: 184px; }
 }
 
 @media (orientation: landscape) and (max-height: 400px) {
-  .splash-content { grid-template-rows: 44px minmax(0, 1fr) 44px; }
+  .splash-content { grid-template-rows: 44px minmax(0, 1fr) minmax(44px, auto); }
   .splash-title { align-self: center; }
   .splash-diff-buttons { grid-template-rows: repeat(4, minmax(44px, 1fr)); gap: 2px; }
   .splash-diff-btn { padding: 4px 8px; gap: 6px; }
