@@ -15,6 +15,7 @@ const EFFECT_ATTACK = 0.008;
 const MUSIC_FADE = 0.15;
 const VICTORY_HYMN = './victory-hymn.mp3';
 const HYMN_MUSIC_DUCK = 0.3;
+const HYMN_DUCK_REASON = 'victory-hymn';
 
 function volumeValue(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -33,6 +34,9 @@ export class AudioEngine {
     this._effectsVolume = 1;
     this._musicVolume = DEFAULT_VOLUME;
     this._musicDuck = 1;
+    // Reasons that currently dip the music (the victory hymn, a narrated story
+    // scene); the lowest factor wins, so none of them can un-duck another.
+    this._musicDucks = new Map();
     this._victoryTask = null;
     this._victoryVoice = null;
     this._effectsBus = null;
@@ -210,7 +214,7 @@ export class AudioEngine {
     this._musicBus.gain.setValueAtTime(this._muted ? 0 : this._musicVolume * this._musicDuck, this._ctx.currentTime);
   }
 
-  // Background music dips under the victory hymn and comes back afterwards.
+  // Background music dips for any number of reasons and comes back afterwards.
   _setMusicDuck(factor) {
     this._musicDuck = factor;
     if (!this._ctx || !this._musicBus) return;
@@ -224,6 +228,29 @@ export class AudioEngine {
     if (typeof gain.cancelScheduledValues === 'function') gain.cancelScheduledValues(now);
     gain.setValueAtTime(typeof gain.value === 'number' ? gain.value : target, now);
     gain.linearRampToValueAtTime(target, now + MUSIC_FADE);
+  }
+
+  /**
+   * Dip the background music for one named reason, or release it again.
+   *
+   * More than one thing can need the music quieter at the same time (the
+   * victory hymn, a narrated story scene). Every reason keeps its own level and
+   * the lowest one wins, so releasing one never un-ducks another.
+   *
+   * @param {string} reason who wants the dip, e.g. 'victory-hymn'
+   * @param {number|null} factor 1 is full level, 0 is silent; null releases
+   * @returns {number} the duck now in force
+   */
+  setMusicDuck(reason, factor) {
+    const key = String(reason);
+    if (factor === null || factor === undefined) {
+      this._musicDucks.delete(key);
+    } else {
+      const level = Number(factor);
+      this._musicDucks.set(key, Number.isFinite(level) ? Math.min(1, Math.max(0, level)) : 0);
+    }
+    this._setMusicDuck(this._musicDucks.size ? Math.min(...this._musicDucks.values()) : 1);
+    return this._musicDuck;
   }
 
   get effectsVolume() { return this._effectsVolume; }
@@ -566,7 +593,7 @@ export class AudioEngine {
     source.onended = () => {
       this._voices.delete(voice);
       if (this._victoryVoice === voice) this._victoryVoice = null;
-      this._setMusicDuck(1);
+      this.setMusicDuck(HYMN_DUCK_REASON, null);
       voice.nodes.forEach(node => {
         try {
           node.disconnect();
@@ -575,7 +602,7 @@ export class AudioEngine {
         }
       });
     };
-    this._setMusicDuck(HYMN_MUSIC_DUCK);
+    this.setMusicDuck(HYMN_DUCK_REASON, HYMN_MUSIC_DUCK);
     source.start(now);
   }
 
@@ -583,9 +610,9 @@ export class AudioEngine {
   // level-clear screen or keep the next level's music ducked.
   _stopVictoryHymn() {
     const voice = this._victoryVoice;
-    if (!voice && this._musicDuck === 1) return;
+    if (!voice && !this._musicDucks.has(HYMN_DUCK_REASON)) return;
     this._victoryVoice = null;
-    this._setMusicDuck(1);
+    this.setMusicDuck(HYMN_DUCK_REASON, null);
     if (!voice) return;
     this._voices.delete(voice);
     try {

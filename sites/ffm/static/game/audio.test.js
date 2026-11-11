@@ -548,6 +548,33 @@ describe('shared sound buses and event cues', () => {
       assert.deepEqual(audio._musicBus.gain.events.at(-1), ['linear', 0.35, 10.15], 'the music comes back up');
     });
 
+    it('stacks music ducks by reason so releasing one never un-ducks another', () => {
+      const { audio } = soundEngine();
+      assert.equal(audio.setMusicDuck('story-narration', 0.3), 0.3, 'the story scene dips the music');
+      assert.equal(audio.setMusicDuck('victory-hymn', 0.2), 0.2, 'the louder dip wins');
+      assert.equal(audio.setMusicDuck('story-narration', null), 0.2,
+        'a scene ending does not undo the hymn');
+      assert.equal(audio._musicDuck, 0.2);
+      assert.equal(audio.setMusicDuck('victory-hymn', null), 1, 'releasing the last dip restores the music');
+      assert.equal(audio._musicDuck, 1);
+
+      assert.equal(audio.setMusicDuck('story-narration', 5), 1, 'a dip above full level is clamped');
+      assert.equal(audio.setMusicDuck('story-narration', -2), 0, 'a negative dip is clamped');
+      assert.equal(audio.setMusicDuck('story-narration', null), 1);
+    });
+
+    it('fades the music under a story scene instead of cutting it', () => {
+      const { audio } = soundEngine();
+      audio.startBGM();
+      audio.setMusicDuck('story-narration', 0.3);
+      const events = audio._musicBus.gain.events.slice(-2);
+      assert.deepEqual(events, [['set', 0.35, 10], ['linear', 0.35 * 0.3, 10 + 0.15]],
+        'the dip ramps over the shared music fade');
+      audio.setMusicDuck('story-narration', null);
+      assert.deepEqual(audio._musicBus.gain.events.at(-1), ['linear', 0.35, 10.15],
+        'and comes back up the same way');
+    });
+
     it('plays the hymn once: one shot, never looped, never restarted', async () => {
       const { audio, context } = soundEngine({
         fetchTrack: async () => ({ arrayBuffer: async () => new ArrayBuffer(8) }),
