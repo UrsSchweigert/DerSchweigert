@@ -19,7 +19,7 @@ import { createRetryableInitialization } from './retryable-init.js';
 import { getCampaignProgress, resetLevelAttempt } from './campaign-progress.js';
 import { resolvePlatform } from './platform.js';
 import { getFiendClass, sampleFiendClassId, FIEND_CLASSES } from './difficulty-classes.js';
-import { pickComboAbility, getComboFrameBand, getComboRewardProgress } from './combo-abilities.js';
+import { pickComboAbility, getComboFrameBand, getComboRewardProgress, isAbilityBandStart } from './combo-abilities.js';
 import {
   FIEND_ENTRY_TRIGGER_X,
   getFiendWalkSpeed,
@@ -454,6 +454,8 @@ function createFiend(levelIndex, x) {
   fiend.problem = problem;
   fiend.isElite = practiceElite || isElite;
   fiend.fiendClassId = sampleFiendClassId(cfg.level, spawnIndex);
+  fiend.type = fiendTypeKey;
+  audio.prepareFiend?.(fiendTypeKey);
   if (practiceRun && practiceRun.kind !== 'targeted' && problem.operation) {
     practiceRun.operations.add(problem.operation);
   }
@@ -489,6 +491,8 @@ function createShapesFiend(x) {
   // uniformly random class id across the whole roster instead, for real
   // visual variety on every spawn.
   fiend.fiendClassId = 1 + Math.floor(Math.random() * FIEND_CLASSES.length);
+  fiend.type = fiendTypeKey;
+  audio.prepareFiend?.(fiendTypeKey);
   return fiend;
 }
 
@@ -2898,8 +2902,13 @@ let healChargeAccum = 0;
 function emitHealCharge(holding, secondsHeld, dt) {
   if (!holding || secondsHeld <= 0) {
     healChargeAccum = 0;
+    audio.setHealCharge?.(null);
     return;
   }
+  // The charge bed is a state, not an event: it starts with the hold, rises
+  // with the charge and stops on release, so it is updated before the particle
+  // throttle below can swallow the call.
+  audio.setHealCharge?.(Math.min(1, secondsHeld / GAME_CONFIG.healHoldSecondsPerHeart));
   healChargeAccum += dt;
   if (healChargeAccum < 0.12) return;
   healChargeAccum = 0;
@@ -2971,7 +2980,7 @@ function resolveLightningHit(fiend) {
   fiend.hp = 0;
   fiend.setState('death');
   audio.playLightningHit();
-  audio.playEnemyDeath();
+  audio.playEnemyDeath(fiend.type);
   state.enemiesDefeated++;
   recordPracticeEncounterDefeated();
   activeFiend = null;
@@ -2996,7 +3005,7 @@ function resolveFireballHit(fiend) {
   globalThis.ffmFx?.fiendHurt(fiend);
 
   if (fiend.isDead) {
-    audio.playEnemyDeath();
+    audio.playEnemyDeath(fiend.type);
     state.enemiesDefeated++;
     recordPracticeEncounterDefeated();
     activeFiend = null;
@@ -3067,6 +3076,8 @@ function handleCorrectAnswer(origin) {
   } else {
     state.combo = 0;
   }
+  // One chime per band entered, just before the ability that band unlocks.
+  if (isAbilityBandStart(state.combo)) audio.playSwordGain?.();
   state.timerActive = false;
 
   const fiend = activeFiend;
@@ -3130,7 +3141,7 @@ function handleCorrectAnswer(origin) {
       audio.playDragonRoar();
 
       if (fiend.isDead) {
-        audio.playEnemyDeath();
+        audio.playEnemyDeath(fiend.type);
         state.enemiesDefeated++;
         recordPracticeEncounterDefeated();
         activeFiend = null;
@@ -3167,9 +3178,10 @@ function handleCorrectAnswer(origin) {
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
       audio.playSwordSwing();
+      audio.playFiendHit?.(fiend.type);
 
       if (fiend.isDead) {
-        audio.playEnemyDeath();
+        audio.playEnemyDeath(fiend.type);
         state.enemiesDefeated++;
         recordPracticeEncounterDefeated();
         activeFiend = null;
@@ -3230,6 +3242,8 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
   activeFiend.setState('attack');
   if (timeout) audio.playTimeout?.();
   else audio.playWrong?.();
+  // The body blow lands with the strike animation, not on the answer beep.
+  audio.playHeroHurt?.(0.12);
   state.timerActive = false;
   state.hearts--;
   hud.update(state);
@@ -3526,6 +3540,7 @@ function triggerLevelClear() {
   });
   levelClearOverlay.style.display = 'flex';
   globalThis.ffmScreenFx?.play('levelWon');
+  audio.playWinPop?.();
   if (completedLevelSave) return finishCompletion(() => refreshProfileAndLeaderboard());
 }
 

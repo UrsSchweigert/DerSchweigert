@@ -407,7 +407,7 @@ describe('shared sound buses and event cues', () => {
         return n;
       };
       const voice = kind => Object.assign(node(kind), {
-        starts: [], stops: [], onended: null,
+        starts: [], stops: [], onended: null, loop: false, playbackRate: param(),
         start(time) { this.starts.push(time); },
         stop(time) { this.stops.push(time); },
       });
@@ -499,6 +499,325 @@ describe('shared sound buses and event cues', () => {
         assert.ok(voice.nodes.every(node => node.disconnected));
       }
       assert.equal(audio._voices.size, 0);
+    });
+
+    // Decoding is promise-chained from fetch through decodeAudioData, so one
+    // macrotask is not enough to settle a whole cue's variants.
+    const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+
+    function cuesEngine({ decode = () => Promise.resolve({ duration: 0.5 }), random = null } = {}) {
+      const fetches = [];
+      const context = Object.assign(fakeContext(), { decodeAudioData: decode });
+      const { audio } = soundEngine({
+        context,
+        random,
+        fetchTrack: url => {
+          fetches.push(url);
+          return Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+        },
+      });
+      return { audio, context, fetches };
+    }
+
+    it('plays a decoded slash variant through the effects bus', async () => {
+      const { audio, context } = cuesEngine();
+      audio.playSwordSwing();
+      await settle();
+      assert.equal([...audio._cueBuffers.keys()].filter(f => f.startsWith('sword-slash')).length, 3,
+        'all three slash variants are warm once the context opens');
+
+      const before = context.nodes.length;
+      audio.playSwordSwing();
+      const added = context.nodes.slice(before);
+      const source = added.find(node => node.kind === 'buffer');
+      const gain = added.find(node => node.kind === 'gain');
+      assert.ok(source.buffer, 'plays a decoded sample');
+      assert.deepEqual(source.connections, [gain]);
+      assert.deepEqual(gain.connections, [audio._effectsBus], 'sample rides the same effects bus');
+      assert.equal(gain.gain.events[0][1], 1.6, 'the slash is mixed above the synth cues');
+      assert.equal(source.starts.length, 1);
+    });
+
+    it('never repeats the same variant back to back', () => {
+      // Worst case for the picker: every draw lands on the same index.
+      const { audio } = cuesEngine({ random: () => 0 });
+      const files = Array.from({ length: 12 }, () => audio._nextCueFile('sword-slash'));
+      for (let i = 1; i < files.length; i++) {
+        assert.notEqual(files[i], files[i - 1], `variant ${i} repeats the one before it`);
+      }
+      assert.deepEqual(new Set(files), new Set(['sword-slash-1.mp3', 'sword-slash-2.mp3']));
+    });
+
+    it('keeps every variant of a cue in rotation', () => {
+      const draws = [0, 0.34, 0.67, 0, 0.34, 0.67];
+      let i = 0;
+      const { audio } = cuesEngine({ random: () => draws[i++ % draws.length] });
+      const seen = new Set(Array.from({ length: 6 }, () => audio._nextCueFile('hero-hurt')));
+      assert.deepEqual(seen, new Set(['hero-hurt-1.mp3', 'hero-hurt-2.mp3', 'hero-hurt-3.mp3']));
+    });
+
+    it('gives each fiend type its own hit and death cue, mixed under the slash', async () => {
+      const { audio, context, fetches } = cuesEngine();
+      audio.playSwordSwing();
+      audio.prepareFiend('slimeling');
+      await settle();
+      assert.ok(fetches.some(url => url.endsWith('/sfx/fiend-slimeling-hit-1.mp3')));
+      assert.ok(fetches.some(url => url.endsWith('/sfx/fiend-slimeling-death-3.mp3')));
+
+      let before = context.nodes.length;
+      audio.playFiendHit('slimeling');
+      let gain = context.nodes.slice(before).find(node => node.kind === 'gain');
+      assert.equal(gain.gain.events[0][1], 1.2, 'the impact sits under the slash');
+      assert.deepEqual(gain.connections, [audio._effectsBus]);
+
+      before = context.nodes.length;
+      audio.playEnemyDeath('slimeling');
+      gain = context.nodes.slice(before).find(node => node.kind === 'gain');
+      assert.equal(gain.gain.events[0][1], 1.45, 'the death cry carries further than a hit');
+    });
+
+    it('unknown fiend types keep the shared cues instead of failing', async () => {
+      const { audio, context, fetches } = cuesEngine();
+      audio.playSwordSwing();
+      audio.prepareFiend('kraken');
+      await settle();
+      assert.ok(!fetches.some(url => url.includes('kraken')), 'no samples are invented for an unknown type');
+
+      const before = context.nodes.length;
+      audio.playEnemyDeath('kraken');
+      const oscillators = context.nodes.slice(before).filter(node => node.kind === 'oscillator');
+      assert.equal(oscillators.length, 4, 'falls back to the generic synth descent');
+    });
+
+    it('lands the hero hurt cue with the strike instead of the answer beep', async () => {
+      const { audio, context } = cuesEngine();
+      audio.playSwordSwing();
+      await settle();
+
+      const before = context.nodes.length;
+      audio.playHeroHurt(0.12);
+      const added = context.nodes.slice(before);
+      const gain = added.find(node => node.kind === 'gain');
+      const source = added.find(node => node.kind === 'buffer');
+      assert.equal(gain.gain.events[0][1], 1.45);
+      assert.equal(gain.gain.events[0][2], context.currentTime + 0.12, 'scheduled after the wrong-answer cue');
+      assert.equal(source.starts[0], context.currentTime + 0.12);
+    });
+
+    it('sizes the spell launch to the flight and rotates its variants', async () => {
+      const draws = [0, 0.4, 0.8, 0, 0.4, 0.8];
+      let i = 0;
+      const { audio, context } = cuesEngine({ random: () => draws[i++ % draws.length] });
+      audio.playSwordSwing();
+      await settle();
+      for (const prefix of ['fire-cast', 'bolt-cast']) {
+        assert.equal([...audio._cueBuffers.keys()].filter(f => f.startsWith(prefix)).length, 3,
+          `${prefix} is warm once the context opens`);
+      }
+
+      for (const [cue, method] of [['fire-cast', 'playFireballCast'], ['bolt-cast', 'playLightningCast']]) {
+        const played = [];
+        for (let n = 0; n < 6; n++) {
+          const before = context.nodes.length;
+          audio[method]();
+          const gain = context.nodes.slice(before).find(node => node.kind === 'gain');
+          assert.equal(gain.gain.events[0][1], 1.4, `${cue} sits just under the blast`);
+          played.push(audio._cueLast.get(cue));
+        }
+        assert.equal(new Set(played).size, 3, `${cue} keeps all three variants in rotation`);
+        for (let n = 1; n < played.length; n++) assert.notEqual(played[n], played[n - 1]);
+      }
+    });
+
+    it('keeps the synth launch when the cast samples cannot be loaded', async () => {
+      const { audio, context } = cuesEngine({ decode: () => Promise.reject(new Error('bad mp3')) });
+      audio.playSwordSwing();
+      await settle();
+      const before = context.nodes.length;
+      audio.playLightningCast();
+      const kinds = context.nodes.slice(before).map(node => node.kind);
+      assert.equal(audio._cueBuffers.size, 0);
+      assert.ok(kinds.includes('oscillator'), 'the synth buzz still fires');
+    });
+
+    it('glitters over the correct-answer tones instead of replacing them', async () => {
+      const { audio, context } = cuesEngine();
+      audio.playSwordSwing();
+      await settle();
+      const before = context.nodes.length;
+      audio.playCorrect();
+      const added = context.nodes.slice(before);
+      assert.equal(added.filter(node => node.kind === 'oscillator').length, 2, 'both synth tones still play');
+      const sparkle = added.find(node => node.kind === 'gain' && node.gain.events[0][1] === 0.5);
+      assert.ok(sparkle, 'the sparkle rides underneath at half level');
+      assert.deepEqual(sparkle.connections, [audio._effectsBus]);
+    });
+
+    it('plays the game-over sting, the win pop and the band chime from their samples', async () => {
+      const { audio, context } = cuesEngine();
+      audio.playSwordSwing();
+      await settle();
+      for (const [cue, method, gain] of [
+        ['game-over', 'playGameOver', 1.4],
+        ['win-pop', 'playWinPop', 1.1],
+        ['sword-gain', 'playSwordGain', 1.2],
+      ]) {
+        const before = context.nodes.length;
+        audio[method]();
+        const env = context.nodes.slice(before).find(node => node.kind === 'gain');
+        assert.equal(env.gain.events[0][1], gain, `${cue} level`);
+        assert.deepEqual(env.connections, [audio._effectsBus]);
+        assert.equal(audio._cueLast.get(cue), 0, `${cue} played from its family`);
+      }
+      assert.equal(audio._cueFailed.size, 0);
+    });
+
+    it('keeps the synth game-over sting when its sample is missing', async () => {
+      const { audio, context } = cuesEngine({ decode: () => Promise.reject(new Error('bad mp3')) });
+      audio.playSwordSwing();
+      await settle();
+      const before = context.nodes.length;
+      audio.playGameOver();
+      assert.equal(context.nodes.slice(before).filter(n => n.kind === 'oscillator').length, 6,
+        'the six-note descent still plays');
+    });
+
+    it('runs one looping heal charge bed that rises with the hold and stops on release', async () => {
+      const { audio, context } = cuesEngine();
+      audio.playSwordSwing();
+      await settle();
+
+      const before = context.nodes.length;
+      audio.setHealCharge(0.2);
+      const added = context.nodes.slice(before);
+      const source = added.find(node => node.kind === 'buffer');
+      const gain = added.find(node => node.kind === 'gain');
+      assert.equal(source.loop, true, 'the bed loops while the hold lasts');
+      assert.deepEqual(gain.connections, [audio._effectsBus]);
+      const rateLow = source.playbackRate.value;
+      const levelLow = gain.gain.value;
+
+      const afterFirst = context.nodes.length;
+      audio.setHealCharge(0.9);
+      assert.equal(context.nodes.length, afterFirst, 'repeated frames never stack a second bed');
+      assert.ok(source.playbackRate.value > rateLow, 'pitch climbs with the charge');
+      assert.ok(gain.gain.value > levelLow, 'level climbs with the charge');
+
+      const voice = audio._healChargeVoice;
+      audio.setHealCharge(null);
+      assert.ok(source.stops.length > 0, 'release stops the bed');
+      assert.equal(audio._healChargeVoice, null);
+      assert.ok(!audio._voices.has(voice), 'the bed leaves the voice set');
+      assert.ok(voice.nodes.every(node => node.disconnected));
+    });
+
+    it('keeps the heal charge silent while muted and starts it again on unmute', async () => {
+      const { audio, context } = cuesEngine();
+      audio.playSwordSwing();
+      await settle();
+
+      audio.toggleMute();
+      const before = context.nodes.length;
+      audio.setHealCharge(0.5);
+      assert.equal(context.nodes.length, before, 'no bed is started while muted');
+
+      audio.toggleMute();
+      audio.setHealCharge(0.5);
+      const started = context.nodes.slice(before).filter(node => node.kind === 'buffer' && node.loop);
+      assert.equal(started.length, 1, 'unmuting mid-hold starts the bed once');
+    });
+
+    it('rotates the heal bloom and the dragon roar, above the synth cues', async () => {
+      const draws = [0, 0.4, 0.8, 0, 0.4, 0.8];
+      let i = 0;
+      const { audio, context } = cuesEngine({ random: () => draws[i++ % draws.length] });
+      audio.playSwordSwing();
+      await settle();
+
+      for (const [cue, method, gain] of [
+        ['heal-bloom', 'playHeal', 2.7],
+        ['dragon-roar', 'playDragonRoar', 1.5],
+      ]) {
+        const played = [];
+        for (let n = 0; n < 6; n++) {
+          const before = context.nodes.length;
+          audio[method]();
+          const env = context.nodes.slice(before).find(node => node.kind === 'gain');
+          assert.equal(env.gain.events[0][1], gain, `${cue} is mixed above the synth cue`);
+          played.push(audio._cueLast.get(cue));
+        }
+        assert.equal(new Set(played).size, 3, `${cue} keeps all three variants in rotation`);
+        for (let n = 1; n < played.length; n++) assert.notEqual(played[n], played[n - 1]);
+      }
+    });
+
+    it('rotates fireball and lightning blasts without repeating, above the synth cues', async () => {
+      const draws = [0, 0.4, 0.8, 0, 0.4, 0.8];
+      let i = 0;
+      const { audio, context } = cuesEngine({ random: () => draws[i++ % draws.length] });
+      audio.playSwordSwing();
+      await settle();
+      assert.equal([...audio._cueBuffers.keys()].filter(f => f.startsWith('fire-impact')).length, 3,
+        'all three fire blasts are warm once the context opens');
+      assert.equal([...audio._cueBuffers.keys()].filter(f => f.startsWith('bolt-impact')).length, 3,
+        'and all three lightning cracks');
+
+      for (const [cue, method] of [['fire-impact', 'playFireballHit'], ['bolt-impact', 'playLightningHit']]) {
+        const played = [];
+        for (let n = 0; n < 6; n++) {
+          const before = context.nodes.length;
+          audio[method]();
+          const gain = context.nodes.slice(before).find(node => node.kind === 'gain');
+          assert.equal(gain.gain.events[0][1], 1.5, `${cue} carries as far as the slash`);
+          assert.deepEqual(gain.connections, [audio._effectsBus]);
+          played.push(audio._cueLast.get(cue));
+        }
+        assert.equal(new Set(played).size, 3, `${cue} keeps all three variants in rotation`);
+        for (let n = 1; n < played.length; n++) assert.notEqual(played[n], played[n - 1]);
+      }
+    });
+
+    it('keeps the synth blast when the spell samples cannot be loaded', async () => {
+      const { audio, context } = cuesEngine({ decode: () => Promise.reject(new Error('bad mp3')) });
+      audio.playSwordSwing();
+      await settle();
+      const before = context.nodes.length;
+      audio.playFireballHit();
+      const kinds = context.nodes.slice(before).map(node => node.kind);
+      assert.equal(audio._cueBuffers.size, 0, 'no blast sample decoded');
+      assert.ok(kinds.includes('oscillator'), 'the layered synth impact still fires');
+      assert.ok(kinds.includes('filter'), 'including the noise tail');
+    });
+
+    it('fetches each sound-effect file once and never retries a failed one', async () => {
+      const failing = cuesEngine({ decode: () => Promise.reject(new Error('bad mp3')) });
+      failing.audio.playSwordSwing();
+      await settle();
+      const failedFetches = failing.fetches.length;
+      assert.ok(failedFetches > 0);
+      failing.audio.playSwordSwing();
+      assert.equal(failing.fetches.length, failedFetches, 'a file that failed is not fetched again');
+
+      const working = cuesEngine();
+      working.audio.playSwordSwing();
+      await settle();
+      const warm = working.fetches.length;
+      working.audio.playSwordSwing();
+      working.audio.playSwordSwing();
+      assert.equal(working.fetches.length, warm, 'decoded variants are cached');
+    });
+
+    it('falls back to the synth swish when the slash samples cannot be loaded', async () => {
+      const { audio, context } = cuesEngine({ decode: () => Promise.reject(new Error('bad mp3')) });
+      audio.playSwordSwing();
+      await settle();
+      assert.equal(audio._cueBuffers.size, 0);
+
+      const before = context.nodes.length;
+      audio.playSwordSwing();
+      const gains = context.nodes.slice(before).filter(n => n.kind === 'gain');
+      assert.ok(gains.length > 0, 'the synth envelope still carries the hit');
+      for (const gain of gains) assert.deepEqual(gain.connections, [audio._effectsBus]);
     });
 
     it('shapes every synth cue with a short attack and release', () => {

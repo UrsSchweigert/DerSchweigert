@@ -42,6 +42,16 @@ export function getComboFrameBand(combo) {
   return null;
 }
 
+/**
+ * True when this combo count just entered an ability band — the first value
+ * above one of the rule thresholds (6, 11, 21). One hit per band, so a cue bound
+ * to this marks the moment the band was earned instead of firing on every hit
+ * that happens to be past a threshold.
+ */
+export function isAbilityBandStart(combo) {
+  return COMBO_ABILITY_RULES.some(rule => combo === rule.minCombo + 1);
+}
+
 export function getComboRewardProgress(combo) {
   if (!Number.isSafeInteger(combo) || combo < 0) {
     throw new TypeError('Combo must be a non-negative safe integer');

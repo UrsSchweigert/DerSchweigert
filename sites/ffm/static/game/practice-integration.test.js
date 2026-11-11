@@ -11,6 +11,7 @@ import {
 } from './practice-session.js';
 import { resetLevelAttempt } from './campaign-progress.js';
 import { getSkillIntro } from './skill-intro.js';
+import { isAbilityBandStart } from './combo-abilities.js';
 import { generateShapesProblem } from './shapes.js';
 import { getArithmeticOptionCount } from './levels.js';
 import { PRACTICE_KINDS } from './practice-session.js';
@@ -446,12 +447,12 @@ test('answer zone is explicitly hidden on title and result transitions and shown
 function correctAnswerContext(kind, { hearts = 5, maxHearts = 5, hp = 1 } = {}) {
   const p = problem('+', 2);
   const fiend = {
-    problem: p, isDead: false, isElite: kind === 'elite', fiendClassId: 1,
+    problem: p, isDead: false, isElite: kind === 'elite', fiendClassId: 1, type: 'slimeling',
     wasRequeued: false, x: 100, y: 0, hp, state: 'idle',
     setState(value) { this.state = value; },
     hit() { this.hp--; this.isDead = this.hp <= 0; },
   };
-  const played = { correct: 0, heal: 0 };
+  const played = { correct: 0, heal: 0, fiendHits: [], deaths: [] };
   const session = createPracticeSession({ kind, problems: kind === 'targeted' ? [p] : [] });
   const context = {
     activeFiend: fiend, practiceRun: {
@@ -469,6 +470,7 @@ function correctAnswerContext(kind, { hearts = 5, maxHearts = 5, hp = 1 } = {}) 
     GAME_CONFIG: { elitePointMultiplier: 2 },
     getFiendClass: () => ({ scoreValue: 500 }),
     pickComboAbility() { throw new Error('Practice must not charge combo abilities'); },
+    isAbilityBandStart,
     HERO_X: 100, LUNGE_MIN_DIST: 100,
     hero: { setState() {} }, heroLunge: null,
     activeLightningBolts: [], activeFireballs: [], activeDragons: [],
@@ -478,7 +480,9 @@ function correctAnswerContext(kind, { hearts = 5, maxHearts = 5, hp = 1 } = {}) 
     delays: [], hud: { update() {} },
     audio: {
       playCorrect() { played.correct++; }, playHeal() { played.heal++; },
-      playSwordSwing() {}, playEnemyDeath() {},
+      playSwordSwing() {}, prepareFiend() {},
+      playFiendHit(type) { played.fiendHits.push(type); },
+      playEnemyDeath(type) { played.deaths.push(type); },
     },
     spawnInterval: 2, shouldPreserveTimerAfterHit: () => true,
     recordPracticeEncounterDefeated: null,
@@ -501,6 +505,8 @@ test('correct replies across all modes are unscored, use one gentle cue, and def
     assert.equal(context.state.score, 900);
     assert.equal(context.state.combo, 0);
     assert.equal(played.correct, 1);
+    assert.deepEqual(played.fiendHits, ['slimeling'], 'the fiend type carries its own impact cue');
+    assert.deepEqual(played.deaths, ['slimeling'], 'and its own defeat cry');
     assert.equal(context.activeFiend, null);
     if (kind === 'targeted') assert.equal(context.practiceRun.session.snapshot().resolvedProblems, 1);
     if (kind !== 'targeted' && kind !== 'shapes') {
