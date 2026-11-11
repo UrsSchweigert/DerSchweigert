@@ -87,7 +87,9 @@ GENERATED_POSES: list[dict] = [
     # `match` names the sheet pose whose head size this frame must adopt; the
     # scale is measured at build time (hair-height ratio), so a generated pose
     # can never ship with a differently sized hero.
-    {"file": "swing-twohand.png", "id": "swing-strike", "match": (1, 0), "strip_shadow": True},
+    # 20% larger than the measured match: the strike pose reads small next to the
+    # idle frame because the blade eats the frame, so it is scaled to taste.
+    {"file": "swing-twohand.png", "id": "swing-strike", "match": (1, 0), "gain": 1.2, "strip_shadow": True},
     {"file": "swing-follow.png", "id": "swing-follow", "scale": 0.172, "strip_shadow": True},
 ]
 
@@ -130,6 +132,7 @@ class Frame:
     # Full-colour art before palette flattening; the sword check measures this
     # so snapping colours cannot hide a blade from the geometry test.
     source: Image.Image | None = None
+    shadow: int = 1
 
 
 def _components(mask: np.ndarray) -> tuple[np.ndarray, int]:
@@ -257,6 +260,7 @@ def _generated_frame(spec: dict) -> tuple[Image.Image, Image.Image] | None:
         ref_hair, hair = _hair_height(reference), _hair_height(image)
         scale = (ref_hair / hair) if hair else scale
     if scale:
+        scale *= spec.get("gain", 1.0)
         size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
         image = _resize_rgba(image, size)
         flattened = _flatten_to_palette(image, spec["palette"])
@@ -406,6 +410,23 @@ def _stamp_hand(image: Image.Image, at: tuple[int, int]) -> Image.Image:
     return Image.fromarray(a, "RGBA")
 
 
+def _strip_baked_shadow(image: Image.Image) -> tuple[Image.Image, int]:
+    """Remove a sheet frame's baked shadow, unless that would eat the boots.
+
+    All frames then get the same feathered shadow from the renderer instead of
+    the hard grey ellipse baked into the older art. The guard keeps a frame that
+    would lose more than a fifth of its pixels untouched, and reports that it
+    still carries its own shadow.
+    """
+    before = np.array(image)
+    kept = (before[:, :, 3] > 0).sum()
+    out = _strip_ground_shadow(before)
+    lost = kept - (out[:, :, 3] > 0).sum()
+    if kept and lost / kept > 0.22:
+        return image, 1
+    return Image.fromarray(out, "RGBA"), 0
+
+
 def _pivot(image: Image.Image) -> tuple[int, int]:
     """Foot contact point in frame pixels: bottom row, weight centre of it."""
     a = np.array(image)
@@ -427,8 +448,9 @@ def collect() -> tuple[list[Frame], list[str]]:
             image = _extend_blade_tip(image, TIP_EXTEND[frame_id])
         if frame_id in EXTRA_HAND:
             image = _stamp_hand(image, EXTRA_HAND[frame_id])
+        image, shadow = _strip_baked_shadow(image)
         sheet_images.append(image)
-        frames[frame_id] = Frame(frame_id, image, f"sheet[{row},{col}]")
+        frames[frame_id] = Frame(frame_id, image, f"sheet[{row},{col}]", None, shadow)
     palette = _shared_palette(sheet_images)
     for spec in GENERATED_POSES:
         built = _generated_frame({**spec, "palette": palette})
@@ -436,7 +458,8 @@ def collect() -> tuple[list[Frame], list[str]]:
             print(f"  skip {spec['id']}: {spec['file']} not generated yet", file=sys.stderr)
             continue
         image, source = built
-        frames[spec["id"]] = Frame(spec["id"], image, f"generated:{spec['file']}", source)
+        # Generated frames are stripped of the generator's shadow on the way in.
+        frames[spec["id"]] = Frame(spec["id"], image, f"generated:{spec['file']}", source, 0)
     missing = [f for f in FRAME_ORDER if f not in frames]
     return [frames[f] for f in FRAME_ORDER if f in frames], missing
 
@@ -767,7 +790,7 @@ def pack(frames: list[Frame]) -> tuple[Image.Image, dict]:
             "x": x, "y": y,
             # Generated poses are shipped without the generator's ground shadow,
             # so the renderer draws one for them; sheet frames have it baked in.
-            "shadow": 0 if frame.source is not None else 1,
+            "shadow": frame.shadow,
             "w": frame.image.width, "h": frame.image.height,
             "px": px, "py": py,
         }
