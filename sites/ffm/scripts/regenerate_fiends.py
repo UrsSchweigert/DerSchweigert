@@ -149,7 +149,9 @@ def cut_backdrop(raw_path: Path, original: tuple[int, int]) -> Image.Image:
     # separates it from the creature: bone, ice and stone parts all carry more
     # chroma than this, and the check is limited to the bottom of the frame.
     border_lum = float(np.median(lum[background_mask(labels)])) if background_mask(labels).any() else 237.0
-    grey = (chroma < 12) & (lum < border_lum - 12)
+    # Only the light grey contact shadow is removed: a creature's own dark,
+    # low-chroma parts (boots, black robes) sit far below this window.
+    grey = (chroma < 12) & (lum > 168) & (lum < border_lum - 12)
     bottom = np.zeros_like(subject)
     bottom[int(rgb.shape[0] * 0.55):] = True
     subject = ndimage_fill(subject & ~(grey & bottom))

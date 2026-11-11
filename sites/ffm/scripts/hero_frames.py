@@ -114,7 +114,37 @@ GRIP: dict[str, str] = {
     "swing-windup": "two", "swing-strike": "two", "swing-impact": "two", "swing-follow": "two",
     "hurt": "one", "dead": "loose", "victory-raise": "one",
     "victory-plant": "one", "cast": "one",
+    # Four-frame clips drawn by hand from a pose sheet (scripts/hero_poses.py).
+    # The strike is the only two-handed clip; the cast keeps the sword in one
+    # hand and casts with the free one.
+    **{f"swing-{i}": "two" for i in range(1, 5)},
+    **{f"dead-{i}": "loose" for i in range(1, 5)},
 }
+
+# The clips the hero actually plays, and how many four-frame groups each has.
+# Used by --from-frames, which builds the atlas out of individual frame PNGs
+# (one pose sheet per clip, split by scripts/hero_poses.py) instead of out of
+# the master sheet.
+CLIP_FRAMES: dict[str, int] = {
+    "idle": 4, "walk": 4, "swing": 4, "hurt": 4, "dead": 4, "victory": 4, "cast": 4,
+}
+
+
+def collect_from_frames(directory: Path) -> tuple[list[Frame], list[str]]:
+    """Build the pose list out of `<clip>-<n>.png` files in `directory`."""
+    frames: list[Frame] = []
+    missing: list[str] = []
+    for clip, count in CLIP_FRAMES.items():
+        for index in range(1, count + 1):
+            frame_id = f"{clip}-{index}"
+            path = directory / f"{frame_id}.png"
+            if not path.is_file():
+                missing.append(frame_id)
+                continue
+            image = _crop_to_content(np.array(Image.open(path).convert("RGBA")))
+            frames.append(Frame(frame_id, image, f"frames:{path.name}", None, 0))
+    return frames, missing
+
 
 # Atlas row order is deterministic so a diff of the image is readable.
 FRAME_ORDER = [
@@ -480,7 +510,9 @@ def _pivot(image: Image.Image) -> tuple[int, int]:
     """Foot contact point in frame pixels: bottom row, weight centre of it."""
     a = np.array(image)
     alpha = a[:, :, 3]
-    rows = max(1, image.height // 14)
+    # A narrow band: the bottom of a wide pose is the boots, while a taller band
+    # would average in a low sword tip or a trailing cape.
+    rows = max(1, image.height // 24)
     band = alpha[-rows:, :] > 0
     xs = np.nonzero(band.any(axis=0))[0]
     cx = int(round((xs.min() + xs.max()) / 2)) if xs.size else image.width // 2
@@ -868,10 +900,10 @@ def render_meta(meta: dict) -> str:
         "",
         "export const HERO_FRAMES = {",
     ]
-    for frame_id in FRAME_ORDER:
-        if frame_id not in meta:
-            continue
-        f = meta[frame_id]
+    # Write in the order the packer laid the frames out, so the metadata mirrors
+    # the atlas and a clip that names a frame the build does not emit is visible
+    # as a missing key instead of a silent gap.
+    for frame_id, f in meta.items():
         lines.append(
             f"  '{frame_id}': {{ x: {f['x']}, y: {f['y']}, w: {f['w']}, h: {f['h']},"
             f" px: {f['px']}, py: {f['py']}, shadow: {f['shadow']} }},"
@@ -1113,13 +1145,22 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--drop-specks", type=int, metavar="PX", default=0,
                         help="with --from-sheet: drop detached brush marks smaller than PX "
                              "pixels (a stray mark otherwise drags the frame's box and pivot)")
+    parser.add_argument("--from-frames", metavar="DIR",
+                        help="build the atlas from <clip>-<n>.png pose files in DIR "
+                             "(written by scripts/hero_poses.py)")
     parser.add_argument("--strict", action="store_true",
                         help="treat sword-check warnings as failures (use in CI)")
     parser.add_argument("--check", action="store_true",
                         help="report and verify only, write nothing; exits 1 on a sword-check failure")
     args = parser.parse_args(argv)
 
-    if args.from_sheet:
+    if args.from_frames:
+        frames, missing = collect_from_frames(Path(args.from_frames))
+        if not frames:
+            print(f"no frames in {args.from_frames}", file=sys.stderr)
+            return 1
+        print(f"loaded {len(frames)} frames from {args.from_frames}")
+    elif args.from_sheet:
         frames, notes = import_edit_sheet(Path(args.from_sheet), drop_specks=args.drop_specks)
         missing = [f for f in FRAME_ORDER if f not in {frame.id for frame in frames}]
         print(f"imported {len(frames)} frames from {args.from_sheet}")

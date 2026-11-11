@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { HeroAnimator, HERO_CLIPS } from './hero-anim.js';
+import { HERO_FRAMES } from './hero/hero-frames.js';
 
 const clips = {
   idle: { frames: [{ f: 'a', ms: 1000 }], loop: true },
@@ -126,10 +127,9 @@ describe('HeroAnimator transform track', () => {
 
 describe('shipped hero clips', () => {
   it('reference only frames the atlas builder produces', () => {
-    const built = new Set([
-      'idle', 'walk-a', 'walk-b', 'walk-c', 'swing-windup', 'swing-impact',
-      'swing-strike', 'swing-follow', 'hurt', 'dead', 'victory-raise', 'victory-plant', 'cast',
-    ]);
+    // Taken from the built atlas metadata, so a clip that names a frame the
+    // build does not emit fails here instead of at draw time.
+    const built = new Set(Object.keys(HERO_FRAMES));
     for (const [name, clip] of Object.entries(HERO_CLIPS)) {
       for (const frame of clip.frames) {
         assert.ok(built.has(frame.f), `${name} references unknown frame ${frame.f}`);

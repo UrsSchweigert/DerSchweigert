@@ -23,70 +23,91 @@ const TAU = Math.PI * 2;
 // pixel-art sprite by a few percent re-samples it and makes the blocks flicker,
 // while a one-pixel bob at a slow sine rate reads as breathing.
 export const HERO_CLIPS = {
+  // Four frames of breathing, one per pose in the idle group: neutral, inhale,
+  // full inhale, exhale. The transform adds a sub-pixel bob so the cycle does
+  // not look like four stills.
   idle: {
-    frames: [{ f: 'idle', ms: 2400 }],
-    loop: true,
-    track: (t) => ({ dy: -1.2 * Math.sin(TAU * t) }),
-  },
-  walk: {
     frames: [
-      { f: 'walk-a', ms: 105 },
-      { f: 'walk-b', ms: 105 },
-      { f: 'walk-c', ms: 105 },
-      { f: 'walk-b', ms: 105 },
+      { f: 'idle-1', ms: 620 },
+      { f: 'idle-2', ms: 620 },
+      { f: 'idle-3', ms: 620 },
+      { f: 'idle-4', ms: 620 },
     ],
     loop: true,
-    track: (t) => ({ dy: -2.2 * Math.abs(Math.sin(TAU * t)), dx: 0.6 * Math.sin(TAU * t) }),
+    track: (t) => ({ dy: -0.8 * Math.sin(TAU * t) }),
   },
-  // Windup → impact → follow-through. The impact frame is the only one with an
-  // event: the game resolves the hit there, so the number pops and the sound
-  // lands on the frame where the blade is actually down.
-  // The sheet's windup and its two old generated follow-through frames all hold
-  // the sword behind the body with the hand up at the shoulder, which reads as a
-  // backside swing. Only the two-handed strike pose is used; the follow-through
-  // is the same pose carried by the transform track (lean + rotation), so the
-  // whole swing keeps the blade in front of the torso.
+  // Contact left, passing, contact right, passing: the legs alternate, which is
+  // what makes a walk read as walking rather than as sliding.
+  walk: {
+    frames: [
+      { f: 'walk-1', ms: 115 },
+      { f: 'walk-2', ms: 115 },
+      { f: 'walk-3', ms: 115 },
+      { f: 'walk-4', ms: 115 },
+    ],
+    loop: true,
+    track: (t) => ({ dy: -1.6 * Math.abs(Math.sin(TAU * t)), dx: 0.5 * Math.sin(TAU * t) }),
+  },
+  // Windup, strike, impact, follow-through - all four two-handed, blade in
+  // front of the body. The hit lands on the strike frame, where the blade is
+  // actually travelling through the target.
   swing: {
     frames: [
-      { f: 'swing-strike', ms: 55 },
-      { f: 'swing-strike', ms: 65, at: 'hit', fx: 'slash', fxAt: [-34, -44] },
-      { f: 'swing-strike', ms: 95 },
+      { f: 'swing-1', ms: 85 },
+      { f: 'swing-2', ms: 55, at: 'hit', fx: 'slash', fxAt: [70, -55] },
+      { f: 'swing-3', ms: 60 },
+      { f: 'swing-4', ms: 95 },
     ],
     next: 'idle',
     track: (t) => ({
-      dx: t < 0.45 ? -3 + 10 * (t / 0.45) : 7 - 9 * Math.min(1, (t - 0.45) / 0.55),
-      rot: -0.05 + 0.09 * t,
+      dx: t < 0.35 ? -2 + 6 * (t / 0.35) : 4 - 6 * Math.min(1, (t - 0.35) / 0.65),
+      rot: -0.04 + 0.08 * t,
     }),
   },
   hurt: {
-    frames: [{ f: 'hurt', ms: 240, at: 'hurt', fx: 'hurt' }],
+    frames: [
+      { f: 'hurt-1', ms: 90, at: 'hurt', fx: 'hurt' },
+      { f: 'hurt-2', ms: 90 },
+      { f: 'hurt-3', ms: 110 },
+      { f: 'hurt-4', ms: 120 },
+    ],
     next: 'idle',
     track: (t) => {
       const kick = Math.sin(Math.min(1, t * 1.6) * Math.PI);
-      return { dx: -9 * kick, rot: -0.035 * kick };
+      return { dx: -7 * kick, rot: -0.03 * kick };
     },
   },
-  // No knock-down pose at the native scale, so the fall is the hurt pose
-  // tipping over rather than a second bitmap.
+  // Buckle, fall, hit the ground, lie still. The last frame holds, so the clip
+  // ends on the corpse instead of snapping back.
   dead: {
-    frames: [{ f: 'dead', ms: 900, at: 'collapse' }],
+    frames: [
+      { f: 'dead-1', ms: 120, at: 'collapse' },
+      { f: 'dead-2', ms: 150 },
+      { f: 'dead-3', ms: 220 },
+      { f: 'dead-4', ms: 900 },
+    ],
     next: 'dead',
-    track: (t) => ({ dy: 2 * (1 - Math.min(1, t * 4)) }),
+    track: (t) => ({ dy: 1.5 * (1 - Math.min(1, t * 4)) }),
   },
   victory: {
     frames: [
-      { f: 'victory-raise', ms: 150, at: 'raise' },
-      { f: 'victory-plant', ms: 400, at: 'plant' },
+      { f: 'victory-1', ms: 230, at: 'raise' },
+      { f: 'victory-2', ms: 230, at: 'cheer' },
+      { f: 'victory-3', ms: 230, at: 'plant' },
+      { f: 'victory-4', ms: 260, at: 'hold' },
     ],
     next: 'victory',
-    track: (t) => ({ dy: -1.5 * Math.sin(Math.min(1, t * 2.5) * Math.PI) }),
+    track: (t) => ({ dy: -1.2 * Math.sin(Math.min(1, t * 2.5) * Math.PI) }),
   },
-  // Charge, then release. Both spells share the poses and differ only in the
-  // FX colour, which the renderer already keys off the ability name.
+  // Gather, thrust, hold, recover. Both spells share the poses and differ only
+  // in the FX colour, which the renderer keys off the ability name. The sword
+  // stays in the right hand; the left hand casts, and the orb is anchored on it.
   cast: {
     frames: [
-      { f: 'swing-windup', ms: 90, at: 'charge' },
-      { f: 'cast', ms: 170, at: 'release', fx: 'cast', fxAt: [28, -88] },
+      { f: 'cast-1', ms: 90, at: 'charge' },
+      { f: 'cast-2', ms: 110, at: 'release', fx: 'cast', fxAt: [100, -122] },
+      { f: 'cast-3', ms: 140, fx: 'cast', fxAt: [94, -126] },
+      { f: 'cast-4', ms: 170 },
     ],
     next: 'idle',
     track: (t) => ({ dx: t < 0.35 ? -2 + 4 * (t / 0.35) : 2 + 3 * Math.min(1, (t - 0.35) / 0.65) }),
