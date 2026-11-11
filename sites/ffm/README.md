@@ -607,6 +607,23 @@ the old fixed 6x4 sprite grid:
   declared grip (`one` except the swing and cast poses, which are `two`). The
   table prints per-frame numbers; `--check` writes nothing, `--check --strict`
   also fails on warnings (the poses whose art still shows one hand).
+- Hand-editing art: `--export-sheet sites/ffm/build/hero-edit-sheet.png` lays
+  every pose out in its own cell (solid red border = the crop edge, art painted
+  outside a cell is dropped, so don't cross it; dashed amber inset = the bleed
+  margin) and writes a `hero-edit-sheet.json` layout next to it. Edit the PNG,
+  then rebuild from it with
+  `python3 sites/ffm/scripts/hero_frames.py --from-sheet sites/ffm/build/hero-edit-sheet.png`.
+  The importer crops each cell, erases the guide lines (only where the guide
+  actually drew them, so art that happens to share the amber/red tones survives),
+  trims to content and lets `pack()` recompute the pivots, then runs the normal
+  sword checks and atlas write. An unedited round trip is pixel-exact.
+  Empty cells are reported and their frame is dropped; art that reaches a cell
+  border gets a note because the border cuts it off.
+  Note that poses made by the generator are palette-flattened to the shared
+  32-colour palette, which has no steel-blue entry, so their blades read as warm
+  grey — that is art, not a bug in the importer, and it is why the sword check
+  reports "no blade visible" for those frames once they come back from a sheet
+  (the check prefers the pre-flattening source, which a hand edit no longer has).
 - `sites/ffm/static/game/hero-anim.js` holds the clips: frame durations, which
   frame fires `hit`, and the `track()` function that leans/bobs/squashes the
   pose. Timing is wall-clock based, so playback does not depend on the display

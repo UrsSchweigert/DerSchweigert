@@ -753,9 +753,8 @@ def _count_hands(rgb: np.ndarray, alpha: np.ndarray, point: np.ndarray, radius: 
     glove = (lum < 62) & (chroma < 46)
     hand = alpha & (skin | glove)
     hx, hy = int(round(point[0])), int(round(point[1]))
-    y0, y1 = max(0, hy - radius), hy + radius + 1
-    x0, x1 = max(0, hx - radius), hx + radius + 1
-    disc = np.zeros_like(hand)
+    y0, y1 = max(0, hy - radius), min(alpha.shape[0], hy + radius + 1)
+    x0, x1 = max(0, hx - radius), min(alpha.shape[1], hx + radius + 1)
     yy, xx = np.mgrid[y0:y1, x0:x1]
     inside = (xx - hx) ** 2 + (yy - hy) ** 2 <= radius ** 2
     sub = hand[y0:y1, x0:x1] & inside
@@ -822,6 +821,17 @@ def render_meta(meta: dict) -> str:
     return "\n".join(lines)
 
 
+# Colours the editable sheet uses for its own annotations. They are stored here
+# so the importer can erase them again instead of shipping them as art.
+SHEET_RED = (255, 45, 111, 255)      # solid cell border: the crop edge
+SHEET_AMBER = (255, 196, 0, 255)     # dashed bleed inset
+SHEET_LABEL = (255, 210, 90, 255)    # per-cell caption
+SHEET_PIVOT = (34, 204, 102, 255)    # foot pivot cross + baseline
+SHEET_CENTRE = (90, 140, 255, 255)   # centre line
+SHEET_INSET = 6                      # distance of the dashed rect from the cell
+SHEET_BORDER = 2                     # width of the solid cell border
+
+
 def _dashed_rect(draw, box, colour, dash=6, gap=4, width=1):
     x0, y0, x1, y1 = box
     for x in range(x0, x1, dash + gap):
@@ -850,10 +860,11 @@ def export_edit_sheet(frames: list[Frame], path: Path, cols: int = 4,
     from PIL import ImageDraw
 
     label_h = 18
+    arts = [(_crop_to_content(np.array(frame.image)), frame) for frame in frames]
     # The cell has to hold the largest pose with room to spare, or a pose whose
     # pivot sits off-centre would be shifted out of its own cell.
-    widest = max(f.image.width for f in frames)
-    tallest = max(f.image.height for f in frames)
+    widest = max(art.width for art, _ in arts)
+    tallest = max(art.height for art, _ in arts)
     cell = max(cell, widest + 2 * margin, tallest + 2 * margin)
     rows = (len(frames) + cols - 1) // cols
     width = cols * (cell + margin) + margin
@@ -868,15 +879,18 @@ def export_edit_sheet(frames: list[Frame], path: Path, cols: int = 4,
                 if (x // 16 + y // 16) % 2 == 0:
                     checker.rectangle([x, y, x + 15, y + 15], fill=(34, 39, 50, 255))
     draw = ImageDraw.Draw(sheet)
+    layout: dict = {"size": [width, height], "cell": cell, "margin": margin,
+                    "label_h": label_h, "cols": cols, "pivots": bool(pivots),
+                    "frames": []}
 
-    for index, frame in enumerate(frames):
+    for index, (meta, frame) in enumerate(arts):
         col, row = index % cols, index // cols
         x0 = margin + col * (cell + margin)
         y0 = margin + row * (cell + label_h + margin)
-        draw.rectangle([x0, y0, x0 + cell, y0 + cell], outline=(255, 45, 111, 255), width=2)
-        _dashed_rect(draw, (x0 + 6, y0 + 6, x0 + cell - 6, y0 + cell - 6), (255, 196, 0, 255))
+        draw.rectangle([x0, y0, x0 + cell, y0 + cell], outline=SHEET_RED, width=SHEET_BORDER)
+        _dashed_rect(draw, (x0 + SHEET_INSET, y0 + SHEET_INSET,
+                            x0 + cell - SHEET_INSET, y0 + cell - SHEET_INSET), SHEET_AMBER)
 
-        meta = frame.image
         pivot_x, pivot_y = _pivot(meta)
         # Bottom-aligned and centred on the pivot, then clamped: a pivot that is
         # not at the frame's centre must never push art past the cell border.
@@ -887,16 +901,108 @@ def export_edit_sheet(frames: list[Frame], path: Path, cols: int = 4,
         sheet.alpha_composite(meta, (left, top))
         if pivots:
             px, py = x0 + cell // 2, y0 + cell - 10
-            draw.line([(x0 + 6, py), (x0 + cell - 6, py)], fill=(34, 204, 102, 120), width=1)
-            draw.line([(px, y0 + 6), (px, y0 + cell - 6)], fill=(90, 140, 255, 90), width=1)
-            draw.line([(px - 4, py), (px + 4, py)], fill=(34, 204, 102, 255), width=1)
-            draw.line([(px, py - 4), (px, py + 4)], fill=(34, 204, 102, 255), width=1)
+            draw.line([(x0 + SHEET_INSET, py), (x0 + cell - SHEET_INSET, py)],
+                      fill=SHEET_PIVOT, width=1)
+            draw.line([(px, y0 + SHEET_INSET), (px, y0 + cell - SHEET_INSET)],
+                      fill=SHEET_CENTRE, width=1)
+            draw.line([(px - 4, py), (px + 4, py)], fill=SHEET_PIVOT, width=1)
+            draw.line([(px, py - 4), (px, py + 4)], fill=SHEET_PIVOT, width=1)
         draw.text((x0 + 4, y0 - label_h + 3), f"{frame.id}  {meta.width}x{meta.height}",
-                  fill=(255, 210, 90, 255))
+                  fill=SHEET_LABEL)
+        layout["frames"].append({"id": frame.id, "col": col, "row": row,
+                                 "left": left, "top": top,
+                                 "w": meta.width, "h": meta.height})
 
     path.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(path, format="PNG", optimize=True)
+    # The layout travels with the sheet: importing a hand edit must not have to
+    # guess the grid, and it must keep working if the pose sources change later.
+    path.with_suffix(".json").write_text(json.dumps(layout, indent=1) + "\n", encoding="utf-8")
     return path
+
+
+
+GUIDE_COLOURS = (SHEET_RED, SHEET_AMBER, SHEET_LABEL, SHEET_PIVOT, SHEET_CENTRE)
+
+
+def _annotation_mask(cell: int, pivots: bool) -> np.ndarray:
+    """Pixel positions the exporter drew its own lines on, in crop coordinates."""
+    mask = np.zeros((cell, cell), bool)
+    lo, hi = SHEET_INSET - SHEET_BORDER, cell - SHEET_INSET - SHEET_BORDER
+    for y in (lo, hi):
+        mask[y, lo:hi + 1] = True
+    for x in (lo, hi):
+        mask[lo:hi + 1, x] = True
+    if pivots:
+        centre = cell // 2 - SHEET_BORDER
+        base = cell - 10 - SHEET_BORDER
+        mask[base, lo:hi + 1] = True
+        mask[lo:hi + 1, centre] = True
+        mask[max(0, base - 4):base + 5, max(0, centre - 1):centre + 2] = True
+        mask[max(0, base - 1):base + 2, max(0, centre - 4):centre + 5] = True
+    return mask
+
+
+def _erase_guides(crop: np.ndarray, annotation: np.ndarray) -> np.ndarray:
+    """Drop the exporter's own guide pixels from a cropped cell.
+
+    Only guide-coloured pixels *on* the annotation geometry are removed, so art
+    that happens to share a guide colour (the hero's hair is close to the amber)
+    survives untouched.
+    """
+    out = crop.copy()
+    guide = np.zeros(out.shape[:2], bool)
+    for colour in GUIDE_COLOURS:
+        guide |= np.all(out[:, :, :4] == np.array(colour, dtype=np.uint8), axis=2)
+    erase = guide & annotation[:out.shape[0], :out.shape[1]]
+    out[erase] = 0
+    return out
+
+
+def import_edit_sheet(path: Path) -> tuple[list[Frame], list[str]]:
+    """Read a hand-edited `--export-sheet` image back into frames.
+
+    Each pose is cropped to its own cell, the guide lines are erased, and the
+    remainder is trimmed to content - `pack` then recomputes the pivots, so an
+    edited pose is grounded exactly like a generated one. Anything painted
+    outside the red border is outside the cell and does not survive.
+    """
+    layout_path = path.with_suffix(".json")
+    if not layout_path.is_file():
+        raise SystemExit(f"missing layout {layout_path.name} next to {path.name}; "
+                         f"re-run --export-sheet to regenerate both")
+    layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    sheet = Image.open(path).convert("RGBA")
+    if list(sheet.size) != list(layout["size"]):
+        print(f"note: sheet is {sheet.width}x{sheet.height}, layout expects "
+              f"{layout['size'][0]}x{layout['size'][1]}; cell geometry is unchanged",
+              file=sys.stderr)
+
+    cell = layout["cell"]
+    margin, label_h = layout["margin"], layout["label_h"]
+    inside = SHEET_BORDER  # the border is drawn inside the cell outline
+    annotation = _annotation_mask(cell, layout.get("pivots", False))
+    frames: list[Frame] = []
+    notes: list[str] = []
+    for entry in layout["frames"]:
+        x0 = margin + entry["col"] * (cell + margin)
+        y0 = margin + entry["row"] * (cell + label_h + margin)
+        box = (x0 + inside, y0 + inside, x0 + cell - inside, y0 + cell - inside)
+        crop = _erase_guides(np.array(sheet.crop(box)), annotation)
+        alpha = crop[:, :, 3] > 0
+        if not alpha.any():
+            notes.append(f"{entry['id']}: cell is empty, frame dropped")
+            continue
+        ys, xs = np.nonzero(alpha)
+        if xs.min() <= 0 or ys.min() <= 0 or xs.max() >= crop.shape[1] - 1 or ys.max() >= crop.shape[0] - 1:
+            notes.append(f"{entry['id']}: art touches the cell border and will be "
+                         f"cropped there")
+        image = _crop_to_content(crop)
+        frames.append(Frame(entry["id"], image, f"edited:{path.name}", None, 0))
+    order = {f.id: i for i, f in enumerate(frames)}
+    frames.sort(key=lambda f: (FRAME_ORDER.index(f.id) if f.id in FRAME_ORDER else 99,
+                               order[f.id]))
+    return frames, notes
 
 
 def report(frames: list[Frame], meta: dict) -> None:
@@ -912,17 +1018,26 @@ def main(argv: list[str]) -> int:
                         help="write all poses into one editable PNG with its limits drawn")
     parser.add_argument("--sheet-pivots", action="store_true",
                         help="also draw the foot-pivot and centre guides on the exported sheet")
+    parser.add_argument("--from-sheet", metavar="PATH",
+                        help="build the atlas from a hand-edited --export-sheet image "
+                             "(uses the .json layout written next to it)")
     parser.add_argument("--strict", action="store_true",
                         help="treat sword-check warnings as failures (use in CI)")
     parser.add_argument("--check", action="store_true",
                         help="report and verify only, write nothing; exits 1 on a sword-check failure")
     args = parser.parse_args(argv)
 
-    if not MASTER_SHEET.is_file():
-        print(f"missing master sheet: {MASTER_SHEET}", file=sys.stderr)
-        return 1
-
-    frames, missing = collect()
+    if args.from_sheet:
+        frames, notes = import_edit_sheet(Path(args.from_sheet))
+        missing = [f for f in FRAME_ORDER if f not in {frame.id for frame in frames}]
+        print(f"imported {len(frames)} frames from {args.from_sheet}")
+        for note in notes:
+            print(f"  note: {note}", file=sys.stderr)
+    else:
+        if not MASTER_SHEET.is_file():
+            print(f"missing master sheet: {MASTER_SHEET}", file=sys.stderr)
+            return 1
+        frames, missing = collect()
     atlas, meta = pack(frames)
     report(frames, meta)
     sword_errors = report_swords(frames, strict=args.strict)
@@ -932,6 +1047,7 @@ def main(argv: list[str]) -> int:
     if args.export_sheet:
         out = export_edit_sheet(frames, Path(args.export_sheet), pivots=args.sheet_pivots)
         print(f"wrote {out} ({out.stat().st_size // 1024} KB)")
+        print(f"wrote {out.with_suffix('.json').name} (cell layout, needed by --from-sheet)")
     if args.check:
         return 1 if sword_errors else 0
 
