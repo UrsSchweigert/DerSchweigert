@@ -81,9 +81,12 @@ GENERATED_POSES: list[dict] = [
     # pixel. Measured and corrected against the frame each pose derives from.
     # The cast pose was drawn facing away from the fight; the game always faces
     # the fiend on the right, so the frame is mirrored on the way in.
-    {"file": "cast.png", "id": "cast", "scale": 0.205, "strip_shadow": True, "flip": True},
+    {"file": "cast.png", "id": "cast", "match": (0, 1), "strip_shadow": True, "flip": True},
     {"file": "swing-impact.png", "id": "swing-impact", "scale": 0.172, "strip_shadow": True},
-    {"file": "swing-twohand.png", "id": "swing-strike", "scale": 0.1762, "strip_shadow": True},
+    # `match` names the sheet pose whose head size this frame must adopt; the
+    # scale is measured at build time (hair-height ratio), so a generated pose
+    # can never ship with a differently sized hero.
+    {"file": "swing-twohand.png", "id": "swing-strike", "match": (1, 0), "strip_shadow": True},
     {"file": "swing-follow.png", "id": "swing-follow", "scale": 0.172, "strip_shadow": True},
 ]
 
@@ -242,8 +245,13 @@ def _generated_frame(spec: dict) -> tuple[Image.Image, Image.Image] | None:
     image = _crop_to_content(rgba)
     if spec.get("flip"):
         image = image.transpose(Image.FLIP_LEFT_RIGHT)
-    if spec.get("scale"):
-        size = (max(1, round(image.width * spec["scale"])), max(1, round(image.height * spec["scale"])))
+    scale = spec.get("scale")
+    if spec.get("match"):
+        reference = _sheet_frame(*spec["match"])
+        ref_hair, hair = _hair_height(reference), _hair_height(image)
+        scale = (ref_hair / hair) if hair else scale
+    if scale:
+        size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
         image = _resize_rgba(image, size)
         flattened = _flatten_to_palette(image, spec["palette"])
         return flattened, image
@@ -282,6 +290,21 @@ def _shared_palette(images: list[Image.Image], colours: int = 32) -> Image.Image
         strip.paste(image.convert("RGB"), (x, 0))
         x += image.width
     return strip.quantize(colors=colours, method=Image.MEDIANCUT)
+
+
+def _hair_height(image: Image.Image) -> int:
+    """Height of the hair blob: the one anatomical ruler that is pose-stable."""
+    a = np.array(image).astype(int)
+    minus_alpha = a[:, :, 3] > 128
+    r, g, b = a[:, :, 0], a[:, :, 1], a[:, :, 2]
+    hair = (r > 150) & (g > 95) & (b < 140) & (r - b > 60) & minus_alpha
+    labels, count = _components(hair)
+    if count == 0:
+        return 0
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    ys, _ = np.nonzero(labels == int(sizes.argmax()))
+    return int(ys.max() - ys.min() + 1)
 
 
 def _flatten_to_palette(image: Image.Image, palette: Image.Image | None) -> Image.Image:

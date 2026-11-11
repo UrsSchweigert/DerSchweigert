@@ -41,14 +41,22 @@ export const HERO_CLIPS = {
   // Windup → impact → follow-through. The impact frame is the only one with an
   // event: the game resolves the hit there, so the number pops and the sound
   // lands on the frame where the blade is actually down.
+  // The sheet's windup and its two old generated follow-through frames all hold
+  // the sword behind the body with the hand up at the shoulder, which reads as a
+  // backside swing. Only the two-handed strike pose is used; the follow-through
+  // is the same pose carried by the transform track (lean + rotation), so the
+  // whole swing keeps the blade in front of the torso.
   swing: {
     frames: [
-      { f: 'swing-windup', ms: 70 },
-      { f: 'swing-strike', ms: 55, at: 'hit', fx: 'slash', fxAt: [-34, -44] },
-      { f: 'swing-follow', ms: 95 },
+      { f: 'swing-strike', ms: 55 },
+      { f: 'swing-strike', ms: 65, at: 'hit', fx: 'slash', fxAt: [-34, -44] },
+      { f: 'swing-strike', ms: 95 },
     ],
     next: 'idle',
-    track: (t) => ({ dx: t < 0.28 ? -2 + 8 * (t / 0.28) : 6 - 6 * Math.min(1, (t - 0.28) / 0.72) }),
+    track: (t) => ({
+      dx: t < 0.45 ? -3 + 10 * (t / 0.45) : 7 - 9 * Math.min(1, (t - 0.45) / 0.55),
+      rot: -0.05 + 0.09 * t,
+    }),
   },
   hurt: {
     frames: [{ f: 'hurt', ms: 240, at: 'hurt', fx: 'hurt' }],
