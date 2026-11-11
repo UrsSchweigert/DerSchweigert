@@ -92,7 +92,7 @@ GENERATED_POSES: list[dict] = [
 # The victory pose's blade runs past the top of its frame in the source art, so
 # it ships with the tip cut off; these frames get a taper rebuilt from their own
 # top row of blade pixels.
-TIP_EXTEND: dict[str, int] = {"victory-plant": 11}
+TIP_EXTEND: dict[str, int] = {"victory-plant": 11, "victory-raise": 26}
 
 # Two-handed poses whose art only shows one hand on the hilt get the far hand
 # stamped in at the grip, so both the look and the check agree: swing frames.
@@ -320,18 +320,37 @@ def _extend_blade_tip(image: Image.Image, rows: int) -> Image.Image:
     taper keeps the blade's colours and pixel size instead of inventing art.
     """
     a = np.array(image)
+    alpha = a[:, :, 3] > 0
+    # Direction the blade was heading when it left the frame: the centroid drift
+    # of its top rows, so an angled blade continues at its own angle.
+    drift = []
+    for y in range(min(18, a.shape[0])):
+        xs = np.nonzero(alpha[y])[0]
+        if xs.size:
+            drift.append((y, float(xs.mean())))
+    if len(drift) < 4:
+        return image
+    slope = (drift[0][1] - drift[-1][1]) / max(1.0, (drift[-1][0] - drift[0][0]))
+
     top = a[0]
     xs = np.nonzero(top[:, 3] > 0)[0]
     if xs.size < 6:
         return image
     x0, x1 = int(xs.min()), int(xs.max())
-    cap = np.zeros((rows, a.shape[1], 4), dtype=np.uint8)
+    width = a.shape[1]
+    cap = np.zeros((rows, width, 4), dtype=np.uint8)
     for i in range(rows):
-        shrink = int(round((x1 - x0) * 0.5 * (i + 1) / rows))
+        shrink = int(round((x1 - x0) * 0.48 * (i + 1) / rows))
         cx0, cx1 = x0 + shrink, x1 - shrink
         if cx1 <= cx0:
             break
-        cap[rows - i - 1, cx0:cx1 + 1] = top[cx0:cx1 + 1]
+        shift = int(round(slope * (i + 1)))
+        lo, hi = cx0 + shift, cx1 + shift
+        src_lo = max(0, -lo)
+        dst_lo, dst_hi = max(0, lo), min(width, hi + 1)
+        if dst_hi <= dst_lo:
+            continue
+        cap[rows - i - 1, dst_lo:dst_hi] = top[cx0 + src_lo:cx0 + src_lo + (dst_hi - dst_lo)]
     return Image.fromarray(np.concatenate([cap, a], axis=0), "RGBA")
 
 

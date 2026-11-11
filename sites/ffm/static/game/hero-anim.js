@@ -78,7 +78,7 @@ export const HERO_CLIPS = {
   cast: {
     frames: [
       { f: 'swing-windup', ms: 90, at: 'charge' },
-      { f: 'cast', ms: 170, at: 'release', fx: 'cast', fxAt: [-28, -88] },
+      { f: 'cast', ms: 170, at: 'release', fx: 'cast', fxAt: [28, -88] },
     ],
     next: 'idle',
     track: (t) => ({ dx: t < 0.35 ? -2 + 4 * (t / 0.35) : 2 + 3 * Math.min(1, (t - 0.35) / 0.65) }),

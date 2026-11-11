@@ -527,45 +527,54 @@ export class Hero extends Entity {
     const anchor = this.anim.frame.fxAt ?? [-19, -40];
     const cx = left + (frame.px + anchor[0]) * HERO_SCALE;
     const cy = top + (frame.py + anchor[1]) * HERO_SCALE;
-    const radius = 118;
-    const a0 = -1.35, a1 = 0.92;
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.lineCap = 'round';
-    for (let i = 0; i < 4; i++) {
-      const s0 = a0 + (a1 - a0) * (i / 4);
-      const s1 = a0 + (a1 - a0) * ((i + 1) / 4) + 0.02;
-      ctx.globalAlpha = fade * (0.18 + 0.2 * i);
-      ctx.lineWidth = 6 + i * 4.5;
-      ctx.strokeStyle = '#4ba6f0';
+    // Fatter than the blade it trails: an ellipse wide in x and shorter in y,
+    // stroked in four layers (soft outer haze, body, bright edge, white core)
+    // so the slash has structure instead of being one uniform line.
+    const radiusX = 146, radiusY = 98;
+    const a0 = -1.35, a1 = 0.92, a1x = a1;
+    const layers = [
+      [26, '#1b4f8c', 0.26],
+      [16, '#2f8fd8', 0.42],
+      [9, '#7fd4ff', 0.68],
+      [3.5, '#ffffff', 0.95],
+    ];
+    for (const [width, colour, alpha] of layers) {
+      ctx.globalAlpha = fade * alpha;
+      ctx.lineWidth = width;
+      ctx.strokeStyle = colour;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, radius, radius * 0.92, 0, s0, s1);
+      ctx.ellipse(cx, cy, radiusX, radiusY, -0.38, a0, a1x);
       ctx.stroke();
-      ctx.globalAlpha = fade * (0.3 + 0.22 * i);
-      ctx.lineWidth = 3 + i * 2;
-      ctx.strokeStyle = i === 3 ? '#eaf9ff' : '#9fdcff';
+    }
+    // Structured glow: the leading edge of the sweep burns brighter, and the
+    // tail feathers out, so the eye reads direction of travel.
+    for (let i = 0; i < 5; i++) {
+      const from = a0 + (a1x - a0) * (i / 5);
+      const to = a0 + (a1x - a0) * ((i + 1) / 5) + 0.03;
+      ctx.globalAlpha = fade * (0.1 + 0.22 * i);
+      ctx.lineWidth = 18 + i * 4;
+      ctx.strokeStyle = i >= 3 ? '#bfeaff' : '#3d8fd0';
       ctx.beginPath();
-      ctx.ellipse(cx, cy, radius, radius * 0.92, 0, s0, s1);
+      ctx.ellipse(cx, cy, radiusX, radiusY, -0.38, from, to);
       ctx.stroke();
     }
 
     // A single burst at the impact, same light as the cast: the swing is the
     // moment the hit lands, so it gets one flash rather than a steady glow.
     const burst = Math.max(0, 1 - (t - hitStart) / 0.3);
-    _radialGlow(ctx, cx + Math.cos(a1) * radius, cy + Math.sin(a1) * radius * 0.92,
-      58 * (0.7 + 0.5 * burst), 0.75 * burst, '#ffffff', '#4ba6f0');
+    _radialGlow(ctx, cx + Math.cos(a1x) * radiusX, cy + Math.sin(a1x) * radiusY,
+      64 * (0.7 + 0.5 * burst), 0.8 * burst, '#ffffff', '#8fd8ff');
 
     // Sparks fly off the blade end, where the arc is brightest.
     ctx.globalAlpha = fade;
     ctx.strokeStyle = '#cfeeff';
     ctx.lineWidth = 2;
     for (let i = 0; i < 4; i++) {
-      const a = a1 - 0.16 + i * 0.13;
-      const r0 = radius + 4, r1 = radius + 12 + (i % 2) * 10;
+      const a = a1x - 0.18 + i * 0.14;
+      const r0 = 1.0, r1 = 1.0 + (0.1 + (i % 2) * 0.08);
       ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0 * 0.92);
-      ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1 * 0.92);
+      ctx.moveTo(cx + Math.cos(a) * radiusX * r0, cy + Math.sin(a) * radiusY * r0);
+      ctx.lineTo(cx + Math.cos(a) * radiusX * r1, cy + Math.sin(a) * radiusY * r1);
       ctx.stroke();
     }
     ctx.restore();
