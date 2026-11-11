@@ -49,7 +49,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 17850
+      "baseline_score": 7350
     },
     {
       "level": 3,
@@ -73,7 +73,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 52575
+      "baseline_score": 15638
     },
     {
       "level": 4,
@@ -97,7 +97,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 73275
+      "baseline_score": 24938
     },
     {
       "level": 5,
@@ -123,7 +123,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 101625
+      "baseline_score": 35738
     },
     {
       "level": 6,
@@ -149,7 +149,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 117825
+      "baseline_score": 48038
     },
     {
       "level": 7,
@@ -175,7 +175,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 145275
+      "baseline_score": 61838
     },
     {
       "level": 8,
@@ -199,7 +199,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 162975
+      "baseline_score": 77138
     },
     {
       "level": 9,
@@ -224,7 +224,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 191925
+      "baseline_score": 93938
     },
     {
       "level": 10,
@@ -249,7 +249,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 211125
+      "baseline_score": 112238
     },
     {
       "level": 11,
@@ -274,7 +274,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 241575
+      "baseline_score": 132038
     },
     {
       "level": 12,
@@ -299,7 +299,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 263025
+      "baseline_score": 153338
     },
     {
       "level": 13,
@@ -324,7 +324,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 296175
+      "baseline_score": 176138
     },
     {
       "level": 14,
@@ -349,7 +349,7 @@
       "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 319875
+      "baseline_score": 200438
     },
     {
       "level": 15,
@@ -374,7 +374,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 398775
+      "baseline_score": 261038
     },
     {
       "level": 16,
@@ -399,7 +399,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 423975
+      "baseline_score": 288338
     },
     {
       "level": 17,
@@ -424,7 +424,7 @@
       "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 460425
+      "baseline_score": 317138
     },
     {
       "level": 18,
@@ -449,7 +449,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 522825
+      "baseline_score": 386738
     },
     {
       "level": 19,
@@ -474,7 +474,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 560775
+      "baseline_score": 418538
     },
     {
       "level": 20,
@@ -499,7 +499,7 @@
       "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 588975
+      "baseline_score": 451838
     },
     {
       "level": 21,
@@ -524,7 +524,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 676875
+      "baseline_score": 530438
     },
     {
       "level": 22,
@@ -549,7 +549,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 706575
+      "baseline_score": 566738
     },
     {
       "level": 23,
@@ -574,7 +574,7 @@
       "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 747525
+      "baseline_score": 604538
     },
     {
       "level": 24,
@@ -599,7 +599,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 818925
+      "baseline_score": 692138
     },
     {
       "level": 25,
@@ -625,7 +625,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 861375
+      "baseline_score": 732938
     },
     {
       "level": 26,
@@ -651,7 +651,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 986475
+      "baseline_score": 886838
     },
     {
       "level": 27,
@@ -677,7 +677,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1145325
+      "baseline_score": 1045238
     },
     {
       "level": 28,
@@ -703,7 +703,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1274925
+      "baseline_score": 1208138
     },
     {
       "level": 29,
@@ -729,7 +729,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1438275
+      "baseline_score": 1375538
     },
     {
       "level": 30,
@@ -755,7 +755,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1572375
+      "baseline_score": 1547438
     },
     {
       "level": 31,
@@ -781,7 +781,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1740225
+      "baseline_score": 1723838
     },
     {
       "level": 32,
@@ -807,7 +807,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1878825
+      "baseline_score": 1904738
     },
     {
       "level": 33,
@@ -833,7 +833,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2051175
+      "baseline_score": 2090138
     },
     {
       "level": 34,
@@ -860,7 +860,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2194275
+      "baseline_score": 2280038
     },
     {
       "level": 35,
@@ -887,7 +887,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2371125
+      "baseline_score": 2474438
     },
     {
       "level": 36,
@@ -914,7 +914,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2518725
+      "baseline_score": 2673338
     },
     {
       "level": 37,
@@ -941,7 +941,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2700075
+      "baseline_score": 2876738
     },
     {
       "level": 38,
@@ -968,7 +968,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2861175
+      "baseline_score": 3084638
     },
     {
       "level": 39,
@@ -995,7 +995,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3020925
+      "baseline_score": 3297038
     },
     {
       "level": 40,
@@ -1022,7 +1022,7 @@
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3171225
+      "baseline_score": 3513938
     },
     {
       "level": 41,
@@ -1049,7 +1049,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3322875
+      "baseline_score": 3735338
     },
     {
       "level": 42,
@@ -1076,7 +1076,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3547275
+      "baseline_score": 4054538
     },
     {
       "level": 43,
@@ -1103,7 +1103,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3776475
+      "baseline_score": 4379738
     },
     {
       "level": 44,
@@ -1130,7 +1130,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 4008675
+      "baseline_score": 4710938
     },
     {
       "level": 45,
@@ -1157,7 +1157,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 4245075
+      "baseline_score": 5048138
     },
     {
       "level": 46,
@@ -1184,7 +1184,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 4483275
+      "baseline_score": 5391338
     },
     {
       "level": 47,
@@ -1211,7 +1211,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 4725675
+      "baseline_score": 5740538
     },
     {
       "level": 48,
@@ -1238,7 +1238,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 4972875
+      "baseline_score": 6095738
     },
     {
       "level": 49,
@@ -1265,7 +1265,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 5223075
+      "baseline_score": 6456938
     },
     {
       "level": 50,
@@ -1292,7 +1292,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 5477475
+      "baseline_score": 6824138
     },
     {
       "level": 51,
@@ -1319,7 +1319,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 5733675
+      "baseline_score": 7197338
     },
     {
       "level": 52,
@@ -1346,7 +1346,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 5994075
+      "baseline_score": 7576538
     },
     {
       "level": 53,
@@ -1373,7 +1373,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 6259275
+      "baseline_score": 7961738
     },
     {
       "level": 54,
@@ -1400,7 +1400,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 6527475
+      "baseline_score": 8352938
     },
     {
       "level": 55,
@@ -1427,7 +1427,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 6799875
+      "baseline_score": 8750138
     },
     {
       "level": 56,
@@ -1454,7 +1454,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 7074075
+      "baseline_score": 9153338
     },
     {
       "level": 57,
@@ -1481,7 +1481,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 7352475
+      "baseline_score": 9562538
     },
     {
       "level": 58,
@@ -1508,7 +1508,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 7635675
+      "baseline_score": 9977738
     },
     {
       "level": 59,
@@ -1535,7 +1535,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 7921875
+      "baseline_score": 10398938
     },
     {
       "level": 60,
@@ -1562,7 +1562,7 @@
       "fiendHP": 4,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 8212275
+      "baseline_score": 10826138
     }
   ]
 }

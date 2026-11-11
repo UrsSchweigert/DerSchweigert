@@ -106,6 +106,10 @@ test('web-only and development-only files never reach www/', async () => {
       assert.ok(EXCLUDED.some((pattern) => pattern.test(rel)), `${rel} needs an exclusion`);
     }
     assert.ok(!copied.some((rel) => rel.startsWith('game/source-assets/')), 'source-assets must not be bundled');
+    assert.ok(
+      !copied.some((rel) => rel.startsWith('game/hero-sprites-transparent/')),
+      'the superseded per-frame hero set must not be bundled',
+    );
     assert.ok(!copied.some((rel) => /(^|\/)tests?(\/|$)/.test(rel)), 'tests must not be bundled');
     assert.ok(!copied.some((rel) => rel.endsWith('.test.js')), 'test files must not be bundled');
   });

@@ -588,6 +588,16 @@ Start with:
 - `sites/ffm/static/game/main.js`
 - `sites/ffm/static/game/levels.js`
 
+Fiend classes and their score ladder live in `static/game/difficulty-classes.js`
+(`scoreValue = 50 * class id`); one class per level means level N fields class N.
+`assumedDragonPathLevelScore()` / `computeDragonPathBaselineScore()` in
+`static/game/level-baseline-score.js` derive a level's flawless score from that
+ladder, and `node sites/ffm/scripts/update-level-data.mjs` writes those values
+into `app/level_data.json` as `baseline_score` - which is what the backend serves
+for a level jump. Re-run it whenever the ladder, the score scale or a level's
+`waveSize`/`fiendHP` changes, and keep the shipped values honest with
+`level-baseline-score.test.js`, which asserts all 60 entries match the model.
+
 ### Change visuals or sprites
 
 Start with:
@@ -651,10 +661,12 @@ the old fixed 6x4 sprite grid:
 
 ### Fiend sprites and their ground shadow
 
-Fiends are single PNGs in `static/game/fiend-sprites/` (`set1-01.png` …
-`set2-18.png`), picked per level through `difficulty-classes.js`, which also
-carries the hand-calibrated `BOTTOM_PAD_RATIO` that puts each creature's feet on
-`GROUND_Y` (`calibrate.html` fits that; align the feet, not the shadow).
+Fiends are single PNGs in `static/game/fiend-sprites/` (60 of them: young
+`set1-01.png` … `set1-18.png`, old `set2-…`, ancient `set3-…`, plus
+`dragon-1.png` … `dragon-6.png`), picked per level through
+`difficulty-classes.js`, which also carries the hand-calibrated
+`BOTTOM_PAD_RATIO` that puts each creature's feet on `GROUND_Y`
+(`calibrate.html` fits that; align the feet, not the shadow).
 
 - The art generator baked a hard-edged shadow ellipse into every one of those
   sprites. `python3 sites/ffm/scripts/feather_fiend_shadows.py` removes it: it

@@ -74,6 +74,8 @@ const EXCLUDED_SAMPLES = [
   'game/withdrawal-request.js',
   'game/hero-spritesheet.png',
   'game/hero-spritesheet-upload.png',
+  'game/hero-sprites-transparent/animation-frames/idle/idle_frame0.png',
+  'game/hero-sprites-transparent/all-cells/hero_row0_col0.png',
   'game/tests/helper.js',
   'story/sources/intro/hero-raw.png',
   'story/references/hero-reference-sheet.png',
