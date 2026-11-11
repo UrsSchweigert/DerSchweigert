@@ -2,7 +2,8 @@
 
 import { generateProblem, getArithmeticOptionCount, sampleFiendType, TOTAL_LEVELS } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
-import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon } from './entities.js';
+import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon, getHeroGroundOffsetPx } from './entities.js';
+import { castHandAnchor } from './hero-anim.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import {
@@ -783,14 +784,18 @@ let healHoldPointerId = null; // the pointer currently tracked for hold-to-heal 
 let healTipShown = false;   // whether the "hold left edge to heal" tip has been shown this playthrough
 const LUNGE_SPEED = 420;  // px/s for both the dash-in and return
 const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this distance of HERO_X
-// Ranged spells (fireball/lightning) launch from just right of the hero's
-// sprite while he strikes in place at the base location, rather than lunging
-// up to the fiend like a melee hit does. The target height matches the
-// launch height so the bolt/fireball flies level, straight into the fiend's
-// body instead of angling down at its feet.
-const SPELL_LAUNCH_X = HERO_X + 130;
-const SPELL_LAUNCH_Y = GROUND_Y - 60;
+// Ranged spells (fireball/lightning) leave the palm of the cast pose while the
+// hero strikes in place at the base location, rather than lunging up to the
+// fiend like a melee hit does. The origin is the release frame's hand anchor
+// from hero-anim.js - the same point the palm glow is drawn at - expressed in
+// world coordinates, so raising the hand in the art moves the launch point with
+// it. The target stays at torso height, so the projectile flies into the body.
 const SPELL_TARGET_Y_OFFSET = 60;
+
+function spellLaunchPoint() {
+  const [dx, dy] = castHandAnchor();
+  return { x: hero.x + dx, y: hero.y + getHeroGroundOffsetPx() + dy };
+}
 // Must match Fireball's `life` (in entities.js) in milliseconds, so the hit
 // lands right as the sprite reaches the fiend instead of the instant it's cast.
 const FIREBALL_FLIGHT_MS = 1350;
@@ -2959,31 +2964,33 @@ function handleCorrectAnswer() {
   const strikeNow = () => {
     lastCastAbility = ability;
     if (ability === 'lightning') {
-      // Hero casts in place at the base location; the bolt is launched
-      // from just right of his sprite toward the fiend.
+      // Hero casts in place at the base location; the bolt erupts from the
+      // palm the cast pose draws and travels toward the fiend.
       hero.cast('bolt');
+      const launch = spellLaunchPoint();
       // The app build lets the projectile's own collision decide the hit, so
       // the bolt lands exactly when the sprite reaches the fiend's bounds.
       // The web build keeps its fixed arrival timer unchanged.
       const collides = platform.isApp;
       activeLightningBolts.push(collides
-        ? new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
+        ? new LightningBolt(launch.x, launch.y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
           { target: fiend, onHit: () => resolveLightningHit(fiend) })
-        : new LightningBolt(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
+        : new LightningBolt(launch.x, launch.y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
       audio.playLightningCast();
       input.disable();
       inputDisabled = true;
       if (!collides) scheduleGameplayTimeout(() => resolveLightningHit(fiend), 600);
     } else if (ability === 'fireball') {
-      // Hero casts in place at the base location; the fireball is launched
-      // from just right of his sprite toward the fiend, and the hit lands
-      // when it actually arrives rather than the instant it's cast.
+      // Hero casts in place at the base location; the fireball erupts from the
+      // palm the cast pose draws, and the hit lands when it actually arrives
+      // rather than the instant it's cast.
       hero.cast('fire');
+      const launch = spellLaunchPoint();
       const collides = platform.isApp;
       activeFireballs.push(collides
-        ? new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
+        ? new Fireball(launch.x, launch.y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
           { target: fiend, onHit: () => resolveFireballHit(fiend) })
-        : new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
+        : new Fireball(launch.x, launch.y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET));
       audio.playFireballCast();
       input.disable();
       inputDisabled = true;

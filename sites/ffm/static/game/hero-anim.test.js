@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { HeroAnimator, HERO_CLIPS } from './hero-anim.js';
+import { HeroAnimator, HERO_CLIPS, castHandAnchor } from './hero-anim.js';
 import { HERO_FRAMES } from './hero/hero-frames.js';
 
 const clips = {
@@ -189,5 +189,26 @@ describe('shipped hero clips', () => {
     for (const [id, frame] of Object.entries(HERO_FRAMES)) {
       assert.ok(frame.px > 0 && frame.px < frame.w, `${id} pivot ${frame.px} outside its ${frame.w}px box`);
     }
+  });
+});
+
+describe('cast hand anchor', () => {
+  it('points at the hand the release frame draws the palm glow in', () => {
+    const release = HERO_CLIPS.cast.frames.find((f) => f.at === 'release');
+    assert.deepEqual(castHandAnchor(), release.fxAt);
+  });
+
+  it('sits in the upper body, above the hip, so a spell erupts from the hand', () => {
+    const [dx, dy] = castHandAnchor();
+    // Frame pixels relative to the ground pivot: the hand is above the hero's
+    // belt (roughly -70) and forward of the body's centre line.
+    assert.ok(dy <= -100, `hand anchor y is ${dy}, not up in the raised hand`);
+    assert.ok(dx > 0, `hand anchor x is ${dx}, not forward of the body`);
+  });
+
+  it('falls back to the frame list head when a clip has no release event', () => {
+    const anchor = castHandAnchor({ frames: [{ f: 'x', ms: 10, fxAt: [7, -9] }] });
+    assert.deepEqual(anchor, [7, -9]);
+    assert.deepEqual(castHandAnchor({ frames: [{ f: 'x', ms: 10 }] }), [0, 0]);
   });
 });
