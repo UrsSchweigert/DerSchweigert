@@ -822,6 +822,68 @@ def render_meta(meta: dict) -> str:
     return "\n".join(lines)
 
 
+def _dashed_rect(draw, box, colour, dash=6, gap=4, width=1):
+    x0, y0, x1, y1 = box
+    for x in range(x0, x1, dash + gap):
+        draw.line([(x, y0), (min(x + dash, x1), y0)], fill=colour, width=width)
+        draw.line([(x, y1), (min(x + dash, x1), y1)], fill=colour, width=width)
+    for y in range(y0, y1, dash + gap):
+        draw.line([(x0, y), (x0, min(y + dash, y1))], fill=colour, width=width)
+        draw.line([(x1, y), (x1, min(y + dash, y1))], fill=colour, width=width)
+
+
+def export_edit_sheet(frames: list[Frame], path: Path, cols: int = 4,
+                      cell: int = 220, margin: int = 14) -> Path:
+    """Write every pose into one image for hand-editing, with its limits drawn.
+
+    Layout rules, repeated in the image itself so the sheet is self-explaining:
+      * solid red cell border  - nothing may cross it, the cell is the frame
+      * dashed amber inset     - keep the silhouette inside it, it is the bleed
+                                 margin the atlas packer relies on
+      * green baseline + cross - the foot contact point; it must not move, the
+                                 animator grounds every frame on it
+      * thin blue centre line  - the pivot's vertical, for orientation
+    """
+    from PIL import ImageDraw
+
+    label_h = 18
+    rows = (len(frames) + cols - 1) // cols
+    width = cols * (cell + margin) + margin
+    height = rows * (cell + label_h + margin) + margin
+    sheet = Image.new("RGBA", (width, height), (26, 30, 40, 255))
+    draw = ImageDraw.Draw(sheet)
+    for y in range(0, height, 16):
+        for x in range(0, width, 16):
+            if (x // 16 + y // 16) % 2 == 0:
+                draw.rectangle([x, y, x + 15, y + 15], fill=(34, 39, 50, 255))
+
+    for index, frame in enumerate(frames):
+        col, row = index % cols, index // cols
+        x0 = margin + col * (cell + margin)
+        y0 = margin + row * (cell + label_h + margin)
+        draw.rectangle([x0, y0, x0 + cell, y0 + cell], outline=(255, 45, 111, 255), width=2)
+        _dashed_rect(draw, (x0 + 6, y0 + 6, x0 + cell - 6, y0 + cell - 6), (255, 196, 0, 255))
+
+        meta = frame.image
+        pivot_x, pivot_y = _pivot(meta)
+        # bottom-align the pose on the cell's headline, centred on its pivot
+        left = x0 + cell // 2 - pivot_x
+        top = y0 + cell - 10 - pivot_y
+        sheet.alpha_composite(meta, (left, top))
+        px, py = x0 + cell // 2, y0 + cell - 10
+        draw.line([(x0 + 6, py), (x0 + cell - 6, py)], fill=(34, 204, 102, 120), width=1)
+        draw.line([(px, y0 + 6), (px, y0 + cell - 6)], fill=(90, 140, 255, 90), width=1)
+        draw.line([(px - 4, py), (px + 4, py)], fill=(34, 204, 102, 255), width=1)
+        draw.line([(px, py - 4), (px, py + 4)], fill=(34, 204, 102, 255), width=1)
+        draw.rectangle([x0, y0 - label_h, x0 + cell, y0], fill=(12, 16, 24, 255))
+        draw.text((x0 + 4, y0 - label_h + 3), f"{frame.id}  {meta.width}x{meta.height}",
+                  fill=(230, 236, 248, 255))
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sheet.convert("RGB").save(path, format="PNG", optimize=True)
+    return path
+
+
 def report(frames: list[Frame], meta: dict) -> None:
     print(f"{'frame':16s} {'size':>9s} {'pivot':>9s}  source")
     for frame in frames:
@@ -831,6 +893,8 @@ def report(frames: list[Frame], meta: dict) -> None:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--export-sheet", metavar="PATH",
+                        help="write all poses into one editable PNG with its limits drawn")
     parser.add_argument("--strict", action="store_true",
                         help="treat sword-check warnings as failures (use in CI)")
     parser.add_argument("--check", action="store_true",
@@ -848,6 +912,9 @@ def main(argv: list[str]) -> int:
     if missing:
         print(f"note: unused frames (no source yet): {', '.join(missing)}", file=sys.stderr)
     print(f"atlas {atlas.width}x{atlas.height}, {len(frames)} frames")
+    if args.export_sheet:
+        out = export_edit_sheet(frames, Path(args.export_sheet))
+        print(f"wrote {out} ({out.stat().st_size // 1024} KB)")
     if args.check:
         return 1 if sword_errors else 0
 
