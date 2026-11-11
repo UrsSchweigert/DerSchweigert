@@ -149,13 +149,13 @@ test('the correction takes the question row and never exposes the queued questio
     rewardLabel: 'Fireball chance in 2', healLabel: 'Healing 25%',
     feedback: { kind: 'incorrect', question: '2 + 3 = 5' } };
   chrome.update(state, { question: 'secret queued question' });
-  assert.equal(question.textContent, 'Incorrect: 2 + 3 = 5',
-    'the correction replaces the question instead of a reserved line below it');
+  assert.equal(question.textContent, '2 + 3 = 5',
+    'the answer alone replaces the question - no leading sentence');
   assert.equal(elements['encounter-progress'].textContent, state.progressLabel);
   assert.equal(elements['combo-reward'].textContent, state.rewardLabel);
   assert.equal(elements['heal-progress'].textContent, state.healLabel);
-  chrome.update({ ...state, feedback: { kind: 'timeout', question: 'Count: 10' } });
-  assert.equal(question.textContent, 'Time ran out: Count: 10');
+  chrome.update({ ...state, feedback: { kind: 'timeout', question: '3 shapes' } });
+  assert.equal(question.textContent, '3 shapes');
   chrome.update({ ...state, paused: true });
   assert.equal(question.textContent, '');
   chrome.update({ ...state, reveal: false });

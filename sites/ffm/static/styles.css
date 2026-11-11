@@ -103,6 +103,13 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The correction is plain text in either mode, so it needs the same guard: it
+ * must stop at the help/pause buttons instead of running under them. */
+#active-question:not([data-shapes-header]) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* A wrong answer or a timeout writes the correction into #active-question, in
  * place of the problem. There is deliberately no separate reveal row: it would
@@ -110,10 +117,16 @@ body {
  * the reveal, and viewport-layout.js lays the scene out from the measured
  * header.
  */
-.gameplay-readouts > span:empty { display: none; }
+/* The readouts are a grid, not a wrapping flex row: as flex, a shorter value
+ * ("Time —" between problems instead of "Time 12s") packed one more marker
+ * into the first line and shifted every later marker up, so the header lost a
+ * line (22px) and viewport-layout.js laid the scene out again. A fixed minimum
+ * column makes the column count depend only on the available width, so the
+ * line count stays the same for every problem and every value length. Empty
+ * markers keep their cell for the same reason. */
 .gameplay-readouts {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(106px, 1fr));
   align-content: center;
   gap: 2px 8px;
   min-width: 0;
@@ -121,7 +134,14 @@ body {
   line-height: 20px;
 }
 
-.gameplay-readouts > span { overflow-wrap: normal; }
+.gameplay-readouts > span:empty { visibility: hidden; }
+.gameplay-readouts > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+}
 #accessible-timer-progress { width: 20px; height: 8px; margin-left: 4px; }
 #btn-pause-game {
   align-self: center;
@@ -2444,4 +2464,12 @@ body:not(.legal-body) {
 #screen-fade.is-visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Late override: the phone-width readout size. Earlier rules in this file set
+ * 16px for the readouts (and a landscape block repeats it), so this has to come
+ * last to win. Three ~108px columns fit the longest marker ("Defeated: 0/30")
+ * at 15px; at 16px it clipped by a pixel and showed an ellipsis. */
+@media (max-width: 430px) {
+  .gameplay-readouts { font-size: 15px; }
 }

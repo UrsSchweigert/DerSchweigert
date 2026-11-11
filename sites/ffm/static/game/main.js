@@ -3704,9 +3704,11 @@ function gameLoop(ts) {
     : t('reward.activeChance', { ability: abilityName, chance: Math.round(reward.chance * 100) });
   const feedback = activeFiend?.state === 'reveal' ? {
     kind: activeFiend._answerFeedback,
+    // The header shows the answer alone and keeps it short enough for the
+    // question column; the fiend's speech bubble carries the full sentence.
     question: activeFiend.problem.question
       ? activeFiend.problem.question.replace(' = ?', ` = ${activeFiend.problem.answer}`)
-      : t('feedback.shapesAnswer', { count: activeFiend.problem.answer }),
+      : t('feedback.shapesAnswerShort', { count: activeFiend.problem.answer }),
   } : null;
   const practiceProgress = practiceRun?.session.snapshot();
   const encounterProgress = practiceRun?.endless ? null : state.isShapesMode

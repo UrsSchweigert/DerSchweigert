@@ -414,6 +414,9 @@ const DICTIONARY = {
   'reward.upcomingChance': { en: '{ability} {chance}% in {count}', de: '{ability} {chance}% in {count}' },
   'reward.activeChance': { en: '{ability}: {chance}% per hit', de: '{ability}: {chance}% pro Treffer' },
   'feedback.shapesAnswer': { en: 'There are {count} shapes.', de: 'Es sind {count} Formen.' },
+  // The gameplay header's correction row: same answer, short enough to fit the
+  // question column next to the help and pause buttons.
+  'feedback.shapesAnswerShort': { en: '{count} shapes', de: '{count} Formen' },
   'gameplay.encounters': { en: 'Defeated: {defeated}/{total}', de: 'Besiegt: {defeated}/{total}' },
   'gameplay.healProgress': { en: 'Heal: {percent}%', de: 'Heilen: {percent}%' },
 
