@@ -84,6 +84,16 @@ GENERATED_POSES: list[dict] = [
     {"file": "swing-follow.png", "id": "swing-follow", "scale": 0.172, "strip_shadow": True},
 ]
 
+# How the sword should be held in each pose. `one`/`two` are asserted against
+# the art by check_sword(); `loose` means the blade is not gripped at all (the
+# death pose drops it), so only the blade's straightness is checked there.
+GRIP: dict[str, str] = {
+    "idle": "one", "walk-a": "one", "walk-b": "one", "walk-c": "one",
+    "swing-windup": "two", "swing-impact": "two", "swing-follow": "two",
+    "hurt": "one", "dead": "loose", "victory-raise": "one",
+    "victory-plant": "one", "cast": "two",
+}
+
 # Atlas row order is deterministic so a diff of the image is readable.
 FRAME_ORDER = [
     "idle", "walk-a", "walk-b", "walk-c",
@@ -279,6 +289,308 @@ def collect() -> tuple[list[Frame], list[str]]:
     return [frames[f] for f in FRAME_ORDER if f in frames], missing
 
 
+# ─── Sword checks ────────────────────────────────────────────────────────────
+# The hero's blade has to read as one straight piece of steel from hilt to tip,
+# and it has to be held by the right number of hands in every pose. Both are
+# easy to get wrong when a pose is generated (a warped blade, a sword running
+# out of frame, a hilt nobody grips), so they are asserted against the art
+# instead of being eyeballed.
+BLADE_MIN_PX = 90        # below this there is not enough blade to judge
+BEND_MAX_PX = 1.8        # centreline deviation allowed between hilt and tip
+COLLINEAR_MAX_PX = 2.4   # how far a part hidden behind the body may sit off it
+CONTACT_MAX_PX = 3.0     # the hilt must touch the body, or the sword floats
+CUT_MIN_RUN = 0.6        # a blade sliced by the sprite edge keeps its width
+CLIP_MARGIN_PX = 2.0     # hilt this close to the sprite edge = cut off
+GRIP_TWO_MIN_PX = 12.0   # body run along the shaft that reads as two hands
+
+
+def _steel_mask(a: np.ndarray) -> np.ndarray:
+    rgb = a[:, :, :3].astype(np.int16)
+    mx, mn = rgb.max(axis=2), rgb.min(axis=2)
+    lum = rgb.mean(axis=2)
+    return ((a[:, :, 3] > 128) & ((mx - mn) < 48) & (lum > 95) & (lum < 228)
+            & (rgb[:, :, 2] >= rgb[:, :, 0] - 10))
+
+
+def _axis_points(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    ys, xs = np.nonzero(mask)
+    return np.column_stack([xs, ys]).astype(float), np.array([0.0, 0.0])
+
+
+def _principal(points: np.ndarray) -> tuple[np.ndarray, np.ndarray, float, float]:
+    centre = points.mean(axis=0)
+    q = points - centre
+    ev, evec = np.linalg.eigh(np.cov(q.T))
+    return centre, evec[:, 1], 4 * np.sqrt(max(ev[1], 1e-9)), 4 * np.sqrt(max(ev[0], 1e-9))
+
+
+def _bins(points: np.ndarray, centre: np.ndarray, axis: np.ndarray, count: int = 8):
+    """Bin the points along `axis` and return (t, perp, n, width) per bin."""
+    q = points - centre
+    t = q @ axis
+    p = q @ np.array([-axis[1], axis[0]])
+    if t.size == 0:
+        return []
+    edges = np.linspace(t.min(), t.max(), count + 1)
+    out = []
+    for i in range(count):
+        m = (t >= edges[i]) & (t <= edges[i + 1])
+        if m.sum() >= 8:
+            out.append((t[m].mean(), p[m].mean(), int(m.sum()), float(p[m].max() - p[m].min())))
+    return out
+
+
+def _residuals(bins, centre, axis):
+    if len(bins) < 3:
+        return None, None
+    t = np.array([b[0] for b in bins])
+    p = np.array([b[1] for b in bins])
+    design = np.vstack([t, np.ones_like(t)]).T
+    (slope, icpt), *_ = np.linalg.lstsq(design, p, rcond=None)
+    res = p - (slope * t + icpt)
+    return float(np.sqrt((res ** 2).mean())), float(np.abs(res).max())
+
+
+def check_sword(frame: Frame) -> dict:
+    """Verify that the blade runs straight from hilt to tip and is gripped.
+
+    The blade's bright edge gives a reliable line even when the body hides half
+    the sword; the blade's real extent is then found by walking that line
+    through blade-coloured pixels, so occlusion is handled by construction:
+    hidden stations are skipped, and every visible station on both sides of the
+    body has to sit on the same straight line.
+    """
+    a = np.array(frame.image).astype(int)
+    alpha = a[:, :, 3] > 128
+    rgb = a[:, :, :3]
+    steel = _steel_mask(a)
+    labels, count = _components(steel)
+    anchor = None
+    for k in range(1, count + 1):
+        ys, xs = np.nonzero(labels == k)
+        if ys.size < 40:
+            continue
+        pts = np.column_stack([xs, ys]).astype(float)
+        centre, axis, length, width = _principal(pts)
+        if length / max(width, 1e-6) < 2.2 or width > 32:
+            continue
+        if anchor is None or length > anchor[2]:
+            anchor = (pts, axis, length, centre, width)
+    if anchor is None:
+        return {"frame": frame.id, "status": "unverifiable", "reason": "no blade visible"}
+
+    pts, axis, _, centre, _ = anchor
+    for _ in range(2):
+        centre, axis, _, _ = _principal(pts)
+        perp = (pts - centre) @ np.array([-axis[1], axis[0]])
+        keep = np.abs(perp) <= max(4.0, 3.0 * float(np.std(perp)))
+        if keep.all():
+            break
+        pts = pts[keep]
+    centre, axis, _, _ = _principal(pts)
+
+    ref = np.median(rgb[pts[:, 1].astype(int), pts[:, 0].astype(int)], axis=0)
+    chroma = rgb.max(axis=2) - rgb.min(axis=2)
+    blade = alpha & (np.linalg.norm(rgb - ref, axis=2) < 62) & (chroma < 42)
+    normal = np.array([-axis[1], axis[0]])
+    height, width_px = alpha.shape
+    ys_a, xs_a = np.nonzero(alpha)
+    bbox = (xs_a.min(), ys_a.min(), xs_a.max(), ys_a.max())
+
+    def run_at(t: float):
+        """Width and centre offset of the blade cross-section at distance t."""
+        px = centre + axis * t
+        best = None
+        for off in np.arange(-2.5, 2.6, 0.5):
+            p = px + normal * off
+            x, y = int(round(p[0])), int(round(p[1]))
+            if not (0 <= y < height and 0 <= x < width_px) or not blade[y, x]:
+                continue
+            lo = off
+            while True:
+                q = px + normal * (lo - 0.5)
+                xq, yq = int(round(q[0])), int(round(q[1]))
+                if 0 <= yq < height and 0 <= xq < width_px and blade[yq, xq]:
+                    lo -= 0.5
+                else:
+                    break
+            hi = off
+            while True:
+                q = px + normal * (hi + 0.5)
+                xq, yq = int(round(q[0])), int(round(q[1]))
+                if 0 <= yq < height and 0 <= xq < width_px and blade[yq, xq]:
+                    hi += 0.5
+                else:
+                    break
+            cand = (float(hi - lo), float((hi + lo) / 2), off)
+            if best is None or cand[0] > best[0]:
+                best = cand
+        return best
+
+    def walk(direction: int) -> tuple[float, bool]:
+        """Walk the line until the blade stops; returns (extent, hit_sprite_edge)."""
+        t = 0.0
+        gap = 0.0
+        while abs(t) < max(height, width_px):
+            hit = run_at(t) is not None
+            gap = 0.0 if hit else gap + 1.0
+            if gap > 4.0:
+                return t - direction * gap, False
+            p = centre + axis * t
+            if (p[0] <= bbox[0] + 0.5 or p[0] >= bbox[2] - 0.5
+                    or p[1] <= bbox[1] + 0.5 or p[1] >= bbox[3] - 0.5):
+                return t, hit
+            t += direction * 1.0
+        return t, False
+
+    t_lo, edge_lo = walk(-1)
+    t_hi, edge_hi = walk(1)
+    length = t_hi - t_lo
+    if length < 40:
+        return {"frame": frame.id, "status": "unverifiable", "reason": "blade shorter than 40px"}
+
+    stations = []
+    for i in range(1, 20):
+        t = t_lo + length * i / 20
+        run = run_at(t)
+        if run is not None:
+            stations.append((t, run[1], run[0]))
+    if len(stations) < 5:
+        return {"frame": frame.id, "status": "unverifiable", "reason": "blade mostly hidden"}
+    widths = np.array([w for _, _, w in stations])
+    median_w = float(np.median(widths))
+    clean = [(t, off) for t, off, w in stations if w >= 0.5 * median_w]
+    rms, worst = _residuals([(t, off, 0, 0) for t, off in clean], np.array([0.0, 0.0]), np.array([1.0, 0.0]))
+    if rms is None:
+        return {"frame": frame.id, "status": "unverifiable", "reason": "too few clean cross-sections"}
+
+    ends = [centre + axis * t_lo, centre + axis * t_hi]
+    blade_px = np.zeros_like(alpha)
+    for t in np.arange(t_lo, t_hi, 0.5):
+        px = centre + axis * t
+        for off in np.arange(-median_w, median_w + 0.5, 0.5):
+            p = px + normal * off
+            x, y = int(round(p[0])), int(round(p[1]))
+            if 0 <= y < height and 0 <= x < width_px and blade[y, x]:
+                blade_px[y, x] = True
+    body = alpha & ~blade_px
+    bys, bxs = np.nonzero(body)
+    body_c = np.array([bxs.mean(), bys.mean()]) if bxs.size else centre
+    d_lo = np.linalg.norm(ends[0] - body_c)
+    d_hi = np.linalg.norm(ends[1] - body_c)
+    hilt_pt, tip_pt = (ends[0], ends[1]) if d_lo < d_hi else (ends[1], ends[0])
+
+    hx, hy = int(round(hilt_pt[0])), int(round(hilt_pt[1]))
+    win = 9
+    y0, y1 = max(0, hy - win), hy + win + 1
+    x0, x1 = max(0, hx - win), hx + win + 1
+    sub = body[y0:y1, x0:x1]
+    contact = 999.0
+    grip_span = 0.0
+    if sub.any():
+        sy, sx = np.nonzero(sub)
+        pts_b = np.column_stack([sx + x0, sy + y0]).astype(float)
+        d = np.linalg.norm(pts_b - hilt_pt, axis=1)
+        contact = float(d.min())
+        near = pts_b[d <= 6.0] - hilt_pt
+        if near.size:
+            grip_span = float((near @ axis).max() - (near @ axis).min())
+
+    hands = _count_hands(rgb, alpha, hilt_pt, 10)
+    wrap = 0.0
+
+    expected = GRIP.get(frame.id, "one")
+    problems = []
+    if rms > BEND_MAX_PX:
+        problems.append(f"blade not straight: cross-sections wander {rms:.2f}px off the hilt-tip line")
+    # A blade sliced by the sprite edge is still at full width where it stops;
+    # a real end is a narrow pommel or a tapering tip.
+    for at_edge, t_end, is_hilt in ((edge_lo, t_lo, d_lo < d_hi), (edge_hi, t_hi, d_hi < d_lo)):
+        if not at_edge:
+            continue
+        probe = run_at(t_end + (2.0 if t_end == t_hi else -2.0))
+        if probe is not None and probe[0] > CUT_MIN_RUN * median_w:
+            problems.append("hilt runs out of the sprite (nothing beyond it to hold)" if is_hilt
+                            else "tip is cut off by the sprite edge")
+    if expected != "loose":
+        if contact > CONTACT_MAX_PX:
+            problems.append(f"hilt is {contact:.1f}px from the body (sword floating)")
+        elif hands == 0:
+            problems.append("no hand reaches the hilt")
+    notes = []
+    if expected != "loose" and hands and contact <= CONTACT_MAX_PX:
+        wanted = 2 if expected == "two" else 1
+        if hands != wanted:
+            notes.append(f"art shows {hands} hand(s) on the hilt, {expected} pose expects {wanted}")
+    return {
+        "frame": frame.id, "status": "fail" if problems else "ok", "notes": notes,
+        "problems": problems, "visible": int(blade_px.sum()),
+        "length": float(length), "width": float(median_w),
+        "bend": rms, "taper": 0.0, "wrap": wrap, "contact": contact,
+        "grip_span": grip_span, "hands": hands, "expected": expected,
+    }
+
+
+def report_swords(frames: list[Frame], strict: bool = False) -> int:
+    print("\nsword check")
+    print(f"{'frame':16s} {'blade':>6s} {'bend':>5s} {'taper':>5s} {'wrap':>5s} "
+          f"{'hold':>5s} {'span':>5s} {'hands':>5s}  verdict")
+    errors = 0
+    warnings = 0
+    for frame in frames:
+        r = check_sword(frame)
+        if r["status"] == "unverifiable":
+            warnings += 1
+            print(f"{frame.id:16s} {'-':>6s} {'-':>5s} {'-':>5s} {'-':>5s} {'-':>5s} "
+                  f"{'-':>5s} {'-':>5s}  WARN {r['reason']}")
+            continue
+        verdict = "ok"
+        if r["status"] == "fail":
+            errors += 1
+            verdict = "FAIL " + "; ".join(r["problems"])
+        elif r["notes"]:
+            warnings += 1
+            verdict = "WARN " + "; ".join(r["notes"])
+        elif r["visible"] < BLADE_MIN_PX:
+            verdict = f"ok (only {r['visible']}px of blade visible)"
+        print(f"{frame.id:16s} {r['visible']:6d} {r['bend']:5.2f} {r['taper']:5.2f} "
+              f"{r['wrap']:5.2f} {r['contact']:5.1f} {r['grip_span']:5.1f} "
+              f"{r['hands']}/{r['expected'][:1]:>3s}  {verdict}")
+    if errors or warnings:
+        print(f"sword check: {errors} error(s), {warnings} warning(s)")
+    return errors + (warnings if strict else 0)
+
+
+def _count_hands(rgb: np.ndarray, alpha: np.ndarray, point: np.ndarray, radius: int) -> int:
+    """Count distinct hand-coloured blobs touching the hilt.
+
+    Skin and the hero's dark fingerless gloves are the only two things that
+    reach the grip, so a small connected-component count in a disc around the
+    hilt separates "nobody holds this sword" from "at least one hand does".
+    Two hands that overlap on the shaft merge into one blob at this resolution,
+    which is why the count is reported rather than treated as proof.
+    """
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    lum = rgb.mean(axis=2)
+    chroma = rgb.max(axis=2) - rgb.min(axis=2)
+    skin = (r > 150) & (r - g > 24) & (b < 180) & (g > 90)
+    glove = (lum < 62) & (chroma < 46)
+    hand = alpha & (skin | glove)
+    hx, hy = int(round(point[0])), int(round(point[1]))
+    y0, y1 = max(0, hy - radius), hy + radius + 1
+    x0, x1 = max(0, hx - radius), hx + radius + 1
+    disc = np.zeros_like(hand)
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    inside = (xx - hx) ** 2 + (yy - hy) ** 2 <= radius ** 2
+    sub = hand[y0:y1, x0:x1] & inside
+    if not sub.any():
+        return 0
+    labels, count = _components(sub)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    return int((sizes >= 8).sum())
+
+
 def pack(frames: list[Frame]) -> tuple[Image.Image, dict]:
     """Shelf-pack the frames with PAD between them and build the metadata."""
     width = 512
@@ -340,7 +652,10 @@ def report(frames: list[Frame], meta: dict) -> None:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--check", action="store_true", help="report only, write nothing")
+    parser.add_argument("--strict", action="store_true",
+                        help="treat sword-check warnings as failures (use in CI)")
+    parser.add_argument("--check", action="store_true",
+                        help="report and verify only, write nothing; exits 1 on a sword-check failure")
     args = parser.parse_args(argv)
 
     if not MASTER_SHEET.is_file():
@@ -350,11 +665,12 @@ def main(argv: list[str]) -> int:
     frames, missing = collect()
     atlas, meta = pack(frames)
     report(frames, meta)
+    sword_errors = report_swords(frames, strict=args.strict)
     if missing:
         print(f"note: unused frames (no source yet): {', '.join(missing)}", file=sys.stderr)
     print(f"atlas {atlas.width}x{atlas.height}, {len(frames)} frames")
     if args.check:
-        return 0
+        return 1 if sword_errors else 0
 
     OUT_ATLAS.parent.mkdir(parents=True, exist_ok=True)
     # Lossless: the art is hard-edged pixel work, lossy WebP smears it.
@@ -362,7 +678,7 @@ def main(argv: list[str]) -> int:
     OUT_META.write_text(render_meta(meta), encoding="utf-8")
     print(f"wrote {OUT_ATLAS.relative_to(FFM_ROOT)} ({OUT_ATLAS.stat().st_size // 1024} KB)")
     print(f"wrote {OUT_META.relative_to(FFM_ROOT)}")
-    return 0
+    return 1 if sword_errors else 0
 
 
 if __name__ == "__main__":

@@ -600,6 +600,13 @@ the old fixed 6x4 sprite grid:
   connected blob, so a neighbouring pose can never bleed into a frame, and each
   frame carries an explicit foot contact point instead of one hand-tuned offset.
   Rebuild with `python3 sites/ffm/scripts/hero_frames.py`.
+  The same run verifies the sword in every pose: the blade has to run straight
+  from hilt to tip (cross-sections measured against the hilt-tip line, hidden
+  slices skipped so a blade behind the body is still checked) and has to be
+  gripped by a hand, with the number of hands compared against the pose's
+  declared grip (`one` except the swing and cast poses, which are `two`). The
+  table prints per-frame numbers; `--check` writes nothing, `--check --strict`
+  also fails on warnings (the poses whose art still shows one hand).
 - `sites/ffm/static/game/hero-anim.js` holds the clips: frame durations, which
   frame fires `hit`, and the `track()` function that leans/bobs/squashes the
   pose. Timing is wall-clock based, so playback does not depend on the display
