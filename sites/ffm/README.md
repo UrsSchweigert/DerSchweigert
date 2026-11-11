@@ -598,6 +598,35 @@ for a level jump. Re-run it whenever the ladder, the score scale or a level's
 `waveSize`/`fiendHP` changes, and keep the shipped values honest with
 `level-baseline-score.test.js`, which asserts all 60 entries match the model.
 
+### Warden boss locks (prototype)
+
+`sites/ffm/static/game/boss-rules.js` and `static/game/boss-problems.js` are the
+engine-independent half of the planned act bosses. A Warden lock shows a few
+numbered orbs and one rule; the player strikes them in an order (or picks a
+subset) that completes it. Neither module touches the DOM, `main.js` or scoring
+yet - they are pure logic plus their generated locks.
+
+- `boss-rules.js` owns the seven rules (`ascending`, `descending`,
+  `factorChain`, `composeTarget`, `pairSum`, `oddOneOut`, `equalShare`),
+  `evaluateStrike()` (a strike is accepted only while the lock stays solvable,
+  and a wrong strike clears the sequence), `solutionFor()`, `countSolutions()`
+  and the `hintFor()` ladder shown after a miss. Rules return i18n keys, never
+  text.
+- `boss-problems.js` generates a lock for a level band from a seed, plus the
+  inverse ("`? × 7 = 56`") problems a Warden poses between locks.
+  `orbRangeForBand()` derives a lock's number range from an existing level config,
+  so the generated locks match what that act already teaches.
+- **Every generated lock has exactly one completion.** `sealLock()` enforces it
+  and `boss-problems.test.js` checks 10,000 seeds per rule and 200 per band, so a
+  Warden can never pose a puzzle with two right answers.
+- Compose deliberately excludes `-` and `÷`: `a - b = r` also makes `a - r = b`
+  true, and `a ÷ d = q` also makes `a ÷ q = d` true, which would give one set of
+  orbs two valid answers. Those directions are covered by the inverse and
+  `equalShare` problems instead.
+- The generator is mulberry32 rather than the campaign's LCG on purpose: an
+  LCG's low bits are correlated, so `state % span` over a small span repeated the
+  same draw and builders could never succeed.
+
 ### Change visuals or sprites
 
 Start with:
