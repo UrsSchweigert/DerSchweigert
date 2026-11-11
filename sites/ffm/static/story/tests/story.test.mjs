@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cueAt, landscapeBox,
-  sampleMotion, stageTransform, pickText,
+  narrationLocale, sampleMotion, stageTransform, pickText, voicedCues,
 } from '../player/diorama-player.js';
 import { LOCALES, toVtt } from '../tools/build-subtitles.mjs';
 
@@ -184,6 +184,49 @@ for (const id of sceneDirs) {
       }
     });
 
+    it('ships voice-over that matches its subtitles in every locale', () => {
+      for (const locale of LOCALES) {
+        const dir = join(scenesDir, id, 'narration', locale);
+        const timingFile = join(dir, 'timing.json');
+        assert.ok(existsSync(timingFile), `${id}/${locale}: narration/timing.json missing`);
+        const timing = JSON.parse(readFileSync(timingFile, 'utf8'));
+        assert.equal(timing.duration, scene.duration, `${id}/${locale}: scene duration`);
+        assert.ok(existsSync(join(dir, timing.audio)), `${id}/${locale}: ${timing.audio} missing`);
+
+        // One recorded line per spoken cue; act title cards stay unvoiced.
+        const spoken = scene.subtitles
+          .map((cue, index) => ({ cue, index }))
+          .filter(({ cue }) => !/^(Act|Akt)\b/.test(cue.text[locale].trim()));
+        assert.deepEqual(timing.lines.map(line => line.cue), spoken.map(entry => entry.index),
+          `${id}/${locale}: recorded cues`);
+
+        let previousEnd = 0;
+        for (const line of timing.lines) {
+          assert.ok(existsSync(join(dir, line.stem)), `${id}/${locale}: ${line.stem} missing`);
+          assert.ok(line.start >= previousEnd - 0.001,
+            `${id}/${locale}: ${line.stem} starts before the line before it ends`);
+          assert.ok(line.start + line.duration <= scene.duration + 0.01,
+            `${id}/${locale}: ${line.stem} runs past the scene`);
+          previousEnd = line.start + line.duration;
+        }
+
+        // Folded into the cues, the voice-over must stay ordered and must not
+        // collide, and no line may lose its text while it is still speaking.
+        const voiced = voicedCues(scene.subtitles, timing);
+        for (const [index, cue] of voiced.entries()) {
+          assert.ok(cue.end > cue.start, `${id}/${locale}: cue ${index} has no window`);
+          if (index) assert.ok(cue.start >= voiced[index - 1].end - 0.001,
+            `${id}/${locale}: cue ${index} overlaps the one before it`);
+        }
+        for (const line of timing.lines) {
+          const cue = voiced[line.cue];
+          assert.equal(cue.start, line.start, `${id}/${locale}: ${line.stem} is not synced to its cue`);
+          assert.ok(cue.end >= line.start + line.duration - 0.001,
+            `${id}/${locale}: ${line.stem} loses its subtitle before the line ends`);
+        }
+      }
+    });
+
     it('attaches glows only to existing layers', () => {
       const ids = new Set(scene.layers.map(layer => layer.id));
       for (const glow of scene.lighting?.glows ?? []) {
@@ -262,5 +305,47 @@ describe('player helpers', () => {
     assert.equal(cueAt(cues, 1.5), cues[0]);
     assert.equal(cueAt(cues, 2), null);
     assert.equal(pickText(cues[0].text, 'de'), 'a');
+  });
+
+  it('moves cue timing onto the recorded lines without letting them collide', () => {
+    const subtitles = [
+      { start: 1, end: 3, text: 'first' },
+      { start: 4, end: 6, text: 'second' },
+      { start: 8, end: 10, text: 'title card' },
+    ];
+    // A slow take: the first line runs past its authored window.
+    const timing = {
+      lines: [
+        { cue: 0, start: 1.4, duration: 3.2 }, // ends 4.6 — later than the second line starts
+        { cue: 1, start: 4.9, duration: 1.1 },
+      ],
+    };
+    const voiced = voicedCues(subtitles, timing);
+    assert.deepEqual(voiced[0], { start: 1.4, end: 4.6, text: 'first' });
+    assert.deepEqual(voiced[1], { start: 4.9, end: 6, text: 'second' });
+    // The unvoiced title card keeps its authored time even though line 2 runs late.
+    assert.deepEqual(voiced[2], subtitles[2]);
+  });
+
+  it('keeps a cue readable when the take is shorter than its window', () => {
+    const subtitles = [{ start: 1, end: 5, text: 'short take' }];
+    const voiced = voicedCues(subtitles, { lines: [{ cue: 0, start: 1.2, duration: 1.5 }] });
+    assert.deepEqual(voiced[0], { start: 1.2, end: 5, text: 'short take' });
+  });
+
+  it('leaves the cues alone without a usable voice-over manifest', () => {
+    const subtitles = [{ start: 1, end: 2, text: 'x' }];
+    assert.equal(voicedCues(subtitles, null), subtitles);
+    assert.equal(voicedCues(subtitles, { lines: [] }), subtitles);
+    // Unknown cue indices and unreadable starts are ignored, not thrown at.
+    const junk = { lines: [{ cue: 9, start: 0, duration: 1 }, { cue: 0, start: 'x', duration: 1 }] };
+    assert.equal(voicedCues(subtitles, junk), subtitles);
+  });
+
+  it('reads the voice-over folder for a supported locale', () => {
+    assert.equal(narrationLocale('de'), 'de');
+    assert.equal(narrationLocale('en'), 'en');
+    assert.equal(narrationLocale('fr'), 'en');
+    assert.equal(narrationLocale(undefined), 'en');
   });
 });

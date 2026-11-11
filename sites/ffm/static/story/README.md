@@ -7,9 +7,9 @@ another, a lighting overlay, and English/German subtitles on top.
 
 This folder ships with the game: the website deploy syncs `static/`, and the
 app bundle copies what `mobile/scripts/copy-assets.mjs` keeps (the generation
-sources, reference sheets, art bible and `preview.html` stay web-side). Only
-the intro is wired into the game so far — it plays on the first open of an
-install and again before level 1 (see [Integration](#integration)).
+sources, reference sheets, art bible and `preview.html` stay web-side). The
+intro plays on the first open of an install and again before level 1, and every
+act opening plays when its first level starts (see [Integration](#integration)).
 
 ## Layout
 
@@ -20,6 +20,7 @@ install and again before level 1 (see [Integration](#integration)).
 | `scenes/<id>/scene.json` | layers, motion, lighting, subtitles (source of truth) |
 | `scenes/<id>/*.webp` | final layers (backdrop opaque, others with alpha) |
 | `scenes/<id>/subtitles.{en,de}.vtt` | generated WebVTT copies of the cues |
+| `scenes/<id>/narration/<lang>/` | recorded voice-over: one track, its stems and `timing.json` |
 | `sources/<id>/` | art packet (`layers.json`: prompts, references, retouches) and raw renders |
 | `references/` | approved hero reference sheet |
 | `tools/` | cutout, encoding and subtitle scripts |
@@ -56,6 +57,46 @@ A character can change pose mid-scene: add the second pose as its own layer
 with `"poseOf": "<base layer id>"`, the same role and motion, and crossfade the
 two with `opacity` keyframes (ideally under a `flash`). Poses share their base
 layer's depth plane, so they don't count towards the 3-4 planes.
+
+## Voice-over (`narration/`)
+
+Every scene ships a recorded narrator. It is optional: a scene without a
+`narration/` folder plays silently on the authored cue times.
+
+```
+scenes/<id>/narration/de/narration.mp3   single track, scene duration, mono, -2 dBFS
+scenes/<id>/narration/de/line01.mp3      one stem per narrated cue, in cue order
+scenes/<id>/narration/de/timing.json     where each stem sits on the scene clock
+```
+
+```jsonc
+{
+  "voice": "Brian",
+  "model": "fal-ai/elevenlabs/tts/eleven-v3",
+  "audio": "narration.mp3",
+  "duration": 44,                          // must equal scene.duration
+  "lines": [
+    { "stem": "line01.mp3", "cue": 0,      // index into scene.subtitles
+      "cueStart": 0.8, "start": 0.8, "duration": 3.94 }
+  ]
+}
+```
+
+The player (`voicedCues`) shows a narrated cue from its line's real `start` and
+holds it until the line ends, so the text follows the voice instead of the
+authored window; cues the narrator skips keep their authored timing — that is
+why act title cards ("Act I · The First Light") stay on screen unvoiced. Lines
+never overlap: when a take runs longer than its window, the following lines
+slide back just enough to clear it, and `timing.json` records the offset.
+
+The track is the clock: while it plays, `audio.currentTime` drives the scene,
+and the requestAnimationFrame clock takes over again if it ends or stalls.
+`createDioramaPlayer({ muted })` skips the track but keeps the cue timing; a
+missing or undecodable track only costs the sound.
+
+`tests/story.test.mjs` checks the manifest against the scene: one stem per
+narrated cue, both locales, no overlap, every line inside the scene, and no cue
+that loses its text before the line ends.
 
 ## Producing a scene
 

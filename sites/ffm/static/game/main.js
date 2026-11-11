@@ -287,6 +287,9 @@ async function playStoryScene(sceneId) {
     scene,
     baseUrl: sceneBase,
     locale: getLocale(),
+    // The diorama is a full-screen modal, so the mute choice is taken once, as
+    // it stands when the scene opens.
+    muted: audio.muted,
   });
   try {
     return await player.play();
