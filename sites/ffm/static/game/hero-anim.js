@@ -44,7 +44,7 @@ export const HERO_CLIPS = {
   swing: {
     frames: [
       { f: 'swing-windup', ms: 70 },
-      { f: 'swing-impact', ms: 55, at: 'hit', fx: 'slash', fxAt: [-19, -40] },
+      { f: 'swing-strike', ms: 55, at: 'hit', fx: 'slash', fxAt: [-34, -44] },
       { f: 'swing-follow', ms: 95 },
     ],
     next: 'idle',

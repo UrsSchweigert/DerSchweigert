@@ -128,7 +128,7 @@ describe('shipped hero clips', () => {
   it('reference only frames the atlas builder produces', () => {
     const built = new Set([
       'idle', 'walk-a', 'walk-b', 'walk-c', 'swing-windup', 'swing-impact',
-      'swing-follow', 'hurt', 'dead', 'victory-raise', 'victory-plant', 'cast',
+      'swing-strike', 'swing-follow', 'hurt', 'dead', 'victory-raise', 'victory-plant', 'cast',
     ]);
     for (const [name, clip] of Object.entries(HERO_CLIPS)) {
       for (const frame of clip.frames) {

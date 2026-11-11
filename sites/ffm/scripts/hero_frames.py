@@ -83,6 +83,7 @@ GENERATED_POSES: list[dict] = [
     # the fiend on the right, so the frame is mirrored on the way in.
     {"file": "cast.png", "id": "cast", "scale": 0.205, "strip_shadow": True, "flip": True},
     {"file": "swing-impact.png", "id": "swing-impact", "scale": 0.172, "strip_shadow": True},
+    {"file": "swing-twohand.png", "id": "swing-strike", "scale": 0.1762, "strip_shadow": True},
     {"file": "swing-follow.png", "id": "swing-follow", "scale": 0.172, "strip_shadow": True},
 ]
 
@@ -104,7 +105,7 @@ EXTRA_HAND: dict[str, tuple[int, int]] = {
 
 GRIP: dict[str, str] = {
     "idle": "one", "walk-a": "one", "walk-b": "one", "walk-c": "one",
-    "swing-windup": "two", "swing-impact": "two", "swing-follow": "two",
+    "swing-windup": "two", "swing-strike": "two", "swing-impact": "two", "swing-follow": "two",
     "hurt": "one", "dead": "loose", "victory-raise": "one",
     "victory-plant": "one", "cast": "one",
 }
@@ -112,7 +113,7 @@ GRIP: dict[str, str] = {
 # Atlas row order is deterministic so a diff of the image is readable.
 FRAME_ORDER = [
     "idle", "walk-a", "walk-b", "walk-c",
-    "swing-windup", "swing-impact", "swing-follow",
+    "swing-windup", "swing-strike", "swing-impact", "swing-follow",
     "hurt", "dead", "victory-raise", "victory-plant", "cast",
 ]
 
