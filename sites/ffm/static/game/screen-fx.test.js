@@ -15,6 +15,7 @@ import {
   WORLD_WIDTH,
   WORLD_HEIGHT,
   DPR_TIERS,
+  PARTICLE_SIZE_SCALE,
 } from './screen-fx.js';
 
 function recordingContext() {
@@ -508,4 +509,16 @@ test('reduced motion suppresses flashes entirely', () => {
   const normal = make();
   normal.fx.flash(10, 10, '#ffffff', 30, 0.2, 1);
   assert.equal(normal.fx.getParticleCount(), 1);
+});
+
+test('every particle is spawned at the shared size scale', () => {
+  const { fx } = make();
+  const ring = fx.ring(0, 0, '#ffffff', 10, 100, 0.5, 2);
+  assert.equal(ring.r0, 10 * PARTICLE_SIZE_SCALE);
+  assert.equal(ring.r1, 100 * PARTICLE_SIZE_SCALE);
+  assert.equal(ring.width, 2 * PARTICLE_SIZE_SCALE);
+
+  const ember = fx.ember(0, 0, 0, 0, '#ffffff', 0.5);
+  assert.equal(ember.size, 3 * PARTICLE_SIZE_SCALE);
+  assert.ok(PARTICLE_SIZE_SCALE > 1, 'the layer reads larger than the authored unit scale');
 });

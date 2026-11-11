@@ -216,8 +216,8 @@ test('a scheduled fireball impact does not fire while paused and fires after res
   assert.equal(fx._particles.some((p) => p.type === 'flash' || p.type === 'ring'), true, 'impact fires after resume');
 });
 
-test('PALETTES exposes the six named palettes', () => {
-  assert.deepEqual(Object.keys(PALETTES).sort(), ['blue', 'gold', 'green', 'ice', 'red', 'violet']);
+test('PALETTES exposes the named palettes including the sword blade ramp', () => {
+  assert.deepEqual(Object.keys(PALETTES).sort(), ['blade', 'blue', 'gold', 'green', 'ice', 'red', 'violet']);
   for (const palette of Object.values(PALETTES)) {
     assert.ok(Array.isArray(palette) && palette.length > 0);
   }
@@ -246,4 +246,19 @@ test('a composite fireball with impact:false leaves the blast to the caller', ()
   const trailPeak = trailOnly.fx.getParticleCount();
 
   assert.ok(defaultPeak > trailPeak * 2, 'the default composite adds the explosion on top of the trail');
+});
+
+test('the strike and the fiend hit wear the blade ramp, not gold or green', () => {
+  const { fx, canvases } = make();
+  fx.play('heroStrike', { x: 400, y: 280 });
+  fx.play('fiendHurt', { x: 500, y: 270 });
+  fx.step(1 / 60);
+  fx.render();
+  const used = layerCtx(canvases).calls
+    .flatMap((call) => [call.state.strokeStyle, call.state.fillStyle])
+    .filter((value) => typeof value === 'string')
+    .map((value) => value.toLowerCase());
+  assert.ok(used.includes('#40a0f0'), 'the strike arc uses the blade blue');
+  assert.ok(!used.includes('#ffe8a0'), 'no gold arc remains');
+  assert.ok(!used.includes('#d8ffcf'), 'the fiend hit no longer rings green');
 });

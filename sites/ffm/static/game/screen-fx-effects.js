@@ -4,6 +4,8 @@
 // particles, washes, vignettes and shakes through the public helpers only.
 // Nothing here touches the DOM or throws on a missing payload field.
 
+import { WORLD_HEIGHT } from './screen-fx.js';
+
 const TAU = Math.PI * 2;
 // The answer effects are anchored to the answer row on purpose: the burst is
 // feedback for the button the player just hit, which lives below the 800x450
@@ -24,12 +26,18 @@ export const EFFECT_NAMES = [
   'dragonFinisher',
 ];
 
+// The sword's own ramp (#1460c0 / #40a0f0 / #88d0ff / #c8f0ff in
+// entities.js _drawSwing), so melee effects match the animation that caused
+// them instead of reading as a different colour.
+const BLADE = ['#ffffff', '#c8f0ff', '#88d0ff', '#40a0f0', '#1460c0'];
+
 export const PALETTES = {
   gold: ['#ffe27a', '#ffd54a', '#fff6c8', '#ffb52e', '#fff0b0'],
   red: ['#ff3b2f', '#ff6a4d', '#ff2418', '#ff8a6b', '#ff1a1a'],
   blue: ['#cdeeff', '#7fd4ff', '#a8e6ff', '#8fd8ff', '#6a4bff'],
   ice: ['#cfefff', '#e8f9ff', '#aee8ff', '#ffffff', '#7fd4ff'],
   green: ['#d8ffcf', '#a5f3a0', '#7dff8a', '#b9f6ca', '#8fff8a'],
+  blade: BLADE,
   violet: ['#cbb4ff', '#a98bff', '#d9c8ff', '#8a6bff', '#e8dfff'],
 };
 
@@ -88,26 +96,26 @@ function heroStrike(api, payload) {
   const y = payload && payload.y !== undefined ? payload.y : 282;
   const cx = x - 62;
   const cy = y + 22;
-  api.arc(cx, cy, '#ffe8a0', 74, -2.35, 0.55, 0.22, 9, 0.55);
-  api.arc(cx, cy, '#fff6d8', 66, -2.35, 0.55, 0.17, 5, 0.8);
-  api.arc(cx, cy, '#ffffff', 58, -2.35, 0.55, 0.13, 2, 1);
-  for (let i = 0; i < count(api, 14); i++) {
+  api.arc(cx, cy, '#40a0f0', 104, -2.35, 0.55, 0.24, 14, 0.55);
+  api.arc(cx, cy, '#88d0ff', 92, -2.35, 0.55, 0.19, 8, 0.8);
+  api.arc(cx, cy, '#eafaff', 80, -2.35, 0.55, 0.14, 3, 1);
+  for (let i = 0; i < count(api, 18); i++) {
     const a = rand(-2.35, 0.55);
-    const px = cx + Math.cos(a) * 74;
-    const py = cy + Math.sin(a) * 74;
-    api.spark(px, py, a + Math.PI / 2, rand(80, 240), pick(PALETTES.gold), rand(0.25, 0.5));
+    const px = cx + Math.cos(a) * 92;
+    const py = cy + Math.sin(a) * 92;
+    api.spark(px, py, a + Math.PI / 2, rand(90, 260), pick(BLADE), rand(0.28, 0.55));
   }
-  api.flash(x, y, '#fff4c0', 24, 0.11, 0.7);
-  api.ring(x, y, '#fff0b0', 4, 44, 0.28, 2);
-  api.shake(1.6, 0.09);
+  api.flash(x, y, '#c8f0ff', 34, 0.12, 0.8);
+  api.ring(x, y, '#88d0ff', 5, 64, 0.3, 3);
+  api.shake(1.8, 0.09);
 }
 
 function fiendHurt(api, payload) {
   const x = payload && payload.x !== undefined ? payload.x : 520;
   const y = payload && payload.y !== undefined ? payload.y : 282;
-  const palette = (payload && payload.palette) || PALETTES.green;
-  api.flash(x, y, '#ffffff', 46, 0.11, 1);
-  api.ring(x, y, '#d8ffcf', 6, 58, 0.3, 2);
+  const palette = (payload && payload.palette) || BLADE;
+  api.flash(x, y, '#eafaff', 52, 0.11, 1);
+  api.ring(x, y, '#c8f0ff', 6, 66, 0.3, 2);
   for (let i = 0; i < count(api, 12); i++) {
     const angle = rand(0, TAU);
     const speed = rand(40, 180);
@@ -117,7 +125,7 @@ function fiendHurt(api, payload) {
     api.smoke(x + rand(-14, 14), y + rand(-10, 10), rand(8, 16), rand(0.6, 1.2), '#aaaaaa');
   }
   for (let i = 0; i < count(api, 10); i++) {
-    api.spark(x, y, rand(0, TAU), rand(50, 200), pick(PALETTES.gold), rand(0.3, 0.6));
+    api.spark(x, y, rand(0, TAU), rand(50, 200), pick(BLADE), rand(0.3, 0.6));
   }
   api.shake(1.4, 0.08);
 }
@@ -290,15 +298,20 @@ function dragonFinisher(api, payload) {
     }
   });
   api.schedule(0.3, () => {
-    api.emitter(1.2, 60, () => {
-      for (let i = 0; i < count(api, 3); i++) {
-        api.streak(origin.x + rand(0, 50), origin.y + rand(-46, 46), rand(900, 1700), rand(-40, 40), pick(PALETTES.ice), rand(60, 170), rand(2, 5));
+    // Widen into a cone and push its front across the playfield, so the breath
+    // fills the arena instead of reading as a short burst at the mouth.
+    api.emitter(1.2, 60, (progress) => {
+      const spread = 70 + 210 * progress;
+      const front = origin.x + 560 * progress;
+      const inField = (y) => Math.max(8, Math.min(WORLD_HEIGHT - 8, y));
+      for (let i = 0; i < count(api, 6); i++) {
+        api.streak(rand(origin.x, front), inField(origin.y + rand(-spread, spread)), rand(1300, 2300), rand(-80, 80), pick(PALETTES.ice), rand(120, 340), rand(3, 8));
+      }
+      for (let i = 0; i < count(api, 5); i++) {
+        api.mote(rand(origin.x, front + 120), inField(origin.y + rand(-spread, spread)), rand(-60, 120), rand(-80, 40), pick(PALETTES.ice), rand(1.8, 3.6));
       }
       for (let i = 0; i < count(api, 3); i++) {
-        api.mote(origin.x, origin.y + rand(-46, 46), rand(-60, 60), rand(-60, 20), pick(PALETTES.ice), rand(1.5, 3));
-      }
-      for (let i = 0; i < count(api, 2); i++) {
-        api.shard(origin.x, origin.y + rand(-46, 46), rand(120, 500), rand(-60, 60), pick(PALETTES.ice), rand(2, 4));
+        api.shard(rand(origin.x, front), inField(origin.y + rand(-spread, spread)), rand(200, 700), rand(-100, 100), pick(PALETTES.ice), rand(2, 5));
       }
     });
     api.addWash('#cfefff', 0.08, 0.9);

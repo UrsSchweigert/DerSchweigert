@@ -2855,17 +2855,58 @@ function recordPracticeEncounterDefeated() {
   practiceRun.session.recordEncounterDefeated();
 }
 
-function handleAnswer(value) {
+// Screen-FX geometry helpers. Reached through globalThis for the same reason as
+// the layer itself: several tests eval single functions out of this module in a
+// bare VM, where a module binding would throw and an absent global is a no-op.
+globalThis.ffmFx = {
+  // Centre of a fiend's visible sprite, so impacts land on the body rather than
+  // at its feet or above its head. getHitBounds() is the box the projectiles
+  // already collide against.
+  fiendCentre(fiend) {
+    if (!fiend) return null;
+    const bounds = fiend.getHitBounds?.();
+    if (!bounds) return { x: fiend.x, y: fiend.y - 34 };
+    // Not the geometric centre: several fiend sprites carry tall gear above the
+    // body (this one brandishes a burning torch, others have wings or horns), so
+    // the box's middle sits at the head. Bias down to ~35% of the box height
+    // above the feet, which lands on the torso for both the sprite and the
+    // procedural fallback.
+    const height = bounds.bottom - bounds.top;
+    return {
+      x: (bounds.left + bounds.right) / 2,
+      y: bounds.bottom - height * 0.35,
+    };
+  },
+
+  fiendHurt(fiend) {
+    const centre = this.fiendCentre(fiend);
+    if (!centre) return;
+    globalThis.ffmScreenFx?.play('fiendHurt', { x: centre.x, y: centre.y });
+  },
+
+  // Viewport press -> the layer's unbounded world coordinates, so an effect can
+  // start exactly where the finger landed.
+  worldFromPoint(point) {
+    const fx = globalThis.ffmScreenFx;
+    if (!fx || !point) return null;
+    const map = fx.mapping();
+    if (!map || !map.scale) return null;
+    return { x: (point.x - map.offsetX) / map.scale, y: (point.y - map.offsetY) / map.scale };
+  },
+};
+
+function handleAnswer(value, point) {
   if (!activeFiend || activeFiend.isDead) return;
   // ignore input while fiend is retreating, revealing, or exploding
   if (['retreat', 'reveal', 'death'].includes(activeFiend.state)) return;
   // ignore if value contains no digits (prevents empty or accidental submissions)
   if (!/\d/.test(value)) return;
   const correct = parseInt(value, 10) === activeFiend.problem.answer;
+  const origin = globalThis.ffmFx?.worldFromPoint(point);
   if (correct) {
-    handleCorrectAnswer();
+    handleCorrectAnswer(origin);
   } else {
-    handleWrongAnswer();
+    handleWrongAnswer({ origin });
   }
 }
 
@@ -2873,7 +2914,8 @@ function handleAnswer(value) {
 // app build's projectile collision or the web build's arrival timer. Called at
 // most once per cast.
 function resolveLightningHit(fiend) {
-  globalThis.ffmScreenFx?.play('boltImpact', { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET });
+  const boltCentre = globalThis.ffmFx?.fiendCentre(fiend);
+  if (boltCentre) globalThis.ffmScreenFx?.play('boltImpact', boltCentre);
   fiend.hp = 0;
   fiend.setState('death');
   audio.playLightningHit();
@@ -2896,9 +2938,10 @@ function resolveLightningHit(fiend) {
 // only re-queues its problem.
 function resolveFireballHit(fiend) {
   audio.playFireballHit();
-  globalThis.ffmScreenFx?.play('fireImpact', { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET });
+  const fireCentre = globalThis.ffmFx?.fiendCentre(fiend);
+  if (fireCentre) globalThis.ffmScreenFx?.play('fireImpact', fireCentre);
   fiend.hit();
-  globalThis.ffmScreenFx?.play('fiendHurt', { x: fiend.x, y: fiend.y - 34, palette: fiend?.palette });
+  globalThis.ffmFx?.fiendHurt(fiend);
 
   if (fiend.isDead) {
     audio.playEnemyDeath();
@@ -2928,8 +2971,8 @@ function resolveFireballHit(fiend) {
   hud.update(state);
 }
 
-function handleCorrectAnswer() {
-  globalThis.ffmScreenFx?.play('correctAnswer');
+function handleCorrectAnswer(origin) {
+  globalThis.ffmScreenFx?.play('correctAnswer', origin ? { origin } : undefined);
   attemptSummary.recordAnswer(activeFiend.problem, true);
   audio.playCorrect?.();
   const elapsed = answerClock.read();
@@ -2977,7 +3020,6 @@ function handleCorrectAnswer() {
   const ability = practiceRun ? null : pickComboAbility(state.combo);
 
   const strikeNow = () => {
-    globalThis.ffmScreenFx?.play('heroStrike', { x: HERO_X + 62, y: GROUND_Y - 46 });
     lastCastAbility = ability;
     if (ability === 'lightning') {
       // Hero casts in place at the base location; the bolt erupts from the
@@ -2986,7 +3028,7 @@ function handleCorrectAnswer() {
       const launch = spellLaunchPoint();
       globalThis.ffmScreenFx?.play('lightning', {
         from: launch,
-        to: { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET },
+        to: globalThis.ffmFx?.fiendCentre(fiend) || { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET },
         duration: 0.46,
         impact: false,
       });
@@ -3010,7 +3052,7 @@ function handleCorrectAnswer() {
       const launch = spellLaunchPoint();
       globalThis.ffmScreenFx?.play('fireball', {
         from: launch,
-        to: { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET },
+        to: globalThis.ffmFx?.fiendCentre(fiend) || { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET },
         duration: FIREBALL_FLIGHT_MS / 1000,
         impact: false,
       });
@@ -3029,7 +3071,7 @@ function handleCorrectAnswer() {
       globalThis.ffmScreenFx?.play('dragonFinisher', { origin: launch });
       hero.setState('swing');
       fiend.hit();
-      globalThis.ffmScreenFx?.play('fiendHurt', { x: fiend.x, y: fiend.y - 34, palette: fiend?.palette });
+      globalThis.ffmFx?.fiendHurt(fiend);
       audio.playDragonRoar();
 
       if (fiend.isDead) {
@@ -3063,9 +3105,12 @@ function handleCorrectAnswer() {
       }
     } else {
       // No ability (null): normal hit resolution
+      // hero.x follows the lunge, so the arc lands where the sword connects
+      // rather than at the resting position it started from.
+      globalThis.ffmScreenFx?.play('heroStrike', { x: hero.x + 62, y: GROUND_Y - 46 });
       hero.setState('swing');
       fiend.hit();
-      globalThis.ffmScreenFx?.play('fiendHurt', { x: fiend.x, y: fiend.y - 34, palette: fiend?.palette });
+      globalThis.ffmFx?.fiendHurt(fiend);
       audio.playSwordSwing();
 
       if (fiend.isDead) {
@@ -3114,7 +3159,7 @@ function handleCorrectAnswer() {
   }
 }
 
-function handleWrongAnswer({ timeout = false } = {}) {
+function handleWrongAnswer({ timeout = false, origin = null } = {}) {
   const problem = activeFiend.problem;
   attemptSummary.recordAnswer(problem, false, { timeout });
   if (!practiceRun) rememberMissedProblem(problem, currentLevelIndex);
@@ -3123,7 +3168,7 @@ function handleWrongAnswer({ timeout = false } = {}) {
   }
   activeFiend._answerFeedback = timeout ? 'timeout' : 'incorrect';
   state.combo = 0;
-  globalThis.ffmScreenFx?.play('wrongAnswer');
+  globalThis.ffmScreenFx?.play('wrongAnswer', origin ? { origin } : undefined);
   globalThis.ffmScreenFx?.schedule(0.12, () => globalThis.ffmScreenFx?.play('heroHurt', { x: HERO_X, y: GROUND_Y - 30 }));
   hero.setState('hurt');
   activeFiend._redFlash = 0.5;  // red flash = wrong answer
@@ -3574,7 +3619,7 @@ function gameLoop(ts) {
         if (!finishDragonLevel()) {
           state.enemiesDefeated += resolveDragonBreath(fiends);
           for (const f of breathTargets) {
-            globalThis.ffmScreenFx?.play('fiendHurt', { x: f.x, y: f.y - 34, palette: f?.palette });
+            globalThis.ffmFx?.fiendHurt(f);
           }
           if (activeFiend?.isDead || activeFiend?.state === 'death') {
             activeFiend = null;

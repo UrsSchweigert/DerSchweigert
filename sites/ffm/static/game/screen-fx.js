@@ -18,6 +18,12 @@ const MAX_STEP = 0.05;          // seconds; a single frame may not advance furth
 const SLOW_FRAME_SECONDS = 1 / 50;
 const LADDER_SAMPLES = 90;
 const WASH_BUDGET_SECONDS = 1;
+
+// One knob for how large every effect reads on screen. Sizes, ring radii, arc
+// radii and streak lengths are all multiplied by this at spawn time, so the
+// recipes stay authored at a natural scale and the whole layer can be tuned up
+// or down in one place.
+export const PARTICLE_SIZE_SCALE = 1.9;
 const WASH_BUDGET_ALPHA = 0.22;
 
 const PARTICLE_DEFAULTS = {
@@ -254,6 +260,11 @@ export function createScreenFx(options = {}) {
     }
     const particle = Object.assign({}, PARTICLE_DEFAULTS, clean);
     if ('maxLife' in particle && !('life' in clean)) particle.life = particle.maxLife;
+    particle.size *= PARTICLE_SIZE_SCALE;
+    if (typeof particle.radius === 'number') particle.radius *= PARTICLE_SIZE_SCALE;
+    if (typeof particle.r0 === 'number') particle.r0 *= PARTICLE_SIZE_SCALE;
+    if (typeof particle.r1 === 'number') particle.r1 *= PARTICLE_SIZE_SCALE;
+    if (typeof particle.width === 'number') particle.width *= PARTICLE_SIZE_SCALE;
     particle.px = particle.x;
     particle.py = particle.y;
     instance._particles.push(particle);

@@ -24,6 +24,16 @@ export class InputManager {
     
     this._mcButtons.forEach(btn => this._bindMCButton(btn));
 
+    // Where the last press landed, so answer feedback can erupt from the tap
+    // instead of the middle of the screen. Keyboard submissions fall back to
+    // the effect's own origin because a stale point is ignored.
+    this._lastPress = null;
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('pointerdown', e => {
+        this._lastPress = { x: e.clientX, y: e.clientY, time: performance.now() };
+      }, { capture: true, passive: true });
+    }
+
     document.addEventListener('keydown', e => {
       if (!this._enabled || this._mode !== 'multiple-choice') return;
       if (e.repeat || e.ctrlKey || e.altKey || e.metaKey || e.target?.isContentEditable
@@ -67,11 +77,20 @@ export class InputManager {
     });
   }
 
+  _freshPress() {
+    const press = this._lastPress;
+    if (!press) return null;
+    if (typeof performance === 'undefined' || performance.now() - press.time > 1500) return null;
+    return { x: press.x, y: press.y };
+  }
+
   _submit(value) {
     if (!value || value.trim() === '') return;
     this._enabled = false;
     this._syncDisabled();
-    this._onAnswer(value.toString().trim());
+    const point = this._freshPress();
+    if (point) this._onAnswer(value.toString().trim(), point);
+    else this._onAnswer(value.toString().trim());
   }
 
   enable(mode) {
