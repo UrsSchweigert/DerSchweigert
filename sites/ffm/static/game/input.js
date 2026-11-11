@@ -12,13 +12,13 @@ export class InputManager {
     
     this._answerInput.addEventListener('keydown', e => {
       if (e.key === 'Enter' && this._enabled) {
-        this._submit(this._answerInput.value);
+        this._submit(this._answerInput.value, this._answerInput);
       }
     });
     
     this._strikeBtn.addEventListener('click', () => {
       if (this._enabled) {
-        this._submit(this._answerInput.value);
+        this._submit(this._answerInput.value, this._strikeBtn);
       }
     });
     
@@ -41,7 +41,7 @@ export class InputManager {
       if (!/^\d$/.test(e.key)) return;
       // Match by label value so pressing '4' submits the button showing '4', not the 4th button
       const match = this._mcButtons.find(btn => btn.textContent.trim() === e.key);
-      if (match) this._submit(match.textContent.trim());
+      if (match) this._submit(match.textContent.trim(), match);
     });
     this._syncDisabled();
   }
@@ -58,7 +58,7 @@ export class InputManager {
   _bindMCButton(btn) {
     let secondarySubmitted = false;
     const submit = () => {
-      if (this._enabled && this._mode === 'multiple-choice') this._submit(btn.textContent.trim());
+      if (this._enabled && this._mode === 'multiple-choice') this._submit(btn.textContent.trim(), btn);
     };
     btn.addEventListener('pointerdown', () => { secondarySubmitted = false; });
     btn.addEventListener('keydown', e => {
@@ -84,11 +84,38 @@ export class InputManager {
     return { x: press.x, y: press.y };
   }
 
-  _submit(value) {
+  _elementRect(element) {
+    if (!element || typeof element.getBoundingClientRect !== 'function') return null;
+    const rect = element.getBoundingClientRect();
+    if (!rect || !rect.width || !rect.height) return null;
+    return rect;
+  }
+
+  // Keyboard Enter/Space and assistive activation produce a click with no
+  // pointerdown, so fall back to the centre of the control that fired it.
+  _elementCentre(element) {
+    const rect = this._elementRect(element);
+    return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+  }
+
+  _rectContains(rect, point) {
+    return Boolean(rect && point
+      && point.x >= rect.left && point.x <= rect.left + rect.width
+      && point.y >= rect.top && point.y <= rect.top + rect.height);
+  }
+
+  // The press only describes this submission when it landed on the control that
+  // fired it. A keyboard activation shortly after an unrelated tap would
+  // otherwise inherit that tap and erupt from the wrong place on screen.
+  _submit(value, source) {
     if (!value || value.trim() === '') return;
     this._enabled = false;
     this._syncDisabled();
-    const point = this._freshPress();
+    const press = this._freshPress();
+    const rect = this._elementRect(source);
+    const point = this._rectContains(rect, press)
+      ? press
+      : (this._elementCentre(source) || press);
     if (point) this._onAnswer(value.toString().trim(), point);
     else this._onAnswer(value.toString().trim());
   }

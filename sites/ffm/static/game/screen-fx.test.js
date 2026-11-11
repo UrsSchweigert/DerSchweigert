@@ -568,3 +568,42 @@ test('the shake offset is exposed, bounded by the amplitude and decays to zero',
   for (let i = 0; i < 30; i++) fx.frame(1 / 60);
   assert.deepEqual(fx.getShakeOffset(), { x: 0, y: 0 }, 'it returns to rest when the shake expires');
 });
+
+test('mapping re-measures the playfield without waiting for a frame', () => {
+  const { fx, playfield } = make();
+  assert.equal(fx.mapping().offsetX, 0);
+
+  // A layout change that fires no window resize: the HUD appears, the answer
+  // grid re-flows, or a new level swaps the chrome. The playfield moves.
+  playfield.left = 60;
+  playfield.top = 12;
+  playfield.width = 400;
+  playfield.height = 225;
+
+  const map = fx.mapping();
+  assert.equal(map.offsetX, 60, 'press-to-world conversion must use the current rect');
+  assert.equal(map.offsetY, 12);
+  assert.equal(map.scale, 0.5);
+  // Feeding a real tap straight back through worldToScreen lands on the tap.
+  const tap = { x: 160, y: 62 };
+  const world = { x: (tap.x - map.offsetX) / map.scale, y: (tap.y - map.offsetY) / map.scale };
+  assert.deepEqual(fx.worldToScreen(world.x, world.y), tap);
+});
+
+test('render keeps using the cached mapping so drawing never forces a reflow', () => {
+  const { fx, playfield } = make();
+  fx.spark(400, 225, 0, 120, '#7fd4ff', 1);
+  fx.frame(0.016);
+  let reads = 0;
+  const read = playfield.getBoundingClientRect;
+  playfield.getBoundingClientRect = function () {
+    reads += 1;
+    return read.call(this);
+  };
+  try {
+    fx.frame(0.016);
+  } finally {
+    playfield.getBoundingClientRect = read;
+  }
+  assert.equal(reads, 1, 'one measurement per frame, not one per drawn particle');
+});

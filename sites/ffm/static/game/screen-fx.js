@@ -490,7 +490,9 @@ export function createScreenFx(options = {}) {
     }
   };
 
-  instance.mapping = function mapping() {
+  // The cached mapping the renderer draws with; refreshed once per frame by
+  // _syncLayout().
+  instance._cachedMapping = function cachedMapping() {
     const rect = instance._rect;
     return {
       scale: rect.width / WORLD_WIDTH,
@@ -501,8 +503,18 @@ export function createScreenFx(options = {}) {
     };
   };
 
+  // Public mapping: re-measures first. Callers convert a press position into
+  // world space, and the layout can change (HUD appearing, answer grid
+  // re-flowing, a new level) without any window resize to trigger a refresh.
+  // Reading the stale rect put the answer burst on the wrong button for the
+  // first tap after such a change.
+  instance.mapping = function mapping() {
+    instance._syncLayout();
+    return instance._cachedMapping();
+  };
+
   instance.worldToScreen = function worldToScreen(x, y) {
-    const map = instance.mapping();
+    const map = instance._cachedMapping();
     return { x: map.offsetX + x * map.scale, y: map.offsetY + y * map.scale };
   };
 
@@ -711,7 +723,7 @@ export function createScreenFx(options = {}) {
       || instance._vignettes.length > 0 || Boolean(instance._shake);
     if (!hasContent) return;
 
-    const map = instance.mapping();
+    const map = instance._cachedMapping();
     const shake = instance._computeShake();
 
     layerCtx.save();
