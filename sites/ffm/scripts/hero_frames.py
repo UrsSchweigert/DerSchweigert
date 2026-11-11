@@ -765,6 +765,9 @@ def pack(frames: list[Frame]) -> tuple[Image.Image, dict]:
         px, py = _pivot(frame.image)
         meta[frame.id] = {
             "x": x, "y": y,
+            # Generated poses are shipped without the generator's ground shadow,
+            # so the renderer draws one for them; sheet frames have it baked in.
+            "shadow": 0 if frame.source is not None else 1,
             "w": frame.image.width, "h": frame.image.height,
             "px": px, "py": py,
         }
@@ -789,7 +792,7 @@ def render_meta(meta: dict) -> str:
         f = meta[frame_id]
         lines.append(
             f"  '{frame_id}': {{ x: {f['x']}, y: {f['y']}, w: {f['w']}, h: {f['h']},"
-            f" px: {f['px']}, py: {f['py']} }},"
+            f" px: {f['px']}, py: {f['py']}, shadow: {f['shadow']} }},"
         )
     lines.append("};")
     lines.append("")

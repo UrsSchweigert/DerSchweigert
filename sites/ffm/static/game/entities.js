@@ -483,6 +483,7 @@ export class Hero extends Entity {
 
     const aura = this._healAura > 0 || this._holdHealActive;
     if (aura) this._drawHealAura(ctx, 'back');
+    if (frame.shadow === 0) this._drawGroundShadow(ctx, footX, footY, frame);
 
     ctx.save();
     // Pixel art: never let the canvas resample the sprite.
@@ -507,6 +508,27 @@ export class Hero extends Entity {
   // sprite: the sheet's arc frames only exist at a smaller character scale, and
   // a drawn arc can fade, so the blade reads as moving through the swing
   // instead of the art cutting from one pose to the next.
+  // Generated poses ship without a baked shadow; this draws the same soft
+  // ellipse the sheet art carries, under the same foot pivot.
+  _drawGroundShadow(ctx, x, y, frame) {
+    const rx = Math.max(26, frame.w * 0.42);
+    const ry = 6;
+    const cy = y + 2;
+    ctx.save();
+    ctx.translate(x, cy);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-x, -cy);
+    const gradient = ctx.createRadialGradient(x, cy, 0, x, cy, rx);
+    gradient.addColorStop(0, 'rgba(0,0,0,0.34)');
+    gradient.addColorStop(0.65, 'rgba(0,0,0,0.16)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, cy, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   _drawSwingFx(ctx, left, top, frame) {
     const clip = this.anim.clips.swing;
     const total = clip.frames.reduce((sum, f) => sum + f.ms, 0);
