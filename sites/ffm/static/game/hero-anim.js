@@ -117,6 +117,21 @@ export const HERO_CLIPS = {
 const IDENTITY = { dx: 0, dy: 0, rot: 0 };
 
 /**
+ * Where the casting hand sits, in frame pixels relative to the frame's ground
+ * pivot: the `fxAt` anchor of the clip's `release` frame, which is the same
+ * point the palm glow is drawn at. Spell projectiles start here so a fireball
+ * or bolt erupts from the hand instead of from a constant that drifts away
+ * from it whenever the art or the release pose changes.
+ *
+ * @returns {[number, number]} `[dx, dy]` in frame pixels (dy is negative: up)
+ */
+export function castHandAnchor(clip = HERO_CLIPS.cast) {
+  const frames = clip?.frames ?? [];
+  const release = frames.find((f) => f.at === 'release') ?? frames[0];
+  return release?.fxAt ?? [0, 0];
+}
+
+/**
  * Plays one hero clip at a time on a wall-clock timeline.
  *
  * `update(dt)` returns nothing; read `frameId` and `transform` for drawing.

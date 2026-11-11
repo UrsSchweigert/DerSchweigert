@@ -664,6 +664,10 @@ the old fixed 6x4 sprite grid:
   block): the hero walks out, the `swing` clip owns the strike frames, and the
   walk resumes for the way back. A `swing`/`hurt`/`dead` clip is never cut
   short by the walk; it plays out first.
+- Fireball and lightning start at `castHandAnchor()` (hero-anim.js): the
+  `release` frame's `fxAt`, the same point the palm glow is drawn at. They
+  therefore erupt from the raised hand; moving the hand in the art moves the
+  launch point with it. Raise the anchor, not a constant in main.js.
 - The generated poses in `source-assets/hero-poses/` were made with
   `fal-ai/flux-pro/kontext` (approved for commercial use in
   `static/story/ART-BIBLE.md`) from a ×4 nearest-neighbour plate of the
