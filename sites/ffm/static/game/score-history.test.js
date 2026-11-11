@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { t, setLocale } from './i18n.js';
-import { highScoreTrend, runningBestTrend } from './score-trend.js';
+import { dailyBestTrend } from './score-trend.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 const renderers = source.slice(source.indexOf('function formatTrendDate('),
@@ -13,7 +13,7 @@ function render(history, locale = 'en', response = { history }) {
   setLocale(locale);
   const container = { style: {}, innerHTML: '' };
   vm.runInNewContext(`${renderers}\nrenderScoreHistory(response, container);`, {
-    response, container, t, runningBestTrend,
+    response, container, t, dailyBestTrend,
     escHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
   });
   return container;
@@ -58,7 +58,7 @@ test('unfinished attempts are labelled without presenting them as clears', () =>
   assert.equal((mixed.innerHTML.match(/<circle /g) ?? []).length, 2);
 });
 
-test('web history plots the best score so far, never a drop', () => {
+test('web history plots one point per day, the best score of that day', () => {
   const chart = render([
     { score: 500, achieved_at: '2026-11-01T10:00:00Z' },
     { score: 200, achieved_at: '2026-11-02T10:00:00Z' },
@@ -66,11 +66,26 @@ test('web history plots the best score so far, never a drop', () => {
   ]);
   const ys = [...chart.innerHTML.matchAll(/<circle cx="[^"]+" cy="([^"]+)"/g)].map(match => Number(match[1]));
   assert.equal(ys.length, 3);
-  assert.equal(ys[0], ys[1], 'a lower result keeps the line flat');
-  assert.ok(ys[2] < ys[1], 'a new best raises the line');
+  assert.ok(ys[1] > ys[0], 'a weaker later day draws lower, so the curve can fall');
+  assert.ok(ys[2] < ys[1], 'a stronger later day draws higher');
   assert.match(chart.innerHTML, />900<\/text>/);
   assert.match(chart.innerHTML, /High score: 900/);
   assert.doesNotMatch(chart.innerHTML, />3<\/text>/, 'the x-axis shows dates, not result numbers');
+});
+
+test('several results of one day collapse into that day\'s best', () => {
+  const chart = render([
+    { score: 100, achieved_at: '2026-11-01T08:00:00' },
+    { score: 300, achieved_at: '2026-11-01T12:00:00' },
+    { score: 200, achieved_at: '2026-11-01T16:00:00' },
+    { score: 250, achieved_at: '2026-11-15T16:00:00' },
+  ]);
+  const points = plottedPoints(chart);
+  assert.equal(points.length, 2, 'one dot per day');
+  assert.ok(Math.abs(points[0].x - 54) < 0.2, 'the day sits where its best result was achieved');
+  assert.ok(Math.abs(points[1].x - 288) < 0.2, 'the newer day sits on the right axis');
+  assert.match(chart.innerHTML, /High score: 300/, 'the summary reports the best score of the series');
+  assert.match(chart.innerHTML, /Saved results: 4/, 'the summary still counts every saved result');
 });
 
 function plottedPoints(chart) {
@@ -92,16 +107,16 @@ test('each result is plotted on its day, so real gaps stay visible', () => {
   assert.ok(third.x - second.x > 5 * (second.x - first.x) + 50, 'nine days are wider than one');
 });
 
-test('results recorded on the same day stay on that day, not spread over the axis', () => {
+test('same-day results never spread over the axis', () => {
   const chart = render([
     { score: 100, achieved_at: '2026-11-01T08:00:00Z' },
     { score: 200, achieved_at: '2026-11-01T16:00:00Z' },
     { score: 300, achieved_at: '2026-11-15T16:00:00Z' },
   ]);
-  const [first, second, third] = plottedPoints(chart);
-  assert.ok(second.x > first.x, 'a later result of the same day is not drawn before an earlier one');
-  assert.ok(second.x - first.x < 15, 'same-day results stay within one day of the axis');
-  assert.ok(third.x - second.x > 10 * (second.x - first.x), 'the two-week gap dominates');
+  const points = plottedPoints(chart);
+  assert.equal(points.length, 2, 'the two results of one day share one dot');
+  assert.ok(Math.abs(points[0].x - 54) < 0.2, 'the day sits on the left axis');
+  assert.ok(Math.abs(points[1].x - 288) < 0.2, 'the newer day sits on the right axis');
 });
 
 test('histories without timestamps keep even spacing', () => {
@@ -109,18 +124,18 @@ test('histories without timestamps keep even spacing', () => {
   assert.deepEqual(points.map((point) => point.x), [54, 171, 288]);
 });
 
-test('the app chart shows the total high score trend with its own label', () => {
+test('the app chart plots its daily best series with its own label', () => {
   const history = [
     { level: 1, score: 300, achieved_at: '2026-11-01T10:00:00Z' },
     { level: 2, score: 400, achieved_at: '2026-11-02T10:00:00Z' },
   ];
   for (const locale of ['en', 'de']) {
-    const chart = render(null, locale, { trend: highScoreTrend(history, []) });
-    assert.ok(chart.innerHTML.includes(t('scoreHistory.totalHighScore', { score: 700, count: 2 })));
-    assert.match(chart.innerHTML, />700<\/text>/);
+    const chart = render(null, locale, { trend: dailyBestTrend(history) });
+    assert.ok(chart.innerHTML.includes(t('scoreHistory.dailyBest', { score: 400, count: 2 })));
+    assert.match(chart.innerHTML, />400<\/text>/);
   }
 });
 
-test('main.js feeds the app progress chart the total high score trend', () => {
-  assert.match(source, /renderScoreHistory\(\{ trend: highScoreTrend\(state\?\.history \|\| \[\], best\) \}, personalScoreHistoryChart\)/);
+test('main.js feeds the app progress chart the daily best series', () => {
+  assert.match(source, /renderScoreHistory\(\{ trend: dailyBestTrend\(state\?\.history \|\| \[\]\) \}, personalScoreHistoryChart\)/);
 });

@@ -1,43 +1,66 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { highScoreTrend, runningBestTrend } from './score-trend.js';
+import { dailyBestTrend } from './score-trend.js';
 
 const scores = series => series.map(point => point.score);
 
-test('runningBestTrend keeps the best submitted score so far', () => {
-  assert.deepEqual(scores(runningBestTrend([{ score: 500 }, { score: 200 }, { score: 900 }, { score: 0 }])),
-    [500, 500, 900, 900]);
-  assert.deepEqual(runningBestTrend(null), []);
-  assert.deepEqual(runningBestTrend([{ score: 'x', achieved_at: '2026-11-01T00:00:00Z' }]),
-    [{ score: 0, achieved_at: '2026-11-01T00:00:00Z' }]);
+test('one point per day holding that day\'s best result', () => {
+  const trend = dailyBestTrend([
+    { score: 500, achieved_at: '2026-11-01T09:00:00' },
+    { score: 900, achieved_at: '2026-11-01T18:00:00' },
+    { score: 200, achieved_at: '2026-11-01T20:00:00' },
+    { score: 400, achieved_at: '2026-11-02T09:00:00' },
+  ]);
+  assert.deepEqual(scores(trend), [900, 400]);
+  assert.deepEqual(trend.map((point) => point.results), [3, 1]);
+  assert.equal(trend[0].achieved_at, '2026-11-01T18:00:00', 'the day keeps the time of its best result');
 });
 
-test('highScoreTrend sums per-level bests and never drops on a weaker replay', () => {
-  const history = [
-    { level: 1, score: 300, achieved_at: '2026-11-01T10:00:00Z' },
-    { level: 2, score: 400, achieved_at: '2026-11-02T10:00:00Z' },
-    { level: 1, score: 100, achieved_at: '2026-11-03T10:00:00Z' },
-    { level: 1, score: 500, achieved_at: '2026-11-04T10:00:00Z' },
-    { level: 3, score: 250, achieved_at: '2026-11-05T10:00:00Z', unfinished: true },
-  ];
-  const trend = highScoreTrend(history, []);
-  assert.deepEqual(scores(trend), [300, 700, 700, 900, 1150]);
-  assert.equal(trend[4].unfinished, true);
-  assert.equal(trend[1].achieved_at, '2026-11-02T10:00:00Z');
+test('the curve falls when a later day is weaker', () => {
+  const trend = dailyBestTrend([
+    { score: 900, achieved_at: '2026-11-01T10:00:00' },
+    { score: 200, achieved_at: '2026-11-02T10:00:00' },
+    { score: 600, achieved_at: '2026-11-03T10:00:00' },
+  ]);
+  assert.deepEqual(scores(trend), [900, 200, 600]);
 });
 
-test('bests from before the kept history window form the starting total', () => {
-  const history = [
-    { level: 2, score: 100, achieved_at: '2026-11-05T10:00:00Z' },
-    { level: 3, score: 200, achieved_at: '2026-11-06T10:00:00Z' },
-  ];
-  const best = [
-    { level: 1, score: 600, achieved_at: '2026-10-01T10:00:00Z' },
-    { level: 2, score: 400, achieved_at: '2026-10-02T10:00:00Z' },
-    { level: 3, score: 200, achieved_at: '2026-11-06T10:00:00Z' },
-  ];
-  const trend = highScoreTrend(history, best);
-  assert.deepEqual(scores(trend), [1000, 1200]);
-  assert.equal(trend.at(-1).score, best.reduce((sum, entry) => sum + entry.score, 0),
-    'the last point equals the sum of the current level bests');
+test('days are local calendar days, not rolling 24-hour windows', () => {
+  const trend = dailyBestTrend([
+    { score: 100, achieved_at: '2026-11-01T00:30:00' },
+    { score: 300, achieved_at: '2026-11-01T23:30:00' },
+    { score: 200, achieved_at: '2026-11-02T00:10:00' },
+  ]);
+  assert.deepEqual(scores(trend), [300, 200]);
+});
+
+test('results without a usable timestamp keep their own point', () => {
+  const trend = dailyBestTrend([{ score: 10 }, { score: 20 }, { score: 'x' }]);
+  assert.deepEqual(scores(trend), [10, 20, 0]);
+  assert.deepEqual(trend.map((point) => point.results), [1, 1, 1]);
+});
+
+test('an unfinished day peak is marked, a cleared one is not', () => {
+  const unfinished = dailyBestTrend([
+    { score: 400, achieved_at: '2026-11-01T10:00:00', unfinished: true },
+  ]);
+  assert.equal(unfinished[0].unfinished, true);
+
+  const overtaken = dailyBestTrend([
+    { score: 400, achieved_at: '2026-11-01T10:00:00', unfinished: true },
+    { score: 500, achieved_at: '2026-11-01T12:00:00' },
+  ]);
+  assert.equal(overtaken[0].unfinished, undefined, 'a cleared day peak hides the weaker unfinished attempt');
+
+  const peakUnfinished = dailyBestTrend([
+    { score: 500, achieved_at: '2026-11-01T10:00:00' },
+    { score: 600, achieved_at: '2026-11-01T12:00:00', unfinished: true },
+  ]);
+  assert.equal(peakUnfinished[0].unfinished, true);
+});
+
+test('empty and absent histories produce an empty series', () => {
+  assert.deepEqual(dailyBestTrend(null), []);
+  assert.deepEqual(dailyBestTrend([]), []);
+  assert.deepEqual(dailyBestTrend(undefined), []);
 });

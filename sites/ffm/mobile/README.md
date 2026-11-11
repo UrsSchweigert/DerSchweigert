@@ -93,7 +93,7 @@ player and mode-selection text stays white with dark shadows over the sharp artw
 This includes 375x667 iPhone SE layouts with saved progress. Player-name forms retain their input
 element across window/visual-viewport resizes so opening the software keyboard does not discard focus
 or the draft. Name and parental-gate inputs use 16px text to avoid iOS focus zoom. Score history shows
-an explicit empty state or a labelled score scale and latest-result summary, including the first result.
+an explicit empty state or a labelled score scale and best-score summary, including the first result.
 `tests/lifecycle.test.mjs` drives the module with fake App, KeepAwake and
 game objects. Three behaviours need a real device and stay manual gates, listed in `PENDING_MANUAL_GATES`:
 the iOS silent switch, audio interruptions from calls or other apps, and safe areas on notched devices.

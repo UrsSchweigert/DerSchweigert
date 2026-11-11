@@ -47,7 +47,7 @@ import { getSkillIntro } from './skill-intro.js';
 import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
 import { createStoryIntro } from './story-intro.js';
-import { highScoreTrend, runningBestTrend } from './score-trend.js';
+import { dailyBestTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
@@ -932,6 +932,15 @@ function trendTimestamp(value) {
   return Number.isNaN(time) ? null : time;
 }
 
+// The summary states the best score of the whole series (the record the curve
+// peaks at) and how many saved results the points stand for.
+function trendSummary(history) {
+  return {
+    score: history.reduce((best, entry) => Math.max(best, entry.score), 0),
+    count: history.reduce((sum, entry) => sum + (entry.results ?? 1), 0),
+  };
+}
+
 function buildScoreHistorySvg(history, summaryKey = 'scoreHistory.highScore') {
   const width = 300;
   const height = 140;
@@ -944,6 +953,7 @@ function buildScoreHistorySvg(history, summaryKey = 'scoreHistory.highScore') {
     return '';
   }
 
+  const summary = trendSummary(history);
   const scores = history.map((entry) => entry.score);
   const maxScore = Math.max(1, ...scores);
 
@@ -987,7 +997,7 @@ function buildScoreHistorySvg(history, summaryKey = 'scoreHistory.highScore') {
     : '';
 
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="${t('scoreHistory.ariaLabel')}">` +
-    `<title>${escHtml(t(summaryKey, { score: history.at(-1).score, count: history.length }))}</title>` +
+    `<title>${escHtml(t(summaryKey, summary))}</title>` +
     `<path d="M${left} ${top}V${height - bottom}H${width - right}" fill="none" stroke="#b5bcae" />` +
     `<g fill="#fff" font-size="12" font-family="system-ui, sans-serif">` +
     `<text x="${left - 6}" y="${top + 4}" text-anchor="end">${maxScore}</text>` +
@@ -1001,19 +1011,17 @@ function buildScoreHistorySvg(history, summaryKey = 'scoreHistory.highScore') {
 
 function renderScoreHistory(historyResponse, container) {
   if (!container) return;
-  // The app passes a precomputed total-high-score trend; web history is a list
-  // of submitted run totals, shown as the best score reached so far.
-  const history = historyResponse?.trend ?? runningBestTrend(historyResponse?.history || []);
-  const summaryKey = historyResponse?.trend ? 'scoreHistory.totalHighScore' : 'scoreHistory.highScore';
+  // One point per day with that day's best result: the app passes its locally
+  // built series, the web its submitted run totals.
+  const history = historyResponse?.trend ?? dailyBestTrend(historyResponse?.history || []);
+  const summaryKey = historyResponse?.trend ? 'scoreHistory.dailyBest' : 'scoreHistory.highScore';
   if (history.length === 0) {
     container.style.display = '';
     container.innerHTML = `<p class="score-history-summary">${escHtml(t('scoreHistory.empty'))}</p>`;
     return;
   }
   container.innerHTML = buildScoreHistorySvg(history, summaryKey) +
-    `<p class="score-history-summary">${escHtml(t(summaryKey, {
-      score: history.at(-1).score, count: history.length,
-    }))}</p>` +
+    `<p class="score-history-summary">${escHtml(t(summaryKey, trendSummary(history)))}</p>` +
     (history.some((entry) => entry.unfinished === true)
       ? `<p class="score-history-summary">${escHtml(t('scoreHistory.unfinishedNote'))}</p>` : '');
   container.style.display = '';
@@ -1124,7 +1132,9 @@ function renderPersonalDevelopment(state) {
       .join('');
   }
 
-  renderScoreHistory({ trend: highScoreTrend(state?.history || [], best) }, personalScoreHistoryChart);
+  // The chart plots one point per day with the best level score of that day,
+  // so the line can rise and fall with the player's daily results.
+  renderScoreHistory({ trend: dailyBestTrend(state?.history || []) }, personalScoreHistoryChart);
 
   personalCompletedOverview.textContent = t('personalDevelopment.completed', {
     completed: completed.length,
