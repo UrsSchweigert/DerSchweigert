@@ -4,9 +4,10 @@
 // It must stay concrete (asset sync, tests, versioning, signing-secret names,
 // product id, store checklist, sandbox and install procedures, App Review
 // notes) and it must never present an unproven gate as done: the Linux checker
-// cannot sign, upload, install or observe a device, so every manual gate keeps
-// a revision placeholder and the state `open`, and M1-M4 stay open owner
-// actions until their evidence exists.
+// cannot sign, upload, install or observe a device, so a manual gate is either
+// `open` with a `<revision>` placeholder or `owner-verified` with the observed
+// revision plus recorded evidence — never `done`. M1-M4 stay open owner actions
+// until their evidence exists.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -102,7 +103,7 @@ test('the handover keeps the signing secrets, product id and store checklist con
   assert.match(doc, /Data safety/i);
 });
 
-test('every required manual gate stays open with a revision placeholder', () => {
+test('every manual gate is open or owner-verified with recorded evidence', () => {
   const [header, ...rows] = tableAfter('## Manual gate checklist');
   assert.deepEqual(header, ['Gate', 'Where', 'Evidence', 'Revision', 'State']);
 
@@ -124,14 +125,33 @@ test('every required manual gate stays open with a revision placeholder', () => 
   for (const [name, pattern] of gates) {
     const matches = rows.filter((row) => pattern.test(row[0]));
     assert.equal(matches.length, 1, `the manual gate checklist must have one "${name}" row`);
-    const [, , , revision, state] = matches[0];
-    assert.equal(revision, '`<revision>`', `the "${name}" gate must keep a revision placeholder`);
-    assert.equal(state, 'open', `the "${name}" gate must stay open until evidenced`);
   }
 
-  // No gate may be recorded as passed from this repository.
+  // A gate is either untouched or observed by the owner. Untouched keeps the
+  // placeholder and no evidence; observed names the observed revision and says
+  // what was seen. Neither can be produced by the test suite itself.
   for (const row of rows) {
-    assert.equal(row[4], 'open', `the "${row[0]}" gate must stay open`);
+    const [, , evidence, revision, state] = row;
+    assert.ok(['open', 'owner-verified'].includes(state), `"${row[0]}" has an unknown state`);
+    assert.doesNotMatch(
+      state,
+      /^(done|passed|signed|uploaded)$/i,
+      `"${row[0]}" must not claim completion`,
+    );
+    if (state === 'open') {
+      assert.equal(revision, '`<revision>`', `the open gate "${row[0]}" must keep a revision placeholder`);
+      assert.equal(evidence, '', `the open gate "${row[0]}" must not carry evidence`);
+    } else {
+      assert.match(
+        revision,
+        /^`[0-9a-f]{7,40}`$/,
+        `the verified gate "${row[0]}" must name the observed revision`,
+      );
+      assert.ok(
+        evidence.length > 20 && !evidence.includes('<revision>'),
+        `the verified gate "${row[0]}" must record what was observed`,
+      );
+    }
   }
 });
 
