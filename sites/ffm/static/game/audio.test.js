@@ -501,6 +501,41 @@ describe('shared sound buses and event cues', () => {
       assert.equal(audio._voices.size, 0);
     });
 
+    // iOS keeps a backgrounded page's context in WebKit's non-standard
+    // "interrupted" state, so a resume that only recognised "suspended" left
+    // the whole app silent until it was reloaded.
+    it('resumes a WebKit-interrupted context on the next cue', () => {
+      const context = Object.assign(fakeContext(), { state: 'interrupted' });
+      const { audio } = soundEngine({ context });
+      audio.playSwordSwing();
+      assert.equal(context.resumes, 1, 'an interrupted context is resumed');
+      assert.equal(context.state, 'running');
+    });
+
+    it('resumeBGM re-arms an interrupted context before restarting the track', () => {
+      const context = fakeContext();
+      const { audio, state } = soundEngine({ context, levelMusic: { menu: [], levels: {} } });
+      audio.startBGM(1);
+      assert.equal(context.resumes, 1, 'starting music resumes the suspended context');
+      const element = audio._rotation.currentAudio;
+
+      context.state = 'interrupted';
+      audio.pauseBGM();
+      audio.resumeBGM();
+      assert.equal(context.resumes, 2, 'resuming music after an interruption resumes the context again');
+      assert.equal(state.plays, 2);
+      assert.equal(audio._rotation.currentAudio, element, 'the same track element continues');
+    });
+
+    it('never prods a running or closed context', () => {
+      const running = Object.assign(fakeContext(), { state: 'running' });
+      const closed = Object.assign(fakeContext(), { state: 'closed' });
+      soundEngine({ context: running }).audio.playSwordSwing();
+      soundEngine({ context: closed }).audio.playHeal();
+      assert.equal(running.resumes, 0);
+      assert.equal(closed.resumes, 0);
+    });
+
     // Decoding is promise-chained from fetch through decodeAudioData, so one
     // macrotask is not enough to settle a whole cue's variants.
     const settle = () => new Promise(resolve => setTimeout(resolve, 20));

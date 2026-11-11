@@ -283,7 +283,12 @@ export class AudioEngine {
       this._preloadCue('sword-gain');
       this._fiendCueTypes.forEach(type => this._warmFiendCues(type));
     }
-    if (this._ctx.state === 'suspended') {
+    // WebKit reports "interrupted" — not "suspended" — when iOS takes the
+    // audio session away (backgrounding, a call, another app). Both states
+    // need an explicit resume(), and a context that is already running must
+    // not be prodded. A closed context cannot be revived; recreation is out
+    // of scope here and every cue would throw, so leave it alone.
+    if (this._ctx.state !== 'running' && this._ctx.state !== 'closed') {
       const resumed = this._ctx.resume();
       resumed?.catch?.(error => console.warn('Unable to resume audio context:', error));
     }
@@ -1249,6 +1254,10 @@ export class AudioEngine {
 
   resumeBGM() {
     if (!this._musicSession) return;
+    // Returning to the app after an interruption leaves the context
+    // interrupted; without this the resumed source is queued on a context
+    // that never runs again (`_ensureCtx` also covers the gesture retry).
+    this._ensureCtx();
     this._musicSession.paused = false;
     if (this._musicRefreshPending) {
       this._refreshMusic();

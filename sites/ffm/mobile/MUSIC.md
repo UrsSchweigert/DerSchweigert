@@ -203,8 +203,12 @@ playlists keep working because only the element's `src` changes.
 
 Effects keep their existing `_effectsBus` with 0.4 headroom and compressor; the
 music bus is separate and carries the user's music gain. Mute zeros both buses.
-Gesture unlock and suspended-context resume use the existing `_ensureCtx` path
-on every cue and on `startBGM`/`startLevelBGM`.
+Gesture unlock and interrupted-context resume use the existing `_ensureCtx` path
+on every cue and on `startBGM`/`startLevelBGM`/`resumeBGM`. iOS keeps a
+backgrounded page's context in WebKit's non-standard `interrupted` state rather
+than `suspended`, so `_ensureCtx` resumes every state except `running` and
+`closed`; recognising only `suspended` left the game silent after a return to
+the foreground until it was reloaded.
 
 `musicVolumeCapability` reports `awaiting-media-route` before capture,
 `available` after the first successful capture, and
