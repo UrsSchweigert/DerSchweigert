@@ -110,8 +110,11 @@ def _cut(sheet: Image.Image, layout: dict) -> list[tuple[str, Image.Image]]:
     for item in layout["items"]:
         x0 = pad + item["col"] * cell_w
         y0 = pad + item["row"] * (cell_h + layout["caption_h"])
-        crop = np.array(sheet.crop((x0 + 1, y0 + 1, x0 + cell_w - 1, y0 + cell_h - 1)))
-        # drop the border colour in case a brush grazed it
+        # The border is drawn INSIDE the cell rectangle with width 2, so the
+        # crop starts two pixels in: the geometry alone excludes it, whatever
+        # the editor did to its colours. The colour strip below is only a
+        # belt-and-braces for a brush that grazed the line.
+        crop = np.array(sheet.crop((x0 + 2, y0 + 2, x0 + cell_w - 2, y0 + cell_h - 2)))
         border = np.all(crop[:, :, :4] == np.array(BORDER, dtype=np.uint8), axis=2)
         crop[border] = 0
         alpha = crop[:, :, 3] > 0
