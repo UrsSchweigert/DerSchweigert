@@ -80,6 +80,39 @@ export class Entity {
   draw(_ctx)   {}
 }
 
+// One ground shadow for the whole cast. The baked hard-edged ellipses were
+// stripped from the fiend sprites (scripts/feather_fiend_shadows.py) so that
+// every creature - hero and fiend - sits in the same soft light. Squashed space
+// keeps the gradient and the arc on one origin: translating inside a scaled
+// space leaves the origin unrestored and the ellipse lands off-canvas.
+const SHADOW_ALPHA = 0.45;
+const SHADOW_MID_STOP = 0.6;
+const SHADOW_MID_ALPHA = 0.22;    // the stop the hero's shadow already used
+
+export function drawSoftShadow(ctx, x, y, rx, ry, alpha = SHADOW_ALPHA) {
+  if (!(rx > 0) || !(ry > 0) || alpha <= 0) return;
+  ctx.save();
+  ctx.translate(x, y + 1);
+  ctx.scale(1, ry / rx);
+  const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  gradient.addColorStop(0, `rgba(0,0,0,${alpha})`);
+  const mid = (SHADOW_MID_ALPHA * alpha) / SHADOW_ALPHA;
+  gradient.addColorStop(SHADOW_MID_STOP, `rgba(0,0,0,${mid.toFixed(3)})`);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(0, 0, rx, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Fiends are drawn at their sprite's aspect, so the shadow is sized off the
+// drawn width and height rather than a per-creature table: 0.34 of the width and
+// 0.05 of the height is the footprint the baked ellipses had.
+export function fiendShadowRadii(drawW, drawH) {
+  return [Math.max(16, drawW * 0.34), Math.max(4, drawH * 0.05)];
+}
+
 // ─── Hero ─────────────────────────────────────────────────────────────────────
 // Fixed angle offsets for the aura's radiating energy spikes — precomputed
 // once at module load so drawing never allocates a new array per frame.
@@ -514,24 +547,9 @@ export class Hero extends Entity {
   // Generated poses ship without a baked shadow; this draws the same soft
   // ellipse the sheet art carries, under the same foot pivot.
   _drawGroundShadow(ctx, x, y, frame) {
-    const rx = Math.max(30, frame.w * 0.46);
-    const ry = 7;
-    ctx.save();
-    // Squashed space centred on the foot pivot. The gradient and the arc must
-    // share that origin: the earlier version ran a second translate *inside*
-    // the scaled space, so the "restore" was scaled too and the ellipse landed
-    // off-canvas - which is why no shadow ever appeared.
-    ctx.translate(x, y + 1);
-    ctx.scale(1, ry / rx);
-    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
-    gradient.addColorStop(0, 'rgba(0,0,0,0.45)');
-    gradient.addColorStop(0.6, 'rgba(0,0,0,0.22)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(0, 0, rx, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    // Same gradient every fiend draws (drawSoftShadow), so hero and fiends
+    // share one light: wide and flat, centred on the foot pivot.
+    drawSoftShadow(ctx, x, y, Math.max(30, frame.w * 0.46), 7);
   }
 
   _drawSwingFx(ctx, left, top, frame) {
@@ -1126,6 +1144,11 @@ export class Fiend extends Entity {
     // scale(-1,1) so drawImage's local [0,w] maps back onto [bx, bx+w]).
     const faceRight = this._state === 'retreat';
 
+    // The baked ellipse was stripped from the sprite, so the ground shadow is
+    // drawn here instead - the same gradient the hero uses.
+    const [shadowRx, shadowRy] = fiendShadowRadii(drawW, drawH);
+    drawSoftShadow(ctx, this.x, this.y, shadowRx, shadowRy);
+
     ctx.save();
     if (this.isElite) this._drawEliteAura(ctx, bx, by, drawW, drawH);
     if (faceRight) {
@@ -1156,9 +1179,7 @@ export class Slimeling extends Fiend {
     const bx = ~~(this.x - 9*P) + attX;
     const by = ~~(this.y - 15*P) + bobY;
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(bx+2*P, by+15*P, 14*P, 3*P);
+    drawSoftShadow(ctx, this.x, this.y, 8*P, 2.5*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by, 18*P, 15*P);
 
     // body — rounded blob
@@ -1220,9 +1241,7 @@ export class Bonehead extends Fiend {
     const bx = ~~(this.x - 8*P) + attX;
     const by = ~~(this.y - 28*P);
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(bx+2*P, by+28*P, 14*P, 2*P);
+    drawSoftShadow(ctx, this.x, this.y, 8*P, 2*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by, 16*P, 30*P);
 
     // --- skull ---
@@ -1322,9 +1341,7 @@ export class Toadlord extends Fiend {
     const bx = ~~(this.x - 11*P) + attX;
     const by = ~~(this.y - 22*P) + stomp;
 
-    // shadow (grows on stomp)
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.fillRect(bx+2*P, by+22*P-stomp, 20*P, 3*P);
+    drawSoftShadow(ctx, this.x + P, this.y, 11*P, 3*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by - 6*P, 22*P, 30*P);
 
     // body — wide rounded blob
@@ -1430,10 +1447,9 @@ export class Magelitch extends Fiend {
     const bx = ~~(this.x - 8*P) + attX;
     const by = ~~(this.y - 30*P) + hov;
 
-    // shadow (fades at hover peak)
-    const shadowA = 0.22 - Math.abs(hov) * 0.008;
-    ctx.fillStyle = `rgba(0,0,0,${shadowA.toFixed(2)})`;
-    ctx.fillRect(bx+2*P, by+30*P-hov, 12*P, 3*P);
+    // the shadow fades as it rises, the same way its old hard rectangle did
+    const shadowA = SHADOW_ALPHA - Math.abs(hov) * 0.016;
+    drawSoftShadow(ctx, this.x, this.y, 7*P, 2.5*P, shadowA);
     if (this.isElite) this._drawEliteAura(ctx, bx, by - 10*P, 16*P, 42*P);
 
     // robe body
@@ -1544,9 +1560,7 @@ export class BirdFoe extends Fiend {
     const bx = ~~(this.x - 11*P) + attX;
     const by = ~~(this.y - 22*P);
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.fillRect(bx+3*P, by+21*P, 16*P, 2*P);
+    drawSoftShadow(ctx, this.x, this.y, 9*P, 2*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by, 22*P, 22*P);
 
     // tail feathers
@@ -1636,9 +1650,7 @@ export class WolfFoe extends Fiend {
     const bx = ~~(this.x - 10*P) + attX;
     const by = ~~(this.y - 26*P) + prowl;
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(bx+2*P, by+25*P-prowl, 18*P, 2*P);
+    drawSoftShadow(ctx, this.x + P, this.y, 10*P, 2*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by, 24*P, 26*P);
 
     // tail
@@ -1748,9 +1760,7 @@ export class SnakeFoe extends Fiend {
     const bx = ~~(this.x - 8*P) + attX;
     const by = ~~(this.y - 28*P);
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(bx+2*P, by+27*P, 12*P, 2*P);
+    drawSoftShadow(ctx, this.x, this.y, 7*P, 2*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by + 4*P, 16*P, 24*P);
 
     // bottom coil

@@ -640,6 +640,30 @@ the old fixed 6x4 sprite grid:
   despilled and stripped of the generator's baked ground shadow by the build
   script, then scaled onto the master's pixel density.
 
+### Fiend sprites and their ground shadow
+
+Fiends are single PNGs in `static/game/fiend-sprites/` (`set1-01.png` …
+`set2-18.png`), picked per level through `difficulty-classes.js`, which also
+carries the hand-calibrated `BOTTOM_PAD_RATIO` that puts each creature's feet on
+`GROUND_Y` (`calibrate.html` fits that; align the feet, not the shadow).
+
+- The art generator baked a hard-edged shadow ellipse into every one of those
+  sprites. `python3 sites/ffm/scripts/feather_fiend_shadows.py` removes it: it
+  looks for the tone that is common in the sprite's bottom band but absent on
+  the creature, falls back to the sprite set's default shadow tone, then grows
+  the removal along the dithered rim. A candidate is only accepted when the
+  region is wide and flat (≥30% of the sprite's width, ≤24% of its height), which
+  is what keeps a creature's own flat base and claws out of the mask. Sprites it
+  cannot classify are reported and left untouched, so re-running is safe - run it
+  again after adding or replacing fiend art. `--report-only` measures without
+  writing.
+- The runtime then draws the shadow: `drawSoftShadow(ctx, x, y, rx, ry)` in
+  `entities.js`, sized per creature by `fiendShadowRadii(drawW, drawH)`. The hero
+  uses the same helper, so hero and fiends stand in one light; keep both on it
+  rather than baking a shadow back into art.
+- Fiends drawn from code (the `Slimeling`/`Bonehead`/… fallbacks, used only when
+  a class sprite is missing) call the same helper.
+
 ### Change auth/profile/leaderboard behavior
 
 Start with:
