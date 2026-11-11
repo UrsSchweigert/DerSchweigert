@@ -8,7 +8,12 @@ function fixture() {
     'accessible-combo', 'accessible-score', 'accessible-timer', 'accessible-timer-progress',
     'accessible-combo-wrap', 'accessible-score-wrap', 'btn-pause-game', 'gameplay-feedback',
     'encounter-progress', 'combo-reward', 'heal-progress']
-    .map(id => [id, { textContent: '', hidden: true, writes: 0 }]));
+    .map(id => [id, {
+      textContent: '', hidden: true, writes: 0, style: {},
+      setAttribute(name, value) { this.attrs = { ...(this.attrs || {}), [name]: String(value) }; },
+      removeAttribute(name) { if (this.attrs) delete this.attrs[name]; },
+      getAttribute(name) { return this.attrs ? this.attrs[name] ?? null : null; },
+    }]));
   const question = elements['active-question'];
   let content = '';
   Object.defineProperty(question, 'textContent', {
@@ -181,4 +186,30 @@ test('an installed shapes header reserves the two-row question height for the le
 test('absent DOM remains a no-op', () => {
   const chrome = createGameplayChrome({ doc: null });
   assert.doesNotThrow(() => { chrome.update(); chrome.setVisible(true); });
+});
+
+test('hiding the HUD after it was shown keeps its row so the playfield cannot jump', () => {
+  const { chrome, elements } = fixture();
+  const panel = elements['gameplay-chrome'];
+
+  chrome.setVisible(true);
+  assert.equal(panel.hidden, false);
+
+  chrome.setVisible(false);
+  assert.equal(panel.hidden, false, 'the element stays in normal flow');
+  assert.equal(panel.style.visibility, 'hidden');
+  assert.equal(panel.style.pointerEvents, 'none');
+  assert.equal(panel.getAttribute('aria-hidden'), 'true');
+
+  chrome.setVisible(true);
+  assert.equal(panel.style.visibility, '');
+  assert.equal(panel.style.pointerEvents, '');
+  assert.equal(panel.getAttribute('aria-hidden'), null);
+});
+
+test('the HUD stays display-none before it is ever shown', () => {
+  const { chrome, elements } = fixture();
+  chrome.setVisible(false);
+  assert.equal(elements['gameplay-chrome'].hidden, true);
+  assert.equal(elements['gameplay-chrome'].style.visibility, undefined);
 });
