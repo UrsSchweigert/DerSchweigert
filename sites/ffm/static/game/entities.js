@@ -566,6 +566,11 @@ export class Hero extends Entity {
     const fade = Math.max(0, 1 - (t - hitStart) / 0.55);
     if (fade <= 0) return;
 
+    // The FX sets alpha, line width and stroke colours; without its own save
+    // the trailing restore() popped the renderer's state instead, which tore
+    // the frame apart for as long as the swing was on screen.
+    ctx.save();
+
     // The arc is centred on the hands and sweeps along the path the blade
     // travelled, from up-right to down-right, so it reads as a trail rather
     // than a decoration floating next to the hero.

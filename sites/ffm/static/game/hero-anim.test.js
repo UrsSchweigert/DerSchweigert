@@ -40,6 +40,37 @@ describe('HeroAnimator timing', () => {
     assert.deepEqual(events, ['done']);
   });
 
+  it('finishes a multi-frame clip when it is stepped frame by frame', () => {
+    // Regression: parking on the last frame used to carry the overshoot into
+    // `_elapsed`, so a clip longer than one frame reported finished=false
+    // forever and the hero never left his swing/cast pose. A 16 ms step is
+    // what the game loop actually does; the tests below only passed with a
+    // single-frame clip or one huge step.
+    const anim = new HeroAnimator(clips);
+    const events = [];
+    anim.on('done', (e) => events.push(e));
+    anim.play('two');
+    for (let i = 0; i < 20 && !anim.finished; i++) anim.update(0.016);
+    assert.equal(anim.finished, true, 'two-frame clip must finish when stepped at 16 ms');
+    assert.equal(anim.frameId, 'b');
+    assert.deepEqual(events, ['done']);
+    anim.update(0.5);
+    assert.equal(anim.finished, true);
+    assert.deepEqual(events, ['done'], 'done fires once per play()');
+  });
+
+  it('hands the shipped swing clip back to idle after its last frame', () => {
+    const anim = new HeroAnimator();
+    anim.play('swing', { restart: true });
+    const total = HERO_CLIPS.swing.frames.reduce((sum, f) => sum + f.ms, 0);
+    const steps = Math.ceil(total / 16) + 2;
+    for (let i = 0; i < steps && !anim.finished; i++) anim.update(0.016);
+    assert.equal(anim.finished, true);
+    anim.play(HERO_CLIPS.swing.next);
+    assert.equal(anim.clip, 'idle');
+    assert.equal(anim.finished, false);
+  });
+
   it('loops back to the first frame', () => {
     const anim = new HeroAnimator(clips);
     anim.play('idle');
@@ -142,5 +173,21 @@ describe('shipped hero clips', () => {
     const swing = HERO_CLIPS.swing.frames.reduce((sum, f) => sum + f.ms, 0);
     assert.ok(swing <= 300, `swing clip is ${swing}ms`);
     assert.equal(HERO_CLIPS.swing.frames.some((f) => f.at === 'hit'), true);
+  });
+
+  it('anchors every locomotion frame on the same point, so the hero cannot slide', () => {
+    // The atlas pivot is what puts the sprite at the hero's x. It used to be
+    // the midpoint of the bottom row, which is the blade tip whenever the
+    // blade dips below the boots - the exhale pose sat 18 px left of the
+    // others and the breathing cycle visibly drifted. Torso-centred pivots
+    // keep a standing cycle within a few pixels.
+    for (const clip of ['idle', 'walk']) {
+      const px = HERO_CLIPS[clip].frames.map((f) => HERO_FRAMES[f.f].px);
+      const spread = Math.max(...px) - Math.min(...px);
+      assert.ok(spread <= 6, `${clip} pivots spread ${spread} px across ${px.join(',')}`);
+    }
+    for (const [id, frame] of Object.entries(HERO_FRAMES)) {
+      assert.ok(frame.px > 0 && frame.px < frame.w, `${id} pivot ${frame.px} outside its ${frame.w}px box`);
+    }
   });
 });

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 // Image. The stub reports itself as loaded so the class-sprite path runs.
 globalThis.Image ??= class { constructor() { this.complete = true; this.naturalWidth = 64; this.naturalHeight = 64; } };
 const { drawSoftShadow, fiendShadowRadii, Fiend, Hero } = await import('./entities.js');
+const { HERO_FRAMES } = await import('./hero/hero-frames.js');
 
 function recordingCtx() {
   const calls = [];
@@ -90,5 +91,72 @@ describe('fiend drawing', () => {
     assert.ok(shadowIndex < spriteIndex, 'the shadow is under the sprite');
     assert.deepEqual(ctx.calls.find((c) => c.name === 'translate').args,
       [200, 301], 'centred on the fiend, on the ground line');
+  });
+});
+
+// Canvas state tracking: the hero's strike FX draws arcs, sparks and a burst.
+// It must open its own save/restore pair - without it the trailing restore()
+// popped the renderer's transform and every frame drawn while the swing was on
+// screen came apart.
+function stateCtx() {
+  const state = { depth: 0, maxDepth: 0, alpha: 1, lineWidth: 1 };
+  const stack = [];
+  const gradient = { addColorStop() {} };
+  return {
+    state,
+    save() {
+      stack.push({ alpha: state.alpha, lineWidth: state.lineWidth });
+      state.depth += 1;
+      state.maxDepth = Math.max(state.maxDepth, state.depth);
+    },
+    restore() {
+      const saved = stack.pop();
+      if (saved) { state.alpha = saved.alpha; state.lineWidth = saved.lineWidth; }
+      state.depth -= 1;
+    },
+    beginPath() {},
+    closePath() {},
+    moveTo() {},
+    lineTo() {},
+    arc() {},
+    ellipse() {},
+    stroke() {},
+    fill() {},
+    fillRect() {},
+    drawImage() {},
+    createRadialGradient: () => gradient,
+    set globalAlpha(value) { state.alpha = value; },
+    get globalAlpha() { return state.alpha; },
+    set lineWidth(value) { state.lineWidth = value; },
+    get lineWidth() { return state.lineWidth; },
+    set strokeStyle(_) {},
+    get strokeStyle() { return null; },
+    set fillStyle(_) {},
+    get fillStyle() { return null; },
+    set globalCompositeOperation(_) {},
+    set imageSmoothingEnabled(_) {},
+  };
+}
+
+describe('hero strike FX canvas state', () => {
+  it('balances its own save/restore and leaves alpha alone', () => {
+    const hero = new Hero();
+    hero.anim.play('swing', { restart: true });
+    // 120 ms in: past the hit frame (85 ms) and inside the arc's fade window.
+    hero.anim.update(0.12);
+    const ctx = stateCtx();
+    hero._drawSwingFx(ctx, 0, 0, HERO_FRAMES[hero.anim.frameId]);
+    assert.equal(ctx.state.depth, 0, 'the FX must not pop the renderer state');
+    assert.ok(ctx.state.maxDepth >= 1, 'it must draw inside its own save');
+    assert.equal(ctx.state.alpha, 1, 'alpha must be restored for the rest of the frame');
+  });
+
+  it('balances the cast glow too', () => {
+    const hero = new Hero();
+    hero.cast('fire');
+    hero.anim.update(0.09);
+    const ctx = stateCtx();
+    hero._drawCastFx(ctx, 0, 0, HERO_FRAMES[hero.anim.frameId]);
+    assert.equal(ctx.state.depth, 0);
   });
 });
