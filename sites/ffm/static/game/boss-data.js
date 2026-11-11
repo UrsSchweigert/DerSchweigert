@@ -130,7 +130,7 @@ export const HOLLOW_KING = Object.freeze({
   afterLevel: 60,
   bandLevel: 60,
   nameKey: 'boss.hollowKing.name',
-  art: Object.freeze({ arena: 'boss/arena-final.webp', figure: 'boss/figure-hollow-king.webp' }),
+  art: Object.freeze({ arena: 'boss/arena-6.webp', figure: 'boss/figure-hollow-king.webp' }),
   arena: 6,
   hearts: HOLLOW_KING_HEARTS,
   perSealValue: 200_000,

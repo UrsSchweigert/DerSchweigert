@@ -149,11 +149,12 @@ describe('boss art', () => {
     }
   });
 
-  it('gives each act its own arena, with one shared throne room for the final fight', () => {
+  it('gives each act its own arena, with the final fight in the throne room', () => {
     const arenas = WARDENS.map(warden => warden.art.arena);
     assert.equal(new Set(arenas).size, ACT_COUNT, 'each act needs a distinct arena');
-    assert.notEqual(HOLLOW_KING.art.arena, WARDENS.at(-1).art.arena,
-      'the final fight must not reuse the throne room image unchanged');
+    // One arena per act: the Hollow King fights in the sixth act's ruined hall
+    // rather than shipping a seventh background.
+    assert.equal(HOLLOW_KING.art.arena, WARDENS.at(-1).art.arena);
     const figures = BOSSES.map(boss => boss.art.figure);
     assert.equal(new Set(figures).size, BOSSES.length, 'every boss needs its own portrait');
   });

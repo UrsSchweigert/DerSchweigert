@@ -57,6 +57,8 @@ export const EXCLUDED = [
   // The Warden preview is a development harness: it fabricates act bands that
   // the app must always read through the platform adapter.
   /^boss-preview\.html$/,
+  // Provenance notes are for the repository, not the shipped bundle.
+  /^game\/boss\/PROVENANCE\.md$/,
   /^cancel\.html$/,
   /^widerruf\.html$/,
   // The promo landing page is web-only; the app has no marketing page.

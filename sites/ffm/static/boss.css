@@ -112,7 +112,9 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(9, 20, 17, 0.2), rgba(9, 20, 17, 0.78));
+  background:
+    radial-gradient(ellipse at center, rgba(6, 10, 24, 0.15), rgba(4, 7, 16, 0.82)),
+    linear-gradient(180deg, rgba(12, 8, 28, 0.18), rgba(4, 7, 16, 0.3));
 }
 
 .boss-overlay > * {
@@ -128,7 +130,7 @@
   padding: 1rem 1.1rem 1.2rem;
   border: 2px solid var(--brass-deep, #80602d);
   border-radius: 12px;
-  background: linear-gradient(160deg, #18352d, #091411);
+  background: linear-gradient(160deg, #14302a, #07120f);
   color: var(--ivory, #f3ead6);
   text-align: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);

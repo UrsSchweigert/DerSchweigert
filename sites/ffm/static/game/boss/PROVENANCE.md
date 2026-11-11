@@ -1,63 +1,68 @@
 # Warden art provenance
 
-Arenas and boss portraits for the six Wardens and the Hollow King.
+Six arenas (one per act) and seven boss portraits.
 
-All fourteen images come from **`fal-ai/flux-1/schnell`** (Apache-2.0; commercial
-use permitted, listed as approved in `static/story/ART-BIBLE.md`). FLUX.1 [dev]
-was not used. Renders are converted to the game's pixel language by
-`sites/ffm/scripts/boss_art.py`; the seed plus that script reproduces the shipped
-file.
+Every image was produced with the **GPT image model** through the VS Code
+`image_generation` tool. That model is the one `static/story/ART-BIBLE.md` lists
+as approved from the intro pilot ("provider terms permit commercial use of
+outputs"); the tool does not report a model id or a seed, so each shipped file is
+identified by its SHA-256 prefix instead. FLUX.1 [dev] was never used.
 
-## Why the pipeline looks like this
+## Why this model
 
-The shipped stage art (`static/game/stage-N.webp`) is dense pixel art: measuring
-horizontal colour runs gives a dominant run of **1-2 px** at 1536 wide, not the
-5-6 px blocks of a chunky downscale. An early version pooled renders to 320x180
-and the arenas read as a blurry low-res copy next to the stages. The shipped
-grid is **768x432** (exactly 2x at 1536x864), which matches that density, and the
-renders are prompted for saturated colour with strong shadows because pooling a
-pastel illustration loses the contrast the stage art has.
+FLUX 1 schnell was tried first, and it cannot draw pixel art: it returns
+smooth, painterly renders whatever the prompt says. Two post-processing
+attempts were shipped and rejected on review:
 
-- **arena** — box-pool to 768x432, saturation 1.2 / contrast 1.1, adaptive
-  40-colour quantise with Floyd-Steinberg dithering, nearest-neighbour 2x
-  upscale to 1536x864, WebP q92.
-- **figure** — background sampled from a corner and replaced with the panel's
-  ink `#10211b`, box-pool to a 128x128 grid, 28-colour quantise, nearest-neighbour
-  upscale to 1024x1024, WebP lossless.
+1. **320x180 pool** — read as a blurry low-res copy of an illustration.
+2. **768x432 pool + ordered Bayer dither** — closer, still not 16-bit. Ordering
+   dither noise over a smooth painting gives texture, not pixel art, because the
+   underlying shapes still have soft edges and continuous tone.
 
-Figures are rendered on a flat dark background and recoloured to `#10211b` so
-they sit in the fight panel's brass plaque. No alpha channel is used: a keyed
-cutout is fragile (the model returns "magenta" keys that are actually rose, and
-bakes in a ground shadow), and the plaque makes a solid backdrop deliberate.
+The GPT image model draws on a genuine pixel grid — chunky square pixels, hard
+edges, banded dithering — so the art needs no reconstruction. The script only
+crops and encodes it, and any pooling would smear the grid it was drawn on.
+
+## Encoding
+
+- **arena** — trim the 3:2 render to the 16:9 frame on a multiple of the pixel
+  size (80 px top and bottom), WebP **q92**. Full 1536x864 at ~380 KB, the same
+  weight as the shipped `stage-N.webp` files; lossless dithering cost 1.6 MB per
+  arena for no visible gain.
+- **portrait** — centre-crop to square, nearest-neighbour step down to 256x256,
+  WebP lossless (~50-70 KB). 256 px is 2x the largest on-screen size (8 rem).
+
+## Atmosphere
+
+Deliberately **ominous and gloomy**, per review: night, storm, fog, long
+shadows, cold cyan and violet light, black silhouettes, no sunshine and no warm
+fill. The creatures stay gentle rather than frightening; the Hollow King remains
+a bodyless floating crown, as the art bible requires.
 
 ## Files
 
-| File | Seed | Prompt concept |
-| --- | --- | --- |
-| `arena-1.webp` | 1654177126 | Village gate at day: stone arch, sealed red door with a cyan keyhole, rune fence, windmill, cobbled courtyard |
-| `arena-2.webp` | 1472205117 | Golden wheat at sunset: two-pan brass scale on a stone dais, cyan crystal pivot, lantern posts |
-| `arena-3.webp` | 1641464686 | Lantern-lit forest: ring of plain standing stones with cyan cracks, blue flowers, strung lanterns |
-| `arena-4.webp` | 305633073 | Woodland hall: green roof beams, crimson banners, stone oath table with a glowing open book |
-| `arena-5.webp` | 1075157479 | Night market: fountain inside a golden rune circle, striped awnings, lit windows, moon |
-| `arena-6.webp` | 767019257 | Blue-and-gold throne room: empty gilded throne, crown-shaped lock with a cyan gem |
-| `arena-final.webp` | 801853831 | The same hall broken: cracked throne, six split brass rings leaking cyan, tarnished crown above a void |
-| `figure-dawn.webp` | 1589664121 | Living oaken door: carved kindly face, brass-ringed keyhole, small lantern, stone feet |
-| `figure-harvest.webp` | 904076816 | Straw-and-post scale warden: brass pans for arms, button eyes, wheat shoulders |
-| `figure-memory.webp` | 1783013891 | Rune-stone golem: three stacked stones, glowing cyan eyes, moss and blue flowers |
-| `figure-keep.webp` | 560880158 | Banner warden: crimson standard body, carved deer head, brass bell |
-| `figure-market.webp` | 67388676 | Lantern merchant spirit: brass lantern head, striped awning cape, coin scale |
-| `figure-throne.webp` | 641554919 | Living throne: blue velvet seat, mitten hands, crown-shaped lock above the back |
-| `figure-hollow-king.webp` | 530751709 | A tarnished crown floating over an empty void - no body, per the art bible |
+| File | SHA-256 (first 16) |
+| --- | --- |
+| `arena-1.webp` | d8e194c3c30c6635 |
+| `arena-2.webp` | c3cc9865ee4a12f4 |
+| `arena-3.webp` | e339bf2c77df61f6 |
+| `arena-4.webp` | fb2c94ad4f1933fb |
+| `arena-5.webp` | 436082f695a18769 |
+| `arena-6.webp` | f19fdbc906d75c7d |
+| `figure-dawn.webp` | 559317bddd1d48f7 |
+| `figure-harvest.webp` | b690f0c7fcb44fc4 |
+| `figure-hollow-king.webp` | 8bbccf05b304ce98 |
+| `figure-keep.webp` | d9251ca990c5490b |
+| `figure-market.webp` | 4a74edf253abbbad |
+| `figure-memory.webp` | 843e9205fdb01026 |
+| `figure-throne.webp` | 02d6112291a31666 |
 
 ## Review notes
 
-- The Hollow King is deliberately bodyless: a floating crown with a shadow, as
-  `ART-BIBLE.md` requires.
-- Act IV's Warden is a **banner**, not a knight. Plate armour repeatedly pulled
-  cross-shaped iconography and an adult bearded face out of the model; both are
-  `ART-BIBLE.md` rejection criteria, so the concept changed rather than the
-  prompt being argued with.
-- `arena-3` is the second attempt: the first carried letter-like glyphs carved on
-  the stones, which the art bible forbids.
-- UI colour comes from the title page (`styles.css :root` forest/ink/ivory/brass
-  tokens), not from the lore palette, so the fight reads as part of the menu.
+- Act IV's Warden is a **banner** (deer-headed standard), not a knight. Plate
+  armour repeatedly produced cross-shaped iconography and an adult bearded face,
+  both ART-BIBLE rejection criteria; the concept was changed instead.
+- `arena-6` is the ruined throne room, and it is also the Hollow King's arena:
+  the game ships one background per act, not a seventh for the finale.
+- No arena carries text, letters, numerals or a religious symbol. The Act VI
+  throne uses a plain star finial after an earlier render put a cross on it.
