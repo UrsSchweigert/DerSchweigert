@@ -54,3 +54,26 @@ describe('assumedDragonPathLevelScore', () => {
     assert.strictEqual(assumedDragonPathLevelScore(999, _FullLevelConfig), 0);
   });
 });
+
+describe('shipped level_data.json baselines', () => {
+  // app/level_data.json is what the backend serves as baseline_score when a
+  // player jumps into a later level. Regenerate it with
+  // `node sites/ffm/scripts/update-level-data.mjs` after any change to the
+  // level->class ladder or the score scale; otherwise a jump is seeded with a
+  // score the player can no longer earn (the 60-class ladder replaced a
+  // 36-class table, which left every baseline 30-130% off).
+  it('matches the current level->class ladder for all 60 levels', () => {
+    for (const cfg of _FullLevelConfig) {
+      assert.strictEqual(
+        cfg.baseline_score,
+        computeDragonPathBaselineScore(cfg.level, _FullLevelConfig),
+        `level ${cfg.level} baseline_score is stale - re-run update-level-data.mjs`,
+      );
+    }
+  });
+
+  it('seeds level 2 with a flawless clear of level 1 (7350, class 1)', () => {
+    assert.strictEqual(_FullLevelConfig[0].baseline_score, 0);
+    assert.strictEqual(_FullLevelConfig[1].baseline_score, 7350);
+  });
+});

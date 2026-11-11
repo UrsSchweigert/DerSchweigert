@@ -40,6 +40,10 @@ export const EXCLUDED = [
   // The raw hero sheets are inputs for the atlas build and export-sprites.html;
   // the game itself loads game/hero/hero-atlas.webp.
   /^game\/hero-spritesheet(-upload)?\.png$/,
+  // The superseded per-frame hero set. Nothing at runtime loads it (it is kept
+  // as the reference input for the promo art provenance), so it must not add
+  // 1.3 MB of retired art to the app bundle.
+  /^game\/hero-sprites-transparent(\/|$)/,
   // Story dioramas ship only what the player needs at runtime; the generation
   // sources, the approved reference sheets, the art bible and the dev preview
   // stay on the web side.
