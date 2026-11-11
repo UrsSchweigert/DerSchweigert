@@ -2985,7 +2985,10 @@ function handleCorrectAnswer(origin) {
         practiceRun.recovery.recordCorrect(problem, { hearts: state.hearts, maxHearts: state.maxHearts })) {
       const previousHearts = state.hearts;
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
-      if (state.hearts > previousHearts) audio.playHeal?.();
+      if (state.hearts > previousHearts) {
+        audio.playHeal?.();
+        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - 30 });
+      }
     }
   }
 
@@ -3327,6 +3330,7 @@ function triggerWaveClear() {
   if (healed) {
     hero._healAura = GAME_CONFIG.healingAuraDuration;
     audio.playHeal?.();
+    globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - 30 });
   }
   hud.update(state);
 
@@ -3600,7 +3604,10 @@ function gameLoop(ts) {
     if (healResult.healed) {
       const previousHearts = state.hearts;
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
-      if (state.hearts > previousHearts) audio.playHeal?.();
+      if (state.hearts > previousHearts) {
+        audio.playHeal?.();
+        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - 30 });
+      }
       hud.update(state);
     }
     hero._holdHealActive = isHealHolding && canHeal;

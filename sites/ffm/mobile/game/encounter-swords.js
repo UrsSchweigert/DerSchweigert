@@ -89,12 +89,29 @@ export function createEncounterSwords({
       filledCount = -1;
     }
     if (filledCount !== resolved.filled) {
+      const gained = resolved.filled > filledCount ? resolved.filled - filledCount : 0;
       swords.forEach((sword, index) => {
         sword.classList?.toggle?.(SWORD_FILLED_CLASS, index < resolved.filled);
       });
+      if (gained > 0) glint(swords[resolved.filled - 1]);
       filledCount = resolved.filled;
     }
     return resolved;
+  }
+
+  // Spark at the sword that just filled. The screen-FX layer lives in main.js,
+  // so it is reached through the same global handle the rest of the game uses;
+  // on a page without it this is simply a no-op.
+  function glint(sword) {
+    const fx = globalThis.ffmScreenFx;
+    const rect = sword?.getBoundingClientRect?.();
+    if (!fx || !rect) return;
+    const map = fx.mapping?.();
+    if (!map || !map.scale) return;
+    fx.play('swordGain', {
+      x: (rect.left + rect.width / 2 - map.offsetX) / map.scale,
+      y: (rect.top + rect.height / 2 - map.offsetY) / map.scale,
+    });
   }
 
   function destroy() {

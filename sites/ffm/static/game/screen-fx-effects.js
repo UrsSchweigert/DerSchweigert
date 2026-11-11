@@ -24,6 +24,8 @@ export const EFFECT_NAMES = [
   'levelWon',
   'gameOver',
   'dragonFinisher',
+  'heal',
+  'swordGain',
 ];
 
 // The sword's own ramp (#1460c0 / #40a0f0 / #88d0ff / #c8f0ff in
@@ -94,15 +96,17 @@ function wrongAnswer(api, payload) {
 function heroStrike(api, payload) {
   const x = payload && payload.x !== undefined ? payload.x : 400;
   const y = payload && payload.y !== undefined ? payload.y : 282;
-  const cx = x - 62;
-  const cy = y + 22;
-  api.arc(cx, cy, '#40a0f0', 104, -2.35, 0.55, 0.24, 14, 0.55);
-  api.arc(cx, cy, '#88d0ff', 92, -2.35, 0.55, 0.19, 8, 0.8);
-  api.arc(cx, cy, '#eafaff', 80, -2.35, 0.55, 0.14, 3, 1);
+  // Centred on the impact itself: centring on the hero's shoulder and sweeping
+  // upwards drew the crescent over the fiend's head instead of across it.
+  const cx = x;
+  const cy = y;
+  api.arc(cx, cy, '#40a0f0', 46, -2.3, 1.0, 0.24, 10, 0.6);
+  api.arc(cx, cy, '#88d0ff', 40, -2.3, 1.0, 0.19, 6, 0.85);
+  api.arc(cx, cy, '#eafaff', 34, -2.3, 1.0, 0.14, 3, 1);
   for (let i = 0; i < count(api, 18); i++) {
-    const a = rand(-2.35, 0.55);
-    const px = cx + Math.cos(a) * 92;
-    const py = cy + Math.sin(a) * 92;
+    const a = rand(-2.3, 1.0);
+    const px = cx + Math.cos(a) * 40;
+    const py = cy + Math.sin(a) * 40;
     api.spark(px, py, a + Math.PI / 2, rand(90, 260), pick(BLADE), rand(0.28, 0.55));
   }
   api.flash(x, y, '#c8f0ff', 34, 0.12, 0.8);
@@ -244,6 +248,40 @@ function lightning(api, payload) {
   }
 }
 
+function heal(api, payload) {
+  const x = payload && payload.x !== undefined ? payload.x : 110;
+  const y = payload && payload.y !== undefined ? payload.y : 282;
+  // A column of light from above the viewport down onto the hero. Three beams
+  // of different widths give it texture; embers and motes keep it moving.
+  const top = -80;
+  const span = y - top + 40;
+  api.beam(x, top, 70, span, '#7cf08a', 0.95, 0.85);
+  api.beam(x - 20, top, 18, span, '#eaffe0', 0.8, 0.6);
+  api.beam(x + 16, top, 11, span, '#b6f08a', 0.85, 0.5);
+  api.flash(x, y - 6, '#b6f08a', 38, 0.3, 0.7);
+  api.ring(x, y, '#b6f08a', 8, 96, 0.6, 3);
+  for (let i = 0; i < count(api, 12); i++) {
+    api.mote(x + rand(-34, 34), rand(top + 60, y), rand(-10, 10), rand(30, 90), pick(PALETTES.green), rand(1.6, 3.2));
+  }
+  for (let i = 0; i < count(api, 10); i++) {
+    api.ember(x + rand(-26, 26), rand(y - 80, y), rand(-10, 10), rand(-70, -20), pick(PALETTES.green), rand(0.5, 1.1));
+  }
+  api.addVignette('#2f8f2a', 0, 0.22, 0.6);
+}
+
+function swordGain(api, payload) {
+  const x = payload && payload.x !== undefined ? payload.x : 400;
+  const y = payload && payload.y !== undefined ? payload.y : 500;
+  api.flash(x, y, '#ffffff', 26, 0.14, 0.85);
+  api.ring(x, y, '#eafaff', 3, 46, 0.38, 2);
+  for (let i = 0; i < count(api, 10); i++) {
+    api.spark(x, y, rand(0, TAU), rand(60, 200), pick(BLADE), rand(0.25, 0.5));
+  }
+  for (let i = 0; i < count(api, 3); i++) {
+    api.ray(x, y, rand(0, TAU), rand(28, 60), '#eafaff', 0.5);
+  }
+}
+
 function levelWon(api) {
   const firework = (x, y, colors) => {
     api.flash(x, y, '#ffffff', 30, 0.25, 0.8);
@@ -345,6 +383,8 @@ export function createEffectTable() {
     levelWon,
     gameOver,
     dragonFinisher,
+    heal,
+    swordGain,
     // Granular pieces: the game drives these per frame / per hit so the trail
     // and the blast stay locked to the real projectile rather than a guess.
     fireTrail,

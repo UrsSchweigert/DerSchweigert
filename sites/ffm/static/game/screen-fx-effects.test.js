@@ -121,8 +121,8 @@ function layerCtx(canvases) {
   return canvases[1].getContext('2d');
 }
 
-test('EFFECT_NAMES lists the ten recipes and createEffectTable maps every one to a function', () => {
-  assert.equal(EFFECT_NAMES.length, 10);
+test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a function', () => {
+  assert.equal(EFFECT_NAMES.length, 12);
   const table = createEffectTable();
   // The four granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
@@ -261,4 +261,25 @@ test('the strike and the fiend hit wear the blade ramp, not gold or green', () =
   assert.ok(used.includes('#40a0f0'), 'the strike arc uses the blade blue');
   assert.ok(!used.includes('#ffe8a0'), 'no gold arc remains');
   assert.ok(!used.includes('#d8ffcf'), 'the fiend hit no longer rings green');
+});
+
+test('the heal column and the sword glint are playable', () => {
+  const { fx } = make();
+  assert.equal(fx.play('heal', { x: 120, y: 280 }), true);
+  const afterHeal = fx.getParticleCount();
+  assert.ok(afterHeal > 0, 'heal spawns its column and motes');
+
+  fx.clear();
+  assert.equal(fx.play('swordGain', { x: 400, y: 520 }), true);
+  assert.ok(fx.getParticleCount() > 0, 'swordGain spawns a glint');
+});
+
+test('the heal column reaches from above the viewport down to the hero', () => {
+  const { fx, canvases } = make();
+  fx.play('heal', { x: 120, y: 280 });
+  fx.step(0.01);
+  fx.render();
+  const rects = layerCtx(canvases).calls.filter((call) => call.method === 'fillRect');
+  assert.ok(rects.length > 0, 'the beam is drawn');
+  assert.ok(rects.some((call) => call.args[1] < 0), 'a beam starts above the playfield top');
 });
