@@ -18,7 +18,7 @@ describe('buildAssetManifest', () => {
 
   it('includes the hero, dragon, and fireball sprites', () => {
     const urls = buildAssetManifest();
-    assert.ok(urls.some((u) => u.endsWith('hero-spritesheet-clean.png')));
+    assert.ok(urls.some((u) => u.endsWith('hero/hero-atlas.webp')));
     assert.ok(urls.some((u) => u.endsWith('dragon.webp')));
     assert.ok(urls.some((u) => u.endsWith('fireball.png')));
   });

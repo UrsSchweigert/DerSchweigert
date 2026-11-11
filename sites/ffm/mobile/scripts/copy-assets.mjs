@@ -34,6 +34,7 @@ export const LEGAL_DIR = join(root, 'legal');
 export const EXCLUDED = [
   /^game\/source-assets(\/|$)/,
   /^game\/calibrate\./,
+  /^game\/hero-preview\.html$/,
   /^game\/_dragon_test\.html$/,
   /^game\/(api|access-flow|cancel-request|withdrawal-request)\.js$/,
   // The raw hero sheets are inputs for export-sprites.html (a dev tool); the

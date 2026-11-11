@@ -12,7 +12,7 @@ const STAGE_COUNT = 6;
 
 /**
  * Pure (no DOM/network) list-builder, so it's unit-testable: every image URL
- * the game can ever display in a session — the hero spritesheet, the
+ * the game can ever display in a session — the hero atlas, the
  * dragon/fireball combo-ability sprites, all per-chapter stage backgrounds
  * (any of which can be reached immediately via the level-jump feature, not
  * just sequentially), and every fiend class sprite (fiend class assignment
@@ -22,7 +22,7 @@ const STAGE_COUNT = 6;
  */
 export function buildAssetManifest() {
   const urls = [
-    new URL('./hero-spritesheet-clean.png', import.meta.url).href,
+    new URL('./hero/hero-atlas.webp', import.meta.url).href,
     new URL('./dragon.webp', import.meta.url).href,
     new URL('./fireball.png', import.meta.url).href,
   ];

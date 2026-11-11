@@ -2931,9 +2931,9 @@ function handleCorrectAnswer() {
   const strikeNow = () => {
     lastCastAbility = ability;
     if (ability === 'lightning') {
-      // Hero strikes in place at the base location; the bolt is launched
+      // Hero casts in place at the base location; the bolt is launched
       // from just right of his sprite toward the fiend.
-      hero.setState('swing');
+      hero.cast('bolt');
       // The app build lets the projectile's own collision decide the hit, so
       // the bolt lands exactly when the sprite reaches the fiend's bounds.
       // The web build keeps its fixed arrival timer unchanged.
@@ -2947,10 +2947,10 @@ function handleCorrectAnswer() {
       inputDisabled = true;
       if (!collides) scheduleGameplayTimeout(() => resolveLightningHit(fiend), 600);
     } else if (ability === 'fireball') {
-      // Hero strikes in place at the base location; the fireball is launched
+      // Hero casts in place at the base location; the fireball is launched
       // from just right of his sprite toward the fiend, and the hit lands
       // when it actually arrives rather than the instant it's cast.
-      hero.setState('swing');
+      hero.cast('fire');
       const collides = platform.isApp;
       activeFireballs.push(collides
         ? new Fireball(SPELL_LAUNCH_X, SPELL_LAUNCH_Y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
@@ -3514,6 +3514,10 @@ function gameLoop(ts) {
     activeDragons = activeDragons.filter(d => !d.isDone);
 
     if (heroLunge) {
+      // Both phases ease instead of running at a constant speed: the dash
+      // accelerates into the strike and the return decelerates into the home
+      // position. A linear slide plus a dead stop is what made the old lunge
+      // read as a sprite being dragged across the screen.
       if (heroLunge.phase === 'out') {
         // chase the fiend's current position so they meet naturally
         const targetX = heroLunge.fiend.x - 65;
@@ -3523,7 +3527,10 @@ function gameLoop(ts) {
           heroLunge = null; // clear before cb so cb can install 'back' phase
           cb();
         } else {
-          hero.x += LUNGE_SPEED * dt;
+          if (heroLunge.startX === undefined) heroLunge.startX = hero.x;
+          const total = Math.max(1, targetX - heroLunge.startX);
+          const progress = Math.min(1, (hero.x - heroLunge.startX) / total);
+          hero.x += LUNGE_SPEED * (0.4 + 1.2 * progress) * dt;
         }
       } else {
         // 'back' — return to home position
@@ -3533,7 +3540,10 @@ function gameLoop(ts) {
           heroLunge = null;
           if (cb) cb();
         } else {
-          hero.x -= LUNGE_SPEED * dt;
+          if (heroLunge.startX === undefined) heroLunge.startX = hero.x;
+          const total = Math.max(1, heroLunge.startX - HERO_X);
+          const progress = Math.min(1, (heroLunge.startX - hero.x) / total);
+          hero.x -= LUNGE_SPEED * (1.6 - 1.2 * progress) * dt;
         }
       }
     }

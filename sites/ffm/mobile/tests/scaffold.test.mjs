@@ -64,6 +64,7 @@ const EXCLUDED_SAMPLES = [
   'game/source-assets/nested/deep.png',
   'game/calibrate.html',
   'game/calibrate.js',
+  'game/hero-preview.html',
   'game/_dragon_test.html',
   'game/main.test.js',
   'game/platform.test.js',

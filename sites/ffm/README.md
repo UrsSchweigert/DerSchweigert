@@ -585,7 +585,34 @@ Start with:
 
 - `sites/ffm/static/game/renderer.js`
 - `sites/ffm/static/game/entities.js`
+- `sites/ffm/static/game/hero-anim.js` (hero clip list and transform tracks)
 - `sites/ffm/static/styles.css`
+
+### Change the hero's poses or animation
+
+The hero is drawn from a generated atlas plus a time-based animator, not from
+the old fixed 6x4 sprite grid:
+
+- `sites/ffm/scripts/hero_frames.py` builds `static/game/hero/hero-atlas.webp`
+  and `static/game/hero/hero-frames.js` (per-frame rect + foot pivot) out of
+  `static/game/hero-spritesheet-clean.png` and the generated poses in
+  `static/game/source-assets/hero-poses/`. Frames are extracted as their largest
+  connected blob, so a neighbouring pose can never bleed into a frame, and each
+  frame carries an explicit foot contact point instead of one hand-tuned offset.
+  Rebuild with `python3 sites/ffm/scripts/hero_frames.py`.
+- `sites/ffm/static/game/hero-anim.js` holds the clips: frame durations, which
+  frame fires `hit`, and the `track()` function that leans/bobs/squashes the
+  pose. Timing is wall-clock based, so playback does not depend on the display
+  refresh rate.
+- `sites/ffm/static/game/hero-preview.html` plays every clip through the real
+  `Hero` class (dev tool, not bundled into the app).
+- The generated poses in `source-assets/hero-poses/` were made with
+  `fal-ai/flux-pro/kontext` (approved for commercial use in
+  `static/story/ART-BIBLE.md`) from a ×4 nearest-neighbour plate of the
+  matching sheet frame, prompted to keep the character, scale and framing and
+  to change only the weapon/arms. They are keyed off the flat magenta plate,
+  despilled and stripped of the generator's baked ground shadow by the build
+  script, then scaled onto the master's pixel density.
 
 ### Change auth/profile/leaderboard behavior
 

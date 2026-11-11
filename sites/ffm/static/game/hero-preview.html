@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hero animation preview — Arithmo Slayer</title>
+<style>
+  body { background: #12141c; color: #e8e8f0; font: 14px/1.5 ui-monospace, monospace; margin: 0; padding: 18px; }
+  h1 { font-size: 18px; margin: 0 0 2px; color: #ffd45e; }
+  p.hint { margin: 0 0 12px; color: #8a90a8; }
+  canvas { display: block; background: #24303c; border: 1px solid #333a4a; image-rendering: pixelated; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  button { background: #2b3550; color: #e8e8f0; border: 1px solid #3d4a6a; border-radius: 4px;
+           padding: 6px 12px; font: inherit; cursor: pointer; }
+  button[aria-pressed="true"] { background: #3f5da8; border-color: #6f8fe0; }
+  label { display: inline-flex; gap: 6px; align-items: center; color: #a8b0c8; }
+</style>
+</head>
+<body>
+  <h1>Hero animation preview</h1>
+  <p class="hint">Draws the real <code>Hero</code> from <code>entities.js</code> through the same code path the
+    game uses, so the slash arc, the cast glow and the pose transforms are all included.</p>
+  <canvas id="stage" width="880" height="440"></canvas>
+  <div class="row" id="clips"></div>
+  <div class="row">
+    <button id="pause" aria-pressed="false">Pause</button>
+    <label><input type="checkbox" id="slow"> 0.25× speed</label>
+    <label><input type="checkbox" id="ground"> ground line</label>
+  </div>
+
+<script type="module">
+import { Hero } from './entities.js';
+import { HERO_FRAMES } from './hero/hero-frames.js';
+
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+// Hero coordinates come from renderer.js (HERO_X 110, GROUND_Y 312); offset the
+// whole scene so the stage shows them comfortably.
+const OFFSET_X = 280;
+const OFFSET_Y = 40;
+
+const hero = new Hero();
+
+const ACTIONS = {
+  idle: () => hero.setState('idle'),
+  walk: () => hero.setState('walk'),
+  swing: () => hero.setState('swing'),
+  hurt: () => hero.setState('hurt'),
+  victory: () => hero.setState('victory'),
+  dead: () => hero.setState('dead'),
+  'cast fire': () => hero.cast('fire'),
+  'cast bolt': () => hero.cast('bolt'),
+};
+
+let paused = false;
+let slow = false;
+let showGround = true;
+
+const clipButtons = document.getElementById('clips');
+for (const [label, action] of Object.entries(ACTIONS)) {
+  const button = document.createElement('button');
+  button.textContent = label;
+  button.addEventListener('click', () => {
+    action();
+    [...clipButtons.children].forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+  });
+  clipButtons.appendChild(button);
+}
+
+document.getElementById('pause').addEventListener('click', (e) => {
+  paused = !paused;
+  e.currentTarget.setAttribute('aria-pressed', String(paused));
+});
+document.getElementById('slow').addEventListener('change', (e) => { slow = e.target.checked; });
+document.getElementById('ground').addEventListener('change', (e) => { showGround = e.target.checked; });
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#24303c';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#33403a';
+  ctx.fillRect(0, 300, canvas.width, canvas.height - 300);
+
+  ctx.save();
+  ctx.translate(OFFSET_X, OFFSET_Y);
+  if (showGround) {
+    ctx.strokeStyle = 'rgba(255,64,128,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(-OFFSET_X, hero.y + 0.5);
+    ctx.lineTo(canvas.width, hero.y + 0.5);
+    ctx.stroke();
+  }
+  hero.draw(ctx);
+  ctx.restore();
+
+  const frame = HERO_FRAMES[hero.anim.frameId];
+  ctx.fillStyle = '#cfd6ea';
+  ctx.font = '13px ui-monospace, monospace';
+  ctx.fillText(`${hero.state} · ${hero.anim.clip} · ${hero.anim.frameId} ${frame.w}x${frame.h}`, 12, 20);
+}
+
+// Deterministic hook for screenshots and manual inspection: step the clip by
+// an exact number of seconds and draw once.
+window.__preview = {
+  hero,
+  set(state, seconds = 0) {
+    if (state.startsWith('cast')) hero.cast(state.split(' ')[1]);
+    else hero.setState(state);
+    hero.anim.update(seconds);
+    render();
+  },
+  render,
+};
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.1, (now - last) / 1000) * (slow ? 0.25 : 1);
+  last = now;
+  if (!paused) hero.update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

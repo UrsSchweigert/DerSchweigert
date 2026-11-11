@@ -172,7 +172,7 @@ function loop() {
   fiend.y = GROUND_Y;
   renderer.drawEntity(fiend);
   drawGroundLine();
-  drawMagnifier('hero', heroZoomCanvas, hero.x + 44);
+  drawMagnifier('hero', heroZoomCanvas, hero.x);
   drawMagnifier('fiend', fiendZoomCanvas, FIEND_CAL_X);
   requestAnimationFrame(loop);
 }
