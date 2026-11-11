@@ -4024,16 +4024,18 @@ if (platform.isApp) {
         totalLevels: TOTAL_LEVELS,
         practiceKinds: PRACTICE_KINDS,
       });
-      for (const id of ['first-open-notice-help', 'btn-notice-help']) {
-        const button = document.getElementById(id);
-        if (!button) continue;
-        button.hidden = false;
-        button.addEventListener('click', () => firstOpenNotice?.open());
-      }
-      // An already-unlocked player keeps both entries hidden (see
-      // syncNoticeHelp above); a locked one gets the buttons the moment the
-      // notice module reports in.
-      syncNoticeHelp();
+      // An owner of the unlock has nothing left to ask about what is free, so
+      // the entries are only revealed once the store status says locked:
+      // showing them first would flash them on an unlocked device.
+      syncNoticeHelp().then((unlocked) => {
+        if (unlocked) return;
+        for (const id of ['first-open-notice-help', 'btn-notice-help']) {
+          const button = document.getElementById(id);
+          if (!button) continue;
+          button.hidden = false;
+          button.addEventListener('click', () => firstOpenNotice?.open());
+        }
+      });
       return loadingDone
         // The story intro comes first, so the notice is not hidden behind it.
         .then(() => introAtOpen)
