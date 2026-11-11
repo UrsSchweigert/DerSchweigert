@@ -119,6 +119,20 @@
           <span class="diff-detail" data-i18n="difficulty.hard.detail">5 seconds · 3 hearts</span>
         </button>
       </div>
+      <!-- app-omit:start -->
+      <!-- Web only: the two store listings are announced before they are live.
+           Nothing here is a link yet, so the app bundle drops the whole block. -->
+      <div class="splash-store-row" role="group" aria-label="The app for iPhone and Android" data-i18n-aria-label="splash.storesLabel">
+        <span class="splash-store-badge store-badge--pending">
+          <img class="splash-store-icon" src="promo/art/ui/badge-appstore.svg" alt="" width="20" height="20" decoding="async">
+          <span data-i18n="splash.storeAppStore">Soon in the App Store</span>
+        </span>
+        <span class="splash-store-badge store-badge--pending">
+          <img class="splash-store-icon" src="promo/art/ui/badge-playstore.svg" alt="" width="20" height="20" decoding="async">
+          <span data-i18n="splash.storePlayStore">Soon on Google Play</span>
+        </span>
+      </div>
+      <!-- app-omit:end -->
       </section>
       <section data-title-page="leaderboard" class="title-page" hidden>
       <section id="leaderboard-section" class="splash-leaderboard" aria-live="polite">
@@ -138,9 +152,9 @@
         <ol id="leaderboard-list" class="leaderboard-list"></ol>
       </section>
       <nav class="screen-pagination" aria-label="Leaderboard pages">
-        <button id="leaderboard-prev" type="button" aria-label="Previous page">◀</button>
+        <button id="leaderboard-prev" type="button" aria-label="Previous page" data-page-direction="previous"></button>
         <span id="leaderboard-page" role="status">1</span>
-        <button id="leaderboard-next" type="button" aria-label="Next page">▶</button>
+        <button id="leaderboard-next" type="button" aria-label="Next page" data-page-direction="next"></button>
       </nav>
       </section>
       <section data-title-page="progress" class="title-page" hidden>
@@ -171,10 +185,10 @@
             <button type="button" id="btn-start-practice" class="action-primary" data-i18n="practice.start">Start practice</button>
           </div>
         </details>
-        <nav class="screen-pagination" aria-label="Progress pages">
-          <button id="personal-best-prev" type="button" aria-label="Previous page">◀</button>
+        <nav class="screen-pagination" aria-label="Practice pages">
+          <button id="personal-best-prev" type="button" aria-label="Previous page" data-page-direction="previous"></button>
         <span id="personal-best-page" role="status">1</span>
-        <button id="personal-best-next" type="button" aria-label="Next page">▶</button>
+        <button id="personal-best-next" type="button" aria-label="Next page" data-page-direction="next"></button>
         <button id="personal-history-toggle" type="button" data-title-target="history" data-i18n-aria-label="scoreHistory.title" aria-label="High score development">📈</button>
       </nav>
       </section>
@@ -209,7 +223,7 @@
       </div>
       <nav class="title-navigation" aria-label="Title pages">
         <button type="button" data-title-target="play" data-i18n="nav.play">Play</button>
-        <button id="title-progress-btn" type="button" data-title-target="progress" data-i18n="nav.progress">Progress</button>
+        <button id="title-progress-btn" type="button" data-title-target="progress" data-i18n="nav.progress">Practice</button>
         <button id="title-family-btn" type="button" data-title-target="family" data-i18n="nav.players" hidden>Players</button>
         <button id="title-levels-btn" type="button" data-title-target="levels" data-i18n="nav.levels" hidden>Levels</button>
         <button id="title-leaderboard-btn" type="button" data-title-target="leaderboard" data-i18n="nav.leaderboard">Ranks</button>
@@ -416,7 +430,7 @@
         <p id="pause-save-notice"></p>
         <p id="pause-save-error" class="error-msg" role="alert"></p>
         <button class="diff-btn" id="btn-pause-save" data-i18n-html="overlay.saveScoreReturnTitleHtml">Save Score &amp; Return to Title</button>
-        <button class="diff-btn" id="btn-pause-discard" data-i18n="overlay.discardScore">Discard Score &amp; Return to Title</button>
+        <button class="diff-btn action-danger" id="btn-pause-discard" data-i18n="overlay.discardScore">Discard Score &amp; Return to Title</button>
         <button class="diff-btn" id="btn-pause-back" data-i18n="overlay.backToPause">Back</button>
       </div>
       <details id="audio-settings" class="compact-disclosure">

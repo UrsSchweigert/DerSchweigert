@@ -126,6 +126,12 @@ the readable question area. Shapes counts agree across the canvas, DOM and answe
 Healing progress describes the left quarter of the playfield; recovery still takes nine seconds and is interrupted
 by injury. Experimental recovery is separate from ordinary hold-to-heal.
 
+The gameplay header keeps one height for the whole level. `#gameplay-feedback` reserves its reveal line
+(`min-height: 20px`, hidden with `visibility` rather than removed) and `#active-question` reserves the two-row
+Shapes header (`data-two-row-question` on `#gameplay-chrome`, 52px on Shapes levels) between problems and during
+the reveal. `viewport-layout.js` lays the scene out from the measured header height, so a collapsing question row
+or a growing reveal line used to rescale the playfield and the answer grid after every wrong answer.
+
 Arithmetic results include correct first answers out of questions attempted and best consecutive-correct streak.
 A requeued copy is not a new first attempt; corrected answers, mistakes and timeouts are tracked separately.
 Native cleared-level summaries are saved atomically with that player's score and completion receipt, and compared
@@ -135,6 +141,9 @@ not mastery certification. Web summaries are transient and do not change the sco
 
 Pause, healing-tip and result overlays isolate the background and manage keyboard focus. Native quit offers one
 Return to Title action and explains that cleared progress stays saved while the unfinished attempt is not banked.
+The contextual help dialog warns above its manual link that the full manual is a separate page and ends the running
+level whenever help was opened during a run (play, practice or pause); title-screen help carries no such warning.
+Discarding a score and deleting a player use the red danger tier, saving and resuming use the brass primary tier.
 
 ### Optional practice and introductions
 
@@ -173,7 +182,7 @@ layers cannot intercept controls. Interface words remain intact; sentences may w
 at spaces, and compact navigation uses a proportional font to fit complete labels.
 Both website and app show the selected starting level as hand-drawn, illuminated
 SVG numerals in the title's upper-left corner, with a localized accessible label.
-Progress explains the selected training mode beside its selector. In the app,
+The Practice tab (German: Training) explains the selected training mode beside its selector. In the app,
 player-name editing and deletion hide purchase/notice content until the stage
 closes. Terms navigation and manual navigation use stacked forest/brass buttons;
 the manual offers a game-return action above its contents and at the bottom.
@@ -234,7 +243,7 @@ them is owner-reviewed: this branch changes no `android/`, `ios/`,
 Shared wiring calls `initViewportLayout({win,doc})` once; its `{refresh,destroy}` API is layout-only. Title
 navigation buttons use `data-title-target`, and parent wiring toggles `hidden` on matching `data-title-page`
 stages (`play`, `progress`, `history`, `family`, `leaderboard`, `levels`, `legal`). `#local-profiles` is initially hidden and
-contains `#profile-root`; the website keeps family controls hidden. Progress uses `#personal-development-error`
+contains `#profile-root`; the website keeps family controls hidden. Practice uses `#personal-development-error`
 and `#personal-best-prev`, `#personal-best-page`, `#personal-best-next` (three records per page); leaderboard
 has matching `#leaderboard-prev/page/next` controls. `#personal-history-toggle` opens the separate history
 stage (chart and completed overview), leaving three best rows visible even on tiny landscape screens.

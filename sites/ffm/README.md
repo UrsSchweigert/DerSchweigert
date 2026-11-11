@@ -93,6 +93,17 @@ Browser
   upcoming spell thresholds and healing progress. Results show first-answer accuracy and best streak;
   native summaries compare only the same player's previous level/difficulty clear. These are
   optional personal replay goals, not proficiency certification.
+- The gameplay header keeps one height for the whole level: `#gameplay-feedback` always reserves its
+  reveal line and the app reserves the two-row Shapes question (`data-two-row-question`). `viewport-layout.js`
+  sizes the scene from the measured header, so a header that grew on a wrong answer used to rescale the
+  playfield and the answer grid after every reveal.
+- The title screen's "Practice" tab (German "Training") is the old Progress tab; the name follows what the
+  player does there. The per-player bests and history it lists keep the word "progress" in their status copy.
+- Buttons have three visible tiers: brass *primary* (thicker 2px line plus a drawn diamond: start practice,
+  resume, next level, save a score), red *danger* (discard a score, delete a player) and quiet
+  navigation/pagination, whose paging arrows are drawn with CSS borders rather than glyphs.
+- The web title screen shows both app-store listings as non-clickable "soon" badges
+  (`<!-- app-omit:start -->`, so the Capacitor bundle drops them) until the listings are live.
 - Authors can assign bundled songs per level without an in-app picker; see
   [mobile/MUSIC.md](mobile/MUSIC.md) for the catalogue, credits, assignment and rebuild steps.
 

@@ -143,7 +143,7 @@ export function buildEntitlementMarkup({
     '  <div class="entitlement-actions">',
   ];
   if (showBuy) {
-    lines.push(`    <button type="button" class="diff-btn" data-entitlement-action="buy"${disabled}>${escapeHtml(buy)}</button>`);
+    lines.push(`    <button type="button" class="diff-btn action-primary" data-entitlement-action="buy"${disabled}>${escapeHtml(buy)}</button>`);
   }
   lines.push(`    <button type="button" class="diff-btn" data-entitlement-action="restore"${disabled}>${escapeHtml(restore)}</button>`);
   lines.push('  </div>');

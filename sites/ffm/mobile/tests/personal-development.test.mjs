@@ -175,13 +175,13 @@ test('the panel strings exist in English and German', async () => {
   assert.match(html, /data-i18n="personalDevelopment\.title"/);
 
   setLocale('en', { persist: false });
-  assert.equal(t('personalDevelopment.title'), 'My progress');
+  assert.equal(t('personalDevelopment.title'), 'Practice');
   assert.equal(t('personalDevelopment.perLevelBest', { level: 3, score: 12 }), 'Level 3: 12 points');
   assert.equal(t('personalDevelopment.completed', { completed: 2, total: 60 }), '2 of 60 levels completed');
   assert.ok(t('personalDevelopment.noProgress').length > 0);
 
   setLocale('de', { persist: false });
-  assert.equal(t('personalDevelopment.title'), 'Mein Fortschritt');
+  assert.equal(t('personalDevelopment.title'), 'Training');
   assert.equal(t('personalDevelopment.perLevelBest', { level: 3, score: 12 }), 'Level 3: 12 Punkte');
   assert.equal(t('personalDevelopment.completed', { completed: 2, total: 60 }), '2 von 60 Leveln geschafft');
   assert.ok(t('personalDevelopment.noProgress').length > 0);

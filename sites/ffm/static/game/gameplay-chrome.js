@@ -27,8 +27,21 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
     shapesHeader = renderer && typeof renderer.render === 'function' ? renderer : null;
     return shapesHeader;
   }
+  /**
+   * Reserve the two-row question height for the whole Shapes level, not just
+   * while a problem is on screen. Without the marker the question row drops
+   * from two rows to the empty single-line minimum between problems and during
+   * the reveal, and the header (and with it the scene layout) jumps. The app
+   * overlay stylesheet turns the marker into the reserved height.
+   */
+  function setQuestionReserve(shapesLevel) {
+    if (!chrome?.dataset) return;
+    const value = shapesHeader && shapesLevel ? 'true' : 'false';
+    if (chrome.dataset.twoRowQuestion !== value) chrome.dataset.twoRowQuestion = value;
+  }
   function update(state = {}, problem = null) {
     if (!chrome) return;
+    setQuestionReserve(!!state.isShapesMode);
     const active = !!problem && !state.paused && !state.reveal && !!(state.questionActive ?? state.timerActive);
     let question = '';
     let questionOwned = false;
