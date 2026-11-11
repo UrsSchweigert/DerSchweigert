@@ -982,6 +982,13 @@ def export_edit_sheet(frames: list[Frame], path: Path, cols: int = 4,
 
 
 
+def _specks(image: np.ndarray) -> list[int]:
+    """Sizes of the detached parts of a frame, biggest first."""
+    labels, count = _components(image[:, :, 3] > 0)
+    sizes = sorted((int((labels == lab).sum()) for lab in range(1, count + 1)), reverse=True)
+    return sizes[1:]
+
+
 GUIDE_COLOURS = (SHEET_RED, SHEET_AMBER, SHEET_LABEL, SHEET_PIVOT, SHEET_CENTRE)
 
 
@@ -1019,7 +1026,20 @@ def _erase_guides(crop: np.ndarray, annotation: np.ndarray) -> np.ndarray:
     return out
 
 
-def import_edit_sheet(path: Path) -> tuple[list[Frame], list[str]]:
+def _drop_specks(image: Image.Image, minimum: int) -> Image.Image:
+    """Remove detached parts of a frame smaller than `minimum` pixels."""
+    a = np.array(image)
+    labels, count = _components(a[:, :, 3] > 0)
+    keep = np.zeros_like(labels, dtype=bool)
+    for lab in range(1, count + 1):
+        part = labels == lab
+        if part.sum() >= minimum:
+            keep |= part
+    a[~keep] = 0
+    return _crop_to_content(a)
+
+
+def import_edit_sheet(path: Path, drop_specks: int = 0) -> tuple[list[Frame], list[str]]:
     """Read a hand-edited `--export-sheet` image back into frames.
 
     Each pose is cropped to its own cell, the guide lines are erased, and the
@@ -1058,7 +1078,16 @@ def import_edit_sheet(path: Path) -> tuple[list[Frame], list[str]]:
             notes.append(f"{entry['id']}: art touches the cell border and will be "
                          f"cropped there")
         image = _crop_to_content(crop)
+        if drop_specks:
+            image = _drop_specks(image, drop_specks)
         frames.append(Frame(entry["id"], image, f"edited:{path.name}", None, 0))
+        # A stray brush mark in the sheet becomes part of the frame and drags
+        # its bounding box (and so its pivot) with it, so say so instead of
+        # quietly shipping it.
+        marks = _specks(np.array(image))
+        if marks:
+            notes.append(f"{entry['id']}: {len(marks)} detached speck(s) "
+                         f"(largest {marks[0]}px) - part of the frame")
     order = {f.id: i for i, f in enumerate(frames)}
     frames.sort(key=lambda f: (FRAME_ORDER.index(f.id) if f.id in FRAME_ORDER else 99,
                                order[f.id]))
@@ -1081,6 +1110,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--from-sheet", metavar="PATH",
                         help="build the atlas from a hand-edited --export-sheet image "
                              "(uses the .json layout written next to it)")
+    parser.add_argument("--drop-specks", type=int, metavar="PX", default=0,
+                        help="with --from-sheet: drop detached brush marks smaller than PX "
+                             "pixels (a stray mark otherwise drags the frame's box and pivot)")
     parser.add_argument("--strict", action="store_true",
                         help="treat sword-check warnings as failures (use in CI)")
     parser.add_argument("--check", action="store_true",
@@ -1088,7 +1120,7 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     if args.from_sheet:
-        frames, notes = import_edit_sheet(Path(args.from_sheet))
+        frames, notes = import_edit_sheet(Path(args.from_sheet), drop_specks=args.drop_specks)
         missing = [f for f in FRAME_ORDER if f not in {frame.id for frame in frames}]
         print(f"imported {len(frames)} frames from {args.from_sheet}")
         for note in notes:
