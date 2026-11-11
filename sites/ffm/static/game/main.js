@@ -1428,6 +1428,24 @@ practiceLevelSelect?.addEventListener('change', () => {
 practicePanel?.addEventListener('toggle', () => {
   if (practicePanel.open) resetLevelSummaries();
 });
+/**
+ * The practice panel is a submenu of the Training tab, so it needs its own way
+ * back: the button closes it and returns focus to the summary that opened it.
+ * Escape does the same for keyboard and switch users.
+ */
+function closePracticePanel() {
+  if (!practicePanel?.open) return false;
+  practicePanel.open = false;
+  practicePanel.querySelector('summary')?.focus?.();
+  return true;
+}
+document.getElementById('btn-close-practice')?.addEventListener('click', closePracticePanel);
+practicePanel?.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !practicePanel.open) return;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  closePracticePanel();
+});
 setPracticeLevelOptions();
 updatePracticeLevelHint();
 

@@ -190,7 +190,12 @@ near-identical text sizes or uses pure white for body copy.
 
 Both website and app show the selected starting level as hand-drawn, illuminated
 SVG numerals in the title's upper-left corner, with a localized accessible label.
-The Practice tab (German: Training) explains the selected training mode beside its selector and names the
+The Practice tab (German: Training) opens "Practice sessions" / "Übungseinheiten" as a submenu: its summary
+carries the tab's own heading style and a Back button (plus Escape) closes it and returns focus to the summary.
+Long passages in dialogs and panels are left-aligned with an 8px side inset and 8px of air before the action
+that ends them; only the welcome text, headings and one-line labels stay centred. Every menu label stays inside
+its button: words break only as a last resort and the tab row wraps onto a second line instead of clipping.
+The tab explains the selected training mode beside its selector and names the
 selected level's arithmetic in one line ("Level 15: addition and subtraction, results up to 20 · 10 answer
 choices"), read from the same authorized level config the session runs on, so it cannot drift from the
 curriculum; a locked level says so instead of inventing a summary. Disclosure labels ("Practice sessions",

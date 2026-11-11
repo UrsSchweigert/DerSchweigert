@@ -104,6 +104,9 @@ Browser
 - Buttons have three visible tiers: brass *primary* (thicker 2px line plus a drawn diamond: start practice,
   resume, next level, save a score), red *danger* (discard a score, delete a player) and quiet
   navigation/pagination, whose paging arrows are drawn with CSS borders rather than glyphs.
+- Running text in dialogs is left-aligned with an 8px side inset and margin before the action; the welcome text,
+  headings and one-line labels stay centred. The Training tab's practice panel is a submenu (tab-styled summary,
+  Back button and Escape) and menu labels never spill out of their buttons (tabs wrap instead of clipping).
 - Menu typography comes from one scale in `static/styles.css` (`--text-button`, `--text-body`,
   `--text-option`, `--text-heading`): buttons use the title-page tab size in `system-ui`, body copy uses the
   difficulty-explanation size, and bold/ivory are reserved for headings, the selected tab and the primary

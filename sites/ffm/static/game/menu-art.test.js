@@ -16,7 +16,8 @@ test('sharp title and blurred overlays use redesigned bundled art without interc
 });
 
 test('interface text wraps at word boundaries and compact navigation keeps whole labels', () => {
-  assert.match(css, /button\s*\{\s*overflow-wrap:\s*normal;\s*word-break:\s*normal;\s*hyphens:\s*none;/);
+  assert.match(css, /button\s*\{\s*overflow-wrap:\s*break-word;\s*word-break:\s*normal;\s*hyphens:\s*none;/,
+    'words stay whole and only break inside the button as a last resort');
   assert.match(css, /\.title-navigation button\s*\{[^}]*white-space:\s*nowrap/s);
   assert.match(css, /:where\(\.overlay\) :where\(button, summary, select\) \{[^}]*font-family:\s*var\(--font-ui\)/s,
     'menu buttons take their font from the shared button default');
@@ -55,6 +56,24 @@ test('the menus share one type scale: tab-sized buttons, explanation-sized copy'
   assert.doesNotMatch(css, /:where\(\.overlay\)[^{]*#game-wrap/);
   assert.match(css, /\.mc-btn \{[^}]*font-size:\s*clamp\(18px, 2\.5vw, 24px\);/s);
   assert.match(css, /#active-question \{[^}]*font-size:\s*22px;/s);
+});
+
+test('long passages are left-aligned with side padding and air before the action', () => {
+  const rule = css.match(/(\/\* Running text in dialogs[\s\S]*?)\n\n/)?.[1];
+  assert.ok(rule, 'running-text rule missing');
+  assert.match(rule, /text-align:\s*left;/);
+  assert.match(rule, /padding-inline:\s*8px;/, 'passages keep a side inset from the card edge');
+  assert.match(rule, /margin-block-end:\s*8px;/, 'space stays between a passage and the action below it');
+  for (const surface of ['.overlay-card', '.paywall-card', '.parental-gate-card',
+    '.entitlement-panel', '.practice-controls', '.app-help-card', '.first-open-notice-card']) {
+    assert.ok(rule.includes(surface), `${surface} must follow the running-text rule`);
+  }
+  // One-line labels and the welcome text keep their centred presentation.
+  assert.ok(rule.includes('p:not(.player-identity)'));
+  assert.doesNotMatch(rule, /splash-intro|splash-subtitle|#continue-level/);
+  assert.doesNotMatch(css, /\.first-open-notice-card p \{ text-align: center; \}/,
+    'the notice copy is a passage, not a centred label');
+  assert.doesNotMatch(css, /\.title-play-intro \.splash-intro \{[^}]*text-align:\s*left/s);
 });
 
 test('title is centered independently of utility buttons and headings retain the original font', () => {

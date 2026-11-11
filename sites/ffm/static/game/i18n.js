@@ -242,6 +242,8 @@ const DICTIONARY = {
   'practice.listAnd': { en: ' and ', de: ' und ' },
   'practice.badges': { en: 'Practice badges', de: 'Übungsabzeichen' },
   'practice.start': { en: 'Start practice', de: 'Training starten' },
+  // The panel is a submenu of the Training tab, so it needs its own way back.
+  'practice.back': { en: 'Back', de: 'Zurück' },
   'practice.unscoredNotice': {
     en: 'Practice is unscored and does not change campaign progress.',
     de: 'Training ist unbewertet und verändert den Abenteuerfortschritt nicht.',
