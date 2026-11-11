@@ -61,7 +61,8 @@ function setFiendRatio(id, ratio) {
 }
 
 function selectClass(id) {
-  selectedId = ((id - 1 + 36) % 36) + 1;
+  const count = FIEND_CLASSES.length;
+  selectedId = ((id - 1 + count) % count) + 1;
   classSelect.value = String(selectedId);
   applyLive();
 }
@@ -109,15 +110,16 @@ document.getElementById('copy-btn').addEventListener('click', () => {
   const finalRatios = DEFAULT_RATIOS.map((def, idx) =>
     sessionRatioOverrides.has(idx + 1) ? sessionRatioOverrides.get(idx + 1) : def
   );
-  const set1 = finalRatios.slice(0, 18).map(trimNum).join(', ');
-  const set2 = finalRatios.slice(18, 36).map(trimNum).join(', ');
-  const code = `// --- entities.js: replace "let _heroGroundOffsetPx = 6 * P;" with ---\n`
+  const rows = [];
+  for (let start = 0; start < finalRatios.length; start += 18) {
+    rows.push(finalRatios.slice(start, start + 18).map(trimNum).join(', '));
+  }
+  // One flat table, one entry per class (18 young, 18 old, 18 ancient, 6 dragons).
+  const body = rows.map((row, index) => `  // ${['young', 'old', 'ancient', 'dragons'][index] ?? 'class'}\n  ${row},`).join('\n');
+  const code = `// --- entities.js: replace the hero ground offset with ---\n`
     + `let _heroGroundOffsetPx = ${heroOffsetPx};\n\n`
-    + `// --- difficulty-classes.js: replace the BOTTOM_PAD_RATIO object with ---\n`
-    + `const BOTTOM_PAD_RATIO = {\n`
-    + `  1: [${set1}],\n`
-    + `  2: [${set2}],\n`
-    + `};\n`;
+    + `// --- difficulty-classes.js: replace the BOTTOM_PAD_RATIO array with ---\n`
+    + `const BOTTOM_PAD_RATIO = [\n${body}\n];\n`;
   const out = document.getElementById('output');
   out.value = code;
   navigator.clipboard?.writeText(code).catch(() => {});
