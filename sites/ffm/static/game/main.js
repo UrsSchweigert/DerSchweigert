@@ -3546,6 +3546,13 @@ function gameLoop(ts) {
       // accelerates into the strike and the return decelerates into the home
       // position. A linear slide plus a dead stop is what made the old lunge
       // read as a sprite being dragged across the screen.
+      // The legs carry the dash: the walk cycle is what makes the travel read
+      // as running, and it keeps the feet moving while the hero crosses the
+      // screen. A swing/hurt/dead clip owns its own frames, so it plays out
+      // first and the walk takes over on the way back.
+      if (hero.state !== 'swing' && hero.state !== 'hurt' && hero.state !== 'dead') {
+        hero.setState('walk');
+      }
       if (heroLunge.phase === 'out') {
         // chase the fiend's current position so they meet naturally
         const targetX = heroLunge.fiend.x - 65;
@@ -3585,6 +3592,10 @@ function gameLoop(ts) {
     }
 
     activatePendingProblem();
+
+    // The dash is over: drop the walk cycle so the hero does not keep running
+    // on the spot (and so the idle scroll below cannot start on its own).
+    if (!heroLunge && hero.state === 'walk') hero.setState('idle');
 
     if (hero.state === 'walk' && !heroLunge) state.scrollX += 100 * dt;
     hero.lunging = heroLunge !== null && hero.state !== 'swing';

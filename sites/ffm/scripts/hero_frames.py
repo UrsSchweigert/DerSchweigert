@@ -507,17 +507,29 @@ def _strip_baked_shadow(image: Image.Image) -> tuple[Image.Image, int]:
 
 
 def _pivot(image: Image.Image) -> tuple[int, int]:
-    """Foot contact point in frame pixels: bottom row, weight centre of it."""
+    """Ground point in frame pixels: torso centre, lowest opaque row.
+
+    The x anchor is the torso's centre of mass (rows 25-75%, i.e. chest, belt
+    and thighs), not the midpoint of the bottom band. The bottom band is the
+    two boots in a standing pose, a single boot in a passing walk pose and the
+    blade tip whenever it dips below the feet, so the old min/max midpoint
+    moved the anchor by up to 18 px between frames of the same idle cycle and
+    the hero visibly slid sideways while breathing. Torso mass stays put
+    across a walk cycle and still follows the body in the poses that are meant
+    to travel (strike, hurt, fall).
+    """
     a = np.array(image)
     alpha = a[:, :, 3]
-    # A narrow band: the bottom of a wide pose is the boots, while a taller band
-    # would average in a low sword tip or a trailing cape.
-    rows = max(1, image.height // 24)
-    band = alpha[-rows:, :] > 0
-    xs = np.nonzero(band.any(axis=0))[0]
-    cx = int(round((xs.min() + xs.max()) / 2)) if xs.size else image.width // 2
     ys = np.nonzero(alpha.any(axis=1))[0]
-    return cx, int(ys.max())
+    if not ys.size:
+        return image.width // 2, image.height - 1
+    top, bottom = int(ys.min()), int(ys.max())
+    lo = top + int((bottom - top) * 0.25)
+    hi = top + int((bottom - top) * 0.75)
+    torso = alpha[lo:hi + 1, :] > 0
+    xs = np.nonzero(torso)[1]
+    cx = int(round(float(xs.mean()))) if xs.size else image.width // 2
+    return cx, bottom
 
 
 def collect() -> tuple[list[Frame], list[str]]:

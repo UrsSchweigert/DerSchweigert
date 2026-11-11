@@ -187,21 +187,26 @@ export class HeroAnimator {
     if (!clip) return;
     this._elapsed += dt * 1000;
     let guard = 0;
-    while (this._elapsed >= clip.frames[this._index].ms && guard++ < 64) {
-      this._elapsed -= clip.frames[this._index].ms;
+    while (guard++ < 64) {
+      const frame = clip.frames[this._index];
+      if (this._elapsed < frame.ms) return;
       const last = this._index === clip.frames.length - 1;
       if (last && !clip.loop) {
-        // Park on the final pose; `finished` stays true until play() moves on.
-        this._elapsed = Math.min(this._elapsed, clip.frames[this._index].ms);
+        // Park ON the final pose by keeping its full duration. Carrying the
+        // overshoot (the old behaviour) left `_elapsed` part-way through the
+        // last frame, so `finished` never became true for a clip of more than
+        // one frame and the hero stayed in its swing/cast pose forever.
+        this._elapsed = frame.ms;
         if (!this._done) {
           this._done = true;
           this._emit('done');
         }
         return;
       }
+      this._elapsed -= frame.ms;
       this._index = last ? 0 : this._index + 1;
-      const frame = clip.frames[this._index];
-      if (frame.at) this._emit(frame.at);
+      const next = clip.frames[this._index];
+      if (next.at) this._emit(next.at);
     }
   }
 

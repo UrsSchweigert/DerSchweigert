@@ -617,7 +617,13 @@ the old fixed 6x4 sprite grid:
   `static/game/source-assets/hero-spritesheet-clean.png` and the generated poses in
   `static/game/source-assets/hero-poses/`. Frames are extracted as their largest
   connected blob, so a neighbouring pose can never bleed into a frame, and each
-  frame carries an explicit foot contact point instead of one hand-tuned offset.
+  frame carries an explicit ground pivot instead of one hand-tuned offset. The
+  pivot's x is the torso's centre of mass (rows 25-75% of the frame), not the
+  midpoint of the bottom row: the bottom row is the two boots when standing, a
+  single boot in a passing walk pose, and the blade tip whenever the blade dips
+  below the feet, which moved the anchor by up to 18 px between frames of the
+  same idle cycle and made the hero slide sideways while breathing. `py` stays
+  the lowest opaque row, so the feet stay on `GROUND_Y`.
   Rebuild with `python3 sites/ffm/scripts/hero_frames.py`.
   The same run verifies the sword in every pose: the blade has to run straight
   from hilt to tip (cross-sections measured against the hilt-tip line, hidden
@@ -648,9 +654,16 @@ the old fixed 6x4 sprite grid:
 - `sites/ffm/static/game/hero-anim.js` holds the clips: frame durations, which
   frame fires `hit`, and the `track()` function that leans/bobs/squashes the
   pose. Timing is wall-clock based, so playback does not depend on the display
-  refresh rate.
+  refresh rate. A non-looping clip parks on its last frame with that frame's
+  full duration and then reports `finished`, which is what hands the hero back
+  to `idle`; `hero-anim.test.js` steps a clip in 16 ms slices, because a single
+  large step hides an overshoot that leaves the hero stuck in his swing pose.
 - `sites/ffm/static/game/hero-preview.html` plays every clip through the real
   `Hero` class (dev tool, not bundled into the app).
+- The dash to and from a fiend plays the `walk` clip (main.js's `heroLunge`
+  block): the hero walks out, the `swing` clip owns the strike frames, and the
+  walk resumes for the way back. A `swing`/`hurt`/`dead` clip is never cut
+  short by the walk; it plays out first.
 - The generated poses in `source-assets/hero-poses/` were made with
   `fal-ai/flux-pro/kontext` (approved for commercial use in
   `static/story/ART-BIBLE.md`) from a ×4 nearest-neighbour plate of the
