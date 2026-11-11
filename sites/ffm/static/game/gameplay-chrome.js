@@ -34,9 +34,25 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
     }
   }
   const message = (key, fallback) => translate?.(key) || fallback;
+  // Once the HUD has been on screen, hiding it keeps the element in normal
+  // flow and only makes it invisible. display:none collapsed its grid row,
+  // which yanked the whole playfield upwards the instant the HUD was hidden
+  // behind the level-clear, pause or game-over overlay.
+  let everShown = false;
+
   function setVisible(visible) {
     if (!chrome) return;
-    chrome.hidden = !visible;
+    if (visible) everShown = true;
+    if (everShown) {
+      chrome.hidden = false;
+      const style = chrome.style || (chrome.style = {});
+      style.visibility = visible ? '' : 'hidden';
+      style.pointerEvents = visible ? '' : 'none';
+      if (visible) chrome.removeAttribute?.('aria-hidden');
+      else chrome.setAttribute?.('aria-hidden', 'true');
+    } else {
+      chrome.hidden = true;
+    }
     if (!visible) {
       shapesHeader?.clear?.();
       setQuestionLines(null);

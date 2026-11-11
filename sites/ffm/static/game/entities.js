@@ -1008,6 +1008,7 @@ export class Fiend extends Entity {
   }
 
   get isDead() { return this.hp <= 0; }
+  get palette() { return this._pal; }
   // Fixed once retreat begins (see setState), so the pace stays constant for
   // the whole flight off-screen instead of drifting with the fiend's walk speed.
   get retreatSpeed() { return this._retreatSpeed; }
