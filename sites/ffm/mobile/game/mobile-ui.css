@@ -153,11 +153,12 @@
 }
 
 /* The two rows are reserved for the whole Shapes level, not only while a
- * problem is on screen: gameplay-chrome.js marks the level and the question
+ * problem is on screen: gameplay-chrome.js marks the mode and the question
  * row keeps its 52px (2 x 26px rows) between problems and during the reveal.
  * A collapsing row would change the header height, and viewport-layout.js
- * rescales the whole scene from the measured header. */
-#gameplay-chrome[data-two-row-question="true"] #active-question {
+ * rescales the whole scene from the measured header. The campaign keeps one
+ * row; its question never wraps (see the nowrap rule further down). */
+#gameplay-chrome[data-question-rows="2"] #active-question {
   min-height: 52px;
 }
 
@@ -424,15 +425,15 @@
 /* The extra help column must not pull .gameplay-readouts into the question's
  * row as an auto-width column: that collapsed the question column to 0px and
  * broke "48 × 12 = ?" onto several lines. Every child gets an explicit row:
- * the question has the full first line to itself (and never wraps), the
- * readouts share the next line with the help and pause buttons. */
+ * the question has the full first line to itself (and never wraps; Shapes keeps
+ * two), then the readouts share the next line with the help and pause buttons.
+ * There is no reveal row any more - the correction reuses the question row. */
 #gameplay-chrome { grid-template-columns: minmax(0, 1fr) auto auto; }
 #gameplay-chrome #active-question { grid-column: 1 / -1; grid-row: 1; white-space: nowrap; }
-#gameplay-chrome #gameplay-feedback { grid-column: 1 / -1; grid-row: 2; }
-#gameplay-chrome .gameplay-readouts { grid-column: 1; grid-row: 3; }
-#gameplay-chrome .app-help-button[data-help-host="play"] { grid-column: 2; grid-row: 3; }
-#gameplay-chrome #btn-pause-game { grid-column: 3; grid-row: 3; }
-#gameplay-chrome .app-header-timer { grid-row: 4; }
+#gameplay-chrome .gameplay-readouts { grid-column: 1; grid-row: 2; }
+#gameplay-chrome .app-help-button[data-help-host="play"] { grid-column: 2; grid-row: 2; }
+#gameplay-chrome #btn-pause-game { grid-column: 3; grid-row: 2; }
+#gameplay-chrome .app-header-timer { grid-row: 3; }
 
 .title-navigation .app-help-button {
   justify-self: stretch;

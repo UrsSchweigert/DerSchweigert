@@ -72,17 +72,44 @@ body {
   overflow-wrap: normal;
 }
 
-/* The reveal line is always reserved. Feedback only appears for a wrong
- * answer or a timeout, but the header must not change height then: the
- * playfield and the answer grid are laid out from the measured header (see
- * viewport-layout.js), so a growing header would rescale the scene. */
-#gameplay-feedback {
-  grid-column: 1 / -1;
-  min-height: 20px;
-  font-weight: bold;
-  overflow-wrap: normal;
+/* The question row is reserved per mode: Shapes needs two rows (the
+ * "Count the shapes" instruction and the shapes themselves), the campaign
+ * needs one (the problem). gameplay-chrome.js publishes the marker for the
+ * whole level, so the row keeps its height between problems and during the
+ * reveal. The campaign's single row never wraps: a second line would grow the
+ * header and rescale the scene (see viewport-layout.js). */
+#gameplay-chrome[data-question-rows="2"] #active-question { min-height: 56px; }
+/* Shapes writes its question as two block rows (instruction, shapes) - see
+ * gameplay-chrome.js. Each row stays on one line, so the mode's two reserved
+ * rows are exactly what is drawn. */
+#active-question[data-shapes-header="two-rows"] {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  row-gap: 0;
 }
-#gameplay-feedback:empty { visibility: hidden; }
+#active-question[data-shapes-header="two-rows"] > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  font: bold 22px/28px monospace;
+}
+
+#gameplay-chrome[data-question-rows="1"] #active-question {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A wrong answer or a timeout writes the correction into #active-question, in
+ * place of the problem. There is deliberately no separate reveal row: it would
+ * either stand empty (an unexplained gap in the header) or grow the header on
+ * the reveal, and viewport-layout.js lays the scene out from the measured
+ * header.
+ */
 .gameplay-readouts > span:empty { display: none; }
 .gameplay-readouts {
   display: flex;
@@ -113,7 +140,7 @@ body {
   #active-question { font-size: 22px; line-height: 28px; min-height: 28px; }
   .gameplay-readouts { font-size: 16px; line-height: 20px; gap: 2px 6px; }
   #btn-pause-game { grid-column: 2; grid-row: 1 / span 3; }
-  #active-question, #gameplay-feedback { grid-column: 1; }
+  #active-question { grid-column: 1; }
 }
 
 #game {

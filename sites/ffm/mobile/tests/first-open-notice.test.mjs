@@ -264,6 +264,20 @@ test('a corrupt acknowledgement document reads as not acknowledged', async () =>
   assert.equal(view.visible, true);
 });
 
+test('an already-unlocked player is not offered the "What is free?" entries', async () => {
+  const main = await readFile(join(root, '..', 'static', 'game', 'main.js'), 'utf8');
+  // Reading the cached store entitlement is what decides it; the app adapter
+  // answers it from the on-device cache, the web build never shows the buttons.
+  assert.match(main, /async function syncNoticeHelp\(\) \{\s*if \(!platform\.isApp\) return false;/);
+  assert.match(main, /\(await platform\.getBillingStatus\(\)\)\?\.premium_access === true/);
+  assert.match(main, /if \(button\) button\.hidden = unlocked;/,
+    'an unlocked player keeps both entries hidden');
+  assert.match(main, /onGranted: \(\) => syncNoticeHelp\(\),/,
+    'a finished purchase removes them immediately');
+  assert.match(main, /refreshEntitlement\(\)\.then\(\(\) => syncNoticeHelp\(\), \(\) => false\)/,
+    'the launch and resume refreshes re-check the cache');
+});
+
 test('main.js, index.html and the modal focus helper wire the notice app-only', async () => {
   const main = await readFile(join(root, '..', 'static', 'game', 'main.js'), 'utf8');
   assert.doesNotMatch(main, /from '\.\/first-open-notice\.js'/, 'no static import on the web build');

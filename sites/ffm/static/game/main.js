@@ -77,13 +77,34 @@ let volumeControl = null;
 // play area, the pause menu and the title navigation.
 let helpOverlay = null;
 
+// App-only: a player who owns the unlock has nothing left to be told about
+// what is free, so the "What is free?" entries follow the store entitlement.
+// The buttons start hidden in the markup and are revealed by the first-open
+// notice; this keeps them in step on launch, after a purchase and on a resume
+// refresh. The web build never shows them, so it never asks.
+async function syncNoticeHelp() {
+  if (!platform.isApp) return false;
+  let unlocked = false;
+  try {
+    unlocked = (await platform.getBillingStatus())?.premium_access === true;
+  } catch {
+    unlocked = false;
+  }
+  for (const id of ['first-open-notice-help', 'btn-notice-help']) {
+    const button = document.getElementById(id);
+    if (button) button.hidden = unlocked;
+  }
+  return unlocked;
+}
+
 // The app caches the store entitlement on device. Refresh it on launch and on
 // every return to the foreground, so a refund made while the app was closed
 // revokes access and a purchase finished outside the app is picked up.
 if (platform.isApp) {
-  platform.refreshEntitlement().catch(() => false);
+  platform.refreshEntitlement().then(() => syncNoticeHelp(), () => false);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') platform.refreshEntitlement().catch(() => false);
+    if (document.visibilityState !== 'visible') return;
+    platform.refreshEntitlement().then(() => syncNoticeHelp(), () => false);
   });
   // The app bundles its own privacy, imprint, terms and licence pages (see
   // ./legal.js); replace the web legal footer with localized links to them.
@@ -3817,6 +3838,9 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
         platform,
         getLocale,
         totalLevels: TOTAL_LEVELS,
+        // A finished purchase unlocks everything, so the "What is free?"
+        // entries have nothing left to answer.
+        onGranted: () => syncNoticeHelp(),
       });
     }
   }
@@ -3847,6 +3871,10 @@ if (platform.isApp) {
         button.hidden = false;
         button.addEventListener('click', () => firstOpenNotice?.open());
       }
+      // An already-unlocked player keeps both entries hidden (see
+      // syncNoticeHelp above); a locked one gets the buttons the moment the
+      // notice module reports in.
+      syncNoticeHelp();
       return loadingDone
         // The story intro comes first, so the notice is not hidden behind it.
         .then(() => introAtOpen)

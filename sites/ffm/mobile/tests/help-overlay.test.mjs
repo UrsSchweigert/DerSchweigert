@@ -226,8 +226,8 @@ test('app-only styles keep 44px help targets and the play button out of the time
   const block = css.slice(start);
   assert.match(block, /\.app-help-button \{[^}]*min-height: 44px/s);
   assert.match(block, /\.app-help-button \{[^}]*min-width: 44px/s);
-  assert.match(block, /#gameplay-chrome \.app-help-button\[data-help-host="play"\] \{ grid-column: 2; grid-row: 3; \}/);
-  assert.match(block, /#gameplay-chrome #btn-pause-game \{ grid-column: 3; grid-row: 3; \}/);
+  assert.match(block, /#gameplay-chrome \.app-help-button\[data-help-host="play"\] \{ grid-column: 2; grid-row: 2; \}/);
+  assert.match(block, /#gameplay-chrome #btn-pause-game \{ grid-column: 3; grid-row: 2; \}/);
   assert.match(block, /\.app-help-overlay \{ z-index: 120; \}/);
   assert.match(block, /\.app-help-card \{[^}]*overflow-y: auto/s);
   assert.doesNotMatch(block, /url\(|https?:\/\//, 'help UI stays offline');
