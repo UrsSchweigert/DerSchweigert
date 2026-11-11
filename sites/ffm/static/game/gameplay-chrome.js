@@ -99,11 +99,11 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
     }
     // The correction takes the question's own line instead of a line reserved
     // below it: the header keeps exactly the rows its mode reserves, and no
-    // empty row is left standing between problems.
+    // empty row is left standing between problems. It shows the answer alone -
+    // a leading "Not quite:" / "Time ran out:" pushed the answer out of the
+    // question column, and the state already reads from the answer grid.
     const feedback = !state.paused && state.reveal && state.feedback;
-    const feedbackPrefix = feedback?.kind === 'incorrect' ? message('hud.incorrect', 'Incorrect')
-      : feedback?.kind === 'timeout' ? message('hud.timeout', 'Time ran out') : '';
-    const correction = feedbackPrefix && feedback.question ? `${feedbackPrefix}: ${feedback.question}` : '';
+    const correction = feedback?.question ? feedback.question : '';
     if (correction) {
       ownedByWidget = false;
       shapesLines = null;

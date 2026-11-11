@@ -18,8 +18,8 @@ test('no reveal row is reserved, so the header has no standing empty line', () =
   // a reserved row left a gap in the header for the whole level.
   assert.doesNotMatch(css, /#gameplay-feedback/, 'the reveal element is gone');
   assert.doesNotMatch(html, /id="gameplay-feedback"/, 'and so is its markup');
-  assert.match(css, /\.gameplay-readouts > span:empty \{ display: none; \}/,
-    'the readouts still collapse when they are empty');
+  assert.match(css, /\.gameplay-readouts > span:empty \{ visibility: hidden; \}/,
+    'an empty marker keeps its cell so the line count cannot change');
 });
 
 test('the question rows are reserved per mode on both builds', () => {
@@ -41,6 +41,22 @@ test('the shapes question is drawn as two unbroken rows on the web too', () => {
   assert.ok(row, 'each row needs its own rule');
   assert.match(row, /white-space: nowrap;/, 'a shape row never breaks between symbols');
   assert.match(row, /overflow-wrap: normal;/);
+});
+
+test('the readout row cannot reflow between problems', () => {
+  // As a wrapping flex row, a shorter value ("Time —" between problems instead
+  // of "Time 12s") packed one more marker into the first line and the header
+  // lost a whole line - 22px on a phone, which relaid the scene out.
+  const rule = css.match(/^\.gameplay-readouts \{([^}]*)\}/m)?.[1];
+  assert.ok(rule, 'readout rule missing');
+  assert.match(rule, /display: grid;/, 'a grid, so the line count is width-only');
+  assert.match(rule, /grid-template-columns: repeat\(auto-fit, minmax\(106px, 1fr\)\);/);
+  assert.doesNotMatch(rule, /flex-wrap/, 'no wrapping that follows the content');
+});
+
+test('the correction cannot run under the help and pause buttons', () => {
+  assert.match(css, /#active-question:not\(\[data-shapes-header\]\) \{\s*white-space: nowrap;\s*overflow: hidden;\s*text-overflow: ellipsis;/,
+    'the answer row stops at the buttons in both modes');
 });
 
 test('the mode marker is level-scoped and published on every build', () => {
