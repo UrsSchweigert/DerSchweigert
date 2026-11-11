@@ -100,10 +100,19 @@ Browser
 - The title screen's "Practice" tab (German "Training") is the old Progress tab; the name follows what the
   player does there. The per-player bests and history it lists keep the word "progress" in their status copy.
   Its session panel explains the selected level from the authorized level config (operations, result ceiling,
-  answer choices) and reports locked levels instead of guessing.
+  answer choices) and reports locked levels instead of guessing; that one-line explanation stays centred
+  under the level selector.
+- The score-history chart plots one point per day, holding that day's best result: the highest submitted run
+  total on the web, the highest level score in the app. Several results of one day collapse into their best,
+  so the curve rises and falls with the daily results instead of drawing a never-decreasing record line. Its
+  summary reports the best score of the series and the number of saved results behind the points.
 - Buttons have three visible tiers: brass *primary* (thicker 2px line plus a drawn diamond: start practice,
   resume, next level, save a score), red *danger* (discard a score, delete a player) and quiet
   navigation/pagination, whose paging arrows are drawn with CSS borders rather than glyphs.
+- Running text in dialogs is left-aligned with an 8px side inset and margin before the action; the welcome text,
+  headings and one-line labels stay centred (including the practice panel's level hint). The Training tab's
+  practice panel is a submenu (tab-styled summary,
+  Back button and Escape) and menu labels never spill out of their buttons (tabs wrap instead of clipping).
 - Menu typography comes from one scale in `static/styles.css` (`--text-button`, `--text-body`,
   `--text-option`, `--text-heading`): buttons use the title-page tab size in `system-ui`, body copy uses the
   difficulty-explanation size, and bold/ivory are reserved for headings, the selected tab and the primary

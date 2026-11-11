@@ -166,10 +166,46 @@ test('the training tab explains the selected level from its authorized config', 
   assert.match(source, /onLocaleChange\(\(\) => \{[\s\S]*?updatePracticeLevelHint\(\)/);
   const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
   assert.match(css, /#practice-level-hint \{[^}]*grid-column: 1 \/ -1;/s);
+  assert.match(css, /#practice-level-hint \{[^}]*text-align: center;/s,
+    'the level explanation is a one-line label, so it stays centred under its selector');
   assert.match(css, /#practice-level-hint:empty \{ display: none; \}/);
 
   // Only one hint element: the web and app builds share the markup.
   assert.equal((html.match(/id="practice-level-hint"/g) ?? []).length, 1);
+});
+
+test('the practice panel is a submenu with the tab title style and its own way back', async () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+
+  // The summary carries the Training tab's own heading style.
+  const summary = css.match(/^#practice-panel > summary \{([^}]*)\}/m)?.[1];
+  assert.ok(summary, 'practice submenu title rule missing');
+  assert.match(summary, /font-family:\s*var\(--font-prose\);/);
+  assert.match(summary, /font-size:\s*var\(--text-heading\);/);
+  assert.match(summary, /font-weight:\s*700;/);
+  assert.match(summary, /color:\s*var\(--ivory\);/);
+
+  // A back control closes the submenu and the summary can take focus back.
+  assert.match(html, /<button type="button" id="btn-close-practice" class="diff-btn practice-back" data-i18n="practice.back">Back<\/button>/);
+  assert.match(source, /function closePracticePanel\(\) \{[\s\S]*?practicePanel\.open = false;[\s\S]*?querySelector\('summary'\)\?\.focus\?\.\(\);/);
+  assert.match(source, /getElementById\('btn-close-practice'\)\?\.addEventListener\('click', closePracticePanel\)/);
+  assert.match(source, /practicePanel\?\.addEventListener\('keydown',[\s\S]*?'Escape'[\s\S]*?closePracticePanel\(\)/);
+  const back = css.match(/^#btn-close-practice \{([^}]*)\}/m)?.[1];
+  assert.ok(back, 'back button rule missing');
+  assert.match(back, /grid-column:\s*1 \/ -1;/);
+  assert.match(back, /width:\s*100%;/);
+  assert.match(back, /min-height:\s*44px;/);
+
+  for (const locale of ['de', 'en']) {
+    setLocale(locale, { persist: false });
+    assert.notEqual(t('practice.back'), 'practice.back');
+  }
+  setLocale('en', { persist: false });
+  assert.equal(t('practice.back'), 'Back');
+  setLocale('de', { persist: false });
+  assert.equal(t('practice.back'), 'Zurück');
+  setLocale('en', { persist: false });
 });
 
 test('all six practice modes initialize a fresh unscored session and bounded source level', async () => {

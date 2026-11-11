@@ -1,9 +1,11 @@
-// score-trend.js — High-score development series for the score history chart.
+// score-trend.js — Series for the score history chart.
 //
 // Saved history entries are single results: on the web one submitted run
-// total, in the app the points of one level. The chart instead shows how the
-// high score developed over time, so both are turned into a series that only
-// rises or stays flat, one point per saved result (oldest first).
+// total, in the app the points of one level. The chart shows the player's form
+// over time, so results are grouped by the day they were achieved and only a
+// day's best result is plotted. One point per day keeps the curve readable and
+// lets it rise and fall with the day-to-day results instead of flattening into
+// a never-decreasing record line.
 
 function points(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
@@ -17,44 +19,43 @@ function trendPoint(entry, score) {
   };
 }
 
-/** Web: the best submitted score so far after each saved result. */
-export function runningBestTrend(history) {
-  let best = 0;
-  return (Array.isArray(history) ? history : []).map((entry) => {
-    best = Math.max(best, points(entry?.score));
-    return trendPoint(entry, best);
-  });
-}
-
 function timeOf(value) {
   const time = typeof value === 'string' ? Date.parse(value) : NaN;
   return Number.isNaN(time) ? null : time;
 }
 
+/** The local calendar day of a result, or null when it has no usable timestamp. */
+function dayOf(value) {
+  const time = timeOf(value);
+  if (time === null) return null;
+  const date = new Date(time);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
 /**
- * App: the total high score (sum of the per-level bests) after each saved
- * result. History keeps only the newest results, so a level whose current
- * best predates the oldest kept result starts from that best; the last point
- * therefore always equals the sum of the current per-level bests.
+ * One point per day, carrying that day's best result, oldest day first.
+ * `results` counts the saved results that collapsed into the point, so the
+ * summary can still report how many results were saved. Results without a
+ * usable timestamp cannot be grouped and keep their own point.
  */
-export function highScoreTrend(history, best = []) {
-  const entries = Array.isArray(history) ? history : [];
-  const levelBests = new Map();
-  const windowStart = timeOf(entries[0]?.achieved_at);
-  for (const entry of Array.isArray(best) ? best : []) {
-    const achieved = timeOf(entry?.achieved_at);
-    if (windowStart !== null && achieved !== null && achieved < windowStart) {
-      levelBests.set(entry.level, points(entry.score));
+export function dailyBestTrend(history) {
+  const series = [];
+  const days = new Map();
+  for (const entry of Array.isArray(history) ? history : []) {
+    const score = points(entry?.score);
+    const day = dayOf(entry?.achieved_at);
+    const point = day === null ? null : days.get(day);
+    if (!point) {
+      const fresh = { ...trendPoint(entry, score), results: 1 };
+      if (day !== null) days.set(day, fresh);
+      series.push(fresh);
+      continue;
+    }
+    point.results += 1;
+    if (score > point.score) {
+      Object.assign(point, trendPoint(entry, score));
+      if (entry?.unfinished !== true) delete point.unfinished;
     }
   }
-  let total = [...levelBests.values()].reduce((sum, value) => sum + value, 0);
-  return entries.map((entry) => {
-    const score = points(entry?.score);
-    const previous = levelBests.get(entry?.level) ?? 0;
-    if (score > previous) {
-      levelBests.set(entry.level, score);
-      total += score - previous;
-    }
-    return trendPoint(entry, total);
-  });
+  return series;
 }

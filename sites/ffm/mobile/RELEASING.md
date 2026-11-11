@@ -257,8 +257,12 @@ producing a silently unsigned bundle.
 - **Play Console**: Paid Apps agreement signed, merchant account active,
   licence testers / sandbox accounts added for the internal track.
 - **App Store Connect**: create `arithmoslayer_full_unlock` with localised
-  metadata and a price tier, and enable the **In-App Purchase capability** on
-  the App target before the first sandbox test.
+  metadata and a price tier before the first sandbox test. The **In-App Purchase
+  capability** is already declared on the committed App target, so nothing has
+  to be enabled in Xcode or in the portal (see the note under open owner
+  actions). Configured and exercised at `4e749e5`: the paywall fetched the
+  price from the store and the sandbox purchase completed, which also proves
+  the Paid Applications agreement is active.
 - Store listing: Education category, children in the audience, DE and EN text,
   screenshots, the bundled privacy notice URL or text.
 - Data safety: "Data not collected", no tracking, no ads, no analytics.
@@ -269,6 +273,67 @@ producing a silently unsigned bundle.
 - Content rating questionnaire, target audience declaration, and the parental
   gate noted where the questionnaire asks about purchases.
 - Physical-device checks and review submission are owner actions.
+
+## Creating the sandbox Apple Account (iOS owner)
+
+A sandbox Apple Account is one login, not a separate build or environment. It
+only works for apps of the same Apple Developer Program account, which is what
+this app needs (`2F695PTZC6`, `de.derschweigert.arithmoslayer`).
+
+Prerequisites, each of which blocks the next:
+
+1. Apple Developer Program membership active.
+2. The **Paid Applications agreement** signed under Business → Agreements, Tax,
+   and Banking, with tax and banking details complete. Without an active
+   agreement StoreKit returns no products at all, in sandbox and production
+   alike, and the paywall shows no price.
+3. `arithmoslayer_full_unlock` created under Features → In-App Purchases with a
+   reference name, product id, DE and EN name and a price tier, in the state
+   Ready to Submit. It does not have to be approved or live.
+4. Role Account Holder, Admin, App Manager or Developer on the team.
+5. A physical iPhone with Developer Mode enabled (Settings → Privacy & Security
+   → Developer Mode). The Simulator does not complete sandbox purchases.
+
+Create the account:
+
+1. App Store Connect → Users and Access → Sandbox.
+2. First time: **Create Test Accounts**. Afterwards: **+**.
+3. First and last name, an email that has never been an Apple Account and was
+   never used for iTunes or App Store purchases (no verification mail is sent,
+   but the address must be free; `youraddress+ios1@…` subaddressing works), a
+   strong password, and the App Store country or region to test.
+4. **Create**. Name, email and password cannot be edited afterwards; only the
+   storefront can be changed. Up to 10,000 accounts per team.
+
+Sign it in on the device. The sandbox credentials are never typed into a
+purchase sheet that appears on its own:
+
+1. Run a development-signed build on the device and attempt one purchase. That
+   attempt, not the Xcode install, is what makes the sandbox row appear.
+2. Settings → Developer → **Sandbox Apple Account** → Sign In. The personal
+   Apple Account stays signed in; nothing has to be signed out of Media &
+   Purchases.
+3. Relaunch the app and purchase again. The sheet must show the localised price
+   and `[Environment: Sandbox]`; `Production` means a real account is in use.
+
+TestFlight builds are always attributed to sandbox, but reaching the sandbox
+controls requires signing out of Media & Purchases first and then signing in
+under Settings → Developer. That hides production purchases on the device, so
+prefer a spare device.
+
+Teardown: Settings → Developer → Sandbox Apple Account → Sign Out, then delete
+the tester in App Store Connect → Sandbox when it is no longer needed.
+
+Traps worth knowing:
+
+- A wrong credential, or a personal Apple Account instead of a sandbox one,
+  usually dismisses the sheet without any message.
+- Metadata changes in App Store Connect can take up to an hour to reach the
+  sandbox.
+- The paywall button is the canary: a real price means `getProduct()` reached
+  the store, and the `paywall.buyNoPrice` label (`Vollversion kaufen` /
+  `Buy full unlock`) means it did not, which points at the product, the
+  agreement or the storefront rather than at the sign-in.
 
 ## Sandbox procedure (owner)
 
@@ -284,8 +349,12 @@ Connect), on a physical device with a working store:
 4. Pending / Ask-to-Buy: confirm the app reports pending and grants the unlock
    only after the approval arrives.
 5. Cancelled purchase: confirm no unlock, no error state stuck on screen.
-6. Refund/revocation: refund in the store console, relaunch online, confirm the
-   entitlement is revoked and the paywall returns.
+6. Revocation: a sandbox one-time purchase has no refund UI to drive, so use
+   Clear Purchase History (Settings → Developer → Sandbox Apple Account →
+   Manage) as the proxy — sign out and back in, relaunch online, and confirm the
+   entitlement is gone and the paywall returns. With no backend the app learns
+   about a real refund only when it next queries the store; the `revocationDate`
+   branch is covered by `tests/purchase.test.mjs`.
 7. Repeat a purchase and confirm the store reports "already owned" rather than
    charging twice; cancel and deny the parental gate and confirm nothing
    unlocks.
@@ -301,6 +370,34 @@ Connect), on a physical device with a working store:
 6. Upload to the Play Console internal testing track and install from Play.
 7. Test an **upgrade** over the previous build, not only a clean install:
    progress and the unlock must survive.
+
+## Licence testers (Android, owner)
+
+The Play internal test track needs no sandbox account. With any real Google
+account the purchase is a real, charged order; with a licence tester it is a
+test purchase, which is the cheaper loop.
+
+1. Play Console → Manage account → Play apps settings → Monetization settings →
+   License testing (older UI: Settings → License testing).
+2. Add testers by email list (up to 2,000 addresses per list) or Google Group
+   (no limit), then save. The publishing account itself is always a licence
+   tester.
+3. Make sure the same accounts are on the internal test track and that the build
+   is published there.
+4. Products must be active and the app needs a payment profile before anything
+   is purchasable, test purchase or not.
+
+A licence tester gets test payment instruments, so nothing is charged, no tax is
+computed, and the dialog is banner-marked as a test purchase. It also unblocks
+Play Billing for sideloaded builds, including debug builds with debug
+signatures, as long as the package name matches the Play app.
+
+The trap: for a licence tester, Play refunds a purchase that is **not
+acknowledged within three minutes** and mails the owner about the cancellation.
+Production allows three days, so a broken acknowledgement looks like a working
+purchase whose unlock silently disappears. `purchase.js` acknowledges every
+granted purchase; if an unlock vanishes minutes after a successful test
+purchase, start there and confirm the refund in the Orders tab.
 
 ## TestFlight install (iOS owner)
 
@@ -325,10 +422,12 @@ the uploaded build number in the release record.
 
 ## Manual gate checklist
 
-Each row stays open until the `<revision>` placeholder is replaced with the
-git revision the check ran against and the observed result is recorded.
-Native compilation and store behaviour cannot be claimed from a passing
-JavaScript test.
+Each row is `open` with a `<revision>` placeholder until the owner observes the
+check, then it becomes `owner-verified` with the revision the observed build
+came from and what was actually seen. Only an owner observation sets that
+state: a worker, a test or CI can never do it, because none of them can sign,
+install, purchase or watch a device. Native compilation and store behaviour
+cannot be claimed from a passing JavaScript test.
 
 | Gate | Where | Evidence | Revision | State |
 | --- | --- | --- | --- | --- |
@@ -337,12 +436,12 @@ JavaScript test.
 | Signed `.aab` produced and `jarsigner` verified | local | | `<revision>` | open |
 | Internal testing install from Play | Play | | `<revision>` | open |
 | Upgrade install keeps progress and unlock | device | | `<revision>` | open |
-| Sandbox purchase through the parental gate | device | | `<revision>` | open |
+| Sandbox purchase through the parental gate | device | Purchase completed in the StoreKit sandbox (`[Environment: Sandbox]`) through the parental gate on a physical iPhone; the unlock was granted. Observed 2026-11-11. | `4e749e5` | owner-verified |
 | Offline launch after purchase keeps the unlock | device | | `<revision>` | open |
 | Restore purchase on a fresh install | device | | `<revision>` | open |
 | Pending / Ask-to-Buy purchase | device | | `<revision>` | open |
 | Cancelled purchase | device | | `<revision>` | open |
-| Refund / revocation | store console | | `<revision>` | open |
+| Refund / revocation | sandbox settings | | `<revision>` | open |
 | Android Back behaviour (pause → confirm → exit) | Android | | `<revision>` | open |
 | Interruption (call/background) pauses game and music | Android | | `<revision>` | open |
 | iOS silent switch silences BGM and effects, and unmuting restores them without a restart | iPhone | | `<revision>` | open |
@@ -350,7 +449,7 @@ JavaScript test.
 | Controls clear notches, rounded corners and gesture bars in both orientations | notched phone | | `<revision>` | open |
 | App icon and launch screen match the artwork on the home screen and at launch | iPhone | | `<revision>` | open |
 | German and English system languages both show translated UI and legal pages | iPhone | | `<revision>` | open |
-| In-App Purchase capability is enabled and a sandbox purchase succeeds | App Store Connect + device | | `<revision>` | open |
+| In-App Purchase capability is enabled and a sandbox purchase succeeds | App Store Connect + device | The committed target carried the capability and the sandbox purchase above succeeded from the same build. Observed 2026-11-11. | `4e749e5` | owner-verified |
 
 The iOS silent switch, the interruption and the safe-area gates are the
 `PENDING_MANUAL_GATES` exported by `game/lifecycle.js`;
@@ -391,10 +490,20 @@ accounts) and stay open until the evidence above exists.
 - **Merged-manifest permission check.** Confirm BILLING, INTERNET and
   ACCESS_NETWORK_STATE arrive from Play Billing and that nothing else is
   declared; only the packaged manifest can show this.
-- **In-App Purchase capability (iOS).** It is not declared in the committed
-  `project.pbxproj` (`TargetAttributes` has no `com.apple.InAppPurchase`
-  entry). Enable the capability in Xcode for the App target; `project.pbxproj`
-  is owner-merged, so a worker records this instead of editing it.
+- **In-App Purchase capability (iOS).** The committed `project.pbxproj`
+  declares `SystemCapabilities` → `com.apple.InAppPurchase` for the App target,
+  so Xcode's Signing & Capabilities pane lists it as part of the target. Nothing
+  else is needed for signing: Apple's capability definition carries no
+  entitlement key and sets `enabledByDefault`, so every explicit App ID already
+  has In-App Purchase and the target deliberately has no `App.entitlements` file
+  or `CODE_SIGN_ENTITLEMENTS` setting. Enabling "StoreKit External Purchases or
+  Offers (EU)" is a different capability and must stay off: it is the DMA route
+  for selling outside Apple In-App Purchase and needs a portal grant, the
+  `ExternalPurchaseCustomLink` API, disclosure sheets and monthly transaction
+  reporting, none of which this app has. The product, the agreement and a
+  successful sandbox purchase were verified at `4e749e5` (see the gate
+  checklist); the localised store listing, screenshots and the review
+  submission remain.
 - **iOS signing.** Team, bundle id registration for
   `de.derschweigert.arithmoslayer`, provisioning and distribution certificates,
   plus the App Store Connect app record. No signing secrets are defined for

@@ -65,18 +65,18 @@ const DICTIONARY = {
   'levels.startFromOne': { en: 'Start from Level 1', de: 'Ab Level 1 starten' },
   'levels.level': { en: 'Level {level}', de: 'Level {level}' },
   'levels.locked': { en: 'Level {level} (locked)', de: 'Level {level} (gesperrt)' },
-  'scoreHistory.ariaLabel': { en: 'High score development chart', de: 'Diagramm zur Highscore-Entwicklung' },
+  'scoreHistory.ariaLabel': { en: 'Daily best score chart', de: 'Diagramm der Tagesbestwerte' },
   'scoreHistory.empty': {
     en: 'Finish a scored level to see your training history here.',
     de: 'Schließe ein Level mit Punkten ab, um deinen Verlauf hier zu sehen.',
   },
   'scoreHistory.highScore': {
-    en: 'High score: {score} · Saved results: {count} (oldest to newest)',
-    de: 'Highscore: {score} · Gespeicherte Ergebnisse: {count} (älteste zuerst)',
+    en: 'High score: {score} · Saved results: {count} · best of each day, oldest first',
+    de: 'Highscore: {score} · Gespeicherte Ergebnisse: {count} · Bestwert je Tag, älteste zuerst',
   },
-  'scoreHistory.totalHighScore': {
-    en: 'Total high score (sum of your level bests): {score} · Saved results: {count} (oldest to newest)',
-    de: 'Gesamt-Highscore (Summe deiner Level-Bestwerte): {score} · Gespeicherte Ergebnisse: {count} (älteste zuerst)',
+  'scoreHistory.dailyBest': {
+    en: 'Best daily score: {score} · Saved results: {count} · best of each day, oldest first',
+    de: 'Tagesbestwert: {score} · Gespeicherte Ergebnisse: {count} · Bestwert je Tag, älteste zuerst',
   },
   'scoreHistory.unfinishedNote': {
     en: 'Includes unfinished attempts that did not clear the level.',
@@ -186,7 +186,7 @@ const DICTIONARY = {
   'help.pause.tip2': { en: 'Return to Title asks whether to save the reached score or discard it.', de: 'Zum Titel fragt, ob die erreichten Punkte gespeichert oder verworfen werden.' },
   'help.pause.tip3': { en: 'Save keeps the level unfinished; Discard records nothing.', de: 'Speichern lässt das Level unfertig; Verwerfen zeichnet nichts auf.' },
   'help.progress.title': { en: 'Your training', de: 'Dein Training' },
-  'help.progress.summary': { en: 'Per-level bests and how the total high score developed over time for the active player.', de: 'Level-Bestwerte und die Entwicklung des Gesamt-Highscores des aktiven Spielers.' },
+  'help.progress.summary': { en: 'Per-level bests and the best score of each day for the active player.', de: 'Level-Bestwerte und der Bestwert jedes Tages für den aktiven Spieler.' },
   'help.progress.tip1': { en: 'Unfinished attempts are labelled and do not mark a level cleared.', de: 'Unfertige Versuche sind gekennzeichnet und schließen kein Level ab.' },
   'help.progress.tip2': { en: 'Only cleared levels unlock the next level.', de: 'Nur geschaffte Level schalten das nächste Level frei.' },
   'help.progress.tip3': { en: 'Switch players on the Players tab.', de: 'Spieler wechselst du im Spieler-Tab.' },
@@ -242,6 +242,8 @@ const DICTIONARY = {
   'practice.listAnd': { en: ' and ', de: ' und ' },
   'practice.badges': { en: 'Practice badges', de: 'Übungsabzeichen' },
   'practice.start': { en: 'Start practice', de: 'Training starten' },
+  // The panel is a submenu of the Training tab, so it needs its own way back.
+  'practice.back': { en: 'Back', de: 'Zurück' },
   'practice.unscoredNotice': {
     en: 'Practice is unscored and does not change campaign progress.',
     de: 'Training ist unbewertet und verändert den Abenteuerfortschritt nicht.',
