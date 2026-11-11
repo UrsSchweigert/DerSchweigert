@@ -99,6 +99,8 @@ Browser
   playfield and the answer grid after every reveal.
 - The title screen's "Practice" tab (German "Training") is the old Progress tab; the name follows what the
   player does there. The per-player bests and history it lists keep the word "progress" in their status copy.
+  Its session panel explains the selected level from the authorized level config (operations, result ceiling,
+  answer choices) and reports locked levels instead of guessing.
 - Buttons have three visible tiers: brass *primary* (thicker 2px line plus a drawn diamond: start practice,
   resume, next level, save a score), red *danger* (discard a score, delete a player) and quiet
   navigation/pagination, whose paging arrows are drawn with CSS borders rather than glyphs.

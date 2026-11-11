@@ -33,7 +33,8 @@ test('mode choices form oblong rows and portrait answers have a decorative blurr
   assert.match(css, /\.splash-diff-btn\s*\{[^}]*flex-direction:\s*row/s);
   assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone::before\s*\{[^}]*pointer-events:\s*none[^}]*title-art\.webp[^}]*blur\(6px\)/s);
   assert.match(css, /\.playing-as-row button\s*\{[^}]*var\(--brass-deep\)/s);
-  assert.match(css, /#audio-settings > summary\s*\{\s*justify-content:\s*center/);
+  assert.match(css, /\.compact-disclosure > summary \{[^}]*justify-content:\s*center/s,
+    'every disclosure label is centred, like the button it is');
 });
 
 test('title lettering has accessible text and all shell surfaces share native safe insets', async () => {

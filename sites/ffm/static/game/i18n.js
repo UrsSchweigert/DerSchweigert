@@ -219,6 +219,27 @@ const DICTIONARY = {
   'practice.kind.recovery': { en: 'Recovery practice', de: 'Aufholtraining' },
   'practice.kind.shapes': { en: 'Shape counting', de: 'Formen zählen' },
   'practice.level': { en: 'Source level', de: 'Ausgangslevel' },
+  // Small explanation of the selected level, built from the same authorized
+  // level config the session runs on (operations, result ceiling, answer
+  // choices), so it cannot drift from the curriculum.
+  'practice.levelHint': {
+    en: 'Level {level}: {operations}, results up to {maxResult} · {choices} answer choices',
+    de: 'Level {level}: {operations}, Ergebnisse bis {maxResult} · {choices} Antworten',
+  },
+  'practice.levelHintShapes': {
+    en: 'Shape counting: 1–10 shapes per question, four answers, no timer.',
+    de: 'Formen zählen: 1–10 Formen pro Aufgabe, vier Antworten, kein Timer.',
+  },
+  'practice.levelHintLocked': {
+    en: 'Locked level: its details appear once the level is unlocked.',
+    de: 'Gesperrtes Level: Die Details erscheinen nach dem Freischalten.',
+  },
+  'practice.operation.add': { en: 'addition', de: 'Plus' },
+  'practice.operation.subtract': { en: 'subtraction', de: 'Minus' },
+  'practice.operation.multiply': { en: 'multiplication', de: 'Mal' },
+  'practice.operation.divide': { en: 'division', de: 'Geteilt' },
+  'practice.listSeparator': { en: ', ', de: ', ' },
+  'practice.listAnd': { en: ' and ', de: ' und ' },
   'practice.badges': { en: 'Practice badges', de: 'Übungsabzeichen' },
   'practice.start': { en: 'Start practice', de: 'Training starten' },
   'practice.unscoredNotice': {

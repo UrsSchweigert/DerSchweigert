@@ -1,6 +1,6 @@
 // main.js — Complete game loop for Arithmo Slayer
 
-import { generateProblem, sampleFiendType, TOTAL_LEVELS } from './levels.js';
+import { generateProblem, getArithmeticOptionCount, sampleFiendType, TOTAL_LEVELS } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon } from './entities.js';
 import { HUD } from './hud.js';
@@ -578,6 +578,8 @@ const practiceKindSelect = document.getElementById('practice-kind');
 const practiceLevelSelect = document.getElementById('practice-level-select');
 const practiceBadges = document.getElementById('practice-badges');
 const practiceStatus = document.getElementById('practice-status');
+const practiceLevelHint = document.getElementById('practice-level-hint');
+const practicePanel = document.getElementById('practice-panel');
 const btnStartPractice = document.getElementById('btn-start-practice');
 const skillIntroOverlay = document.getElementById('skill-intro');
 const skillIntroTitle = document.getElementById('skill-intro-title');
@@ -1210,6 +1212,78 @@ function setPracticeLevelOptions() {
     `<option value="${index + 1}">${escHtml(t('levels.level', { level: index + 1 }))}</option>`).join('');
 }
 
+// The training tab explains the selected level in one short line. The summary
+// is read from the same authorized level config the session runs on, so it can
+// never drift from the curriculum; a level the player may not open reports that
+// instead of guessing. Results are cached per level and dropped whenever the
+// disclosure is opened again, which is the moment right after a purchase.
+const OPERATION_KEYS = Object.freeze({
+  '+': 'practice.operation.add',
+  '-': 'practice.operation.subtract',
+  '*': 'practice.operation.multiply',
+  '/': 'practice.operation.divide',
+});
+const OPERATION_ORDER = Object.freeze(['+', '-', '*', '/']);
+const levelSummaries = new Map();
+let levelHintGeneration = 0;
+
+function resetLevelSummaries() {
+  levelSummaries.clear();
+  updatePracticeLevelHint();
+}
+
+/** Operation words in curriculum order: "plus", "plus and minus", "plus, minus and times". */
+function levelOperationsLabel(operations = []) {
+  const listed = Array.isArray(operations) ? operations : [];
+  const words = OPERATION_ORDER.filter((operation) => listed.includes(operation))
+    .map((operation) => t(OPERATION_KEYS[operation]));
+  if (words.length <= 1) return words.join('');
+  return `${words.slice(0, -1).join(t('practice.listSeparator'))}${t('practice.listAnd')}${words[words.length - 1]}`;
+}
+
+async function loadLevelSummary(level) {
+  if (levelSummaries.has(level)) return levelSummaries.get(level);
+  let summary = null;
+  try {
+    const config = await platform.getAuthorizedLevelConfig(level - 1);
+    const maxResult = Number(config?.maxResult);
+    if (Array.isArray(config?.operations) && Number.isFinite(maxResult)) {
+      summary = { operations: config.operations, maxResult };
+    }
+  } catch {
+    summary = null;
+  }
+  levelSummaries.set(level, summary);
+  return summary;
+}
+
+async function updatePracticeLevelHint() {
+  if (!practiceLevelHint) return;
+  const generation = ++levelHintGeneration;
+  if (practiceKindSelect?.value === 'shapes') {
+    practiceLevelHint.textContent = t('practice.levelHintShapes');
+    return;
+  }
+  practiceLevelHint.textContent = '';
+  const level = Number(practiceLevelSelect?.value || 1);
+  if (!Number.isInteger(level) || level < 1 || level > TOTAL_LEVELS) return;
+  const summary = await loadLevelSummary(level);
+  if (generation !== levelHintGeneration) return;
+  const operations = summary ? levelOperationsLabel(summary.operations) : '';
+  if (!summary || !operations) {
+    // A locked level has no authorized config to describe. Say so instead of
+    // leaving the line empty, which would read like a broken hint.
+    practiceLevelHint.textContent = t('practice.levelHintLocked');
+    return;
+  }
+  practiceLevelHint.textContent = t('practice.levelHint', {
+    level,
+    operations,
+    maxResult: summary.maxResult,
+    choices: getArithmeticOptionCount(level),
+  });
+}
+
 async function refreshPracticeBadges() {
   if (!practiceBadges) return;
   if (!platform.isApp) {
@@ -1345,9 +1419,17 @@ function renderPracticeDescription() {
 practiceKindSelect?.addEventListener('change', () => {
   showPracticeStatus('');
   renderPracticeDescription();
+  updatePracticeLevelHint();
 });
-practiceLevelSelect?.addEventListener('change', () => showPracticeStatus(''));
+practiceLevelSelect?.addEventListener('change', () => {
+  showPracticeStatus('');
+  updatePracticeLevelHint();
+});
+practicePanel?.addEventListener('toggle', () => {
+  if (practicePanel.open) resetLevelSummaries();
+});
 setPracticeLevelOptions();
+updatePracticeLevelHint();
 
 async function refreshPersonalDevelopment() {
   const profileId = platform.isApp ? platform.localProfiles.getActiveProfile().id : null;
@@ -3802,6 +3884,7 @@ onLocaleChange(() => {
   audioPreferenceStatus();
   renderSkillIntro();
   renderPracticeDescription();
+  updatePracticeLevelHint();
   if (practiceBadgeRetryButton) practiceBadgeRetryButton.textContent = t('practice.retryBadgeSave');
   refreshPracticeBadges();
   if (currentLeaderboard) renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));

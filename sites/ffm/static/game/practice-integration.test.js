@@ -12,6 +12,7 @@ import {
 import { resetLevelAttempt } from './campaign-progress.js';
 import { getSkillIntro } from './skill-intro.js';
 import { generateShapesProblem } from './shapes.js';
+import { getArithmeticOptionCount } from './levels.js';
 import { PRACTICE_KINDS } from './practice-session.js';
 import { setLocale, t } from './i18n.js';
 import {
@@ -87,6 +88,89 @@ function practiceStartContext(kind, targetProblems = []) {
   vm.runInContext(fn('startPracticeSession'), context);
   return { context, started: () => started };
 }
+
+test('the training tab explains the selected level from its authorized config', async () => {
+  const hint = { textContent: '' };
+  const configs = {
+    1: { operations: ['+'], maxResult: 10 },
+    15: { operations: ['+', '-'], maxResult: 20 },
+    45: { operations: ['+', '-', '*', '/'], maxResult: 1440 },
+  };
+  const requested = [];
+  const context = {
+    practiceLevelHint: hint,
+    practiceKindSelect: { value: 'short' },
+    practiceLevelSelect: { value: '1' },
+    platform: {
+      async getAuthorizedLevelConfig(index) {
+        requested.push(index + 1);
+        const config = configs[index + 1];
+        if (!config) throw Object.assign(new Error('requires an entitlement'), { statusCode: 402 });
+        return { level: index + 1, ...config };
+      },
+    },
+    levelSummaries: new Map(),
+    levelHintGeneration: 0,
+    OPERATION_KEYS: {
+      '+': 'practice.operation.add', '-': 'practice.operation.subtract',
+      '*': 'practice.operation.multiply', '/': 'practice.operation.divide',
+    },
+    OPERATION_ORDER: ['+', '-', '*', '/'],
+    TOTAL_LEVELS: 60,
+    getArithmeticOptionCount,
+    t,
+  };
+  vm.createContext(context);
+  for (const name of ['levelOperationsLabel', 'loadLevelSummary', 'updatePracticeLevelHint']) {
+    vm.runInContext(fn(name), context);
+  }
+
+  setLocale('en', { persist: false });
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, 'Level 1: addition, results up to 10 · 5 answer choices');
+  assert.deepEqual(requested, [1], 'one authorized lookup per level');
+
+  context.practiceLevelSelect.value = '15';
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, 'Level 15: addition and subtraction, results up to 20 · 10 answer choices');
+
+  context.practiceLevelSelect.value = '45';
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent,
+    'Level 45: addition, subtraction, multiplication and division, results up to 1440 · 10 answer choices');
+
+  // Locale switch re-renders the same cached summary in the new language.
+  setLocale('de', { persist: false });
+  const before = requested.length;
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, 'Level 45: Plus, Minus, Mal und Geteilt, Ergebnisse bis 1440 · 10 Antworten');
+  assert.equal(requested.length, before, 'the cached summary is reused');
+
+  // A locked level says so instead of showing an empty or invented hint.
+  context.practiceLevelSelect.value = '30';
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, t('practice.levelHintLocked'));
+  assert.notEqual(hint.textContent, 'practice.levelHintLocked');
+
+  // Shape counting ignores the source level.
+  context.practiceKindSelect.value = 'shapes';
+  context.practiceLevelSelect.value = '1';
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, t('practice.levelHintShapes'));
+  setLocale('en', { persist: false });
+
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<select id="practice-level-select"><\/select>\s*<p id="practice-level-hint" class="practice-level-hint" role="status" aria-live="polite"><\/p>/);
+  assert.match(source, /practiceLevelSelect\?\.addEventListener\('change',[\s\S]*?updatePracticeLevelHint\(\)/);
+  assert.match(source, /practiceKindSelect\?\.addEventListener\('change',[\s\S]*?updatePracticeLevelHint\(\)/);
+  assert.match(source, /onLocaleChange\(\(\) => \{[\s\S]*?updatePracticeLevelHint\(\)/);
+  const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  assert.match(css, /#practice-level-hint \{[^}]*grid-column: 1 \/ -1;/s);
+  assert.match(css, /#practice-level-hint:empty \{ display: none; \}/);
+
+  // Only one hint element: the web and app builds share the markup.
+  assert.equal((html.match(/id="practice-level-hint"/g) ?? []).length, 1);
+});
 
 test('all six practice modes initialize a fresh unscored session and bounded source level', async () => {
   const targets = Array.from({ length: 7 }, () => problem());
