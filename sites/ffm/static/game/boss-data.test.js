@@ -141,12 +141,22 @@ describe('boss art', () => {
     for (const boss of BOSSES) {
       assert.ok(boss.art?.arena, `${boss.id} has no arena`);
       assert.ok(boss.art?.figure, `${boss.id} has no portrait`);
-      for (const relative of [boss.art.arena, boss.art.figure]) {
+      assert.ok(boss.dragon?.sheet, `${boss.id} has no dragon sheet`);
+      for (const relative of [boss.art.arena, boss.art.figure, boss.dragon.sheet]) {
         const full = join(here, relative);
         assert.ok(existsSync(full), `${boss.id} art is missing: ${relative}`);
         assert.equal(full.endsWith('.webp'), true, `${boss.id} art should ship as webp`);
       }
     }
+  });
+
+  it('gives each boss a dragon with one more head, then resets to one', () => {
+    const heads = BOSSES.map(boss => boss.dragon.heads);
+    assert.deepEqual(heads, [1, 2, 3, 4, 5, 6, 1]);
+    const sheets = BOSSES.map(boss => boss.dragon.sheet);
+    assert.equal(new Set(sheets).size, BOSSES.length, 'every dragon needs its own sheet');
+    assert.notEqual(HOLLOW_KING.dragon.sheet, WARDENS[0].dragon.sheet,
+      'the last dragon is one head again, but not the same creature');
   });
 
   it('gives each act its own arena, with the final fight in the throne room', () => {

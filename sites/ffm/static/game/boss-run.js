@@ -44,6 +44,21 @@ function artUrl(relative) {
   return new URL(relative, import.meta.url).href;
 }
 
+// Each dragon sheet is 3x3: row 0 idle, row 1 hit, row 2 breath, three frames each.
+export const DRAGON_ROWS = Object.freeze({ idle: 0, hit: 1, breath: 2 });
+export const DRAGON_FRAMES = 3;
+export const DRAGON_TIMING = Object.freeze({ idle: 340, hit: 130, breath: 150 });
+
+/** Background position for one frame of one state, as a CSS percentage pair. */
+export function dragonFramePosition(state, step) {
+  const row = DRAGON_ROWS[state];
+  if (row === undefined) throw new TypeError(`Unknown dragon state "${state}"`);
+  if (!Number.isInteger(step) || step < 0 || step >= DRAGON_FRAMES) {
+    throw new RangeError(`Dragon frame ${step} is outside 0..${DRAGON_FRAMES - 1}`);
+  }
+  return `${(step * 100) / (DRAGON_FRAMES - 1)}% ${(row * 100) / (DRAGON_FRAMES - 1)}%`;
+}
+
 const CLOCK_TICK_MS = 100;
 const PHASE_CLEAR_MS = 900;
 
@@ -114,7 +129,7 @@ export function initWardenMode({
   overlay.innerHTML = [
     '<div class="boss-frame" role="dialog" aria-modal="true" aria-labelledby="boss-name">',
     '  <p class="boss-act" id="boss-act"></p>',
-    '  <img class="boss-portrait" id="boss-portrait" alt="" decoding="async">',
+    '  <div class="boss-dragon" id="boss-dragon" role="img"></div>',
     '  <h2 class="boss-name" id="boss-name"></h2>',
     '  <p class="boss-phase" id="boss-phase"></p>',
     '  <div class="boss-seals" id="boss-seals" role="img"></div>',
@@ -148,6 +163,7 @@ export function initWardenMode({
 
   let session = null;
   let clockTimer = null;
+  let dragonTimer = null;
   let bannerTimer = null;
   let phaseTimer = null;
 
@@ -182,11 +198,59 @@ export function initWardenMode({
     }
   }
 
+  const reducedMotion = () =>
+    globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+  function paintDragon(state, step) {
+    const element = $('boss-dragon');
+    if (element) element.style.backgroundPosition = dragonFramePosition(state, step);
+  }
+
+  /**
+   * Play one dragon state. Idle loops; hit and breath play once and fall back
+   * to idle. The creature is the boss's face in the fight, so a right answer
+   * makes it flinch and a wrong one makes it breathe - the same rule the game
+   * teaches, read without any text.
+   */
+  function playDragon(state) {
+    if (!session) return;
+    if (dragonTimer) clearInterval(dragonTimer);
+    dragonTimer = null;
+    paintDragon(state, 0);
+
+    if (reducedMotion()) {
+      // No cycling: hold the state's first frame long enough to register, then
+      // settle back to rest.
+      if (state !== 'idle') {
+        dragonTimer = setTimeout(() => { paintDragon('idle', 0); dragonTimer = null; }, 450);
+      }
+      return;
+    }
+
+    let step = 0;
+    dragonTimer = setInterval(() => {
+      step += 1;
+      if (step >= DRAGON_FRAMES) {
+        if (state === 'idle') {
+          step = 0;
+        } else {
+          clearInterval(dragonTimer);
+          dragonTimer = null;
+          paintDragon('idle', 0);
+          return;
+        }
+      }
+      paintDragon(state, step);
+    }, DRAGON_TIMING[state]);
+  }
+
   function clearTimers() {
     if (clockTimer) clearInterval(clockTimer);
+    if (dragonTimer) { clearInterval(dragonTimer); clearTimeout(dragonTimer); }
     if (bannerTimer) clearTimeout(bannerTimer);
     if (phaseTimer) clearTimeout(phaseTimer);
     clockTimer = null;
+    dragonTimer = null;
     bannerTimer = null;
     phaseTimer = null;
   }
@@ -220,11 +284,12 @@ export function initWardenMode({
     const fight = planFight({ bossId, band, seed: attempt.seed });
     session = { boss, band, attempt, fight, entry: null, locked: false };
     overlay.style.setProperty('--boss-arena', `url("${artUrl(boss.art.arena)}")`);
-    const portrait = $('boss-portrait');
-    portrait.src = artUrl(boss.art.figure);
-    portrait.hidden = false;
+    const dragonEl = $('boss-dragon');
+    dragonEl.style.backgroundImage = `url("${artUrl(boss.dragon.sheet)}")`;
+    dragonEl.setAttribute('aria-label', t(boss.nameKey));
     $('boss-name').textContent = t(boss.nameKey);
     $('boss-act').textContent = t(boss.final ? 'boss.finalLabel' : 'boss.actLabel', { act: boss.act });
+    playDragon('idle');
     nextEncounter();
     clockTimer = setInterval(onClockTick, CLOCK_TICK_MS);
   }
@@ -311,11 +376,13 @@ export function initWardenMode({
     const lock = session.entry.lock;
     const result = strike(session.attempt, lock, index);
     if (!result.accepted) {
+      playDragon('breath');
       render();
       renderEncounterOptionsOnly();
       return;
     }
     if (result.complete) {
+      playDragon('hit');
       session.locked = true;
       render();
       scheduleNext();
@@ -341,6 +408,7 @@ export function initWardenMode({
     if (attempt.status !== 'active') return;
     const correct = value === problem.answer;
     answerProblem(attempt, correct);
+    playDragon(correct ? 'hit' : 'breath');
     render();
     if (correct) {
       session.locked = true;

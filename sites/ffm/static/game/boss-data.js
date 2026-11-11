@@ -27,6 +27,7 @@ const seals = count => Object.freeze({ seals: count, clockBonusPerSeal: 3 });
 export const WARDENS = Object.freeze([
   Object.freeze({
     id: 'warden-dawn',
+    dragon: Object.freeze({ sheet: 'boss/dragon-1.webp', heads: 1 }),
     art: Object.freeze({ arena: 'boss/arena-1.webp', figure: 'boss/figure-dawn.webp' }),
     act: 1,
     afterLevel: 10,
@@ -43,6 +44,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-harvest',
+    dragon: Object.freeze({ sheet: 'boss/dragon-2.webp', heads: 2 }),
     art: Object.freeze({ arena: 'boss/arena-2.webp', figure: 'boss/figure-harvest.webp' }),
     act: 2,
     afterLevel: 20,
@@ -59,6 +61,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-memory',
+    dragon: Object.freeze({ sheet: 'boss/dragon-3.webp', heads: 3 }),
     art: Object.freeze({ arena: 'boss/arena-3.webp', figure: 'boss/figure-memory.webp' }),
     act: 3,
     afterLevel: 30,
@@ -75,6 +78,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-keep',
+    dragon: Object.freeze({ sheet: 'boss/dragon-4.webp', heads: 4 }),
     art: Object.freeze({ arena: 'boss/arena-4.webp', figure: 'boss/figure-keep.webp' }),
     act: 4,
     afterLevel: 40,
@@ -91,6 +95,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-market',
+    dragon: Object.freeze({ sheet: 'boss/dragon-5.webp', heads: 5 }),
     art: Object.freeze({ arena: 'boss/arena-5.webp', figure: 'boss/figure-market.webp' }),
     act: 5,
     afterLevel: 50,
@@ -107,6 +112,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-throne',
+    dragon: Object.freeze({ sheet: 'boss/dragon-6.webp', heads: 6 }),
     art: Object.freeze({ arena: 'boss/arena-6.webp', figure: 'boss/figure-throne.webp' }),
     act: 6,
     afterLevel: 60,
@@ -130,6 +136,7 @@ export const HOLLOW_KING = Object.freeze({
   afterLevel: 60,
   bandLevel: 60,
   nameKey: 'boss.hollowKing.name',
+  dragon: Object.freeze({ sheet: 'boss/dragon-hollow.webp', heads: 1 }),
   art: Object.freeze({ arena: 'boss/arena-6.webp', figure: 'boss/figure-hollow-king.webp' }),
   arena: 6,
   hearts: HOLLOW_KING_HEARTS,

@@ -149,19 +149,20 @@
   color: var(--brass-light, #e4c577);
 }
 
-.boss-portrait {
-  width: 8rem;
-  height: 8rem;
+/* The boss dragon, drawn from a 3x3 pose sheet: background-size 300% makes each
+   cell one frame, and the module steps background-position 0/50/100%. */
+.boss-dragon {
+  width: min(11rem, 40vw);
+  aspect-ratio: 1;
   margin: 0.4rem auto 0;
-  display: block;
   border: 2px solid var(--brass-deep, #80602d);
   border-radius: 8px;
-  background: #10211b;
+  background-color: #0b0f14;
+  background-repeat: no-repeat;
+  background-size: 300% 300%;
+  background-position: 0% 0%;
   image-rendering: pixelated;
-}
-
-.boss-portrait[hidden] {
-  display: none;
+  box-shadow: inset 0 0 24px rgba(9, 20, 17, 0.9);
 }
 
 .boss-name {

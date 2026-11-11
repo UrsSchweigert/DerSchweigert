@@ -641,7 +641,11 @@ image model, which is the only generator tried here that produces genuine pixel
 art. `scripts/boss_art.py` only crops and encodes them — pooling or quantising
 would smear the pixel grid they were drawn on. See
 `static/game/boss/PROVENANCE.md` for hashes and the rejected attempts.
-Re-run that script rather than hand-editing a shipped image. The fight panels
+Re-run that script rather than hand-editing a shipped image.
+Each boss also has a dragon, front-facing, with one more head per act and one
+again for the Hollow King. Dragons ship as 3x3 pose sheets (idle / hit / breath)
+that `boss-run.js` animates by background position: a correct answer makes the
+dragon flinch, a wrong one makes it breathe. The fight panels
 use the title page's forest/ink/ivory/brass tokens from `styles.css :root`, not
 the lore palette, so a Warden looks like another room of the same house.
 

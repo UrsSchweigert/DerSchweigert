@@ -39,6 +39,32 @@ shadows, cold cyan and violet light, black silhouettes, no sunshine and no warm
 fill. The creatures stay gentle rather than frightening; the Hollow King remains
 a bodyless floating crown, as the art bible requires.
 
+## Boss dragons
+
+Each boss has one dragon, drawn from the front so the player looks it in the
+face. The head count climbs one per act and then resets for the finale:
+**1, 2, 3, 4, 5, 6, then 1 again** for the Hollow King, which is one gaunt
+crowned head rather than a smaller copy of the first.
+
+Every dragon ships as a single 3x3 pose sheet, cut from the render with the grid
+lines removed (`boss_art.py sprite-sheet`):
+
+| Row | State | When it plays |
+| --- | --- | --- |
+| 0 | idle / waiting | loops while the player thinks |
+| 1 | hit | the player answers **correctly** — the dragon flinches |
+| 2 | dragon breath | the player answers **wrongly** — the dragon breathes cold fire |
+
+Each row is three frames. `boss-run.js` steps `background-position` across the
+sheet (0 / 50 / 100 percent per axis) at 340 ms for idle, 130 ms for hit and
+150 ms for breath; hit and breath play once and fall back to idle. With
+`prefers-reduced-motion` the sheet holds the state's first frame for 450 ms
+instead of cycling.
+
+| File | Heads | SHA-256 (first 16) |
+| --- | --- | --- |
+{table}
+
 ## Files
 
 | File | SHA-256 (first 16) |

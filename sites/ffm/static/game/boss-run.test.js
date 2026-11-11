@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildWardenRows, ruleText } from './boss-run.js';
+import { DRAGON_FRAMES, DRAGON_ROWS, DRAGON_TIMING, buildWardenRows, dragonFramePosition, ruleText } from './boss-run.js';
 import { generateSequenceProblem } from './boss-problems.js';
 
 const BAND = { level: 10, operations: ['+', '-'], operandRange: { a: [2, 12], b: [1, 7] }, maxResult: 19 };
@@ -66,5 +66,30 @@ describe('ruleText', () => {
     assert.ok(ruleText(chain).includes(String(chain.params.factor)));
     const share = generateSequenceProblem({ ruleId: 'equalShare', band: BAND, seed: 1 });
     assert.ok(ruleText(share).includes(String(share.params.pile)));
+  });
+});
+
+describe('dragon animation', () => {
+  it('maps each state to its sheet row and each frame to a third of the cell', () => {
+    assert.deepEqual(DRAGON_ROWS, { idle: 0, hit: 1, breath: 2 });
+    assert.equal(DRAGON_FRAMES, 3);
+    assert.equal(dragonFramePosition('idle', 0), '0% 0%');
+    assert.equal(dragonFramePosition('idle', 1), '50% 0%');
+    assert.equal(dragonFramePosition('idle', 2), '100% 0%');
+    assert.equal(dragonFramePosition('hit', 0), '0% 50%');
+    assert.equal(dragonFramePosition('breath', 2), '100% 100%');
+  });
+
+  it('rejects an unknown state or a frame outside the sheet', () => {
+    assert.throws(() => dragonFramePosition('roar', 0), TypeError);
+    assert.throws(() => dragonFramePosition('idle', 3), RangeError);
+    assert.throws(() => dragonFramePosition('idle', -1), RangeError);
+    assert.throws(() => dragonFramePosition('idle', 1.5), RangeError);
+  });
+
+  it('gives hit and breath their own timing, faster than the idle loop', () => {
+    assert.ok(DRAGON_TIMING.idle > DRAGON_TIMING.hit);
+    assert.ok(DRAGON_TIMING.idle > DRAGON_TIMING.breath);
+    assert.ok(DRAGON_TIMING.hit > 60 && DRAGON_TIMING.breath > 60, 'slow enough to read');
   });
 });

@@ -122,6 +122,32 @@ def _replace_background(image: Image.Image, target: tuple[int, int, int], tolera
     return image
 
 
+def sprite_sheet(src: Path, out: Path, cell: int = 256, inset: int = 6) -> None:
+    """Re-cut a 3x3 pose sheet without its grid lines.
+
+    The render draws thin divider lines between cells. Each cell is cropped a
+    few pixels inside the dividers, then the nine cells are laid out again as a
+    clean 3x3 sheet, so an animation can step through it by background position
+    alone (0 / 50 / 100 percent in each axis).
+    """
+    image = Image.open(src).convert("RGB")
+    cell_w = image.width // 3
+    cell_h = image.height // 3
+    sheet = Image.new("RGB", (cell * 3, cell * 3))
+    for row in range(3):
+        for col in range(3):
+            box = (
+                col * cell_w + inset,
+                row * cell_h + inset,
+                (col + 1) * cell_w - inset,
+                (row + 1) * cell_h - inset,
+            )
+            piece = image.crop(box).resize((cell, cell), Image.Resampling.NEAREST)
+            sheet.paste(piece, (col * cell, row * cell))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out, "WEBP", quality=92, method=6)
+
+
 def native_figure(src: Path, out: Path, size: int = 256) -> None:
     """Encode a sprite that is already drawn on a pixel grid.
 
@@ -199,7 +225,7 @@ def parse_grid(text: str) -> tuple[int, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("kind", choices=["arena", "figure", "native", "native-figure"])
+    parser.add_argument("kind", choices=["arena", "figure", "native", "native-figure", "sprite-sheet"])
     parser.add_argument("src", type=Path)
     parser.add_argument("out", type=Path)
     parser.add_argument("--grid", default=None, help="logical pixel grid, e.g. 320x180")
@@ -215,6 +241,8 @@ def main() -> None:
         native_arena(args.src, args.out)
     elif args.kind == "native-figure":
         native_figure(args.src, args.out)
+    elif args.kind == "sprite-sheet":
+        sprite_sheet(args.src, args.out)
     elif args.kind == "arena":
         grid = parse_grid(args.grid or "384x216")
         pixelate(
