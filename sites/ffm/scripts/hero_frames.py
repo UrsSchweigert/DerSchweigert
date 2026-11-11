@@ -850,6 +850,11 @@ def export_edit_sheet(frames: list[Frame], path: Path, cols: int = 4,
     from PIL import ImageDraw
 
     label_h = 18
+    # The cell has to hold the largest pose with room to spare, or a pose whose
+    # pivot sits off-centre would be shifted out of its own cell.
+    widest = max(f.image.width for f in frames)
+    tallest = max(f.image.height for f in frames)
+    cell = max(cell, widest + 2 * margin, tallest + 2 * margin)
     rows = (len(frames) + cols - 1) // cols
     width = cols * (cell + margin) + margin
     height = rows * (cell + label_h + margin) + margin
@@ -873,9 +878,12 @@ def export_edit_sheet(frames: list[Frame], path: Path, cols: int = 4,
 
         meta = frame.image
         pivot_x, pivot_y = _pivot(meta)
-        # bottom-align the pose on the cell's headline, centred on its pivot
+        # Bottom-aligned and centred on the pivot, then clamped: a pivot that is
+        # not at the frame's centre must never push art past the cell border.
         left = x0 + cell // 2 - pivot_x
-        top = y0 + cell - 10 - pivot_y
+        top = y0 + cell // 2 - pivot_y
+        left = min(max(left, x0 + margin // 2), x0 + cell - margin // 2 - meta.width)
+        top = min(max(top, y0 + margin // 2), y0 + cell - margin // 2 - meta.height)
         sheet.alpha_composite(meta, (left, top))
         if pivots:
             px, py = x0 + cell // 2, y0 + cell - 10
