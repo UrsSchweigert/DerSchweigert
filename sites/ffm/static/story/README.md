@@ -100,8 +100,24 @@ and the requestAnimationFrame clock takes over again if it ends or stalls.
 missing or undecodable track only costs the sound.
 
 `tests/story.test.mjs` checks the manifest against the scene: one stem per
-narrated cue, both locales, no overlap, every line inside the scene, and no cue
-that loses its text before the line ends.
+narrated cue, for every locale that ships, no overlap, every line inside the
+scene, and no cue that loses its text before the line ends.
+
+### Re-recording a locale
+
+The tracks are made outside this repo (ElevenLabs v3 "Brian" at stability 0.25
+through fal.ai: one line per spoken cue with an audio tag in front such as
+`[ominous] …`, then trimmed, placed at the cue start, mixed to mono MP3 at
+128 kbit/s with about 2 dB of headroom). The settings of an existing take are
+in its `timing.json`.
+
+To replace a locale, write `narration/<lang>/{narration.mp3,lineNN.mp3,timing.json}`
+into the scene folder and run
+`node --test sites/ffm/static/story/tests/story.test.mjs`. No code change is
+needed: the player uses any locale folder it finds and falls back to the
+authored cue times when there is none — which is why the German act openings
+are silent until their German takes are re-recorded; dropping `narration/de/`
+back into those folders is all it takes.
 
 ## Producing a scene
 
