@@ -17,6 +17,6 @@ export const HERO_FRAMES = {
   'hurt': { x: 144, y: 331, w: 179, h: 144, px: 102, py: 143 },
   'dead': { x: 0, y: 477, w: 189, h: 81, px: 116, py: 80 },
   'victory-raise': { x: 191, y: 477, w: 128, h: 169, px: 64, py: 168 },
-  'victory-plant': { x: 321, y: 477, w: 142, h: 170, px: 70, py: 169 },
-  'cast': { x: 0, y: 649, w: 175, h: 167, px: 100, py: 166 },
+  'victory-plant': { x: 321, y: 477, w: 142, h: 181, px: 70, py: 180 },
+  'cast': { x: 0, y: 660, w: 175, h: 167, px: 100, py: 166 },
 };
