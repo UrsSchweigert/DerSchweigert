@@ -36,6 +36,14 @@ import {
 } from './boss-progress.js';
 import { onLocaleChange, t } from './i18n.js';
 
+/**
+ * Art lives beside this module (game/boss/…), so a URL built from
+ * import.meta.url works for the website and the packaged app without a base path.
+ */
+function artUrl(relative) {
+  return new URL(relative, import.meta.url).href;
+}
+
 const CLOCK_TICK_MS = 100;
 const PHASE_CLEAR_MS = 900;
 
@@ -106,6 +114,7 @@ export function initWardenMode({
   overlay.innerHTML = [
     '<div class="boss-frame" role="dialog" aria-modal="true" aria-labelledby="boss-name">',
     '  <p class="boss-act" id="boss-act"></p>',
+    '  <img class="boss-portrait" id="boss-portrait" alt="" decoding="async">',
     '  <h2 class="boss-name" id="boss-name"></h2>',
     '  <p class="boss-phase" id="boss-phase"></p>',
     '  <div class="boss-seals" id="boss-seals" role="img"></div>',
@@ -160,6 +169,7 @@ export function initWardenMode({
       button.disabled = !entry.unlocked;
       const crowns = entry.cleared ? '★'.repeat(entry.crowns) + '☆'.repeat(3 - entry.crowns) : '';
       button.innerHTML = [
+        `<img class="warden-portrait" src="${artUrl(boss.art.figure)}" alt="" loading="lazy" decoding="async">`,
         `<span class="warden-name">${t(boss.nameKey)}</span>`,
         `<span class="warden-act">${t('boss.actLabel', { act: boss.act })}</span>`,
         crowns ? `<span class="warden-crowns">${crowns}</span>` : '',
@@ -209,6 +219,10 @@ export function initWardenMode({
     const attempt = createAttempt({ bossId, difficulty, seed: Date.now() });
     const fight = planFight({ bossId, band, seed: attempt.seed });
     session = { boss, band, attempt, fight, entry: null, locked: false };
+    overlay.style.setProperty('--boss-arena', `url("${artUrl(boss.art.arena)}")`);
+    const portrait = $('boss-portrait');
+    portrait.src = artUrl(boss.art.figure);
+    portrait.hidden = false;
     $('boss-name').textContent = t(boss.nameKey);
     $('boss-act').textContent = t(boss.final ? 'boss.finalLabel' : 'boss.actLabel', { act: boss.act });
     nextEncounter();

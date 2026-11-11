@@ -27,6 +27,7 @@ const seals = count => Object.freeze({ seals: count, clockBonusPerSeal: 3 });
 export const WARDENS = Object.freeze([
   Object.freeze({
     id: 'warden-dawn',
+    art: Object.freeze({ arena: 'boss/arena-1.webp', figure: 'boss/figure-dawn.webp' }),
     act: 1,
     afterLevel: 10,
     bandLevel: 10,
@@ -42,6 +43,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-harvest',
+    art: Object.freeze({ arena: 'boss/arena-2.webp', figure: 'boss/figure-harvest.webp' }),
     act: 2,
     afterLevel: 20,
     bandLevel: 20,
@@ -57,6 +59,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-memory',
+    art: Object.freeze({ arena: 'boss/arena-3.webp', figure: 'boss/figure-memory.webp' }),
     act: 3,
     afterLevel: 30,
     bandLevel: 30,
@@ -72,6 +75,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-keep',
+    art: Object.freeze({ arena: 'boss/arena-4.webp', figure: 'boss/figure-keep.webp' }),
     act: 4,
     afterLevel: 40,
     bandLevel: 40,
@@ -87,6 +91,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-market',
+    art: Object.freeze({ arena: 'boss/arena-5.webp', figure: 'boss/figure-market.webp' }),
     act: 5,
     afterLevel: 50,
     bandLevel: 50,
@@ -102,6 +107,7 @@ export const WARDENS = Object.freeze([
   }),
   Object.freeze({
     id: 'warden-throne',
+    art: Object.freeze({ arena: 'boss/arena-6.webp', figure: 'boss/figure-throne.webp' }),
     act: 6,
     afterLevel: 60,
     bandLevel: 60,
@@ -124,6 +130,7 @@ export const HOLLOW_KING = Object.freeze({
   afterLevel: 60,
   bandLevel: 60,
   nameKey: 'boss.hollowKing.name',
+  art: Object.freeze({ arena: 'boss/arena-final.webp', figure: 'boss/figure-hollow-king.webp' }),
   arena: 6,
   hearts: HOLLOW_KING_HEARTS,
   perSealValue: 200_000,

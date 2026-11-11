@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   ACT_COUNT,
@@ -128,5 +131,30 @@ describe('boss gating', () => {
     assert.equal(totalCrowns({}), 0);
     assert.equal(totalCrowns({ 'warden-dawn': { crowns: 3 }, 'warden-harvest': { crowns: 2 } }), 5);
     assert.equal(totalCrowns({ 'warden-dawn': null }), 0);
+  });
+});
+
+describe('boss art', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+
+  it('gives every boss an arena and a portrait that exist on disk', () => {
+    for (const boss of BOSSES) {
+      assert.ok(boss.art?.arena, `${boss.id} has no arena`);
+      assert.ok(boss.art?.figure, `${boss.id} has no portrait`);
+      for (const relative of [boss.art.arena, boss.art.figure]) {
+        const full = join(here, relative);
+        assert.ok(existsSync(full), `${boss.id} art is missing: ${relative}`);
+        assert.equal(full.endsWith('.webp'), true, `${boss.id} art should ship as webp`);
+      }
+    }
+  });
+
+  it('gives each act its own arena, with one shared throne room for the final fight', () => {
+    const arenas = WARDENS.map(warden => warden.art.arena);
+    assert.equal(new Set(arenas).size, ACT_COUNT, 'each act needs a distinct arena');
+    assert.notEqual(HOLLOW_KING.art.arena, WARDENS.at(-1).art.arena,
+      'the final fight must not reuse the throne room image unchanged');
+    const figures = BOSSES.map(boss => boss.art.figure);
+    assert.equal(new Set(figures).size, BOSSES.length, 'every boss needs its own portrait');
   });
 });

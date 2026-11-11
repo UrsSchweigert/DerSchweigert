@@ -1,6 +1,7 @@
-/* boss.css — the Warden fight overlay and its entry row on the levels page.
-   Deliberately shares the title screen's palette so a boss reads as part of the
-   game rather than a separate page. */
+/* boss.css — the Warden fight overlay and its row on the levels page.
+   Palette follows the title page (styles.css :root): ink and forest greens,
+   ivory type, brass for every edge. Nothing here introduces a new colour, so a
+   Warden reads as another room of the same house. */
 
 .warden-row {
   margin: 0 0 1rem;
@@ -9,61 +10,79 @@
 .warden-title {
   margin: 0 0 0.25rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  font-size: 0.9rem;
-  color: #c9a24a;
+  font-size: 0.8rem;
+  color: var(--brass-light, #e4c577);
 }
 
 .warden-intro {
   margin: 0 0 0.6rem;
-  font-size: 0.85rem;
-  opacity: 0.85;
+  font-size: 0.8rem;
+  color: var(--ivory-muted, #d3ccb9);
 }
 
 .warden-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px;
 }
 
 .warden-card {
   display: grid;
-  gap: 0.15rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid rgba(201, 162, 74, 0.55);
-  border-radius: 0.5rem;
-  background: rgba(29, 47, 107, 0.35);
-  color: inherit;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  column-gap: 0.55rem;
+  align-items: center;
+  padding: 6px;
+  border: 2px solid var(--brass-deep, #80602d);
+  border-radius: 9px;
+  background: rgba(24, 53, 45, 0.6);
+  color: var(--ivory, #f3ead6);
   text-align: left;
   cursor: pointer;
   font: inherit;
+  touch-action: manipulation;
+}
+
+.warden-card:not(:disabled):hover,
+.warden-card:focus-visible {
+  border-color: var(--brass-light, #e4c577);
+  box-shadow: 0 0 10px rgba(228, 197, 119, 0.45);
+  outline: none;
 }
 
 .warden-card:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
+  filter: grayscale(0.6);
   cursor: not-allowed;
 }
 
-.warden-card:not(:disabled):hover {
-  border-color: #7fd4ff;
-  box-shadow: 0 0 0.6rem rgba(127, 212, 255, 0.35);
+.warden-portrait {
+  grid-row: 1 / span 3;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid var(--brass-deep, #80602d);
+  border-radius: 6px;
+  background: #10211b;
+  image-rendering: pixelated;
 }
 
 .warden-name {
   font-weight: 700;
+  font-size: 0.85rem;
 }
 
 .warden-act,
 .warden-crowns,
 .warden-locked {
-  font-size: 0.75rem;
-  opacity: 0.85;
+  font-size: 0.7rem;
+  color: var(--ivory-muted, #d3ccb9);
 }
 
 .warden-crowns {
-  color: #c9a24a;
-  letter-spacing: 0.08em;
+  color: var(--brass-light, #e4c577);
+  letter-spacing: 0.1em;
 }
 
 .boss-overlay {
@@ -74,25 +93,45 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(8, 12, 26, 0.88);
-  backdrop-filter: blur(3px);
+  background: #091411;
 }
 
-.boss-overlay[hidden] {
-  display: none;
+/* The Warden's arena fills the screen behind the panel, dimmed so the orbs and
+   the rule banner stay the brightest thing on screen. */
+.boss-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--boss-arena, none);
+  background-size: cover;
+  background-position: center;
+  image-rendering: pixelated;
+}
+
+.boss-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(9, 20, 17, 0.2), rgba(9, 20, 17, 0.78));
+}
+
+.boss-overlay > * {
+  position: relative;
+  z-index: 1;
 }
 
 .boss-frame,
 .boss-result {
-  width: min(44rem, 100%);
+  width: min(40rem, 100%);
   max-height: 100%;
   overflow-y: auto;
-  padding: 1.2rem 1.4rem 1.4rem;
-  border: 1px solid rgba(201, 162, 74, 0.6);
-  border-radius: 0.9rem;
-  background: linear-gradient(160deg, rgba(29, 47, 107, 0.96), rgba(12, 18, 40, 0.98));
-  color: #efe2c6;
+  padding: 1rem 1.1rem 1.2rem;
+  border: 2px solid var(--brass-deep, #80602d);
+  border-radius: 12px;
+  background: linear-gradient(160deg, #18352d, #091411);
+  color: var(--ivory, #f3ead6);
   text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
 }
 
 .boss-frame[hidden],
@@ -102,41 +141,57 @@
 
 .boss-act {
   margin: 0;
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #c9a24a;
+  color: var(--brass-light, #e4c577);
+}
+
+.boss-portrait {
+  width: 8rem;
+  height: 8rem;
+  margin: 0.4rem auto 0;
+  display: block;
+  border: 2px solid var(--brass-deep, #80602d);
+  border-radius: 8px;
+  background: #10211b;
+  image-rendering: pixelated;
+}
+
+.boss-portrait[hidden] {
+  display: none;
 }
 
 .boss-name {
-  margin: 0.15rem 0 0.35rem;
-  font-size: 1.4rem;
+  margin: 0.4rem 0 0.2rem;
+  font-size: 1.3rem;
+  font-weight: 700;
 }
 
 .boss-phase {
-  margin: 0 0 0.7rem;
-  font-size: 0.85rem;
-  opacity: 0.85;
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--ivory-muted, #d3ccb9);
 }
 
 .boss-seals {
   display: flex;
   justify-content: center;
-  gap: 0.4rem;
-  margin-bottom: 0.7rem;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
 }
 
 .seal {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.4rem;
+  height: 1.4rem;
   border-radius: 50%;
-  border: 2px solid rgba(127, 212, 255, 0.7);
-  background: rgba(127, 212, 255, 0.12);
+  border: 2px solid var(--brass-deep, #80602d);
+  background: rgba(9, 20, 17, 0.7);
 }
 
 .seal--broken {
-  border-color: #c9a24a;
-  background: radial-gradient(circle, #c9a24a 0%, rgba(201, 162, 74, 0.25) 70%);
+  border-color: var(--brass-light, #e4c577);
+  background: radial-gradient(circle, var(--brass-light, #e4c577) 0%, var(--brass, #c49a48) 70%);
 }
 
 .boss-meter {
@@ -147,18 +202,19 @@
 }
 
 .boss-meter-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  opacity: 0.8;
+  color: var(--ivory-muted, #d3ccb9);
   white-space: nowrap;
 }
 
 .boss-clock {
   flex: 1;
   height: 0.5rem;
+  border: 1px solid var(--brass-deep, #80602d);
   border-radius: 999px;
-  background: rgba(239, 226, 198, 0.15);
+  background: rgba(9, 20, 17, 0.8);
   overflow: hidden;
 }
 
@@ -166,107 +222,115 @@
   display: block;
   height: 100%;
   width: 100%;
-  background: linear-gradient(90deg, #7fd4ff, #c9a24a);
+  background: linear-gradient(90deg, var(--brass, #c49a48), var(--brass-light, #e4c577));
   transition: width 120ms linear;
 }
 
 #boss-clock-fill[data-empty="true"] {
-  background: rgba(239, 226, 198, 0.25);
+  background: rgba(243, 234, 214, 0.2);
 }
 
 .boss-hearts {
   display: flex;
   justify-content: center;
-  gap: 0.25rem;
-  margin-bottom: 0.8rem;
+  gap: 0.2rem;
+  margin-bottom: 0.7rem;
   color: #b3262d;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .boss-heart--empty {
-  color: rgba(239, 226, 198, 0.25);
+  color: rgba(243, 234, 214, 0.22);
 }
 
 .boss-prompt {
-  min-height: 2.4rem;
-  margin: 0 0 0.8rem;
-  font-size: 1.15rem;
-  font-weight: 600;
+  min-height: 2.2rem;
+  margin: 0 0 0.7rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ivory, #f3ead6);
 }
 
 .boss-hint {
-  margin: 0 0 0.8rem;
-  font-size: 0.85rem;
-  color: #c9a24a;
+  margin: 0 0 0.7rem;
+  font-size: 0.8rem;
+  color: var(--brass-light, #e4c577);
 }
 
 .boss-options {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 0.9rem;
+  gap: 6px;
+  margin-bottom: 0.8rem;
 }
 
 .boss-option,
 .seal-orb {
-  min-width: 4.2rem;
-  min-height: 3rem;
-  padding: 0.5rem 0.9rem;
-  border-radius: 0.6rem;
-  border: 1px solid rgba(127, 212, 255, 0.55);
-  background: rgba(127, 212, 255, 0.12);
-  color: #efe2c6;
-  font: inherit;
-  font-size: 1.15rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.45rem 0.8rem;
+  border-radius: 9px;
+  border: 2px solid var(--brass-deep, #80602d);
+  background: #10211b;
+  color: var(--ivory, #f3ead6);
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .boss-option:hover,
 .seal-orb:hover {
-  border-color: #7fd4ff;
+  border-color: var(--brass-light, #e4c577);
+  box-shadow: 0 0 8px rgba(228, 197, 119, 0.4);
+}
+
+.boss-option:focus-visible,
+.seal-orb:focus-visible {
+  outline: 3px solid var(--focus-ring, #fff0bd);
+  outline-offset: 1px;
 }
 
 .boss-option--primary {
-  border-color: #c9a24a;
-  background: rgba(201, 162, 74, 0.2);
+  border-color: var(--brass-light, #e4c577);
+  background: rgba(128, 96, 45, 0.55);
 }
 
 .seal-orb {
   border-radius: 50%;
-  min-width: 3.4rem;
-  min-height: 3.4rem;
+  min-width: 3.2rem;
+  min-height: 3.2rem;
 }
 
 .seal-orb--locked {
-  border-color: #c9a24a;
-  background: radial-gradient(circle, rgba(201, 162, 74, 0.55), rgba(201, 162, 74, 0.15));
+  border-color: var(--brass-light, #e4c577);
+  background: radial-gradient(circle, rgba(228, 197, 119, 0.55), rgba(128, 96, 45, 0.35));
 }
 
 .boss-leave {
   border: none;
   background: none;
-  color: inherit;
-  opacity: 0.6;
+  color: var(--ivory-muted, #d3ccb9);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .boss-crowns {
-  margin: 0.4rem 0 0.8rem;
-  font-size: 1.8rem;
-  letter-spacing: 0.12em;
-  color: #c9a24a;
+  margin: 0.3rem 0 0.7rem;
+  font-size: 1.6rem;
+  letter-spacing: 0.14em;
+  color: var(--brass-light, #e4c577);
 }
 
 .boss-result-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 6px;
 }
 
 @media (prefers-reduced-motion: reduce) {

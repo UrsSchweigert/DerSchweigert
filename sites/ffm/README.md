@@ -635,6 +635,14 @@ and score; `boss-progress.js` keeps the best crown and score per Warden.
 `app/level_data.json`, which is the only way to try one without the level API.
 It is a development page and is excluded from the app bundle.
 
+Warden art lives in `static/game/boss/`: one arena backdrop per act and one
+portrait per boss, all generated with the approved `fal-ai/flux-1/schnell`
+endpoint and converted to the stage art's pixel density by
+`scripts/boss_art.py` (see `static/game/boss/PROVENANCE.md` for every seed).
+Re-run that script rather than hand-editing a shipped image. The fight panels
+use the title page's forest/ink/ivory/brass tokens from `styles.css :root`, not
+the lore palette, so a Warden looks like another room of the same house.
+
 ### Change visuals or sprites
 
 Start with:
