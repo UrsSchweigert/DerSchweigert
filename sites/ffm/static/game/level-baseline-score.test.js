@@ -30,11 +30,12 @@ describe('assumedDragonPathLevelScore', () => {
     assert.strictEqual(first, second);
   });
 
-  it('returns exactly 17850 for level 1 (hand-computed)', () => {
+  it('returns exactly 7350 for level 1 (hand-computed)', () => {
     // Level 1: fiendHP=1, waveSize=30, so hits=30
-    // classIdForLevel(1)=8, scoreValue=400, SPEED_BONUS_MAX=50, COMBO_BONUS_PER_HIT=10
-    // sum = 30*450 + 10*(0+1+...+29) = 13500 + 4350 = 17850
-    assert.strictEqual(assumedDragonPathLevelScore(1, _FullLevelConfig), 17850);
+    // classIdForLevel(1)=1 (one class per level), scoreValue=50,
+    // SPEED_BONUS_MAX=50, COMBO_BONUS_PER_HIT=10
+    // sum = 30*100 + 10*(0+1+...+29) = 3000 + 4350 = 7350
+    assert.strictEqual(assumedDragonPathLevelScore(1, _FullLevelConfig), 7350);
   });
 
   it('trends upward within chapter 1 (when comparing select levels with same fiendHP)', () => {

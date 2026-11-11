@@ -34,31 +34,79 @@ const SCORE_STEP = 50;
 
 // Fraction of each fiend sprite's drawn height to shift the sprite DOWN by, so
 // its true ground-contact point (not just its lowest opaque pixel) lands on
-// the hero's feet line (GROUND_Y). These values were tuned by hand via the
-// live visual calibration tool (calibrate.html), which renders the real
-// Hero/Fiend classes against a ground-line reference so what's tuned there is
-// pixel-identical to what the game renders.
-const BOTTOM_PAD_RATIO = {
-  1: [0.055, 0.05, 0.05, 0.03, 0.02, 0.03, 0.1, 0.095, 0.06, 0.17, 0.06, 0.15, 0.085, 0.08, 0.095, 0.08, 0.075, 0.07],
-  2: [0.09, 0.08, 0.095, 0.075, 0.06, 0.08, 0.14, 0.11, 0.08, 0.14, 0.08, 0.15, 0.08, 0.08, 0.1, 0.055, 0.06, 0.08],
-};
+// the hero's feet line (GROUND_Y). Tuned by hand via the live visual
+// calibration tool (calibrate.html), which renders the real Hero/Fiend classes
+// against a ground-line reference so what is tuned there is pixel-identical to
+// what the game renders.
+//
+// One entry per class, in id order: 18 young (set 1), 18 old (set 2), 18
+// ancient (set 3), then the six dragon variants (ids 55-60). The ancient set
+// starts from the old set's values because those sprites were fitted to the
+// same heights, and the dragon variants start from their stage's dragon - all
+// of it needs a calibration pass after any sprite art changes.
+const BOTTOM_PAD_RATIO = [
+  // young (set 1)
+  0.04, 0.035, 0.045, 0.0, 0.02, 0.03, 0.1, 0.095, 0.06, 0.0, 0.06, 0.05, 0.045, 0.02, 0.055, 0.0, 0.015, 0.01,
+  // old (set 2)
+  0.05, 0.04, 0.035, 0.015, 0.06, 0.02, 0.06, 0.05, 0.02, 0.0, 0.04, 0.11, 0.0, 0.06, 0.06, 0.015, 0.04, 0.04,
+  // ancient (set 3)
+  0.05, 0.04, 0.035, 0.035, 0.04, 0.04, 0.08, 0.09, 0.06, 0.08, 0.04, 0.15, 0.08, 0.08, 0.04, 0.055, 0.02, 0.04,
+  // dragon variants: young, young, old, old, ancient, ancient
+  0.02, 0.02, 0.06, 0.06, 0.06, 0.06,
+];
+
+// Three art stages per creature: the same grid position in sprite sets 1-3.
+const STAGES = [
+  { set: 1, stage: 'young' },
+  { set: 2, stage: 'old' },
+  { set: 3, stage: 'ancient' },
+];
+
+// Levels 55-60 get the dragon line: three stages, each in two colour shifts.
+// dragon-1/3/5 rotate the blue dragon to a molten red, dragon-2/4/6 to a
+// verdant green, so the names follow the sprite rather than the download order.
+const DRAGON_VARIANTS = [
+  { name: 'Young Dragon (Ember)', sprite: 'dragon-1' },
+  { name: 'Young Dragon (Verdant)', sprite: 'dragon-2' },
+  { name: 'Old Dragon (Ember)', sprite: 'dragon-3' },
+  { name: 'Old Dragon (Verdant)', sprite: 'dragon-4' },
+  { name: 'Ancient Dragon (Ember)', sprite: 'dragon-5' },
+  { name: 'Ancient Dragon (Verdant)', sprite: 'dragon-6' },
+];
+
+const STAGE_CLASS_COUNT = STAGES.length * CREATURE_NAMES.length;   // 54
+export const FIEND_CLASS_COUNT = STAGE_CLASS_COUNT + DRAGON_VARIANTS.length;   // 60
 
 function buildFiendClasses() {
   const classes = [];
-  for (let set = 1; set <= 2; set++) {
-    for (let gridIndex = 1; gridIndex <= 18; gridIndex++) {
-      const id = (set - 1) * 18 + gridIndex;
+  for (const { set, stage } of STAGES) {
+    for (let gridIndex = 1; gridIndex <= CREATURE_NAMES.length; gridIndex++) {
+      const id = (set - 1) * CREATURE_NAMES.length + gridIndex;
       classes.push({
         id,
         name: CREATURE_NAMES[gridIndex - 1],
+        stage,
         spriteSet: set,
         gridIndex,
         spritePath: `./fiend-sprites/set${set}-${String(gridIndex).padStart(2, '0')}.png`,
         scoreValue: SCORE_STEP * id,
-        bottomPadRatio: BOTTOM_PAD_RATIO[set][gridIndex - 1],
+        bottomPadRatio: BOTTOM_PAD_RATIO[id - 1],
       });
     }
   }
+  DRAGON_VARIANTS.forEach((variant, index) => {
+    const id = STAGE_CLASS_COUNT + index + 1;
+    classes.push({
+      id,
+      name: variant.name,
+      stage: 'dragon',
+      spriteSet: STAGES.length + 1,
+      gridIndex: 5,          // the dragon slot the variant derives from
+      spritePath: `./fiend-sprites/${variant.sprite}.png`,
+      scoreValue: SCORE_STEP * id,
+      bottomPadRatio: BOTTOM_PAD_RATIO[id - 1],
+    });
+  });
   return classes;
 }
 
@@ -87,68 +135,13 @@ function _formulaClassIdForLevel(level) {
   return Math.max(1, Math.min(36, Math.ceil((clamped / 60) * 36)));
 }
 
-export const LEVEL_FIEND_CLASS_ID = {
-  1: 8,
-  2: 26,
-  3: 1,
-  4: 19,
-  5: 2,
-  6: 20,
-  7: 3,
-  8: 21,
-  9: 4,
-  10: 22,
-  11: 6,
-  12: 24,
-  13: 7,
-  14: 25,
-  15: 8,
-  16: 26,
-  17: 9,
-  18: 27,
-  19: 10,
-  20: 28,
-  21: 11,
-  22: 29,
-  23: 12,
-  24: 30,
-  25: 13,
-  26: 31,
-  27: 14,
-  28: 32,
-  29: 15,
-  30: 33,
-  31: 16,
-  32: 34,
-  33: 17,
-  34: 35,
-  35: 18,
-  36: 36,
-  37: 23,
-  38: 23,
-  39: 24,
-  40: 24,
-  41: 25,
-  42: 26,
-  43: 26,
-  44: 27,
-  45: 27,
-  46: 28,
-  47: 29,
-  48: 29,
-  49: 30,
-  50: 30,
-  51: 31,
-  52: 32,
-  53: 32,
-  54: 33,
-  55: 33,
-  56: 34,
-  57: 35,
-  58: 35,
-  59: 36,
-  60: 36,
-};
+// One class per level: the ladder is 60 classes deep and the campaign is 60
+// levels, so level N fields class N. The wave at a level still mixes in the two
+// classes below it (see getFiendClassWeights), which is what makes the art
+// change feel gradual rather than switching sets at a chapter boundary.
+export const LEVEL_FIEND_CLASS_ID = Object.fromEntries(
+  Array.from({ length: FIEND_CLASS_COUNT }, (_, i) => [i + 1, i + 1]),
+);
 
 function classIdForLevel(level) {
   const clamped = Math.max(1, Math.min(60, level));

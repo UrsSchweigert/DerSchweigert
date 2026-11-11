@@ -3,29 +3,52 @@
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W, CANVAS_H } from './renderer.js';
 import { FIEND_COMBAT_X } from './difficulty.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
+import { HERO_ATLAS, HERO_FRAMES } from './hero/hero-frames.js';
+import { HeroAnimator } from './hero-anim.js';
 
 const P = LOGICAL_PX; // shorthand
 
-// Vertical nudge applied when drawing the hero, so the sprite's actual boots
-// (not the shadow baked into the art beneath them) land on GROUND_Y. Exposed
-// as a mutable value (with getter/setter) rather than an inline literal so
-// calibrate.html can tune it live with perfect parity with the real game.
-let _heroGroundOffsetPx = 9;
+// The atlas is built at the game's own pixel density (scripts/hero_frames.py),
+// so drawing 1:1 with smoothing off is pixel-exact. Every frame carries its own
+// foot contact point, which replaces the single hand-tuned ground offset the
+// fixed-grid sheet needed.
+const HERO_SCALE = 1;
+
+// Vertical nudge applied when drawing the hero, on top of each frame's own foot
+// pivot. Kept as a mutable value (with getter/setter) rather than an inline
+// literal so calibrate.html can tune it live with perfect parity with the real
+// game. Default is 0 now that the pivot does the grounding.
+let _heroGroundOffsetPx = 0;
 export function getHeroGroundOffsetPx() { return _heroGroundOffsetPx; }
 export function setHeroGroundOffsetPx(px) { _heroGroundOffsetPx = px; }
 
-const _uploadedHeroSheet = new Image();
-_uploadedHeroSheet.src = new URL('./hero-spritesheet-clean.png', import.meta.url).href;
-const _uploadedHeroRows = { idle: 0, swing: 1, walk: 2, hurt: 3, dead: 4, victory: 5 };
-// col 2 of the walk row sits in the bottom half of its cell — skip it
-const _walkCols = [0, 1, 3, 1];
+// Additive radial glow shared by the cast hand, the strike impact and the
+// spell projectiles, so every magic effect in the game reads as the same light.
+function _radialGlow(ctx, x, y, radius, alpha, core, mid) {
+  if (alpha <= 0 || radius <= 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = Math.min(1, alpha);
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  gradient.addColorStop(0, core);
+  gradient.addColorStop(0.45, mid);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+const _heroAtlas = new Image();
+_heroAtlas.src = HERO_ATLAS;
 const _dragonSprite = new Image();
 _dragonSprite.src = new URL('./dragon.webp', import.meta.url).href;
 const _fireballSprite = new Image();
 _fireballSprite.src = new URL('./fireball.png', import.meta.url).href;
 
 // Fiend class sprite cache: one Image per class, created lazily, checked via
-// .complete/.naturalWidth before use (same pattern as the hero spritesheet above).
+// .complete/.naturalWidth before use (same pattern as the hero atlas above).
 const _fiendClassSpriteCache = new Map();
 
 function getFiendClassSprite(fiendClassId) {
@@ -57,14 +80,55 @@ export class Entity {
   draw(_ctx)   {}
 }
 
-// ─── Hero ─────────────────────────────────────────────────────────────────────
-const H_DUR = { idle:20, swing:4, hurt:6, victory:12, walk:6, dead:10 };
-const H_FRM = { idle:2,  swing:3, hurt:2, victory:2,  walk:4, dead:3  };
+// One ground shadow for the whole cast. The baked hard-edged ellipses were
+// stripped from the fiend sprites (scripts/feather_fiend_shadows.py) so that
+// every creature - hero and fiend - sits in the same soft light. Squashed space
+// keeps the gradient and the arc on one origin: translating inside a scaled
+// space leaves the origin unrestored and the ellipse lands off-canvas.
+const SHADOW_ALPHA = 0.45;
+const SHADOW_MID_STOP = 0.6;
+const SHADOW_MID_ALPHA = 0.22;    // the stop the hero's shadow already used
 
+export function drawSoftShadow(ctx, x, y, rx, ry, alpha = SHADOW_ALPHA) {
+  if (!(rx > 0) || !(ry > 0) || alpha <= 0) return;
+  ctx.save();
+  ctx.translate(x, y + 1);
+  ctx.scale(1, ry / rx);
+  const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  gradient.addColorStop(0, `rgba(0,0,0,${alpha})`);
+  const mid = (SHADOW_MID_ALPHA * alpha) / SHADOW_ALPHA;
+  gradient.addColorStop(SHADOW_MID_STOP, `rgba(0,0,0,${mid.toFixed(3)})`);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(0, 0, rx, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Fiends are drawn at their sprite's aspect, so the shadow is sized off the
+// drawn width and height rather than a per-creature table: 0.34 of the width and
+// 0.05 of the height is the footprint the baked ellipses had.
+export function fiendShadowRadii(drawW, drawH) {
+  return [Math.max(16, drawW * 0.34), Math.max(4, drawH * 0.05)];
+}
+
+// ─── Hero ─────────────────────────────────────────────────────────────────────
 // Fixed angle offsets for the aura's radiating energy spikes — precomputed
 // once at module load so drawing never allocates a new array per frame.
 const AURA_SPIKE_COUNT = 8;
 const AURA_SPIKE_ANGLES = Array.from({ length: AURA_SPIKE_COUNT }, (_, i) => (i / AURA_SPIKE_COUNT) * Math.PI * 2);
+
+// Game state → clip. `swing` doubles as the melee strike and the dragon
+// summon; the combo spells get their own cast clip (see cast()).
+const STATE_CLIPS = {
+  idle: 'idle', walk: 'walk', swing: 'swing',
+  hurt: 'hurt', dead: 'dead', victory: 'victory',
+};
+const CLIP_STATES = {
+  idle: 'idle', walk: 'walk', swing: 'swing',
+  hurt: 'hurt', dead: 'dead', victory: 'victory', cast: 'cast',
+};
 
 export class Hero extends Entity {
   constructor() {
@@ -72,11 +136,23 @@ export class Hero extends Entity {
     this._healAura = 0;       // countdown (seconds) — post-level-clear heal flash
     this._holdHealActive = false; // continuous flag — hold-to-heal in progress
     this._holdHealRatio = 0;  // 0..1 progress toward the next healed heart, for intensity
+    this.anim = new HeroAnimator();
+    this.anim.play('idle');
+    this._castFx = null;      // 'fire' | 'bolt' — drives the cast glow palette
   }
 
   update(dt) {
-    super.update(dt);
+    this.anim.update(dt);
+    // Free-running counter for the heal aura's pulse; the pose timeline no
+    // longer uses it.
+    this._tick += dt * 60;
     if (this._healAura > 0) this._healAura = Math.max(0, this._healAura - dt);
+    // One-shot clips park on their last pose; move on to the clip the game
+    // expects to see afterwards (usually idle) instead of holding the pose.
+    if (this.anim.finished) {
+      const next = this.anim.clips[this.anim.clip]?.next;
+      if (next && next !== this.anim.clip) this._applyClip(next);
+    }
   }
 
   // Renders the pulsating green healing aura behind/in front of the hero
@@ -95,7 +171,9 @@ export class Hero extends Entity {
     const intensity = Math.max(timerFade, holdFade);
     if (intensity <= 0) return;
 
-    const cx = this.x + 44;
+    // The hero's feet are centred on x now (the atlas pivots on the foot
+    // contact point), so the chest is directly above it.
+    const cx = this.x;
     const cy = this.y - 73 + 6 * P;
     const t = this._tick * 0.25;
     const front = layer === 'front';
@@ -153,16 +231,27 @@ export class Hero extends Entity {
   }
 
   setState(s) {
-    if (H_DUR[s]) { super.setState(s); this._dur = H_DUR[s]; }
+    const clip = STATE_CLIPS[s];
+    if (!clip) return;
+    this._state = s;
+    this._castFx = null;
+    // One-shot clips replay from the top when re-triggered (a second correct
+    // answer must swing again); looping clips keep their phase so repeated
+    // setState('idle') calls do not restart the breathing cycle.
+    this.anim.play(clip, { restart: !this.anim.clips[clip].loop });
   }
-  _onFrameAdvance() {
-    this._frame++;
-    const max = H_FRM[this._state] || 1;
-    if (this._frame >= max) {
-      if (['swing','hurt','victory'].includes(this._state)) this.setState('idle');
-      else if (['idle', 'dead'].includes(this._state)) this._frame = max - 1;
-      else this._frame = 0;
-    }
+
+  /** Start the spell-casting clip; `fx` picks the cast glow palette. */
+  cast(fx) {
+    this._castFx = fx ?? null;
+    this.anim.play('cast', { restart: true });
+    this._state = 'cast';
+  }
+
+  _applyClip(name) {
+    if (!this.anim.play(name)) return;
+    this._state = CLIP_STATES[name] ?? this._state;
+    if (name !== 'cast') this._castFx = null;
   }
 
   draw(ctx) {
@@ -170,30 +259,12 @@ export class Hero extends Entity {
     const by = ~~(this.y - 36*P);
     const Q  = 2;              // sprite pixel = 2×2 real pixels → finer detail
     const br = this._state === 'hurt';
-    const bob = this._state === 'idle' && this._frame === 1 ? Q : 0;
-    const fr = this._frame;
+    const bob = 0;
+    const fr = 0;
 
-    if (_uploadedHeroSheet.complete && _uploadedHeroSheet.naturalWidth) {
-      const row = this.lunging ? _uploadedHeroRows['walk'] : (_uploadedHeroRows[this._state] ?? 0);
-      const col = this.lunging ? 0
-        : this._state === 'walk' ? _walkCols[fr % _walkCols.length]
-        : Math.min(fr, (H_FRM[this._state] ?? 1) - 1);
-      const sourceX = col * 200;
-      const sourceY = row * 180;
-      const sourceW = 200;
-      const sourceH = 180;
-      const drawW = 160;
-      const drawH = 150;
-    if (this._healAura > 0 || this._holdHealActive) {
-      this._drawHealAura(ctx, 'back');
-    }
-    ctx.drawImage(_uploadedHeroSheet, sourceX, sourceY, sourceW, sourceH,
-      this.x - 36, this.y - drawH + _heroGroundOffsetPx, drawW, drawH);
-    if (this._healAura > 0 || this._holdHealActive) {
-      this._drawHealAura(ctx, 'front');
-    }
-
-    return;
+    if (_heroAtlas.complete && _heroAtlas.naturalWidth) {
+      this._drawAtlasFrame(ctx);
+      return;
     }
 
     if (this._state === 'dead') { this._drawDead(ctx, bx, by, fr, Q); return; }
@@ -430,6 +501,161 @@ export class Hero extends Entity {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(ex+2*Q,  ey+Q,     Q,    Q);   // main top-left spark
     ctx.fillRect(ex+5*Q,  ey+3*Q,   Q,    Q);   // secondary bottom-right
+  }
+
+  _drawAtlasFrame(ctx) {
+    const frame = HERO_FRAMES[this.anim.frameId];
+    if (!frame) return;
+    const tf = this.anim.transform;
+    const w = frame.w * HERO_SCALE;
+    const h = frame.h * HERO_SCALE;
+    const footX = this.x + tf.dx * HERO_SCALE;
+    const footY = this.y + _heroGroundOffsetPx + tf.dy * HERO_SCALE;
+    const left = Math.round(footX - frame.px * HERO_SCALE);
+    const top = Math.round(footY - frame.py * HERO_SCALE);
+
+    const aura = this._healAura > 0 || this._holdHealActive;
+    if (aura) this._drawHealAura(ctx, 'back');
+    // Generated poses ship without a baked shadow; the set is authoritative
+    // here rather than the atlas metadata so a stale cached metadata module
+    // can never leave the hero floating.
+    if (!frame.shadow) this._drawGroundShadow(ctx, footX, footY, frame);
+
+    ctx.save();
+    // Pixel art: never let the canvas resample the sprite.
+    ctx.imageSmoothingEnabled = false;
+    if (tf.rot !== 0) {
+      // The lean pivots at the feet, so the hero never floats off the ground.
+      ctx.translate(left + frame.px * HERO_SCALE, top + frame.py * HERO_SCALE);
+      ctx.rotate(tf.rot);
+      ctx.drawImage(_heroAtlas, frame.x, frame.y, frame.w, frame.h,
+        -frame.px * HERO_SCALE, -frame.py * HERO_SCALE, w, h);
+    } else {
+      ctx.drawImage(_heroAtlas, frame.x, frame.y, frame.w, frame.h, left, top, w, h);
+    }
+    ctx.restore();
+
+    if (this.anim.clip === 'swing') this._drawSwingFx(ctx, left, top, frame);
+    if (this._castFx && this.anim.clip === 'cast') this._drawCastFx(ctx, left, top, frame);
+    if (aura) this._drawHealAura(ctx, 'front');
+  }
+
+  // Arc + sparks for the strike, timed off the clip rather than baked into the
+  // sprite: the sheet's arc frames only exist at a smaller character scale, and
+  // a drawn arc can fade, so the blade reads as moving through the swing
+  // instead of the art cutting from one pose to the next.
+  // Generated poses ship without a baked shadow; this draws the same soft
+  // ellipse the sheet art carries, under the same foot pivot.
+  _drawGroundShadow(ctx, x, y, frame) {
+    // Same gradient every fiend draws (drawSoftShadow), so hero and fiends
+    // share one light: wide and flat, centred on the foot pivot.
+    drawSoftShadow(ctx, x, y, Math.max(30, frame.w * 0.46), 7);
+  }
+
+  _drawSwingFx(ctx, left, top, frame) {
+    const clip = this.anim.clips.swing;
+    const total = clip.frames.reduce((sum, f) => sum + f.ms, 0);
+    let before = 0;
+    for (const f of clip.frames) {
+      if (f.at === 'hit') break;
+      before += f.ms;
+    }
+    const t = this._clipProgress();
+    const hitStart = before / total;
+    if (t < hitStart - 0.06) return;
+    const fade = Math.max(0, 1 - (t - hitStart) / 0.55);
+    if (fade <= 0) return;
+
+    // The arc is centred on the hands and sweeps along the path the blade
+    // travelled, from up-right to down-right, so it reads as a trail rather
+    // than a decoration floating next to the hero.
+    const anchor = this.anim.frame.fxAt ?? [-19, -40];
+    const cx = left + (frame.px + anchor[0]) * HERO_SCALE;
+    const cy = top + (frame.py + anchor[1]) * HERO_SCALE;
+    // Fatter than the blade it trails: an ellipse wide in x and shorter in y,
+    // stroked in four layers (soft outer haze, body, bright edge, white core)
+    // so the slash has structure instead of being one uniform line.
+    const radiusX = 146, radiusY = 98;
+    const a0 = -1.35, a1 = 0.92, a1x = a1;
+    const layers = [
+      [26, '#1b4f8c', 0.26],
+      [16, '#2f8fd8', 0.42],
+      [9, '#7fd4ff', 0.68],
+      [3.5, '#ffffff', 0.95],
+    ];
+    for (const [width, colour, alpha] of layers) {
+      ctx.globalAlpha = fade * alpha;
+      ctx.lineWidth = width;
+      ctx.strokeStyle = colour;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, radiusX, radiusY, -0.38, a0, a1x);
+      ctx.stroke();
+    }
+    // Structured glow: the leading edge of the sweep burns brighter, and the
+    // tail feathers out, so the eye reads direction of travel.
+    for (let i = 0; i < 5; i++) {
+      const from = a0 + (a1x - a0) * (i / 5);
+      const to = a0 + (a1x - a0) * ((i + 1) / 5) + 0.03;
+      ctx.globalAlpha = fade * (0.1 + 0.22 * i);
+      ctx.lineWidth = 18 + i * 4;
+      ctx.strokeStyle = i >= 3 ? '#bfeaff' : '#3d8fd0';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, radiusX, radiusY, -0.38, from, to);
+      ctx.stroke();
+    }
+
+    // A single burst at the impact, same light as the cast: the swing is the
+    // moment the hit lands, so it gets one flash rather than a steady glow.
+    const burst = Math.max(0, 1 - (t - hitStart) / 0.3);
+    _radialGlow(ctx, cx + Math.cos(a1x) * radiusX, cy + Math.sin(a1x) * radiusY,
+      64 * (0.7 + 0.5 * burst), 0.8 * burst, '#ffffff', '#8fd8ff');
+
+    // Sparks fly off the blade end, where the arc is brightest.
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = '#cfeeff';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const a = a1x - 0.18 + i * 0.14;
+      const r0 = 1.0, r1 = 1.0 + (0.1 + (i % 2) * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * radiusX * r0, cy + Math.sin(a) * radiusY * r0);
+      ctx.lineTo(cx + Math.cos(a) * radiusX * r1, cy + Math.sin(a) * radiusY * r1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Glow in the raised palm while the cast clip plays. The hand sits at the
+  // same offset in the `cast` pose every time, so the anchor is part of the
+  // clip data instead of being measured at runtime.
+  _drawCastFx(ctx, left, top, frame) {
+    const anchor = this.anim.frame.fxAt;
+    if (!anchor) return;
+    const t = this._clipProgress();
+    const intensity = t < 0.45 ? t / 0.45 : Math.max(0, 1 - (t - 0.45) / 0.55);
+    if (intensity <= 0) return;
+    const fire = this._castFx === 'fire';
+    const core = fire ? '#fff0b0' : '#dff4ff';
+    const mid = fire ? '#ffb03a' : '#7fd4ff';
+    const hx = left + (frame.px + anchor[0]) * HERO_SCALE;
+    const hy = top + (frame.py + anchor[1]) * HERO_SCALE;
+    const r = (20 + 12 * Math.abs(Math.sin(this._tick * 0.02))) * intensity;
+    _radialGlow(ctx, hx, hy, r * 3.2, 0.85 * intensity, core, mid);
+    ctx.save();
+    ctx.globalAlpha = 0.9 * intensity;
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(hx, hy, r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  _clipProgress() {
+    const clip = this.anim.clips[this.anim.clip];
+    if (!clip) return 0;
+    const total = clip.frames.reduce((sum, f) => sum + f.ms, 0);
+    if (total <= 0) return 0;
+    return Math.min(1, (total - this.anim.remaining) / total);
   }
 
   _drawSword(ctx, bx, by, bob, Q) {
@@ -918,6 +1144,11 @@ export class Fiend extends Entity {
     // scale(-1,1) so drawImage's local [0,w] maps back onto [bx, bx+w]).
     const faceRight = this._state === 'retreat';
 
+    // The baked ellipse was stripped from the sprite, so the ground shadow is
+    // drawn here instead - the same gradient the hero uses.
+    const [shadowRx, shadowRy] = fiendShadowRadii(drawW, drawH);
+    drawSoftShadow(ctx, this.x, this.y, shadowRx, shadowRy);
+
     ctx.save();
     if (this.isElite) this._drawEliteAura(ctx, bx, by, drawW, drawH);
     if (faceRight) {
@@ -948,9 +1179,7 @@ export class Slimeling extends Fiend {
     const bx = ~~(this.x - 9*P) + attX;
     const by = ~~(this.y - 15*P) + bobY;
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(bx+2*P, by+15*P, 14*P, 3*P);
+    drawSoftShadow(ctx, this.x, this.y, 8*P, 2.5*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by, 18*P, 15*P);
 
     // body — rounded blob
@@ -1012,9 +1241,7 @@ export class Bonehead extends Fiend {
     const bx = ~~(this.x - 8*P) + attX;
     const by = ~~(this.y - 28*P);
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(bx+2*P, by+28*P, 14*P, 2*P);
+    drawSoftShadow(ctx, this.x, this.y, 8*P, 2*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by, 16*P, 30*P);
 
     // --- skull ---
@@ -1114,9 +1341,7 @@ export class Toadlord extends Fiend {
     const bx = ~~(this.x - 11*P) + attX;
     const by = ~~(this.y - 22*P) + stomp;
 
-    // shadow (grows on stomp)
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.fillRect(bx+2*P, by+22*P-stomp, 20*P, 3*P);
+    drawSoftShadow(ctx, this.x + P, this.y, 11*P, 3*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by - 6*P, 22*P, 30*P);
 
     // body — wide rounded blob
@@ -1222,10 +1447,9 @@ export class Magelitch extends Fiend {
     const bx = ~~(this.x - 8*P) + attX;
     const by = ~~(this.y - 30*P) + hov;
 
-    // shadow (fades at hover peak)
-    const shadowA = 0.22 - Math.abs(hov) * 0.008;
-    ctx.fillStyle = `rgba(0,0,0,${shadowA.toFixed(2)})`;
-    ctx.fillRect(bx+2*P, by+30*P-hov, 12*P, 3*P);
+    // the shadow fades as it rises, the same way its old hard rectangle did
+    const shadowA = SHADOW_ALPHA - Math.abs(hov) * 0.016;
+    drawSoftShadow(ctx, this.x, this.y, 7*P, 2.5*P, shadowA);
     if (this.isElite) this._drawEliteAura(ctx, bx, by - 10*P, 16*P, 42*P);
 
     // robe body
@@ -1336,9 +1560,7 @@ export class BirdFoe extends Fiend {
     const bx = ~~(this.x - 11*P) + attX;
     const by = ~~(this.y - 22*P);
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.fillRect(bx+3*P, by+21*P, 16*P, 2*P);
+    drawSoftShadow(ctx, this.x, this.y, 9*P, 2*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by, 22*P, 22*P);
 
     // tail feathers
@@ -1428,9 +1650,7 @@ export class WolfFoe extends Fiend {
     const bx = ~~(this.x - 10*P) + attX;
     const by = ~~(this.y - 26*P) + prowl;
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(bx+2*P, by+25*P-prowl, 18*P, 2*P);
+    drawSoftShadow(ctx, this.x + P, this.y, 10*P, 2*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by, 24*P, 26*P);
 
     // tail
@@ -1540,9 +1760,7 @@ export class SnakeFoe extends Fiend {
     const bx = ~~(this.x - 8*P) + attX;
     const by = ~~(this.y - 28*P);
 
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(bx+2*P, by+27*P, 12*P, 2*P);
+    drawSoftShadow(ctx, this.x, this.y, 7*P, 2*P);
     if (this.isElite) this._drawEliteAura(ctx, bx, by + 4*P, 16*P, 24*P);
 
     // bottom coil
@@ -1807,6 +2025,11 @@ class SpellProjectile {
     const t = 1 - (this._life / this._maxLife);
     const alpha = Math.max(0, Math.min(1, this._life / (this._maxLife * 0.3)));
     const { x, y } = this._posAt(t);
+
+    // The same additive glow the hero's palm carries while casting, so the
+    // fireball and the bolt look like that light leaving his hand.
+    _radialGlow(ctx, x, y, SPELL_SPRITE_DRAW_W * this._scale * 0.72, alpha * 0.7,
+      '#ffffff', this._trailColor);
 
     ctx.save();
 

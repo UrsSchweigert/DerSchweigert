@@ -9,13 +9,13 @@ import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe('FIEND_CLASSES', () => {
-  it('has exactly 36 entries', () => {
-    assert.strictEqual(FIEND_CLASSES.length, 36);
+  it('has exactly 60 entries - one per campaign level', () => {
+    assert.strictEqual(FIEND_CLASSES.length, 60);
   });
 
-  it('has unique and contiguous ids 1..36', () => {
+  it('has unique and contiguous ids 1..60', () => {
     const ids = FIEND_CLASSES.map((c) => c.id);
-    assert.deepStrictEqual(ids.sort((a, b) => a - b), Array.from({ length: 36 }, (_, i) => i + 1));
+    assert.deepStrictEqual(ids.sort((a, b) => a - b), Array.from({ length: 60 }, (_, i) => i + 1));
   });
 
   it('has strictly increasing scoreValue when sorted by id', () => {
@@ -25,25 +25,40 @@ describe('FIEND_CLASSES', () => {
     }
   });
 
-  it('maps spriteSet and gridIndex correctly', () => {
+  it('maps the three art stages onto sprite sets 1-3 and the dragons onto set 4', () => {
     for (const fiend of FIEND_CLASSES) {
-      if (fiend.id <= 18) {
-        assert.strictEqual(fiend.spriteSet, 1);
-        assert.strictEqual(fiend.gridIndex, fiend.id);
+      if (fiend.id <= 54) {
+        const set = Math.ceil(fiend.id / 18);
+        assert.strictEqual(fiend.spriteSet, set);
+        assert.strictEqual(fiend.gridIndex, fiend.id - (set - 1) * 18);
       } else {
-        assert.strictEqual(fiend.spriteSet, 2);
-        assert.strictEqual(fiend.gridIndex, fiend.id - 18);
+        assert.strictEqual(fiend.spriteSet, 4, 'dragon variants live in their own set');
+        assert.strictEqual(fiend.gridIndex, 5, 'every variant derives from the dragon slot');
+        assert.ok(fiend.spritePath.includes('dragon-'), fiend.spritePath);
       }
     }
   });
 
-  it('pairs classes with same gridIndex and name (class N+18 matches class N)', () => {
+  it('keeps one creature per grid position across all three stages', () => {
     for (let n = 1; n <= 18; n++) {
-      const classN = FIEND_CLASSES.find((c) => c.id === n);
-      const classNPlus18 = FIEND_CLASSES.find((c) => c.id === n + 18);
-      assert.strictEqual(classNPlus18.gridIndex, classN.gridIndex);
-      assert.strictEqual(classNPlus18.name, classN.name);
+      const young = FIEND_CLASSES.find((c) => c.id === n);
+      const old = FIEND_CLASSES.find((c) => c.id === n + 18);
+      const ancient = FIEND_CLASSES.find((c) => c.id === n + 36);
+      for (const stage of [old, ancient]) {
+        assert.strictEqual(stage.gridIndex, young.gridIndex);
+        assert.strictEqual(stage.name, young.name);
+      }
+      assert.strictEqual(young.stage, 'young');
+      assert.strictEqual(old.stage, 'old');
+      assert.strictEqual(ancient.stage, 'ancient');
     }
+  });
+
+  it('ends on the six dragon variants', () => {
+    const dragons = FIEND_CLASSES.filter((c) => c.stage === 'dragon');
+    assert.strictEqual(dragons.length, 6);
+    assert.deepStrictEqual(dragons.map((c) => c.id), [55, 56, 57, 58, 59, 60]);
+    assert.strictEqual(new Set(dragons.map((c) => c.spritePath)).size, 6, 'each variant has its own art');
   });
 
   it('has spritePaths pointing to existing files larger than 1024 bytes', () => {

@@ -34,10 +34,11 @@ export const LEGAL_DIR = join(root, 'legal');
 export const EXCLUDED = [
   /^game\/source-assets(\/|$)/,
   /^game\/calibrate\./,
+  /^game\/hero-preview\.html$/,
   /^game\/_dragon_test\.html$/,
   /^game\/(api|access-flow|cancel-request|withdrawal-request)\.js$/,
-  // The raw hero sheets are inputs for export-sprites.html (a dev tool); the
-  // game itself loads hero-spritesheet-clean.png.
+  // The raw hero sheets are inputs for the atlas build and export-sprites.html;
+  // the game itself loads game/hero/hero-atlas.webp.
   /^game\/hero-spritesheet(-upload)?\.png$/,
   // Story dioramas ship only what the player needs at runtime; the generation
   // sources, the approved reference sheets, the art bible and the dev preview

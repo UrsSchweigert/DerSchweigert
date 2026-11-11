@@ -6,9 +6,9 @@ import fs from 'node:fs';
 import { buildAssetManifest } from './asset-preload.js';
 
 describe('buildAssetManifest', () => {
-  it('returns 3 core sprites + 6 stage backgrounds + 36 fiend class sprites', () => {
+  it('returns 3 core sprites + 6 stage backgrounds + 60 fiend class sprites', () => {
     const urls = buildAssetManifest();
-    assert.strictEqual(urls.length, 3 + 6 + 36);
+    assert.strictEqual(urls.length, 3 + 6 + 60);
   });
 
   it('has no duplicate URLs', () => {
@@ -18,7 +18,7 @@ describe('buildAssetManifest', () => {
 
   it('includes the hero, dragon, and fireball sprites', () => {
     const urls = buildAssetManifest();
-    assert.ok(urls.some((u) => u.endsWith('hero-spritesheet-clean.png')));
+    assert.ok(urls.some((u) => u.endsWith('hero/hero-atlas.webp')));
     assert.ok(urls.some((u) => u.endsWith('dragon.webp')));
     assert.ok(urls.some((u) => u.endsWith('fireball.png')));
   });

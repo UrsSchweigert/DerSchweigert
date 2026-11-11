@@ -33,8 +33,10 @@ function captureContext() {
     fillStyle: '',
     globalAlpha: 1,
     save() {}, restore() {}, translate() {}, scale() {},
-    beginPath() {}, ellipse() {}, fill() {}, moveTo() {}, lineTo() {}, closePath() {},
+    beginPath() {}, ellipse() {}, fill() {}, moveTo() {}, lineTo() {}, closePath() {}, arc() {},
     fillRect() {},
+    // the class-sprite path draws the shared soft ground shadow (drawSoftShadow)
+    createRadialGradient() { return { addColorStop() {} }; },
     drawImage(img, ...args) { drawn.push(args); },
   };
   return { ctx, drawn };

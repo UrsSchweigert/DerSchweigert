@@ -594,7 +594,84 @@ Start with:
 
 - `sites/ffm/static/game/renderer.js`
 - `sites/ffm/static/game/entities.js`
+- `sites/ffm/static/game/hero-anim.js` (hero clip list and transform tracks)
 - `sites/ffm/static/styles.css`
+
+### Change the hero's poses or animation
+
+The hero is drawn from a generated atlas plus a time-based animator, not from
+the old fixed 6x4 sprite grid:
+
+- `sites/ffm/scripts/hero_frames.py` builds `static/game/hero/hero-atlas.webp`
+  and `static/game/hero/hero-frames.js` (per-frame rect + foot pivot) out of
+  `static/game/source-assets/hero-spritesheet-clean.png` and the generated poses in
+  `static/game/source-assets/hero-poses/`. Frames are extracted as their largest
+  connected blob, so a neighbouring pose can never bleed into a frame, and each
+  frame carries an explicit foot contact point instead of one hand-tuned offset.
+  Rebuild with `python3 sites/ffm/scripts/hero_frames.py`.
+  The same run verifies the sword in every pose: the blade has to run straight
+  from hilt to tip (cross-sections measured against the hilt-tip line, hidden
+  slices skipped so a blade behind the body is still checked) and has to be
+  gripped by a hand, with the number of hands compared against the pose's
+  declared grip (`one` except the swing and cast poses, which are `two`). The
+  table prints per-frame numbers; `--check` writes nothing, `--check --strict`
+  also fails on warnings (the poses whose art still shows one hand).
+- Hand-editing art: `--export-sheet sites/ffm/build/hero-edit-sheet.png` lays
+  every pose out in its own cell (solid red border = the crop edge, art painted
+  outside a cell is dropped, so don't cross it; dashed amber inset = the bleed
+  margin) and writes a `hero-edit-sheet.json` layout next to it. Edit the PNG,
+  then rebuild from it with
+  `python3 sites/ffm/scripts/hero_frames.py --from-sheet sites/ffm/build/hero-edit-sheet.png`.
+  The importer crops each cell, erases the guide lines (only where the guide
+  actually drew them, so art that happens to share the amber/red tones survives),
+  trims to content and lets `pack()` recompute the pivots, then runs the normal
+  sword checks and atlas write. An unedited round trip is pixel-exact.
+  Empty cells are reported and their frame is dropped; art that reaches a cell
+  border gets a note because the border cuts it off.
+  Frames coming back from a sheet are judged on their final, palette-flattened
+  art (a hand edit no longer has the pre-flattening source), so the blade
+  straightness limit is `BEND_MAX_FLAT_PX` instead of `BEND_MAX_PX`: four steel
+  tones cannot place a 2-3px cross-section's centre finer than about a pixel.
+  The shared palette reserves four steel tones sampled from the generated
+  blades (`_steel_seeds`), because the sheet frames alone have no bright
+  blue-grey and a generated blade's steel otherwise snaps to warm cream.
+- `sites/ffm/static/game/hero-anim.js` holds the clips: frame durations, which
+  frame fires `hit`, and the `track()` function that leans/bobs/squashes the
+  pose. Timing is wall-clock based, so playback does not depend on the display
+  refresh rate.
+- `sites/ffm/static/game/hero-preview.html` plays every clip through the real
+  `Hero` class (dev tool, not bundled into the app).
+- The generated poses in `source-assets/hero-poses/` were made with
+  `fal-ai/flux-pro/kontext` (approved for commercial use in
+  `static/story/ART-BIBLE.md`) from a ×4 nearest-neighbour plate of the
+  matching sheet frame, prompted to keep the character, scale and framing and
+  to change only the weapon/arms. They are keyed off the flat magenta plate,
+  despilled and stripped of the generator's baked ground shadow by the build
+  script, then scaled onto the master's pixel density.
+
+### Fiend sprites and their ground shadow
+
+Fiends are single PNGs in `static/game/fiend-sprites/` (`set1-01.png` …
+`set2-18.png`), picked per level through `difficulty-classes.js`, which also
+carries the hand-calibrated `BOTTOM_PAD_RATIO` that puts each creature's feet on
+`GROUND_Y` (`calibrate.html` fits that; align the feet, not the shadow).
+
+- The art generator baked a hard-edged shadow ellipse into every one of those
+  sprites. `python3 sites/ffm/scripts/feather_fiend_shadows.py` removes it: it
+  looks for the tone that is common in the sprite's bottom band but absent on
+  the creature, falls back to the sprite set's default shadow tone, then grows
+  the removal along the dithered rim. A candidate is only accepted when the
+  region is wide and flat (≥30% of the sprite's width, ≤24% of its height), which
+  is what keeps a creature's own flat base and claws out of the mask. Sprites it
+  cannot classify are reported and left untouched, so re-running is safe - run it
+  again after adding or replacing fiend art. `--report-only` measures without
+  writing.
+- The runtime then draws the shadow: `drawSoftShadow(ctx, x, y, rx, ry)` in
+  `entities.js`, sized per creature by `fiendShadowRadii(drawW, drawH)`. The hero
+  uses the same helper, so hero and fiends stand in one light; keep both on it
+  rather than baking a shadow back into art.
+- Fiends drawn from code (the `Slimeling`/`Bonehead`/… fallbacks, used only when
+  a class sprite is missing) call the same helper.
 
 ### Change auth/profile/leaderboard behavior
 

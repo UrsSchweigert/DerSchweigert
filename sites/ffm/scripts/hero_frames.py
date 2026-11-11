@@ -1,0 +1,1197 @@
+#!/usr/bin/env python3
+"""Build the hero sprite atlas the game actually draws.
+
+The hand-off from art to engine used to be a fixed 200x180 grid: every pose was
+forced into a cell, so poses that did not fit were scaled down (the character
+changed size from frame to frame) and their neighbours bled into the cell (a
+phantom boot, a sword tip cut off at the edge). This script stops packing by
+grid and packs by content instead:
+
+  * every frame is extracted as its largest connected blob, so a neighbour's
+    fragment can never end up in it,
+  * each frame keeps its own size and gets an explicit pivot (the foot contact
+    point), so the animator can plant feet instead of guessing an offset,
+  * frames come out as one atlas plus a metadata module the game imports, so
+    there is still a single image request.
+
+Sources
+  The pixel master is `static/game/source-assets/hero-spritesheet-clean.png`
+  (6 states x 4
+  poses). Only poses that are drawn at the master's native scale are used; the
+  sheet also contains a few poses that were shrunk during the old packing and
+  those are rejected by the SCALE check below rather than shipped.
+  `static/game/source-assets/hero-poses/` holds extra poses generated from a
+  native frame with `fal-ai/flux-pro/kontext` (so identity, style and framing
+  match); they are optional and skipped when absent.
+
+Usage
+    python3 sites/ffm/scripts/hero_frames.py
+    python3 sites/ffm/scripts/hero_frames.py --check   # verify only, no writes
+
+Requires Pillow and numpy, like the other art scripts in this directory.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
+FFM_ROOT = Path(__file__).resolve().parents[1]
+GAME = FFM_ROOT / "static" / "game"
+MASTER_SHEET = GAME / "source-assets" / "hero-spritesheet-clean.png"
+POSE_DIR = GAME / "source-assets" / "hero-poses"
+OUT_ATLAS = GAME / "hero" / "hero-atlas.webp"
+OUT_META = GAME / "hero" / "hero-frames.js"
+
+CELL_W, CELL_H = 200, 180
+COLS, ROWS = 4, 6
+ALPHA_MIN = 40
+PAD = 2
+
+# ── Which pose comes from where ──────────────────────────────────────────────
+# Sheet poses are (row, col) of the 4x6 master grid. Only these cells are at
+# native character scale (verified visually at 1:1 against the idle frame);
+# the sheet's other cells are shrunken duplicates left over from the old grid
+# packing and are deliberately not used.
+SHEET_POSES: dict[tuple[int, int], str] = {
+    (0, 1): "idle",
+    (2, 0): "walk-a",
+    (2, 1): "walk-b",
+    (2, 3): "walk-c",
+    (1, 0): "swing-windup",
+    (3, 0): "hurt",
+    (4, 0): "dead",
+    (5, 1): "victory-raise",
+    (5, 3): "victory-plant",
+}
+
+# Generated poses are keyed by file name. `scale` maps the generated pixel
+# density onto the master's (measured once against the frame it was generated
+# from, see the comment on each entry); `strip_shadow` removes the flat grey
+# ground shadow the generator bakes in, because the game draws its own.
+GENERATED_POSES: list[dict] = [
+    # `scale` maps the generated pixel density onto the master's: the generator
+    # reproduces the reference plate, which holds a master frame upscaled x4, so
+    # a 1024px output carries roughly 4x the master's pixels per character
+    # pixel. Measured and corrected against the frame each pose derives from.
+    # The cast pose was drawn facing away from the fight; the game always faces
+    # the fiend on the right, so the frame is mirrored on the way in.
+    # upright pose: match the idle frame's total height, not just the head
+    {"file": "cast.png", "id": "cast", "match_height": (0, 1), "strip_shadow": True, "flip": True},
+    {"file": "swing-impact.png", "id": "swing-impact", "scale": 0.172, "strip_shadow": True},
+    # `match` names the sheet pose whose head size this frame must adopt; the
+    # scale is measured at build time (hair-height ratio), so a generated pose
+    # can never ship with a differently sized hero.
+    # 20% larger than the measured match: the strike pose reads small next to the
+    # idle frame because the blade eats the frame, so it is scaled to taste.
+    {"file": "swing-twohand.png", "id": "swing-strike", "match": (1, 0), "gain": 1.2, "strip_shadow": True},
+    {"file": "swing-follow.png", "id": "swing-follow", "scale": 0.172, "strip_shadow": True},
+]
+
+# How the sword should be held in each pose. `one`/`two` are asserted against
+# the art by check_sword(); `loose` means the blade is not gripped at all (the
+# death pose drops it), so only the blade's straightness is checked there.
+# The victory pose's blade runs past the top of its frame in the source art, so
+# it ships with the tip cut off; these frames get a taper rebuilt from their own
+# top row of blade pixels.
+TIP_EXTEND: dict[str, int] = {"victory-plant": 11, "victory-raise": 26}
+
+# Two-handed poses whose art only shows one hand on the hilt get the far hand
+# stamped in at the grip, so both the look and the check agree: swing frames.
+EXTRA_HAND: dict[str, tuple[int, int]] = {
+    "swing-windup": (36, 62),
+    "swing-impact": (24, 54),
+    "swing-follow": (26, 55),
+}
+
+GRIP: dict[str, str] = {
+    "idle": "one", "walk-a": "one", "walk-b": "one", "walk-c": "one",
+    "swing-windup": "two", "swing-strike": "two", "swing-impact": "two", "swing-follow": "two",
+    "hurt": "one", "dead": "loose", "victory-raise": "one",
+    "victory-plant": "one", "cast": "one",
+    # Four-frame clips drawn by hand from a pose sheet (scripts/hero_poses.py).
+    # The strike is the only two-handed clip; the cast keeps the sword in one
+    # hand and casts with the free one.
+    **{f"swing-{i}": "two" for i in range(1, 5)},
+    **{f"dead-{i}": "loose" for i in range(1, 5)},
+}
+
+# The clips the hero actually plays, and how many four-frame groups each has.
+# Used by --from-frames, which builds the atlas out of individual frame PNGs
+# (one pose sheet per clip, split by scripts/hero_poses.py) instead of out of
+# the master sheet.
+CLIP_FRAMES: dict[str, int] = {
+    "idle": 4, "walk": 4, "swing": 4, "hurt": 4, "dead": 4, "victory": 4, "cast": 4,
+}
+
+
+def collect_from_frames(directory: Path) -> tuple[list[Frame], list[str]]:
+    """Build the pose list out of `<clip>-<n>.png` files in `directory`."""
+    frames: list[Frame] = []
+    missing: list[str] = []
+    for clip, count in CLIP_FRAMES.items():
+        for index in range(1, count + 1):
+            frame_id = f"{clip}-{index}"
+            path = directory / f"{frame_id}.png"
+            if not path.is_file():
+                missing.append(frame_id)
+                continue
+            image = _crop_to_content(np.array(Image.open(path).convert("RGBA")))
+            frames.append(Frame(frame_id, image, f"frames:{path.name}", None, 0))
+    return frames, missing
+
+
+# Atlas row order is deterministic so a diff of the image is readable.
+FRAME_ORDER = [
+    "idle", "walk-a", "walk-b", "walk-c",
+    "swing-windup", "swing-strike", "swing-impact", "swing-follow",
+    "hurt", "dead", "victory-raise", "victory-plant", "cast",
+]
+
+
+@dataclass
+class Frame:
+    id: str
+    image: Image.Image
+    origin: str
+    # Full-colour art before palette flattening; the sword check measures this
+    # so snapping colours cannot hide a blade from the geometry test.
+    source: Image.Image | None = None
+    shadow: int = 1
+
+
+def _components(mask: np.ndarray) -> tuple[np.ndarray, int]:
+    """8-connected component labels (1..n) for a boolean mask, 0 = background."""
+    h, w = mask.shape
+    labels = np.zeros((h, w), dtype=np.int32)
+    if not mask.any():
+        return labels, 0
+    parent = np.arange(h * w, dtype=np.int32)
+
+    def find(i: int) -> int:
+        root = i
+        while parent[root] != root:
+            root = parent[root]
+        while parent[i] != root:
+            parent[i], i = root, parent[i]
+        return root
+
+    idx = np.flatnonzero(mask.ravel())
+    for i in idx:
+        y, x = divmod(int(i), w)
+        for dy, dx in ((0, 1), (1, 0), (1, 1), (1, -1)):
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < h and 0 <= nx < w and mask[ny, nx]:
+                ri, rj = find(int(i)), find(ny * w + nx)
+                if ri != rj:
+                    parent[rj] = ri
+    roots = np.array([find(int(i)) for i in idx], dtype=np.int32)
+    _, inverse = np.unique(roots, return_inverse=True)
+    flat = np.zeros(h * w, dtype=np.int32)
+    flat[idx] = inverse + 1
+    return flat.reshape(h, w), int(inverse.max()) + 1
+
+
+def _largest_blob(mask: np.ndarray) -> np.ndarray:
+    """Keep only the largest 8-connected component of a boolean mask."""
+    labels, count = _components(mask)
+    if count == 0:
+        return np.zeros_like(mask)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    return labels == int(sizes.argmax())
+
+
+def _crop_to_content(rgba: np.ndarray) -> Image.Image:
+    ys, xs = np.nonzero(rgba[:, :, 3] > 0)
+    return Image.fromarray(rgba[ys.min(): ys.max() + 1, xs.min(): xs.max() + 1], "RGBA")
+
+
+def _sheet_frame(row: int, col: int) -> Image.Image:
+    sheet = np.array(Image.open(MASTER_SHEET).convert("RGBA"))
+    cell = sheet[row * CELL_H:(row + 1) * CELL_H, col * CELL_W:(col + 1) * CELL_W].copy()
+    blob = _largest_blob(cell[:, :, 3] >= ALPHA_MIN)
+    cell[~blob] = 0
+    cell[cell[:, :, 3] < ALPHA_MIN] = 0
+    return _crop_to_content(cell)
+
+
+def _strip_ground_shadow(rgba: np.ndarray) -> np.ndarray:
+    """Drop the flat grey ellipse the generator draws under the feet.
+
+    The shadow is the only desaturated mid-dark region that sits on the bottom
+    edge of the frame; the boots are either near-black or tinted blue, so a
+    saturation + luminance test separates them. Only blobs that reach the
+    bottom edge and are clearly wider than tall are removed, which keeps a
+    boot that happens to be grey from being eaten.
+    """
+    rgb = rgba[:, :, :3].astype(np.int16)
+    mx, mn = rgb.max(axis=2), rgb.min(axis=2)
+    lum = rgb.mean(axis=2)
+    shadow_like = (mx - mn < 22) & (lum > 55) & (lum < 135) & (rgba[:, :, 3] > 0)
+    if not shadow_like.any():
+        return rgba
+
+    labels, count = _components(shadow_like)
+    subject_bottom = int(np.nonzero(rgba[:, :, 3] > 0)[0].max())
+    frame_area = shadow_like.shape[0] * shadow_like.shape[1]
+    shadow = np.zeros_like(shadow_like)
+    for label in range(1, count + 1):
+        ys, xs = np.nonzero(labels == label)
+        if ys.size < frame_area * 0.002:
+            continue
+        width, height = xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
+        if ys.max() >= subject_bottom - 4 and width >= height * 1.6:
+            shadow |= labels == label
+    if not shadow.any():
+        return rgba
+
+    # The generator blends the shadow's soft edge into the plate colour, so the
+    # core test misses a magenta-tinted rim; grow the mask by two pixels and
+    # clear that too, sparing only near-black pixels (the boot soles).
+    grown = shadow.copy()
+    for _ in range(2):
+        grown = grown | np.roll(grown, 1, 0) | np.roll(grown, -1, 0) \
+                      | np.roll(grown, 1, 1) | np.roll(grown, -1, 1)
+    out = rgba.copy()
+    rgb_lum = out[:, :, :3].astype(np.int16).mean(axis=2)
+    out[grown & (rgb_lum > 55)] = 0
+    return out
+
+
+def _pose_plate(spec: dict) -> np.ndarray | None:
+    """A generated pose with the magenta plate keyed out, before any resampling."""
+    path = POSE_DIR / spec["file"]
+    if not path.is_file():
+        return None
+    rgb = np.array(Image.open(path).convert("RGB")).astype(np.int16)
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    keyed = ~((g < np.minimum(r, b) * 0.72) & (r > 120) & (b > 120))
+    blob = _largest_blob(keyed)
+    rgba = np.dstack([rgb.astype(np.uint8), np.where(blob, 255, 0).astype(np.uint8)])
+    rgba = _despill(rgba)
+    if spec.get("strip_shadow"):
+        rgba = _strip_ground_shadow(rgba)
+    return rgba
+
+
+def _generated_frame(spec: dict) -> tuple[Image.Image, Image.Image] | None:
+    rgba = _pose_plate(spec)
+    if rgba is None:
+        return None
+    image = _crop_to_content(rgba)
+    if spec.get("flip"):
+        image = image.transpose(Image.FLIP_LEFT_RIGHT)
+    scale = spec.get("scale")
+    if spec.get("match_height"):
+        reference = _sheet_frame(*spec["match_height"])
+        ref_h = int(np.ptp(np.nonzero(np.array(reference)[:, :, 3] > 128)[0])) + 1
+        got_h = int(np.ptp(np.nonzero(np.array(image)[:, :, 3] > 128)[0])) + 1
+        scale = ref_h / got_h if got_h else scale
+    elif spec.get("match"):
+        reference = _sheet_frame(*spec["match"])
+        ref_hair, hair = _hair_height(reference), _hair_height(image)
+        scale = (ref_hair / hair) if hair else scale
+    if scale:
+        scale *= spec.get("gain", 1.0)
+        size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
+        image = _resize_rgba(image, size)
+        flattened = _flatten_to_palette(image, spec["palette"])
+        return flattened, image
+    return image, image
+
+
+def _despill(rgba: np.ndarray) -> np.ndarray:
+    """Neutralise the magenta cast the plate leaves on soft edges.
+
+    Pixels the key keeps but that still carry magenta (min(r,b) noticeably above
+    g) are pushed back to neutral, so the generator's soft-edged ground shadow
+    reads as grey instead of purple.
+    """
+    out = rgba.copy()
+    rgb = out[:, :, :3].astype(np.int16)
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    cast = (np.minimum(r, b) - g) > 6
+    target = np.minimum(r, b)
+    out[:, :, 1] = np.where(cast, target, g).astype(np.uint8)
+    return out
+
+
+def _steel_seeds(count: int = 4) -> list[tuple[int, int, int]]:
+    """Steel tones sampled from the generated blades.
+
+    The sheet frames alone define too narrow a palette: they carry no bright
+    blue-grey, so a generated blade's steel snaps to the nearest warm cream and
+    the sword reads beige. Those tones are reserved on top of the shared
+    palette instead of being outvoted by the much larger area of skin, hair and
+    denim.
+    """
+    pixels = []
+    for spec in GENERATED_POSES:
+        rgba = _pose_plate(spec)
+        if rgba is None:
+            continue
+        steel = _steel_mask(rgba)
+        if steel.any():
+            pixels.append(rgba[steel][:, :3].astype(np.uint8))
+    if not pixels:
+        return []
+    flat = np.concatenate(pixels)
+    strip = Image.new("RGB", (flat.shape[0], 1))
+    strip.putdata([tuple(int(v) for v in p) for p in flat])
+    quantised = strip.quantize(colors=count, method=Image.MEDIANCUT)
+    raw = quantised.getpalette()[:3 * count]
+    seen = []
+    for i in range(0, len(raw), 3):
+        colour = (raw[i], raw[i + 1], raw[i + 2])
+        if colour != (0, 0, 0) and colour not in seen:
+            seen.append(colour)
+    return seen
+
+
+def _shared_palette(images: list[Image.Image], colours: int = 32,
+                    seeds: list[tuple[int, int, int]] | None = None) -> Image.Image:
+    """One palette for the whole sprite: the sheet frames define it.
+
+    Generated poses are painted with slightly different, softer colours; mapping
+    them onto the master's palette both keeps the hero looking like one
+    character and flattens the anti-aliased fringes the downscale leaves behind,
+    which is what makes the generated frames read as blurry next to the rest.
+    """
+    width = sum(i.width for i in images)
+    height = max(i.height for i in images)
+    strip = Image.new("RGB", (width, height), (0, 0, 0))
+    x = 0
+    for image in images:
+        strip.paste(image.convert("RGB"), (x, 0))
+        x += image.width
+    seeds = seeds or []
+    base = strip.quantize(colors=max(2, colours - len(seeds)), method=Image.MEDIANCUT)
+    if not seeds:
+        return base
+    palette = base.getpalette()[:3 * (colours - len(seeds))]
+    palette += [channel for colour in seeds for channel in colour]
+    seeded = Image.new("P", (1, 1))
+    seeded.putpalette(palette + [0] * (768 - len(palette)))
+    return seeded
+
+
+def _hair_height(image: Image.Image) -> int:
+    """Height of the hair blob: the one anatomical ruler that is pose-stable."""
+    a = np.array(image).astype(int)
+    minus_alpha = a[:, :, 3] > 128
+    r, g, b = a[:, :, 0], a[:, :, 1], a[:, :, 2]
+    hair = (r > 150) & (g > 95) & (b < 140) & (r - b > 60) & minus_alpha
+    labels, count = _components(hair)
+    if count == 0:
+        return 0
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    ys, _ = np.nonzero(labels == int(sizes.argmax()))
+    return int(ys.max() - ys.min() + 1)
+
+
+def _flatten_to_palette(image: Image.Image, palette: Image.Image | None) -> Image.Image:
+    """Snap a frame onto the shared palette, keeping its own alpha mask."""
+    if palette is None:
+        return image
+    alpha = np.array(image.split()[3])
+    rgb = image.convert("RGB").quantize(palette=palette, dither=Image.NONE).convert("RGB")
+    out = np.dstack([np.array(rgb), alpha])
+    return Image.fromarray(out, "RGBA")
+
+
+def _resize_rgba(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """Lanczos resize with premultiplied alpha, then a hard alpha cut.
+
+    Resizing straight RGBA lets the transparent pixels' leftover colour bleed
+    into the silhouette, which shows up as a coloured fringe; premultiplying
+    first and dividing afterwards avoids it.
+    """
+    a = np.array(image).astype(np.float32)
+    alpha = a[:, :, 3:4] / 255.0
+    premultiplied = np.concatenate([a[:, :, :3] * alpha, a[:, :, 3:4]], axis=2)
+    scaled = np.array(Image.fromarray(premultiplied.astype(np.uint8), "RGBA").resize(size, Image.LANCZOS)).astype(np.float32)
+    out_alpha = scaled[:, :, 3:4]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rgb = np.where(out_alpha > 0, scaled[:, :, :3] * 255.0 / np.maximum(out_alpha, 1e-6), 0)
+    out = np.concatenate([np.clip(rgb, 0, 255), out_alpha], axis=2).astype(np.uint8)
+    out[out[:, :, 3] <= 110] = 0
+    out[out[:, :, 3] > 110, 3] = 255
+    return Image.fromarray(out, "RGBA")
+
+
+def _extend_blade_tip(image: Image.Image, rows: int) -> Image.Image:
+    """Rebuild a chisel tip above a blade that was cut off by its frame.
+
+    Copies the blade's own top row upward, narrowing symmetrically, so the
+    taper keeps the blade's colours and pixel size instead of inventing art.
+    """
+    a = np.array(image)
+    alpha = a[:, :, 3] > 0
+    # Direction the blade was heading when it left the frame: the centroid drift
+    # of its top rows, so an angled blade continues at its own angle.
+    drift = []
+    for y in range(min(18, a.shape[0])):
+        xs = np.nonzero(alpha[y])[0]
+        if xs.size:
+            drift.append((y, float(xs.mean())))
+    if len(drift) < 4:
+        return image
+    slope = (drift[0][1] - drift[-1][1]) / max(1.0, (drift[-1][0] - drift[0][0]))
+
+    top = a[0]
+    xs = np.nonzero(top[:, 3] > 0)[0]
+    if xs.size < 6:
+        return image
+    x0, x1 = int(xs.min()), int(xs.max())
+    width = a.shape[1]
+    cap = np.zeros((rows, width, 4), dtype=np.uint8)
+    for i in range(rows):
+        shrink = int(round((x1 - x0) * 0.48 * (i + 1) / rows))
+        cx0, cx1 = x0 + shrink, x1 - shrink
+        if cx1 <= cx0:
+            break
+        shift = int(round(slope * (i + 1)))
+        lo, hi = cx0 + shift, cx1 + shift
+        src_lo = max(0, -lo)
+        dst_lo, dst_hi = max(0, lo), min(width, hi + 1)
+        if dst_hi <= dst_lo:
+            continue
+        cap[rows - i - 1, dst_lo:dst_hi] = top[cx0 + src_lo:cx0 + src_lo + (dst_hi - dst_lo)]
+    return Image.fromarray(np.concatenate([cap, a], axis=0), "RGBA")
+
+
+def _stamp_hand(image: Image.Image, at: tuple[int, int]) -> Image.Image:
+    """Draw the far hand onto the grip of a two-handed pose.
+
+    One pose per swing shows a single gauntlet; the far hand is part of the
+    silhouette in a real two-handed grip, so it is stamped in with the same
+    colours and pixel size the sheet uses rather than being faked at runtime.
+    """
+    a = np.array(image).copy()
+    x, y = at
+    def px(color, dx, dy, w=1, h=1):
+        for yy in range(dy, dy + h):
+            for xx in range(dx, dx + w):
+                if 0 <= y + yy < a.shape[0] and 0 <= x + xx < a.shape[1]:
+                    a[y + yy, x + xx] = color
+    px([16, 18, 34, 255], 0, 0, 12, 9)      # glove body
+    px([30, 38, 66, 255], 1, 1, 10, 3)      # knuckle highlight
+    px([200, 144, 32, 255], 0, 7, 12, 2)    # brass cuff
+    px([120, 80, 16, 255], 1, 9, 10, 1)
+    px([224, 168, 120, 255], 4, -2, 5, 2)   # skin above the cuff
+    return Image.fromarray(a, "RGBA")
+
+
+def _strip_baked_shadow(image: Image.Image) -> tuple[Image.Image, int]:
+    """Remove a sheet frame's baked shadow, unless that would eat the boots.
+
+    All frames then get the same feathered shadow from the renderer instead of
+    the hard grey ellipse baked into the older art. The guard keeps a frame that
+    would lose more than a fifth of its pixels untouched, and reports that it
+    still carries its own shadow.
+    """
+    before = np.array(image)
+    kept = (before[:, :, 3] > 0).sum()
+    out = _strip_ground_shadow(before)
+    lost = kept - (out[:, :, 3] > 0).sum()
+    if kept and lost / kept > 0.22:
+        return image, 1
+    return Image.fromarray(out, "RGBA"), 0
+
+
+def _pivot(image: Image.Image) -> tuple[int, int]:
+    """Foot contact point in frame pixels: bottom row, weight centre of it."""
+    a = np.array(image)
+    alpha = a[:, :, 3]
+    # A narrow band: the bottom of a wide pose is the boots, while a taller band
+    # would average in a low sword tip or a trailing cape.
+    rows = max(1, image.height // 24)
+    band = alpha[-rows:, :] > 0
+    xs = np.nonzero(band.any(axis=0))[0]
+    cx = int(round((xs.min() + xs.max()) / 2)) if xs.size else image.width // 2
+    ys = np.nonzero(alpha.any(axis=1))[0]
+    return cx, int(ys.max())
+
+
+def collect() -> tuple[list[Frame], list[str]]:
+    frames: dict[str, Frame] = {}
+    sheet_images: list[Image.Image] = []
+    for (row, col), frame_id in SHEET_POSES.items():
+        image = _sheet_frame(row, col)
+        if frame_id in TIP_EXTEND:
+            image = _extend_blade_tip(image, TIP_EXTEND[frame_id])
+        if frame_id in EXTRA_HAND:
+            image = _stamp_hand(image, EXTRA_HAND[frame_id])
+        image, shadow = _strip_baked_shadow(image)
+        sheet_images.append(image)
+        frames[frame_id] = Frame(frame_id, image, f"sheet[{row},{col}]", None, shadow)
+    palette = _shared_palette(sheet_images, seeds=_steel_seeds())
+    for spec in GENERATED_POSES:
+        built = _generated_frame({**spec, "palette": palette})
+        if built is None:
+            print(f"  skip {spec['id']}: {spec['file']} not generated yet", file=sys.stderr)
+            continue
+        image, source = built
+        # Generated frames are stripped of the generator's shadow on the way in.
+        frames[spec["id"]] = Frame(spec["id"], image, f"generated:{spec['file']}", source, 0)
+    missing = [f for f in FRAME_ORDER if f not in frames]
+    return [frames[f] for f in FRAME_ORDER if f in frames], missing
+
+
+# ─── Sword checks ────────────────────────────────────────────────────────────
+# The hero's blade has to read as one straight piece of steel from hilt to tip,
+# and it has to be held by the right number of hands in every pose. Both are
+# easy to get wrong when a pose is generated (a warped blade, a sword running
+# out of frame, a hilt nobody grips), so they are asserted against the art
+# instead of being eyeballed.
+BLADE_MIN_PX = 90        # below this there is not enough blade to judge
+BEND_MAX_PX = 1.8        # centreline deviation allowed between hilt and tip
+BEND_MAX_FLAT_PX = 2.4   # same, on palette-flattened art: 4 steel tones cannot
+                         # resolve the cross-section centre finer than ~1px, so
+                         # hand-edited frames are judged against this
+COLLINEAR_MAX_PX = 2.4   # how far a part hidden behind the body may sit off it
+CONTACT_MAX_PX = 3.0     # the hilt must touch the body, or the sword floats
+CUT_MIN_RUN = 0.6        # a blade sliced by the sprite edge keeps its width
+CLIP_MARGIN_PX = 2.0     # hilt this close to the sprite edge = cut off
+GRIP_TWO_MIN_PX = 12.0   # body run along the shaft that reads as two hands
+
+
+def _steel_mask(a: np.ndarray) -> np.ndarray:
+    rgb = a[:, :, :3].astype(np.int16)
+    mx, mn = rgb.max(axis=2), rgb.min(axis=2)
+    lum = rgb.mean(axis=2)
+    return ((a[:, :, 3] > 128) & ((mx - mn) < 48) & (lum > 95) & (lum < 228)
+            & (rgb[:, :, 2] >= rgb[:, :, 0] - 10))
+
+
+def _axis_points(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    ys, xs = np.nonzero(mask)
+    return np.column_stack([xs, ys]).astype(float), np.array([0.0, 0.0])
+
+
+def _principal(points: np.ndarray) -> tuple[np.ndarray, np.ndarray, float, float]:
+    centre = points.mean(axis=0)
+    q = points - centre
+    ev, evec = np.linalg.eigh(np.cov(q.T))
+    return centre, evec[:, 1], 4 * np.sqrt(max(ev[1], 1e-9)), 4 * np.sqrt(max(ev[0], 1e-9))
+
+
+def _bins(points: np.ndarray, centre: np.ndarray, axis: np.ndarray, count: int = 8):
+    """Bin the points along `axis` and return (t, perp, n, width) per bin."""
+    q = points - centre
+    t = q @ axis
+    p = q @ np.array([-axis[1], axis[0]])
+    if t.size == 0:
+        return []
+    edges = np.linspace(t.min(), t.max(), count + 1)
+    out = []
+    for i in range(count):
+        m = (t >= edges[i]) & (t <= edges[i + 1])
+        if m.sum() >= 8:
+            out.append((t[m].mean(), p[m].mean(), int(m.sum()), float(p[m].max() - p[m].min())))
+    return out
+
+
+def _residuals(bins, centre, axis):
+    """Fit a line through the cross-section centres, report how far they stray.
+
+    The verdict uses the 90th percentile rather than the single worst station: a
+    hard-edged blade 2-3px wide drawn on the pixel grid makes one cross-section
+    jump by most of the blade's width, while a blade that is actually bent misses
+    the line along a whole stretch of them.
+    """
+    if len(bins) < 3:
+        return None, None
+    t = np.array([b[0] for b in bins])
+    p = np.array([b[1] for b in bins])
+    design = np.vstack([t, np.ones_like(t)]).T
+    (slope, icpt), *_ = np.linalg.lstsq(design, p, rcond=None)
+    res = p - (slope * t + icpt)
+    return float(np.sqrt((res ** 2).mean())), float(np.percentile(np.abs(res), 90))
+
+
+def check_sword(frame: Frame) -> dict:
+    """Verify that the blade runs straight from hilt to tip and is gripped.
+
+    The blade's bright edge gives a reliable line even when the body hides half
+    the sword; the blade's real extent is then found by walking that line
+    through blade-coloured pixels, so occlusion is handled by construction:
+    hidden stations are skipped, and every visible station on both sides of the
+    body has to sit on the same straight line.
+    """
+    a = np.array(frame.source or frame.image).astype(int)
+    alpha = a[:, :, 3] > 128
+    rgb = a[:, :, :3]
+    steel = _steel_mask(a)
+    labels, count = _components(steel)
+    anchor = None
+    for k in range(1, count + 1):
+        ys, xs = np.nonzero(labels == k)
+        if ys.size < 40:
+            continue
+        pts = np.column_stack([xs, ys]).astype(float)
+        centre, axis, length, width = _principal(pts)
+        if length / max(width, 1e-6) < 2.2 or width > 32:
+            continue
+        if anchor is None or length > anchor[2]:
+            anchor = (pts, axis, length, centre, width)
+    if anchor is None:
+        return {"frame": frame.id, "status": "unverifiable", "reason": "no blade visible"}
+
+    pts, axis, _, centre, _ = anchor
+    for _ in range(2):
+        centre, axis, _, _ = _principal(pts)
+        perp = (pts - centre) @ np.array([-axis[1], axis[0]])
+        keep = np.abs(perp) <= max(4.0, 3.0 * float(np.std(perp)))
+        if keep.all():
+            break
+        pts = pts[keep]
+    centre, axis, _, _ = _principal(pts)
+
+    ref = np.median(rgb[pts[:, 1].astype(int), pts[:, 0].astype(int)], axis=0)
+    chroma = rgb.max(axis=2) - rgb.min(axis=2)
+    blade = alpha & (np.linalg.norm(rgb - ref, axis=2) < 62) & (chroma < 42)
+    normal = np.array([-axis[1], axis[0]])
+    height, width_px = alpha.shape
+    ys_a, xs_a = np.nonzero(alpha)
+    bbox = (xs_a.min(), ys_a.min(), xs_a.max(), ys_a.max())
+
+    def run_at(t: float):
+        """Width and centre offset of the blade cross-section at distance t."""
+        px = centre + axis * t
+        best = None
+        for off in np.arange(-2.5, 2.6, 0.5):
+            p = px + normal * off
+            x, y = int(round(p[0])), int(round(p[1]))
+            if not (0 <= y < height and 0 <= x < width_px) or not blade[y, x]:
+                continue
+            lo = off
+            while True:
+                q = px + normal * (lo - 0.5)
+                xq, yq = int(round(q[0])), int(round(q[1]))
+                if 0 <= yq < height and 0 <= xq < width_px and blade[yq, xq]:
+                    lo -= 0.5
+                else:
+                    break
+            hi = off
+            while True:
+                q = px + normal * (hi + 0.5)
+                xq, yq = int(round(q[0])), int(round(q[1]))
+                if 0 <= yq < height and 0 <= xq < width_px and blade[yq, xq]:
+                    hi += 0.5
+                else:
+                    break
+            cand = (float(hi - lo), float((hi + lo) / 2), off)
+            if best is None or cand[0] > best[0]:
+                best = cand
+        return best
+
+    def walk(direction: int) -> tuple[float, bool]:
+        """Walk the line until the blade stops; returns (extent, hit_sprite_edge)."""
+        t = 0.0
+        gap = 0.0
+        while abs(t) < max(height, width_px):
+            hit = run_at(t) is not None
+            gap = 0.0 if hit else gap + 1.0
+            if gap > 4.0:
+                return t - direction * gap, False
+            p = centre + axis * t
+            if (p[0] <= bbox[0] + 0.5 or p[0] >= bbox[2] - 0.5
+                    or p[1] <= bbox[1] + 0.5 or p[1] >= bbox[3] - 0.5):
+                return t, hit
+            t += direction * 1.0
+        return t, False
+
+    t_lo, edge_lo = walk(-1)
+    t_hi, edge_hi = walk(1)
+    length = t_hi - t_lo
+    if length < 40:
+        return {"frame": frame.id, "status": "unverifiable", "reason": "blade shorter than 40px"}
+
+    stations = []
+    for i in range(1, 20):
+        t = t_lo + length * i / 20
+        run = run_at(t)
+        if run is not None:
+            stations.append((t, run[1], run[0]))
+    if len(stations) < 5:
+        return {"frame": frame.id, "status": "unverifiable", "reason": "blade mostly hidden"}
+    widths = np.array([w for _, _, w in stations])
+    median_w = float(np.median(widths))
+    clean = [(t, off) for t, off, w in stations if w >= 0.5 * median_w]
+    rms, worst = _residuals([(t, off, 0, 0) for t, off in clean], np.array([0.0, 0.0]), np.array([1.0, 0.0]))
+    if rms is None:
+        return {"frame": frame.id, "status": "unverifiable", "reason": "too few clean cross-sections"}
+
+    ends = [centre + axis * t_lo, centre + axis * t_hi]
+    blade_px = np.zeros_like(alpha)
+    for t in np.arange(t_lo, t_hi, 0.5):
+        px = centre + axis * t
+        for off in np.arange(-median_w, median_w + 0.5, 0.5):
+            p = px + normal * off
+            x, y = int(round(p[0])), int(round(p[1]))
+            if 0 <= y < height and 0 <= x < width_px and blade[y, x]:
+                blade_px[y, x] = True
+    body = alpha & ~blade_px
+    bys, bxs = np.nonzero(body)
+    body_c = np.array([bxs.mean(), bys.mean()]) if bxs.size else centre
+    d_lo = np.linalg.norm(ends[0] - body_c)
+    d_hi = np.linalg.norm(ends[1] - body_c)
+    hilt_pt, tip_pt = (ends[0], ends[1]) if d_lo < d_hi else (ends[1], ends[0])
+
+    hx, hy = int(round(hilt_pt[0])), int(round(hilt_pt[1]))
+    win = 9
+    y0, y1 = max(0, hy - win), hy + win + 1
+    x0, x1 = max(0, hx - win), hx + win + 1
+    sub = body[y0:y1, x0:x1]
+    contact = 999.0
+    grip_span = 0.0
+    if sub.any():
+        sy, sx = np.nonzero(sub)
+        pts_b = np.column_stack([sx + x0, sy + y0]).astype(float)
+        d = np.linalg.norm(pts_b - hilt_pt, axis=1)
+        contact = float(d.min())
+        near = pts_b[d <= 6.0] - hilt_pt
+        if near.size:
+            grip_span = float((near @ axis).max() - (near @ axis).min())
+
+    hands = _count_hands(rgb, alpha, hilt_pt, 10)
+    wrap = 0.0
+
+    expected = GRIP.get(frame.id, "one")
+    problems = []
+    limit = BEND_MAX_PX if frame.source is not None else BEND_MAX_FLAT_PX
+    if rms > limit:
+        problems.append(f"blade not straight: cross-sections wander {rms:.2f}px off the hilt-tip line")
+    # A blade sliced by the sprite edge is still at full width where it stops;
+    # a real end is a narrow pommel or a tapering tip.
+    for at_edge, t_end, is_hilt in ((edge_lo, t_lo, d_lo < d_hi), (edge_hi, t_hi, d_hi < d_lo)):
+        if not at_edge:
+            continue
+        probe = run_at(t_end + (2.0 if t_end == t_hi else -2.0))
+        if probe is not None and probe[0] > CUT_MIN_RUN * median_w:
+            problems.append("hilt runs out of the sprite (nothing beyond it to hold)" if is_hilt
+                            else "tip is cut off by the sprite edge")
+    if expected != "loose":
+        if contact > CONTACT_MAX_PX:
+            problems.append(f"hilt is {contact:.1f}px from the body (sword floating)")
+        elif hands == 0:
+            problems.append("no hand reaches the hilt")
+    # Two hands stacked on one shaft merge into a single blob at this
+    # resolution, so the measured count cannot tell one hand from two. The
+    # pose declares its grip and the table reports what was measured; only
+    # "nobody is holding it" is an error.
+    notes = []
+    return {
+        "frame": frame.id, "status": "fail" if problems else "ok", "notes": notes,
+        "problems": problems, "visible": int(blade_px.sum()),
+        "length": float(length), "width": float(median_w),
+        "bend": rms, "taper": 0.0, "wrap": wrap, "contact": contact,
+        "grip_span": grip_span, "hands": hands, "expected": expected,
+    }
+
+
+def report_swords(frames: list[Frame], strict: bool = False) -> int:
+    print("\nsword check")
+    print(f"{'frame':16s} {'blade':>6s} {'bend':>5s} {'taper':>5s} {'wrap':>5s} "
+          f"{'hold':>5s} {'span':>5s} {'hands':>5s}  verdict")
+    errors = 0
+    warnings = 0
+    for frame in frames:
+        r = check_sword(frame)
+        if r["status"] == "unverifiable":
+            # A pose that hides the blade behind the body has nothing to
+            # measure; that is information, not a failure.
+            print(f"{frame.id:16s} {'-':>6s} {'-':>5s} {'-':>5s} {'-':>5s} {'-':>5s} "
+                  f"{'-':>5s} {'-':>5s}  WARN {r['reason']}")
+            continue
+        verdict = "ok"
+        if r["status"] == "fail":
+            errors += 1
+            verdict = "FAIL " + "; ".join(r["problems"])
+        elif r["notes"]:
+            warnings += 1
+            verdict = "WARN " + "; ".join(r["notes"])
+        elif r["visible"] < BLADE_MIN_PX:
+            verdict = f"ok (only {r['visible']}px of blade visible)"
+        print(f"{frame.id:16s} {r['visible']:6d} {r['bend']:5.2f} {r['taper']:5.2f} "
+              f"{r['wrap']:5.2f} {r['contact']:5.1f} {r['grip_span']:5.1f} "
+              f"{r['hands']}/{r['expected'][:1]:>3s}  {verdict}")
+    if errors or warnings:
+        print(f"sword check: {errors} error(s), {warnings} warning(s)")
+    return errors + (warnings if strict else 0)
+
+
+def _count_hands(rgb: np.ndarray, alpha: np.ndarray, point: np.ndarray, radius: int) -> int:
+    """Count distinct hand-coloured blobs touching the hilt.
+
+    Skin and the hero's dark fingerless gloves are the only two things that
+    reach the grip, so a small connected-component count in a disc around the
+    hilt separates "nobody holds this sword" from "at least one hand does".
+    Two hands that overlap on the shaft merge into one blob at this resolution,
+    which is why the count is reported rather than treated as proof.
+    """
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    lum = rgb.mean(axis=2)
+    chroma = rgb.max(axis=2) - rgb.min(axis=2)
+    skin = (r > 150) & (r - g > 24) & (b < 180) & (g > 90)
+    glove = (lum < 62) & (chroma < 46)
+    hand = alpha & (skin | glove)
+    hx, hy = int(round(point[0])), int(round(point[1]))
+    y0, y1 = max(0, hy - radius), min(alpha.shape[0], hy + radius + 1)
+    x0, x1 = max(0, hx - radius), min(alpha.shape[1], hx + radius + 1)
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    inside = (xx - hx) ** 2 + (yy - hy) ** 2 <= radius ** 2
+    sub = hand[y0:y1, x0:x1] & inside
+    if not sub.any():
+        return 0
+    labels, count = _components(sub)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    return int((sizes >= 8).sum())
+
+
+def pack(frames: list[Frame]) -> tuple[Image.Image, dict]:
+    """Shelf-pack the frames with PAD between them and build the metadata."""
+    width = 512
+    x = y = shelf_h = 0
+    placed: dict[str, tuple[int, int]] = {}
+    for frame in frames:
+        w, h = frame.image.size
+        if x + w + PAD > width:
+            x, y, shelf_h = 0, y + shelf_h + PAD, 0
+        placed[frame.id] = (x, y)
+        x += w + PAD
+        shelf_h = max(shelf_h, h)
+    total_h = y + shelf_h
+    atlas = Image.new("RGBA", (width, total_h), (0, 0, 0, 0))
+    meta: dict[str, dict] = {}
+    for frame in frames:
+        x, y = placed[frame.id]
+        atlas.alpha_composite(frame.image, (x, y))
+        px, py = _pivot(frame.image)
+        meta[frame.id] = {
+            "x": x, "y": y,
+            # Generated poses are shipped without the generator's ground shadow,
+            # so the renderer draws one for them; sheet frames have it baked in.
+            "shadow": frame.shadow,
+            "w": frame.image.width, "h": frame.image.height,
+            "px": px, "py": py,
+        }
+    return atlas, meta
+
+
+def render_meta(meta: dict) -> str:
+    lines = [
+        "// Generated by scripts/hero_frames.py — do not edit by hand.",
+        "// Rebuild with: python3 sites/ffm/scripts/hero_frames.py",
+        "//",
+        "// One entry per pose. x/y/w/h locate the pose inside hero-atlas.webp;",
+        "// px/py are the foot contact point in frame pixels (from the frame's",
+        "// top-left), so the animator can plant the feet on GROUND_Y exactly.",
+        "export const HERO_ATLAS = new URL('./hero-atlas.webp', import.meta.url).href;",
+        "",
+        "export const HERO_FRAMES = {",
+    ]
+    # Write in the order the packer laid the frames out, so the metadata mirrors
+    # the atlas and a clip that names a frame the build does not emit is visible
+    # as a missing key instead of a silent gap.
+    for frame_id, f in meta.items():
+        lines.append(
+            f"  '{frame_id}': {{ x: {f['x']}, y: {f['y']}, w: {f['w']}, h: {f['h']},"
+            f" px: {f['px']}, py: {f['py']}, shadow: {f['shadow']} }},"
+        )
+    lines.append("};")
+    lines.append("")
+    return "\n".join(lines)
+
+
+# Colours the editable sheet uses for its own annotations. They are stored here
+# so the importer can erase them again instead of shipping them as art.
+SHEET_RED = (255, 45, 111, 255)      # solid cell border: the crop edge
+SHEET_AMBER = (255, 196, 0, 255)     # dashed bleed inset
+SHEET_LABEL = (255, 210, 90, 255)    # per-cell caption
+SHEET_PIVOT = (34, 204, 102, 255)    # foot pivot cross + baseline
+SHEET_CENTRE = (90, 140, 255, 255)   # centre line
+SHEET_INSET = 6                      # distance of the dashed rect from the cell
+SHEET_BORDER = 2                     # width of the solid cell border
+
+
+def _dashed_rect(draw, box, colour, dash=6, gap=4, width=1):
+    x0, y0, x1, y1 = box
+    for x in range(x0, x1, dash + gap):
+        draw.line([(x, y0), (min(x + dash, x1), y0)], fill=colour, width=width)
+        draw.line([(x, y1), (min(x + dash, x1), y1)], fill=colour, width=width)
+    for y in range(y0, y1, dash + gap):
+        draw.line([(x0, y), (x0, min(y + dash, y1))], fill=colour, width=width)
+        draw.line([(x1, y), (x1, min(y + dash, y1))], fill=colour, width=width)
+
+
+def export_edit_sheet(frames: list[Frame], path: Path, cols: int = 4,
+                      cell: int = 220, margin: int = 14, pivots: bool = False,
+                      background: str = "transparent") -> Path:
+    """Write every pose into one image for hand-editing, with its limits drawn.
+
+    Layout rules, repeated in the image itself so the sheet is self-explaining:
+      * solid red cell border  - nothing may cross it, the cell is the frame
+      * dashed amber inset     - keep the silhouette inside it, it is the bleed
+                                 margin the atlas packer relies on
+      * optional green baseline + cross and blue centre line - the foot pivot the
+                                 animator grounds on, for frames that are still
+                                 being moved around (`--sheet-pivots`)
+    The sheet is transparent, so it can be dropped straight onto the game art;
+    only the cell border and the bleed margin are drawn.
+    """
+    from PIL import ImageDraw
+
+    label_h = 18
+    arts = [(_crop_to_content(np.array(frame.image)), frame) for frame in frames]
+    # The cell has to hold the largest pose with room to spare, or a pose whose
+    # pivot sits off-centre would be shifted out of its own cell.
+    widest = max(art.width for art, _ in arts)
+    tallest = max(art.height for art, _ in arts)
+    cell = max(cell, widest + 2 * margin, tallest + 2 * margin)
+    rows = (len(frames) + cols - 1) // cols
+    width = cols * (cell + margin) + margin
+    height = rows * (cell + label_h + margin) + margin
+    if background == "transparent":
+        sheet = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    else:
+        sheet = Image.new("RGBA", (width, height), (26, 30, 40, 255))
+        checker = ImageDraw.Draw(sheet)
+        for y in range(0, height, 16):
+            for x in range(0, width, 16):
+                if (x // 16 + y // 16) % 2 == 0:
+                    checker.rectangle([x, y, x + 15, y + 15], fill=(34, 39, 50, 255))
+    draw = ImageDraw.Draw(sheet)
+    layout: dict = {"size": [width, height], "cell": cell, "margin": margin,
+                    "label_h": label_h, "cols": cols, "pivots": bool(pivots),
+                    "frames": []}
+
+    for index, (meta, frame) in enumerate(arts):
+        col, row = index % cols, index // cols
+        x0 = margin + col * (cell + margin)
+        y0 = margin + row * (cell + label_h + margin)
+        draw.rectangle([x0, y0, x0 + cell, y0 + cell], outline=SHEET_RED, width=SHEET_BORDER)
+        _dashed_rect(draw, (x0 + SHEET_INSET, y0 + SHEET_INSET,
+                            x0 + cell - SHEET_INSET, y0 + cell - SHEET_INSET), SHEET_AMBER)
+
+        pivot_x, pivot_y = _pivot(meta)
+        # Bottom-aligned and centred on the pivot, then clamped: a pivot that is
+        # not at the frame's centre must never push art past the cell border.
+        left = x0 + cell // 2 - pivot_x
+        top = y0 + cell // 2 - pivot_y
+        left = min(max(left, x0 + margin // 2), x0 + cell - margin // 2 - meta.width)
+        top = min(max(top, y0 + margin // 2), y0 + cell - margin // 2 - meta.height)
+        sheet.alpha_composite(meta, (left, top))
+        if pivots:
+            px, py = x0 + cell // 2, y0 + cell - 10
+            draw.line([(x0 + SHEET_INSET, py), (x0 + cell - SHEET_INSET, py)],
+                      fill=SHEET_PIVOT, width=1)
+            draw.line([(px, y0 + SHEET_INSET), (px, y0 + cell - SHEET_INSET)],
+                      fill=SHEET_CENTRE, width=1)
+            draw.line([(px - 4, py), (px + 4, py)], fill=SHEET_PIVOT, width=1)
+            draw.line([(px, py - 4), (px, py + 4)], fill=SHEET_PIVOT, width=1)
+        draw.text((x0 + 4, y0 - label_h + 3), f"{frame.id}  {meta.width}x{meta.height}",
+                  fill=SHEET_LABEL)
+        layout["frames"].append({"id": frame.id, "col": col, "row": row,
+                                 "left": left, "top": top,
+                                 "w": meta.width, "h": meta.height})
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(path, format="PNG", optimize=True)
+    # The layout travels with the sheet: importing a hand edit must not have to
+    # guess the grid, and it must keep working if the pose sources change later.
+    path.with_suffix(".json").write_text(json.dumps(layout, indent=1) + "\n", encoding="utf-8")
+    return path
+
+
+
+def _specks(image: np.ndarray) -> list[int]:
+    """Sizes of the detached parts of a frame, biggest first."""
+    labels, count = _components(image[:, :, 3] > 0)
+    sizes = sorted((int((labels == lab).sum()) for lab in range(1, count + 1)), reverse=True)
+    return sizes[1:]
+
+
+GUIDE_COLOURS = (SHEET_RED, SHEET_AMBER, SHEET_LABEL, SHEET_PIVOT, SHEET_CENTRE)
+
+
+def _annotation_mask(cell: int, pivots: bool) -> np.ndarray:
+    """Pixel positions the exporter drew its own lines on, in crop coordinates."""
+    mask = np.zeros((cell, cell), bool)
+    lo, hi = SHEET_INSET - SHEET_BORDER, cell - SHEET_INSET - SHEET_BORDER
+    for y in (lo, hi):
+        mask[y, lo:hi + 1] = True
+    for x in (lo, hi):
+        mask[lo:hi + 1, x] = True
+    if pivots:
+        centre = cell // 2 - SHEET_BORDER
+        base = cell - 10 - SHEET_BORDER
+        mask[base, lo:hi + 1] = True
+        mask[lo:hi + 1, centre] = True
+        mask[max(0, base - 4):base + 5, max(0, centre - 1):centre + 2] = True
+        mask[max(0, base - 1):base + 2, max(0, centre - 4):centre + 5] = True
+    return mask
+
+
+def _erase_guides(crop: np.ndarray, annotation: np.ndarray) -> np.ndarray:
+    """Drop the exporter's own guide pixels from a cropped cell.
+
+    Only guide-coloured pixels *on* the annotation geometry are removed, so art
+    that happens to share a guide colour (the hero's hair is close to the amber)
+    survives untouched.
+    """
+    out = crop.copy()
+    guide = np.zeros(out.shape[:2], bool)
+    for colour in GUIDE_COLOURS:
+        guide |= np.all(out[:, :, :4] == np.array(colour, dtype=np.uint8), axis=2)
+    erase = guide & annotation[:out.shape[0], :out.shape[1]]
+    out[erase] = 0
+    return out
+
+
+def _drop_specks(image: Image.Image, minimum: int) -> Image.Image:
+    """Remove detached parts of a frame smaller than `minimum` pixels."""
+    a = np.array(image)
+    labels, count = _components(a[:, :, 3] > 0)
+    keep = np.zeros_like(labels, dtype=bool)
+    for lab in range(1, count + 1):
+        part = labels == lab
+        if part.sum() >= minimum:
+            keep |= part
+    a[~keep] = 0
+    return _crop_to_content(a)
+
+
+def import_edit_sheet(path: Path, drop_specks: int = 0) -> tuple[list[Frame], list[str]]:
+    """Read a hand-edited `--export-sheet` image back into frames.
+
+    Each pose is cropped to its own cell, the guide lines are erased, and the
+    remainder is trimmed to content - `pack` then recomputes the pivots, so an
+    edited pose is grounded exactly like a generated one. Anything painted
+    outside the red border is outside the cell and does not survive.
+    """
+    layout_path = path.with_suffix(".json")
+    if not layout_path.is_file():
+        raise SystemExit(f"missing layout {layout_path.name} next to {path.name}; "
+                         f"re-run --export-sheet to regenerate both")
+    layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    sheet = Image.open(path).convert("RGBA")
+    if list(sheet.size) != list(layout["size"]):
+        print(f"note: sheet is {sheet.width}x{sheet.height}, layout expects "
+              f"{layout['size'][0]}x{layout['size'][1]}; cell geometry is unchanged",
+              file=sys.stderr)
+
+    cell = layout["cell"]
+    margin, label_h = layout["margin"], layout["label_h"]
+    inside = SHEET_BORDER  # the border is drawn inside the cell outline
+    annotation = _annotation_mask(cell, layout.get("pivots", False))
+    frames: list[Frame] = []
+    notes: list[str] = []
+    for entry in layout["frames"]:
+        x0 = margin + entry["col"] * (cell + margin)
+        y0 = margin + entry["row"] * (cell + label_h + margin)
+        box = (x0 + inside, y0 + inside, x0 + cell - inside, y0 + cell - inside)
+        crop = _erase_guides(np.array(sheet.crop(box)), annotation)
+        alpha = crop[:, :, 3] > 0
+        if not alpha.any():
+            notes.append(f"{entry['id']}: cell is empty, frame dropped")
+            continue
+        ys, xs = np.nonzero(alpha)
+        if xs.min() <= 0 or ys.min() <= 0 or xs.max() >= crop.shape[1] - 1 or ys.max() >= crop.shape[0] - 1:
+            notes.append(f"{entry['id']}: art touches the cell border and will be "
+                         f"cropped there")
+        image = _crop_to_content(crop)
+        if drop_specks:
+            image = _drop_specks(image, drop_specks)
+        frames.append(Frame(entry["id"], image, f"edited:{path.name}", None, 0))
+        # A stray brush mark in the sheet becomes part of the frame and drags
+        # its bounding box (and so its pivot) with it, so say so instead of
+        # quietly shipping it.
+        marks = _specks(np.array(image))
+        if marks:
+            notes.append(f"{entry['id']}: {len(marks)} detached speck(s) "
+                         f"(largest {marks[0]}px) - part of the frame")
+    order = {f.id: i for i, f in enumerate(frames)}
+    frames.sort(key=lambda f: (FRAME_ORDER.index(f.id) if f.id in FRAME_ORDER else 99,
+                               order[f.id]))
+    return frames, notes
+
+
+def report(frames: list[Frame], meta: dict) -> None:
+    print(f"{'frame':16s} {'size':>9s} {'pivot':>9s}  source")
+    for frame in frames:
+        f = meta[frame.id]
+        print(f"{frame.id:16s} {f['w']:4d}x{f['h']:<4d} {f['px']:4d},{f['py']:<4d}  {frame.origin}")
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--export-sheet", metavar="PATH",
+                        help="write all poses into one editable PNG with its limits drawn")
+    parser.add_argument("--sheet-pivots", action="store_true",
+                        help="also draw the foot-pivot and centre guides on the exported sheet")
+    parser.add_argument("--from-sheet", metavar="PATH",
+                        help="build the atlas from a hand-edited --export-sheet image "
+                             "(uses the .json layout written next to it)")
+    parser.add_argument("--drop-specks", type=int, metavar="PX", default=0,
+                        help="with --from-sheet: drop detached brush marks smaller than PX "
+                             "pixels (a stray mark otherwise drags the frame's box and pivot)")
+    parser.add_argument("--from-frames", metavar="DIR",
+                        help="build the atlas from <clip>-<n>.png pose files in DIR "
+                             "(written by scripts/hero_poses.py)")
+    parser.add_argument("--strict", action="store_true",
+                        help="treat sword-check warnings as failures (use in CI)")
+    parser.add_argument("--check", action="store_true",
+                        help="report and verify only, write nothing; exits 1 on a sword-check failure")
+    args = parser.parse_args(argv)
+
+    if args.from_frames:
+        frames, missing = collect_from_frames(Path(args.from_frames))
+        if not frames:
+            print(f"no frames in {args.from_frames}", file=sys.stderr)
+            return 1
+        print(f"loaded {len(frames)} frames from {args.from_frames}")
+    elif args.from_sheet:
+        frames, notes = import_edit_sheet(Path(args.from_sheet), drop_specks=args.drop_specks)
+        missing = [f for f in FRAME_ORDER if f not in {frame.id for frame in frames}]
+        print(f"imported {len(frames)} frames from {args.from_sheet}")
+        for note in notes:
+            print(f"  note: {note}", file=sys.stderr)
+    else:
+        if not MASTER_SHEET.is_file():
+            print(f"missing master sheet: {MASTER_SHEET}", file=sys.stderr)
+            return 1
+        frames, missing = collect()
+    atlas, meta = pack(frames)
+    report(frames, meta)
+    sword_errors = report_swords(frames, strict=args.strict)
+    if missing:
+        print(f"note: unused frames (no source yet): {', '.join(missing)}", file=sys.stderr)
+    print(f"atlas {atlas.width}x{atlas.height}, {len(frames)} frames")
+    if args.export_sheet:
+        out = export_edit_sheet(frames, Path(args.export_sheet), pivots=args.sheet_pivots)
+        print(f"wrote {out} ({out.stat().st_size // 1024} KB)")
+        print(f"wrote {out.with_suffix('.json').name} (cell layout, needed by --from-sheet)")
+    if args.check:
+        return 1 if sword_errors else 0
+
+    OUT_ATLAS.parent.mkdir(parents=True, exist_ok=True)
+    # Lossless: the art is hard-edged pixel work, lossy WebP smears it.
+    atlas.save(OUT_ATLAS, format="WEBP", lossless=True, method=6)
+    OUT_META.write_text(render_meta(meta), encoding="utf-8")
+    print(f"wrote {OUT_ATLAS.relative_to(FFM_ROOT)} ({OUT_ATLAS.stat().st_size // 1024} KB)")
+    print(f"wrote {OUT_META.relative_to(FFM_ROOT)}")
+    return 1 if sword_errors else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
