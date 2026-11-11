@@ -79,7 +79,9 @@ GENERATED_POSES: list[dict] = [
     # reproduces the reference plate, which holds a master frame upscaled x4, so
     # a 1024px output carries roughly 4x the master's pixels per character
     # pixel. Measured and corrected against the frame each pose derives from.
-    {"file": "cast.png", "id": "cast", "scale": 0.205, "strip_shadow": True},
+    # The cast pose was drawn facing away from the fight; the game always faces
+    # the fiend on the right, so the frame is mirrored on the way in.
+    {"file": "cast.png", "id": "cast", "scale": 0.205, "strip_shadow": True, "flip": True},
     {"file": "swing-impact.png", "id": "swing-impact", "scale": 0.172, "strip_shadow": True},
     {"file": "swing-follow.png", "id": "swing-follow", "scale": 0.172, "strip_shadow": True},
 ]
@@ -107,6 +109,9 @@ class Frame:
     id: str
     image: Image.Image
     origin: str
+    # Full-colour art before palette flattening; the sword check measures this
+    # so snapping colours cannot hide a blade from the geometry test.
+    source: Image.Image | None = None
 
 
 def _components(mask: np.ndarray) -> tuple[np.ndarray, int]:
@@ -208,7 +213,7 @@ def _strip_ground_shadow(rgba: np.ndarray) -> np.ndarray:
     return out
 
 
-def _generated_frame(spec: dict) -> Image.Image | None:
+def _generated_frame(spec: dict) -> tuple[Image.Image, Image.Image] | None:
     path = POSE_DIR / spec["file"]
     if not path.is_file():
         return None
@@ -221,10 +226,14 @@ def _generated_frame(spec: dict) -> Image.Image | None:
     if spec.get("strip_shadow"):
         rgba = _strip_ground_shadow(rgba)
     image = _crop_to_content(rgba)
+    if spec.get("flip"):
+        image = image.transpose(Image.FLIP_LEFT_RIGHT)
     if spec.get("scale"):
         size = (max(1, round(image.width * spec["scale"])), max(1, round(image.height * spec["scale"])))
         image = _resize_rgba(image, size)
-    return image
+        flattened = _flatten_to_palette(image, spec["palette"])
+        return flattened, image
+    return image, image
 
 
 def _despill(rgba: np.ndarray) -> np.ndarray:
@@ -241,6 +250,34 @@ def _despill(rgba: np.ndarray) -> np.ndarray:
     target = np.minimum(r, b)
     out[:, :, 1] = np.where(cast, target, g).astype(np.uint8)
     return out
+
+
+def _shared_palette(images: list[Image.Image], colours: int = 32) -> Image.Image:
+    """One palette for the whole sprite: the sheet frames define it.
+
+    Generated poses are painted with slightly different, softer colours; mapping
+    them onto the master's palette both keeps the hero looking like one
+    character and flattens the anti-aliased fringes the downscale leaves behind,
+    which is what makes the generated frames read as blurry next to the rest.
+    """
+    width = sum(i.width for i in images)
+    height = max(i.height for i in images)
+    strip = Image.new("RGB", (width, height), (0, 0, 0))
+    x = 0
+    for image in images:
+        strip.paste(image.convert("RGB"), (x, 0))
+        x += image.width
+    return strip.quantize(colors=colours, method=Image.MEDIANCUT)
+
+
+def _flatten_to_palette(image: Image.Image, palette: Image.Image | None) -> Image.Image:
+    """Snap a frame onto the shared palette, keeping its own alpha mask."""
+    if palette is None:
+        return image
+    alpha = np.array(image.split()[3])
+    rgb = image.convert("RGB").quantize(palette=palette, dither=Image.NONE).convert("RGB")
+    out = np.dstack([np.array(rgb), alpha])
+    return Image.fromarray(out, "RGBA")
 
 
 def _resize_rgba(image: Image.Image, size: tuple[int, int]) -> Image.Image:
@@ -277,14 +314,19 @@ def _pivot(image: Image.Image) -> tuple[int, int]:
 
 def collect() -> tuple[list[Frame], list[str]]:
     frames: dict[str, Frame] = {}
+    sheet_images: list[Image.Image] = []
     for (row, col), frame_id in SHEET_POSES.items():
-        frames[frame_id] = Frame(frame_id, _sheet_frame(row, col), f"sheet[{row},{col}]")
+        image = _sheet_frame(row, col)
+        sheet_images.append(image)
+        frames[frame_id] = Frame(frame_id, image, f"sheet[{row},{col}]")
+    palette = _shared_palette(sheet_images)
     for spec in GENERATED_POSES:
-        image = _generated_frame(spec)
-        if image is None:
+        built = _generated_frame({**spec, "palette": palette})
+        if built is None:
             print(f"  skip {spec['id']}: {spec['file']} not generated yet", file=sys.stderr)
             continue
-        frames[spec["id"]] = Frame(spec["id"], image, f"generated:{spec['file']}")
+        image, source = built
+        frames[spec["id"]] = Frame(spec["id"], image, f"generated:{spec['file']}", source)
     missing = [f for f in FRAME_ORDER if f not in frames]
     return [frames[f] for f in FRAME_ORDER if f in frames], missing
 
@@ -360,7 +402,7 @@ def check_sword(frame: Frame) -> dict:
     hidden stations are skipped, and every visible station on both sides of the
     body has to sit on the same straight line.
     """
-    a = np.array(frame.image).astype(int)
+    a = np.array(frame.source or frame.image).astype(int)
     alpha = a[:, :, 3] > 128
     rgb = a[:, :, :3]
     steel = _steel_mask(a)

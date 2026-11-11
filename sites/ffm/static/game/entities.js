@@ -22,6 +22,24 @@ let _heroGroundOffsetPx = 0;
 export function getHeroGroundOffsetPx() { return _heroGroundOffsetPx; }
 export function setHeroGroundOffsetPx(px) { _heroGroundOffsetPx = px; }
 
+// Additive radial glow shared by the cast hand, the strike impact and the
+// spell projectiles, so every magic effect in the game reads as the same light.
+function _radialGlow(ctx, x, y, radius, alpha, core, mid) {
+  if (alpha <= 0 || radius <= 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = Math.min(1, alpha);
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  gradient.addColorStop(0, core);
+  gradient.addColorStop(0.45, mid);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 const _heroAtlas = new Image();
 _heroAtlas.src = HERO_ATLAS;
 const _dragonSprite = new Image();
@@ -509,8 +527,8 @@ export class Hero extends Entity {
     const anchor = this.anim.frame.fxAt ?? [-19, -40];
     const cx = left + (frame.px + anchor[0]) * HERO_SCALE;
     const cy = top + (frame.py + anchor[1]) * HERO_SCALE;
-    const radius = 86;
-    const a0 = -1.25, a1 = 0.72;
+    const radius = 118;
+    const a0 = -1.35, a1 = 0.92;
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -519,18 +537,24 @@ export class Hero extends Entity {
       const s0 = a0 + (a1 - a0) * (i / 4);
       const s1 = a0 + (a1 - a0) * ((i + 1) / 4) + 0.02;
       ctx.globalAlpha = fade * (0.18 + 0.2 * i);
-      ctx.lineWidth = 4 + i * 3;
+      ctx.lineWidth = 6 + i * 4.5;
       ctx.strokeStyle = '#4ba6f0';
       ctx.beginPath();
       ctx.ellipse(cx, cy, radius, radius * 0.92, 0, s0, s1);
       ctx.stroke();
       ctx.globalAlpha = fade * (0.3 + 0.22 * i);
-      ctx.lineWidth = 2 + i * 1.4;
+      ctx.lineWidth = 3 + i * 2;
       ctx.strokeStyle = i === 3 ? '#eaf9ff' : '#9fdcff';
       ctx.beginPath();
       ctx.ellipse(cx, cy, radius, radius * 0.92, 0, s0, s1);
       ctx.stroke();
     }
+
+    // A single burst at the impact, same light as the cast: the swing is the
+    // moment the hit lands, so it gets one flash rather than a steady glow.
+    const burst = Math.max(0, 1 - (t - hitStart) / 0.3);
+    _radialGlow(ctx, cx + Math.cos(a1) * radius, cy + Math.sin(a1) * radius * 0.92,
+      58 * (0.7 + 0.5 * burst), 0.75 * burst, '#ffffff', '#4ba6f0');
 
     // Sparks fly off the blade end, where the arc is brightest.
     ctx.globalAlpha = fade;
@@ -559,22 +583,11 @@ export class Hero extends Entity {
     const fire = this._castFx === 'fire';
     const core = fire ? '#fff0b0' : '#dff4ff';
     const mid = fire ? '#ffb03a' : '#7fd4ff';
-    const edge = fire ? 'rgba(255,80,0,0)' : 'rgba(60,150,255,0)';
     const hx = left + (frame.px + anchor[0]) * HERO_SCALE;
     const hy = top + (frame.py + anchor[1]) * HERO_SCALE;
     const r = (20 + 12 * Math.abs(Math.sin(this._tick * 0.02))) * intensity;
-
+    _radialGlow(ctx, hx, hy, r * 3.2, 0.85 * intensity, core, mid);
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, r * 3.2);
-    g.addColorStop(0, core);
-    g.addColorStop(0.45, mid);
-    g.addColorStop(1, edge);
-    ctx.globalAlpha = 0.85 * intensity;
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(hx, hy, r * 3.2, 0, Math.PI * 2);
-    ctx.fill();
     ctx.globalAlpha = 0.9 * intensity;
     ctx.fillStyle = core;
     ctx.beginPath();
@@ -1966,6 +1979,11 @@ class SpellProjectile {
     const t = 1 - (this._life / this._maxLife);
     const alpha = Math.max(0, Math.min(1, this._life / (this._maxLife * 0.3)));
     const { x, y } = this._posAt(t);
+
+    // The same additive glow the hero's palm carries while casting, so the
+    // fireball and the bolt look like that light leaving his hand.
+    _radialGlow(ctx, x, y, SPELL_SPRITE_DRAW_W * this._scale * 0.72, alpha * 0.7,
+      '#ffffff', this._trailColor);
 
     ctx.save();
 
