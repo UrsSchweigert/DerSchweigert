@@ -104,6 +104,10 @@ Browser
 - Buttons have three visible tiers: brass *primary* (thicker 2px line plus a drawn diamond: start practice,
   resume, next level, save a score), red *danger* (discard a score, delete a player) and quiet
   navigation/pagination, whose paging arrows are drawn with CSS borders rather than glyphs.
+- Menu typography comes from one scale in `static/styles.css` (`--text-button`, `--text-body`,
+  `--text-option`, `--text-heading`): buttons use the title-page tab size in `system-ui`, body copy uses the
+  difficulty-explanation size, and bold/ivory are reserved for headings, the selected tab and the primary
+  action. Gameplay HUD, answer buttons and legal pages keep their own metrics.
 - The web title screen shows both app-store listings as non-clickable "soon" badges
   (`<!-- app-omit:start -->`, so the Capacitor bundle drops them) until the listings are live.
 - Authors can assign bundled songs per level without an in-app picker; see

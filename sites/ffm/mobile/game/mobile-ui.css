@@ -244,7 +244,6 @@
 
 .app-audio-control-row label {
   color: var(--ivory-muted, #d8d8d8);
-  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
@@ -256,8 +255,6 @@
 
 .app-audio-control-panel .screen-status {
   overflow-wrap: anywhere;
-  font-size: 12px;
-  line-height: 1.25;
   margin: 0;
 }
 
@@ -319,13 +316,10 @@
 
 .entitlement-panel h2 {
   margin: 0;
-  font-size: 16px;
 }
 
 .entitlement-panel p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
@@ -360,7 +354,6 @@
   margin: 0;
   width: min(100%, 560px);
   align-self: center;
-  font-size: 14px;
   color: var(--ivory-muted, #d3ccb9);
 }
 
@@ -375,8 +368,8 @@
   border-radius: 5px;
   background: linear-gradient(145deg, #203e32, #10241c);
   color: var(--ivory, #f3ead6);
-  font: inherit;
-  font-size: 14px;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: var(--text-button, 13px);
   text-decoration: none;
   cursor: pointer;
 }
@@ -454,7 +447,6 @@
   max-height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
-  font-size: clamp(13px, 2vw, 16px);
 }
 
 .app-help-header {
@@ -507,8 +499,6 @@
   border-radius: 4px;
   background: rgba(216, 168, 90, 0.12);
   color: #ffe6b5;
-  font-size: clamp(12px, 1.8vw, 14px);
-  line-height: 1.35;
 }
 
 .app-help-manual-link:focus-visible {

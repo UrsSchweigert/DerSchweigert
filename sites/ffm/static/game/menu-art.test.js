@@ -17,9 +17,44 @@ test('sharp title and blurred overlays use redesigned bundled art without interc
 
 test('interface text wraps at word boundaries and compact navigation keeps whole labels', () => {
   assert.match(css, /button\s*\{\s*overflow-wrap:\s*normal;\s*word-break:\s*normal;\s*hyphens:\s*none;/);
-  assert.match(css, /\.title-navigation button\s*\{[^}]*font-family:\s*system-ui[^}]*white-space:\s*nowrap/s);
+  assert.match(css, /\.title-navigation button\s*\{[^}]*white-space:\s*nowrap/s);
+  assert.match(css, /:where\(\.overlay\) :where\(button, summary, select\) \{[^}]*font-family:\s*var\(--font-ui\)/s,
+    'menu buttons take their font from the shared button default');
   assert.match(css, /#level-attempt-summary, #defeat-attempt-summary\s*\{[^}]*overflow-wrap:\s*normal/);
   assert.match(css, /body:not\(\.legal-body\)\s*\{[^}]*word-break:\s*normal[^}]*hyphens:\s*none/s);
+});
+
+test('the menus share one type scale: tab-sized buttons, explanation-sized copy', () => {
+  for (const token of ['--font-ui', '--font-prose', '--text-button', '--text-body', '--line-body',
+    '--text-option', '--text-heading']) {
+    assert.ok(css.includes(`${token}:`), `${token} must be defined`);
+  }
+  assert.match(css, /--text-button:\s*clamp\(11px, 1\.5vw, 15px\);/,
+    'buttons default to the title-page tab size');
+  assert.match(css, /--text-body:\s*12px;/, 'copy defaults to the difficulty-explanation size');
+  // The defaults are the only place these roles are declared.
+  const buttonSizes = css.match(/:where\(\.overlay\) :where\(button, summary, select\) \{([^}]*)\}/)?.[1];
+  assert.ok(buttonSizes);
+  assert.match(buttonSizes, /font-size:\s*var\(--text-button\);/);
+  assert.match(buttonSizes, /font-weight:\s*400;/, 'buttons are not bold by default');
+  const body = css.match(/:where\(\.overlay\) \{([^}]*)\}/)?.[1];
+  assert.ok(body);
+  assert.match(body, /font-size:\s*var\(--text-body\);/);
+  assert.match(body, /color:\s*var\(--ivory-muted\);/);
+  // Footer/navigation, pagination, profile and overlay buttons no longer
+  // declare their own sizes.
+  assert.doesNotMatch(css, /\.overlay-card \.diff-btn \{[^}]*font-size:/);
+  assert.doesNotMatch(css, /#pause-overlay \.compact-disclosure > summary \{[^}]*font-size:/);
+  assert.doesNotMatch(css, /\.splash-btn \{[^}]*font-size:/);
+  assert.doesNotMatch(css, /\.playing-as-row button \{[^}]*font-size:/);
+  // Bold is reserved: headings, the selected tab and the primary action.
+  assert.match(css, /:where\(\.overlay\) :where\(h2, h3\) \{[^}]*font-weight:\s*700;/s);
+  assert.match(css, /\.title-navigation button\[aria-pressed="true"\] \{[^}]*font-weight:\s*700;/s);
+  assert.doesNotMatch(css, /\.compact-disclosure > summary \{[^}]*font-weight:/);
+  // The menus' defaults stop at the menus: gameplay keeps its own metrics.
+  assert.doesNotMatch(css, /:where\(\.overlay\)[^{]*#game-wrap/);
+  assert.match(css, /\.mc-btn \{[^}]*font-size:\s*clamp\(18px, 2\.5vw, 24px\);/s);
+  assert.match(css, /#active-question \{[^}]*font-size:\s*22px;/s);
 });
 
 test('title is centered independently of utility buttons and headings retain the original font', () => {
@@ -54,12 +89,18 @@ test('title modes shrink to available space and introduction stays readable over
   assert.match(css, /\.splash-diff-buttons\s*\{[^}]*grid-template-rows:\s*repeat\(4, minmax\(44px, 1fr\)\)[^}]*height:\s*100%[^}]*max-height:\s*312px/s);
   // Only short portrait screens drop the welcome text; roomy phones keep it.
   assert.match(css, /@media \(orientation: portrait\) and \(max-height: 700px\)\s*\{[^}]*\}[^}]*\}[^}]*\.title-play-intro \.splash-intro \{ display: none; \}/s);
-  assert.match(css, /\.title-play-intro \.player-identity, \.title-play-intro #continue-level\s*\{[^}]*color:\s*#fff[^}]*text-shadow:/s);
+  assert.match(css, /\.title-play-intro \.splash-subtitle,\s*\.title-play-intro \.player-identity,\s*\.title-play-intro #continue-level \{\s*color:\s*var\(--ivory-muted\);/,
+    'secondary welcome copy uses the muted palette colour, not pure white');
+  assert.match(css, /\.title-play-intro \.splash-intro, \.title-play-intro \.splash-subtitle,\s*\.title-play-intro \.player-identity, \.title-play-intro #continue-level \{[^}]*text-shadow:/s,
+    'the welcome copy keeps its shadow so it stays readable over the art');
 });
 
 test('the welcome text keeps padding and a readable measure on every screen', () => {
   const intro = css.match(/^\.title-play-intro \{([^}]*height: auto[^}]*)\}/m)?.[1];
   assert.ok(intro, 'title-play-intro block missing');
   assert.match(intro, /padding:\s*24px 28px;/);
-  assert.match(css, /\.title-play-intro \.splash-intro\s*\{[^}]*max-width:\s*min\(46ch, 100%\)[^}]*line-height:\s*1\.55/s);
+  assert.match(css, /\.title-play-intro \.splash-intro\s*\{[^}]*max-width:\s*min\(46ch, 100%\);/,
+    'the welcome text keeps its readable measure');
+  assert.match(css, /:where\(\.overlay\) \{[^}]*line-height:\s*var\(--line-body\)/s,
+    'and takes its line height from the shared body default');
 });

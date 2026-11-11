@@ -180,6 +180,14 @@ choices are a vertical stack of oblong rows; player controls share the brass/for
 palette, and pause/audio labels and actions are consistently centered. Decorative
 layers cannot intercept controls. Interface words remain intact; sentences may wrap
 at spaces, and compact navigation uses a proportional font to fit complete labels.
+Menu typography is one scale, defined once in `styles.css`
+(`--text-button`, `--text-body`, `--text-option`, `--text-heading`): every menu button
+uses the title-page tab size and `system-ui`, every explanation and status line uses the
+difficulty-explanation size ("15 seconds · 7 hearts", 12px monospace, muted ivory), and
+option names and screen headings are the only larger steps. Bold and ivory are reserved
+for headings, the selected tab and the one primary action, so no menu screen mixes five
+near-identical text sizes or uses pure white for body copy.
+
 Both website and app show the selected starting level as hand-drawn, illuminated
 SVG numerals in the title's upper-left corner, with a localized accessible label.
 The Practice tab (German: Training) explains the selected training mode beside its selector and names the
