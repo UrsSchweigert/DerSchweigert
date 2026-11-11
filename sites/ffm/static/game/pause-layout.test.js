@@ -33,8 +33,9 @@ test('the audio summary inherits the pause buttons’ size and weight', () => {
   assert.ok(summary, 'pause disclosure summary rule missing');
   assert.match(summary, /min-height:\s*44px;/);
   assert.match(summary, /padding:\s*6px;/);
-  assert.match(summary, /font-size:\s*14px;/);
-  assert.match(summary, /font-weight:\s*400;/);
-  // The same metrics the overlay buttons get from `.overlay-card .diff-btn`.
-  assert.match(css, /\.overlay-card \.diff-btn \{ margin: 0; padding: 6px; font-size: 14px; \}/);
+  // Neither the summary nor the overlay buttons override the shared button
+  // default, so both keep the title-page tab metrics.
+  assert.doesNotMatch(summary, /font-size:|font-weight:/);
+  assert.match(css, /\.overlay-card \.diff-btn \{ margin: 0; padding: 6px; \}/);
+  assert.match(css, /:where\(\.overlay\) :where\(button, summary, select\) \{[^}]*font-size:\s*var\(--text-button\);/s);
 });
