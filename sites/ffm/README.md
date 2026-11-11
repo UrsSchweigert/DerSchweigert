@@ -627,6 +627,14 @@ yet - they are pure logic plus their generated locks.
   LCG's low bits are correlated, so `state % span` over a small span repeated the
   same draw and builders could never succeed.
 
+The fight itself is `static/game/boss-run.js`: an overlay on the title screen,
+not a canvas mode, so a Warden needs no enemy entity, spawn queue or camera.
+`boss-attempt.js` owns the phases, the per-phase Ward Clock, checkpoints, crowns
+and score; `boss-progress.js` keeps the best crown and score per Warden.
+`static/boss-preview.html` plays any Warden against bands copied from
+`app/level_data.json`, which is the only way to try one without the level API.
+It is a development page and is excluded from the app bundle.
+
 ### Change visuals or sprites
 
 Start with:

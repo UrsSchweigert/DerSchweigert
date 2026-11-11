@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arithmo Slayer — Warden Preview</title>
+  <!-- Development-only harness: play a Warden fight without the level API by
+       supplying the act bands from app/level_data.json directly. Kept out of
+       the app bundle (see mobile/scripts/copy-assets.mjs EXCLUDED). -->
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="boss.css">
+  <style>
+    body { padding: 1rem; background: #0b1020; color: #efe2c6; }
+    [data-title-page="levels"] { max-width: 46rem; margin: 0 auto; }
+    .preview-note { max-width: 46rem; margin: 0 auto 1rem; font-size: 0.8rem; opacity: 0.75; }
+    .preview-difficulty { display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <p class="preview-note">
+    Development harness. Bands are the last level of each act, copied from
+    <code>app/level_data.json</code>; the real game reads them through the platform adapter.
+  </p>
+  <div class="preview-difficulty" id="preview-difficulty">
+    <button type="button" class="boss-option" data-difficulty="easy">Easy (90 s)</button>
+    <button type="button" class="boss-option boss-option--primary" data-difficulty="medium">Medium (60 s)</button>
+    <button type="button" class="boss-option" data-difficulty="hard">Hard (45 s)</button>
+  </div>
+  <section data-title-page="levels" class="title-page"></section>
+
+  <script type="module">
+    import { initI18n } from './game/i18n.js';
+    import { BOSSES } from './game/boss-data.js';
+    import { initWardenMode } from './game/boss-run.js';
+
+    // The act-end bands, so a preview fight asks the same questions the real
+    // one would. `level` makes the campaign generator produce the direct seals.
+    const BANDS = {
+      'warden-dawn': { level: 10, operations: ['+', '-'], operandRange: { a: [2, 12], b: [1, 7] }, maxResult: 19 },
+      'warden-harvest': { level: 20, operations: ['+', '-'], operandRange: { a: [10, 100], b: [1, 50] }, maxResult: 100 },
+      'warden-memory': { level: 30, operations: ['+', '-', '*'], operandRange: { a: [1, 100], b: [2, 10] }, maxResult: 200 },
+      'warden-keep': { level: 40, operations: ['+', '-', '*', '/'], operandRange: { a: [10, 60], b: [2, 12] }, maxResult: 720 },
+      'warden-market': { level: 50, operations: ['+', '-', '*', '/'], operandRange: { a: [20, 120], b: [2, 15] }, maxResult: 1800 },
+      'warden-throne': { level: 60, operations: ['+', '-', '*', '/'], operandRange: { a: [150, 350], b: [2, 20] }, maxResult: 7000 },
+    };
+
+    let difficulty = 'medium';
+    document.getElementById('preview-difficulty').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-difficulty]');
+      if (!button) return;
+      difficulty = button.dataset.difficulty;
+      for (const peer of document.querySelectorAll('[data-difficulty]')) {
+        peer.classList.toggle('boss-option--primary', peer === button);
+      }
+    });
+
+    initI18n();
+
+    // Every Warden is open in the preview so each rule family can be played.
+    const platform = {
+      async getAuthorizedLevelConfig(index) {
+        const boss = BOSSES.find(candidate => candidate.bandLevel === index + 1);
+        if (!boss || !BANDS[boss.id]) throw new Error('No preview band');
+        return BANDS[boss.id];
+      },
+    };
+
+    // A separate key keeps preview runs out of the player's real Warden record.
+    const previewStorage = {
+      getItem: (key) => localStorage.getItem(`preview:${key}`),
+      setItem: (key, value) => localStorage.setItem(`preview:${key}`, value),
+      removeItem: (key) => localStorage.removeItem(`preview:${key}`),
+    };
+
+    const mode = initWardenMode({
+      platform,
+      getClearedLevels: () => Array.from({ length: 60 }, (_, index) => index + 1),
+      getDifficulty: () => difficulty,
+      storage: previewStorage,
+    });
+
+    // Open the first Warden straight away: this page exists to look at the fight.
+    window.addEventListener('load', () => { void mode.open('warden-dawn'); });
+  </script>
+</body>
+</html>

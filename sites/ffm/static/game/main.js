@@ -31,6 +31,7 @@ import { preloadGameAssets } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
 import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
+import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
@@ -4165,6 +4166,14 @@ onLocaleChange(() => {
       ? t('overlay.shapesTryAgain')
       : t('overlay.scoreLine', { score: state.score });
   }
+});
+
+// Warden fights live outside the canvas loop: they are a room-sized puzzle over
+// the title screen, so they need no enemy entity, spawn queue or camera.
+initWardenMode({
+  platform,
+  getClearedLevels: () => currentPersonalDevelopment?.completed ?? [],
+  getDifficulty: () => state.difficulty,
 });
 
 platform.refresh()

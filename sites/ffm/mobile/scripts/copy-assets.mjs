@@ -54,6 +54,9 @@ export const EXCLUDED = [
   /(^|\/)[^/]+\.test\.js$/,
   /^export-sprites\.html$/,
   /^demo\.html$/,
+  // The Warden preview is a development harness: it fabricates act bands that
+  // the app must always read through the platform adapter.
+  /^boss-preview\.html$/,
   /^cancel\.html$/,
   /^widerruf\.html$/,
   // The promo landing page is web-only; the app has no marketing page.
