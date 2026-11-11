@@ -280,6 +280,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--gpt-source", metavar="DIR",
                         help="read opaque GPT-image renders named <sprite>.png from DIR, "
                              "key their backdrop and fit them to the sprite size")
+    parser.add_argument("--fit-from", metavar="PREFIX", default="set2",
+                        help="for a render whose sprite does not exist yet (e.g. set3-07), "
+                             "take the size from this set's sprite of the same index")
     parser.add_argument("--key-only", action="store_true",
                         help="re-key the already generated raw images; costs nothing")
     args = parser.parse_args(argv)
@@ -291,15 +294,20 @@ def main(argv: list[str]) -> int:
             return 1
         STAGE_DIR.mkdir(parents=True, exist_ok=True)
         done = 0
-        for path in sorted(SPRITE_DIR.glob("set*.png")):
-            raw = source / f"{path.stem}.png"
-            if not raw.is_file():
+        for raw in sorted(source.glob("set*.png")):
+            stem = raw.stem
+            target = SPRITE_DIR / f"{stem}.png"
+            if not target.is_file():
+                index = stem.split("-")[-1]
+                target = SPRITE_DIR / f"{args.fit_from}-{index}.png"
+            if not target.is_file():
+                print(f"  {stem}: no size reference ({target.name}) - skipped", file=sys.stderr)
                 continue
-            original = Image.open(path).convert("RGBA")
+            original = Image.open(target).convert("RGBA")
             final = cut_backdrop(raw, original.size)
-            final.save(STAGE_DIR / f"{path.stem}.png", format="PNG", optimize=True)
+            final.save(STAGE_DIR / f"{stem}.png", format="PNG", optimize=True)
             done += 1
-            print(f"  {path.stem}: {original.size[0]}x{original.size[1]} -> "
+            print(f"  {stem}: fitted to {target.stem} {original.size[0]}x{original.size[1]} -> "
                   f"{final.size[0]}x{final.size[1]}")
         print(f"cut {done} sprites from {source}")
         return 0
