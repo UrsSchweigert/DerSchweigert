@@ -8,70 +8,116 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
     const el = element(id);
     if (el && el.textContent !== String(value)) el.textContent = String(value);
   };
+  /**
+   * Write the Shapes question as two block lines (instruction, shapes) so each
+   * row is unbroken and the row count is fixed by the mode rather than by how
+   * the sentence happens to wrap. `null` clears it back to plain text.
+   */
+  function setQuestionLines(lines) {
+    const el = element('active-question');
+    if (!el || !doc?.createElement) return;
+    if (!lines) {
+      if (el.dataset?.shapesHeader === 'two-rows') {
+        el.textContent = '';
+        delete el.dataset.shapesHeader;
+      }
+      return;
+    }
+    const [instruction, shapes] = lines;
+    el.textContent = '';
+    el.dataset.shapesHeader = 'two-rows';
+    for (const [cls, value] of [['shapes-instruction', instruction], ['shapes-row', shapes]]) {
+      const row = doc.createElement('span');
+      row.className = cls;
+      row.textContent = value;
+      el.appendChild(row);
+    }
+  }
   const message = (key, fallback) => translate?.(key) || fallback;
   function setVisible(visible) {
     if (!chrome) return;
     chrome.hidden = !visible;
     if (!visible) {
       shapesHeader?.clear?.();
+      setQuestionLines(null);
       text('active-question', '');
-      text('gameplay-feedback', '');
     }
   }
   /**
    * The app-only two-row Shapes header (see mobile/game/shapes-header.js)
-   * takes over #active-question while it is installed. The web build never
-   * installs one and keeps the single-line prompt below.
+   * takes over #active-question while it is installed. Without it (the web
+   * build) the same two lines are written here as two child spans, so Shapes
+   * always reads "Count the shapes" / the shapes themselves and the question
+   * row is exactly the two rows the mode reserves - never a wrapped sentence
+   * with a ragged second line.
    */
   function setShapesHeader(renderer) {
     shapesHeader = renderer && typeof renderer.render === 'function' ? renderer : null;
     return shapesHeader;
   }
   /**
-   * Reserve the two-row question height for the whole Shapes level, not just
-   * while a problem is on screen. Without the marker the question row drops
-   * from two rows to the empty single-line minimum between problems and during
-   * the reveal, and the header (and with it the scene layout) jumps. The app
-   * overlay stylesheet turns the marker into the reserved height.
+   * Publish how many question rows this mode needs. Shapes asks "Count the
+   * shapes" *and* shows the shapes, so it reserves two rows for the whole
+   * level; the campaign asks one problem question and reserves one. The header
+   * sits above the playfield and viewport-layout.js lays the scene out from its
+   * measured height, so a row that appears and disappears rescales the board
+   * between problems. Both stylesheets read the marker (web styles.css and the
+   * app overlay's mobile-ui.css).
    */
   function setQuestionReserve(shapesLevel) {
     if (!chrome?.dataset) return;
-    const value = shapesHeader && shapesLevel ? 'true' : 'false';
-    if (chrome.dataset.twoRowQuestion !== value) chrome.dataset.twoRowQuestion = value;
+    const value = shapesLevel ? '2' : '1';
+    if (chrome.dataset.questionRows !== value) chrome.dataset.questionRows = value;
   }
   function update(state = {}, problem = null) {
     if (!chrome) return;
     setQuestionReserve(!!state.isShapesMode);
     const active = !!problem && !state.paused && !state.reveal && !!(state.questionActive ?? state.timerActive);
     let question = '';
-    let questionOwned = false;
+    let shapesLines = null;
+    let ownedByWidget = false;
     if (active) {
       if (problem.displayMode === 'shapes') {
         const instruction = message('hud.countShapes', 'Count the shapes');
+        const count = Math.max(0, Math.min(10, Math.floor(Number(problem.count) || 0)));
+        const symbol = { circle: '●', triangle: '▲', square: '■' }[problem.shapeType] || '■';
+        const shapes = Array.from({ length: count }, () => symbol).join(' ');
         if (shapesHeader) {
           try {
             shapesHeader.render({ element: element('active-question'), problem, instruction });
-            questionOwned = true;
+            ownedByWidget = true;
           } catch {
-            questionOwned = false;
+            shapesLines = [instruction, shapes];
           }
+        } else {
+          shapesLines = [instruction, shapes];
         }
-        if (!questionOwned) {
-          const symbol = { circle: '●', triangle: '▲', square: '■' }[problem.shapeType] || '■';
-          question = `${instruction}: ${Array.from({ length: Math.max(0, Math.min(10, Math.floor(Number(problem.count) || 0))) }, () => symbol).join(' ')}`;
-        }
+        question = `${instruction}: ${shapes}`;
       } else {
         question = problem.question || '';
       }
     }
-    if (!questionOwned) {
-      shapesHeader?.clear?.();
-      text('active-question', question);
-    }
+    // The correction takes the question's own line instead of a line reserved
+    // below it: the header keeps exactly the rows its mode reserves, and no
+    // empty row is left standing between problems.
     const feedback = !state.paused && state.reveal && state.feedback;
     const feedbackPrefix = feedback?.kind === 'incorrect' ? message('hud.incorrect', 'Incorrect')
       : feedback?.kind === 'timeout' ? message('hud.timeout', 'Time ran out') : '';
-    text('gameplay-feedback', feedbackPrefix && feedback.question ? `${feedbackPrefix}: ${feedback.question}` : '');
+    const correction = feedbackPrefix && feedback.question ? `${feedbackPrefix}: ${feedback.question}` : '';
+    if (correction) {
+      ownedByWidget = false;
+      shapesLines = null;
+      question = correction;
+    }
+    if (!ownedByWidget) {
+      if (shapesLines) {
+        setQuestionLines(shapesLines);
+      } else {
+        shapesHeader?.clear?.();
+        setQuestionLines(null);
+        text('active-question', question);
+      }
+    }
     text('encounter-progress', state.progressLabel || '');
     text('combo-reward', state.rewardLabel || '');
     text('heal-progress', state.healLabel || '');

@@ -236,9 +236,9 @@ test('the overlay stylesheet draws portrait-only green swords', async () => {
 test('the app header gives the question its own unbroken first line', async () => {
   const css = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
   assert.match(css, /#gameplay-chrome #active-question \{ grid-column: 1 \/ -1; grid-row: 1; white-space: nowrap; \}/);
-  assert.match(css, /#gameplay-chrome \.gameplay-readouts \{ grid-column: 1; grid-row: 3; \}/,
+  assert.match(css, /#gameplay-chrome \.gameplay-readouts \{ grid-column: 1; grid-row: 2; \}/,
     'the readouts can no longer auto-place into an auto-width column beside the question');
-  assert.match(css, /#gameplay-chrome #btn-pause-game \{ grid-column: 3; grid-row: 3; \}/);
+  assert.match(css, /#gameplay-chrome #btn-pause-game \{ grid-column: 3; grid-row: 2; \}/);
 });
 
 // --- 320px portrait touch-target budget --------------------------------
