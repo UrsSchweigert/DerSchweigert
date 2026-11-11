@@ -124,8 +124,11 @@ function layerCtx(canvases) {
 test('EFFECT_NAMES lists the ten recipes and createEffectTable maps every one to a function', () => {
   assert.equal(EFFECT_NAMES.length, 10);
   const table = createEffectTable();
-  assert.deepEqual(Object.keys(table).sort(), [...EFFECT_NAMES].sort());
-  for (const name of EFFECT_NAMES) {
+  // The four granular pieces are extra entries: the game drives them per frame
+  // and per hit, so the composite recipes are not the only usable names.
+  const granular = ['fireTrail', 'fireImpact', 'boltTrail', 'boltImpact'];
+  assert.deepEqual(Object.keys(table).sort(), [...EFFECT_NAMES, ...granular].sort());
+  for (const name of [...EFFECT_NAMES, ...granular]) {
     assert.equal(typeof table[name], 'function', `${name} is a function`);
   }
 });
@@ -218,4 +221,29 @@ test('PALETTES exposes the six named palettes', () => {
   for (const palette of Object.values(PALETTES)) {
     assert.ok(Array.isArray(palette) && palette.length > 0);
   }
+});
+
+test('the granular impact effects are playable on their own', () => {
+  const { fx } = make();
+  assert.equal(fx.play('fireImpact', { x: 500, y: 270 }), true);
+  const afterFire = fx.getParticleCount();
+  assert.ok(afterFire > 0, 'fireImpact spawns a blast');
+
+  fx.clear();
+  assert.equal(fx.play('boltImpact', { x: 500, y: 270 }), true);
+  assert.ok(fx.getParticleCount() > 0, 'boltImpact spawns a blast');
+});
+
+test('a composite fireball with impact:false leaves the blast to the caller', () => {
+  const withImpact = make();
+  withImpact.fx.play('fireball', { duration: 0.3 });
+  for (let i = 0; i < 30; i++) withImpact.fx.step(1 / 60);
+  const defaultPeak = withImpact.fx.getParticleCount();
+
+  const trailOnly = make();
+  trailOnly.fx.play('fireball', { duration: 0.3, impact: false });
+  for (let i = 0; i < 30; i++) trailOnly.fx.step(1 / 60);
+  const trailPeak = trailOnly.fx.getParticleCount();
+
+  assert.ok(defaultPeak > trailPeak * 2, 'the default composite adds the explosion on top of the trail');
 });

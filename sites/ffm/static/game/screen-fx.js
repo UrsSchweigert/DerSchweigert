@@ -510,6 +510,15 @@ export function createScreenFx(options = {}) {
     return instance._particles.length;
   };
 
+  instance.isActive = function isActive() {
+    return instance._particles.length > 0
+      || instance._washes.length > 0
+      || instance._vignettes.length > 0
+      || instance._timers.length > 0
+      || instance._emitters.length > 0
+      || instance._shake !== null;
+  };
+
   instance.countScale = function countScale() {
     return instance._countScale();
   };

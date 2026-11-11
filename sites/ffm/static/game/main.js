@@ -50,6 +50,8 @@ import { createLevelGrid } from './level-grid.js';
 import { createStoryIntro } from './story-intro.js';
 import { dailyBestTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
+import { createScreenFx } from './screen-fx.js';
+import { createEffectTable } from './screen-fx-effects.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -666,6 +668,14 @@ const closeAuthStatus = document.getElementById('close-auth-status');
 // --- Engine instances ---
 const renderer = new Renderer(canvas);
 const hud = new HUD(renderer);
+// Reached through globalThis because several tests eval single functions from
+// this module in a bare VM: an undeclared module binding throws there, while an
+// absent global is simply a no-op.
+globalThis.ffmScreenFx = createScreenFx({
+  playfield: document.getElementById('playfield'),
+  effects: createEffectTable(),
+  reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+});
 // The app shell serves bundled tracks from the WebView's own origin, so their
 // media elements can share the effects gain path. The web build keeps its
 // unverified status until a deployment is validated.
@@ -2299,6 +2309,7 @@ function clearPremiumSession() {
 // setup behind both checks means gameplay never starts painting until
 // everything it needs is genuinely ready.
 async function startLevel(levelIndex, includeBaseline = false) {
+  globalThis.ffmScreenFx?.clear();
   setAnswerInputVisible(false);
   if (profileMutationPending) return;
   levelStarting = true;
@@ -2862,6 +2873,7 @@ function handleAnswer(value) {
 // app build's projectile collision or the web build's arrival timer. Called at
 // most once per cast.
 function resolveLightningHit(fiend) {
+  globalThis.ffmScreenFx?.play('boltImpact', { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET });
   fiend.hp = 0;
   fiend.setState('death');
   audio.playLightningHit();
@@ -2884,7 +2896,9 @@ function resolveLightningHit(fiend) {
 // only re-queues its problem.
 function resolveFireballHit(fiend) {
   audio.playFireballHit();
+  globalThis.ffmScreenFx?.play('fireImpact', { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET });
   fiend.hit();
+  globalThis.ffmScreenFx?.play('fiendHurt', { x: fiend.x, y: fiend.y - 34, palette: fiend?.palette });
 
   if (fiend.isDead) {
     audio.playEnemyDeath();
@@ -2915,6 +2929,7 @@ function resolveFireballHit(fiend) {
 }
 
 function handleCorrectAnswer() {
+  globalThis.ffmScreenFx?.play('correctAnswer');
   attemptSummary.recordAnswer(activeFiend.problem, true);
   audio.playCorrect?.();
   const elapsed = answerClock.read();
@@ -2962,12 +2977,19 @@ function handleCorrectAnswer() {
   const ability = practiceRun ? null : pickComboAbility(state.combo);
 
   const strikeNow = () => {
+    globalThis.ffmScreenFx?.play('heroStrike', { x: HERO_X + 62, y: GROUND_Y - 46 });
     lastCastAbility = ability;
     if (ability === 'lightning') {
       // Hero casts in place at the base location; the bolt erupts from the
       // palm the cast pose draws and travels toward the fiend.
       hero.cast('bolt');
       const launch = spellLaunchPoint();
+      globalThis.ffmScreenFx?.play('lightning', {
+        from: launch,
+        to: { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET },
+        duration: 0.46,
+        impact: false,
+      });
       // The app build lets the projectile's own collision decide the hit, so
       // the bolt lands exactly when the sprite reaches the fiend's bounds.
       // The web build keeps its fixed arrival timer unchanged.
@@ -2986,6 +3008,12 @@ function handleCorrectAnswer() {
       // rather than the instant it's cast.
       hero.cast('fire');
       const launch = spellLaunchPoint();
+      globalThis.ffmScreenFx?.play('fireball', {
+        from: launch,
+        to: { x: fiend.x, y: fiend.y - SPELL_TARGET_Y_OFFSET },
+        duration: FIREBALL_FLIGHT_MS / 1000,
+        impact: false,
+      });
       const collides = platform.isApp;
       activeFireballs.push(collides
         ? new Fireball(launch.x, launch.y, fiend.x, fiend.y - SPELL_TARGET_Y_OFFSET,
@@ -2996,9 +3024,12 @@ function handleCorrectAnswer() {
       inputDisabled = true;
       if (!collides) scheduleGameplayTimeout(() => resolveFireballHit(fiend), FIREBALL_FLIGHT_MS);
     } else if (ability === 'dragon') {
+      const launch = spellLaunchPoint();
       activeDragons.push(new DragonSummon(CANVAS_W, GROUND_Y));
+      globalThis.ffmScreenFx?.play('dragonFinisher', { origin: launch });
       hero.setState('swing');
       fiend.hit();
+      globalThis.ffmScreenFx?.play('fiendHurt', { x: fiend.x, y: fiend.y - 34, palette: fiend?.palette });
       audio.playDragonRoar();
 
       if (fiend.isDead) {
@@ -3034,6 +3065,7 @@ function handleCorrectAnswer() {
       // No ability (null): normal hit resolution
       hero.setState('swing');
       fiend.hit();
+      globalThis.ffmScreenFx?.play('fiendHurt', { x: fiend.x, y: fiend.y - 34, palette: fiend?.palette });
       audio.playSwordSwing();
 
       if (fiend.isDead) {
@@ -3091,6 +3123,8 @@ function handleWrongAnswer({ timeout = false } = {}) {
   }
   activeFiend._answerFeedback = timeout ? 'timeout' : 'incorrect';
   state.combo = 0;
+  globalThis.ffmScreenFx?.play('wrongAnswer');
+  globalThis.ffmScreenFx?.schedule(0.12, () => globalThis.ffmScreenFx?.play('heroHurt', { x: HERO_X, y: GROUND_Y - 30 }));
   hero.setState('hurt');
   activeFiend._redFlash = 0.5;  // red flash = wrong answer
   activeFiend.setState('attack');
@@ -3390,12 +3424,14 @@ function triggerLevelClear() {
     profileUI?.refresh();
   });
   levelClearOverlay.style.display = 'flex';
+  globalThis.ffmScreenFx?.play('levelWon');
   if (completedLevelSave) return finishCompletion(() => refreshProfileAndLeaderboard());
 }
 
 function triggerGameOver(won = false) {
   setAnswerInputVisible(false);
   campaignWon = won;
+  globalThis.ffmScreenFx?.play(won ? 'levelWon' : 'gameOver');
   gameplayTimers.length = 0;
   activeLightningBolts = [];
   activeFireballs = [];
@@ -3480,6 +3516,8 @@ function gameLoop(ts) {
   const dt = frameDelta(ts, lastTs);
   lastTs = ts;
 
+  if (!paused && globalThis.ffmScreenFx?.isActive()) globalThis.ffmScreenFx?.frame(dt);
+
   if (!paused) advanceGameplayTimers(dt);
 
   if (gameRunning && !paused) {
@@ -3526,12 +3564,18 @@ function gameLoop(ts) {
     fiends.forEach(f => f.update(dt));
     activeLightningBolts = activeLightningBolts.filter(b => { b.update(dt); return !b.isDone; });
     activeFireballs = activeFireballs.filter(b => { b.update(dt); return !b.isDone; });
+    // Snapshot before resolveDragonBreath changes any state, so the hurt FX
+    // lands on the fiends that were actually hit.
+    const breathTargets = fiends.filter(f => !f.isDead && f.state !== 'death' && f.state !== 'retreat');
     activeDragons.forEach(d => {
       d.update(dt);
       if (d.breathJustCompleted) {
         audio.playDragonBreath();
         if (!finishDragonLevel()) {
           state.enemiesDefeated += resolveDragonBreath(fiends);
+          for (const f of breathTargets) {
+            globalThis.ffmScreenFx?.play('fiendHurt', { x: f.x, y: f.y - 34, palette: f?.palette });
+          }
           if (activeFiend?.isDead || activeFiend?.state === 'death') {
             activeFiend = null;
             pendingProblemActivation = null;

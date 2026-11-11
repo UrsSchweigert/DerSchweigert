@@ -182,7 +182,11 @@ function fireball(api, payload) {
     }
     if (Math.random() < 0.35 * api.countScale()) api.smoke(x, y, rand(4, 9), rand(0.3, 0.7), '#555555');
   });
-  api.schedule(duration, () => fireImpact(api, { x: to.x, y: to.y }));
+  // The game drives the blast from the real collision (resolveFireballHit), so
+  // it asks for the trail only and plays fireImpact itself.
+  if (!payload || payload.impact !== false) {
+    api.schedule(duration, () => fireImpact(api, { x: to.x, y: to.y }));
+  }
 }
 
 function boltTrail(api, payload) {
@@ -227,7 +231,9 @@ function lightning(api, payload) {
     api.spark(x, y, rand(0, TAU), rand(40, 160), '#cdeeff', rand(0.15, 0.35));
     api.spark(x, y, rand(0, TAU), rand(40, 160), '#7fd4ff', rand(0.15, 0.35));
   });
-  api.schedule(duration, () => boltImpact(api, { x: to.x, y: to.y }));
+  if (!payload || payload.impact !== false) {
+    api.schedule(duration, () => boltImpact(api, { x: to.x, y: to.y }));
+  }
 }
 
 function levelWon(api) {
@@ -326,5 +332,11 @@ export function createEffectTable() {
     levelWon,
     gameOver,
     dragonFinisher,
+    // Granular pieces: the game drives these per frame / per hit so the trail
+    // and the blast stay locked to the real projectile rather than a guess.
+    fireTrail,
+    fireImpact,
+    boltTrail,
+    boltImpact,
   };
 }

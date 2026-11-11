@@ -211,6 +211,17 @@ test('a registered effect receives the api and payload and play returns true', (
   assert.ok(fx.getParticleCount() > 0);
 });
 
+test('isActive reports particles, pending timers and clear', () => {
+  const { fx } = make();
+  assert.equal(fx.isActive(), false, 'idle instance is inactive');
+  fx.spark(0, 0, 0, 60, '#ffffff', 1);
+  assert.equal(fx.isActive(), true, 'a spark makes it active');
+  fx.clear();
+  assert.equal(fx.isActive(), false, 'clear returns it to inactive');
+  fx.schedule(0.5, () => {});
+  assert.equal(fx.isActive(), true, 'a pending schedule alone makes it active');
+});
+
 test('a particle is removed once stepped past its lifetime', () => {
   const { fx } = make();
   fx.ember(0, 0, 0, 0, '#ffffff', 0.03);
