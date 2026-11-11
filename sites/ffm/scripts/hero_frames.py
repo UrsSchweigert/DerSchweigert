@@ -234,7 +234,8 @@ def _strip_ground_shadow(rgba: np.ndarray) -> np.ndarray:
     return out
 
 
-def _generated_frame(spec: dict) -> tuple[Image.Image, Image.Image] | None:
+def _pose_plate(spec: dict) -> np.ndarray | None:
+    """A generated pose with the magenta plate keyed out, before any resampling."""
     path = POSE_DIR / spec["file"]
     if not path.is_file():
         return None
@@ -246,6 +247,13 @@ def _generated_frame(spec: dict) -> tuple[Image.Image, Image.Image] | None:
     rgba = _despill(rgba)
     if spec.get("strip_shadow"):
         rgba = _strip_ground_shadow(rgba)
+    return rgba
+
+
+def _generated_frame(spec: dict) -> tuple[Image.Image, Image.Image] | None:
+    rgba = _pose_plate(spec)
+    if rgba is None:
+        return None
     image = _crop_to_content(rgba)
     if spec.get("flip"):
         image = image.transpose(Image.FLIP_LEFT_RIGHT)
@@ -284,7 +292,40 @@ def _despill(rgba: np.ndarray) -> np.ndarray:
     return out
 
 
-def _shared_palette(images: list[Image.Image], colours: int = 32) -> Image.Image:
+def _steel_seeds(count: int = 4) -> list[tuple[int, int, int]]:
+    """Steel tones sampled from the generated blades.
+
+    The sheet frames alone define too narrow a palette: they carry no bright
+    blue-grey, so a generated blade's steel snaps to the nearest warm cream and
+    the sword reads beige. Those tones are reserved on top of the shared
+    palette instead of being outvoted by the much larger area of skin, hair and
+    denim.
+    """
+    pixels = []
+    for spec in GENERATED_POSES:
+        rgba = _pose_plate(spec)
+        if rgba is None:
+            continue
+        steel = _steel_mask(rgba)
+        if steel.any():
+            pixels.append(rgba[steel][:, :3].astype(np.uint8))
+    if not pixels:
+        return []
+    flat = np.concatenate(pixels)
+    strip = Image.new("RGB", (flat.shape[0], 1))
+    strip.putdata([tuple(int(v) for v in p) for p in flat])
+    quantised = strip.quantize(colors=count, method=Image.MEDIANCUT)
+    raw = quantised.getpalette()[:3 * count]
+    seen = []
+    for i in range(0, len(raw), 3):
+        colour = (raw[i], raw[i + 1], raw[i + 2])
+        if colour != (0, 0, 0) and colour not in seen:
+            seen.append(colour)
+    return seen
+
+
+def _shared_palette(images: list[Image.Image], colours: int = 32,
+                    seeds: list[tuple[int, int, int]] | None = None) -> Image.Image:
     """One palette for the whole sprite: the sheet frames define it.
 
     Generated poses are painted with slightly different, softer colours; mapping
@@ -299,7 +340,15 @@ def _shared_palette(images: list[Image.Image], colours: int = 32) -> Image.Image
     for image in images:
         strip.paste(image.convert("RGB"), (x, 0))
         x += image.width
-    return strip.quantize(colors=colours, method=Image.MEDIANCUT)
+    seeds = seeds or []
+    base = strip.quantize(colors=max(2, colours - len(seeds)), method=Image.MEDIANCUT)
+    if not seeds:
+        return base
+    palette = base.getpalette()[:3 * (colours - len(seeds))]
+    palette += [channel for colour in seeds for channel in colour]
+    seeded = Image.new("P", (1, 1))
+    seeded.putpalette(palette + [0] * (768 - len(palette)))
+    return seeded
 
 
 def _hair_height(image: Image.Image) -> int:
@@ -451,7 +500,7 @@ def collect() -> tuple[list[Frame], list[str]]:
         image, shadow = _strip_baked_shadow(image)
         sheet_images.append(image)
         frames[frame_id] = Frame(frame_id, image, f"sheet[{row},{col}]", None, shadow)
-    palette = _shared_palette(sheet_images)
+    palette = _shared_palette(sheet_images, seeds=_steel_seeds())
     for spec in GENERATED_POSES:
         built = _generated_frame({**spec, "palette": palette})
         if built is None:
@@ -472,6 +521,9 @@ def collect() -> tuple[list[Frame], list[str]]:
 # instead of being eyeballed.
 BLADE_MIN_PX = 90        # below this there is not enough blade to judge
 BEND_MAX_PX = 1.8        # centreline deviation allowed between hilt and tip
+BEND_MAX_FLAT_PX = 2.4   # same, on palette-flattened art: 4 steel tones cannot
+                         # resolve the cross-section centre finer than ~1px, so
+                         # hand-edited frames are judged against this
 COLLINEAR_MAX_PX = 2.4   # how far a part hidden behind the body may sit off it
 CONTACT_MAX_PX = 3.0     # the hilt must touch the body, or the sword floats
 CUT_MIN_RUN = 0.6        # a blade sliced by the sprite edge keeps its width
@@ -516,6 +568,13 @@ def _bins(points: np.ndarray, centre: np.ndarray, axis: np.ndarray, count: int =
 
 
 def _residuals(bins, centre, axis):
+    """Fit a line through the cross-section centres, report how far they stray.
+
+    The verdict uses the 90th percentile rather than the single worst station: a
+    hard-edged blade 2-3px wide drawn on the pixel grid makes one cross-section
+    jump by most of the blade's width, while a blade that is actually bent misses
+    the line along a whole stretch of them.
+    """
     if len(bins) < 3:
         return None, None
     t = np.array([b[0] for b in bins])
@@ -523,7 +582,7 @@ def _residuals(bins, centre, axis):
     design = np.vstack([t, np.ones_like(t)]).T
     (slope, icpt), *_ = np.linalg.lstsq(design, p, rcond=None)
     res = p - (slope * t + icpt)
-    return float(np.sqrt((res ** 2).mean())), float(np.abs(res).max())
+    return float(np.sqrt((res ** 2).mean())), float(np.percentile(np.abs(res), 90))
 
 
 def check_sword(frame: Frame) -> dict:
@@ -676,7 +735,8 @@ def check_sword(frame: Frame) -> dict:
 
     expected = GRIP.get(frame.id, "one")
     problems = []
-    if rms > BEND_MAX_PX:
+    limit = BEND_MAX_PX if frame.source is not None else BEND_MAX_FLAT_PX
+    if rms > limit:
         problems.append(f"blade not straight: cross-sections wander {rms:.2f}px off the hilt-tip line")
     # A blade sliced by the sprite edge is still at full width where it stops;
     # a real end is a narrow pommel or a tapering tip.

@@ -619,11 +619,13 @@ the old fixed 6x4 sprite grid:
   sword checks and atlas write. An unedited round trip is pixel-exact.
   Empty cells are reported and their frame is dropped; art that reaches a cell
   border gets a note because the border cuts it off.
-  Note that poses made by the generator are palette-flattened to the shared
-  32-colour palette, which has no steel-blue entry, so their blades read as warm
-  grey — that is art, not a bug in the importer, and it is why the sword check
-  reports "no blade visible" for those frames once they come back from a sheet
-  (the check prefers the pre-flattening source, which a hand edit no longer has).
+  Frames coming back from a sheet are judged on their final, palette-flattened
+  art (a hand edit no longer has the pre-flattening source), so the blade
+  straightness limit is `BEND_MAX_FLAT_PX` instead of `BEND_MAX_PX`: four steel
+  tones cannot place a 2-3px cross-section's centre finer than about a pixel.
+  The shared palette reserves four steel tones sampled from the generated
+  blades (`_steel_seeds`), because the sheet frames alone have no bright
+  blue-grey and a generated blade's steel otherwise snaps to warm cream.
 - `sites/ffm/static/game/hero-anim.js` holds the clips: frame durations, which
   frame fires `hit`, and the `track()` function that leans/bobs/squashes the
   pose. Timing is wall-clock based, so playback does not depend on the display
