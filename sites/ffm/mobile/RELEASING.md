@@ -4,9 +4,11 @@ This is the release handover for the Capacitor shell in `sites/ffm/mobile`. The
 Android project lives in `android/`, the iOS project in `ios/`, and both are
 generated and maintained by the owner with the real Capacitor tooling. The
 website (`ffm.derschweigert.de`) deploys separately from `sites/ffm/static/` and
-is unaffected by this process. Nothing in this repository produces a signed
-build, installs through TestFlight or the Play internal track, or submits to a
-store; those stay owner actions and are listed as open below.
+is unaffected by this process. `.github/workflows/arithmoslayer-release.yml`
+builds a signed `.aab` on demand once the owner has added the signing secrets;
+nothing here installs through TestFlight or the Play internal track, buys from a
+sandbox, or submits to a store — those stay owner actions and are listed as open
+below.
 
 > **External release gate.** Producing a signed `.aab` / `.ipa`, completing the
 > Play Console internal-track install/upgrade check, the TestFlight install and
@@ -24,7 +26,7 @@ All commands run from `sites/ffm/mobile/`. Nothing secret is ever committed.
 - `tests/android-shell.test.mjs` — application id and namespace, the app label,
   `android:allowBackup="true"` with no backup rule files, exactly one exported
   launcher activity, no app-declared permission, the adaptive icon and splash
-  wiring, and the version defaults.
+  wiring, the release signing config, and the version override defaults.
 - `tests/ios-shell.test.mjs` — `CFBundleDisplayName` `Arithmo Slayer`,
   `CFBundleLocalizations` exactly `de` and `en`,
   `ITSAppUsesNonExemptEncryption` false, the version keys bound to
@@ -35,7 +37,7 @@ All commands run from `sites/ffm/mobile/`. Nothing secret is ever committed.
   the app target's Resources phase.
 
 That is static evidence. Native compilation is the M2 owner job in
-`.github/workflows/ffm-native.yml` (`./gradlew assembleDebug` and `xcodebuild
+`.github/workflows/arithmoslayer-native.yml` (`./gradlew assembleDebug` and `xcodebuild
 ... CODE_SIGNING_ALLOWED=NO`); it is never claimed from a static check. A green
 static suite is a prerequisite, not device, signing, or store evidence.
 
@@ -85,8 +87,8 @@ call to the FFM API.
 
 ## GitHub build artifacts
 
-`.github/workflows/ffm-build-artifacts.yml` runs only on manual dispatch or a
-`ffm-v*` tag, not on every merge. It uploads `ffm-debug-apk` (an installable
+`.github/workflows/arithmoslayer-build-artifacts.yml` runs only on manual dispatch or a
+`arithmoslayer-v*` tag, not on every merge. It uploads `ffm-debug-apk` (an installable
 Android debug APK, not a Play release) and `ffm-ios-xcode-project`
 (`ffm-ios-project.tar.gz`). The latter is verified by compiling unsigned and
 then archiving the extracted project unsigned with package downloads disabled.
@@ -148,7 +150,7 @@ posture, localizations or the privacy manifest regress.
 
 These are static checks. They cannot compile the app, cannot see the merged
 manifest and cannot prove device behaviour; the M2 workflow
-`.github/workflows/ffm-native.yml` builds the Android debug APK and the iOS
+`.github/workflows/arithmoslayer-native.yml` builds the Android debug APK and the iOS
 simulator app after every merge to `main` that touches the app, and is the only
 native compilation evidence. It does not run on pull requests or run branches,
 so build it locally or watch that post-merge run before promoting a native change.
@@ -164,30 +166,23 @@ Two values identify every upload:
 - `versionName` — the human-readable version shown to testers and players, in
   `major.minor` form.
 
-Both default to `1` / `1.0`. The committed shell hardcodes them in
-`android/app/build.gradle`:
+Both default to `1` / `1.0`, and `android/app/build.gradle` resolves them per
+release without editing the file:
 
 ```gradle
-versionCode 1
-versionName "1.0"
+def resolvedVersionCode = (project.findProperty('ffmVersionCode')
+    ?: System.getenv('FFM_VERSION_CODE') ?: System.getenv('BZ_VERSION_CODE') ?: '1').toString().toInteger()
+def resolvedVersionName = (project.findProperty('ffmVersionName')
+    ?: System.getenv('FFM_VERSION_NAME') ?: System.getenv('BZ_VERSION_NAME') ?: '1.0').toString()
 ```
 
-Bumping them therefore needs a native edit today, which is an **open owner
-action** (see below). The Buchstabenzeit packaging pattern is the target: the
-release build resolves the values per release without editing `build.gradle`
-(`sites/lesen/android/app/build.gradle`):
-
-```gradle
-def resolvedVersionCode = (project.findProperty('bzVersionCode')
-    ?: System.getenv('BZ_VERSION_CODE') ?: '1').toString().toInteger()
-def resolvedVersionName = (project.findProperty('bzVersionName')
-    ?: System.getenv('BZ_VERSION_NAME') ?: '1.0').toString()
-```
-
-so a release runs `./gradlew bundleRelease -PbzVersionCode=2 -PbzVersionName=1.1`
-or `BZ_VERSION_CODE=2 BZ_VERSION_NAME=1.1 npm run build:release`. Adapting that
-block to this project (same `bzVersionCode`/`bzVersionName` property names and
-`BZ_VERSION_CODE`/`BZ_VERSION_NAME` environment variables) is the owner change.
+so a release runs
+`./gradlew bundleRelease -PffmVersionCode=2 -PffmVersionName=1.1`, or
+`FFM_VERSION_CODE=2 FFM_VERSION_NAME=1.1 npm run build:release`, or the release
+workflow below, which passes the values from its inputs or the tag. The
+`bzVersionCode` / `bzVersionName` properties and the `BZ_VERSION_CODE` /
+`BZ_VERSION_NAME` environment variables stay accepted as aliases so the
+Buchstabenzeit packaging contract keeps working unchanged.
 
 `android/variables.gradle` is the Buchstabenzeit pattern already in use for the
 SDK and AndroidX versions (`sites/lesen/android/variables.gradle` is the
@@ -233,19 +228,48 @@ permission the app does not use. This check is a **manual gate** below.
 
 ## Signing secrets
 
-The committed shell has no `signingConfigs`, so a release build is unsigned and
-cannot be uploaded. Release signing belongs to the M3 workflow (owner-owned).
-When it is added, keep the Buchstabenzeit naming so CI secrets stay uniform and
-never commit a keystore:
+`android/app/build.gradle` reads the upload credentials from a git-ignored
+`android/keystore.properties` or from the environment, and fails the release
+build loudly when they are missing instead of producing a silently unsigned
+bundle. Keep the Buchstabenzeit naming so CI secrets stay uniform and never
+commit a keystore:
 
 - `FFM_KEYSTORE_FILE` — path to the upload keystore (`*.jks`).
 - `FFM_KEYSTORE_PASSWORD` — keystore password.
 - `FFM_KEY_ALIAS` — key alias.
 - `FFM_KEY_PASSWORD` — key password.
 
-A local `android/keystore.properties` (git-ignored) may hold the same values.
-If no keystore is configured, the release build must fail loudly instead of
-producing a silently unsigned bundle.
+`android/keystore.properties` (git-ignored) may hold the same four values as
+`storeFile`, `storePassword`, `keyAlias` and `keyPassword`.
+
+### GitHub Actions secrets (owner)
+
+`.github/workflows/arithmoslayer-release.yml` decodes the keystore from a
+base64 secret, so the repository needs these four secrets before a release can
+build:
+
+- `FFM_KEYSTORE_BASE64` — `base64 -i upload.jks | pbcopy` (macOS) or
+  `base64 -w0 upload.jks` of the upload keystore.
+- `FFM_KEYSTORE_PASSWORD`, `FFM_KEY_ALIAS`, `FFM_KEY_PASSWORD` — as above.
+
+Generate a dedicated Play upload keystore for `de.derschweigert.arithmoslayer`;
+do not reuse the Buchstabenzeit key. Until the secrets exist the workflow stops
+at the "Decode upload keystore" step with an explicit error.
+
+### Release workflow
+
+`.github/workflows/arithmoslayer-release.yml` builds the signed `.aab` and never
+publishes it:
+
+- **Manual:** Actions → "Arithmo Slayer: Android release" → Run workflow, with
+  `versionName` (e.g. `1.0`) and `versionCode` (must strictly increase).
+- **Tag:** push `arithmoslayer-v<versionName>`, e.g. `arithmoslayer-v1.0`; the
+  `versionCode` is then the workflow run number.
+
+It runs the shared tests, then `npm run build:release` with the decoded keystore,
+and uploads `app-release.aab` as the artifact
+`arithmoslayer-<versionName>-<versionCode>-aab` (14 days). Uploading to the Play
+internal track, `jarsigner -verify` and the install/upgrade checks stay manual.
 
 ## Product and store setup checklist (owner)
 
@@ -264,7 +288,10 @@ producing a silently unsigned bundle.
   price from the store and the sandbox purchase completed, which also proves
   the Paid Applications agreement is active.
 - Store listing: Education category, children in the audience, DE and EN text,
-  screenshots, the bundled privacy notice URL or text.
+  screenshots, the bundled privacy notice URL or text. The paste-ready copy for
+  every App Store Connect field, the age-rating answers, the review notes and
+  the in-app purchase metadata is in
+  [APP-STORE-CONNECT.md](APP-STORE-CONNECT.md).
 - Data safety: "Data not collected", no tracking, no ads, no analytics.
 - Privacy answers must match `PrivacyInfo.xcprivacy`: no tracking, no data
   collection, `CA92.1` user-defaults access only.
@@ -363,8 +390,9 @@ Connect), on a physical device with a working store:
 
 1. Choose a known-good revision and check it out.
 2. `npm ci && npm test`.
-3. Bump `versionCode`/`versionName` (see Versioning).
-4. `npm run build:release` — the bundle lands at
+3. Bump `versionCode`/`versionName` (see Versioning) — no native edit needed.
+4. `npm run build:release` (or download the `arithmoslayer-release.yml`
+   artifact) — the bundle lands at
    `android/app/build/outputs/bundle/release/app-release.aab`.
 5. `jarsigner -verify -verbose -certs <aab>` to confirm it is signed.
 6. Upload to the Play Console internal testing track and install from Play.
@@ -477,16 +505,22 @@ accounts) and stay open until the evidence above exists.
 - **M1 smoke rule.** Add a `tools/harness/smoke.json` entry that runs an offline
   shell check for `sites/ffm/mobile` (the `ios_shell.sh` equivalent), rebuild
   the worker image and re-verify the Tier A attestation.
-- **M2 native CI.** `.github/workflows/ffm-native.yml` is committed and builds
+- **M2 native CI.** `.github/workflows/arithmoslayer-native.yml` is committed and builds
   the Android debug APK plus the iOS simulator app. Making it required on the
   run branch and recording a green run for this revision is the owner action.
-- **M3 release workflows.** Signed `.aab` and signed `.ipa`/TestFlight builds,
-  triggered independently of the website deploy, plus the `signingConfigs` and
-  the signing secrets named above.
-- **Version override (Android, open owner action).** `android/app/build.gradle`
-  hardcodes `versionCode 1` / `versionName "1.0"`. Adding the `bzVersionCode` /
-  `bzVersionName` resolution shown under Versioning is a native edit the owner
-  must make; until then every release edits the native file by hand.
+- **M3 release workflows.** The Android half is committed:
+  `.github/workflows/arithmoslayer-release.yml` builds a signed `.aab` on
+  demand, independently of the website deploy, and `android/app/build.gradle`
+  carries the `signingConfigs` and the version override. The owner action left
+  is creating the `FFM_KEYSTORE_*` GitHub secrets (a dedicated upload keystore)
+  and recording a green release run. The signed `.ipa`/TestFlight half is still
+  open.
+- **Play upload key (Android, open owner action).** The override and signing
+  wiring are committed, but no upload keystore exists for
+  `de.derschweigert.arithmoslayer` yet: create one and add
+  `FFM_KEYSTORE_BASE64`, `FFM_KEYSTORE_PASSWORD`, `FFM_KEY_ALIAS` and
+  `FFM_KEY_PASSWORD` as repository secrets. Until then the release build stops
+  with an explicit error instead of emitting an unsigned bundle.
 - **Merged-manifest permission check.** Confirm BILLING, INTERNET and
   ACCESS_NETWORK_STATE arrive from Play Billing and that nothing else is
   declared; only the packaged manifest can show this.

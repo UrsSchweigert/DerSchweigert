@@ -209,8 +209,8 @@ unchanged completed issue preserves its historical evidence; completed work
 cannot be redefined. Pending required CI checks can wait up to 30 minutes,
 independently of scheduler polling frequency, without spending repair budget.
 
-For Buchstabenzeit and Arithmo Slayer, `.github/workflows/lesen-native.yml` and
-`.github/workflows/ffm-native.yml` build an Android debug APK and an unsigned
+For Buchstabenzeit and Arithmo Slayer, `.github/workflows/buchstabenzeit-native.yml` and
+`.github/workflows/arithmoslayer-native.yml` build an Android debug APK and an unsigned
 iOS simulator app automatically **only after a merge to `main`**. Nothing runs
 them from a pull request, so a run branch has no automatic native-build evidence:
 run the workflow by hand when a change needs it, and treat the post-merge run as

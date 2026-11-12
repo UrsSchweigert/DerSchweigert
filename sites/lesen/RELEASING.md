@@ -7,7 +7,7 @@ versioned, signed Android App Bundle (`.aab`) for Google Play. The website
 > **External release gate:** producing a validly signed `.aab` and completing the
 > Play Console internal-track install and upgrade check are manual maintainer
 > actions. This repository's automated checks (shared JS tests, asset sync, and
-> `android-release.yml`) neither perform nor claim that gate.
+> `buchstabenzeit-release.yml`) neither perform nor claim that gate.
 
 All commands run from `sites/lesen/`. Nothing secret is ever committed.
 
@@ -224,7 +224,7 @@ The web shell in `static/` and the thin native activity carry the P4 polish:
 Producing a validly signed `.aab` and completing the Play Console internal-track
 install/upgrade check are an **external release gate**. They are performed
 manually by the maintainer; the shared JS tests, `copy-assets`/`cap sync`, and
-the `android-release.yml` build neither perform nor claim this gate.
+the `buchstabenzeit-release.yml` build neither perform nor claim this gate.
 
 ## Release record
 
@@ -245,17 +245,17 @@ than hand-edited.
 
 ## Continuous integration (GitHub Actions)
 
-`.github/workflows/android-release.yml` builds a signed `.aab` **on demand only**
+`.github/workflows/buchstabenzeit-release.yml` builds a signed `.aab` **on demand only**
 (manual `workflow_dispatch` with `versionName`/`versionCode` inputs, or an
-`android-v*` tag). It is separate from the website `deploy.yml` and never runs on
+`buchstabenzeit-v*` tag). It is separate from the website `deploy.yml` and never runs on
 a website deploy or ordinary push. It uploads the `.aab` as a build artifact and
 does **not** publish to Google Play (v1 publication stays manual and owner-approved).
 
-`.github/workflows/lesen-build-artifacts.yml` builds the unsigned Android APK and
+`.github/workflows/buchstabenzeit-build-artifacts.yml` builds the unsigned Android APK and
 the Xcode project for inspection. It runs **on demand only** as well: a manual
-`workflow_dispatch`, or a `lesen-v*` tag. It no longer runs on every pull request
+`workflow_dispatch`, or a `buchstabenzeit-v*` tag. It no longer runs on every pull request
 or on every push to `main`, because the macOS runner it needs bills at ten times
-the Linux rate. `lesen-native.yml` compiles both apps once a change merges to
+the Linux rate. `buchstabenzeit-native.yml` compiles both apps once a change merges to
 `main`. Run this workflow (or tag the release) when an artifact is actually
 wanted.
 

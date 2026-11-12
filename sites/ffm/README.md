@@ -1136,7 +1136,7 @@ explicit arguments.
 
 Because the same deploy workflow gained a `workflow_dispatch` trigger, setting
 or changing one of these repository variables can be applied by re-running
-"Deploy to production" from the Actions tab against `main`, without needing a
+"Sites: deploy to production" from the Actions tab against `main`, without needing a
 new commit/push. This runs the identical job (tests, preflight guard,
 `terraform apply`, Lambda/static deploy, smoke test) — it is not a separate
 code path.

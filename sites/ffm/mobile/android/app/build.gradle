@@ -1,5 +1,38 @@
 apply plugin: 'com.android.application'
 
+// --- Release signing & versioning (see RELEASING.md) ---
+// Credentials are NEVER committed. Provide them via a gitignored
+// android/keystore.properties, or via FFM_KEYSTORE_* environment variables (CI).
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def ksStoreFile = keystoreProperties['storeFile'] ?: System.getenv('FFM_KEYSTORE_FILE')
+def ksStorePassword = keystoreProperties['storePassword'] ?: System.getenv('FFM_KEYSTORE_PASSWORD')
+def ksKeyAlias = keystoreProperties['keyAlias'] ?: System.getenv('FFM_KEY_ALIAS')
+def ksKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('FFM_KEY_PASSWORD')
+def hasReleaseSigning = ksStoreFile != null && ksStorePassword != null && ksKeyAlias != null && ksKeyPassword != null
+
+// Version is overridable per release without editing this file:
+//   ./gradlew bundleRelease -PffmVersionCode=2 -PffmVersionName=1.1
+// or via FFM_VERSION_CODE / FFM_VERSION_NAME env vars (the BZ_VERSION_CODE /
+// BZ_VERSION_NAME names stay accepted as aliases). Defaults preserve 1 / "1.0".
+def resolvedVersionCode = (project.findProperty('ffmVersionCode') ?: System.getenv('FFM_VERSION_CODE') ?: System.getenv('BZ_VERSION_CODE') ?: '1').toString().toInteger()
+def resolvedVersionName = (project.findProperty('ffmVersionName') ?: System.getenv('FFM_VERSION_NAME') ?: System.getenv('BZ_VERSION_NAME') ?: '1.0').toString()
+
+// Fail loudly rather than emit a silently unsigned release bundle.
+gradle.taskGraph.whenReady { graph ->
+    def buildingRelease = graph.allTasks.any { t ->
+        t.project.path == project.path && (t.name == 'bundleRelease' || t.name == 'assembleRelease')
+    }
+    if (buildingRelease && !hasReleaseSigning) {
+        throw new GradleException(
+            "Release build requires signing credentials. Provide android/keystore.properties " +
+            "or FFM_KEYSTORE_* environment variables. See sites/ffm/mobile/RELEASING.md.")
+    }
+}
+
 android {
     namespace = "de.derschweigert.arithmoslayer"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +40,8 @@ android {
         applicationId "de.derschweigert.arithmoslayer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +49,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(ksStoreFile)
+                storePassword ksStorePassword
+                keyAlias ksKeyAlias
+                keyPassword ksKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig hasReleaseSigning ? signingConfigs.release : null
         }
     }
 }

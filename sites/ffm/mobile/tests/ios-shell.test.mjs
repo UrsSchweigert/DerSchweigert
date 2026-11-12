@@ -3,7 +3,7 @@
 // These assertions read the files the maintainer committed with the Capacitor
 // tooling. They never compile the project, so they prove the declared identity,
 // localizations and privacy manifest only. Native-compilation evidence belongs
-// to the owner-run M2 job in `.github/workflows/ffm-native.yml` (xcodebuild
+// to the owner-run M2 job in `.github/workflows/arithmoslayer-native.yml` (xcodebuild
 // with `CODE_SIGNING_ALLOWED=NO`), never to this static check, and behaviour
 // that needs a device stays a manual gate in RELEASING.md.
 

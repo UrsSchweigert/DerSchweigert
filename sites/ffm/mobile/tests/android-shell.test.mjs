@@ -3,7 +3,7 @@
 // The native project belongs to the maintainer scaffold: this test only reads
 // it. Gradle cannot run in the Linux checker (no SDK/JDK), so a real APK is
 // never produced here; the only native compilation evidence is the M2 workflow
-// `.github/workflows/ffm-native.yml` on the run branch. Anything these
+// `.github/workflows/arithmoslayer-native.yml` on the run branch. Anything these
 // assertions cannot prove is recorded in RELEASING.md as an open owner action
 // instead of being edited into the native project.
 import { test } from 'node:test';
@@ -152,10 +152,18 @@ test('the adaptive icon and splash come from the committed artwork', async () =>
   }
 });
 
-test('the version scheme is documented and still at its 1 / 1.0 defaults', async () => {
+test('the version scheme is documented and the release override defaults to 1 / 1.0', async () => {
   const gradle = await text(BUILD_GRADLE);
-  assert.match(gradle, /versionCode\s+1\b/);
-  assert.match(gradle, /versionName\s+"1\.0"/);
+  assert.match(gradle, /versionCode resolvedVersionCode/);
+  assert.match(gradle, /versionName resolvedVersionName/);
+
+  const lines = gradle.split('\n');
+  const codeLine = lines.find((line) => line.includes('def resolvedVersionCode'));
+  const nameLine = lines.find((line) => line.includes('def resolvedVersionName'));
+  assert.ok(codeLine, 'build.gradle must resolve versionCode');
+  assert.ok(nameLine, 'build.gradle must resolve versionName');
+  assert.match(codeLine, /ffmVersionCode.*FFM_VERSION_CODE.*BZ_VERSION_CODE.*'1'/);
+  assert.match(nameLine, /ffmVersionName.*FFM_VERSION_NAME.*BZ_VERSION_NAME.*'1\.0'/);
 
   const doc = await text(RELEASING);
   const lower = doc.toLowerCase();
@@ -173,11 +181,31 @@ test('the version scheme is documented and still at its 1 / 1.0 defaults', async
     assert.ok(lower.includes(needle.toLowerCase()), `RELEASING.md must document ${needle}`);
   }
 
-  // The override does not exist in the committed shell, so the doc records the
-  // native edit as an owner action rather than pretending it is wired up.
-  assert.doesNotMatch(gradle, /bzVersionCode|BZ_VERSION_CODE/);
+  // The override is wired up in the committed shell, so the doc describes it
+  // instead of recording the native edit as an open owner action.
+  assert.doesNotMatch(doc, /hardcodes `versionCode 1`/);
   assert.match(doc, /android\/app\/build\.gradle/);
-  assert.match(doc, /open owner action/i);
+  assert.match(doc, /FFM_VERSION_CODE/);
+});
+
+test('the release build is signed from the environment and fails loudly without it', async () => {
+  const gradle = await text(BUILD_GRADLE);
+  assert.match(gradle, /signingConfigs \{\s*\n\s*release \{/);
+  for (const env of [
+    'FFM_KEYSTORE_FILE',
+    'FFM_KEYSTORE_PASSWORD',
+    'FFM_KEY_ALIAS',
+    'FFM_KEY_PASSWORD',
+  ]) {
+    assert.ok(gradle.includes(env), `build.gradle must read ${env}`);
+  }
+  assert.match(gradle, /signingConfig hasReleaseSigning \? signingConfigs\.release : null/);
+  // A release without credentials throws instead of emitting an unsigned bundle,
+  // while debug builds keep working without them.
+  assert.match(gradle, /throw new GradleException/);
+  assert.match(gradle, /t\.name == 'bundleRelease' \|\| t\.name == 'assembleRelease'/);
+  // No keystore or credentials are ever committed.
+  await assert.rejects(stat(join(root, 'android/keystore.properties')), { code: 'ENOENT' });
 });
 
 test('RELEASING.md records the shell gaps and the open gates', async () => {
@@ -188,7 +216,7 @@ test('RELEASING.md records the shell gaps and the open gates', async () => {
     'npm run copy-assets',
     'node scripts/bundle-check.mjs',
     'npm test',
-    'ffm-native.yml',
+    'arithmoslayer-native.yml',
     'M1',
     'M2',
     'M3',
