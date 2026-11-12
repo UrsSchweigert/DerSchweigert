@@ -101,7 +101,11 @@ test('marketing page ships a large social preview card and vector favicon', asyn
 
 test('marketing page keeps progressive enhancement same-origin for the strict CSP', () => {
   assert.match(page, /<script type="module" src="\/marketing\.mjs"><\/script>/);
-  assert.doesNotMatch(page, /<script>|<script(?![^>]*src=)/);
+  // Every script tag must carry a same-origin module src, and only the two modules
+  // above may exist - the marketing CSP allows no inline or cross-origin scripts.
+  const sources = [...page.matchAll(/<script\b[^>]*\ssrc="([^"]+)"/gi)].map(([, src]) => src);
+  assert.deepEqual(sources, ['/language.mjs', '/marketing.mjs']);
+  assert.equal([...page.matchAll(/<script\b/gi)].length, sources.length, 'inline script tag found');
   assert.match(language, /document\.documentElement\.lang = 'en'/);
 });
 
