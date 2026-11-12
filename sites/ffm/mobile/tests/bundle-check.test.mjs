@@ -305,16 +305,22 @@ test('no bundled file may carry a first-party URL', async () => {
     // the copy, so the app keeps no navigational allowance at all.
     assert.deepEqual(await bundleCheck(dir), []);
 
-    const link = '<a href="https://www.derschweigert.de/nutzungsbedingungen">Terms</a>\n</body>';
+    const blockedUrl = 'https://www.derschweigert.de/nutzungsbedingungen';
+    const link = `<a href="${blockedUrl}">Terms</a>\n</body>`;
     for (const rel of ['index.html', 'legal/terms.de.html']) {
       const file = join(dir, rel);
       const html = await readFile(file, 'utf8');
       await writeFile(file, html.replace('</body>', link));
       const problems = await bundleCheck(dir);
-      assert.ok(
-        problems.some((problem) => problem.includes('https://www.derschweigert.de/nutzungsbedingungen')),
-        `${rel}: ${problems.join('\n')}`,
-      );
+      // Compare the URL bundle-check actually reported instead of asking
+      // whether some message merely contains it: a substring test would also
+      // accept "https://evil.example/?u=https://www.derschweigert.de/…", and
+      // CodeQL rightly flags that pattern (js/incomplete-url-substring-
+      // sanitization) even in a test.
+      const reportedUrls = problems
+        .map((problem) => problem.match(/remote first-party URL: (\S+)/)?.[1])
+        .filter(Boolean);
+      assert.deepEqual(reportedUrls, [blockedUrl], `${rel}: ${problems.join('\n')}`);
       await writeFile(file, html);
     }
   });
