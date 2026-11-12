@@ -18,9 +18,9 @@ headers or any change to the app:
 
 - `images/buchstabenzeit-logo.png`
 - `favicon.png`
-- `fonts/andika-latin-regular.woff2`
-- `fonts/andika-latin-bold.woff2`
-- `fonts/OFL.txt` (font licence)
+- `fonts/grundschrift-regular.woff2`
+- `fonts/grundschrift-bold.woff2`
+- `fonts/grundschrift-LICENSE.txt` (font licence)
 
 The `deploy-lesen` job in `.github/workflows/deploy.yml` provisions both modules,
 uploads each bundle to its own bucket and invalidates each distribution. The

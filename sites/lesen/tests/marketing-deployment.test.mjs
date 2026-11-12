@@ -11,9 +11,9 @@ const deploy = workflow.slice(workflow.indexOf('\n  deploy-lesen:'));
 const assets = [
   'images/buchstabenzeit-logo.png',
   'favicon.png',
-  'fonts/andika-latin-regular.woff2',
-  'fonts/andika-latin-bold.woff2',
-  'fonts/OFL.txt',
+  'fonts/grundschrift-regular.woff2',
+  'fonts/grundschrift-bold.woff2',
+  'fonts/grundschrift-LICENSE.txt',
 ];
 
 function step(name) {

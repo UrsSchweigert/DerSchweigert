@@ -89,7 +89,7 @@ REQUIRED = [
     "third-party-notices.txt",
     "sentences/cards.mjs", "sentences/de.json", "sentences/en.json",
     "words-de.json", "words-en.json", "words-de-LICENSE.txt", "words-en-LICENSE.txt",
-    "fonts/OFL.txt", "fonts/andika-latin-regular.woff2", "fonts/andika-latin-bold.woff2",
+    "fonts/grundschrift-LICENSE.txt", "fonts/grundschrift-regular.woff2", "fonts/grundschrift-bold.woff2",
     "images/buchstabenzeit-logo.png", "datenschutz.html", "datenschutz-en.html", "books/README.md",
 ]
 
@@ -457,7 +457,7 @@ def test_a_broken_generated_bundle_is_not_hidden_by_a_clean_source(tmp_path):
     assert "www/index.html loads" in out
 
 
-@pytest.mark.parametrize("missing", ["words-de.json", "sentences/de.json", "fonts/OFL.txt",
+@pytest.mark.parametrize("missing", ["words-de.json", "sentences/de.json", "fonts/grundschrift-LICENSE.txt",
                                      "books/README.md", "platform.mjs"])
 def test_a_runtime_file_no_reference_scan_can_see_is_still_required(tmp_path, missing):
     """Vocabulary, exercise data, and licence files are loaded by names built at run time."""

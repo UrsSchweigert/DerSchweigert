@@ -9,9 +9,9 @@ The names "DerSchweigert", "Buchstabenzeit", "Arithmo Slayer", "FFM" and
 
 THIRD-PARTY MATERIAL IS NOT COVERED BY LICENSE. It remains under its own
 licence, which must be preserved. This includes the German (CC BY-SA 4.0) and
-English (CC BY 4.0) word lists and the Andika font (SIL OFL 1.1) in
-sites/lesen/static, and all npm, Python, Gradle and Swift dependencies. See
-sites/lesen/docs/third-party-licences.md,
+English (CC BY 4.0) word lists and the Grundschrift von Christian Urff font
+(CC BY 3.0) in sites/lesen/static, and all npm, Python, Gradle and Swift
+dependencies. See sites/lesen/docs/third-party-licences.md,
 sites/lesen/static/third-party-notices.txt, and the licence files next to the
 material. Where a file carries its own licence, that licence controls for that
 file.

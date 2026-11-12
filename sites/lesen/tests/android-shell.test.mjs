@@ -125,7 +125,7 @@ test('about dialog: bundled privacy and attribution links are present', async ()
     'datenschutz-en.html',
     'words-de-LICENSE.txt',
     'words-en-LICENSE.txt',
-    'fonts/OFL.txt',
+    'fonts/grundschrift-LICENSE.txt',
   ]) {
     assert.ok(html.includes(target), `the about dialog must link bundled ${target}`);
   }
