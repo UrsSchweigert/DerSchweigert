@@ -1608,6 +1608,27 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 #level-clear .overlay-card > *, #game-over .overlay-card > * { flex-shrink: 0; }
 #level-attempt-summary, #defeat-attempt-summary { white-space: pre-line; overflow-wrap: normal; }
 #level-attempt-summary:empty, #defeat-attempt-summary:empty { display: none; }
+/* Next-scene preview: the upcoming level's art above its title. The inline
+   display:none in the markup keeps it out of the first paint and the renderer
+   reveals it once a level is cleared. */
+#level-clear-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid rgba(196, 154, 72, 0.55);
+  border-radius: 6px;
+  background: rgba(9, 20, 17, 0.55);
+}
+#level-clear-preview-image {
+  display: block;
+  width: 100%;
+  max-height: 120px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+#level-clear-preview-title { margin: 0; font-size: 0.9em; text-align: center; color: var(--ivory-muted); }
 .overlay-card .diff-btn { margin: 0; padding: 6px; }
 /* The first-open thank-you notice sits above the app top bar (z-index 200) so
    no edge of the game frame floats over the dialog, and its card scrolls
@@ -2180,7 +2201,7 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   .paywall-actions, .parental-gate-form { grid-column: 2; grid-row: 1 / span 3; }
   .paywall-status, .gate-status { grid-column: 1 / -1; }
   #level-clear .overlay-card, #game-over .overlay-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #level-clear .overlay-card h2, #level-clear .overlay-card p,
+  #level-clear .overlay-card h2, #level-clear .overlay-card p, #level-clear .overlay-card figure,
   #game-over .overlay-card h2, #game-over .overlay-card p { grid-column: 1 / -1; }
 }
 

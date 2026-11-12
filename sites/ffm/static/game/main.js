@@ -2,6 +2,7 @@
 
 import { generateProblem, getArithmeticOptionCount, sampleFiendType, TOTAL_LEVELS } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
+import { LEVEL_ART_MANIFEST, resolveLevelBackground, stageArtUrl } from './level-art.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon, getHeroGroundOffsetPx } from './entities.js';
 import { castHandAnchor } from './hero-anim.js';
 import { HUD } from './hud.js';
@@ -594,6 +595,9 @@ const btnHealTipConfirm = document.getElementById('btn-heal-tip-confirm');
 const levelClearOverlay = document.getElementById('level-clear');
 const levelClearTitle = document.getElementById('level-clear-title');
 const levelClearScore = document.getElementById('level-clear-score');
+const levelClearPreview = document.getElementById('level-clear-preview');
+const levelClearPreviewImage = document.getElementById('level-clear-preview-image');
+const levelClearPreviewTitle = document.getElementById('level-clear-preview-title');
 const btnNextLevel = document.getElementById('btn-next-level');
 const btnReplayLevel = document.getElementById('btn-replay-level');
 const btnSaveScoreReturnTitle = document.getElementById('btn-save-score-return-title');
@@ -3813,6 +3817,33 @@ function returnToTitle() {
   refreshPracticeBadges();
 }
 
+// Shows the next scene under the level-clear score: the upcoming level's art
+// and title, or the finale once level 60 is cleared. It resolves the image
+// exactly like the renderer (level art, then chapter stage) and requests only
+// that one scene; a level file that fails to load swaps to the chapter stage.
+function renderLevelClearPreview(nextLevel) {
+  if (!levelClearPreview) return;
+  const number = Number.parseInt(nextLevel, 10);
+  levelClearPreview.style.display = 'flex';
+  if (!Number.isInteger(number) || number > TOTAL_LEVELS) {
+    levelClearPreviewImage.onerror = null;
+    levelClearPreviewImage.removeAttribute('src');
+    levelClearPreviewImage.style.display = 'none';
+    levelClearPreviewImage.alt = '';
+    levelClearPreviewTitle.textContent = t('overlay.finaleTitle');
+    return;
+  }
+  const stageUrl = stageArtUrl(number);
+  levelClearPreviewImage.style.display = '';
+  levelClearPreviewImage.onerror = () => {
+    levelClearPreviewImage.onerror = null;
+    levelClearPreviewImage.src = stageUrl;
+  };
+  levelClearPreviewImage.src = resolveLevelBackground(number, LEVEL_ART_MANIFEST);
+  levelClearPreviewImage.alt = t('overlay.nextSceneAlt', { level: number });
+  levelClearPreviewTitle.textContent = t('overlay.nextSceneTitle', { level: number });
+}
+
 function triggerLevelClear() {
   setAnswerInputVisible(false);
   if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
@@ -3835,6 +3866,7 @@ function triggerLevelClear() {
   lastLevelClearNum = completedLevelNum;
   levelClearTitle.textContent = t('overlay.levelClearTitle', { level: completedLevelNum });
   levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
+  if (typeof renderLevelClearPreview === 'function') renderLevelClearPreview(state.level + 1);
   renderAttemptAccomplishment('level-attempt-summary');
   topBar.style.display = 'flex';
   const finishCompletion = async action => {
@@ -3865,6 +3897,7 @@ function triggerLevelClear() {
   });
   btnReplayLevel.onclick = () => finishCompletion(() => {
     levelClearOverlay.style.display = 'none';
+    if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
     resetLevelAttempt(state, levelStartScore);
     startLevel(completedIndex);
   });
@@ -3876,6 +3909,7 @@ function triggerLevelClear() {
     if (!practiceRun && !platform.isApp && platform.isLoggedIn) await platform.postHighScore(state.score, state.level);
     await refreshProfileAndLeaderboard();
     levelClearOverlay.style.display = 'none';
+    if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
     audio.stopBGM();
     diffSelect.style.display = 'flex';
     if (typeof startMenuMusic === 'function') startMenuMusic();
@@ -3911,6 +3945,7 @@ function triggerGameOver(won = false) {
     else audio.playCampaignVictory?.();
   }
   levelClearOverlay.style.display = 'none';
+  if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
   topBar.style.display = 'flex';
   audio.stopBGM();
   syncKeepAwake();
@@ -4532,6 +4567,7 @@ onLocaleChange(() => {
   if (levelClearOverlay.style.display !== 'none' && lastLevelClearNum !== null) {
     levelClearTitle.textContent = t('overlay.levelClearTitle', { level: lastLevelClearNum });
     levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
+    renderLevelClearPreview(lastLevelClearNum + 1);
     btnNextLevel.textContent = t(state.level >= TOTAL_LEVELS ? 'overlay.finishGame' : 'overlay.nextLevel');
     if (!platform.isApp && !platform.isLoggedIn) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   }
