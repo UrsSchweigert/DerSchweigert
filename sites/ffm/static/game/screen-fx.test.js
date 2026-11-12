@@ -523,6 +523,30 @@ test('every particle is spawned at the shared size scale', () => {
   assert.ok(PARTICLE_SIZE_SCALE > 1, 'the layer reads larger than the authored unit scale');
 });
 
+test('glow and oval spawn elliptical particles at the shared size scale', () => {
+  const { fx } = make();
+  const pool = fx.glow(760, 360, '#8f1018', 46, 12, 1, 0.5, 0.4);
+  assert.equal(pool.type, 'glow');
+  assert.equal(pool.rx, 46 * PARTICLE_SIZE_SCALE);
+  assert.equal(pool.ry, 12 * PARTICLE_SIZE_SCALE);
+  assert.equal(pool.grow, 0.4);
+
+  const rim = fx.oval(760, 320, '#ff2418', 2, 4, 40, 26, 0.5, 2);
+  assert.equal(rim.type, 'oval');
+  assert.equal(rim.rx0, 2 * PARTICLE_SIZE_SCALE);
+  assert.equal(rim.ry1, 26 * PARTICLE_SIZE_SCALE);
+  assert.equal(rim.width, 2 * PARTICLE_SIZE_SCALE);
+
+  assert.doesNotThrow(() => fx.step(1 / 60));
+  assert.doesNotThrow(() => fx.render());
+});
+
+test('a glow stays visible under reduced motion, unlike a flash', () => {
+  const reduced = make({ reducedMotion: true });
+  assert.ok(reduced.fx.glow(10, 10, '#ff2418', 30, 10, 0.4, 1), 'the portal light is not a strobe');
+  assert.equal(reduced.fx.flash(10, 10, '#ffffff', 30, 0.2, 1), null);
+});
+
 test('frame re-measures the playfield so effects follow a resized layout', () => {
   const env = fixture();
   const fx = createScreenFx({ document: env.doc });

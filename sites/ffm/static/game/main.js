@@ -30,6 +30,7 @@ import { getFiendClass, sampleFiendClassId, FIEND_CLASSES } from './difficulty-c
 import { pickComboAbility, getComboFrameBand, getComboRewardProgress, isAbilityBandStart } from './combo-abilities.js';
 import {
   FIEND_ENTRY_TRIGGER_X,
+  FIEND_PORTAL_X,
   getFiendWalkSpeed,
   getProblemTimerRemaining,
   shouldPreserveTimerAfterHit,
@@ -475,7 +476,7 @@ function createFiend(levelIndex, x) {
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[tier] : undefined;
   const fiend = new FiendClass(x, groundY, hp, palette);
-  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
+  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X);
   fiend.problem = problem;
   fiend.isElite = practiceElite || isElite;
   fiend.fiendClassId = sampleFiendClassId(cfg.level, spawnIndex);
@@ -501,7 +502,7 @@ function createShapesFiend(x) {
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[0] : undefined;
   const fiend = new FiendClass(x, groundY, 1, palette);
-  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
+  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X);
   fiend.problem = problem;
   fiend.isElite = false;
   // sampleFiendClassId(level, spawnIndex) is what actually drives the fiend's
@@ -3162,25 +3163,25 @@ function spawnNextFiend() {
 
   let fiend;
   if (state.isShapesMode && (!practiceRun?.endless || requeuedFiends.length === 0)) {
-    fiend = createShapesFiend(CANVAS_W + 20);
+    fiend = createShapesFiend(FIEND_PORTAL_X);
   } else if (practiceRun?.kind === 'targeted' && requeuedFiends.length > 0) {
     fiend = requeuedFiends.shift();
-    fiend.x = CANVAS_W + 20;
-    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
+    fiend.x = FIEND_PORTAL_X;
+    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X);
     fiend.wasRequeued = true;
     fiend.setState('walk');
   } else if (practiceRun?.kind === 'targeted' && spawnQueue.length > 0) {
     const problem = spawnQueue.shift();
-    fiend = createFiend(practiceRun.sourceLevel - 1, CANVAS_W + 20);
+    fiend = createFiend(practiceRun.sourceLevel - 1, FIEND_PORTAL_X);
     fiend.problem = problem;
     if (problem.operation) practiceRun.operations.add(problem.operation);
   } else if (spawnQueue.length > 0) {
     const levelIndex = spawnQueue.shift();
-    fiend = createFiend(levelIndex, CANVAS_W + 20);  // problem already assigned inside
+    fiend = createFiend(levelIndex, FIEND_PORTAL_X);  // problem already assigned inside
   } else if (requeuedFiends.length > 0) {
     fiend = requeuedFiends.shift();
-    fiend.x = CANVAS_W + 20;
-    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
+    fiend.x = FIEND_PORTAL_X;
+    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X);
     fiend.wasRequeued = true;
     fiend.setState('walk');
   }
@@ -3195,6 +3196,9 @@ function spawnNextFiend() {
       spikeSpawnSlowLeft -= 1;
     }
     fiends.push(fiend);
+    // The entrance: a portal on the level's own ground line, so the fiend appears
+    // somewhere the art actually has floor instead of sliding in over scenery.
+    globalThis.ffmScreenFx?.play('fiendPortal', { x: fiend.x, y: fiend.y });
   }
 }
 

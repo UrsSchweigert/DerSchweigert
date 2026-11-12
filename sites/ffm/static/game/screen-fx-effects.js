@@ -4,7 +4,7 @@
 // particles, washes, vignettes and shakes through the public helpers only.
 // Nothing here touches the DOM or throws on a missing payload field.
 
-import { WORLD_HEIGHT } from './screen-fx.js';
+import { PARTICLE_SIZE_SCALE, WORLD_HEIGHT } from './screen-fx.js';
 
 const TAU = Math.PI * 2;
 // The answer effects are anchored to the answer row on purpose: the burst is
@@ -30,6 +30,7 @@ export const EFFECT_NAMES = [
   'windCast',
   'stormCast',
   'spikeCast',
+  'fiendPortal',
 ];
 
 // The sword's own ramp (#1460c0 / #40a0f0 / #88d0ff / #c8f0ff in
@@ -48,6 +49,8 @@ export const PALETTES = {
   wind: ['#ffffff', '#eaffff', '#cdeeff', '#a8e6ff', '#7fd4ff'],
   storm: ['#e8dfff', '#cbb4ff', '#a98bff', '#cdeeff', '#8a6bff'],
   earth: ['#e8c98a', '#c9a15a', '#8a6b3f', '#d8ffcf', '#a5f3a0'],
+  portal: ['#ff2418', '#ff6a4d', '#8f1018', '#ffb0a0', '#4a0508'],
+  portalCore: ['#ffd9cf', '#ffb0a0', '#fff3ee', '#ff8a6b', '#ffe9e2'],
 };
 
 function rand(min, max) {
@@ -164,6 +167,86 @@ function heroHurt(api, payload) {
   api.addVignette('#c01018', 0.05, 0.6, 0.56);
   api.addWash('#ff2a1e', 0.08, 0.14);
   api.shake(4, 0.19);
+}
+
+// Fiends used to walk in from off-screen right, across whatever the level art
+// happens to paint there — walls, gates, stairs, a darkened edge. The portal
+// replaces that entrance: the fiend appears on the ground line inside a red
+// door, and the walk to combat range starts from an on-screen, lit spot.
+const PORTAL_OPEN_SECONDS = 0.5;
+// How long the doorway itself stays open (rim + throat). Long enough to cover the
+// fiend's first steps, short enough to be gone before it reaches combat range.
+const PORTAL_HOLD_SECONDS = 1.15;
+const PORTAL_EMBER_SECONDS = 0.9;
+// Authored sizes are multiplied by the layer's PARTICLE_SIZE_SCALE (1.9), so these
+// read as a ~120x165 door in the 800x450 playfield — tall enough for a fiend to
+// step out of, wide enough to be a doorway rather than a glow.
+const PORTAL_MOUTH_RX = 32;
+const PORTAL_MOUTH_RY = 44;
+const PORTAL_POOL_RX = 42;
+const PORTAL_POOL_RY = 13;
+
+// Fiends used to walk in from off-screen right, across whatever the level art
+// happens to paint there — walls, gates, stairs, a darkened edge. The portal
+// replaces that entrance: a doorway opens on the ground line, the fiend appears
+// inside it, and the walk to combat range starts from a lit spot on the floor.
+function fiendPortal(api, payload) {
+  const x = payload && payload.x !== undefined ? payload.x : 720;
+  const y = payload && payload.y !== undefined ? payload.y : 360;
+  // The layer multiplies every radius by PARTICLE_SIZE_SCALE, so the door's
+  // centre has to be lifted by the *scaled* half-height to stand it on the ground
+  // line instead of sinking half a door into the floor.
+  const mouthY = y - PORTAL_MOUTH_RY * PARTICLE_SIZE_SCALE;
+  // 1. light on the floor, so the door belongs to the scene instead of floating.
+  api.glow(x, y, '#8f1018', PORTAL_POOL_RX, PORTAL_POOL_RY, 1.2, 0.55, 0.5);
+  api.glow(x, y + 2, '#ff2418', PORTAL_POOL_RX * 0.6, PORTAL_POOL_RY * 0.6, 0.85, 0.6, 0.3);
+  api.oval(x, y, '#ff2418', 2, 3, PORTAL_POOL_RX * 1.1, PORTAL_POOL_RY * 1.25, 0.7, 2);
+  // 2. the throat: a soft dark disc (source-over, so it is drawn under the rims),
+  // then a halo, then the two rims — dark inside, bright edge is what reads as a
+  // doorway rather than a lamp.
+  // The layer sits above the game canvas, so the door must be additive: an opaque
+  // throat would hide the very fiend that is stepping out of it. A deep tint plus a
+  // hot core reads as depth without painting over the sprite.
+  api.glow(x, mouthY, '#8f1018', PORTAL_MOUTH_RX * 1.35, PORTAL_MOUTH_RY * 1.3, PORTAL_HOLD_SECONDS, 0.5, 0.12);
+  api.glow(x, mouthY, '#7a0208', PORTAL_MOUTH_RX * 0.95, PORTAL_MOUTH_RY * 0.95, PORTAL_HOLD_SECONDS, 0.4, 0.05);
+  api.glow(x, mouthY - PORTAL_MOUTH_RY * 0.25, '#ff2418', PORTAL_MOUTH_RX * 0.42, PORTAL_MOUTH_RY * 0.4, PORTAL_HOLD_SECONDS * 0.8, 0.45, -0.18);
+  // Two rims: one that snaps open, and one that simply stands at full size for the
+  // whole hold. A single growing rim would only reach full size on the frame it
+  // disappears, which is what made the door read as too small for the fiend.
+  api.oval(x, mouthY, '#ff2418', 2, 3, PORTAL_MOUTH_RX, PORTAL_MOUTH_RY, PORTAL_OPEN_SECONDS, 3.5);
+  api.oval(x, mouthY, '#ff2418', PORTAL_MOUTH_RX, PORTAL_MOUTH_RY, PORTAL_MOUTH_RX, PORTAL_MOUTH_RY, PORTAL_HOLD_SECONDS, 3);
+  api.oval(x, mouthY, '#ffb0a0', PORTAL_MOUTH_RX * 0.84, PORTAL_MOUTH_RY * 0.84, PORTAL_MOUTH_RX * 0.84, PORTAL_MOUTH_RY * 0.84, PORTAL_HOLD_SECONDS * 0.85, 1.6);
+  api.schedule(PORTAL_OPEN_SECONDS * 0.5, () => {
+    // The flash is what sells "it came through"; the glow alone reads as a lamp.
+    api.flash(x, mouthY, '#ffd9cf', 40, 0.16, 0.8);
+    api.ring(x, mouthY, '#ff6a4d', 6, 62, 0.38, 2.5);
+    api.oval(x, y, '#ff6a4d', 10, 3, 80, 16, 0.5, 2);
+    api.shake(1.4, 0.16);
+  });
+  // 3. the particle filter: embers climbing out of the door, sparks off the rim,
+  // motes on the pool, smoke, and shards as the opening finishes.
+  api.emitter(PORTAL_EMBER_SECONDS, 32, (progress) => {
+    const angle = -Math.PI / 2 + rand(-1.1, 1.1);
+    const rimX = x + Math.cos(angle) * PORTAL_MOUTH_RX * rand(0.4, 1);
+    const rimY = mouthY + Math.sin(angle) * PORTAL_MOUTH_RY * rand(0.4, 1);
+    for (let i = 0; i < count(api, 2); i++) {
+      api.ember(rimX, rimY + rand(-4, 4), rand(-24, 24), rand(-160, -70), pick(PALETTES.portal), rand(0.45, 0.9));
+    }
+    if (Math.random() < 0.55 * api.countScale()) {
+      api.spark(x + rand(-PORTAL_MOUTH_RX, PORTAL_MOUTH_RX), mouthY + rand(-PORTAL_MOUTH_RY, PORTAL_MOUTH_RY), rand(0, TAU), rand(60, 200), pick(PALETTES.portalCore), rand(0.18, 0.42));
+    }
+    if (Math.random() < 0.32 * api.countScale()) {
+      api.mote(x + rand(-PORTAL_POOL_RX, PORTAL_POOL_RX), y - rand(0, 6), rand(-12, 12), rand(-26, -10), pick(PALETTES.portal), rand(1.6, 3.2));
+    }
+    if (Math.random() < 0.2 * api.countScale()) {
+      api.smoke(x + rand(-12, 12), mouthY + rand(10, 40), rand(7, 13), rand(0.4, 0.8), '#2a0a0a');
+    }
+    if (progress > 0.55 && Math.random() < 0.3 * api.countScale()) {
+      api.shard(x + rand(-14, 14), y - rand(0, 24), rand(-34, 34), rand(-80, -24), pick(PALETTES.portal), rand(2, 4));
+    }
+  });
+  api.addWash('#ff2418', 0.05, 0.3);
+  api.addVignette('#4a0508', 0.15, 0.02, 0.7);
 }
 
 function fireTrail(api, payload) {
@@ -504,6 +587,7 @@ export function createEffectTable() {
     windCast,
     stormCast,
     spikeCast,
+    fiendPortal,
     // Granular pieces: the game drives these per frame / per hit so the trail
     // and the blast stay locked to the real projectile rather than a guess.
     fireTrail,

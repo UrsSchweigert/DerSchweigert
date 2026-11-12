@@ -758,6 +758,25 @@ the old fixed 6x4 sprite grid:
   despilled and stripped of the generator's baked ground shadow by the build
   script, then scaled onto the master's pixel density.
 
+### Fiend entrance
+
+A fiend no longer walks in from off-screen right. On most of the 60 backgrounds the
+right edge is a wall, a gate, a staircase or a darkened vignette, so the slide-in
+read as the sprite clipping through scenery. Instead a red portal opens on the
+level's ground line at `FIEND_PORTAL_X` (`CANVAS_W - 80`, see `difficulty.js`), the
+fiend appears inside it, and the walk to combat range starts from there.
+
+The effect is the `fiendPortal` recipe in `screen-fx-effects.js`: a light pool on
+the floor, an elliptical doorway (two rims plus a deep-red interior), rising
+embers, rim sparks, floor motes, smoke, a shockwave and a short flash. It uses the
+`glow` and `oval` primitives added to `screen-fx.js`; everything is additive because
+the fx layer paints *above* the game canvas, so an opaque portal would hide the very
+fiend stepping out of it.
+
+`getFiendWalkSpeed()` is always called with `FIEND_PORTAL_X`, so the shorter walk
+still finishes exactly when the level's timer runs out — moving the anchor without
+that argument would make every fiend arrive early. `difficulty.test.js` asserts it.
+
 ### Fiend sprites and their ground shadow
 
 Fiends are single PNGs in `static/game/fiend-sprites/` (60 of them: young

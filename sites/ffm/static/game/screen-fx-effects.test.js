@@ -122,7 +122,7 @@ function layerCtx(canvases) {
 }
 
 test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a function', () => {
-  assert.equal(EFFECT_NAMES.length, 16);
+  assert.equal(EFFECT_NAMES.length, 17);
   const table = createEffectTable();
   // The five granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
@@ -218,7 +218,7 @@ test('a scheduled fireball impact does not fire while paused and fires after res
 
 test('PALETTES exposes the named palettes including the sword blade ramp', () => {
   assert.deepEqual(Object.keys(PALETTES).sort(), [
-    'blade', 'blue', 'earth', 'gold', 'green', 'ice', 'red', 'storm', 'violet', 'wind',
+    'blade', 'blue', 'earth', 'gold', 'green', 'ice', 'portal', 'portalCore', 'red', 'storm', 'violet', 'wind',
   ]);
   for (const palette of Object.values(PALETTES)) {
     assert.ok(Array.isArray(palette) && palette.length > 0);
@@ -353,4 +353,31 @@ test('the spike aura pulse grows with progress and stays on the ground', () => {
   assert.ok(lowRing && highRing, 'every pulse draws a ring');
   assert.ok(highRing.r1 > lowRing.r1, 'the pulse widens as the slow runs out');
   assert.ok(highRing.y > 280, 'the pulse sits at the ground under the target');
+});
+
+test('the fiend portal anchors to the ground line it is given', () => {
+  const { fx } = make();
+  assert.equal(fx.play('fiendPortal', { x: 760, y: 360 }), true);
+  const particles = fx._particles;
+  assert.ok(particles.length >= 4, 'pool, mouth and ground oval are all spawned');
+  // The pool must sit on the ground line, the mouth above it — otherwise the
+  // light reads as a floating ball instead of a doorway standing on the floor.
+  const pool = particles.find((p) => p.type === 'glow' && p.ry < p.rx);
+  assert.ok(pool, 'a flat pool glow exists');
+  assert.equal(pool.y, 360);
+  const mouth = particles.find((p) => p.type === 'glow' && p.ry > p.rx);
+  assert.ok(mouth, 'a tall mouth glow exists');
+  assert.ok(mouth.y < 360, 'the mouth sits above the pool');
+  assert.ok(particles.every((p) => Math.abs(p.x - 760) < 120), 'everything stays near the portal');
+});
+
+test('the fiend portal survives an empty payload and reduced motion', () => {
+  for (const reducedMotion of [false, true]) {
+    const { fx } = make({ reducedMotion });
+    assert.doesNotThrow(() => fx.play('fiendPortal', {}));
+    fx.step(1 / 60);
+    assert.ok(fx.getParticleCount() >= 1);
+    for (let i = 0; i < 120; i++) fx.step(1 / 60);
+    assert.doesNotThrow(() => fx.step(1 / 60), 'emitters expire cleanly');
+  }
 });

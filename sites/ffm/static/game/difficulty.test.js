@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   FIEND_COMBAT_X,
   FIEND_ENTRY_TRIGGER_X,
+  FIEND_PORTAL_X,
   getFiendWalkSpeed,
   getProblemTimerRemaining,
   shouldPreserveTimerAfterHit,
@@ -42,5 +43,16 @@ describe('elite timer behavior', () => {
   it('reuses remaining time only when preserving the timer', () => {
     assert.strictEqual(getProblemTimerRemaining(15, 6.5, true), 6.5);
     assert.strictEqual(getProblemTimerRemaining(15, 6.5, false), 15);
+  });
+});
+
+describe('fiend entrance', () => {
+  it('spawns inside the canvas and still arrives on the level timer', () => {
+    // The portal sits a light-pool away from the right edge (so it is not chopped
+    // off) and left of the entry trigger (so the question appears immediately).
+    assert.ok(FIEND_PORTAL_X <= FIEND_ENTRY_TRIGGER_X - 40);
+    assert.ok(FIEND_PORTAL_X + 80 <= 800, 'the portal glow stays on canvas');
+    const speed = getFiendWalkSpeed(10, FIEND_PORTAL_X);
+    assert.ok(Math.abs(FIEND_PORTAL_X - speed * 10 - FIEND_COMBAT_X) < 1e-9);
   });
 });

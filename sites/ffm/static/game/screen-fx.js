@@ -265,6 +265,9 @@ export function createScreenFx(options = {}) {
     if (typeof particle.r0 === 'number') particle.r0 *= PARTICLE_SIZE_SCALE;
     if (typeof particle.r1 === 'number') particle.r1 *= PARTICLE_SIZE_SCALE;
     if (typeof particle.width === 'number') particle.width *= PARTICLE_SIZE_SCALE;
+    for (const key of ['rx', 'ry', 'rx0', 'ry0', 'rx1', 'ry1']) {
+      if (typeof particle[key] === 'number') particle[key] *= PARTICLE_SIZE_SCALE;
+    }
     particle.px = particle.x;
     particle.py = particle.y;
     instance._particles.push(particle);
@@ -334,6 +337,38 @@ export function createScreenFx(options = {}) {
         ctx.arc(particle.x, particle.y, Math.max(0.5, particle.radius || 1), particle.a0 || 0, particle.a1 !== undefined ? particle.a1 : Math.PI * 2);
         ctx.stroke();
         break;
+      // Elliptical glow: the portal's light pool and mouth. A radial gradient is
+      // circular, so the context is scaled on one axis instead of faking the
+      // shape out of stacked circles.
+      case 'glow': {
+        const grow = particle.grow ? 1 + (1 - lifeFactor) * particle.grow : 1;
+        const rx = Math.max(0.5, particle.rx * grow);
+        const ry = Math.max(0.5, particle.ry * grow);
+        ctx.save();
+        ctx.translate(particle.x, particle.y);
+        ctx.scale(1, ry / rx);
+        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+        gradient.addColorStop(0, withAlpha(color, 1));
+        gradient.addColorStop(0.55, withAlpha(color, 0.5));
+        gradient.addColorStop(1, withAlpha(color, 0));
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        break;
+      }
+      case 'oval': {
+        const t = 1 - lifeFactor;
+        const rx = particle.rx0 + (particle.rx1 - particle.rx0) * t;
+        const ry = particle.ry0 + (particle.ry1 - particle.ry0) * t;
+        ctx.lineWidth = Math.max(1, particle.width || 2);
+        ctx.strokeStyle = color;
+        ctx.beginPath();
+        ctx.ellipse(particle.x, particle.y, Math.max(0.5, rx), Math.max(0.5, ry), 0, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      }
       case 'flash': {
         const radius = Math.max(1, particle.radius * (0.5 + 0.5 * lifeFactor));
         const gradient = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, radius);
@@ -871,6 +906,46 @@ export function createScreenFx(options = {}) {
       width: width || 3,
       color,
       alpha: (alpha !== undefined ? alpha : 1) * instance._alphaScale(),
+      blend: 'lighter',
+    });
+  };
+
+  instance.glow = function glow(x, y, color, rx, ry, durationSeconds, alpha, grow, blend) {
+    if (instance._destroyed) return null;
+    const duration = durationSeconds || 0.5;
+    return instance._addParticle({
+      type: 'glow',
+      x,
+      y,
+      life: duration,
+      maxLife: duration,
+      rx: rx || 20,
+      ry: ry || rx || 20,
+      grow: grow || 0,
+      color,
+      alpha: (alpha !== undefined ? alpha : 1) * instance._alphaScale(),
+      // 'source-over' paints a soft dark disc (the portal's throat) underneath the
+      // additive rim; the default stays additive for plain light.
+      blend: blend || 'lighter',
+    });
+  };
+
+  instance.oval = function oval(x, y, color, rx0, ry0, rx1, ry1, durationSeconds, width) {
+    if (instance._destroyed) return null;
+    const duration = durationSeconds || 0.5;
+    return instance._addParticle({
+      type: 'oval',
+      x,
+      y,
+      life: duration,
+      maxLife: duration,
+      rx0: rx0 || 0,
+      ry0: ry0 || 0,
+      rx1: rx1 !== undefined ? rx1 : rx0 || 0,
+      ry1: ry1 !== undefined ? ry1 : ry0 || 0,
+      width: width || 2,
+      color,
+      alpha: instance._alphaScale(),
       blend: 'lighter',
     });
   };
