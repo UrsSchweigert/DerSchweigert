@@ -34,7 +34,7 @@ import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getL
 import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAbilityBar } from './ability-bar.js';
-import { bonusForLevel } from './bonus-ladder.js';
+import { BONUS_CAPS, applyBonus, bonusForLevel, createBonusRuntime } from './bonus-ladder.js';
 import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
@@ -831,6 +831,11 @@ let currentLevelIndex = 0;
 // One ability runtime per run: created when a run starts, re-levelled on each
 // level transition so cooldowns carry across levels, and ticked by gameLoop.
 let abilityRuntime = null;
+// Bonus inputs for the ability bar's readouts, rebuilt from the level ladder at
+// every level start: the earned bonus totals plus the per-ability cooldown
+// reduction each cooldown bonus named.
+let levelBonusRuntime = null;
+let levelBonusCooldowns = null;
 // Earth-spike slow: the fiends currently slowed and how many upcoming spawns
 // the active spike may still slow. Cleared whenever the slow ends.
 let spikeSlowedFiends = new Set();
@@ -2515,6 +2520,29 @@ function handleLevelConfigError(err, levelIndex) {
   updateHUDLogoutVisibility();
 }
 
+// Rebuild the ability bar's bonus inputs from the level ladder. The ladder is a
+// pure function of the level, so replaying it at every level start matches what
+// the player has earned by then. `cooldowns` stays per ability because each
+// cooldown bonus names the ability it shortens, while the runtime keeps the
+// capped totals the storm and earth readouts need.
+function bonusReadoutsForLevel(level) {
+  const safeLevel = Number.isFinite(level) && level >= 1 ? Math.trunc(level) : 1;
+  let runtime = createBonusRuntime({ level: safeLevel });
+  const cooldowns = { wind: 0, storm: 0, earth: 0 };
+  let totalReduction = 0;
+  for (let current = 2; current <= safeLevel; current += 1) {
+    const bonus = bonusForLevel(current);
+    if (!bonus) continue;
+    runtime = applyBonus(runtime, bonus);
+    if (bonus.type !== 'cooldown') continue;
+    const room = Math.min(bonus.value, BONUS_CAPS.cooldownSeconds - totalReduction);
+    if (room <= 0) continue;
+    totalReduction += room;
+    cooldowns[bonus.abilityId] += room;
+  }
+  return { runtime, cooldowns };
+}
+
 // Start a fresh ability run at `level`: every cooldown is cleared. Called
 // whenever a run begins (level select, practice, resume after paywall, retry);
 // level transitions inside a run only call setLevel so cooldowns persist.
@@ -2721,6 +2749,13 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   if (typeof abilityRuntime !== 'undefined') {
     if (abilityRuntime) abilityRuntime.setLevel(cfg.level);
     else beginAbilityRun(cfg.level);
+  }
+  // The bar's readouts are derived from the level's earned bonuses. The
+  // `typeof` keeps extracted-function tests running without main.js.
+  if (typeof bonusReadoutsForLevel === 'function' && typeof levelBonusRuntime !== 'undefined') {
+    const readouts = bonusReadoutsForLevel(cfg.level);
+    levelBonusRuntime = readouts.runtime;
+    levelBonusCooldowns = readouts.cooldowns;
   }
   // A spike slow never survives a level transition.
   if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
@@ -3930,6 +3965,10 @@ function gameLoop(ts) {
   abilityBar.update({
     level: state.level,
     progress: abilityRuntime ? (id) => abilityRuntime.progress(id) : 1,
+    runtime: abilityRuntime,
+    bonus: typeof levelBonusRuntime !== 'undefined' ? levelBonusRuntime : null,
+    cooldowns: typeof levelBonusCooldowns !== 'undefined' ? levelBonusCooldowns : null,
+    spikeTargetsLeft: typeof spikeSpawnSlowLeft !== 'undefined' ? spikeSpawnSlowLeft : 0,
   });
 
   if (gameRunning && !paused) {
