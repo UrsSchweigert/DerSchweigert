@@ -93,7 +93,7 @@ const DE = {
   'dialog.about.tts_privacy': 'Das Vorlesen nutzt die auf dem Gerät installierte Sprachausgabe (Text-to-Speech). Diese ist ein separater Dienst des Geräts; welche Daten sie verarbeitet, bestimmt die Geräteeinstellung, nicht diese App. Buchstabenzeit fordert nur lokal installierte Stimmen an und sendet dafür keine Daten ins Internet.',
   'dialog.about.licenses': 'Inhalte & Lizenzen',
   'dialog.about.wordlist': 'Wortliste: FrequencyWords & Wiktionary, CC BY-SA 4.0 – ',
-  'dialog.about.font': 'Schriftart: Andika, SIL Open Font License 1.1 – ',
+  'dialog.about.font': 'Schriftart: Grundschrift von Christian Urff, CC BY 3.0 – ',
   
   // Pluralization support
   'unit.card': 'Karte',
@@ -258,7 +258,7 @@ const EN = {
   'dialog.about.tts_privacy': 'Read aloud uses your device\'s installed text-to-speech feature. This is a separate service from your device; what data it processes is determined by your device settings, not by this app. Buchstabenzeit only requests locally installed voices and does not send any data to the internet.',
   'dialog.about.licenses': 'Content & Licenses',
   'dialog.about.wordlist': 'Word list: FrequencyWords & Wiktionary, CC BY 4.0 – ',
-  'dialog.about.font': 'Font: Andika, SIL Open Font License 1.1 – ',
+  'dialog.about.font': 'Font: Grundschrift by Christian Urff, CC BY 3.0 – ',
   
   // Pluralization support
   'unit.card': 'card',

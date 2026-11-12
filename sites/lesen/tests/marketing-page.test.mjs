@@ -65,3 +65,57 @@ test('every translatable marketing label has an English translation', () => {
     assert.ok(translations.has(key), `Missing English translation for ${key}`);
   }
 });
+
+test('marketing page shows a real app screenshot with responsive variants', async () => {
+  assert.match(page, /class="device-shot" src="\/images\/app-auswahl-780\.webp"/);
+  assert.match(page, /srcset="\/images\/app-auswahl-480\.webp 480w, \/images\/app-auswahl-780\.webp 780w"/);
+  assert.match(page, /width="780" height="1148"/);
+  assert.doesNotMatch(page, /images\/buchstabenzeit-logo\.png/);
+
+  for (const asset of [
+    'images/app-auswahl-480.webp',
+    'images/app-auswahl-780.webp',
+    'images/app-lesekarte-520.webp',
+    'images/app-lesekarte-780.webp',
+    'images/eule-192.webp',
+    'images/eule-384.webp',
+  ]) {
+    const image = await readFile(new URL(`../marketing/${asset}`, import.meta.url));
+    assert.ok(image.length > 0, `Missing marketing asset: ${asset}`);
+    assert.ok(image.length < 200_000, `Marketing asset too heavy: ${asset}`);
+  }
+});
+
+test('marketing page ships a large social preview card and vector favicon', async () => {
+  assert.match(page, /property="og:image" content="https:\/\/buchstabenzeit\.derschweigert\.de\/images\/og-card\.jpg"/);
+  assert.match(page, /property="og:image:width" content="1200"/);
+  assert.match(page, /property="og:image:height" content="630"/);
+  assert.match(page, /name="twitter:card" content="summary_large_image"/);
+  assert.match(page, /rel="icon" type="image\/svg\+xml" href="\/images\/favicon\.svg"/);
+  assert.match(page, /rel="apple-touch-icon" href="\/images\/apple-touch-icon\.png"/);
+  for (const asset of ['images/og-card.jpg', 'images/favicon.svg', 'images/apple-touch-icon.png']) {
+    const file = await readFile(new URL(`../marketing/${asset}`, import.meta.url));
+    assert.ok(file.length > 0, `Missing marketing asset: ${asset}`);
+  }
+});
+
+test('marketing page keeps progressive enhancement same-origin for the strict CSP', () => {
+  assert.match(page, /<script type="module" src="\/marketing\.mjs"><\/script>/);
+  // Every script tag must carry a same-origin module src, and only the two modules
+  // above may exist - the marketing CSP allows no inline or cross-origin scripts.
+  const sources = [...page.matchAll(/<script\b[^>]*\ssrc="([^"]+)"/gi)].map(([, src]) => src);
+  assert.deepEqual(sources, ['/language.mjs', '/marketing.mjs']);
+  assert.equal([...page.matchAll(/<script\b/gi)].length, sources.length, 'inline script tag found');
+  assert.match(language, /document\.documentElement\.lang = 'en'/);
+});
+
+test('marketing closing call to action pairs the copy with decorative artwork', async () => {
+  assert.match(page, /class="cta-art" src="\/images\/lesen-gemeinsam-640\.webp"/);
+  assert.match(page, /srcset="\/images\/lesen-gemeinsam-420\.webp 420w, \/images\/lesen-gemeinsam-640\.webp 640w"/);
+  assert.match(page, /alt="" aria-hidden="true"/);
+  for (const asset of ['images/lesen-gemeinsam-420.webp', 'images/lesen-gemeinsam-640.webp']) {
+    const image = await readFile(new URL(`../marketing/${asset}`, import.meta.url));
+    assert.ok(image.length > 0, `Missing marketing asset: ${asset}`);
+    assert.ok(image.length < 200_000, `Marketing asset too heavy: ${asset}`);
+  }
+});

@@ -35,14 +35,14 @@ test('about dialog links point at licence files that are bundled', async () => {
 
   const hrefs = [...dialog.matchAll(/<a\b[^>]*\bhref="([^"]+)"/g)].map(match => match[1]);
   assert.ok(hrefs.includes('words-de-LICENSE.txt'), dialog);
-  assert.ok(hrefs.includes('fonts/OFL.txt'), dialog);
+  assert.ok(hrefs.includes('fonts/grundschrift-LICENSE.txt'), dialog);
   assert.ok(
     html.includes("currentLanguage === 'en' ? 'words-en-LICENSE.txt' : 'words-de-LICENSE.txt'"),
     'the language switch must point the word-list link at the English notice',
   );
 
   const required = new Set(REQUIRED_FILES);
-  for (const target of ['words-de-LICENSE.txt', 'words-en-LICENSE.txt', 'fonts/OFL.txt', 'third-party-notices.txt']) {
+  for (const target of ['words-de-LICENSE.txt', 'words-en-LICENSE.txt', 'fonts/grundschrift-LICENSE.txt', 'third-party-notices.txt']) {
     assert.ok(required.has(target), `${target} must stay in REQUIRED_FILES`);
     assert.ok(await fileExists(join('static', target)), `static/${target} must be bundled`);
   }
@@ -52,7 +52,7 @@ test('bundled licence files keep their upstream attribution', async () => {
   const [german, english, font] = await Promise.all([
     readSiteFile('static/words-de-LICENSE.txt'),
     readSiteFile('static/words-en-LICENSE.txt'),
-    readSiteFile('static/fonts/OFL.txt'),
+    readSiteFile('static/fonts/grundschrift-LICENSE.txt'),
   ]);
 
   for (const marker of [
@@ -74,11 +74,11 @@ test('bundled licence files keep their upstream attribution', async () => {
   }
 
   for (const marker of [
-    'SIL OPEN FONT LICENSE Version 1.1',
-    'Reserved Font Names "Andika" and "SIL"',
-    'SIL International',
+    'Creative Commons Attribution 3.0',
+    'Grundschrift von Christian Urff',
+    'https://github.com/christianurff/grundschrift',
   ]) {
-    assert.ok(font.includes(marker), `fonts/OFL.txt must keep "${marker}"`);
+    assert.ok(font.includes(marker), `fonts/grundschrift-LICENSE.txt must keep "${marker}"`);
   }
 });
 
@@ -90,11 +90,11 @@ test('about dialog attribution wording is correct in both languages', async () =
   const dialog = aboutDialog(html);
 
   assert.ok(dialog.includes('Wortliste: FrequencyWords &amp; Wiktionary, CC BY-SA 4.0'));
-  assert.ok(dialog.includes('Schriftart: Andika, SIL Open Font License 1.1'));
+  assert.ok(dialog.includes('Schriftart: Grundschrift von Christian Urff, CC BY 3.0'));
   assert.ok(i18n.includes("'dialog.about.wordlist': 'Wortliste: FrequencyWords & Wiktionary, CC BY-SA 4.0 – '"));
-  assert.ok(i18n.includes("'dialog.about.font': 'Schriftart: Andika, SIL Open Font License 1.1 – '"));
+  assert.ok(i18n.includes("'dialog.about.font': 'Schriftart: Grundschrift von Christian Urff, CC BY 3.0 – '"));
   assert.ok(i18n.includes("'dialog.about.wordlist': 'Word list: FrequencyWords & Wiktionary, CC BY 4.0 – '"));
-  assert.ok(i18n.includes("'dialog.about.font': 'Font: Andika, SIL Open Font License 1.1 – '"));
+  assert.ok(i18n.includes("'dialog.about.font': 'Font: Grundschrift by Christian Urff, CC BY 3.0 – '"));
 });
 
 test('the licence review record covers every runtime dependency', async () => {
@@ -117,8 +117,8 @@ test('the licence review record covers every runtime dependency', async () => {
   assert.ok(record.includes('@capacitor/synapse'), 'transitive dependency and its actual notice must be recorded');
   assert.ok(record.includes('CC BY-SA 4.0'));
   assert.ok(record.includes('CC BY 4.0'));
-  assert.ok(record.includes('SIL Open Font License 1.1'));
-  for (const path of ['static/words-de-LICENSE.txt', 'static/words-en-LICENSE.txt', 'static/fonts/OFL.txt']) {
+  assert.ok(record.includes('Creative Commons Attribution 3.0'));
+  for (const path of ['static/words-de-LICENSE.txt', 'static/words-en-LICENSE.txt', 'static/fonts/grundschrift-LICENSE.txt']) {
     assert.ok(record.includes(path), `the record must name ${path}`);
   }
   assert.ok(record.includes('ios/App/App/public'), 'the record must cover the iOS bundle');

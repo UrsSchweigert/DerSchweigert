@@ -35,9 +35,9 @@ export const REQUIRED_FILES = Object.freeze([
   'words-de-LICENSE.txt',
   'words-en-LICENSE.txt',
   'third-party-notices.txt',
-  'fonts/OFL.txt',
-  'fonts/andika-latin-regular.woff2',
-  'fonts/andika-latin-bold.woff2',
+  'fonts/grundschrift-LICENSE.txt',
+  'fonts/grundschrift-regular.woff2',
+  'fonts/grundschrift-bold.woff2',
   'images/buchstabenzeit-logo.png',
   'datenschutz.html',
   'datenschutz-en.html',
@@ -49,8 +49,6 @@ export const REQUIRED_FILES = Object.freeze([
 // when they are used as src/href/import/fetch targets.
 export const ALLOWED_URL_PREFIXES = Object.freeze([
   'http://www.w3.org/',
-  'http://scripts.sil.org/OFL',
-  'http://www.sil.org/',
 ]);
 
 // Deterministic per-file allowlist for attribution, legal and documentation
@@ -81,10 +79,14 @@ export const ALLOWED_FILE_URL_PREFIXES = Object.freeze({
     'https://raw.githubusercontent.com/',
     'https://opus.nlpl.eu/',
   ]),
-  // Documentation and the OFL licence contain no app-load dependency. New
-  // links there must be reviewed and added to this allowlist explicitly.
+  // Documentation and the bundled font licence contain no app-load dependency.
+  // New links there must be reviewed and added to this allowlist explicitly.
   'books/README.md': Object.freeze([]),
-  'fonts/OFL.txt': Object.freeze([]),
+  'fonts/grundschrift-LICENSE.txt': Object.freeze([
+    'https://urff.app/',
+    'https://github.com/christianurff/grundschrift',
+    'https://creativecommons.org/',
+  ]),
 });
 
 const TEXT_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.json', '.txt', '.css', '.md']);

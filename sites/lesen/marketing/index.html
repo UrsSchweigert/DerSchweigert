@@ -10,30 +10,39 @@
     <meta property="og:locale" content="de_DE">
     <meta property="og:title" content="Buchstabenzeit – Gemeinsam lesen lernen">
     <meta property="og:description" content="Kleine Leseschritte, große Lese-Momente. Entdecke die begleitete Leseübung für Kinder und Erwachsene.">
-    <meta property="og:image" content="https://buchstabenzeit.derschweigert.de/images/buchstabenzeit-logo.png">
+    <meta property="og:image" content="https://buchstabenzeit.derschweigert.de/images/og-card.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Buchstabenzeit: Lesen lernen – Karte für Karte.">
     <meta property="og:url" content="https://buchstabenzeit.derschweigert.de/">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="canonical" href="https://buchstabenzeit.derschweigert.de/">
     <link rel="alternate" hreflang="de" href="https://buchstabenzeit.derschweigert.de/">
     <link rel="alternate" hreflang="en" href="https://buchstabenzeit.derschweigert.de/?lang=en">
     <link rel="alternate" hreflang="x-default" href="https://buchstabenzeit.derschweigert.de/">
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
-    <link rel="preload" href="/fonts/andika-latin-regular.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+    <link rel="preload" href="/fonts/grundschrift-regular.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" as="image" href="/images/app-auswahl-780.webp"
+        imagesrcset="/images/app-auswahl-480.webp 480w, /images/app-auswahl-780.webp 780w"
+        imagesizes="(max-width: 620px) 210px, 286px">
     <title>Buchstabenzeit – Gemeinsam lesen lernen</title>
     <style>
         @font-face {
-            font-family: Andika;
+            font-family: Grundschrift;
             font-style: normal;
             font-weight: 400;
             font-display: swap;
-            src: url("/fonts/andika-latin-regular.woff2") format("woff2");
+            src: url("/fonts/grundschrift-regular.woff2") format("woff2");
         }
 
         @font-face {
-            font-family: Andika;
+            font-family: Grundschrift;
             font-style: normal;
             font-weight: 700;
             font-display: swap;
-            src: url("/fonts/andika-latin-bold.woff2") format("woff2");
+            src: url("/fonts/grundschrift-bold.woff2") format("woff2");
         }
 
         :root {
@@ -42,17 +51,22 @@
             --muted: #526785;
             --blue: #0759b7;
             --blue-dark: #07346d;
+            --blue-tint: #eaf5ff;
             --orange: #ed6a25;
+            --orange-ink: #a8430d;
             --yellow: #ffd84c;
             --paper: #fff8eb;
             --white: #fff;
             --line: #e8dfd1;
             --green: #2e7d52;
-            font-family: Andika, "Trebuchet MS", sans-serif;
+            --shadow-soft: 0 12px 32px rgba(23, 47, 87, .06);
+            --shadow-lift: 0 20px 45px rgba(23, 47, 87, .12);
+            font-family: Grundschrift, "Trebuchet MS", sans-serif;
             color: var(--ink);
             background: var(--paper);
             font-synthesis: none;
             text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
         }
 
         * {
@@ -104,6 +118,17 @@
             transform: translateY(0);
         }
 
+        .icon {
+            width: 1em;
+            height: 1em;
+            fill: none;
+            stroke: currentColor;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.9;
+            flex: none;
+        }
+
         .site-header {
             position: sticky;
             z-index: 5;
@@ -111,6 +136,11 @@
             border-bottom: 1px solid rgba(23, 47, 87, .08);
             background: rgba(255, 248, 235, .92);
             backdrop-filter: blur(14px);
+            transition: box-shadow .25s ease;
+        }
+
+        .site-header.is-scrolled {
+            box-shadow: 0 12px 30px rgba(23, 47, 87, .09);
         }
 
         .nav {
@@ -136,12 +166,19 @@
             display: grid;
             width: 38px;
             height: 38px;
+            flex: none;
             place-items: center;
             border-radius: 13px;
             background: var(--yellow);
+            box-shadow: 0 3px 0 rgba(231, 185, 39, .55);
             color: var(--blue-dark);
-            font-size: 23px;
             transform: rotate(-5deg);
+        }
+
+        .brand-mark .icon {
+            width: 21px;
+            height: 21px;
+            stroke-width: 1.6;
         }
 
         .nav-links {
@@ -175,6 +212,12 @@
             font-size: 13px;
             font-weight: 700;
             text-decoration: none;
+            transition: border-color .2s ease, background .2s ease;
+        }
+
+        .language-toggle:hover {
+            border-color: rgba(7, 89, 183, .45);
+            background: rgba(7, 89, 183, .06);
         }
 
         .button {
@@ -201,13 +244,9 @@
             transform: translateY(3px);
         }
 
-        .button svg {
+        .button .icon {
             width: 19px;
             height: 19px;
-            fill: none;
-            stroke: currentColor;
-            stroke-linecap: round;
-            stroke-linejoin: round;
             stroke-width: 2.4;
         }
 
@@ -215,7 +254,7 @@
             position: relative;
             display: grid;
             min-height: 560px;
-            grid-template-columns: 1.06fr .94fr;
+            grid-template-columns: 1.1fr .9fr;
             align-items: center;
             gap: clamp(24px, 5vw, 72px);
             margin-top: 26px;
@@ -224,6 +263,7 @@
             border-radius: 36px;
             background:
                 radial-gradient(circle at 84% 15%, rgba(255, 216, 76, .25), transparent 14rem),
+                radial-gradient(circle at 12% 92%, rgba(128, 207, 235, .22), transparent 16rem),
                 linear-gradient(135deg, #0b4288 0%, #08336f 58%, #102b60 100%);
             color: var(--white);
             box-shadow: 0 24px 70px rgba(20, 52, 94, .18);
@@ -266,7 +306,7 @@
             color: #ffe083;
             font-size: 12px;
             font-weight: 700;
-            letter-spacing: 1.4px;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
         }
 
@@ -288,9 +328,10 @@
         h1 {
             max-width: 630px;
             margin-bottom: 20px;
-            font-size: clamp(38px, 5.4vw, 66px);
-            letter-spacing: -1.5px;
-            line-height: 1.1;
+            font-size: clamp(38px, 5.2vw, 64px);
+            letter-spacing: -.02em;
+            line-height: 1.08;
+            text-wrap: balance;
         }
 
         .hero h1 > span:first-child {
@@ -302,86 +343,135 @@
         }
 
         .hero-description {
-            max-width: 540px;
+            max-width: 46ch;
             margin-bottom: 28px;
             color: #e1edff;
             font-size: clamp(16px, 1.5vw, 19px);
             line-height: 1.65;
+            text-wrap: pretty;
+        }
+
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 18px;
         }
 
         .hero-note {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px 20px;
-            margin-top: 23px;
-            color: #d7e7ff;
-            font-size: 13px;
+            gap: 7px;
+            margin-top: 24px;
+            color: #e7f1ff;
+            font-size: 12px;
+            font-weight: 700;
         }
 
         .hero-note span {
             display: inline-flex;
             align-items: center;
-            gap: 7px;
+            gap: 6px;
+            padding: 6px 11px 6px 8px;
+            border: 1px solid rgba(255, 255, 255, .16);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .08);
         }
 
-        .hero-note b {
-            color: #b7ebbd;
-            font-size: 16px;
+        .hero-note .icon {
+            width: 15px;
+            height: 15px;
+            color: #a7e7b1;
+            stroke-width: 2.6;
         }
 
         .hero-art {
-            display: grid;
-            min-height: 360px;
-            place-items: center;
-        }
-
-        .mascot-card {
             position: relative;
-            width: min(100%, 400px);
-            aspect-ratio: 1;
             display: grid;
+            min-height: 430px;
             place-items: center;
-            border: 1px solid rgba(255, 255, 255, .46);
-            border-radius: 31% 27% 32% 28%;
-            background: linear-gradient(145deg, rgba(255, 255, 255, .97), rgba(235, 248, 255, .93));
-            box-shadow: 0 28px 55px rgba(0, 0, 0, .24);
-            transform: rotate(3deg);
         }
 
-        .mascot-card img {
-            display: block;
-            width: 94%;
-            height: auto;
-            border-radius: 24%;
+        .device {
+            position: relative;
+            width: min(100%, 286px);
+            padding: 9px;
+            border-radius: 38px;
+            background: linear-gradient(160deg, #ffffff, #e8f2fb);
+            box-shadow: 0 34px 60px rgba(3, 22, 52, .42), 0 0 0 1px rgba(255, 255, 255, .5);
             transform: rotate(-3deg);
+        }
+
+        .device-shot {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 30px;
+            background: #eef7ff;
+        }
+
+        .device::after {
+            position: absolute;
+            inset: 9px;
+            border-radius: 30px;
+            box-shadow: inset 0 0 0 1px rgba(23, 47, 87, .12);
+            content: "";
+            pointer-events: none;
         }
 
         .float-letter {
             position: absolute;
             display: grid;
-            width: 62px;
-            height: 62px;
+            width: 58px;
+            height: 58px;
             place-items: center;
             border: 4px solid rgba(255, 255, 255, .9);
-            border-radius: 20px;
-            box-shadow: 0 12px 24px rgba(0, 0, 0, .18);
+            border-radius: 19px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, .22);
             color: white;
-            font-size: 31px;
+            font-size: 29px;
             font-weight: 700;
-            transform: rotate(-12deg);
         }
 
         .float-letter.one {
-            top: 2%;
-            right: -5%;
+            top: 1%;
+            right: 2%;
             background: var(--orange);
+            transform: rotate(-12deg);
+            animation: drift 7s ease-in-out infinite;
         }
 
         .float-letter.two {
-            bottom: 1%;
-            left: -7%;
+            bottom: 4%;
+            left: 2%;
             background: #45a454;
             transform: rotate(10deg);
+            animation: drift 9s ease-in-out infinite reverse;
+        }
+
+        .mascot-badge {
+            position: absolute;
+            right: -2%;
+            bottom: -5%;
+            width: 88px;
+            height: 92px;
+            padding: 5px;
+            border-radius: 26px;
+            background: #fff;
+            box-shadow: 0 16px 30px rgba(3, 22, 52, .3);
+            transform: rotate(5deg);
+        }
+
+        @keyframes drift {
+
+            0%,
+            100% {
+                translate: 0 0;
+            }
+
+            50% {
+                translate: 0 -9px;
+            }
         }
 
         .trust-row {
@@ -393,22 +483,43 @@
 
         .trust-item {
             display: flex;
-            min-height: 78px;
+            min-height: 82px;
             align-items: center;
-            justify-content: center;
-            gap: 12px;
-            padding: 14px;
+            gap: 14px;
+            padding: 16px 20px;
             border: 1px solid rgba(23, 47, 87, .08);
             border-radius: 18px;
-            background: rgba(255, 255, 255, .75);
-            color: var(--muted);
+            background: rgba(255, 255, 255, .8);
+            color: var(--ink);
             font-size: 14px;
             font-weight: 700;
-            text-align: center;
+            line-height: 1.4;
         }
 
-        .trust-item span {
-            font-size: 22px;
+        .trust-icon {
+            display: grid;
+            width: 40px;
+            height: 40px;
+            flex: none;
+            place-items: center;
+            border-radius: 12px;
+            background: var(--blue-tint);
+            color: var(--blue);
+        }
+
+        .trust-icon .icon {
+            width: 22px;
+            height: 22px;
+        }
+
+        .trust-item:nth-child(2) .trust-icon {
+            background: #fff2d6;
+            color: #a9711a;
+        }
+
+        .trust-item:nth-child(3) .trust-icon {
+            background: #eaf7eb;
+            color: var(--green);
         }
 
         section.content-section {
@@ -416,28 +527,31 @@
         }
 
         .section-heading {
-            max-width: 690px;
+            max-width: 700px;
             margin: 0 auto 38px;
             text-align: center;
         }
 
         .section-heading .eyebrow {
-            color: var(--orange);
+            color: var(--orange-ink);
         }
 
         .section-heading h2 {
             margin-bottom: 12px;
             color: var(--blue-dark);
-            font-size: clamp(30px, 4vw, 45px);
-            letter-spacing: -.8px;
-            line-height: 1.18;
+            font-size: clamp(30px, 4vw, 44px);
+            letter-spacing: -.015em;
+            line-height: 1.16;
+            text-wrap: balance;
         }
 
         .section-heading p {
-            margin-bottom: 0;
+            max-width: 58ch;
+            margin: 0 auto;
             color: var(--muted);
             font-size: 17px;
             line-height: 1.7;
+            text-wrap: pretty;
         }
 
         .feature-grid {
@@ -447,12 +561,38 @@
         }
 
         .feature-card {
-            min-height: 245px;
-            padding: 27px;
+            position: relative;
+            min-height: 248px;
+            padding: 28px;
+            overflow: hidden;
             border: 1px solid rgba(23, 47, 87, .08);
             border-radius: 24px;
             background: var(--white);
-            box-shadow: 0 12px 35px rgba(23, 47, 87, .055);
+            box-shadow: var(--shadow-soft);
+            transition: transform .22s ease, box-shadow .22s ease;
+        }
+
+        .feature-card::before {
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--blue), #6cb6f0);
+            content: "";
+            opacity: .85;
+        }
+
+        .feature-card:nth-child(3n+2)::before {
+            background: linear-gradient(90deg, #e09319, var(--yellow));
+        }
+
+        .feature-card:nth-child(3n)::before {
+            background: linear-gradient(90deg, #3f9c63, #8fd49f);
+        }
+
+        .feature-card:hover {
+            box-shadow: var(--shadow-lift);
+            transform: translateY(-4px);
         }
 
         .feature-icon {
@@ -462,18 +602,25 @@
             place-items: center;
             margin-bottom: 20px;
             border-radius: 17px;
-            background: #eaf5ff;
-            font-size: 27px;
+            background: var(--blue-tint);
+            color: var(--blue);
+        }
+
+        .feature-icon .icon {
+            width: 27px;
+            height: 27px;
         }
 
         .feature-card:nth-child(2) .feature-icon,
         .feature-card:nth-child(5) .feature-icon {
             background: #fff2d6;
+            color: #a9711a;
         }
 
         .feature-card:nth-child(3) .feature-icon,
         .feature-card:nth-child(6) .feature-icon {
             background: #eaf7eb;
+            color: var(--green);
         }
 
         .feature-card h3 {
@@ -487,78 +634,68 @@
             color: var(--muted);
             font-size: 15px;
             line-height: 1.65;
+            text-wrap: pretty;
         }
 
         .how-panel {
             display: grid;
-            grid-template-columns: .85fr 1.15fr;
+            grid-template-columns: 1fr 1.02fr;
             align-items: center;
-            gap: 44px;
+            gap: clamp(28px, 5vw, 52px);
             padding: clamp(28px, 5vw, 54px);
             border-radius: 30px;
             background: #e9f5ff;
         }
 
-        .sample-card {
-            position: relative;
-            display: grid;
-            min-height: 310px;
-            place-items: center;
-            border: 2px solid #c7e4f9;
-            border-radius: 28px;
-            background: linear-gradient(145deg, #fff, #f8fcff 60%, #fff5dd);
-            box-shadow: 0 16px 35px rgba(7, 89, 183, .1);
-        }
-
-        .sample-card::before,
-        .sample-card::after {
-            position: absolute;
-            width: 58px;
-            height: 58px;
-            border: 2px solid rgba(7, 89, 183, .13);
-            border-radius: 50%;
-            content: "";
-        }
-
-        .sample-card::before {
-            top: -27px;
-            left: -27px;
-        }
-
-        .sample-card::after {
-            right: -27px;
-            bottom: -27px;
-        }
-
-        .sample-word {
-            color: var(--blue);
-            font-size: clamp(78px, 11vw, 120px);
-            font-weight: 700;
-            letter-spacing: 2px;
-            line-height: 1;
-            text-shadow: 0 4px 0 rgba(7, 89, 183, .08);
+        .sample-figure {
+            margin: 0;
         }
 
         .sample-label {
-            position: absolute;
-            top: 18px;
-            left: 22px;
-            color: var(--orange);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            color: var(--orange-ink);
             font-size: 12px;
             font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
         }
 
+        .sample-label::before {
+            width: 18px;
+            height: 3px;
+            border-radius: 3px;
+            background: var(--orange);
+            content: "";
+        }
+
+        .sample-shot {
+            display: block;
+            width: 100%;
+            height: auto;
+            border: 1px solid rgba(7, 89, 183, .14);
+            border-radius: 26px;
+            background: #fff;
+            box-shadow: 0 18px 38px rgba(7, 89, 183, .14);
+        }
+
+        .sample-note {
+            margin: 12px 0 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
         .steps {
             display: grid;
-            gap: 20px;
+            gap: 22px;
         }
 
         .step {
             display: grid;
-            grid-template-columns: 44px 1fr;
-            gap: 14px;
+            grid-template-columns: 46px 1fr;
+            gap: 15px;
         }
 
         .step-number {
@@ -568,6 +705,7 @@
             place-items: center;
             border-radius: 14px;
             background: var(--blue);
+            box-shadow: 0 4px 0 #03468f;
             color: white;
             font-size: 18px;
             font-weight: 700;
@@ -584,6 +722,7 @@
             color: var(--muted);
             font-size: 14px;
             line-height: 1.6;
+            text-wrap: pretty;
         }
 
         .parent-panel {
@@ -607,14 +746,17 @@
         .parent-copy h2 {
             margin-bottom: 14px;
             font-size: clamp(28px, 3.5vw, 40px);
-            letter-spacing: -.7px;
+            letter-spacing: -.015em;
             line-height: 1.2;
+            text-wrap: balance;
         }
 
         .parent-copy p {
+            max-width: 42ch;
             margin-bottom: 0;
             color: #dbe8fb;
             line-height: 1.7;
+            text-wrap: pretty;
         }
 
         .parent-list {
@@ -628,31 +770,30 @@
         .parent-list p {
             display: grid;
             grid-template-columns: 30px 1fr;
-            gap: 11px;
+            gap: 12px;
             margin: 0;
             color: #f0f5ff;
             font-size: 15px;
             line-height: 1.55;
         }
 
-        .parent-list b {
-            display: grid;
+        .parent-list .icon {
             width: 27px;
             height: 27px;
-            place-items: center;
+            padding: 6px;
             border-radius: 50%;
             background: rgba(155, 221, 165, .16);
             color: #a7e7b1;
-            font-size: 15px;
+            stroke-width: 2.8;
         }
 
         .store-section {
-            padding-bottom: 100px !important;
+            padding-bottom: 40px;
         }
 
         .store-grid {
             display: grid;
-            max-width: 790px;
+            max-width: 820px;
             grid-template-columns: 1fr 1fr;
             gap: 18px;
             margin: 0 auto;
@@ -660,12 +801,31 @@
 
         .store-card {
             position: relative;
-            min-height: 194px;
-            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 26px;
             border: 1px solid rgba(23, 47, 87, .09);
             border-radius: 23px;
             background: white;
-            box-shadow: 0 12px 35px rgba(23, 47, 87, .06);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .store-icon {
+            display: grid;
+            width: 44px;
+            height: 44px;
+            place-items: center;
+            margin-bottom: 16px;
+            border-radius: 14px;
+            background: #dceeff;
+            color: var(--blue);
+        }
+
+        .store-icon .icon {
+            width: 24px;
+            height: 24px;
+            stroke-width: 2.4;
         }
 
         .store-card h3 {
@@ -675,14 +835,16 @@
         }
 
         .store-card p {
-            margin-bottom: 20px;
+            margin-bottom: 18px;
             color: var(--muted);
             font-size: 14px;
             line-height: 1.55;
+            text-wrap: pretty;
         }
 
         .store-status {
             display: inline-flex;
+            margin-top: auto;
             align-items: center;
             gap: 8px;
             padding: 7px 11px;
@@ -701,17 +863,8 @@
             content: "";
         }
 
-        .store-disclaimer {
-            max-width: 720px;
-            margin: 22px auto 0;
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.6;
-            text-align: center;
-        }
-
         .project-reference {
-            margin: 12px auto 0;
+            margin: 22px auto 0;
             color: var(--blue);
             font-size: 14px;
             font-weight: 700;
@@ -723,39 +876,55 @@
         }
 
         .final-cta {
-            padding: 42px 25px;
+            position: relative;
+            display: grid;
+            margin: 42px auto 0;
+            padding: 34px;
+            overflow: hidden;
             border-radius: 28px;
-            background: #fff0cb;
-            text-align: center;
+            background:
+                radial-gradient(circle at 12% 20%, rgba(255, 216, 76, .55), transparent 20rem),
+                #fff0cb;
+            grid-template-columns: 300px 1fr;
+            align-items: center;
+            gap: 34px;
+            text-align: left;
         }
 
-        .store-section .final-cta {
-            margin-top: 38px;
+        .cta-art {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 22px;
+            box-shadow: 0 16px 34px rgba(4, 33, 78, .18);
         }
 
         .final-cta h2 {
             margin-bottom: 10px;
             color: var(--blue-dark);
-            font-size: clamp(27px, 3.5vw, 38px);
+            font-size: clamp(26px, 3.3vw, 36px);
+            letter-spacing: -.015em;
+            text-wrap: balance;
         }
 
         .final-cta p {
-            margin: 0 auto 20px;
+            max-width: 52ch;
+            margin: 0 0 22px;
             color: var(--muted);
         }
 
         .final-cta .button {
             background: var(--blue);
-            box-shadow: 0 5px 0 #03468f, 0 12px 24px rgba(4, 33, 78, .16);
+            box-shadow: 0 5px 0 #03468f, 0 12px 24px rgba(4, 33, 78, .18);
             color: white;
         }
 
         .final-cta .button:hover {
-            box-shadow: 0 2px 0 #03468f, 0 7px 16px rgba(4, 33, 78, .16);
+            box-shadow: 0 2px 0 #03468f, 0 7px 16px rgba(4, 33, 78, .18);
         }
 
         footer {
-            padding: 30px 0 42px;
+            padding: 44px 0 46px;
             color: var(--muted);
             font-size: 13px;
         }
@@ -764,9 +933,33 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 20px;
+            gap: 24px;
             border-top: 1px solid var(--line);
-            padding-top: 23px;
+            padding-top: 26px;
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .footer-brand .brand-mark {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+        }
+
+        .footer-brand .brand-mark .icon {
+            width: 19px;
+            height: 19px;
+        }
+
+        .footer-name {
+            margin: 0 0 2px;
+            color: var(--blue-dark);
+            font-size: 14px;
+            font-weight: 700;
         }
 
         .footer-links {
@@ -777,6 +970,44 @@
 
         .footer-links a {
             text-decoration: none;
+        }
+
+        .footer-links a:hover {
+            color: var(--blue);
+        }
+
+        .mobile-cta {
+            position: fixed;
+            z-index: 6;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            border-top: 1px solid rgba(23, 47, 87, .1);
+            background: rgba(255, 248, 235, .96);
+            box-shadow: 0 -10px 30px rgba(23, 47, 87, .1);
+            backdrop-filter: blur(14px);
+        }
+
+        .mobile-cta span {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .mobile-cta .button {
+            min-height: 44px;
+            padding: 9px 16px;
+            border-radius: 13px;
+            font-size: 14px;
+        }
+
+        .mobile-cta.is-visible {
+            display: flex;
         }
 
         .sr-only {
@@ -791,6 +1022,33 @@
             border: 0;
         }
 
+        .reveal {
+            transition: opacity .6s cubic-bezier(.22, .61, .36, 1), transform .6s cubic-bezier(.22, .61, .36, 1);
+        }
+
+        .reveal.is-hidden {
+            opacity: 0;
+            transform: translateY(18px);
+        }
+
+        .feature-grid .reveal:nth-child(2),
+        .store-grid .reveal:nth-child(2) {
+            transition-delay: 80ms;
+        }
+
+        .feature-grid .reveal:nth-child(3),
+        .store-grid .reveal:nth-child(3) {
+            transition-delay: 160ms;
+        }
+
+        .feature-grid .reveal:nth-child(5) {
+            transition-delay: 80ms;
+        }
+
+        .feature-grid .reveal:nth-child(6) {
+            transition-delay: 160ms;
+        }
+
         @media (max-width: 850px) {
             .nav-links a:not(.button) {
                 display: none;
@@ -798,12 +1056,29 @@
 
             .hero {
                 min-height: auto;
-                grid-template-columns: 1fr .8fr;
+                grid-template-columns: 1fr .78fr;
                 padding: 40px;
             }
 
             .hero-art {
-                min-height: 280px;
+                min-height: 340px;
+            }
+
+            .device {
+                width: min(100%, 240px);
+            }
+
+            .float-letter {
+                width: 50px;
+                height: 50px;
+                border-radius: 16px;
+                font-size: 25px;
+            }
+
+            .mascot-badge {
+                width: 78px;
+                height: 78px;
+                border-radius: 22px;
             }
 
             .feature-grid {
@@ -812,7 +1087,12 @@
 
             .how-panel {
                 grid-template-columns: 1fr 1fr;
-                gap: 28px;
+            }
+
+            .final-cta {
+                grid-template-columns: 220px 1fr;
+                gap: 24px;
+                padding: 28px;
             }
         }
 
@@ -848,51 +1128,52 @@
 
             .hero {
                 grid-template-columns: 1fr;
-                gap: 14px;
+                gap: 26px;
                 margin-top: 14px;
-                padding: 35px 25px 29px;
+                padding: 34px 24px 30px;
                 border-radius: 27px;
             }
 
             .hero h1 {
-                font-size: clamp(39px, 11vw, 54px);
+                font-size: clamp(37px, 10.6vw, 50px);
             }
 
             .hero-description {
                 font-size: 16px;
             }
 
+            .hero-note {
+                font-size: 12px;
+            }
+
             .hero-art {
-                min-height: 285px;
-                margin: 0 12px;
+                min-height: 0;
+                margin: 0 8px;
             }
 
-            .mascot-card {
-                width: min(84%, 300px);
+            .device {
+                width: min(72%, 232px);
             }
 
-            .float-letter {
-                width: 51px;
-                height: 51px;
-                border-radius: 16px;
-                font-size: 26px;
+            .mascot-badge {
+                right: 4%;
+                width: 70px;
+                height: 70px;
             }
 
             .trust-row {
                 grid-template-columns: 1fr;
                 gap: 9px;
-                margin-top: 13px;
+                margin-top: 14px;
             }
 
             .trust-item {
-                min-height: 58px;
-                justify-content: flex-start;
-                padding-left: 20px;
-                text-align: left;
+                min-height: 62px;
+                padding: 12px 16px;
             }
 
             section.content-section {
-                padding-top: 70px;
+                padding-top: 66px;
             }
 
             .section-heading {
@@ -900,12 +1181,13 @@
                 text-align: left;
             }
 
-            .section-heading h2 {
-                font-size: 32px;
+            .section-heading p {
+                margin-inline: 0;
+                font-size: 15px;
             }
 
-            .section-heading p {
-                font-size: 15px;
+            .section-heading h2 {
+                font-size: 31px;
             }
 
             .feature-grid {
@@ -919,33 +1201,16 @@
             }
 
             .feature-icon {
-                float: left;
                 width: 48px;
                 height: 48px;
-                margin: 0 15px 25px 0;
-            }
-
-            .feature-card h3 {
-                padding-top: 3px;
-            }
-
-            .feature-card p {
-                clear: both;
+                margin-bottom: 16px;
+                border-radius: 15px;
             }
 
             .how-panel {
                 grid-template-columns: 1fr;
-                gap: 30px;
+                gap: 26px;
                 padding: 22px;
-                overflow: hidden;
-            }
-
-            .sample-card {
-                min-height: 245px;
-            }
-
-            .sample-word {
-                font-size: 92px;
             }
 
             .parent-panel {
@@ -969,17 +1234,42 @@
                 min-height: 0;
             }
 
-            .store-section {
-                padding-bottom: 70px !important;
+            .final-cta {
+                grid-template-columns: 1fr;
+                gap: 22px;
+                padding: 26px 20px 32px;
+                text-align: center;
             }
 
-            .final-cta {
-                padding: 32px 20px;
+            .cta-art {
+                max-width: 320px;
+                margin-inline: auto;
+            }
+
+            .final-cta p {
+                margin-inline: auto;
             }
 
             .footer-inner {
                 align-items: flex-start;
                 flex-direction: column;
+                gap: 18px;
+            }
+
+            body {
+                padding-bottom: calc(74px + env(safe-area-inset-bottom));
+            }
+
+            .mobile-cta {
+                display: flex;
+                visibility: hidden;
+                transform: translateY(110%);
+                transition: transform .3s ease, visibility .3s;
+            }
+
+            .mobile-cta.is-visible {
+                visibility: visible;
+                transform: translateY(0);
             }
         }
 
@@ -1006,6 +1296,12 @@
             *::after {
                 scroll-behavior: auto !important;
                 transition-duration: .01ms !important;
+                animation: none !important;
+            }
+
+            .reveal.is-hidden {
+                opacity: 1;
+                transform: none;
             }
         }
     </style>
@@ -1013,10 +1309,73 @@
 
 <body>
     <a class="skip-link" href="#main-content">Zum Inhalt springen</a>
+
+    <svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true" focusable="false">
+        <symbol id="i-spark" viewBox="0 0 24 24">
+            <path d="M12 3.4 14.2 9.8 20.6 12l-6.4 2.2L12 20.6 9.8 14.2 3.4 12 9.8 9.8Z" fill="currentColor" stroke="none" />
+        </symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24">
+            <path d="M5 12h14M13 5l7 7-7 7" />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+            <path d="m5 12.5 4.5 4.5L19 6.5" />
+        </symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7.5" height="7.5" rx="2.2" />
+            <rect x="13.5" y="3" width="7.5" height="7.5" rx="2.2" />
+            <rect x="3" y="13.5" width="7.5" height="7.5" rx="2.2" />
+            <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2.2" />
+        </symbol>
+        <symbol id="i-syllables" viewBox="0 0 24 24">
+            <rect x="2.6" y="6.4" width="8.2" height="11.2" rx="2.6" />
+            <rect x="13.2" y="6.4" width="8.2" height="11.2" rx="2.6" />
+            <path d="M10.8 12h2.4" />
+        </symbol>
+        <symbol id="i-words" viewBox="0 0 24 24">
+            <path d="M20 4.5H4v11h4.2v4l4.6-4H20Z" />
+            <path d="M7.8 8.4h8.4M7.8 11.6h5.2" />
+        </symbol>
+        <symbol id="i-retry" viewBox="0 0 24 24">
+            <path d="M20 12a8 8 0 1 1-2.4-5.7" />
+            <path d="M20 3.6v4.4h-4.4" />
+        </symbol>
+        <symbol id="i-audio" viewBox="0 0 24 24">
+            <path d="M11 4.6 6.4 8.5H3.2v7h3.2L11 19.4Z" />
+            <path d="M15 9.2a4 4 0 0 1 0 5.6" />
+            <path d="M17.8 6.6a8 8 0 0 1 0 10.8" />
+        </symbol>
+        <symbol id="i-progress" viewBox="0 0 24 24">
+            <path d="M3.6 20.4h16.8" />
+            <path d="M7.2 20.4v-5.6M12 20.4V9.2M16.8 20.4V5.4" />
+        </symbol>
+        <symbol id="i-book" viewBox="0 0 24 24">
+            <path d="M12 6.8C10 4.9 7.5 4.4 4 4.6v13.2c3.5-.2 6 .3 8 2.2 2-1.9 4.5-2.4 8-2.2V4.6c-3.5-.2-6 .3-8 2.2Z" />
+            <path d="M12 6.8v13.2" />
+        </symbol>
+        <symbol id="i-together" viewBox="0 0 24 24">
+            <circle cx="8.2" cy="7.6" r="3.1" />
+            <circle cx="16.6" cy="9" r="2.4" />
+            <path d="M2.6 19.6a5.6 5.6 0 0 1 11.2 0" />
+            <path d="M14.8 19.6a4.2 4.2 0 0 1 6.9 0" />
+        </symbol>
+        <symbol id="i-sprout" viewBox="0 0 24 24">
+            <path d="M12 20.4v-6.2" />
+            <path d="M12 14.2c0-4.2 3.2-6.4 8.4-6.4 0 5.2-3.2 7.4-8.4 6.4Z" />
+            <path d="M12 15.6c0-3.2-2.6-5.8-7.4-5.8 0 4.4 2.8 6.6 7.4 5.8Z" />
+        </symbol>
+        <symbol id="i-play" viewBox="0 0 24 24">
+            <path d="M8.6 5.6 18.6 12 8.6 18.4Z" />
+        </symbol>
+        <symbol id="i-phone" viewBox="0 0 24 24">
+            <rect x="6.8" y="2.8" width="10.4" height="18.4" rx="2.8" />
+            <path d="M10.8 18.2h2.4" />
+        </symbol>
+    </svg>
+
     <header class="site-header">
         <nav class="nav wrap" aria-label="Hauptnavigation" data-i18n-aria="navLabel">
             <a class="brand" href="#main-content" aria-label="Buchstabenzeit – zur Startseite">
-                <span class="brand-mark" aria-hidden="true">✦</span>
+                <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-spark" /></svg></span>
                 <span>Buchstabenzeit</span>
             </a>
             <div class="nav-links">
@@ -1025,7 +1384,7 @@
                 <a id="language-toggle" class="language-toggle" href="?lang=en" lang="en" aria-label="View this page in English">EN</a>
                 <a class="button" href="#stores-title">
                     <span data-i18n="navApps">Apps entdecken</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
+                    <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
                 </a>
             </div>
         </nav>
@@ -1041,29 +1400,49 @@
                     Ein Erwachsener begleitet, das Kind liest in seinem Tempo – und jeder
                     kleine Fortschritt zählt.
                 </p>
-                <a class="button" href="#stores-title">
-                    <span data-i18n="heroButton">Apps für iOS &amp; Android</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
-                </a>
+                <div class="hero-actions">
+                    <a class="button" href="#stores-title">
+                        <span data-i18n="heroButton">Apps für iOS &amp; Android</span>
+                        <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+                    </a>
+                </div>
                 <div class="hero-note" role="group" aria-label="Gut zu wissen" data-i18n-aria="heroNoteLabel">
-                    <span><b aria-hidden="true">✓</b> <span data-i18n="heroNoAds">Ohne Werbung</span></span>
-                    <span><b aria-hidden="true">✓</b> <span data-i18n="heroNoAccount">Ohne Benutzerkonto</span></span>
-                    <span><b aria-hidden="true">✓</b> <span data-i18n="heroLanguages">Auf Deutsch &amp; Englisch</span></span>
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg> <span data-i18n="heroNoAds">Ohne Werbung</span></span>
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg> <span data-i18n="heroNoAccount">Ohne Benutzerkonto</span></span>
+                    <span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg> <span data-i18n="heroLanguages">Deutsch &amp; Englisch</span></span>
                 </div>
             </div>
             <div class="hero-art">
-                <div class="mascot-card">
-                    <img src="/images/buchstabenzeit-logo.png" alt="Die Buchstabenzeit-Eule liest ein Buch, umgeben von ABC-Buchstaben." data-i18n-alt="mascotAlt">
-                    <span class="float-letter one" aria-hidden="true">A</span>
-                    <span class="float-letter two" aria-hidden="true">M</span>
+                <div class="device">
+                    <img class="device-shot" src="/images/app-auswahl-780.webp"
+                        srcset="/images/app-auswahl-480.webp 480w, /images/app-auswahl-780.webp 780w"
+                        sizes="(max-width: 620px) 210px, (max-width: 850px) 240px, 286px"
+                        width="780" height="1148" fetchpriority="high" decoding="async"
+                        alt="Screenshot der Buchstabenzeit-App: Auswahl der Buchstaben für die nächste Leseübung"
+                        data-i18n-alt="appShotAlt">
                 </div>
+                <span class="float-letter one" aria-hidden="true">A</span>
+                <span class="float-letter two" aria-hidden="true">M</span>
+                <img class="mascot-badge" src="/images/eule-192.webp"
+                    srcset="/images/eule-192.webp 192w, /images/eule-384.webp 384w" sizes="92px"
+                    width="192" height="192" decoding="async"
+                    alt="Die Buchstabenzeit-Eule liest ein Buch, umgeben von ABC-Buchstaben." data-i18n-alt="mascotAlt">
             </div>
         </section>
 
         <section class="trust-row" aria-label="Das Wichtigste auf einen Blick" data-i18n-aria="trustLabel">
-            <div class="trust-item"><span aria-hidden="true">📚</span><span data-i18n="trustReading">Übt Buchstaben, Silben, Wörter &amp; Sätze</span></div>
-            <div class="trust-item"><span aria-hidden="true">🤝</span><span data-i18n="trustTogether">Fürs gemeinsame Lesen mit Erwachsenen</span></div>
-            <div class="trust-item"><span aria-hidden="true">🌱</span><span data-i18n="trustPace">Im eigenen Tempo, ohne Leistungsdruck</span></div>
+            <div class="trust-item">
+                <span class="trust-icon" aria-hidden="true"><svg class="icon"><use href="#i-book" /></svg></span>
+                <span data-i18n="trustReading">Übt Buchstaben, Silben, Wörter &amp; Sätze</span>
+            </div>
+            <div class="trust-item">
+                <span class="trust-icon" aria-hidden="true"><svg class="icon"><use href="#i-together" /></svg></span>
+                <span data-i18n="trustTogether">Fürs gemeinsame Lesen mit Erwachsenen</span>
+            </div>
+            <div class="trust-item">
+                <span class="trust-icon" aria-hidden="true"><svg class="icon"><use href="#i-sprout" /></svg></span>
+                <span data-i18n="trustPace">Im eigenen Tempo, ohne Leistungsdruck</span>
+            </div>
         </section>
 
         <section class="content-section" aria-labelledby="features-title">
@@ -1073,33 +1452,33 @@
                 <p data-i18n="featuresIntro">Vom ersten Laut bis zum ganzen Satz: Ihr stellt passende Lesekarten zusammen und feiert jeden kleinen Aha-Moment.</p>
             </div>
             <div class="feature-grid">
-                <article class="feature-card">
-                    <div class="feature-icon" aria-hidden="true">🔤</div>
+                <article class="feature-card reveal">
+                    <div class="feature-icon" aria-hidden="true"><svg class="icon"><use href="#i-grid" /></svg></div>
                     <h3 data-i18n="featureLettersTitle">Eigene Buchstaben wählen</h3>
                     <p data-i18n="featureLettersText">Wählt gemeinsam Konsonanten, Vokale und besondere Buchstaben – passend zu dem, was gerade geübt wird.</p>
                 </article>
-                <article class="feature-card">
-                    <div class="feature-icon" aria-hidden="true">🧩</div>
+                <article class="feature-card reveal">
+                    <div class="feature-icon" aria-hidden="true"><svg class="icon"><use href="#i-syllables" /></svg></div>
                     <h3 data-i18n="featureSyllablesTitle">Silben entdecken</h3>
                     <p data-i18n="featureSyllablesText">Kurze Muster wie „ma“ und „am“ machen sichtbar, wie Buchstaben zusammenklingen und sich verbinden.</p>
                 </article>
-                <article class="feature-card">
-                    <div class="feature-icon" aria-hidden="true">💬</div>
+                <article class="feature-card reveal">
+                    <div class="feature-icon" aria-hidden="true"><svg class="icon"><use href="#i-words" /></svg></div>
                     <h3 data-i18n="featureWordsTitle">Wörter &amp; Sätze lesen</h3>
                     <p data-i18n="featureWordsText">Lesbare Wörter und kurze Sätze bringen das Gelernte in einen sinnvollen Zusammenhang.</p>
                 </article>
-                <article class="feature-card">
-                    <div class="feature-icon" aria-hidden="true">🔁</div>
+                <article class="feature-card reveal">
+                    <div class="feature-icon" aria-hidden="true"><svg class="icon"><use href="#i-retry" /></svg></div>
                     <h3 data-i18n="featureRetryTitle">Noch mal – ganz ohne Druck</h3>
                     <p data-i18n="featureRetryText">Karten, die noch knifflig sind, kommen später wieder. So bekommt jedes Kind die Zeit, die es braucht.</p>
                 </article>
-                <article class="feature-card">
-                    <div class="feature-icon" aria-hidden="true">🎧</div>
+                <article class="feature-card reveal">
+                    <div class="feature-icon" aria-hidden="true"><svg class="icon"><use href="#i-audio" /></svg></div>
                     <h3 data-i18n="featureSpeechTitle">Vorlesen als optionale Hilfe</h3>
                     <p data-i18n="featureSpeechText">Eine passende, lokal installierte Gerätestimme kann Wörter und Sätze vorlesen. Fehlt sie, übt ihr einfach ohne Ton weiter.</p>
                 </article>
-                <article class="feature-card">
-                    <div class="feature-icon" aria-hidden="true">📈</div>
+                <article class="feature-card reveal">
+                    <div class="feature-icon" aria-hidden="true"><svg class="icon"><use href="#i-progress" /></svg></div>
                     <h3 data-i18n="featureProgressTitle">Fortschritte im Blick</h3>
                     <p data-i18n="featureProgressText">Die Apps halten Übungsfortschritte lokal fest. Ein Elternbericht lässt sich als CSV speichern oder über das Gerät teilen.</p>
                 </article>
@@ -1111,11 +1490,16 @@
                 <p class="eyebrow" data-i18n="howEyebrow">So einfach geht's</p>
                 <h2 id="how-title" data-i18n="howTitle">Drei kleine Schritte – und schon wird gelesen.</h2>
             </div>
-            <div class="how-panel">
-                <div class="sample-card" role="img" aria-label="Beispiel einer Lesekarte mit dem Silbenmuster ma" data-i18n-aria="sampleCardAlt">
-                    <span class="sample-label" data-i18n="sampleCardLabel">Deine Lesekarte</span>
-                    <span class="sample-word" aria-hidden="true">ma</span>
-                </div>
+            <div class="how-panel reveal">
+                <figure class="sample-figure">
+                    <figcaption class="sample-label" data-i18n="sampleCardLabel">Deine Lesekarte</figcaption>
+                    <img class="sample-shot" src="/images/app-lesekarte-780.webp"
+                        srcset="/images/app-lesekarte-520.webp 520w, /images/app-lesekarte-780.webp 780w"
+                        sizes="(max-width: 620px) 84vw, 380px" width="780" height="872" loading="lazy" decoding="async"
+                        alt="Lesekarte der App mit zwei Buchstaben, Vorlesen-Schaltfläche sowie den Schaltflächen „Noch üben“ und „Richtig gelesen“"
+                        data-i18n-alt="sampleCardAlt">
+                    <p class="sample-note" data-i18n="sampleNote">Original-Screenshot aus der App</p>
+                </figure>
                 <div class="steps">
                     <article class="step">
                         <span class="step-number" aria-hidden="true">1</span>
@@ -1143,18 +1527,18 @@
         </section>
 
         <section id="fuer-eltern" class="content-section" aria-labelledby="parents-title">
-            <div class="parent-panel">
+            <div class="parent-panel reveal">
                 <div class="parent-copy">
                     <p class="eyebrow" data-i18n="parentsEyebrow">Ein gutes Gefühl für Erwachsene</p>
                     <h2 id="parents-title" data-i18n="parentsTitle">Begleiten statt bewerten.</h2>
                     <p data-i18n="parentsIntro">Buchstabenzeit ist eine angeleitete Leseübung – kein Ersatz für Unterricht oder die gemeinsame Zeit mit einem Erwachsenen. Ihr bestimmt Auswahl, Tempo und Pausen.</p>
                 </div>
                 <div class="parent-list">
-                    <p><b aria-hidden="true">✓</b><span data-i18n="parentPrivacy">Die App braucht kein Konto und enthält keine Werbung oder Analyse.</span></p>
-                    <p><b aria-hidden="true">✓</b><span data-i18n="parentOffline">In den installierten Apps funktionieren die Übungen nach dem Download offline.</span></p>
-                    <p><b aria-hidden="true">✓</b><span data-i18n="parentProgress">Übungsstand und Elternbericht bleiben auf dem Gerät, bis ihr selbst etwas teilt.</span></p>
-                    <p><b aria-hidden="true">✓</b><span data-i18n="parentSpeech">Vorlesen ist optional und hängt von einer passenden Gerätestimme ab.</span></p>
-                    <p><b aria-hidden="true">✓</b><span data-i18n="parentReminders">Erinnerungen sind optional, standardmäßig ausgeschaltet und nur für Erwachsene gedacht.</span></p>
+                    <p><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg><span data-i18n="parentPrivacy">Die App braucht kein Konto und enthält keine Werbung oder Analyse.</span></p>
+                    <p><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg><span data-i18n="parentOffline">In den installierten Apps funktionieren die Übungen nach dem Download offline.</span></p>
+                    <p><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg><span data-i18n="parentProgress">Übungsstand und Elternbericht bleiben auf dem Gerät, bis ihr selbst etwas teilt.</span></p>
+                    <p><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg><span data-i18n="parentSpeech">Vorlesen ist optional und hängt von einer passenden Gerätestimme ab.</span></p>
+                    <p><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg><span data-i18n="parentReminders">Erinnerungen sind optional, standardmäßig ausgeschaltet und nur für Erwachsene gedacht.</span></p>
                 </div>
             </div>
         </section>
@@ -1163,37 +1547,50 @@
             <div class="section-heading">
                 <p class="eyebrow" data-i18n="storesEyebrow">Für unterwegs</p>
                 <h2 id="stores-title" data-i18n="storesTitle">Buchstabenzeit kommt auf Android &amp; iPhone.</h2>
-                <p data-i18n="storesIntro">Die Apps sind für Google Play und den Apple App Store vorgesehen. Die direkten Store-Links ergänzen wir, sobald die Veröffentlichungen live sind.</p>
+                <p data-i18n="storesIntro">Die Apps sind noch nicht in den Stores veröffentlicht – sie erscheinen für Google Play und den Apple App Store. Preise und direkte Store-Links ergänzen wir zum Start.</p>
             </div>
             <div class="store-grid">
-                <article class="store-card">
+                <article class="store-card reveal">
+                    <span class="store-icon" aria-hidden="true"><svg class="icon"><use href="#i-play" /></svg></span>
                     <h3>Google Play</h3>
                     <p data-i18n="playDescription">Die Android-App bringt eure Lesekarten und den lokalen Lernfortschritt aufs Smartphone oder Tablet.</p>
                     <span class="store-status" data-i18n="storeComing">Store-Link folgt</span>
                 </article>
-                <article class="store-card">
+                <article class="store-card reveal">
+                    <span class="store-icon" aria-hidden="true"><svg class="icon"><use href="#i-phone" /></svg></span>
                     <h3>Apple App Store</h3>
                     <p data-i18n="appStoreDescription">Die iPhone- und iPad-App bietet dieselben begleiteten Leseübungen – ohne Abo und ohne Benutzerkonto.</p>
                     <span class="store-status" data-i18n="storeComing">Store-Link folgt</span>
                 </article>
             </div>
-            <p class="store-disclaimer" data-i18n="storesDisclaimer">Die Apps sind noch nicht in den Stores veröffentlicht. Preise und direkte Store-Links ergänzen wir, sobald die Veröffentlichungen live sind.</p>
             <p class="project-reference"><a href="https://derschweigert.de/#projects" data-i18n="projectReference">Buchstabenzeit auf DerSchweigert ansehen</a></p>
 
-            <div class="final-cta">
-                <h2 data-i18n="closingTitle">Gemeinsam wachsen – Karte für Karte.</h2>
-                <p data-i18n="closingText">Buchstabenzeit erscheint für Android und iPhone. Die Store-Links folgen zum Start.</p>
-            <a class="button" href="#stores-title">
-                <span data-i18n="closingButton">Zu Google Play &amp; App Store</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
-                </a>
+            <div class="final-cta reveal">
+                <img class="cta-art" src="/images/lesen-gemeinsam-640.webp"
+                    srcset="/images/lesen-gemeinsam-420.webp 420w, /images/lesen-gemeinsam-640.webp 640w"
+                    sizes="(max-width: 850px) 320px, 300px" width="640" height="360" loading="lazy" decoding="async"
+                    alt="" aria-hidden="true">
+                <div class="cta-copy">
+                    <h2 data-i18n="closingTitle">Gemeinsam wachsen – Karte für Karte.</h2>
+                    <p data-i18n="closingText">Buchstabenzeit erscheint für Android und iPhone. Wir schreiben eine kurze Nachricht, sobald es losgeht.</p>
+                    <a class="button" href="mailto:info@derschweigert.de?subject=Buchstabenzeit%3A%20Info%20zum%20Start">
+                        <span data-i18n="closingButton">Beim Start informiert werden</span>
+                        <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+                    </a>
+                </div>
             </div>
         </section>
     </main>
 
     <footer class="wrap">
         <div class="footer-inner">
-            <span data-i18n="footerTagline">© Buchstabenzeit · Gemeinsam jeden Tag ein kleines Stück weiter.</span>
+            <div class="footer-brand">
+                <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-spark" /></svg></span>
+                <div>
+                    <p class="footer-name">Buchstabenzeit</p>
+                    <span data-i18n="footerTagline">Gemeinsam jeden Tag ein kleines Stück weiter.</span>
+                </div>
+            </div>
             <nav class="footer-links" aria-label="Rechtliches und Kontakt" data-i18n-aria="footerLabel">
                 <a href="https://lesen.derschweigert.de/datenschutz.html" data-i18n="footerPrivacy">Datenschutz</a>
                 <a href="https://derschweigert.de/nutzungsbedingungen" data-i18n="footerTerms">Nutzungsbedingungen</a>
@@ -1202,7 +1599,17 @@
             </nav>
         </div>
     </footer>
+
+    <div class="mobile-cta" id="mobile-cta">
+        <span data-i18n="mobileCtaNote">Bald im Store</span>
+        <a class="button" href="#stores-title">
+            <span data-i18n="mobileCta">Zu den Apps</span>
+            <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+        </a>
+    </div>
+
     <script type="module" src="/language.mjs"></script>
+    <script type="module" src="/marketing.mjs"></script>
 </body>
 
 </html>

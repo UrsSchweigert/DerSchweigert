@@ -204,7 +204,7 @@ The web shell in `static/` and the thin native activity carry the P4 polish:
   website there is no native version, so the label is shown alone. The dialog
   links the bundled privacy policy (`datenschutz.html` /
   `datenschutz-en.html`), the word-list licences (`words-de-LICENSE.txt` /
-  `words-en-LICENSE.txt`) and the font licence (`fonts/OFL.txt`); these files
+  `words-en-LICENSE.txt`) and the font licence (`fonts/grundschrift-LICENSE.txt`); these files
   are part of the verified offline bundle, so no network request is involved.
 
 ## Release steps (local)

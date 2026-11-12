@@ -48,7 +48,7 @@ REQUIRED_BUNDLE_FILES = (
     "speech-adapter.js", "speech-offline-filter.mjs", "counts-compute.mjs", "counts-worker.mjs",
     "sentences/cards.mjs", "sentences/de.json", "sentences/en.json",
     "words-de.json", "words-en.json", "words-de-LICENSE.txt", "words-en-LICENSE.txt",
-    "fonts/OFL.txt", "fonts/andika-latin-regular.woff2", "fonts/andika-latin-bold.woff2",
+    "fonts/grundschrift-LICENSE.txt", "fonts/grundschrift-regular.woff2", "fonts/grundschrift-bold.woff2",
     "images/buchstabenzeit-logo.png", "datenschutz.html", "datenschutz-en.html", "books/README.md",
 )
 # The app ships German and English; the shell must declare exactly those, or the App Store lists it wrong.

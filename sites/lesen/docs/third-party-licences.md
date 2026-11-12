@@ -41,19 +41,25 @@ Commercial redistribution is permitted. Obligations: keep the attribution and
 the change record and link the licence. This list is CC BY 4.0, **not**
 ShareAlike; see "Known discrepancy" below.
 
-### Andika font — SIL Open Font License 1.1
+### Grundschrift font (Christian Urff) — CC BY 3.0
 
 | Item | Value |
 | --- | --- |
-| Licence file | `static/fonts/OFL.txt` |
-| Bundled fonts | `static/fonts/andika-latin-regular.woff2`, `static/fonts/andika-latin-bold.woff2` |
-| Licence | SIL Open Font License 1.1 |
-| Copyright | Copyright (c) 2004-2022 SIL International, with Reserved Font Names "Andika" and "SIL" |
+| Licence file | `static/fonts/grundschrift-LICENSE.txt` (full legal code included) |
+| Bundled fonts | `static/fonts/grundschrift-regular.woff2`, `static/fonts/grundschrift-bold.woff2` |
+| Licence | Creative Commons Attribution 3.0 (CC BY 3.0) |
+| Author | Grundschrift von Christian Urff — <https://urff.app/grundschrift/> |
+| Changes | Container conversion only: `Grundschrift-Regular.otf` / `Grundschrift-Bold.otf` repackaged as WOFF2 with fontTools; outlines, metrics and tables are unmodified |
 
-Bundling, embedding and selling the font together with the app is allowed.
-Obligations: keep the copyright and licence notice, do not sell the font on its
-own, do not relicense it, and do not use the reserved names for a modified
-version.
+Bundling, embedding and selling the font together with the app is expressly
+allowed (the author names apps and commercial products). Obligations: attribute
+the work as "Grundschrift von Christian Urff", keep the licence notice and link
+the licence. The marked CC BY 3.0 licence sets no ShareAlike requirement, so the
+font adds no obligation on the app's own code.
+
+Why not the official *Grundschrift* of the Grundschulverband e.V.? Its licence
+grants a free licence **for non-commercial purposes only** and forbids
+modification and redistribution, so it cannot be embedded in a paid app.
 
 ## Runtime dependencies
 
@@ -144,7 +150,8 @@ itself is redistributed.
 ## Reachability from the about dialog
 
 The about dialog in `static/index.html` (`#about-dialog`, "Inhalte & Lizenzen")
-links `words-de-LICENSE.txt`, `fonts/OFL.txt` and `third-party-notices.txt`, and its language switch points
+links `words-de-LICENSE.txt`, `fonts/grundschrift-LICENSE.txt` and
+`third-party-notices.txt`, and its language switch points
 the word-list link at `words-en-LICENSE.txt` for English. Both native shells
 render that same dialog because they bundle the same `static/` tree:
 

@@ -30,7 +30,7 @@ test('reading text fits the card using the responsive maximum, not the previous 
       document: { createElement: () => ({ getContext: () => ({ measureText: () => ({ width: textWidth }) }) }) },
       window: { getComputedStyle: () => ({
         fontWeight: '700',
-        fontFamily: 'Andika',
+        fontFamily: 'Grundschrift',
         getPropertyValue: () => `${maximum}px`,
       }) },
     };
