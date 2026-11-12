@@ -6,6 +6,7 @@
 // running; this module only renders what it is given.
 
 import { ABILITY_ROSTER } from './cooldown-abilities.js';
+import { abilityIconUrl } from './asset-preload.js';
 
 export const ABILITY_BAR_ID = 'ability-bar';
 export const ABILITY_SLOT_CLASS = 'ability-slot';
@@ -82,6 +83,15 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
     button.tabIndex = -1;
     button.setAttribute('aria-disabled', 'true');
 
+    // Decorative artwork: the slot's label already names the ability, so the
+    // image stays out of the accessibility tree (alt="") and is only requested
+    // once the slot unlocks. A failed load leaves the visible name in place.
+    const iconEl = create('img');
+    iconEl.className = 'ability-slot-icon';
+    iconEl.setAttribute('alt', '');
+    iconEl.setAttribute('decoding', 'async');
+    iconEl.hidden = true;
+
     const nameEl = create('span');
     nameEl.className = 'ability-slot-name';
     const descriptionEl = create('span');
@@ -91,6 +101,7 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
     cooldownEl.className = 'ability-slot-cooldown';
     cooldownEl.setAttribute('aria-hidden', 'true');
 
+    button.appendChild(iconEl);
     button.appendChild(nameEl);
     button.appendChild(descriptionEl);
     button.appendChild(cooldownEl);
@@ -102,10 +113,13 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
       unlockLevel: ability.unlockLevel,
       baseCooldownSeconds: ability.baseCooldownSeconds,
       button,
+      iconEl,
       nameEl,
       descriptionEl,
       cooldownEl,
       state: 'locked',
+      iconState: 'idle',
+      iconRequested: false,
       name: '',
       description: '',
       cooldownText: null,
@@ -128,6 +142,17 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
     };
     button.addEventListener?.('click', slot.onClick);
     button.addEventListener?.('keydown', slot.onKeyDown);
+
+    iconEl.addEventListener?.('load', () => {
+      slot.iconState = 'loaded';
+      iconEl.hidden = slot.state === 'locked';
+      if (slot.state !== 'locked') button.dataset.icon = 'loaded';
+    });
+    iconEl.addEventListener?.('error', () => {
+      slot.iconState = 'error';
+      iconEl.hidden = true;
+      if (slot.state !== 'locked') button.dataset.icon = 'error';
+    });
     return slot;
   });
 
@@ -162,6 +187,21 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
       slot.button.disabled = state === 'locked';
       slot.button.tabIndex = state === 'locked' ? -1 : 0;
       slot.button.setAttribute('aria-disabled', String(state === 'locked'));
+    }
+
+    // Locked slots stay a dimmed silhouette: no artwork and no icon state, so
+    // the CSS keeps the localized name visible. The URL is requested on the
+    // first unlock only; the cached result survives a later relock.
+    if (state === 'locked') {
+      slot.iconEl.hidden = true;
+      delete slot.button.dataset.icon;
+    } else {
+      if (!slot.iconRequested) {
+        slot.iconRequested = true;
+        slot.iconEl.src = abilityIconUrl(slot.id);
+      }
+      slot.iconEl.hidden = slot.iconState !== 'loaded';
+      if (slot.iconState !== 'idle') slot.button.dataset.icon = slot.iconState;
     }
 
     const cooldownText = state === 'cooling' ? String(seconds) : '';

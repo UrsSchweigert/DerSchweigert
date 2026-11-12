@@ -192,6 +192,44 @@ body {
 .ability-slot-name { font-weight: 700; }
 .ability-slot-cooldown { font-variant-numeric: tabular-nums; }
 
+/* Owner-delivered artwork (game/assets/ability-<id>.webp). Decorative: the
+ * slot's aria-label names the ability, so the icon carries an empty alt. */
+.ability-slot-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* A locked slot is a dimmed silhouette: never any artwork. */
+.ability-slot[data-state="locked"] .ability-slot-icon { display: none; }
+.ability-slot-icon[hidden] { display: none; }
+
+/* While the artwork is showing it replaces the visible name (the name stays
+ * in the accessibility tree); if the file is missing the name becomes the
+ * visible fallback instead of a broken-image box. */
+.ability-slot[data-icon="loaded"] .ability-slot-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ability-slot[data-icon="error"] .ability-slot-name {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
 /* Descriptions stay in the accessibility tree but not in the 44px slot. */
 .ability-slot-description {
   position: absolute;
@@ -210,8 +248,24 @@ body {
   cursor: not-allowed;
 }
 
-.ability-slot[data-state="ready"] { border-color: #7fe08a; }
+.ability-slot[data-state="ready"] {
+  border-color: #7fe08a;
+  box-shadow: 0 0 6px rgba(127, 224, 138, 0.45);
+}
 .ability-slot[data-state="cooling"] { border-color: #8d97c8; }
+
+/* The ready pulse is motion, so it only runs when the player allows it; the
+ * static glow above stays for prefers-reduced-motion: reduce. */
+@media (prefers-reduced-motion: no-preference) {
+  .ability-slot[data-state="ready"] {
+    animation: ability-slot-ready-pulse 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes ability-slot-ready-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(127, 224, 138, 0.45); }
+  50% { box-shadow: 0 0 12px 3px rgba(127, 224, 138, 0.8); }
+}
 
 .ability-slot[data-state="cooling"]::after {
   content: "";
