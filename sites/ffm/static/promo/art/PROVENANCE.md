@@ -428,39 +428,6 @@ regenerated during the run for exactly that).
 | `levels/level-59.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
 | `levels/level-60.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
 
-### stage-1…6 re-render onto the level art grid (2026-11-12)
-
-The six canonical stage backdrops were kept as the style reference while the
-sixty level backgrounds were made, and then had to be brought onto the same
-medium: measured at full size the originals carried 1–2 px detail (38–53 % of
-adjacent pixel pairs flat, 8–16 % hard jumps) while the finished levels sit on a
-3 px grid (47–61 % flat, 6–10 % jumps), so side by side the stages read as the
-finer, denser outlier.
-
-**No new generation and no re-prompting.** These are the approved compositions,
-so the fix is the identical deterministic grid pass the levels got — box-pool by
-3, quantise to 64 colours with 4×4 ordered dithering, nearest back to 1536×1024
-— applied to the existing renders and written back to the same paths, so
-`renderer.js` and `optimize-art.py` keep pointing at unchanged filenames. Tone
-is untouched: mean luminance moves by at most 1.5 levels (see the last column),
-modulo the dither. After the pass the two sets overlap (stages 47.9–55.7 % flat,
-levels 46.8–60.5 %). Still 1536×1024 lossy WebP q85, all ≤ 400 KiB.
-
-The mobile bundles under `sites/ffm/mobile/www/game/` and
-`sites/ffm/mobile/ios/App/App/public/game/` still hold the pre-snap copies and
-were deliberately left alone.
-
-| File | Model | Reference images passed in | Date |
-| --- | --- | --- | --- |
-| `stage-1.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
-| `stage-2.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
-| `stage-3.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
-| `stage-4.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
-| `stage-5.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
-| `stage-6.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
-
-Byte size and mean luminance before → after: stage-1 394,908→384,996 B, 97.9→96.4; stage-2 305,726→293,790 B, 100.2→98.9; stage-3 320,206→314,148 B, 72.5→71.0; stage-4 321,064→325,252 B, 142.9→141.7; stage-5 299,044→284,692 B, 53.2→52.4; stage-6 317,024→340,034 B, 45.6→44.1.
-
 ## game/assets/ — ability icons (2026-11-12)
 
 Three 256×256 transparent icons for the ability bar, drawn in the same pixel
