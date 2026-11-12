@@ -409,6 +409,38 @@ def test_malformed_output_is_a_repairable_failure(out):
     assert adapter.models_used[2][0] == "strong"
 
 
+def test_single_strings_where_a_list_is_required_are_wrapped_not_rejected(out):
+    def sloppy(d):
+        d["phases"][0]["outcomes"] = "foundation"
+        d["phases"][0]["non_goals"] = "ui"
+        d["issues"][0]["non_goals"] = "none"
+    adapter = FakeInvestigatorAdapter(mutate(sloppy))
+    res = run(make(adapter), out)
+    assert res["status"] == "ok"
+    assert [t for t, _ in adapter.models_used] == ["standard"]  # no tier escalation for a list-vs-string slip
+    written = json.load(open(os.path.join(out, "phases.json")))
+    assert written["phases"][0]["outcomes"] == ["foundation"]
+    assert written["phases"][0]["non_goals"] == ["ui"]
+
+
+def test_a_new_file_anchor_outside_the_allowlist_is_added_to_it(out):
+    def sloppy(d):
+        d["issues"][0]["code_anchors"] = ["src/ledger/brand-new.js"]
+    adapter = FakeInvestigatorAdapter(mutate(sloppy))
+    res = run(make(adapter), out)
+    assert res["status"] == "ok"
+    assert [t for t, _ in adapter.models_used] == ["standard"]
+    written = json.load(open(os.path.join(out, "phases.json")))
+    assert "src/ledger/brand-new.js" in written["phases"][0]["path_allowlist"]
+
+
+def test_a_protected_new_file_anchor_still_rejects_the_draft(out):
+    adapter = FakeInvestigatorAdapter(*[mutate(lambda d: d["issues"][0].update(
+        code_anchors=["tools/harness/new-tool.py"]))] * 5)
+    res = run(make(adapter, max_attempts=2), out)
+    assert res["status"] == "failed"
+
+
 def test_a_plan_without_phases_is_refused(out):
     adapter = FakeInvestigatorAdapter({"status": "plan"}, good_draft())
     run(make(adapter), out)
@@ -579,7 +611,7 @@ def test_progress_is_reported_while_the_worker_runs(out):
     adapter.describe = lambda h: "● Read src/app.js"
     res = run(make(adapter, clock=lambda: clock[0], sleep=lambda s: clock.__setitem__(0, clock[0] + 5), heartbeat=15, log=lines.append), out)
     assert res["status"] == "ok"
-    assert lines[0].startswith("investigator attempt 1: tier standard, model claude-sonnet-5")
+    assert any(l.startswith("investigator attempt 1: tier standard, model claude-sonnet-5") for l in lines)
     progress = [l for l in lines if "still working" in l]
     assert len(progress) >= 2 and "elapsed" in progress[0] and "last activity" in progress[0] and "● Read src/app.js" in progress[0]
 
