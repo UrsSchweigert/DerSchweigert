@@ -91,6 +91,12 @@ const EXCLUDED_SAMPLES = [
   'boss-preview.html',
   'cancel.html',
   'widerruf.html',
+  'datenschutz.html',
+  'datenschutz.en.html',
+  'impressum.html',
+  'impressum.en.html',
+  'terms.html',
+  'terms.en.html',
   'promo/index.html',
   'promo/promo.css',
   'promo/tools/render-og.py',
@@ -105,7 +111,7 @@ const KEPT_SAMPLES = [
   'game/platform.js',
   'game/platform-app.js',
   'game/fiend-sprites/a.png',
-  'terms.html',
+  'datenschutz-app.html',
 ];
 
 async function fixture(files) {

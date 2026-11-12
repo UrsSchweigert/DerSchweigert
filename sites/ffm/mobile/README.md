@@ -12,7 +12,8 @@ npm test                            # node --test tests/*.test.mjs
 
 `copy-assets` first cleans `www/` and copies `../static` without development-only and web-only files
 (`source-assets/`, `calibrate.*`, `export-sprites.html`, `_dragon_test.html`, `demo.html`, tests, `game/api.js`,
-`game/access-flow.js`, `game/cancel-request.js`, `game/withdrawal-request.js`, `cancel.html`, `widerruf.html`). It
+`game/access-flow.js`, `game/cancel-request.js`, `game/withdrawal-request.js`, `cancel.html`, `widerruf.html`, the
+website's own legal pages `datenschutz*.html`, `impressum*.html` and `terms*.html`). It
 then overlays the app-only modules from `game/` onto
 `www/game`, so `game/platform-adapter.js` replaces the web adapter of the same name. `www/` is reproducible: the
 same inputs always produce the same bundle and a stale file from an earlier build is removed.
@@ -23,15 +24,18 @@ written into `../static`, which deploys to the website. It also drops the web-on
 from `index.html`, because the app is offline and must not call the FFM API, and every DOM region `index.html`
 marks with `<!-- app-omit:start -->` / `<!-- app-omit:end -->` comments: the login/register and account modals, the
 checkout and auth-status modals, the top-bar account buttons, the splash login row, the leaderboard's
-complete-profile prompt and the web-only cancellation and withdrawal links. The website keeps all of that markup;
-only the app copy strips it.
+complete-profile prompt, the web consent banner and the whole web legal footer (cancellation, withdrawal, imprint,
+website privacy, website terms). The website keeps all of that markup; only the app copy strips it. The title
+screen keeps the empty `.splash-legal-links` container, which `game/legal.js` fills at runtime with the bundled
+`legal/*.html` pages in the active language.
 
 `bundle-check` fails when a runtime file is missing, when the bundled level configuration is not the full 60
-levels, when any file references a remote first-party (`derschweigert.de`) URL, or when bundled code calls the FFM
-API (`fetch` to `/api`, XHR or beacon), or when the app shell still carries account/checkout markup or links the
-web-only cancellation/withdrawal pages (`FORBIDDEN_UI_IDS` in `scripts/bundle-check.mjs`). Approved navigational
-legal links in `terms.html`/`terms.en.html` are the only first-party URLs allowed; they are text only and never
-loaded.
+levels, when any file references a remote first-party (`derschweigert.de`) URL, when bundled code calls the FFM
+API (`fetch` to `/api`, XHR or beacon), when the app shell still carries account/checkout markup, when a website
+legal page (`datenschutz*`, `impressum*`, `terms*`) reappears at the bundle root, or when the app shell links one
+(`FORBIDDEN_UI_IDS`, `FORBIDDEN_FILES` and `FORBIDDEN_NAV_RE` in `scripts/bundle-check.mjs`). Every bundled
+`legal/` page, in both languages, is a required file, so a legal link the app renders can never point at a page
+the bundle dropped.
 
 Background music follows `game/tracks.json`: file, title, author, licence, optional `source` URL and optional
 `stage` tag. The web build ships the one existing track; the app overlay replaces that manifest with
