@@ -13,12 +13,12 @@
 //   node sites/ffm/scripts/serve-calibrator.mjs --worktree   # this checkout, with a staleness warning
 //   node sites/ffm/scripts/serve-calibrator.mjs --port 8080 --offline
 import { execFileSync } from 'node:child_process';
-import { createReadStream, mkdirSync, rmSync } from 'node:fs';
+import { createReadStream, mkdirSync, realpathSync, rmSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, extname, join, resolve, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const STATIC_DIR = join('sites', 'ffm', 'static');
 const DEFAULT_PORT = 8000;
@@ -224,7 +224,19 @@ function main(argv) {
   process.on('SIGTERM', stop);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+// Compares real paths, not URLs: on macOS /tmp is a symlink to /private/tmp, so a
+// copy of this script invoked as /tmp/serve-calibrator.mjs would otherwise not
+// recognise itself and would exit silently without serving anything.
+export function isDirectInvocation(argvEntry, moduleUrl) {
+  if (!argvEntry) return false;
+  try {
+    return realpathSync(argvEntry) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation(process.argv[1], import.meta.url)) {
   try {
     main(process.argv.slice(2));
   } catch (error) {
