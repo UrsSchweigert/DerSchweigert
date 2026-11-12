@@ -31,6 +31,11 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "sites/lesen/ios/App/App/Info.plist", "PrivacyInfo.xcprivacy", "project.pbxproj",
         "*.entitlements", "*.p12", "*.mobileprovision", "*.p8", "*.cer",
     ],
+    # A process block that reaches the owner costs a stall plus a session switch, while the overseer only runs on an
+    # issue that is already blocked and may only retry, extend one budget, or refine - never approve, merge or change
+    # policy. It is therefore on for every new plan since 2026-11-12; `--no-overseer` opts a plan out, and the setting
+    # is part of the approval digest. Plans approved before that date carry no key and stay off.
+    "overseer": {"enabled": True, "rounds_per_issue": 2},
     "merge_policy": "autonomous-when-all-gates-pass",
     "base_branch": "main",
     "run_branch": "harness/run/{plan}",

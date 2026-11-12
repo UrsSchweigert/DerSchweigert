@@ -1070,3 +1070,67 @@ phase allowlist now adds exactly that path (repository-relative, non-existent, n
 rejecting the phase. Both only ever widen what the plan already declared, and both are covered by tests. The prompt
 also forbids unbounded recursive reads now, because a shell call with huge output was the failure mode that stalled
 two attempts.
+
+## Refinement starts on the standard band and escalates on evidence (2026-11-12)
+
+The owner asked for one rule: the refiner runs on the cheap model, and the strong model is for escalation only. The
+harness did the opposite. `models.REQUIRED_TIER` held `refiner: strong`, so `resolve_choice` upgraded any cheaper
+refiner choice, and the investigator prompt told the delegating agent to "always choose the strongest available model
+for it". On the Arithmo Slayer web run this showed up immediately: both first dispatches of a new plan went to
+`deepseek/deepseek-v4-pro` as refiner, on the reasoning the prompt had handed the agent.
+
+The floor is now the **standard** band (`ROLE_TIER["refiner"]`, `CHOICE_FLOOR["refiner"]`), and the strong band is
+earned: `REFINER_ESCALATION` names the failures a refiner can produce itself (`schema_invalid`,
+`protected_prerequisite`, `stale_anchors`), and `choose_tier` moves the next pass up one band when one of them is the
+last failure on that issue. The scheduler now passes the last attempt of *the same role* as `previous_tier`, so a
+refiner climbs on its own record instead of inheriting the implementer's tier.
+
+What made this safe enough to do is the repair work of the same day. The reason the old comment gave for the strong
+floor was that a cheap refiner returns malformed results, and a malformed answer used to cost a whole attempt plus an
+owner decision. Single strings where a list is required, and a new-file anchor missing from its phase allowlist, are
+now repaired by trusted code instead of rejecting the answer, which is exactly the class of defect a cheap model
+produces. A cheap refiner that still fails costs one retry on the cheap band and then buys the strong band itself.
+
+Not changed: the overseer keeps its strong floor (`CHOICE_FLOOR`), a signed `model_routing.refiner` is still refused
+below the standard band, and `policy.model_routing` still forces a plan pass per issue. A plan therefore does **not**
+need a signature to get a cheap refiner any more - the signature is only for pinning one exact model.
+
+## A test file the plan itself creates counts as existing when scope is checked (2026-11-12)
+
+`ability-earth-spikes` blocked on `scope_violation`: the refiner's approved plan said "edit
+`cooldown-abilities.test.js`", phase P3 may change `cooldown-abilities.js` and runs that test as validation, but the
+test was not in P3's `path_allowlist`. One implementer attempt was spent and the owner was asked a question that the
+plan already answered.
+
+`investigate.validate_draft` had the rule that prevents exactly this (a validation command that runs the test of a
+module the phase may change requires the test in the same allowlist), but it only applied to test files that existed
+at the base revision. `cooldown-abilities.test.js` is written by phase P1 of the same plan, so the rule skipped it.
+The guard now treats a path any phase of the draft writes as existing (`planned_paths`), so a forward-declared test
+file is checked like one already in the repository. It still only reports; it never widens an allowlist by itself.
+
+Scope of the rule is unchanged otherwise: a test the phase merely runs, whose module it cannot touch, is still not a
+problem, and a test no phase ever creates stays with `plans.command_paths_problem`.
+
+## The overseer is on for every new plan (2026-11-12)
+
+The Arithmo Slayer web run blocked four times, and every block was a process question rather than a content question:
+two `scope_violation` failures from one plan defect (a phase could change `cooldown-abilities.js` but not its test
+file), and two stalls. Each one raised a `decision_task` and waited for the owner, although the harness has an
+overseer that exists exactly for that shape of block.
+
+It was off because `--no-overseer` was the default and the plan did not opt in, and the earlier reasoning was sound
+for its time: budgets and policy belong to trusted code, not to a model. What changed is the cost balance. The
+overseer only runs on an issue that is already blocked, it may only retry, extend one budget, or refine, it is
+bounded per issue (`rounds_per_issue`, default 2), it never sees an authority failure such as a scope breach or an
+isolation problem, and anything it calls a harness defect or a content question still reaches the owner with its
+diagnosis. Against that, a block that waits costs a stall plus a session switch, and a block that is answered in the
+wrong session is worse than either.
+
+So `plans.DEFAULT_POLICY` now carries `overseer: {enabled: true, rounds_per_issue: 2}`. `--no-overseer` still writes
+`enabled: false`, the setting is inside the approval digest, and a plan approved before this date carries no key and
+keeps its old behaviour (`_overseer_config` defaults the key to off). The role still floors at the strong band
+(`CHOICE_FLOOR`), so the overseer is never the cheap model.
+
+The test double `Env` opts out explicitly: its tests are about owner-facing behaviour - what becomes a human task,
+what a repair budget does, how a block is recorded - and would otherwise route every one of them through a model.
+One test pins the new default and the opt-out digest difference instead.

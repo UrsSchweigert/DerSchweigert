@@ -796,3 +796,54 @@ def test_the_strongest_tier_earns_only_one_repair_attempt(out):
     assert res["status"] == "failed" and len(adapter.models_used) == MAX_TOP_TIER_ATTEMPTS
     assert any("strongest tier" in line for line in lines)
     assert os.path.exists(os.path.join(out, "rejected-draft.json"))
+
+
+def test_a_validation_test_file_whose_module_the_phase_changes_must_be_in_scope():
+    """The exact defect that blocked ability-wind-storm: the phase may change the model but not its test file."""
+    def sloppy(d):
+        d["phases"][0]["path_allowlist"] = ["src/core/a.js"]
+        d["issues"][0]["code_anchors"] = ["src/core/a.js"]
+        d["issues"][0]["validation_commands"] = ["node --test src/core/a.test.js"]
+    draft = mutate(sloppy)
+    r = repo()
+    r.existing = r.existing | {"src/core/a.js", "src/core/a.test.js"}
+    problems = validate_draft(draft, REQS, r, plans.DEFAULT_POLICY)
+    assert any("src/core/a.test.js must be in the phase allowlist" in p for p in problems)
+
+
+def test_a_validation_test_file_an_earlier_phase_creates_must_be_in_scope():
+    """The defect that blocked ability-earth-spikes: P1 creates the test, P3 changes the module but may not touch it."""
+    def sloppy(d):
+        d["phases"][0]["path_allowlist"] = ["src/core/a.js", "src/core/a.test.js"]
+        d["phases"][1]["path_allowlist"] = ["src/core/a.js"]
+        d["issues"][2]["code_anchors"] = ["src/core/a.js"]
+        d["issues"][2]["validation_commands"] = ["node --test src/core/a.test.js"]
+    draft = mutate(sloppy)
+    r = repo()
+    r.existing = r.existing | {"src/core/a.js"}  # a.test.js exists nowhere yet: phase P1 of this plan writes it
+    problems = validate_draft(draft, REQS, r, plans.DEFAULT_POLICY)
+    assert any("src/core/a.test.js must be in the phase allowlist" in p for p in problems)
+
+
+def test_a_validation_test_file_no_phase_ever_creates_is_not_a_scope_problem():
+    """Nothing in the plan writes that file, so the scope rule stays silent and the command check owns the case."""
+    def ok(d):
+        d["phases"][0]["path_allowlist"] = ["src/core/a.js"]
+        d["issues"][0]["code_anchors"] = ["src/core/a.js"]
+        d["issues"][0]["validation_commands"] = ["node --test src/core/a.test.js"]
+    r = repo()
+    r.existing = r.existing | {"src/core/a.js"}
+    problems = validate_draft(mutate(ok), REQS, r, plans.DEFAULT_POLICY)
+    assert not [p for p in problems if "must be in the phase allowlist as well" in p]
+
+
+def test_a_validation_test_file_the_phase_cannot_change_needs_no_scope_entry():
+    """A regression suite the issue only runs, whose module it cannot touch, is not a scope problem."""
+    def ok(d):
+        d["phases"][0]["path_allowlist"] = ["src/core/a.js"]
+        d["issues"][0]["code_anchors"] = ["src/core/a.js"]
+        d["issues"][0]["validation_commands"] = ["node --test src/core/other.test.js"]
+    r = repo()
+    r.existing = r.existing | {"src/core/a.js", "src/core/other.test.js"}
+    problems = validate_draft(mutate(ok), REQS, r, plans.DEFAULT_POLICY)
+    assert not [p for p in problems if "must be in the phase allowlist as well" in p]
