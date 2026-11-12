@@ -34,6 +34,7 @@ import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getL
 import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAbilityBar } from './ability-bar.js';
+import { bonusForLevel } from './bonus-ladder.js';
 import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
@@ -2754,6 +2755,15 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   state.combo = 0;
   gameRunning = true;
   paused = false;
+  // Announce the level's bonus once the level actually starts. Level 1 and
+  // practice runs grant none, so the previous level's pill is cleared instead.
+  // The `typeof` keeps extracted-function tests running without main.js.
+  if (typeof gameplayChrome !== 'undefined') {
+    const bonus = !practiceRun && typeof bonusForLevel === 'function'
+      ? bonusForLevel(cfg.level)
+      : null;
+    gameplayChrome?.showBonusNotice?.(bonus);
+  }
   diffSelect.style.display = 'none';
   pauseOverlay.style.display = 'none';
   topBar.style.display = 'none';
@@ -3707,6 +3717,7 @@ function finishPracticeSession() {
 
 function returnToTitle() {
   setAnswerInputVisible(false);
+  if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   practiceRun = null;
   state.isShapesMode = false;
   pendingSkillIntro = null;
@@ -3722,6 +3733,7 @@ function returnToTitle() {
 
 function triggerLevelClear() {
   setAnswerInputVisible(false);
+  if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   if (practiceRun) {
     finishPracticeSession();
     return;
@@ -3796,6 +3808,7 @@ function triggerLevelClear() {
 
 function triggerGameOver(won = false) {
   setAnswerInputVisible(false);
+  if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   campaignWon = won;
   globalThis.ffmScreenFx?.play(won ? 'levelWon' : 'gameOver');
   gameplayTimers.length = 0;
@@ -3901,6 +3914,10 @@ function gameLoop(ts) {
   }
 
   if (!paused) advanceGameplayTimers(dt);
+
+  // The level bonus pill counts down in gameplay time only: a pause freezes it
+  // and a level clear hides it (see triggerLevelClear).
+  if (typeof gameplayChrome !== 'undefined') gameplayChrome?.tickBonusNotice?.(dt, { paused });
 
   // Ability cooldowns only advance while an encounter is live, so pausing,
   // level clear, game over and loading never burn cooldown time. The bar gets

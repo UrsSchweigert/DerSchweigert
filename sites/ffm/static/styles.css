@@ -53,6 +53,7 @@ body {
 }
 
 #gameplay-chrome {
+  position: relative;
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -63,6 +64,30 @@ body {
   font-size: 16px;
   line-height: 20px;
   min-width: 0;
+}
+
+/* The level bonus notice (gameplay-chrome.js) is absolutely positioned so it
+ * adds no grid row: the answer buttons and the scene keep their layout while
+ * the pill floats over the top of the playfield. pointer-events:none keeps it
+ * non-blocking, and [hidden] (see the global rule) removes it entirely. */
+#bonus-notice {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  z-index: 2;
+  max-width: calc(100% - 16px);
+  margin: 0;
+  padding: 4px 12px;
+  overflow: hidden;
+  border: 2px solid var(--brass-light);
+  border-radius: 999px;
+  background: rgba(16, 23, 45, 0.94);
+  color: var(--ivory);
+  font: bold 15px/20px system-ui, sans-serif;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 #active-question {
