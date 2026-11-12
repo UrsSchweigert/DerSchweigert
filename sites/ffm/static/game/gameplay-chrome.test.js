@@ -7,7 +7,7 @@ function fixture() {
   const elements = Object.fromEntries(['gameplay-chrome', 'active-question', 'accessible-hearts',
     'accessible-combo', 'accessible-score', 'accessible-timer', 'accessible-timer-progress',
     'accessible-combo-wrap', 'accessible-score-wrap', 'btn-pause-game',
-    'encounter-progress', 'combo-reward', 'heal-progress']
+    'encounter-progress', 'combo-reward', 'heal-progress', 'bonus-notice']
     .map(id => [id, {
       textContent: '', hidden: true, writes: 0, style: {}, dataset: {},
       setAttribute(name, value) { this.attrs = { ...(this.attrs || {}), [name]: String(value) }; },

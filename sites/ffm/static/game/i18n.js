@@ -430,6 +430,24 @@ const DICTIONARY = {
     en: 'Spikes slow the active fiend and the next spawns.',
     de: 'Erdstacheln verlangsamen den aktiven Feind und die nächsten Gegner.',
   },
+  // One notice per level from 2 upward: the bonus type names the affected
+  // ability and its value, e.g. "Bonus: Wind cooldown -6s".
+  'bonus.cooldown.notice': {
+    en: 'Bonus: {ability} cooldown −{value}s',
+    de: 'Bonus: {ability}-Abklingzeit −{value}s',
+  },
+  'bonus.storm.notice': {
+    en: 'Bonus: {ability} +{value} rank',
+    de: 'Bonus: {ability} +{value} Rang',
+  },
+  'bonus.slowSpeed.notice': {
+    en: 'Bonus: {ability} slows fiends by {value}',
+    de: 'Bonus: {ability} verlangsamt Feinde um {value}',
+  },
+  'bonus.slowTargets.notice': {
+    en: 'Bonus: {ability} +{value} spike target',
+    de: 'Bonus: {ability} +{value} Erdstachel-Ziel',
+  },
   'feedback.shapesAnswer': { en: 'There are {count} shapes.', de: 'Es sind {count} Formen.' },
   // The gameplay header's correction row: same answer, short enough to fit the
   // question column next to the help and pause buttons.
