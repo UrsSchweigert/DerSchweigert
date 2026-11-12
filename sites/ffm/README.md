@@ -52,6 +52,9 @@ Browser
 - Curriculum tests: `sites/ffm/static/game/levels.test.js`
 - Story dioramas (intro, later act openings and the finish): `sites/ffm/static/story/`
   — art bible, scene format and pipeline in `sites/ffm/static/story/README.md`
+- Store graphics (key-art masters, the compositor and the launcher-icon source):
+  `sites/ffm/store-art/` — upload slots and the Pillow recipe in
+  `sites/ffm/store-art/README.md`
 
 ## Important current behavior
 
