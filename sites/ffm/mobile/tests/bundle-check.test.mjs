@@ -298,17 +298,23 @@ test('the level manifest is a required bundle file', async () => {
   });
 });
 
-test('absent ability icons are reported, never required', async () => {
+test('ability icons are reported against what the repository ships, never required', async () => {
+  // The icon files are owner-delivered, so the suite must not assume either state: derive the expectation from the
+  // source tree instead of pinning "none present", which is only true before the artwork lands.
   await withBundle(async (dir) => {
+    const shipped = [];
+    for (const rel of ABILITY_ICONS) {
+      if (await stat(join(staticDir, rel)).catch(() => null)) shipped.push(rel);
+    }
     const report = await bundleReport(dir, staticDir);
-    assert.deepEqual(report.abilityIcons.present, []);
-    assert.deepEqual(report.abilityIcons.absent, [...ABILITY_ICONS]);
+    assert.deepEqual(report.abilityIcons.present, shipped);
+    assert.deepEqual(report.abilityIcons.absent, ABILITY_ICONS.filter((rel) => !shipped.includes(rel)));
     assert.deepEqual(report.problems, []);
 
     const result = runCheck(dir);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /0\/3 ability icons present/);
-    assert.match(result.stdout, /0 level images copied/);
+    assert.match(result.stdout, new RegExp(`${shipped.length}/${ABILITY_ICONS.length} ability icons present`));
+    assert.match(result.stdout, new RegExp(`${report.levelImages.copied.length} level images copied`));
   });
 });
 
@@ -332,6 +338,9 @@ test('an ability icon present in the source must reach the bundle', async () => 
   await withSource(async (source) => {
     await withBundle(async (dir) => {
       await writeWebp(source, ABILITY_ICONS[0]);
+      // Take the copy out of the bundle so the mismatch the check reports is the one under test, whether or not the
+      // repository ships this file.
+      await rm(join(dir, ABILITY_ICONS[0]), { force: true });
       const report = await bundleReport(dir, source);
       assert.deepEqual(report.abilityIcons.present, [ABILITY_ICONS[0]]);
       assert.deepEqual(report.abilityIcons.absent, ABILITY_ICONS.slice(1));
@@ -365,6 +374,7 @@ test('a present level image must be copied into the bundle', async () => {
   await withSource(async (source) => {
     await withBundle(async (dir) => {
       await writeWebp(source, 'game/levels/level-07.webp');
+      await rm(join(dir, 'game/levels/level-07.webp'), { force: true });
       const missingReport = await bundleReport(dir, source);
       assert.deepEqual(missingReport.levelImages.present, ['level-07.webp']);
       assert.deepEqual(missingReport.levelImages.missing, ['level-07.webp']);
