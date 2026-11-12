@@ -69,6 +69,13 @@ class BaseConfig:
     # profile, including a second GET receipt-download route.
     WITHDRAWAL_REQUEST_RATE_LIMIT = "5/minute"
 
+    # Public, unauthenticated /api/beta/android-waitlist sign-up
+    # (app/beta_waitlist.py). Same per-source-IP reasoning as the two
+    # request forms above: a legitimate visitor enters one address once,
+    # so five submissions a minute is generous while still bounding
+    # anonymous durable writes.
+    BETA_WAITLIST_RATE_LIMIT = "5/minute"
+
 
 class ProductionConfig(BaseConfig):
     # memory:// cannot share counters across Lambda's concurrent execution
@@ -112,3 +119,6 @@ class TestingConfig(BaseConfig):
     CANCEL_REQUEST_RATE_LIMIT = "1000/minute"
     # Same rationale, for the withdrawal-requests flow's own tests.
     WITHDRAWAL_REQUEST_RATE_LIMIT = "1000/minute"
+    # Same rationale again, for the Android beta waitlist (see
+    # tests/test_beta_waitlist.py).
+    BETA_WAITLIST_RATE_LIMIT = "1000/minute"

@@ -32,6 +32,7 @@ export const DICTIONARY = {
   'nav.prices': { de: 'Preise', en: 'Pricing' },
   'nav.family': { de: 'Familie', en: 'Family' },
   'nav.faq': { de: 'FAQ', en: 'FAQ' },
+  'nav.beta': { de: 'Beta', en: 'Beta' },
   'nav.play': { de: 'Jetzt spielen', en: 'Play now' },
   'nav.langToggle': { de: 'Sprache wechseln: Englisch', en: 'Switch language: German' },
 
@@ -43,6 +44,8 @@ export const DICTIONARY = {
     en: 'Fast arithmetic, hand-painted paper stages and a dragon that is waiting: subscription in the browser, the app for iPhone and Android is coming as a one-time purchase – no subscription, no renewal.',
   },
   'hero.ctaWeb': { de: 'Im Browser spielen', en: 'Play in the browser' },
+  'hero.betaLabel': { de: 'Offene Beta', en: 'Open beta' },
+  'hero.betaText': { de: 'Jetzt auf iPhone und Android testen', en: 'Test it on iPhone and Android now' },
   'hero.ctaAppStore': { de: 'Bald im App Store', en: 'Coming soon to the App Store' },
   'hero.ctaPlayStore': { de: 'Bald bei Google Play', en: 'Coming soon to Google Play' },
   'hero.ctaApp': { de: 'Zur App-Version', en: 'About the app version' },
@@ -332,6 +335,23 @@ export const DICTIONARY = {
   'footer.copyright': { de: '© 2026 Der Schweigert · Arithmo Slayer', en: '© 2026 Der Schweigert · Arithmo Slayer' },
 };
 
+/**
+ * Merges another page's translations into the shared dictionary, so a second
+ * page can reuse this locale layer (storage key, detection, translateDom)
+ * without copying it. Duplicate keys throw: a silent overwrite would make one
+ * page show the other page's copy.
+ */
+export function registerDictionary(entries) {
+  for (const [key, value] of Object.entries(entries)) {
+    if (key in DICTIONARY) throw new Error(`duplicate i18n key: ${key}`);
+    if (!value || typeof value.de !== 'string' || typeof value.en !== 'string') {
+      throw new TypeError(`i18n entry ${key} needs de and en strings`);
+    }
+    DICTIONARY[key] = value;
+  }
+  return DICTIONARY;
+}
+
 // --- Locale state -----------------------------------------------------
 
 let currentLocale = null;
@@ -563,10 +583,15 @@ function boot() {
   initReveal();
 }
 
+// A deferred module runs while readyState is already "interactive" but before
+// DOMContentLoaded, so booting on anything but "complete" would translate the
+// DOM before a page module imported after this one had a chance to call
+// registerDictionary(). That is why only a document that has fully loaded boots
+// immediately.
 if (typeof document !== 'undefined' && document && typeof document.querySelectorAll === 'function') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot, { once: true });
-  } else {
+  if (document.readyState === 'complete') {
     boot();
+  } else {
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
   }
 }

@@ -231,6 +231,8 @@ jobs:
         if: needs.changes.outputs.ffm_tests == 'true'
       - run: node --test sites/ffm/static/promo/*.test.js
         if: needs.changes.outputs.ffm_tests == 'true'
+      - run: node --test sites/ffm/static/beta/*.test.js
+        if: needs.changes.outputs.ffm_tests == 'true'
       - run: node --test sites/ffm/static/story/tests/*.test.mjs
         if: needs.changes.outputs.ffm_tests == 'true'
 
@@ -569,7 +571,8 @@ jobs:
             --exclude "story/README.md" \
             --exclude "story/ART-BIBLE.md" \
             --exclude "promo/tools/*" \
-            --exclude "promo/README.md"
+            --exclude "promo/README.md" \
+            --exclude "beta/README.md"
           # Excluded keys are not deleted by sync; remove old dev artifacts explicitly.
           aws s3 rm "s3://$BUCKET/" --recursive \
             --exclude "*" --include "*.test.js" \
@@ -582,7 +585,8 @@ jobs:
             --include "story/tools/*" --include "story/tests/*" \
             --include "story/preview.html" --include "story/reel.html" --include "story/README.md" \
             --include "story/ART-BIBLE.md" \
-            --include "promo/tools/*" --include "promo/README.md"
+            --include "promo/tools/*" --include "promo/README.md" \
+            --include "beta/README.md"
           aws s3 cp sites/ffm/static/index.html \
             "s3://$BUCKET/index.html" \
             --cache-control "no-cache, no-store, must-revalidate"
@@ -620,7 +624,16 @@ jobs:
           grep -q 'promo-root' "$ROOT_HTML"
           grep -q 'promo\.css' "$ROOT_HTML"
 
-          for path in / /promo /promo/ /promo/promo.css /promo/promo.js /play /index.html /game/main.js; do
+          # /beta must serve the open-beta invite page (viewer-request function).
+          # Keep the markers in sync with sites/ffm/static/beta/index.html: the
+          # body carries id="beta-root" and the page loads /beta/beta.css.
+          BETA_HTML="$RUNNER_TEMP/ffm-beta.html"
+          curl -sf "$BASE/beta" -o "$BETA_HTML"
+          grep -qi '<!doctype html' "$BETA_HTML"
+          grep -q 'beta-root' "$BETA_HTML"
+          grep -q '/beta/beta\.js' "$BETA_HTML"
+
+          for path in / /promo /promo/ /promo/promo.css /promo/promo.js /beta /beta/ /beta/beta.css /beta/beta.js /play /index.html /game/main.js; do
             code="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE$path")"
             echo "$path -> $code"
             [[ "$code" == "200" ]] || { echo "::error::$path returned $code"; exit 1; }
