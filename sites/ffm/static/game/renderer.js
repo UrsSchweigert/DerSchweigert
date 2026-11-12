@@ -11,7 +11,13 @@ import {
 export const LOGICAL_PX = 4;
 export const CANVAS_W   = 800;
 export const CANVAS_H   = 450;
-export const GROUND_Y   = 312;   // y where hero / front fiends anchor; lifted so feet stay visible above the terrain
+// y where the hero and the front fiends anchor their feet. The per-level backgrounds paint their walkable
+// ground plane across the lower ~40 % of a 1536x1024 image, which reaches the canvas at y 293 and runs to the
+// bottom edge; 312 sat in the far half of that plane, so both characters read as hovering. Measured against
+// level-01 and confirmed on a rendered frame: 360 puts the feet on the near floor. The six chapter fallbacks
+// paint their courtyard higher, so they now stand slightly lower than before - acceptable, because level art
+// is what every campaign level uses and the stage images only appear if a level image fails to load.
+export const GROUND_Y   = 360;
 export const HERO_X     = 110;
 
 // 5×7 pixel font — chars needed for math questions + HUD labels
