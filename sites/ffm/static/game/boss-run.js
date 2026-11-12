@@ -13,6 +13,7 @@
 import {
   availableBosses,
   BOSSES,
+  WARDENS_ENABLED,
   getBoss,
 } from './boss-data.js';
 import { HIDDEN_RULE_SECONDS, planFight, problemFor } from './boss-plan.js';
@@ -101,14 +102,27 @@ export function ruleText(lock) {
  * @param {() => string} [options.getDifficulty]
  * @param {Document} [options.doc]
  */
+/**
+ * Whether Warden fights may be opened. Off for players, on for a reviewer who
+ * asks for `?wardens=1`, and on for the preview harness, which passes `force`.
+ */
+export function wardensEnabled({ search, force = false } = {}) {
+  if (force || WARDENS_ENABLED) return true;
+  const query = search ?? globalThis.location?.search ?? '';
+  return new URLSearchParams(query).get('wardens') === '1';
+}
+
 export function initWardenMode({
   platform,
   getClearedLevels = () => [],
   getDifficulty = () => 'medium',
   storage,
+  force = false,
+  search,
   doc = globalThis.document,
 } = {}) {
   if (!doc) return null;
+  if (!wardensEnabled({ search, force })) return null;
 
   const levelsPage = doc.querySelector('[data-title-page="levels"]');
 

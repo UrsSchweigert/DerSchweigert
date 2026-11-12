@@ -7,6 +7,11 @@
 // Act k covers levels 10k-9 .. 10k. Its Warden unlocks when those ten levels are
 // cleared, and the next act does not open until the Warden falls.
 
+// Boss fights are built but not released. While this is false the Wardens row is
+// never mounted, so a player cannot reach a fight; `?wardens=1` opens them for
+// development and review. Flip this and delete the query check when they ship.
+export const WARDENS_ENABLED = false;
+
 export const LEVELS_PER_ACT = 10;
 export const ACT_COUNT = 6;
 
