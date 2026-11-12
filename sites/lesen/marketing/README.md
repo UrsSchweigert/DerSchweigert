@@ -13,6 +13,20 @@ self-contained: no build step, no external requests.
   CSP only allows same-origin scripts.
 - `images/` – product screenshots, the mascot, the social preview card and the icons.
 
+## Artwork
+
+`images/lesen-gemeinsam-*.webp` (the illustration in the closing call to action) is
+generated artwork, not a screenshot:
+
+- Model: `fal-ai/flux-1/schnell` via `tools/fal_image.py`, seed `4711`,
+  1024×576 JPEG source, cropped to two WebP widths.
+- Prompt: "Glossy 3D cartoon render of a friendly brown owl with big round blue
+  glasses, sitting beside a small yellow fledgling bird, both reading an open picture
+  book together; a few oversized colourful alphabet tiles … warm cream background
+  (#fff8eb), … no text".
+
+It is decorative (`alt=""`), so it carries no information that the copy does not.
+
 ## Regenerating the images
 
 The screenshots are captured from the real app in `../static`, so they never drift

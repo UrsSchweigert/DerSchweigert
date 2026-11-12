@@ -104,3 +104,14 @@ test('marketing page keeps progressive enhancement same-origin for the strict CS
   assert.doesNotMatch(page, /<script>|<script(?![^>]*src=)/);
   assert.match(language, /document\.documentElement\.lang = 'en'/);
 });
+
+test('marketing closing call to action pairs the copy with decorative artwork', async () => {
+  assert.match(page, /class="cta-art" src="\/images\/lesen-gemeinsam-640\.webp"/);
+  assert.match(page, /srcset="\/images\/lesen-gemeinsam-420\.webp 420w, \/images\/lesen-gemeinsam-640\.webp 640w"/);
+  assert.match(page, /alt="" aria-hidden="true"/);
+  for (const asset of ['images/lesen-gemeinsam-420.webp', 'images/lesen-gemeinsam-640.webp']) {
+    const image = await readFile(new URL(`../marketing/${asset}`, import.meta.url));
+    assert.ok(image.length > 0, `Missing marketing asset: ${asset}`);
+    assert.ok(image.length < 200_000, `Marketing asset too heavy: ${asset}`);
+  }
+});

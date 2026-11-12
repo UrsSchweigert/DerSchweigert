@@ -877,27 +877,39 @@
 
         .final-cta {
             position: relative;
+            display: grid;
             margin: 42px auto 0;
-            padding: 46px 25px;
+            padding: 34px;
             overflow: hidden;
             border-radius: 28px;
             background:
                 radial-gradient(circle at 12% 20%, rgba(255, 216, 76, .55), transparent 20rem),
                 #fff0cb;
-            text-align: center;
+            grid-template-columns: 300px 1fr;
+            align-items: center;
+            gap: 34px;
+            text-align: left;
+        }
+
+        .cta-art {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 22px;
+            box-shadow: 0 16px 34px rgba(4, 33, 78, .18);
         }
 
         .final-cta h2 {
             margin-bottom: 10px;
             color: var(--blue-dark);
-            font-size: clamp(27px, 3.5vw, 38px);
+            font-size: clamp(26px, 3.3vw, 36px);
             letter-spacing: -.015em;
             text-wrap: balance;
         }
 
         .final-cta p {
             max-width: 52ch;
-            margin: 0 auto 22px;
+            margin: 0 0 22px;
             color: var(--muted);
         }
 
@@ -1076,6 +1088,12 @@
             .how-panel {
                 grid-template-columns: 1fr 1fr;
             }
+
+            .final-cta {
+                grid-template-columns: 220px 1fr;
+                gap: 24px;
+                padding: 28px;
+            }
         }
 
         @media (max-width: 620px) {
@@ -1217,7 +1235,19 @@
             }
 
             .final-cta {
-                padding: 34px 20px;
+                grid-template-columns: 1fr;
+                gap: 22px;
+                padding: 26px 20px 32px;
+                text-align: center;
+            }
+
+            .cta-art {
+                max-width: 320px;
+                margin-inline: auto;
+            }
+
+            .final-cta p {
+                margin-inline: auto;
             }
 
             .footer-inner {
@@ -1536,12 +1566,18 @@
             <p class="project-reference"><a href="https://derschweigert.de/#projects" data-i18n="projectReference">Buchstabenzeit auf DerSchweigert ansehen</a></p>
 
             <div class="final-cta reveal">
-                <h2 data-i18n="closingTitle">Gemeinsam wachsen – Karte für Karte.</h2>
-                <p data-i18n="closingText">Buchstabenzeit erscheint für Android und iPhone. Wir schreiben eine kurze Nachricht, sobald es losgeht.</p>
-                <a class="button" href="mailto:info@derschweigert.de?subject=Buchstabenzeit%3A%20Info%20zum%20Start">
-                    <span data-i18n="closingButton">Beim Start informiert werden</span>
-                    <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
-                </a>
+                <img class="cta-art" src="/images/lesen-gemeinsam-640.webp"
+                    srcset="/images/lesen-gemeinsam-420.webp 420w, /images/lesen-gemeinsam-640.webp 640w"
+                    sizes="(max-width: 850px) 320px, 300px" width="640" height="360" loading="lazy" decoding="async"
+                    alt="" aria-hidden="true">
+                <div class="cta-copy">
+                    <h2 data-i18n="closingTitle">Gemeinsam wachsen – Karte für Karte.</h2>
+                    <p data-i18n="closingText">Buchstabenzeit erscheint für Android und iPhone. Wir schreiben eine kurze Nachricht, sobald es losgeht.</p>
+                    <a class="button" href="mailto:info@derschweigert.de?subject=Buchstabenzeit%3A%20Info%20zum%20Start">
+                        <span data-i18n="closingButton">Beim Start informiert werden</span>
+                        <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+                    </a>
+                </div>
             </div>
         </section>
     </main>
