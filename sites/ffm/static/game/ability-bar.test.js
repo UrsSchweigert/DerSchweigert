@@ -222,7 +222,7 @@ describe('cooling state', () => {
 
     const earth = slotOf(bar, 'earth');
     assert.equal(earth.dataset.state, 'ready');
-    assert.equal(childByClass(earth, 'ability-slot-cooldown').textContent, '');
+    assert.equal(childByClass(earth, 'ability-slot-cooldown').textContent, 'Ready');
     assert.equal(earth.style.getPropertyValue('--ability-progress'), '1');
   });
 
