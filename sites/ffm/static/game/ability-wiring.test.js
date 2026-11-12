@@ -9,6 +9,7 @@ import vm from 'node:vm';
 
 import { createAbilityRuntime } from './cooldown-abilities.js';
 import { createAbilityBar } from './ability-bar.js';
+import { countDragonRemainingEncounters } from './encounter-flow.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 
@@ -18,9 +19,15 @@ function functionSource(name) {
   return match[0];
 }
 
-function finishStartContext() {
+function finishStartContext({ checkAllDefeated } = {}) {
+  const calls = {
+    hudUpdates: 0,
+    triggerWaveClear: 0,
+    recordPracticeEncounterDefeated: 0,
+  };
   const context = {
     createAbilityRuntime,
+    countDragonRemainingEncounters,
     setAnswerInputVisible() {},
     gameplayTimers: [],
     practiceRun: null,
@@ -36,7 +43,7 @@ function finishStartContext() {
     gameOverOverlay: { style: {} },
     resetHealHold() {},
     updateHUDLogoutVisibility() {},
-    hud: { update() {} },
+    hud: { update() { calls.hudUpdates += 1; } },
     audio: { startLevelBGM() {} },
     flushDeferredMusicVolume() {},
     syncKeepAwake() {},
@@ -44,6 +51,14 @@ function finishStartContext() {
     spawnQueue: [],
     requeuedFiends: [],
     fiends: [],
+    activeFiend: null,
+    pendingProblemActivation: null,
+    inputDisabled: false,
+    spawnTimer: 0,
+    spawnInterval: 4,
+    recordPracticeEncounterDefeated() { calls.recordPracticeEncounterDefeated += 1; },
+    checkAllDefeated: checkAllDefeated ?? (() => false),
+    triggerWaveClear() { calls.triggerWaveClear += 1; },
   };
   vm.createContext(context);
   vm.runInContext(
@@ -52,13 +67,30 @@ function finishStartContext() {
       functionSource('beginAbilityRun'),
       functionSource('activateAbility'),
       functionSource('finishStartLevel'),
+      functionSource('remainingEnemyCount'),
+      functionSource('removeActiveFiendForAbility'),
+      functionSource('castWindAbility'),
+      functionSource('castStormAbility'),
     ].join('\n'),
     context,
   );
+  context.__calls = calls;
   return context;
 }
 
 const readRuntime = (context) => vm.runInContext('abilityRuntime', context);
+
+function fiendStub(state = 'walk') {
+  const fiend = { isDead: false, state, wasRequeued: false, problem: null };
+  fiend.setState = (next) => { fiend.state = next; };
+  return fiend;
+}
+
+function giveActiveFiend(context, fiend = fiendStub()) {
+  context.activeFiend = fiend;
+  context.fiends = [fiend];
+  return fiend;
+}
 
 describe('ability runtime lifecycle', () => {
   it('creates the runtime when the first level of a run starts', () => {
@@ -77,6 +109,7 @@ describe('ability runtime lifecycle', () => {
   it('re-levels the existing runtime so cooldowns survive a level transition', () => {
     const context = finishStartContext();
     vm.runInContext('finishStartLevel(0, { level: 1, chapter: 1, waveSize: 3 });', context);
+    giveActiveFiend(context);
     assert.equal(vm.runInContext("activateAbility('wind')", context), true);
 
     const first = readRuntime(context);
@@ -97,6 +130,7 @@ describe('ability runtime lifecycle', () => {
     const context = finishStartContext();
     vm.runInContext('finishStartLevel(0, { level: 1, chapter: 1, waveSize: 3 });', context);
 
+    giveActiveFiend(context);
     assert.equal(vm.runInContext("activateAbility('wind')", context), true);
     const runtime = readRuntime(context);
     assert.equal(runtime.progress('wind'), 0, 'activation restarts the full cooldown');
@@ -105,6 +139,7 @@ describe('ability runtime lifecycle', () => {
 
     runtime.tick(180, { encounterRunning: true });
     assert.equal(runtime.progress('wind'), 1);
+    giveActiveFiend(context);
     assert.equal(vm.runInContext("activateAbility('wind')", context), true);
   });
 
@@ -169,6 +204,163 @@ describe('run starts', () => {
       gameOver.indexOf('beginAbilityRun(currentLevelIndex + 1)') < gameOver.indexOf('startLevel(currentLevelIndex)'),
       'retry resets before the level starts',
     );
+  });
+});
+
+describe('wind ability', () => {
+  it('removes an active fiend with one defeat and no score/combo/timer credit', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 1, chapter: 1, waveSize: 3 });', context);
+    const fiend = giveActiveFiend(context);
+    context.state.timerActive = true;
+    context.state.timerRemaining = 7;
+    context.state.timerMax = 10;
+    context.state.hearts = 3;
+    const scoreBefore = context.state.score;
+    const comboBefore = context.state.combo;
+
+    assert.equal(vm.runInContext("activateAbility('wind')", context), true);
+
+    assert.equal(fiend.state, 'retreat', 'the active fiend retreats off the field');
+    assert.equal(context.activeFiend, null, 'the active fiend is cleared');
+    assert.equal(context.state.enemiesDefeated, 1, 'exactly one defeat is counted');
+    assert.equal(context.state.score, scoreBefore, 'score is untouched');
+    assert.equal(context.state.combo, comboBefore, 'combo is untouched');
+    assert.equal(context.state.hearts, 3, 'hearts are untouched');
+    assert.equal(context.state.timerRemaining, 7, 'no timing credit is awarded');
+    assert.equal(context.state.timerMax, 10, 'the timer length is untouched');
+    assert.equal(context.state.timerActive, false, 'the problem timer stops');
+    assert.equal(context.inputDisabled, false, 'input is re-enabled for the next spawn');
+    assert.equal(context.spawnTimer, context.spawnInterval, 'the next spawn is scheduled');
+    assert.equal(context.__calls.recordPracticeEncounterDefeated, 1);
+  });
+
+  it('consumes no cooldown and returns false when there is no active fiend', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 1, chapter: 1, waveSize: 3 });', context);
+    assert.equal(context.activeFiend, null);
+
+    assert.equal(vm.runInContext("activateAbility('wind')", context), false);
+    assert.equal(readRuntime(context).progress('wind'), 1, 'the cooldown stays full');
+    assert.equal(context.state.enemiesDefeated, 0);
+    assert.equal(context.__calls.triggerWaveClear, 0);
+  });
+
+  it('refuses wind while input is disabled without consuming the cooldown', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 1, chapter: 1, waveSize: 3 });', context);
+    giveActiveFiend(context);
+    context.inputDisabled = true;
+
+    assert.equal(vm.runInContext("activateAbility('wind')", context), false);
+    assert.equal(readRuntime(context).progress('wind'), 1, 'the cooldown stays full');
+  });
+
+  it('hands off to the wave-clear path when the last enemy is removed', () => {
+    const context = finishStartContext({ checkAllDefeated: () => true });
+    vm.runInContext('finishStartLevel(0, { level: 1, chapter: 1, waveSize: 1 });', context);
+    giveActiveFiend(context);
+
+    assert.equal(vm.runInContext("activateAbility('wind')", context), true);
+    assert.equal(context.__calls.triggerWaveClear, 1, 'wind leads to the normal wave clear');
+  });
+});
+
+describe('storm ability', () => {
+  it('stormRemovals returns min(1 + rank, remaining - 1) for 0/1/2/30 enemies across ranks 0-5', () => {
+    const byRemaining = [
+      [0, 0, 0, 0, 0, 0], // 0 remaining
+      [0, 0, 0, 0, 0, 0], // 1 remaining
+      [1, 1, 1, 1, 1, 1], // 2 remaining
+      [1, 2, 3, 4, 5, 6], // 30 remaining
+    ];
+    for (let rank = 0; rank <= 5; rank += 1) {
+      const runtime = createAbilityRuntime({ level: 6, rank });
+      for (const [remaining, expected] of [
+        [0, byRemaining[0][rank]],
+        [1, byRemaining[1][rank]],
+        [2, byRemaining[2][rank]],
+        [30, byRemaining[3][rank]],
+      ]) {
+        assert.equal(runtime.stormRemovals(remaining), expected,
+          `rank ${rank}, remaining ${remaining}`);
+      }
+    }
+  });
+
+  it('drains spawnQueue first, then requeuedFiends, then the active fiend', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 6, chapter: 1, waveSize: 30 });', context);
+    vm.runInContext('beginAbilityRun(6, 5);', context);
+
+    const active = fiendStub();
+    context.spawnQueue = [6, 6];
+    context.requeuedFiends = [fiendStub(), fiendStub()];
+    context.fiends = [active];
+    context.activeFiend = active;
+
+    // remaining = 2 + 2 + 1 = 5; rank 5 -> min(6, 4) = 4: drain queue + requeue.
+    assert.equal(vm.runInContext("activateAbility('storm')", context), true);
+    assert.deepEqual(context.spawnQueue, [], 'spawnQueue is drained first');
+    assert.deepEqual(context.requeuedFiends, [], 'requeuedFiends are drained second');
+    assert.equal(context.activeFiend, active, 'the active fiend survives with one left');
+    assert.equal(active.state, 'walk', 'a surviving active fiend is untouched');
+    assert.equal(context.state.enemiesDefeated, 4, 'each removal counts once');
+  });
+
+  it('removes the active fiend last, after the queue and requeue run dry', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 6, chapter: 1, waveSize: 30 });', context);
+    vm.runInContext('beginAbilityRun(6, 5);', context);
+
+    const active = fiendStub();
+    const survivor = fiendStub();
+    context.spawnQueue = [6];
+    context.requeuedFiends = [fiendStub()];
+    context.fiends = [active, survivor];
+    context.activeFiend = active;
+
+    // remaining = 1 + 1 + 2 = 4; rank 5 -> min(6, 3) = 3: queue + requeue + active.
+    assert.equal(vm.runInContext("activateAbility('storm')", context), true);
+    assert.deepEqual(context.spawnQueue, []);
+    assert.deepEqual(context.requeuedFiends, []);
+    assert.equal(context.activeFiend, null, 'the active fiend is removed last');
+    assert.equal(active.state, 'retreat', 'the removed active fiend retreats');
+    assert.equal(survivor.state, 'walk', 'the surviving fiend is untouched');
+    assert.equal(context.state.enemiesDefeated, 3, 'each removal counts once');
+    assert.equal(context.__calls.triggerWaveClear, 0, 'a survivor is still on the field');
+  });
+
+  it('never removes the last enemy', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 6, chapter: 1, waveSize: 30 });', context);
+    vm.runInContext('beginAbilityRun(6, 5);', context);
+
+    const lone = fiendStub();
+    context.spawnQueue = [];
+    context.requeuedFiends = [];
+    context.fiends = [lone];
+    context.activeFiend = lone;
+
+    assert.equal(vm.runInContext("activateAbility('storm')", context), false);
+    assert.equal(context.state.enemiesDefeated, 0);
+    assert.equal(context.activeFiend, lone, 'the lone fiend survives');
+  });
+
+  it('hands the wave-clear check off to triggerWaveClear when the queue empties', () => {
+    const context = finishStartContext({ checkAllDefeated: () => true });
+    vm.runInContext('finishStartLevel(0, { level: 6, chapter: 1, waveSize: 30 });', context);
+    vm.runInContext('beginAbilityRun(6, 0);', context);
+
+    context.spawnQueue = [6, 6];
+    context.requeuedFiends = [];
+    context.fiends = [];
+    context.activeFiend = null;
+
+    // remaining = 2; rank 0 -> min(1, 1) = 1: remove one queued enemy.
+    assert.equal(vm.runInContext("activateAbility('storm')", context), true);
+    assert.equal(context.state.enemiesDefeated, 1);
+    assert.equal(context.__calls.triggerWaveClear, 1, 'checkAllDefeated() hands off to wave clear');
   });
 });
 
