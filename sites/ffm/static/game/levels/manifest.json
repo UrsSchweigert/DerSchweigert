@@ -1,0 +1,247 @@
+{
+  "width": 1536,
+  "height": 1024,
+  "byteBudget": 409600,
+  "levels": {
+    "1": {
+      "file": "level-01.webp",
+      "chapter": "I"
+    },
+    "2": {
+      "file": "level-02.webp",
+      "chapter": "I"
+    },
+    "3": {
+      "file": "level-03.webp",
+      "chapter": "I"
+    },
+    "4": {
+      "file": "level-04.webp",
+      "chapter": "I"
+    },
+    "5": {
+      "file": "level-05.webp",
+      "chapter": "I"
+    },
+    "6": {
+      "file": "level-06.webp",
+      "chapter": "I"
+    },
+    "7": {
+      "file": "level-07.webp",
+      "chapter": "I"
+    },
+    "8": {
+      "file": "level-08.webp",
+      "chapter": "I"
+    },
+    "9": {
+      "file": "level-09.webp",
+      "chapter": "I"
+    },
+    "10": {
+      "file": "level-10.webp",
+      "chapter": "I"
+    },
+    "11": {
+      "file": "level-11.webp",
+      "chapter": "II"
+    },
+    "12": {
+      "file": "level-12.webp",
+      "chapter": "II"
+    },
+    "13": {
+      "file": "level-13.webp",
+      "chapter": "II"
+    },
+    "14": {
+      "file": "level-14.webp",
+      "chapter": "II"
+    },
+    "15": {
+      "file": "level-15.webp",
+      "chapter": "II"
+    },
+    "16": {
+      "file": "level-16.webp",
+      "chapter": "II"
+    },
+    "17": {
+      "file": "level-17.webp",
+      "chapter": "II"
+    },
+    "18": {
+      "file": "level-18.webp",
+      "chapter": "II"
+    },
+    "19": {
+      "file": "level-19.webp",
+      "chapter": "II"
+    },
+    "20": {
+      "file": "level-20.webp",
+      "chapter": "II"
+    },
+    "21": {
+      "file": "level-21.webp",
+      "chapter": "III"
+    },
+    "22": {
+      "file": "level-22.webp",
+      "chapter": "III"
+    },
+    "23": {
+      "file": "level-23.webp",
+      "chapter": "III"
+    },
+    "24": {
+      "file": "level-24.webp",
+      "chapter": "III"
+    },
+    "25": {
+      "file": "level-25.webp",
+      "chapter": "III"
+    },
+    "26": {
+      "file": "level-26.webp",
+      "chapter": "III"
+    },
+    "27": {
+      "file": "level-27.webp",
+      "chapter": "III"
+    },
+    "28": {
+      "file": "level-28.webp",
+      "chapter": "III"
+    },
+    "29": {
+      "file": "level-29.webp",
+      "chapter": "III"
+    },
+    "30": {
+      "file": "level-30.webp",
+      "chapter": "III"
+    },
+    "31": {
+      "file": "level-31.webp",
+      "chapter": "IV"
+    },
+    "32": {
+      "file": "level-32.webp",
+      "chapter": "IV"
+    },
+    "33": {
+      "file": "level-33.webp",
+      "chapter": "IV"
+    },
+    "34": {
+      "file": "level-34.webp",
+      "chapter": "IV"
+    },
+    "35": {
+      "file": "level-35.webp",
+      "chapter": "IV"
+    },
+    "36": {
+      "file": "level-36.webp",
+      "chapter": "IV"
+    },
+    "37": {
+      "file": "level-37.webp",
+      "chapter": "IV"
+    },
+    "38": {
+      "file": "level-38.webp",
+      "chapter": "IV"
+    },
+    "39": {
+      "file": "level-39.webp",
+      "chapter": "IV"
+    },
+    "40": {
+      "file": "level-40.webp",
+      "chapter": "IV"
+    },
+    "41": {
+      "file": "level-41.webp",
+      "chapter": "V"
+    },
+    "42": {
+      "file": "level-42.webp",
+      "chapter": "V"
+    },
+    "43": {
+      "file": "level-43.webp",
+      "chapter": "V"
+    },
+    "44": {
+      "file": "level-44.webp",
+      "chapter": "V"
+    },
+    "45": {
+      "file": "level-45.webp",
+      "chapter": "V"
+    },
+    "46": {
+      "file": "level-46.webp",
+      "chapter": "V"
+    },
+    "47": {
+      "file": "level-47.webp",
+      "chapter": "V"
+    },
+    "48": {
+      "file": "level-48.webp",
+      "chapter": "V"
+    },
+    "49": {
+      "file": "level-49.webp",
+      "chapter": "V"
+    },
+    "50": {
+      "file": "level-50.webp",
+      "chapter": "V"
+    },
+    "51": {
+      "file": "level-51.webp",
+      "chapter": "VI"
+    },
+    "52": {
+      "file": "level-52.webp",
+      "chapter": "VI"
+    },
+    "53": {
+      "file": "level-53.webp",
+      "chapter": "VI"
+    },
+    "54": {
+      "file": "level-54.webp",
+      "chapter": "VI"
+    },
+    "55": {
+      "file": "level-55.webp",
+      "chapter": "VI"
+    },
+    "56": {
+      "file": "level-56.webp",
+      "chapter": "VI"
+    },
+    "57": {
+      "file": "level-57.webp",
+      "chapter": "VI"
+    },
+    "58": {
+      "file": "level-58.webp",
+      "chapter": "VI"
+    },
+    "59": {
+      "file": "level-59.webp",
+      "chapter": "VI"
+    },
+    "60": {
+      "file": "level-60.webp",
+      "chapter": "VI"
+    }
+  }
+}
