@@ -288,9 +288,17 @@ internal track, `jarsigner -verify` and the install/upgrade checks stay manual.
   price from the store and the sandbox purchase completed, which also proves
   the Paid Applications agreement is active.
 - Store listing: Education category, children in the audience, DE and EN text,
-  screenshots, the bundled privacy notice URL or text. The paste-ready copy for
-  every App Store Connect field, the age-rating answers, the review notes and
-  the in-app purchase metadata is in
+  screenshots, the bundled privacy notice URL or text. Both stores need a public
+  privacy-policy URL: use **`https://ffm.derschweigert.de/datenschutz-app.html`**
+  (English twin: `…/datenschutz-app.en.html`). That page describes the app only
+  — no account, no analytics, no tracking — and is kept in sync with the
+  bundled `legal/privacy.*.html` by `tests/app-legal-public.test.mjs`. Do not
+  submit `datenschutz.html`: that is the website/account policy. The app's terms
+  are published at **`https://ffm.derschweigert.de/agb-app.html`**
+  (`…/agb-app.en.html`) for anywhere a terms link is wanted, and are mirrored
+  from `legal/terms.*.html` the same way. The paste-ready
+  copy for every App Store Connect field, the age-rating answers, the review
+  notes and the in-app purchase metadata is in
   [APP-STORE-CONNECT.md](APP-STORE-CONNECT.md).
 - Data safety: "Data not collected", no tracking, no ads, no analytics.
 - Privacy answers must match `PrivacyInfo.xcprivacy`: no tracking, no data
@@ -299,6 +307,11 @@ internal track, `jarsigner -verify` and the install/upgrade checks stay manual.
   cryptography; confirm this at submission.
 - Content rating questionnaire, target audience declaration, and the parental
   gate noted where the questionnaire asks about purchases.
+- Play Console app content is declared in [PLAY-CONSOLE.md](PLAY-CONSOLE.md):
+  target age `6-8`, `9-12` and `13-14`, the IARC answers, ads, data safety and
+  the Families constraints that follow. The app is Families-bound, so accounts,
+  a server leaderboard, user content, ads or analytics cannot return to the app
+  without raising the audience to 13+ in the same release.
 - Physical-device checks and review submission are owner actions.
 
 ## Creating the sandbox Apple Account (iOS owner)

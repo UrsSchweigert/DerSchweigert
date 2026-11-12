@@ -5,6 +5,10 @@ on:
   # or on a harness run branch: those PRs therefore never wait for a native status and never spend macOS minutes
   # (billed at ten times the Linux rate). The aggregate job keeps its historical `ffm-native` check name and
   # must not become a required check in any ruleset, because no pull request produces it.
+  #
+  # The app's JavaScript tests are no longer exclusive to this workflow: deploy.yml's test-ffm runs
+  # `npm test` in sites/ffm/mobile on every ffm pull request, which is what catches a copy-assets or bundle
+  # break before the merge. What stays here is everything that needs a real toolchain (Gradle, Xcode).
   push:
     branches: [main]
     paths:

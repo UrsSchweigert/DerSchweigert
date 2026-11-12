@@ -304,6 +304,10 @@ test('legal, support and pricing facts are present', () => {
     '/impressum.en.html',
     '/datenschutz.en.html',
     '/terms.en.html',
+    // The app has its own policy and terms; the landing page sells the app, so
+    // both are reachable from here without going through the web policy.
+    '/datenschutz-app.html',
+    '/agb-app.html',
     'mailto:info@derschweigert.de',
   ]) {
     assert.ok(html.includes(`href="${href}"`), `missing footer link ${href}`);
