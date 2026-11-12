@@ -269,6 +269,7 @@ export const DICTIONARY = {
   'beta.footer.legalImpressum': { de: 'Impressum', en: 'Imprint' },
   'beta.footer.legalPrivacy': { de: 'Datenschutz', en: 'Privacy' },
   'beta.footer.legalPrivacyApp': { de: 'App-Datenschutz', en: 'App privacy' },
+  'beta.footer.legalTermsApp': { de: 'AGB der App', en: 'App terms' },
   'beta.footer.legalTerms': { de: 'AGB', en: 'Terms' },
   'beta.footer.legalImpressumEn': { de: 'Imprint (EN)', en: 'Imprint (EN)' },
   'beta.footer.legalPrivacyEn': { de: 'Privacy (EN)', en: 'Privacy (EN)' },
