@@ -232,10 +232,14 @@ test('the shared stylesheet draws portrait-only green swords', async () => {
 
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*display:\s*none/,
     'the row is hidden by default, so landscape never shows it');
-  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords\s*\{[^}]*display:\s*flex/,
-    'only the portrait layout shows the row');
-  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords\[hidden\]\s*\{[^}]*display:\s*none/,
-    'a hidden row stays hidden in portrait');
+  assert.match(css, /\.app-encounter-swords\s*\{[^}]*visibility:\s*hidden/,
+    'an empty row is invisible even where it keeps its line');
+  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords\s*\{[^}]*display:\s*flex\s*!important/,
+    'portrait keeps the 22px line even while the row is hidden');
+  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords\[hidden\]\s*\{[^}]*visibility:\s*hidden/,
+    'a hidden row stays invisible in portrait');
+  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords:not\(\[hidden\]\)\s*\{[^}]*visibility:\s*visible/,
+    'a populated row becomes visible in portrait');
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*flex:\s*0 0 100%/);
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*height:\s*22px/);
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*pointer-events:\s*none/);
@@ -263,9 +267,10 @@ test('the app header keeps the question unbroken and gives the readouts the full
 // --- 320px portrait touch-target budget --------------------------------
 // Mirrors the vertical stacking in static/styles.css: #input-zone is the
 // answer grid row, its padding and flex gap are fixed, and #mc-buttons is
-// capped at rows*70-6. The sword row adds 22px plus the 6px flex gap. With
-// four answer buttons both locales use the same geometry, so the budget only
-// depends on the viewport.
+// capped at rows*70-6. Portrait always reserves the 22px sword row plus the
+// 6px flex gap, even before the first count arrives, so the budget never
+// depends on whether the row is visible. With four answer buttons both locales
+// use the same geometry, so the budget only depends on the viewport.
 const INPUT_PADDING = 16;
 const FLEX_GAP = 6;
 const SWORD_ROW = 22;
