@@ -33,6 +33,8 @@ import { generateShapesProblem } from './shapes.js';
 import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
 import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
+import { createAbilityBar } from './ability-bar.js';
+import { createAbilityRuntime } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
 import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
@@ -60,6 +62,9 @@ const platform = await resolvePlatform();
 // Lets styles.css scope web-only layout rules without touching the app.
 document.documentElement.dataset.platform = platform.isApp ? 'app' : 'web';
 const gameplayChrome = createGameplayChrome({ translate: t });
+// One bar for the whole session; the run's runtime feeds it progress every
+// frame. It mounts itself inside #gameplay-chrome (see ability-bar.js).
+const abilityBar = createAbilityBar({ translate: t, onActivate: (id) => activateAbility(id) });
 const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 
 // App-only lifecycle handle (see ./lifecycle.js, shipped by the app overlay).
@@ -817,6 +822,9 @@ let pendingProblemActivation = null;
 let gameRunning = false;
 let paused = false;
 let currentLevelIndex = 0;
+// One ability runtime per run: created when a run starts, re-levelled on each
+// level transition so cooldowns carry across levels, and ticked by gameLoop.
+let abilityRuntime = null;
 let levelStartScore = 0;
 let levelRequestGeneration = 0; // Prevents stale level configs after logout/restart
 let activeLightningBolts = [];
@@ -1424,6 +1432,7 @@ async function startPracticeSession(kind = practiceKindSelect?.value, sourceLeve
       state.hearts = state.maxHearts;
     }
     showPracticeStatus('');
+    if (typeof beginAbilityRun === 'function') beginAbilityRun(sourceLevel);
     await startLevel(sourceLevel - 1);
   } catch (error) {
     console.error('Unable to start practice', error);
@@ -1690,6 +1699,10 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
         if (!jumpValue) targetLevel = progress.nextLevel ?? 1;
       }
       const targetIndex = targetLevel - 1;
+      // Run start: fresh cooldowns for the selected campaign level. The
+      // `typeof` keeps extracted-function tests (which run this block without
+      // main.js) working, matching the volumeControl guard above.
+      if (typeof beginAbilityRun === 'function') beginAbilityRun(targetLevel);
       state.score = 0;
       levelStartScore = state.score;
       // Level 1 opens the story: play the intro unless it already ran this
@@ -2305,6 +2318,7 @@ function resumePendingLevel() {
   state.timerRemaining = pending.timerMax;
   state.maxHearts = pending.maxHearts;
   state.hearts = pending.maxHearts;
+  if (typeof beginAbilityRun === 'function') beginAbilityRun(pending.levelIndex + 1);
   startLevel(pending.levelIndex);
 }
 
@@ -2488,6 +2502,24 @@ function handleLevelConfigError(err, levelIndex) {
   updateHUDLogoutVisibility();
 }
 
+// Start a fresh ability run at `level`: every cooldown is cleared. Called
+// whenever a run begins (level select, practice, resume after paywall, retry);
+// level transitions inside a run only call setLevel so cooldowns persist.
+function beginAbilityRun(level) {
+  const safeLevel = Number.isFinite(level) && level >= 1 ? level : 1;
+  abilityRuntime = createAbilityRuntime({ level: safeLevel });
+  return abilityRuntime;
+}
+
+// A bar activation is only honoured while the ability is unlocked and ready;
+// the bar already refuses cooling/locked clicks, but this keeps the guard at
+// the gameplay seam too.
+function activateAbility(id) {
+  if (!abilityRuntime) return false;
+  if (abilityRuntime.progress(id) < 1) return false;
+  return abilityRuntime.activate(id);
+}
+
 function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   setAnswerInputVisible(true);
   gameplayTimers.length = 0;
@@ -2505,6 +2537,13 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   currentLevelIndex = levelIndex;
   levelStartScore = state.score;
   state.level = cfg.level;
+  // A run keeps its cooldowns across levels; the first level of a run creates
+  // the runtime (run-start call sites do this earlier, this is the fallback).
+  // The `typeof` keeps extracted-function tests running without main.js.
+  if (typeof abilityRuntime !== 'undefined') {
+    if (abilityRuntime) abilityRuntime.setLevel(cfg.level);
+    else beginAbilityRun(cfg.level);
+  }
   state.waveNumber = 1;
   state.enemiesDefeated = 0;
   state.fiendsSpawned = 0;
@@ -3603,6 +3642,7 @@ function triggerGameOver(won = false) {
       return startPracticeSession('shapes', 1);
     }
     resetLevelAttempt(state, levelStartScore);
+    if (typeof beginAbilityRun === 'function') beginAbilityRun(currentLevelIndex + 1);
     startLevel(currentLevelIndex);
   };
   btnReturnTitle.onclick = () => {
@@ -3650,6 +3690,15 @@ function gameLoop(ts) {
   }
 
   if (!paused) advanceGameplayTimers(dt);
+
+  // Ability cooldowns only advance while an encounter is live, so pausing,
+  // level clear, game over and loading never burn cooldown time. The bar gets
+  // 0-1 progress every frame and only rewrites DOM text when a value changes.
+  abilityRuntime?.tick(dt, { encounterRunning: gameRunning && !paused });
+  abilityBar.update({
+    level: state.level,
+    progress: abilityRuntime ? (id) => abilityRuntime.progress(id) : 1,
+  });
 
   if (gameRunning && !paused) {
     answerClock.advance(dt, state.timerActive && !inputDisabled);

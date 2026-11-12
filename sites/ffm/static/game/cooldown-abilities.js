@@ -123,7 +123,7 @@ export function createAbilityRuntime({
   slowBonuses = 0,
   spikeSlow = SPIKE_SLOW_DEFAULTS,
 } = {}) {
-  const currentLevel = requireFinite(level, 'level');
+  let currentLevel = requireFinite(level, 'level');
   if (currentLevel < 1) throw new TypeError('level must be at least 1');
   const stormRank = requireCount(rank, 'rank');
   const passiveSlow = requireCount(slowBonuses, 'slowBonuses');
@@ -142,9 +142,25 @@ export function createAbilityRuntime({
   };
 
   return {
-    level: currentLevel,
+    get level() {
+      return currentLevel;
+    },
     rank: stormRank,
     fiendSpeedMultiplier: fiendSpeedMultiplier(passiveSlow),
+
+    /**
+     * Move the runtime to another player level. Unlocks refresh immediately;
+     * cooldowns already running keep their remaining time, so a level
+     * transition never grants a free activation.
+     * @param {number} nextLevel - the new 1-based player level.
+     * @returns {number} the new level.
+     */
+    setLevel(nextLevel) {
+      const value = requireFinite(nextLevel, 'level');
+      if (value < 1) throw new TypeError('level must be at least 1');
+      currentLevel = value;
+      return currentLevel;
+    },
 
     /**
      * True when the player level has reached the ability's unlock level.
