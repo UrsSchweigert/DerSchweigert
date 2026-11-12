@@ -551,6 +551,7 @@ describe('earth ability', () => {
       requeuedFiends: [],
       fiends: [],
       CANVAS_W: 800,
+      FIEND_PORTAL_X: 760,
       getFiendWalkSpeed: () => 40,
       createFiend: () => spawnFiendStub(),
     };
@@ -568,6 +569,35 @@ describe('earth ability', () => {
     assert.equal(context.spikeSpawnSlowLeft, 0);
   });
 
+  it('opens a portal where the fiend appears', () => {
+    const played = [];
+    const context = {
+      applySpikeSlow: () => false,
+      spikeSpawnSlowLeft: 0, spikeSlowedFiends: new Set(),
+      abilityRuntime: { spikeState: { active: false, factor: 0.65 } },
+      state: { isShapesMode: false, timerMax: 10 },
+      practiceRun: null,
+      spawnQueue: [3],
+      requeuedFiends: [],
+      fiends: [],
+      FIEND_PORTAL_X: 720,
+      getFiendWalkSpeed: () => 40,
+      createFiend: (level, x) => { const created = spawnFiendStub(); created.x = x; created.y = 360; return created; },
+      ffmScreenFx: { play: (name, payload) => played.push([name, payload]) },
+      globalThis: { ffmScreenFx: { play: (name, payload) => played.push([name, payload]) } },
+    };
+    vm.createContext(context);
+    vm.runInContext(functionSource('spawnNextFiend'), context);
+
+    vm.runInContext('spawnNextFiend();', context);
+    assert.equal(context.fiends[0].x, 720, 'the fiend materialises at the portal, not off-screen');
+    assert.equal(played.length, 1, 'exactly one entrance effect plays');
+    assert.equal(played[0][0], 'fiendPortal');
+    // Spread into a host object: the payload literal is created inside the vm realm,
+    // so a cross-realm deepEqual would compare prototypes as well as values.
+    assert.deepEqual({ ...played[0][1] }, { x: 720, y: context.fiends[0].y }, 'the effect is anchored to the fiend itself');
+  });
+
   it('does not slow spawns once the spike is inactive', () => {
     const context = {
       applySpikeSlow,
@@ -580,6 +610,7 @@ describe('earth ability', () => {
       requeuedFiends: [],
       fiends: [],
       CANVAS_W: 800,
+      FIEND_PORTAL_X: 760,
       getFiendWalkSpeed: () => 40,
       createFiend: () => spawnFiendStub(),
     };
