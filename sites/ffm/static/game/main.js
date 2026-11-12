@@ -12,6 +12,13 @@ import {
   readAudioPreferences,
   writeAudioPreferences,
 } from './audio-preferences.js';
+import { createHaptics } from './haptics.js';
+import { noopVibration, resolveVibrationSource } from './haptics-source.js';
+import {
+  applyVibrationPreferences,
+  readVibrationPreferences,
+  writeVibrationPreferences,
+} from './vibration-preferences.js';
 import { InputManager } from './input.js';
 import { createCompletionId, createLevelCompletion } from './level-completion.js';
 import { initViewportLayout } from './viewport-layout.js';
@@ -639,6 +646,7 @@ const btnSkillIntroSkip = document.getElementById('btn-skill-intro-skip');
 const musicVolumeInput = document.getElementById('music-volume');
 const musicVolumeStatus = document.getElementById('music-volume-status');
 const effectsVolumeInput = document.getElementById('effects-volume');
+const hapticsToggle = document.getElementById('haptics-toggle');
 
 const checkoutModal = document.getElementById('checkout-modal');
 const closeCheckout = document.getElementById('close-checkout');
@@ -732,6 +740,22 @@ const audio = new AudioEngine({
   onMusicVolumeUnavailable: () => audioPreferenceStatus(),
 });
 
+// Haptics: one facade for the session. It is published on globalThis because
+// several tests evaluate single functions from this module in a bare VM where
+// a module binding would be undeclared. The device driver resolves
+// asynchronously (the app plugin may not be bundled), so the delegate starts
+// absent and is swapped in place once resolveVibrationSource settles; until
+// then every event is the silent no-op.
+let vibrationDriver = null;
+const haptics = createHaptics({
+  vibrate: pattern => vibrationDriver?.(pattern),
+  reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+});
+globalThis.ffmHaptics = haptics;
+resolveVibrationSource()
+  .then(({ vibrate }) => { vibrationDriver = vibrate; })
+  .catch(() => { vibrationDriver = noopVibration; });
+
 function audioPreferenceStatus() {
   if (musicVolumeStatus) {
     const capability = audio.musicVolumeCapability;
@@ -788,6 +812,11 @@ function initializeAudioPreferences() {
   audioPreferenceStatus();
 }
 
+function initializeHapticsPreferences() {
+  applyVibrationPreferences(haptics, readVibrationPreferences(window.localStorage));
+  if (hapticsToggle) hapticsToggle.checked = haptics.enabled;
+}
+
 effectsVolumeInput?.addEventListener('input', () => {
   try {
     audio.setEffectsVolume(Number(effectsVolumeInput.value));
@@ -813,6 +842,12 @@ document.getElementById('audio-settings')?.addEventListener('toggle', (event) =>
   if (event.target.open) flushDeferredMusicVolume();
 });
 initializeAudioPreferences();
+initializeHapticsPreferences();
+
+hapticsToggle?.addEventListener('change', () => {
+  haptics.setEnabled(hapticsToggle.checked);
+  writeVibrationPreferences(window.localStorage, haptics.enabled);
+});
 
 // --- Entity state ---
 let hero = new Hero();
@@ -3256,6 +3291,7 @@ function resolveLightningHit(fiend) {
   fiend.hp = 0;
   fiend.setState('death');
   audio.playLightningHit();
+  globalThis.ffmHaptics?.impact();
   audio.playEnemyDeath(fiend.type);
   state.enemiesDefeated++;
   recordPracticeEncounterDefeated();
@@ -3275,6 +3311,7 @@ function resolveLightningHit(fiend) {
 // only re-queues its problem.
 function resolveFireballHit(fiend) {
   audio.playFireballHit();
+  globalThis.ffmHaptics?.impact();
   const fireCentre = globalThis.ffmFx?.fiendCentre(fiend);
   if (fireCentre) globalThis.ffmScreenFx?.play('fireImpact', fireCentre);
   fiend.hit();
@@ -3324,6 +3361,7 @@ function handleCorrectAnswer(origin) {
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
       if (state.hearts > previousHearts) {
         audio.playHeal?.();
+        globalThis.ffmHaptics?.heal();
         globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
       }
     }
@@ -3415,6 +3453,7 @@ function handleCorrectAnswer(origin) {
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
       audio.playDragonRoar();
+      globalThis.ffmHaptics?.impact();
 
       if (fiend.isDead) {
         audio.playEnemyDeath(fiend.type);
@@ -3454,6 +3493,7 @@ function handleCorrectAnswer(origin) {
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
       audio.playSwordSwing();
+      globalThis.ffmHaptics?.impact();
       audio.playFiendHit?.(fiend.type);
 
       if (fiend.isDead) {
@@ -3520,6 +3560,7 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
   else audio.playWrong?.();
   // The body blow lands with the strike animation, not on the answer beep.
   audio.playHeroHurt?.(0.12);
+  globalThis.ffmHaptics?.impact();
   state.timerActive = false;
   state.hearts--;
   hud.update(state);
@@ -3686,11 +3727,13 @@ function triggerWaveClear() {
     if (hymn?.then) hymn.then((started) => { if (!started) audio.playLevelClear?.(); });
     else audio.playLevelClear?.();
   }
+  globalThis.ffmHaptics?.levelClear();
   const healed = state.hearts < state.maxHearts;
   state.hearts = state.maxHearts;
   if (healed) {
     hero._healAura = GAME_CONFIG.healingAuraDuration;
     audio.playHeal?.();
+    globalThis.ffmHaptics?.heal();
     globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
   }
   hud.update(state);
@@ -4009,6 +4052,7 @@ function gameLoop(ts) {
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
       if (state.hearts > previousHearts) {
         audio.playHeal?.();
+        globalThis.ffmHaptics?.heal();
         globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
       }
       hud.update(state);

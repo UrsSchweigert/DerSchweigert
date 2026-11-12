@@ -350,6 +350,7 @@ const DICTIONARY = {
   },
   'audio.musicVolumeReady': { en: 'Music volume control is available.', de: 'Die Musiklautstärke kann angepasst werden.' },
   'audio.effectsVolume': { en: 'Effects volume', de: 'Effektlautstärke' },
+  'audio.haptics': { en: 'Vibration', de: 'Vibration' },
   'audio.preferencesSaveFailed': {
     en: 'Audio changed, but this device could not save the preference.',
     de: 'Der Ton wurde geändert, aber die Einstellung konnte auf diesem Gerät nicht gespeichert werden.',
