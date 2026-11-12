@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 
-import { buildAssetManifest } from './asset-preload.js';
+import { buildAssetManifest, buildAbilityIconUrls } from './asset-preload.js';
 
 describe('buildAssetManifest', () => {
   it('returns 3 core sprites + 6 stage backgrounds + 60 fiend class sprites', () => {
@@ -46,5 +46,18 @@ describe('buildAssetManifest', () => {
       const filePath = fileURLToPath(url);
       assert.ok(fs.existsSync(filePath), `missing file: ${filePath}`);
     }
+  });
+});
+
+describe('buildAbilityIconUrls', () => {
+  it('lists the wind, storm and earth icons under game/assets', () => {
+    const urls = buildAbilityIconUrls();
+    assert.deepEqual(urls.map((url) => url.split('/').pop()), [
+      'ability-wind.webp',
+      'ability-storm.webp',
+      'ability-earth.webp',
+    ]);
+    assert.equal(new Set(urls).size, urls.length);
+    for (const url of urls) assert.match(url, /\/game\/assets\/ability-(wind|storm|earth)\.webp$/);
   });
 });

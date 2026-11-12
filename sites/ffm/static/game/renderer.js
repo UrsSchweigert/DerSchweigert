@@ -1,20 +1,18 @@
 // renderer.js — SNES-era forest scene, 3-D cobblestone path, bright SNES palette
 
+import {
+  FALLBACK_BACKGROUND_URL,
+  LEVEL_ART_MANIFEST,
+  levelArtUrl,
+  parseLevelArtManifest,
+  resolveLevelBackground,
+} from './level-art.js';
+
 export const LOGICAL_PX = 4;
 export const CANVAS_W   = 800;
 export const CANVAS_H   = 450;
 export const GROUND_Y   = 312;   // y where hero / front fiends anchor; lifted so feet stay visible above the terrain
 export const HERO_X     = 110;
-
-const FALLBACK_BG_SRC = new URL('./background.webp', import.meta.url).href;
-const STAGE_BG_SOURCES = [
-  new URL('./stage-1.webp', import.meta.url).href,
-  new URL('./stage-2.webp', import.meta.url).href,
-  new URL('./stage-3.webp', import.meta.url).href,
-  new URL('./stage-4.webp', import.meta.url).href,
-  new URL('./stage-5.webp', import.meta.url).href,
-  new URL('./stage-6.webp', import.meta.url).href,
-];
 
 // 5×7 pixel font — chars needed for math questions + HUD labels
 export const PIXEL_FONT = {
@@ -73,25 +71,26 @@ const COMBO_FRAME_COLORS = {
 };
 
 export class Renderer {
-  constructor(canvas) {
+  constructor(canvas, manifest = LEVEL_ART_MANIFEST) {
     this.canvas = canvas;
     this.ctx    = canvas.getContext('2d');
     this._tick  = 0;
+    this._levelArtManifest = parseLevelArtManifest(manifest);
     this._bgImage = new Image();
     this._fallbackBgImage = new Image();
-    // Only load the fallback (a generic, unbranded scene not used by any
-    // stage — see background.png) if the real per-stage image actually
-    // fails, not eagerly alongside it. Both used to start loading in the
-    // constructor at once, and since network/decode timing is a race,
-    // background.png could finish first and flash on screen as the
-    // "wrong"/unused picture before stage-1.png replaced it. Until the real
-    // image loads, drawBackground()'s solid-color rect covers the gap
-    // instead.
+    // Nothing is requested eagerly: the level decides the background in
+    // setBackgroundByLevel(). Only load the fallback (a generic, unbranded
+    // scene not used by any stage — see background.webp) if the selected
+    // level or stage image actually fails, so a failed chapter swap never
+    // flashes the wrong picture. Until the real image loads,
+    // drawBackground()'s solid-color rect covers the gap instead.
+    this._bgUrl = '';
+    this._bgFailed = false;
+    this._preloadedLevelArt = new Set();
     this._bgImage.addEventListener('error', () => {
-      if (!this._fallbackBgImage.src) this._fallbackBgImage.src = FALLBACK_BG_SRC;
+      this._bgFailed = true;
+      if (!this._fallbackBgImage.src) this._fallbackBgImage.src = FALLBACK_BACKGROUND_URL;
     });
-    this._bgImage.src = STAGE_BG_SOURCES[0];
-    this._stageIndex = 0;
     // DOM overlay for the pulsating combo-ability border. It sits above the
     // canvas HUD bar (top), which otherwise paints over a border drawn onto
     // the canvas itself, making it visible on left/right only. See
@@ -133,23 +132,41 @@ export class Renderer {
   }
 
   setBackgroundByLevel(levelNumber) {
-    const stageIndex = Math.min(STAGE_BG_SOURCES.length - 1, Math.max(0, Math.ceil(levelNumber / 10) - 1));
-    if (stageIndex === this._stageIndex && this._bgImage.src) {
-      return;
-    }
-    this._stageIndex = stageIndex;
-    this._bgImage.src = STAGE_BG_SOURCES[stageIndex];
+    const url = resolveLevelBackground(levelNumber, this._levelArtManifest);
+    // Cache on the resolved URL: a newly committed level image replaces the
+    // stage art of the same chapter instead of being skipped by stage index.
+    if (url === this._bgUrl && this._bgImage.src) return;
+    this._bgUrl = url;
+    this._bgFailed = false;
+    this._bgImage.src = url;
   }
 
-  // Resolves once the stage background most recently selected by
+  // Warms the browser cache for the given levels without awaiting them. Only
+  // levels with a manifest entry are requested, so no image is fetched for a
+  // level whose art has not been committed yet.
+  preloadLevelArt(levels) {
+    for (const level of levels ?? []) {
+      const number = Number.parseInt(level, 10);
+      const file = this._levelArtManifest.levels[String(number)];
+      const url = file ? levelArtUrl(number, file) : null;
+      if (!url || this._preloadedLevelArt.has(url)) continue;
+      this._preloadedLevelArt.add(url);
+      const image = new Image();
+      image.decoding = 'async';
+      image.src = url;
+    }
+  }
+
+  // Resolves once the level or stage background most recently selected by
   // setBackgroundByLevel() has actually finished loading (or errored). Even
-  // when its PNG bytes are already in the browser's HTTP cache, swapping
+  // when its bytes are already in the browser's HTTP cache, swapping
   // `_bgImage.src` still requires a fresh decode before `.complete`/
   // `.naturalWidth` become true again — during that gap drawBackground()
   // falls back to a flat color rect. main.js awaits this before revealing a
-  // level, so a chapter-boundary stage swap (every 10 levels) never flashes
-  // that fallback rect on screen.
+  // level, so a chapter-boundary swap (every 10 levels) never flashes that
+  // fallback rect on screen.
   waitForBackgroundLoad() {
+    if (!this._bgImage.src || this._bgFailed) return Promise.resolve();
     if (this._bgImage.complete && this._bgImage.naturalWidth) return Promise.resolve();
     return new Promise((resolve) => {
       this._bgImage.addEventListener('load', resolve, { once: true });

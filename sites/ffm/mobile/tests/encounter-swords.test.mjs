@@ -1,11 +1,11 @@
-// encounter-swords.test.mjs — the app-only portrait encounter sword row.
+// encounter-swords.test.mjs — the shared portrait encounter sword row.
 //
-// encounter-swords.js ships through the overlay as www/game/encounter-swords.js
-// and is imported by main.js only behind platform.isApp. These tests pin the
-// sword count (one per enemy, bounded), the left-to-right green fill, the row
-// placement directly above the answer buttons, teardown, the wiring through
-// the shared mobile-ui hook, the portrait-only CSS, and the 320px portrait
-// touch-target budget.
+// encounter-swords.js lives in static/game, ships to the website and to
+// www/game/encounter-swords.js in the app bundle, and is imported once by
+// main.js for both channels. These tests pin the sword count (one per enemy,
+// bounded), the left-to-right green fill, the row placement directly above the
+// answer buttons, teardown, the shared main.js wiring, the portrait-only CSS,
+// and the 320px portrait touch-target budget.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
@@ -18,7 +18,7 @@ import {
   SWORDS_CLASS,
   createEncounterSwords,
   resolveSwords,
-} from '../game/encounter-swords.js';
+} from '../../static/game/encounter-swords.js';
 import { calculateSceneLayout } from '../../static/game/viewport-layout.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -175,52 +175,71 @@ test('the widget tears down on quit and is a no-op without its anchor', () => {
   orphan.destroy();
 });
 
-test('main.js feeds the swords the same count as the Defeated readout', async () => {
+test('main.js feeds the shared swords the same count as the Defeated readout', async () => {
   const source = await readFile(join(staticDir, 'game', 'main.js'), 'utf8');
 
-  assert.match(source, /mobileUi\?\.registerWidget\('encounter-swords', createEncounterSwords\(\{ doc: document \}\)\)/);
-  assert.equal((source.match(/import\('\.\/encounter-swords\.js'\)/g) ?? []).length, 1);
+  assert.equal(
+    (source.match(/import \{ createEncounterSwords \} from '\.\/encounter-swords\.js';/g) ?? []).length,
+    1,
+    'one static import serves the website and both apps',
+  );
+  assert.equal(
+    (source.match(/const encounterSwords = createEncounterSwords\(\{ doc: document \}\);/g) ?? []).length,
+    1,
+    'one shared widget is created outside the app guard',
+  );
+  assert.equal((source.match(/encounterSwords\.updateEncounterProgress\(/g) ?? []).length, 1,
+    'the count is published once per frame');
+  assert.doesNotMatch(source, /import\('\.\/encounter-swords\.js'\)/,
+    'no app-only dynamic import remains');
+  assert.doesNotMatch(source, /registerWidget\('encounter-swords'/,
+    'the row is no longer registered as an app-only widget');
   const appStart = source.indexOf('if (platform.isApp) {');
   const appEnd = source.indexOf('\n}\n', appStart);
-  assert.ok(source.slice(appStart, appEnd).includes("import('./encounter-swords.js')"),
-    'the app branch imports the swords dynamically');
-  assert.ok(!source.slice(0, appStart).includes('encounter-swords'),
-    'no module code references the swords before the app guard');
-  assert.equal((source.match(/mobileUi\?\.updateEncounterProgress\(/g) ?? []).length, 1,
-    'the count is published once per frame');
+  assert.ok(appStart >= 0 && appEnd > appStart, 'the app guard is still a top-level block');
+  assert.ok(!source.slice(appStart, appEnd).includes('encounter-swords'),
+    'the app guard neither imports nor registers the shared swords');
   assert.match(source, /t\('gameplay\.encounters', encounterProgress\)/,
     'the readout and the swords share one encounterProgress value');
   assert.doesNotMatch(source, /bubble-timer|createBubbleTimer/);
 
-  const module = await readFile(join(root, 'game', 'encounter-swords.js'), 'utf8');
+  const module = await readFile(join(staticDir, 'game', 'encounter-swords.js'), 'utf8');
   for (const forbidden of ['setInterval', 'setTimeout', 'requestAnimationFrame', 'Date.now', 'performance.now']) {
     assert.ok(!module.includes(forbidden), `the widget must not own a clock (${forbidden})`);
   }
 });
 
-test('the module ships only through the app overlay, never the web build', async () => {
+test('one shared module and one stylesheet block serve both channels', async () => {
+  const shared = await stat(join(staticDir, 'game', 'encounter-swords.js'));
+  assert.ok(shared.isFile(), 'the static module is the only implementation');
   await assert.rejects(
-    stat(join(staticDir, 'game', 'encounter-swords.js')),
+    stat(join(root, 'game', 'encounter-swords.js')),
     { code: 'ENOENT' },
-    'the module must not exist in the web deploy',
+    'the app-only copy is deleted',
   );
   await assert.rejects(stat(join(root, 'game', 'bubble-timer.js')), { code: 'ENOENT' },
     'the old bubble timer is gone');
   const index = await readFile(join(staticDir, 'index.html'), 'utf8');
   const webCss = await readFile(join(staticDir, 'styles.css'), 'utf8');
-  assert.doesNotMatch(index, /encounter-swords|app-encounter-sword/, 'the web page carries no sword markup');
-  assert.doesNotMatch(webCss, /app-encounter-sword/, 'the web stylesheet carries no sword rules');
+  const appCss = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
+  assert.doesNotMatch(index, /encounter-swords|app-encounter-sword/, 'the page carries no sword markup');
+  assert.match(webCss, /\.app-encounter-swords\s*\{/, 'the shared stylesheet draws the row');
+  assert.doesNotMatch(appCss, /app-encounter-sword/, 'the app overlay keeps no copy of the sword rules');
 });
 
-test('the overlay stylesheet draws portrait-only green swords', async () => {
-  const css = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
+test('the shared stylesheet draws portrait-only green swords', async () => {
+  const css = await readFile(join(staticDir, 'styles.css'), 'utf8');
 
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*display:\s*none/,
-    'the row is hidden by default, so landscape and the web build never show it');
-  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords\s*\{[^}]*display:\s*flex/,
-    'only the portrait layout shows the row');
-  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords\[hidden\]\s*\{[^}]*display:\s*none/,
-    'a hidden row stays hidden in portrait');
+    'the row is hidden by default, so landscape never shows it');
+  assert.match(css, /\.app-encounter-swords\s*\{[^}]*visibility:\s*hidden/,
+    'an empty row is invisible even where it keeps its line');
+  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords\s*\{[^}]*display:\s*flex\s*!important/,
+    'portrait keeps the 22px line even while the row is hidden');
+  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords\[hidden\]\s*\{[^}]*visibility:\s*hidden/,
+    'a hidden row stays invisible in portrait');
+  assert.match(css, /#game-wrap\[data-layout="portrait"\]\s*\.app-encounter-swords:not\(\[hidden\]\)\s*\{[^}]*visibility:\s*visible/,
+    'a populated row becomes visible in portrait');
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*flex:\s*0 0 100%/);
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*height:\s*22px/);
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*pointer-events:\s*none/);
@@ -230,7 +249,7 @@ test('the overlay stylesheet draws portrait-only green swords', async () => {
 
   const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)', css.indexOf('.app-encounter-swords')));
   assert.match(reduced, /\.app-encounter-sword--filled\s*\{[^}]*animation:\s*none/);
-  assert.doesNotMatch(css, /https?:\/\//, 'the overlay stylesheet must stay offline');
+  assert.doesNotMatch(css, /https?:\/\//, 'the shared stylesheet must stay offline');
 });
 
 test('the app header keeps the question unbroken and gives the readouts the full width', async () => {
@@ -248,9 +267,10 @@ test('the app header keeps the question unbroken and gives the readouts the full
 // --- 320px portrait touch-target budget --------------------------------
 // Mirrors the vertical stacking in static/styles.css: #input-zone is the
 // answer grid row, its padding and flex gap are fixed, and #mc-buttons is
-// capped at rows*70-6. The sword row adds 22px plus the 6px flex gap. With
-// four answer buttons both locales use the same geometry, so the budget only
-// depends on the viewport.
+// capped at rows*70-6. Portrait always reserves the 22px sword row plus the
+// 6px flex gap, even before the first count arrives, so the budget never
+// depends on whether the row is visible. With four answer buttons both locales
+// use the same geometry, so the budget only depends on the viewport.
 const INPUT_PADDING = 16;
 const FLEX_GAP = 6;
 const SWORD_ROW = 22;

@@ -327,3 +327,81 @@ describe('initI18n()', () => {
     assert.doesNotThrow(() => initI18n());
   });
 });
+
+describe('bonus notice keys', () => {
+  const KEYS = [
+    'bonus.cooldown.notice',
+    'bonus.storm.notice',
+    'bonus.slowSpeed.notice',
+    'bonus.slowTargets.notice',
+  ];
+  const placeholders = (text) => [...String(text).matchAll(/\{([a-zA-Z0-9_]+)\}/g)]
+    .map((match) => match[1])
+    .sort();
+
+  it('has en and de strings with matching placeholders for every bonus notice', () => {
+    for (const key of KEYS) {
+      setLocale('en');
+      const en = t(key);
+      setLocale('de');
+      const de = t(key);
+      assert.notEqual(en, key, `${key} is missing its English string`);
+      assert.notEqual(de, key, `${key} is missing its German string`);
+      assert.notEqual(en, de, `${key} is not localized`);
+      assert.deepEqual(placeholders(en), ['ability', 'value'], key);
+      assert.deepEqual(placeholders(de), placeholders(en), `${key} placeholder parity`);
+    }
+  });
+
+  it('interpolates the ability name and value in both locales', () => {
+    for (const key of KEYS) {
+      for (const locale of ['en', 'de']) {
+        setLocale(locale);
+        const text = t(key, { ability: 'Wind', value: 6 });
+        assert.match(text, /Wind/, `${key} ${locale} ability`);
+        assert.match(text, /6/, `${key} ${locale} value`);
+        assert.doesNotMatch(text, /\{\w+\}/, `${key} ${locale} leaves no placeholder`);
+      }
+    }
+  });
+});
+
+describe('ability slot readout keys', () => {
+  const KEYS = {
+    'ability.slot.ready': [],
+    'ability.storm.readout': ['count'],
+    'ability.earth.readout': ['percent', 'targets'],
+  };
+  const placeholders = (text) => [...String(text).matchAll(/\{([a-zA-Z0-9_]+)\}/g)]
+    .map((match) => match[1])
+    .sort();
+
+  it('has en and de strings with matching placeholders for every slot readout', () => {
+    for (const [key, expected] of Object.entries(KEYS)) {
+      setLocale('en');
+      const en = t(key);
+      setLocale('de');
+      const de = t(key);
+      assert.notEqual(en, key, `${key} is missing its English string`);
+      assert.notEqual(de, key, `${key} is missing its German string`);
+      assert.notEqual(en, de, `${key} is not localized`);
+      assert.deepEqual(placeholders(en), expected, key);
+      assert.deepEqual(placeholders(de), placeholders(en), `${key} placeholder parity`);
+    }
+  });
+
+  it('interpolates the readout values in both locales', () => {
+    for (const locale of ['en', 'de']) {
+      setLocale(locale);
+      const storm = t('ability.storm.readout', { count: 6 });
+      assert.match(storm, /6/, `storm ${locale} count`);
+      const earth = t('ability.earth.readout', { percent: 65, targets: 5 });
+      assert.match(earth, /65/, `earth ${locale} percent`);
+      assert.match(earth, /5/, `earth ${locale} targets`);
+      for (const text of [storm, earth]) {
+        assert.doesNotMatch(text, /\{\w+\}/, `${locale} leaves no placeholder`);
+      }
+      assert.equal(t('ability.slot.ready'), locale === 'en' ? 'Ready' : 'Bereit');
+    }
+  });
+});

@@ -995,6 +995,44 @@ export class AudioEngine {
   }
 
   /**
+   * One-shot cue for a successful ability cast. Each ability keeps its own
+   * texture so the three buttons are tellable apart with the screen hidden:
+   * wind is an airy rising whoosh, storm a crackling electric snap and earth a
+   * low ground-shaking thud. Unknown ids stay silent, and a muted engine makes
+   * no nodes at all.
+   * @param {'wind' | 'storm' | 'earth'} id
+   * @returns {boolean} whether a cue was played.
+   */
+  playAbilityCast(id) {
+    this._ensureCtx();
+    if (this._muted) return false;
+    const t = this._ctx.currentTime;
+    if (id === 'wind') {
+      // Wide bandpass noise sweeping upward reads as air being pulled, and a
+      // bright triangle sweep gives the gust a pitched body.
+      this._playNoiseBurst(0.32, t, 0.3, 500, 'bandpass', 3600, 4);
+      this._playSweep(320, 1180, 'triangle', 0.28, t, 0.18);
+      this._playTone(880, 'sine', 0.16, t + 0.18, 0.07);
+      return true;
+    }
+    if (id === 'storm') {
+      // The zap: a narrow high bandpass snaps down into a thunderclap rumble.
+      this._playNoiseBurst(0.18, t, 0.32, 6200, 'bandpass', 1400, 9);
+      this._playSweep(2600, 420, 'square', 0.2, t, 0.14);
+      this._playSweep(180, 40, 'sawtooth', 0.32, t + 0.06, 0.3);
+      return true;
+    }
+    if (id === 'earth') {
+      // The thud: a deep sine drop under a gravelly low-passed rumble.
+      this._playTone(96, 'sine', 0.34, t, 0.34);
+      this._playSweep(140, 42, 'sawtooth', 0.3, t + 0.02, 0.26);
+      this._playNoiseBurst(0.36, t, 0.3, 520, 'lowpass');
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Hold-to-heal charge: one looping bed that starts with the hold, climbs in
    * pitch and level as the charge grows, and stops on release. `progress` is
    * 0..1, or null/0 to stop. Safe to call every frame.
