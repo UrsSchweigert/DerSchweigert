@@ -531,6 +531,27 @@ test('the family section shows distinct profile portraits', () => {
   assert.match(family, /data-i18n="family.demoNote"/, 'the example-profiles disclaimer stays');
 });
 
+test('the hero points at the open beta between the primary action and the store badges', () => {
+  const ctas = html.match(/<div class="hero-ctas">[\s\S]*?\n        <\/div>/)[0];
+  const beta = ctas.match(/<a class="hero-beta" href="\/beta\/">[\s\S]*?<\/a>/);
+  assert.ok(beta, 'the hero needs the beta pill linking to /beta/');
+
+  // Order matters: the live offer sits above the two coming-soon badges.
+  const primaryAt = ctas.indexOf('class="btn btn-primary"');
+  const betaAt = ctas.indexOf('class="hero-beta"');
+  const storeAt = ctas.indexOf('data-store-cta="appstore"');
+  assert.ok(primaryAt < betaAt && betaAt < storeAt, 'the beta pill belongs above the store badges');
+
+  assert.match(beta[0], /data-i18n="hero.betaLabel"/);
+  assert.match(beta[0], /data-i18n="hero.betaText"/);
+  assert.ok(existsSync(join(webRoot, 'beta', 'index.html')), '/beta/ must exist');
+
+  // The glow is an animation, so the reduced-motion block has to switch it off.
+  assert.match(css, /\.hero-beta \{[\s\S]*?animation: hero-beta-glow/);
+  assert.match(css, /@keyframes hero-beta-glow/);
+  assert.match(css, /prefers-reduced-motion[\s\S]*?\.hero-beta,[\s\S]*?animation: none !important/);
+});
+
 test('the store buttons are disabled badges, never links', () => {
   const ctas = html.match(/<div class="hero-ctas">[\s\S]*?\n        <\/div>/)[0];
   assert.match(ctas, /class="btn btn-primary" href="\/play"/, 'the browser button stays the primary action');

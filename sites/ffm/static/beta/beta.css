@@ -1,0 +1,471 @@
+/* =====================================================================
+   Arithmo Slayer — open-beta invite page (/beta/)
+
+   The whole design system, the header, the hero stage, the section rhythm,
+   the FAQ accordion and the footer come from /promo/promo.css, which this
+   page loads first. Only the pieces that exist on this page and nowhere else
+   live here: the shorter hero, the requirements strip, the two beta tracks
+   with their step grids, the Android waitlist form and the art gallery. Keep
+   it that way — duplicating tokens or button styles here would drift the two
+   pages apart.
+   ===================================================================== */
+
+/* The promo page binds this to #promo-lang-toggle; this page has its own id. */
+.no-js #beta-lang-toggle {
+  display: none;
+}
+
+/* promo.css only offsets its own section ids; these anchors need the same
+   treatment so the sticky header never covers a heading after a jump. */
+#ablauf,
+#ios,
+#android,
+#faq {
+  scroll-margin-top: calc(var(--header-h) + 14px);
+}
+
+/* ------------------------------------------------------------------- hero */
+
+/* The CTAs are the point of this page, so the poster sits a little lower than
+   the /promo/ hero and lets the button row reach further up the fold. */
+.beta-hero {
+  min-height: clamp(560px, 86svh, 860px);
+}
+
+/* ------------------------------------------------- requirements strip */
+
+.beta-strip {
+  border-block: 1px solid var(--hairline-soft);
+  background: linear-gradient(180deg, rgba(9, 20, 17, 0.74), rgba(11, 26, 21, 0.48));
+  padding-block: clamp(14px, 2.4vw, 22px);
+}
+
+.beta-strip-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(10px, 2vw, 28px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+}
+
+.beta-strip-list li {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  font-family: var(--mono);
+}
+
+.beta-strip-list strong {
+  color: var(--brass-light);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.beta-strip-list span {
+  color: var(--ivory-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+/* ------------------------------------------------------------------ tracks */
+
+.beta-track {
+  position: relative;
+  padding: clamp(18px, 3vw, 34px);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius);
+  background-image: var(--panel-raised);
+  box-shadow: var(--shadow);
+}
+
+.beta-track + .beta-track {
+  margin-top: clamp(18px, 3vw, 30px);
+}
+
+.beta-track-head {
+  display: grid;
+  gap: 0.7em;
+  margin-bottom: clamp(16px, 2.4vw, 26px);
+}
+
+.beta-track-head h3 {
+  margin: 0;
+  font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.6rem);
+}
+
+.beta-track-head > p {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--ivory-muted);
+}
+
+.beta-badge {
+  justify-self: start;
+  margin: 0;
+  padding: 0.3em 0.8em;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 999px;
+  color: var(--ivory-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.beta-badge--open {
+  border-color: var(--brass);
+  background: rgba(196, 154, 72, 0.14);
+  color: var(--brass-light);
+}
+
+.beta-facts {
+  display: grid;
+  gap: 0.5em;
+  margin: 0.2em 0 0;
+  max-width: 76ch;
+}
+
+.beta-facts > div {
+  display: grid;
+  grid-template-columns: minmax(76px, 20%) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.4em 0.9em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--hairline-soft);
+}
+
+.beta-facts dt {
+  margin: 0;
+  color: var(--brass);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.beta-facts dd {
+  margin: 0;
+  color: var(--ivory);
+  font-size: 0.92rem;
+}
+
+/* ------------------------------------------------------------------ steps */
+
+.beta-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(10px, 1.6vw, 16px);
+  margin: 0 0 clamp(14px, 2.4vw, 22px);
+  padding: 0;
+  list-style: none;
+}
+
+.beta-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding: clamp(14px, 1.8vw, 20px);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: rgba(9, 20, 17, 0.45);
+}
+
+.beta-step::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: linear-gradient(90deg, transparent, var(--brass), transparent);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.beta-step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: rgba(196, 154, 72, 0.09);
+  color: var(--brass-light);
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.beta-step h4 {
+  margin: 0;
+  font-size: clamp(0.98rem, 0.94rem + 0.25vw, 1.08rem);
+}
+
+.beta-step p {
+  margin: 0;
+  color: var(--ivory-muted);
+  font-size: 0.92rem;
+}
+
+.beta-step-link {
+  margin-top: auto;
+  align-self: flex-start;
+  padding-top: 0.35em;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.beta-step-meta {
+  padding-top: 0.1em;
+  color: var(--brass) !important;
+  font-family: var(--mono);
+  font-size: 0.72rem !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.beta-note {
+  max-width: 78ch;
+  margin: 0 0 clamp(14px, 2.4vw, 20px);
+  padding: 10px clamp(14px, 2vw, 20px);
+  border-left: 2px solid var(--hairline);
+  color: var(--ivory-muted);
+  font-size: 0.88rem;
+}
+
+/* ------------------------------------------------------- unlock in the beta */
+
+.beta-unlock {
+  display: grid;
+  gap: 0.45em;
+  max-width: 78ch;
+  margin: 0 0 clamp(14px, 2.4vw, 20px);
+  padding: 12px clamp(14px, 2vw, 20px);
+  border: 1px solid var(--hairline);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(160deg, rgba(196, 154, 72, 0.12), rgba(9, 20, 17, 0.5) 70%);
+}
+
+.beta-unlock h4 {
+  margin: 0;
+  color: var(--brass-light);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.beta-unlock p {
+  margin: 0;
+  color: var(--ivory);
+  font-size: 0.92rem;
+}
+
+/* --------------------------------------------------------- waitlist form */
+
+.beta-signup {
+  display: grid;
+  gap: 0.6em;
+  max-width: 640px;
+  margin: 0 0 clamp(14px, 2.4vw, 20px);
+  padding: clamp(16px, 2.4vw, 24px);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(160deg, rgba(196, 154, 72, 0.12), rgba(9, 20, 17, 0.55) 58%);
+}
+
+.beta-signup-title {
+  margin: 0;
+  font-size: clamp(1rem, 0.96rem + 0.3vw, 1.15rem);
+}
+
+.beta-signup-label {
+  color: var(--brass-light);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.beta-signup-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.beta-signup-input {
+  flex: 1 1 240px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0.6em 1em;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: rgba(4, 10, 8, 0.72);
+  color: var(--ivory);
+  font-family: var(--mono);
+  font-size: 0.95rem;
+}
+
+.beta-signup-input::placeholder {
+  color: rgba(211, 204, 185, 0.6);
+}
+
+.beta-signup-input:hover {
+  border-color: var(--brass-deep);
+}
+
+.beta-signup-input:focus-visible {
+  border-color: var(--brass);
+  outline: 2px solid var(--brass-light);
+  outline-offset: 2px;
+}
+
+.beta-signup-row .btn {
+  flex: 0 0 auto;
+}
+
+.beta-signup-row .btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+  transform: none;
+}
+
+.beta-signup-hint,
+.beta-signup-fallback {
+  margin: 0;
+  color: var(--ivory-muted);
+  font-size: 0.85rem;
+}
+
+.beta-signup-fallback {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+}
+
+.beta-signup-status {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 0.9rem;
+}
+
+.beta-signup-status[data-state="ok"] {
+  color: var(--brass-light);
+}
+
+.beta-signup-status[data-state="pending"] {
+  color: var(--ivory-muted);
+}
+
+.beta-signup-status[data-state="error"] {
+  color: #e8a7a0;
+}
+
+/* -------------------------------------------------------------------- art */
+
+.beta-art-section {
+  padding-block: clamp(48px, 7vw, 96px);
+  border-top: 1px solid var(--hairline-soft);
+}
+
+.beta-art-section .section-head {
+  margin-bottom: clamp(24px, 3.4vw, 40px);
+}
+
+.beta-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(10px, 1.6vw, 18px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.beta-gallery figure {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: rgba(4, 10, 8, 0.6);
+}
+
+.beta-gallery img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.beta-gallery figure:hover img {
+  transform: scale(1.03);
+}
+
+.beta-gallery figcaption {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--hairline-soft);
+  color: var(--ivory-muted);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+}
+
+/* -------------------------------------------------------------- responsive */
+
+@media (max-width: 900px) {
+  /* The stacked hero (promo.css moves the phone below the copy at this width)
+     is taller than any sensible min-height, so centring would clip the top of
+     the logo. Let the hero size itself. */
+  .beta-hero {
+    min-height: 0;
+  }
+
+  .beta-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .beta-gallery {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .beta-strip-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .beta-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .beta-signup-row .btn {
+    flex: 1 1 100%;
+  }
+
+  .beta-signup-row .btn,
+  .beta-signup-input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .beta-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beta-gallery figure:hover img {
+    transform: none;
+  }
+}

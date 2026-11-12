@@ -92,6 +92,9 @@ const EXCLUDED_SAMPLES = [
   'promo/index.html',
   'promo/promo.css',
   'promo/tools/render-og.py',
+  'beta/index.html',
+  'beta/beta.css',
+  'beta/README.md',
   '.DS_Store',
 ];
 
