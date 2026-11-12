@@ -323,6 +323,8 @@ export const DICTIONARY = {
   'footer.legalTitle': { de: 'Rechtliches', en: 'Legal' },
   'footer.legalImpressum': { de: 'Impressum', en: 'Imprint' },
   'footer.legalPrivacy': { de: 'Datenschutz', en: 'Privacy' },
+  'footer.legalPrivacyApp': { de: 'App-Datenschutz', en: 'App privacy' },
+  'footer.legalTermsApp': { de: 'AGB der App', en: 'App terms' },
   'footer.legalTerms': { de: 'AGB', en: 'Terms' },
   // cancel.html and widerruf.html only exist in German.
   'footer.legalCancel': { de: 'Kündigung', en: 'Cancellation (DE)' },

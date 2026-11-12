@@ -350,6 +350,7 @@ const DICTIONARY = {
   },
   'audio.musicVolumeReady': { en: 'Music volume control is available.', de: 'Die Musiklautstärke kann angepasst werden.' },
   'audio.effectsVolume': { en: 'Effects volume', de: 'Effektlautstärke' },
+  'audio.haptics': { en: 'Vibration', de: 'Vibration' },
   'audio.preferencesSaveFailed': {
     en: 'Audio changed, but this device could not save the preference.',
     de: 'Der Ton wurde geändert, aber die Einstellung konnte auf diesem Gerät nicht gespeichert werden.',
@@ -413,6 +414,49 @@ const DICTIONARY = {
   'reward.upcoming': { en: '{ability} in {count}', de: '{ability} in {count}' },
   'reward.upcomingChance': { en: '{ability} {chance}% in {count}', de: '{ability} {chance}% in {count}' },
   'reward.activeChance': { en: '{ability}: {chance}% per hit', de: '{ability}: {chance}% pro Treffer' },
+  // Three-slot ability bar (wind, storm, earth) in the gameplay header.
+  'ability.barLabel': { en: 'Abilities', de: 'Fähigkeiten' },
+  'ability.wind.name': { en: 'Wind', de: 'Wind' },
+  'ability.wind.description': {
+    en: 'Removes the active enemy from the encounter.',
+    de: 'Entfernt den aktiven Gegner aus dem Kampf.',
+  },
+  'ability.storm.name': { en: 'Storm', de: 'Sturm' },
+  'ability.storm.description': {
+    en: 'Clears a capped slice of the enemy wave.',
+    de: 'Räumt einen begrenzten Abschnitt der Gegnerwelle ab.',
+  },
+  'ability.earth.name': { en: 'Earth', de: 'Erde' },
+  'ability.earth.description': {
+    en: 'Spikes slow the active fiend and the next spawns.',
+    de: 'Erdstacheln verlangsamen den aktiven Feind und die nächsten Gegner.',
+  },
+  // Second line of each slot: the cooldown reads out in whole seconds or
+  // "Ready", and the storm and earth slots spell out the bonus they earned.
+  'ability.slot.ready': { en: 'Ready', de: 'Bereit' },
+  'ability.storm.readout': { en: 'Removes {count}', de: 'Entfernt {count}' },
+  'ability.earth.readout': {
+    en: 'Slow {percent}% · ×{targets}',
+    de: 'Langsam {percent}% · ×{targets}',
+  },
+  // One notice per level from 2 upward: the bonus type names the affected
+  // ability and its value, e.g. "Bonus: Wind cooldown -6s".
+  'bonus.cooldown.notice': {
+    en: 'Bonus: {ability} cooldown −{value}s',
+    de: 'Bonus: {ability}-Abklingzeit −{value}s',
+  },
+  'bonus.storm.notice': {
+    en: 'Bonus: {ability} +{value} rank',
+    de: 'Bonus: {ability} +{value} Rang',
+  },
+  'bonus.slowSpeed.notice': {
+    en: 'Bonus: {ability} slows fiends by {value}',
+    de: 'Bonus: {ability} verlangsamt Feinde um {value}',
+  },
+  'bonus.slowTargets.notice': {
+    en: 'Bonus: {ability} +{value} spike target',
+    de: 'Bonus: {ability} +{value} Erdstachel-Ziel',
+  },
   'feedback.shapesAnswer': { en: 'There are {count} shapes.', de: 'Es sind {count} Formen.' },
   // The gameplay header's correction row: same answer, short enough to fit the
   // question column next to the help and pause buttons.
@@ -678,6 +722,9 @@ const DICTIONARY = {
   // Gameplay overlays
   'overlay.levelClearTitle': { en: 'Level {level} Clear!', de: 'Level {level} geschafft!' },
   'overlay.scoreLine': { en: 'Score: {score}', de: 'Punkte: {score}' },
+  'overlay.nextSceneTitle': { en: 'Next: Level {level}', de: 'Weiter: Level {level}' },
+  'overlay.nextSceneAlt': { en: 'Preview of level {level}', de: 'Vorschau auf Level {level}' },
+  'overlay.finaleTitle': { en: 'The Finale', de: 'Das Finale' },
   'overlay.nextLevel': { en: 'Next Level', de: 'Nächstes Level' },
   'overlay.replayLevel': { en: 'Play Same Level Again', de: 'Level erneut spielen' },
   'overlay.saveScoreReturnTitleHtml': { en: 'Save Score &amp; Return to Title', de: 'Punkte speichern &amp; zurück zum Titel' },

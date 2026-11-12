@@ -1,9 +1,11 @@
 // Verifies that the Capacitor offline bundle is complete and self-contained.
 // copy-assets.mjs builds www/; this check proves every runtime file is present,
-// the full level configuration is bundled, nothing in www/ loads a remote
-// first-party resource or calls the FFM API, and no web account/checkout UI
-// or web-only legal link survives the copy.
-import { readdir, readFile, stat } from 'node:fs/promises';
+// the full level configuration and its art manifest are bundled, every level
+// image and ability icon the web game ships is copied (absent ones are reported,
+// never required), nothing in www/ loads a remote first-party resource or calls
+// the FFM API, and no web account/checkout UI or web-only legal link survives
+// the copy.
+import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
 import { REQUIRED_FILES } from './copy-assets.mjs';
@@ -11,6 +13,21 @@ import { TOTAL_LEVELS } from './level-data.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_BUNDLE_DIR = join(here, '..', 'www');
+// The web game is the single source of truth for optional art. Level images
+// and ability icons are owner-delivered, so the check only insists on the ones
+// the source actually ships.
+export const SOURCE_STATIC_DIR = join(here, '..', '..', 'static');
+const LEVEL_DIR = 'game/levels';
+const LEVEL_IMAGE_RE = /^level-\d{2}\.webp$/;
+
+// Owner-delivered ability artwork (game/assets/ability-<id>.webp). The slot
+// label carries the ability name, so an absent icon is a text-label fallback,
+// never a missing bundle file: it is reported, not required.
+export const ABILITY_ICONS = Object.freeze([
+  'game/assets/ability-wind.webp',
+  'game/assets/ability-storm.webp',
+  'game/assets/ability-earth.webp',
+]);
 
 // Runtime modules the core game needs offline, on top of the copy-assets
 // entry points. Bundle-check is the place that knows the play graph. The
@@ -19,6 +36,7 @@ export const DEFAULT_BUNDLE_DIR = join(here, '..', 'www');
 export const BUNDLE_FILES = Object.freeze([
   ...REQUIRED_FILES,
   'game/levels.js',
+  'game/levels/manifest.json',
   'game/renderer.js',
   'game/entities.js',
   'game/hero/hero-atlas.webp',
@@ -175,9 +193,80 @@ async function levelDataProblems(dir) {
 /**
  * Checks a copied bundle for completeness and offline-only behaviour.
  * @param {string} [bundleDir] directory holding the copied web bundle (www/)
+ * @param {string} [sourceDir] the web game the bundle is copied from
  * @returns {Promise<string[]>} one human-readable reason per problem
  */
-export async function bundleCheck(bundleDir = DEFAULT_BUNDLE_DIR) {
+export async function bundleCheck(bundleDir = DEFAULT_BUNDLE_DIR, sourceDir = SOURCE_STATIC_DIR) {
+  const { problems } = await bundleReport(bundleDir, sourceDir);
+  return problems;
+}
+
+async function isFile(path) {
+  return Boolean((await stat(path).catch(() => null))?.isFile());
+}
+
+async function levelImagesIn(dir) {
+  const names = await readdir(join(dir, LEVEL_DIR)).catch(() => []);
+  return names.filter((name) => LEVEL_IMAGE_RE.test(name)).sort();
+}
+
+// A committed icon must be real WebP art, not a placeholder of another type.
+async function isWebp(path) {
+  const handle = await open(path, 'r').catch(() => null);
+  if (!handle) return false;
+  try {
+    const header = Buffer.alloc(12);
+    const { bytesRead } = await handle.read(header, 0, 12, 0);
+    return bytesRead === 12
+      && header.toString('ascii', 0, 4) === 'RIFF'
+      && header.toString('ascii', 8, 12) === 'WEBP';
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
+ * Runs the bundle check and reports which optional art the source ships, so a
+ * caller can print a summary without re-reading the bundle.
+ * @param {string} [bundleDir] directory holding the copied web bundle (www/)
+ * @param {string} [sourceDir] the web game the bundle is copied from
+ * @returns {Promise<{problems: string[], levelImages: {present: string[], copied: string[], missing: string[]}, abilityIcons: {present: string[], absent: string[]}}>}
+ */
+export async function bundleReport(bundleDir = DEFAULT_BUNDLE_DIR, sourceDir = SOURCE_STATIC_DIR) {
+  const problems = await bundleProblems(bundleDir);
+
+  // Level images are optional: only the ones the source ships must be copied.
+  const present = await levelImagesIn(sourceDir);
+  const copiedInBundle = new Set(await levelImagesIn(bundleDir));
+  const copied = present.filter((name) => copiedInBundle.has(name));
+  const missing = present.filter((name) => !copiedInBundle.has(name));
+  for (const name of missing) {
+    problems.push(`level image present in the source but not copied: ${LEVEL_DIR}/${name}`);
+  }
+
+  const iconsPresent = [];
+  const iconsAbsent = [];
+  for (const rel of ABILITY_ICONS) {
+    if (!(await isFile(join(sourceDir, rel)))) {
+      iconsAbsent.push(rel);
+      continue;
+    }
+    iconsPresent.push(rel);
+    if (!(await isFile(join(bundleDir, rel)))) {
+      problems.push(`ability icon present in the source but not copied: ${rel}`);
+    } else if (!(await isWebp(join(bundleDir, rel)))) {
+      problems.push(`ability icon is not a WebP file: ${rel}`);
+    }
+  }
+
+  return {
+    problems,
+    levelImages: { present, copied, missing },
+    abilityIcons: { present: iconsPresent, absent: iconsAbsent },
+  };
+}
+
+async function bundleProblems(bundleDir) {
   const problems = [];
 
   for (const rel of BUNDLE_FILES) {
@@ -231,7 +320,8 @@ const invokedDirectly =
 
 if (invokedDirectly) {
   const bundleDir = process.argv[2] ? resolve(process.argv[2]) : DEFAULT_BUNDLE_DIR;
-  const problems = await bundleCheck(bundleDir);
+  const report = await bundleReport(bundleDir);
+  const { problems, levelImages, abilityIcons } = report;
   if (problems.length > 0) {
     const plural = problems.length === 1 ? '' : 's';
     console.error(`Offline bundle check failed (${problems.length} problem${plural}):`);
@@ -239,7 +329,10 @@ if (invokedDirectly) {
     process.exitCode = 1;
   } else {
     console.log(
-      `Offline bundle OK: ${BUNDLE_FILES.length} required files, ${TOTAL_LEVELS} levels, no remote first-party URLs, FFM API calls or web-only UI.`,
+      `Offline bundle OK: ${BUNDLE_FILES.length} required files, ${TOTAL_LEVELS} levels, `
+      + `${abilityIcons.present.length}/${ABILITY_ICONS.length} ability icons present, `
+      + `${levelImages.copied.length} level images copied, no remote first-party URLs, `
+      + 'FFM API calls or web-only UI.',
     );
   }
 }

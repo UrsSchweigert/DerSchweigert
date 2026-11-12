@@ -417,6 +417,17 @@
   letter-spacing: 0.04em;
 }
 
+/* A link out of a FAQ answer sits in its own paragraph: the answer's text is
+   replaced wholesale on a language switch, which would drop nested markup. */
+.beta-faq-link {
+  margin: 0;
+  padding: 0 clamp(14px, 2vw, 22px) 18px;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 /* -------------------------------------------------------------- responsive */
 
 @media (max-width: 900px) {

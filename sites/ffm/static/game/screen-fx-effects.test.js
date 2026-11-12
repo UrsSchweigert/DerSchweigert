@@ -122,11 +122,11 @@ function layerCtx(canvases) {
 }
 
 test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a function', () => {
-  assert.equal(EFFECT_NAMES.length, 13);
+  assert.equal(EFFECT_NAMES.length, 16);
   const table = createEffectTable();
-  // The four granular pieces are extra entries: the game drives them per frame
+  // The five granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
-  const granular = ['fireTrail', 'fireImpact', 'boltTrail', 'boltImpact'];
+  const granular = ['fireTrail', 'fireImpact', 'boltTrail', 'boltImpact', 'spikeAura'];
   assert.deepEqual(Object.keys(table).sort(), [...EFFECT_NAMES, ...granular].sort());
   for (const name of [...EFFECT_NAMES, ...granular]) {
     assert.equal(typeof table[name], 'function', `${name} is a function`);
@@ -217,7 +217,9 @@ test('a scheduled fireball impact does not fire while paused and fires after res
 });
 
 test('PALETTES exposes the named palettes including the sword blade ramp', () => {
-  assert.deepEqual(Object.keys(PALETTES).sort(), ['blade', 'blue', 'gold', 'green', 'ice', 'red', 'violet']);
+  assert.deepEqual(Object.keys(PALETTES).sort(), [
+    'blade', 'blue', 'earth', 'gold', 'green', 'ice', 'red', 'storm', 'violet', 'wind',
+  ]);
   for (const palette of Object.values(PALETTES)) {
     assert.ok(Array.isArray(palette) && palette.length > 0);
   }
@@ -295,4 +297,60 @@ test('the heal charge cue grows with progress', () => {
 
   assert.ok(lowCount > 0, 'the cue spawns something as soon as the hold starts');
   assert.ok(highCount > lowCount, 'it grows as the hold approaches the threshold');
+});
+
+test('the three ability casts are playable, distinct and anchored in the playfield', () => {
+  const shapes = {};
+  for (const name of ['windCast', 'stormCast', 'spikeCast']) {
+    const { fx } = make();
+    assert.equal(fx.play(name, { x: 400, y: 280 }), true, `${name} plays`);
+    assert.ok(fx.getParticleCount() > 0, `${name} spawns particles`);
+    const types = [...new Set(fx._particles.map((p) => p.type))].sort();
+    shapes[name] = types.join(',');
+    assert.ok(
+      fx._particles.every((p) => p.y >= 0 && p.y <= 450),
+      `${name} stays inside the playfield`,
+    );
+  }
+  assert.equal(new Set(Object.values(shapes)).size, 3, 'each cast has its own particle mix');
+});
+
+test('reduced motion suppresses the storm cast wash and shake', () => {
+  const reduced = make({ reducedMotion: true });
+  reduced.fx.play('stormCast', { x: 400, y: 280 });
+  const reducedCount = reduced.fx.getParticleCount();
+  reduced.fx.step(1 / 60);
+  reduced.fx.render();
+
+  const normal = make();
+  normal.fx.play('stormCast', { x: 400, y: 280 });
+  const normalCount = normal.fx.getParticleCount();
+  normal.fx.step(1 / 60);
+  normal.fx.render();
+
+  const washFills = (canvases) => layerCtx(canvases).calls.filter(
+    (call) => call.method === 'fillRect'
+      && call.args[0] === 0
+      && call.args[1] === 0
+      && typeof call.state.fillStyle === 'string'
+  );
+  assert.equal(washFills(reduced.canvases).length, 0, 'no full-viewport wash fill under reduced motion');
+  assert.ok(washFills(normal.canvases).length > 0, 'the normal run draws the wash');
+  assert.equal(reduced.fx._shake, null, 'no shake under reduced motion');
+  assert.ok(normal.fx._shake, 'the normal run shakes');
+  assert.ok(reducedCount < normalCount, 'reduced motion spawns fewer particles');
+});
+
+test('the spike aura pulse grows with progress and stays on the ground', () => {
+  const low = make();
+  low.fx.play('spikeAura', { x: 400, y: 280, progress: 0.1 });
+  const lowRing = low.fx._particles.find((p) => p.type === 'ring');
+
+  const high = make();
+  high.fx.play('spikeAura', { x: 400, y: 280, progress: 0.9 });
+  const highRing = high.fx._particles.find((p) => p.type === 'ring');
+
+  assert.ok(lowRing && highRing, 'every pulse draws a ring');
+  assert.ok(highRing.r1 > lowRing.r1, 'the pulse widens as the slow runs out');
+  assert.ok(highRing.y > 280, 'the pulse sits at the ground under the target');
 });

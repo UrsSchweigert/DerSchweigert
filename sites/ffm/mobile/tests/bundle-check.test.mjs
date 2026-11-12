@@ -1,12 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile, cp, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { copyAssets, APP_OVERLAY } from '../scripts/copy-assets.mjs';
-import { bundleCheck, DEFAULT_BUNDLE_DIR } from '../scripts/bundle-check.mjs';
+import {
+  ABILITY_ICONS,
+  BUNDLE_FILES,
+  bundleCheck,
+  bundleReport,
+  DEFAULT_BUNDLE_DIR,
+} from '../scripts/bundle-check.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const script = join(root, 'scripts', 'bundle-check.mjs');
@@ -26,6 +32,23 @@ async function withBundle(fn) {
 
 function runCheck(dir) {
   return spawnSync(process.execPath, [script, dir], { encoding: 'utf8' });
+}
+
+// A throwaway copy of the web game, used to add owner-delivered art to one
+// check without touching the repository.
+async function withSource(fn) {
+  const dir = await mkdtemp(join(tmpdir(), 'ffm-source-'));
+  try {
+    return await fn(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function writeWebp(baseDir, rel) {
+  const target = join(baseDir, rel);
+  await mkdir(dirname(target), { recursive: true });
+  await cp(join(staticDir, 'game', 'stage-1.webp'), target);
 }
 
 test('a fresh copy is a complete offline bundle', async () => {
@@ -257,4 +280,161 @@ test('only approved navigational legal links are allowed', async () => {
 
 test('bundle-check defaults to the copied www/ directory', async () => {
   assert.equal(DEFAULT_BUNDLE_DIR, join(root, 'www'));
+});
+
+test('the level manifest is a required bundle file', async () => {
+  assert.ok(BUNDLE_FILES.includes('game/levels/manifest.json'));
+  await withBundle(async (dir) => {
+    await rm(join(dir, 'game', 'levels', 'manifest.json'));
+    const problems = await bundleCheck(dir);
+    assert.ok(
+      problems.some((problem) => problem.includes('game/levels/manifest.json')),
+      problems.join('\n'),
+    );
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /missing required file: game\/levels\/manifest\.json/);
+  });
+});
+
+test('ability icons are reported against what the repository ships, never required', async () => {
+  // The icon files are owner-delivered, so the suite must not assume either state: derive the expectation from the
+  // source tree instead of pinning "none present", which is only true before the artwork lands.
+  await withBundle(async (dir) => {
+    const shipped = [];
+    for (const rel of ABILITY_ICONS) {
+      if (await stat(join(staticDir, rel)).catch(() => null)) shipped.push(rel);
+    }
+    const report = await bundleReport(dir, staticDir);
+    assert.deepEqual(report.abilityIcons.present, shipped);
+    assert.deepEqual(report.abilityIcons.absent, ABILITY_ICONS.filter((rel) => !shipped.includes(rel)));
+    assert.deepEqual(report.problems, []);
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, new RegExp(`${shipped.length}/${ABILITY_ICONS.length} ability icons present`));
+    assert.match(result.stdout, new RegExp(`${report.levelImages.copied.length} level images copied`));
+  });
+});
+
+test('present ability icons are verified as copied WebP art', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      for (const rel of ABILITY_ICONS) {
+        await writeWebp(source, rel);
+        await writeWebp(dir, rel);
+      }
+      const report = await bundleReport(dir, source);
+      assert.deepEqual(report.abilityIcons.present, [...ABILITY_ICONS]);
+      assert.deepEqual(report.abilityIcons.absent, []);
+      assert.deepEqual(report.problems, []);
+      assert.deepEqual(await bundleCheck(dir, source), []);
+    });
+  });
+});
+
+test('an ability icon present in the source must reach the bundle', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      await writeWebp(source, ABILITY_ICONS[0]);
+      // Take the copy out of the bundle so the mismatch the check reports is the one under test, whether or not the
+      // repository ships this file.
+      await rm(join(dir, ABILITY_ICONS[0]), { force: true });
+      const report = await bundleReport(dir, source);
+      assert.deepEqual(report.abilityIcons.present, [ABILITY_ICONS[0]]);
+      assert.deepEqual(report.abilityIcons.absent, ABILITY_ICONS.slice(1));
+      assert.ok(
+        report.problems.some((problem) => problem.includes('not copied') && problem.includes(ABILITY_ICONS[0])),
+        report.problems.join('\n'),
+      );
+    });
+  });
+});
+
+test('an ability icon that is not WebP art fails the check', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      for (const base of [source, dir]) {
+        const target = join(base, ABILITY_ICONS[0]);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, 'not a webp');
+      }
+      const report = await bundleReport(dir, source);
+      assert.deepEqual(report.abilityIcons.present, [ABILITY_ICONS[0]]);
+      assert.ok(
+        report.problems.some((problem) => problem.includes('not a WebP file')),
+        report.problems.join('\n'),
+      );
+    });
+  });
+});
+
+test('a present level image must be copied into the bundle', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      await writeWebp(source, 'game/levels/level-07.webp');
+      await rm(join(dir, 'game/levels/level-07.webp'), { force: true });
+      const missingReport = await bundleReport(dir, source);
+      assert.deepEqual(missingReport.levelImages.present, ['level-07.webp']);
+      assert.deepEqual(missingReport.levelImages.missing, ['level-07.webp']);
+      assert.ok(
+        missingReport.problems.some((problem) => problem.includes('game/levels/level-07.webp')),
+        missingReport.problems.join('\n'),
+      );
+
+      await writeWebp(dir, 'game/levels/level-07.webp');
+      const copiedReport = await bundleReport(dir, source);
+      assert.deepEqual(copiedReport.levelImages.copied, ['level-07.webp']);
+      assert.deepEqual(copiedReport.levelImages.missing, []);
+      assert.deepEqual(copiedReport.problems, []);
+    });
+  });
+});
+
+test('a source without level images is a pass', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      const report = await bundleReport(dir, source);
+      assert.deepEqual(report.levelImages, { present: [], copied: [], missing: [] });
+      assert.deepEqual(report.problems, []);
+    });
+  });
+});
+
+test('the three ability slots are named and reachable', async () => {
+  const bar = await readFile(join(staticDir, 'game', 'ability-bar.js'), 'utf8');
+  const roster = await readFile(join(staticDir, 'game', 'cooldown-abilities.js'), 'utf8');
+  for (const id of ['wind', 'storm', 'earth']) {
+    assert.match(roster, new RegExp(`id: '${id}'`), `${id} must be in the roster`);
+  }
+  // A labelled group; each slot is a real button named by its visible label
+  // and described by its own description node.
+  assert.match(bar, /setAttribute\('role', 'group'\)/);
+  assert.match(bar, /setAttribute\('aria-label', label\('ability\.barLabel'/);
+  assert.match(bar, /button\.dataset\.ability = ability\.id/);
+  assert.match(bar, /setAttribute\('aria-describedby', descriptionEl\.id\)/);
+  // Locked slots stay out of the tab order; unlocked slots are focusable again.
+  assert.match(bar, /button\.tabIndex = -1/);
+  assert.match(bar, /slot\.button\.tabIndex = state === 'locked' \? -1 : 0/);
+  assert.match(bar, /setAttribute\('aria-disabled', String\(state === 'locked'\)\)/);
+  // Decorative art never replaces the accessible name.
+  assert.match(bar, /iconEl\.setAttribute\('alt', ''\)/);
+});
+
+test('the vibration toggle is labelled and announced', async () => {
+  const html = await readFile(join(staticDir, 'index.html'), 'utf8');
+  const label = html.indexOf('<label for="haptics-toggle" data-i18n="audio.haptics">');
+  const input = html.indexOf('<input id="haptics-toggle" type="checkbox"');
+  assert.ok(label >= 0, 'the toggle needs a label element');
+  assert.ok(input >= 0, 'the toggle needs a checkbox input');
+  assert.ok(label < input, 'the label must precede the toggle it names');
+});
+
+test('the gameplay focus trap keeps its overlay list', async () => {
+  const focus = await readFile(join(staticDir, 'game', 'modal-focus.js'), 'utf8');
+  assert.match(
+    focus,
+    /const overlays = \['pause-overlay', 'heal-tip-overlay', 'level-clear', 'game-over', 'skill-intro', 'first-open-notice'\]/,
+  );
 });

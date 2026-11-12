@@ -1,14 +1,16 @@
-// encounter-swords.js — App-only portrait encounter progress row.
+// encounter-swords.js — Shared portrait encounter progress row.
 //
-// main.js loads this module only behind `platform.isApp` (chained onto the
-// mobile-ui.js/timer-bar.js imports), so the web build never imports it. The
-// widget inserts a decorative row of little swords into #input-zone directly
-// above #mc-buttons: one sword per enemy in the level, filled green from left
-// to right as enemies are beaten. It renders the same defeated/total count the
-// header's "Defeated" readout announces, so it is aria-hidden.
+// main.js imports this module once for both channels and feeds it the same
+// defeated/total count as the header's "Defeated" readout, so the website and
+// the app show one row from one implementation. The widget inserts a
+// decorative row of little swords into #input-zone directly above
+// #mc-buttons: one sword per enemy in the level, filled green from left to
+// right as enemies are beaten. The row renders the same count the header's
+// "Defeated" readout announces, so it is aria-hidden. CSS keeps it
+// display:none outside portrait, so landscape and the app bundle's portrait
+// layout decide visibility; see .app-encounter-swords in styles.css.
 //
 //   const widget = createEncounterSwords({ doc: document });
-//   mobileUi.registerWidget('encounter-swords', widget);
 //   widget.updateEncounterProgress({ defeated, total });
 //
 // The module owns no clock and only touches the DOM when the count changes.
@@ -106,10 +108,10 @@ export function createEncounterSwords({
     const fx = globalThis.ffmScreenFx;
     const rect = sword?.getBoundingClientRect?.();
     if (!fx || !rect) return;
-    // The row only renders in portrait; landscape and the web build keep it
-    // display:none, so a sword there reports a 0x0 rect at the viewport origin
-    // and the world conversion below would spray the glint into the top-left
-    // corner of the screen.
+    // The row only renders in portrait; landscape keeps it display:none, so a
+    // sword there reports a 0x0 rect at the viewport origin and the world
+    // conversion below would spray the glint into the top-left corner of the
+    // screen.
     if (!(rect.width > 0) || !(rect.height > 0)) return;
     const map = fx.mapping?.();
     if (!map || !map.scale) return;
