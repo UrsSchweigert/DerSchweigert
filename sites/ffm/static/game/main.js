@@ -2505,19 +2505,101 @@ function handleLevelConfigError(err, levelIndex) {
 // Start a fresh ability run at `level`: every cooldown is cleared. Called
 // whenever a run begins (level select, practice, resume after paywall, retry);
 // level transitions inside a run only call setLevel so cooldowns persist.
-function beginAbilityRun(level) {
+// `rank` is the storm bonus rank collected for this run; each rank widens the
+// storm's removal slice by one without touching any other ability.
+function beginAbilityRun(level, rank = 0) {
   const safeLevel = Number.isFinite(level) && level >= 1 ? level : 1;
-  abilityRuntime = createAbilityRuntime({ level: safeLevel });
+  const safeRank = Number.isSafeInteger(rank) && rank >= 0 ? rank : 0;
+  abilityRuntime = createAbilityRuntime({ level: safeLevel, rank: safeRank });
   return abilityRuntime;
 }
 
 // A bar activation is only honoured while the ability is unlocked and ready;
 // the bar already refuses cooling/locked clicks, but this keeps the guard at
-// the gameplay seam too.
+// the gameplay seam too. Wind needs a live fiend to remove and is refused
+// while input is disabled; storm clears a slice of whatever remains.
 function activateAbility(id) {
   if (!abilityRuntime) return false;
   if (abilityRuntime.progress(id) < 1) return false;
-  return abilityRuntime.activate(id);
+  if (id === 'wind' && (!activeFiend || inputDisabled)) return false;
+  // Storm always leaves one enemy behind, so a wave with nothing to spare is
+  // refused before the cooldown is spent.
+  if (id === 'storm' && remainingEnemyCount() < 2) return false;
+  if (!abilityRuntime.activate(id)) return false;
+  if (id === 'wind') return castWindAbility();
+  if (id === 'storm') return castStormAbility();
+  return true;
+}
+
+// How many encounters remain on the field: every queued spawn, every requeued
+// fiend and every live fiend. A requeued fiend waits with state 'retreat' until
+// it walks back on, which the dragon-breath count treats as resolved, so the
+// requeue list is counted here on its own. The active fiend is normally one of
+// `fiends`, but a cast can arrive while it is between arrays, so it is counted
+// exactly once either way.
+function remainingEnemyCount() {
+  const requeued = new Set(requeuedFiends.filter((f) => f && !f.isDead));
+  return countDragonRemainingEncounters({ fiends, spawnQueue }) +
+    requeued.size +
+    (activeFiend && !fiends.includes(activeFiend) && !requeued.has(activeFiend) ? 1 : 0);
+}
+
+// Remove the active fiend for an ability cast: it retreats off the field
+// instead of dying, is dropped from the requeue list, and the next spawn is
+// scheduled like any other resolved encounter. No score, combo or timing
+// credit is awarded here.
+function removeActiveFiendForAbility() {
+  const fiend = activeFiend;
+  activeFiend = null;
+  pendingProblemActivation = null;
+  if (fiend) {
+    requeuedFiends = requeuedFiends.filter((f) => f !== fiend);
+    fiend.setState('retreat');
+  }
+  state.timerActive = false;
+  inputDisabled = false;
+  spawnTimer = spawnInterval;
+}
+
+// Wind removes the active fiend outright: one defeat and no score, combo or
+// timing credit, then the wave continues or clears exactly like a normal kill.
+function castWindAbility() {
+  if (!activeFiend) return false;
+  removeActiveFiendForAbility();
+  state.enemiesDefeated++;
+  recordPracticeEncounterDefeated();
+  hud.update(state);
+  if (checkAllDefeated()) triggerWaveClear();
+  return true;
+}
+
+// Storm clears a capped slice of the remaining wave, draining the spawn queue
+// first, then requeued fiends, then the active fiend, so the thing closest to
+// the player survives longest. Each removal counts one defeat and the normal
+// wave-clear check follows.
+function castStormAbility() {
+  const toRemove = abilityRuntime.stormRemovals(remainingEnemyCount());
+  let removed = 0;
+  while (removed < toRemove && spawnQueue.length > 0) {
+    spawnQueue.shift();
+    removed++;
+  }
+  while (removed < toRemove && requeuedFiends.length > 0) {
+    requeuedFiends.shift();
+    removed++;
+  }
+  if (removed < toRemove && activeFiend) {
+    removeActiveFiendForAbility();
+    removed++;
+  }
+  if (removed === 0) return false;
+  state.enemiesDefeated += removed;
+  hud.update(state);
+  if (checkAllDefeated()) triggerWaveClear();
+  // `inputDisabled` belongs to the encounter flow: a storm cast during a
+  // reveal must not re-enable answering mid-sequence.
+  else spawnTimer = spawnInterval;
+  return true;
 }
 
 function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
