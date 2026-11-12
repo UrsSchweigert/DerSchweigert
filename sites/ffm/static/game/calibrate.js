@@ -8,6 +8,10 @@
 import { Renderer, CANVAS_W, GROUND_Y } from './renderer.js';
 import { Hero, Slimeling, getHeroGroundOffsetPx, setHeroGroundOffsetPx } from './entities.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
+import { LEVEL_ART_MANIFEST } from './level-art.js';
+// The parsed manifest carries only the file names, so the chapter labels come
+// from the raw JSON — same import form level-art.js already uses.
+import levelManifestSource from './levels/manifest.json' with { type: 'json' };
 
 const FIEND_CAL_X = 560; // fixed on-screen position for the calibration fiend
 
@@ -35,6 +39,42 @@ FIEND_CLASSES.forEach((c) => {
   classSelect.appendChild(opt);
 });
 classSelect.value = '1';
+
+// ─── background level ─────────────────────────────────────────────────────────
+// The 60 level backgrounds each paint their walkable floor at a different height,
+// so the feet baseline has to be judged against the level that ships with it.
+const LEVEL_NUMBERS = Object.keys(LEVEL_ART_MANIFEST.levels).map(Number).sort((a, b) => a - b);
+const levelSelect = document.getElementById('level-select');
+const levelValueEl = document.getElementById('level-value');
+let selectedLevel = LEVEL_NUMBERS[0] ?? 1;
+
+function levelLabel(level) {
+  const chapter = levelManifestSource?.levels?.[String(level)]?.chapter;
+  return `L${String(level).padStart(2, '0')}${chapter ? ` · ${chapter}` : ''}`;
+}
+
+LEVEL_NUMBERS.forEach((level) => {
+  const opt = document.createElement('option');
+  opt.value = String(level);
+  opt.textContent = levelLabel(level);
+  levelSelect.appendChild(opt);
+});
+
+function selectLevel(level) {
+  const count = LEVEL_NUMBERS.length;
+  selectedLevel = count ? LEVEL_NUMBERS[((level - 1) % count + count) % count] : level;
+  levelSelect.value = String(selectedLevel);
+  levelValueEl.textContent = levelLabel(selectedLevel);
+  renderer.setBackgroundByLevel(selectedLevel);
+  // The draw loop repaints immediately; awaiting only guarantees the caller that
+  // the swap is complete, which keeps screenshots and DevTools checks deterministic.
+  return renderer.waitForBackgroundLoad();
+}
+
+levelSelect.addEventListener('change', () => selectLevel(parseInt(levelSelect.value, 10)));
+document.querySelectorAll('[data-level-nav]').forEach((btn) => {
+  btn.addEventListener('click', () => selectLevel(selectedLevel + parseInt(btn.dataset.levelNav, 10)));
+});
 
 const heroValueEl = document.getElementById('hero-value');
 const fiendValueEl = document.getElementById('fiend-value');
@@ -100,6 +140,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight') { selectClass(selectedId + 1); e.preventDefault(); }
   if (e.key === 'PageUp')     { setHeroOffset(heroOffsetPx + (big ? 5 : 1)); e.preventDefault(); }
   if (e.key === 'PageDown')   { setHeroOffset(heroOffsetPx - (big ? 5 : 1)); e.preventDefault(); }
+  if (e.key === '[')          { selectLevel(selectedLevel - 1); e.preventDefault(); }
+  if (e.key === ']')          { selectLevel(selectedLevel + 1); e.preventDefault(); }
 });
 
 function trimNum(n) {
@@ -180,4 +222,5 @@ function loop() {
 }
 
 applyLive();
+selectLevel(selectedLevel);
 requestAnimationFrame(loop);

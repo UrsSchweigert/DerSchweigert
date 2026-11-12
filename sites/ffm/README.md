@@ -765,7 +765,10 @@ Fiends are single PNGs in `static/game/fiend-sprites/` (60 of them: young
 `dragon-1.png` … `dragon-6.png`), picked per level through
 `difficulty-classes.js`, which also carries the hand-calibrated
 `BOTTOM_PAD_RATIO` that puts each creature's feet on `GROUND_Y`
-(`calibrate.html` fits that; align the feet, not the shadow).
+(`calibrate.html` fits that; align the feet, not the shadow). The calibrator has
+a background-level selector (or `[` / `]`), which is what makes the check
+meaningful: the 60 level images do not share one floor line, so the feet have to
+be judged against the background the level actually ships with.
 
 - The art generator baked a hard-edged shadow ellipse into every one of those
   sprites. `python3 sites/ffm/scripts/feather_fiend_shadows.py` removes it: it

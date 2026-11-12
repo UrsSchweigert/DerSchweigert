@@ -36,7 +36,10 @@
     <em>above</em> the line). Decreasing (− / ↓) pulls it <b>up</b> (use this when feet sink <em>below</em> the line).
     Use the zoomed insets below the main canvas — they make a 1px snap obvious; the full-size canvas above is too
     small to judge precisely by eye.<br>
-    Keyboard: ↑/↓ = fiend ±0.005 (Shift = ±0.02) · ←/→ = previous/next fiend class · PageUp/PageDown = hero ±1px (Shift = ±5px).
+    <b>Background:</b> pick a level in the “Background level” panel (or press [ / ]) to check the feet against that
+    level's own painted floor. The 60 backgrounds do not share one floor line, so a level that looks grounded here may
+    still sit a few pixels off in another.<br>
+    Keyboard: ↑/↓ = fiend ±0.005 (Shift = ±0.02) · ←/→ = previous/next fiend class · PageUp/PageDown = hero ±1px (Shift = ±5px) · [ / ] = previous/next level.
     When everything lines up, click "Generate + copy" and paste the two snippets back into <code>entities.js</code> and <code>difficulty-classes.js</code>.
   </p>
 
@@ -54,6 +57,17 @@
   </div>
 
   <div class="panel">
+    <fieldset id="level-panel">
+      <legend>Background level</legend>
+      <label for="level-select">Level (1–60)</label>
+      <select id="level-select"></select>
+      <div class="value" id="level-value">L01 · I</div>
+      <div class="row">
+        <button data-level-nav="-1">◀ Prev level</button>
+        <button data-level-nav="1">Next level ▶</button>
+      </div>
+    </fieldset>
+
     <fieldset id="hero-panel">
       <legend>Hero ground offset (px)</legend>
       <div class="value" id="hero-value">24</div>
@@ -88,6 +102,6 @@
   <button class="big" id="copy-btn">📋 Generate + copy final code for both files</button>
   <textarea id="output" readonly placeholder="Click the button above once you're happy with all the alignments — this fills in with the exact code to paste back into entities.js and difficulty-classes.js."></textarea>
 
-  <script type="module" src="./calibrate.js?v=60"></script>
+  <script type="module" src="./calibrate.js?v=61"></script>
 </body>
 </html>
