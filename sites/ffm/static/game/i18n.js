@@ -722,6 +722,9 @@ const DICTIONARY = {
   // Gameplay overlays
   'overlay.levelClearTitle': { en: 'Level {level} Clear!', de: 'Level {level} geschafft!' },
   'overlay.scoreLine': { en: 'Score: {score}', de: 'Punkte: {score}' },
+  'overlay.nextSceneTitle': { en: 'Next: Level {level}', de: 'Weiter: Level {level}' },
+  'overlay.nextSceneAlt': { en: 'Preview of level {level}', de: 'Vorschau auf Level {level}' },
+  'overlay.finaleTitle': { en: 'The Finale', de: 'Das Finale' },
   'overlay.nextLevel': { en: 'Next Level', de: 'Nächstes Level' },
   'overlay.replayLevel': { en: 'Play Same Level Again', de: 'Level erneut spielen' },
   'overlay.saveScoreReturnTitleHtml': { en: 'Save Score &amp; Return to Title', de: 'Punkte speichern &amp; zurück zum Titel' },
