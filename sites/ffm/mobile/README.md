@@ -85,8 +85,11 @@ and both iOS build configurations target iPhone and iPad. The uncropped 800×450
 space: scene left/answers right in landscape, scene above/answers below in portrait. All 5 or 10 arithmetic
 answers remain simultaneously visible with at least 44×44 CSS-pixel targets. `viewport-layout.js` follows
 `visualViewport` resize/scroll (including keyboards) and four-edge safe-area CSS without restarting, pausing,
-or saving gameplay. Ordinary title, family, progress, gate, paywall, pause and result screens use compact or
-paginated stages, not scrolling; legal documents and the legal-links stage retain scrolling and full content.
+or saving gameplay. Title, family, progress, gate, paywall, pause and result screens are framed
+stages: every title page except Play is one menu sheet that fills the band when its content needs
+the room and shrinks to a centred card when it does not, and the sheet scrolls so a long list
+reaches its pagination instead of clipping. In a short landscape band the legal-links stage switches
+to two columns so all five chips stay whole. Legal documents keep their own scrolling and full content.
 Title mode rows share the available height above navigation, with at least 44px touch targets and a 6px
 navigation gap. Compact portrait screens omit the decorative introduction to preserve those controls;
 player and mode-selection text stays white with dark shadows over the sharp artwork.
@@ -192,6 +195,8 @@ Both website and app show the selected starting level as hand-drawn, illuminated
 SVG numerals in the title's upper-left corner, with a localized accessible label.
 The Practice tab (German: Training) opens "Practice sessions" / "Übungseinheiten" as a submenu: its summary
 carries the tab's own heading style and a Back button (plus Escape) closes it and returns focus to the summary.
+The open submenu *is* the page: the sheet scrolls, so Start practice and Back stay reachable even on a 640px-tall
+phone, and portrait stacks each selector label above its control while landscape keeps label and control side by side.
 Long passages in dialogs and panels are left-aligned with an 8px side inset and 8px of air before the action
 that ends them; only the welcome text, headings and one-line labels stay centred. Every menu label stays inside
 its button: words break only as a last resort and the tab row wraps onto a second line instead of clipping.

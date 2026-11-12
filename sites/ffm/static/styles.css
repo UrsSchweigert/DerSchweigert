@@ -512,7 +512,7 @@ input[type=number] {
   margin: 0;
   padding-left: 20px;
   max-height: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .leaderboard-list li {
@@ -1454,6 +1454,11 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   margin: 0;
   flex-shrink: 1;
   display: grid;
+  /* The old flex rule's justify-content: center still applies to this grid and
+   * would shrink the implicit column to each page's content, so the app's menu
+   * pages were narrower than the play page. Both platforms fill the band now. */
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
   grid-template-rows: 88px minmax(0, 1fr) minmax(44px, auto);
   gap: 6px;
 }
@@ -1486,7 +1491,38 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   width: 100%;
   height: 100%;
 }
+.title-pages { display: grid; }
 .title-page { display: flex; flex-direction: column; gap: 6px; }
+/* Every title page except Play is one menu sheet: a single framed surface that
+ * fills the band when its content needs the room and shrinks to a centred card
+ * when it does not. The sheet itself is the scroll container, so a long
+ * leaderboard scrolls to its pagination instead of clipping, and every menu
+ * page scrolls the same way instead of each nested list deciding on its own.
+ * Play keeps its own split layout below. */
+.title-page:not(.title-play) {
+  height: auto;
+  max-height: 100%;
+  align-self: center;
+  justify-self: center;
+  width: min(100%, 640px);
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--brass-deep);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(33, 65, 53, 0.94), rgba(13, 30, 24, 0.96));
+  box-shadow: inset 0 1px 0 rgba(243, 234, 214, 0.08), 0 8px 24px rgba(0, 0, 0, 0.38);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+/* The sheet already draws the frame, so a list card inside it drops its own. */
+.title-page:not(.title-play) .splash-leaderboard {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
 .title-play { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
 .title-play-intro { display: grid; align-content: center; justify-items: center; gap: 6px; min-width: 0; }
 .splash-intro { max-width: none; }
@@ -1646,25 +1682,27 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   max-width: none;
   padding: 6px;
   min-height: 0;
-  flex: 1;
+  flex: 0 0 auto;
   display: grid;
   align-content: start;
   gap: 6px;
 }
 .leaderboard-header { flex-direction: row; margin: 0; min-width: 0; }
 .leaderboard-filter { width: auto; min-width: 44px; flex: 1; }
+/* The menu sheet scrolls, so the list must not clip its own rows: an eighth
+   place used to be cut off silently instead of extending the page. */
 .leaderboard-list {
   max-height: none;
   margin: 0;
   padding-left: 24px;
-  overflow: hidden;
+  overflow: visible;
 }
 .leaderboard-list li { padding: 4px; overflow-wrap: anywhere; }
 .leaderboard-list li:last-child { margin-bottom: 0; }
 .title-page[data-title-page="history"] { justify-content: center; }
 .title-page[data-title-page="history"] .score-history-chart {
   margin: 0;
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -2349,13 +2387,25 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 
 .title-page:has(#practice-panel[open]) #personal-development,
 .title-page:has(#practice-panel[open]) .screen-pagination { display: none; }
+/* The open practice submenu is the page: the sheet scrolls, so the panel must
+ * not pin its own height. A flex row here sized the <details> from its
+ * ::details-content wrapper instead of its children, which clipped the Start
+ * and Back buttons on short landscape screens. The sheet is the only surface
+ * on a title page, so the panel never draws a second frame around itself —
+ * a hairline above the summary is what separates the submenu from the list. */
+.title-page #practice-panel {
+  padding: 0;
+  border: 0;
+  border-top: 1px solid rgba(196, 154, 72, 0.35);
+  background: none;
+  box-shadow: none;
+}
 #practice-panel[open] {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+  display: block;
+  flex: 0 0 auto;
   min-height: 0;
 }
-#practice-panel[open] .practice-controls { align-content: start; overflow-y: auto; }
+#practice-panel[open] .practice-controls { align-content: start; }
 
 .skill-intro-card { gap: 10px; }
 .skill-intro-example {
@@ -2398,11 +2448,50 @@ body:not(.legal-body) {
       url('game/title-art-wide.webp');
   }
   .splash-diff-buttons { gap: 6px; }
+  /* The band is only ~240px high, so the practice form puts its selector pairs
+     side by side and the two actions share one row, which is the space the
+     short band cannot spare for four stacked rows. */
+  #practice-panel[open] .practice-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  /* Labels sit above their controls so the two selector pairs share two rows
+     instead of four; the description, hint and actions then follow. */
+  #practice-panel[open] .practice-controls > label[for="practice-kind"] { grid-area: 1 / 1; }
+  #practice-panel[open] .practice-controls > #practice-kind { grid-area: 2 / 1; }
+  #practice-panel[open] .practice-controls > label[for="practice-level-select"] { grid-area: 1 / 2; }
+  #practice-panel[open] .practice-controls > #practice-level-select { grid-area: 2 / 2; }
+  #practice-panel[open] #btn-start-practice { grid-column: 1; }
+  #practice-panel[open] #btn-close-practice { grid-column: 2; }
+}
+
+/* A landscape phone spends 88px on the logo, which leaves too little height for
+ * a menu sheet. While a page other than Play is showing, the logo row drops to
+ * tab height so the sheet gets the room its content needs. */
+@media (orientation: landscape) and (max-height: 460px) {
+  .splash-content:has(> .title-pages > .title-page:not([hidden]):not(.title-play)) {
+    grid-template-rows: 44px minmax(0, 1fr) minmax(44px, auto);
+  }
+  .splash-content:has(> .title-pages > .title-page:not([hidden]):not(.title-play)) .title-logo {
+    height: 36px;
+  }
+  /* The web build stacks the same chips; six of them do not fit a short band,
+     so the stack becomes two columns like the app's. */
+  :root[data-platform="web"] .splash-legal-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
 }
 
 @media (orientation: portrait) {
   .title-pages { padding-inline: clamp(4px, 2vw, 20px); box-sizing: border-box; }
   .splash-diff-buttons { padding-inline: 4px; box-sizing: border-box; }
+  /* Portrait stacks each practice label above its control: side by side, the
+     select was squeezed into half the card and the two-word labels wrapped. */
+  .practice-controls { grid-template-columns: minmax(0, 1fr); }
 }
 /* Only genuinely short portrait screens drop the introduction hint; phones
    with room keep it, so the title screen reads as a welcome rather than a

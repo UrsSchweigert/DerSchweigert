@@ -388,6 +388,17 @@
   outline-offset: 2px;
 }
 
+/* Landscape phones have a ~250px menu band: five 44px chips in one stack do not
+ * fit and the last one is cut at the sheet edge. Two columns keep every row
+ * whole and still leave a 44px tap target. */
+@media (orientation: landscape) and (max-height: 460px) {
+  .splash-legal-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+}
+
 /* Contextual help, injected by help-overlay.js (app-only).
  *
  * Three question-mark buttons open a short staged dialog: one in the play
