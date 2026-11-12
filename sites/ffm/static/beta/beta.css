@@ -239,6 +239,34 @@
   font-size: 0.88rem;
 }
 
+/* ------------------------------------------------------- unlock in the beta */
+
+.beta-unlock {
+  display: grid;
+  gap: 0.45em;
+  max-width: 78ch;
+  margin: 0 0 clamp(14px, 2.4vw, 20px);
+  padding: 12px clamp(14px, 2vw, 20px);
+  border: 1px solid var(--hairline);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(160deg, rgba(196, 154, 72, 0.12), rgba(9, 20, 17, 0.5) 70%);
+}
+
+.beta-unlock h4 {
+  margin: 0;
+  color: var(--brass-light);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.beta-unlock p {
+  margin: 0;
+  color: var(--ivory);
+  font-size: 0.92rem;
+}
+
 /* --------------------------------------------------------- waitlist form */
 
 .beta-signup {

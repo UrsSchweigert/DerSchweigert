@@ -105,6 +105,11 @@ export const DICTIONARY = {
     de: 'Der Link bleibt offen, solange die Beta läuft. TestFlight-Builds verfallen nach 90 Tagen – wir laden neue hoch, damit du durchspielen kannst.',
     en: 'The link stays open while the beta runs. TestFlight builds expire after 90 days – we upload new ones so you can play through.',
   },
+  'beta.ios.unlockTitle': { de: 'Vollversion in der Beta', en: 'Full version in the beta' },
+  'beta.ios.unlockText': {
+    de: 'Auch die Vollversion kostet in der Beta nichts: Der Freischalten-Schritt bleibt Teil des Ablaufs, TestFlight berechnet aber keinen Betrag.',
+    en: 'The full version costs nothing during the beta either: the unlock step stays part of the flow, but TestFlight never charges anything.',
+  },
   'beta.ios.cta': { de: 'Einladung öffnen', en: 'Open the invitation' },
 
   // Android track
@@ -158,6 +163,12 @@ export const DICTIONARY = {
     de: 'Wir nutzen die Adresse nur für diese Einladung – kein Newsletter, keine Weitergabe. Auf Wunsch löschen wir sie jederzeit wieder.',
     en: 'We use the address only for this invitation – no newsletter, no sharing. We delete it at any time on request.',
   },
+  'beta.android.unlockTitle': { de: 'Vollversion in der Beta', en: 'Full version in the beta' },
+  'beta.android.unlockText': {
+    de: 'Kostenlos per Play-Promo-Code: Fordere ihn per Mail bei uns an – wir schicken dir den Code, du löst ihn im Play Store ein.',
+    en: 'Free via a Play promo code: request it from us by email – we send you the code and you redeem it in the Play Store.',
+  },
+  'beta.android.unlockLink': { de: 'Promo-Code anfordern', en: 'Request a promo code' },
 
   // Waitlist form feedback (written by script, so never present in the markup)
   'beta.waitlist.sending': { de: 'Wird gesendet …', en: 'Sending …' },
@@ -202,8 +213,8 @@ export const DICTIONARY = {
   'beta.faq.title': { de: 'Häufige Fragen zur Beta', en: 'Frequently asked questions about the beta' },
   'beta.faq.q1': { de: 'Was kostet die Beta?', en: 'What does the beta cost?' },
   'beta.faq.a1': {
-    de: 'Nichts. Die Beta ist kostenlos, Level 1–2 bleiben auch danach gratis, und für den Rest gibt es keinen Abo-Zwang: In der App schaltest du Level 3–60 mit einem Einmalkauf frei.',
-    en: 'Nothing. The beta is free, levels 1–2 stay free afterwards too, and there is no subscription: in the app you unlock levels 3–60 with a one-time purchase.',
+    de: 'Nichts. Die Beta ist kostenlos, Level 1–2 bleiben auch danach gratis. Während der Beta ist auch die Vollversion kostenlos: auf iOS im TestFlight-Build, auf Android per Play-Promo-Code. Nach der Beta schaltest du Level 3–60 mit einem Einmalkauf frei.',
+    en: 'Nothing. The beta is free, levels 1–2 stay free afterwards too. During the beta the full version is free as well: in the iOS TestFlight build, on Android via a Play promo code. After the beta you unlock levels 3–60 with a one-time purchase.',
   },
   'beta.faq.q2': {
     de: 'Brauche ich ein Konto oder eine E-Mail-Adresse?',

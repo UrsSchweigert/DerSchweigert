@@ -50,8 +50,8 @@ route, or a `#anchor`.
 | --- | --- | --- |
 | Hero | — | Kicker, logo, headline, the live TestFlight button, the Android waitlist link and the title-screen phone mockup. |
 | Requirements | — | Three centred facts under the hero: iOS 15, the free TestFlight app, free of charge without an account. |
-| iOS track | `#ios` | "Open now": facts, then four steps (install TestFlight → accept the invitation → install and play → send feedback), the 90-day note and the invitation button. |
-| Android track | `#android` | "In preparation": facts, then four steps (enter the Google address → wait for the invitation → join and install → send feedback) and the waitlist form. |
+| iOS track | `#ios` | "Open now": facts, then four steps (install TestFlight → accept the invitation → install and play → send feedback), the 90-day note, the free-unlock note and the invitation button. |
+| Android track | `#android` | "In preparation": facts, then four steps (enter the Google address → wait for the invitation → join and install → send feedback), the waitlist form, and the promo-code note. |
 | Art | — | Three lazy-loaded promo stills (`art/action/fight`, `art/acts/act-3`, `art/action/lightning`) with captions. |
 | FAQ / footer | `#faq` | Eight questions, legal links and the support address. |
 
@@ -101,6 +101,21 @@ Use the CSV column `email` to paste the addresses into the Play Console test
 track ("Testers" list). Oldest entries come first. The address is used for
 nothing else; the privacy policy has a dedicated "Android-Beta-Warteliste"
 section for it.
+
+## The full version during the beta
+
+Both tracks carry a "Vollversion in der Beta" box, because the unlock behaves
+differently per platform while the beta runs:
+
+- **iOS** — the unlock step stays part of the flow, but TestFlight never charges
+  anything, so the full version is free for testers.
+- **Android** — the unlock is free through a **Google Play promo code** for the
+  `arithmoslayer_full_unlock` product; testers request it by mail
+  (`info@derschweigert.de`, pre-filled subject) and redeem it in the Play Store.
+
+After the beta both platforms use the normal one-time purchase. The FAQ "Was
+kostet die Beta?" repeats the same two routes so the answer is not only inside
+the tracks.
 
 ## Why there are no inline scripts
 

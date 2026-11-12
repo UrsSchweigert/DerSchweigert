@@ -189,6 +189,21 @@ test('the page states the real platform minimums', () => {
   assert.match(html, /Android 7\.0 oder neuer/);
 });
 
+test('both tracks explain how the full version behaves during the beta', () => {
+  const ios = html.match(/id="ios"[\s\S]*?<\/article>/)[0];
+  const android = html.match(/id="android"[\s\S]*?<\/article>/)[0];
+
+  assert.match(ios, /data-i18n="beta\.ios\.unlockText"/, 'iOS must say the beta unlock is free');
+  assert.match(android, /data-i18n="beta\.android\.unlockText"/, 'Android must explain the promo-code route');
+  assert.match(android, /data-i18n="beta\.android\.unlockLink"/, 'Android needs the request link');
+  assert.match(android, /href="mailto:info@derschweigert\.de\?subject=[^"]*Promo-Code/, 'the request goes by mail');
+
+  // The public facts the copy depends on: free on iOS, free promo code on Android.
+  assert.match(DICTIONARY['beta.ios.unlockText'].de, /kostenlos|nichts/i);
+  assert.match(DICTIONARY['beta.android.unlockText'].de, /Promo-Code/);
+  assert.match(DICTIONARY['beta.faq.a1'].de, /Promo-Code/, 'the cost FAQ must mention the Android route too');
+});
+
 test('the hero no longer carries the browser fallback or the free-levels line', () => {
   for (const dropped of ['beta.hero.ctaWeb', 'beta.hero.print']) {
     assert.ok(!(dropped in DICTIONARY), `${dropped} was removed from the hero and must not stay in the dictionary`);
