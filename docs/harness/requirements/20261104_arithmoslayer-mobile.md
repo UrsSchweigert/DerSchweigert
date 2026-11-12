@@ -36,7 +36,7 @@ the investigation report and the release handover keep each one visible until it
 
 - M1 Smoke rule: add a `tools/harness/smoke.json` entry running the existing `ios_shell.sh` (or an equivalent offline
   shell check) for `sites/ffm/mobile`, rebuild the worker image and re-verify the Tier A attestation.
-- M2 Native CI: a protected workflow (pattern: `lesen-native.yml`) that builds the Android debug APK and the iOS
+- M2 Native CI: a protected workflow (pattern: `buchstabenzeit-native.yml`) that builds the Android debug APK and the iOS
   simulator app for `sites/ffm/mobile/` on pull requests touching it, and is required on the run branch.
 - M3 Release workflows: signed `.aab` and signed `.ipa`/TestFlight, triggered independently of the website deploy.
 - M4 Music tracks: the owner commits the selected tracks (with source URL, author and licence per track in a
@@ -60,7 +60,7 @@ regenerate or hand-write it:
   and splash, Android Auto Backup on and no app-declared permissions (Play Billing merges its own), iOS
   `CFBundleLocalizations` de/en, `ITSAppUsesNonExemptEncryption` false, iPhone only, and a bundled
   `PrivacyInfo.xcprivacy` (no tracking, UserDefaults reason CA92.1).
-- M2 is satisfied by `.github/workflows/ffm-native.yml` (Android debug APK + iOS simulator build, `npm test`).
+- M2 is satisfied by `.github/workflows/arithmoslayer-native.yml` (Android debug APK + iOS simulator build, `npm test`).
 
 Native files and `package*.json` are escalation paths; a worker needing a change there stops and escalates.
 

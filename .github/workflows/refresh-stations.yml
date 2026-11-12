@@ -1,4 +1,4 @@
-name: Refresh Station Data
+name: 'Stations: refresh station data'
 
 on:
   schedule:

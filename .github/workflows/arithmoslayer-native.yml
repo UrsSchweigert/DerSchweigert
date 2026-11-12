@@ -1,17 +1,17 @@
-name: Arithmo Slayer native build gate
+name: 'Arithmo Slayer: native build gate'
 
 on:
   # After a merge to main only. The merged tree is what a release is cut from, and nothing here runs on a pull request
   # or on a harness run branch: those PRs therefore never wait for a native status and never spend macOS minutes
-  # (billed at ten times the Linux rate). `ffm-native` must not be a required check in any ruleset, because no pull
-  # request produces it.
+  # (billed at ten times the Linux rate). The aggregate job keeps its historical `ffm-native` check name and
+  # must not become a required check in any ruleset, because no pull request produces it.
   push:
     branches: [main]
     paths:
       - 'sites/ffm/**'
       - 'tools/ios/**'
-      - '.github/workflows/ffm-native.yml'
-      - '.github/workflows/ffm-build-artifacts.yml'
+      - '.github/workflows/arithmoslayer-native.yml'
+      - '.github/workflows/arithmoslayer-build-artifacts.yml'
 
 permissions:
   contents: read

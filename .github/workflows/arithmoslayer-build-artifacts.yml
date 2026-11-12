@@ -1,11 +1,11 @@
-name: Arithmo Slayer build artifacts
+name: 'Arithmo Slayer: build artifacts'
 
 on:
   workflow_dispatch:
   push:
-    tags: ['ffm-v*']
+    tags: ['arithmoslayer-v*']
 
-# Native changes are already compiled by ffm-native.yml. Reserve the macOS
+# Native changes are already compiled by arithmoslayer-native.yml. Reserve the macOS
 # artifact runner for release tags and explicit manual requests, not every merge.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
