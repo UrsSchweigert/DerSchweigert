@@ -3,12 +3,14 @@
 // the origin/main extraction is exercised by hand, not here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const { contentType, createStaticServer, parseArgs, resolveRequestPath } = await import('./serve-calibrator.mjs');
+const { contentType, createStaticServer, isDirectInvocation, parseArgs, resolveRequestPath } = await import('./serve-calibrator.mjs');
+const SELF = new URL('./serve-calibrator.mjs', import.meta.url);
 
 test('parseArgs defaults to serving origin/main on port 8000', () => {
   assert.deepEqual(parseArgs([]), { worktree: false, offline: false, port: 8000, help: false });
@@ -74,4 +76,21 @@ test('the server serves a file, a directory index, and 404s the rest', async () 
     await new Promise((done) => server.close(done));
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('isDirectInvocation recognises the script through a symlinked path', async () => {
+  // `node /tmp/copy.mjs` must run main(); on macOS /tmp is a symlink to
+  // /private/tmp, so a raw URL comparison silently does nothing.
+  const dir = mkdtempSync(join(tmpdir(), 'serve-calibrator-link-'));
+  const link = join(dir, 'serve-calibrator.mjs');
+  try {
+    symlinkSync(new URL(SELF), link);
+    assert.equal(isDirectInvocation(link, SELF.href), true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.equal(isDirectInvocation(SELF.pathname, SELF.href), true);
+  assert.equal(isDirectInvocation(undefined, SELF.href), false, 'being imported is not an invocation');
+  assert.equal(isDirectInvocation('/nope/missing.mjs', SELF.href), false);
+  assert.equal(pathToFileURL('/tmp/x.mjs').href.startsWith('file:///tmp/'), true);
 });
