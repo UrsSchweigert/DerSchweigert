@@ -2452,6 +2452,9 @@ async function startLevel(levelIndex, includeBaseline = false) {
     platform.setCurrentLevelConfig(cfg);
 
     renderer.setBackgroundByLevel(cfg.level);
+    // Warm only the current and next level art; the following levels are not
+    // requested, and a level without a manifest entry is skipped entirely.
+    renderer.preloadLevelArt?.([cfg.level, cfg.level + 1]);
 
     // Apply baseline score to state if requested and available
     let baselineScore = 0;
