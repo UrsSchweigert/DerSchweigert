@@ -137,7 +137,8 @@ def test_an_unavailable_signed_refiner_fails_closed_instead_of_falling_back(tmp_
     assert "model selection rejected" in reason and SONNET in reason
 
 
-def test_a_legacy_plan_without_routing_still_refines_on_a_strong_model(tmp_path):
+def test_a_legacy_plan_without_routing_refines_on_the_standard_band(tmp_path):
+    """No signature and no per-issue choice: refinement starts cheap and climbs only on its own evidence."""
     env = Env(tmp_path)
     issue = env.store.get_issue("i1")
     issue["model_choices"] = {"implementer": {"model": "claude-sonnet-5", "reason": "Two files interact."},
@@ -146,8 +147,8 @@ def test_a_legacy_plan_without_routing_still_refines_on_a_strong_model(tmp_path)
     env.start()
     env.run_until(lambda: env.state("i1") == "Done")
     refinements = [req for req in env.adapter.started if req.role == "refiner"]
-    assert [req.tier for req in refinements] == ["strong"]
-    assert refinements[0].model in ("claude-opus-5", "claude-opus-4.8")
+    assert [req.tier for req in refinements] == ["standard"]
+    assert refinements[0].model == SONNET
 
 
 def test_the_plan_check_signs_a_standard_refiner_but_still_refuses_a_cheap_one(tmp_path):
