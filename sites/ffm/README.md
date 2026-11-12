@@ -649,6 +649,12 @@ yet - they are pure logic plus their generated locks.
   LCG's low bits are correlated, so `state % span` over a small span repeated the
   same draw and builders could never succeed.
 
+Boss fights are **built but not released**: `WARDENS_ENABLED` in
+`static/game/boss-data.js` is false, so `initWardenMode()` returns before
+mounting anything and the Wardens row never appears. `?wardens=1` opens them for
+development and review; `boss-preview.html` bypasses the switch with `force`.
+Flip the constant and drop the query check when they ship.
+
 The fight itself is `static/game/boss-run.js`: an overlay on the title screen,
 not a canvas mode, so a Warden needs no enemy entity, spawn queue or camera.
 `boss-attempt.js` owns the phases, the per-phase Ward Clock, checkpoints, crowns

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { DRAGON_FRAMES, DRAGON_ROWS, DRAGON_TIMING, buildWardenRows, dragonFramePosition, ruleText } from './boss-run.js';
+import { DRAGON_FRAMES, DRAGON_ROWS, DRAGON_TIMING, buildWardenRows, dragonFramePosition, initWardenMode, ruleText, wardensEnabled } from './boss-run.js';
 import { generateSequenceProblem } from './boss-problems.js';
 
 const BAND = { level: 10, operations: ['+', '-'], operandRange: { a: [2, 12], b: [1, 7] }, maxResult: 19 };
@@ -91,5 +91,31 @@ describe('dragon animation', () => {
     assert.ok(DRAGON_TIMING.idle > DRAGON_TIMING.hit);
     assert.ok(DRAGON_TIMING.idle > DRAGON_TIMING.breath);
     assert.ok(DRAGON_TIMING.hit > 60 && DRAGON_TIMING.breath > 60, 'slow enough to read');
+  });
+});
+
+describe('release switch', () => {
+  it('keeps Warden fights shut for players', () => {
+    assert.equal(wardensEnabled(), false);
+    assert.equal(wardensEnabled({ search: '' }), false);
+    assert.equal(wardensEnabled({ search: '?level=3' }), false);
+    assert.equal(wardensEnabled({ search: '?wardens=0' }), false);
+  });
+
+  it('opens them for a reviewer or the dev harness', () => {
+    assert.equal(wardensEnabled({ search: '?wardens=1' }), true);
+    assert.equal(wardensEnabled({ search: '?a=1&wardens=1' }), true);
+    assert.equal(wardensEnabled({ force: true }), true);
+  });
+
+  it('mounts nothing at all while the switch is off', () => {
+    const doc = {
+      querySelector: () => null,
+      body: { appendChild: () => assert.fail('must not mount an overlay') },
+      getElementById: () => null,
+      createElement: () => assert.fail('must not build the overlay'),
+      addEventListener: () => {},
+    };
+    assert.equal(initWardenMode({ platform: {}, doc, search: '' }), null);
   });
 });
