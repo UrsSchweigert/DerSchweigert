@@ -63,6 +63,7 @@ import { dailyBestTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
 import { createScreenFx } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
+import { createEncounterSwords } from './encounter-swords.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -139,10 +140,6 @@ if (platform.isApp) {
     })
     .then(({ createTimerBar }) => {
       mobileUi?.registerWidget('timer-bar', createTimerBar({ doc: document }));
-      return import('./encounter-swords.js');
-    })
-    .then(({ createEncounterSwords }) => {
-      mobileUi?.registerWidget('encounter-swords', createEncounterSwords({ doc: document }));
       return import('./shapes-header.js');
     })
     .then(({ createShapesHeader }) => {
@@ -218,6 +215,10 @@ initI18n();
 initViewportLayout();
 const titleLevelNumerals = createLevelNumerals({ doc: document, translate: t });
 titleLevelNumerals.updateLevelSelection({ level: 1 });
+// One portrait sword row for both channels; the CSS keeps it display:none
+// outside portrait. The per-frame chrome update feeds it the same count as the
+// header's "Defeated" readout.
+const encounterSwords = createEncounterSwords({ doc: document });
 
 // The page's CSP is `script-src 'self' https://challenges.cloudflare.com`
 // with no 'unsafe-inline'/nonce, so an inline <script type="module"> in
@@ -4267,8 +4268,9 @@ function gameLoop(ts) {
     untimed: !(state.timerMax > 0) || practiceProgress?.untimed === true,
     paused,
   });
-  // The app's portrait sword row mirrors the "Defeated" readout above.
-  mobileUi?.updateEncounterProgress(encounterProgress ?? { defeated: 0, total: 0 });
+  // The shared portrait sword row mirrors the "Defeated" readout above; it is
+  // hidden by CSS on the web's landscape layout and in the app's landscape.
+  encounterSwords.updateEncounterProgress(encounterProgress ?? { defeated: 0, total: 0 });
 }
 
 function handleUrlAuthTokens() {

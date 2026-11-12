@@ -408,6 +408,74 @@ body {
   gap: 6px;
 }
 
+/* Portrait encounter swords, injected by encounter-swords.js into #input-zone
+ * immediately before #mc-buttons. The module is shared by the website and both
+ * apps, so these rules live in the shared stylesheet rather than the app-only
+ * overlay.
+ *
+ * The row only exists in portrait: the default is display:none, so landscape
+ * shows nothing on either channel. It owns a full-width 22px flex line above
+ * the answer buttons with one little sword per enemy; beaten enemies fill
+ * green from left to right. Each sword is a clip-path silhouette (tip, blade,
+ * cross-guard, grip, pommel), so it scales with the slot and needs no image.
+ * Reduced motion drops the fill pop. */
+.app-encounter-swords {
+  display: none;
+  flex: 0 0 100%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 22px;
+  margin: 0 calc(var(--safe-area-right, 0px) + 2px) 0 calc(var(--safe-area-left, 0px) + 2px);
+  padding: 0 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+#game-wrap[data-layout="portrait"] .app-encounter-swords {
+  display: flex;
+}
+
+#game-wrap[data-layout="portrait"] .app-encounter-swords[hidden] {
+  display: none;
+}
+
+.app-encounter-sword {
+  flex: 0 1 12px;
+  min-width: 0;
+  height: 20px;
+}
+
+.app-encounter-sword::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.24);
+  clip-path: polygon(50% 0, 62% 9%, 62% 62%, 90% 62%, 90% 71%, 58% 71%, 58% 88%,
+    66% 88%, 66% 100%, 34% 100%, 34% 88%, 42% 88%, 42% 71%, 10% 71%, 10% 62%,
+    38% 62%, 38% 9%);
+}
+
+.app-encounter-sword--filled {
+  filter: drop-shadow(0 0 2px #4caf50);
+  animation: ffm-sword-fill 0.35s ease-out;
+}
+
+.app-encounter-sword--filled::before {
+  background: linear-gradient(180deg, #c8f7c5 0%, #5fd068 45%, #2e8b3a 100%);
+}
+
+@keyframes ffm-sword-fill {
+  0% { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-encounter-sword--filled { animation: none; }
+}
+
 .mc-btn {
   min-width: 44px;
   min-height: 44px;
