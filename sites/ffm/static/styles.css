@@ -196,6 +196,7 @@ body {
 .ability-slot {
   position: relative;
   display: inline-flex;
+  flex: 1 1 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -215,7 +216,26 @@ body {
 }
 
 .ability-slot-name { font-weight: 700; }
-.ability-slot-cooldown { font-variant-numeric: tabular-nums; }
+
+/* Two fixed-height lines per slot: the cooldown seconds (or "Ready") and the
+ * bonus-aware readout. Equal slot widths plus reserved line heights keep the
+ * bar from shifting when a value grows or a cooldown starts. */
+.ability-slot-cooldown,
+.ability-slot-readout {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ability-slot-cooldown { height: 13px; line-height: 13px; font-size: 11px; }
+.ability-slot-readout {
+  height: 12px;
+  line-height: 12px;
+  font-size: 10px;
+  color: #cdd6f4;
+}
 
 /* Owner-delivered artwork (game/assets/ability-<id>.webp). Decorative: the
  * slot's aria-label names the ability, so the icon carries an empty alt. */
@@ -306,7 +326,8 @@ body {
 }
 
 .ability-slot-name,
-.ability-slot-cooldown {
+.ability-slot-cooldown,
+.ability-slot-readout {
   position: relative;
   z-index: 1;
 }
@@ -2685,6 +2706,9 @@ body:not(.legal-body) {
   .title-navigation button { padding: 3px 1px; }
   .compact-disclosure > summary { padding-inline: 8px; }
   .practice-controls, .audio-controls { gap: 4px; padding-inline: 6px; }
+  /* Keep the bonus readout on one line on the narrowest phones. */
+  .ability-slot { padding: 4px 5px; }
+  .ability-slot-readout { font-size: 9px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

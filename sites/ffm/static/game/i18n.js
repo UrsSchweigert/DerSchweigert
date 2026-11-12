@@ -430,6 +430,14 @@ const DICTIONARY = {
     en: 'Spikes slow the active fiend and the next spawns.',
     de: 'Erdstacheln verlangsamen den aktiven Feind und die nächsten Gegner.',
   },
+  // Second line of each slot: the cooldown reads out in whole seconds or
+  // "Ready", and the storm and earth slots spell out the bonus they earned.
+  'ability.slot.ready': { en: 'Ready', de: 'Bereit' },
+  'ability.storm.readout': { en: 'Removes {count}', de: 'Entfernt {count}' },
+  'ability.earth.readout': {
+    en: 'Slow {percent}% · ×{targets}',
+    de: 'Langsam {percent}% · ×{targets}',
+  },
   // One notice per level from 2 upward: the bonus type names the affected
   // ability and its value, e.g. "Bonus: Wind cooldown -6s".
   'bonus.cooldown.notice': {
