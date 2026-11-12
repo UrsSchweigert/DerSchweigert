@@ -7,8 +7,28 @@
 // briefly appearing before being replaced, especially on a slow connection.
 
 import { FIEND_CLASSES } from './difficulty-classes.js';
+import { ABILITY_ROSTER } from './cooldown-abilities.js';
 
 const STAGE_COUNT = 6;
+
+/** The three ability icons, in bar order (wind, storm, earth). */
+export const ABILITY_ICON_IDS = Object.freeze(ABILITY_ROSTER.map((ability) => ability.id));
+
+/**
+ * Resolve one ability icon. The files live in game/assets and are
+ * owner-delivered art, so a missing file is expected to be handled by the
+ * caller (the bar falls back to the localized ability name).
+ * @param {'wind' | 'storm' | 'earth'} id
+ * @returns {string} absolute URL, resolved relative to this module.
+ */
+export function abilityIconUrl(id) {
+  return new URL(`./assets/ability-${id}.webp`, import.meta.url).href;
+}
+
+/** @returns {string[]} absolute URLs of the three ability icons. */
+export function buildAbilityIconUrls() {
+  return ABILITY_ICON_IDS.map(abilityIconUrl);
+}
 
 /**
  * Pure (no DOM/network) list-builder, so it's unit-testable: every image URL
@@ -50,6 +70,36 @@ export function preloadGameAssets(onProgress) {
 
   const loadOne = (url) => new Promise((resolve) => {
     const img = new Image();
+    const settle = () => {
+      loaded++;
+      if (onProgress) onProgress(loaded, total);
+      resolve();
+    };
+    img.addEventListener('load', settle);
+    img.addEventListener('error', settle);
+    img.src = url;
+  });
+
+  return Promise.all(urls.map(loadOne)).then(() => {});
+}
+
+/**
+ * Warm the three ability icons before the bar needs them, so the first unlock
+ * shows artwork instead of flashing the text fallback. The icons are optional
+ * owner-delivered art: like preloadGameAssets(), every URL resolves on both
+ * `load` and `error`, so a missing file can never hang the loading path.
+ * @param {object} [options]
+ * @param {() => HTMLImageElement} [options.createImage] injectable for tests.
+ * @param {(loaded: number, total: number) => void} [options.onProgress]
+ * @returns {Promise<void>} resolves once every icon has loaded or errored.
+ */
+export function preloadAbilityIcons({ createImage = () => new Image(), onProgress } = {}) {
+  const urls = buildAbilityIconUrls();
+  const total = urls.length;
+  let loaded = 0;
+
+  const loadOne = (url) => new Promise((resolve) => {
+    const img = createImage();
     const settle = () => {
       loaded++;
       if (onProgress) onProgress(loaded, total);

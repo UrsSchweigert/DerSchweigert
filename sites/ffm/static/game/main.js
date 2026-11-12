@@ -27,7 +27,7 @@ import {
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
-import { preloadGameAssets } from './asset-preload.js';
+import { preloadGameAssets, preloadAbilityIcons } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
 import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
@@ -258,6 +258,11 @@ const assetsLoaded = preloadGameAssets((loaded, total) => {
   if (loadingBarFill) loadingBarFill.style.width = pct + '%';
   if (loadingPercentEl) loadingPercentEl.textContent = pct + '%';
 });
+
+// The three ability icons are optional owner-delivered art; warming them in
+// the background keeps the first unlock from flashing the text fallback.
+// Every URL settles on load and error, so this can never block the game.
+preloadAbilityIcons();
 
 // A single stuck/broken asset (or a truly catastrophic connection) must not
 // permanently trap the player behind a black screen — fall back to
