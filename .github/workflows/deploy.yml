@@ -227,6 +227,8 @@ jobs:
         if: needs.changes.outputs.ffm_tests == 'true'
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: sites/ffm/mobile/package-lock.json
       - run: node --test sites/ffm/static/game/*.test.js
         if: needs.changes.outputs.ffm_tests == 'true'
       - run: node --test sites/ffm/static/promo/*.test.js
@@ -234,6 +236,12 @@ jobs:
       - run: node --test sites/ffm/static/beta/*.test.js
         if: needs.changes.outputs.ffm_tests == 'true'
       - run: node --test sites/ffm/static/story/tests/*.test.mjs
+        if: needs.changes.outputs.ffm_tests == 'true'
+      # The app shell has its own suite: copy-assets exclusions, bundle completeness and the platform scaffolds. Until
+      # now only arithmoslayer-native.yml ran it, and that workflow is push-to-main only, so a pull request could add a
+      # file under static/ without the matching copy-assets rule and leave main red after the merge. These are plain
+      # Node tests with no Android or iOS toolchain, so they cost seconds here and fail the PR instead.
+      - run: cd sites/ffm/mobile && npm ci && npm test
         if: needs.changes.outputs.ffm_tests == 'true'
 
   test-lhc:
