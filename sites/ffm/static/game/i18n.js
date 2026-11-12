@@ -413,6 +413,23 @@ const DICTIONARY = {
   'reward.upcoming': { en: '{ability} in {count}', de: '{ability} in {count}' },
   'reward.upcomingChance': { en: '{ability} {chance}% in {count}', de: '{ability} {chance}% in {count}' },
   'reward.activeChance': { en: '{ability}: {chance}% per hit', de: '{ability}: {chance}% pro Treffer' },
+  // Three-slot ability bar (wind, storm, earth) in the gameplay header.
+  'ability.barLabel': { en: 'Abilities', de: 'Fähigkeiten' },
+  'ability.wind.name': { en: 'Wind', de: 'Wind' },
+  'ability.wind.description': {
+    en: 'Removes the active enemy from the encounter.',
+    de: 'Entfernt den aktiven Gegner aus dem Kampf.',
+  },
+  'ability.storm.name': { en: 'Storm', de: 'Sturm' },
+  'ability.storm.description': {
+    en: 'Clears a capped slice of the enemy wave.',
+    de: 'Räumt einen begrenzten Abschnitt der Gegnerwelle ab.',
+  },
+  'ability.earth.name': { en: 'Earth', de: 'Erde' },
+  'ability.earth.description': {
+    en: 'Spikes slow the active fiend and the next spawns.',
+    de: 'Erdstacheln verlangsamen den aktiven Feind und die nächsten Gegner.',
+  },
   'feedback.shapesAnswer': { en: 'There are {count} shapes.', de: 'Es sind {count} Formen.' },
   // The gameplay header's correction row: same answer, short enough to fit the
   // question column next to the help and pause buttons.
