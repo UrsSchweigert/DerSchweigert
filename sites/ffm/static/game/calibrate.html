@@ -39,7 +39,10 @@
     <b>Background:</b> pick a level in the “Background level” panel (or press [ / ]) to check the feet against that
     level's own painted floor. The 60 backgrounds do not share one floor line, so a level that looks grounded here may
     still sit a few pixels off in another.<br>
-    Keyboard: ↑/↓ = fiend ±0.005 (Shift = ±0.02) · ←/→ = previous/next fiend class · PageUp/PageDown = hero ±1px (Shift = ±5px) · [ / ] = previous/next level.
+    <b>Ground line:</b> the red line plus the hero and the fiend move together in the “Ground line (this level)” panel
+    (− / + keys). Every level keeps its own line, and “Generate + copy” emits the <code>"groundY"</code> block for
+    <code>levels/manifest.json</code> — that is what the game reads, so what you line up here is what ships.<br>
+    Keyboard: ↑/↓ = fiend ±0.005 (Shift = ±0.02) · ←/→ = previous/next fiend class · PageUp/PageDown = hero ±1px (Shift = ±5px) · [ / ] = previous/next level · −/+ = ground line ±1px (Shift = ±5px).
     When everything lines up, click "Generate + copy" and paste the two snippets back into <code>entities.js</code> and <code>difficulty-classes.js</code>.
   </p>
 
@@ -65,6 +68,21 @@
       <div class="row">
         <button data-level-nav="-1">◀ Prev level</button>
         <button data-level-nav="1">Next level ▶</button>
+      </div>
+    </fieldset>
+
+    <fieldset id="ground-panel">
+      <legend>Ground line (this level)</legend>
+      <label>Red line, hero and fiend move together</label>
+      <div class="value" id="ground-value">360</div>
+      <div class="row">
+        <button data-ground-step="-10">−10</button>
+        <button data-ground-step="-5">−5</button>
+        <button data-ground-step="-1">−1</button>
+        <button data-ground-step="1">+1</button>
+        <button data-ground-step="5">+5</button>
+        <button data-ground-step="10">+10</button>
+        <button data-ground-reset>Reset</button>
       </div>
     </fieldset>
 
@@ -102,6 +120,6 @@
   <button class="big" id="copy-btn">📋 Generate + copy final code for both files</button>
   <textarea id="output" readonly placeholder="Click the button above once you're happy with all the alignments — this fills in with the exact code to paste back into entities.js and difficulty-classes.js."></textarea>
 
-  <script type="module" src="./calibrate.js?v=61"></script>
+  <script type="module" src="./calibrate.js?v=62"></script>
 </body>
 </html>

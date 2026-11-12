@@ -53,6 +53,16 @@ test('manifest maps levels 1-60 to files, chapters and the shared budget', () =>
   }
 });
 
+test('manifest may carry per-level ground-line overrides inside the drawable band', () => {
+  assert.equal(typeof manifest.groundY, 'object', 'groundY must be present so contributors can find the field');
+  assert.ok(!Array.isArray(manifest.groundY));
+  for (const [key, value] of Object.entries(manifest.groundY)) {
+    assert.ok(/^([1-9]|[1-5][0-9]|60)$/.test(key), `groundY key ${key} is not a level number`);
+    assert.ok(Number.isInteger(value), `groundY.${key} must be an integer`);
+    assert.ok(value >= 240 && value <= 436, `groundY.${key} must stay inside 240-436, got ${value}`);
+  }
+});
+
 test('PROMPTS.md has exactly 60 numbered prompts, one per level', () => {
   const lines = prompts.split('\n').filter((line) => /^\d+\.\s/.test(line));
   assert.equal(lines.length, 60);
