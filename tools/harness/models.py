@@ -34,20 +34,23 @@ MODEL_CATALOG: Dict[str, Dict[str, List[str]]] = {
     },
 }
 CATALOG_FILE = "model_catalog.json"
-ROLE_TIER = {"investigator": "low", "refiner": "strong", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
+ROLE_TIER = {"investigator": "low", "refiner": "standard", "implementer": "low", "reviewer": "standard", "integrator": "low", "delegator": "standard",
              "analyst": "strong", "overseer": "strong"}
 
-# Roles whose output is a judgement rather than mechanical work. A cheap model that returns a malformed
-# result costs a repair attempt and a human decision, which is always more expensive than the stronger call.
-# The overseer decides whether a stuck issue is a harness defect, a scope problem, or a question for the owner. A wrong
-# call there costs more than any implementation attempt, so it is never downgraded by a plan.
-REQUIRED_TIER = {"refiner": "strong", "overseer": "strong"}
-
-# A plan may sign one concrete refiner instead of taking the strong default. The signature is the owner's
-# cost decision, so it replaces the REQUIRED_TIER floor for that role only, and never below this band:
+# Roles whose output a cheap model can ruin beyond repair. The overseer decides whether a stuck issue is a harness
+# defect, a scope problem, or a question for the owner; a wrong call there costs more than any implementation attempt,
+# so it is never downgraded by a plan. The refiner is deliberately not listed: it starts on the standard band and
+# climbs to the strong band only when one of its own passes on the same issue actually failed (REFINER_ESCALATION).
+# A malformed refiner answer costs one cheap retry, and the harness repairs the two answer-shape defects that used to
+# make it expensive (single strings for list keys, a new-file anchor missing from its phase allowlist).
+# A plan may sign one concrete refiner instead of taking the standard default. The signature is the owner's
+# cost decision, so it replaces the default band for that role only, and never below this band:
 # refinement is still a judgement role, so a low-tier refiner stays refused however it is signed.
 SIGNED_REFINER_FLOOR = "standard"
 ESCALATION_EVIDENCE = ("checks_failed", "review_findings", "integrated_checks_failed")
+# Failures a refiner can produce itself. Each one means the previous pass was unusable, which is the evidence that
+# buys the strong band for the next pass on that issue.
+REFINER_ESCALATION = ("schema_invalid", "protected_prerequisite", "stale_anchors")
 
 
 def _up(tier: str) -> str:
@@ -62,6 +65,14 @@ def choose_tier(role: str, *, implementer_tier: Optional[str] = None, previous_t
     if role == "reviewer":
         # The reviewer never runs below the implementer's tier.
         return max(tier, implementer_tier or tier, key=TIERS.index)
+    if role == "refiner":
+        # Refinement starts on the standard band and climbs only on its own evidence: a previous pass on this same
+        # issue produced an unusable answer. A first pass has no such evidence, so it runs on the cheaper band the
+        # owner asked for, and the strong band stays what it is meant to be - an escalation.
+        tier = max(tier, previous_tier or tier, key=TIERS.index)
+        if previous_failure_kind in REFINER_ESCALATION:
+            tier = max(tier, _up(previous_tier or tier), key=TIERS.index)
+        return tier
     if role == "implementer":
         if previous_tier:
             tier = max(tier, previous_tier, key=TIERS.index)
@@ -100,7 +111,7 @@ def tier_of(model: str, policy_tiers: Dict[str, Any]) -> Optional[str]:
 def signed_refiner(policy: Dict[str, Any]) -> Optional[Dict[str, str]]:
     """The refiner the approved policy names, with the band it is approved at.
 
-    None for a legacy plan with no `model_routing`: those keep the REQUIRED_TIER strong floor.
+    None for a legacy plan with no `model_routing`: those keep the standard refiner band and climb only on evidence.
     A signature naming an unapproved or low-tier model is refused here rather than quietly upgraded,
     so a bad policy blocks the attempt instead of spending a model the owner did not sign.
     """
@@ -126,13 +137,20 @@ def resolve_signed(selection: Dict[str, str], available: Optional[List[str]], *,
             "note": "the approved policy routes the %s to %s" % (role, selection["model"])}
 
 
-def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], available: list[str] | None,
+# The band a delegator's own per-issue choice may not go below, per role. Required means "upgraded by trusted code,
+# never left cheap": the plan's own approval cannot lower it. Refinement is a judgement, so a low-tier refiner is
+# upgraded to the standard band; the strong band is earned by evidence, not bought by a choice or a signature.
+CHOICE_FLOOR = {"refiner": "standard", "overseer": "strong"}
+
+
+def resolve_choice(choice: dict[str, Any], policy_tiers: Dict[str, Any], available: List[str] | None,
                    avoid: str | None = None, *, strong_used: int = 0, strong_budget: int = 1,
-                   role: str | None = None) -> dict[str, Any]:
+                   role: str | None = None, escalated: bool = False) -> Dict[str, Any]:
     """Validate a delegator's concrete model choice without substituting a role default.
 
-    A role with a required tier is upgraded by trusted code, never left cheap: the plan's
-    own approval cannot lower that floor, and the returned note says what happened.
+    A role with a floor tier is upgraded by trusted code, never left cheap: the plan's own approval cannot lower that
+    floor, and the returned note says what happened. A refiner faces the other way too: a per-issue choice cannot buy
+    a band above the floor, because that band is what a failed pass on the same issue earns.
     """
     schemas.validate(choice, schemas.MODEL_CHOICE, "model_choice")
     reason = choice["reason"].strip()
@@ -142,12 +160,18 @@ def resolve_choice(choice: dict[str, Any], policy_tiers: dict[str, Any], availab
     tier = tier_of(selected, policy_tiers)
     if tier is None:
         raise ValueError("model %r is not configured in the approved policy" % selected)
-    floor = REQUIRED_TIER.get(role or "")
+    floor = CHOICE_FLOOR.get(role or "")
+    if floor and TIERS.index(tier) > TIERS.index(floor) and not escalated:
+        capped = resolve_model(floor, policy_tiers, available, avoid)
+        if capped.get("model"):
+            return {"model": capped["model"], "tier": capped["tier"], "routing": True,
+                    "note": "%s climbs above the %s tier only on evidence; kept %s over %s: %s"
+                            % (role, floor, capped["model"], selected, reason)}
     if floor and TIERS.index(tier) < TIERS.index(floor):
         upgraded = resolve_model(floor, policy_tiers, available, avoid)
         if upgraded.get("model"):
             return {"model": upgraded["model"], "tier": upgraded["tier"], "routing": True,
-                    "note": "%s always runs on a %s-tier model; upgraded from %s: %s"
+                    "note": "%s runs at least on the %s tier; raised from %s: %s"
                             % (role, floor, selected, reason)}
         if available is not None:
             return {"model": selected, "tier": tier, "routing": True,

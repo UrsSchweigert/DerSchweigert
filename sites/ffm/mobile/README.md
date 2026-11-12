@@ -293,6 +293,41 @@ native or owner gap is an open action there, not a native edit from a worker bra
 asserts that handover: the required sections and commands, the signing-secret names, the product id and store
 checklist, one open revision-placeholder row per manual gate, and M1-M4 plus the owner store actions as open.
 
+## Launcher icons
+
+The Android and iOS launcher icons are rendered from the committed store icon, so
+the installed app, the App Store and the Play Store listing all show one artwork:
+
+```sh
+python3 sites/ffm/mobile/scripts/render-icons.py           # write every icon
+python3 sites/ffm/mobile/scripts/render-icons.py --check    # verify, write nothing
+```
+
+Source of truth is `sites/ffm/store-art/app-store/icon-1024x1024.png` — the same
+file that is uploaded as the App Store listing icon. The script writes:
+
+* `ios/.../AppIcon.appiconset/AppIcon-512@2x.png` — 1024×1024, RGB, **no alpha**
+  (App Store Connect rejects transparency).
+* `mipmap-<density>/ic_launcher.png` — legacy square launcher, full-bleed RGB.
+* `mipmap-<density>/ic_launcher_round.png` — the same art cut to a circle.
+* `mipmap-<density>/ic_launcher_foreground.png` and `…_background.png` — the
+  adaptive layers at 108dp.
+
+**The adaptive layers are deliberately full-bleed.** `mipmap-anydpi-v26` wraps
+both in `android:inset="16.7%"`, which shrinks a 108dp layer to the 72dp safe
+zone the mask actually shows. That inset is what puts the whole icon — hero,
+sword, castle and wordmark — inside the circular mask with only the corners
+cropped. Removing the inset crops the wordmark off; pre-shrinking the artwork as
+well leaves the icon floating in the middle of the tile. Both the inset and the
+layer geometry are pinned by `tests/icons.test.mjs`.
+
+The previous Android icon had a rounded-square mask baked into the PNG, which
+double-masks inside Android's own adaptive mask; the generated icons carry no
+baked mask on Android and no alpha at all on iOS.
+
+Do not run `npx capacitor-assets generate` on this project: it would overwrite
+these files from whatever `assets/icon.png` it finds.
+
 ## Xcode and Xcode Cloud
 
 Open `ios/App/App.xcodeproj` and select the shared **App** scheme. Local Run and

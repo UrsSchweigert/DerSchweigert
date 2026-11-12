@@ -38,24 +38,35 @@ def test_delegator_can_choose_a_cheaper_independent_reviewer():
 
 
 def test_default_tier_per_role():
-    # The refiner is a judgement role: a cheap model there returns malformed results and costs a repair attempt.
+    # The refiner is a judgement role, so it starts on the standard band rather than the cheapest one, and climbs to
+    # the strong band only on its own evidence (see test_a_failed_refiner_pass_earns_the_strong_band).
     assert [models.choose_tier(r) for r in ("investigator", "refiner", "implementer", "reviewer", "integrator")] == \
-        ["low", "strong", "low", "standard", "low"]
+        ["low", "standard", "low", "standard", "low"]
 
 
-def test_a_cheap_refiner_choice_is_upgraded_to_the_strong_tier():
+def test_a_failed_refiner_pass_earns_the_strong_band():
+    assert models.choose_tier("refiner") == "standard"
+    assert models.choose_tier("refiner", previous_tier="standard", previous_failure_kind="schema_invalid") == "strong"
+    assert models.choose_tier("refiner", previous_tier="strong", previous_failure_kind="schema_invalid") == "strong"
+    # An unrelated failure kind is not refiner evidence and buys nothing.
+    assert models.choose_tier("refiner", previous_tier="standard", previous_failure_kind="checks_failed") == "standard"
+
+
+def test_a_cheap_refiner_choice_is_upgraded_to_the_standard_tier():
     choice = {"model": "claude-haiku-4.5", "reason": "Bounded re-check with one concrete anchor."}
     route = models.resolve_choice(choice, POLICY, ALL, role="refiner")
-    assert route["tier"] == "strong" and route["model"] in POLICY["strong"]
-    assert "upgraded from claude-haiku-4.5" in route["note"]
-    # The same choice stays cheap for a role without a required tier.
+    assert route["tier"] == "standard" and route["model"] in POLICY["standard"]
+    assert "raised from claude-haiku-4.5" in route["note"]
+    # The same choice stays cheap for a role without a floor.
     assert models.resolve_choice(choice, POLICY, ALL, role="implementer")["tier"] == "low"
 
 
-def test_a_strong_refiner_choice_is_kept():
+def test_a_strong_refiner_choice_is_kept_only_on_evidence():
     choice = {"model": "claude-opus-4.8", "reason": "Interacting components must be re-derived."}
-    route = models.resolve_choice(choice, POLICY, ALL, role="refiner")
-    assert route["model"] == "claude-opus-4.8" and "upgraded" not in route["note"]
+    capped = models.resolve_choice(choice, POLICY, ALL, role="refiner")
+    assert capped["tier"] == "standard" and "only on evidence" in capped["note"]
+    kept = models.resolve_choice(choice, POLICY, ALL, role="refiner", escalated=True)
+    assert kept["model"] == "claude-opus-4.8" and kept["tier"] == "strong"
 
 
 def test_a_refiner_falls_back_when_no_strong_model_is_available():
@@ -89,8 +100,8 @@ def test_an_unsigned_or_unusable_refiner_selection_is_refused_not_substituted():
         models.resolve_signed(signed, None)
 
 
-def test_the_required_tiers_and_the_model_catalog_are_unchanged_by_signing():
-    assert models.REQUIRED_TIER == {"refiner": "strong", "overseer": "strong"}
+def test_the_floor_tiers_and_the_model_catalog_are_unchanged_by_signing():
+    assert models.CHOICE_FLOOR == {"refiner": "standard", "overseer": "strong"}
     assert models.MODEL_CATALOG["copilot"]["standard"] == ["claude-sonnet-5"]
     assert models.MODEL_CATALOG["copilot"]["strong"] == ["claude-opus-5", "claude-opus-4.8"]
 

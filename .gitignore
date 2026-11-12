@@ -30,3 +30,13 @@ infra/terraform/sites/landhauscheck-dev/terraform.tfvars
 
 # Local editor workspace files
 *.code-workspace
+
+# Store graphics are generated on demand from store-art/source by store-art/tools/compose.py.
+# Only the masters, the compositor and app-store/icon-1024x1024.png are tracked, because the
+# launcher icons are rendered from that file; the rest are ~40 MB of derived PNGs.
+sites/ffm/store-art/app-store/header-*.png
+sites/ffm/store-art/app-store/search-results-*.png
+sites/ffm/store-art/google-play/
+sites/ffm/store-art/press/
+sites/ffm/store-art/**/*.preview.jpg
+sites/ffm/store-art/handoff/
