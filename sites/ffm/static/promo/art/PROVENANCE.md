@@ -318,3 +318,163 @@ Reviewer should look at: the seam along the top edge of the repaired arm (it
 runs along the arm silhouette but crosses the wheat field in `fireball` and the
 grass in `lightning`), and the fact that the repaired forearms read slightly
 lighter than the untouched skin.
+
+## game/levels/ and game/assets/ — per-level stage backgrounds and ability icons (2026-11-12)
+
+Sixty level backgrounds plus three ability icons for the game itself (not the
+promo page): the level art the renderer swaps in as the player advances, and the
+wind/storm/earth ability buttons.
+
+**Style source.** No `levels/STYLE.md` or `levels/PROMPTS.md` existed, so the
+spec was measured off the six existing `static/game/stage-1…6.webp` before any
+generation: 1536×1024; mean luminance 98/100/72/143/53/46 per chapter; column
+edge energy symmetric to 85.8–99.5 %; midground edge density 21.9–47.9 vs a
+much flatter sky and arena; chapter palettes reproduced by median cut. Two
+numbers in the written brief did not survive that check and were corrected:
+the vignette band is not 5–30 % of pixels (stage-4 measures 2.4 %, stage-6
+65.7 %), and the arena floor is *not* the calmest band — the brief asks for a
+textured floor (stones, flowers, glints), and stage-4's arena is actually
+edgier than its midground (ratio 1.07).
+
+**Prompting.** Every image used one fixed style clause (high-density 16-bit
+pixel art, hard edges, no anti-aliasing, 3–5 step ramps with ordered dithering,
+1-px dark outlines, one-point perspective with the vanishing point centred,
+symmetric flanking masses framing a central gate, walkable empty ground across
+the lower 40 %, low-key lighting, warm amber practicals with hard bloom plus
+cold cyan-blue magic as the only cool light) and one fixed negative clause
+(paper cutout, cream paper border, 3D render, photograph, painterly brushwork,
+smooth gradients, blur, characters, text, watermark, frame, border, UI,
+isometric, top-down). Per level only the chapter locale, the level step and the
+horizon landmark of level N+1 varied, so each background already shows the next
+land at the horizon (level 10 shows chapter II's fields, level 59 the throne).
+No `reference images` were passed to the tool call — the chapters' look was
+carried by the palette hexes written into each prompt, not by image
+conditioning.
+
+**Post-process.** A raw render is smoother than the stage art, so each one got a
+tone pass (contrast about the mean, saturation 1.05, soft-knee highlight
+shoulder, mean luminance matched to its chapter's measured value) and then an
+art-grid snap: box-pool by 3, quantise to 64 colours with 4×4 ordered dithering,
+nearest-neighbour back to 1536×1024. Without the grid snap the dither sat at
+1-px grain and the images still read as paintings — verified on 4× crops against
+`stage-6`. Every file is 1536×1024 lossy WebP, method 6, q85, ≤ 400 KiB.
+
+**Checks run on all 60:** exact dimensions, byte ceiling, mean luminance against
+the chapter target (all within 22 levels except the deliberate night hand-off at
+level 40), left/right edge-energy symmetry ≥ 88 %, and a uniform-light-margin
+detector for the forbidden paper border (0 hits; two renders were rejected and
+regenerated during the run for exactly that).
+
+| File | Model | Reference images passed in | Date |
+| --- | --- | --- | --- |
+| `levels/level-01.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-02.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-03.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-04.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-05.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-06.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-07.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-08.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-09.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-10.webp` | image_generation tool (model not reported by tool) | `static/game/stage-1.webp`, `static/game/stage-2.webp` — chapter I: sunny rune-fenced village and windmill | 2026-11-12 |
+| `levels/level-11.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-12.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-13.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-14.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-15.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-16.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-17.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-18.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-19.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-20.webp` | image_generation tool (model not reported by tool) | `static/game/stage-2.webp`, `static/game/stage-3.webp` — chapter II: golden harvest fields at sunset | 2026-11-12 |
+| `levels/level-21.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-22.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-23.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-24.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-25.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-26.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-27.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-28.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-29.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-30.webp` | image_generation tool (model not reported by tool) | `static/game/stage-3.webp`, `static/game/stage-4.webp` — chapter III: laternenheller Wald mit Runensteinen | 2026-11-12 |
+| `levels/level-31.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-32.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-33.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-34.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-35.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-36.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-37.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-38.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-39.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-40.webp` | image_generation tool (model not reported by tool) | `static/game/stage-4.webp`, `static/game/stage-5.webp` — chapter IV: Waldhalle mit grünem Dach und Hirschbannern | 2026-11-12 |
+| `levels/level-41.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-42.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-43.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-44.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-45.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-46.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-47.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-48.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-49.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-50.webp` | image_generation tool (model not reported by tool) | `static/game/stage-5.webp`, `static/game/stage-6.webp` — chapter V: nächtlicher Marktplatz mit Brunnen und Runenkreisen | 2026-11-12 |
+| `levels/level-51.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-52.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-53.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-54.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-55.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-56.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-57.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-58.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-59.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+| `levels/level-60.webp` | image_generation tool (model not reported by tool) | `static/game/stage-6.webp` — chapter VI: blau-goldener Thronsaal | 2026-11-12 |
+
+### stage-1…6 re-render onto the level art grid (2026-11-12)
+
+The six canonical stage backdrops were kept as the style reference while the
+sixty level backgrounds were made, and then had to be brought onto the same
+medium: measured at full size the originals carried 1–2 px detail (38–53 % of
+adjacent pixel pairs flat, 8–16 % hard jumps) while the finished levels sit on a
+3 px grid (47–61 % flat, 6–10 % jumps), so side by side the stages read as the
+finer, denser outlier.
+
+**No new generation and no re-prompting.** These are the approved compositions,
+so the fix is the identical deterministic grid pass the levels got — box-pool by
+3, quantise to 64 colours with 4×4 ordered dithering, nearest back to 1536×1024
+— applied to the existing renders and written back to the same paths, so
+`renderer.js` and `optimize-art.py` keep pointing at unchanged filenames. Tone
+is untouched: mean luminance moves by at most 1.5 levels (see the last column),
+modulo the dither. After the pass the two sets overlap (stages 47.9–55.7 % flat,
+levels 46.8–60.5 %). Still 1536×1024 lossy WebP q85, all ≤ 400 KiB.
+
+The mobile bundles under `sites/ffm/mobile/www/game/` and
+`sites/ffm/mobile/ios/App/App/public/game/` still hold the pre-snap copies and
+were deliberately left alone.
+
+| File | Model | Reference images passed in | Date |
+| --- | --- | --- | --- |
+| `stage-1.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
+| `stage-2.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
+| `stage-3.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
+| `stage-4.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
+| `stage-5.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
+| `stage-6.webp` | no generation — deterministic art-grid snap, same pass as `levels/` | its own previous render | 2026-11-12 |
+
+Byte size and mean luminance before → after: stage-1 394,908→384,996 B, 97.9→96.4; stage-2 305,726→293,790 B, 100.2→98.9; stage-3 320,206→314,148 B, 72.5→71.0; stage-4 321,064→325,252 B, 142.9→141.7; stage-5 299,044→284,692 B, 53.2→52.4; stage-6 317,024→340,034 B, 45.6→44.1.
+
+## game/assets/ — ability icons (2026-11-12)
+
+Three 256×256 transparent icons for the ability bar, drawn in the same pixel
+language as the backgrounds and colour-keyed off the chapter palette: wind in
+cyan, storm in amber-gold with a cyan-lit cloud, earth in ochre with gold
+facets. Rendered on a flat `#FF00FF` key, then hard alpha from distance to
+magenta, magenta despill, crop to the alpha bounding box, median-pool to a
+64×64 art grid, nearest ×4 back to 256×256 (same pipeline as `heroes/`).
+Alpha is 8-bit but only ever 0 or 255, no magenta fringe survives (measured 0
+fringe pixels on all three), and each silhouette still reads at the 44 px the
+ability bar draws them. No text, no frame.
+
+| File | Model | Reference images passed in | Date |
+| --- | --- | --- | --- |
+| `assets/ability-wind.webp` | image_generation tool (model not reported by tool) | none — style derived from `static/game/stage-1.webp` | 2026-11-12 |
+| `assets/ability-storm.webp` | image_generation tool (model not reported by tool) | none — style derived from `static/game/stage-1.webp` | 2026-11-12 |
+| `assets/ability-earth.webp` | image_generation tool (model not reported by tool) | none — style derived from `static/game/stage-1.webp` | 2026-11-12 |
