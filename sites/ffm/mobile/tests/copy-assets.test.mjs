@@ -101,6 +101,12 @@ test('web-only and development-only files never reach www/', async () => {
       'demo.html',
       'cancel.html',
       'widerruf.html',
+      'datenschutz.html',
+      'datenschutz.en.html',
+      'impressum.html',
+      'impressum.en.html',
+      'terms.html',
+      'terms.en.html',
     ]) {
       assert.ok(!copied.includes(rel), `${rel} must not be bundled`);
       assert.ok(EXCLUDED.some((pattern) => pattern.test(rel)), `${rel} needs an exclusion`);
@@ -268,14 +274,19 @@ test('the copied index.html drops the web-only account and checkout markup', asy
     for (const id of WEB_ONLY_UI) {
       assert.ok(!index.includes(`id="${id}"`), `${id} must not be bundled`);
     }
-    assert.ok(!/href="\/?(cancel|widerruf)\.html"/.test(index), 'web-only legal links must not be bundled');
+    assert.ok(
+      !/href="\/?(?:cancel|widerruf|datenschutz|impressum|terms)(?:\.[a-z]{2})?\.html"/.test(index),
+      'root web legal and cancellation links must not be bundled',
+    );
+    assert.ok(!index.includes('id="cookie-banner"'), 'the web consent banner must not be bundled');
 
     // Gameplay and the language/mute controls stay untouched.
     for (const id of ['game', 'difficulty-select', 'pause-overlay', 'game-over', 'level-clear', 'mute-btn', 'lang-toggle-btn']) {
       assert.ok(index.includes(`id="${id}"`), `${id} must stay in the bundle`);
     }
-    assert.ok(index.includes('href="impressum.html"'), 'the bundled imprint page stays linked');
-    assert.ok(index.includes('href="terms.html"'), 'the bundled terms page stays linked');
+    // The app links its own legal pages into this container at runtime
+    // (game/legal.js); the website's legal anchors are stripped with it.
+    assert.ok(index.includes('class="splash-legal-links"'), 'the legal-links container must stay');
   });
 });
 

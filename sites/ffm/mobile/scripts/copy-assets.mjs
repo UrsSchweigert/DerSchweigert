@@ -61,6 +61,10 @@ export const EXCLUDED = [
   /^game\/boss\/PROVENANCE\.md$/,
   /^cancel\.html$/,
   /^widerruf\.html$/,
+  // Website/account legal pages. The app ships its own legal/ overlay (privacy,
+  // imprint, terms, licence, manual); these root pages describe the website
+  // account, which is 18+, and would contradict a children-targeted listing.
+  /^(?:datenschutz|impressum|terms)(?:\.[a-z]{2})?\.html$/,
   // The promo landing page and the open-beta invite page are web-only; the app
   // has no marketing page.
   /^promo(\/|$)/,

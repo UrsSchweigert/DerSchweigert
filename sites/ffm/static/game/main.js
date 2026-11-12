@@ -230,8 +230,12 @@ const encounterSwords = createEncounterSwords({ doc: document });
 window.ffmCookieConsent = new CookieConsent();
 if (!platform.isApp) window.ffmCookieConsent.init();
 else {
-  document.getElementById('cookie-banner').style.display = 'none';
-  document.getElementById('cookie-settings-link').hidden = true;
+  // The app copy drops the web consent banner entirely; these lookups stay
+  // null-safe so the shared module runs in both builds.
+  const banner = document.getElementById('cookie-banner');
+  if (banner) banner.style.display = 'none';
+  const settings = document.getElementById('cookie-settings-link');
+  if (settings) settings.hidden = true;
 }
 document.getElementById('cookie-accept')?.addEventListener('click', () => {
   window.ffmCookieConsent.accept();

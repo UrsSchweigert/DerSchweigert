@@ -71,6 +71,7 @@
     <button id="lang-toggle-btn" data-i18n="lang.toggleLabel" data-i18n-aria-label="lang.toggleAriaLabel" aria-label="Switch to German">DE</button>
   </div>
 
+  <!-- app-omit:start -->
   <div id="cookie-banner" class="cookie-banner" style="display:none">
     <div class="cookie-banner-content">
       <p><span data-i18n="cookie.notice">This site uses a security widget that requires your consent.</span> <a href="datenschutz.html" target="_blank" data-i18n="cookie.privacyLink">Privacy Policy</a></p>
@@ -80,6 +81,7 @@
       </div>
     </div>
   </div>
+  <!-- app-omit:end -->
 
   <div id="difficulty-select" class="overlay splash-screen">
     <div class="splash-bg" aria-hidden="true"></div>
@@ -213,13 +215,13 @@
       </section>
       <section data-title-page="legal" class="title-page title-legal" hidden>
       <p class="splash-legal-links">
+        <!-- app-omit:start -->
         <a href="impressum.html" data-i18n="legal.impressum">Impressum</a>
         <a href="datenschutz.html" data-i18n="legal.privacy">Datenschutz</a>
-        <!-- app-omit:start -->
         <a href="cancel.html" data-i18n="legal.cancellation">Cancellation</a>
         <a href="widerruf.html" data-i18n="legal.withdrawal">Withdraw contract</a>
-        <!-- app-omit:end -->
         <a href="terms.html" data-i18n="legal.terms">Terms</a>
+        <!-- app-omit:end -->
         <button type="button" id="cookie-settings-link" class="splash-legal-link-btn" data-i18n="cookie.settingsLink">Cookie settings</button>
       </p>
       </section>
