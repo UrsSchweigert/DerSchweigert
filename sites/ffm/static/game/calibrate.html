@@ -22,6 +22,8 @@
   button.big { background:#d84030; }
   button.big:hover { background:#f05840; }
   .value { font-size:20px; color:#f8e040; margin: 4px 0; }
+  .progress { color:#8fa0c0; font-size:12px; margin-top:8px; max-width:280px; }
+  .progress[data-remaining="0"] { color:#8fd88f; }
   textarea { width:100%; height:160px; background:#0e0e20; color:#8fd88f; border:1px solid #333; border-radius:6px; font: 12px/1.4 monospace; padding:8px; box-sizing: border-box; }
   .row { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
 </style>
@@ -42,7 +44,13 @@
     <b>Ground line:</b> the red line plus the hero and the fiend move together in the “Ground line (this level)” panel
     (− / + keys). Every level keeps its own line, and “Generate + copy” emits the <code>"groundY"</code> block for
     <code>levels/manifest.json</code> — that is what the game reads, so what you line up here is what ships.<br>
-    Keyboard: ↑/↓ = fiend ±0.005 (Shift = ±0.02) · ←/→ = previous/next fiend class · PageUp/PageDown = hero ±1px (Shift = ±5px) · [ / ] = previous/next level · −/+ = ground line ±1px (Shift = ±5px).
+    <b>Working through the 60 levels:</b> tuning is saved in this browser as you go (✎ = tuned here, ● = already in the
+    manifest), so a reload loses nothing; “Next untouched ▶” (<b>n</b>) jumps to the next level that still needs a look,
+    and “Clear tuning” throws the local edits away without touching the manifest. The calibrator reopens on the level
+    you were last on.<br>
+    <b>Worth a look first</b> — the survey of all 60 backgrounds flagged these as arguable rather than wrong:
+    L03, L21, L31, L34, L42, L48 and L58–L60.<br>
+    Keyboard: ↑/↓ = fiend ±0.005 (Shift = ±0.02) · ←/→ = previous/next fiend class · PageUp/PageDown = hero ±1px (Shift = ±5px) · [ / ] = previous/next level · −/+ = ground line ±1px (Shift = ±5px) · n = next untouched level.
     When everything lines up, click "Generate + copy" and paste the two snippets back into <code>entities.js</code> and <code>difficulty-classes.js</code>.
   </p>
 
@@ -84,6 +92,11 @@
         <button data-ground-step="10">+10</button>
         <button data-ground-reset>Reset</button>
       </div>
+      <div class="row">
+        <button data-ground-next>Next untouched ▶</button>
+        <button data-ground-clear>Clear tuning</button>
+      </div>
+      <div class="progress" id="ground-progress"></div>
     </fieldset>
 
     <fieldset id="hero-panel">
@@ -120,6 +133,6 @@
   <button class="big" id="copy-btn">📋 Generate + copy final code for both files</button>
   <textarea id="output" readonly placeholder="Click the button above once you're happy with all the alignments — this fills in with the exact code to paste back into entities.js and difficulty-classes.js."></textarea>
 
-  <script type="module" src="./calibrate.js?v=62"></script>
+  <script type="module" src="./calibrate.js?v=63"></script>
 </body>
 </html>

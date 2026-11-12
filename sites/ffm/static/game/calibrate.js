@@ -9,6 +9,17 @@ import { Renderer, CANVAS_W, GROUND_Y } from './renderer.js';
 import { Hero, Slimeling, getHeroGroundOffsetPx, setHeroGroundOffsetPx } from './entities.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
 import { LEVEL_ART_MANIFEST, resolveLevelGroundY } from './level-art.js';
+import {
+  clampGroundY,
+  effectiveGroundOverrides,
+  groundSnippet,
+  groundStats,
+  levelMarker,
+  nextUntunedLevel,
+  parseStoredOverrides,
+  serializeOverrides,
+  STORAGE_KEY,
+} from './calibrate-state.js';
 // The parsed manifest carries only the file names, so the chapter labels come
 // from the raw JSON — same import form level-art.js already uses.
 import levelManifestSource from './levels/manifest.json' with { type: 'json' };
@@ -17,11 +28,11 @@ const FIEND_CAL_X = 560; // fixed on-screen position for the calibration fiend
 
 // The ground line the level currently under inspection stands on. Moving it takes
 // the hero, the fiend and the red line with it, and the result is remembered per
-// level so the "copy" button can emit the manifest overrides.
-const GROUND_Y_FLOOR = 240;   // same band the game accepts (level-art.js)
-const GROUND_Y_CEILING = 436;
+// level so the "copy" button can emit the manifest overrides. The tuning survives
+// a reload through localStorage: a 60-level pass must not be lost to an accidental
+// refresh (see calibrate-state.js for the validation).
 let groundY = GROUND_Y;
-const sessionGroundOverrides = new Map(); // level -> y
+const sessionGroundOverrides = {}; // level key -> y, saved per browser
 
 // Snapshot of the CURRENT hard-coded defaults, so "copy code" always reflects
 // (these defaults + whatever you've changed this session), even though the
@@ -52,6 +63,7 @@ classSelect.value = '1';
 // The 60 level backgrounds each paint their walkable floor at a different height,
 // so the feet baseline has to be judged against the level that ships with it.
 const LEVEL_NUMBERS = Object.keys(LEVEL_ART_MANIFEST.levels).map(Number).sort((a, b) => a - b);
+const LAST_LEVEL_KEY = 'ffm-calibrator-level';
 const levelSelect = document.getElementById('level-select');
 const levelValueEl = document.getElementById('level-value');
 let selectedLevel = LEVEL_NUMBERS[0] ?? 1;
@@ -61,6 +73,49 @@ function levelLabel(level) {
   return `L${String(level).padStart(2, '0')}${chapter ? ` · ${chapter}` : ''}`;
 }
 
+// What levels/manifest.json already ships, so the UI can tell a committed override
+// apart from this session's tuning.
+const committedGroundOverrides = {};
+for (const level of LEVEL_NUMBERS) {
+  const shipped = resolveLevelGroundY(level, LEVEL_ART_MANIFEST);
+  if (shipped !== null) committedGroundOverrides[String(level)] = shipped;
+}
+
+function loadTuning() {
+  try {
+    const stored = parseStoredOverrides(window.localStorage?.getItem(STORAGE_KEY) ?? '', LEVEL_NUMBERS);
+    Object.assign(sessionGroundOverrides, stored);
+  } catch {
+    // A blocked or full localStorage must not stop the calibrator from opening.
+  }
+}
+
+function saveTuning() {
+  try {
+    const text = serializeOverrides(sessionGroundOverrides);
+    if (text === '') window.localStorage?.removeItem(STORAGE_KEY);
+    else window.localStorage?.setItem(STORAGE_KEY, text);
+  } catch {
+    // ignore — the tuning is still in memory and the copy button still works
+  }
+}
+
+function levelOptions() {
+  [...levelSelect.options].forEach((option) => {
+    const level = Number(option.value);
+    const marker = levelMarker(level, sessionGroundOverrides, committedGroundOverrides);
+    option.textContent = `${levelLabel(level)}${marker ? ` ${marker}` : ''}`;
+  });
+}
+
+function renderProgress() {
+  const stats = groundStats(LEVEL_NUMBERS, sessionGroundOverrides, committedGroundOverrides);
+  const parts = [`${stats.tuned} tuned here`, `${stats.committed} in the manifest`, `${stats.remaining} untouched`];
+  progressEl.textContent = `${parts.join(' · ')} — of ${stats.total} levels`;
+  progressEl.dataset.remaining = String(stats.remaining);
+  levelOptions();
+}
+
 LEVEL_NUMBERS.forEach((level) => {
   const opt = document.createElement('option');
   opt.value = String(level);
@@ -68,49 +123,75 @@ LEVEL_NUMBERS.forEach((level) => {
   levelSelect.appendChild(opt);
 });
 
+function rememberLevel(level) {
+  try {
+    window.localStorage?.setItem(LAST_LEVEL_KEY, String(level));
+  } catch {
+    // ignore
+  }
+}
+
 function selectLevel(level) {
   const count = LEVEL_NUMBERS.length;
   selectedLevel = count ? LEVEL_NUMBERS[((level - 1) % count + count) % count] : level;
   levelSelect.value = String(selectedLevel);
   levelValueEl.textContent = levelLabel(selectedLevel);
+  rememberLevel(selectedLevel);
   renderer.setBackgroundByLevel(selectedLevel);
   // setBackgroundByLevel() already resolved this level's own line from the
   // manifest; a value tuned in this session wins over it.
-  applyGroundY(sessionGroundOverrides.get(selectedLevel) ?? renderer.groundY);
+  applyGroundY(sessionGroundOverrides[String(selectedLevel)] ?? renderer.groundY);
+  renderProgress();
   // The draw loop repaints immediately; awaiting only guarantees the caller that
   // the swap is complete, which keeps screenshots and DevTools checks deterministic.
   return renderer.waitForBackgroundLoad();
-}
-
-function clampGroundY(value) {
-  return Math.min(GROUND_Y_CEILING, Math.max(GROUND_Y_FLOOR, Math.round(value)));
 }
 
 function groundValueLabel() {
   // renderer.groundY is what the manifest ships for this level; showing it makes a
   // tuned value readable as a change rather than a number in isolation.
   const shipped = renderer.groundY;
-  return groundY === shipped ? `${groundY}` : `${groundY} (ships ${shipped})`;
+  const saved = sessionGroundOverrides[String(selectedLevel)] !== undefined;
+  return groundY === shipped ? `${groundY}` : `${groundY} (ships ${shipped}${saved ? ', unsaved' : ''})`;
 }
 
 // Moves the line, the hero and the fiend without recording an intent — used when a
 // level is selected or reset, where the manifest decides the value.
 function applyGroundY(value) {
-  groundY = clampGroundY(value);
+  groundY = clampGroundY(value) ?? GROUND_Y;
   hero.y = groundY;
   fiend.y = groundY;
   groundValueEl.textContent = groundValueLabel();
 }
 
-// A deliberate change by the user, remembered per level for the copy button.
+// A deliberate change by the user, remembered per level and saved immediately.
 function setGroundY(value) {
-  sessionGroundOverrides.set(selectedLevel, clampGroundY(value));
-  applyGroundY(sessionGroundOverrides.get(selectedLevel));
+  const level = clampGroundY(value);
+  if (level === null) return;
+  sessionGroundOverrides[String(selectedLevel)] = level;
+  saveTuning();
+  applyGroundY(level);
+  renderProgress();
 }
 
 function resetGroundY() {
-  sessionGroundOverrides.delete(selectedLevel);
+  delete sessionGroundOverrides[String(selectedLevel)];
+  saveTuning();
   applyGroundY(renderer.groundY);
+  renderProgress();
+}
+
+function goToNextUntunedLevel() {
+  const level = nextUntunedLevel(LEVEL_NUMBERS, selectedLevel, sessionGroundOverrides, committedGroundOverrides);
+  if (level === null) return;
+  selectLevel(level);
+}
+
+function clearTuning() {
+  for (const key of Object.keys(sessionGroundOverrides)) delete sessionGroundOverrides[key];
+  saveTuning();
+  applyGroundY(sessionGroundOverrides[String(selectedLevel)] ?? renderer.groundY);
+  renderProgress();
 }
 
 levelSelect.addEventListener('change', () => selectLevel(parseInt(levelSelect.value, 10)));
@@ -122,10 +203,15 @@ document.querySelectorAll('[data-ground-step]').forEach((btn) => {
   btn.addEventListener('click', () => setGroundY(groundY + parseInt(btn.dataset.groundStep, 10)));
 });
 document.querySelector('[data-ground-reset]').addEventListener('click', resetGroundY);
+document.querySelector('[data-ground-next]').addEventListener('click', goToNextUntunedLevel);
+document.querySelector('[data-ground-clear]').addEventListener('click', () => {
+  if (window.confirm('Discard the ground lines tuned in this browser? The manifest values stay.')) clearTuning();
+});
 
 const heroValueEl = document.getElementById('hero-value');
 const fiendValueEl = document.getElementById('fiend-value');
 const groundValueEl = document.getElementById('ground-value');
+const progressEl = document.getElementById('ground-progress');
 
 function currentRatio(id) {
   return sessionRatioOverrides.has(id) ? sessionRatioOverrides.get(id) : DEFAULT_RATIOS[id - 1];
@@ -192,6 +278,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === ']')          { selectLevel(selectedLevel + 1); e.preventDefault(); }
   if (e.key === '-' || e.key === '_') { setGroundY(groundY - (big ? 5 : 1)); e.preventDefault(); }
   if (e.key === '+' || e.key === '=') { setGroundY(groundY + (big ? 5 : 1)); e.preventDefault(); }
+  if (e.key === 'n' || e.key === 'N') { goToNextUntunedLevel(); e.preventDefault(); }
 });
 
 function trimNum(n) {
@@ -210,24 +297,18 @@ document.getElementById('copy-btn').addEventListener('click', () => {
   const body = rows.map((row, index) => `  // ${['young', 'old', 'ancient', 'dragons'][index] ?? 'class'}\n  ${row},`).join('\n');
   // Everything that ends up in the manifest: levels tuned here win over the ones
   // already committed, so pasting the block never drops an earlier override.
-  const groundRows = LEVEL_NUMBERS
-    .map((level) => [
-      level,
-      sessionGroundOverrides.has(level)
-        ? sessionGroundOverrides.get(level)
-        : resolveLevelGroundY(level, LEVEL_ART_MANIFEST) ?? GROUND_Y,
-    ])
-    .filter(([, y]) => y !== GROUND_Y)
-    .map(([level, y]) => `    "${level}": ${y}`);
-  const groundSnippet = groundRows.length
-    ? `"groundY": {\n${groundRows.join(',\n')}\n  }`
-    : '"groundY": {}';
+  const groundBlock = groundSnippet(effectiveGroundOverrides({
+    levels: LEVEL_NUMBERS,
+    tuned: sessionGroundOverrides,
+    committed: committedGroundOverrides,
+    defaultY: GROUND_Y,
+  }));
   const code = `// --- entities.js: replace the hero ground offset with ---\n`
     + `let _heroGroundOffsetPx = ${heroOffsetPx};\n\n`
     + `// --- difficulty-classes.js: replace the BOTTOM_PAD_RATIO array with ---\n`
     + `const BOTTOM_PAD_RATIO = [\n${body}\n];\n\n`
     + `// --- levels/manifest.json: replace the \"groundY\" object with ---\n`
-    + `${groundSnippet}\n`;
+    + `${groundBlock}\n`;
   const out = document.getElementById('output');
   out.value = code;
   navigator.clipboard?.writeText(code).catch(() => {});
@@ -289,5 +370,15 @@ function loop() {
 }
 
 applyLive();
-selectLevel(selectedLevel);
+loadTuning();
+// Resume where the previous session stopped, if that level still exists.
+let resumeLevel = selectedLevel;
+try {
+  const stored = Number.parseInt(window.localStorage?.getItem(LAST_LEVEL_KEY) ?? '', 10);
+  if (LEVEL_NUMBERS.includes(stored)) resumeLevel = stored;
+} catch {
+  // ignore
+}
+selectLevel(resumeLevel);
+renderProgress();
 requestAnimationFrame(loop);
