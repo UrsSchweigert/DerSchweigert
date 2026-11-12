@@ -8,7 +8,7 @@
 import { Renderer, CANVAS_W, GROUND_Y } from './renderer.js';
 import { Hero, Slimeling, getHeroGroundOffsetPx, setHeroGroundOffsetPx } from './entities.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
-import { LEVEL_ART_MANIFEST } from './level-art.js';
+import { LEVEL_ART_MANIFEST, resolveLevelGroundY } from './level-art.js';
 // The parsed manifest carries only the file names, so the chapter labels come
 // from the raw JSON — same import form level-art.js already uses.
 import levelManifestSource from './levels/manifest.json' with { type: 'json' };
@@ -76,30 +76,41 @@ function selectLevel(level) {
   renderer.setBackgroundByLevel(selectedLevel);
   // setBackgroundByLevel() already resolved this level's own line from the
   // manifest; a value tuned in this session wins over it.
-  setGroundY(sessionGroundOverrides.get(selectedLevel) ?? renderer.groundY);
+  applyGroundY(sessionGroundOverrides.get(selectedLevel) ?? renderer.groundY);
   // The draw loop repaints immediately; awaiting only guarantees the caller that
   // the swap is complete, which keeps screenshots and DevTools checks deterministic.
   return renderer.waitForBackgroundLoad();
 }
 
-function groundValueLabel() {
-  const shipped = renderer.groundY;
-  const tuned = groundY !== shipped;
-  return tuned ? `${groundY} (was ${shipped})` : `${groundY}`;
+function clampGroundY(value) {
+  return Math.min(GROUND_Y_CEILING, Math.max(GROUND_Y_FLOOR, Math.round(value)));
 }
 
-function setGroundY(value) {
-  groundY = Math.min(GROUND_Y_CEILING, Math.max(GROUND_Y_FLOOR, Math.round(value)));
-  if (groundY === renderer.groundY) sessionGroundOverrides.delete(selectedLevel);
-  else sessionGroundOverrides.set(selectedLevel, groundY);
+function groundValueLabel() {
+  // renderer.groundY is what the manifest ships for this level; showing it makes a
+  // tuned value readable as a change rather than a number in isolation.
+  const shipped = renderer.groundY;
+  return groundY === shipped ? `${groundY}` : `${groundY} (ships ${shipped})`;
+}
+
+// Moves the line, the hero and the fiend without recording an intent — used when a
+// level is selected or reset, where the manifest decides the value.
+function applyGroundY(value) {
+  groundY = clampGroundY(value);
   hero.y = groundY;
   fiend.y = groundY;
   groundValueEl.textContent = groundValueLabel();
 }
 
+// A deliberate change by the user, remembered per level for the copy button.
+function setGroundY(value) {
+  sessionGroundOverrides.set(selectedLevel, clampGroundY(value));
+  applyGroundY(sessionGroundOverrides.get(selectedLevel));
+}
+
 function resetGroundY() {
   sessionGroundOverrides.delete(selectedLevel);
-  setGroundY(renderer.groundY);
+  applyGroundY(renderer.groundY);
 }
 
 levelSelect.addEventListener('change', () => selectLevel(parseInt(levelSelect.value, 10)));
@@ -197,8 +208,16 @@ document.getElementById('copy-btn').addEventListener('click', () => {
   }
   // One flat table, one entry per class (18 young, 18 old, 18 ancient, 6 dragons).
   const body = rows.map((row, index) => `  // ${['young', 'old', 'ancient', 'dragons'][index] ?? 'class'}\n  ${row},`).join('\n');
-  const groundRows = [...sessionGroundOverrides.entries()]
-    .sort((a, b) => a[0] - b[0])
+  // Everything that ends up in the manifest: levels tuned here win over the ones
+  // already committed, so pasting the block never drops an earlier override.
+  const groundRows = LEVEL_NUMBERS
+    .map((level) => [
+      level,
+      sessionGroundOverrides.has(level)
+        ? sessionGroundOverrides.get(level)
+        : resolveLevelGroundY(level, LEVEL_ART_MANIFEST) ?? GROUND_Y,
+    ])
+    .filter(([, y]) => y !== GROUND_Y)
     .map(([level, y]) => `    "${level}": ${y}`);
   const groundSnippet = groundRows.length
     ? `"groundY": {\n${groundRows.join(',\n')}\n  }`
