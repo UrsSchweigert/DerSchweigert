@@ -33,7 +33,7 @@ export const LEGAL_DIR = join(root, 'legal');
 // the app has no FFM API, account, checkout or web legal pages, and no tests.
 export const EXCLUDED = [
   /^game\/source-assets(\/|$)/,
-  /^game\/calibrate\./,
+  /^game\/calibrate[-.]/,
   /^game\/hero-preview\.html$/,
   /^game\/_dragon_test\.html$/,
   /^game\/(api|access-flow|cancel-request|withdrawal-request)\.js$/,

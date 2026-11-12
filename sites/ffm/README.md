@@ -786,6 +786,12 @@ and screen effect anchored to the characters uses that value, so the whole scene
 moves together. “Generate + copy” in the calibrator emits the block for whatever
 you tuned. A level with no entry keeps `GROUND_Y`.
 
+The calibrator keeps a 60-level pass usable: tuning is saved in the browser as
+you go (✎ marks a level tuned here, ● one the manifest already carries), the panel
+shows how many levels are left, “Next untouched ▶” (`n`) jumps to the next one,
+and reloading returns to the level you were on. `Clear tuning` drops the local
+edits without touching the manifest; only `Generate + copy` changes what ships.
+
 - The art generator baked a hard-edged shadow ellipse into every one of those
   sprites. `python3 sites/ffm/scripts/feather_fiend_shadows.py` removes it: it
   looks for the tone that is common in the sprite's bottom band but absent on

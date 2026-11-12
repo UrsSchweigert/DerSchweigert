@@ -95,6 +95,7 @@ test('web-only and development-only files never reach www/', async () => {
       'game/access-flow.js',
       'game/calibrate.html',
       'game/calibrate.js',
+      'game/calibrate-state.js',
       'game/hero-preview.html',
       'game/_dragon_test.html',
       'export-sprites.html',
