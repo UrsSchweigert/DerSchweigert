@@ -7,7 +7,7 @@ import textwrap
 import pytest
 
 
-WORKFLOW = Path(__file__).resolve().parents[3] / ".github/workflows/lesen-native.yml"
+WORKFLOW = Path(__file__).resolve().parents[3] / ".github/workflows/buchstabenzeit-native.yml"
 
 
 @pytest.mark.parametrize("android,ios,passed", [

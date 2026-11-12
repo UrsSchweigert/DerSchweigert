@@ -29,7 +29,7 @@ test('both iOS targets prepare assets before the Resources phase in every build'
 test('shared preparation changes run the affected tests; native builds run after a merge to main', async () => {
   const deploy = await readFile(new URL('.github/workflows/deploy.yml', root), 'utf8');
   assert.match(deploy, /tools\/ios\/\*\) ffm_tests=true; lesen_tests=true; harness_tests=true ;;/);
-  for (const workflow of ['lesen-native.yml', 'ffm-native.yml']) {
+  for (const workflow of ['buchstabenzeit-native.yml', 'arithmoslayer-native.yml']) {
     const text = await readFile(new URL(`.github/workflows/${workflow}`, root), 'utf8');
     assert.match(text, /\n  push:\n    branches: \[main\]/);
     assert.doesNotMatch(text, /\n  pull_request:/);

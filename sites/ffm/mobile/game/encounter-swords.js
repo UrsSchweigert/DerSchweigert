@@ -106,6 +106,11 @@ export function createEncounterSwords({
     const fx = globalThis.ffmScreenFx;
     const rect = sword?.getBoundingClientRect?.();
     if (!fx || !rect) return;
+    // The row only renders in portrait; landscape and the web build keep it
+    // display:none, so a sword there reports a 0x0 rect at the viewport origin
+    // and the world conversion below would spray the glint into the top-left
+    // corner of the screen.
+    if (!(rect.width > 0) || !(rect.height > 0)) return;
     const map = fx.mapping?.();
     if (!map || !map.scale) return;
     fx.play('swordGain', {

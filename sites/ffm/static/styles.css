@@ -1812,21 +1812,24 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   grid-template-rows: minmax(0, 1fr);
 }
 :root[data-viewport-keyboard="true"] .splash-title,
-:root[data-viewport-keyboard="true"] .title-navigation,
-:root[data-viewport-keyboard="true"] #top-bar { display: none; }
+:root[data-viewport-keyboard="true"] .title-navigation { display: none; }
+/* main.js sets the bar's display inline for gameplay and menu screens, so the
+   keyboard stage has to override it explicitly: with the keyboard open the page
+   moves up under the bar and its mute/language buttons covered the form. */
+:root[data-viewport-keyboard="true"] #top-bar { display: none !important; }
 :root[data-viewport-keyboard="true"] body:not(.legal-body) {
   padding-top: calc(var(--safe-area-top) + 8px);
 }
+/* On a short screen the name field keeps the full width and Save and Cancel
+   share one row below it. Beside the field, the narrow action column wrapped
+   Save above Cancel and put Save underneath the top bar, where the mute button
+   covered it. */
 :root[data-viewport-compact="true"] .profile-form {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  /* Side by side, the caption above the name field would push the field below
-     the Save/Cancel row. Bottom-aligned actions line the buttons up with the
-     field's bottom edge at every width. */
-  align-items: end;
+  grid-template-columns: minmax(0, 1fr);
 }
-:root[data-viewport-compact="true"] .profile-form .profile-actions {
-  flex-wrap: wrap;
-  align-items: flex-end;
+:root[data-viewport-compact="true"] .profile-form .profile-actions button {
+  flex: 1;
+  min-width: 44px;
 }
 :root[data-viewport-compact="true"] .title-play .splash-intro { display: none; }
 :root[data-viewport-compact="true"] .playing-as-row .player-identity { flex-basis: 100%; }

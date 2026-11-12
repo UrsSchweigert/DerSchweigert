@@ -88,6 +88,7 @@ test('the handover keeps the signing secrets, product id and store checklist con
     'FFM_KEYSTORE_PASSWORD',
     'FFM_KEY_ALIAS',
     'FFM_KEY_PASSWORD',
+    'FFM_KEYSTORE_BASE64',
   ]) {
     assert.ok(doc.includes(secret), `RELEASING.md must name the ${secret} secret`);
   }
@@ -101,6 +102,39 @@ test('the handover keeps the signing secrets, product id and store checklist con
   assert.match(doc, /In-App Purchase capability/);
   assert.match(doc, /licen[cs]e testers/i);
   assert.match(doc, /Data safety/i);
+});
+
+test('the release workflow builds a signed AAB and never publishes it', async () => {
+  const workflow = await readFile(
+    join(root, '..', '..', '..', '.github', 'workflows', 'arithmoslayer-release.yml'),
+    'utf8',
+  );
+
+  assert.ok(doc.includes('arithmoslayer-release.yml'), 'RELEASING.md must name the workflow');
+  assert.match(workflow, /^name: 'Arithmo Slayer: Android release'$/m);
+  assert.match(workflow, /^  workflow_dispatch:$/m);
+  assert.match(workflow, /^      versionName:$/m);
+  assert.match(workflow, /^      versionCode:$/m);
+  assert.match(workflow, /- 'arithmoslayer-v\*'/);
+  assert.match(workflow, /^    working-directory: sites\/ffm\/mobile$/m);
+  assert.match(workflow, /^permissions:\n  contents: read$/m);
+
+  for (const secret of [
+    'FFM_KEYSTORE_BASE64',
+    'FFM_KEYSTORE_PASSWORD',
+    'FFM_KEY_ALIAS',
+    'FFM_KEY_PASSWORD',
+  ]) {
+    assert.match(workflow, new RegExp(`secrets\\.${secret}\\b`), `the workflow must use ${secret}`);
+  }
+  // The release inputs reach Gradle through the documented version variables.
+  assert.match(workflow, /FFM_VERSION_NAME: \$\{\{ steps\.ver\.outputs\.name \}\}/);
+  assert.match(workflow, /FFM_VERSION_CODE: \$\{\{ steps\.ver\.outputs\.code \}\}/);
+  assert.match(workflow, /run: npm run build:release/);
+  assert.match(workflow, /path: sites\/ffm\/mobile\/android\/app\/build\/outputs\/bundle\/release\/app-release\.aab/);
+
+  // Publication stays a manual owner action: no store upload step.
+  assert.doesNotMatch(workflow, /uses:\s*\S*(play|publish)/i);
 });
 
 test('every manual gate is open or owner-verified with recorded evidence', () => {
@@ -165,7 +199,7 @@ test('M1-M4 and the owner store actions stay open until evidenced', () => {
   }
   for (const action of [
     'smoke.json',
-    'ffm-native.yml',
+    'arithmoslayer-native.yml',
     'signingConfigs',
     'In-App Purchase capability',
     'Play Console',

@@ -69,7 +69,7 @@ approved plan version, not an in-place policy edit.
 ## Repository Findings
 
 * Monorepo: `sites/derschweigert` (FastAPI, pytest), `sites/ffm` (static game, Flask API, pytest, `node --test`), `sites/lesen` (static reading app in `static/`, Capacitor Android shell, `node --test tests/*.test.mjs`), `infra/terraform`.
-* Validation commands: `pytest -q` (root, targets `sites/derschweigert/tests`), `SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q`, `node --test sites/ffm/static/game/*.test.js`, and in `sites/lesen`: `npm test`. CI: `.github/workflows/deploy.yml`, `android-release.yml`. No lint configuration found.
+* Validation commands: `pytest -q` (root, targets `sites/derschweigert/tests`), `SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q`, `node --test sites/ffm/static/game/*.test.js`, and in `sites/lesen`: `npm test`. CI: `.github/workflows/deploy.yml`, `buchstabenzeit-release.yml`. No lint configuration found.
 * `sites/lesen/www/` holds a copy of `static/` produced by `npm run copy-assets` (plus duplicate `* 3.*` files). Requirements apply to the shared source `sites/lesen/static/`.
 * Existing agent customizations to reuse: `.github/agents/android-*.agent.md` (orchestrator, planner, implementer, executor, reviewer), `.github/skills/android-phase-a-entry`, `.github/prompts/game/`, `sites/lesen/ANDROID-PLAN.md`.
 * GitHub: no issues, no milestones. One Project exists (`@UrsSchweigert's untitled project`), readable since `gh auth refresh -s read:project` on 2026-10-26.

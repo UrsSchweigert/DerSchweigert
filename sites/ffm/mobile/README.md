@@ -302,7 +302,7 @@ Configure branch triggers, signing team, App Store Connect association and optio
 TestFlight distribution in Apple's UI. Those account settings are not repository files
 and are not automatically provisioned here. No store upload runs from GitHub Actions.
 
-The **Arithmo Slayer build artifacts** GitHub workflow supports manual runs and `ffm-v*`
+The **Arithmo Slayer: build artifacts** GitHub workflow supports manual runs and `arithmoslayer-v*`
 tags. See `RELEASING.md` for artifact contents and how to open the prepared Xcode project.
 After extracting the Xcode artifact, keep its directory layout and run
 `node scripts/stage-ios-project.mjs --relocate /absolute/path/to/extracted-artifact`

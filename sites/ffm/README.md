@@ -403,6 +403,23 @@ Added 2026-09-06 (Impressum/Datenschutz were entirely missing before). All of it
   below for the full field list, idempotency/validation rules, and the manual
   `billing-admin cancel-request` operator CLI that is the only thing allowed to act on these.
 
+### Android beta waitlist (no login required)
+
+- `POST /api/beta/android-waitlist` — `{"email": "...", "locale": "de|en"}`. Stores the
+  Google address for the Play test-track invitation under its own
+  `BETAWAITLIST#<address>` partition key in the `ffm-users` table (app/beta_waitlist.py),
+  normalises it to lower case, and is idempotent: an address that is already listed
+  answers `200` with `status: "already_registered"` instead of creating a second item.
+  `201` means newly registered. Only `gmail.com` and `googlemail.com` are accepted
+  (`400 google_mail_required` otherwise, `400 valid_email_required` for anything
+  malformed) because Play's test track only invites Google accounts.
+  Rate-limited per source IP (`BETA_WAITLIST_RATE_LIMIT`, default `5/minute`); a
+  rejected address writes nothing. The page at `/beta/` submits this form; the list is
+  read with
+  `python -m flask --app sites.ffm.app:create_app beta-admin export [--format csv|json]`
+  when the Play test track opens.
+  Covered by `tests/test_beta_waitlist.py`.
+
 ## Deployment shape
 
 The dedicated FFM stack now exists under `infra/terraform/sites/ffm/`.
@@ -485,6 +502,8 @@ URL map in production (all three aliases — `ffm.derschweigert.de`,
 | --- | --- |
 | `/` | `promo/index.html` (promotional landing page) |
 | `/promo`, `/promo/` | `promo/index.html` |
+| `/beta`, `/beta/` | `beta/index.html` (open-beta invite page) |
+| `/beta/index.html` | `beta/index.html` (direct, unchanged) |
 | `/play` | `index.html` (the game) |
 | `/play/` | 301 redirect to `/play` (the game's assets are relative) |
 | `/index.html` | `index.html` (unchanged; the mobile/legacy entry point) |
@@ -498,7 +517,7 @@ the promo page's CSS/JS/tests together without touching the game bundle.
 
 **Routing is done by a CloudFront Function, not by the bucket.** The S3 origin
 has no directory-index support and the distribution has no 403/404 rewrite, so
-without the function `/play` and `/promo/` both return 403.
+without the function `/play`, `/promo/` and `/beta/` all return 403.
 `default_root_object = "index.html"` only covers the bare `/` request, which is
 why it is kept: if the function is ever detached, `/` falls back to the game
 instead of failing. The function is
@@ -1187,7 +1206,7 @@ explicit arguments.
 
 Because the same deploy workflow gained a `workflow_dispatch` trigger, setting
 or changing one of these repository variables can be applied by re-running
-"Deploy to production" from the Actions tab against `main`, without needing a
+"Sites: deploy to production" from the Actions tab against `main`, without needing a
 new commit/push. This runs the identical job (tests, preflight guard,
 `terraform apply`, Lambda/static deploy, smoke test) — it is not a separate
 code path.

@@ -1,16 +1,17 @@
-name: Buchstabenzeit native build gate
+name: 'Buchstabenzeit: native build gate'
 
 on:
-  # After a merge to main only, matching ffm-native.yml. Nothing runs on a pull request or a harness run branch, so
+  # After a merge to main only, matching arithmoslayer-native.yml. Nothing runs on a pull request or a harness run branch, so
   # neither PRs nor run branches wait for this status, and macOS minutes are spent only on the merged tree.
-  # `lesen-native` must not be a required check in any ruleset, because no pull request produces it.
+  # The aggregate job keeps its historical `lesen-native` check name, which a ruleset still requires, and must not
+  # become a required check anywhere else, because no pull request produces it.
   push:
     branches: [main]
     paths:
       - 'sites/lesen/**'
       - 'tools/ios/**'
-      - '.github/workflows/lesen-native.yml'
-      - '.github/workflows/lesen-build-artifacts.yml'
+      - '.github/workflows/buchstabenzeit-native.yml'
+      - '.github/workflows/buchstabenzeit-build-artifacts.yml'
 
 permissions:
   contents: read

@@ -11,7 +11,7 @@ release are separate and unaffected by this process.
 > The checked-in Cloud bootstrap does not enable an Apple workflow or prove that
 > a signed build was uploaded. The shared JavaScript tests, offline-bundle
 > verification, and unsigned simulator build in
-> `.github/workflows/lesen-native.yml` are prerequisite evidence, not device,
+> `.github/workflows/buchstabenzeit-native.yml` are prerequisite evidence, not device,
 > signing, or store evidence.
 
 All commands run from `sites/lesen/`. Nothing secret is ever committed.
@@ -191,7 +191,7 @@ under `/tmp` or a directory above the checkout) rather than relying on
 decode the profile into `~/Library/MobileDevice/Provisioning Profiles`, and
 delete both after the build. The workflow should not upload to TestFlight or the
 App Store without an explicit owner-approved trigger, matching how
-`android-release.yml` builds without publishing.
+`buchstabenzeit-release.yml` builds without publishing.
 
 ## Xcode Cloud (manual start, internal TestFlight)
 
@@ -372,7 +372,7 @@ signing path.
 
 ## Continuous integration
 
-`.github/workflows/lesen-native.yml` contains the existing `ios` job. It runs on
+`.github/workflows/buchstabenzeit-native.yml` contains the existing `ios` job. It runs on
 macOS after a merge to `main`, installs the locked dependencies, runs `npm run
 copy-assets`, syncs the Capacitor project, and compiles it for a generic iOS
 Simulator destination with `CODE_SIGNING_ALLOWED=NO`. It is maintainer-owned: a

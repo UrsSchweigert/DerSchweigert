@@ -1,4 +1,4 @@
-name: Waste Calendar Auto-Review
+name: 'Landhauscheck: waste calendar review'
 
 # Triggered whenever a PR touches ICS files in the waste data directory.
 # Only runs for branches opened by the contribution endpoint (waste/*).

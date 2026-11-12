@@ -61,8 +61,10 @@ export const EXCLUDED = [
   /^game\/boss\/PROVENANCE\.md$/,
   /^cancel\.html$/,
   /^widerruf\.html$/,
-  // The promo landing page is web-only; the app has no marketing page.
+  // The promo landing page and the open-beta invite page are web-only; the app
+  // has no marketing page.
   /^promo(\/|$)/,
+  /^beta(\/|$)/,
 ];
 
 export const REQUIRED_FILES = ['index.html', 'styles.css', 'game/main.js', 'game/level-data.js'];

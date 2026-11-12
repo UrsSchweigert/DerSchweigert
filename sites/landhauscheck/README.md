@@ -198,4 +198,4 @@ The monthly station refresh and the waste-calendar PR review run from
 
 ## CI status
 
-[![Deploy to production](https://github.com/UrsSchweigert/DerSchweigert/actions/workflows/deploy.yml/badge.svg)](https://github.com/UrsSchweigert/DerSchweigert/actions/workflows/deploy.yml)
+[![Sites: deploy to production](https://github.com/UrsSchweigert/DerSchweigert/actions/workflows/deploy.yml/badge.svg)](https://github.com/UrsSchweigert/DerSchweigert/actions/workflows/deploy.yml)

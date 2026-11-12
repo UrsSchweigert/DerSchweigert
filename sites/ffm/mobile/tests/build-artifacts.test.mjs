@@ -168,10 +168,10 @@ test('staging refuses missing source, CLI, Swift cache or unsafe destinations', 
 });
 
 test('artifact workflow is manual/tag-only, unsigned and verifies the extracted offline archive', async () => {
-  const yaml = await workflow('ffm-build-artifacts.yml');
+  const yaml = await workflow('arithmoslayer-build-artifacts.yml');
   const triggers = yaml.slice(yaml.indexOf('\non:'), yaml.indexOf('\nconcurrency:'));
   assert.match(triggers, /workflow_dispatch:/);
-  assert.match(triggers, /tags: \['ffm-v\*'\]/);
+  assert.match(triggers, /tags: \['arithmoslayer-v\*'\]/);
   assert.doesNotMatch(triggers, /pull_request:|branches:|schedule:/);
   assert.match(yaml, /permissions:\n  contents: read/);
   assert.doesNotMatch(yaml, /secrets\.|DEVELOPMENT_TEAM|upload-to|build:release|exportArchive/);
@@ -189,10 +189,10 @@ test('artifact workflow is manual/tag-only, unsigned and verifies the extracted 
 });
 
 test('native builds run only after a merge to main and require both platforms', async () => {
-  const yaml = await workflow('ffm-native.yml');
+  const yaml = await workflow('arithmoslayer-native.yml');
   assert.match(yaml, /\n  push:\n    branches: \[main\]/);
   assert.doesNotMatch(yaml, /\n  pull_request:/);
-  for (const path of ['sites/ffm/**', 'tools/ios/**', '.github/workflows/ffm-build-artifacts.yml']) {
+  for (const path of ['sites/ffm/**', 'tools/ios/**', '.github/workflows/arithmoslayer-build-artifacts.yml']) {
     assert.ok(yaml.includes(`      - '${path}'`), `the push filter must cover ${path}`);
   }
   const gate = yaml.slice(yaml.lastIndexOf('          set -euo pipefail'))

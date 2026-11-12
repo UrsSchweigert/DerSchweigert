@@ -83,7 +83,7 @@ if that file also fails, music stops without interrupting gameplay.
 
 ## Effects and volume controls
 
-Every synthesized effect, including sword noise, runs through one effects gain
+Every effect, including the sword slash sample, runs through one effects gain
 bus with 0.4 headroom at the maximum user setting. Where supported, a downstream
 Web Audio compressor provides additional peak protection; this is not a
 guarantee against clipping under arbitrary event overlap. Muting immediately
@@ -114,6 +114,75 @@ engine has no fetch path. `main.js` then falls back to the synthesized
 the first level, and it is deliberately absent from `tracks.json` so rotation
 never picks it as background music; its credit lives in `music-manifest.js`.
 
+### Sound-effect bank
+
+Combat cues are generated sound effects in `static/game/sfx/`, not music. Every
+name is a family of **three variants**, and a family never plays the same
+variant twice in a row:
+
+| Family | Files | Plays on |
+| --- | --- | --- |
+| `sword-slash` | `sword-slash-1..3.mp3` | a landed melee strike |
+| `hero-hurt` | `hero-hurt-1..3.mp3` | the hero taking a hit (+0.12 s, with the strike) |
+| `fire-cast` | `fire-cast-1..3.mp3` | a fireball leaving the hero, for its 1.35 s flight |
+| `fire-impact` | `fire-impact-1..3.mp3` | a fireball landing |
+| `bolt-cast` | `bolt-cast-1..3.mp3` | a lightning bolt leaving the hero, for its 0.46 s flight |
+| `bolt-impact` | `bolt-impact-1..3.mp3` | a lightning strike landing |
+| `heal-charge` | `heal-charge-1.mp3` | the hold-to-heal charge, **looping** while held (seamless 2 s bed) |
+| `heal-bloom` | `heal-bloom-1..3.mp3` | a heart restored |
+| `dragon-roar` | `dragon-roar-1..3.mp3` | the dragon ability landing |
+| `answer-sparkle` | `answer-sparkle-1..3.mp3` | under the correct-answer tones, as glitter |
+| `game-over` | `game-over-1.mp3` | hearts reach zero |
+| `win-pop` | `win-pop-1.mp3` | the confetti burst when a level is cleared |
+| `sword-gain` | `sword-gain-1.mp3` | the combo just entered a new ability band (6, 11, 21) |
+| `fiend-<type>-hit` | `fiend-<type>-hit-1..3.mp3` | a landed strike the fiend survives |
+| `fiend-<type>-death` | `fiend-<type>-death-1..3.mp3` | that fiend type dying |
+
+`<type>` is one of the seven keys in `FIEND_SFX_TYPES` (`slimeling`, `bonehead`,
+`toadlord`, `magelitch`, `birdfoe`, `wolffoe`, `snakefoe`) — the same key
+`levels.js` samples and `main.js` stores on `fiend.type`. All families are
+listed in `SFX_CUES` in `audio.js`; the file name is the only thing tying a
+variant to its family, so a replacement drop needs no code change.
+
+`main.js` calls `prepareFiend(type)` when a fiend spawns, which warms that
+type's six clips, and the slash, hero-hurt, both spell families (launch and
+blast), the heal charge and bloom and the dragon roar are warmed when the audio
+context opens. `answer-sparkle`, `game-over`, `win-pop` and `sword-gain` load on
+first use. Everything else is decoded lazily on first use. Each file is
+fetched and decoded at most once per session, and a failed file is remembered
+rather than retried on every hit. Until a variant is decoded — and permanently
+when it cannot be loaded — the same call falls back to the synthesized cue it
+replaced (swish, thud, hurt, death descent), so no event is ever silent.
+
+Healing is deliberately the loudest thing in the mix — it is the reward the
+player works nine seconds for — which is why the bloom and the charge bed run at
+double the level of the other samples.
+
+`heal-charge` is the one cue that is a state rather than an event. `setHealCharge(progress)`
+starts a single looping bed on the first held frame, raises its playback rate
+and level with `progress`, and `stopHealCharge()` ends it on release; repeated
+frames update the same voice instead of stacking a second bed, and mute stops it
+with every other voice. `main.js` calls it from `emitHealCharge`, before the
+particle throttle, so a throttled frame never leaves the bed running after the
+hold ended.
+
+Mix: samples are deliberately hotter than the synth cues they replaced, because
+they were hard to hear over the music at unity. The slash plays at 1.6, a spell
+blast and the dragon roar at 1.5, the heal bloom at 2.7, a spell launch and the
+hero-hurt sample and a fiend's death at 1.4-1.45, the game-over sting at 1.4,
+the band chime at 1.2, the win pop at 1.1, a fiend's impact at 1.2, and the heal
+charge bed at 1.1-2.0 while it charges, so the player's own action stays on top while
+a creature's wound reads as secondary. A launch clip is cut to the projectile's
+flight time (1.35 s fireball, 0.52 s bolt), so travel is covered end to end and
+the blast takes over exactly when the launch ends. The effects bus keeps its own 0.4 headroom, so the ceiling
+is the compressor rather than the mixer; raise `EFFECTS_HEADROOM` instead if the
+whole effect layer, synth cues included, should get louder.
+Everything still runs through the effects bus, so effects volume, mute and the
+compressor apply to samples exactly as they do to synth cues. The source
+prompts, model and licence terms are recorded in `THIRD-PARTY-LICENSES.md`; the
+next round of particle-effect sounds is proposed in
+[`SOUND-PROPOSAL.md`](SOUND-PROPOSAL.md).
+
 `setEffectsVolume(number)` and `setMusicVolume(number)` clamp finite numbers to
 0–1 and return the resulting value. Non-numeric/NaN/infinite inputs throw
 `TypeError`. Read values with `effectsVolume`/`musicVolume` or
@@ -134,8 +203,12 @@ playlists keep working because only the element's `src` changes.
 
 Effects keep their existing `_effectsBus` with 0.4 headroom and compressor; the
 music bus is separate and carries the user's music gain. Mute zeros both buses.
-Gesture unlock and suspended-context resume use the existing `_ensureCtx` path
-on every cue and on `startBGM`/`startLevelBGM`.
+Gesture unlock and interrupted-context resume use the existing `_ensureCtx` path
+on every cue and on `startBGM`/`startLevelBGM`/`resumeBGM`. iOS keeps a
+backgrounded page's context in WebKit's non-standard `interrupted` state rather
+than `suspended`, so `_ensureCtx` resumes every state except `running` and
+`closed`; recognising only `suspended` left the game silent after a return to
+the foreground until it was reloaded.
 
 `musicVolumeCapability` reports `awaiting-media-route` before capture,
 `available` after the first successful capture, and
