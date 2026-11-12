@@ -531,20 +531,28 @@ test('the family section shows distinct profile portraits', () => {
   assert.match(family, /data-i18n="family.demoNote"/, 'the example-profiles disclaimer stays');
 });
 
-test('the hero points at the open beta between the primary action and the store badges', () => {
+test('the hero leads with the open beta, then the store badges, then the browser', () => {
   const ctas = html.match(/<div class="hero-ctas">[\s\S]*?\n        <\/div>/)[0];
   const beta = ctas.match(/<a class="hero-beta" href="\/beta\/">[\s\S]*?<\/a>/);
   assert.ok(beta, 'the hero needs the beta pill linking to /beta/');
 
-  // Order matters: the live offer sits above the two coming-soon badges.
-  const primaryAt = ctas.indexOf('class="btn btn-primary"');
+  // Order matters: the live offer leads, the coming-soon badges follow, and
+  // the browser game closes the block as the secondary action.
   const betaAt = ctas.indexOf('class="hero-beta"');
   const storeAt = ctas.indexOf('data-store-cta="appstore"');
-  assert.ok(primaryAt < betaAt && betaAt < storeAt, 'the beta pill belongs above the store badges');
+  const browserAt = ctas.indexOf('class="btn btn-ghost" href="/play"');
+  assert.ok(betaAt > -1 && storeAt > betaAt, 'the beta pill comes first, above the store badges');
+  assert.ok(browserAt > storeAt, 'the browser button comes last, after the store badges');
+  assert.ok(!/btn-primary/.test(ctas), 'the beta pill owns the primary styling; no other primary button in the row');
 
   assert.match(beta[0], /data-i18n="hero.betaLabel"/);
   assert.match(beta[0], /data-i18n="hero.betaText"/);
   assert.ok(existsSync(join(webRoot, 'beta', 'index.html')), '/beta/ must exist');
+
+  // The pill is filled like the primary button, not merely outlined.
+  const pill = css.match(/\.hero-beta \{[\s\S]*?\n\}/)[0];
+  assert.match(pill, /background-image: linear-gradient\(180deg, var\(--brass-light\)/, 'the beta pill carries the brass fill');
+  assert.match(pill, /color: #14170e/, 'dark ink on brass keeps the label readable');
 
   // The glow is an animation, so the reduced-motion block has to switch it off.
   assert.match(css, /\.hero-beta \{[\s\S]*?animation: hero-beta-glow/);
@@ -554,7 +562,7 @@ test('the hero points at the open beta between the primary action and the store 
 
 test('the store buttons are disabled badges, never links', () => {
   const ctas = html.match(/<div class="hero-ctas">[\s\S]*?\n        <\/div>/)[0];
-  assert.match(ctas, /class="btn btn-primary" href="\/play"/, 'the browser button stays the primary action');
+  assert.match(ctas, /class="btn btn-ghost" href="\/play"/, 'the browser button is the secondary action');
   assert.ok(ctas.includes('data-store-cta="appstore"'), 'App Store badge in the CTA row');
   assert.ok(ctas.includes('data-store-cta="playstore"'), 'Google Play badge in the CTA row');
 
