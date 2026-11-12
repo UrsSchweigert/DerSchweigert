@@ -237,6 +237,8 @@ jobs:
         if: needs.changes.outputs.ffm_tests == 'true'
       - run: node --test sites/ffm/static/story/tests/*.test.mjs
         if: needs.changes.outputs.ffm_tests == 'true'
+      - run: node --test sites/ffm/scripts/*.test.mjs
+        if: needs.changes.outputs.ffm_tests == 'true'
       # The app shell has its own suite: copy-assets exclusions, bundle completeness and the platform scaffolds. Until
       # now only arithmoslayer-native.yml ran it, and that workflow is push-to-main only, so a pull request could add a
       # file under static/ without the matching copy-assets rule and leave main red after the merge. These are plain

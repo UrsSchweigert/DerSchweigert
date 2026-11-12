@@ -803,6 +803,22 @@ you tuned. A level with no entry keeps `GROUND_Y`.
 - Fiends drawn from code (the `Slimeling`/`Bonehead`/… fallbacks, used only when
   a class sprite is missing) call the same helper.
 
+### Running the calibrator
+
+```bash
+node sites/ffm/scripts/serve-calibrator.mjs
+#   calibrator  http://127.0.0.1:8000/game/calibrate.html
+#   game        http://127.0.0.1:8000/index.html
+```
+
+It serves `sites/ffm/static` **as committed on `origin/main`** — fetched, then
+extracted into a temp dir — not whatever branch you have checked out. That default
+matters: a plain `python3 -m http.server` is branch-relative, so running it on an
+older feature branch serves that branch's game (no level art, an old `GROUND_Y`, a
+calibrator without the level or ground controls), which is indistinguishable from
+a bug in the tool. `--worktree` serves the current checkout instead and warns when
+it is behind `origin/main`; `--port N` and `--offline` are the other flags.
+
 ### Change auth/profile/leaderboard behavior
 
 Start with:
