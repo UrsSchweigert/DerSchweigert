@@ -240,9 +240,13 @@ export const DICTIONARY = {
     en: 'Yes. The game runs without internet; only purchase and restore need a connection.',
   },
   'beta.faq.q6': { de: 'Welche Daten erhebt die Beta?', en: 'What data does the beta collect?' },
+  'beta.faq.a6Link': {
+    de: 'Datenschutzerklärung der App lesen',
+    en: 'Read the app privacy policy',
+  },
   'beta.faq.a6': {
-    de: 'Die App selbst spielt ohne Konto, ohne Werbung und ohne Analyse-Tracking. TestFlight ist Apples Dienst – was Apple dabei erhebt, steht in Apples Datenschutzhinweisen und in unserer Datenschutzerklärung. Für die Android-Warteliste speichern wir nur die Adresse, die du einträgst.',
-    en: "The app itself plays without an account, without ads and without analytics tracking. TestFlight is Apple's service – what Apple collects is described in Apple's privacy notes and in our privacy policy. For the Android waitlist we store only the address you enter.",
+    de: 'Die App selbst spielt ohne Konto, ohne Werbung und ohne Analyse-Tracking. TestFlight und der Play-Test-Track sind Dienste von Apple bzw. Google – was sie dabei erheben, steht in ihren Datenschutzhinweisen. Für die Android-Warteliste speichern wir nur die Adresse, die du einträgst.',
+    en: "The app itself plays without an account, without ads and without analytics tracking. TestFlight and the Play test track are services run by Apple and Google – what they collect is described in their privacy notices. For the Android waitlist we store only the address you enter.",
   },
   'beta.faq.q7': { de: 'Was passiert nach der Beta?', en: 'What happens after the beta?' },
   'beta.faq.a7': {
@@ -264,6 +268,7 @@ export const DICTIONARY = {
   'beta.footer.legalTitle': { de: 'Rechtliches', en: 'Legal' },
   'beta.footer.legalImpressum': { de: 'Impressum', en: 'Imprint' },
   'beta.footer.legalPrivacy': { de: 'Datenschutz', en: 'Privacy' },
+  'beta.footer.legalPrivacyApp': { de: 'App-Datenschutz', en: 'App privacy' },
   'beta.footer.legalTerms': { de: 'AGB', en: 'Terms' },
   'beta.footer.legalImpressumEn': { de: 'Imprint (EN)', en: 'Imprint (EN)' },
   'beta.footer.legalPrivacyEn': { de: 'Privacy (EN)', en: 'Privacy (EN)' },

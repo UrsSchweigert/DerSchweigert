@@ -288,9 +288,14 @@ internal track, `jarsigner -verify` and the install/upgrade checks stay manual.
   price from the store and the sandbox purchase completed, which also proves
   the Paid Applications agreement is active.
 - Store listing: Education category, children in the audience, DE and EN text,
-  screenshots, the bundled privacy notice URL or text. The paste-ready copy for
-  every App Store Connect field, the age-rating answers, the review notes and
-  the in-app purchase metadata is in
+  screenshots, the bundled privacy notice URL or text. Both stores need a public
+  privacy-policy URL: use **`https://ffm.derschweigert.de/datenschutz-app.html`**
+  (English twin: `…/datenschutz-app.en.html`). That page describes the app only
+  — no account, no analytics, no tracking — and is kept in sync with the
+  bundled `legal/privacy.*.html` by `tests/app-privacy-public.test.mjs`. Do not
+  submit `datenschutz.html`: that is the website/account policy. The paste-ready
+  copy for every App Store Connect field, the age-rating answers, the review
+  notes and the in-app purchase metadata is in
   [APP-STORE-CONNECT.md](APP-STORE-CONNECT.md).
 - Data safety: "Data not collected", no tracking, no ads, no analytics.
 - Privacy answers must match `PrivacyInfo.xcprivacy`: no tracking, no data
