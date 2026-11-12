@@ -834,6 +834,9 @@ let abilityRuntime = null;
 // the active spike may still slow. Cleared whenever the slow ends.
 let spikeSlowedFiends = new Set();
 let spikeSpawnSlowLeft = 0;
+// Bumped whenever the earth aura must stop, so a stale emitter callback from
+// the previous cast cannot keep pulsing after the slow is gone.
+let spikeAuraToken = 0;
 let levelStartScore = 0;
 let levelRequestGeneration = 0; // Prevents stale level configs after logout/restart
 let activeLightningBolts = [];
@@ -2539,10 +2542,62 @@ function activateAbility(id) {
   // refused before the cooldown is spent.
   if (id === 'storm' && remainingEnemyCount() < 2) return false;
   if (!abilityRuntime.activate(id)) return false;
-  if (id === 'wind') return castWindAbility();
-  if (id === 'storm') return castStormAbility();
-  if (id === 'earth') return castEarthAbility();
+  // Captured before the cast: wind and storm remove the active fiend, so its
+  // centre has to be read while it is still on the field. The `typeof` keeps
+  // extracted-function tests running without main.js, like clearSpikeSlow.
+  const origin = typeof abilityCastOrigin === 'function' ? abilityCastOrigin() : null;
+  let cast;
+  if (id === 'wind') cast = castWindAbility();
+  else if (id === 'storm') cast = castStormAbility();
+  else if (id === 'earth') cast = castEarthAbility();
+  else cast = true;
+  if (!cast) return false;
+  // One cue and one effect per successful cast, fired here at the activation
+  // seam so a rejected cast stays silent and the frame loop never retriggers.
+  if (typeof playAbilityCastFeedback === 'function') playAbilityCastFeedback(id, origin);
   return true;
+}
+
+// Centre the cast feedback on the target when there is one; a cast with no
+// live fiend (a storm finishing the queue) falls back to the hero's hands.
+function abilityCastOrigin() {
+  const centre = globalThis.ffmFx?.fiendCentre?.(activeFiend);
+  return centre || { x: HERO_X, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND };
+}
+
+// The one place a successful cast makes noise and light. Earth also starts the
+// persistent slow aura; the one-shot recipes are windCast, stormCast and
+// spikeCast.
+function playAbilityCastFeedback(id, origin) {
+  const effect = { wind: 'windCast', storm: 'stormCast', earth: 'spikeCast' }[id];
+  if (!effect) return false;
+  audio.playAbilityCast?.(id);
+  globalThis.ffmScreenFx?.play(effect, origin || abilityCastOrigin());
+  if (id === 'earth' && typeof startSpikeAura === 'function') startSpikeAura();
+  return true;
+}
+
+// The earth slow's aura runs for exactly as long as the runtime's spike: the
+// emitter is sized from spikeState.durationSeconds and every pulse re-checks
+// the token, so stopSpikeAura silences it the moment the slow is cleared.
+function startSpikeAura() {
+  const spike = abilityRuntime?.spikeState;
+  const duration = spike?.active ? spike.durationSeconds : 0;
+  spikeAuraToken += 1;
+  const token = spikeAuraToken;
+  const fx = globalThis.ffmScreenFx;
+  if (!fx?.emitter || !(duration > 0)) return null;
+  return fx.emitter(duration, 8, (progress) => {
+    if (token !== spikeAuraToken) return;
+    // The runtime can clear the slow early (pause, level change, game over), so
+    // the aura follows it instead of outliving it.
+    if (!abilityRuntime?.spikeState.active) return;
+    fx.play('spikeAura', { ...abilityCastOrigin(), progress });
+  });
+}
+
+function stopSpikeAura() {
+  spikeAuraToken += 1;
 }
 
 // How many encounters remain on the field: every queued spawn, every requeued
@@ -2638,6 +2693,7 @@ function clearSpikeSlow() {
   for (const fiend of spikeSlowedFiends) restoreSpikeSlow(fiend);
   spikeSlowedFiends.clear();
   spikeSpawnSlowLeft = 0;
+  if (typeof stopSpikeAura === 'function') stopSpikeAura();
   abilityRuntime?.clearSpike();
 }
 

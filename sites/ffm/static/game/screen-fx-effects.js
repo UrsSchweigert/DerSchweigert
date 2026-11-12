@@ -27,6 +27,9 @@ export const EFFECT_NAMES = [
   'heal',
   'healCharge',
   'swordGain',
+  'windCast',
+  'stormCast',
+  'spikeCast',
 ];
 
 // The sword's own ramp (#1460c0 / #40a0f0 / #88d0ff / #c8f0ff in
@@ -42,6 +45,9 @@ export const PALETTES = {
   green: ['#d8ffcf', '#a5f3a0', '#7dff8a', '#b9f6ca', '#8fff8a'],
   blade: BLADE,
   violet: ['#cbb4ff', '#a98bff', '#d9c8ff', '#8a6bff', '#e8dfff'],
+  wind: ['#ffffff', '#eaffff', '#cdeeff', '#a8e6ff', '#7fd4ff'],
+  storm: ['#e8dfff', '#cbb4ff', '#a98bff', '#cdeeff', '#8a6bff'],
+  earth: ['#e8c98a', '#c9a15a', '#8a6b3f', '#d8ffcf', '#a5f3a0'],
 };
 
 function rand(min, max) {
@@ -63,6 +69,14 @@ function count(api, n) {
 
 function originOf(payload) {
   return (payload && payload.origin) || DEFAULT_ORIGIN;
+}
+
+// Ability casts happen in the playfield, so they default to the middle of the
+// arena instead of the answer row the answer effects deliberately sit on.
+function castPoint(payload) {
+  const x = payload && payload.x !== undefined ? payload.x : 400;
+  const y = payload && payload.y !== undefined ? payload.y : 282;
+  return { x, y };
 }
 
 function correctAnswer(api, payload) {
@@ -309,6 +323,79 @@ function swordGain(api, payload) {
   }
 }
 
+// --- Ability casts ---------------------------------------------------------
+// One recipe per bar slot. Wind sweeps across the arena, storm bursts around
+// the target and the earth spikes erupt along the ground line under it.
+
+function windCast(api, payload) {
+  const { x, y } = castPoint(payload);
+  for (let i = 0; i < count(api, 18); i++) {
+    api.streak(x + rand(-60, 40), y + rand(-70, 70), rand(900, 1700), rand(-80, 80),
+      pick(PALETTES.wind), rand(90, 240), rand(2, 5));
+  }
+  api.ring(x, y, '#cdeeff', 8, 170, 0.45, 3);
+  for (let i = 0; i < count(api, 10); i++) {
+    api.spark(x, y, rand(-0.7, 0.7), rand(80, 220), pick(PALETTES.wind), rand(0.25, 0.5));
+  }
+  api.addWash('#cdeeff', 0.07, 0.28);
+  api.shake(1.2, 0.1);
+}
+
+function stormCast(api, payload) {
+  const { x, y } = castPoint(payload);
+  api.flash(x, y, '#e8dfff', 80, 0.22, 0.5);
+  api.ring(x, y, '#a98bff', 10, 260, 0.55, 5);
+  api.ring(x, y, '#cdeeff', 4, 120, 0.35, 2);
+  const rays = count(api, 12);
+  for (let i = 0; i < rays; i++) {
+    api.ray(x, y, (i / rays) * TAU + rand(-0.12, 0.12), rand(100, 260), '#cdeeff', 0.8);
+  }
+  for (let i = 0; i < count(api, 20); i++) {
+    api.spark(x, y, rand(0, TAU), rand(90, 320), pick(PALETTES.storm), rand(0.25, 0.6));
+  }
+  for (let i = 0; i < count(api, 6); i++) {
+    api.ring(x, y, '#cbb4ff', 4, rand(30, 90), rand(0.25, 0.45), 2);
+  }
+  api.addWash('#8a6bff', 0.1, 0.24);
+  api.addVignette('#6a4bff', 0, 0.38, 0.42);
+  api.shake(4, 0.22);
+}
+
+function spikeCast(api, payload) {
+  const { x, y } = castPoint(payload);
+  // The eruptions fan out along the ground under the target instead of all
+  // leaving one point, so the cast reads as a field of spikes.
+  const ground = y + 42;
+  for (let i = 0; i < count(api, 14); i++) {
+    api.shard(x + rand(-90, 90), ground, rand(-40, 40), rand(-300, -140), pick(PALETTES.earth), rand(3, 7));
+  }
+  for (let i = 0; i < count(api, 10); i++) {
+    api.spark(x, ground, -Math.PI / 2 + rand(-0.9, 0.9), rand(70, 240), pick(PALETTES.earth), rand(0.3, 0.6));
+  }
+  for (let i = 0; i < count(api, 6); i++) {
+    api.smoke(x + rand(-70, 70), ground, rand(8, 16), rand(0.5, 1), '#7a6a55');
+  }
+  api.ring(x, ground, '#c9a15a', 6, 130, 0.45, 4);
+  api.flash(x, ground, '#e8c98a', 44, 0.16, 0.65);
+  api.addWash('#8a6b3f', 0.08, 0.26);
+  api.shake(3.2, 0.18);
+}
+
+// The persistent half of the earth cast: one quiet pulse per emitter tick,
+// anchored to the slowed fiend. main.js drives it for exactly the runtime's
+// spike duration, so it disappears when the slow does.
+function spikeAura(api, payload) {
+  const { x, y } = castPoint(payload);
+  const raw = payload && payload.progress !== undefined ? payload.progress : 0;
+  const p = Math.max(0, Math.min(1, raw));
+  const ground = y + 42;
+  api.ring(x, ground, '#c9a15a', 8 + 16 * p, 20 + 26 * p, 0.3, 1 + p);
+  api.mote(x + rand(-26, 26), ground, rand(-12, 12), rand(-70, -24), pick(PALETTES.earth), rand(1.4, 2.4));
+  if (Math.random() < 0.4) {
+    api.ember(x + rand(-18, 18), ground, rand(-8, 8), rand(-50, -18), pick(PALETTES.earth), rand(0.35, 0.7));
+  }
+}
+
 function levelWon(api) {
   const firework = (x, y, colors) => {
     api.flash(x, y, '#ffffff', 30, 0.25, 0.8);
@@ -414,11 +501,15 @@ export function createEffectTable() {
     heal,
     healCharge,
     swordGain,
+    windCast,
+    stormCast,
+    spikeCast,
     // Granular pieces: the game drives these per frame / per hit so the trail
     // and the blast stay locked to the real projectile rather than a guess.
     fireTrail,
     fireImpact,
     boltTrail,
     boltImpact,
+    spikeAura,
   };
 }

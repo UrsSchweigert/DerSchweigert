@@ -1221,6 +1221,34 @@ describe('shared sound buses and event cues', () => {
       assert.equal(new Set(signatures).size, signatures.length);
     });
 
+    it('playAbilityCast gives wind, storm and earth one distinct cue each', () => {
+      const signatures = [];
+      for (const id of ['wind', 'storm', 'earth']) {
+        const { audio, context } = soundEngine();
+        assert.equal(audio.playAbilityCast(id), true, `${id} plays a cue`);
+        const tones = context.nodes.filter(node => node.kind === 'oscillator');
+        assert.ok(tones.length > 0, `${id} has a pitched layer`);
+        assert.ok(context.nodes.some(node => node.kind === 'buffer'), `${id} layers noise`);
+        signatures.push(JSON.stringify(tones.map(n => [n.type, n.frequency.value, n.starts[0], n.stops[0]])));
+      }
+      assert.equal(new Set(signatures).size, 3, 'no two abilities share a cue');
+    });
+
+    it('playAbilityCast is silent when muted and for an unknown ability', () => {
+      const muted = soundEngine();
+      muted.audio.toggleMute();
+      muted.audio._ensureCtx();
+      const mutedBefore = muted.context.nodes.length;
+      assert.equal(muted.audio.playAbilityCast('wind'), false);
+      assert.equal(muted.context.nodes.length, mutedBefore, 'a muted cast builds no nodes');
+
+      const { audio, context } = soundEngine();
+      audio._ensureCtx();
+      const before = context.nodes.length;
+      assert.equal(audio.playAbilityCast('not-an-ability'), false);
+      assert.equal(context.nodes.length, before, 'an unknown id builds no nodes');
+    });
+
     it('a later source failure restores default gain and disables adjustment during rotation', () => {
       const warn = console.warn;
       console.warn = () => {};
