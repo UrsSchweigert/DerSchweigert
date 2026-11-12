@@ -12,7 +12,8 @@ npm test                            # node --test tests/*.test.mjs
 
 `copy-assets` first cleans `www/` and copies `../static` without development-only and web-only files
 (`source-assets/`, `calibrate.*`, `export-sprites.html`, `_dragon_test.html`, `demo.html`, tests, `game/api.js`,
-`game/access-flow.js`, `game/cancel-request.js`, `game/withdrawal-request.js`, `cancel.html`, `widerruf.html`). It
+`game/access-flow.js`, `game/cancel-request.js`, `game/withdrawal-request.js`, `cancel.html`, `widerruf.html`, the
+website's own legal pages `datenschutz*.html`, `impressum*.html` and `terms*.html`). It
 then overlays the app-only modules from `game/` onto
 `www/game`, so `game/platform-adapter.js` replaces the web adapter of the same name. `www/` is reproducible: the
 same inputs always produce the same bundle and a stale file from an earlier build is removed.
@@ -23,15 +24,18 @@ written into `../static`, which deploys to the website. It also drops the web-on
 from `index.html`, because the app is offline and must not call the FFM API, and every DOM region `index.html`
 marks with `<!-- app-omit:start -->` / `<!-- app-omit:end -->` comments: the login/register and account modals, the
 checkout and auth-status modals, the top-bar account buttons, the splash login row, the leaderboard's
-complete-profile prompt and the web-only cancellation and withdrawal links. The website keeps all of that markup;
-only the app copy strips it.
+complete-profile prompt, the web consent banner and the whole web legal footer (cancellation, withdrawal, imprint,
+website privacy, website terms). The website keeps all of that markup; only the app copy strips it. The title
+screen keeps the empty `.splash-legal-links` container, which `game/legal.js` fills at runtime with the bundled
+`legal/*.html` pages in the active language.
 
 `bundle-check` fails when a runtime file is missing, when the bundled level configuration is not the full 60
-levels, when any file references a remote first-party (`derschweigert.de`) URL, or when bundled code calls the FFM
-API (`fetch` to `/api`, XHR or beacon), or when the app shell still carries account/checkout markup or links the
-web-only cancellation/withdrawal pages (`FORBIDDEN_UI_IDS` in `scripts/bundle-check.mjs`). Approved navigational
-legal links in `terms.html`/`terms.en.html` are the only first-party URLs allowed; they are text only and never
-loaded.
+levels, when any file references a remote first-party (`derschweigert.de`) URL, when bundled code calls the FFM
+API (`fetch` to `/api`, XHR or beacon), when the app shell still carries account/checkout markup, when a website
+legal page (`datenschutz*`, `impressum*`, `terms*`) reappears at the bundle root, or when the app shell links one
+(`FORBIDDEN_UI_IDS`, `FORBIDDEN_FILES` and `FORBIDDEN_NAV_RE` in `scripts/bundle-check.mjs`). Every bundled
+`legal/` page, in both languages, is a required file, so a legal link the app renders can never point at a page
+the bundle dropped.
 
 Background music follows `game/tracks.json`: file, title, author, licence, optional `source` URL and optional
 `stage` tag. The web build ships the one existing track; the app overlay replaces that manifest with
@@ -288,6 +292,41 @@ notes, the release handover and the manual gate checklist (including the iOS sil
 native or owner gap is an open action there, not a native edit from a worker branch. `tests/releasing.test.mjs`
 asserts that handover: the required sections and commands, the signing-secret names, the product id and store
 checklist, one open revision-placeholder row per manual gate, and M1-M4 plus the owner store actions as open.
+
+## Launcher icons
+
+The Android and iOS launcher icons are rendered from the committed store icon, so
+the installed app, the App Store and the Play Store listing all show one artwork:
+
+```sh
+python3 sites/ffm/mobile/scripts/render-icons.py           # write every icon
+python3 sites/ffm/mobile/scripts/render-icons.py --check    # verify, write nothing
+```
+
+Source of truth is `sites/ffm/store-art/app-store/icon-1024x1024.png` — the same
+file that is uploaded as the App Store listing icon. The script writes:
+
+* `ios/.../AppIcon.appiconset/AppIcon-512@2x.png` — 1024×1024, RGB, **no alpha**
+  (App Store Connect rejects transparency).
+* `mipmap-<density>/ic_launcher.png` — legacy square launcher, full-bleed RGB.
+* `mipmap-<density>/ic_launcher_round.png` — the same art cut to a circle.
+* `mipmap-<density>/ic_launcher_foreground.png` and `…_background.png` — the
+  adaptive layers at 108dp.
+
+**The adaptive layers are deliberately full-bleed.** `mipmap-anydpi-v26` wraps
+both in `android:inset="16.7%"`, which shrinks a 108dp layer to the 72dp safe
+zone the mask actually shows. That inset is what puts the whole icon — hero,
+sword, castle and wordmark — inside the circular mask with only the corners
+cropped. Removing the inset crops the wordmark off; pre-shrinking the artwork as
+well leaves the icon floating in the middle of the tile. Both the inset and the
+layer geometry are pinned by `tests/icons.test.mjs`.
+
+The previous Android icon had a rounded-square mask baked into the PNG, which
+double-masks inside Android's own adaptive mask; the generated icons carry no
+baked mask on Android and no alpha at all on iOS.
+
+Do not run `npx capacitor-assets generate` on this project: it would overwrite
+these files from whatever `assets/icon.png` it finds.
 
 ## Xcode and Xcode Cloud
 

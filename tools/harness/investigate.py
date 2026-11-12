@@ -63,7 +63,7 @@ model_choices maps implementer, reviewer, and refiner to {"model": "an exact mod
 
 Rules:
 - You are the delegating agent: choose the model for each role on each issue, not a fixed model tier per role. Use only task.json model_options. Their relative_cost bands are advisory cost categories, not role assignments or live prices. Prefer an inexpensive model for bounded, well-tested work; pay for deeper reasoning up front when uncertainty, interacting components, or risk justify it. Explain each choice using the actual task and available validation.
-- The refiner re-checks whether a task still matches the code after it changed; it writes no files. Always choose the strongest available model for it: a cheap model returns malformed results on that judgement, which costs a repair attempt and an owner decision instead of saving money. A cheap refiner choice is upgraded by trusted code, so a stronger pick here is free of risk and keeps the plan honest.
+- The refiner re-checks whether a task still matches the code after it changed; it writes no files. Choose the cheapest model whose band fits the judgement: the standard band for a task with clear anchors and reliable tests, a stronger one only when the decision itself is the hard part (conflicting requirements, a wide change across interacting modules, no test to lean on). Name that reason. Trusted code keeps refinement on the standard band for a first pass and escalates it to the strong band on its own evidence - a previous pass on the same issue that produced an unusable answer - so a cheap first choice is not a risk you have to buy away.
 - Choose an independent reviewer with a different model from the implementer whenever another model is available. The reviewer may be cheaper when the diff is straightforward and tests are reliable. Respect model_budget: do not choose a strong implementation model when strong_implementation_attempts_per_issue is zero. Existing evidence-based repair escalation may override the initial choices after a quality failure.
 - Phase ids look like P1, P2. Issue ids are lowercase letters, digits, and dashes (for example flop-training-logic).
 - Every requirement id from task.json appears in at least one phase. Each phase delivers a demonstrable increment, ordered by dependency and risk. Dependencies list phase ids and must not form a cycle.
@@ -171,6 +171,24 @@ def _widen_allowlists_for_new_anchors(draft: Dict[str, Any], repo: Repo) -> List
     return added
 
 
+TEST_TARGET = re.compile(r"(?:^|\s)([A-Za-z0-9_./-]+\.test\.js)(?=\s|$)")
+
+
+def _covered(path: str, allow: List[str]) -> bool:
+    """True when the allowlist names this path directly or through a parent directory entry."""
+    target = os.path.normpath(path).replace(os.sep, "/")
+    for entry in allow:
+        prefix = os.path.normpath(entry).replace(os.sep, "/")
+        if target == prefix or target.startswith(prefix.rstrip("/") + "/"):
+            return True
+    return False
+
+
+def _test_targets(cmd: str) -> List[str]:
+    """Repository-relative test files a validation command names, whatever runner wraps it."""
+    return [m.group(1) for m in TEST_TARGET.finditer(cmd) if not m.group(1).startswith(("/", "./"))]
+
+
 def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], repo: Repo, policy: Dict[str, Any]) -> List[str]:
     """Every rule the harness will rely on later, checked now. An empty list means the draft may be written to disk."""
     problems: List[str] = []
@@ -217,6 +235,9 @@ def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], re
         closure[pid] = out
         return out
 
+    # Paths this plan writes anywhere: a file an earlier phase creates is as real to a later phase as one already in
+    # the repository, so scope rules below must treat both the same.
+    planned_paths = [path for p in phases for path in p.get("path_allowlist", []) if isinstance(path, str)]
     ids = [i["issue_id"] for i in issues]
     if len(set(ids)) != len(ids):
         problems.append("duplicate issue ids")
@@ -253,6 +274,21 @@ def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], re
         for cmd in i.get("validation_commands", []):
             if COMMAND_DENY.search(cmd):
                 problems.append("issue %s: validation command %r is not allowed" % (iid, cmd))
+        # A validation command that runs a test file whose module the phase may change invites the worker to edit that
+        # test file too. When the allowlist leaves the test out, the worker does exactly that and the push is refused as
+        # a scope violation - a wasted implementer attempt that only the owner could resolve. Catch it at planning time.
+        allow = list(phase["path_allowlist"])
+        for cmd in i.get("validation_commands", []):
+            for target in _test_targets(cmd):
+                # The test counts whether it is in the repository already or an earlier phase of this plan creates it.
+                # Limiting this to files on disk let the defect through again for a test file phase P1 writes.
+                if not target.endswith(".test.js") or not (repo.path_exists(target) or _covered(target, planned_paths)):
+                    continue
+                module = target[: -len(".test.js")] + ".js"
+                if not _covered(module, allow) or _covered(target, allow):
+                    continue
+                problems.append("issue %s: validation runs %s and the phase may change %s, so %s must be in the phase allowlist as well"
+                                % (iid, target, module, target))
         wd = i.get("working_directory", ".")
         if not wd or os.path.isabs(wd) or "\\" in wd or ".." in wd.split("/"):
             problems.append("issue %s: working_directory must be repository-relative" % iid)

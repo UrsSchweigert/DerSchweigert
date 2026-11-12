@@ -1,12 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile, cp, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { copyAssets, APP_OVERLAY } from '../scripts/copy-assets.mjs';
-import { bundleCheck, DEFAULT_BUNDLE_DIR } from '../scripts/bundle-check.mjs';
+import {
+  ABILITY_ICONS,
+  BUNDLE_FILES,
+  bundleCheck,
+  bundleReport,
+  DEFAULT_BUNDLE_DIR,
+} from '../scripts/bundle-check.mjs';
+import { buildTitleLegalLinks } from '../game/legal.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const script = join(root, 'scripts', 'bundle-check.mjs');
@@ -26,6 +33,23 @@ async function withBundle(fn) {
 
 function runCheck(dir) {
   return spawnSync(process.execPath, [script, dir], { encoding: 'utf8' });
+}
+
+// A throwaway copy of the web game, used to add owner-delivered art to one
+// check without touching the repository.
+async function withSource(fn) {
+  const dir = await mkdtemp(join(tmpdir(), 'ffm-source-'));
+  try {
+    return await fn(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function writeWebp(baseDir, rel) {
+  const target = join(baseDir, rel);
+  await mkdir(dirname(target), { recursive: true });
+  await cp(join(staticDir, 'game', 'stage-1.webp'), target);
 }
 
 test('a fresh copy is a complete offline bundle', async () => {
@@ -116,6 +140,68 @@ test('a web-only cancellation link in the app shell fails the bundle check', asy
     await writeFile(indexPath, index.replace('</body>', '<a href="cancel.html">Cancellation</a>\n</body>'));
     const problems = await bundleCheck(dir);
     assert.ok(problems.some((problem) => problem.includes('web-only legal link')), problems.join('\n'));
+  });
+});
+
+test('a root web legal page in the bundle or the shell fails the bundle check', async () => {
+  await withBundle(async (dir) => {
+    const pagePath = join(dir, 'terms.html');
+    await writeFile(pagePath, '<!doctype html><p>accounts need 18+</p>');
+    const problems = await bundleCheck(dir);
+    assert.ok(
+      problems.some((problem) => problem.includes('web-only legal page') && problem.includes('terms.html')),
+      problems.join('\n'),
+    );
+
+    const indexPath = join(dir, 'index.html');
+    const index = await readFile(indexPath, 'utf8');
+    await writeFile(indexPath, index.replace('</body>', '<a href="datenschutz.en.html">Privacy</a>\n</body>'));
+    const withLink = await bundleCheck(dir);
+    assert.ok(
+      withLink.some((problem) => problem.includes('web-only legal link') && problem.includes('datenschutz.en.html')),
+      withLink.join('\n'),
+    );
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /web-only legal/);
+  });
+});
+
+test('every legal link the app renders resolves to a bundled page', async () => {
+  await withBundle(async (dir) => {
+    const index = await readFile(join(dir, 'index.html'), 'utf8');
+    assert.match(index, /class="splash-legal-links"/, 'the title screen must keep the legal-links container');
+    assert.doesNotMatch(index, /href="\/?(?:datenschutz|impressum|terms)(?:\.[a-z]{2})?\.html"/);
+
+    // game/legal.js fills that container at runtime; every href it can emit
+    // must exist in the bundle.
+    for (const locale of ['de', 'en']) {
+      const hrefs = [...buildTitleLegalLinks(locale).matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+      assert.equal(hrefs.length, 5, `${locale} links the manual and every legal page`);
+      for (const href of hrefs) {
+        assert.ok((await stat(join(dir, href))).isFile(), `${locale} link ${href} must be bundled`);
+      }
+    }
+  });
+});
+
+test('the app legal pages are required bundle files in both languages', async () => {
+  await withBundle(async (dir) => {
+    for (const kind of ['privacy', 'imprint', 'terms', 'licence', 'manual']) {
+      for (const locale of ['de', 'en']) {
+        const rel = `legal/${kind}.${locale}.html`;
+        assert.ok(BUNDLE_FILES.includes(rel), `${rel} must be required`);
+        assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
+      }
+    }
+
+    await rm(join(dir, 'legal', 'privacy.en.html'));
+    const problems = await bundleCheck(dir);
+    assert.ok(
+      problems.some((problem) => problem.includes('legal/privacy.en.html')),
+      'a missing app legal page must fail the check',
+    );
   });
 });
 
@@ -236,25 +322,190 @@ test('a remote first-party URL fails the bundle check', async () => {
   });
 });
 
-test('only approved navigational legal links are allowed', async () => {
+test('no bundled file may carry a first-party URL', async () => {
   await withBundle(async (dir) => {
-    const terms = join(dir, 'terms.html');
-    const html = await readFile(terms, 'utf8');
-    assert.match(html, /https:\/\/www\.derschweigert\.de\/nutzungsbedingungen/);
+    // The website legal pages that linked derschweigert.de are excluded from
+    // the copy, so the app keeps no navigational allowance at all.
     assert.deepEqual(await bundleCheck(dir), []);
 
-    await writeFile(
-      terms,
-      html.replace('</body>', '<a href="https://ffm.derschweigert.de/terms">Terms</a>\n</body>'),
-    );
-    const problems = await bundleCheck(dir);
-    assert.ok(
-      problems.some((problem) => problem.includes('https://ffm.derschweigert.de/terms')),
-      problems.join('\n'),
-    );
+    const blockedUrl = 'https://www.derschweigert.de/nutzungsbedingungen';
+    const link = `<a href="${blockedUrl}">Terms</a>\n</body>`;
+    for (const rel of ['index.html', 'legal/terms.de.html']) {
+      const file = join(dir, rel);
+      const html = await readFile(file, 'utf8');
+      await writeFile(file, html.replace('</body>', link));
+      const problems = await bundleCheck(dir);
+      // Compare the URL bundle-check actually reported instead of asking
+      // whether some message merely contains it: a substring test would also
+      // accept "https://evil.example/?u=https://www.derschweigert.de/…", and
+      // CodeQL rightly flags that pattern (js/incomplete-url-substring-
+      // sanitization) even in a test.
+      const reportedUrls = problems
+        .map((problem) => problem.match(/remote first-party URL: (\S+)/)?.[1])
+        .filter(Boolean);
+      assert.deepEqual(reportedUrls, [blockedUrl], `${rel}: ${problems.join('\n')}`);
+      await writeFile(file, html);
+    }
   });
 });
 
 test('bundle-check defaults to the copied www/ directory', async () => {
   assert.equal(DEFAULT_BUNDLE_DIR, join(root, 'www'));
+});
+
+test('the level manifest is a required bundle file', async () => {
+  assert.ok(BUNDLE_FILES.includes('game/levels/manifest.json'));
+  await withBundle(async (dir) => {
+    await rm(join(dir, 'game', 'levels', 'manifest.json'));
+    const problems = await bundleCheck(dir);
+    assert.ok(
+      problems.some((problem) => problem.includes('game/levels/manifest.json')),
+      problems.join('\n'),
+    );
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /missing required file: game\/levels\/manifest\.json/);
+  });
+});
+
+test('ability icons are reported against what the repository ships, never required', async () => {
+  // The icon files are owner-delivered, so the suite must not assume either state: derive the expectation from the
+  // source tree instead of pinning "none present", which is only true before the artwork lands.
+  await withBundle(async (dir) => {
+    const shipped = [];
+    for (const rel of ABILITY_ICONS) {
+      if (await stat(join(staticDir, rel)).catch(() => null)) shipped.push(rel);
+    }
+    const report = await bundleReport(dir, staticDir);
+    assert.deepEqual(report.abilityIcons.present, shipped);
+    assert.deepEqual(report.abilityIcons.absent, ABILITY_ICONS.filter((rel) => !shipped.includes(rel)));
+    assert.deepEqual(report.problems, []);
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, new RegExp(`${shipped.length}/${ABILITY_ICONS.length} ability icons present`));
+    assert.match(result.stdout, new RegExp(`${report.levelImages.copied.length} level images copied`));
+  });
+});
+
+test('present ability icons are verified as copied WebP art', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      for (const rel of ABILITY_ICONS) {
+        await writeWebp(source, rel);
+        await writeWebp(dir, rel);
+      }
+      const report = await bundleReport(dir, source);
+      assert.deepEqual(report.abilityIcons.present, [...ABILITY_ICONS]);
+      assert.deepEqual(report.abilityIcons.absent, []);
+      assert.deepEqual(report.problems, []);
+      assert.deepEqual(await bundleCheck(dir, source), []);
+    });
+  });
+});
+
+test('an ability icon present in the source must reach the bundle', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      await writeWebp(source, ABILITY_ICONS[0]);
+      // Take the copy out of the bundle so the mismatch the check reports is the one under test, whether or not the
+      // repository ships this file.
+      await rm(join(dir, ABILITY_ICONS[0]), { force: true });
+      const report = await bundleReport(dir, source);
+      assert.deepEqual(report.abilityIcons.present, [ABILITY_ICONS[0]]);
+      assert.deepEqual(report.abilityIcons.absent, ABILITY_ICONS.slice(1));
+      assert.ok(
+        report.problems.some((problem) => problem.includes('not copied') && problem.includes(ABILITY_ICONS[0])),
+        report.problems.join('\n'),
+      );
+    });
+  });
+});
+
+test('an ability icon that is not WebP art fails the check', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      for (const base of [source, dir]) {
+        const target = join(base, ABILITY_ICONS[0]);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, 'not a webp');
+      }
+      const report = await bundleReport(dir, source);
+      assert.deepEqual(report.abilityIcons.present, [ABILITY_ICONS[0]]);
+      assert.ok(
+        report.problems.some((problem) => problem.includes('not a WebP file')),
+        report.problems.join('\n'),
+      );
+    });
+  });
+});
+
+test('a present level image must be copied into the bundle', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      await writeWebp(source, 'game/levels/level-07.webp');
+      await rm(join(dir, 'game/levels/level-07.webp'), { force: true });
+      const missingReport = await bundleReport(dir, source);
+      assert.deepEqual(missingReport.levelImages.present, ['level-07.webp']);
+      assert.deepEqual(missingReport.levelImages.missing, ['level-07.webp']);
+      assert.ok(
+        missingReport.problems.some((problem) => problem.includes('game/levels/level-07.webp')),
+        missingReport.problems.join('\n'),
+      );
+
+      await writeWebp(dir, 'game/levels/level-07.webp');
+      const copiedReport = await bundleReport(dir, source);
+      assert.deepEqual(copiedReport.levelImages.copied, ['level-07.webp']);
+      assert.deepEqual(copiedReport.levelImages.missing, []);
+      assert.deepEqual(copiedReport.problems, []);
+    });
+  });
+});
+
+test('a source without level images is a pass', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      const report = await bundleReport(dir, source);
+      assert.deepEqual(report.levelImages, { present: [], copied: [], missing: [] });
+      assert.deepEqual(report.problems, []);
+    });
+  });
+});
+
+test('the three ability slots are named and reachable', async () => {
+  const bar = await readFile(join(staticDir, 'game', 'ability-bar.js'), 'utf8');
+  const roster = await readFile(join(staticDir, 'game', 'cooldown-abilities.js'), 'utf8');
+  for (const id of ['wind', 'storm', 'earth']) {
+    assert.match(roster, new RegExp(`id: '${id}'`), `${id} must be in the roster`);
+  }
+  // A labelled group; each slot is a real button named by its visible label
+  // and described by its own description node.
+  assert.match(bar, /setAttribute\('role', 'group'\)/);
+  assert.match(bar, /setAttribute\('aria-label', label\('ability\.barLabel'/);
+  assert.match(bar, /button\.dataset\.ability = ability\.id/);
+  assert.match(bar, /setAttribute\('aria-describedby', descriptionEl\.id\)/);
+  // Locked slots stay out of the tab order; unlocked slots are focusable again.
+  assert.match(bar, /button\.tabIndex = -1/);
+  assert.match(bar, /slot\.button\.tabIndex = state === 'locked' \? -1 : 0/);
+  assert.match(bar, /setAttribute\('aria-disabled', String\(state === 'locked'\)\)/);
+  // Decorative art never replaces the accessible name.
+  assert.match(bar, /iconEl\.setAttribute\('alt', ''\)/);
+});
+
+test('the vibration toggle is labelled and announced', async () => {
+  const html = await readFile(join(staticDir, 'index.html'), 'utf8');
+  const label = html.indexOf('<label for="haptics-toggle" data-i18n="audio.haptics">');
+  const input = html.indexOf('<input id="haptics-toggle" type="checkbox"');
+  assert.ok(label >= 0, 'the toggle needs a label element');
+  assert.ok(input >= 0, 'the toggle needs a checkbox input');
+  assert.ok(label < input, 'the label must precede the toggle it names');
+});
+
+test('the gameplay focus trap keeps its overlay list', async () => {
+  const focus = await readFile(join(staticDir, 'game', 'modal-focus.js'), 'utf8');
+  assert.match(
+    focus,
+    /const overlays = \['pause-overlay', 'heal-tip-overlay', 'level-clear', 'game-over', 'skill-intro', 'first-open-notice'\]/,
+  );
 });

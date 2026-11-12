@@ -33,7 +33,82 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
       el.appendChild(row);
     }
   }
-  const message = (key, fallback) => translate?.(key) || fallback;
+  const message = (key, fallback, vars) => {
+    const translated = translate?.(key, vars);
+    if (typeof translated === 'string' && translated && translated !== key) return translated;
+    if (!vars) return fallback;
+    return String(fallback).replace(/\{(\w+)\}/g, (match, name) => (
+      Object.hasOwn(vars, name) ? String(vars[name]) : match
+    ));
+  };
+  // English fallbacks keep the notice readable when a caller passes no
+  // translator (for example a lightweight test double). The i18n dictionary
+  // is the real source for every shipped string.
+  const ABILITY_FALLBACK_NAMES = { wind: 'Wind', storm: 'Storm', earth: 'Earth' };
+  const BONUS_NOTICE_FALLBACKS = {
+    cooldown: 'Bonus: {ability} cooldown −{value}s',
+    storm: 'Bonus: {ability} +{value} rank',
+    slowSpeed: 'Bonus: {ability} slows fiends by {value}',
+    slowTargets: 'Bonus: {ability} +{value} spike target',
+  };
+  // A bonus notice is a non-blocking status pill, not a timer the player has
+  // to beat: six seconds of gameplay time is long enough to read it while
+  // solving the first problem and never interrupts the level.
+  const BONUS_NOTICE_SECONDS = 6;
+  let bonusNoticeRemaining = 0;
+
+  function clearBonusNotice() {
+    bonusNoticeRemaining = 0;
+    const el = element('bonus-notice');
+    if (!el) return;
+    el.hidden = true;
+    if (el.textContent) el.textContent = '';
+  }
+
+  /**
+   * Announce the bonus a level grants. `null` (level 1, practice) clears the
+   * pill instead, so a level change never leaves the previous level's bonus
+   * on screen. Returns whether a notice was shown.
+   */
+  function showBonusNotice(bonus) {
+    const el = element('bonus-notice');
+    if (!el) return false;
+    if (!bonus || typeof bonus !== 'object' || !bonus.type) {
+      clearBonusNotice();
+      return false;
+    }
+    const abilityId = typeof bonus.abilityId === 'string' ? bonus.abilityId : '';
+    const ability = message(
+      `ability.${abilityId}.name`,
+      ABILITY_FALLBACK_NAMES[abilityId] || abilityId,
+    );
+    const vars = { ability, value: bonus.value ?? '' };
+    const notice = message(
+      `bonus.${bonus.type}.notice`,
+      BONUS_NOTICE_FALLBACKS[bonus.type] || '{ability} bonus {value}',
+      vars,
+    );
+    if (el.hidden) el.hidden = false;
+    if (el.textContent !== notice) el.textContent = notice;
+    bonusNoticeRemaining = BONUS_NOTICE_SECONDS;
+    return true;
+  }
+
+  /**
+   * Advance the notice countdown with gameplay time. Pausing freezes it;
+   * the game loop passes `{ paused }` so a pause menu cannot outlive the
+   * notice by accident.
+   */
+  function tickBonusNotice(dt, { paused: frozen = false } = {}) {
+    const el = element('bonus-notice');
+    if (!el || el.hidden || frozen) return bonusNoticeRemaining;
+    const step = Number(dt);
+    if (!Number.isFinite(step) || step <= 0) return bonusNoticeRemaining;
+    bonusNoticeRemaining = Math.max(0, bonusNoticeRemaining - step);
+    if (bonusNoticeRemaining <= 0) clearBonusNotice();
+    return bonusNoticeRemaining;
+  }
+
   // Once the HUD has been on screen, hiding it keeps the element in normal
   // flow and only makes it invisible. display:none collapsed its grid row,
   // which yanked the whole playfield upwards the instant the HUD was hidden
@@ -162,5 +237,5 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
     const pause = element('btn-pause-game');
     if (pause) pause.disabled = !!state.paused;
   }
-  return { update, setVisible, setShapesHeader };
+  return { update, setVisible, setShapesHeader, showBonusNotice, tickBonusNotice, clearBonusNotice };
 }

@@ -2,6 +2,7 @@
 
 import { generateProblem, getArithmeticOptionCount, sampleFiendType, TOTAL_LEVELS } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
+import { LEVEL_ART_MANIFEST, resolveLevelBackground, stageArtUrl } from './level-art.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon, getHeroGroundOffsetPx } from './entities.js';
 import { castHandAnchor } from './hero-anim.js';
 import { HUD } from './hud.js';
@@ -12,6 +13,13 @@ import {
   readAudioPreferences,
   writeAudioPreferences,
 } from './audio-preferences.js';
+import { createHaptics } from './haptics.js';
+import { noopVibration, resolveVibrationSource } from './haptics-source.js';
+import {
+  applyVibrationPreferences,
+  readVibrationPreferences,
+  writeVibrationPreferences,
+} from './vibration-preferences.js';
 import { InputManager } from './input.js';
 import { createCompletionId, createLevelCompletion } from './level-completion.js';
 import { initViewportLayout } from './viewport-layout.js';
@@ -27,12 +35,15 @@ import {
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
-import { preloadGameAssets } from './asset-preload.js';
+import { preloadGameAssets, preloadAbilityIcons } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
 import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
 import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
+import { createAbilityBar } from './ability-bar.js';
+import { BONUS_CAPS, applyBonus, bonusForLevel, createBonusRuntime } from './bonus-ladder.js';
+import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
 import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
@@ -53,6 +64,7 @@ import { dailyBestTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
 import { createScreenFx } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
+import { createEncounterSwords } from './encounter-swords.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -60,6 +72,9 @@ const platform = await resolvePlatform();
 // Lets styles.css scope web-only layout rules without touching the app.
 document.documentElement.dataset.platform = platform.isApp ? 'app' : 'web';
 const gameplayChrome = createGameplayChrome({ translate: t });
+// One bar for the whole session; the run's runtime feeds it progress every
+// frame. It mounts itself inside #gameplay-chrome (see ability-bar.js).
+const abilityBar = createAbilityBar({ translate: t, onActivate: (id) => activateAbility(id) });
 const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 
 // App-only lifecycle handle (see ./lifecycle.js, shipped by the app overlay).
@@ -126,10 +141,6 @@ if (platform.isApp) {
     })
     .then(({ createTimerBar }) => {
       mobileUi?.registerWidget('timer-bar', createTimerBar({ doc: document }));
-      return import('./encounter-swords.js');
-    })
-    .then(({ createEncounterSwords }) => {
-      mobileUi?.registerWidget('encounter-swords', createEncounterSwords({ doc: document }));
       return import('./shapes-header.js');
     })
     .then(({ createShapesHeader }) => {
@@ -205,6 +216,10 @@ initI18n();
 initViewportLayout();
 const titleLevelNumerals = createLevelNumerals({ doc: document, translate: t });
 titleLevelNumerals.updateLevelSelection({ level: 1 });
+// One portrait sword row for both channels; the CSS keeps it display:none
+// outside portrait. The per-frame chrome update feeds it the same count as the
+// header's "Defeated" readout.
+const encounterSwords = createEncounterSwords({ doc: document });
 
 // The page's CSP is `script-src 'self' https://challenges.cloudflare.com`
 // with no 'unsafe-inline'/nonce, so an inline <script type="module"> in
@@ -215,8 +230,12 @@ titleLevelNumerals.updateLevelSelection({ level: 1 });
 window.ffmCookieConsent = new CookieConsent();
 if (!platform.isApp) window.ffmCookieConsent.init();
 else {
-  document.getElementById('cookie-banner').style.display = 'none';
-  document.getElementById('cookie-settings-link').hidden = true;
+  // The app copy drops the web consent banner entirely; these lookups stay
+  // null-safe so the shared module runs in both builds.
+  const banner = document.getElementById('cookie-banner');
+  if (banner) banner.style.display = 'none';
+  const settings = document.getElementById('cookie-settings-link');
+  if (settings) settings.hidden = true;
 }
 document.getElementById('cookie-accept')?.addEventListener('click', () => {
   window.ffmCookieConsent.accept();
@@ -253,6 +272,11 @@ const assetsLoaded = preloadGameAssets((loaded, total) => {
   if (loadingBarFill) loadingBarFill.style.width = pct + '%';
   if (loadingPercentEl) loadingPercentEl.textContent = pct + '%';
 });
+
+// The three ability icons are optional owner-delivered art; warming them in
+// the background keeps the first unlock from flashing the text fallback.
+// Every URL settles on load and error, so this can never block the game.
+preloadAbilityIcons();
 
 // A single stuck/broken asset (or a truly catastrophic connection) must not
 // permanently trap the player behind a black screen — fall back to
@@ -575,6 +599,9 @@ const btnHealTipConfirm = document.getElementById('btn-heal-tip-confirm');
 const levelClearOverlay = document.getElementById('level-clear');
 const levelClearTitle = document.getElementById('level-clear-title');
 const levelClearScore = document.getElementById('level-clear-score');
+const levelClearPreview = document.getElementById('level-clear-preview');
+const levelClearPreviewImage = document.getElementById('level-clear-preview-image');
+const levelClearPreviewTitle = document.getElementById('level-clear-preview-title');
 const btnNextLevel = document.getElementById('btn-next-level');
 const btnReplayLevel = document.getElementById('btn-replay-level');
 const btnSaveScoreReturnTitle = document.getElementById('btn-save-score-return-title');
@@ -628,6 +655,7 @@ const btnSkillIntroSkip = document.getElementById('btn-skill-intro-skip');
 const musicVolumeInput = document.getElementById('music-volume');
 const musicVolumeStatus = document.getElementById('music-volume-status');
 const effectsVolumeInput = document.getElementById('effects-volume');
+const hapticsToggle = document.getElementById('haptics-toggle');
 
 const checkoutModal = document.getElementById('checkout-modal');
 const closeCheckout = document.getElementById('close-checkout');
@@ -721,6 +749,22 @@ const audio = new AudioEngine({
   onMusicVolumeUnavailable: () => audioPreferenceStatus(),
 });
 
+// Haptics: one facade for the session. It is published on globalThis because
+// several tests evaluate single functions from this module in a bare VM where
+// a module binding would be undeclared. The device driver resolves
+// asynchronously (the app plugin may not be bundled), so the delegate starts
+// absent and is swapped in place once resolveVibrationSource settles; until
+// then every event is the silent no-op.
+let vibrationDriver = null;
+const haptics = createHaptics({
+  vibrate: pattern => vibrationDriver?.(pattern),
+  reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+});
+globalThis.ffmHaptics = haptics;
+resolveVibrationSource()
+  .then(({ vibrate }) => { vibrationDriver = vibrate; })
+  .catch(() => { vibrationDriver = noopVibration; });
+
 function audioPreferenceStatus() {
   if (musicVolumeStatus) {
     const capability = audio.musicVolumeCapability;
@@ -777,6 +821,11 @@ function initializeAudioPreferences() {
   audioPreferenceStatus();
 }
 
+function initializeHapticsPreferences() {
+  applyVibrationPreferences(haptics, readVibrationPreferences(window.localStorage));
+  if (hapticsToggle) hapticsToggle.checked = haptics.enabled;
+}
+
 effectsVolumeInput?.addEventListener('input', () => {
   try {
     audio.setEffectsVolume(Number(effectsVolumeInput.value));
@@ -802,6 +851,12 @@ document.getElementById('audio-settings')?.addEventListener('toggle', (event) =>
   if (event.target.open) flushDeferredMusicVolume();
 });
 initializeAudioPreferences();
+initializeHapticsPreferences();
+
+hapticsToggle?.addEventListener('change', () => {
+  haptics.setEnabled(hapticsToggle.checked);
+  writeVibrationPreferences(window.localStorage, haptics.enabled);
+});
 
 // --- Entity state ---
 let hero = new Hero();
@@ -817,6 +872,21 @@ let pendingProblemActivation = null;
 let gameRunning = false;
 let paused = false;
 let currentLevelIndex = 0;
+// One ability runtime per run: created when a run starts, re-levelled on each
+// level transition so cooldowns carry across levels, and ticked by gameLoop.
+let abilityRuntime = null;
+// Bonus inputs for the ability bar's readouts, rebuilt from the level ladder at
+// every level start: the earned bonus totals plus the per-ability cooldown
+// reduction each cooldown bonus named.
+let levelBonusRuntime = null;
+let levelBonusCooldowns = null;
+// Earth-spike slow: the fiends currently slowed and how many upcoming spawns
+// the active spike may still slow. Cleared whenever the slow ends.
+let spikeSlowedFiends = new Set();
+let spikeSpawnSlowLeft = 0;
+// Bumped whenever the earth aura must stop, so a stale emitter callback from
+// the previous cast cannot keep pulsing after the slow is gone.
+let spikeAuraToken = 0;
 let levelStartScore = 0;
 let levelRequestGeneration = 0; // Prevents stale level configs after logout/restart
 let activeLightningBolts = [];
@@ -1424,6 +1494,7 @@ async function startPracticeSession(kind = practiceKindSelect?.value, sourceLeve
       state.hearts = state.maxHearts;
     }
     showPracticeStatus('');
+    if (typeof beginAbilityRun === 'function') beginAbilityRun(sourceLevel);
     await startLevel(sourceLevel - 1);
   } catch (error) {
     console.error('Unable to start practice', error);
@@ -1690,6 +1761,10 @@ document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
         if (!jumpValue) targetLevel = progress.nextLevel ?? 1;
       }
       const targetIndex = targetLevel - 1;
+      // Run start: fresh cooldowns for the selected campaign level. The
+      // `typeof` keeps extracted-function tests (which run this block without
+      // main.js) working, matching the volumeControl guard above.
+      if (typeof beginAbilityRun === 'function') beginAbilityRun(targetLevel);
       state.score = 0;
       levelStartScore = state.score;
       // Level 1 opens the story: play the intro unless it already ran this
@@ -2305,6 +2380,7 @@ function resumePendingLevel() {
   state.timerRemaining = pending.timerMax;
   state.maxHearts = pending.maxHearts;
   state.hearts = pending.maxHearts;
+  if (typeof beginAbilityRun === 'function') beginAbilityRun(pending.levelIndex + 1);
   startLevel(pending.levelIndex);
 }
 
@@ -2384,6 +2460,9 @@ async function startLevel(levelIndex, includeBaseline = false) {
     platform.setCurrentLevelConfig(cfg);
 
     renderer.setBackgroundByLevel(cfg.level);
+    // Warm only the current and next level art; the following levels are not
+    // requested, and a level without a manifest entry is skipped entirely.
+    renderer.preloadLevelArt?.([cfg.level, cfg.level + 1]);
 
     // Apply baseline score to state if requested and available
     let baselineScore = 0;
@@ -2488,6 +2567,212 @@ function handleLevelConfigError(err, levelIndex) {
   updateHUDLogoutVisibility();
 }
 
+// Rebuild the ability bar's bonus inputs from the level ladder. The ladder is a
+// pure function of the level, so replaying it at every level start matches what
+// the player has earned by then. `cooldowns` stays per ability because each
+// cooldown bonus names the ability it shortens, while the runtime keeps the
+// capped totals the storm and earth readouts need.
+function bonusReadoutsForLevel(level) {
+  const safeLevel = Number.isFinite(level) && level >= 1 ? Math.trunc(level) : 1;
+  let runtime = createBonusRuntime({ level: safeLevel });
+  const cooldowns = { wind: 0, storm: 0, earth: 0 };
+  let totalReduction = 0;
+  for (let current = 2; current <= safeLevel; current += 1) {
+    const bonus = bonusForLevel(current);
+    if (!bonus) continue;
+    runtime = applyBonus(runtime, bonus);
+    if (bonus.type !== 'cooldown') continue;
+    const room = Math.min(bonus.value, BONUS_CAPS.cooldownSeconds - totalReduction);
+    if (room <= 0) continue;
+    totalReduction += room;
+    cooldowns[bonus.abilityId] += room;
+  }
+  return { runtime, cooldowns };
+}
+
+// Start a fresh ability run at `level`: every cooldown is cleared. Called
+// whenever a run begins (level select, practice, resume after paywall, retry);
+// level transitions inside a run only call setLevel so cooldowns persist.
+// `rank` is the storm bonus rank collected for this run; each rank widens the
+// storm's removal slice by one without touching any other ability.
+// `spikeSlow` carries the bonus-modified earth-spike parameters; the runtime
+// clamps them to the documented caps.
+function beginAbilityRun(level, rank = 0, spikeSlow = undefined) {
+  const safeLevel = Number.isFinite(level) && level >= 1 ? level : 1;
+  const safeRank = Number.isSafeInteger(rank) && rank >= 0 ? rank : 0;
+  if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
+  abilityRuntime = createAbilityRuntime({ level: safeLevel, rank: safeRank, spikeSlow });
+  return abilityRuntime;
+}
+
+// A bar activation is only honoured while the ability is unlocked and ready;
+// the bar already refuses cooling/locked clicks, but this keeps the guard at
+// the gameplay seam too. Wind needs a live fiend to remove and is refused
+// while input is disabled; storm clears a slice of whatever remains; earth
+// always casts, slowing the active fiend and the next spawns.
+function activateAbility(id) {
+  if (!abilityRuntime) return false;
+  if (abilityRuntime.progress(id) < 1) return false;
+  if (id === 'wind' && (!activeFiend || inputDisabled)) return false;
+  // Storm always leaves one enemy behind, so a wave with nothing to spare is
+  // refused before the cooldown is spent.
+  if (id === 'storm' && remainingEnemyCount() < 2) return false;
+  if (!abilityRuntime.activate(id)) return false;
+  // Captured before the cast: wind and storm remove the active fiend, so its
+  // centre has to be read while it is still on the field. The `typeof` keeps
+  // extracted-function tests running without main.js, like clearSpikeSlow.
+  const origin = typeof abilityCastOrigin === 'function' ? abilityCastOrigin() : null;
+  let cast;
+  if (id === 'wind') cast = castWindAbility();
+  else if (id === 'storm') cast = castStormAbility();
+  else if (id === 'earth') cast = castEarthAbility();
+  else cast = true;
+  if (!cast) return false;
+  // One cue and one effect per successful cast, fired here at the activation
+  // seam so a rejected cast stays silent and the frame loop never retriggers.
+  if (typeof playAbilityCastFeedback === 'function') playAbilityCastFeedback(id, origin);
+  return true;
+}
+
+// Centre the cast feedback on the target when there is one; a cast with no
+// live fiend (a storm finishing the queue) falls back to the hero's hands.
+function abilityCastOrigin() {
+  const centre = globalThis.ffmFx?.fiendCentre?.(activeFiend);
+  return centre || { x: HERO_X, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND };
+}
+
+// The one place a successful cast makes noise and light. Earth also starts the
+// persistent slow aura; the one-shot recipes are windCast, stormCast and
+// spikeCast.
+function playAbilityCastFeedback(id, origin) {
+  const effect = { wind: 'windCast', storm: 'stormCast', earth: 'spikeCast' }[id];
+  if (!effect) return false;
+  audio.playAbilityCast?.(id);
+  globalThis.ffmScreenFx?.play(effect, origin || abilityCastOrigin());
+  if (id === 'earth' && typeof startSpikeAura === 'function') startSpikeAura();
+  return true;
+}
+
+// The earth slow's aura runs for exactly as long as the runtime's spike: the
+// emitter is sized from spikeState.durationSeconds and every pulse re-checks
+// the token, so stopSpikeAura silences it the moment the slow is cleared.
+function startSpikeAura() {
+  const spike = abilityRuntime?.spikeState;
+  const duration = spike?.active ? spike.durationSeconds : 0;
+  spikeAuraToken += 1;
+  const token = spikeAuraToken;
+  const fx = globalThis.ffmScreenFx;
+  if (!fx?.emitter || !(duration > 0)) return null;
+  return fx.emitter(duration, 8, (progress) => {
+    if (token !== spikeAuraToken) return;
+    // The runtime can clear the slow early (pause, level change, game over), so
+    // the aura follows it instead of outliving it.
+    if (!abilityRuntime?.spikeState.active) return;
+    fx.play('spikeAura', { ...abilityCastOrigin(), progress });
+  });
+}
+
+function stopSpikeAura() {
+  spikeAuraToken += 1;
+}
+
+// How many encounters remain on the field: every queued spawn, every requeued
+// fiend and every live fiend. A requeued fiend waits with state 'retreat' until
+// it walks back on, which the dragon-breath count treats as resolved, so the
+// requeue list is counted here on its own. The active fiend is normally one of
+// `fiends`, but a cast can arrive while it is between arrays, so it is counted
+// exactly once either way.
+function remainingEnemyCount() {
+  const requeued = new Set(requeuedFiends.filter((f) => f && !f.isDead));
+  return countDragonRemainingEncounters({ fiends, spawnQueue }) +
+    requeued.size +
+    (activeFiend && !fiends.includes(activeFiend) && !requeued.has(activeFiend) ? 1 : 0);
+}
+
+// Remove the active fiend for an ability cast: it retreats off the field
+// instead of dying, is dropped from the requeue list, and the next spawn is
+// scheduled like any other resolved encounter. No score, combo or timing
+// credit is awarded here.
+function removeActiveFiendForAbility() {
+  const fiend = activeFiend;
+  activeFiend = null;
+  pendingProblemActivation = null;
+  if (fiend) {
+    requeuedFiends = requeuedFiends.filter((f) => f !== fiend);
+    if (typeof restoreSpikeSlow === 'function' && fiend.spikeSlowed) {
+      restoreSpikeSlow(fiend);
+      if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
+    }
+    fiend.setState('retreat');
+  }
+  state.timerActive = false;
+  inputDisabled = false;
+  spawnTimer = spawnInterval;
+}
+
+// Wind removes the active fiend outright: one defeat and no score, combo or
+// timing credit, then the wave continues or clears exactly like a normal kill.
+function castWindAbility() {
+  if (!activeFiend) return false;
+  removeActiveFiendForAbility();
+  state.enemiesDefeated++;
+  recordPracticeEncounterDefeated();
+  hud.update(state);
+  if (checkAllDefeated()) triggerWaveClear();
+  return true;
+}
+
+// Storm clears a capped slice of the remaining wave, draining the spawn queue
+// first, then requeued fiends, then the active fiend, so the thing closest to
+// the player survives longest. Each removal counts one defeat and the normal
+// wave-clear check follows.
+function castStormAbility() {
+  const toRemove = abilityRuntime.stormRemovals(remainingEnemyCount());
+  let removed = 0;
+  while (removed < toRemove && spawnQueue.length > 0) {
+    spawnQueue.shift();
+    removed++;
+  }
+  while (removed < toRemove && requeuedFiends.length > 0) {
+    requeuedFiends.shift();
+    removed++;
+  }
+  if (removed < toRemove && activeFiend) {
+    removeActiveFiendForAbility();
+    removed++;
+  }
+  if (removed === 0) return false;
+  state.enemiesDefeated += removed;
+  hud.update(state);
+  if (checkAllDefeated()) triggerWaveClear();
+  // `inputDisabled` belongs to the encounter flow: a storm cast during a
+  // reveal must not re-enable answering mid-sequence.
+  else spawnTimer = spawnInterval;
+  return true;
+}
+
+// Earth spikes the ground: the active fiend, if any, is slowed once without
+// spending a spawn slot, and the runtime's target count lets that many newly
+// created fiends inherit the slow.
+function castEarthAbility() {
+  const spike = abilityRuntime.spikeState;
+  spikeSpawnSlowLeft = spike.targets;
+  if (activeFiend && applySpikeSlow(activeFiend, spike.factor)) {
+    spikeSlowedFiends.add(activeFiend);
+  }
+  return true;
+}
+
+// End the earth-spike slow immediately: every tracked fiend returns to its
+// stored base speed and upcoming spawns are no longer slowed.
+function clearSpikeSlow() {
+  for (const fiend of spikeSlowedFiends) restoreSpikeSlow(fiend);
+  spikeSlowedFiends.clear();
+  spikeSpawnSlowLeft = 0;
+  if (typeof stopSpikeAura === 'function') stopSpikeAura();
+  abilityRuntime?.clearSpike();
+}
+
 function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   setAnswerInputVisible(true);
   gameplayTimers.length = 0;
@@ -2505,6 +2790,22 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   currentLevelIndex = levelIndex;
   levelStartScore = state.score;
   state.level = cfg.level;
+  // A run keeps its cooldowns across levels; the first level of a run creates
+  // the runtime (run-start call sites do this earlier, this is the fallback).
+  // The `typeof` keeps extracted-function tests running without main.js.
+  if (typeof abilityRuntime !== 'undefined') {
+    if (abilityRuntime) abilityRuntime.setLevel(cfg.level);
+    else beginAbilityRun(cfg.level);
+  }
+  // The bar's readouts are derived from the level's earned bonuses. The
+  // `typeof` keeps extracted-function tests running without main.js.
+  if (typeof bonusReadoutsForLevel === 'function' && typeof levelBonusRuntime !== 'undefined') {
+    const readouts = bonusReadoutsForLevel(cfg.level);
+    levelBonusRuntime = readouts.runtime;
+    levelBonusCooldowns = readouts.cooldowns;
+  }
+  // A spike slow never survives a level transition.
+  if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
   state.waveNumber = 1;
   state.enemiesDefeated = 0;
   state.fiendsSpawned = 0;
@@ -2536,6 +2837,15 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   state.combo = 0;
   gameRunning = true;
   paused = false;
+  // Announce the level's bonus once the level actually starts. Level 1 and
+  // practice runs grant none, so the previous level's pill is cleared instead.
+  // The `typeof` keeps extracted-function tests running without main.js.
+  if (typeof gameplayChrome !== 'undefined') {
+    const bonus = !practiceRun && typeof bonusForLevel === 'function'
+      ? bonusForLevel(cfg.level)
+      : null;
+    gameplayChrome?.showBonusNotice?.(bonus);
+  }
   diffSelect.style.display = 'none';
   pauseOverlay.style.display = 'none';
   topBar.style.display = 'none';
@@ -2761,6 +3071,7 @@ function handleAppBack() {
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
+  if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
   pausedPartialId = createCompletionId();
   closeAudioSettings();
   pauseActions.style.display = '';
@@ -2862,11 +3173,22 @@ function spawnNextFiend() {
   if (fiend) {
     fiend.on('retreated', () => { onFiendRetreated(fiend); });
     fiend.on('dead', () => { onFiendDead(fiend); });
+    if (typeof spikeSpawnSlowLeft !== 'undefined' && spikeSpawnSlowLeft > 0 &&
+        typeof abilityRuntime !== 'undefined' && abilityRuntime?.spikeState.active &&
+        typeof applySpikeSlow === 'function' &&
+        applySpikeSlow(fiend, abilityRuntime.spikeState.factor)) {
+      spikeSlowedFiends.add(fiend);
+      spikeSpawnSlowLeft -= 1;
+    }
     fiends.push(fiend);
   }
 }
 
 function onFiendRetreated(fiend) {
+  if (fiend?.spikeSlowed) {
+    restoreSpikeSlow(fiend);
+    spikeSlowedFiends.delete(fiend);
+  }
   fiends = fiends.filter(f => f !== fiend);
   activeFiend = null;
   inputDisabled = false;
@@ -2981,6 +3303,7 @@ function resolveLightningHit(fiend) {
   fiend.hp = 0;
   fiend.setState('death');
   audio.playLightningHit();
+  globalThis.ffmHaptics?.impact();
   audio.playEnemyDeath(fiend.type);
   state.enemiesDefeated++;
   recordPracticeEncounterDefeated();
@@ -3000,6 +3323,7 @@ function resolveLightningHit(fiend) {
 // only re-queues its problem.
 function resolveFireballHit(fiend) {
   audio.playFireballHit();
+  globalThis.ffmHaptics?.impact();
   const fireCentre = globalThis.ffmFx?.fiendCentre(fiend);
   if (fireCentre) globalThis.ffmScreenFx?.play('fireImpact', fireCentre);
   fiend.hit();
@@ -3049,6 +3373,7 @@ function handleCorrectAnswer(origin) {
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
       if (state.hearts > previousHearts) {
         audio.playHeal?.();
+        globalThis.ffmHaptics?.heal();
         globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
       }
     }
@@ -3140,6 +3465,7 @@ function handleCorrectAnswer(origin) {
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
       audio.playDragonRoar();
+      globalThis.ffmHaptics?.impact();
 
       if (fiend.isDead) {
         audio.playEnemyDeath(fiend.type);
@@ -3179,6 +3505,7 @@ function handleCorrectAnswer(origin) {
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
       audio.playSwordSwing();
+      globalThis.ffmHaptics?.impact();
       audio.playFiendHit?.(fiend.type);
 
       if (fiend.isDead) {
@@ -3245,6 +3572,7 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
   else audio.playWrong?.();
   // The body blow lands with the strike animation, not on the answer beep.
   audio.playHeroHurt?.(0.12);
+  globalThis.ffmHaptics?.impact();
   state.timerActive = false;
   state.hearts--;
   hud.update(state);
@@ -3266,6 +3594,12 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
 
   scheduleGameplayTimeout(() => {
     if (activeFiend) {
+      // A fiend that leaves the field (retreat/requeue or shapes removal) drops
+      // its spike slow and returns to its base speed.
+      if (typeof restoreSpikeSlow === 'function' && activeFiend.spikeSlowed) {
+        restoreSpikeSlow(activeFiend);
+        if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(activeFiend);
+      }
       const p = activeFiend.problem;
       // Shapes problems have no text question (see shapes.js's
       // displayMode: 'shapes') — fall back to a plain "Answer: N" reveal.
@@ -3314,7 +3648,20 @@ function activatePendingProblem() {
   pendingProblemActivation = null;
   lastCastAbility = null;
   const mode = getCurrentInputMode();
+  // A requeued fiend comes back with a freshly computed base speed; if it was
+  // slowed before it retreated, the active spike re-applies the slow on top.
+  const wasSpikeSlowed = typeof restoreSpikeSlow === 'function' && Boolean(fiend.spikeSlowed);
+  if (wasSpikeSlowed) {
+    restoreSpikeSlow(fiend);
+    if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
+  }
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x);
+  if (wasSpikeSlowed && typeof abilityRuntime !== 'undefined' &&
+      abilityRuntime?.spikeState.active &&
+      typeof applySpikeSlow === 'function' &&
+      applySpikeSlow(fiend, abilityRuntime.spikeState.factor)) {
+    spikeSlowedFiends.add(fiend);
+  }
   activeFiend = fiend;
   state.timerRemaining = getProblemTimerRemaining(state.timerMax, state.timerRemaining, preserveTimer);
   state.timerActive = !['assisted', 'targeted'].includes(practiceRun?.kind);
@@ -3392,11 +3739,13 @@ function triggerWaveClear() {
     if (hymn?.then) hymn.then((started) => { if (!started) audio.playLevelClear?.(); });
     else audio.playLevelClear?.();
   }
+  globalThis.ffmHaptics?.levelClear();
   const healed = state.hearts < state.maxHearts;
   state.hearts = state.maxHearts;
   if (healed) {
     hero._healAura = GAME_CONFIG.healingAuraDuration;
     audio.playHeal?.();
+    globalThis.ffmHaptics?.heal();
     globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
   }
   hud.update(state);
@@ -3458,6 +3807,7 @@ function finishPracticeSession() {
 
 function returnToTitle() {
   setAnswerInputVisible(false);
+  if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   practiceRun = null;
   state.isShapesMode = false;
   pendingSkillIntro = null;
@@ -3471,8 +3821,36 @@ function returnToTitle() {
   refreshPracticeBadges();
 }
 
+// Shows the next scene under the level-clear score: the upcoming level's art
+// and title, or the finale once level 60 is cleared. It resolves the image
+// exactly like the renderer (level art, then chapter stage) and requests only
+// that one scene; a level file that fails to load swaps to the chapter stage.
+function renderLevelClearPreview(nextLevel) {
+  if (!levelClearPreview) return;
+  const number = Number.parseInt(nextLevel, 10);
+  levelClearPreview.style.display = 'flex';
+  if (!Number.isInteger(number) || number > TOTAL_LEVELS) {
+    levelClearPreviewImage.onerror = null;
+    levelClearPreviewImage.removeAttribute('src');
+    levelClearPreviewImage.style.display = 'none';
+    levelClearPreviewImage.alt = '';
+    levelClearPreviewTitle.textContent = t('overlay.finaleTitle');
+    return;
+  }
+  const stageUrl = stageArtUrl(number);
+  levelClearPreviewImage.style.display = '';
+  levelClearPreviewImage.onerror = () => {
+    levelClearPreviewImage.onerror = null;
+    levelClearPreviewImage.src = stageUrl;
+  };
+  levelClearPreviewImage.src = resolveLevelBackground(number, LEVEL_ART_MANIFEST);
+  levelClearPreviewImage.alt = t('overlay.nextSceneAlt', { level: number });
+  levelClearPreviewTitle.textContent = t('overlay.nextSceneTitle', { level: number });
+}
+
 function triggerLevelClear() {
   setAnswerInputVisible(false);
+  if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   if (practiceRun) {
     finishPracticeSession();
     return;
@@ -3492,6 +3870,7 @@ function triggerLevelClear() {
   lastLevelClearNum = completedLevelNum;
   levelClearTitle.textContent = t('overlay.levelClearTitle', { level: completedLevelNum });
   levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
+  if (typeof renderLevelClearPreview === 'function') renderLevelClearPreview(state.level + 1);
   renderAttemptAccomplishment('level-attempt-summary');
   topBar.style.display = 'flex';
   const finishCompletion = async action => {
@@ -3522,6 +3901,7 @@ function triggerLevelClear() {
   });
   btnReplayLevel.onclick = () => finishCompletion(() => {
     levelClearOverlay.style.display = 'none';
+    if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
     resetLevelAttempt(state, levelStartScore);
     startLevel(completedIndex);
   });
@@ -3533,6 +3913,7 @@ function triggerLevelClear() {
     if (!practiceRun && !platform.isApp && platform.isLoggedIn) await platform.postHighScore(state.score, state.level);
     await refreshProfileAndLeaderboard();
     levelClearOverlay.style.display = 'none';
+    if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
     audio.stopBGM();
     diffSelect.style.display = 'flex';
     if (typeof startMenuMusic === 'function') startMenuMusic();
@@ -3547,6 +3928,7 @@ function triggerLevelClear() {
 
 function triggerGameOver(won = false) {
   setAnswerInputVisible(false);
+  if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   campaignWon = won;
   globalThis.ffmScreenFx?.play(won ? 'levelWon' : 'gameOver');
   gameplayTimers.length = 0;
@@ -3554,6 +3936,7 @@ function triggerGameOver(won = false) {
   activeFireballs = [];
   activeDragons = [];
   gameRunning = false;
+  if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
   resetHealHold();
   input.disable();
   inputDisabled = true;
@@ -3566,6 +3949,7 @@ function triggerGameOver(won = false) {
     else audio.playCampaignVictory?.();
   }
   levelClearOverlay.style.display = 'none';
+  if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
   topBar.style.display = 'flex';
   audio.stopBGM();
   syncKeepAwake();
@@ -3603,6 +3987,7 @@ function triggerGameOver(won = false) {
       return startPracticeSession('shapes', 1);
     }
     resetLevelAttempt(state, levelStartScore);
+    if (typeof beginAbilityRun === 'function') beginAbilityRun(currentLevelIndex + 1);
     startLevel(currentLevelIndex);
   };
   btnReturnTitle.onclick = () => {
@@ -3651,6 +4036,27 @@ function gameLoop(ts) {
 
   if (!paused) advanceGameplayTimers(dt);
 
+  // The level bonus pill counts down in gameplay time only: a pause freezes it
+  // and a level clear hides it (see triggerLevelClear).
+  if (typeof gameplayChrome !== 'undefined') gameplayChrome?.tickBonusNotice?.(dt, { paused });
+
+  // Ability cooldowns only advance while an encounter is live, so pausing,
+  // level clear, game over and loading never burn cooldown time. The bar gets
+  // 0-1 progress every frame and only rewrites DOM text when a value changes.
+  abilityRuntime?.tick(dt, { encounterRunning: gameRunning && !paused });
+  // The spike slow expires with its runtime state; restore every fiend it held.
+  if (abilityRuntime && !abilityRuntime.spikeState.active && spikeSlowedFiends.size > 0) {
+    clearSpikeSlow();
+  }
+  abilityBar.update({
+    level: state.level,
+    progress: abilityRuntime ? (id) => abilityRuntime.progress(id) : 1,
+    runtime: abilityRuntime,
+    bonus: typeof levelBonusRuntime !== 'undefined' ? levelBonusRuntime : null,
+    cooldowns: typeof levelBonusCooldowns !== 'undefined' ? levelBonusCooldowns : null,
+    spikeTargetsLeft: typeof spikeSpawnSlowLeft !== 'undefined' ? spikeSpawnSlowLeft : 0,
+  });
+
   if (gameRunning && !paused) {
     answerClock.advance(dt, state.timerActive && !inputDisabled);
     updateTimer(dt);
@@ -3689,6 +4095,7 @@ function gameLoop(ts) {
       state.hearts = Math.min(state.maxHearts, state.hearts + 1);
       if (state.hearts > previousHearts) {
         audio.playHeal?.();
+        globalThis.ffmHaptics?.heal();
         globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
       }
       hud.update(state);
@@ -3903,8 +4310,9 @@ function gameLoop(ts) {
     untimed: !(state.timerMax > 0) || practiceProgress?.untimed === true,
     paused,
   });
-  // The app's portrait sword row mirrors the "Defeated" readout above.
-  mobileUi?.updateEncounterProgress(encounterProgress ?? { defeated: 0, total: 0 });
+  // The shared portrait sword row mirrors the "Defeated" readout above; it is
+  // hidden by CSS on the web's landscape layout and in the app's landscape.
+  encounterSwords.updateEncounterProgress(encounterProgress ?? { defeated: 0, total: 0 });
 }
 
 function handleUrlAuthTokens() {
@@ -4163,6 +4571,7 @@ onLocaleChange(() => {
   if (levelClearOverlay.style.display !== 'none' && lastLevelClearNum !== null) {
     levelClearTitle.textContent = t('overlay.levelClearTitle', { level: lastLevelClearNum });
     levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
+    renderLevelClearPreview(lastLevelClearNum + 1);
     btnNextLevel.textContent = t(state.level >= TOTAL_LEVELS ? 'overlay.finishGame' : 'overlay.nextLevel');
     if (!platform.isApp && !platform.isLoggedIn) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   }

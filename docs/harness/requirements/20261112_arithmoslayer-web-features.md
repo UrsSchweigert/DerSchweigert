@@ -1,26 +1,31 @@
-# Arithmo Slayer web build: cooldown abilities, haptics, portrait swords, per-level stages
+# Arithmo Slayer: cooldown abilities, haptics, portrait swords, per-level stages (web and both apps)
 
 Status: investigation input only; implementation and deployment are not approved
 Date: 2026-11-12
 Source: owner request 2026-11-12
 
-The web game is `sites/ffm/static/` (`ffm.derschweigert.de`); the Capacitor shells under `sites/ffm/mobile/`
-bundle the same game code. "apps/web" in the owner's wording means this static web build — the repository has no
-`apps/web/`. Add four gameplay/presentation features to it, and keep the app build working from the same modules.
+**Scope is the web build *and* the Android and iOS apps.** `sites/ffm/static/` is the single source for both: the
+site at `ffm.derschweigert.de` deploys it, and `sites/ffm/mobile/scripts/copy-assets.mjs` copies it into the app
+bundle apart from an explicit exclusion list (web-only APIs, tests, generation sources). A feature implemented in
+`sites/ffm/static/` therefore reaches the website and both apps without a second implementation — that is the reason
+the shared modules below are named there and not under `sites/ffm/mobile/`. "apps/web" in the owner's wording means
+this static build; the repository has no `apps/web/`.
 
 Owner decisions recorded 2026-11-12 (do not reopen them in the plan):
 
 | Decision | Choice |
 |---|---|
+| Platforms | Web, Android app and iOS app. Shared game code in `sites/ffm/static/`; app-only seams under `sites/ffm/mobile/`. |
 | Ability activation | Manual: three HUD buttons beside/below the playfield. No auto-cast, no keyboard-only path. |
 | Ability roster | Wind, storm, earth spikes. |
 | Unlock schedule | One ability every 5 levels across the first 15 levels: wind from level 1, storm from level 6, earth spikes from level 11. All three slots are visible from level 1; locked slots are dimmed silhouettes **without artwork**. |
 | Base cooldown | 180 s per ability, ticking only while an encounter is running. |
 | Presentation | Every unlocked ability needs artwork, a ready glow, a sound and particle effects. |
 | Level bonus | Exactly one small bonus per level, starting at level 2, applied to an ability that is already unlocked. Fixed sequence, and the player must be told which bonus they just earned. |
-| Vibration | On impact and on healing. |
+| Vibration | On impact and on healing, **in the web build and in both apps**. Web uses `navigator.vibrate` where the browser has it; the apps go through `@capacitor/haptics`, because iOS WKWebView has no Vibration API and the Android WebView needs the `VIBRATE` permission. |
 | Swords | The app's portrait sword row must also appear in the web build, in the same portrait layout. |
 | Backgrounds | 60 backgrounds, one per level, in exactly the style of the six shipped stage images (measured spec below, taken from the images themselves — **not** the story ART-BIBLE); in level *x* the next level's place is already visible. The level-clear screen previews level *x+1*'s scene. |
+| App art budget | The 19 MB that 60 level images add to the app bundle are accepted. Record the measured growth; do not reduce the web image quality for it. |
 | Model stack | DeepSeek only for every agent role. The single exception is image generation, which uses the GPT image model behind the `image_generation` tool — the same model that produced the six existing stage images. |
 
 ## Requirement inventory
@@ -36,20 +41,35 @@ Owner decisions recorded 2026-11-12 (do not reopen them in the plan):
 | **2.1** | **Bonus ladder** | P1 | One bonus per level from level 2, cycling a fixed four-step sequence — faster cooldown, stronger storm, fiends walk slower, more fiends slowed — assigned round-robin over the abilities unlocked at that level. Pure and unit-tested; every value has a documented cap. |
 | **2.2** | **Bonus notice** | P4 | At level start the player is told which bonus was just earned and for which ability, in DE and EN, through the existing overlay/toast pattern. No notice on level 1. |
 | **2.3** | **Bonus visibility** | P4 | The slot readouts (remaining cooldown, storm count, slow strength) reflect the earned bonuses; tests pin level 1, a mid-chapter level and level 60. |
-| **3.1** | **Haptics module** | P5 | Pure module with an injectable `vibrate` function and named patterns for impact and heal; no-op on unsupported platforms (iOS Safari, desktop), when the vibration preference is off, and when `prefers-reduced-motion` asks for less motion. |
-| **3.2** | **Haptic triggers** | P5 | One vibration per event: sword/fireball/lightning landing on a fiend, hero damage, hold-to-heal heart, recovery heal, level-clear aura. Never on every animation frame. |
-| **3.3** | **Vibration preference** | P5 | A persisted on/off control next to the existing audio settings, default on, DE/EN, exposed to the app build unchanged. |
+| **3.1** | **Haptics module** | P6 | Pure, DOM-free module with an injectable `vibrate` function and named patterns for impact and heal. A separate source resolver picks the platform driver: `navigator.vibrate` when the browser has it, otherwise a **lazy, guarded** `import('@capacitor/haptics')`, otherwise a no-op. The no-op path must also cover a device that has no vibration motor, the preference being off, and `prefers-reduced-motion`. Never throws when the plugin or the API is absent. |
+| **3.2** | **Haptic triggers** | P6 | One vibration per event: sword/fireball/lightning landing on a fiend, hero damage, hold-to-heal heart, recovery heal, level-clear aura. Never on every animation frame, never on a locked or rejected ability cast. |
+| **3.3** | **Vibration preference** | P6 | A persisted on/off control next to the existing audio settings, default on, DE/EN, in the web build and in both apps (the app already persists audio preferences through the same seam). |
+| **3.4** | **App haptics wiring** | P6 | The app build vibrates on the same events: `@capacitor/haptics` is used when present, with the Android `VIBRATE` permission merged by the plugin's own manifest. Both are maintainer-owned prerequisites (M5, M6) — no worker edits `package.json`, `package-lock.json`, `AndroidManifest.xml` or the native projects. The game code, its tests and the app bundle must all pass **before** the plugin lands, because the resolver's no-op path is what ships in that state. |
 | **4.1** | **One sword module** | P6 | The app-only `encounter-swords.js` becomes a single shared module under `static/game/`, with one stylesheet block. The app copy is removed rather than duplicated; `mobile/scripts/copy-assets.mjs` and its bundle check keep passing. |
 | **4.2** | **Web portrait row** | P6 | The web build renders the row in portrait exactly as the app does: one sword per enemy, filled green left to right, glint on fill, `aria-hidden`, hidden in landscape and while hidden, no layout shift of `#mc-buttons`. |
 | **5.1** | **Level art manifest** | P7 | `static/game/levels/manifest.json` maps level → 16:9 background. Resolution order is level art → chapter stage art → legacy background, with the existing `waitForBackgroundLoad()` contract intact so no wrong or blank frame flashes during a swap. |
 | **5.2** | **Per-level backgrounds** | A1 (outside the harness) | 60 pixel-art backgrounds matching the measured style spec, one per level, generated from the six existing stage images as style references, each already showing the next level's setting on the horizon. Produced by the owner with the GPT image model and committed before P7; no worker issue generates, downloads or retouches art. |
 | **5.3** | **Next-scene preview** | P7 | The level-clear screen shows the next level's scene (title and preview image) before continuing; level 60 shows the finale instead. |
 | **5.4** | **Preload budget** | P7 | Only the current and next level image are preloaded/decoded; each image stays within the agreed byte budget; no new eager load of the legacy fallback. |
-| **QA1** | **Unit coverage** | all | Every new pure module has a `node --test` suite; the full `node --test sites/ffm/static/game/*.test.js` and `SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q` stay green. |
-| **QA2** | **No behaviour drift** | all | Auth, billing, leaderboard, scoring, combo abilities, healing and the app bundle keep today's behaviour; no new network request, no new paid service, no analytics. |
+| **QA1** | **Unit coverage** | all | Every new pure module has a `node --test` suite; the full `node --test sites/ffm/static/game/*.test.js` stays green. The Python suite needs Flask and boto3, which the worker image does not install, so it runs in CI (`deploy.yml`), not as a worker check. |
+| **QA2** | **No behaviour drift, both channels** | all | Auth, billing, leaderboard, scoring, combo abilities, healing and the app bundle keep today's behaviour; no new network request, no new paid service, no analytics. Every phase's checks run for the shared code *and* for the app bundle, because both consume `sites/ffm/static/`. |
 | **QA3** | **i18n parity** | all | Every new string exists in DE and EN; `i18n.test.js` stays green. |
-| **QA4** | **App bundle** | P6/P7 | `cd sites/ffm/mobile && npm test` passes; the moved module and the level art are in the bundle check, and the bundle size growth is recorded. |
-| **QA5** | **Accessibility** | P2/P5 | The three slots are reachable and named, the vibration toggle is announced, and nothing new traps focus or depends on colour alone. |
+| **QA4** | **App bundle and weight** | P7/P8 | `cd sites/ffm/mobile && npm test` passes; the moved module, the ability icons, the manifest and every present level image are in the bundle check; `docs/ffm-game-assets.md` records the measured `www/` growth against the accepted ~19 MB for 60 level images. |
+| **QA5** | **Accessibility** | P3/P6 | The three slots are reachable and named, the vibration toggle is announced, and nothing new traps focus or depends on colour alone. |
+
+## Maintainer-owned prerequisites (outside worker authorization)
+
+These touch protected paths or owner accounts. Workers must not attempt them; they stay visible until they have
+evidence.
+
+- **M5 Capacitor Haptics.** Install `@capacitor/haptics` (major matching Capacitor 8) in `sites/ffm/mobile`,
+  update the lockfile, run `npm run copy-assets` and `npx cap sync` so the Android `VIBRATE` permission and the iOS
+  plugin registration exist. Requires merging a `package.json`/native change. Until then the resolver's no-op path is
+  what ships, and every phase must stay green in that state.
+- **M6 Vibration on a device.** Manual check on a real Android phone and a real iPhone: one buzz on a fiend impact and
+  one on a healed heart, silent when the setting is off. Cannot be proven by a JavaScript test.
+- **M7 Level art and ability icons.** The 60 background images and the 3 ability icons are committed by the owner
+  before P8 and P4 consume them (see the art section).
 
 ## Art production (the one step outside the DeepSeek stack)
 
@@ -120,9 +140,12 @@ flowers.
   `sites/ffm/scripts/optimize-art.py` path → `static/game/levels/level-01.webp` … `level-60.webp`.
 - **Provenance**: one row per image appended to `static/promo/art/PROVENANCE.md` (tool, model note, references,
   date), consistent with the existing table.
-- **Review gate**: each batch is checked against the ART-BIBLE medium/palette/border/ground-band rules before the
-  manifest lists it; an unapproved level falls back to its chapter stage image, so a missing image is never a broken
-  background.
+- **Review gate**: each batch is checked against the measured style spec above (medium, palette, symmetric framing,
+  empty arena, ground band, no text or figures) before the manifest lists it; an unapproved level falls back to its
+  chapter stage image, so a missing image is never a broken background.
+- **App weight**: all 60 images ship in both app bundles (`copy-assets.mjs` copies everything under `static/game/`
+  that is not excluded). At ~320 KB each that is roughly 19 MB, which the owner accepted on 2026-11-12; record the
+  measured growth instead of shrinking the web art.
 
 ## Planned phase shape (guidance for the investigator, not a locked plan)
 
@@ -131,11 +154,11 @@ phases as possible and order the phases so no two issues edit the same file in o
 
 | Phase | Scope | Mostly touches | Depends on |
 |---|---|---|---|
-| P1 | Pure models: cooldown abilities, bonus ladder, haptics (new files + tests) | `static/game/cooldown-abilities.js`, `static/game/haptics.js` | — |
+| P1 | Pure models: cooldown abilities, bonus ladder (new files + tests) | `static/game/cooldown-abilities.js` | — |
 | P2 | Slots, activation, wind/storm/spike effects, cooldown ticking | `main.js`, `index.html`, `styles.css` | P1 |
 | P3 | Ability art, ready glow, cast sounds, screen-fx recipes | `static/game/assets` for icons, `screen-fx-effects.js`, `audio.js` | P2 |
 | P4 | Bonus notice and bonus-aware readouts | `gameplay-chrome.js`, `main.js`, `i18n.js` | P2 |
-| P5 | Haptics wiring and preference | `main.js`, `audio-preferences.js`, settings markup | P2 |
+| P5 | Haptics model, platform driver resolver, triggers and persisted preference (web + app) | `static/game/haptics.js`, `main.js`, `audio-preferences.js`, settings markup | P2 |
 | P6 | Shared sword row for web + app | `static/game/encounter-swords.js`, `styles.css`, `main.js`, `mobile/scripts/copy-assets.mjs` | P2 |
 | P7 | Per-level background resolution, preload, level-clear preview | `renderer.js`, `main.js`, `static/game/levels/manifest.json` | P2, A1 |
 | A1 | Asset task: 60 generated backgrounds, prompts, provenance | `static/game/levels/`, `static/promo/art/PROVENANCE.md` | owner/agent, outside the sandbox |
@@ -149,30 +172,41 @@ phases as possible and order the phases so no two issues edit the same file in o
   backgrounds and the three ability icons are committed by the owner before the phase that consumes them; a worker
   only validates and wires files that already exist, and every phase must pass its checks while those files are
   absent (chapter-stage fallback, text-label fallback).
-- **Do not set `policy.model_routing`.** It buys a plan pass for every issue and cannot lower the refiner floor.
+- **Do not set `policy.model_routing`.** It buys a plan pass for every issue. It is no longer needed to keep the
+  refiner cheap: refinement starts on the standard band (`deepseek/deepseek-flash`) and climbs to
+  `deepseek/deepseek-v4-pro` only on its own failed pass.
 - **Keep the reviewer independent.** The reviewer runs on `deepseek/deepseek-v4-pro` whenever the implementer runs on
   `deepseek/deepseek-flash`; a same-model review is refused by the plan.
+- **Refiner cost.** Refinement starts on `deepseek/deepseek-flash`; the strong band is an escalation earned by a
+  failed refinement pass on the same issue, never a per-issue choice.
+- **Overseer on.** `harness plan` runs with the overseer enabled (the harness default since 2026-11-12). A process
+  block - a lost lease, a repeated check failure, a stall - is answered by the strong-tier overseer before you are
+  asked; harness defects and content questions still reach you with its diagnosis. The bound is two rounds per issue.
 - **Documentation-only issues** carry `"tier_fit": "low"`.
 - **Issue ID prefix**: `ffmweb-`, so run branches and pull requests stay distinguishable from other runs.
 - **One promotion, one deploy.** Use the run branch; `main` only moves through the promotion pull request, so the
   deploy happens once and not per issue.
 - **Stable anchors.** New modules anchor on their own files. Issues that must touch `main.js` anchor on the smallest
   surrounding block they own, not on the file.
-- **Manual checks that cannot be automated** stay recorded as pending, never claimed: Web Vibration API on an Android
-  device, iOS behaviour (no Vibration API) in the app, haptic feel, the art review against the ART-BIBLE, and the
-  portrait sword row on a real narrow phone.
+- **Both channels are in scope for every phase.** A phase that changes `sites/ffm/static/` changes the website and
+  both apps at once, so its checks include the app bundle suite; a phase that says "web" and means only the website
+  must say so explicitly.
+- **Manual checks that cannot be automated** stay recorded as pending, never claimed: vibration feel on a real
+  Android phone and a real iPhone after M5, the art review against the measured spec, and the portrait sword row on a
+  real narrow phone.
 
 ## Verification commands
 
 ```
-node --test sites/ffm/static/game/*.test.js
-SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q
-cd sites/ffm/mobile && npm test
-python3 sites/ffm/scripts/optimize-art.py --check   # if the art check supports it, otherwise the documented encode step
+node --test sites/ffm/static/game/*.test.js                 # shared code: web + both apps
+cd sites/ffm/mobile && npm test                              # app bundle, copy-assets, bundle check
+node sites/ffm/static/game/levels/check-art.mjs --manifest    # level art manifest (tolerant of missing images)
+SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q             # CI only: needs Flask and boto3
 ```
 
 ## Non-goals
 
 - No change to the 60-level curriculum, scoring, combo abilities, healing mechanics or difficulty pacing.
-- No new paid service, no analytics, no native plugin beyond what the app already ships.
+- No new paid service, no analytics. The only new native plugin is `@capacitor/haptics` (M5), installed by the
+  owner, never by a worker.
 - No redraw of hero, fiend or item sprites; only the three ability icons and the 60 stage backgrounds are new art.
