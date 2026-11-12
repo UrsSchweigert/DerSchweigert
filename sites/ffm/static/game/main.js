@@ -2522,6 +2522,9 @@ function activateAbility(id) {
   if (!abilityRuntime) return false;
   if (abilityRuntime.progress(id) < 1) return false;
   if (id === 'wind' && (!activeFiend || inputDisabled)) return false;
+  // Storm always leaves one enemy behind, so a wave with nothing to spare is
+  // refused before the cooldown is spent.
+  if (id === 'storm' && remainingEnemyCount() < 2) return false;
   if (!abilityRuntime.activate(id)) return false;
   if (id === 'wind') return castWindAbility();
   if (id === 'storm') return castStormAbility();
@@ -2529,12 +2532,16 @@ function activateAbility(id) {
 }
 
 // How many encounters remain on the field: every queued spawn, every requeued
-// fiend and every live fiend. The active fiend is normally one of `fiends`,
-// but a cast can arrive while it is between arrays, so it is counted exactly
-// once either way.
+// fiend and every live fiend. A requeued fiend waits with state 'retreat' until
+// it walks back on, which the dragon-breath count treats as resolved, so the
+// requeue list is counted here on its own. The active fiend is normally one of
+// `fiends`, but a cast can arrive while it is between arrays, so it is counted
+// exactly once either way.
 function remainingEnemyCount() {
-  return countDragonRemainingEncounters({ fiends, spawnQueue, requeuedFiends }) +
-    (activeFiend && !fiends.includes(activeFiend) ? 1 : 0);
+  const requeued = new Set(requeuedFiends.filter((f) => f && !f.isDead));
+  return countDragonRemainingEncounters({ fiends, spawnQueue }) +
+    requeued.size +
+    (activeFiend && !fiends.includes(activeFiend) && !requeued.has(activeFiend) ? 1 : 0);
 }
 
 // Remove the active fiend for an ability cast: it retreats off the field
@@ -2589,10 +2596,9 @@ function castStormAbility() {
   state.enemiesDefeated += removed;
   hud.update(state);
   if (checkAllDefeated()) triggerWaveClear();
-  else {
-    inputDisabled = false;
-    spawnTimer = spawnInterval;
-  }
+  // `inputDisabled` belongs to the encounter flow: a storm cast during a
+  // reveal must not re-enable answering mid-sequence.
+  else spawnTimer = spawnInterval;
   return true;
 }
 

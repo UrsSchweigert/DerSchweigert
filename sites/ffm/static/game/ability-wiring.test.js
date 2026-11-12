@@ -294,18 +294,25 @@ describe('storm ability', () => {
     vm.runInContext('beginAbilityRun(6, 5);', context);
 
     const active = fiendStub();
+    const requeuedA = fiendStub('retreat');
+    const requeuedB = fiendStub('retreat');
     context.spawnQueue = [6, 6];
-    context.requeuedFiends = [fiendStub(), fiendStub()];
-    context.fiends = [active];
+    context.requeuedFiends = [requeuedA, requeuedB];
+    // A requeued fiend waits in 'retreat' state, still in `fiends`, until it
+    // walks back on -- exactly as handleWrongAnswer leaves it.
+    context.fiends = [active, requeuedA, requeuedB];
     context.activeFiend = active;
 
     // remaining = 2 + 2 + 1 = 5; rank 5 -> min(6, 4) = 4: drain queue + requeue.
+    const hudUpdatesBefore = context.__calls.hudUpdates;
     assert.equal(vm.runInContext("activateAbility('storm')", context), true);
     assert.deepEqual(context.spawnQueue, [], 'spawnQueue is drained first');
     assert.deepEqual(context.requeuedFiends, [], 'requeuedFiends are drained second');
     assert.equal(context.activeFiend, active, 'the active fiend survives with one left');
     assert.equal(active.state, 'walk', 'a surviving active fiend is untouched');
     assert.equal(context.state.enemiesDefeated, 4, 'each removal counts once');
+    assert.equal(context.__calls.hudUpdates, hudUpdatesBefore + 1,
+      'the Defeated readout refreshes once');
   });
 
   it('removes the active fiend last, after the queue and requeue run dry', () => {
@@ -315,9 +322,10 @@ describe('storm ability', () => {
 
     const active = fiendStub();
     const survivor = fiendStub();
+    const requeued = fiendStub('retreat');
     context.spawnQueue = [6];
-    context.requeuedFiends = [fiendStub()];
-    context.fiends = [active, survivor];
+    context.requeuedFiends = [requeued];
+    context.fiends = [active, survivor, requeued];
     context.activeFiend = active;
 
     // remaining = 1 + 1 + 2 = 4; rank 5 -> min(6, 3) = 3: queue + requeue + active.
@@ -345,6 +353,62 @@ describe('storm ability', () => {
     assert.equal(vm.runInContext("activateAbility('storm')", context), false);
     assert.equal(context.state.enemiesDefeated, 0);
     assert.equal(context.activeFiend, lone, 'the lone fiend survives');
+    assert.equal(readRuntime(context).progress('storm'), 1, 'a refused storm keeps its cooldown');
+  });
+
+  it('returns false without spending the cooldown when no enemy remains', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 6, chapter: 1, waveSize: 30 });', context);
+    vm.runInContext('beginAbilityRun(6, 5);', context);
+    context.spawnQueue = [];
+    context.requeuedFiends = [];
+    context.fiends = [];
+    context.activeFiend = null;
+
+    assert.equal(vm.runInContext('remainingEnemyCount()', context), 0);
+    assert.equal(vm.runInContext("activateAbility('storm')", context), false);
+    assert.equal(readRuntime(context).progress('storm'), 1, 'the cooldown stays full');
+    assert.equal(context.state.enemiesDefeated, 0);
+  });
+
+  it('counts requeued fiends that are still retreating off the field', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 6, chapter: 1, waveSize: 30 });', context);
+    vm.runInContext('beginAbilityRun(6, 5);', context);
+
+    const requeued = fiendStub('retreat');
+    context.spawnQueue = [6];
+    context.requeuedFiends = [requeued];
+    context.fiends = [requeued];
+    context.activeFiend = null;
+
+    assert.equal(vm.runInContext('remainingEnemyCount()', context), 2,
+      'a retreating requeued fiend is still a remaining enemy');
+
+    // remaining = 2; rank 5 -> min(6, 1) = 1: the queue drains first.
+    assert.equal(vm.runInContext("activateAbility('storm')", context), true);
+    assert.deepEqual(context.spawnQueue, []);
+    assert.deepEqual(context.requeuedFiends, [requeued], 'the requeued fiend survives with one left');
+    assert.equal(context.state.enemiesDefeated, 1);
+  });
+
+  it('removes requeued fiends waiting in retreat state once the queue is empty', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 6, chapter: 1, waveSize: 30 });', context);
+    vm.runInContext('beginAbilityRun(6, 5);', context);
+
+    const first = fiendStub('retreat');
+    const second = fiendStub('retreat');
+    context.spawnQueue = [];
+    context.requeuedFiends = [first, second];
+    context.fiends = [first, second];
+    context.activeFiend = null;
+
+    // remaining = 2; rank 5 -> min(6, 1) = 1: one requeued fiend is removed.
+    assert.equal(vm.runInContext("activateAbility('storm')", context), true);
+    assert.deepEqual(context.requeuedFiends, [second], 'the first requeued fiend is drained');
+    assert.equal(context.state.enemiesDefeated, 1);
+    assert.equal(context.__calls.triggerWaveClear, 0, 'one enemy always remains');
   });
 
   it('hands the wave-clear check off to triggerWaveClear when the queue empties', () => {
