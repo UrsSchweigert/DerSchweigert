@@ -275,3 +275,56 @@ test('all four answer buttons keep 44px touch targets at 320px portrait', () => 
       `${viewport.width}x${viewport.height}: buttons must stay >=44px with the sword row (${buttonHeight}px)`);
   }
 });
+
+// --- defeat glint ------------------------------------------------------
+// The glint converts a sword's client rect into the screen-FX layer's world
+// coordinates. In landscape the row is display:none, so the rect is 0x0 at the
+// viewport origin and the conversion lands above the playfield: the spark fired
+// into the top-left corner of the screen on every defeat.
+function stubScreenFx({ offsetX = 14, offsetY = 150, scale = 1.1 } = {}) {
+  const plays = [];
+  const previous = globalThis.ffmScreenFx;
+  globalThis.ffmScreenFx = {
+    mapping: () => ({ offsetX, offsetY, scale, width: 800, height: 450 }),
+    play: (name, payload) => plays.push({ name, payload }),
+  };
+  return { plays, restore: () => { globalThis.ffmScreenFx = previous; } };
+}
+
+test('a defeat glints at the sword that filled, in world coordinates', () => {
+  const { doc } = fakeDocument();
+  const fx = stubScreenFx({ offsetX: 14, offsetY: 150, scale: 1.1 });
+  try {
+    const widget = createEncounterSwords({ doc });
+    widget.updateEncounterProgress({ defeated: 0, total: 5 });
+    const sword = widget.swords[2];
+    sword.getBoundingClientRect = () => ({ left: 160, top: 600, width: 12, height: 20 });
+    widget.updateEncounterProgress({ defeated: 3, total: 5 });
+
+    assert.equal(fx.plays.length, 1, 'one glint for the sword that turned green');
+    assert.equal(fx.plays[0].name, 'swordGain');
+    assert.deepEqual(fx.plays[0].payload, {
+      x: (166 - 14) / 1.1,
+      y: (610 - 150) / 1.1,
+    });
+  } finally {
+    fx.restore();
+  }
+});
+
+test('a defeat does not glint at a hidden sword row', () => {
+  const { doc } = fakeDocument();
+  const fx = stubScreenFx();
+  try {
+    const widget = createEncounterSwords({ doc });
+    widget.updateEncounterProgress({ defeated: 0, total: 5 });
+    // display:none reports an all-zero rect at the viewport origin (landscape).
+    for (const sword of widget.swords) {
+      sword.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0 });
+    }
+    widget.updateEncounterProgress({ defeated: 2, total: 5 });
+    assert.deepEqual(fx.plays, [], 'no spark without a drawn sword to anchor it');
+  } finally {
+    fx.restore();
+  }
+});
