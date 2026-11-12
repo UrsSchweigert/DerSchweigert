@@ -36,7 +36,7 @@ would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 
 | Section | Anchor | Content |
 | --- | --- | --- |
-| Hero | `#hero` | Centred poster: kicker, logo with shine, headline, the browser CTA, the glowing **open-beta pill** (`hero.betaLabel`/`hero.betaText` → `/beta/`, own row directly above the store badges), the two disabled store badges, payment-split subline. The stage is landscape only (act-1 backdrop, sunrise gradient, intro village, parallax) — no characters. |
+| Hero | `#hero` | Centred poster: kicker, logo with shine, headline, then the CTA block in priority order — the brass-filled, glowing **open-beta pill** (`hero.betaLabel`/`hero.betaText` → `/beta/`, own row) first, the two disabled store badges second, the browser game as a ghost button last — plus the payment-split subline. The stage is landscape only (act-1 backdrop, sunrise gradient, intro village, parallax) — no characters. |
 | Age cards | `#generationen` | Kindergarten / Grundschule / Erwachsene: `art/heroes/hero-*.webp` standing on `art/stages/stage-*.webp`, one aspect ratio and one hero baseline for all three. |
 | Handcrafted | `#kunst` | Story wrap-up, the six finished acts from `art/acts/act-1…6.webp` in the keyboard-scrollable filmstrip with their real titles, three action stills (`art/action/{fight,fireball,lightning}.webp`), and the fiend parade with the dragon. |
 | How it plays | `#spiel` | Four difficulty cards with inline-SVG iconography (shape trio for Shapes, one to three swords for Easy/Medium/Hard) and a visually hidden "difficulty n of 3" sentence. |

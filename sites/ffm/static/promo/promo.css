@@ -556,14 +556,14 @@ ul {
   margin-bottom: 0.9em;
 }
 
-/* The open beta is the only offer that is live, so it sits between the
-   primary action and the two coming-soon store badges: its own centred row,
-   with a slow brass glow that the reduced-motion block below switches off. */
+/* The open beta is the primary offer: it comes first, filled like the primary
+   button, on its own centred row. The store badges follow as coming-soon
+   markers and the browser link closes the block as the secondary action. */
 .hero-beta-row {
   flex: 1 0 100%;
   display: flex;
   justify-content: center;
-  margin: 2px 0 0;
+  margin: 0 0 2px;
 }
 
 .hero-beta {
@@ -572,15 +572,16 @@ ul {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.15em 0.55em;
+  gap: 0.15em 0.6em;
   max-width: 100%;
-  padding: 0.55em 1.15em;
-  border: 1px solid rgba(228, 197, 119, 0.75);
+  padding: 0.72em 1.5em;
+  border: 1px solid rgba(255, 248, 224, 0.7);
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(196, 154, 72, 0.22), rgba(9, 20, 17, 0.78));
-  color: var(--ivory);
+  background-image: linear-gradient(180deg, var(--brass-light), var(--brass) 62%, var(--brass-deep));
+  color: #14170e;
   font-family: var(--mono);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
+  font-weight: 700;
   letter-spacing: 0.07em;
   text-align: center;
   text-transform: uppercase;
@@ -588,7 +589,7 @@ ul {
   box-shadow:
     0 0 26px -4px rgba(228, 197, 119, 0.7),
     0 0 64px -20px rgba(228, 197, 119, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
   animation: hero-beta-glow 3.8s ease-in-out infinite;
   transition: transform 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
@@ -610,13 +611,13 @@ ul {
 
 .hero-beta:hover,
 .hero-beta:focus-visible {
-  color: #fff8e6;
-  border-color: var(--brass-light);
+  color: #0c1109;
+  border-color: #fff8e6;
   transform: translateY(-1px);
 }
 
 .hero-beta-label {
-  color: var(--brass-light);
+  color: #2b1d05;
   font-weight: 700;
 }
 
@@ -625,13 +626,22 @@ ul {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: var(--brass-light);
-  box-shadow: 0 0 10px 2px rgba(228, 197, 119, 0.75);
+  background: #14170e;
+  box-shadow: 0 0 0 3px rgba(20, 23, 14, 0.16);
   animation: hero-beta-pulse 2.2s ease-in-out infinite;
 }
 
 .hero-beta-arrow {
-  color: var(--brass);
+  color: #2b1d05;
+}
+
+/* The browser game is the secondary action now: it closes the CTA block on
+   its own row, below the store badges. */
+.hero-browser-row {
+  flex: 1 0 100%;
+  display: flex;
+  justify-content: center;
+  margin: 2px 0 0;
 }
 
 @keyframes hero-beta-glow {
@@ -2098,7 +2108,9 @@ ul {
 
   /* The gold call to action keeps the full row; the two store badges share
      the next row so nothing gets cramped at 320 px. */
-  .hero-ctas .btn-primary {
+  /* The beta pill is the primary action now, so the browser button is the one
+     that has to fit a full row on a phone. */
+  .hero-browser-row .btn {
     flex: 1 1 100%;
   }
 
@@ -2207,7 +2219,7 @@ ul {
   .hero-beta {
     box-shadow:
       0 0 26px -4px rgba(228, 197, 119, 0.7),
-      inset 0 1px 0 rgba(255, 255, 255, 0.16);
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
 
   .hero-beta::before {
