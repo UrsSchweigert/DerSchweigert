@@ -302,13 +302,13 @@ module "site" {
   # fallback that serves the game at "/" when the function is not attached.
   default_root_object = "index.html"
 
-  # Serves the promo landing page at "/" and the game at "/play"; the bucket
-  # has no directory-index support and no 403 rewrite, so this is the only way
-  # to get those clean URLs without moving static/index.html (the Capacitor
-  # bundler depends on that path). Attached to the default cache behavior
-  # only, so /api/* and /unlock* are unaffected.
+  # Serves the promo landing page at "/", the open-beta invite page at "/beta"
+  # and the game at "/play"; the bucket has no directory-index support and no
+  # 403 rewrite, so this is the only way to get those clean URLs without moving
+  # static/index.html (the Capacitor bundler depends on that path). Attached to
+  # the default cache behavior only, so /api/* and /unlock* are unaffected.
   viewer_request_function_code    = file("${path.module}/cloudfront/landing-rewrite.js")
-  viewer_request_function_comment = "Rewrites / and /promo to the promo landing page and /play to the game"
+  viewer_request_function_comment = "Rewrites / and /promo to the promo landing page, /beta to the beta invite page and /play to the game"
 
   route53_zone_ids_by_domain = {
     "arithmoslayer.de"     = aws_route53_zone.arithmoslayer.zone_id

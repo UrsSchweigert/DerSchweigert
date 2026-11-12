@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="de" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arithmo Slayer – Offene Beta für iPhone und Android</title>
+  <meta name="description" content="Offene Beta für Arithmo Slayer: Auf iOS installierst du die App über TestFlight, für Android trägst du deine Google-Adresse in die Warteliste für den Play-Test-Track ein. Beide Wege sind kostenlos.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://arithmoslayer.de/beta/">
+  <meta name="theme-color" content="#0d1b2a">
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Arithmo Slayer">
+  <meta property="og:title" content="Arithmo Slayer – Offene Beta für iPhone und Android">
+  <meta property="og:description" content="iOS über TestFlight, Android über die Play-Warteliste: kostenlos mitspielen, Rückmeldung geben, die App vor allen anderen sehen.">
+  <meta property="og:url" content="https://arithmoslayer.de/beta/">
+  <meta property="og:image" content="https://arithmoslayer.de/promo/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Arithmo Slayer – goldener Schriftzug über gemalter Papierbühne">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Arithmo Slayer – Offene Beta für iPhone und Android">
+  <meta name="twitter:description" content="iOS über TestFlight, Android über die Play-Warteliste: kostenlos mitspielen und Rückmeldung geben.">
+  <meta name="twitter:image" content="https://arithmoslayer.de/promo/og-image.png">
+
+  <link rel="stylesheet" href="/promo/promo.css">
+  <link rel="stylesheet" href="/beta/beta.css">
+  <script src="/beta/beta.js" type="module"></script>
+</head>
+<body id="beta-root">
+  <a class="skip-link" href="#main" data-i18n="beta.a11y.skip">Zum Inhalt springen</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="wordmark" href="/play">
+        <img src="/game/title-logo.webp" alt="Arithmo Slayer" width="1408" height="680" decoding="async">
+      </a>
+
+      <nav class="site-nav" aria-label="Hauptnavigation" data-i18n-aria-label="beta.a11y.mainNav">
+        <ul>
+          <li><a href="#ablauf" data-i18n="beta.nav.steps">Ablauf</a></li>
+          <li><a href="#ios" data-i18n="beta.nav.ios">iOS</a></li>
+          <li><a href="#android" data-i18n="beta.nav.android">Android</a></li>
+          <li><a href="#faq" data-i18n="beta.nav.faq">FAQ</a></li>
+        </ul>
+      </nav>
+
+      <div class="header-actions">
+        <button id="beta-lang-toggle" class="lang-toggle" type="button"
+                aria-label="Sprache wechseln: Englisch" data-i18n-aria-label="beta.nav.langToggle"
+                title="Sprache wechseln: Englisch" data-i18n-title="beta.nav.langToggle">
+          <span class="lang-toggle-code" aria-hidden="true">EN</span>
+        </button>
+        <a class="btn btn-primary btn-sm" href="/play" data-i18n="beta.nav.play">Jetzt spielen</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero beta-hero" aria-labelledby="beta-title">
+      <div class="hero-stage" aria-hidden="true">
+        <img class="layer layer-sky" src="/story/scenes/act-1/backdrop.webp" alt="" width="1536" height="1024"
+             fetchpriority="high" decoding="async" data-parallax="0.16">
+        <div class="layer layer-sunrise"></div>
+        <img class="layer layer-village" src="/story/scenes/intro/village.webp" alt="" width="1536" height="536"
+             decoding="async" data-parallax="0.06">
+      </div>
+
+      <div class="wrap hero-inner">
+        <div class="hero-copy">
+          <p class="kicker" data-i18n="beta.hero.kicker">Offene Beta für iPhone und Android</p>
+
+          <span class="hero-logo-wrap">
+            <img class="hero-logo" src="/game/title-logo.webp" alt="Arithmo Slayer" width="1408" height="680" decoding="async">
+            <span class="hero-logo-shine" aria-hidden="true"></span>
+          </span>
+
+          <h1 id="beta-title" data-i18n="beta.hero.title">Spiele Arithmo Slayer, bevor es alle tun</h1>
+          <p class="hero-sub" data-i18n="beta.hero.sub">Die offene Beta läuft auf iOS über TestFlight – und für Android sammeln wir gerade die Google-Adressen für den Play-Test-Track. Kostenlos, ohne Abo, mit direkter Rückmeldung an uns.</p>
+
+          <div class="hero-ctas">
+            <a class="btn btn-primary" href="https://testflight.apple.com/join/66sUYcn3" target="_blank" rel="noopener" data-i18n="beta.hero.ctaIos">iOS-Beta bei TestFlight starten</a>
+            <a class="btn btn-ghost" href="#android">
+              <img class="store-icon" src="/promo/art/ui/badge-playstore.svg" alt="" width="24" height="24" decoding="async">
+              <span data-i18n="beta.hero.ctaAndroid">Android: auf die Warteliste</span>
+            </a>
+          </div>
+        </div>
+
+        <figure class="hero-phone">
+          <div class="phone">
+            <span class="phone-notch" aria-hidden="true"></span>
+            <div class="phone-screen">
+              <img src="/promo/art/ui/title-screen.webp" alt="Titelbildschirm der App: Logo, Profilauswahl und Startknopf" width="1170" height="2532" decoding="async">
+            </div>
+          </div>
+          <figcaption data-i18n="beta.hero.phoneCaption">Titelbildschirm der App</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="beta-strip" aria-label="Voraussetzungen" data-i18n-aria-label="beta.strip.label">
+      <ul class="wrap beta-strip-list">
+        <li>
+          <strong data-i18n="beta.strip.osTitle">iOS 15 oder neuer</strong>
+          <span data-i18n="beta.strip.osText">iPhone und iPad</span>
+        </li>
+        <li>
+          <strong data-i18n="beta.strip.testflightTitle">Kostenlose TestFlight-App</strong>
+          <span data-i18n="beta.strip.testflightText">von Apple, aus dem App Store</span>
+        </li>
+        <li>
+          <strong data-i18n="beta.strip.costTitle">Kostenlos, kein Konto</strong>
+          <span data-i18n="beta.strip.costText">lokale Profile, keine E-Mail</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="section" id="ablauf" aria-labelledby="steps-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="beta.steps.kicker">Zwei Wege in die Beta</p>
+          <h2 id="steps-title" data-i18n="beta.steps.title">So kommst du hinein</h2>
+          <p class="lead" data-i18n="beta.steps.lead">iOS läuft über TestFlight und ist offen. Android läuft über den Test-Track von Google Play – dort sammeln wir zuerst die Google-Adressen, die eingeladen werden sollen.</p>
+        </header>
+
+        <article class="beta-track reveal" id="ios" aria-labelledby="ios-title">
+          <header class="beta-track-head">
+            <p class="beta-badge beta-badge--open" data-i18n="beta.ios.badge">Jetzt offen</p>
+            <h3 id="ios-title" data-i18n="beta.ios.title">iOS über TestFlight</h3>
+            <p data-i18n="beta.ios.text">Die iOS-Beta läuft als TestFlight-Build direkt von Apple. Du bekommst den Stand, an dem wir gerade arbeiten – samt der Baustellen, die noch offen sind.</p>
+            <dl class="beta-facts">
+              <div>
+                <dt data-i18n="beta.ios.deviceLabel">Geräte</dt>
+                <dd data-i18n="beta.ios.deviceValue">iPhone und iPad mit iOS 15 oder neuer</dd>
+              </div>
+              <div>
+                <dt data-i18n="beta.ios.accessLabel">Zugang</dt>
+                <dd data-i18n="beta.ios.accessValue">Öffentlicher Link, keine E-Mail-Einladung nötig</dd>
+              </div>
+              <div>
+                <dt data-i18n="beta.ios.costLabel">Kosten</dt>
+                <dd data-i18n="beta.ios.costValue">Kostenlos, Level <span class="nb">1–2</span> bleiben gratis</dd>
+              </div>
+            </dl>
+          </header>
+
+          <ol class="beta-steps">
+            <li class="beta-step">
+              <span class="beta-step-num" aria-hidden="true">1</span>
+              <h4 data-i18n="beta.ios.oneTitle">TestFlight installieren</h4>
+              <p data-i18n="beta.ios.oneText">TestFlight ist Apples App für Beta-Versionen. Lade sie kostenlos aus dem App Store – ohne sie lässt sich die Beta nicht installieren.</p>
+              <a class="beta-step-link" href="https://apps.apple.com/app/testflight/id899247664" target="_blank" rel="noopener" data-i18n="beta.ios.oneLink">TestFlight im App Store öffnen</a>
+            </li>
+            <li class="beta-step">
+              <span class="beta-step-num" aria-hidden="true">2</span>
+              <h4 data-i18n="beta.ios.twoTitle">Einladung annehmen</h4>
+              <p data-i18n="beta.ios.twoText">Öffne den Einladungslink auf demselben Gerät. TestFlight zeigt Arithmo Slayer mit einem Annehmen-Knopf – ein Tipp genügt.</p>
+              <a class="beta-step-link" href="https://testflight.apple.com/join/66sUYcn3" target="_blank" rel="noopener" data-i18n="beta.ios.twoLink">Einladung öffnen</a>
+            </li>
+            <li class="beta-step">
+              <span class="beta-step-num" aria-hidden="true">3</span>
+              <h4 data-i18n="beta.ios.threeTitle">Installieren und losspielen</h4>
+              <p data-i18n="beta.ios.threeText">Tippe in TestFlight auf Installieren, starte die App und lege ein lokales Profil an. Level <span class="nb">1–2</span> spielst du sofort gratis.</p>
+              <p class="beta-step-meta" data-i18n="beta.ios.threeMeta">Spielbar offline · kein Login</p>
+            </li>
+            <li class="beta-step">
+              <span class="beta-step-num" aria-hidden="true">4</span>
+              <h4 data-i18n="beta.ios.fourTitle">Rückmeldung geben</h4>
+              <p data-i18n="beta.ios.fourText">Was hakt, was fehlt, was ist unklar? Schreib uns – jede Meldung aus der Beta landet direkt bei uns.</p>
+              <a class="beta-step-link" href="mailto:info@derschweigert.de?subject=Arithmo%20Slayer%20iOS-Beta%20Feedback" data-i18n="beta.ios.fourLink">Mail schreiben</a>
+            </li>
+          </ol>
+
+          <p class="beta-note" data-i18n="beta.ios.note">Der Link bleibt offen, solange die Beta läuft. TestFlight-Builds verfallen nach 90 Tagen – wir laden neue hoch, damit du durchspielen kannst.</p>
+
+          <div class="beta-unlock">
+            <h4 data-i18n="beta.ios.unlockTitle">Vollversion in der Beta</h4>
+            <p data-i18n="beta.ios.unlockText">Auch die Vollversion kostet in der Beta nichts: Der Freischalten-Schritt bleibt Teil des Ablaufs, TestFlight berechnet aber keinen Betrag.</p>
+          </div>
+
+          <a class="btn btn-primary" href="https://testflight.apple.com/join/66sUYcn3" target="_blank" rel="noopener" data-i18n="beta.ios.cta">Einladung öffnen</a>
+        </article>
+
+        <article class="beta-track reveal" id="android" aria-labelledby="android-title">
+          <header class="beta-track-head">
+            <p class="beta-badge" data-i18n="beta.android.badge">In Vorbereitung</p>
+            <h3 id="android-title" data-i18n="beta.android.title">Android über Google Play</h3>
+            <p data-i18n="beta.android.text">Die Android-Fassung ist in Arbeit und noch nicht im Play-Test-Track freigegeben. Trag deine Google-Adresse ein – wir laden sie ein, sobald der erste Build dort liegt.</p>
+            <dl class="beta-facts">
+              <div>
+                <dt data-i18n="beta.android.deviceLabel">Geräte</dt>
+                <dd data-i18n="beta.android.deviceValue">Android 7.0 oder neuer</dd>
+              </div>
+              <div>
+                <dt data-i18n="beta.android.accessLabel">Zugang</dt>
+                <dd data-i18n="beta.android.accessValue">Play-Test-Track per Einladung an deine Google-Adresse</dd>
+              </div>
+              <div>
+                <dt data-i18n="beta.android.costLabel">Kosten</dt>
+                <dd data-i18n="beta.android.costValue">Kostenlos, Level <span class="nb">1–2</span> bleiben gratis</dd>
+              </div>
+            </dl>
+          </header>
+
+          <ol class="beta-steps">
+            <li class="beta-step">
+              <span class="beta-step-num" aria-hidden="true">1</span>
+              <h4 data-i18n="beta.android.oneTitle">Google-Adresse eintragen</h4>
+              <p data-i18n="beta.android.oneText">Trag die Adresse deines Google-Kontos in das Formular ein – mehr brauchen wir nicht, kein Passwort und kein Profil.</p>
+            </li>
+            <li class="beta-step">
+              <span class="beta-step-num" aria-hidden="true">2</span>
+              <h4 data-i18n="beta.android.twoTitle">Einladung abwarten</h4>
+              <p data-i18n="beta.android.twoText">Sobald der Test-Track offen ist, laden wir deine Adresse in der Play Console ein. Du bekommst dann eine Mail von Google Play.</p>
+            </li>
+            <li class="beta-step">
+              <span class="beta-step-num" aria-hidden="true">3</span>
+              <h4 data-i18n="beta.android.threeTitle">Beitreten und installieren</h4>
+              <p data-i18n="beta.android.threeText">Öffne die Mail, tritt dem Test bei und installiere Arithmo Slayer aus dem Play Store.</p>
+              <p class="beta-step-meta" data-i18n="beta.android.threeMeta">Spielbar offline · kein Login</p>
+            </li>
+            <li class="beta-step">
+              <span class="beta-step-num" aria-hidden="true">4</span>
+              <h4 data-i18n="beta.android.fourTitle">Rückmeldung geben</h4>
+              <p data-i18n="beta.android.fourText">Was hakt, was fehlt, was ist unklar? Schreib uns – jede Meldung aus der Beta landet direkt bei uns.</p>
+              <a class="beta-step-link" href="mailto:info@derschweigert.de?subject=Arithmo%20Slayer%20Android-Beta%20Feedback" data-i18n="beta.android.fourLink">Mail schreiben</a>
+            </li>
+          </ol>
+
+          <form class="beta-signup" id="android-waitlist-form" method="post" action="/api/beta/android-waitlist">
+            <h4 class="beta-signup-title" data-i18n="beta.android.formTitle">Auf die Android-Warteliste</h4>
+            <label class="beta-signup-label" for="android-waitlist-email" data-i18n="beta.android.formLabel">Google-Konto (Gmail-Adresse)</label>
+            <div class="beta-signup-row">
+              <input class="beta-signup-input" id="android-waitlist-email" name="email" type="email"
+                     autocomplete="email" inputmode="email" spellcheck="false" autocapitalize="off"
+                     maxlength="254" required placeholder="name@gmail.com"
+                     data-i18n-placeholder="beta.android.formPlaceholder">
+              <button class="btn btn-primary" type="submit" data-i18n="beta.android.formSubmit">Auf die Warteliste</button>
+            </div>
+            <p class="beta-signup-hint" data-i18n="beta.android.formHint">Nur Gmail- oder Googlemail-Adressen – mit einer Workspace-Adresse kann Google Play dich nicht einladen.</p>
+            <p class="beta-signup-status" id="android-waitlist-status" role="status" aria-live="polite"></p>
+            <p class="beta-signup-fallback"><span data-i18n="beta.android.formFallback">Ohne JavaScript schreib uns eine Mail:</span> <a href="mailto:info@derschweigert.de?subject=Arithmo%20Slayer%20Android-Beta">info@derschweigert.de</a></p>
+          </form>
+
+          <p class="beta-note" data-i18n="beta.android.note">Wir nutzen die Adresse nur für diese Einladung – kein Newsletter, keine Weitergabe. Auf Wunsch löschen wir sie jederzeit wieder.</p>
+
+          <div class="beta-unlock">
+            <h4 data-i18n="beta.android.unlockTitle">Vollversion in der Beta</h4>
+            <p data-i18n="beta.android.unlockText">Kostenlos per Play-Promo-Code: Fordere ihn per Mail bei uns an – wir schicken dir den Code, du löst ihn im Play Store ein.</p>
+            <a class="beta-step-link" href="mailto:info@derschweigert.de?subject=Arithmo%20Slayer%20Play-Promo-Code" data-i18n="beta.android.unlockLink">Promo-Code anfordern</a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="beta-art-section" aria-labelledby="art-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="beta.art.kicker">Ein Blick auf die Bühne</p>
+          <h2 id="art-title" data-i18n="beta.art.title">Papier, Licht und ein Drache</h2>
+          <p class="lead" data-i18n="beta.art.lead">Sechs gemalte Akte, 60 Level und 36 Feinde – dieselbe Kunst erwartet dich in der App.</p>
+        </header>
+
+        <ul class="beta-gallery">
+          <li class="reveal">
+            <figure>
+              <img src="/promo/art/action/fight.webp" alt="Der Held im Nahkampf auf einer gemalten Papierbühne" width="1600" height="900" loading="lazy" decoding="async">
+              <figcaption data-i18n="beta.art.captionFight">Nahkampf – der Hieb sitzt.</figcaption>
+            </figure>
+          </li>
+          <li class="reveal">
+            <figure>
+              <img src="/promo/art/acts/act-3.webp" alt="Akt 3: ein Wald aus gestaffelten Papierschichten" width="1920" height="1080" loading="lazy" decoding="async">
+              <figcaption data-i18n="beta.art.captionForest">Akt 3 · Der erinnernde Wald</figcaption>
+            </figure>
+          </li>
+          <li class="reveal">
+            <figure>
+              <img src="/promo/art/action/lightning.webp" alt="Die Blitzkugel als Combo-Finale über dem Schlachtfeld" width="1600" height="900" loading="lazy" decoding="async">
+              <figcaption data-i18n="beta.art.captionStorm">Die Blitzkugel als Combo-Finale.</figcaption>
+            </figure>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="wrap wrap-narrow">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="beta.faq.kicker">FAQ</p>
+          <h2 id="faq-title" data-i18n="beta.faq.title">Häufige Fragen zur Beta</h2>
+        </header>
+
+        <div class="faq-list">
+          <details class="faq-item reveal" open>
+            <summary data-i18n="beta.faq.q1">Was kostet die Beta?</summary>
+            <p data-i18n="beta.faq.a1">Nichts. Die Beta ist kostenlos, Level <span class="nb">1–2</span> bleiben auch danach gratis. Während der Beta ist auch die Vollversion kostenlos: auf iOS im TestFlight-Build, auf Android per Play-Promo-Code. Nach der Beta schaltest du Level <span class="nb">3–60</span> mit einem Einmalkauf frei.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary data-i18n="beta.faq.q2">Brauche ich ein Konto oder eine E-Mail-Adresse?</summary>
+            <p data-i18n="beta.faq.a2">Nein. Die App legt lokale Profile auf dem Gerät an – ohne E-Mail und ohne Passwort. Eine Mail brauchst du nur, wenn du uns schreiben möchtest.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary data-i18n="beta.faq.q3">Welche iOS-Version brauche ich?</summary>
+            <p data-i18n="beta.faq.a3">iOS 15 oder neuer – auf iPhone und iPad – plus die kostenlose TestFlight-App von Apple.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary data-i18n="beta.faq.q4">Wann kommt Android?</summary>
+            <p data-i18n="beta.faq.a4">Sobald der Play-Test-Track offen ist. Wer auf der Warteliste steht, bekommt die Einladung von Google Play per Mail an die eingetragene Google-Adresse.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary data-i18n="beta.faq.q5">Läuft die App offline?</summary>
+            <p data-i18n="beta.faq.a5">Ja. Das Spiel läuft ohne Internet; nur Kauf und Wiederherstellung brauchen eine Verbindung.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary data-i18n="beta.faq.q6">Welche Daten erhebt die Beta?</summary>
+            <p data-i18n="beta.faq.a6">Die App selbst spielt ohne Konto, ohne Werbung und ohne Analyse-Tracking. TestFlight ist Apples Dienst – was Apple dabei erhebt, steht in Apples Datenschutzhinweisen und in unserer Datenschutzerklärung. Für die Android-Warteliste speichern wir nur die Adresse, die du einträgst.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary data-i18n="beta.faq.q7">Was passiert nach der Beta?</summary>
+            <p data-i18n="beta.faq.a7">Dann erscheint Arithmo Slayer im App Store und bei Google Play. TestFlight-Builds laufen nach 90 Tagen ab; die Store-Version installierst du danach regulär.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary data-i18n="beta.faq.q8">Wo melde ich einen Fehler?</summary>
+            <p data-i18n="beta.faq.a8">Schreib an info@derschweigert.de und nenne Gerät, Systemversion und was du gerade gemacht hast. Screenshots helfen.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-grid">
+      <div class="footer-brand">
+        <img src="/game/title-logo.webp" alt="Arithmo Slayer" width="1408" height="680" loading="lazy" decoding="async">
+        <p data-i18n="beta.footer.tagline">Kopfrechnen für Jung und Alt – im Browser, die App für iOS und Android ist in Vorbereitung.</p>
+        <a class="btn btn-ghost btn-sm" href="/play" data-i18n="beta.footer.play">Zum Spiel</a>
+      </div>
+
+      <nav class="footer-col" aria-labelledby="footer-legal-title">
+        <h2 id="footer-legal-title" data-i18n="beta.footer.legalTitle">Rechtliches</h2>
+        <ul>
+          <li><a href="/impressum.html" data-i18n="beta.footer.legalImpressum">Impressum</a></li>
+          <li><a href="/datenschutz.html" data-i18n="beta.footer.legalPrivacy">Datenschutz</a></li>
+          <li><a href="/terms.html" data-i18n="beta.footer.legalTerms">AGB</a></li>
+          <li><a href="/impressum.en.html" hreflang="en" lang="en" data-i18n="beta.footer.legalImpressumEn">Imprint (EN)</a></li>
+          <li><a href="/datenschutz.en.html" hreflang="en" lang="en" data-i18n="beta.footer.legalPrivacyEn">Privacy (EN)</a></li>
+          <li><a href="/terms.en.html" hreflang="en" lang="en" data-i18n="beta.footer.legalTermsEn">Terms (EN)</a></li>
+        </ul>
+      </nav>
+
+      <div class="footer-col">
+        <h2 data-i18n="beta.footer.supportTitle">Support</h2>
+        <p data-i18n="beta.footer.supportText">Fragen, Wünsche oder ein Fehler gefunden? Schreib uns.</p>
+        <a class="footer-mail" href="mailto:info@derschweigert.de">info@derschweigert.de</a>
+      </div>
+    </div>
+    <p class="footer-copy" data-i18n="beta.footer.copyright">© 2026 Der Schweigert · Arithmo Slayer</p>
+  </footer>
+</body>
+</html>
