@@ -95,6 +95,51 @@ export function clampSpikeSlow(params = {}) {
 }
 
 /**
+ * Apply the earth-spike slow to one fiend. The fiend's walk speed at first
+ * contact is stored once as `spikeBaseSpeed`, so repeated casts never
+ * compound; the live speed becomes base * factor with the factor clamped to
+ * the documented floor and 1. Fiends without a finite positive walk speed are
+ * left untouched.
+ * @param {{ walkSpeed?: number, spikeBaseSpeed?: number, spikeSlowed?: boolean }} fiend
+ * @param {number} [factor] - speed multiplier, clamped to the spike caps.
+ * @returns {boolean} whether the fiend was slowed.
+ */
+export function applySpikeSlow(fiend, factor = SPIKE_SLOW_DEFAULTS.factor) {
+  if (!fiend || typeof fiend !== 'object') return false;
+  if (typeof factor !== 'number' || !Number.isFinite(factor)) return false;
+  const storedBase = fiend.spikeSlowed && Number.isFinite(fiend.spikeBaseSpeed) &&
+    fiend.spikeBaseSpeed > 0
+    ? fiend.spikeBaseSpeed
+    : fiend.walkSpeed;
+  if (typeof storedBase !== 'number' || !Number.isFinite(storedBase) || storedBase <= 0) {
+    return false;
+  }
+  const clamped = Math.min(1, Math.max(SPIKE_SLOW_CAPS.factorFloor, factor));
+  fiend.spikeBaseSpeed = storedBase;
+  fiend.walkSpeed = storedBase * clamped;
+  fiend.spikeSlowed = true;
+  return true;
+}
+
+/**
+ * Undo applySpikeSlow: put the fiend back on its stored base speed and forget
+ * the slow, so a later cast stores the base afresh. Returns false when the
+ * fiend was not slowed.
+ * @param {{ walkSpeed?: number, spikeBaseSpeed?: number, spikeSlowed?: boolean }} fiend
+ * @returns {boolean} whether a slow was restored.
+ */
+export function restoreSpikeSlow(fiend) {
+  if (!fiend || typeof fiend !== 'object' || !fiend.spikeSlowed) return false;
+  const base = fiend.spikeBaseSpeed;
+  if (typeof base === 'number' && Number.isFinite(base) && base > 0) {
+    fiend.walkSpeed = base;
+  }
+  delete fiend.spikeBaseSpeed;
+  fiend.spikeSlowed = false;
+  return true;
+}
+
+/**
  * Passive fiend-speed modifier: starts at 1, drops 0.05 per slow bonus and
  * never falls below 0.7.
  * @param {number} [slowBonuses] - number of collected slow bonuses.

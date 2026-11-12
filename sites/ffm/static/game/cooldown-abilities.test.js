@@ -7,9 +7,11 @@ import {
   FIEND_SPEED_FLOOR,
   SPIKE_SLOW_CAPS,
   SPIKE_SLOW_DEFAULTS,
+  applySpikeSlow,
   clampSpikeSlow,
   createAbilityRuntime,
   fiendSpeedMultiplier,
+  restoreSpikeSlow,
 } from './cooldown-abilities.js';
 
 const INERT_SPIKE = {
@@ -201,6 +203,65 @@ describe('earth spike slow', () => {
     assert.deepEqual(runtime.spikeState, INERT_SPIKE);
     runtime.tick(10, { encounterRunning: true });
     assert.deepEqual(runtime.spikeState, INERT_SPIKE);
+  });
+});
+
+describe('spike slow on a fiend', () => {
+  it('stores the base speed once and restores it cleanly', () => {
+    const fiend = { walkSpeed: 100 };
+    assert.equal(applySpikeSlow(fiend, 0.65), true);
+    closeTo(fiend.walkSpeed, 65, 'slowed speed');
+    assert.equal(fiend.spikeBaseSpeed, 100);
+    assert.equal(fiend.spikeSlowed, true);
+
+    assert.equal(restoreSpikeSlow(fiend), true);
+    assert.equal(fiend.walkSpeed, 100);
+    assert.equal(fiend.spikeSlowed, false);
+    assert.equal(fiend.spikeBaseSpeed, undefined);
+    assert.equal(restoreSpikeSlow(fiend), false, 'a second restore is a no-op');
+  });
+
+  it('never compounds across repeated applications', () => {
+    const fiend = { walkSpeed: 80 };
+    applySpikeSlow(fiend, 0.65);
+    applySpikeSlow(fiend, 0.65);
+    applySpikeSlow(fiend, 0.5);
+    closeTo(fiend.walkSpeed, 40, '0.5 of the original base, not of the slowed speed');
+    assert.equal(fiend.spikeBaseSpeed, 80);
+    restoreSpikeSlow(fiend);
+    assert.equal(fiend.walkSpeed, 80);
+  });
+
+  it('clamps the factor to the documented floor and 1', () => {
+    const slow = { walkSpeed: 100 };
+    applySpikeSlow(slow, 0.01);
+    closeTo(slow.walkSpeed, 40, 'floor of 0.4');
+
+    const fast = { walkSpeed: 100 };
+    applySpikeSlow(fast, 4);
+    closeTo(fast.walkSpeed, 100, 'never faster than the base speed');
+  });
+
+  it('leaves fiends with invalid speeds and factors untouched', () => {
+    for (const walkSpeed of [0, -10, NaN, Infinity, undefined, '50']) {
+      const fiend = { walkSpeed };
+      assert.equal(applySpikeSlow(fiend, 0.65), false, `walkSpeed ${String(walkSpeed)}`);
+      assert.equal(fiend.spikeSlowed, undefined);
+      assert.equal(fiend.walkSpeed, walkSpeed);
+    }
+    for (const factor of [NaN, Infinity, '0.5']) {
+      const fiend = { walkSpeed: 100 };
+      assert.equal(applySpikeSlow(fiend, factor), false, `factor ${String(factor)}`);
+      assert.equal(fiend.walkSpeed, 100);
+    }
+    assert.equal(applySpikeSlow(null, 0.65), false);
+    assert.equal(restoreSpikeSlow(null), false);
+  });
+
+  it('uses the default factor when none is given', () => {
+    const fiend = { walkSpeed: 100 };
+    assert.equal(applySpikeSlow(fiend), true);
+    closeTo(fiend.walkSpeed, 65, 'SPIKE_SLOW_DEFAULTS.factor');
   });
 });
 
