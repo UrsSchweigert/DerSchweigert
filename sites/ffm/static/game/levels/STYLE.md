@@ -56,7 +56,21 @@ weight of the shipped stage backgrounds, and be WebP-encoded.
 
 ## Reviewer checklist (six chapters)
 
-An image is accepted only when a reviewer confirms, per chapter:
+Apply four checks per chapter — **medium**, **palette**, **border** and
+**ground band** — to every delivered image. An image is **manifest-approved**
+only after all four pass for its chapter; a failed check sends the image back to
+the owner instead of a signed PROVENANCE.md row.
+
+| Chapter | Levels | Medium | Palette | Border | Ground band |
+| --- | --- | --- | --- | --- | --- |
+| I | 1-10 | 1536x1024 WebP, at or under 409600 bytes | dominant `#606149`, 3-5 step ramps, ordered dithering | no frame or border, no text, lettering, UI or watermark | lower 35-50% empty ground plane, landmark in x 120-1416 / y 80-944 |
+| II | 11-20 | 1536x1024 WebP, at or under 409600 bytes | dominant `#8c593a`, 3-5 step ramps, ordered dithering | no frame or border, no text, lettering, UI or watermark | lower 35-50% empty ground plane, landmark in x 120-1416 / y 80-944 |
+| III | 21-30 | 1536x1024 WebP, at or under 409600 bytes | dominant `#275228`, 3-5 step ramps, ordered dithering | no frame or border, no text, lettering, UI or watermark | lower 35-50% empty ground plane, landmark in x 120-1416 / y 80-944 |
+| IV | 31-40 | 1536x1024 WebP, at or under 409600 bytes | dominant `#5f9e66`, 3-5 step ramps, ordered dithering | no frame or border, no text, lettering, UI or watermark | lower 35-50% empty ground plane, landmark in x 120-1416 / y 80-944 |
+| V | 41-50 | 1536x1024 WebP, at or under 409600 bytes | dominant `#3f2f36`, 3-5 step ramps, ordered dithering | no frame or border, no text, lettering, UI or watermark | lower 35-50% empty ground plane, landmark in x 120-1416 / y 80-944 |
+| VI | 51-60 | 1536x1024 WebP, at or under 409600 bytes | dominant `#2e293a`, 3-5 step ramps, ordered dithering | no frame or border, no text, lettering, UI or watermark | lower 35-50% empty ground plane, landmark in x 120-1416 / y 80-944 |
+
+The same checks, in the order a reviewer runs them:
 
 1. It is 1536x1024 WebP at or under 409600 bytes (`check-art.mjs --all` says
    `ok`, never `oversized` or `wrong size`).
@@ -71,8 +85,12 @@ An image is accepted only when a reviewer confirms, per chapter:
 ## Provenance handoff
 
 Provenance is the owner's responsibility and is appended one row per image,
-alongside the images, to `levels/PROVENANCE.md` (which does not exist yet and
-is never created by the tooling here). Each row records the image file, its
-generator or source, a SHA-256 prefix, the date and the reviewer's sign-off.
-`check-art.mjs` never reads that file; it validates the manifest and the
-images themselves.
+alongside the images, to `levels/PROVENANCE.md` (the tooling here never creates
+or edits it). Each row records the image file, its generator or source, a
+SHA-256 prefix, the date and the reviewer's sign-off.
+
+`check-art.mjs --provenance` audits that file without failing: it reads
+`levels/PROVENANCE.md` when present, prints `missing provenance level-<NN>.webp`
+for every manifest level with no matching row, and exits 0 whether the file or
+any row is absent. A row counts once it names the file in a Markdown table cell,
+so the owner can append rows as the images arrive.

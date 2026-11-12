@@ -1,18 +1,30 @@
 // level-art.test.js — validates the level-background tooling without any
 // level image on disk. It reads only the manifest, the style spec and the
 // prompts; it never reads a level-<NN>.webp file, and it spawns check-art.mjs
-// to confirm the missing-image exit-0 contract.
+// to confirm the missing-image and missing-provenance exit-0 contracts.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const execFileAsync = promisify(execFile);
 const runCheck = (...args) => execFileAsync(process.execPath, [join(here, 'check-art.mjs'), ...args]);
+
+// Copies the tooling into a scratch directory so the provenance tests control
+// whether PROVENANCE.md exists without touching the committed levels folder.
+async function scratchToolDir(provenance) {
+  const dir = await mkdtemp(join(tmpdir(), 'level-art-'));
+  await copyFile(join(here, 'check-art.mjs'), join(dir, 'check-art.mjs'));
+  await copyFile(join(here, 'manifest.json'), join(dir, 'manifest.json'));
+  if (provenance !== undefined) await writeFile(join(dir, 'PROVENANCE.md'), provenance);
+  return dir;
+}
+const runCheckIn = (dir, ...args) => execFileAsync(process.execPath, [join(dir, 'check-art.mjs'), ...args]);
 
 const manifest = JSON.parse(await readFile(join(here, 'manifest.json'), 'utf8'));
 const style = await readFile(join(here, 'STYLE.md'), 'utf8');
@@ -64,6 +76,16 @@ test('STYLE.md records the measured style values', () => {
   }
 });
 
+test('STYLE.md carries the six-chapter review checklist', () => {
+  const lower = style.toLowerCase();
+  for (const token of ['medium', 'palette', 'border', 'ground band', 'manifest-approved']) {
+    assert.ok(lower.includes(token), `STYLE.md is missing ${token}`);
+  }
+  for (const chapter of CHAPTERS) {
+    assert.ok(style.includes(`| ${chapter} |`), `STYLE.md is missing chapter ${chapter}`);
+  }
+});
+
 test('check-art.mjs --manifest validates the manifest alone and exits 0', async () => {
   const { stdout, stderr } = await runCheck('--manifest');
   assert.equal(stderr, '');
@@ -76,4 +98,46 @@ test('check-art.mjs --all exits 0 with no level images and prints each missing l
   assert.match(stdout, /missing level-60\.webp/);
   const missing = (stdout.match(/missing level-\d+\.webp/g) ?? []).length;
   assert.equal(missing, 60, 'all 60 absent levels must be reported missing');
+});
+
+test('check-art.mjs --provenance exits 0 with no PROVENANCE.md and reports every level', async () => {
+  const dir = await scratchToolDir();
+  try {
+    const { stdout, stderr } = await runCheckIn(dir, '--provenance');
+    assert.equal(stderr, '');
+    assert.match(stdout, /missing provenance level-01\.webp/);
+    assert.match(stdout, /missing provenance level-60\.webp/);
+    const missing = (stdout.match(/missing provenance level-\d+\.webp/g) ?? []).length;
+    assert.equal(missing, 60, 'all 60 levels lack a provenance row');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('check-art.mjs --provenance counts a sample row and reports only the rest', async () => {
+  const provenance = [
+    '# Level background provenance',
+    '',
+    '| File | Generator | SHA-256 | Date | Reviewer |',
+    '| --- | --- | --- | --- | --- |',
+    '| `level-01.webp` | sample model | `abc12345` | 2026-11-12 | owner |',
+    '',
+  ].join('\n');
+  const dir = await scratchToolDir(provenance);
+  try {
+    const { stdout, stderr } = await runCheckIn(dir, '--provenance');
+    assert.equal(stderr, '');
+    assert.doesNotMatch(stdout, /missing provenance level-01\.webp/);
+    assert.match(stdout, /missing provenance level-02\.webp/);
+    assert.match(stdout, /missing provenance level-60\.webp/);
+    const missing = (stdout.match(/missing provenance level-\d+\.webp/g) ?? []).length;
+    assert.equal(missing, 59, 'only the one rowed level is covered');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('check-art.mjs --provenance exits 0 in the committed levels folder', async () => {
+  const { stdout } = await runCheck('--provenance');
+  assert.match(stdout, /provenance ok: \d+\/60 levels have a row/);
 });

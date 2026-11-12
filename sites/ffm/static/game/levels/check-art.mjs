@@ -1,12 +1,15 @@
 // Validates the level-background manifest and, with --all, any committed
 // level-<NN>.webp files. The manifest alone must validate without any image on
-// disk, so this phase passes before the owner delivers the level art.
+// disk, so this phase passes before the owner delivers the level art. With
+// --provenance it audits PROVENANCE.md when present and only reports levels
+// that have no row yet, so it passes before and after delivery.
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const manifestPath = join(here, 'manifest.json');
+const provenancePath = join(here, 'PROVENANCE.md');
 
 const WIDTH = 1536;
 const HEIGHT = 1024;
@@ -131,12 +134,44 @@ async function runAll() {
   if (invalid) process.exitCode = 1;
 }
 
+// A row counts as provenance for a level when any cell of a Markdown table row
+// names its file. Rows are owner-written, so the match stays tolerant: backticks
+// and surrounding prose are ignored.
+function provenanceRows(text) {
+  return text
+    .split('\n')
+    .filter((line) => line.trim().startsWith('|'))
+    .map((line) => line.split('|').map((cell) => cell.trim().replaceAll('`', '')));
+}
+
+async function runProvenance() {
+  const manifest = await validateManifest();
+  let text = null;
+  try {
+    text = await readFile(provenancePath, 'utf8');
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw new Error(`cannot read PROVENANCE.md: ${err.message}`);
+  }
+  const rows = provenanceRows(text ?? '');
+  let missing = 0;
+  for (const entry of Object.values(manifest.levels)) {
+    const covered = rows.some((cells) => cells.some((cell) => cell.includes(entry.file)));
+    if (covered) continue;
+    console.log(`missing provenance ${entry.file}`);
+    missing++;
+  }
+  const source = text === null ? 'PROVENANCE.md is absent' : 'PROVENANCE.md is present';
+  console.log(`provenance ok: ${LEVEL_COUNT - missing}/${LEVEL_COUNT} levels have a row (${source})`);
+}
+
 const mode = process.argv[2];
 if (mode === '--manifest') {
   await runManifest();
 } else if (mode === '--all') {
   await runAll();
+} else if (mode === '--provenance') {
+  await runProvenance();
 } else {
-  console.error('usage: check-art.mjs --manifest | --all');
+  console.error('usage: check-art.mjs --manifest | --all | --provenance');
   process.exit(2);
 }
