@@ -204,8 +204,13 @@ test('the release build is signed from the environment and fails loudly without 
   // while debug builds keep working without them.
   assert.match(gradle, /throw new GradleException/);
   assert.match(gradle, /t\.name == 'bundleRelease' \|\| t\.name == 'assembleRelease'/);
-  // No keystore or credentials are ever committed.
-  await assert.rejects(stat(join(root, 'android/keystore.properties')), { code: 'ENOENT' });
+  // Credentials stay out of the repository. A developer machine legitimately has
+  // its own gitignored keystore.properties, so this asserts the ignore rules, not
+  // the absence of the file.
+  const ignore = (await text('.gitignore')).split('\n').map((line) => line.trim());
+  for (const pattern of ['keystore.properties', '*.jks', '*.keystore']) {
+    assert.ok(ignore.includes(pattern), `.gitignore must ignore ${pattern}`);
+  }
 });
 
 test('RELEASING.md records the shell gaps and the open gates', async () => {
