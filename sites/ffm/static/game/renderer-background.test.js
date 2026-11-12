@@ -46,7 +46,7 @@ class FakeImage {
 }
 
 globalThis.Image = FakeImage;
-const { Renderer } = await import('./renderer.js');
+const { Renderer, GROUND_Y } = await import('./renderer.js');
 
 function makeRenderer(manifest = { levels: {} }) {
   FakeImage.instances = [];
@@ -147,4 +147,39 @@ test('the background cache keys on the resolved URL, not the stage index', () =>
   sameStage.renderer.setBackgroundByLevel(11);
   sameStage.renderer.setBackgroundByLevel(11);
   assert.equal(sameStage.background.srcSets.length, 1, 'the same resolved URL is not re-requested');
+});
+
+// --- per-level ground line ---------------------------------------------------
+
+test('groundY starts at the shipped default', () => {
+  const { renderer } = makeRenderer();
+  assert.equal(renderer.groundY, GROUND_Y);
+});
+
+test('groundY takes the level override from the manifest', () => {
+  const { renderer } = makeRenderer({ ...manifestFor(31), groundY: { 31: 336 } });
+  renderer.setBackgroundByLevel(31);
+  assert.equal(renderer.groundY, 336);
+  renderer.setBackgroundByLevel(1);
+  assert.equal(renderer.groundY, GROUND_Y, 'a level without an override falls back to the default');
+});
+
+test('groundY follows the level even when the image URL does not change', () => {
+  // 1 and 2 fall back to the same chapter stage, so the image short-circuit fires.
+  const { renderer, background } = makeRenderer({ levels: {}, groundY: { 2: 344 } });
+  renderer.setBackgroundByLevel(1);
+  const urlBefore = background.src;
+  renderer.setBackgroundByLevel(2);
+  assert.equal(background.src, urlBefore, 'the shared stage image is not re-requested');
+  assert.equal(renderer.groundY, 344, 'but the ground line still follows the level');
+});
+
+test('groundY ignores overrides outside the drawable band', () => {
+  const { renderer } = makeRenderer({ ...manifestFor(5, 6, 7), groundY: { 5: 10, 6: 5000, 7: 320 } });
+  renderer.setBackgroundByLevel(5);
+  assert.equal(renderer.groundY, GROUND_Y);
+  renderer.setBackgroundByLevel(6);
+  assert.equal(renderer.groundY, GROUND_Y);
+  renderer.setBackgroundByLevel(7);
+  assert.equal(renderer.groundY, 320);
 });

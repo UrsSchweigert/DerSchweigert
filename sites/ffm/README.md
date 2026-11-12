@@ -770,6 +770,22 @@ a background-level selector (or `[` / `]`), which is what makes the check
 meaningful: the 60 level images do not share one floor line, so the feet have to
 be judged against the background the level actually ships with.
 
+The calibrator also moves the ground line itself, together with the hero and the
+fiend (`−` / `+`, or the “Ground line (this level)” buttons). That is how a level
+gets its own line without touching `GROUND_Y`, which stays the default for the
+other 59:
+
+```json
+"groundY": { "31": 348, "48": 372 }
+```
+
+`levels/manifest.json` accepts this optional block (level number → canvas y,
+inside 240–436). `Renderer.setBackgroundByLevel()` resolves it into
+`renderer.groundY`, `startLevel()` moves the hero onto it, and every fiend spawn
+and screen effect anchored to the characters uses that value, so the whole scene
+moves together. “Generate + copy” in the calibrator emits the block for whatever
+you tuned. A level with no entry keeps `GROUND_Y`.
+
 - The art generator baked a hard-edged shadow ellipse into every one of those
   sprites. `python3 sites/ffm/scripts/feather_fiend_shadows.py` removes it: it
   looks for the tone that is common in the sprite's bottom band but absent on

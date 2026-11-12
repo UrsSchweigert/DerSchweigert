@@ -36,9 +36,15 @@ export function stageArtUrl(level) {
   return STAGE_URLS[Math.max(0, index)];
 }
 
+// Ground-line overrides are bounded to the part of the canvas a standing sprite
+// can actually occupy; a value outside that band is dropped, never clamped.
+const GROUND_Y_FLOOR = 240;
+const GROUND_Y_CEILING = 436;
+
 // Accepts the manifest as raw JSON text or as an already parsed object and
-// returns `{ levels: { "<n>": "<file>.webp" } }`. Anything malformed yields an
-// empty map so a broken manifest simply falls through to the stage art.
+// returns `{ levels: { "<n>": "<file>.webp" }, groundY: { "<n>": <y> } }`.
+// Anything malformed yields an empty map so a broken manifest simply falls
+// through to the stage art.
 export function parseLevelArtManifest(raw) {
   let data = raw;
   if (typeof raw === 'string') {
@@ -64,7 +70,34 @@ export function parseLevelArtManifest(raw) {
       levels[String(number)] = String(file).split(/[\\/]/).pop();
     }
   }
-  return { levels };
+  return { levels, groundY: parseGroundYMap(usable?.groundY) };
+}
+
+// Per-level ground-line overrides. The 60 backgrounds paint their walkable floor
+// at different heights, so one GROUND_Y can only be a compromise; a level that
+// needs its own line says so here and the hero and fiends are moved onto it.
+// Values outside the frame band are dropped rather than clamped, so a typo keeps
+// the shipped default instead of parking the characters off-screen.
+function parseGroundYMap(raw) {
+  const overrides = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return overrides;
+  for (const [key, value] of Object.entries(raw)) {
+    const number = toLevelNumber(key);
+    if (number === null || String(number) !== String(key).trim()) continue;
+    if (!Number.isFinite(value)) continue;
+    const y = Math.round(value);
+    if (y < GROUND_Y_FLOOR || y > GROUND_Y_CEILING) continue;
+    overrides[String(number)] = y;
+  }
+  return overrides;
+}
+
+// The ground line a level ships with, or null when it uses the default.
+export function resolveLevelGroundY(level, manifest) {
+  const parsed = parseLevelArtManifest(manifest ?? LEVEL_ART_MANIFEST);
+  const number = toLevelNumber(level);
+  if (number === null) return null;
+  return parsed.groundY[String(number)] ?? null;
 }
 
 export const LEVEL_ART_MANIFEST = parseLevelArtManifest(manifestSource);

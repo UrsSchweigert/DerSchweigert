@@ -15,6 +15,14 @@ import levelManifestSource from './levels/manifest.json' with { type: 'json' };
 
 const FIEND_CAL_X = 560; // fixed on-screen position for the calibration fiend
 
+// The ground line the level currently under inspection stands on. Moving it takes
+// the hero, the fiend and the red line with it, and the result is remembered per
+// level so the "copy" button can emit the manifest overrides.
+const GROUND_Y_FLOOR = 240;   // same band the game accepts (level-art.js)
+const GROUND_Y_CEILING = 436;
+let groundY = GROUND_Y;
+const sessionGroundOverrides = new Map(); // level -> y
+
 // Snapshot of the CURRENT hard-coded defaults, so "copy code" always reflects
 // (these defaults + whatever you've changed this session), even though the
 // live preview mutates FIEND_CLASSES entries in memory as you tune.
@@ -66,9 +74,32 @@ function selectLevel(level) {
   levelSelect.value = String(selectedLevel);
   levelValueEl.textContent = levelLabel(selectedLevel);
   renderer.setBackgroundByLevel(selectedLevel);
+  // setBackgroundByLevel() already resolved this level's own line from the
+  // manifest; a value tuned in this session wins over it.
+  setGroundY(sessionGroundOverrides.get(selectedLevel) ?? renderer.groundY);
   // The draw loop repaints immediately; awaiting only guarantees the caller that
   // the swap is complete, which keeps screenshots and DevTools checks deterministic.
   return renderer.waitForBackgroundLoad();
+}
+
+function groundValueLabel() {
+  const shipped = renderer.groundY;
+  const tuned = groundY !== shipped;
+  return tuned ? `${groundY} (was ${shipped})` : `${groundY}`;
+}
+
+function setGroundY(value) {
+  groundY = Math.min(GROUND_Y_CEILING, Math.max(GROUND_Y_FLOOR, Math.round(value)));
+  if (groundY === renderer.groundY) sessionGroundOverrides.delete(selectedLevel);
+  else sessionGroundOverrides.set(selectedLevel, groundY);
+  hero.y = groundY;
+  fiend.y = groundY;
+  groundValueEl.textContent = groundValueLabel();
+}
+
+function resetGroundY() {
+  sessionGroundOverrides.delete(selectedLevel);
+  setGroundY(renderer.groundY);
 }
 
 levelSelect.addEventListener('change', () => selectLevel(parseInt(levelSelect.value, 10)));
@@ -76,8 +107,14 @@ document.querySelectorAll('[data-level-nav]').forEach((btn) => {
   btn.addEventListener('click', () => selectLevel(selectedLevel + parseInt(btn.dataset.levelNav, 10)));
 });
 
+document.querySelectorAll('[data-ground-step]').forEach((btn) => {
+  btn.addEventListener('click', () => setGroundY(groundY + parseInt(btn.dataset.groundStep, 10)));
+});
+document.querySelector('[data-ground-reset]').addEventListener('click', resetGroundY);
+
 const heroValueEl = document.getElementById('hero-value');
 const fiendValueEl = document.getElementById('fiend-value');
+const groundValueEl = document.getElementById('ground-value');
 
 function currentRatio(id) {
   return sessionRatioOverrides.has(id) ? sessionRatioOverrides.get(id) : DEFAULT_RATIOS[id - 1];
@@ -142,6 +179,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'PageDown')   { setHeroOffset(heroOffsetPx - (big ? 5 : 1)); e.preventDefault(); }
   if (e.key === '[')          { selectLevel(selectedLevel - 1); e.preventDefault(); }
   if (e.key === ']')          { selectLevel(selectedLevel + 1); e.preventDefault(); }
+  if (e.key === '-' || e.key === '_') { setGroundY(groundY - (big ? 5 : 1)); e.preventDefault(); }
+  if (e.key === '+' || e.key === '=') { setGroundY(groundY + (big ? 5 : 1)); e.preventDefault(); }
 });
 
 function trimNum(n) {
@@ -158,10 +197,18 @@ document.getElementById('copy-btn').addEventListener('click', () => {
   }
   // One flat table, one entry per class (18 young, 18 old, 18 ancient, 6 dragons).
   const body = rows.map((row, index) => `  // ${['young', 'old', 'ancient', 'dragons'][index] ?? 'class'}\n  ${row},`).join('\n');
+  const groundRows = [...sessionGroundOverrides.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([level, y]) => `    "${level}": ${y}`);
+  const groundSnippet = groundRows.length
+    ? `"groundY": {\n${groundRows.join(',\n')}\n  }`
+    : '"groundY": {}';
   const code = `// --- entities.js: replace the hero ground offset with ---\n`
     + `let _heroGroundOffsetPx = ${heroOffsetPx};\n\n`
     + `// --- difficulty-classes.js: replace the BOTTOM_PAD_RATIO array with ---\n`
-    + `const BOTTOM_PAD_RATIO = [\n${body}\n];\n`;
+    + `const BOTTOM_PAD_RATIO = [\n${body}\n];\n\n`
+    + `// --- levels/manifest.json: replace the \"groundY\" object with ---\n`
+    + `${groundSnippet}\n`;
   const out = document.getElementById('output');
   out.value = code;
   navigator.clipboard?.writeText(code).catch(() => {});
@@ -173,8 +220,8 @@ function drawGroundLine() {
   ctx.strokeStyle = '#ff2040';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(0, GROUND_Y + 0.5);
-  ctx.lineTo(CANVAS_W, GROUND_Y + 0.5);
+  ctx.moveTo(0, groundY + 0.5);
+  ctx.lineTo(CANVAS_W, groundY + 0.5);
   ctx.stroke();
   ctx.restore();
 }
@@ -192,10 +239,10 @@ function drawMagnifier(id, canvasEl, subjectX) {
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
   const sx = Math.round(subjectX - WIN_W / 2);
-  const sy = Math.round(GROUND_Y - WIN_H / 2);
+  const sy = Math.round(groundY - WIN_H / 2);
   ctx.drawImage(canvas, sx, sy, WIN_W, WIN_H, 0, 0, WIN_W * ZOOM, WIN_H * ZOOM);
   // re-draw the ground line at zoomed scale for a crisp, unambiguous reference
-  const lineY = (GROUND_Y - sy) * ZOOM;
+  const lineY = (groundY - sy) * ZOOM;
   ctx.strokeStyle = '#ff2040';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -210,10 +257,11 @@ const fiendZoomCanvas = document.getElementById('fiend-zoom');
 function loop() {
   renderer.clear();
   renderer.drawBackground(0);
+  hero.y = groundY;
   renderer.drawEntity(hero);
   fiend.fiendClassId = selectedId;
   fiend.x = FIEND_CAL_X;
-  fiend.y = GROUND_Y;
+  fiend.y = groundY;
   renderer.drawEntity(fiend);
   drawGroundLine();
   drawMagnifier('hero', heroZoomCanvas, hero.x);

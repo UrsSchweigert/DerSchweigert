@@ -9,6 +9,10 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const manifestPath = join(here, 'manifest.json');
+// Mirrors the bounds parseLevelArtManifest() enforces in level-art.js: the part
+// of the canvas a standing sprite can occupy.
+const GROUND_Y_FLOOR = 240;
+const GROUND_Y_CEILING = 436;
 const provenancePath = join(here, 'PROVENANCE.md');
 
 const WIDTH = 1536;
@@ -89,6 +93,25 @@ async function validateManifest() {
     for (const chapter of CHAPTERS) {
       const count = Object.values(levels).filter((entry) => entry?.chapter === chapter).length;
       if (count !== 10) errors.push(`chapter ${chapter} must have 10 levels, got ${count}`);
+    }
+  }
+  // Optional per-level ground-line overrides: a typo here would park the hero and
+  // the fiends in the wrong place, so validate rather than trust them.
+  const groundY = raw.groundY;
+  if (groundY !== undefined) {
+    if (!groundY || typeof groundY !== 'object' || Array.isArray(groundY)) {
+      errors.push('groundY must be an object keyed by level number');
+    } else {
+      for (const [key, value] of Object.entries(groundY)) {
+        const level = Number(key);
+        if (!Number.isInteger(level) || level < 1 || level > LEVEL_COUNT || String(level) !== key) {
+          errors.push(`groundY key "${key}" is not a level number 1-${LEVEL_COUNT}`);
+          continue;
+        }
+        if (!Number.isInteger(value) || value < GROUND_Y_FLOOR || value > GROUND_Y_CEILING) {
+          errors.push(`groundY.${key} must be an integer ${GROUND_Y_FLOOR}-${GROUND_Y_CEILING}, got ${value}`);
+        }
+      }
     }
   }
   if (errors.length > 0) throw new Error(errors.join('\n'));

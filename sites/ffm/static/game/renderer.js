@@ -6,6 +6,7 @@ import {
   levelArtUrl,
   parseLevelArtManifest,
   resolveLevelBackground,
+  resolveLevelGroundY,
 } from './level-art.js';
 
 export const LOGICAL_PX = 4;
@@ -17,6 +18,8 @@ export const CANVAS_H   = 450;
 // level-01 and confirmed on a rendered frame: 360 puts the feet on the near floor. The six chapter fallbacks
 // paint their courtyard higher, so they now stand slightly lower than before - acceptable, because level art
 // is what every campaign level uses and the stage images only appear if a level image fails to load.
+// This is the default line. The 60 level images do not share one floor, so a level can move the hero and the
+// fiends onto its own floor through the `groundY` overrides in levels/manifest.json; see Renderer.groundY.
 export const GROUND_Y   = 360;
 export const HERO_X     = 110;
 
@@ -82,6 +85,10 @@ export class Renderer {
     this.ctx    = canvas.getContext('2d');
     this._tick  = 0;
     this._levelArtManifest = parseLevelArtManifest(manifest);
+    // The ground line of the level currently selected (see setBackgroundByLevel).
+    // The characters stand on it; a level whose art paints its floor elsewhere
+    // moves it through the `groundY` overrides in levels/manifest.json.
+    this.groundY = GROUND_Y;
     this._bgImage = new Image();
     this._fallbackBgImage = new Image();
     // Nothing is requested eagerly: the level decides the background in
@@ -138,6 +145,9 @@ export class Renderer {
   }
 
   setBackgroundByLevel(levelNumber) {
+    // Set before the URL short-circuit below: two levels can share one chapter
+    // image yet still ship different ground lines.
+    this.groundY = resolveLevelGroundY(levelNumber, this._levelArtManifest) ?? GROUND_Y;
     const url = resolveLevelBackground(levelNumber, this._levelArtManifest);
     // Cache on the resolved URL: a newly committed level image replaces the
     // stage art of the same chapter instead of being skipped by stage index.

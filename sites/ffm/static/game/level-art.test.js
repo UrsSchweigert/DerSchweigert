@@ -9,6 +9,7 @@ const {
   levelArtUrl,
   parseLevelArtManifest,
   resolveLevelBackground,
+  resolveLevelGroundY,
   stageArtUrl,
 } = await import('./level-art.js');
 
@@ -82,4 +83,33 @@ test('the committed manifest exposes level art for all 60 levels', () => {
   assert.equal(Object.keys(LEVEL_ART_MANIFEST.levels).length, 60);
   assert.equal(LEVEL_ART_MANIFEST.levels['1'], 'level-01.webp');
   assert.equal(LEVEL_ART_MANIFEST.levels['60'], 'level-60.webp');
+});
+
+test('parseLevelArtManifest carries the per-level ground-line overrides', () => {
+  const parsed = parseLevelArtManifest('{"levels":{"1":{"file":"level-01.webp"}},"groundY":{"1":348,"60":300}}');
+  assert.deepEqual(parsed.groundY, { 1: 348, 60: 300 });
+});
+
+test('parseLevelArtManifest drops ground lines outside the drawable band', () => {
+  const parsed = parseLevelArtManifest({
+    levels: {},
+    groundY: { 1: 239, 2: 437, 3: 240, 4: 436, 5: 'nope', 6: 320.4, '07': 300, 8: null },
+  });
+  assert.deepEqual(parsed.groundY, { 3: 240, 4: 436, 6: 320 });
+});
+
+test('parseLevelArtManifest tolerates a missing or broken groundY block', () => {
+  assert.deepEqual(parseLevelArtManifest({ levels: {} }).groundY, {});
+  assert.deepEqual(parseLevelArtManifest({ levels: {}, groundY: [] }).groundY, {});
+  assert.deepEqual(parseLevelArtManifest({ levels: {}, groundY: null }).groundY, {});
+  assert.deepEqual(parseLevelArtManifest({ levels: {}, groundY: 'later' }).groundY, {});
+});
+
+test('resolveLevelGroundY returns the override or null for the default', () => {
+  const manifest = parseLevelArtManifest({ levels: {}, groundY: { 12: 352 } });
+  assert.equal(resolveLevelGroundY(12, manifest), 352);
+  assert.equal(resolveLevelGroundY('12', manifest), 352);
+  assert.equal(resolveLevelGroundY(11, manifest), null);
+  assert.equal(resolveLevelGroundY('nonsense', manifest), null);
+  assert.equal(resolveLevelGroundY(1, '{"levels":{},"groundY":{"1":300}}'), 300);
 });

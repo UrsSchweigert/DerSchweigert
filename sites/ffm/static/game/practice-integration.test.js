@@ -310,6 +310,7 @@ test('every practice source level goes through authorized level config before se
   const startup = fn('startLevel');
   for (const kind of ['targeted', 'short', 'assisted', 'elite', 'recovery', 'shapes']) {
     const requested = [];
+    const appliedGround = [];
     let finished = 0;
     const context = {
       practiceRun: { kind, sourceLevel: 42 },
@@ -329,7 +330,9 @@ test('every practice source level goes through authorized level config before se
       showLoadingOverlay() {}, hideLoadingOverlay() {},
       setAnswerInputVisible() {},
       ensureLocalProfiles: async () => {}, profileUI: { whenIdle: async () => {} },
-      input: { disable() {} }, renderer: { setBackgroundByLevel() {}, waitForBackgroundLoad: async () => {} },
+      input: { disable() {} },
+      renderer: { setBackgroundByLevel() {}, waitForBackgroundLoad: async () => {}, groundY: 344 },
+      applyLevelGround(y) { appliedGround.push(y); },
       assetsLoaded: Promise.resolve(), LOADING_SAFETY_TIMEOUT_MS: 1,
       setTimeout, clearPendingRecord() {}, setAccountModalVisible() {},
       getSkillIntro: () => null,
@@ -340,6 +343,7 @@ test('every practice source level goes through authorized level config before se
     vm.runInContext(startup, context);
     await context.startLevel(41);
     assert.deepEqual(requested, [[41, false]]);
+    assert.deepEqual(appliedGround, [344], "the level's own ground line is adopted before play starts");
     assert.equal(finished, 1);
     assert.equal(context.runProfileId, 'player-a');
   }

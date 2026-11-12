@@ -474,7 +474,7 @@ function createFiend(levelIndex, x) {
   const tier = Math.min(3, Math.floor(levelIndex / 15));
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[tier] : undefined;
-  const fiend = new FiendClass(x, GROUND_Y, hp, palette);
+  const fiend = new FiendClass(x, groundY, hp, palette);
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
   fiend.problem = problem;
   fiend.isElite = practiceElite || isElite;
@@ -500,7 +500,7 @@ function createShapesFiend(x) {
   const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey];
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[0] : undefined;
-  const fiend = new FiendClass(x, GROUND_Y, 1, palette);
+  const fiend = new FiendClass(x, groundY, 1, palette);
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax);
   fiend.problem = problem;
   fiend.isElite = false;
@@ -864,6 +864,19 @@ let fiends = [];
 let spawnQueue = [];
 let requeuedFiends = [];
 let activeFiend = null;
+
+// The ground line of the level being played. It starts at the shipped default and
+// is replaced by Renderer.groundY in startLevel(): the 60 level backgrounds paint
+// their floor at different heights, and the hero, the fiends and every effect
+// anchored to them have to follow the level's own line.
+let groundY = GROUND_Y;
+
+// Moves the hero (and any fiend already on screen) onto the level's ground line.
+function applyLevelGround(y) {
+  groundY = Number.isFinite(y) ? y : GROUND_Y;
+  hero.y = groundY;
+  for (const fiend of fiends) fiend.y = groundY;
+}
 let spawnInterval = 4.0;
 let spawnTimer = 0;
 let answerTimes = [];
@@ -2460,6 +2473,7 @@ async function startLevel(levelIndex, includeBaseline = false) {
     platform.setCurrentLevelConfig(cfg);
 
     renderer.setBackgroundByLevel(cfg.level);
+    applyLevelGround(renderer.groundY);
     // Warm only the current and next level art; the following levels are not
     // requested, and a level without a manifest entry is skipped entirely.
     renderer.preloadLevelArt?.([cfg.level, cfg.level + 1]);
@@ -2638,7 +2652,7 @@ function activateAbility(id) {
 // live fiend (a storm finishing the queue) falls back to the hero's hands.
 function abilityCastOrigin() {
   const centre = globalThis.ffmFx?.fiendCentre?.(activeFiend);
-  return centre || { x: HERO_X, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND };
+  return centre || { x: HERO_X, y: hero.y - HERO_CENTRE_ABOVE_GROUND };
 }
 
 // The one place a successful cast makes noise and light. Earth also starts the
@@ -3237,7 +3251,7 @@ function emitHealCharge(holding, secondsHeld, dt) {
   healChargeAccum = 0;
   globalThis.ffmScreenFx?.play('healCharge', {
     x: hero.x,
-    y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND,
+    y: hero.y - HERO_CENTRE_ABOVE_GROUND,
     progress: Math.min(1, secondsHeld / GAME_CONFIG.healHoldSecondsPerHeart),
   });
 }
@@ -3374,7 +3388,7 @@ function handleCorrectAnswer(origin) {
       if (state.hearts > previousHearts) {
         audio.playHeal?.();
         globalThis.ffmHaptics?.heal();
-        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
+        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: hero.y - HERO_CENTRE_ABOVE_GROUND });
       }
     }
   }
@@ -3459,7 +3473,7 @@ function handleCorrectAnswer(origin) {
       if (!collides) scheduleGameplayTimeout(() => resolveFireballHit(fiend), FIREBALL_FLIGHT_MS);
     } else if (ability === 'dragon') {
       const launch = spellLaunchPoint();
-      activeDragons.push(new DragonSummon(CANVAS_W, GROUND_Y));
+      activeDragons.push(new DragonSummon(CANVAS_W, hero.y));
       globalThis.ffmScreenFx?.play('dragonFinisher', { origin: launch });
       hero.setState('swing');
       fiend.hit();
@@ -3500,7 +3514,7 @@ function handleCorrectAnswer(origin) {
       // No ability (null): normal hit resolution
       // hero.x follows the lunge, so the arc lands where the sword connects
       // rather than at the resting position it started from.
-      globalThis.ffmScreenFx?.play('heroStrike', { x: hero.x + 62, y: GROUND_Y - 46 });
+      globalThis.ffmScreenFx?.play('heroStrike', { x: hero.x + 62, y: hero.y - 46 });
       hero.setState('swing');
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
@@ -3564,7 +3578,7 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
   activeFiend._answerFeedback = timeout ? 'timeout' : 'incorrect';
   state.combo = 0;
   globalThis.ffmScreenFx?.play('wrongAnswer', origin ? { origin } : undefined);
-  globalThis.ffmScreenFx?.schedule(0.12, () => globalThis.ffmScreenFx?.play('heroHurt', { x: HERO_X, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND }));
+  globalThis.ffmScreenFx?.schedule(0.12, () => globalThis.ffmScreenFx?.play('heroHurt', { x: HERO_X, y: hero.y - HERO_CENTRE_ABOVE_GROUND }));
   hero.setState('hurt');
   activeFiend._redFlash = 0.5;  // red flash = wrong answer
   activeFiend.setState('attack');
@@ -3746,7 +3760,7 @@ function triggerWaveClear() {
     hero._healAura = GAME_CONFIG.healingAuraDuration;
     audio.playHeal?.();
     globalThis.ffmHaptics?.heal();
-    globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
+    globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: hero.y - HERO_CENTRE_ABOVE_GROUND });
   }
   hud.update(state);
 
@@ -4096,7 +4110,7 @@ function gameLoop(ts) {
       if (state.hearts > previousHearts) {
         audio.playHeal?.();
         globalThis.ffmHaptics?.heal();
-        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: GROUND_Y - HERO_CENTRE_ABOVE_GROUND });
+        globalThis.ffmScreenFx?.play('heal', { x: hero.x, y: hero.y - HERO_CENTRE_ABOVE_GROUND });
       }
       hud.update(state);
     }
