@@ -34,7 +34,7 @@ import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getL
 import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAbilityBar } from './ability-bar.js';
-import { createAbilityRuntime } from './cooldown-abilities.js';
+import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
 import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
@@ -825,6 +825,10 @@ let currentLevelIndex = 0;
 // One ability runtime per run: created when a run starts, re-levelled on each
 // level transition so cooldowns carry across levels, and ticked by gameLoop.
 let abilityRuntime = null;
+// Earth-spike slow: the fiends currently slowed and how many upcoming spawns
+// the active spike may still slow. Cleared whenever the slow ends.
+let spikeSlowedFiends = new Set();
+let spikeSpawnSlowLeft = 0;
 let levelStartScore = 0;
 let levelRequestGeneration = 0; // Prevents stale level configs after logout/restart
 let activeLightningBolts = [];
@@ -2507,17 +2511,21 @@ function handleLevelConfigError(err, levelIndex) {
 // level transitions inside a run only call setLevel so cooldowns persist.
 // `rank` is the storm bonus rank collected for this run; each rank widens the
 // storm's removal slice by one without touching any other ability.
-function beginAbilityRun(level, rank = 0) {
+// `spikeSlow` carries the bonus-modified earth-spike parameters; the runtime
+// clamps them to the documented caps.
+function beginAbilityRun(level, rank = 0, spikeSlow = undefined) {
   const safeLevel = Number.isFinite(level) && level >= 1 ? level : 1;
   const safeRank = Number.isSafeInteger(rank) && rank >= 0 ? rank : 0;
-  abilityRuntime = createAbilityRuntime({ level: safeLevel, rank: safeRank });
+  if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
+  abilityRuntime = createAbilityRuntime({ level: safeLevel, rank: safeRank, spikeSlow });
   return abilityRuntime;
 }
 
 // A bar activation is only honoured while the ability is unlocked and ready;
 // the bar already refuses cooling/locked clicks, but this keeps the guard at
 // the gameplay seam too. Wind needs a live fiend to remove and is refused
-// while input is disabled; storm clears a slice of whatever remains.
+// while input is disabled; storm clears a slice of whatever remains; earth
+// always casts, slowing the active fiend and the next spawns.
 function activateAbility(id) {
   if (!abilityRuntime) return false;
   if (abilityRuntime.progress(id) < 1) return false;
@@ -2528,6 +2536,7 @@ function activateAbility(id) {
   if (!abilityRuntime.activate(id)) return false;
   if (id === 'wind') return castWindAbility();
   if (id === 'storm') return castStormAbility();
+  if (id === 'earth') return castEarthAbility();
   return true;
 }
 
@@ -2554,6 +2563,10 @@ function removeActiveFiendForAbility() {
   pendingProblemActivation = null;
   if (fiend) {
     requeuedFiends = requeuedFiends.filter((f) => f !== fiend);
+    if (typeof restoreSpikeSlow === 'function' && fiend.spikeSlowed) {
+      restoreSpikeSlow(fiend);
+      if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
+    }
     fiend.setState('retreat');
   }
   state.timerActive = false;
@@ -2602,6 +2615,27 @@ function castStormAbility() {
   return true;
 }
 
+// Earth spikes the ground: the active fiend, if any, is slowed once without
+// spending a spawn slot, and the runtime's target count lets that many newly
+// created fiends inherit the slow.
+function castEarthAbility() {
+  const spike = abilityRuntime.spikeState;
+  spikeSpawnSlowLeft = spike.targets;
+  if (activeFiend && applySpikeSlow(activeFiend, spike.factor)) {
+    spikeSlowedFiends.add(activeFiend);
+  }
+  return true;
+}
+
+// End the earth-spike slow immediately: every tracked fiend returns to its
+// stored base speed and upcoming spawns are no longer slowed.
+function clearSpikeSlow() {
+  for (const fiend of spikeSlowedFiends) restoreSpikeSlow(fiend);
+  spikeSlowedFiends.clear();
+  spikeSpawnSlowLeft = 0;
+  abilityRuntime?.clearSpike();
+}
+
 function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   setAnswerInputVisible(true);
   gameplayTimers.length = 0;
@@ -2626,6 +2660,8 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
     if (abilityRuntime) abilityRuntime.setLevel(cfg.level);
     else beginAbilityRun(cfg.level);
   }
+  // A spike slow never survives a level transition.
+  if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
   state.waveNumber = 1;
   state.enemiesDefeated = 0;
   state.fiendsSpawned = 0;
@@ -2882,6 +2918,7 @@ function handleAppBack() {
 function pauseGame() {
   if (paused || !gameRunning) return;
   paused = true;
+  if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
   pausedPartialId = createCompletionId();
   closeAudioSettings();
   pauseActions.style.display = '';
@@ -2983,11 +3020,22 @@ function spawnNextFiend() {
   if (fiend) {
     fiend.on('retreated', () => { onFiendRetreated(fiend); });
     fiend.on('dead', () => { onFiendDead(fiend); });
+    if (typeof spikeSpawnSlowLeft !== 'undefined' && spikeSpawnSlowLeft > 0 &&
+        typeof abilityRuntime !== 'undefined' && abilityRuntime?.spikeState.active &&
+        typeof applySpikeSlow === 'function' &&
+        applySpikeSlow(fiend, abilityRuntime.spikeState.factor)) {
+      spikeSlowedFiends.add(fiend);
+      spikeSpawnSlowLeft -= 1;
+    }
     fiends.push(fiend);
   }
 }
 
 function onFiendRetreated(fiend) {
+  if (fiend?.spikeSlowed) {
+    restoreSpikeSlow(fiend);
+    spikeSlowedFiends.delete(fiend);
+  }
   fiends = fiends.filter(f => f !== fiend);
   activeFiend = null;
   inputDisabled = false;
@@ -3387,6 +3435,12 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
 
   scheduleGameplayTimeout(() => {
     if (activeFiend) {
+      // A fiend that leaves the field (retreat/requeue or shapes removal) drops
+      // its spike slow and returns to its base speed.
+      if (typeof restoreSpikeSlow === 'function' && activeFiend.spikeSlowed) {
+        restoreSpikeSlow(activeFiend);
+        if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(activeFiend);
+      }
       const p = activeFiend.problem;
       // Shapes problems have no text question (see shapes.js's
       // displayMode: 'shapes') — fall back to a plain "Answer: N" reveal.
@@ -3435,7 +3489,20 @@ function activatePendingProblem() {
   pendingProblemActivation = null;
   lastCastAbility = null;
   const mode = getCurrentInputMode();
+  // A requeued fiend comes back with a freshly computed base speed; if it was
+  // slowed before it retreated, the active spike re-applies the slow on top.
+  const wasSpikeSlowed = typeof restoreSpikeSlow === 'function' && Boolean(fiend.spikeSlowed);
+  if (wasSpikeSlowed) {
+    restoreSpikeSlow(fiend);
+    if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
+  }
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x);
+  if (wasSpikeSlowed && typeof abilityRuntime !== 'undefined' &&
+      abilityRuntime?.spikeState.active &&
+      typeof applySpikeSlow === 'function' &&
+      applySpikeSlow(fiend, abilityRuntime.spikeState.factor)) {
+    spikeSlowedFiends.add(fiend);
+  }
   activeFiend = fiend;
   state.timerRemaining = getProblemTimerRemaining(state.timerMax, state.timerRemaining, preserveTimer);
   state.timerActive = !['assisted', 'targeted'].includes(practiceRun?.kind);
@@ -3675,6 +3742,7 @@ function triggerGameOver(won = false) {
   activeFireballs = [];
   activeDragons = [];
   gameRunning = false;
+  if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
   resetHealHold();
   input.disable();
   inputDisabled = true;
@@ -3777,6 +3845,10 @@ function gameLoop(ts) {
   // level clear, game over and loading never burn cooldown time. The bar gets
   // 0-1 progress every frame and only rewrites DOM text when a value changes.
   abilityRuntime?.tick(dt, { encounterRunning: gameRunning && !paused });
+  // The spike slow expires with its runtime state; restore every fiend it held.
+  if (abilityRuntime && !abilityRuntime.spikeState.active && spikeSlowedFiends.size > 0) {
+    clearSpikeSlow();
+  }
   abilityBar.update({
     level: state.level,
     progress: abilityRuntime ? (id) => abilityRuntime.progress(id) : 1,

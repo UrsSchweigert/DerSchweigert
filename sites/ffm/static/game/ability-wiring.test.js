@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-import { createAbilityRuntime } from './cooldown-abilities.js';
+import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow } from './cooldown-abilities.js';
 import { createAbilityBar } from './ability-bar.js';
 import { countDragonRemainingEncounters } from './encounter-flow.js';
 
@@ -26,6 +26,8 @@ function finishStartContext({ checkAllDefeated } = {}) {
     recordPracticeEncounterDefeated: 0,
   };
   const context = {
+    applySpikeSlow,
+    restoreSpikeSlow,
     createAbilityRuntime,
     countDragonRemainingEncounters,
     setAnswerInputVisible() {},
@@ -64,6 +66,8 @@ function finishStartContext({ checkAllDefeated } = {}) {
   vm.runInContext(
     [
       'let abilityRuntime = null;',
+      'let spikeSlowedFiends = new Set();',
+      'let spikeSpawnSlowLeft = 0;',
       functionSource('beginAbilityRun'),
       functionSource('activateAbility'),
       functionSource('finishStartLevel'),
@@ -71,6 +75,8 @@ function finishStartContext({ checkAllDefeated } = {}) {
       functionSource('removeActiveFiendForAbility'),
       functionSource('castWindAbility'),
       functionSource('castStormAbility'),
+      functionSource('castEarthAbility'),
+      functionSource('clearSpikeSlow'),
     ].join('\n'),
     context,
   );
@@ -425,6 +431,218 @@ describe('storm ability', () => {
     assert.equal(vm.runInContext("activateAbility('storm')", context), true);
     assert.equal(context.state.enemiesDefeated, 1);
     assert.equal(context.__calls.triggerWaveClear, 1, 'checkAllDefeated() hands off to wave clear');
+  });
+});
+
+describe('earth ability', () => {
+  function spawnFiendStub(walkSpeed = 40) {
+    const fiend = { walkSpeed, state: 'walk', spikeSlowed: false, problem: null };
+    fiend.setState = (next) => { fiend.state = next; };
+    fiend.on = () => {};
+    return fiend;
+  }
+
+  it('activation starts the runtime spike and slows the active fiend once', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 11, chapter: 1, waveSize: 3 });', context);
+    const fiend = giveActiveFiend(context);
+    fiend.walkSpeed = 100;
+    context.state.enemiesDefeated = 2;
+    context.state.score = 50;
+    context.state.combo = 3;
+
+    assert.equal(vm.runInContext("activateAbility('earth')", context), true);
+
+    assert.deepEqual(readRuntime(context).spikeState, {
+      active: true,
+      remainingSeconds: 8,
+      durationSeconds: 8,
+      factor: 0.65,
+      targets: 1,
+    });
+    assert.equal(fiend.walkSpeed, 65, 'the active fiend is slowed by 35 %');
+    assert.equal(fiend.spikeBaseSpeed, 100, 'the base speed is stored');
+    assert.equal(fiend.spikeSlowed, true);
+    assert.equal(vm.runInContext('spikeSpawnSlowLeft', context), 1,
+      'the active fiend does not spend a spawn slot');
+    assert.equal(vm.runInContext('spikeSlowedFiends.size', context), 1);
+    assert.equal(context.state.enemiesDefeated, 2, 'no enemy is removed');
+    assert.equal(context.state.score, 50, 'score is untouched');
+    assert.equal(context.state.combo, 3, 'combo is untouched');
+  });
+
+  it('repeated casts never compound the slow', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 11, chapter: 1, waveSize: 3 });', context);
+    const fiend = giveActiveFiend(context);
+    fiend.walkSpeed = 100;
+
+    assert.equal(vm.runInContext("activateAbility('earth')", context), true);
+    const runtime = readRuntime(context);
+    runtime.tick(180, { encounterRunning: true });
+    assert.equal(vm.runInContext("activateAbility('earth')", context), true);
+
+    assert.equal(fiend.walkSpeed, 65, 'still 0.65 of the original base');
+    assert.equal(fiend.spikeBaseSpeed, 100);
+    vm.runInContext('clearSpikeSlow();', context);
+    assert.equal(fiend.walkSpeed, 100, 'one restore returns the original speed');
+  });
+
+  it('clears on level change, restoring every slowed fiend', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 11, chapter: 1, waveSize: 3 });', context);
+    const fiend = giveActiveFiend(context);
+    fiend.walkSpeed = 100;
+    assert.equal(vm.runInContext("activateAbility('earth')", context), true);
+
+    vm.runInContext('finishStartLevel(1, { level: 12, chapter: 1, waveSize: 3 });', context);
+    assert.equal(fiend.walkSpeed, 100);
+    assert.equal(fiend.spikeSlowed, false);
+    assert.equal(readRuntime(context).spikeState.active, false);
+    assert.equal(vm.runInContext('spikeSpawnSlowLeft', context), 0);
+  });
+
+  it('clears on pause, restoring every slowed fiend', () => {
+    const fiend = spawnFiendStub(100);
+    applySpikeSlow(fiend, 0.65);
+    const context = {
+      applySpikeSlow,
+      restoreSpikeSlow,
+      abilityRuntime: createAbilityRuntime({ level: 11 }),
+      spikeSlowedFiends: new Set([fiend]),
+      spikeSpawnSlowLeft: 1,
+      paused: false,
+      gameRunning: true,
+      pausedPartialId: null,
+      createCompletionId: () => 'partial',
+      closeAudioSettings() {},
+      pauseActions: { style: {} },
+      pauseQuitActions: { style: {} },
+      pauseOverlay: { style: {} },
+      input: { disable() {} },
+      audio: { pauseBGM() {} },
+      resetHealHold() {},
+      syncKeepAwake() {},
+    };
+    vm.createContext(context);
+    vm.runInContext(
+      `${functionSource('pauseGame')}\n${functionSource('clearSpikeSlow')}`,
+      context,
+    );
+    context.abilityRuntime.activate('earth');
+    vm.runInContext('pauseGame();', context);
+
+    assert.equal(context.paused, true);
+    assert.equal(fiend.walkSpeed, 100);
+    assert.equal(context.spikeSpawnSlowLeft, 0);
+    assert.equal(context.spikeSlowedFiends.size, 0);
+    assert.equal(context.abilityRuntime.spikeState.active, false);
+  });
+
+  it('slows only the runtime target count of subsequent spawns', () => {
+    const context = {
+      applySpikeSlow,
+      spikeSpawnSlowLeft: 1,
+      spikeSlowedFiends: new Set(),
+      abilityRuntime: { spikeState: { active: true, factor: 0.65 } },
+      state: { isShapesMode: false, timerMax: 10 },
+      practiceRun: null,
+      spawnQueue: [3, 3],
+      requeuedFiends: [],
+      fiends: [],
+      CANVAS_W: 800,
+      getFiendWalkSpeed: () => 40,
+      createFiend: () => spawnFiendStub(),
+    };
+    vm.createContext(context);
+    vm.runInContext(functionSource('spawnNextFiend'), context);
+
+    vm.runInContext('spawnNextFiend();', context);
+    assert.equal(context.fiends[0].walkSpeed, 26, 'the next spawn is slowed');
+    assert.equal(context.spikeSpawnSlowLeft, 0, 'one spawn slot is spent');
+    assert.equal(context.spikeSlowedFiends.size, 1);
+
+    context.fiends = [];
+    vm.runInContext('spawnNextFiend();', context);
+    assert.equal(context.fiends[0].walkSpeed, 40, 'the spawn after that is not slowed');
+    assert.equal(context.spikeSpawnSlowLeft, 0);
+  });
+
+  it('does not slow spawns once the spike is inactive', () => {
+    const context = {
+      applySpikeSlow,
+      spikeSpawnSlowLeft: 1,
+      spikeSlowedFiends: new Set(),
+      abilityRuntime: { spikeState: { active: false, factor: 0.65 } },
+      state: { isShapesMode: false, timerMax: 10 },
+      practiceRun: null,
+      spawnQueue: [3],
+      requeuedFiends: [],
+      fiends: [],
+      CANVAS_W: 800,
+      getFiendWalkSpeed: () => 40,
+      createFiend: () => spawnFiendStub(),
+    };
+    vm.createContext(context);
+    vm.runInContext(functionSource('spawnNextFiend'), context);
+
+    vm.runInContext('spawnNextFiend();', context);
+    assert.equal(context.fiends[0].walkSpeed, 40);
+    assert.equal(context.spikeSpawnSlowLeft, 1, 'an inactive spike spends nothing');
+  });
+
+  function requeueContext({ spikeActive }) {
+    const fiend = spawnFiendStub(80);
+    fiend.problem = {};
+    fiend.spikeBaseSpeed = 80;
+    fiend.spikeSlowed = true;
+    const context = {
+      applySpikeSlow,
+      restoreSpikeSlow,
+      pendingProblemActivation: { fiend, preserveTimer: true },
+      lastCastAbility: null,
+      abilityRuntime: { spikeState: { active: spikeActive, factor: 0.65 } },
+      spikeSlowedFiends: new Set([fiend]),
+      spikeSpawnSlowLeft: 1,
+      practiceRun: null,
+      getCurrentInputMode: () => 'multiple-choice',
+      getFiendWalkSpeed: () => 50,
+      getProblemTimerRemaining: (max) => max,
+      state: { timerMax: 10, timerRemaining: 3, timerActive: false },
+      activeFiend: null,
+      answerClock: { reset() {} },
+      input: { setMCOptions() {}, enable() {} },
+    };
+    vm.createContext(context);
+    vm.runInContext(functionSource('activatePendingProblem'), context);
+    return { context, fiend };
+  }
+
+  it('re-applies the slow to a requeued fiend from its fresh base speed', () => {
+    const { context, fiend } = requeueContext({ spikeActive: true });
+    context.activatePendingProblem();
+
+    assert.equal(fiend.walkSpeed, 32.5, '0.65 of the fresh 50 px/s base, not of 52');
+    assert.equal(fiend.spikeBaseSpeed, 50);
+    assert.equal(fiend.spikeSlowed, true);
+    assert.equal(context.spikeSlowedFiends.size, 1);
+  });
+
+  it('restores a requeued fiend when the spike is no longer active', () => {
+    const { context, fiend } = requeueContext({ spikeActive: false });
+    context.activatePendingProblem();
+
+    assert.equal(fiend.walkSpeed, 50, 'the fresh base speed');
+    assert.equal(fiend.spikeSlowed, false);
+    assert.equal(context.spikeSlowedFiends.size, 0);
+  });
+
+  it('wires the slow into game over and the loop expiry guard', () => {
+    assert.match(functionSource('triggerGameOver'), /clearSpikeSlow\(\);/);
+    assert.match(
+      functionSource('gameLoop'),
+      /if \(abilityRuntime && !abilityRuntime\.spikeState\.active && spikeSlowedFiends\.size > 0\) \{\s*\n\s*clearSpikeSlow\(\);/,
+    );
   });
 });
 
