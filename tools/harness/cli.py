@@ -456,7 +456,7 @@ def investigate_command(args) -> int:
         interactive = not args.non_interactive and sys.stdin.isatty()
         print("Starting the investigator (Ctrl+C stops it safely). Progress lines follow.", flush=True)
         inv = investigate.Investigator(adapter, clone, policy, available, tier=args.tier, max_rounds=args.max_rounds, timeout=args.timeout,
-                                       log=lambda m: print(m, flush=True))
+                                       log=lambda m: print(m, flush=True), cache_home=store.home)
         try:
             feedback = list(args.feedback)
             if args.feedback_file:

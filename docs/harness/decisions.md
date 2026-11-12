@@ -1047,3 +1047,26 @@ when it is set, and a signed refiner below the standard band is still refused, s
 refinement to `deepseek-flash`. The cheaper levers that remain are volume, and they belong to whoever writes the
 plan: fewer, larger issues; documentation exempt from planning; and issues whose anchors are stable, because every
 issue that edits the same file after an earlier merge buys another re-plan.
+
+## The investigator keeps what it read, per commit (2026-11-12)
+
+Every investigator attempt re-read the repository from scratch, so a rejected draft costs ten to fifteen minutes of
+reading that the next attempt repeats almost unchanged. The Arithmo Slayer web run showed this three times in a row:
+two drafts failed a shape check and one stalled, and each retry re-read the same clone.
+
+`tools/harness/repocontext.py` now caches that reading. An entry is a compact, owner-reviewable summary of the
+repository (layout, module roles, commands the agent actually ran, traps), plus the tracked-file index, produced by
+the agent and trimmed here to fixed caps. Reuse is decided by trusted code, not by the model: the cache key is the
+base commit, the requirements text and the prompt hash, so a moved base, an edited requirement or a changed prompt
+never reuses an old reading. An entry is stored after any attempt that returns a shape-valid draft — a rejected plan
+still read the code — and is injected into the next attempt and into later runs of the same requirements.
+
+The trust boundary is unchanged: the summary is model-written text, so the prompt tells the agent to trust the code
+over the notes, and the owner still approves the plan. What the cache buys is the orientation pass, not the decision.
+
+Two related repairs came from the same run. A list-valued key answered with one prose string no longer rejects the
+draft (the string is wrapped into a one-element list and logged); and a new-file `code_anchor` missing from its
+phase allowlist now adds exactly that path (repository-relative, non-existent, not harness-protected) instead of
+rejecting the phase. Both only ever widen what the plan already declared, and both are covered by tests. The prompt
+also forbids unbounded recursive reads now, because a shell call with huge output was the failure mode that stalled
+two attempts.
