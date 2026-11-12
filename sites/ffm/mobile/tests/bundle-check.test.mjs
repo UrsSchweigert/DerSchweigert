@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { copyAssets, APP_OVERLAY } from '../scripts/copy-assets.mjs';
-import { bundleCheck, DEFAULT_BUNDLE_DIR } from '../scripts/bundle-check.mjs';
+import { bundleCheck, BUNDLE_FILES, DEFAULT_BUNDLE_DIR } from '../scripts/bundle-check.mjs';
+import { buildTitleLegalLinks } from '../game/legal.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const script = join(root, 'scripts', 'bundle-check.mjs');
@@ -116,6 +117,68 @@ test('a web-only cancellation link in the app shell fails the bundle check', asy
     await writeFile(indexPath, index.replace('</body>', '<a href="cancel.html">Cancellation</a>\n</body>'));
     const problems = await bundleCheck(dir);
     assert.ok(problems.some((problem) => problem.includes('web-only legal link')), problems.join('\n'));
+  });
+});
+
+test('a root web legal page in the bundle or the shell fails the bundle check', async () => {
+  await withBundle(async (dir) => {
+    const pagePath = join(dir, 'terms.html');
+    await writeFile(pagePath, '<!doctype html><p>accounts need 18+</p>');
+    const problems = await bundleCheck(dir);
+    assert.ok(
+      problems.some((problem) => problem.includes('web-only legal page') && problem.includes('terms.html')),
+      problems.join('\n'),
+    );
+
+    const indexPath = join(dir, 'index.html');
+    const index = await readFile(indexPath, 'utf8');
+    await writeFile(indexPath, index.replace('</body>', '<a href="datenschutz.en.html">Privacy</a>\n</body>'));
+    const withLink = await bundleCheck(dir);
+    assert.ok(
+      withLink.some((problem) => problem.includes('web-only legal link') && problem.includes('datenschutz.en.html')),
+      withLink.join('\n'),
+    );
+
+    const result = runCheck(dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /web-only legal/);
+  });
+});
+
+test('every legal link the app renders resolves to a bundled page', async () => {
+  await withBundle(async (dir) => {
+    const index = await readFile(join(dir, 'index.html'), 'utf8');
+    assert.match(index, /class="splash-legal-links"/, 'the title screen must keep the legal-links container');
+    assert.doesNotMatch(index, /href="\/?(?:datenschutz|impressum|terms)(?:\.[a-z]{2})?\.html"/);
+
+    // game/legal.js fills that container at runtime; every href it can emit
+    // must exist in the bundle.
+    for (const locale of ['de', 'en']) {
+      const hrefs = [...buildTitleLegalLinks(locale).matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+      assert.equal(hrefs.length, 5, `${locale} links the manual and every legal page`);
+      for (const href of hrefs) {
+        assert.ok((await stat(join(dir, href))).isFile(), `${locale} link ${href} must be bundled`);
+      }
+    }
+  });
+});
+
+test('the app legal pages are required bundle files in both languages', async () => {
+  await withBundle(async (dir) => {
+    for (const kind of ['privacy', 'imprint', 'terms', 'licence', 'manual']) {
+      for (const locale of ['de', 'en']) {
+        const rel = `legal/${kind}.${locale}.html`;
+        assert.ok(BUNDLE_FILES.includes(rel), `${rel} must be required`);
+        assert.ok((await stat(join(dir, rel))).isFile(), `${rel} must be bundled`);
+      }
+    }
+
+    await rm(join(dir, 'legal', 'privacy.en.html'));
+    const problems = await bundleCheck(dir);
+    assert.ok(
+      problems.some((problem) => problem.includes('legal/privacy.en.html')),
+      'a missing app legal page must fail the check',
+    );
   });
 });
 
@@ -236,22 +299,24 @@ test('a remote first-party URL fails the bundle check', async () => {
   });
 });
 
-test('only approved navigational legal links are allowed', async () => {
+test('no bundled file may carry a first-party URL', async () => {
   await withBundle(async (dir) => {
-    const terms = join(dir, 'terms.html');
-    const html = await readFile(terms, 'utf8');
-    assert.match(html, /https:\/\/www\.derschweigert\.de\/nutzungsbedingungen/);
+    // The website legal pages that linked derschweigert.de are excluded from
+    // the copy, so the app keeps no navigational allowance at all.
     assert.deepEqual(await bundleCheck(dir), []);
 
-    await writeFile(
-      terms,
-      html.replace('</body>', '<a href="https://ffm.derschweigert.de/terms">Terms</a>\n</body>'),
-    );
-    const problems = await bundleCheck(dir);
-    assert.ok(
-      problems.some((problem) => problem.includes('https://ffm.derschweigert.de/terms')),
-      problems.join('\n'),
-    );
+    const link = '<a href="https://www.derschweigert.de/nutzungsbedingungen">Terms</a>\n</body>';
+    for (const rel of ['index.html', 'legal/terms.de.html']) {
+      const file = join(dir, rel);
+      const html = await readFile(file, 'utf8');
+      await writeFile(file, html.replace('</body>', link));
+      const problems = await bundleCheck(dir);
+      assert.ok(
+        problems.some((problem) => problem.includes('https://www.derschweigert.de/nutzungsbedingungen')),
+        `${rel}: ${problems.join('\n')}`,
+      );
+      await writeFile(file, html);
+    }
   });
 });
 

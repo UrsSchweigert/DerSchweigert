@@ -53,17 +53,29 @@ export const BUNDLE_FILES = Object.freeze([
   'legal/legal.css',
   'legal/manual.de.html',
   'legal/manual.en.html',
+  'legal/privacy.de.html',
+  'legal/privacy.en.html',
+  'legal/imprint.de.html',
+  'legal/imprint.en.html',
+  'legal/terms.de.html',
+  'legal/terms.en.html',
+  'legal/licence.de.html',
+  'legal/licence.en.html',
 ]);
 
 const FIRST_PARTY_HOST_RE = /(^|\.)derschweigert\.de$/i;
 
-// Navigational legal links that are text only; the app never loads them. The
-// bundle check still rejects every other first-party URL, including app-load
-// targets and the game host.
-export const ALLOWED_NAVIGATION = Object.freeze({
-  'terms.html': Object.freeze(['https://www.derschweigert.de/nutzungsbedingungen']),
-  'terms.en.html': Object.freeze(['https://www.derschweigert.de/nutzungsbedingungen']),
-});
+// Website/account legal pages. The app ships its own legal/ overlay instead, so
+// none of these may reappear at the bundle root: the account terms state an
+// 18+ registration age and would contradict a children-targeted listing.
+export const FORBIDDEN_FILES = Object.freeze([
+  'datenschutz.html',
+  'datenschutz.en.html',
+  'impressum.html',
+  'impressum.en.html',
+  'terms.html',
+  'terms.en.html',
+]);
 
 // The app has no accounts, checkout or web legal pages, so its bundle must
 // carry none of that markup. copy-assets.mjs strips every region index.html
@@ -94,14 +106,15 @@ export const FORBIDDEN_UI_IDS = Object.freeze([
 const FORBIDDEN_UI_ID_RE = new RegExp(
   `\\bid\\s*=\\s*["'](?:${FORBIDDEN_UI_IDS.join('|')}|billing-[\\w-]+)["']`,
 );
-// Web-only legal pages that are not copied into www/.
-const FORBIDDEN_NAV_RE = /href\s*=\s*["'][^"']*(?:cancel|widerruf)\.html["']/i;
+// Web-only legal pages that are not copied into www/. Anchored to the bundle
+// root so the app's own legal/ siblings (legal/terms.de.html) stay allowed.
+const FORBIDDEN_NAV_RE =
+  /href\s*=\s*["']\/?(?:cancel|widerruf|datenschutz|impressum|terms)(?:\.[a-z]{2})?\.html["']/i;
 
 const TEXT_EXTENSIONS = new Set([
   '.html', '.js', '.mjs', '.json', '.css', '.txt', '.md', '.webmanifest', '.svg', '.xml',
 ]);
 const URL_RE = /https?:\/\/[^\s"'`<>()]+/gi;
-const ANCHOR_HREF_RE = /<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
 // Direct FFM API calls. The app has no server, so a literal /api path, a
 // base-URL concatenation, an XHR or a beacon is a violation.
 const API_CALL_PATTERNS = [
@@ -135,17 +148,6 @@ async function listTextFiles(dir) {
   }
   await walk(dir, '');
   return found;
-}
-
-function anchorTargets(content) {
-  return new Set(
-    [...content.matchAll(ANCHOR_HREF_RE)]
-      .map((match) => match[1] ?? match[2] ?? match[3] ?? ''),
-  );
-}
-
-function navigationAllowed(rel, url) {
-  return (ALLOWED_NAVIGATION[rel] ?? []).some((prefix) => url.startsWith(prefix));
 }
 
 async function levelDataProblems(dir) {
@@ -185,6 +187,11 @@ export async function bundleCheck(bundleDir = DEFAULT_BUNDLE_DIR) {
     if (!info?.isFile()) problems.push(`missing required file: ${rel}`);
   }
 
+  for (const rel of FORBIDDEN_FILES) {
+    const info = await stat(join(bundleDir, rel)).catch(() => null);
+    if (info?.isFile()) problems.push(`web-only legal page: ${rel} must not be bundled`);
+  }
+
   let files = [];
   try {
     files = await listTextFiles(bundleDir);
@@ -194,10 +201,8 @@ export async function bundleCheck(bundleDir = DEFAULT_BUNDLE_DIR) {
 
   for (const rel of files) {
     const content = await readFile(join(bundleDir, rel), 'utf8');
-    const allowedAnchors = anchorTargets(content);
     for (const url of new Set(content.match(URL_RE) ?? [])) {
       if (!isFirstParty(url)) continue;
-      if (navigationAllowed(rel, url) && allowedAnchors.has(url)) continue;
       problems.push(`${rel}: remote first-party URL: ${url}`);
     }
 
@@ -213,9 +218,9 @@ export async function bundleCheck(bundleDir = DEFAULT_BUNDLE_DIR) {
       if (uiMatch) problems.push(`${rel}: forbidden app UI: ${uiMatch[0]}`);
     }
 
-    // Only the app shell must stop linking the web-only cancellation and
-    // withdrawal pages, which are not bundled. The bundled legal texts may
-    // still name them in prose.
+    // The app shell must not link any root web legal page (cancellation,
+    // withdrawal, account privacy, imprint, terms); those are excluded from the
+    // copy. The bundled app legal pages live under legal/ and are unaffected.
     if (rel === 'index.html') {
       const navMatch = content.match(FORBIDDEN_NAV_RE);
       if (navMatch) problems.push(`${rel}: web-only legal link: ${navMatch[0]}`);
