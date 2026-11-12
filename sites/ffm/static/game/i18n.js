@@ -722,6 +722,112 @@ const DICTIONARY = {
   // HUD (canvas-drawn, not DOM)
   'hud.shapes': { en: 'Shapes', de: 'Formen' },
   'hud.level': { en: 'Level {level}', de: 'Level {level}' },
+
+  // Wardens (act bosses)
+  'boss.title': { en: 'Wardens', de: 'Wächter' },
+  'boss.intro': {
+    en: 'One Warden guards each act. Break its seal to open the next act.',
+    de: 'Ein Wächter bewacht jeden Akt. Brich sein Siegel, um den nächsten Akt zu öffnen.',
+  },
+  'boss.actLabel': { en: 'Act {act}', de: 'Akt {act}' },
+  'boss.finalLabel': { en: 'The Empty Throne', de: 'Der leere Thron' },
+  'boss.locked': {
+    en: 'Clear all ten levels of this act first',
+    de: 'Schaffe zuerst alle zehn Level dieses Akts',
+  },
+  'boss.lockedFinal': {
+    en: 'Clear all sixty levels and every Warden first',
+    de: 'Schaffe zuerst alle sechzig Level und jeden Wächter',
+  },
+  'boss.opening': { en: 'The ward is opening…', de: 'Das Siegel öffnet sich…' },
+  'boss.loadError': {
+    en: 'This Warden could not be opened. Try again later.',
+    de: 'Dieser Wächter konnte nicht geöffnet werden. Versuche es später erneut.',
+  },
+  'boss.phaseLabel': { en: 'Phase {index} of {total} · {name}', de: 'Phase {index} von {total} · {name}' },
+  'boss.clock': { en: 'Ward Clock', de: 'Siegeluhr' },
+  'boss.leave': { en: 'Leave', de: 'Verlassen' },
+  'boss.done': { en: 'Done', de: 'Fertig' },
+  'boss.fightAgain': { en: 'Fight again', de: 'Nochmal kämpfen' },
+  'boss.retryPhase': { en: 'Retry this phase', de: 'Diese Phase wiederholen' },
+  'boss.phaseClear': { en: '{name} broken!', de: '{name} gebrochen!' },
+  'boss.defeated': {
+    en: 'The Warden holds. Its phase will start again.',
+    de: 'Der Wächter hält. Seine Phase beginnt von vorn.',
+  },
+  'boss.ruleHidden': { en: 'Remember the rule…', de: 'Erinnere dich an die Regel…' },
+  'boss.rule.ascending': {
+    en: 'Strike them from smallest to largest.',
+    de: 'Triff sie von der kleinsten zur größten Zahl.',
+  },
+  'boss.rule.descending': {
+    en: 'Strike them from largest to smallest.',
+    de: 'Triff sie von der größten zur kleinsten Zahl.',
+  },
+  'boss.rule.pairSum': {
+    en: 'Strike the two orbs that make {target}.',
+    de: 'Triff die zwei Kugeln, die zusammen {target} ergeben.',
+  },
+  'boss.rule.factorChain': {
+    en: 'Strike them so each one is {factor} times the one before.',
+    de: 'Triff sie so, dass jede {factor}-mal so groß ist wie die davor.',
+  },
+  'boss.rule.oddOneOut': {
+    en: 'Strike the one orb that is not a multiple of {factor}.',
+    de: 'Triff die eine Kugel, die kein Vielfaches von {factor} ist.',
+  },
+  'boss.rule.equalShare': {
+    en: 'Strike the one orb that splits {pile} evenly.',
+    de: 'Triff die eine Kugel, die {pile} ohne Rest teilt.',
+  },
+  'boss.rule.composeTarget': {
+    en: 'Strike the two parts, then the whole they make.',
+    de: 'Triff die zwei Teile und dann das Ganze, das sie ergeben.',
+  },
+  'boss.hint.restate': {
+    en: 'Look at the rule again and try once more.',
+    de: 'Lies die Regel noch einmal und versuche es erneut.',
+  },
+  'boss.hint.reveal': {
+    en: 'The glowing orb comes next.',
+    de: 'Die leuchtende Kugel kommt als Nächstes.',
+  },
+  'boss.hint.repeat': { en: 'That one is already struck.', de: 'Die ist schon getroffen.' },
+  'boss.resultWon': { en: 'The {name} is unsealed!', de: 'Der {name} ist entriegelt!' },
+  'boss.resultFinal': { en: 'The Hollow Crown is broken!', de: 'Die hohle Krone ist zerbrochen!' },
+  'boss.resultBody': {
+    en: 'Score {score} · {solved} right, {misses} missed · {accuracy}% clean',
+    de: 'Punkte {score} · {solved} richtig, {misses} daneben · {accuracy}% sauber',
+  },
+  'boss.dawn.name': { en: 'Warden of Dawn', de: 'Wächter der Dämmerung' },
+  'boss.dawn.hinges': { en: 'Rusty Hinges', de: 'Rostige Angeln' },
+  'boss.dawn.sunrise': { en: 'Sunrise Order', de: 'Ordnung der Sonne' },
+  'boss.dawn.keyhole': { en: 'The Keyhole', de: 'Das Schlüsselloch' },
+  'boss.harvest.name': { en: 'Warden of the Harvest', de: 'Wächter der Ernte' },
+  'boss.harvest.field': { en: 'Golden Field', de: 'Goldenes Feld' },
+  'boss.harvest.scale': { en: 'The Tilting Scale', de: 'Die kippende Waage' },
+  'boss.harvest.tithe': { en: 'The Tithe', de: 'Der Zehnt' },
+  'boss.memory.name': { en: 'Warden of Memory', de: 'Wächter der Erinnerung' },
+  'boss.memory.echo': { en: 'Echoes', de: 'Echos' },
+  'boss.memory.runes': { en: 'Rune Stones', de: 'Runensteine' },
+  'boss.memory.forgetful': { en: 'The Forgetting', de: 'Das Vergessen' },
+  'boss.keep.name': { en: 'Warden of the Keep', de: 'Wächter der Burg' },
+  'boss.keep.oath': { en: 'The Oath', de: 'Der Schwur' },
+  'boss.keep.shares': { en: 'Equal Shares', de: 'Gleiche Anteile' },
+  'boss.keep.ledger': { en: 'The Ledger', de: 'Das Buch' },
+  'boss.market.name': { en: 'Warden of the Market', de: 'Wächter des Marktes' },
+  'boss.market.stalls': { en: 'Lantern Stalls', de: 'Laternengassen' },
+  'boss.market.change': { en: 'Making Change', de: 'Wechselgeld' },
+  'boss.market.price': { en: 'The Price', de: 'Der Preis' },
+  'boss.throne.name': { en: 'Warden of the Throne', de: 'Wächter des Throns' },
+  'boss.throne.crown': { en: 'The Crown', de: 'Die Krone' },
+  'boss.throne.lock': { en: 'The Sixfold Lock', de: 'Das sechsfache Schloss' },
+  'boss.throne.silence': { en: 'Silence', de: 'Stille' },
+  'boss.hollowKing.name': { en: 'The Hollow King', de: 'Der hohle König' },
+  'boss.hollowKing.recollection': { en: 'Recollection', de: 'Rückblick' },
+  'boss.hollowKing.silence': { en: 'Silence', de: 'Stille' },
+  'boss.hollowKing.unmaking': { en: 'The Unmaking', de: 'Das Entmachen' },
+  'boss.hollowKing.mastery': { en: 'The Last Lesson', de: 'Die letzte Lektion' },
 };
 
 // --- Known server/error identifiers --------------------------------------
