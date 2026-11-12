@@ -29,6 +29,10 @@ const js = read('beta.js');
 const TESTFLIGHT_JOIN = 'https://testflight.apple.com/join/66sUYcn3';
 const TESTFLIGHT_APP = 'https://apps.apple.com/app/testflight/id899247664';
 
+// Escapes every regex metacharacter, backslash included, so a URL can be
+// matched literally: an unescaped '.' would also match 'appleXcom'.
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // Keys the script writes into the empty status region; they can never appear
 // as markup text, so the "no unused key" check has to know about them.
 const SCRIPT_ONLY_KEYS = new Set([
@@ -150,7 +154,7 @@ test('markup carries the German copy verbatim, so no-JS visitors see German', ()
 test('the iOS beta is a real TestFlight link in the hero, the steps and the track footer', () => {
   const occurrences = html.split(`href="${TESTFLIGHT_JOIN}"`).length - 1;
   assert.equal(occurrences, 3, 'hero, step 2 and the iOS track must all link to the TestFlight invitation');
-  for (const tag of html.match(new RegExp(`<a\\b[^>]*href="${TESTFLIGHT_JOIN}"[^>]*>`, 'g'))) {
+  for (const tag of html.match(new RegExp(`<a\\b[^>]*href="${escapeRegExp(TESTFLIGHT_JOIN)}"[^>]*>`, 'g'))) {
     assert.match(tag, /target="_blank"/, 'external store links open in a new tab');
     assert.match(tag, /rel="noopener"/, 'external links need rel="noopener"');
   }
