@@ -71,8 +71,11 @@ Browser
 - All arithmetic levels use multiple choice: five unique nearby answers in levels 1-10,
   ten in levels 11-60. Choices are seeded and shuffled; Shapes practice keeps four answers.
 - Gameplay uses an uncropped logical 800x450 scene above answers in portrait and beside
-  answers in landscape. Ordinary app screens use tabs/pagination rather than scrolling;
-  full legal documents remain scrollable. Four-edge safe areas and keyboards constrain the viewport.
+  answers in landscape. Every menu page except Play is one framed sheet (`styles.css`,
+  `.title-page:not(.title-play)`) that fills the band when its content needs the room and
+  shrinks to a centred card when it does not; the sheet itself scrolls, so long lists reach
+  their pagination instead of clipping (`#leaderboard-list` used to hide row eight onwards).
+  Four-edge safe areas and keyboards constrain the viewport.
 - Score is computed client-side from base points + speed bonus + combo bonus, with an elite multiplier for rare elite fiends.
 - **Combo-ability pulsating border** (`#combo-frame`, driven by `Renderer.drawComboFrame()`):
   the DOM overlay follows `#playfield`, independent of whether answers are below or beside it.
