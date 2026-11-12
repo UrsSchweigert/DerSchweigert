@@ -165,22 +165,27 @@ def test_an_authority_failure_never_reaches_the_overseer(tmp_path):
 
 def test_the_overseer_runs_on_the_strongest_tier(tmp_path):
     from harness import models
-    assert models.ROLE_TIER["overseer"] == "strong" and models.REQUIRED_TIER["overseer"] == "strong"
+    assert models.ROLE_TIER["overseer"] == "strong" and models.CHOICE_FLOOR["overseer"] == "strong"
 
 
-def test_the_overseer_is_off_unless_the_plan_asks_for_it(tmp_path):
+def test_the_overseer_is_on_for_new_plans_and_can_be_opted_out(tmp_path):
     from harness import plans
-    assert "overseer" not in plans.DEFAULT_POLICY
-    on = plans.with_overseer(plans.DEFAULT_POLICY, True)
-    assert on["overseer"] == {"enabled": True, "rounds_per_issue": 2}
-    assert plans.plan_digest(plans.build_plan("p", 1, [], None, policy=on)) != \
-        plans.plan_digest(plans.build_plan("p", 1, [], None, policy=plans.with_overseer(plans.DEFAULT_POLICY, False)))
+    assert plans.DEFAULT_POLICY["overseer"] == {"enabled": True, "rounds_per_issue": 2}
+    off = plans.with_overseer(plans.DEFAULT_POLICY, False)
+    assert off["overseer"] == {"enabled": False, "rounds_per_issue": 2}
+    # A plan approved before the key existed carries no setting and stays off, so its behaviour does not change.
+    legacy = {k: v for k, v in plans.DEFAULT_POLICY.items() if k != "overseer"}
+    assert "overseer" not in legacy
+    # The choice is bound by the digest, so opting out is visible at approval time.
+    assert plans.plan_digest(plans.build_plan("p", 1, [], None, policy=plans.DEFAULT_POLICY)) != \
+        plans.plan_digest(plans.build_plan("p", 1, [], None, policy=off))
 
 
-def test_a_plan_that_does_not_opt_in_keeps_every_block_with_the_owner(tmp_path):
+def test_a_plan_that_opts_out_keeps_every_block_with_the_owner(tmp_path):
     from harness.tests.harness_doubles import Env
     env = Env(tmp_path, issues=[], budgets=dict(lease_s=10**7, worker_timeout_s=10**7, inactivity_timeout_s=10**7,
-                                                repair_attempts=0))
+                                                repair_attempts=0),
+              policy_overrides={"overseer": {"enabled": False, "rounds_per_issue": 2}})
     env.add_issue("i1", "P1", ["F1.1"], validation_commands=["unit"])
     env.checker.fail_commands = {"unit"}
     env.start()

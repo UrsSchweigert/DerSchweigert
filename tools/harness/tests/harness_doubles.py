@@ -257,6 +257,10 @@ class Env:
         if authorized_operations is not None:
             policy["authorized_operations"] = list(authorized_operations)
         policy["budgets"].update(budgets or {})
+        # New plans run with the overseer on (plans.DEFAULT_POLICY). These doubles are about the owner-facing paths
+        # - what reaches a human task, what a repair budget does, what a block looks like - so they opt out unless a
+        # test asks for the overseer explicitly.
+        policy["overseer"] = {"enabled": False, "rounds_per_issue": 2}
         policy.update(policy_overrides or {})
         plan = plans.build_plan("fx", 1, plans.parse_requirements(REQ), phases, policy, fixture=True, model_sources=model_sources)
         assert not plans.validate_plan(plan)

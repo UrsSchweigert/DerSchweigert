@@ -1873,9 +1873,12 @@ class Scheduler:
         budgets = policy["budgets"]
         attempts = self.store.list_attempts(issue["issue_id"])
         last_impl = next((a for a in reversed(attempts) if a["role"] == "implementer"), None)
+        # The refiner climbs on its own record, not on the implementer's: its previous pass is what tells whether a
+        # cheaper band produced a usable plan. For the implementer this is the same attempt as last_impl.
+        last_same_role = next((a for a in reversed(attempts) if a["role"] == role), None)
         touches = any(broker.is_escalation(a, policy["escalation_paths"]) for a in issue["code_anchors"])
         last_kind = (issue["last_failures"][-1]["kind"] if issue["last_failures"] else None)
-        tier = models.choose_tier(role, implementer_tier=issue.get("implementer_tier"), previous_tier=(last_impl or {}).get("tier"),
+        tier = models.choose_tier(role, implementer_tier=issue.get("implementer_tier"), previous_tier=(last_same_role or {}).get("tier"),
                                   previous_failure_kind=last_kind, touches_escalation_path=touches,
                                   strong_used=issue["strong_attempts"], strong_budget=budgets["strong_attempts_per_issue"])
         avoid = issue.get("implementer_model") if role == "reviewer" else None
@@ -1906,7 +1909,8 @@ class Scheduler:
             elif choice and not repair and not review_conflict and not outside_route:
                 route = models.resolve_choice(choice, policy["model_tiers"], self.available_models, avoid, role=role,
                                               strong_used=issue["strong_attempts"] if role == "implementer" else 0,
-                                              strong_budget=budgets["strong_attempts_per_issue"] if role == "implementer" else 1)
+                                              strong_budget=budgets["strong_attempts_per_issue"] if role == "implementer" else 1,
+                                              escalated=last_kind in models.REFINER_ESCALATION)
                 routing_source = "delegator"
             else:
                 route = models.resolve_model(tier, policy["model_tiers"], self.available_models, avoid)

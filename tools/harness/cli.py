@@ -653,7 +653,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                    help="branch the run branch is cut from and the branch run pull requests target (default: main)")
     p.add_argument("--overseer", dest="overseer", action="store_true", default=None,
                    help="let the top-tier overseer answer process blocks (retry, extend a budget, refine) before the owner is asked")
-    p.add_argument("--no-overseer", dest="overseer", action="store_false", help="keep every block with the owner (default)")
+    p.add_argument("--no-overseer", dest="overseer", action="store_false", help="keep every block with the owner (the default is to let the overseer answer process blocks)")
     a = sub.add_parser("approve", help="record human approval of a plan version")
     a.add_argument("plan_id")
     a.add_argument("--version", type=int)
