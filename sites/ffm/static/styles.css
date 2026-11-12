@@ -414,13 +414,16 @@ body {
  * overlay.
  *
  * The row only exists in portrait: the default is display:none, so landscape
- * shows nothing on either channel. It owns a full-width 22px flex line above
- * the answer buttons with one little sword per enemy; beaten enemies fill
- * green from left to right. Each sword is a clip-path silhouette (tip, blade,
- * cross-guard, grip, pommel), so it scales with the slot and needs no image.
- * Reduced motion drops the fill pop. */
+ * shows nothing and reserves no space on either channel. In portrait the row
+ * always owns its full-width 22px flex line, even before the first count
+ * arrives, so #mc-buttons never shifts when the swords appear; an empty row is
+ * hidden with visibility:hidden rather than display:none. It holds one little
+ * sword per enemy; beaten enemies fill green from left to right. Each sword is
+ * a clip-path silhouette (tip, blade, cross-guard, grip, pommel), so it scales
+ * with the slot and needs no image. Reduced motion drops the fill pop. */
 .app-encounter-swords {
   display: none;
+  visibility: hidden;
   flex: 0 0 100%;
   box-sizing: border-box;
   align-items: center;
@@ -434,11 +437,15 @@ body {
 }
 
 #game-wrap[data-layout="portrait"] .app-encounter-swords {
-  display: flex;
+  display: flex !important;
 }
 
 #game-wrap[data-layout="portrait"] .app-encounter-swords[hidden] {
-  display: none;
+  visibility: hidden;
+}
+
+#game-wrap[data-layout="portrait"] .app-encounter-swords:not([hidden]) {
+  visibility: visible;
 }
 
 .app-encounter-sword {
