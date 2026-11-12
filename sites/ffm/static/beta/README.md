@@ -117,6 +117,15 @@ After the beta both platforms use the normal one-time purchase. The FAQ "Was
 kostet die Beta?" repeats the same two routes so the answer is not only inside
 the tracks.
 
+## Related legal pages
+
+The page links two different policies on purpose: `/datenschutz.html` is the
+website/account policy (accounts, Turnstile, leaderboard, waitlist), while
+`/datenschutz-app.html` (+ `.en.html`) describes the app itself — no data
+collection, no account, no tracking. The app policy is the URL to submit in
+App Store Connect and the Play Console; it is kept in sync with the bundled
+`mobile/legal/privacy.*.html` by `mobile/tests/app-privacy-public.test.mjs`.
+
 ## Why there are no inline scripts
 
 Production serves this page with the same strict Content-Security-Policy as the

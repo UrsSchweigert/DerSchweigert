@@ -175,6 +175,7 @@ test('legal and support destinations are present', () => {
   for (const href of [
     '/impressum.html',
     '/datenschutz.html',
+    '/datenschutz-app.html',
     '/terms.html',
     '/impressum.en.html',
     '/datenschutz.en.html',
@@ -183,6 +184,11 @@ test('legal and support destinations are present', () => {
   ]) {
     assert.ok(html.includes(`href="${href}"`), `missing link ${href}`);
   }
+  // The beta page is about the app, so the app policy must be reachable from
+  // both the footer and the data-protection answer.
+  assert.match(html, /data-i18n="beta\.footer\.legalPrivacyApp"/);
+  assert.match(html, /data-i18n="beta\.faq\.a6Link"/);
+  assert.ok(existsSync(join(webRoot, 'datenschutz-app.html')), 'the app privacy page must be deployed');
 });
 
 test('the page states the real platform minimums', () => {
@@ -311,7 +317,7 @@ test('the page reuses the landing-page design system and adds only its own CSS',
   // redefining them here would let the two pages drift apart.
   assert.ok(!/:root\s*\{/.test(css), 'beta.css must not redefine design tokens');
   for (const shared of ['.btn-primary', '.site-header', '.faq-item', '.site-footer', '.hero-stage']) {
-    assert.ok(!new RegExp(`${shared.replace('.', '\\.')}\\s*\\{`).test(css), `beta.css must not restyle ${shared}`);
+    assert.ok(!new RegExp(`${escapeRegExp(shared)}\\s*\\{`).test(css), `beta.css must not restyle ${shared}`);
   }
 });
 
