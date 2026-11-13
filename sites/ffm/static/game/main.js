@@ -100,6 +100,11 @@ const abilityBar = createAbilityBar({
     audio.playAbilityPress?.();
     if (button) hudBurst.burst(button, 'glass', 14);
   },
+  // A cooling orb cannot cast, but it must not feel like a dead button: a dull
+  // "not yet" and no shards (nothing broke).
+  onRefused: () => {
+    audio.playAbilityRefused?.();
+  },
 });
 const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 

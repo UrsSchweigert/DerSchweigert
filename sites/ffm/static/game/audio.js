@@ -1009,24 +1009,43 @@ export class AudioEngine {
     this._ensureCtx();
     if (this._muted) return false;
     const t = this._ctx.currentTime;
-    // The crack: a very short bright noise burst, then a second one a hair
-    // later so the shards keep tinkling as they fall.
-    this._playNoiseBurst(0.09, t, 0.34, 5200, 'highpass');
-    this._playNoiseBurst(0.22, t + 0.045, 0.16, 7600, 'bandpass', 4200, 3);
+    // The crack: a noise burst with body. The first version high-passed at
+    // 5.2 kHz, which left only the hiss and read as a tick on a phone speaker;
+    // 2.6 kHz keeps the glassy edge but leaves enough energy to hear over the
+    // music.
+    this._playNoiseBurst(0.13, t, 0.62, 2600, 'highpass');
+    this._playNoiseBurst(0.26, t + 0.05, 0.34, 5200, 'bandpass', 3000, 2.5);
     // The shards: unrelated high partials, each shorter than the last.
     const shards = [
-      [3120, 0.13, 0.09],
-      [4460, 0.11, 0.075],
-      [5870, 0.09, 0.06],
-      [7340, 0.08, 0.05],
-      [2610, 0.15, 0.05],
+      [3120, 0.2, 0.16],
+      [4460, 0.17, 0.13],
+      [5870, 0.14, 0.11],
+      [7340, 0.11, 0.09],
+      [2610, 0.24, 0.1],
     ];
     shards.forEach(([freq, duration, gain], i) => {
-      this._playTone(freq, 'triangle', duration, t + i * 0.012, gain);
+      this._playTone(freq, 'triangle', duration, t + i * 0.014, gain);
     });
     // The body of the ball: a short dull thud so the burst has weight.
-    this._playSweep(320, 120, 'sine', 0.12, t, 0.22);
-    this._playTone(196, 'sine', 0.16, t + 0.01, 0.1);
+    this._playSweep(340, 110, 'sine', 0.16, t, 0.36);
+    this._playTone(196, 'sine', 0.2, t + 0.01, 0.18);
+    return true;
+  }
+
+  /**
+   * The orb refusing: a spell that is still cooling. Not the shatter — nothing
+   * broke — just a dull double tap that says "not yet", so a press on a cooling
+   * orb never feels like a dead button.
+   *
+   * @returns {boolean} whether the cue played.
+   */
+  playAbilityRefused() {
+    this._ensureCtx();
+    if (this._muted) return false;
+    const t = this._ctx.currentTime;
+    this._playTone(150, 'sine', 0.1, t, 0.24);
+    this._playTone(120, 'sine', 0.12, t + 0.08, 0.2);
+    this._playNoiseBurst(0.05, t, 0.16, 900, 'lowpass');
     return true;
   }
 

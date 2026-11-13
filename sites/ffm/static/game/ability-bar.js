@@ -161,9 +161,10 @@ export function deriveAbilityReadouts({ runtime, bonus, spikeTargetsLeft } = {})
  * @param {(key: string, vars?: object) => string} [options.translate]
  * @param {(id: 'wind' | 'storm' | 'earth') => void} [options.onActivate]
  * @param {(id: 'wind' | 'storm' | 'earth', button: HTMLElement) => void} [options.onPress]
+ * @param {(id: 'wind' | 'storm' | 'earth', button: HTMLElement) => void} [options.onRefused]
  * @returns {{ element: HTMLElement, buttons: HTMLElement[], ornaments: HTMLElement[], update: (state?: { level?: number, progress?: number | Record<string, number> | number[] | ((id: string) => number), runtime?: object | null, bonus?: object | null, cooldowns?: Record<string, number> | null, spikeTargetsLeft?: number }) => void, destroy: () => void }}
  */
-export function createAbilityBar({ doc = globalThis.document, translate, onActivate, onPress } = {}) {
+export function createAbilityBar({ doc = globalThis.document, translate, onActivate, onPress, onRefused } = {}) {
   const create = doc?.createElement?.bind(doc);
   if (!create) throw new TypeError('createAbilityBar requires a document');
 
@@ -259,7 +260,13 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
     };
 
     const activate = () => {
-      if (slot.state !== 'ready') return;
+      if (slot.state !== 'ready') {
+        // A cooling orb is clickable but cannot cast; it still answers, with the
+        // refused cue, so the ball never feels dead. Locked orbs are disabled
+        // buttons and never reach here.
+        if (slot.state === 'cooling' && typeof onRefused === 'function') onRefused(slot.id, button);
+        return;
+      }
       // The press is reported before the cast so the orb can shatter under the
       // finger even when the cast itself is refused (no fiend to blow away).
       if (typeof onPress === 'function') onPress(slot.id, button);

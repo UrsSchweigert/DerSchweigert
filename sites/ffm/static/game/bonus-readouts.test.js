@@ -366,12 +366,15 @@ describe('layout and purity', () => {
     const readoutLine = Number(readout[1].match(/line-height: (\d+)px/)?.[1]);
     assert.ok(reserved > 0 && reserved >= readoutLine, `reserved ${reserved} vs line ${readoutLine}`);
 
-    // Three equal circles, each still a 44px+ touch target.
+    // Three equal squares, driven by one size variable so they cannot drift
+    // apart, and never smaller than the column they must fit.
     const slot = /^\.ability-slot \{([^}]*)\}/m.exec(css);
     assert.ok(slot);
     assert.match(slot[1], /flex: 0 0 auto/);
     assert.match(slot[1], /border-radius: 50%/);
-    const size = Number(slot[1].match(/width: (\d+)px/)?.[1]);
-    assert.ok(size >= 44, `circle ${size}`);
+    assert.match(slot[1], /width: var\(--orb-size\)/);
+    assert.match(slot[1], /aspect-ratio: 1/);
+    const cap = Number((/--orb-cap: (\d+)px/.exec(css) ?? [])[1]);
+    assert.ok(cap >= 44, `circle cap ${cap}`);
   });
 });

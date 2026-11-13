@@ -204,9 +204,18 @@ body {
    * Keep --orb-size in sync with .ability-slot's own width below: the slot
    * states its size literally so the tests and the layout stay readable. */
   --orb-gap: clamp(6px, 2.6vw, 12px);
-  --orb-size: 58px;
+  /* The ceiling is the design size; the width formula is the ceiling of the
+   * answer column. Three orbs plus their gaps must always fit the row the
+   * answers occupy — in a narrow landscape column the row used to spill over
+   * the playfield. */
+  --orb-cap: 58px;
+  --orb-size: min(var(--orb-cap), calc((100% - 2 * var(--orb-gap)) / 3));
   --ornament-gap: 12px;
-  --ornament-size: clamp(34px, calc((100% - 3 * var(--orb-size) - 2 * var(--orb-gap)) / 2 - var(--ornament-gap)), 76px);
+  /* Floored at zero, not at a minimum width: when the column cannot spare a
+   * dragon *and* its air, the dragon collapses to nothing instead of shrinking
+   * under the orb and poking out behind it (which is what a narrow landscape
+   * column did). */
+  --ornament-size: clamp(0px, calc((100% - 3 * var(--orb-size) - 2 * var(--orb-gap)) / 2 - var(--ornament-gap)), 76px);
   position: relative;
   order: -1;
   flex: 0 0 100%;
@@ -250,11 +259,7 @@ body {
 .ability-ornament--left { left: 0; transform: rotate(90deg); }
 .ability-ornament--right { right: 0; transform: scaleX(-1) rotate(90deg); }
 
-/* Only on a genuinely tiny column does the row belong to the orbs alone: below
- * 300px even the floored ornament is a smudge. */
-@media (max-width: 299px) {
-  .ability-ornament { display: none; }
-}
+
 
 .ability-slot {
   position: relative;
@@ -262,10 +267,14 @@ body {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 58px;
-  height: 58px;
-  min-width: 58px;
-  min-height: 58px;
+  /* The width is derived from the row the answers occupy; the height follows it
+   * through aspect-ratio, never through the same percentage, because a
+   * percentage height would resolve against the row's *height* and squash the
+   * ball into an ellipse. */
+  width: var(--orb-size);
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
   padding: 0;
   font: inherit;
   line-height: 1;
@@ -569,18 +578,12 @@ body {
   #btn-pause-game { grid-column: 2; grid-row: 1 / span 3; }
   #active-question { grid-column: 1; }
 
-  /* Landscape has no vertical slack to spare, so the circles shrink to the
-   * 44px target and the caption line gets tighter. */
-  #ability-bar { gap: 10px; padding-bottom: 11px; }
-  .ability-slot {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-  }
-  /* Compact landscape: a 44px orb row, a tight gap between the balls, and the
-   * row centre is half of the orb. */
-  #ability-bar { --orb-size: 44px; --orb-gap: 8px; }
+  /* Landscape has no vertical slack to spare: the row caps at 44px, the gap
+   * between the balls tightens, the caption line gets shorter and the dragons
+   * sit on the smaller row centre. The orbs still shrink *below* the cap when
+   * the answer column is narrow, so three of them always fit the row the
+   * answers occupy instead of spilling over the playfield. */
+  #ability-bar { --orb-cap: 44px; --orb-gap: 8px; padding-bottom: 11px; }
   .ability-ornament { top: 22px; }
   .ability-slot-cooldown { font-size: 17px; }
   .ability-slot-readout { max-width: 84px; font-size: 8px; line-height: 10px; }
@@ -2922,30 +2925,6 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   margin-block: auto;
 }
 
-/* On the browser build the spells belong to the answers: the row drops off the
- * sword line and sits directly on top of the answer grid, right-aligned to the
- * grid's own right edge. The auto margins move to the bar, so the spell row and
- * the answers travel together as one block that is centred in the leftover
- * height. The dragons only frame a centred row, so a right-aligned one shows the
- * orbs alone. The apps keep the swords -> spells -> answers stack above. */
-html[data-platform="web"] #game-wrap[data-layout="portrait"] #input-zone > #ability-bar {
-  order: 0;
-  /* Slack above the spell row, none under it: the row is glued to the grid. */
-  margin-top: auto;
-  margin-bottom: 0;
-  justify-content: flex-end;
-}
-
-html[data-platform="web"] #game-wrap[data-layout="portrait"] #input-zone > #mc-buttons {
-  /* ... and the matching slack below the answers, so the pair travels centred
-   * as one block instead of the answers floating alone. */
-  margin-top: 0;
-  margin-bottom: auto;
-}
-
-html[data-platform="web"] #game-wrap[data-layout="portrait"] .ability-ornament {
-  display: none;
-}
 #game-wrap[data-layout="portrait"] #input-zone::before {
   content: "";
   position: absolute;
