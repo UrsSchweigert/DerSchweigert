@@ -12,7 +12,7 @@ const rule = (selector) => {
 };
 
 // A double tap on plain text zooms the mobile visual viewport out of the game's fixed layout, and that
-// second tap is also part of the three taps on the title's intro line that open the speedrun card (see
+// second tap is also part of the three taps on the title's level number that open the speedrun card (see
 // speedrun-ui.js). The app copy of index.html/styles.css is byte-identical, so one rule covers both.
 test('a double tap does not zoom the document', () => {
   const html = rule('html');

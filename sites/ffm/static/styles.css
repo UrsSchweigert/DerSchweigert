@@ -2131,7 +2131,10 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   z-index: 3;
   width: clamp(44px, 14vw, 96px);
   max-width: 20vw;
-  pointer-events: none;
+  /* Clickable on purpose: three taps here open the speedrun card (see
+     speedrun-ui.js), and this numeral is the level display the title screen
+     always shows — the intro sentence under it is hidden on small phones. */
+  pointer-events: auto;
   user-select: none;
   filter: drop-shadow(0 2px 3px #070e0b);
 }

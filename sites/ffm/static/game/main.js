@@ -116,7 +116,7 @@ const abilityBar = createAbilityBar({
 // The continuous-run clock and its device records. The timer is fed only while
 // a campaign level is actually being played, so pauses, level-clear screens and
 // loading never enter a time; the records card is hidden behind three taps on
-// the title's intro line (see speedrun-ui.js).
+// the title's level number (see speedrun-ui.js).
 const speedrunRecords = createSpeedrunRecords({ storage: globalThis.localStorage ?? null });
 const speedrunTimer = createSpeedrunTimer();
 // The splits of the run in progress, kept only to report a finished run: the

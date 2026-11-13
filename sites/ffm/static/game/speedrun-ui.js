@@ -2,9 +2,9 @@
 //
 //   * The run clock is opt-in and lives in the HUD readouts: it appears only
 //     while the player turned the timer on *and* a run is actually going.
-//   * The records are hidden: three taps on the title's intro line open a card
-//     with the best time per level and the best finished run, which is also
-//     where the timer is turned on.
+//   * The records are hidden: three taps on the title's level number open a
+//     card with the best time per level and the best finished run, which is
+//     also where the timer is turned on.
 //
 // Nothing here decides when time passes — see speedrun.js for the run itself.
 
@@ -12,6 +12,10 @@ import { formatRunClock, formatRunTime } from './speedrun.js';
 
 const TAP_WINDOW_MS = 700;
 const TAPS_TO_OPEN = 3;
+// The level number the title screen shows: the "Starting level N" line, the
+// illuminated numeral above it, and — on the roomier layouts only — the intro
+// sentence that used to be the sole target.
+const TAP_TARGET_SELECTOR = '#continue-level, .title-level-numerals, .splash-intro';
 
 /**
  * @param {object} options
@@ -116,12 +120,17 @@ export function createSpeedrunUi({ doc = globalThis.document, translate, records
     lastClockText = null;
   }
 
-  const intro = doc?.querySelector?.('.splash-intro') ?? null;
+  // The level number is the target, not the intro sentence: `#continue-level`
+  // ("Starting level 1") and the illuminated numeral above it are what the title
+  // screen always shows, while the intro line is hidden on short and compact
+  // phones. Delegated from the document because the numeral widget is built
+  // after this module (see level-numerals.js in main.js).
   const onTap = event => {
-    event?.preventDefault?.();
+    if (!event?.target?.closest?.(TAP_TARGET_SELECTOR)) return;
+    event.preventDefault?.();
     registerTap();
   };
-  intro?.addEventListener?.('click', onTap);
+  doc?.addEventListener?.('click', onTap);
   toggle?.addEventListener?.('change', () => setEnabled(toggle.checked === true));
   closeButton?.addEventListener?.('click', close);
   overlay?.addEventListener?.('click', event => {
@@ -158,7 +167,7 @@ export function createSpeedrunUi({ doc = globalThis.document, translate, records
     /** Exposed for tests: the tap detector without a DOM event. */
     registerTap,
     destroy() {
-      intro?.removeEventListener?.('click', onTap);
+      doc?.removeEventListener?.('click', onTap);
     },
   };
 }
