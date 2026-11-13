@@ -198,12 +198,15 @@ body {
    * from the space that is actually free beside the orb row (bar width minus
    * the three orbs and their two gaps), capped at 84px and floored at 34px.
    * The row is deliberately tight between the balls: every pixel of gap taken
-   * from between the orbs is a pixel the dragons gain on the outside.
+   * from between the orbs is a pixel the dragons gain on the outside, and the
+   * dragons keep --ornament-gap of air between their snout and the outer orb so
+   * the frame reads as a frame instead of touching the glass.
    * Keep --orb-size in sync with .ability-slot's own width below: the slot
    * states its size literally so the tests and the layout stay readable. */
   --orb-gap: clamp(6px, 2.6vw, 12px);
   --orb-size: 58px;
-  --ornament-size: clamp(34px, calc((100% - 3 * var(--orb-size) - 2 * var(--orb-gap)) / 2), 84px);
+  --ornament-gap: 12px;
+  --ornament-size: clamp(34px, calc((100% - 3 * var(--orb-size) - 2 * var(--orb-gap)) / 2 - var(--ornament-gap)), 76px);
   position: relative;
   order: -1;
   flex: 0 0 100%;
@@ -2917,6 +2920,31 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 
 #game-wrap[data-layout="portrait"] #input-zone > #mc-buttons {
   margin-block: auto;
+}
+
+/* On the browser build the spells belong to the answers: the row drops off the
+ * sword line and sits directly on top of the answer grid, right-aligned to the
+ * grid's own right edge. The auto margins move to the bar, so the spell row and
+ * the answers travel together as one block that is centred in the leftover
+ * height. The dragons only frame a centred row, so a right-aligned one shows the
+ * orbs alone. The apps keep the swords -> spells -> answers stack above. */
+html[data-platform="web"] #game-wrap[data-layout="portrait"] #input-zone > #ability-bar {
+  order: 0;
+  /* Slack above the spell row, none under it: the row is glued to the grid. */
+  margin-top: auto;
+  margin-bottom: 0;
+  justify-content: flex-end;
+}
+
+html[data-platform="web"] #game-wrap[data-layout="portrait"] #input-zone > #mc-buttons {
+  /* ... and the matching slack below the answers, so the pair travels centred
+   * as one block instead of the answers floating alone. */
+  margin-top: 0;
+  margin-bottom: auto;
+}
+
+html[data-platform="web"] #game-wrap[data-layout="portrait"] .ability-ornament {
+  display: none;
 }
 #game-wrap[data-layout="portrait"] #input-zone::before {
   content: "";
