@@ -441,7 +441,8 @@ test('all six act dioramas are shown with their real titles', () => {
   assert.equal((html.match(/<figure class="frame frame-clone">/g) || []).length, 6,
     'the loop needs a duplicated, aria-hidden set');
   assert.match(html, /<div class="act-band-set" aria-hidden="true">/);
-  assert.match(css, /\.act-band-viewport \{[\s\S]*?overflow-x: auto/);
+  assert.match(css, /\[data-pannable-band\] \{[\s\S]*?overflow-x: auto/);
+  assert.ok(!html.includes('strip-hint'), 'the bands carry no disclaimer hint');
   assert.match(css, /flex: 0 0 clamp\(300px, 43vw, 570px\)/, 'the acts are 30 % larger than the old filmstrip');
   assert.match(js, /function initPannableBands/);
   assert.match(js, /data-pannable-band/);
@@ -505,12 +506,11 @@ test('the gameplay band loops five full portrait app captures above the generati
     assert.match(DICTIONARY[key].en, /^Level \d+ · \S/);
   }
 
-  // The band is a focusable, announced region that pauses while in use.
-  assert.match(band, /<div class="shot-band-viewport" tabindex="0" role="region"/);
-  assert.match(band, /data-i18n="shots.stripHint"/);
-  assert.match(css, /@keyframes shot-band-scroll/);
-  assert.match(css, /translateX\(-50%\)/);
-  assert.match(css, /animation-play-state: paused/);
+  // The band uses the same pannable loop as the acts.
+  assert.match(band, /<div class="shot-band-viewport" data-pannable-band tabindex="0" role="region"/);
+  assert.match(band, /<div class="shot-band-track" data-band-track>/);
+  assert.match(css, /\[data-pannable-band\] \{[\s\S]*?overflow-x: auto/);
+  assert.match(css, /cursor: grab/);
   assert.ok(html.indexOf('id="screenshots"') < html.indexOf('id="generationen"'),
     'the band sits right above the generations section');
 });
