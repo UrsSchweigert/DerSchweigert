@@ -114,6 +114,24 @@ export const DICTIONARY = {
   },
   'art.dragonCaption': { de: 'Der Drache wartet am Ende des Feldzugs.', en: 'The dragon waits at the end of the campaign.' },
 
+  // Gameplay filmstrip: real portrait captures from the app build
+  'shots.kicker': { de: 'Aus dem Spiel', en: 'From the game' },
+  'shots.title': { de: 'Fünf Momente, fünf Level', en: 'Five moments, five levels' },
+  'shots.lead': {
+    de: 'Echte Screenshots aus der App – vom ersten Hieb bis zur Heilung. Kein Mock-up, keine Montage: Dieselben Bildschirme, die du beim Spielen siehst.',
+    en: 'Real screenshots from the app – from the first strike to the heal. No mock-up, no montage: the same screens you see while playing.',
+  },
+  'shots.stripLabel': { de: 'Screenshots aus dem Spiel', en: 'Screenshots from the game' },
+  'shots.stripHint': {
+    de: 'Der Streifen läuft von selbst – beim Darüberfahren oder Fokussieren hält er an.',
+    en: 'The strip runs by itself – hover or focus to pause.',
+  },
+  'shots.strike': { de: 'Level 1 · Hieb', en: 'Level 1 · Strike' },
+  'shots.fireball': { de: 'Level 10 · Feuerball', en: 'Level 10 · Fireball' },
+  'shots.blitz': { de: 'Level 20 · Blitz', en: 'Level 20 · Lightning' },
+  'shots.dragon': { de: 'Level 30 · Drache', en: 'Level 30 · Dragon' },
+  'shots.heal': { de: 'Level 40 · Heilen', en: 'Level 40 · Healing' },
+
   // So spielt es sich
   'play.kicker': { de: 'So spielt es sich', en: 'How it plays' },
   'play.title': { de: 'Drei Schwierigkeiten, ein Formen-Modus', en: 'Three difficulties, a shapes mode' },

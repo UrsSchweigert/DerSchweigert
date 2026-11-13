@@ -962,6 +962,115 @@ ul {
   opacity: 0.8;
 }
 
+/* Gameplay band: five full portrait app captures looping continuously above
+   the generation cards. Each phone is half the size of the original filmstrip,
+   so the band reads as a moving ribbon rather than a second gallery. */
+.shot-band {
+  --shot-gap: clamp(10px, 1.4vw, 18px);
+  padding-block: clamp(18px, 2.6vw, 34px);
+  overflow: hidden;
+}
+
+.shot-band .section-head {
+  margin-bottom: clamp(14px, 2vw, 24px);
+}
+
+.shot-band-title {
+  font-size: clamp(1.05rem, 1.2vw + 0.6rem, 1.45rem);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ivory);
+  margin-bottom: 0.4em;
+}
+
+.shot-band-title::after {
+  content: "";
+  display: block;
+  width: clamp(40px, 6vw, 76px);
+  height: 2px;
+  margin-top: 0.5em;
+  background: linear-gradient(90deg, var(--brass), transparent);
+}
+
+.shot-band-viewport {
+  overflow: hidden;
+  padding-block: 6px 14px;
+}
+
+.shot-band-track {
+  display: flex;
+  width: max-content;
+  animation: shot-band-scroll 26s linear infinite;
+  will-change: transform;
+}
+
+.shot-band-set {
+  display: flex;
+  gap: var(--shot-gap);
+  /* The trailing gap makes each set exactly half the track, so the -50 %
+     keyframe lands on the first clone with no visible seam. */
+  padding-right: var(--shot-gap);
+}
+
+.shot-frame {
+  flex: 0 0 clamp(95px, 12vw, 130px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  margin: 0;
+}
+
+.shot-frame .phone {
+  max-width: 100%;
+  padding: 6px;
+  border-radius: 20px;
+}
+
+.shot-frame .phone-notch {
+  top: 10px;
+  width: 34%;
+  height: 4px;
+}
+
+.shot-frame .phone-screen {
+  border-radius: 15px;
+}
+
+.shot-frame figcaption {
+  color: var(--ivory-muted);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.shot-band:hover .shot-band-track,
+.shot-band:focus-within .shot-band-track {
+  animation-play-state: paused;
+}
+
+@keyframes shot-band-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shot-band-track {
+    animation: none;
+  }
+
+  .shot-band-viewport {
+    overflow-x: auto;
+  }
+
+  /* Without the marquee the duplicate set is just a second copy. */
+  .shot-band-set[aria-hidden="true"] {
+    display: none;
+  }
+}
+
 .art-grid {
   display: grid;
   /* One panel per row: the action stills need the width for a readable

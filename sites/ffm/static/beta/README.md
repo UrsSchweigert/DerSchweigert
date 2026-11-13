@@ -13,9 +13,9 @@ clicks and the same-origin waitlist endpoint.
 | `beta.js` | The page dictionary, the `#beta-lang-toggle` wiring and the waitlist form submit. |
 | `beta.test.js` | `node:test` regression suite (see below). |
 
-Tokens, buttons, the header, the hero stage, the section rhythm, the FAQ
-accordion and the footer all come from `/promo/promo.css`, which this page
-loads first. `beta.css` deliberately defines none of them: a second copy would
+Tokens, buttons, the header, the hero stage, the gameplay band, the section
+rhythm, the FAQ accordion and the footer all come from `/promo/promo.css`,
+which this page loads first. `beta.css` deliberately defines none of them: a second copy would
 let the two pages drift apart, and `beta.test.js` fails if one appears.
 
 ## Preview locally
@@ -49,6 +49,7 @@ route, or a `#anchor`.
 | Section | Anchor | Content |
 | --- | --- | --- |
 | Hero | — | Kicker, logo, headline, the live TestFlight button, the Android waitlist link and the title-screen phone mockup. |
+| Gameplay band | `#screenshots` | The same half-size, continuously looping five-capture band as the landing page, in CSS phone bodies. It reuses `/promo/promo.css` and the shared `shots.*` dictionary keys; hover or focus pauses it, reduced motion makes it a plain scroller. |
 | Requirements | — | Three centred facts under the hero: iOS 15, the free TestFlight app, free of charge without an account. |
 | iOS track | `#ios` | "Open now": facts, then four steps (install TestFlight → accept the invitation → install and play → send feedback), the 90-day note, the free-unlock note and the invitation button. |
 | Android track | `#android` | "In preparation": facts, then four steps (enter the Google address → wait for the invitation → join and install → send feedback), the waitlist form, and the promo-code note. |

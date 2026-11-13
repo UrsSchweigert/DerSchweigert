@@ -14,7 +14,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize } from 'node:path';
 
-import { SUPPORTED_LOCALES, DEFAULT_LOCALE, STORAGE_KEY } from '../promo/promo.js';
+import { DICTIONARY as PROMO_DICTIONARY, SUPPORTED_LOCALES, DEFAULT_LOCALE, STORAGE_KEY } from '../promo/promo.js';
 import { DICTIONARY } from './beta.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -22,6 +22,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = normalize(join(here, '..'));
 
 const read = (name) => readFileSync(join(here, name), 'utf8');
+
+// The page reuses /promo/promo.js, so its markup may use the shared promo keys
+// (for example the gameplay band) as well as beta.js's own beta.* keys.
+const lookup = (key) => DICTIONARY[key] ?? PROMO_DICTIONARY[key];
 const html = read('index.html');
 const css = read('beta.css');
 const js = read('beta.js');
@@ -114,9 +118,10 @@ test('dictionary covers both locales and keeps the beta.* namespace', () => {
   }
 });
 
-test('every data-i18n key in index.html exists in the dictionary', () => {
-  const missing = [...referencedKeys].filter((key) => !(key in DICTIONARY));
-  assert.deepEqual(missing, [], `markup uses keys missing from beta.js: ${missing.join(', ')}`);
+test('every data-i18n key in index.html exists in the shared or beta dictionary', () => {
+  const missing = [...referencedKeys].filter((key) => !lookup(key));
+  assert.deepEqual(missing, [],
+    `markup uses keys missing from beta.js and promo.js: ${missing.join(', ')}`);
 });
 
 test('no dictionary key is unused', () => {
@@ -139,7 +144,9 @@ test('markup carries the German copy verbatim, so no-JS visitors see German', ()
   let match;
   while ((match = pattern.exec(html)) !== null) {
     const [, , , key, text] = match;
-    const expected = DICTIONARY[key].de;
+    const entry = lookup(key);
+    assert.ok(entry, `missing dictionary entry for "${key}"`);
+    const expected = entry.de;
     const actual = decodeEntities(stripNoBreak(text));
     assert.equal(actual, expected, `markup text for "${key}" drifts from the de dictionary value`);
     checked.add(key);
@@ -322,6 +329,29 @@ test('the page reuses the landing-page design system and adds only its own CSS',
 });
 
 // --- art, module and a11y ----------------------------------------------
+
+test('the beta page carries the looping gameplay band above the requirements', () => {
+  const start = html.indexOf('class="shot-band"');
+  const end = html.indexOf('class="beta-strip"');
+  assert.ok(start > -1 && end > start, 'the band must sit right above the requirements strip');
+  const band = html.slice(start, end);
+
+  assert.equal((band.match(/<figure class="shot-frame">/g) || []).length, 5,
+    'one primary shot per action');
+  assert.equal((band.match(/<figure class="shot-frame shot-clone">/g) || []).length, 5,
+    'the loop needs a duplicated, aria-hidden set');
+  assert.match(band, /<div class="shot-band-set" aria-hidden="true">/);
+
+  for (const name of ['level-01-strike', 'level-10-fireball', 'level-20-blitz',
+    'level-30-dragon', 'level-40-healing']) {
+    const url = `/promo/art/shots/${name}.webp`;
+    assert.ok(band.includes(`src="${url}"`), `missing ${url} in the beta markup`);
+    assert.ok(existsSync(join(webRoot, url)), `missing ${url} on disk`);
+  }
+
+  assert.match(band, /<div class="shot-band-viewport" tabindex="0" role="region"/);
+  assert.match(band, /data-i18n="shots.stripHint"/);
+});
 
 test('the art gallery uses the promo art that the landing page ships', () => {
   const images = [...html.matchAll(/<img\b[^>]*src="(\/promo\/art\/[^"]+)"/g)].map((m) => m[1]);

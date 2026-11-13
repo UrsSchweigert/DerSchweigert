@@ -449,7 +449,7 @@ test('three action stills replace the sprite demo', () => {
     assert.ok(ext, `action art for "${name}" is missing on disk`);
     const url = `/promo/art/action/${name}${ext}`;
     assert.ok(html.includes(`src="${url}"`), `missing ${url} in the markup`);
-    const tag = html.match(new RegExp(`<img[^>]*${escapeRegExp(name)}${escapeRegExp(ext)}[^>]*>`))[0];
+    const tag = html.match(new RegExp(`<img[^>]*${escapeRegExp(url)}[^>]*>`))[0];
     assert.match(tag, /width="1600"/);
     assert.match(tag, /height="900"/);
     assert.match(tag, /loading="lazy"/);
@@ -461,6 +461,49 @@ test('three action stills replace the sprite demo', () => {
   // The crafted-sprite selling point stays.
   assert.match(html, /data-i18n="art.fiendsTitle"/);
   assert.match(html, /src="\/game\/dragon\.webp"/);
+});
+
+test('the gameplay band loops five full portrait app captures above the generations', () => {
+  const band = sectionMarkup('screenshots');
+  const shots = [
+    ['level-01-strike', 'shots.strike'],
+    ['level-10-fireball', 'shots.fireball'],
+    ['level-20-blitz', 'shots.blitz'],
+    ['level-30-dragon', 'shots.dragon'],
+    ['level-40-healing', 'shots.heal'],
+  ];
+
+  assert.equal((band.match(/<figure class="shot-frame">/g) || []).length, 5,
+    'one primary shot frame per action');
+  assert.equal((band.match(/<div class="phone">/g) || []).length, 5,
+    'every primary screenshot sits in the CSS phone body');
+  assert.equal((band.match(/<figure class="shot-frame shot-clone">/g) || []).length, 5,
+    'the loop needs a second, aria-hidden set of five');
+  assert.match(band, /<div class="shot-band-set" aria-hidden="true">/);
+
+  for (const [name, key] of shots) {
+    const url = `/promo/art/shots/${name}.webp`;
+    assert.ok(band.includes(`src="${url}"`), `missing ${url} in the markup`);
+    assert.ok(existsSync(join(webRoot, url)), `missing ${url} on disk`);
+    const tag = band.match(new RegExp(`<img[^>]*${escapeRegExp(name)}\\.webp[^>]*>`))[0];
+    assert.match(tag, /width="1170"/, `${name} must declare its capture width`);
+    assert.match(tag, /height="2532"/, `${name} must declare its capture height`);
+    assert.match(tag, /loading="lazy"/);
+    assert.match(tag, /decoding="async"/);
+    assert.match(tag, /alt="[^"]+"/, `${name} needs a meaningful alt text`);
+    assert.ok(band.includes(`data-i18n="${key}"`), `missing caption ${key}`);
+    assert.match(DICTIONARY[key].de, /^Level \d+ · \S/);
+    assert.match(DICTIONARY[key].en, /^Level \d+ · \S/);
+  }
+
+  // The band is a focusable, announced region that pauses while in use.
+  assert.match(band, /<div class="shot-band-viewport" tabindex="0" role="region"/);
+  assert.match(band, /data-i18n="shots.stripHint"/);
+  assert.match(css, /@keyframes shot-band-scroll/);
+  assert.match(css, /translateX\(-50%\)/);
+  assert.match(css, /animation-play-state: paused/);
+  assert.ok(html.indexOf('id="screenshots"') < html.indexOf('id="generationen"'),
+    'the band sits right above the generations section');
 });
 
 test('difficulty cards carry matching iconography and a text equivalent', () => {
