@@ -844,6 +844,15 @@ calibrator without the level or ground controls), which is indistinguishable fro
 a bug in the tool. `--worktree` serves the current checkout instead and warns when
 it is behind `origin/main`; `--port N` and `--offline` are the other flags.
 
+It also sends `cache-control: no-store`, which `python3 -m http.server` does not.
+That matters more than it sounds: after the files change (branch switch,
+`git checkout`, pull) the browser can keep an old ES module and revalidate it as
+`304`, so `main.js` arrives new while, say, `asset-preload.js` stays old. The
+module graph then fails at link time with a `SyntaxError: ... does not provide an
+export named ...`, `main.js` never runs, and the loading bar sits at 0% with the
+music already playing — it reads like a hang, not like a stale cache. If you serve
+the tree another way, hard-reload once (empty cache) after switching code.
+
 ### Change auth/profile/leaderboard behavior
 
 Start with:
