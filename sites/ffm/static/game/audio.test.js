@@ -1268,6 +1268,14 @@ describe('shared sound buses and event cues', () => {
       assert.ok(freqs.some(f => f < 100), 'a sub-bass thump and a rumble');
       assert.ok(freqs.some(f => f > 600), 'and a shimmer coming through the rent');
       assert.ok(context.nodes.some(n => n.kind === 'buffer'), 'the rent is noise');
+      // A phone speaker moves neither 54 Hz nor a 38 Hz rumble, so the cue has to
+      // carry its body in the hundreds of hertz and in the noise rent to be heard
+      // at all — the first version was inaudible on exactly that hardware.
+      assert.ok(freqs.some(f => f >= 120 && f < 400), `a body a phone speaker can move: ${freqs}`);
+      const portalGains = context.nodes
+        .filter(n => n.kind === 'gain' && n !== audio._effectsBus && n !== audio._musicBus)
+        .flatMap(n => n.gain.events.filter(e => typeof e[1] === 'number').map(e => e[1]));
+      assert.ok(Math.max(...portalGains) >= 0.4, `the rent carries the cue: ${Math.max(...portalGains)}`);
 
       // It must stay below a spell: it fires on every encounter.
       const peak = engine => Math.max(...engine.context.nodes
