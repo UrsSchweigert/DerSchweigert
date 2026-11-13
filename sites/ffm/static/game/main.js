@@ -74,7 +74,8 @@ const platform = await resolvePlatform();
 document.documentElement.dataset.platform = platform.isApp ? 'app' : 'web';
 const gameplayChrome = createGameplayChrome({ translate: t });
 // One bar for the whole session; the run's runtime feeds it progress every
-// frame. It mounts itself inside #gameplay-chrome (see ability-bar.js).
+// frame. It mounts itself into the answer zone, under the portrait sword row
+// (see ability-bar.js), so the gameplay header keeps its height.
 const abilityBar = createAbilityBar({ translate: t, onActivate: (id) => activateAbility(id) });
 const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 
@@ -2708,7 +2709,9 @@ function remainingEnemyCount() {
 // instead of dying, is dropped from the requeue list, and the next spawn is
 // scheduled like any other resolved encounter. No score, combo or timing
 // credit is awarded here.
-function removeActiveFiendForAbility() {
+// `exit` decides how the fiend leaves: 'blow' throws it at the viewer (wind and
+// storm), 'retreat' keeps the old walk-off for anything that merely flees.
+function removeActiveFiendForAbility(exit = 'retreat') {
   const fiend = activeFiend;
   activeFiend = null;
   pendingProblemActivation = null;
@@ -2718,7 +2721,8 @@ function removeActiveFiendForAbility() {
       restoreSpikeSlow(fiend);
       if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
     }
-    fiend.setState('retreat');
+    if (exit === 'blow' && typeof fiend.blowTowardViewer === 'function') fiend.blowTowardViewer();
+    else fiend.setState('retreat');
   }
   state.timerActive = false;
   inputDisabled = false;
@@ -2729,7 +2733,7 @@ function removeActiveFiendForAbility() {
 // timing credit, then the wave continues or clears exactly like a normal kill.
 function castWindAbility() {
   if (!activeFiend) return false;
-  removeActiveFiendForAbility();
+  removeActiveFiendForAbility('blow');
   state.enemiesDefeated++;
   recordPracticeEncounterDefeated();
   hud.update(state);
@@ -2753,7 +2757,7 @@ function castStormAbility() {
     removed++;
   }
   if (removed < toRemove && activeFiend) {
-    removeActiveFiendForAbility();
+    removeActiveFiendForAbility('blow');
     removed++;
   }
   if (removed === 0) return false;

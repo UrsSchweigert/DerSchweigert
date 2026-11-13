@@ -94,6 +94,45 @@ describe('fiend drawing', () => {
   });
 });
 
+describe('blown-away fiends fly at the viewer', () => {
+  it('grows, drifts down out of the stage and fades, then reports retreated', () => {
+    const fiend = new Fiend(680, 360, { hp: 1, palette: {}, fiendClassId: 1 });
+    const events = [];
+    fiend.on('retreated', () => events.push('retreated'));
+    fiend.blowTowardViewer(0.5);
+
+    const startCtx = recordingCtx();
+    fiend.draw(startCtx);
+    assert.deepEqual(startCtx.calls.filter((c) => c.name === 'scale').at(-1).args, [1, 1],
+      'the flight starts at full size');
+
+    fiend.update(0.25);
+    const midCtx = recordingCtx();
+    fiend.draw(midCtx);
+    const [scaleX, scaleY] = midCtx.calls.filter((c) => c.name === 'scale').at(-1).args;
+    assert.ok(scaleX > 1.5 && scaleX === scaleY, `grows toward the camera (${scaleX})`);
+    const [driftX, driftY] = midCtx.calls.filter((c) => c.name === 'translate')[0].args;
+    assert.ok(driftX > 680, 'slides away from the middle of the painted floor');
+    assert.ok(driftY > 360, 'and down past the bottom edge');
+    assert.equal(midCtx.calls.filter((c) => c.name === 'save').length,
+      midCtx.calls.filter((c) => c.name === 'restore').length, 'one balanced save/restore pair');
+
+    fiend.update(0.3);
+    assert.deepEqual(events, ['retreated'], 'cleanup still runs when the flight ends');
+    const endCtx = recordingCtx();
+    fiend.draw(endCtx);
+    assert.equal(endCtx.calls.filter((c) => c.name === 'scale').length, 0,
+      'afterwards the sprite draws unscaled again');
+  });
+
+  it('keeps a walking fiend unscaled on its ordinary path', () => {
+    const fiend = new Fiend(680, 360, { hp: 1, palette: {}, fiendClassId: 1 });
+    const ctx = recordingCtx();
+    fiend.draw(ctx);
+    assert.equal(ctx.calls.filter((c) => c.name === 'scale').length, 0);
+  });
+});
+
 // Canvas state tracking: the hero's strike FX draws arcs, sparks and a burst.
 // It must open its own save/restore pair - without it the trailing restore()
 // popped the renderer's transform and every frame drawn while the swing was on

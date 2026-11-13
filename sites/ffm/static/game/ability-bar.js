@@ -1,4 +1,5 @@
-// Three-slot ability bar (wind, storm, earth) for the gameplay HUD.
+// Three-slot ability bar (wind, storm, earth) for the gameplay HUD. The slots
+// render as three centred circles under the portrait sword row.
 //
 // The widget is deliberately clock-free: callers pass the current level,
 // cooldown progress and the earned bonus runtime through update(), so the HUD
@@ -277,8 +278,17 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
 
   for (const slot of slots) element.appendChild(slot.button);
 
-  const chrome = doc.getElementById?.('gameplay-chrome');
-  if (chrome?.appendChild) chrome.appendChild(element);
+  // The circles belong to the answer zone, directly under the portrait sword
+  // row, so the gameplay header keeps its size. The `order` values in the
+  // stylesheet fix the visual sequence no matter which module mounts first.
+  const answerZone = doc.getElementById?.('input-zone');
+  const anchor = answerZone ? doc.getElementById?.('mc-buttons') : null;
+  if (anchor && answerZone.insertBefore) answerZone.insertBefore(element, anchor);
+  else if (answerZone?.appendChild) answerZone.appendChild(element);
+  else {
+    const chrome = doc.getElementById?.('gameplay-chrome');
+    if (chrome?.appendChild) chrome.appendChild(element);
+  }
 
   function applySlot(slot, level, progress, readouts, cooldowns) {
     const unlocked = level >= slot.unlockLevel;
