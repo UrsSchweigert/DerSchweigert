@@ -37,6 +37,7 @@ would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 | Section | Anchor | Content |
 | --- | --- | --- |
 | Hero | `#hero` | Centred poster: kicker, logo with shine, headline, then the CTA block in priority order — the brass-filled, glowing **open-beta pill** (`hero.betaLabel`/`hero.betaText` → `/beta/`, own row) first, the two disabled store badges second, the browser game as a ghost button last — plus the payment-split subline. The stage is landscape only (act-1 backdrop, sunrise gradient, intro village, parallax) — no characters. |
+| Gameplay band | `#screenshots` | Five half-size full portrait app captures (strike, fireball, blitz, dragon, healing) in CSS phone bodies, looping continuously right above the generations section. A duplicated `aria-hidden` set makes the loop seamless; hover or focus pauses it. |
 | Age cards | `#generationen` | Kindergarten / Grundschule / Erwachsene: `art/heroes/hero-*.webp` standing on `art/stages/stage-*.webp`, one aspect ratio and one hero baseline for all three. |
 | Handcrafted | `#kunst` | Story wrap-up, the six finished acts from `art/acts/act-1…6.webp` in the keyboard-scrollable filmstrip with their real titles, three action stills (`art/action/{fight,fireball,lightning}.webp`), and the fiend parade with the dragon. |
 | How it plays | `#spiel` | Four difficulty cards with inline-SVG iconography (shape trio for Shapes, one to three swords for Easy/Medium/Hard) and a visually hidden "difficulty n of 3" sentence. |
@@ -59,6 +60,13 @@ Every `<img>` carries `width`/`height`; only the hero backdrop uses
 * `art/action/` — three 1600×900 gameplay stills (melee, fireball, lightning).
   Underscore-prefixed files in that folder are intermediates and are never
   referenced.
+* `art/shots/` — five full portrait 1170×2532 captures from the **app bundle**
+  (`mobile/www`), one per action and level: strike (1), fireball (10), blitz
+  (20), dragon (30), healing (40). They are uncropped, so the encounter sword
+  row and the action bar stay in frame. The page shows them at half size in the
+  looping `#screenshots` band; that loop is markup-only (a second
+  `aria-hidden` set of the same five), so the files are still generated once.
+  `tools/capture-gameplay.py` regenerates them; nothing is played by hand.
 * `art/ui/title-screen.webp` — the real app screenshot (1170×2532). The 2.79 MB
   `.png` next to it is the source and must stay unreferenced.
 
@@ -78,9 +86,12 @@ The redesign is pinned as well: the hero stage may not reference a character
 sprite, the three age cards must pair `hero-child`/`hero-teen`/`hero-adult`
 with `stage-small`/`stage-mid`/`stage-grand`, all six `art/acts/act-N.webp`
 must be referenced and exist, the three action stills must exist (`.png` or
-`.webp`), the icon counts per difficulty card are asserted by counting
-`data-icon="sword"` / `data-icon="shape"`, the phone mockup must use the webp
-screenshot, and the store buttons must be disabled buttons without `href`.
+`.webp`), the five `art/shots/level-*.webp` captures must exist in their phone
+bodies with 1170×2532 dimensions and captions, the band must duplicate them
+into an `aria-hidden` set and pause on hover/focus, the icon counts per difficulty
+card are asserted by counting `data-icon="sword"` / `data-icon="shape"`, the
+phone mockup must use the webp screenshot, and the store buttons must be
+disabled buttons without `href`.
 
 ## Why there are no inline scripts
 
@@ -124,3 +135,37 @@ image stays outside the frame), composites `game/title-logo.webp` and the
 tagline plate on top, adds a brass hairline frame and writes `og-image.png`.
 No second character is drawn over the painted hero. The palette is reduced to
 160 colours to stay under 400 KB.
+
+## Regenerating the gameplay screenshots
+
+```sh
+python3 sites/ffm/static/promo/tools/capture-gameplay.py
+```
+
+Run it with an interpreter that has Playwright (with the Chrome channel) and
+Pillow installed; the repository's `.venv` does.
+
+The filmstrip shows the **app** build, not the website, so the script first runs
+`npm run copy-assets` in `sites/ffm/mobile` and then serves `mobile/www` over a
+localhost HTTP server. It seeds a fake `Capacitor.Plugins.Preferences` backed by
+`localStorage` (purchase entitlement, a profile with all 60 levels completed,
+and the acknowledged first-open notice), opens the target level from the app's
+Levels grid, and answers real questions through the DOM until the combo band is
+reached. The completed-levels record only opens the app's own Levels grid; the
+five target levels then run on their real level data, so no campaign is played
+through and no rules are bypassed.
+
+Each screenshot is taken from a frozen frame: an init script wraps
+`requestAnimationFrame`, and once the requested action effect
+(`heroStrike`, `fireball`, `lightning`, `dragonFinisher`) has played for the
+configured number of milliseconds, the callback is dropped. The healing still
+waits for the hold-to-heal progress to reach 78 %. That keeps the timing exact
+instead of racing a live canvas. The full-resolution PNG masters are written to
+`sites/ffm/promo-shots/` for reuse; the page assets are the WebP q82
+derivatives in `art/shots/`.
+
+The captures use a 390×844 viewport at `deviceScaleFactor: 3` (1170×2532), the
+same German locale (`ffm_locale = 'de'`) and the same app chrome as
+`art/ui/title-screen.webp`. Use `--only strike|fireball|blitz|dragon|heal` to
+regenerate a single shot, `--out DIR` to write the WebP page assets elsewhere,
+and `--shots-dir DIR` to write the PNG masters elsewhere.

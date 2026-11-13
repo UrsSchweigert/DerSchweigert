@@ -90,6 +90,40 @@ The two badges are drawn from scratch as generic marks; they are not the officia
 Apple or Google badge artwork and must not be presented as such. The page labels
 them "coming soon" and renders them without a link.
 
+## shots/
+
+Five full portrait gameplay captures for the looping band above the
+generations section, taken from the **app bundle** (`mobile/www`, built by `mobile/scripts/copy-assets.mjs`), not
+the website. No generated model and no retouching: each still is a frozen frame
+of the running app.
+
+`tools/capture-gameplay.py` (in `promo/tools/`) documents and reproduces the
+method: serve `mobile/www` on localhost, seed the app's Capacitor Preferences
+(purchase entitlement, a profile with all levels completed, acknowledged
+first-open notice), open the target level from the app's own Levels grid, answer
+real questions until the combo band is reached, then freeze
+`requestAnimationFrame` after the action's screen effect has played for a fixed
+time. The healing still waits for the hold-to-heal progress to reach 78 %.
+
+All five: 390×844 viewport, `deviceScaleFactor: 3` → 1170×2532, German
+(`ffm_locale = 'de'`). The PNG masters are kept in `sites/ffm/promo-shots/`
+for reuse; the WebP q82 method 6 derivatives here are the page assets. The
+encounter sword row and action bar are in frame because the capture is
+uncropped.
+
+| File | Level | Action / frame |
+| --- | --- | --- |
+| `shots/level-01-strike.webp` | 1 | melee strike, frozen 150 ms after `heroStrike` |
+| `shots/level-10-fireball.webp` | 10 | fireball in flight, frozen 700 ms after `fireball` |
+| `shots/level-20-blitz.webp` | 20 | lightning bolt, frozen 180 ms after `lightning` |
+| `shots/level-30-dragon.webp` | 30 | dragon breath, frozen 1000 ms after `dragonFinisher` |
+| `shots/level-40-healing.webp` | 40 | hold-to-heal at 78 %, green hero aura |
+
+The band duplicates this set once in `index.html` with `aria-hidden="true"` so
+the CSS marquee can loop without a seam; no extra image files are produced.
+
+Captured 2026-11-13.
+
 ## stages/
 
 Three age-band stage backdrops for the promo landing page. Composited from
