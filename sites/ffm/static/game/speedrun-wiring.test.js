@@ -26,8 +26,9 @@ function bodyOf(name) {
 describe('the run timer is fed by the game and nothing else', () => {
   it('starts a run only for a campaign level', () => {
     const body = bodyOf('finishStartLevel');
-    assert.match(body, /if \(!practiceRun && !state\.isShapesMode\) speedrunTimer\.start\(state\.level\);/);
-    assert.match(body, /else speedrunTimer\.abandon\(\);/);
+    assert.match(body, /if \(!practiceRun && !state\.isShapesMode && speedrunTimer\.start\(state\.level\)\) \{/);
+    assert.match(body, /if \(state\.level === 1\) speedrunSplits = \[\];/, 'a fresh run starts with no splits');
+    assert.match(body, /\} else \{\n      speedrunTimer\.abandon\(\);/, 'a practice run or Shapes is never a run');
   });
 
   it('counts only while a level is on screen and not paused', () => {
@@ -43,7 +44,9 @@ describe('the run timer is fed by the game and nothing else', () => {
     const body = bodyOf('triggerLevelClear');
     assert.match(body, /const speedrunSplit = typeof speedrunTimer === 'undefined' \? null : speedrunTimer\.completeLevel\(\);/);
     assert.match(body, /speedrunRecords\.recordLevel\(speedrunSplit\.level, speedrunSplit\.levelMs\);/);
-    assert.match(body, /if \(speedrunSplit\.final\) speedrunRecords\.recordRun\(speedrunSplit\.runMs\);/);
+    assert.match(body, /speedrunSplits\.push\(\{ level: speedrunSplit\.level, ms: Math\.round\(speedrunSplit\.levelMs\) \}\);/);
+    assert.match(body, /if \(speedrunSplit\.final\) \{[\s\S]*?speedrunRecords\.recordRun\(speedrunSplit\.runMs\);/);
+    assert.match(body, /reportSpeedrunRun\(speedrunSplit\.runMs, speedrunSplits\);/);
     assert.ok(
       body.indexOf('speedrunSplit') < body.indexOf("levelClearOverlay.style.display = 'flex'"),
       'the split is taken before the card goes up',
@@ -72,7 +75,9 @@ describe('the speedrun strings exist in both languages', () => {
     const keys = [
       'speedrun.readout', 'speedrun.title', 'speedrun.enable', 'speedrun.bestRun',
       'speedrun.noRun', 'speedrun.levelsHeading', 'speedrun.empty', 'speedrun.levelSplit',
-      'speedrun.close',
+      'speedrun.close', 'speedrun.boardTitle', 'speedrun.boardPersonal', 'speedrun.boardNoRun',
+      'speedrun.boardSignIn', 'speedrun.boardDevice', 'speedrun.boardEmpty',
+      'speedrun.boardLevels', 'speedrun.boardLevel', 'speedrun.boardLoading', 'speedrun.boardFailed',
     ];
     for (const key of keys) {
       const en = (setLocale('en'), t(key, { level: 1, time: '0:01.0' }));

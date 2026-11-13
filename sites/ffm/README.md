@@ -32,7 +32,8 @@ Browser
   └─ /api/*
       └─ Flask app
           ├─ auth.py    (/api/auth/*)
-          ├─ main.py    (/api/health, /api/profile, /api/score, /api/high-score, /api/leaderboard)
+          ├─ main.py    (/api/health, /api/profile, /api/score, /api/high-score,
+          │               /api/leaderboard, /api/speedrun/*)
           └─ models.py  (DynamoDB persistence helpers; despite the name, not an ORM layer)
 ```
 
@@ -96,6 +97,16 @@ Browser
   `arithmoslayer:speedrun:v1`, like the locale and the story flag. The clock is off by
   default; three taps on the title's intro line open the records card, which is also
   where the clock is switched on.
+- **Central speedrun records (web)**: a signed-in web player reports each finished run to
+  `POST /api/speedrun/run` (sixty splits + total; the server rejects anything that is not
+  sixty distinct levels, plausible times, and a total matching the splits within a 120 ms
+  rounding window, because a run cannot be replayed and the time cannot be verified). The
+  run becomes the player's personal best when it improves, and its splits improve the
+  per-level bests. `GET /api/speedrun/records` (auth) and `GET /api/speedrun/leaderboard`
+  (public) feed the "Speedrun records" block on the web ranking page — personal best,
+  overall fastest runs, and the fastest single level anyone has run. The app build answers
+  both with empty data and never posts: its records stay on the device. Deleting an account
+  removes the records with the rest of the player's score items (same `pk`).
 - Signed-in web players submit cleared-level score deltas to `/api/score` and overall
   scores to `/api/high-score`. Mobile saves cleared-level personal bests/history locally
   without online login, including the final level, and refreshes title statistics.

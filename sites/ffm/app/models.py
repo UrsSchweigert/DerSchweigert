@@ -146,7 +146,7 @@ def set_email_verified(username, verified):
 
 def delete_user(username):
     """Permanently delete a user's account: every score item (HIGHSCORE,
-    LEVEL#*, HIST#*), the PROFILE item, and its EMAIL# lock — deleted in
+    LEVEL#*, HIST#*, SPEEDRUN#*), the PROFILE item, and its EMAIL# lock — deleted in
     that order so a mid-way failure (e.g. a transient DynamoDB error)
     leaves the account still intact/usable rather than half-deleted (profile
     gone but orphaned scores left behind, or vice versa). Raises
@@ -574,3 +574,157 @@ def get_leaderboard(first_grade_year_filter=None):
         })
 
     return global_entries, grouped_entries
+
+
+# --- Speedrun records -------------------------------------------------------
+# A finished continuous run is the record that matters: it is stored once per
+# player as their personal best, and the per-level splits it carries improve the
+# player's per-level bests. Everything lives in the scores table beside the high
+# scores, keyed by its own `SPEEDRUN#` prefix so one scan can read it all.
+#
+# The server cannot re-run a level, so these bounds only reject values that could
+# never be real (a level finished in under half a second, or a run of impossible
+# length) rather than trying to verify a time.
+SPEEDRUN_MIN_LEVEL_MS = 500
+SPEEDRUN_MAX_LEVEL_MS = 30 * 60 * 1000
+SPEEDRUN_TOTAL_TOLERANCE_MS = 120
+SPEEDRUN_RUN_KEY = 'SPEEDRUN#RUN'
+SPEEDRUN_LEVEL_PREFIX = 'SPEEDRUN#LEVEL#'
+SPEEDRUN_PREFIX = 'SPEEDRUN#'
+SPEEDRUN_LEADERBOARD_LIMIT = 10
+
+
+def _speedrun_level_key(level):
+    return f'{SPEEDRUN_LEVEL_PREFIX}{level}'
+
+
+def put_speedrun_run(username, total_ms, splits, first_grade_year=None):
+    """Store a finished run and fold its splits into the per-level bests.
+
+    Returns {saved, central_best_ms}. `saved` reports a new personal best for the
+    whole run, matching the score endpoints' meaning.
+    """
+    now = _now()
+    saved = _put_speedrun_best_run(username, total_ms, first_grade_year, now)
+    for split in splits:
+        _put_speedrun_level_best(username, split['level'], split['ms'], now)
+    best = get_speedrun_records(username)
+    return {'saved': saved, 'central_best_ms': (best['best_run'] or {}).get('total_ms')}
+
+
+def _put_speedrun_best_run(username, total_ms, first_grade_year, now):
+    item = {
+        'pk': f'USER#{username}',
+        'sk': SPEEDRUN_RUN_KEY,
+        'username': username,
+        'total_ms': total_ms,
+        'achieved_at': now,
+    }
+    if first_grade_year is not None:
+        item['first_grade_year'] = first_grade_year
+    try:
+        _scores().put_item(
+            Item=item,
+            ConditionExpression=Attr('pk').not_exists() | Attr('total_ms').gt(total_ms),
+        )
+        return True
+    except ClientError as exc:
+        if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            return False
+        raise
+
+
+def _put_speedrun_level_best(username, level, ms, now):
+    try:
+        _scores().put_item(
+            Item={
+                'pk': f'USER#{username}',
+                'sk': _speedrun_level_key(level),
+                'username': username,
+                'level': level,
+                'ms': ms,
+                'achieved_at': now,
+            },
+            ConditionExpression=Attr('pk').not_exists() | Attr('ms').gt(ms),
+        )
+        return True
+    except ClientError as exc:
+        if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            return False
+        raise
+
+
+def get_speedrun_records(username):
+    """Return {best_run, levels} for one player, from the central store."""
+    resp = _scores().query(
+        KeyConditionExpression=Key('pk').eq(f'USER#{username}')
+        & Key('sk').begins_with(SPEEDRUN_PREFIX)
+    )
+    items = resp.get('Items', [])
+    while 'LastEvaluatedKey' in resp:
+        resp = _scores().query(
+            KeyConditionExpression=Key('pk').eq(f'USER#{username}')
+            & Key('sk').begins_with(SPEEDRUN_PREFIX),
+            ExclusiveStartKey=resp['LastEvaluatedKey'],
+        )
+        items.extend(resp.get('Items', []))
+
+    best_run = None
+    levels = []
+    for item in items:
+        if item['sk'] == SPEEDRUN_RUN_KEY:
+            best_run = {'total_ms': int(item['total_ms']), 'achieved_at': item['achieved_at']}
+        else:
+            levels.append({
+                'level': int(item['level']),
+                'ms': int(item['ms']),
+                'achieved_at': item['achieved_at'],
+            })
+    levels.sort(key=lambda entry: entry['level'])
+    return {'best_run': best_run, 'levels': levels}
+
+
+def _scan_speedrun_items():
+    """Every speedrun item in the scores table, following pagination."""
+    items = []
+    kwargs = {'FilterExpression': Attr('sk').begins_with(SPEEDRUN_PREFIX)}
+    resp = _scores().scan(**kwargs)
+    items.extend(resp.get('Items', []))
+    while 'LastEvaluatedKey' in resp:
+        resp = _scores().scan(**kwargs, ExclusiveStartKey=resp['LastEvaluatedKey'])
+        items.extend(resp.get('Items', []))
+    return items
+
+
+def get_speedrun_leaderboard(limit=SPEEDRUN_LEADERBOARD_LIMIT):
+    """Overall speedrun records: the fastest finished runs and, per level, the
+    fastest single level anyone has recorded."""
+    items = _scan_speedrun_items()
+
+    runs = [item for item in items if item['sk'] == SPEEDRUN_RUN_KEY]
+    runs.sort(key=lambda item: (int(item['total_ms']), item.get('achieved_at', ''), item.get('username', '')))
+    entries = [
+        {
+            'rank': rank,
+            'username': item['username'],
+            'total_ms': int(item['total_ms']),
+            'first_grade_year': _int_or_none(item.get('first_grade_year')),
+            'achieved_at': item['achieved_at'],
+        }
+        for rank, item in enumerate(runs[:limit], start=1)
+    ]
+
+    level_bests = {}
+    for item in items:
+        if item['sk'] == SPEEDRUN_RUN_KEY:
+            continue
+        level = int(item['level'])
+        current = level_bests.get(level)
+        candidate = {'level': level, 'ms': int(item['ms']), 'username': item.get('username', ''), 'achieved_at': item['achieved_at']}
+        if current is None or (candidate['ms'], candidate['achieved_at']) < (current['ms'], current['achieved_at']):
+            level_bests[level] = candidate
+
+    return {
+        'entries': entries,
+        'levels': [level_bests[level] for level in sorted(level_bests)],
+    }

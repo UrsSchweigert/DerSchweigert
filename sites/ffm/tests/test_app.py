@@ -1013,13 +1013,19 @@ def test_delete_account_success_removes_profile_and_frees_username_and_email(cli
 
 def test_delete_account_removes_scores(client):
     """Deleting an account should also remove its high score, level scores,
-    and score history so no orphaned data remains in the scores table."""
+    score history and speedrun records so no orphaned data remains in the
+    scores table."""
     headers = register_and_login(client, "delscores", "delscores@example.com", "password123")
 
     hs_resp = client.post('/api/high-score', json={"score": 500}, headers=headers)
     assert hs_resp.status_code == 200
     level_resp = client.post('/api/score', json={"level": 1, "score": 42, "difficulty": "easy"}, headers=headers)
     assert level_resp.status_code == 200
+    speedrun_resp = client.post('/api/speedrun/run', json={
+        "total_ms": 300_000,
+        "splits": [{"level": level, "ms": 5000} for level in range(1, 61)],
+    }, headers=headers)
+    assert speedrun_resp.status_code == 200
 
     scores_table = boto3.resource('dynamodb', region_name='eu-central-1').Table(
         os.environ['DYNAMODB_SCORES_TABLE']

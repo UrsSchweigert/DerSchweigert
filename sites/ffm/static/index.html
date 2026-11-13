@@ -154,6 +154,20 @@
         <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none" data-i18n="leaderboard.completeProfile">Complete profile</button>
         <!-- app-omit:end -->
         <ol id="leaderboard-list" class="leaderboard-list"></ol>
+        <!-- app-omit:start -->
+        <!-- Central speedrun records (personal bests and the overall fastest
+             runs). Web only: the app keeps device records behind the hidden
+             title card, so the whole block is dropped from the app bundle. -->
+        <section id="speedrun-board" class="speedrun-board" aria-live="polite" style="display:none">
+          <h3 class="leaderboard-title" data-i18n="speedrun.boardTitle">Speedrun records</h3>
+          <p id="speedrun-board-personal" class="speedrun-board-personal"></p>
+          <ol id="speedrun-board-runs" class="leaderboard-list"></ol>
+          <details id="speedrun-board-levels-wrap" class="speedrun-board-levels">
+            <summary data-i18n="speedrun.boardLevels">Fastest time per level</summary>
+            <ol id="speedrun-board-levels" class="speedrun-levels"></ol>
+          </details>
+        </section>
+        <!-- app-omit:end -->
       </section>
       <nav class="screen-pagination" aria-label="Leaderboard pages">
         <button id="leaderboard-prev" type="button" aria-label="Previous page" data-page-direction="previous"></button>

@@ -252,6 +252,26 @@ export const api = {
     return res.json();
   },
 
+  /** Report a finished continuous run: `{ total_ms, splits: [{ level, ms }] }`. */
+  async postSpeedrunRun(run) {
+    const res = await this._fetch('/speedrun/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(run)
+    });
+    return res.json();
+  },
+
+  async getSpeedrunRecords() {
+    const res = await this._fetch('/speedrun/records');
+    return res.json();
+  },
+
+  async getSpeedrunLeaderboard() {
+    const res = await this._fetch('/speedrun/leaderboard');
+    return res.json();
+  },
+
   async getLevel(n, includeBaseline = false) {
     const params = new URLSearchParams();
     if (includeBaseline) params.append('include_baseline', '1');

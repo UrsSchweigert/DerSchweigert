@@ -50,6 +50,18 @@ const platform = {
     return { premium_access: false, source: 'none', offline: false };
   },
 
+  postSpeedrunRun(run) {
+    return api.postSpeedrunRun(run);
+  },
+
+  getSpeedrunRecords() {
+    return api.getSpeedrunRecords();
+  },
+
+  getSpeedrunLeaderboard() {
+    return api.getSpeedrunLeaderboard();
+  },
+
   get isLoggedIn() {
     return api.isLoggedIn;
   },

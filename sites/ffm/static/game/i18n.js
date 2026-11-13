@@ -61,6 +61,28 @@ const DICTIONARY = {
   'speedrun.empty': { en: 'No level times recorded yet.', de: 'Noch keine Level-Zeiten.' },
   'speedrun.levelSplit': { en: 'Level {level}: {time}', de: 'Level {level}: {time}' },
   'speedrun.close': { en: 'Close', de: 'Schließen' },
+  'speedrun.boardTitle': { en: 'Speedrun records', de: 'Speedrun-Rekorde' },
+  'speedrun.boardPersonal': { en: 'Your best run: {time}', de: 'Deine beste Zeit: {time}' },
+  'speedrun.boardNoRun': {
+    en: 'No finished run on the server yet.',
+    de: 'Noch kein beendeter Lauf auf dem Server.',
+  },
+  'speedrun.boardSignIn': {
+    en: 'Sign in to keep your run records on the server.',
+    de: 'Melde dich an, um deine Laufzeiten auf dem Server zu speichern.',
+  },
+  'speedrun.boardDevice': { en: 'On this device: {time}', de: 'Auf diesem Gerät: {time}' },
+  'speedrun.boardEmpty': {
+    en: 'No finished runs yet — the first one takes the top.',
+    de: 'Noch kein beendeter Lauf – der erste steht ganz oben.',
+  },
+  'speedrun.boardLevels': { en: 'Fastest time per level', de: 'Bestzeit pro Level' },
+  'speedrun.boardLevel': { en: 'Level {level}', de: 'Level {level}' },
+  'speedrun.boardLoading': { en: 'Loading speedrun records…', de: 'Speedrun-Rekorde werden geladen…' },
+  'speedrun.boardFailed': {
+    en: 'Speedrun records are unavailable right now.',
+    de: 'Speedrun-Rekorde sind gerade nicht verfügbar.',
+  },
   'leaderboard.title': { en: 'Leaderboard', de: 'Bestenliste' },
   'leaderboard.allYears': { en: 'All years', de: 'Alle Jahrgänge' },
   'leaderboard.unclassified': { en: 'Unclassified', de: 'Nicht eingeordnet' },

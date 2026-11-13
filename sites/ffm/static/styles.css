@@ -3198,3 +3198,45 @@ body:not(.legal-body) {
   font-size: 15px;
   opacity: 0.75;
 }
+
+/* ── Speedrun records on the ranking page ────────────────────────────────
+ * Web only (the block is dropped from the app bundle). It sits under the high
+ * score board and reads as a second board rather than a second screen.
+ */
+.speedrun-board {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(169, 185, 237, 0.22);
+  font-variant-numeric: tabular-nums;
+}
+
+.speedrun-board-personal {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.9;
+}
+
+.speedrun-board-levels {
+  margin: 4px 0 0;
+}
+
+.speedrun-board-levels > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.speedrun-board-levels .speedrun-levels li {
+  align-items: baseline;
+}
+
+.speedrun-board-levels em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 13px;
+  opacity: 0.7;
+}

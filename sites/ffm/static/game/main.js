@@ -67,7 +67,7 @@ import { createScreenFx } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
 import { createEncounterSwords } from './encounter-swords.js';
 import { createDomBurst } from './dom-burst.js';
-import { TOTAL_RUN_LEVELS, createSpeedrunRecords, createSpeedrunTimer } from './speedrun.js';
+import { TOTAL_RUN_LEVELS, createSpeedrunRecords, createSpeedrunTimer, formatRunTime } from './speedrun.js';
 import { createSpeedrunUi } from './speedrun-ui.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
@@ -119,6 +119,9 @@ const abilityBar = createAbilityBar({
 // the title's intro line (see speedrun-ui.js).
 const speedrunRecords = createSpeedrunRecords({ storage: globalThis.localStorage ?? null });
 const speedrunTimer = createSpeedrunTimer();
+// The splits of the run in progress, kept only to report a finished run: the
+// server checks that they add up to the total it is given.
+let speedrunSplits = [];
 const speedrunUi = createSpeedrunUi({
   doc: document,
   translate: t,
@@ -676,6 +679,12 @@ const closeAuth = document.getElementById('close-auth');
 const splashLoginBtn = document.getElementById('splash-login-btn');
 const splashGreeting = document.getElementById('splash-user-greeting');
 const leaderboardList = document.getElementById('leaderboard-list');
+// Central speedrun records. Web only, so the app bundle has no such section.
+const speedrunBoard = document.getElementById('speedrun-board');
+const speedrunBoardPersonal = document.getElementById('speedrun-board-personal');
+const speedrunBoardRuns = document.getElementById('speedrun-board-runs');
+const speedrunBoardLevelsWrap = document.getElementById('speedrun-board-levels-wrap');
+const speedrunBoardLevels = document.getElementById('speedrun-board-levels');
 const leaderboardYearFilter = document.getElementById('leaderboard-year-filter');
 const leaderboardPersonalBest = document.getElementById('leaderboard-personal-best');
 const scoreHistoryChart = document.getElementById('score-history-chart');
@@ -1271,6 +1280,82 @@ function renderLeaderboard(entries) {
   }).join('');
 }
 
+/**
+ * The speedrun block of the ranking page: the player's central best run, the
+ * overall fastest finished runs, and the fastest single level anyone has run.
+ *
+ * Web only. The app keeps device records (see speedrun.js), so the markup is
+ * dropped from the app bundle and this returns before touching the DOM.
+ */
+async function refreshSpeedrunBoard() {
+  if (!speedrunBoard || !platform.hasLeaderboard) {
+    if (speedrunBoard) speedrunBoard.style.display = 'none';
+    return;
+  }
+  speedrunBoard.style.display = '';
+  speedrunBoardPersonal.textContent = t('speedrun.boardLoading');
+  speedrunBoardRuns.innerHTML = '';
+  speedrunBoardLevelsWrap.style.display = 'none';
+
+  let board = null;
+  try {
+    board = await platform.getSpeedrunLeaderboard();
+  } catch {
+    speedrunBoardPersonal.textContent = t('speedrun.boardFailed');
+    return;
+  }
+
+  let central = null;
+  if (platform.isLoggedIn) {
+    try {
+      central = await platform.getSpeedrunRecords();
+    } catch {
+      central = null;
+    }
+  }
+
+  const centralBest = central?.best_run?.total_ms;
+  const deviceBest = speedrunRecords.bestRun?.totalMs;
+  if (typeof centralBest === 'number') {
+    speedrunBoardPersonal.textContent = t('speedrun.boardPersonal', { time: formatRunTime(centralBest) });
+  } else if (!platform.isLoggedIn) {
+    speedrunBoardPersonal.textContent = t('speedrun.boardSignIn');
+  } else {
+    speedrunBoardPersonal.textContent = t('speedrun.boardNoRun');
+  }
+  if (typeof deviceBest === 'number' && deviceBest !== centralBest) {
+    speedrunBoardPersonal.textContent += ' · ' + t('speedrun.boardDevice', { time: formatRunTime(deviceBest) });
+  }
+
+  const runs = Array.isArray(board?.entries) ? board.entries : [];
+  speedrunBoardRuns.innerHTML = runs.length === 0
+    ? `<li>${escHtml(t('speedrun.boardEmpty'))}</li>`
+    : runs.map((entry) => {
+      const isCurrent = platform.username && entry.username === platform.username;
+      return `<li class="${isCurrent ? 'current-user' : ''}">#${escHtml(entry.rank)} ${escHtml(entry.username)} — ${escHtml(formatRunTime(entry.total_ms))}</li>`;
+    }).join('');
+
+  const levels = Array.isArray(board?.levels) ? board.levels : [];
+  speedrunBoardLevelsWrap.style.display = levels.length === 0 ? 'none' : '';
+  speedrunBoardLevels.innerHTML = levels.map((entry) => (
+    `<li><span>${escHtml(t('speedrun.boardLevel', { level: entry.level }))}</span>`
+    + `<strong>${escHtml(formatRunTime(entry.ms))}</strong>`
+    + `<em>${escHtml(entry.username || '')}</em></li>`
+  )).join('');
+}
+
+/**
+ * Report a finished continuous run to the server. Fire-and-forget: a failed
+ * report costs the player nothing (the device record already has it) and must
+ * never interrupt the level-clear screen.
+ */
+function reportSpeedrunRun(totalMs, splits) {
+  if (platform.isApp || !platform.isLoggedIn || typeof platform.postSpeedrunRun !== 'function') return;
+  platform.postSpeedrunRun({ total_ms: Math.round(totalMs), splits })
+    .then(() => refreshSpeedrunBoard())
+    .catch((error) => console.error('Unable to report the speedrun', error));
+}
+
 function syncLeaderboardFilterOptions(groupedEntries) {
   const previous = leaderboardYearFilter.value;
   const yearValues = new Set();
@@ -1708,6 +1793,8 @@ async function refreshProfileAndLeaderboard() {
   } catch {
     renderLeaderboard([]);
   }
+
+  refreshSpeedrunBoard();
 
   if (!platform.isLoggedIn) {
     currentProfile = null;
@@ -2912,8 +2999,11 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // level that follows the one it just finished; anything else ends it. The
   // `typeof` keeps extracted-function tests running without main.js.
   if (typeof speedrunTimer !== 'undefined') {
-    if (!practiceRun && !state.isShapesMode) speedrunTimer.start(state.level);
-    else speedrunTimer.abandon();
+    if (!practiceRun && !state.isShapesMode && speedrunTimer.start(state.level)) {
+      if (state.level === 1) speedrunSplits = [];
+    } else {
+      speedrunTimer.abandon();
+    }
   }
   // Announce the level's bonus once the level actually starts. Level 1 and
   // practice runs grant none, so the previous level's pill is cleared instead.
@@ -3953,7 +4043,11 @@ function triggerLevelClear() {
   const speedrunSplit = typeof speedrunTimer === 'undefined' ? null : speedrunTimer.completeLevel();
   if (speedrunSplit) {
     speedrunRecords.recordLevel(speedrunSplit.level, speedrunSplit.levelMs);
-    if (speedrunSplit.final) speedrunRecords.recordRun(speedrunSplit.runMs);
+    speedrunSplits.push({ level: speedrunSplit.level, ms: Math.round(speedrunSplit.levelMs) });
+    if (speedrunSplit.final) {
+      speedrunRecords.recordRun(speedrunSplit.runMs);
+      reportSpeedrunRun(speedrunSplit.runMs, speedrunSplits);
+    }
   }
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
   if (!practiceRun && !completedLevelSave && (platform.isApp || platform.isLoggedIn)) {
@@ -4666,6 +4760,7 @@ onLocaleChange(() => {
   if (practiceBadgeRetryButton) practiceBadgeRetryButton.textContent = t('practice.retryBadgeSave');
   refreshPracticeBadges();
   if (currentLeaderboard) renderLeaderboard(entriesForSelectedFilter(currentLeaderboard));
+  refreshSpeedrunBoard();
   if (currentProfile) renderPersonalBest(currentProfile, leaderboardPersonalBest);
   if (currentPersonalDevelopment) renderPersonalDevelopment(currentPersonalDevelopment);
   renderWebHistoryPage();
