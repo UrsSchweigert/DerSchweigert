@@ -89,10 +89,6 @@ export const DICTIONARY = {
     en: 'Ten wards, ten villages. One rune is still dark — and a swordsman with a borrowed blade sets out to wake it. Across six acts he mends the harvest ward, walks a wood that remembers an older promise, stands in a hall whose keepers already gave their strength, trades in a night market where every lit window is part of the ward, and finally climbs to a throne that should have stayed empty. The arithmetic is the blade: every correct answer cuts deeper.',
   },
   'art.stripLabel': { de: 'Die sechs Akte', en: 'The six acts' },
-  'art.stripHint': {
-    de: 'Der Streifen läuft von selbst – beim Ziehen, Scrollen oder Fokussieren hält er an.',
-    en: 'The strip runs by itself – drag, scroll or focus to pause.',
-  },
   'art.act1': { de: 'Akt 1 · Das erste Licht', en: 'Act 1 · The First Light' },
   'art.act2': { de: 'Akt 2 · Die schwindende Ernte', en: 'Act 2 · The Fading Harvest' },
   'art.act3': { de: 'Akt 3 · Der erinnernde Wald', en: 'Act 3 · The Remembering Wood' },
@@ -122,10 +118,6 @@ export const DICTIONARY = {
     en: 'Real screenshots from the app – from the first strike to the heal. No mock-up, no montage: the same screens you see while playing.',
   },
   'shots.stripLabel': { de: 'Screenshots aus dem Spiel', en: 'Screenshots from the game' },
-  'shots.stripHint': {
-    de: 'Der Streifen läuft von selbst – beim Darüberfahren oder Fokussieren hält er an.',
-    en: 'The strip runs by itself – hover or focus to pause.',
-  },
   'shots.strike': { de: 'Level 1 · Hieb', en: 'Level 1 · Strike' },
   'shots.fireball': { de: 'Level 10 · Feuerball', en: 'Level 10 · Fireball' },
   'shots.blitz': { de: 'Level 20 · Blitz', en: 'Level 20 · Lightning' },
@@ -566,7 +558,24 @@ function initPannableBands() {
 
   for (const viewport of bands) {
     const track = viewport.querySelector('[data-band-track]');
-    if (!track) continue;
+    const firstSet = track?.firstElementChild;
+    if (!track || !firstSet) continue;
+
+    // A two-set track only loops while one set is at least as wide as the
+    // viewport. On wide screens (the five small phones are narrower than a
+    // desktop) clone the primary set until the scroll range covers one unit.
+    const unitWidth = () => firstSet.getBoundingClientRect().width || 1;
+    const ensureCopies = () => {
+      const unit = unitWidth();
+      if (!unit) return;
+      while (track.scrollWidth < unit + viewport.clientWidth) {
+        const clone = firstSet.cloneNode(true);
+        clone.setAttribute('aria-hidden', 'true');
+        track.appendChild(clone);
+      }
+    };
+    ensureCopies();
+    window.addEventListener('resize', ensureCopies, { passive: true });
 
     let paused = false;
     let dragging = false;
@@ -592,10 +601,9 @@ function initPannableBands() {
       resumeTimer = setTimeout(resume, RESUME_DELAY);
     };
     const wrap = () => {
-      const half = track.scrollWidth / 2;
-      if (!half) return;
-      if (viewport.scrollLeft >= half) viewport.scrollLeft -= half;
-      else if (viewport.scrollLeft < 0) viewport.scrollLeft += half;
+      const unit = unitWidth();
+      if (viewport.scrollLeft >= unit) viewport.scrollLeft -= unit;
+      else if (viewport.scrollLeft < 0) viewport.scrollLeft += unit;
     };
     const endDrag = (event) => {
       if (!dragging) return;

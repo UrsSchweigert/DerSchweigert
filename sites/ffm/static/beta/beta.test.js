@@ -349,8 +349,9 @@ test('the beta page carries the looping gameplay band above the requirements', (
     assert.ok(existsSync(join(webRoot, url)), `missing ${url} on disk`);
   }
 
-  assert.match(band, /<div class="shot-band-viewport" tabindex="0" role="region"/);
-  assert.match(band, /data-i18n="shots.stripHint"/);
+  assert.match(band, /<div class="shot-band-viewport" data-pannable-band tabindex="0" role="region"/);
+  assert.match(band, /<div class="shot-band-track" data-band-track>/);
+  assert.ok(!band.includes('strip-hint'), 'the band carries no disclaimer hint');
 });
 
 test('the art gallery uses the promo art that the landing page ships', () => {

@@ -877,41 +877,62 @@ ul {
   line-height: 1.72;
 }
 
-.act-band {
-  --act-gap: clamp(10px, 1.6vw, 20px);
-  margin-bottom: clamp(30px, 4vw, 56px);
-}
-
-.act-band-viewport {
+/* Both looping ribbons (acts and gameplay) are real scroll containers with
+   native touch, trackpad, wheel and mouse-drag panning. The content is
+   duplicated once; JS wraps scrollLeft at half the track. */
+[data-pannable-band] {
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-behavior: auto;
-  padding: 6px var(--gutter) 20px;
   scrollbar-width: none;
   cursor: grab;
 }
 
-.act-band-viewport::-webkit-scrollbar {
+[data-pannable-band]::-webkit-scrollbar {
   display: none;
 }
 
-.act-band-viewport.is-dragging {
+[data-pannable-band].is-dragging {
   cursor: grabbing;
   user-select: none;
 }
 
-.act-band-track {
+[data-band-track] {
   display: flex;
   width: max-content;
 }
 
-.act-band-set {
+.act-band {
+  --band-gap: clamp(10px, 1.6vw, 20px);
+  margin-bottom: clamp(30px, 4vw, 56px);
+}
+
+.shot-band {
+  --band-gap: clamp(10px, 1.4vw, 18px);
+  padding-block: clamp(18px, 2.6vw, 34px);
+}
+
+.act-band-viewport,
+.shot-band-viewport {
+  padding: 6px var(--gutter);
+}
+
+.act-band-viewport {
+  padding-bottom: 20px;
+}
+
+.shot-band-viewport {
+  padding-bottom: 14px;
+}
+
+.act-band-set,
+.shot-band-set {
   display: flex;
-  gap: var(--act-gap);
+  gap: var(--band-gap);
   /* The trailing gap makes each set exactly half the track, so wrapping
      scrollLeft at half width lands on identical content. */
-  padding-right: var(--act-gap);
+  padding-right: var(--band-gap);
 }
 
 .frame {
@@ -963,25 +984,9 @@ ul {
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
 }
 
-.strip-hint {
-  width: min(var(--max), 100% - var(--gutter) * 2);
-  margin: 0 auto;
-  color: var(--ivory-muted);
-  font-family: var(--mono);
-  font-size: 0.76rem;
-  letter-spacing: 0.06em;
-  opacity: 0.8;
-}
-
-/* Gameplay band: five full portrait app captures looping continuously above
-   the generation cards. Each phone is half the size of the original filmstrip,
-   so the band reads as a moving ribbon rather than a second gallery. */
-.shot-band {
-  --shot-gap: clamp(10px, 1.4vw, 18px);
-  padding-block: clamp(18px, 2.6vw, 34px);
-  overflow: hidden;
-}
-
+/* Gameplay band: five full portrait app captures in the same pannable ribbon
+   as the acts. Each phone is half the size of the original filmstrip, so the
+   band reads as a moving ribbon rather than a second gallery. */
 .shot-band .section-head {
   margin-bottom: clamp(14px, 2vw, 24px);
 }
@@ -1001,26 +1006,6 @@ ul {
   height: 2px;
   margin-top: 0.5em;
   background: linear-gradient(90deg, var(--brass), transparent);
-}
-
-.shot-band-viewport {
-  overflow: hidden;
-  padding-block: 6px 14px;
-}
-
-.shot-band-track {
-  display: flex;
-  width: max-content;
-  animation: shot-band-scroll 26s linear infinite;
-  will-change: transform;
-}
-
-.shot-band-set {
-  display: flex;
-  gap: var(--shot-gap);
-  /* The trailing gap makes each set exactly half the track, so the -50 %
-     keyframe lands on the first clone with no visible seam. */
-  padding-right: var(--shot-gap);
 }
 
 .shot-frame {
@@ -1057,26 +1042,9 @@ ul {
   text-transform: uppercase;
 }
 
-.shot-band:hover .shot-band-track,
-.shot-band:focus-within .shot-band-track {
-  animation-play-state: paused;
-}
-
-@keyframes shot-band-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .shot-band-track {
-    animation: none;
-  }
-
-  .shot-band-viewport {
-    overflow-x: auto;
-  }
-
-  /* Without the marquee the duplicate set is just a second copy. */
+  /* Without the automatic advance the duplicate set is just a second copy. */
+  .act-band-set[aria-hidden="true"],
   .shot-band-set[aria-hidden="true"] {
     display: none;
   }
