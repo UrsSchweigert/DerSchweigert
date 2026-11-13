@@ -27,8 +27,10 @@ export const EFFECT_NAMES = [
   'heal',
   'healCharge',
   'swordGain',
+  'swordLost',
   'windCast',
   'stormCast',
+  'stormRemoval',
   'spikeCast',
   'fiendPortal',
 ];
@@ -412,6 +414,23 @@ function swordGain(api, payload) {
   }
 }
 
+// The mirror of swordGain: a sword the storm took off the portrait row. The
+// row drives this from the same DOM rect the glint uses, so the puff appears on
+// the sword that just vanished instead of somewhere on the playfield.
+function swordLost(api, payload) {
+  const x = payload && payload.x !== undefined ? payload.x : 400;
+  const y = payload && payload.y !== undefined ? payload.y : 500;
+  api.flash(x, y, '#cbb4ff', 22, 0.12, 0.7);
+  api.ring(x, y, '#a98bff', 4, 34, 0.3, 1.5);
+  for (let i = 0; i < count(api, 10); i++) {
+    api.spark(x, y, rand(0, TAU), rand(40, 160), pick(PALETTES.violet), rand(0.2, 0.45));
+  }
+  for (let i = 0; i < count(api, 3); i++) {
+    api.shard(x + rand(-6, 6), y + rand(-6, 6), rand(-50, 50), rand(-120, -30),
+      pick(PALETTES.violet), rand(1.5, 3));
+  }
+}
+
 // --- Ability casts ---------------------------------------------------------
 // One recipe per bar slot. Wind sweeps across the arena, storm bursts around
 // the target and the earth spikes erupt along the ground line under it.
@@ -464,6 +483,27 @@ function stormCast(api, payload) {
   api.addWash('#8a6bff', 0.16, 0.3);
   api.addVignette('#6a4bff', 0, 0.5, 0.5);
   api.shake(6, 0.3);
+}
+
+// One enemy the storm wipes off the level, played once per removal at a point
+// spread across the arena. The cast recipe above is the loud frame-wide burst;
+// this is the per-enemy receipt that makes a storm of rank 3 read as three
+// separate hits instead of one puff at the caster.
+function stormRemoval(api, payload) {
+  const { x, y } = castPoint(payload);
+  api.flash(x, y, '#e8dfff', 54, 0.16, 0.75);
+  api.ring(x, y, '#a98bff', 8, 190, 0.4, 4);
+  api.ring(x, y, '#cdeeff', 4, 110, 0.28, 2);
+  for (let i = 0; i < count(api, 14); i++) {
+    api.spark(x, y, rand(0, TAU), rand(90, 330), pick(PALETTES.storm), rand(0.25, 0.6));
+  }
+  for (let i = 0; i < count(api, 6); i++) {
+    api.shard(x + rand(-24, 24), y + rand(-24, 24), rand(-100, 100), rand(-260, 60),
+      pick(PALETTES.storm), rand(2, 4));
+  }
+  for (let i = 0; i < count(api, 3); i++) {
+    api.ray(x, y, rand(0, TAU), rand(50, 130), '#e8dfff', 0.5);
+  }
 }
 
 function spikeCast(api, payload) {
@@ -608,8 +648,10 @@ export function createEffectTable() {
     heal,
     healCharge,
     swordGain,
+    swordLost,
     windCast,
     stormCast,
+    stormRemoval,
     spikeCast,
     fiendPortal,
     // Granular pieces: the game drives these per frame / per hit so the trail

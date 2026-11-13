@@ -1330,6 +1330,36 @@ describe('shared sound buses and event cues', () => {
       assert.equal(context.nodes.length, before, 'an unknown id builds no nodes');
     });
 
+    it('playStormRemoval snaps once per removed enemy over one thunder bed', () => {
+      const { audio, context } = soundEngine();
+      assert.equal(audio.playStormRemoval(3), true);
+      const tones = context.nodes.filter(node => node.kind === 'oscillator');
+      const snaps = tones.filter(node => node.type === 'square');
+      assert.equal(snaps.length, 3, 'one electric snap per removed enemy');
+      assert.equal(new Set(snaps.map(node => node.starts[0])).size, 3, 'the snaps are staggered');
+      assert.ok(context.nodes.some(node => node.kind === 'buffer'), 'the thunder is noise');
+      assert.ok(tones.some(node => node.type === 'sawtooth'), 'and a rolling body under it');
+
+      // The count is clamped to the storm's 1-6 removals: a missing or wild
+      // value must not stack dozens of simultaneous nodes.
+      for (const [value, expected] of [[undefined, 1], [0, 1], [99, 6]]) {
+        const fresh = soundEngine();
+        assert.equal(fresh.audio.playStormRemoval(value), true);
+        assert.equal(
+          fresh.context.nodes.filter(node => node.kind === 'oscillator' && node.type === 'square').length,
+          expected,
+          `count ${String(value)} plays ${expected} snap(s)`,
+        );
+      }
+
+      const muted = soundEngine();
+      muted.audio.toggleMute();
+      muted.audio._ensureCtx();
+      const before = muted.context.nodes.length;
+      assert.equal(muted.audio.playStormRemoval(2), false);
+      assert.equal(muted.context.nodes.length, before, 'a muted removal builds no nodes');
+    });
+
     it('a later source failure restores default gain and disables adjustment during rotation', () => {
       const warn = console.warn;
       console.warn = () => {};

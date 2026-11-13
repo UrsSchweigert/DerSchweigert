@@ -12,13 +12,22 @@ export const FIEND_PORTAL_X = CANVAS_W - 80;
 export const FIEND_COMBAT_X = HERO_X + 108;
 const DEFAULT_FIEND_WALK_SPEED = 50;
 
-export function getFiendWalkSpeed(timerSeconds, startX = FIEND_ENTRY_TRIGGER_X) {
+/**
+ * Walk-in speed of a fiend.
+ * @param {number} timerSeconds - the level's problem timer.
+ * @param {number} [startX] - where the fiend appears.
+ * @param {number} [speedMultiplier] - passive slow from the earned bonus
+ *   ladder; 1 (or any non-finite value) keeps the base speed.
+ * @returns {number} px per second.
+ */
+export function getFiendWalkSpeed(timerSeconds, startX = FIEND_ENTRY_TRIGGER_X, speedMultiplier = 1) {
+  const scale = Number.isFinite(speedMultiplier) && speedMultiplier > 0 ? speedMultiplier : 1;
   if (!Number.isFinite(timerSeconds) || timerSeconds <= 0) {
-    return DEFAULT_FIEND_WALK_SPEED;
+    return DEFAULT_FIEND_WALK_SPEED * scale;
   }
 
   const distance = Math.max(0, startX - FIEND_COMBAT_X);
-  return distance / timerSeconds;
+  return (distance / timerSeconds) * scale;
 }
 
 export function shouldPreserveTimerAfterHit(fiend) {

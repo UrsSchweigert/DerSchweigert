@@ -33,7 +33,7 @@ const FALLBACKS = Object.freeze({
   }),
   storm: Object.freeze({
     name: 'Storm',
-    description: 'Clears a capped slice of the enemy wave.',
+    description: 'Removes enemies from the level.',
   }),
   earth: Object.freeze({
     name: 'Earth',

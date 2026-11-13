@@ -86,6 +86,22 @@ Browser
 - **Combo-ability pulsating border** (`#combo-frame`, driven by `Renderer.drawComboFrame()`):
   the DOM overlay follows `#playfield`, independent of whether answers are below or beside it.
   Its ability colors and combo thresholds remain unchanged.
+- **Cooldown spells (wind, storm, earth)**: three slots render from level 1 and unlock at
+  levels 1/6/11 with a 180 s base cooldown (`static/game/cooldown-abilities.js`,
+  `ability-bar.js`). Storm removes `1 + storm rank` enemies **from the level itself**: they
+  are taken off the spawn queue / requeue list / active slot, never counted as defeats, so
+  the encounter total shrinks and the portrait sword row loses exactly their swords (the
+  last encounter always survives). Each removal adds a `stormRemoval` burst along the
+  ground, a `swordLost` puff on the departing swords and one chained thunder cue
+  (`playStormRemoval`); see `screen-fx-effects.js`, `encounter-swords.js` and `audio.js`.
+- **Earned bonuses apply to the live run**: `bonusReadoutsForLevel()` replays the ladder
+  (levels 2-60) into one bonus runtime. `beginAbilityRun(level)` seeds a fresh run with it,
+  and `finishStartLevel()` re-applies it to the live ability runtime at every level start,
+  so starting at level n — or advancing into a level — is never a downgrade: cooldown
+  bonuses shorten the actual 180 s cooldown (floored at 90 s), storm rank widens
+  `stormRemovals()`, the passive slow steps scale every fiend walk-in through
+  `getFiendWalkSpeed()`'s multiplier, and the earth-spike target count grows (capped at 5).
+  The HUD readouts and the gameplay therefore read from the same ladder.
 - **Per-stage background images**: `Renderer.setBackgroundByLevel()` swaps in one of `stage-1.png`..`stage-6.png` (one per 10-level chapter) as the level advances. `background.png` is a legacy, visually distinct scene (no longer used by any stage) kept only as a last-resort fallback if the real stage image's `Image` element fires an `error` event — it must not be loaded eagerly alongside the real image, or a network/decode race can let it flash on screen first as the "wrong" background.
 - **Speedrun**: an opt-in continuous-run clock. A run starts when level 1 of the campaign
   starts and follows the campaign in order — it only continues into the next level, only
@@ -167,9 +183,12 @@ encounter still queued, requeued or on screen, pays a deterministic baseline-per
 bonus for each of them, and hands off to the normal level-clear path. Practice and
 Shapes keep the older present-fiends-only breath; pending spawns and retreating
 correction queues survive there. Spell kills are encounter progress, not correct
-replies or recovery credit. Answer latency samples only active gameplay and resets
-between attempts. Web level and high scores recorded before the web build adopted
-this rule are legacy records; compare them only among themselves.
+replies or recovery credit; a storm cast instead takes enemies off the level
+altogether, so the encounter total shrinks (and their swords leave the portrait
+row) rather than the Defeated count rising. Answer latency samples only active
+gameplay and resets between attempts. Web level and high scores recorded before
+the web build adopted this rule are legacy records; compare them only among
+themselves.
 
 Before promoting any experimental rule into scored play, assign an explicit ruleset
 identifier to the resulting records and compare scores only within the same ruleset,

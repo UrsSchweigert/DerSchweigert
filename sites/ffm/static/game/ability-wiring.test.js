@@ -7,7 +7,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow } from './cooldown-abilities.js';
+import {
+  applySpikeSlow,
+  createAbilityRuntime,
+  fiendSpeedMultiplier,
+  restoreSpikeSlow,
+  SPIKE_SLOW_CAPS,
+  SPIKE_SLOW_DEFAULTS,
+} from './cooldown-abilities.js';
+import { BONUS_CAPS, applyBonus, bonusForLevel, createBonusRuntime } from './bonus-ladder.js';
 import { createAbilityBar } from './ability-bar.js';
 import { countDragonRemainingEncounters } from './encounter-flow.js';
 
@@ -24,12 +32,19 @@ function finishStartContext({ checkAllDefeated } = {}) {
     hudUpdates: 0,
     triggerWaveClear: 0,
     recordPracticeEncounterDefeated: 0,
+    swordsShattered: 0,
+    stormSounds: 0,
   };
   const context = {
     applySpikeSlow,
     restoreSpikeSlow,
     createAbilityRuntime,
     countDragonRemainingEncounters,
+    SPIKE_SLOW_DEFAULTS,
+    createBonusRuntime,
+    applyBonus,
+    bonusForLevel,
+    BONUS_CAPS,
     setAnswerInputVisible() {},
     gameplayTimers: [],
     practiceRun: null,
@@ -46,7 +61,10 @@ function finishStartContext({ checkAllDefeated } = {}) {
     resetHealHold() {},
     updateHUDLogoutVisibility() {},
     hud: { update() { calls.hudUpdates += 1; } },
-    audio: { startLevelBGM() {} },
+    audio: {
+      startLevelBGM() {},
+      playStormRemoval() { calls.stormSounds += 1; return true; },
+    },
     flushDeferredMusicVolume() {},
     syncKeepAwake() {},
     animFrameId: 1,
@@ -59,6 +77,11 @@ function finishStartContext({ checkAllDefeated } = {}) {
     spawnTimer: 0,
     spawnInterval: 4,
     SPAWN_INTERVAL_SECONDS: 0.5,
+    // Arena geometry the storm's feedback spreads its bursts across.
+    FIEND_PORTAL_X: 720,
+    HERO_X: 110,
+    groundY: 300,
+    encounterSwords: { shatter(count) { calls.swordsShattered += count; } },
     recordPracticeEncounterDefeated() { calls.recordPracticeEncounterDefeated += 1; },
     checkAllDefeated: checkAllDefeated ?? (() => false),
     triggerWaveClear() { calls.triggerWaveClear += 1; },
@@ -67,8 +90,11 @@ function finishStartContext({ checkAllDefeated } = {}) {
   vm.runInContext(
     [
       'let abilityRuntime = null;',
+      'let levelBonusRuntime = null;',
+      'let levelBonusCooldowns = null;',
       'let spikeSlowedFiends = new Set();',
       'let spikeSpawnSlowLeft = 0;',
+      functionSource('bonusReadoutsForLevel'),
       functionSource('beginAbilityRun'),
       functionSource('activateAbility'),
       functionSource('finishStartLevel'),
@@ -76,6 +102,7 @@ function finishStartContext({ checkAllDefeated } = {}) {
       functionSource('removeActiveFiendForAbility'),
       functionSource('castWindAbility'),
       functionSource('castStormAbility'),
+      functionSource('playStormRemovalFeedback'),
       functionSource('castEarthAbility'),
       functionSource('clearSpikeSlow'),
     ].join('\n'),
@@ -128,7 +155,12 @@ describe('ability runtime lifecycle', () => {
     const second = readRuntime(context);
     assert.equal(second, first, 'the same runtime must carry into the next level');
     assert.equal(second.level, 6);
-    assert.equal(second.progress('wind'), 0.5, 'remaining cooldown must not reset');
+    // Level 6 has earned a wind cooldown reduction, so the same 90 s left is a
+    // larger share of the shorter cooldown — but no second is lost or granted.
+    const reduced = second.cooldownSeconds('wind');
+    assert.ok(reduced < 180, 'the earned reduction applies to the live runtime');
+    assert.ok(Math.abs(second.progress('wind') - (1 - 90 / reduced)) < 1e-9,
+      'exactly 90 s of the reduced cooldown remain');
     assert.equal(second.isUnlocked('storm'), true, 'unlocks refresh with the new level');
     assert.equal(vm.runInContext("activateAbility('wind')", context), false, 'a cooling ability is a no-op');
   });
@@ -153,6 +185,85 @@ describe('ability runtime lifecycle', () => {
   it('ignores activations before any run has started', () => {
     const context = finishStartContext();
     assert.equal(vm.runInContext("activateAbility('wind')", context), false);
+  });
+});
+
+// Independent replay of the bonus ladder, mirroring what main.js does at a
+// level start: the earned totals plus the per-ability cooldown reductions.
+function ladderFor(level) {
+  let runtime = createBonusRuntime({ level });
+  const cooldowns = { wind: 0, storm: 0, earth: 0 };
+  let total = 0;
+  for (let current = 2; current <= level; current += 1) {
+    const bonus = bonusForLevel(current);
+    if (!bonus) continue;
+    runtime = applyBonus(runtime, bonus);
+    if (bonus.type !== 'cooldown') continue;
+    const room = Math.min(bonus.value, BONUS_CAPS.cooldownSeconds - total);
+    if (room <= 0) continue;
+    total += room;
+    cooldowns[bonus.abilityId] += room;
+  }
+  return { runtime, cooldowns };
+}
+
+describe('earned bonuses', () => {
+  it('a run started at level n carries every bonus earned up to that level', () => {
+    const context = finishStartContext();
+    const runtime = vm.runInContext('beginAbilityRun(60);', context);
+    const expected = ladderFor(60);
+
+    assert.equal(runtime.rank, expected.runtime.stormRank);
+    assert.ok(runtime.rank > 0, 'the ladder earned storm ranks');
+    assert.equal(runtime.stormRemovals(30), 1 + expected.runtime.stormRank,
+      'the earned storm rank widens the removal slice');
+    assert.equal(runtime.fiendSpeedMultiplier, fiendSpeedMultiplier(expected.runtime.slowBonuses),
+      'the passive slow bonus slows every fiend');
+    for (const id of ['wind', 'storm', 'earth']) {
+      assert.equal(runtime.cooldownSeconds(id), Math.max(90, 180 - expected.cooldowns[id]),
+        `${id} uses its reduced cooldown`);
+    }
+
+    assert.equal(runtime.activate('earth'), true);
+    assert.equal(runtime.spikeState.targets, Math.min(
+      SPIKE_SLOW_CAPS.targets,
+      SPIKE_SLOW_DEFAULTS.targets + expected.runtime.spikeTargets,
+    ), 'the earned spike targets were applied up to the documented cap');
+  });
+
+  it('applies the ladder at a mid-campaign start, not only at the caps', () => {
+    const context = finishStartContext();
+    const runtime = vm.runInContext('beginAbilityRun(30);', context);
+    const expected = ladderFor(30);
+
+    assert.equal(runtime.rank, expected.runtime.stormRank);
+    assert.equal(runtime.fiendSpeedMultiplier, fiendSpeedMultiplier(expected.runtime.slowBonuses));
+    assert.equal(runtime.cooldownSeconds('wind'), Math.max(90, 180 - expected.cooldowns.wind));
+    assert.ok(runtime.cooldownSeconds('wind') < 180 || expected.cooldowns.wind === 0,
+      'a wind cooldown bonus shortens its cooldown');
+  });
+
+  it('re-applies the next level earned bonus when the run enters it', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 1, chapter: 1, waveSize: 3 });', context);
+    assert.equal(readRuntime(context).rank, 0, 'level 1 has no bonuses');
+
+    vm.runInContext('finishStartLevel(6, { level: 7, chapter: 1, waveSize: 3 });', context);
+    const expected = ladderFor(7);
+    const runtime = readRuntime(context);
+    assert.ok(expected.runtime.stormRank > 0, 'level 7 grants a storm rank');
+    assert.equal(runtime.rank, expected.runtime.stormRank, 'the level-7 rank reaches the live runtime');
+    assert.equal(runtime.fiendSpeedMultiplier, fiendSpeedMultiplier(expected.runtime.slowBonuses));
+    assert.equal(runtime.cooldownSeconds('wind'), Math.max(90, 180 - expected.cooldowns.wind));
+  });
+
+  it('pins the level count in the bonus runtime the bar reads', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 7, chapter: 1, waveSize: 3 });', context);
+    const bonusRuntime = vm.runInContext('levelBonusRuntime', context);
+    const bonusCooldowns = vm.runInContext('levelBonusCooldowns', context);
+    assert.equal(bonusRuntime.level, 7);
+    assert.equal(bonusCooldowns.wind, ladderFor(7).cooldowns.wind);
   });
 });
 
@@ -274,6 +385,18 @@ describe('wind ability', () => {
 });
 
 describe('storm ability', () => {
+  it('seeds the level enemy count from the wave so the row can shrink', () => {
+    const context = finishStartContext();
+    vm.runInContext('finishStartLevel(0, { level: 6, chapter: 1, waveSize: 30 });', context);
+    assert.equal(context.state.levelEnemies, 30, 'the row starts with one sword per enemy');
+    assert.equal(context.spawnQueue.length, 30, 'and the spawn list matches it');
+  });
+
+  it('feeds the encounter row from the level count instead of the fixed wave size', () => {
+    assert.match(source, /total: state\.levelEnemies > 0/,
+      'a storm removal must shrink the row, not fill its swords');
+  });
+
   it('stormRemovals returns min(1 + rank, remaining - 1) for 0/1/2/30 enemies across ranks 0-5', () => {
     const byRemaining = [
       [0, 0, 0, 0, 0, 0], // 0 remaining
@@ -309,6 +432,7 @@ describe('storm ability', () => {
     // walks back on -- exactly as handleWrongAnswer leaves it.
     context.fiends = [active, requeuedA, requeuedB];
     context.activeFiend = active;
+    context.state.levelEnemies = 5;
 
     // remaining = 2 + 2 + 1 = 5; rank 5 -> min(6, 4) = 4: drain queue + requeue.
     const hudUpdatesBefore = context.__calls.hudUpdates;
@@ -317,9 +441,12 @@ describe('storm ability', () => {
     assert.deepEqual(context.requeuedFiends, [], 'requeuedFiends are drained second');
     assert.equal(context.activeFiend, active, 'the active fiend survives with one left');
     assert.equal(active.state, 'walk', 'a surviving active fiend is untouched');
-    assert.equal(context.state.enemiesDefeated, 4, 'each removal counts once');
+    assert.equal(context.state.enemiesDefeated, 0, 'removed enemies are not defeats');
+    assert.equal(context.state.levelEnemies, 1, 'the four removals leave one enemy behind');
+    assert.equal(context.__calls.swordsShattered, 4, 'their swords leave the row');
+    assert.equal(context.__calls.stormSounds, 1, 'the chain plays one cue');
     assert.equal(context.__calls.hudUpdates, hudUpdatesBefore + 1,
-      'the Defeated readout refreshes once');
+      'the encounter readout refreshes once');
   });
 
   it('removes the active fiend last, after the queue and requeue run dry', () => {
@@ -334,6 +461,7 @@ describe('storm ability', () => {
     context.requeuedFiends = [requeued];
     context.fiends = [active, survivor, requeued];
     context.activeFiend = active;
+    context.state.levelEnemies = 4;
 
     // remaining = 1 + 1 + 2 = 4; rank 5 -> min(6, 3) = 3: queue + requeue + active.
     assert.equal(vm.runInContext("activateAbility('storm')", context), true);
@@ -342,7 +470,9 @@ describe('storm ability', () => {
     assert.equal(context.activeFiend, null, 'the active fiend is removed last');
     assert.equal(active.state, 'retreat', 'the removed active fiend retreats');
     assert.equal(survivor.state, 'walk', 'the surviving fiend is untouched');
-    assert.equal(context.state.enemiesDefeated, 3, 'each removal counts once');
+    assert.equal(context.state.enemiesDefeated, 0, 'removed enemies are not defeats');
+    assert.equal(context.state.levelEnemies, 1, 'the three removals leave one enemy behind');
+    assert.equal(context.__calls.swordsShattered, 3, 'their swords leave the row');
     assert.equal(context.__calls.triggerWaveClear, 0, 'a survivor is still on the field');
   });
 
@@ -359,6 +489,8 @@ describe('storm ability', () => {
 
     assert.equal(vm.runInContext("activateAbility('storm')", context), false);
     assert.equal(context.state.enemiesDefeated, 0);
+    assert.equal(context.state.levelEnemies, 30, 'a refused storm leaves the level intact');
+    assert.equal(context.__calls.swordsShattered, 0);
     assert.equal(context.activeFiend, lone, 'the lone fiend survives');
     assert.equal(readRuntime(context).progress('storm'), 1, 'a refused storm keeps its cooldown');
   });
@@ -376,6 +508,7 @@ describe('storm ability', () => {
     assert.equal(vm.runInContext("activateAbility('storm')", context), false);
     assert.equal(readRuntime(context).progress('storm'), 1, 'the cooldown stays full');
     assert.equal(context.state.enemiesDefeated, 0);
+    assert.equal(context.state.levelEnemies, 30, 'nothing was removed');
   });
 
   it('counts requeued fiends that are still retreating off the field', () => {
@@ -388,6 +521,7 @@ describe('storm ability', () => {
     context.requeuedFiends = [requeued];
     context.fiends = [requeued];
     context.activeFiend = null;
+    context.state.levelEnemies = 2;
 
     assert.equal(vm.runInContext('remainingEnemyCount()', context), 2,
       'a retreating requeued fiend is still a remaining enemy');
@@ -396,7 +530,8 @@ describe('storm ability', () => {
     assert.equal(vm.runInContext("activateAbility('storm')", context), true);
     assert.deepEqual(context.spawnQueue, []);
     assert.deepEqual(context.requeuedFiends, [requeued], 'the requeued fiend survives with one left');
-    assert.equal(context.state.enemiesDefeated, 1);
+    assert.equal(context.state.enemiesDefeated, 0, 'removed enemies are not defeats');
+    assert.equal(context.state.levelEnemies, 1, 'the removal leaves one enemy behind');
   });
 
   it('removes requeued fiends waiting in retreat state once the queue is empty', () => {
@@ -410,11 +545,13 @@ describe('storm ability', () => {
     context.requeuedFiends = [first, second];
     context.fiends = [first, second];
     context.activeFiend = null;
+    context.state.levelEnemies = 2;
 
     // remaining = 2; rank 5 -> min(6, 1) = 1: one requeued fiend is removed.
     assert.equal(vm.runInContext("activateAbility('storm')", context), true);
     assert.deepEqual(context.requeuedFiends, [second], 'the first requeued fiend is drained');
-    assert.equal(context.state.enemiesDefeated, 1);
+    assert.equal(context.state.enemiesDefeated, 0, 'removed enemies are not defeats');
+    assert.equal(context.state.levelEnemies, 1, 'the removal leaves one enemy behind');
     assert.equal(context.__calls.triggerWaveClear, 0, 'one enemy always remains');
   });
 
@@ -427,10 +564,12 @@ describe('storm ability', () => {
     context.requeuedFiends = [];
     context.fiends = [];
     context.activeFiend = null;
+    context.state.levelEnemies = 2;
 
     // remaining = 2; rank 0 -> min(1, 1) = 1: remove one queued enemy.
     assert.equal(vm.runInContext("activateAbility('storm')", context), true);
-    assert.equal(context.state.enemiesDefeated, 1);
+    assert.equal(context.state.enemiesDefeated, 0, 'removed enemies are not defeats');
+    assert.equal(context.state.levelEnemies, 1, 'the removal leaves one enemy behind');
     assert.equal(context.__calls.triggerWaveClear, 1, 'checkAllDefeated() hands off to wave clear');
   });
 });

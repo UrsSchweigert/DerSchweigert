@@ -31,6 +31,16 @@ describe('getFiendWalkSpeed', () => {
     assert.strictEqual(getFiendWalkSpeed(0), 50);
     assert.strictEqual(getFiendWalkSpeed(Number.NaN), 50);
   });
+
+  it('scales the walk-in by the passive slow bonus without changing the timer', () => {
+    const base = getFiendWalkSpeed(10);
+    assert.ok(Math.abs(getFiendWalkSpeed(10, FIEND_ENTRY_TRIGGER_X, 0.9) - base * 0.9) < 1e-9);
+    assert.strictEqual(getFiendWalkSpeed(0, FIEND_ENTRY_TRIGGER_X, 0.9), 45);
+    // A missing or nonsensical multiplier keeps the base speed.
+    assert.strictEqual(getFiendWalkSpeed(10, FIEND_ENTRY_TRIGGER_X, undefined), base);
+    assert.strictEqual(getFiendWalkSpeed(10, FIEND_ENTRY_TRIGGER_X, 0), base);
+    assert.strictEqual(getFiendWalkSpeed(10, FIEND_ENTRY_TRIGGER_X, Number.NaN), base);
+  });
 });
 
 describe('elite timer behavior', () => {
