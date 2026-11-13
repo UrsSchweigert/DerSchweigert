@@ -202,6 +202,21 @@ const platform = {
     return [];
   },
 
+  // Speedruns are a device record in the app build: nothing is reported and
+  // there is no central table to read. The game keeps its own local records
+  // (see game/speedrun.js) and hides the account-facing parts.
+  async postSpeedrunRun() {
+    return { saved: false, central_best_ms: null };
+  },
+
+  async getSpeedrunRecords() {
+    return { best_run: null, levels: [] };
+  },
+
+  async getSpeedrunLeaderboard() {
+    return { entries: [], levels: [] };
+  },
+
   // Billing is the cached store entitlement, not a subscription.
   async getBillingStatus() {
     return { ...NOT_ENTITLED, ...(await entitlement.getStatus()) };

@@ -14,6 +14,8 @@ from .models import (
     get_high_score, put_high_score,
     put_score_history, get_score_history,
     get_leaderboard,
+    SPEEDRUN_MAX_LEVEL_MS, SPEEDRUN_MIN_LEVEL_MS, SPEEDRUN_TOTAL_TOLERANCE_MS,
+    get_speedrun_leaderboard, get_speedrun_records, put_speedrun_run,
 )
 from .validation import is_valid_int
 from . import mailer
@@ -297,6 +299,66 @@ def leaderboard():
         "global_entries": global_entries,
         "grouped_entries": grouped_entries,
     }), 200
+
+
+@main_bp.route('/speedrun/run', methods=['POST'])
+def submit_speedrun_run():
+    """Store a finished continuous run.
+
+    The server cannot re-run a run, so it validates the shape of the report
+    (sixty distinct levels from 1 to 60, every split a plausible time, the total
+    equal to the splits) and records it. A run that fails that shape is a bug in
+    the client, not a cheat to be tolerated.
+    """
+    username = require_auth()
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
+
+    total_ms = data.get('total_ms')
+    splits = data.get('splits')
+    if not is_valid_int(total_ms, min_value=SPEEDRUN_MIN_LEVEL_MS, max_value=60 * SPEEDRUN_MAX_LEVEL_MS):
+        return jsonify({"error": "Invalid input"}), 400
+    if not isinstance(splits, list) or len(splits) != 60:
+        return jsonify({"error": "Invalid input"}), 400
+
+    levels_seen = set()
+    split_total = 0
+    clean_splits = []
+    for split in splits:
+        if not isinstance(split, dict):
+            return jsonify({"error": "Invalid input"}), 400
+        level = split.get('level')
+        ms = split.get('ms')
+        if not is_valid_int(level, 1, 60) or level in levels_seen:
+            return jsonify({"error": "Invalid input"}), 400
+        if not is_valid_int(ms, min_value=SPEEDRUN_MIN_LEVEL_MS, max_value=SPEEDRUN_MAX_LEVEL_MS):
+            return jsonify({"error": "Invalid input"}), 400
+        levels_seen.add(level)
+        split_total += ms
+        clean_splits.append({"level": level, "ms": ms})
+
+    if abs(split_total - total_ms) > SPEEDRUN_TOTAL_TOLERANCE_MS:
+        return jsonify({"error": "Invalid input"}), 400
+
+    user = get_user(username)
+    first_grade_year = user['first_grade_year'] if user else None
+    result = put_speedrun_run(username, total_ms, clean_splits, first_grade_year)
+    return jsonify(result), 200
+
+
+@main_bp.route('/speedrun/records', methods=['GET'])
+def speedrun_records():
+    """The signed-in player's central speedrun records."""
+    username = require_auth()
+    return jsonify(get_speedrun_records(username)), 200
+
+
+@main_bp.route('/speedrun/leaderboard', methods=['GET'])
+def speedrun_leaderboard():
+    """Overall speedrun records: fastest finished runs and fastest levels."""
+    return jsonify(get_speedrun_leaderboard()), 200
 
 
 @main_bp.route('/profile/score-history', methods=['GET'])

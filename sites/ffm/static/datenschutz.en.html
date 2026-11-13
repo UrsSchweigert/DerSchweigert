@@ -41,7 +41,7 @@
       <ul>
         <li><strong>Account Data:</strong> username, email address, password (hashed with bcrypt)</li>
         <li><strong>Optional Profile Field:</strong> first grade year (for leaderboard categorization, not a birthdate)</li>
-        <li><strong>Usage Data:</strong> high scores and gameplay history</li>
+        <li><strong>Usage Data:</strong> high scores, gameplay history and speedrun times</li>
         <li><strong>Security Data:</strong> Cloudflare Turnstile anti-abuse token and your IP address (for brute-force rate limiting)</li>
         <li><strong>Pseudonymous Visit Counters:</strong> daily hashed visitor fingerprints for page-load estimation (no raw IP/User-Agent stored, for usage analytics, no cookies)</li>
         <li><strong>Android Beta Waitlist:</strong> the Gmail or Googlemail address you enter for the Play test-track invitation, plus the time of your sign-up</li>
@@ -149,6 +149,10 @@
         <li><code>localStorage</code> entry <code>ffm_cookie_consent</code>: stores your cookie
         decision (see above). Persists until you change your decision or clear your browser
         storage.</li>
+        <li><code>localStorage</code> entry <code>arithmoslayer:speedrun:v1</code>: stores your
+        best speedrun times (per level and for one continuous run) and whether the run clock is
+        shown during play. This stays on your device; it is only sent to our server when you are
+        signed in and finish a complete run. Persists until you clear your browser storage.</li>
         <li><code>sessionStorage</code> entry <code>pending_level_record</code>: temporarily
         stores the result of a level you just completed until it has been successfully submitted
         to our server. Deleted after successful submission, and in any case ends no later than
@@ -159,7 +163,7 @@
       <p>
         Your data are retained as long as your account is active. Deleting your account at any
         time <strong>immediately</strong> deletes your username, email, password hash, scores,
-        and profile settings. This does not apply to certain billing identifiers and a record of
+        speedrun times, and profile settings. This does not apply to certain billing identifiers and a record of
         a closed subscription, which may be retained for the reasons described below (see
         "Payment and Subscription Data").
       </p>

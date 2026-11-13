@@ -44,6 +44,7 @@ describe('platform interface', () => {
       'incrementRequestGeneration', 'isStripeRedirect', 'validatePendingRecord',
       'postHighScore', 'postLevelScore', 'getScoreHistory', 'getBillingStatus',
       'login', 'logout', 'refresh', 'getLeaderboard', '_fetch',
+      'postSpeedrunRun', 'getSpeedrunRecords', 'getSpeedrunLeaderboard',
     ]) {
       assert.ok(PLATFORM_METHODS.includes(name), name);
     }
@@ -84,6 +85,7 @@ describe('platform interface', () => {
       'incrementRequestGeneration', 'isStripeRedirect', 'validatePendingRecord',
       'postHighScore', 'postLevelScore', 'getScoreHistory', 'getBillingStatus',
       'getLeaderboard', 'login', 'logout', 'isLoggedIn', 'username',
+      'postSpeedrunRun', 'getSpeedrunRecords', 'getSpeedrunLeaderboard',
     ]) {
       assert.ok(calls.has(name), `${name} must go through the platform adapter`);
     }

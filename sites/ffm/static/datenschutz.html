@@ -41,7 +41,7 @@
       <ul>
         <li><strong>Kontodaten:</strong> Benutzername, E-Mail-Adresse, Passwort (gehashed mit bcrypt)</li>
         <li><strong>Optionales Profil-Feld:</strong> Einschulungsjahr (für Leaderboard-Kategorisierung, kein Geburtstag)</li>
-        <li><strong>Nutzungsdaten:</strong> High Scores und Spielverlauf</li>
+        <li><strong>Nutzungsdaten:</strong> High Scores, Spielverlauf und Speedrun-Zeiten</li>
         <li><strong>Sicherheitsdaten:</strong> Cloudflare Turnstile Anti-Abuse-Token und Ihre IP-Adresse (zur Brute-Force-Rate-Limiting)</li>
         <li><strong>Pseudonyme Besucherzähler:</strong> tägliche gehashte Besucherfingerpints zur Seitenladeaufschätzung (keine rohen IP/User-Agent gespeichert, für Nutzungsstatistiken, keine Cookies)</li>
         <li><strong>Beta-Warteliste (Android):</strong> die Gmail- oder Googlemail-Adresse, die Sie für die Einladung in den Play-Test-Track eintragen, dazu der Zeitpunkt der Eintragung</li>
@@ -141,12 +141,13 @@
       <ul>
         <li><code>localStorage</code>-Eintrag <code>ffm_locale</code>: speichert Ihre bevorzugte Sprache (Deutsch/Englisch), damit die Oberfläche beim nächsten Besuch in dieser Sprache geladen wird. Bleibt bestehen, bis Sie die Sprache ändern oder Ihren Browserspeicher leeren.</li>
         <li><code>localStorage</code>-Eintrag <code>ffm_cookie_consent</code>: speichert Ihre Cookie-Entscheidung (siehe oben). Bleibt bestehen, bis Sie Ihre Entscheidung ändern oder Ihren Browserspeicher leeren.</li>
+        <li><code>localStorage</code>-Eintrag <code>arithmoslayer:speedrun:v1</code>: speichert Ihre besten Speedrun-Zeiten (pro Level und für einen vollständigen Durchlauf) sowie die Einstellung, ob die Laufuhr im Spiel angezeigt wird. Diese Angaben bleiben auf Ihrem Gerät; sie werden nur dann zusätzlich an unseren Server übermittelt, wenn Sie angemeldet sind und einen vollständigen Durchlauf abschließen. Bleibt bestehen, bis Sie Ihren Browserspeicher leeren.</li>
         <li><code>sessionStorage</code>-Eintrag <code>pending_level_record</code>: speichert vorübergehend das Ergebnis eines gerade abgeschlossenen Levels, bis es erfolgreich an unseren Server übermittelt wurde. Wird nach erfolgreicher Übermittlung gelöscht und endet spätestens mit dem Schließen des Browser-Tabs/der Sitzung.</li>
       </ul>
 
       <h2>Speicherdauer</h2>
       <p>
-        Ihre Daten werden so lange gespeichert, wie Ihr Konto aktiv ist. Bei Löschung Ihres Kontos werden Ihr Benutzername, E-Mail, Passwort-Hash, Scores und Profil-Einstellungen unmittelbar gelöscht. Dies gilt nicht für bestimmte Abrechnungskennungen und Belege zu einem beendeten Abonnement, die aus den unten genannten Gründen weiter aufbewahrt werden können (siehe „Zahlungs- und Abonnement-Daten“).
+        Ihre Daten werden so lange gespeichert, wie Ihr Konto aktiv ist. Bei Löschung Ihres Kontos werden Ihr Benutzername, E-Mail, Passwort-Hash, Scores, Speedrun-Zeiten und Profil-Einstellungen unmittelbar gelöscht. Dies gilt nicht für bestimmte Abrechnungskennungen und Belege zu einem beendeten Abonnement, die aus den unten genannten Gründen weiter aufbewahrt werden können (siehe „Zahlungs- und Abonnement-Daten“).
       </p>
       <p>
         Rate-Limiting-Daten (IP-Adressen, Anfrage-Zähler) sind kurzlebig: Das jeweilige Zeitfenster endet in der Regel nach kurzer Zeit, und die Datensätze werden zusätzlich über eine DynamoDB-TTL-Einstellung automatisch entfernt. Diese TTL-Löschung erfolgt asynchron im Hintergrund und nach bestem Bemühen, typischerweise innerhalb weniger Tage nach Ablauf; es handelt sich nicht um eine sofortige Löschung, und es gibt keine feste, garantierte Obergrenze für die Dauer bis zur tatsächlichen Löschung.

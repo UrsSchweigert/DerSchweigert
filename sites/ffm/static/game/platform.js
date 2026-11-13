@@ -8,7 +8,8 @@
 //
 // The interface covers the five things the game needs from a platform:
 //   - level access          getAuthorizedLevelConfig / level config cache
-//   - score recording       postHighScore / postLevelScore
+//   - score recording       postHighScore / postLevelScore / postSpeedrunRun
+//                           (plus the central speedrun records)
 //   - personal history      getScoreHistory
 //   - entitlement           getBillingStatus (premium_access) + billing flow
 //   - account/leaderboard   account methods + getLeaderboard + capability flags
@@ -37,6 +38,9 @@ export const API_METHODS = Object.freeze([
   'postLevelScore',
   'getLeaderboard',
   'getScoreHistory',
+  'postSpeedrunRun',
+  'getSpeedrunRecords',
+  'getSpeedrunLeaderboard',
   'getBillingStatus',
   'startCheckout',
   'openBillingPortal',

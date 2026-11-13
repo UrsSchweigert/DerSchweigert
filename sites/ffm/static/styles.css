@@ -3119,3 +3119,124 @@ body:not(.legal-body) {
 @media (max-width: 430px) {
   .gameplay-readouts { font-size: 15px; }
 }
+
+/* ── Speedrun ──────────────────────────────────────────────────────────────
+ * The run clock is opt-in (see speedrun-ui.js): it appears in the readouts row
+ * only once the player turned it on, so the default HUD is unchanged. Tabular
+ * figures keep the width steady as the tenths tick over.
+ */
+#speedrun-readout {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* The records card: a plain overlay card with a scannable list. It has to fit
+ * twelve-ish rows of level bests on a phone, so it scrolls rather than grows. */
+.speedrun-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  max-height: min(80vh, 620px);
+  overflow-y: auto;
+}
+
+.speedrun-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.speedrun-toggle input {
+  width: 22px;
+  height: 22px;
+  accent-color: #7f8cff;
+  touch-action: manipulation;
+}
+
+.speedrun-best-run {
+  margin: 0;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.speedrun-heading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.speedrun-levels {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.speedrun-levels li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(169, 185, 237, 0.18);
+}
+
+.speedrun-levels strong {
+  font-weight: 600;
+}
+
+.speedrun-empty {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.75;
+}
+
+/* ── Speedrun records on the ranking page ────────────────────────────────
+ * Web only (the block is dropped from the app bundle). It sits under the high
+ * score board and reads as a second board rather than a second screen.
+ */
+.speedrun-board {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(169, 185, 237, 0.22);
+  font-variant-numeric: tabular-nums;
+}
+
+.speedrun-board-personal {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.9;
+}
+
+.speedrun-board-levels {
+  margin: 4px 0 0;
+}
+
+.speedrun-board-levels > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.speedrun-board-levels .speedrun-levels li {
+  align-items: baseline;
+}
+
+.speedrun-board-levels em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 13px;
+  opacity: 0.7;
+}

@@ -36,6 +36,7 @@
       <span id="encounter-progress"></span>
       <span id="combo-reward"></span>
       <span id="heal-progress"></span>
+      <span id="speedrun-readout-wrap" hidden><span data-i18n="speedrun.readout">Run</span> <strong id="speedrun-readout">0:00.0</strong></span>
     </div>
     <button id="btn-pause-game" type="button" data-i18n="overlay.pause">Pause</button>
     <p id="bonus-notice" role="status" aria-live="polite" aria-atomic="true" hidden></p>
@@ -153,6 +154,20 @@
         <button id="leaderboard-complete-profile" class="splash-btn splash-btn--secondary" style="display:none" data-i18n="leaderboard.completeProfile">Complete profile</button>
         <!-- app-omit:end -->
         <ol id="leaderboard-list" class="leaderboard-list"></ol>
+        <!-- app-omit:start -->
+        <!-- Central speedrun records (personal bests and the overall fastest
+             runs). Web only: the app keeps device records behind the hidden
+             title card, so the whole block is dropped from the app bundle. -->
+        <section id="speedrun-board" class="speedrun-board" aria-live="polite" style="display:none">
+          <h3 class="leaderboard-title" data-i18n="speedrun.boardTitle">Speedrun records</h3>
+          <p id="speedrun-board-personal" class="speedrun-board-personal"></p>
+          <ol id="speedrun-board-runs" class="leaderboard-list"></ol>
+          <details id="speedrun-board-levels-wrap" class="speedrun-board-levels">
+            <summary data-i18n="speedrun.boardLevels">Fastest time per level</summary>
+            <ol id="speedrun-board-levels" class="speedrun-levels"></ol>
+          </details>
+        </section>
+        <!-- app-omit:end -->
       </section>
       <nav class="screen-pagination" aria-label="Leaderboard pages">
         <button id="leaderboard-prev" type="button" aria-label="Previous page" data-page-direction="previous"></button>
@@ -399,6 +414,23 @@
     </div>
   </div>
   <!-- app-omit:end -->
+
+  <!-- Hidden behind three taps on the title's intro line (see speedrun-ui.js).
+       It shows the run records and is where the run clock is switched on. -->
+  <div id="speedrun-overlay" class="overlay" style="display:none" hidden>
+    <div class="overlay-card speedrun-card" role="dialog" aria-modal="true" aria-labelledby="speedrun-title">
+      <h2 id="speedrun-title" data-i18n="speedrun.title">Speedrun</h2>
+      <label class="speedrun-toggle" for="speedrun-toggle">
+        <input type="checkbox" id="speedrun-toggle">
+        <span data-i18n="speedrun.enable">Show the run clock while I play</span>
+      </label>
+      <p id="speedrun-best-run" class="speedrun-best-run"></p>
+      <h3 class="speedrun-heading" data-i18n="speedrun.levelsHeading">Best time per level</h3>
+      <ol id="speedrun-levels" class="speedrun-levels"></ol>
+      <p id="speedrun-empty" class="speedrun-empty" data-i18n="speedrun.empty" hidden>No level times recorded yet.</p>
+      <button type="button" class="diff-btn" id="speedrun-close" data-i18n="speedrun.close">Close</button>
+    </div>
+  </div>
 
   <div id="level-clear" class="overlay" style="display:none">
     <div class="overlay-card">
