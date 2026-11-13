@@ -18,6 +18,7 @@ function setup({ loggedIn = true, app = false, shapes = false, practice = false,
   let submissions = 0;
   let quits = 0;
   let refreshes = 0;
+  let kicks = 0;
   const partials = [];
   const audioSettings = { open: false, querySelector: () => ({ focus() {} }) };
   const context = {
@@ -56,6 +57,7 @@ function setup({ loggedIn = true, app = false, shapes = false, practice = false,
     input: { disable() {}, enable() {} },
     audio: { pauseBGM() {}, resumeBGM() {} },
     resetHealHold() {}, activeFiend: null, appLifecycle: null, syncKeepAwake() {},
+    kickGameLoop() { kicks++; },
     getCurrentInputMode() { return 'multiple-choice'; },
     t: key => key,
     clearPremiumSession() { quits++; context.gameRunning = false; },
@@ -69,7 +71,7 @@ function setup({ loggedIn = true, app = false, shapes = false, practice = false,
   vm.runInContext('pauseGame();', context);
   return {
     context, handlers, audioSettings, submissions: () => submissions, quits: () => quits,
-    refreshes: () => refreshes, partials: () => partials,
+    refreshes: () => refreshes, partials: () => partials, kicks: () => kicks,
   };
 }
 
@@ -112,7 +114,7 @@ it('Back to game restores enabled answers in untimed practice', () => {
 });
 
 it('requires an explicit resume choice; quit confirmation and back keep gameplay paused', () => {
-  const { context, handlers } = setup();
+  const { context, handlers, kicks } = setup();
   assert.equal(context.paused, true);
   handlers.quit();
   assert.equal(context.pauseQuitActions.style.display, '');
@@ -120,9 +122,11 @@ it('requires an explicit resume choice; quit confirmation and back keep gameplay
   handlers.back();
   assert.equal(context.pauseActions.style.display, '');
   assert.equal(context.paused, true);
+  assert.equal(kicks(), 0, 'no resume, no frame loop');
   handlers.resume();
   assert.equal(context.paused, false);
   assert.equal(context.pauseOverlay.style.display, 'none');
+  assert.equal(kicks(), 1, 'resuming wakes the parked frame loop');
   assert.ok(!source.includes("pauseOverlay.addEventListener('click'"));
   for (const id of ['btn-resume-game', 'btn-quit-game', 'btn-pause-save', 'btn-pause-discard']) {
     assert.ok(html.includes(`id="${id}"`));

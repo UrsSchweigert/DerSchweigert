@@ -15,6 +15,19 @@ test('sharp title and blurred overlays use redesigned bundled art without interc
   assert.match(css, /@media \(orientation: landscape\)[\s\S]*url\('game\/title-art-wide\.webp'\)/);
 });
 
+test('menu overlays paint their own backdrop instead of blurring the playfield', () => {
+  // Every overlay covers the canvas with an opaque backdrop of its own, so a
+  // backdrop-filter never showed anything — it only made WebKit re-blur the
+  // full screen on every frame the game canvas repainted.
+  const declarations = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(declarations, /^\.overlay\s*\{[^}]*(?:-webkit-)?backdrop-filter\s*:/m,
+    'an overlay must not blur the live canvas behind it');
+  assert.match(css, /\.overlay:not\(\.splash-screen\)::before\s*\{[^}]*z-index:\s*-1/s,
+    'the opaque overlay art still sits behind the card');
+  assert.match(css, /\.splash-bg\s*\{[^}]*background-color:\s*#030a14/s,
+    'the splash covers the canvas with its own opaque art');
+});
+
 test('interface text wraps at word boundaries and compact navigation keeps whole labels', () => {
   assert.match(css, /button\s*\{\s*overflow-wrap:\s*break-word;\s*word-break:\s*normal;\s*hyphens:\s*none;/,
     'words stay whole and only break inside the button as a last resort');

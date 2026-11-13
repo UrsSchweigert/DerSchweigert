@@ -2598,7 +2598,11 @@ body { color: var(--ivory); }
 
 .overlay {
   background: rgba(3, 10, 7, 0.82);
-  backdrop-filter: blur(5px);
+  /* No backdrop-filter: every overlay paints an opaque backdrop of its own
+     (.splash-bg, or the ::before artwork below), so a blur of the playfield
+     underneath was never visible — while WebKit re-blurred the full screen on
+     every frame the game canvas repainted, and the splash, pause, level-clear
+     and game-over cards are exactly where a phone sits idle. */
   isolation: isolate;
 }
 .overlay:not(.splash-screen)::before {
