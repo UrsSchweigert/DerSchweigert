@@ -2,7 +2,14 @@
 
 Sixty prompts, one per level, for the owner's image model. Each prompt is a
 single line naming the level's landmark, the chapter's dominant colour, the
-next level's setting on the horizon, and the required empty ground plane. All
+next level's setting on the horizon, and the required empty ground plane.
+
+Every prompt also has to say that the empty ground band runs **the full width,
+bottom corners included, with no crates, counters, steps or props on it**: the
+hero stands at canvas x 110 (image x ≈ 211) and the fiends at 520-620, so a
+foreground prop there puts a character inside scenery. That is why levels 40
+and 44 were regenerated — the footing rule was added to their prompts, and it
+belongs in every future one. All
 level images share the measured style in STYLE.md: 1536x1024, 800px display
 width, ordered dithering, one-point perspective, a 3-5 step colour ramp and a
 strong vignette. No prompt asks for characters, text, UI, or a frame.
