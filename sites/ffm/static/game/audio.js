@@ -1066,12 +1066,17 @@ export class AudioEngine {
     if (this._muted) return false;
     const t = this._ctx.currentTime;
     // The rent: a band of noise pulled upward as the door cuts itself open.
-    this._playNoiseBurst(0.34, t, 0.26, 220, 'bandpass', 1900, 3);
-    // Below it, the rumble of something heavy moving behind the door.
-    this._playSweep(72, 38, 'sawtooth', 0.55, t + 0.02, 0.2);
-    this._playTone(54, 'sine', 0.3, t, 0.22);
-    // And the light: a thin shimmer, quiet enough to be a detail.
-    this._playSweep(680, 1480, 'triangle', 0.22, t + 0.06, 0.07);
+    // Its first version sat at 0.26 and the whole cue's body was sub-bass, so on
+    // a phone speaker — which reproduces neither 54 Hz nor 38 Hz — it read as
+    // nothing at all. The rent is now the loud layer, just under a spell press.
+    this._playNoiseBurst(0.34, t, 0.46, 1500, 'bandpass', 2400, 4);
+    // Below it, the rumble of something heavy moving behind the door, moved up
+    // from 72→38 Hz into the range a phone speaker can actually move.
+    this._playSweep(150, 62, 'sawtooth', 0.55, t + 0.02, 0.34);
+    // The sub stays for headphones and the app's louder output.
+    this._playTone(54, 'sine', 0.3, t, 0.28);
+    // And the light: a thin shimmer through the rent.
+    this._playSweep(820, 1640, 'triangle', 0.24, t + 0.06, 0.2);
     return true;
   }
 
