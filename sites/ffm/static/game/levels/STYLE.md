@@ -21,6 +21,11 @@ PROMPTS.md and listed in manifest.json.
   horizontal box so it survives narrow displays.
 - Empty ground plane: the **lower 35-50%** of the frame is an empty ground
   plane — plain ground with no landmark and no detail the player must read.
+- Footing across the full width: that ground band must be **level and clear from
+  edge to edge**, including both bottom corners. The hero stands at canvas x 110
+  (image x ≈ 211) and the front fiend at canvas x 520-620, so crates, barrels,
+  stall counters, steps or foreground props in those columns leave a character
+  standing in scenery — which is what had to be regenerated for levels 40 and 44.
 - Strong vignette: darken the frame edges so the landmark reads as the focal
   point.
 
