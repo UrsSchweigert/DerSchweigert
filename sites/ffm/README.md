@@ -476,6 +476,14 @@ The deploy workflow currently:
 5. invalidates CloudFront
 6. smoke-tests `/` and `/api/health`
 
+**Which merges deploy:** a push to `main` only deploys the sites its own diff touches, and a change that touches
+nothing under `sites/ffm/` (or `infra/terraform/sites/ffm/`, or the shared `infra/` modules) — a docs-only or CI-only
+merge, say — deploys nothing at all here. That is fine as long as every `main` run gets to finish, which is why
+`deploy.yml` makes `main` runs queue instead of cancelling each other (`cancel-in-progress` only applies to pull
+requests). If a `deploy-ffm` run fails or is cancelled anyway, its commit's changes stay undelivered until the next
+merge that touches `sites/ffm/`; to deliver them immediately, re-run the workflow from the Actions UI
+(`workflow_dispatch` on `main`, which treats every site as changed).
+
 **Known trade-off in step 2→3:** Terraform's own `archive_file` data source (in the shared `api_backend` module) only zips `sites/ffm/lambda/` (just `handler.py`) — it does not bundle `app/` or pip dependencies, because those need Lambda-compatible (`manylinux2014`) wheels that Terraform can't easily produce. So `terraform apply` in step 2 briefly deploys that thin, non-functional zip as the Lambda's code before step 3 overwrites it with the real, fully-bundled one moments later in the same job. In practice this means a deploy has a short window (well under a minute) where a live request could hit `ModuleNotFoundError` before step 3 completes. Acceptable for this project's traffic level, but if it ever needs to become a non-issue, the fix is to build the dependency-bundled directory *before* running `terraform apply` and point `lambda_source_dir` at that pre-built directory instead of `sites/ffm/lambda/`, then drop the separate `update-function-code` step entirely so Terraform is the single source of truth for both code and config.
 
 ### CI's AWS IAM permissions are NOT managed in this repo — read this before adding new AWS resource types
