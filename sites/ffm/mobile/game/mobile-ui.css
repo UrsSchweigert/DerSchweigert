@@ -36,7 +36,11 @@
   width: 100%;
   border-radius: inherit;
   background-color: var(--ffm-mobile-timer-color);
-  transition: width 120ms linear, background-color 120ms linear;
+  /* The fill is repainted from the loop on every frame, so it carries no
+   * transition: a width or colour transition retargeted 60 times a second never
+   * settles, and `width` would put the header on the layout path each frame.
+   * timer-bar.js drives transform: scaleX() instead, which composites. */
+  transform-origin: left center;
 }
 
 .app-header-timer--untimed .app-header-timer-fill {
@@ -49,10 +53,6 @@
 
 .app-header-timer--paused .app-header-timer-fill {
   opacity: 0.45;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-header-timer-fill { transition: none; }
 }
 
 /* The bar is the app's only visual countdown, so it now runs in both

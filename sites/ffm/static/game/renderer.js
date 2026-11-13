@@ -99,6 +99,11 @@ export class Renderer {
     // drawBackground()'s solid-color rect covers the gap instead.
     this._bgUrl = '';
     this._bgFailed = false;
+    // Lazily built 800x450 downscale of the art currently loaded into _bgImage
+    // (see _scaledBackground). Keyed on the image object, so setBackgroundByLevel
+    // drops it whenever a new src is assigned to the same object.
+    this._bgScaled = null;
+    this._bgScaledSource = null;
     this._preloadedLevelArt = new Set();
     this._bgImage.addEventListener('error', () => {
       this._bgFailed = true;
@@ -109,6 +114,9 @@ export class Renderer {
     // the canvas itself, making it visible on left/right only. See
     // index.html/styles.css for #combo-frame.
     this._comboFrameEl = canvas.parentElement && canvas.parentElement.querySelector('#combo-frame');
+    // The band the frame is currently painted for, so the idle clear is not
+    // re-applied on every frame (see drawComboFrame).
+    this._comboBand = null;
   }
 
   clear() {
@@ -132,9 +140,16 @@ export class Renderer {
     if (!el) return;
     const color = COMBO_FRAME_COLORS[band];
     if (!color) {
-      el.style.opacity = '0';
+      // The loop calls this on every frame; clearing an already-clear frame
+      // re-set the style attribute 60 times a second, and each write cost a
+      // style recalculation for the whole document.
+      if (this._comboBand !== null) {
+        this._comboBand = null;
+        el.style.opacity = '0';
+      }
       return;
     }
+    this._comboBand = band;
     const pulse = (Math.sin(ts / 220) + 1) / 2; // 0..1
     const alpha = 0.35 + pulse * 0.45;
     const thickness = 3 + pulse * 3;
@@ -155,6 +170,8 @@ export class Renderer {
     this._bgUrl = url;
     this._bgFailed = false;
     this._bgImage.src = url;
+    this._bgScaled = null;
+    this._bgScaledSource = null;
   }
 
   // Warms the browser cache for the given levels without awaiting them. Only
@@ -191,6 +208,26 @@ export class Renderer {
   }
 
   // ─── main background ────────────────────────────────────────────────────────
+  // The level art is a 1536x1024 image that never changes while a level is on
+  // screen — drawBackground() is only ever called with scrollX 0 — so it is
+  // downscaled once into a canvas of exactly the playfield size and blitted
+  // from there. Re-scaling it twice on every frame was the most expensive thing
+  // in an otherwise flat frame, and with scrollX 0 the second copy landed at
+  // x = CANVAS_W, entirely outside the canvas.
+  _scaledBackground(bgImage) {
+    if (this._bgScaled && this._bgScaledSource === bgImage) return this._bgScaled;
+    const element = typeof document !== 'undefined' ? document.createElement?.('canvas') : null;
+    const ctx = element && element.getContext?.('2d');
+    if (!ctx) return null;
+    const dh = bgImage.naturalHeight * (CANVAS_W / bgImage.naturalWidth);
+    element.width = CANVAS_W;
+    element.height = CANVAS_H;
+    ctx.drawImage(bgImage, 0, (CANVAS_H - dh) / 2, CANVAS_W, dh);
+    this._bgScaled = element;
+    this._bgScaledSource = bgImage;
+    return element;
+  }
+
   drawBackground(scrollX) {
     const ctx = this.ctx;
     const bgImage = this._bgImage.complete && this._bgImage.naturalWidth ? this._bgImage : this._fallbackBgImage;
@@ -199,201 +236,20 @@ export class Renderer {
       ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
       return;
     }
-    // scale image to fill canvas width; crop top+bottom if taller than canvas
-    const dw  = CANVAS_W;
-    const dh  = bgImage.naturalHeight * (CANVAS_W / bgImage.naturalWidth);
-    const dy  = (CANVAS_H - dh) / 2;
-    const off = mod(scrollX * 0.2, dw);
-    ctx.drawImage(bgImage, -off, dy, dw, dh);
-    ctx.drawImage(bgImage, -off + dw, dy, dw, dh);
-  }
-
-  // ─── layer helpers ──────────────────────────────────────────────────────────
-  _clouds(ctx) {
-    const c = [[52,26,90,22],[262,40,110,26],[492,20,94,21],[670,46,76,19]];
-    c.forEach(([x,y,w,h]) => {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x,           y+~~(h*.40), w,         ~~(h*.60));
-      ctx.fillRect(x+~~(w*.08), y+~~(h*.10), ~~(w*.32), ~~(h*.56));
-      ctx.fillRect(x+~~(w*.28), y,           ~~(w*.38), ~~(h*.72));
-      ctx.fillRect(x+~~(w*.56), y+~~(h*.10), ~~(w*.30), ~~(h*.56));
-      ctx.fillStyle='#c8e8f8';
-      ctx.fillRect(x, y+~~(h*.80), w, ~~(h*.20));
-    });
-  }
-
-  _mountains(ctx, bx) {
-    [[0,145,200,86],[185,130,215,102],[370,148,195,84],
-     [545,134,220,96],[730,142,200,88]].forEach(([rx,top,w,h]) => {
-      const px = ~~(bx+rx);
-      ctx.fillStyle='#90b4cc';
-      for(let i=0;i<h;i++){const rw=~~(w*(1-i/h*0.72));ctx.fillRect(px+~~((w-rw)/2),top+i,rw,1);}
-      ctx.fillStyle='#d8ecf8';
-      const sc=~~(h*.25);
-      for(let i=0;i<sc;i++){const rw=~~(w*.32*(1-i/sc));ctx.fillRect(px+~~((w-rw)/2),top+i,rw,1);}
-    });
-  }
-
-  _farForest(ctx, bx) {
-    const H=150;
-    ctx.fillStyle='#1a5016';
-    ctx.fillRect(~~bx,H,CANVAS_W,54);
-    const xs =[0,54,108,162,216,272,332,390,448,506,562,620,676,734,790];
-    const ws =[60,50,70,55,78,60,66,74,52,64,80,58,70,62,56];
-    const hs =[50,40,58,46,60,44,54,62,42,52,64,48,56,52,48];
-    xs.forEach((rx,i)=>{
-      const px=~~(bx+rx);const tw=ws[i];const th=hs[i];
-      ctx.fillStyle='#1a5016';
-      [[.15,.50,.70,.50],[.08,.32,.84,.28],[.20,.14,.60,.22],[.30,0,.40,.16]].forEach(([lx,ly,lw,lh])=>{
-        ctx.fillRect(px+~~(tw*lx),H-th+~~(th*ly),~~(tw*lw),~~(th*lh));});
-    });
-  }
-
-  _nearTrees(ctx, bx) {
-    // [x, canopyW, canopyH, trunkW, trunkH, baseY]
-    const trees=[
-      [-18,96,110,16,70,308],[128,78,90,13,56,296],[292,114,120,18,76,318],
-      [490,90,98,14,64,304],[658,106,112,16,72,312],[842,84,92,13,60,300],
-    ];
-    trees.forEach(([tx,cw,ch,tw,th,by])=>{
-      const x=~~(bx+tx);
-      // trunk
-      ctx.fillStyle='#5a3818';
-      ctx.fillRect(x+~~(cw/2)-~~(tw/2),by-th,tw,th);
-      ctx.fillStyle='#7a4a20';
-      ctx.fillRect(x+~~(cw/2)-~~(tw/2)+2,by-th,~~(tw/3),th);
-      // bark lines
-      ctx.fillStyle='#4a2810';
-      for(let bi=0;bi<th;bi+=12)ctx.fillRect(x+~~(cw/2)-~~(tw/2),by-th+bi,tw,1);
-      // canopy
-      const cy=by-th-ch;
-      ctx.fillStyle='#1a4c14';
-      ctx.fillRect(x+~~(cw*.08),cy+~~(ch*.52),~~(cw*.84),~~(ch*.48));
-      ctx.fillRect(x+~~(cw*.04),cy+~~(ch*.34),~~(cw*.92),~~(ch*.24));
-      ctx.fillStyle='#287820';
-      ctx.fillRect(x+~~(cw*.06),cy+~~(ch*.20),~~(cw*.88),~~(ch*.52));
-      ctx.fillRect(x+~~(cw*.14),cy+~~(ch*.06),~~(cw*.72),~~(ch*.20));
-      ctx.fillStyle='#3aaa28';
-      ctx.fillRect(x+~~(cw*.22),cy+~~(ch*.02),~~(cw*.56),~~(ch*.14));
-      ctx.fillRect(x+~~(cw*.14),cy+~~(ch*.10),~~(cw*.66),~~(ch*.22));
-      ctx.fillStyle='#52c840';
-      ctx.fillRect(x+~~(cw*.26),cy+~~(ch*.18),~~(cw*.18),4);
-      ctx.fillRect(x+~~(cw*.52),cy+~~(ch*.32),~~(cw*.18),4);
-      // vines
-      ctx.fillStyle='#2a5c1a';
-      const v1=x+~~(cw*.36),v2=x+~~(cw*.64);
-      for(let vi=0;vi<~~(th*.44);vi+=2){ctx.fillRect(v1,by-th+vi,2,2);}
-      for(let vi=0;vi<~~(th*.28);vi+=2){ctx.fillRect(v2,by-th+vi,2,2);}
-    });
-
-    // waterfall
-    const wfX=~~(bx+185);
-    if(wfX>-80&&wfX<CANVAS_W+80){
-      ctx.fillStyle='#8a7a68';ctx.fillRect(wfX,198,64,84);
-      ctx.fillStyle='#a89878';ctx.fillRect(wfX+4,200,22,10);ctx.fillRect(wfX+42,200,16,8);
-      ctx.fillStyle='#6a5a48';ctx.fillRect(wfX,270,64,12);
-      ctx.fillStyle='#70c8f0';ctx.fillRect(wfX+20,198,24,72);
-      ctx.fillStyle='#a8e4f8';
-      const wa=(this._tick%4)*2;
-      for(let wy=200;wy<270;wy+=8){
-        ctx.fillRect(wfX+22,wy+wa%8,4,3);ctx.fillRect(wfX+34,wy+(wa+4)%8,3,3);
-      }
-      ctx.fillStyle='#ffffff';ctx.fillRect(wfX+10,270,44,4);
-      ctx.fillStyle='#68b8e0';ctx.fillRect(wfX-12,272,88,22);
-      ctx.fillStyle='#88d0f0';ctx.fillRect(wfX-8,274,60,8);
+    const off = mod(scrollX * 0.2, CANVAS_W);
+    const scaled = this._scaledBackground(bgImage);
+    if (!scaled) {
+      // No DOM canvas to cache into (tests, or a context we could not get):
+      // draw the image directly, exactly as before.
+      const dh = bgImage.naturalHeight * (CANVAS_W / bgImage.naturalWidth);
+      const dy = (CANVAS_H - dh) / 2;
+      ctx.drawImage(bgImage, -off, dy, CANVAS_W, dh);
+      ctx.drawImage(bgImage, -off + CANVAS_W, dy, CANVAS_W, dh);
+      return;
     }
-  }
-
-  _ground(ctx, scrollX) {
-    const P=LOGICAL_PX;
-
-    // Grass fill
-    const gg=ctx.createLinearGradient(0,242,0,CANVAS_H);
-    gg.addColorStop(0,'#2e7020');gg.addColorStop(.4,'#3a8828');gg.addColorStop(1,'#4a9030');
-    ctx.fillStyle=gg;ctx.fillRect(0,242,CANVAS_W,CANVAS_H-242);
-
-    // Perspective cobblestone path
-    // back edge: y=250, half-width=110 (centred); front edge: y=CANVAS_H, full width
-    const backY=250,frontY=CANVAS_H,backCX=CANVAS_W/2,backHW=110,rows=20;
-    const sc=['#c4a458','#b8984c','#d4b06a','#a88840','#c8ac60'];
-    const sd='#7a5c30',hi='#e8cc80';
-    const gOff=mod(scrollX,P*16);
-    for(let r=0;r<rows;r++){
-      const t=r/(rows-1);
-      const y=~~(backY+t*(frontY-backY));
-      const nh=Math.max(4,~~((frontY-backY)/rows));
-      const pL=~~(backCX-backHW+t*(0-(backCX-backHW)));
-      const pR=~~(backCX+backHW+t*(CANVAS_W-(backCX+backHW)));
-      const pW=pR-pL;
-      ctx.fillStyle=sc[r%sc.length];ctx.fillRect(pL,y,pW,nh);
-      ctx.fillStyle=sd;ctx.fillRect(pL,y,pW,1);
-      ctx.fillStyle=hi;ctx.fillRect(pL,y+1,pW,1);
-      const stW=Math.max(10,~~(P*4*(0.35+0.65*t)));
-      const jOff=~~(gOff*(0.4+0.6*t))%stW;
-      for(let sx=pL-jOff+(r%2===0?0:~~(stW/2));sx<pR;sx+=stW){
-        const jx=~~sx;if(jx>pL&&jx<pR){ctx.fillStyle=sd;ctx.fillRect(jx,y,1,nh);}
-      }
-    }
-
-    // Ground details
-    const dOff=mod(scrollX,CANVAS_W);
-    for(let w=0;w<2;w++) this._grassDetails(ctx,dOff-CANVAS_W+w*CANVAS_W);
-  }
-
-  _grassDetails(ctx, bx) {
-    // rocks
-    [[25,306,26,17],[130,324,22,16],[692,304,28,18],[768,320,24,16]].forEach(([rx,ry,rw,rh])=>{
-      const px=~~(bx+rx);
-      ctx.fillStyle='#8a7a68';ctx.fillRect(px,ry,rw,rh);
-      ctx.fillStyle='#a89880';ctx.fillRect(px+3,ry+2,~~(rw/2),~~(rh/3));
-      ctx.fillStyle='#6a5a48';ctx.fillRect(px,ry+rh-4,rw,4);
-    });
-    // flowers
-    [[58,336],[92,350],[198,340],[238,355],[562,336],[598,352],[742,342]].forEach(([fx,fy])=>{
-      const px=~~(bx+fx);
-      ctx.fillStyle='#3a6c18';ctx.fillRect(px+2,fy+4,2,6);
-      ctx.fillStyle='#f0f0f0';
-      ctx.fillRect(px,fy,2,2);ctx.fillRect(px+4,fy,2,2);
-      ctx.fillRect(px+2,fy-2,2,2);ctx.fillRect(px+2,fy+2,2,2);
-      ctx.fillStyle='#f8e040';ctx.fillRect(px+2,fy,2,2);
-    });
-    // bushes
-    [[12,288,52,32],[158,278,62,36],[388,260,48,26],[640,274,56,34]].forEach(([bsx,bsy,bsw,bsh])=>{
-      const px=~~(bx+bsx);
-      ctx.fillStyle='#1a5016';ctx.fillRect(px,bsy+~~(bsh*.5),bsw,~~(bsh*.5));
-      ctx.fillStyle='#287820';
-      ctx.fillRect(px+~~(bsw*.08),bsy+~~(bsh*.22),~~(bsw*.84),~~(bsh*.58));
-      ctx.fillRect(px+~~(bsw*.14),bsy,~~(bsw*.28),~~(bsh*.38));
-      ctx.fillRect(px+~~(bsw*.38),bsy+~~(bsh*.06),~~(bsw*.32),~~(bsh*.34));
-      ctx.fillRect(px+~~(bsw*.64),bsy+~~(bsh*.12),~~(bsw*.24),~~(bsh*.30));
-      ctx.fillStyle='#50c040';
-      ctx.fillRect(px+~~(bsw*.18),bsy+~~(bsh*.08),~~(bsw*.14),4);
-      ctx.fillRect(px+~~(bsw*.52),bsy+~~(bsh*.24),~~(bsw*.14),4);
-    });
-    // fallen log
-    ctx.fillStyle='#6a4020';ctx.fillRect(~~(bx+440),314,82,16);
-    ctx.fillStyle='#8a5828';ctx.fillRect(~~(bx+441),315,80,6);
-    ctx.fillStyle='#4a2810';ctx.fillRect(~~(bx+440),326,82,4);
-    ctx.fillStyle='#8a5828';ctx.fillRect(~~(bx+440),314,10,16);
-    ctx.fillStyle='#5a3018';ctx.fillRect(~~(bx+442),318,6,8);
-  }
-
-  _frontWall(ctx, scrollX) {
-    const P=LOGICAL_PX,wallY=CANVAS_H-62;
-    const wg=ctx.createLinearGradient(0,wallY,0,CANVAS_H);
-    wg.addColorStop(0,'#8a7a68');wg.addColorStop(.3,'#7a6a58');wg.addColorStop(1,'#5a4a38');
-    ctx.fillStyle=wg;ctx.fillRect(0,wallY,CANVAS_W,62);
-    ctx.fillStyle='#b09880';ctx.fillRect(0,wallY,CANVAS_W,4);
-    ctx.fillStyle='#5a4a38';
-    ctx.fillRect(0,wallY+20,CANVAS_W,2);ctx.fillRect(0,wallY+42,CANVAS_W,2);
-    const jS=P*12,jO=mod(scrollX,jS);
-    for(let jx=-jO;jx<CANVAS_W;jx+=jS){
-      const x=~~jx;
-      ctx.fillRect(x,wallY,2,22);
-      ctx.fillRect(x+~~(jS/2),wallY+22,2,22);
-      ctx.fillRect(x,wallY+44,2,18);
-    }
-    ctx.fillStyle='#3a2a1a';ctx.fillRect(0,CANVAS_H-5,CANVAS_W,5);
+    ctx.drawImage(scaled, -off, 0);
+    // The wrapped second copy only covers anything once the art is scrolled.
+    if (off > 0) ctx.drawImage(scaled, -off + CANVAS_W, 0);
   }
 
   // ─── public API ─────────────────────────────────────────────────────────────

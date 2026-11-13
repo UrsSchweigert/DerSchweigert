@@ -152,7 +152,9 @@ test('the widget appends one decorative bar to the header and renders the ratio'
 
   widget.updateTimerState({ remaining: 6, max: 10 });
   assert.equal(bar.getAttribute(TIMER_STATE_ATTRIBUTE), 'running');
-  assert.equal(widget.fill.style.width, '60.0%');
+  assert.equal(widget.fill.style.transform, 'scaleX(0.6)');
+  assert.equal(widget.fill.style.width, undefined,
+    'the fill must stay off the layout path; the loop repaints it every frame');
   assert.equal(widget.fill.style.backgroundColor, timerBarColor(0.6));
   assert.equal(bar.classList.contains(TIMER_UNTIMED_CLASS), false);
   assert.equal(bar.classList.contains(TIMER_PAUSED_CLASS), false);
@@ -160,7 +162,7 @@ test('the widget appends one decorative bar to the header and renders the ratio'
   widget.updateTimerState({ remaining: 6, max: 10, paused: true });
   assert.equal(bar.getAttribute(TIMER_STATE_ATTRIBUTE), 'paused');
   assert.equal(bar.classList.contains(TIMER_PAUSED_CLASS), true);
-  assert.equal(widget.fill.style.width, '60.0%', 'pausing does not move the bar');
+  assert.equal(widget.fill.style.transform, 'scaleX(0.6)', 'pausing does not move the bar');
 
   widget.updateTimerState({ remaining: 0, max: 0 });
   assert.equal(bar.getAttribute(TIMER_STATE_ATTRIBUTE), 'untimed');
@@ -210,6 +212,16 @@ test('the overlay stylesheet centres the header bar in its grid row', async () =
   assert.match(css, /\.app-header-timer--untimed \.app-header-timer-fill\s*\{/);
   assert.match(css, /\.app-header-timer--paused \.app-header-timer-fill\s*\{/);
   assert.doesNotMatch(css, /https?:\/\//, 'the overlay stylesheet must stay offline');
+
+  // The fill is repainted from the loop every frame, so it must not carry a
+  // transition (which would be retargeted 60 times a second and never settle)
+  // and must be scaled, not resized.
+  const declarations = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const fill = declarations.match(/\.app-header-timer-fill\s*\{([^}]*)\}/)?.[1];
+  assert.ok(fill, 'the fill rule must exist');
+  assert.match(fill, /transform-origin:\s*left center/);
+  assert.doesNotMatch(fill, /transition:/, 'no transition on a per-frame repaint');
+  assert.match(fill, /width:\s*100%/, 'the fill spans the bar and is scaled down from JS');
 });
 
 test('the header bar is the only visual countdown in the app', async () => {

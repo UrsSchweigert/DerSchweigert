@@ -355,15 +355,18 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
     // the CSS keeps the localized name visible. The URL is requested on the
     // first unlock only; the cached result survives a later relock.
     if (state === 'locked') {
-      slot.iconEl.hidden = true;
+      if (slot.iconEl.hidden !== true) slot.iconEl.hidden = true;
       delete slot.button.dataset.icon;
     } else {
       if (!slot.iconRequested) {
         slot.iconRequested = true;
         slot.iconEl.src = abilityIconUrl(slot.id);
       }
-      slot.iconEl.hidden = slot.iconState !== 'loaded';
-      if (slot.iconState !== 'idle') slot.button.dataset.icon = slot.iconState;
+      const hideIcon = slot.iconState !== 'loaded';
+      if (slot.iconEl.hidden !== hideIcon) slot.iconEl.hidden = hideIcon;
+      if (slot.iconState !== 'idle' && slot.button.dataset.icon !== slot.iconState) {
+        slot.button.dataset.icon = slot.iconState;
+      }
     }
 
     const cooldownText = state === 'locked'
