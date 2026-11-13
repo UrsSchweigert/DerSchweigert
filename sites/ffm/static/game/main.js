@@ -97,7 +97,12 @@ const abilityBar = createAbilityBar({
   // or not the cast is accepted. The spell's own cue follows on a real cast
   // (see playAbilityCastFeedback).
   onPress: (id, button) => {
+    // The click is the whole spell: glass breaking, then that spell's own voice
+    // (wind gust / storm snap / earth rumble) layered under it. Both belong to
+    // the press, so a cast that the game refuses still sounds like the button it
+    // is.
     audio.playAbilityPress?.();
+    audio.playAbilityCast?.(id);
     if (button) hudBurst.burst(button, 'glass', 14);
   },
   // A cooling orb cannot cast, but it must not feel like a dead button: a dull
@@ -908,7 +913,11 @@ function applyLevelGround(y) {
   hero.y = groundY;
   for (const fiend of fiends) fiend.y = groundY;
 }
-let spawnInterval = 4.0;
+// The pause between encounters: how long the stage stays empty after a fiend is
+// killed or walks off. Four seconds read as dead air between problems; half a
+// second keeps the run moving without stomping on the strike's animation.
+const SPAWN_INTERVAL_SECONDS = 0.5;
+let spawnInterval = SPAWN_INTERVAL_SECONDS;
 let spawnTimer = 0;
 let answerTimes = [];
 let inputDisabled = false;
@@ -2692,7 +2701,8 @@ function abilityCastOrigin() {
 function playAbilityCastFeedback(id, origin) {
   const effect = { wind: 'windCast', storm: 'stormCast', earth: 'spikeCast' }[id];
   if (!effect) return false;
-  audio.playAbilityCast?.(id);
+  // The cue already played on the press (see the bar's onPress); this seam owns
+  // the light, so a spell is never double-voiced.
   globalThis.ffmScreenFx?.play(effect, origin || abilityCastOrigin());
   if (id === 'earth' && typeof startSpikeAura === 'function') startSpikeAura();
   return true;
@@ -2827,7 +2837,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   waveClearing = false;
   dragonFinishResolved = false;
   answerTimes = [];
-  spawnInterval = practiceRun ? 2.0 : 4.0;
+  spawnInterval = SPAWN_INTERVAL_SECONDS;
   answerClock.reset();
   attemptSummary = createAttemptSummary();
   completionFeedback = null;

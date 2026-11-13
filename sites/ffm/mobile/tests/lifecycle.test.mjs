@@ -322,7 +322,8 @@ test('the shared authorized startup activates keep-awake for finite and Endless 
       syncKeepAwake: () => calls.push(context.gameRunning && !context.paused),
     };
     vm.createContext(context);
-    vm.runInContext(finish, context);
+    // finishStartLevel resets the pacing constant from main.js's module scope.
+    vm.runInContext(`const SPAWN_INTERVAL_SECONDS = 0.5;\n${finish}`, context);
     context.finishStartLevel(0, { level: 1, chapter: 1, waveSize: 30 });
     assert.equal(context.state.isShapesMode, true);
     assert.equal(context.spawnQueue.length, 0);

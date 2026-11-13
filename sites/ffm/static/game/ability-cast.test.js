@@ -88,11 +88,13 @@ function castEnv({
 }
 
 describe('ability cast feedback', () => {
-  it('makes one sound and one effect per successful cast, at the pre-cast target', () => {
+  it('makes one effect per successful cast, at the pre-cast target, and no second cue', () => {
     for (const [id, effect] of [['wind', 'windCast'], ['storm', 'stormCast'], ['earth', 'spikeCast']]) {
       const env = castEnv({ activeFiend: { x: 520, y: 300 } });
       assert.equal(env.run(`activateAbility('${id}')`), true, `${id} activates`);
-      assert.deepEqual(env.calls.sounds, [id], `${id} makes exactly one sound`);
+      // The spell's own cue belongs to the press now (the bar's onPress), so the
+      // cast seam must not voice it a second time.
+      assert.deepEqual(env.calls.sounds, [], `${id} is not double-voiced by the cast seam`);
       assert.equal(env.calls.effects.length, 1, `${id} makes exactly one effect`);
       assert.equal(env.calls.effects[0].name, effect);
       // The cast stubs replace the fiend, so a centre read after the cast would
@@ -111,7 +113,7 @@ describe('ability cast feedback', () => {
     const cooling = castEnv({ activeFiend: { x: 520, y: 300 } });
     assert.equal(cooling.run("activateAbility('wind')"), true);
     assert.equal(cooling.run("activateAbility('wind')"), false, 'the cooldown refuses the second cast');
-    assert.deepEqual(cooling.calls.sounds, ['wind']);
+    assert.deepEqual(cooling.calls.sounds, []);
     assert.equal(cooling.calls.effects.length, 1);
 
     const noTarget = castEnv({ activeFiend: null });
@@ -163,7 +165,8 @@ describe('ability cast feedback', () => {
     // the shards. Both live in one callback so they can never drift apart.
     const press = source.match(/onPress: \(id, button\) => \{[\s\S]*?\n  \},/);
     assert.ok(press, 'the bar is created with an onPress callback');
-    assert.match(press[0], /audio\.playAbilityPress\?\.\(\)/);
+    assert.match(press[0], /audio\.playAbilityPress\?\.\(\)/, 'glass breaks');
+    assert.match(press[0], /audio\.playAbilityCast\?\.\(id\)/, "and the spell's own voice plays with it");
     assert.match(press[0], /hudBurst\.burst\(button, 'glass'/);
 
     const score = source.match(/onScoreGain: \(\{ element: readout \}\) => \{[\s\S]*?\n  \},/);
@@ -183,8 +186,8 @@ describe('ability cast feedback', () => {
     // The cast cue stays exactly where it was: on a successful cast only.
     const feedback = source.match(/function playAbilityCastFeedback\(id, origin\) \{[\s\S]*?\n\}/);
     assert.ok(feedback);
-    assert.match(feedback[0], /audio\.playAbilityCast\?\.\(id\)/);
     assert.doesNotMatch(feedback[0], /playAbilityPress/, 'the cast is not the click');
+    assert.doesNotMatch(feedback[0], /audio\.playAbilityCast\?\.\(id\)/, 'the cue is not repeated on the cast');
   });
 
   it('never triggers cast feedback from the frame loop', () => {
