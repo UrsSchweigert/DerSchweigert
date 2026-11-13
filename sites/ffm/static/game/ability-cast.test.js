@@ -158,6 +158,29 @@ describe('ability cast feedback', () => {
     assert.equal(env.auraPulses().length, 0, 'the aura ends with the runtime spike');
   });
 
+  it('cracks the glass orb and sparkles the score from the HUD seams', () => {
+    // Press feedback: the bar reports the press, main.js makes the sound and
+    // the shards. Both live in one callback so they can never drift apart.
+    const press = source.match(/onPress: \(id, button\) => \{[\s\S]*?\n  \},/);
+    assert.ok(press, 'the bar is created with an onPress callback');
+    assert.match(press[0], /audio\.playAbilityPress\?\.\(\)/);
+    assert.match(press[0], /hudBurst\.burst\(button, 'glass'/);
+
+    const score = source.match(/onScoreGain: \(\{ element: readout \}\) => \{[\s\S]*?\n  \},/);
+    assert.ok(score, 'the chrome is created with an onScoreGain callback');
+    assert.match(score[0], /hudBurst\.burst\(readout, 'score'/);
+
+    // One burst factory for the whole HUD, and it honours reduced motion.
+    assert.match(source, /const hudBurst = createDomBurst\(\{/);
+    assert.match(source, /const hudBurst = createDomBurst\(\{[\s\S]*?reducedMotion: globalThis\.matchMedia/);
+
+    // The cast cue stays exactly where it was: on a successful cast only.
+    const feedback = source.match(/function playAbilityCastFeedback\(id, origin\) \{[\s\S]*?\n\}/);
+    assert.ok(feedback);
+    assert.match(feedback[0], /audio\.playAbilityCast\?\.\(id\)/);
+    assert.doesNotMatch(feedback[0], /playAbilityPress/, 'the cast is not the click');
+  });
+
   it('never triggers cast feedback from the frame loop', () => {
     const loop = source.match(/function gameLoop\(ts\)[\s\S]*?\n\}/);
     assert.ok(loop, 'gameLoop must exist');

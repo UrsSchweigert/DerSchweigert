@@ -78,7 +78,7 @@ function fakeDocument() {
   return { chrome, doc };
 }
 
-const slotOf = (bar, id) => bar.element.children.find((slot) => slot.dataset.ability === id);
+const slotOf = (bar, id) => bar.buttons.find((slot) => slot.dataset.ability === id);
 const childByClass = (slot, className) => slot.children.find((child) => child.className === className);
 const iconOf = (bar, id) => childByClass(slotOf(bar, id), 'ability-slot-icon');
 const nameOf = (bar, id) => childByClass(slotOf(bar, id), 'ability-slot-name');
@@ -210,13 +210,33 @@ describe('ability icon styles', () => {
     assert.match(css, /\.ability-slot\[data-icon="error"\] \.ability-slot-name\s*\{[^}]*position:\s*static/);
   });
 
-  it('runs the ready pulse only when the player allows motion', async () => {
+  it('breathes the ready light only when the player allows motion', async () => {
     const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
-    const motion = css.match(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
-    assert.match(motion, /\.ability-slot\[data-state="ready"\]\s*\{\s*animation:/);
+    // A media block nests rules, so it has to be cut by brace depth rather than
+    // by the first closing brace it meets.
+    const header = '@media (prefers-reduced-motion: no-preference)';
+    const start = css.indexOf(header);
+    assert.ok(start >= 0, 'the motion query exists');
+    let depth = 0;
+    let end = -1;
+    for (let i = css.indexOf('{', start); i < css.length; i += 1) {
+      if (css[i] === '{') depth += 1;
+      else if (css[i] === '}') {
+        depth -= 1;
+        if (depth === 0) { end = i + 1; break; }
+      }
+    }
+    assert.ok(end > start, 'the motion query closes');
+    const motion = css.slice(start, end);
+    // The pulse lives on the light layer, never on the button itself: animating
+    // the button's box-shadow would wipe the glass rim on every frame.
+    assert.match(motion, /\.ability-slot\[data-state="ready"\] \.ability-slot-glow\s*\{\s*animation:/);
+    assert.doesNotMatch(css, /\.ability-slot\[data-state="ready"\]\s*\{[^}]*animation:/);
 
-    const withoutMotion = css.replace(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}/, '');
-    assert.doesNotMatch(withoutMotion, /\.ability-slot\[data-state="ready"\]\s*\{[^}]*animation:/);
+    const withoutMotion = css.slice(0, start) + css.slice(end);
+    assert.doesNotMatch(withoutMotion, /animation: ability-orb/);
+    // Reduced motion keeps the light itself, just still.
+    assert.match(withoutMotion, /\.ability-slot\[data-state="ready"\] \.ability-slot-glow \{ opacity: 1; \}/);
   });
 
   it('never reads icon files from disk', async () => {

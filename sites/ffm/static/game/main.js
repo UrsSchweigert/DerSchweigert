@@ -66,17 +66,41 @@ import { frameDelta } from './frame-delta.js';
 import { createScreenFx } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
 import { createEncounterSwords } from './encounter-swords.js';
+import { createDomBurst } from './dom-burst.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
 const platform = await resolvePlatform();
 // Lets styles.css scope web-only layout rules without touching the app.
 document.documentElement.dataset.platform = platform.isApp ? 'app' : 'web';
-const gameplayChrome = createGameplayChrome({ translate: t });
+// HUD particles for the DOM parts of the screen: the score readout in the
+// header and the ability orbs in the answer zone. The playfield keeps its own
+// canvas engine; this one only ever adds short-lived spans.
+const hudBurst = createDomBurst({
+  reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+});
+const gameplayChrome = createGameplayChrome({
+  translate: t,
+  // The score readout is the receipt for an answer: it throws a little brass
+  // whenever the number goes up, and never on a reset to zero.
+  onScoreGain: ({ element: readout }) => {
+    if (readout) hudBurst.burst(readout, 'score', 10);
+  },
+});
 // One bar for the whole session; the run's runtime feeds it progress every
 // frame. It mounts itself into the answer zone, under the portrait sword row
 // (see ability-bar.js), so the gameplay header keeps its height.
-const abilityBar = createAbilityBar({ translate: t, onActivate: (id) => activateAbility(id) });
+const abilityBar = createAbilityBar({
+  translate: t,
+  onActivate: (id) => activateAbility(id),
+  // The orb is glass: pressing a ready one cracks it under the finger, whether
+  // or not the cast is accepted. The spell's own cue follows on a real cast
+  // (see playAbilityCastFeedback).
+  onPress: (id, button) => {
+    audio.playAbilityPress?.();
+    if (button) hudBurst.burst(button, 'glass', 14);
+  },
+});
 const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 
 // App-only lifecycle handle (see ./lifecycle.js, shipped by the app overlay).

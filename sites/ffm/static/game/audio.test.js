@@ -1234,6 +1234,31 @@ describe('shared sound buses and event cues', () => {
       assert.equal(new Set(signatures).size, 3, 'no two abilities share a cue');
     });
 
+    it('playAbilityPress shatters: inharmonic high partials, noise, and a low body', () => {
+      const { audio, context } = soundEngine();
+      assert.equal(audio.playAbilityPress(), true);
+      const tones = context.nodes.filter(node => node.kind === 'oscillator');
+      const freqs = tones.map(node => node.frequency.value);
+      // Glass is inharmonic: the partials must not line up as octaves or fifths.
+      const ratios = freqs.filter(f => f >= 2000).slice(1)
+        .map((f, i, list) => f / (list[i - 1] ?? 0));
+      assert.ok(ratios.every(r => Math.abs(r - 1) > 0.05 && Math.abs(r - 2) > 0.05));
+      assert.ok(freqs.filter(f => f >= 2000).length >= 4, 'a shower of high shards');
+      assert.ok(freqs.some(f => f < 400), 'and a low body under it');
+      assert.ok(context.nodes.some(node => node.kind === 'buffer'), 'the crack is noise');
+      // Every high shard decays faster than a musical tone would.
+      for (const node of tones.filter(n => n.frequency.value >= 2000)) {
+        assert.ok(node.stops[0] - node.starts[0] <= 0.151, 'short shard decay');
+      }
+
+      const muted = soundEngine();
+      muted.audio.toggleMute();
+      muted.audio._ensureCtx();
+      const before = muted.context.nodes.length;
+      assert.equal(muted.audio.playAbilityPress(), false);
+      assert.equal(muted.context.nodes.length, before, 'a muted press builds no nodes');
+    });
+
     it('playAbilityCast is silent when muted and for an unknown ability', () => {
       const muted = soundEngine();
       muted.audio.toggleMute();

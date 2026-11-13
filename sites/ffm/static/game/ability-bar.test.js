@@ -94,7 +94,7 @@ function fakeDocument({ withAnswerZone = true } = {}) {
   return { chrome, byId, answers, doc };
 }
 
-const slotOf = (bar, id) => bar.element.children.find((slot) => slot.dataset.ability === id);
+const slotOf = (bar, id) => bar.buttons.find((slot) => slot.dataset.ability === id);
 const childByClass = (slot, className) => slot.children.find((child) => child.className === className);
 
 function keydown(key, extra = {}) {
@@ -121,16 +121,55 @@ describe('ability bar structure', () => {
     const zone = byId.get('input-zone');
     assert.deepEqual(zone.children.map((child) => child.id), [ABILITY_BAR_ID, 'mc-buttons']);
     assert.equal(byId.get('gameplay-chrome').children.length, 0);
-    assert.equal(bar.element.children.length, 3);
+    assert.equal(bar.buttons.length, 3);
     assert.deepEqual(
-      bar.element.children.map((slot) => slot.dataset.ability),
+      bar.buttons.map((slot) => slot.dataset.ability),
       ['wind', 'storm', 'earth'],
     );
-    for (const slot of bar.element.children) {
+    for (const slot of bar.buttons) {
       assert.equal(slot.tagName, 'BUTTON');
       assert.equal(slot.type, 'button');
       assert.equal(slot.className, ABILITY_SLOT_CLASS);
     }
+  });
+
+  it('frames the row with two mirrored dragon brackets that take no layout space', () => {
+    const { doc } = fakeDocument();
+    const bar = createAbilityBar({ doc, translate: (key) => key });
+    assert.equal(bar.ornaments.length, 2);
+    assert.deepEqual(
+      bar.ornaments.map((img) => img.className),
+      ['ability-ornament ability-ornament--left', 'ability-ornament ability-ornament--right'],
+    );
+    for (const ornament of bar.ornaments) {
+      assert.equal(ornament.tagName, 'IMG');
+      // Decorative: no alt text and out of the accessibility tree.
+      assert.equal(ornament.getAttribute('alt'), '');
+      assert.equal(ornament.getAttribute('aria-hidden'), 'true');
+      assert.match(ornament.src, /assets\/ability-ornament\.webp$/);
+      assert.equal(ornament.parentNode, bar.element, 'the bar owns them, the slots do not');
+    }
+    // Both sides use the one sprite; the stylesheet mirrors the right one.
+    assert.equal(bar.ornaments[0].src, bar.ornaments[1].src);
+    // They render above and below the buttons in DOM order but not in between.
+    assert.deepEqual(
+      bar.element.children.map((child) => child.tagName),
+      ['IMG', 'IMG', 'BUTTON', 'BUTTON', 'BUTTON'],
+    );
+  });
+
+  it('gives every slot its own ready-light layer', () => {
+    const { doc } = fakeDocument();
+    const bar = createAbilityBar({ doc, translate: (key) => key });
+    bar.update({ level: 1, progress: 1 });
+    for (const slot of bar.buttons) {
+      const glow = childByClass(slot, 'ability-slot-glow');
+      assert.ok(glow, `${slot.dataset.ability} has a light layer`);
+      assert.equal(glow.getAttribute('aria-hidden'), 'true');
+    }
+    // The layer is CSS-driven: the module never animates it.
+    const [wind] = bar.buttons;
+    assert.equal(wind.dataset.state, 'ready');
   });
 
   it('falls back to #gameplay-chrome when the answer zone is missing', () => {
@@ -166,7 +205,7 @@ describe('ability bar structure', () => {
     ]);
     for (const [level, states] of expected) {
       bar.update({ level, progress: 1 });
-      const slots = bar.element.children;
+      const slots = bar.buttons;
       assert.deepEqual(slots.map((slot) => slot.dataset.state), states, `level ${level}`);
       slots.forEach((slot, index) => {
         const locked = states[index] === 'locked';
@@ -210,6 +249,28 @@ describe('activation', () => {
     assert.deepEqual(activated, ['wind', 'storm', 'earth']);
     assert.equal(enter.defaultPrevented, true);
     assert.equal(space.defaultPrevented, true);
+  });
+
+  it('reports the press before the cast, only for a ready slot', () => {
+    const { doc } = fakeDocument();
+    const events = [];
+    const bar = createAbilityBar({
+      doc,
+      onPress: (id, button) => events.push(['press', id, button.dataset.ability]),
+      onActivate: (id) => events.push(['activate', id]),
+    });
+
+    bar.update({ level: 1, progress: 1 });
+    slotOf(bar, 'wind').dispatchEvent({ type: 'click' });
+    assert.deepEqual(events, [['press', 'wind', 'wind'], ['activate', 'wind']],
+      'the orb cracks under the finger before the cast is attempted');
+
+    events.length = 0;
+    slotOf(bar, 'storm').dispatchEvent({ type: 'click' });
+    slotOf(bar, 'earth').dispatchEvent({ type: 'click' });
+    bar.update({ level: 11, progress: 0.5 });
+    slotOf(bar, 'wind').dispatchEvent({ type: 'click' });
+    assert.deepEqual(events, [], 'locked and cooling orbs stay silent');
   });
 
   it('ignores key repeats, cooling slots and locked slots', () => {
@@ -256,14 +317,14 @@ describe('cooling state', () => {
     const { doc } = fakeDocument();
     const bar = createAbilityBar({ doc });
     bar.update({ level: 11, progress: -5 });
-    for (const slot of bar.element.children) {
+    for (const slot of bar.buttons) {
       assert.equal(slot.dataset.state, 'cooling');
       assert.equal(childByClass(slot, 'ability-slot-cooldown').textContent, '180');
       assert.equal(slot.style.getPropertyValue('--ability-progress'), '0');
     }
 
     bar.update({ level: 11, progress: 5 });
-    for (const slot of bar.element.children) {
+    for (const slot of bar.buttons) {
       assert.equal(slot.dataset.state, 'ready');
       assert.equal(slot.style.getPropertyValue('--ability-progress'), '1');
     }

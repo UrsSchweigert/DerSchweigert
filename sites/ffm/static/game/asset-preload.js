@@ -31,6 +31,15 @@ export function buildAbilityIconUrls() {
 }
 
 /**
+ * The dragon ornament that frames the orb row. One sprite, mirrored by the
+ * stylesheet, so the left and right brackets can never drift apart.
+ * @returns {string} absolute URL, resolved relative to this module.
+ */
+export function abilityOrnamentUrl() {
+  return new URL('./assets/ability-ornament.webp', import.meta.url).href;
+}
+
+/**
  * Pure (no DOM/network) list-builder, so it's unit-testable: every image URL
  * the game can ever display in a session — the hero atlas, the
  * dragon/fireball combo-ability sprites, all per-chapter stage backgrounds

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createGameplayChrome } from './gameplay-chrome.js';
 
-function fixture() {
+function fixture({ onScoreGain } = {}) {
   const elements = Object.fromEntries(['gameplay-chrome', 'active-question', 'accessible-hearts',
     'accessible-combo', 'accessible-score', 'accessible-timer', 'accessible-timer-progress',
     'accessible-combo-wrap', 'accessible-score-wrap', 'btn-pause-game',
@@ -28,7 +28,7 @@ function fixture() {
     getElementById: id => elements[id],
     createElement: () => ({ className: '', textContent: '' }),
   };
-  const chrome = createGameplayChrome({ doc });
+  const chrome = createGameplayChrome({ doc, onScoreGain });
   return { chrome, elements };
 }
 
@@ -47,6 +47,39 @@ test('active problem and readable numeric HUD update without per-frame question 
   assert.equal(elements['active-question'].writes, 1);
   assert.equal(elements['accessible-timer'].textContent, '10s');
   assert.equal(elements['accessible-combo-wrap'].hidden, false);
+});
+
+test('a score increase sparkles the score readout, a decrease or Shapes mode does not', () => {
+  const gains = [];
+  const { chrome, elements } = fixture({ onScoreGain: (info) => gains.push(info) });
+  const readout = elements['accessible-score'];
+
+  // The markup ships a 0, so the first real change is the first receipt.
+  elements['accessible-score'].textContent = '0';
+  chrome.update({ score: 120 });
+  assert.equal(gains.length, 1);
+  assert.equal(gains[0].gained, 120);
+  assert.equal(gains[0].score, 120);
+  assert.equal(gains[0].element, elements['accessible-score-wrap'], 'the burst host is the readout');
+
+  // Re-rendering the same score every frame must not sparkle every frame.
+  chrome.update({ score: 120 });
+  chrome.update({ score: 120, combo: 3 });
+  assert.equal(gains.length, 1, 'an unchanged score is silent');
+
+  chrome.update({ score: 360 });
+  assert.equal(gains.length, 2);
+  assert.equal(gains.at(-1).gained, 240);
+
+  // A reset (retry, new level) must never read as a gain.
+  chrome.update({ score: 0 });
+  assert.equal(gains.length, 2, 'a decrease is not a gain');
+  chrome.update({ score: 80 });
+  assert.equal(gains.at(-1).gained, 80);
+
+  chrome.update({ score: 500, isShapesMode: true });
+  assert.equal(gains.length, 3, 'Shapes mode is unscored');
+  assert.equal(readout.textContent, '500', 'the readout still tracks the state');
 });
 
 test('pause, reveal, idle and hidden screens cannot retain an actionable stale question', () => {

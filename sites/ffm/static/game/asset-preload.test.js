@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 
-import { buildAssetManifest, buildAbilityIconUrls } from './asset-preload.js';
+import { abilityOrnamentUrl, buildAssetManifest, buildAbilityIconUrls } from './asset-preload.js';
 
 describe('buildAssetManifest', () => {
   it('returns 3 core sprites + 6 stage backgrounds + 60 fiend class sprites', () => {
@@ -59,5 +59,11 @@ describe('buildAbilityIconUrls', () => {
     ]);
     assert.equal(new Set(urls).size, urls.length);
     for (const url of urls) assert.match(url, /\/game\/assets\/ability-(wind|storm|earth)\.webp$/);
+  });
+
+  it('resolves the one dragon ornament the bar mirrors for both sides', () => {
+    assert.match(abilityOrnamentUrl(), /\/game\/assets\/ability-ornament\.webp$/);
+    // Not part of the icon list: the bar shows it next to the buttons, not in one.
+    assert.ok(!buildAbilityIconUrls().includes(abilityOrnamentUrl()));
   });
 });
