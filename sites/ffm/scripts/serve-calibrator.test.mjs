@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const { contentType, createStaticServer, isDirectInvocation, parseArgs, resolveRequestPath } = await import('./serve-calibrator.mjs');
+const { contentType, createStaticServer, firstFreePort, isDirectInvocation, isPortBusy, parseArgs, resolveRequestPath } = await import('./serve-calibrator.mjs');
 const SELF = new URL('./serve-calibrator.mjs', import.meta.url);
 
 test('parseArgs defaults to serving origin/main on port 8000', () => {
@@ -93,4 +93,17 @@ test('isDirectInvocation recognises the script through a symlinked path', async 
   assert.equal(isDirectInvocation(undefined, SELF.href), false, 'being imported is not an invocation');
   assert.equal(isDirectInvocation('/nope/missing.mjs', SELF.href), false);
   assert.equal(pathToFileURL('/tmp/x.mjs').href.startsWith('file:///tmp/'), true);
+});
+
+test('isPortBusy notices a listener that only bound another loopback family', async () => {
+  const server = createStaticServer(process.cwd());
+  await new Promise((done) => server.listen(0, '::1', done));
+  const { port } = server.address();
+  try {
+    assert.equal(await isPortBusy(port), true, 'an IPv6-only listener still blocks the URL');
+    assert.equal(await firstFreePort(port), port + 1, 'the next free port is used instead');
+    assert.equal(await firstFreePort(port, 5, async () => false), port, 'a free port is used as given');
+  } finally {
+    await new Promise((done) => server.close(done));
+  }
 });
