@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 
 import { COMBO_ABILITY_RULES, pickComboAbility, getComboFrameBand, getComboRewardProgress, isAbilityBandStart } from './combo-abilities.js';
 
-it('reward hints use the real strict thresholds and never promise a guaranteed dragon', () => {
+it('reward hints use the real strict thresholds, and every band is certain', () => {
   for (const [combo, ability, remaining, chance] of [
     [0, 'fireball', 6, 1], [5, 'fireball', 1, 1], [6, 'lightning', 5, 1],
-    [10, 'lightning', 1, 1], [11, 'dragon', 10, 0.8], [20, 'dragon', 1, 0.8],
-    [21, 'dragon', 0, 0.8],
+    [10, 'lightning', 1, 1], [11, 'dragon', 10, 1], [20, 'dragon', 1, 1],
+    [21, 'dragon', 0, 1],
   ]) assert.deepEqual(getComboRewardProgress(combo), { ability, remaining, chance });
   for (const value of [-1, 1.5, NaN]) assert.throws(() => getComboRewardProgress(value), TypeError);
 });
@@ -41,13 +41,11 @@ describe('pickComboAbility', () => {
     }
   });
 
-  it('dragon: combo 21, 30, 100 with roll 0.79 returns dragon; 0.8+ returns null', () => {
-    const roll079 = () => 0.79;
-    const roll08 = () => 0.8;
-    
+  it('dragon: combo 21, 30, 100 fires whatever the roll says', () => {
     for (const combo of [21, 30, 100]) {
-      assert.strictEqual(pickComboAbility(combo, roll079), 'dragon');
-      assert.strictEqual(pickComboAbility(combo, roll08), null);
+      for (const roll of [0, 0.5, 0.999999]) {
+        assert.strictEqual(pickComboAbility(combo, () => roll), 'dragon', `roll ${roll}`);
+      }
     }
   });
 
@@ -57,15 +55,13 @@ describe('pickComboAbility', () => {
     assert.strictEqual(pickComboAbility(20, () => 0), 'lightning');
   });
 
-  it('combo 25 with failing roll (0.9) returns null AND calls rollFn exactly once', () => {
+  it('rolls exactly once per hit, and the highest crossed band wins', () => {
     let callCount = 0;
-    const roll09 = () => {
+    const result = pickComboAbility(25, () => {
       callCount++;
       return 0.9;
-    };
-    
-    const result = pickComboAbility(25, roll09);
-    assert.strictEqual(result, null);
+    });
+    assert.strictEqual(result, 'dragon');
     assert.strictEqual(callCount, 1, 'rollFn should be called exactly once');
   });
 

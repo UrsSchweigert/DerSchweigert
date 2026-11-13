@@ -450,6 +450,9 @@ const DICTIONARY = {
   'reward.upcoming': { en: '{ability} in {count}', de: '{ability} in {count}' },
   'reward.upcomingChance': { en: '{ability} {chance}% in {count}', de: '{ability} {chance}% in {count}' },
   'reward.activeChance': { en: '{ability}: {chance}% per hit', de: '{ability}: {chance}% pro Treffer' },
+  // The narrow app header (see header-labels.js): name plus countdown only.
+  'reward.upcomingCompact': { en: '{ability} {count}', de: '{ability} {count}' },
+  'reward.active': { en: '{ability}', de: '{ability}' },
   // Three-slot ability circles (wind, storm, earth) under the portrait sword row.
   'ability.barLabel': { en: 'Abilities', de: 'Fähigkeiten' },
   'ability.wind.name': { en: 'Wind', de: 'Wind' },
@@ -498,6 +501,7 @@ const DICTIONARY = {
   // question column next to the help and pause buttons.
   'feedback.shapesAnswerShort': { en: '{count} shapes', de: '{count} Formen' },
   'gameplay.encounters': { en: 'Defeated: {defeated}/{total}', de: 'Besiegt: {defeated}/{total}' },
+  'gameplay.encountersCompact': { en: 'Defeated: {defeated}', de: 'Besiegt: {defeated}' },
   'gameplay.healProgress': { en: 'Heal: {percent}%', de: 'Heilen: {percent}%' },
 
   // Difficulty buttons
