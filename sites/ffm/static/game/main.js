@@ -3295,6 +3295,7 @@ function handleAppBack() {
       paused = false;
       audio.resumeBGM();
       syncKeepAwake();
+      kickGameLoop();
       return true;
     }
     resumeGame();
@@ -3329,6 +3330,7 @@ function resumeGame() {
     input.enable(getCurrentInputMode());
   }
   syncKeepAwake();
+  kickGameLoop();
 }
 
 // Contextual help pauses a live level without the pause menu or a partial-run
@@ -3350,6 +3352,7 @@ function resumeFromHelp() {
     input.enable(getCurrentInputMode());
   }
   syncKeepAwake();
+  kickGameLoop();
 }
 
 // Shown once per playthrough, the first time hearts drop to half (or below)
@@ -3371,6 +3374,7 @@ btnHealTipConfirm.addEventListener('click', () => {
   paused = false;
   audio.resumeBGM();
   syncKeepAwake();
+  kickGameLoop();
 });
 
 // Only one fiend on screen at a time; gap kept for requeue safety
@@ -4276,8 +4280,41 @@ function updateTimer(dt) {
 // --- Main game loop ---
 let animFrameId = null;
 let lastTs = null;
+// Set once the loop has drawn its final frame and stopped asking for more.
+let loopParked = false;
+
+// Repainting the playfield is a full-canvas raster every frame, and the phone
+// pays for it in heat and battery. A paused level, the title screen, the
+// level-clear card and game over each put an opaque overlay over the canvas, so
+// the loop parks instead of drawing frames nobody can see. It stays awake while
+// a level is live, while a gameplay timer still has to mature (the practice
+// wave-clear delay and the chained hit sequences outlive gameRunning) and while
+// the screen-fx layer still has particles to fade out.
+function needsFrame() {
+  if (paused) return false;
+  if (gameRunning) return true;
+  if (gameplayTimers.length > 0) return true;
+  return Boolean(globalThis.ffmScreenFx?.isActive?.());
+}
+
+// Wakes a parked loop. A no-op while it is already running.
+function kickGameLoop() {
+  if (!animFrameId) gameLoop(performance.now());
+}
 
 function gameLoop(ts) {
+  if (needsFrame()) {
+    loopParked = false;
+  } else if (loopParked) {
+    animFrameId = null;
+    // The next run starts a fresh clock, so a parked gap never reaches gameplay.
+    lastTs = null;
+    return;
+  } else {
+    // One last frame, so the DOM (timer bar, gameplay chrome, HUD) reflects the
+    // state the loop leaves the screen in.
+    loopParked = true;
+  }
   animFrameId = requestAnimationFrame(gameLoop);
 
   const dt = frameDelta(ts, lastTs);
