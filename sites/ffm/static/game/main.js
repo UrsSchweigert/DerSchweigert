@@ -3241,6 +3241,9 @@ function spawnNextFiend() {
     fiends.push(fiend);
     // The entrance: a portal on the level's own ground line, so the fiend appears
     // somewhere the art actually has floor instead of sliding in over scenery.
+    // The sound belongs to the door, so it fires with the effect, not with the
+    // fiend's first step.
+    audio.playFiendPortal?.();
     globalThis.ffmScreenFx?.play('fiendPortal', { x: fiend.x, y: fiend.y });
   }
 }
