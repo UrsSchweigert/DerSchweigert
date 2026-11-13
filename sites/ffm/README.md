@@ -25,6 +25,8 @@ Browser
   │   ├─ audio.js       (SFX + BGM)
   │   ├─ hud.js         (hearts / score / level)
   │   ├─ story-intro.js (when the story intro plays)
+  │   ├─ speedrun.js    (continuous-run clock + device records)
+  │   ├─ speedrun-ui.js (hidden records card, opt-in HUD clock)
   │   └─ api.js         (auth/profile/leaderboard/high score client)
   ├─ story/             (layered paper-theatre story dioramas; see story/README.md)
   └─ /api/*
@@ -84,6 +86,16 @@ Browser
   the DOM overlay follows `#playfield`, independent of whether answers are below or beside it.
   Its ability colors and combo thresholds remain unchanged.
 - **Per-stage background images**: `Renderer.setBackgroundByLevel()` swaps in one of `stage-1.png`..`stage-6.png` (one per 10-level chapter) as the level advances. `background.png` is a legacy, visually distinct scene (no longer used by any stage) kept only as a last-resort fallback if the real stage image's `Image` element fires an `error` event — it must not be loaded eagerly alongside the real image, or a network/decode race can let it flash on screen first as the "wrong" background.
+- **Speedrun**: an opt-in continuous-run clock. A run starts when level 1 of the campaign
+  starts and follows the campaign in order — it only continues into the next level, only
+  ever moves forward, and ends at level 60, on a replay, on a jump to another level, on a
+  game over or on returning to the title. Only "in level" time counts: the clock is gated
+  by the same test the HUD uses to decide that a level is on screen, so pauses, the
+  level-clear card, story scenes and loading never enter a time. Records (fastest time per
+  level, fastest finished run) live in `localStorage` under
+  `arithmoslayer:speedrun:v1`, like the locale and the story flag. The clock is off by
+  default; three taps on the title's intro line open the records card, which is also
+  where the clock is switched on.
 - Signed-in web players submit cleared-level score deltas to `/api/score` and overall
   scores to `/api/high-score`. Mobile saves cleared-level personal bests/history locally
   without online login, including the final level, and refreshes title statistics.

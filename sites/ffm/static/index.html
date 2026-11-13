@@ -36,6 +36,7 @@
       <span id="encounter-progress"></span>
       <span id="combo-reward"></span>
       <span id="heal-progress"></span>
+      <span id="speedrun-readout-wrap" hidden><span data-i18n="speedrun.readout">Run</span> <strong id="speedrun-readout">0:00.0</strong></span>
     </div>
     <button id="btn-pause-game" type="button" data-i18n="overlay.pause">Pause</button>
     <p id="bonus-notice" role="status" aria-live="polite" aria-atomic="true" hidden></p>
@@ -399,6 +400,23 @@
     </div>
   </div>
   <!-- app-omit:end -->
+
+  <!-- Hidden behind three taps on the title's intro line (see speedrun-ui.js).
+       It shows the run records and is where the run clock is switched on. -->
+  <div id="speedrun-overlay" class="overlay" style="display:none" hidden>
+    <div class="overlay-card speedrun-card" role="dialog" aria-modal="true" aria-labelledby="speedrun-title">
+      <h2 id="speedrun-title" data-i18n="speedrun.title">Speedrun</h2>
+      <label class="speedrun-toggle" for="speedrun-toggle">
+        <input type="checkbox" id="speedrun-toggle">
+        <span data-i18n="speedrun.enable">Show the run clock while I play</span>
+      </label>
+      <p id="speedrun-best-run" class="speedrun-best-run"></p>
+      <h3 class="speedrun-heading" data-i18n="speedrun.levelsHeading">Best time per level</h3>
+      <ol id="speedrun-levels" class="speedrun-levels"></ol>
+      <p id="speedrun-empty" class="speedrun-empty" data-i18n="speedrun.empty" hidden>No level times recorded yet.</p>
+      <button type="button" class="diff-btn" id="speedrun-close" data-i18n="speedrun.close">Close</button>
+    </div>
+  </div>
 
   <div id="level-clear" class="overlay" style="display:none">
     <div class="overlay-card">

@@ -47,6 +47,20 @@ const DICTIONARY = {
   'splash.storesLabel': { en: 'The app for iPhone and Android', de: 'Die App für iPhone und Android' },
   'splash.storeAppStore': { en: 'Soon in the App Store', de: 'Bald im App Store' },
   'splash.storePlayStore': { en: 'Soon on Google Play', de: 'Bald bei Google Play' },
+  // Speedrun: the run clock is opt-in (see speedrun-ui.js) and the records
+  // card is reached by three taps on the title's intro line.
+  'speedrun.readout': { en: 'Run', de: 'Lauf' },
+  'speedrun.title': { en: 'Speedrun', de: 'Speedrun' },
+  'speedrun.enable': { en: 'Show the run clock while I play', de: 'Laufuhr beim Spielen anzeigen' },
+  'speedrun.bestRun': { en: 'Best run: {time}', de: 'Beste Zeit: {time}' },
+  'speedrun.noRun': {
+    en: 'No finished run yet — clear all 60 levels in one go to set one.',
+    de: 'Noch kein Lauf beendet – schaffe alle 60 Level in einem Durchgang.',
+  },
+  'speedrun.levelsHeading': { en: 'Best time per level', de: 'Bestzeit pro Level' },
+  'speedrun.empty': { en: 'No level times recorded yet.', de: 'Noch keine Level-Zeiten.' },
+  'speedrun.levelSplit': { en: 'Level {level}: {time}', de: 'Level {level}: {time}' },
+  'speedrun.close': { en: 'Close', de: 'Schließen' },
   'leaderboard.title': { en: 'Leaderboard', de: 'Bestenliste' },
   'leaderboard.allYears': { en: 'All years', de: 'Alle Jahrgänge' },
   'leaderboard.unclassified': { en: 'Unclassified', de: 'Nicht eingeordnet' },

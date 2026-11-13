@@ -67,6 +67,8 @@ import { createScreenFx } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
 import { createEncounterSwords } from './encounter-swords.js';
 import { createDomBurst } from './dom-burst.js';
+import { TOTAL_RUN_LEVELS, createSpeedrunRecords, createSpeedrunTimer } from './speedrun.js';
+import { createSpeedrunUi } from './speedrun-ui.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -110,6 +112,17 @@ const abilityBar = createAbilityBar({
   onRefused: () => {
     audio.playAbilityRefused?.();
   },
+});
+// The continuous-run clock and its device records. The timer is fed only while
+// a campaign level is actually being played, so pauses, level-clear screens and
+// loading never enter a time; the records card is hidden behind three taps on
+// the title's intro line (see speedrun-ui.js).
+const speedrunRecords = createSpeedrunRecords({ storage: globalThis.localStorage ?? null });
+const speedrunTimer = createSpeedrunTimer();
+const speedrunUi = createSpeedrunUi({
+  doc: document,
+  translate: t,
+  records: speedrunRecords,
 });
 const gameplayModalFocus = initGameplayModalFocus({ doc: document });
 
@@ -2895,6 +2908,13 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   state.combo = 0;
   gameRunning = true;
   paused = false;
+  // A speedrun only ever begins at level 1 and only ever continues into the
+  // level that follows the one it just finished; anything else ends it. The
+  // `typeof` keeps extracted-function tests running without main.js.
+  if (typeof speedrunTimer !== 'undefined') {
+    if (!practiceRun && !state.isShapesMode) speedrunTimer.start(state.level);
+    else speedrunTimer.abandon();
+  }
   // Announce the level's bonus once the level actually starts. Level 1 and
   // practice runs grant none, so the previous level's pill is cleared instead.
   // The `typeof` keeps extracted-function tests running without main.js.
@@ -3870,6 +3890,11 @@ function finishPracticeSession() {
 }
 
 function returnToTitle() {
+  // Leaving the campaign ends the run; the clock is not resumed by coming back.
+  if (typeof speedrunTimer !== 'undefined') {
+    speedrunTimer.abandon();
+    speedrunUi?.updateClock(null);
+  }
   setAnswerInputVisible(false);
   if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   practiceRun = null;
@@ -3923,6 +3948,13 @@ function triggerLevelClear() {
   requeuedFiends = [];
 
   const completedLevelNum = state.level;          // 1-based display number
+  // The run's split for this level, recorded before the card goes up: a level
+  // best only counts for a level that was actually cleared.
+  const speedrunSplit = typeof speedrunTimer === 'undefined' ? null : speedrunTimer.completeLevel();
+  if (speedrunSplit) {
+    speedrunRecords.recordLevel(speedrunSplit.level, speedrunSplit.levelMs);
+    if (speedrunSplit.final) speedrunRecords.recordRun(speedrunSplit.runMs);
+  }
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
   if (!practiceRun && !completedLevelSave && (platform.isApp || platform.isLoggedIn)) {
     completedLevelSave = createLevelCompletion(platform, {
@@ -3964,6 +3996,9 @@ function triggerLevelClear() {
     }
   });
   btnReplayLevel.onclick = () => finishCompletion(() => {
+    // A replay is not part of the run: it would compare a fresh attempt against
+    // a clock that already carries the levels behind it.
+    if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
     levelClearOverlay.style.display = 'none';
     if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
     resetLevelAttempt(state, levelStartScore);
@@ -3974,6 +4009,7 @@ function triggerLevelClear() {
     btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   }
   btnSaveScoreReturnTitle.onclick = () => finishCompletion(async () => {
+    if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
     if (!practiceRun && !platform.isApp && platform.isLoggedIn) await platform.postHighScore(state.score, state.level);
     await refreshProfileAndLeaderboard();
     levelClearOverlay.style.display = 'none';
@@ -3991,6 +4027,7 @@ function triggerLevelClear() {
 }
 
 function triggerGameOver(won = false) {
+  if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
   setAnswerInputVisible(false);
   if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   campaignWon = won;
@@ -4114,6 +4151,16 @@ function gameLoop(ts) {
   // The spike slow expires with its runtime state; restore every fiend it held.
   if (abilityRuntime && !abilityRuntime.spikeState.active && spikeSlowedFiends.size > 0) {
     clearSpikeSlow();
+  }
+  // The run clock counts gameplay only: the same gate the HUD uses to decide
+  // that a level is on screen, so pauses, the level-clear card and loading are
+  // never part of a time.
+  if (typeof speedrunTimer !== 'undefined') {
+    if (gameRunning && !paused && !practiceRun && !state.isShapesMode
+      && diffSelect.style.display === 'none' && levelClearOverlay.style.display === 'none') {
+      speedrunTimer.tick(dt);
+    }
+    speedrunUi?.updateClock(speedrunRecords.enabled ? speedrunTimer.snapshot() : null);
   }
   abilityBar.update({
     level: state.level,
