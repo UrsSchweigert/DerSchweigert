@@ -409,6 +409,43 @@ describe('purity and layout', () => {
     assert.match(coolingRule, /--ability-progress/);
   });
 
+  it('lays the dragons flat in the free space beside the orb row', async () => {
+    const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+    const ornRule = css.match(/^\.ability-ornament \{([^}]*)\}/m)?.[1] ?? '';
+    assert.ok(ornRule, 'the ornament has a base rule');
+    // Sized from the space the orbs leave, never a fixed width that could reach
+    // into a ball on a narrow column.
+    assert.match(ornRule, /width: var\(--ornament-size\)/);
+    assert.match(ornRule, /aspect-ratio: 1/);
+    // Centred on the row line with a margin, because a translate inside the same
+    // transform list as the rotation would be rotated with it.
+    assert.match(ornRule, /margin-top: calc\(var\(--ornament-size\) \/ -2\)/);
+    assert.doesNotMatch(ornRule, /translate/);
+
+    const barRule = css.match(/#ability-bar \{([^}]*)\}/)?.[1] ?? '';
+    assert.match(barRule, /--ornament-size: clamp\(\s*34px/);
+    assert.match(barRule, /--orb-size: 58px/);
+    assert.match(barRule, /--orb-gap:/);
+
+    // Heads inward: a clockwise turn on the left, the same turn mirrored on the right.
+    assert.match(css, /\.ability-ornament--left \{ left: 0; transform: rotate\(90deg\); \}/);
+    assert.match(css, /\.ability-ornament--right \{ right: 0; transform: scaleX\(-1\) rotate\(90deg\); \}/);
+  });
+
+  it('stacks swords, orbs and answers in portrait and centres the answers row', async () => {
+    const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+    // Several portrait rules exist; the stacking one is the one that names the
+    // column direction.
+    const portrait = css.match(/#game-wrap\[data-layout="portrait"\] #input-zone \{([^}]*flex-direction[^}]*)\}/)?.[1] ?? '';
+    assert.match(portrait, /flex-direction: column/);
+    assert.match(portrait, /justify-content: flex-start/);
+    // The full-width lines must stop asking for 100% of the height in a column.
+    assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone > \.app-encounter-swords,/);
+    assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone > #ability-bar \{\s*flex: 0 0 auto;\s*\}/);
+    // The answers take all the slack above and below them: centred, not pinned.
+    assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone > #mc-buttons \{\s*margin-block: auto;\s*\}/);
+  });
+
   it('the circle row still leaves the answers and portrait sword row visible', () => {
     // 320x568 portrait with the app's four answers, the 22px sword row and the
     // 58px circles plus their 13px caption line: everything has to fit.

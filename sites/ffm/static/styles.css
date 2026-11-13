@@ -194,37 +194,60 @@ body {
  * conic gradient driven by the 0-1 --ability-progress property, and the ready
  * light is a pulsing layer the module fills in; neither owns a clock. */
 #ability-bar {
+  /* The laid dragons must never reach into the orbs, so their size is derived
+   * from the space that is actually free beside the orb row (bar width minus
+   * the three orbs and their two gaps), capped at 60px and floored at 34px.
+   * Keep --orb-size in sync with .ability-slot's own width below: the slot
+   * states its size literally so the tests and the layout stay readable. */
+  --orb-gap: clamp(10px, 7vw, 30px);
+  --orb-size: 58px;
+  --ornament-size: clamp(34px, calc((100% - 3 * var(--orb-size) - 2 * var(--orb-gap)) / 2), 60px);
   position: relative;
   order: -1;
   flex: 0 0 100%;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: clamp(10px, 7vw, 30px);
+  gap: var(--orb-gap);
   width: 100%;
   min-width: 0;
   padding: 0 0 13px; /* reserves the readout caption line under the circles */
 }
 
-/* Ornate dragon framing, mirrored from one sprite. Decorative only. */
+/* Ornate dragon framing, mirrored from one sprite. Decorative only.
+ *
+ * The dragons lie flat in the empty space between the orb row and the column
+ * edges: heads turned inward toward the balls, bellies down, tails out. The
+ * sprite is 97x222 (one creature standing), so a square box plus a 90deg turn
+ * lays it down at about box-width wide by box-width x 0.43 tall, and the box is
+ * exactly as wide as the free space beside the orbs.
+ *
+ * Centring uses `margin-top` rather than a translate on purpose: a translate in
+ * the same transform list as the rotation would be rotated with it and push the
+ * dragon sideways instead of up. */
 .ability-ornament {
   position: absolute;
-  top: 29px; /* half the orb: the row's vertical centre */
-  width: 52px;
-  height: 74px;
-  transform: translateY(-50%);
+  top: 29px; /* the row's vertical centre: half the orb */
+  width: var(--ornament-size);
+  aspect-ratio: 1;
+  height: auto;
+  margin-top: calc(var(--ornament-size) / -2);
   object-fit: contain;
   pointer-events: none;
   user-select: none;
   opacity: 0.92;
   filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.55));
 }
-.ability-ornament--left { left: 0; }
-.ability-ornament--right { right: 0; transform: translateY(-50%) scaleX(-1); }
 
-/* A dragon needs room the balls do not: below ~360px the row belongs to the
- * orbs and the ornaments step aside instead of touching them. */
-@media (max-width: 359px) {
+/* Heads inward: the left bracket turns clockwise, so the head ends up on the
+ * right, facing the first orb; the right bracket is that same turn mirrored, so
+ * its head faces left, toward the last orb. Both keep wing up and belly down. */
+.ability-ornament--left { left: 0; transform: rotate(90deg); }
+.ability-ornament--right { right: 0; transform: scaleX(-1) rotate(90deg); }
+
+/* Only on a genuinely tiny column does the row belong to the orbs alone: below
+ * 300px even the floored ornament is a smudge. */
+@media (max-width: 299px) {
   .ability-ornament { display: none; }
 }
 
@@ -550,7 +573,9 @@ body {
     min-width: 44px;
     min-height: 44px;
   }
-  .ability-ornament { top: 22px; width: 40px; height: 56px; }
+  /* Compact landscape: a 44px orb row and the row centre is half of it. */
+  #ability-bar { --orb-size: 44px; --orb-gap: 10px; }
+  .ability-ornament { top: 22px; }
   .ability-slot-cooldown { font-size: 17px; }
   .ability-slot-readout { max-width: 84px; font-size: 8px; line-height: 10px; }
 }
@@ -2870,11 +2895,25 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   overflow: hidden;
   background: #091411;
 }
-/* Portrait packs the answer zone's lines (swords, ability circles, answers)
- * against its bottom edge, where the thumbs are, instead of letting the default
- * line stretch spread the leftover height between them. */
+/* Portrait stacks the answer zone into one column: the sword row sits directly
+ * under the playfield, the ability orbs directly under the swords, and the
+ * answers form a single row that floats in whatever height is left — the auto
+ * margins above and below it take all the slack, so it is centred instead of
+ * pinned to the bottom. The two full-width lines stop claiming `100%` here,
+ * because in a column that would mean 100% of the height. */
 #game-wrap[data-layout="portrait"] #input-zone {
-  align-content: flex-end;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+#game-wrap[data-layout="portrait"] #input-zone > .app-encounter-swords,
+#game-wrap[data-layout="portrait"] #input-zone > #ability-bar {
+  flex: 0 0 auto;
+}
+
+#game-wrap[data-layout="portrait"] #input-zone > #mc-buttons {
+  margin-block: auto;
 }
 #game-wrap[data-layout="portrait"] #input-zone::before {
   content: "";
