@@ -256,7 +256,7 @@ test('targeted misses retain distinct original problems by source level and clea
   assert.equal(context.getTargetedProblems(33).length, 0);
 });
 
-test('level setup bounds enemy queues and resets practice pacing without changing campaign pacing', () => {
+test('level setup bounds enemy queues and gives every mode the same half-second pacing', () => {
   const setup = (practiceRun, isShapesMode = false) => {
     const context = {
       gameplayTimers: [], waveClearing: false, answerTimes: [], spawnInterval: 4,
@@ -283,26 +283,26 @@ test('level setup bounds enemy queues and resets practice pacing without changin
       animFrameId: 1, cfg: null,
     };
     vm.createContext(context);
-    vm.runInContext(fn('finishStartLevel'), context);
+    vm.runInContext(`const SPAWN_INTERVAL_SECONDS = 0.5;\n${fn('finishStartLevel')}`, context);
     context.finishStartLevel(7, { level: 8, chapter: 1, waveSize: 24 });
     return context;
   };
   for (const kind of ['short', 'assisted', 'elite', 'recovery']) {
     const context = setup({ kind, targetProblems: [] });
     assert.equal(context.spawnQueue.length, 10);
-    assert.equal(context.spawnInterval, 2);
+    assert.equal(context.spawnInterval, 0.5, 'the stage stays empty for half a second');
   }
   const targets = Array.from({ length: 5 }, () => problem());
   const targeted = setup({ kind: 'targeted', targetProblems: targets });
   assert.equal(targeted.spawnQueue.length, targets.length);
   targets.forEach((target, index) => assert.equal(targeted.spawnQueue[index], target));
-  assert.equal(targeted.spawnInterval, 2);
+  assert.equal(targeted.spawnInterval, 0.5);
   const shapes = setup({ kind: 'shapes', targetProblems: [] }, true);
   assert.equal(shapes.spawnQueue.length, 0);
-  assert.equal(shapes.spawnInterval, 2);
+  assert.equal(shapes.spawnInterval, 0.5);
   const campaign = setup(null);
   assert.equal(campaign.spawnQueue.length, 24);
-  assert.equal(campaign.spawnInterval, 4);
+  assert.equal(campaign.spawnInterval, 0.5, 'campaign pacing matches practice: no dead air');
   assert.equal(generateShapesProblem(1).distractors.length + 1, 4);
 });
 

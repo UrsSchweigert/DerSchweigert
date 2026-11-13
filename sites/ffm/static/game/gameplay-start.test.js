@@ -32,7 +32,7 @@ it('hides the title when a blocked level successfully resumes', () => {
   };
   vm.createContext(context);
   vm.runInContext(
-    `${fn}\nfinishStartLevel(2, { level: 3, chapter: 1, waveSize: 3 });`,
+    `const SPAWN_INTERVAL_SECONDS = 0.5;\n${fn}\nfinishStartLevel(2, { level: 3, chapter: 1, waveSize: 3 });`,
     context,
   );
   assert.equal(context.diffSelect.style.display, 'none');

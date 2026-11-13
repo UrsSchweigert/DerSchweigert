@@ -58,6 +58,7 @@ function finishStartContext({ checkAllDefeated } = {}) {
     inputDisabled: false,
     spawnTimer: 0,
     spawnInterval: 4,
+    SPAWN_INTERVAL_SECONDS: 0.5,
     recordPracticeEncounterDefeated() { calls.recordPracticeEncounterDefeated += 1; },
     checkAllDefeated: checkAllDefeated ?? (() => false),
     triggerWaveClear() { calls.triggerWaveClear += 1; },
