@@ -425,7 +425,10 @@ describe('purity and layout', () => {
     const barRule = css.match(/#ability-bar \{([^}]*)\}/)?.[1] ?? '';
     assert.match(barRule, /--ornament-size: clamp\(\s*34px/);
     // The row stays tight between the balls so the dragons get the outside.
-    assert.match(barRule, /--ornament-size: clamp\([^;]*\), 84px\);/);
+    assert.match(barRule, /--ornament-size: clamp\([^;]*\), 76px\);/);
+    // Air between the snout and the outer orb, taken off the dragon's length.
+    assert.match(barRule, /--ornament-gap: 12px;/);
+    assert.match(barRule, /- var\(--ornament-gap\)\)/);
     assert.match(barRule, /--orb-size: 58px/);
     assert.match(barRule, /--orb-gap: clamp\(6px, 2\.6vw, 12px\)/);
 
@@ -446,6 +449,21 @@ describe('purity and layout', () => {
     assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone > #ability-bar \{\s*flex: 0 0 auto;\s*\}/);
     // The answers take all the slack above and below them: centred, not pinned.
     assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone > #mc-buttons \{\s*margin-block: auto;\s*\}/);
+  });
+
+  it('gives the browser build a right-aligned spell row sitting on the answers', async () => {
+    const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+    const webBar = css.match(/html\[data-platform="web"\] #game-wrap\[data-layout="portrait"\] #input-zone > #ability-bar \{([^}]*)\}/)?.[1] ?? '';
+    assert.ok(webBar, 'the web override exists');
+    assert.match(webBar, /order: 0/, 'the row moves after the sword line, next to the answers');
+    assert.match(webBar, /margin-top: auto;\s*\n\s*margin-bottom: 0;/, 'it takes the slack above and none below, so it hugs the answers');
+    assert.match(webBar, /justify-content: flex-end/, 'and lines up with the answers right edge');
+
+    const webAnswers = css.match(/html\[data-platform="web"\] #game-wrap\[data-layout="portrait"\] #input-zone > #mc-buttons \{([^}]*)\}/)?.[1] ?? '';
+    assert.match(webAnswers, /margin-top: 0;\s*\n\s*margin-bottom: auto;/, 'the answers take the slack below, so the pair stays centred');
+
+    // Dragons frame a centred row only.
+    assert.match(css, /html\[data-platform="web"\] #game-wrap\[data-layout="portrait"\] \.ability-ornament \{\s*display: none;\s*\}/);
   });
 
   it('the circle row still leaves the answers and portrait sword row visible', () => {
