@@ -414,7 +414,7 @@ const DICTIONARY = {
   'reward.upcoming': { en: '{ability} in {count}', de: '{ability} in {count}' },
   'reward.upcomingChance': { en: '{ability} {chance}% in {count}', de: '{ability} {chance}% in {count}' },
   'reward.activeChance': { en: '{ability}: {chance}% per hit', de: '{ability}: {chance}% pro Treffer' },
-  // Three-slot ability bar (wind, storm, earth) in the gameplay header.
+  // Three-slot ability circles (wind, storm, earth) under the portrait sword row.
   'ability.barLabel': { en: 'Abilities', de: 'Fähigkeiten' },
   'ability.wind.name': { en: 'Wind', de: 'Wind' },
   'ability.wind.description': {

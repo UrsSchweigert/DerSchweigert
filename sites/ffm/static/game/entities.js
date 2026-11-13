@@ -1017,6 +1017,15 @@ export class Fiend extends Entity {
   on(ev, fn) { this._events.addEventListener(ev, fn); }
   _emit(ev) { this._events.dispatchEvent(new Event(ev)); }
 
+  // Blown off the screen *towards the player*: the sprite grows as if it left
+  // the painting, drifts out of the vanishing point and down past the bottom
+  // edge, and fades late, so the eye reads depth instead of a sideways slide.
+  // Used by the wind and storm abilities.
+  blowTowardViewer(duration = 0.75) {
+    this._blowAway = { elapsed: 0, duration: Math.max(0.15, duration) };
+    this.setState('idle');
+  }
+
   setState(s) {
     super.setState(s);
     if (s === 'retreat') {
@@ -1029,6 +1038,17 @@ export class Fiend extends Entity {
 
   update(dt) {
     super.update(dt);
+    // Blown at the viewer: no walking, no retreating — the flight toward the
+    // camera owns the sprite until it has faded out, then it reports 'retreated'
+    // so the normal cleanup (array removal, next spawn) still runs.
+    if (this._blowAway) {
+      this._blowAway.elapsed += dt;
+      if (this._blowAway.elapsed >= this._blowAway.duration) {
+        this._blowAway = null;
+        this._emit('retreated');
+      }
+      return;
+    }
     if (this._state === 'walk') {
       this.x -= this.walkSpeed * dt;
       if (this.x < FIEND_COMBAT_X) this.setState('idle');
@@ -1185,6 +1205,37 @@ export class Fiend extends Entity {
     this._drawParticles(ctx);
     return true;
   }
+
+  // Every subclass paints its fiend in _drawBody(); draw() is the one place
+  // that wraps that painting in the "blown at the camera" flight. Scaling about
+  // the feet plus a downward drift makes the fiend leave the stage in the
+  // viewer's direction — growing as it comes at them — instead of shrinking
+  // into the distance the way an ordinary retreat does.
+  draw(ctx) {
+    if (!this._blowAway) {
+      this._drawBody(ctx);
+      return;
+    }
+    const flight = this._blowAway;
+    const t = Math.min(1, flight.elapsed / flight.duration);
+    const push = t * t;
+    const scale = 1 + push * 2.6;
+    // Growing alone would read as a zoom. Sliding away from the middle of the
+    // painted floor and down past the bottom edge is what sells the approach:
+    // the fiend comes out of the stage, over the viewer, and off the frame.
+    const driftX = (this.x - CANVAS_W / 2) * push * 0.45;
+    const driftY = push * 90 * P;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 1 - Math.pow(t, 2.4));
+    ctx.translate(this.x + driftX, this.y + driftY);
+    ctx.scale(scale, scale);
+    ctx.translate(-this.x, -this.y);
+    this._drawBody(ctx);
+    ctx.restore();
+  }
+
+  // Subclasses paint their body here.
+  _drawBody(_ctx) {}
 }
 
 // ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────
@@ -1193,7 +1244,7 @@ export class Slimeling extends Fiend {
     super(x, y, { hp, palette: palette ?? { body:'#f07030', dark:'#a04010', hi:'#ffb060' } });
   }
 
-  draw(ctx) {
+  _drawBody(ctx) {
     if (this._drawClassSprite(ctx)) return;
     const bobY = (this._state === 'walk') ? ~~(Math.sin(this._frame * Math.PI) * 2 * P) : 0;
     const attX  = (this._state === 'attack') ? -this._frame * 2 * P : 0;
@@ -1255,7 +1306,7 @@ export class Bonehead extends Fiend {
     super(x, y, { hp, palette: palette ?? { body:'#b8c0c8', dark:'#606870', hi:'#d8e4ec' } });
   }
 
-  draw(ctx) {
+  _drawBody(ctx) {
     if (this._drawClassSprite(ctx)) return;
     const rattle = (this._state === 'walk' && this._frame % 2 === 0) ? P : 0;
     const attX   = (this._state === 'attack') ? -this._frame * 2 * P : 0;
@@ -1355,7 +1406,7 @@ export class Toadlord extends Fiend {
     super(x, y, { hp, palette: palette ?? { body:'#e02828', dark:'#901010', hi:'#ff6060' } });
   }
 
-  draw(ctx) {
+  _drawBody(ctx) {
     if (this._drawClassSprite(ctx)) return;
     const stomp   = (this._state === 'walk') ? (this._frame % 2 === 0 ? P : -P) : 0;
     const attX    = (this._state === 'attack') ? -this._frame * 3 * P : 0;
@@ -1460,7 +1511,7 @@ export class Magelitch extends Fiend {
     super(x, y, { hp, palette: palette ?? { body:'#1890a8', dark:'#0c5870', hi:'#30c0d8' } });
   }
 
-  draw(ctx) {
+  _drawBody(ctx) {
     if (this._drawClassSprite(ctx)) return;
     // hover animation
     const hov = ~~(Math.sin(this._tick * 0.12) * 3 * P);
@@ -1574,7 +1625,7 @@ export class BirdFoe extends Fiend {
     super(x, y, { hp, palette: palette ?? { body:'#5048a8', dark:'#28205a', hi:'#8878d0' } });
   }
 
-  draw(ctx) {
+  _drawBody(ctx) {
     if (this._drawClassSprite(ctx)) return;
     const wY   = (this._state === 'walk') ? (this._frame % 2 === 0 ? -P : P) : 0;
     const attX = (this._state === 'attack') ? -this._frame * 2 * P : 0;
@@ -1664,7 +1715,7 @@ export class WolfFoe extends Fiend {
     super(x, y, { hp, palette: palette ?? { body:'#808090', dark:'#404050', hi:'#b0b0c0' } });
   }
 
-  draw(ctx) {
+  _drawBody(ctx) {
     if (this._drawClassSprite(ctx)) return;
     const prowl = (this._state === 'walk') ? (this._frame % 2 === 0 ? P : 0) : 0;
     const attX  = (this._state === 'attack') ? -this._frame * 3 * P : 0;
@@ -1773,7 +1824,7 @@ export class SnakeFoe extends Fiend {
     super(x, y, { hp, palette: palette ?? { body:'#40a840', dark:'#205428', hi:'#70d870' } });
   }
 
-  draw(ctx) {
+  _drawBody(ctx) {
     if (this._drawClassSprite(ctx)) return;
     const sway    = ~~(Math.sin(this._tick * 0.15) * 2 * P);
     const tongueOut = this._tick % 6 < 3;

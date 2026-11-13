@@ -412,56 +412,74 @@ function swordGain(api, payload) {
 
 function windCast(api, payload) {
   const { x, y } = castPoint(payload);
-  for (let i = 0; i < count(api, 18); i++) {
-    api.streak(x + rand(-60, 40), y + rand(-70, 70), rand(900, 1700), rand(-80, 80),
-      pick(PALETTES.wind), rand(90, 240), rand(2, 5));
+  // Field-wide on purpose: this is the cast that throws a fiend at the player,
+  // so the gust has to read as something that crossed the whole arena rather
+  // than as a puff at the target. Streaks start left of the frame and overshoot
+  // the caster; rings and sparks stay on the caster so the hit still has a centre.
+  for (let i = 0; i < count(api, 40); i++) {
+    api.streak(rand(-60, 120), y + rand(-160, 140), rand(1400, 2600), rand(-140, 140),
+      pick(PALETTES.wind), rand(140, 380), rand(2, 7));
   }
-  api.ring(x, y, '#cdeeff', 8, 170, 0.45, 3);
+  api.ring(x, y, '#cdeeff', 10, 320, 0.5, 5);
+  api.ring(x, y, '#ffffff', 6, 210, 0.36, 3);
+  api.ring(x, y, '#a8e6ff', 4, 130, 0.26, 2);
+  for (let i = 0; i < count(api, 26); i++) {
+    api.spark(x, y, rand(-0.9, 0.9), rand(140, 420), pick(PALETTES.wind), rand(0.3, 0.7));
+  }
   for (let i = 0; i < count(api, 10); i++) {
-    api.spark(x, y, rand(-0.7, 0.7), rand(80, 220), pick(PALETTES.wind), rand(0.25, 0.5));
+    api.mote(x + rand(-40, 40), y + rand(-40, 40), rand(300, 700), rand(-120, 120), '#ffffff', rand(2, 5));
   }
-  api.addWash('#cdeeff', 0.07, 0.28);
-  api.shake(1.2, 0.1);
+  api.addWash('#cdeeff', 0.12, 0.3);
+  api.shake(3.4, 0.22);
 }
 
 function stormCast(api, payload) {
   const { x, y } = castPoint(payload);
-  api.flash(x, y, '#e8dfff', 80, 0.22, 0.5);
-  api.ring(x, y, '#a98bff', 10, 260, 0.55, 5);
-  api.ring(x, y, '#cdeeff', 4, 120, 0.35, 2);
-  const rays = count(api, 12);
+  // The storm clears part of the wave, so its ring has to run past the playfield
+  // edges and the rays have to fill the frame: this is the loudest cast we have.
+  api.flash(x, y, '#e8dfff', 150, 0.26, 0.7);
+  api.ring(x, y, '#a98bff', 12, 430, 0.6, 6);
+  api.ring(x, y, '#cdeeff', 6, 260, 0.42, 3);
+  api.ring(x, y, '#ffffff', 4, 150, 0.3, 2);
+  const rays = count(api, 20);
   for (let i = 0; i < rays; i++) {
-    api.ray(x, y, (i / rays) * TAU + rand(-0.12, 0.12), rand(100, 260), '#cdeeff', 0.8);
+    api.ray(x, y, (i / rays) * TAU + rand(-0.12, 0.12), rand(180, 420), '#cdeeff', 0.9);
   }
-  for (let i = 0; i < count(api, 20); i++) {
-    api.spark(x, y, rand(0, TAU), rand(90, 320), pick(PALETTES.storm), rand(0.25, 0.6));
+  for (let i = 0; i < count(api, 34); i++) {
+    api.spark(x, y, rand(0, TAU), rand(160, 520), pick(PALETTES.storm), rand(0.3, 0.75));
   }
-  for (let i = 0; i < count(api, 6); i++) {
-    api.ring(x, y, '#cbb4ff', 4, rand(30, 90), rand(0.25, 0.45), 2);
+  for (let i = 0; i < count(api, 10); i++) {
+    api.ring(x, y, '#cbb4ff', 6, rand(60, 200), rand(0.3, 0.55), 2.5);
   }
-  api.addWash('#8a6bff', 0.1, 0.24);
-  api.addVignette('#6a4bff', 0, 0.38, 0.42);
-  api.shake(4, 0.22);
+  for (let i = 0; i < count(api, 14); i++) {
+    api.shard(x + rand(-130, 130), y + rand(-130, 130), rand(-140, 140), rand(-300, 300),
+      pick(PALETTES.storm), rand(2, 5));
+  }
+  api.addWash('#8a6bff', 0.16, 0.3);
+  api.addVignette('#6a4bff', 0, 0.5, 0.5);
+  api.shake(6, 0.3);
 }
 
 function spikeCast(api, payload) {
   const { x, y } = castPoint(payload);
   // The eruptions fan out along the ground under the target instead of all
-  // leaving one point, so the cast reads as a field of spikes.
+  // leaving one point, so the cast reads as a field of spikes — one and a half
+  // screens wide, because it is a spell and not a single hit.
   const ground = y + 42;
+  for (let i = 0; i < count(api, 34); i++) {
+    api.shard(x + rand(-190, 190), ground, rand(-80, 80), rand(-520, -200), pick(PALETTES.earth), rand(6, 13));
+  }
+  for (let i = 0; i < count(api, 22); i++) {
+    api.spark(x, ground, -Math.PI / 2 + rand(-1.2, 1.2), rand(140, 400), pick(PALETTES.earth), rand(0.3, 0.75));
+  }
   for (let i = 0; i < count(api, 14); i++) {
-    api.shard(x + rand(-90, 90), ground, rand(-40, 40), rand(-300, -140), pick(PALETTES.earth), rand(3, 7));
+    api.smoke(x + rand(-150, 150), ground, rand(12, 26), rand(0.5, 1.1), '#7a6a55');
   }
-  for (let i = 0; i < count(api, 10); i++) {
-    api.spark(x, ground, -Math.PI / 2 + rand(-0.9, 0.9), rand(70, 240), pick(PALETTES.earth), rand(0.3, 0.6));
-  }
-  for (let i = 0; i < count(api, 6); i++) {
-    api.smoke(x + rand(-70, 70), ground, rand(8, 16), rand(0.5, 1), '#7a6a55');
-  }
-  api.ring(x, ground, '#c9a15a', 6, 130, 0.45, 4);
-  api.flash(x, ground, '#e8c98a', 44, 0.16, 0.65);
-  api.addWash('#8a6b3f', 0.08, 0.26);
-  api.shake(3.2, 0.18);
+  api.ring(x, ground, '#c9a15a', 10, 330, 0.55, 8);
+  api.ring(x, ground, '#e8c98a', 5, 190, 0.36, 4);
+  api.flash(x, ground, '#f5dca8', 140, 0.22, 0.85);
+  api.addWash('#8a6b3f', 0.14, 0.32);
+  api.shake(5.2, 0.26);
 }
 
 // The persistent half of the earth cast: one quiet pulse per emitter tick,

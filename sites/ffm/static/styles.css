@@ -180,69 +180,103 @@ body {
   touch-action: manipulation;
 }
 
-/* Three-slot ability bar (ability-bar.js). It is a normal-flow row of the
- * gameplay header, so it can never overlap the answer grid or the app's
- * portrait sword row. The cooling sweep is a static conic gradient driven by
- * the 0-1 --ability-progress property; the module owns no clock. */
+/* Three-slot ability circles (ability-bar.js). They are a normal-flow line of
+ * the answer zone, placed by `order` directly under the portrait sword row, so
+ * they cost the gameplay header nothing. Each slot is a 58px circle with the
+ * artwork filling it and the cooldown seconds drawn over the middle; the
+ * bonus-aware readout is a small caption under the circle. The cooling sweep is
+ * a static conic gradient driven by the 0-1 --ability-progress property; the
+ * module owns no clock. */
 #ability-bar {
-  grid-column: 1 / -1;
+  order: -1;
+  flex: 0 0 100%;
   display: flex;
-  align-items: stretch;
-  gap: 6px;
+  align-items: flex-start;
+  justify-content: center;
+  gap: clamp(10px, 7vw, 30px);
   width: 100%;
   min-width: 0;
+  padding: 0 0 13px; /* reserves the readout caption line under the circles */
 }
 
 .ability-slot {
   position: relative;
   display: inline-flex;
-  flex: 1 1 0;
-  flex-direction: column;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 4px 8px;
+  width: 58px;
+  height: 58px;
+  min-width: 58px;
+  min-height: 58px;
+  padding: 0;
   font: inherit;
-  line-height: 1.1;
+  line-height: 1;
   color: #f0f0f0;
-  background: #252952;
+  background: radial-gradient(circle at 34% 28%, #3d4382, #1b1f42 72%);
   border: 2px solid #a9b9ed;
-  border-radius: 5px;
+  border-radius: 50%;
+  box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.1), 0 3px 8px rgba(0, 0, 0, 0.45);
   cursor: pointer;
   touch-action: manipulation;
-  overflow: hidden;
+  overflow: visible;
 }
 
-.ability-slot-name { font-weight: 700; }
+/* Only the fallback name sits inside the circle; it stays out of sight while
+ * the artwork is showing (see the [data-icon="loaded"] rule below). */
+.ability-slot-name {
+  font-weight: 700;
+  font-size: 10px;
+  line-height: 1.15;
+  padding: 0 4px;
+  text-align: center;
+}
 
-/* Two fixed-height lines per slot: the cooldown seconds (or "Ready") and the
- * bonus-aware readout. Equal slot widths plus reserved line heights keep the
- * bar from shifting when a value grows or a cooldown starts. */
-.ability-slot-cooldown,
+/* Cooldown seconds while cooling, "Ready" when it is up and the artwork is
+ * missing: both are drawn across the middle of the circle. */
+.ability-slot-cooldown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.ability-slot[data-state="ready"] .ability-slot-cooldown { font-size: 11px; font-weight: 700; }
+.ability-slot[data-state="ready"][data-icon="loaded"] .ability-slot-cooldown { display: none; }
+.ability-slot[data-state="locked"] .ability-slot-cooldown { display: none; }
+
+/* The bonus-aware readout ("Removes 2", "Slow 30% · ×3") is a caption under the
+ * circle: it never pushes the circle size around and stays legible. */
 .ability-slot-readout {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 50%;
   display: block;
-  max-width: 100%;
+  max-width: 104px;
+  transform: translateX(-50%);
   overflow: hidden;
+  font-size: 9px;
+  line-height: 12px;
+  color: #cdd6f4;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-.ability-slot-cooldown { height: 13px; line-height: 13px; font-size: 11px; }
-.ability-slot-readout {
-  height: 12px;
-  line-height: 12px;
-  font-size: 10px;
-  color: #cdd6f4;
+  pointer-events: none;
 }
 
 /* Owner-delivered artwork (game/assets/ability-<id>.webp). Decorative: the
  * slot's aria-label names the ability, so the icon carries an empty alt. */
 .ability-slot-icon {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
   pointer-events: none;
 }
 
@@ -316,6 +350,7 @@ body {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 2;
   border-radius: inherit;
   pointer-events: none;
   background: conic-gradient(
@@ -325,12 +360,14 @@ body {
   );
 }
 
+/* Layering inside the circle: artwork, then the cooling sweep, then the
+ * cooldown seconds, so the sweep dims the art and the number stays readable. */
 .ability-slot-name,
-.ability-slot-cooldown,
-.ability-slot-readout {
+.ability-slot-icon {
   position: relative;
   z-index: 1;
 }
+.ability-slot-cooldown { z-index: 3; }
 
 @media (orientation: landscape) and (max-height: 400px) {
   #gameplay-chrome { padding: 2px 6px; gap: 2px 6px; }
@@ -338,6 +375,18 @@ body {
   .gameplay-readouts { font-size: 16px; line-height: 20px; gap: 2px 6px; }
   #btn-pause-game { grid-column: 2; grid-row: 1 / span 3; }
   #active-question { grid-column: 1; }
+
+  /* Landscape has no vertical slack to spare, so the circles shrink to the
+   * 44px target and the caption line gets tighter. */
+  #ability-bar { gap: 10px; padding-bottom: 11px; }
+  .ability-slot {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .ability-slot-cooldown { font-size: 17px; }
+  .ability-slot-readout { max-width: 84px; font-size: 8px; line-height: 10px; }
 }
 
 #game {
@@ -430,6 +479,7 @@ body {
   justify-content: center;
   gap: 2px;
   height: 22px;
+  order: -2; /* first line of the answer zone, above the ability circles */
   margin: 0 calc(var(--safe-area-right, 0px) + 2px) 0 calc(var(--safe-area-left, 0px) + 2px);
   padding: 0 2px;
   pointer-events: none;
@@ -2653,6 +2703,12 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   isolation: isolate;
   overflow: hidden;
   background: #091411;
+}
+/* Portrait packs the answer zone's lines (swords, ability circles, answers)
+ * against its bottom edge, where the thumbs are, instead of letting the default
+ * line stretch spread the leftover height between them. */
+#game-wrap[data-layout="portrait"] #input-zone {
+  align-content: flex-end;
 }
 #game-wrap[data-layout="portrait"] #input-zone::before {
   content: "";
