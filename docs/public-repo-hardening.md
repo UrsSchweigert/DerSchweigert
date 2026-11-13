@@ -57,6 +57,9 @@ force-push and requires the `test` and `test-ffm` checks; `CODEOWNERS` exists.
 **Code security (Settings -> Code security)**
 - Enable secret scanning and **push protection**, Dependabot alerts and security updates,
   private vulnerability reporting, and CodeQL default setup.
+- Keep `swift` out of default setup: the Capacitor iOS projects resolve their SwiftPM packages from
+  `node_modules`, so CodeQL autobuild fails on them. [codeql-swift.yml](../.github/workflows/codeql-swift.yml)
+  runs the Swift analysis with manual build steps instead, on merges to `main` and weekly.
 - Enable **Require signed commits** on the `main` ruleset if you want it.
 
 **Accounts**
