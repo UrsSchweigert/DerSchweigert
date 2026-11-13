@@ -174,6 +174,12 @@ describe('ability cast feedback', () => {
     assert.match(source, /const hudBurst = createDomBurst\(\{/);
     assert.match(source, /const hudBurst = createDomBurst\(\{[\s\S]*?reducedMotion: globalThis\.matchMedia/);
 
+    // A cooling orb gets its own dull cue, so no press is silent.
+    const refused = source.match(/onRefused: \(\) => \{[\s\S]*?\n  \},/);
+    assert.ok(refused, 'the bar is created with an onRefused callback');
+    assert.match(refused[0], /audio\.playAbilityRefused\?\.\(\)/);
+    assert.doesNotMatch(refused[0], /burst/, 'nothing broke, so nothing shatters');
+
     // The cast cue stays exactly where it was: on a successful cast only.
     const feedback = source.match(/function playAbilityCastFeedback\(id, origin\) \{[\s\S]*?\n\}/);
     assert.ok(feedback);

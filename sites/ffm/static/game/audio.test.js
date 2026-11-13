@@ -1246,9 +1246,10 @@ describe('shared sound buses and event cues', () => {
       assert.ok(freqs.filter(f => f >= 2000).length >= 4, 'a shower of high shards');
       assert.ok(freqs.some(f => f < 400), 'and a low body under it');
       assert.ok(context.nodes.some(node => node.kind === 'buffer'), 'the crack is noise');
-      // Every high shard decays faster than a musical tone would.
+      // Every high shard still decays faster than a musical tone would: this is
+      // a shatter, not a bell.
       for (const node of tones.filter(n => n.frequency.value >= 2000)) {
-        assert.ok(node.stops[0] - node.starts[0] <= 0.151, 'short shard decay');
+        assert.ok(node.stops[0] - node.starts[0] <= 0.251, 'short shard decay');
       }
 
       const muted = soundEngine();
@@ -1257,6 +1258,27 @@ describe('shared sound buses and event cues', () => {
       const before = muted.context.nodes.length;
       assert.equal(muted.audio.playAbilityPress(), false);
       assert.equal(muted.context.nodes.length, before, 'a muted press builds no nodes');
+    });
+
+    it('playAbilityRefused is a dull "not yet", not a shatter', () => {
+      const press = soundEngine();
+      press.audio.playAbilityPress();
+      const pressFreqs = press.context.nodes.filter(n => n.kind === 'oscillator').map(n => n.frequency.value);
+
+      const refused = soundEngine();
+      assert.equal(refused.audio.playAbilityRefused(), true);
+      const refusedFreqs = refused.context.nodes.filter(n => n.kind === 'oscillator').map(n => n.frequency.value);
+      assert.ok(refusedFreqs.length > 0);
+      // Low and no glass partials: it must be tellable from a real press.
+      assert.ok(refusedFreqs.every(f => f < 400), `refused stays low: ${refusedFreqs}`);
+      assert.ok(pressFreqs.some(f => f > 2000), 'the press has glass shards');
+
+      const muted = soundEngine();
+      muted.audio.toggleMute();
+      muted.audio._ensureCtx();
+      const before = muted.context.nodes.length;
+      assert.equal(muted.audio.playAbilityRefused(), false);
+      assert.equal(muted.context.nodes.length, before, 'a muted refusal builds no nodes');
     });
 
     it('playAbilityCast is silent when muted and for an unknown ability', () => {

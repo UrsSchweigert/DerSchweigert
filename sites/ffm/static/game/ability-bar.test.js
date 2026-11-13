@@ -273,6 +273,26 @@ describe('activation', () => {
     assert.deepEqual(events, [], 'locked and cooling orbs stay silent');
   });
 
+  it('answers a cooling press with the refused hook and never casts', () => {
+    const { doc } = fakeDocument();
+    const calls = [];
+    const bar = createAbilityBar({
+      doc,
+      onPress: (id) => calls.push(['press', id]),
+      onRefused: (id, button) => calls.push(['refused', id, button.dataset.ability]),
+      onActivate: (id) => calls.push(['activate', id]),
+    });
+    bar.update({ level: 11, progress: 0.4 });
+    slotOf(bar, 'wind').dispatchEvent({ type: 'click' });
+    assert.deepEqual(calls, [['refused', 'wind', 'wind']],
+      'a cooling orb answers without casting or shattering');
+
+    calls.length = 0;
+    bar.update({ level: 1, progress: 1 });
+    slotOf(bar, 'wind').dispatchEvent({ type: 'click' });
+    assert.deepEqual(calls, [['press', 'wind'], ['activate', 'wind']], 'a ready orb still cracks and casts');
+  });
+
   it('ignores key repeats, cooling slots and locked slots', () => {
     const { doc } = fakeDocument();
     const activated = [];
@@ -396,9 +416,13 @@ describe('purity and layout', () => {
 
     const slotRule = css.match(/\.ability-slot\s*\{([^}]*)\}/)?.[1] ?? '';
     assert.match(slotRule, /border-radius:\s*50%/);
-    const slotSize = Number(slotRule.match(/width:\s*(\d+)px/)?.[1]);
-    assert.ok(slotSize >= 44, `slot width ${slotSize}`);
-    assert.equal(Number(slotRule.match(/height:\s*(\d+)px/)?.[1]), slotSize);
+    // The orb is a square driven by --orb-size, and --orb-size can only shrink
+    // from its cap so three orbs always fit the answer column.
+    assert.match(slotRule, /width:\s*var\(--orb-size\)/);
+    assert.match(slotRule, /aspect-ratio:\s*1/, 'the height follows the width, so the ball stays round');
+    const cap = Number(barRule.match(/--orb-cap:\s*(\d+)px/)?.[1]);
+    assert.ok(cap >= 44, `orb cap ${cap} must stay a comfortable target`);
+    assert.match(barRule, /--orb-size:\s*min\(var\(--orb-cap\), calc\(\(100% - 2 \* var\(--orb-gap\)\) \/ 3\)\)/);
 
     const readoutRule = css.match(/\.ability-slot-readout\s*\{([^}]*)\}/)?.[1] ?? '';
     assert.match(readoutRule, /position:\s*absolute/);
@@ -423,13 +447,13 @@ describe('purity and layout', () => {
     assert.doesNotMatch(ornRule, /translate/);
 
     const barRule = css.match(/#ability-bar \{([^}]*)\}/)?.[1] ?? '';
-    assert.match(barRule, /--ornament-size: clamp\(\s*34px/);
+    assert.match(barRule, /--ornament-size: clamp\(\s*0px/, 'a column with no room collapses the dragon');
     // The row stays tight between the balls so the dragons get the outside.
     assert.match(barRule, /--ornament-size: clamp\([^;]*\), 76px\);/);
     // Air between the snout and the outer orb, taken off the dragon's length.
     assert.match(barRule, /--ornament-gap: 12px;/);
     assert.match(barRule, /- var\(--ornament-gap\)\)/);
-    assert.match(barRule, /--orb-size: 58px/);
+    assert.match(barRule, /--orb-cap: 58px/);
     assert.match(barRule, /--orb-gap: clamp\(6px, 2\.6vw, 12px\)/);
 
     // Heads inward: a clockwise turn on the left, the same turn mirrored on the right.
@@ -451,19 +475,15 @@ describe('purity and layout', () => {
     assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone > #mc-buttons \{\s*margin-block: auto;\s*\}/);
   });
 
-  it('gives the browser build a right-aligned spell row sitting on the answers', async () => {
+  it('keeps one portrait stack on every platform: swords, spells, then centred answers', async () => {
     const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
-    const webBar = css.match(/html\[data-platform="web"\] #game-wrap\[data-layout="portrait"\] #input-zone > #ability-bar \{([^}]*)\}/)?.[1] ?? '';
-    assert.ok(webBar, 'the web override exists');
-    assert.match(webBar, /order: 0/, 'the row moves after the sword line, next to the answers');
-    assert.match(webBar, /margin-top: auto;\s*\n\s*margin-bottom: 0;/, 'it takes the slack above and none below, so it hugs the answers');
-    assert.match(webBar, /justify-content: flex-end/, 'and lines up with the answers right edge');
-
-    const webAnswers = css.match(/html\[data-platform="web"\] #game-wrap\[data-layout="portrait"\] #input-zone > #mc-buttons \{([^}]*)\}/)?.[1] ?? '';
-    assert.match(webAnswers, /margin-top: 0;\s*\n\s*margin-bottom: auto;/, 'the answers take the slack below, so the pair stays centred');
-
-    // Dragons frame a centred row only.
-    assert.match(css, /html\[data-platform="web"\] #game-wrap\[data-layout="portrait"\] \.ability-ornament \{\s*display: none;\s*\}/);
+    // No platform override may move the spell row off the sword line again.
+    assert.doesNotMatch(css, /html\[data-platform="web"\][^{]*#ability-bar/);
+    assert.doesNotMatch(css, /html\[data-platform="web"\][^{]*\.ability-ornament/);
+    const portrait = css.match(/#game-wrap\[data-layout="portrait"\] #input-zone \{([^}]*flex-direction[^}]*)\}/)?.[1] ?? '';
+    assert.match(portrait, /flex-direction: column/);
+    assert.match(css, /#game-wrap\[data-layout="portrait"\] #input-zone > #mc-buttons \{\s*margin-block: auto;\s*\}/,
+      'the answers take the slack, so they are centred under the spells');
   });
 
   it('the circle row still leaves the answers and portrait sword row visible', () => {
