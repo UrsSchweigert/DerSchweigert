@@ -129,7 +129,7 @@ request maintainer-side project registration through supported project tooling.
 ## Versioning
 
 `CFBundleShortVersionString` comes from `MARKETING_VERSION` (committed default
-`1.0`) and `CFBundleVersion` from `CURRENT_PROJECT_VERSION` (committed default
+`1.0.1`) and `CFBundleVersion` from `CURRENT_PROJECT_VERSION` (committed default
 `7`), both defined in the owner-merged `project.pbxproj`. Do not hand-edit that
 file per release. Override the values at build time instead, exactly as the
 Android build takes `-PbzVersionCode`/`-PbzVersionName`:
@@ -323,15 +323,17 @@ DVTITunesSoftwareService.log:
 ```
 
 Treat that as evidence about the app, not proof about the project. Resolve it on
-the Apple side, in this order: confirm the app record still exists in App Store
-Connect with the same bundle id and that its Xcode Cloud product is still
-linked; confirm the Apple Account used by Cloud has Admin or App Manager access
-to the team (Account Holder, Admin, App Manager and Developer can use Xcode
-Cloud; other roles cannot); accept any pending agreement under Agreements, Tax,
-and Banking. A second app on the same team that builds and uploads successfully
-clears the account entirely and points at the failing app's record. Only a
-validation error naming the bundle (`ITMS-…`) points back at the archive and the
-project.
+the Apple side, in this order. First check the marketing version: once an App
+Store version is released, its train is closed, and an upload still carrying
+that `MARKETING_VERSION` is refused — create the next version in App Store
+Connect and raise `MARKETING_VERSION` before building again. Then confirm the app
+record still exists with the same bundle id and that its Xcode Cloud product is
+still linked. Then confirm the Apple Account used by Cloud has Admin or App
+Manager access to the team (Account Holder, Admin, App Manager and Developer can
+use Xcode Cloud; other roles cannot) and accept any pending agreement under
+Agreements, Tax, and Banking. A second app on the same team that builds and
+uploads successfully clears the account entirely. Only a validation error naming
+the bundle (`ITMS-…`) points back at the archive and the project.
 
 ## Producing and uploading the build
 
