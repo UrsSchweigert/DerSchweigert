@@ -102,12 +102,14 @@ def unlock_page(request: Request) -> HTMLResponse:
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <title>Seite gesperrt</title>
           <style>
-            body {{ font-family: sans-serif; background: #eef4fb; color: #14253d; margin: 0; display: grid; place-items: center; min-height: 100vh; }}
-            .box {{ width: min(420px, calc(100% - 32px)); background: white; border-radius: 18px; box-shadow: 0 24px 56px rgba(10,47,95,0.12); padding: 28px; }}
-            h1 {{ margin-top: 0; font-size: 1.8rem; }}
-            input {{ width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(20,37,61,0.12); margin: 10px 0 16px; font-size: 1rem; }}
-            button {{ width: 100%; padding: 12px 14px; border: none; border-radius: 10px; background: linear-gradient(135deg, #0f4c81, #0a2f5f); color: white; font-weight: 700; cursor: pointer; }}
-            .error {{ color: #8d1f1f; margin-top: 10px; font-weight: 600; }}
+            body {{ font-family: "Iowan Old Style", Palatino, Georgia, ui-serif, serif; background: #080f13; color: #f5efe2; margin: 0; display: grid; place-items: center; min-height: 100vh;
+                    background-image: radial-gradient(900px 520px at 50% -10%, rgba(28,62,70,0.65), transparent 70%), radial-gradient(600px 420px at 92% 8%, rgba(201,162,85,0.10), transparent 72%); }}
+            .box {{ width: min(420px, calc(100% - 32px)); background: linear-gradient(162deg, #12262e, #0b171c); border: 1px solid rgba(201,162,85,0.22); border-radius: 20px; box-shadow: 0 30px 70px -40px rgba(0,0,0,0.95); padding: 30px; }}
+            h1 {{ margin-top: 0; font-size: 1.8rem; letter-spacing: -0.02em; }}
+            p {{ color: #c6c2b4; }}
+            input {{ width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(245,239,226,0.14); background: rgba(8,15,19,0.6); color: #f5efe2; margin: 10px 0 16px; font-size: 1rem; font-family: inherit; }}
+            button {{ width: 100%; padding: 13px 14px; border: none; border-radius: 999px; background: linear-gradient(180deg, #ebcd8f, #c9a255); color: #17120a; font-weight: 700; letter-spacing: 0.06em; cursor: pointer; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; font-size: 0.8rem; }}
+            .error {{ color: #f0a9a9; margin-top: 10px; font-weight: 600; }}
           </style>
         </head>
         <body>
