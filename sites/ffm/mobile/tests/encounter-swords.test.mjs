@@ -199,7 +199,7 @@ test('main.js feeds the shared swords the same count as the Defeated readout', a
   assert.ok(appStart >= 0 && appEnd > appStart, 'the app guard is still a top-level block');
   assert.ok(!source.slice(appStart, appEnd).includes('encounter-swords'),
     'the app guard neither imports nor registers the shared swords');
-  assert.match(source, /t\('gameplay\.encounters', encounterProgress\)/,
+  assert.match(source, /formatEncounterLabel\(encounterProgress, \{ compact: compactHeader, translate: t \}\)/,
     'the readout and the swords share one encounterProgress value');
   assert.doesNotMatch(source, /bubble-timer|createBubbleTimer/);
 

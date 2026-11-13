@@ -29,6 +29,11 @@ import { resolvePlatform } from './platform.js';
 import { getFiendClass, sampleFiendClassId, FIEND_CLASSES } from './difficulty-classes.js';
 import { pickComboAbility, getComboFrameBand, getComboRewardProgress, isAbilityBandStart } from './combo-abilities.js';
 import {
+  formatEncounterLabel,
+  formatRewardLabel,
+  useCompactHeaderLabels,
+} from './header-labels.js';
+import {
   FIEND_ENTRY_TRIGGER_X,
   FIEND_PORTAL_X,
   getFiendWalkSpeed,
@@ -4469,12 +4474,13 @@ function gameLoop(ts) {
   gameplayChrome.setVisible(gameplayVisible && !paused);
   const reward = getComboRewardProgress(state.combo);
   const cfg = platform.getCurrentLevelConfig();
-  const abilityName = t(`reward.${reward.ability}`);
-  const rewardLabel = reward.remaining > 0
-    ? t(reward.chance < 1 ? 'reward.upcomingChance' : 'reward.upcoming', {
-      count: reward.remaining, ability: abilityName, chance: Math.round(reward.chance * 100),
-    })
-    : t('reward.activeChance', { ability: abilityName, chance: Math.round(reward.chance * 100) });
+  // The app's readout row is one line tall; on a 375 px phone the qualified
+  // labels do not fit, so the app drops to name plus countdown (header-labels.js).
+  const compactHeader = useCompactHeaderLabels({
+    isApp: platform.isApp,
+    width: globalThis.innerWidth ?? 0,
+  });
+  const rewardLabel = formatRewardLabel(reward, { compact: compactHeader, translate: t });
   const feedback = activeFiend?.state === 'reveal' ? {
     kind: activeFiend._answerFeedback,
     // The header shows the answer alone and keeps it short enough for the
@@ -4499,7 +4505,7 @@ function gameLoop(ts) {
     healingEnabled: !practiceRun,
     progressLabel: !encounterProgress ? '' : state.isShapesMode
       ? t('practice.questionProgress', { resolved: encounterProgress.defeated, total: encounterProgress.total })
-      : t('gameplay.encounters', encounterProgress),
+      : formatEncounterLabel(encounterProgress, { compact: compactHeader, translate: t }),
     rewardLabel: practiceRun || state.isShapesMode ? '' : lastCastAbility && inputDisabled
       ? t('reward.cast', { ability: t(`reward.${lastCastAbility}`) }) : rewardLabel,
     healLabel: practiceRun ? '' : t('gameplay.healProgress', {
