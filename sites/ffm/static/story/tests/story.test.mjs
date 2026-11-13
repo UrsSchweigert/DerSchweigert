@@ -359,3 +359,21 @@ describe('player helpers', () => {
     assert.equal(narrationLocale(undefined), 'en');
   });
 });
+
+describe('player chrome', () => {
+  const css = readFileSync(join(storyDir, 'player', 'diorama-player.css'), 'utf8');
+
+  it('tiles the paper grain from a shipped image, not an SVG filter', () => {
+    // Blink re-rasterises this full-stage blend layer as the scene moves; an
+    // <feTurbulence> on that path painted black tiles on Android (see the
+    // README's "Keeping the compositor happy" section).
+    assert.doesNotMatch(css, /data:image\/svg/, 'the paper overlay must not rasterise an inline SVG filter');
+    const tile = join(storyDir, 'player', 'paper-grain.webp');
+    assert.ok(existsSync(tile), 'player/paper-grain.webp is missing: run tools/paper-grain.py');
+    assert.match(css, /url\("paper-grain\.webp"\)/, 'the stylesheet must reference the paper tile');
+    const info = webpInfo(tile);
+    assert.equal(info.width, 320, 'the tile is designed to repeat every 320 px');
+    assert.equal(info.height, 320);
+    assert.ok(info.hasAlpha, 'the paper tile is an alpha-only grain');
+  });
+});

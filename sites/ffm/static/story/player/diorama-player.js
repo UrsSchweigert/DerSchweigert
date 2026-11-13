@@ -177,6 +177,22 @@ function loadImage(src) {
 }
 
 /**
+ * Hides a lighting overlay that is not contributing any pixels.
+ *
+ * Every blend-mode overlay spans the whole stage, so the compositor keeps a
+ * full-stage surface for it whether or not it is visible: on a high-density
+ * phone the flash and the dim alone are several megapixels of texture for a
+ * few seconds of use. `visibility` is written only when it changes, so a fade
+ * in progress keeps its per-frame opacity updates to itself.
+ */
+function hideIdleOverlay(node) {
+  const idle = !(Number.parseFloat(node.style.opacity) > 0);
+  if (idle === (node.dataset.idle === '1')) return;
+  node.dataset.idle = idle ? '1' : '0';
+  node.style.visibility = idle ? 'hidden' : 'visible';
+}
+
+/**
  * @param {object} options
  * @param {HTMLElement} options.container element the full-screen player is appended to
  * @param {object} options.scene parsed scene.json
@@ -320,6 +336,11 @@ export function createDioramaPlayer({
       target.style.background = ev.color;
       target.style.opacity = String((ev.intensity ?? (ev.type === 'flash' ? 1 : 0.6)) * strength);
     }
+    // A transparent full-stage blend layer still costs a compositor surface,
+    // and these two are idle for all but a few seconds of a scene. Hide them
+    // outright unless an event is playing (see hideIdleOverlay).
+    hideIdleOverlay(flash);
+    hideIdleOverlay(dim);
     const cue = cueAt(cues, t);
     if (cue !== shownCue) {
       shownCue = cue;
