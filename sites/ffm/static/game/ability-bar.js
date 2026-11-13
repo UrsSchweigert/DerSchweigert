@@ -17,7 +17,7 @@ import {
   SPIKE_SLOW_DEFAULTS,
 } from './cooldown-abilities.js';
 import { BONUS_CAPS } from './bonus-ladder.js';
-import { abilityIconUrl } from './asset-preload.js';
+import { abilityIconUrl, abilityOrnamentUrl } from './asset-preload.js';
 
 export const ABILITY_BAR_ID = 'ability-bar';
 export const ABILITY_SLOT_CLASS = 'ability-slot';
@@ -160,9 +160,10 @@ export function deriveAbilityReadouts({ runtime, bonus, spikeTargetsLeft } = {})
  * @param {Document} [options.doc]
  * @param {(key: string, vars?: object) => string} [options.translate]
  * @param {(id: 'wind' | 'storm' | 'earth') => void} [options.onActivate]
- * @returns {{ element: HTMLElement, update: (state?: { level?: number, progress?: number | Record<string, number> | number[] | ((id: string) => number), runtime?: object | null, bonus?: object | null, cooldowns?: Record<string, number> | null, spikeTargetsLeft?: number }) => void, destroy: () => void }}
+ * @param {(id: 'wind' | 'storm' | 'earth', button: HTMLElement) => void} [options.onPress]
+ * @returns {{ element: HTMLElement, buttons: HTMLElement[], ornaments: HTMLElement[], update: (state?: { level?: number, progress?: number | Record<string, number> | number[] | ((id: string) => number), runtime?: object | null, bonus?: object | null, cooldowns?: Record<string, number> | null, spikeTargetsLeft?: number }) => void, destroy: () => void }}
  */
-export function createAbilityBar({ doc = globalThis.document, translate, onActivate } = {}) {
+export function createAbilityBar({ doc = globalThis.document, translate, onActivate, onPress } = {}) {
   const create = doc?.createElement?.bind(doc);
   if (!create) throw new TypeError('createAbilityBar requires a document');
 
@@ -217,7 +218,15 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
     readoutEl.className = ABILITY_READOUT_CLASS;
     readoutEl.setAttribute('aria-hidden', 'true');
 
+    // The ready light lives in its own layer so the CSS can pulse it without
+    // touching the artwork, and the burst shards are appended next to it by
+    // dom-burst.js at press time. Both are decorative.
+    const glowEl = create('span');
+    glowEl.className = 'ability-slot-glow';
+    glowEl.setAttribute('aria-hidden', 'true');
+
     button.appendChild(iconEl);
+    button.appendChild(glowEl);
     button.appendChild(nameEl);
     button.appendChild(descriptionEl);
     button.appendChild(cooldownEl);
@@ -231,6 +240,7 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
       baseCooldownSeconds: ability.baseCooldownSeconds,
       button,
       iconEl,
+      glowEl,
       nameEl,
       descriptionEl,
       cooldownEl,
@@ -250,6 +260,9 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
 
     const activate = () => {
       if (slot.state !== 'ready') return;
+      // The press is reported before the cast so the orb can shatter under the
+      // finger even when the cast itself is refused (no fiend to blow away).
+      if (typeof onPress === 'function') onPress(slot.id, button);
       if (typeof onActivate === 'function') onActivate(slot.id);
     };
     slot.onClick = () => activate();
@@ -274,6 +287,20 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
       if (slot.state !== 'locked') button.dataset.icon = 'error';
     });
     return slot;
+  });
+
+  // The dragon brackets. They are decorative, so they stay out of the
+  // accessibility tree; one sprite is used twice and the stylesheet mirrors the
+  // right one, which keeps the pair symmetrical by construction.
+  const ornaments = ['left', 'right'].map((side) => {
+    const img = create('img');
+    img.className = `ability-ornament ability-ornament--${side}`;
+    img.setAttribute('alt', '');
+    img.setAttribute('aria-hidden', 'true');
+    img.setAttribute('decoding', 'async');
+    img.src = abilityOrnamentUrl();
+    element.appendChild(img);
+    return img;
   });
 
   for (const slot of slots) element.appendChild(slot.button);
@@ -414,5 +441,7 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
   }
 
   update({ level: 1, progress: 1 });
-  return { element, update, destroy };
+  // `buttons` is the three slot buttons in roster order, next to the two
+  // decorative ornaments inside the bar element.
+  return { element, buttons: slots.map((slot) => slot.button), ornaments, update, destroy };
 }

@@ -995,6 +995,42 @@ export class AudioEngine {
   }
 
   /**
+   * The glass orb being struck: the click of a spell button, not the spell.
+   *
+   * A shatter is a noise crack plus a shower of inharmonic high partials, all
+   * decaying much faster than a musical tone; the low body under it is the
+   * knuckle-on-glass thud. The partials are deliberately unrelated to each other
+   * (no fifth, no octave) because that is what makes glass read as glass and a
+   * chime read as a chime.
+   *
+   * @returns {boolean} whether the cue played.
+   */
+  playAbilityPress() {
+    this._ensureCtx();
+    if (this._muted) return false;
+    const t = this._ctx.currentTime;
+    // The crack: a very short bright noise burst, then a second one a hair
+    // later so the shards keep tinkling as they fall.
+    this._playNoiseBurst(0.09, t, 0.34, 5200, 'highpass');
+    this._playNoiseBurst(0.22, t + 0.045, 0.16, 7600, 'bandpass', 4200, 3);
+    // The shards: unrelated high partials, each shorter than the last.
+    const shards = [
+      [3120, 0.13, 0.09],
+      [4460, 0.11, 0.075],
+      [5870, 0.09, 0.06],
+      [7340, 0.08, 0.05],
+      [2610, 0.15, 0.05],
+    ];
+    shards.forEach(([freq, duration, gain], i) => {
+      this._playTone(freq, 'triangle', duration, t + i * 0.012, gain);
+    });
+    // The body of the ball: a short dull thud so the burst has weight.
+    this._playSweep(320, 120, 'sine', 0.12, t, 0.22);
+    this._playTone(196, 'sine', 0.16, t + 0.01, 0.1);
+    return true;
+  }
+
+  /**
    * One-shot cue for a successful ability cast. Each ability keeps its own
    * texture so the three buttons are tellable apart with the screen hidden:
    * wind is an airy rising whoosh, storm a crackling electric snap and earth a

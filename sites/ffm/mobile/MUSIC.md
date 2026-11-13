@@ -183,6 +183,19 @@ prompts, model and licence terms are recorded in `THIRD-PARTY-LICENSES.md`; the
 next round of particle-effect sounds is proposed in
 [`SOUND-PROPOSAL.md`](SOUND-PROPOSAL.md).
 
+Two cues in the ability HUD are synthesized only; there is no sample family to
+replace, because they are mixed from waveforms rather than recorded:
+
+| Method | Fires on | Recipe |
+| --- | --- | --- |
+| `playAbilityPress()` | pressing a *ready* orb, before the cast is attempted | glass: two highpass/bandpass noise cracks plus five inharmonic partials between 2.6 and 7.3 kHz, each 0.05–0.15 s, over a 0.12 s sine drop for the body of the ball |
+| `playAbilityCast(id)` | a successful wind, storm or earth cast | wind: bandpass noise sweeping up plus a triangle sweep; storm: high bandpass snap into a thunder rumble; earth: deep sine drop under a low-passed rumble |
+
+The press cue is deliberately separate from the cast cue: the orb cracks under
+the finger, and the spell answers a moment later, so a refused cast (no fiend to
+blow away) still acknowledges the touch. Both are muted with everything else and
+build no nodes while muted.
+
 `setEffectsVolume(number)` and `setMusicVolume(number)` clamp finite numbers to
 0–1 and return the resulting value. Non-numeric/NaN/infinite inputs throw
 `TypeError`. Read values with `effectsVolume`/`musicVolume` or

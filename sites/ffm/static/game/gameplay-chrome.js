@@ -1,6 +1,6 @@
 // Lifecycle owners call setVisible on screen changes and update(state, activeProblem)
 // with paused/reveal flags. Queued fiends never belong in this live question.
-export function createGameplayChrome({ doc = globalThis.document, translate } = {}) {
+export function createGameplayChrome({ doc = globalThis.document, translate, onScoreGain } = {}) {
   const element = id => doc?.getElementById(id);
   const chrome = element('gameplay-chrome');
   let shapesHeader = null;
@@ -222,7 +222,19 @@ export function createGameplayChrome({ doc = globalThis.document, translate } = 
     }
     text('accessible-hearts', `${state.hearts ?? 0}/${state.maxHearts ?? 0}`);
     text('accessible-combo', state.combo ?? 0);
-    text('accessible-score', state.score ?? 0);
+    // Read the score before writing it: the difference is what the player just
+    // earned, and the confetti on the readout is the receipt for it. Shapes mode
+    // is unscored, so it never sparkles.
+    const scoreEl = element('accessible-score');
+    const shownScore = scoreEl?.textContent ?? '';
+    const previousScore = shownScore === '' ? null : Number(shownScore);
+    const nextScore = state.score ?? 0;
+    text('accessible-score', nextScore);
+    const gained = previousScore !== null && Number.isFinite(previousScore)
+      ? nextScore - previousScore : 0;
+    if (gained > 0 && !state.isShapesMode && typeof onScoreGain === 'function') {
+      onScoreGain({ gained, score: nextScore, element: element('accessible-score-wrap') });
+    }
     text('accessible-timer', active && state.timerActive ? `${Math.ceil(Math.max(0, state.timerRemaining || 0))}s` : '—');
     const timer = element('accessible-timer-progress');
     if (timer) {

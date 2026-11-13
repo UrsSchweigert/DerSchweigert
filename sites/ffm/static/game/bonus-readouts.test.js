@@ -69,7 +69,7 @@ function mount({ translate } = {}) {
   return createAbilityBar({ doc, translate });
 }
 
-const slotOf = (bar, id) => bar.element.children.find((slot) => slot.dataset.ability === id);
+const slotOf = (bar, id) => bar.buttons.find((slot) => slot.dataset.ability === id);
 const childByClass = (slot, className) => slot.children.find((child) => child.className === className);
 const cooldownOf = (bar, id) => childByClass(slotOf(bar, id), 'ability-slot-cooldown').textContent;
 const readoutOf = (bar, id) => childByClass(slotOf(bar, id), ABILITY_READOUT_CLASS).textContent;
@@ -318,7 +318,7 @@ describe('layout and purity', () => {
     setLocale('en');
     render(bar, 60);
 
-    for (const slot of bar.element.children) {
+    for (const slot of bar.buttons) {
       const readouts = slot.children.filter((child) => child.className === ABILITY_READOUT_CLASS);
       assert.equal(readouts.length, 1, `${slot.dataset.ability} has one readout`);
       assert.equal(readouts[0].getAttribute('aria-hidden'), 'true');

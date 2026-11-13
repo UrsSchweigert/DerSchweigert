@@ -445,3 +445,17 @@ ability bar draws them. No text, no frame.
 | `assets/ability-wind.webp` | image_generation tool (model not reported by tool) | none — style derived from `static/game/stage-1.webp` | 2026-11-12 |
 | `assets/ability-storm.webp` | image_generation tool (model not reported by tool) | none — style derived from `static/game/stage-1.webp` | 2026-11-12 |
 | `assets/ability-earth.webp` | image_generation tool (model not reported by tool) | none — style derived from `static/game/stage-1.webp` | 2026-11-12 |
+
+## game/assets/ — ability ornament (2026-11-13)
+
+One 97×222 transparent dragon bracket that frames the orb row; the stylesheet
+mirrors it for the right side, so the pair is symmetrical by construction and
+the bundle carries a single file. Drawn as a brass-and-gold heraldic dragon on
+black, then black-keyed to alpha (soft ramp 8–44 luma, binarised at the end so
+no black fringe survives), cropped to the alpha bounding box, LANCZOS to 222 px
+tall, median-cut to 20 colours, alpha binarised at 96, and saved lossless WebP
+(5.8 KB). It still reads as a dragon at the 52×74 px the portrait bar draws it.
+
+| File | Model | Reference images passed in | Date |
+| --- | --- | --- | --- |
+| `assets/ability-ornament.webp` | image_generation tool (model not reported by tool) | none — style derived from the ability icons and `static/game/stage-1.webp` | 2026-11-13 |
