@@ -114,19 +114,27 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
   // which yanked the whole playfield upwards the instant the HUD was hidden
   // behind the level-clear, pause or game-over overlay.
   let everShown = false;
+  // The frame loop calls setVisible() on every frame with the value it already
+  // set, and each of the three writes below cost a style recalculation — one
+  // per frame for the whole header. The teardown at the end still runs every
+  // call: its own writers compare before touching the DOM, so it stays cheap.
+  let shown = null;
 
   function setVisible(visible) {
     if (!chrome) return;
     if (visible) everShown = true;
-    if (everShown) {
-      chrome.hidden = false;
-      const style = chrome.style || (chrome.style = {});
-      style.visibility = visible ? '' : 'hidden';
-      style.pointerEvents = visible ? '' : 'none';
-      if (visible) chrome.removeAttribute?.('aria-hidden');
-      else chrome.setAttribute?.('aria-hidden', 'true');
-    } else {
-      chrome.hidden = true;
+    if (visible !== shown) {
+      shown = visible;
+      if (everShown) {
+        chrome.hidden = false;
+        const style = chrome.style || (chrome.style = {});
+        style.visibility = visible ? '' : 'hidden';
+        style.pointerEvents = visible ? '' : 'none';
+        if (visible) chrome.removeAttribute?.('aria-hidden');
+        else chrome.setAttribute?.('aria-hidden', 'true');
+      } else {
+        chrome.hidden = true;
+      }
     }
     if (!visible) {
       shapesHeader?.clear?.();
@@ -240,11 +248,17 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
     if (timer) {
       const value = active && state.timerActive && state.timerMax > 0
         ? Math.max(0, Math.min(1, state.timerRemaining / state.timerMax)) : 0;
-      if (timer.value !== value) timer.value = value;
+      // Stepped to 1%: the announced text beside it already steps once a
+      // second, so a 60 Hz value only churned style on every frame.
+      const stepped = Math.round(value * 100) / 100;
+      if (timer.value !== stepped) timer.value = stepped;
     }
     for (const id of ['accessible-combo-wrap', 'accessible-score-wrap']) {
       const el = element(id);
-      if (el) el.hidden = !!state.isShapesMode;
+      if (el) {
+        const hide = !!state.isShapesMode;
+        if (el.hidden !== hide) el.hidden = hide;
+      }
     }
     const pause = element('btn-pause-game');
     if (pause) pause.disabled = !!state.paused;

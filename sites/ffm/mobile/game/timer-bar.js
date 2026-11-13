@@ -105,7 +105,10 @@ export function createTimerBar({ doc = globalThis.document, containerId = 'gamep
     if (element.getAttribute(TIMER_STATE_ATTRIBUTE) !== stateName) {
       element.setAttribute(TIMER_STATE_ATTRIBUTE, stateName);
     }
-    fill.style.width = `${(resolved.ratio * 100).toFixed(1)}%`;
+    // scaleX, not width: the loop publishes a fresh ratio every frame, so a
+    // width write put the bar on the layout path 60 times a second and a width
+    // transition could never settle. A transform is composited instead.
+    fill.style.transform = `scaleX(${Math.round(resolved.ratio * 1000) / 1000})`;
     fill.style.backgroundColor = resolved.untimed
       ? TIMER_UNTIMED_COLOR
       : timerBarColor(resolved.ratio);

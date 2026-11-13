@@ -116,7 +116,7 @@ export function createSpeedrunUi({ doc = globalThis.document, translate, records
 
   function hideClock() {
     if (!clockWrap) return;
-    clockWrap.hidden = true;
+    if (clockWrap.hidden !== true) clockWrap.hidden = true;
     lastClockText = null;
   }
 
@@ -153,7 +153,7 @@ export function createSpeedrunUi({ doc = globalThis.document, translate, records
         hideClock();
         return;
       }
-      clockWrap.hidden = false;
+      if (clockWrap.hidden !== false) clockWrap.hidden = false;
       if (!clock) return;
       const text = formatRunClock(run.runMs);
       if (text === lastClockText) return;

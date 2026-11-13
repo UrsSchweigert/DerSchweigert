@@ -183,3 +183,93 @@ test('groundY ignores overrides outside the drawable band', () => {
   renderer.setBackgroundByLevel(7);
   assert.equal(renderer.groundY, 320);
 });
+
+// --- background downscale cache ----------------------------------------------
+
+function recordingContext() {
+  const calls = [];
+  return {
+    calls,
+    set fillStyle(value) { calls.push(['fillStyle', value]); },
+    fillRect: (...args) => calls.push(['fillRect', ...args]),
+    drawImage: (...args) => calls.push(['drawImage', ...args]),
+  };
+}
+
+function makeDrawableRenderer() {
+  FakeImage.instances = [];
+  const ctx = recordingContext();
+  const renderer = new Renderer({ getContext: () => ctx, parentElement: null }, manifestFor(3, 4));
+  const [background] = FakeImage.instances;
+  return { renderer, background, ctx };
+}
+
+test('the level art is downscaled once and blitted from the cache', () => {
+  const created = [];
+  globalThis.document = {
+    createElement() {
+      const cache = recordingContext();
+      const element = { width: 0, height: 0, getContext: () => cache };
+      created.push({ element, cache });
+      return element;
+    },
+  };
+  try {
+    const { renderer, background, ctx } = makeDrawableRenderer();
+    renderer.setBackgroundByLevel(3);
+    background.emit('load');
+
+    renderer.drawBackground(0);
+    assert.equal(created.length, 1, 'one cache is built');
+    assert.equal(created[0].element.width, 800);
+    assert.equal(created[0].element.height, 450);
+    const built = created[0].cache.calls.filter((call) => call[0] === 'drawImage');
+    assert.equal(built.length, 1, 'the 1536px art is scaled exactly once');
+
+    const before = ctx.calls.length;
+    renderer.drawBackground(0);
+    renderer.drawBackground(0);
+    const blits = ctx.calls.slice(before).filter((call) => call[0] === 'drawImage');
+    assert.equal(blits.length, 2, 'one blit per frame; no wrapped copy at scrollX 0');
+    assert.equal(blits[0][1], created[0].element, 'the blit comes from the cache, not the large art');
+    assert.equal(created.length, 1, 'and the cache is not rebuilt');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('a new level drops the cached downscale', () => {
+  const created = [];
+  globalThis.document = {
+    createElement() {
+      const cache = recordingContext();
+      created.push(cache);
+      return { width: 0, height: 0, getContext: () => cache };
+    },
+  };
+  try {
+    const { renderer, background } = makeDrawableRenderer();
+    renderer.setBackgroundByLevel(3);
+    background.emit('load');
+    renderer.drawBackground(0);
+    assert.equal(created.length, 1);
+
+    // A chapter change re-points the same Image object at a new src.
+    renderer.setBackgroundByLevel(4);
+    background.emit('load');
+    renderer.drawBackground(0);
+    assert.equal(created.length, 2, 'the cache built from the old art is not reused');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('without a DOM canvas the art is still drawn directly', () => {
+  const { renderer, background, ctx } = makeDrawableRenderer();
+  renderer.setBackgroundByLevel(3);
+  background.emit('load');
+  renderer.drawBackground(0);
+  const draws = ctx.calls.filter((call) => call[0] === 'drawImage');
+  assert.equal(draws.length, 2, 'the two-copy fallback is unchanged');
+  assert.equal(draws[0][1], background, 'drawn straight from the image');
+});

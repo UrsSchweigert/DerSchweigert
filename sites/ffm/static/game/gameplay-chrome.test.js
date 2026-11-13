@@ -274,3 +274,43 @@ test('the HUD stays display-none before it is ever shown', () => {
   assert.equal(elements['gameplay-chrome'].hidden, true);
   assert.equal(elements['gameplay-chrome'].style.visibility, undefined);
 });
+
+test('setVisible touches the chrome once per change, not once per frame', () => {
+  // The frame loop calls this on every frame; three DOM writes each time were
+  // costing a style recalculation per frame for the whole header.
+  const { chrome, elements } = fixture();
+  const panel = elements['gameplay-chrome'];
+  let styleWrites = 0;
+  let ariaWrites = 0;
+  for (const property of ['visibility', 'pointerEvents']) {
+    let value = '';
+    Object.defineProperty(panel.style, property, {
+      configurable: true,
+      get: () => value,
+      set: (next) => { styleWrites++; value = next; },
+    });
+  }
+  panel.setAttribute = (name, next) => {
+    ariaWrites++;
+    panel.attrs = { ...(panel.attrs || {}), [name]: String(next) };
+  };
+  panel.removeAttribute = (name) => {
+    ariaWrites++;
+    if (panel.attrs) delete panel.attrs[name];
+  };
+
+  chrome.setVisible(true);
+  assert.equal(styleWrites, 2, 'the first call applies both style properties');
+  assert.equal(panel.hidden, false);
+
+  const settled = styleWrites;
+  const settledAria = ariaWrites;
+  for (let frame = 0; frame < 60; frame++) chrome.setVisible(true);
+  assert.equal(styleWrites, settled, 'sixty repeat frames must not touch style');
+  assert.equal(ariaWrites, settledAria, 'and must not toggle aria-hidden');
+
+  chrome.setVisible(false);
+  assert.equal(styleWrites, settled + 2, 'a real change still applies');
+  assert.equal(panel.style.visibility, 'hidden');
+  assert.equal(panel.getAttribute('aria-hidden'), 'true');
+});

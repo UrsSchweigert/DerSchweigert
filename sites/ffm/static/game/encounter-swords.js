@@ -85,7 +85,10 @@ export function createEncounterSwords({
   function updateEncounterProgress(progress = {}) {
     if (!element) return null;
     const resolved = resolveSwords(progress);
-    element.hidden = resolved.swords === 0;
+    // The loop calls this on every frame: re-assigning the same hidden value
+    // invalidated style each time.
+    const hide = resolved.swords === 0;
+    if (element.hidden !== hide) element.hidden = hide;
     // A length change is a new level or a storm shrinking the row, not a kill:
     // it must not glint as if a sword had been earned.
     let countChanged = false;
