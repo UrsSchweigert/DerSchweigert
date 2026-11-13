@@ -434,8 +434,17 @@ test('all six act dioramas are shown with their real titles', () => {
   assert.match(frame, /height="1080"/);
   assert.match(frame, /loading="lazy"/);
   assert.match(frame, /decoding="async"/);
-  // The filmstrip stays a focusable, announced scroll region.
-  assert.match(html, /<div class="filmstrip" data-filmstrip tabindex="0" role="region"/);
+  // The acts loop in a focusable, announced and pannable scroll region.
+  assert.match(html, /<div class="act-band-viewport" data-pannable-band tabindex="0" role="region"/);
+  assert.equal((html.match(/<figure class="frame">/g) || []).length, 6,
+    'one primary frame per act');
+  assert.equal((html.match(/<figure class="frame frame-clone">/g) || []).length, 6,
+    'the loop needs a duplicated, aria-hidden set');
+  assert.match(html, /<div class="act-band-set" aria-hidden="true">/);
+  assert.match(css, /\.act-band-viewport \{[\s\S]*?overflow-x: auto/);
+  assert.match(css, /flex: 0 0 clamp\(300px, 43vw, 570px\)/, 'the acts are 30 % larger than the old filmstrip');
+  assert.match(js, /function initPannableBands/);
+  assert.match(js, /data-pannable-band/);
 });
 
 test('three action stills replace the sprite demo', () => {

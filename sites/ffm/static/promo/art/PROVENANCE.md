@@ -31,7 +31,7 @@ real 8-bit channel (values only 0 and 255), all four corners transparent.
 
 ## acts/
 
-Six act stills for the promo page's "six acts" strip. **No generated model was
+Six act stills for the promo page's pannable, self-advancing "six acts" ribbon. **No generated model was
 involved**: each one is a deterministic PIL composite of the diorama layers
 already committed under `sites/ffm/static/story/scenes/act-<n>/`, placed exactly
 the way `story/player/diorama-player.js` places them.
