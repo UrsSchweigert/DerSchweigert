@@ -218,10 +218,16 @@ function fiendPortal(api, payload) {
   api.oval(x, mouthY, '#ffb0a0', PORTAL_MOUTH_RX * 0.84, PORTAL_MOUTH_RY * 0.84, PORTAL_MOUTH_RX * 0.84, PORTAL_MOUTH_RY * 0.84, PORTAL_HOLD_SECONDS * 0.85, 1.6);
   api.schedule(PORTAL_OPEN_SECONDS * 0.5, () => {
     // The flash is what sells "it came through"; the glow alone reads as a lamp.
-    api.flash(x, mouthY, '#ffd9cf', 40, 0.16, 0.8);
-    api.ring(x, mouthY, '#ff6a4d', 6, 62, 0.38, 2.5);
-    api.oval(x, y, '#ff6a4d', 10, 3, 80, 16, 0.5, 2);
-    api.shake(1.4, 0.16);
+    // The thump is local on purpose: a shake here moved the whole playfield on
+    // every single spawn, and because the canvas is pixel art the 1.5% scale
+    // that hides the shake's edge gaps also re-gridded every sprite for those
+    // frames, which read as the scene boiling. A ground shockwave carries the
+    // same weight without touching the camera.
+    api.flash(x, mouthY, '#ffd9cf', 52, 0.18, 0.85);
+    api.ring(x, mouthY, '#ff6a4d', 6, 74, 0.4, 3);
+    api.ring(x, y, '#ff2418', 12, 110, 0.46, 3.5);
+    api.oval(x, y, '#ff6a4d', 10, 3, 96, 18, 0.55, 2.5);
+    api.oval(x, y, '#ffb0a0', 8, 2, 70, 12, 0.4, 1.5);
   });
   // 3. the particle filter: embers climbing out of the door, sparks off the rim,
   // motes on the pool, smoke, and shards as the opening finishes.
