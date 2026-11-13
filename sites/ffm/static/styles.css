@@ -1,6 +1,10 @@
 html {
   height: 100%;
   overflow: hidden;
+  /* No double-tap zoom: a second tap on plain text (the title's intro line included — three quick taps
+     there open the speedrun card) would zoom the mobile visual viewport out of the game's fixed layout.
+     `manipulation` keeps panning and pinch zoom, which is the accessibility-relevant half. */
+  touch-action: manipulation;
 }
 
 body {
