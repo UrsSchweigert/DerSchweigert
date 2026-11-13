@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import {
   ABILITY_ROSTER,
   FIEND_SPEED_FLOOR,
+  MIN_COOLDOWN_SECONDS,
   SPIKE_SLOW_CAPS,
   SPIKE_SLOW_DEFAULTS,
   applySpikeSlow,
@@ -287,6 +288,79 @@ describe('passive fiend-speed modifier', () => {
       FIEND_SPEED_FLOOR,
       'floor',
     );
+  });
+});
+
+describe('earned bonus updates', () => {
+  it('activate and progress use the reduced cooldown', () => {
+    const runtime = createAbilityRuntime({ level: 20, cooldownReductions: { wind: 30 } });
+    assert.equal(runtime.cooldownSeconds('wind'), 150);
+    assert.equal(runtime.cooldownSeconds('storm'), 180, 'abilities without a bonus keep the base');
+
+    runtime.activate('wind');
+    assert.equal(runtime.progress('wind'), 0);
+    runtime.tick(75, { encounterRunning: true });
+    closeTo(runtime.progress('wind'), 0.5, 'half of the reduced cooldown');
+    runtime.tick(75, { encounterRunning: true });
+    assert.equal(runtime.progress('wind'), 1);
+  });
+
+  it('floors every cooldown at MIN_COOLDOWN_SECONDS', () => {
+    assert.equal(MIN_COOLDOWN_SECONDS, 90);
+    const runtime = createAbilityRuntime({ level: 60, cooldownReductions: { wind: 500 } });
+    assert.equal(runtime.cooldownSeconds('wind'), MIN_COOLDOWN_SECONDS);
+  });
+
+  it('rejects bad cooldown reductions', () => {
+    assert.throws(
+      () => createAbilityRuntime({ level: 1, cooldownReductions: { wind: -1 } }),
+      TypeError,
+    );
+    assert.throws(
+      () => createAbilityRuntime({ level: 1, cooldownReductions: { storm: NaN } }),
+      TypeError,
+    );
+  });
+
+  it('setBonuses updates rank, slow, spike and reductions without resetting cooldowns', () => {
+    const runtime = createAbilityRuntime({ level: 11 });
+    runtime.activate('wind');
+    runtime.tick(90, { encounterRunning: true });
+    assert.equal(runtime.rank, 0);
+
+    runtime.setBonuses({
+      rank: 3,
+      slowBonuses: 2,
+      cooldownReductions: { wind: 30 },
+      spikeSlow: { targets: 3 },
+    });
+
+    assert.equal(runtime.rank, 3);
+    assert.equal(runtime.stormRemovals(10), 4, 'the new rank widens the storm');
+    closeTo(runtime.fiendSpeedMultiplier, 0.9, 'two slow steps');
+    assert.equal(runtime.cooldownSeconds('wind'), 150);
+    closeTo(runtime.progress('wind'), 1 - 90 / 150, 'the same 90 s left on the shorter cooldown');
+
+    runtime.activate('earth');
+    assert.equal(runtime.spikeState.targets, 3, 'the earned spike targets were applied');
+  });
+
+  it('setBonuses clamps a running cooldown that is longer than the new one', () => {
+    const runtime = createAbilityRuntime({ level: 1 });
+    runtime.activate('wind');
+    runtime.setBonuses({ cooldownReductions: { wind: 120 } });
+
+    assert.equal(runtime.cooldownSeconds('wind'), MIN_COOLDOWN_SECONDS, 'floored');
+    assert.equal(runtime.progress('wind'), 0, 'clamped, never negative or instantly ready');
+    runtime.tick(45, { encounterRunning: true });
+    closeTo(runtime.progress('wind'), 0.5);
+  });
+
+  it('setBonuses leaves every omitted field alone', () => {
+    const runtime = createAbilityRuntime({ level: 6, rank: 2, slowBonuses: 1 });
+    runtime.setBonuses({});
+    assert.equal(runtime.rank, 2);
+    closeTo(runtime.fiendSpeedMultiplier, 0.95);
   });
 });
 

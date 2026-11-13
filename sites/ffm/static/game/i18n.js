@@ -462,8 +462,8 @@ const DICTIONARY = {
   },
   'ability.storm.name': { en: 'Storm', de: 'Sturm' },
   'ability.storm.description': {
-    en: 'Clears a capped slice of the enemy wave.',
-    de: 'Räumt einen begrenzten Abschnitt der Gegnerwelle ab.',
+    en: 'Removes enemies from the level.',
+    de: 'Entfernt Gegner aus dem Level.',
   },
   'ability.earth.name': { en: 'Earth', de: 'Erde' },
   'ability.earth.description': {

@@ -1119,6 +1119,31 @@ export class AudioEngine {
   }
 
   /**
+   * The storm taking enemies off the level: one electric snap per removed
+   * enemy over a rolling thunder bed, so a rank-5 cast sounds like a wider
+   * strike than a rank-0 one. `count` is clamped to the storm's documented
+   * 1-6 removals; anything else plays a single snap.
+   * @param {number} [count]
+   * @returns {boolean} whether a cue was played.
+   */
+  playStormRemoval(count = 1) {
+    this._ensureCtx();
+    if (this._muted) return false;
+    const t = this._ctx.currentTime;
+    const hits = Math.max(1, Math.min(6, Math.trunc(Number(count)) || 1));
+    for (let i = 0; i < hits; i += 1) {
+      const at = t + i * 0.055;
+      this._playNoiseBurst(0.1, at, 0.16, 5600 - i * 420, 'bandpass', 1700, 8);
+      this._playSweep(2200 + i * 160, 360, 'square', 0.11, at, 0.08);
+    }
+    // The weather behind the snaps: a low rumble that keeps the chain anchored
+    // to the same thunder as the cast.
+    this._playNoiseBurst(0.4, t, 0.2, 900, 'lowpass');
+    this._playSweep(165, 46, 'sawtooth', 0.34, t + 0.03, 0.2);
+    return true;
+  }
+
+  /**
    * Hold-to-heal charge: one looping bed that starts with the hold, climbs in
    * pitch and level as the charge grows, and stops on release. `progress` is
    * 0..1, or null/0 to stop. Safe to call every frame.

@@ -290,18 +290,22 @@ test('level setup bounds enemy queues and gives every mode the same half-second 
   for (const kind of ['short', 'assisted', 'elite', 'recovery']) {
     const context = setup({ kind, targetProblems: [] });
     assert.equal(context.spawnQueue.length, 10);
+    assert.equal(context.state.levelEnemies, 10, 'the sword row starts with the practice wave');
     assert.equal(context.spawnInterval, 0.5, 'the stage stays empty for half a second');
   }
   const targets = Array.from({ length: 5 }, () => problem());
   const targeted = setup({ kind: 'targeted', targetProblems: targets });
   assert.equal(targeted.spawnQueue.length, targets.length);
   targets.forEach((target, index) => assert.equal(targeted.spawnQueue[index], target));
+  assert.equal(targeted.state.levelEnemies, targets.length);
   assert.equal(targeted.spawnInterval, 0.5);
   const shapes = setup({ kind: 'shapes', targetProblems: [] }, true);
   assert.equal(shapes.spawnQueue.length, 0);
+  assert.equal(shapes.state.levelEnemies, 10, 'a Shapes round is ten questions');
   assert.equal(shapes.spawnInterval, 0.5);
   const campaign = setup(null);
   assert.equal(campaign.spawnQueue.length, 24);
+  assert.equal(campaign.state.levelEnemies, 24, 'the sword row starts with the whole wave');
   assert.equal(campaign.spawnInterval, 0.5, 'campaign pacing matches practice: no dead air');
   assert.equal(generateShapesProblem(1).distractors.length + 1, 4);
 });

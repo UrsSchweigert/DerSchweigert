@@ -49,7 +49,7 @@ import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAbilityBar } from './ability-bar.js';
 import { BONUS_CAPS, applyBonus, bonusForLevel, createBonusRuntime } from './bonus-ladder.js';
-import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow } from './cooldown-abilities.js';
+import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow, SPIKE_SLOW_DEFAULTS } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
 import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
@@ -532,7 +532,8 @@ function createFiend(levelIndex, x) {
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[tier] : undefined;
   const fiend = new FiendClass(x, groundY, hp, palette);
-  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X);
+  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X,
+    typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
   fiend.problem = problem;
   fiend.isElite = practiceElite || isElite;
   fiend.fiendClassId = sampleFiendClassId(cfg.level, spawnIndex);
@@ -558,7 +559,8 @@ function createShapesFiend(x) {
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[0] : undefined;
   const fiend = new FiendClass(x, groundY, 1, palette);
-  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X);
+  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X,
+    typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
   fiend.problem = problem;
   fiend.isElite = false;
   // sampleFiendClassId(level, spawnIndex) is what actually drives the fiend's
@@ -598,6 +600,10 @@ let state = {
   scrollX: 0,
   waveNumber: 1,
   enemiesDefeated: 0,
+  // Enemies the level still holds. Beating one fills a sword and leaves this
+  // alone; a storm takes enemies off the level and shrinks it, so the portrait
+  // sword row loses exactly those swords.
+  levelEnemies: 0,
   fiendsSpawned: 0,
   timerMax: 10,
   timerRemaining: 10,
@@ -2726,11 +2732,13 @@ function handleLevelConfigError(err, levelIndex) {
   updateHUDLogoutVisibility();
 }
 
-// Rebuild the ability bar's bonus inputs from the level ladder. The ladder is a
-// pure function of the level, so replaying it at every level start matches what
-// the player has earned by then. `cooldowns` stays per ability because each
-// cooldown bonus names the ability it shortens, while the runtime keeps the
-// capped totals the storm and earth readouts need.
+// Rebuild the level's earned bonuses from the ladder. The ladder is a pure
+// function of the level, so replaying it at every level start matches what the
+// player has earned by then. The result feeds both sides of the game: the bar
+// readouts and the ability runtime (`beginAbilityRun` / `setBonuses`).
+// `cooldowns` stays per ability because each cooldown bonus names the ability
+// it shortens, while the runtime keeps the capped totals the storm and earth
+// readouts need.
 function bonusReadoutsForLevel(level) {
   const safeLevel = Number.isFinite(level) && level >= 1 ? Math.trunc(level) : 1;
   let runtime = createBonusRuntime({ level: safeLevel });
@@ -2752,15 +2760,29 @@ function bonusReadoutsForLevel(level) {
 // Start a fresh ability run at `level`: every cooldown is cleared. Called
 // whenever a run begins (level select, practice, resume after paywall, retry);
 // level transitions inside a run only call setLevel so cooldowns persist.
-// `rank` is the storm bonus rank collected for this run; each rank widens the
-// storm's removal slice by one without touching any other ability.
-// `spikeSlow` carries the bonus-modified earth-spike parameters; the runtime
-// clamps them to the documented caps.
-function beginAbilityRun(level, rank = 0, spikeSlow = undefined) {
-  const safeLevel = Number.isFinite(level) && level >= 1 ? level : 1;
-  const safeRank = Number.isSafeInteger(rank) && rank >= 0 ? rank : 0;
+// The run inherits every bonus the ladder grants up to `level`, so starting at
+// level n is not a downgrade to level 1: storm rank, the passive fiend slow,
+// the earth-spike targets and the per-ability cooldown reductions all come
+// from the same replay the HUD readouts use. `rank` and `spikeSlow` stay
+// overridable for callers that pin a value (and for the extracted tests).
+function beginAbilityRun(level, rank = undefined, spikeSlow = undefined) {
+  const safeLevel = Number.isFinite(level) && level >= 1 ? Math.trunc(level) : 1;
+  // The `typeof` keeps extracted-function tests running without main.js.
+  const readouts = typeof bonusReadoutsForLevel === 'function'
+    ? bonusReadoutsForLevel(safeLevel)
+    : null;
+  const earned = readouts?.runtime;
+  const safeRank = Number.isSafeInteger(rank) && rank >= 0 ? rank : earned?.stormRank ?? 0;
   if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
-  abilityRuntime = createAbilityRuntime({ level: safeLevel, rank: safeRank, spikeSlow });
+  abilityRuntime = createAbilityRuntime({
+    level: safeLevel,
+    rank: safeRank,
+    slowBonuses: earned?.slowBonuses ?? 0,
+    spikeSlow: spikeSlow ?? {
+      targets: SPIKE_SLOW_DEFAULTS.targets + (earned?.spikeTargets ?? 0),
+    },
+    cooldownReductions: readouts?.cooldowns,
+  });
   return abilityRuntime;
 }
 
@@ -2887,8 +2909,9 @@ function castWindAbility() {
 
 // Storm clears a capped slice of the remaining wave, draining the spawn queue
 // first, then requeued fiends, then the active fiend, so the thing closest to
-// the player survives longest. Each removal counts one defeat and the normal
-// wave-clear check follows.
+// the player survives longest. The removed enemies leave the level: the level's
+// enemy count shrinks instead of the Defeated count growing, so the portrait
+// sword row loses exactly their swords. The normal wave-clear check follows.
 function castStormAbility() {
   const toRemove = abilityRuntime.stormRemovals(remainingEnemyCount());
   let removed = 0;
@@ -2905,13 +2928,32 @@ function castStormAbility() {
     removed++;
   }
   if (removed === 0) return false;
-  state.enemiesDefeated += removed;
+  state.levelEnemies = Math.max(0, state.levelEnemies - removed);
+  playStormRemovalFeedback(removed);
   hud.update(state);
   if (checkAllDefeated()) triggerWaveClear();
   // `inputDisabled` belongs to the encounter flow: a storm cast during a
   // reveal must not re-enable answering mid-sequence.
   else spawnTimer = spawnInterval;
   return true;
+}
+
+// The storm's visible and audible half: one banish burst per enemy it took off
+// the level, spread along the ground from the portal towards the hero, the same
+// number of swords puffing off the portrait row, and one thunder cue for the
+// whole chain. The bursts read as separate hits, so a rank-5 storm looks wider
+// than a rank-0 one instead of repeating one puff.
+function playStormRemovalFeedback(removed) {
+  const bursts = Math.max(0, Math.trunc(removed));
+  const span = Math.max(0, FIEND_PORTAL_X - (HERO_X + 120));
+  const fx = globalThis.ffmScreenFx;
+  for (let i = 0; i < bursts; i += 1) {
+    const t = bursts === 1 ? 0.5 : i / (bursts - 1);
+    fx?.play?.('stormRemoval', { x: FIEND_PORTAL_X - 40 - t * span, y: groundY - 34 });
+  }
+  // `typeof` keeps the extracted-function tests running without main.js.
+  if (typeof encounterSwords !== 'undefined') encounterSwords.shatter?.(bursts);
+  audio.playStormRemoval?.(bursts);
 }
 
 // Earth spikes the ground: the active fiend, if any, is slowed once without
@@ -2956,21 +2998,41 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // A run keeps its cooldowns across levels; the first level of a run creates
   // the runtime (run-start call sites do this earlier, this is the fallback).
   // The `typeof` keeps extracted-function tests running without main.js.
+  //
+  // The earned bonus ladder is rebuilt from the level for the HUD readouts and
+  // applied to the live runtime at every level start, so a run that starts at
+  // level n — or walks into it — plays with every bonus up to that level:
+  // storm rank, passive fiend slow, earth-spike targets and the per-ability
+  // cooldown reductions.
+  let levelBonuses = null;
+  if (typeof bonusReadoutsForLevel === 'function' && typeof levelBonusRuntime !== 'undefined') {
+    levelBonuses = bonusReadoutsForLevel(cfg.level);
+    levelBonusRuntime = levelBonuses.runtime;
+    levelBonusCooldowns = levelBonuses.cooldowns;
+  }
   if (typeof abilityRuntime !== 'undefined') {
     if (abilityRuntime) abilityRuntime.setLevel(cfg.level);
     else beginAbilityRun(cfg.level);
-  }
-  // The bar's readouts are derived from the level's earned bonuses. The
-  // `typeof` keeps extracted-function tests running without main.js.
-  if (typeof bonusReadoutsForLevel === 'function' && typeof levelBonusRuntime !== 'undefined') {
-    const readouts = bonusReadoutsForLevel(cfg.level);
-    levelBonusRuntime = readouts.runtime;
-    levelBonusCooldowns = readouts.cooldowns;
+    if (levelBonuses && abilityRuntime?.setBonuses) {
+      abilityRuntime.setBonuses({
+        rank: levelBonuses.runtime.stormRank,
+        slowBonuses: levelBonuses.runtime.slowBonuses,
+        cooldownReductions: levelBonuses.cooldowns,
+        spikeSlow: { targets: SPIKE_SLOW_DEFAULTS.targets + levelBonuses.runtime.spikeTargets },
+      });
+    }
   }
   // A spike slow never survives a level transition.
   if (typeof clearSpikeSlow === 'function') clearSpikeSlow();
   state.waveNumber = 1;
   state.enemiesDefeated = 0;
+  // The sword row reads this as "how many enemies this level still holds", so
+  // it must match the spawn list filled below and survive storm removals.
+  state.levelEnemies = practiceRun?.kind === 'targeted'
+    ? practiceRun.targetProblems.length
+    : practiceRun
+      ? 10
+      : cfg?.waveSize ?? 0;
   state.fiendsSpawned = 0;
   spawnQueue = [];
   requeuedFiends = [];
@@ -3325,7 +3387,8 @@ function spawnNextFiend() {
   } else if (practiceRun?.kind === 'targeted' && requeuedFiends.length > 0) {
     fiend = requeuedFiends.shift();
     fiend.x = FIEND_PORTAL_X;
-    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X);
+    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X,
+    typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
     fiend.wasRequeued = true;
     fiend.setState('walk');
   } else if (practiceRun?.kind === 'targeted' && spawnQueue.length > 0) {
@@ -3339,7 +3402,8 @@ function spawnNextFiend() {
   } else if (requeuedFiends.length > 0) {
     fiend = requeuedFiends.shift();
     fiend.x = FIEND_PORTAL_X;
-    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X);
+    fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X,
+    typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
     fiend.wasRequeued = true;
     fiend.setState('walk');
   }
@@ -3834,7 +3898,8 @@ function activatePendingProblem() {
     restoreSpikeSlow(fiend);
     if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
   }
-  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x);
+  fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x,
+    typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
   if (wasSpikeSlowed && typeof abilityRuntime !== 'undefined' &&
       abilityRuntime?.spikeState.active &&
       typeof applySpikeSlow === 'function' &&
@@ -4494,9 +4559,13 @@ function gameLoop(ts) {
     ? { defeated: practiceProgress.resolvedProblems, total: 10 }
     : {
       defeated: state.enemiesDefeated,
-      total: practiceRun
-        ? practiceRun.kind === 'targeted' ? practiceRun.targetProblems.length : 10
-        : cfg?.waveSize ?? 0,
+      // The level's own count, shrunk by storm removals, so a cast takes the
+      // removed enemies' swords off the portrait row instead of filling them.
+      total: state.levelEnemies > 0
+        ? state.levelEnemies
+        : practiceRun
+          ? practiceRun.kind === 'targeted' ? practiceRun.targetProblems.length : 10
+          : cfg?.waveSize ?? 0,
     };
   gameplayChrome.update({
     ...state, paused, reveal: inputDisabled || ['reveal', 'retreat', 'death'].includes(activeFiend?.state),

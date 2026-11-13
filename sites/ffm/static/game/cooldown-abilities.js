@@ -40,6 +40,9 @@ export const FIEND_SPEED_FLOOR = 0.7;
 /** Speed the passive modifier removes per slow bonus. */
 export const FIEND_SPEED_STEP = 0.05;
 
+/** Fastest an ability cooldown can be reduced to (180 s base − 90 s cap). */
+export const MIN_COOLDOWN_SECONDS = 90;
+
 const INACTIVE_SPIKE = Object.freeze({
   active: false,
   remainingSeconds: 0,
@@ -66,6 +69,27 @@ function requireAbility(id) {
   const ability = ABILITY_ROSTER.find((entry) => entry.id === id);
   if (!ability) throw new TypeError(`Unknown ability: ${String(id)}`);
   return ability;
+}
+
+/**
+ * Normalise the per-ability cooldown reductions earned on the bonus ladder.
+ * Unknown keys are ignored, every value is clamped to the documented floor
+ * (MIN_COOLDOWN_SECONDS) and a missing map means no reductions.
+ * @param {Record<string, number>} [reductions]
+ * @returns {{ wind: number, storm: number, earth: number }}
+ */
+function normalizeCooldownReductions(reductions = {}) {
+  const normalized = {};
+  const source = reductions ?? {};
+  for (const ability of ABILITY_ROSTER) {
+    const raw = source[ability.id] ?? 0;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0) {
+      throw new TypeError(`cooldownReductions.${ability.id} must be a non-negative number`);
+    }
+    normalized[ability.id] = Math.min(value, ability.baseCooldownSeconds - MIN_COOLDOWN_SECONDS);
+  }
+  return normalized;
 }
 
 /**
@@ -161,18 +185,23 @@ export function fiendSpeedMultiplier(slowBonuses = 0) {
  * @param {{ durationSeconds?: number, factor?: number, targets?: number }} [options.spikeSlow]
  *   earth-spike slow parameters, clamped to SPIKE_SLOW_CAPS. Defaults to
  *   SPIKE_SLOW_DEFAULTS.
+ * @param {{ wind?: number, storm?: number, earth?: number }} [options.cooldownReductions]
+ *   seconds removed from each ability's 180 s base cooldown, clamped so no
+ *   cooldown drops below MIN_COOLDOWN_SECONDS. Defaults to none.
  */
 export function createAbilityRuntime({
   level,
   rank = 0,
   slowBonuses = 0,
   spikeSlow = SPIKE_SLOW_DEFAULTS,
+  cooldownReductions = {},
 } = {}) {
   let currentLevel = requireFinite(level, 'level');
   if (currentLevel < 1) throw new TypeError('level must be at least 1');
-  const stormRank = requireCount(rank, 'rank');
-  const passiveSlow = requireCount(slowBonuses, 'slowBonuses');
-  const spikeConfig = clampSpikeSlow(spikeSlow);
+  let stormRank = requireCount(rank, 'rank');
+  let passiveSlow = requireCount(slowBonuses, 'slowBonuses');
+  let spikeConfig = clampSpikeSlow(spikeSlow);
+  let reductions = normalizeCooldownReductions(cooldownReductions);
 
   const remaining = new Map(ABILITY_ROSTER.map((ability) => [ability.id, 0]));
   let spike = { ...INACTIVE_SPIKE };
@@ -186,12 +215,21 @@ export function createAbilityRuntime({
     spike = { ...INACTIVE_SPIKE };
   };
 
+  const effectiveCooldown = (ability) => Math.max(
+    MIN_COOLDOWN_SECONDS,
+    ability.baseCooldownSeconds - (reductions[ability.id] ?? 0),
+  );
+
   return {
     get level() {
       return currentLevel;
     },
-    rank: stormRank,
-    fiendSpeedMultiplier: fiendSpeedMultiplier(passiveSlow),
+    get rank() {
+      return stormRank;
+    },
+    get fiendSpeedMultiplier() {
+      return fiendSpeedMultiplier(passiveSlow);
+    },
 
     /**
      * Move the runtime to another player level. Unlocks refresh immediately;
@@ -205,6 +243,41 @@ export function createAbilityRuntime({
       if (value < 1) throw new TypeError('level must be at least 1');
       currentLevel = value;
       return currentLevel;
+    },
+
+    /**
+     * Replace the bonus payload the model applies to future casts: storm rank,
+     * the passive slow steps, the earth-spike parameters and the per-ability
+     * cooldown reductions. A running cooldown is clamped down to its new
+     * effective length, so a freshly earned reduction also shortens the tick
+     * that is already running. Omitted fields keep their current value.
+     * @param {object} [bonuses]
+     * @param {number} [bonuses.rank]
+     * @param {number} [bonuses.slowBonuses]
+     * @param {{ durationSeconds?: number, factor?: number, targets?: number }} [bonuses.spikeSlow]
+     * @param {{ wind?: number, storm?: number, earth?: number }} [bonuses.cooldownReductions]
+     */
+    setBonuses({ rank, slowBonuses, spikeSlow, cooldownReductions } = {}) {
+      if (rank !== undefined) stormRank = requireCount(rank, 'rank');
+      if (slowBonuses !== undefined) passiveSlow = requireCount(slowBonuses, 'slowBonuses');
+      if (spikeSlow !== undefined) spikeConfig = clampSpikeSlow(spikeSlow);
+      if (cooldownReductions !== undefined) {
+        reductions = normalizeCooldownReductions(cooldownReductions);
+        for (const ability of ABILITY_ROSTER) {
+          const left = remaining.get(ability.id);
+          if (left > 0) remaining.set(ability.id, Math.min(left, effectiveCooldown(ability)));
+        }
+      }
+    },
+
+    /**
+     * Effective cooldown after the earned reductions: the base minus this
+     * ability's share, floored at MIN_COOLDOWN_SECONDS.
+     * @param {'wind' | 'storm' | 'earth'} id
+     * @returns {number} cooldown in seconds.
+     */
+    cooldownSeconds(id) {
+      return effectiveCooldown(requireAbility(id));
     },
 
     /**
@@ -251,7 +324,7 @@ export function createAbilityRuntime({
       const ability = requireAbility(id);
       if (currentLevel < ability.unlockLevel) return false;
 
-      remaining.set(id, ability.baseCooldownSeconds);
+      remaining.set(id, effectiveCooldown(ability));
       if (id === 'earth') {
         spike = {
           active: true,
@@ -274,7 +347,7 @@ export function createAbilityRuntime({
       const ability = requireAbility(id);
       if (currentLevel < ability.unlockLevel) return 0;
       const left = remaining.get(id);
-      return Math.min(1, Math.max(0, 1 - left / ability.baseCooldownSeconds));
+      return Math.min(1, Math.max(0, 1 - left / effectiveCooldown(ability)));
     },
 
     /**

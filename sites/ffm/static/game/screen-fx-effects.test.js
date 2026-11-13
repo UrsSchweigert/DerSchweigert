@@ -122,7 +122,7 @@ function layerCtx(canvases) {
 }
 
 test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a function', () => {
-  assert.equal(EFFECT_NAMES.length, 17);
+  assert.equal(EFFECT_NAMES.length, 19);
   const table = createEffectTable();
   // The five granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.

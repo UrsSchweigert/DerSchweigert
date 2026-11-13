@@ -11,6 +11,7 @@ import {
   ABILITY_ROSTER,
   FIEND_SPEED_FLOOR,
   FIEND_SPEED_STEP,
+  MIN_COOLDOWN_SECONDS,
   SPIKE_SLOW_CAPS,
 } from './cooldown-abilities.js';
 
@@ -38,7 +39,7 @@ export const BONUS_VALUES = Object.freeze({
  * MAX_SLOW_BONUSES.
  */
 export const BONUS_CAPS = Object.freeze({
-  cooldownSeconds: 90,
+  cooldownSeconds: MIN_COOLDOWN_SECONDS,
   stormRank: 5,
   spikeTargets: SPIKE_SLOW_CAPS.targets,
 });

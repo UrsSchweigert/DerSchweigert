@@ -10,8 +10,14 @@
 // display:none outside portrait, so landscape and the app bundle's portrait
 // layout decide visibility; see .app-encounter-swords in styles.css.
 //
+// `total` is what the level still holds: a storm that removes enemies from the
+// level shrinks it, so those swords leave the row. The caller may fire
+// `shatter(count)` on the cast to puff the departing swords off before the next
+// update removes them.
+//
 //   const widget = createEncounterSwords({ doc: document });
 //   widget.updateEncounterProgress({ defeated, total });
+//   widget.shatter(3);
 //
 // The module owns no clock and only touches the DOM when the count changes.
 
@@ -80,6 +86,9 @@ export function createEncounterSwords({
     if (!element) return null;
     const resolved = resolveSwords(progress);
     element.hidden = resolved.swords === 0;
+    // A length change is a new level or a storm shrinking the row, not a kill:
+    // it must not glint as if a sword had been earned.
+    let countChanged = false;
     if (swords.length !== resolved.swords) {
       while (swords.length > resolved.swords) swords.pop().remove?.();
       while (swords.length < resolved.swords) {
@@ -89,9 +98,12 @@ export function createEncounterSwords({
         element.appendChild(sword);
       }
       filledCount = -1;
+      countChanged = true;
     }
     if (filledCount !== resolved.filled) {
-      const gained = resolved.filled > filledCount ? resolved.filled - filledCount : 0;
+      const gained = !countChanged && resolved.filled > filledCount
+        ? resolved.filled - filledCount
+        : 0;
       swords.forEach((sword, index) => {
         sword.classList?.toggle?.(SWORD_FILLED_CLASS, index < resolved.filled);
       });
@@ -105,17 +117,34 @@ export function createEncounterSwords({
   // so it is reached through the same global handle the rest of the game uses;
   // on a page without it this is simply a no-op.
   function glint(sword) {
+    playAtSword(sword, 'swordGain');
+  }
+
+  // The storm's receipt on the row: the rightmost `count` swords are about to
+  // be taken off the level, so puff them out at their own positions before the
+  // next update() removes the nodes. A hidden row (landscape) reports a 0x0
+  // rect and stays silent, exactly like the glint.
+  function shatter(count) {
+    const removed = Math.min(toCount(count), swords.length);
+    if (removed === 0) return 0;
+    for (const sword of swords.slice(swords.length - removed)) {
+      playAtSword(sword, 'swordLost');
+    }
+    return removed;
+  }
+
+  function playAtSword(sword, effect) {
     const fx = globalThis.ffmScreenFx;
     const rect = sword?.getBoundingClientRect?.();
     if (!fx || !rect) return;
     // The row only renders in portrait; landscape keeps it display:none, so a
     // sword there reports a 0x0 rect at the viewport origin and the world
-    // conversion below would spray the glint into the top-left corner of the
+    // conversion below would spray the effect into the top-left corner of the
     // screen.
     if (!(rect.width > 0) || !(rect.height > 0)) return;
     const map = fx.mapping?.();
     if (!map || !map.scale) return;
-    fx.play('swordGain', {
+    fx.play(effect, {
       x: (rect.left + rect.width / 2 - map.offsetX) / map.scale,
       y: (rect.top + rect.height / 2 - map.offsetY) / map.scale,
     });
@@ -134,6 +163,7 @@ export function createEncounterSwords({
     },
     swords,
     updateEncounterProgress,
+    shatter,
     destroy,
   };
 }
