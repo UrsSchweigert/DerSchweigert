@@ -12,8 +12,14 @@ on:
   workflow_dispatch: {}
 
 concurrency:
+  # A pull request's superseded runs are cancelled — they only test a branch, and the newest run tests everything that
+  # branch needs. A `main` run must never cancel its predecessor: the deploy jobs are path-filtered per site, so a
+  # cancelled run takes its commit's changes down with it, and a later merge that touches only another site (or only
+  # `.github/workflows/`) never deploys them. That is exactly how the #426 speedrun release missed production on
+  # 2026-11-13: its `deploy-ffm` was cancelled by the #427 push, and #427 changed only a workflow file, which
+  # deliberately deploys nothing. `main` runs queue instead, so every merge's own diff still gets deployed.
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
