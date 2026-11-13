@@ -3,6 +3,28 @@ const RATIO = 800 / 450;
 const TARGET = 44;
 const GAP = 6;
 const PADDING = 8;
+// The ability bar always shows three circles, and in landscape it lives in the
+// answer column above the answers. Their row is therefore a floor on that
+// column's width: below it the orbs shrink to a few pixels and vanish.
+const ORB_COLUMNS = 3;
+
+/**
+ * The narrowest a landscape answer column may be. The answer grid always fits;
+ * the row of ability circles above it is what may give way, and only on a window
+ * too small for both — there it may claim at most 45% of the width, so the scene
+ * above still has something to render.
+ *
+ * @param {number} width - available width in CSS pixels.
+ * @param {number} columns - answer grid columns.
+ * @param {number} targetWidth - one answer's minimum readable width.
+ * @returns {number} the reserved answer width in CSS pixels.
+ */
+export function landscapeAnswerFloor(width, columns, targetWidth) {
+  const gridWidth = columns * targetWidth + (columns - 1) * GAP + 2 * PADDING;
+  const orbRowWidth = ORB_COLUMNS * targetWidth + (ORB_COLUMNS - 1) * GAP + 2 * PADDING;
+  const usable = Math.max(0, Number(width) || 0);
+  return Math.min(Math.max(gridWidth, orbRowWidth), Math.max(gridWidth, usable * 0.45));
+}
 
 // reservedHeight is the space the answer zone spends on rows that are not the
 // answer grid (today: the ability circles and their caption line), so the grid
@@ -18,13 +40,18 @@ export function calculateSceneLayout(width, height, optionCount = 10, landscape 
   let rows;
   let sceneWidth;
   let sceneHeight;
+  // The answer column has to hold whichever of the two is wider: the answer grid
+  // itself, or the row of ability circles above it. Reserving both before the
+  // scene is sized is what keeps the circles visible — sizing the scene first and
+  // clamping the answers to what was left used to shrink them to ~6px.
+  let reservedAnswerWidth = 0;
   if (landscape) {
     const availableRows = Math.max(1, Math.floor((answerBudget - 2 * PADDING + GAP) / (TARGET + GAP)));
     // A compact three-column grid preserves a playable scene below a readable HUD.
     columns = Math.ceil(count / Math.min(5, availableRows));
     rows = Math.ceil(count / columns);
-    const answerWidth = columns * targetWidth + (columns - 1) * GAP + 2 * PADDING;
-    sceneWidth = Math.max(0, Math.min(width - answerWidth - GAP, height * RATIO));
+    reservedAnswerWidth = landscapeAnswerFloor(width, columns, targetWidth);
+    sceneWidth = Math.max(0, Math.min(width - reservedAnswerWidth - GAP, height * RATIO));
     sceneHeight = sceneWidth / RATIO;
   } else {
     const availableColumns = Math.max(1, Math.floor((width - 2 * PADDING + GAP) / (targetWidth + GAP)));
@@ -37,7 +64,11 @@ export function calculateSceneLayout(width, height, optionCount = 10, landscape 
   }
   return {
     landscape, columns, rows, sceneWidth, sceneHeight, minimumAnswerWidth: targetWidth,
-    answerWidth: landscape ? Math.min(width - sceneWidth - GAP, Math.max(320, columns * targetWidth + (columns - 1) * GAP + 2 * PADDING)) : width,
+    answerWidth: landscape
+      // Never below the reserved floor, never past the space the scene left; the
+      // 320px comfort width only widens a column that already has the room.
+      ? Math.max(reservedAnswerWidth, Math.min(width - sceneWidth - GAP, Math.max(320, reservedAnswerWidth)))
+      : width,
     answerHeight: landscape ? answerBudget : height - sceneHeight - GAP,
   };
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { calculateSceneLayout, initViewportLayout } from './viewport-layout.js';
+import { calculateSceneLayout, initViewportLayout, landscapeAnswerFloor } from './viewport-layout.js';
 
 for (const [width, height] of [[304, 500], [552, 252], [359, 591], [796, 307], [752, 956], [1008, 700], [1348, 956], [2024, 1468], [304, 172]]) {
   for (const count of [4, 5, 10]) {
@@ -15,8 +15,10 @@ for (const [width, height] of [[304, 500], [552, 252], [359, 591], [796, 307], [
       assert.ok(Math.abs(sceneWidth / sceneHeight - 800 / 450) < 1e-9);
       assert.ok(sceneWidth <= width && sceneHeight <= height);
       if (result.landscape) {
-        const minimumAnswers = columns * 44 + (columns - 1) * 6 + 16;
+        // The answer column also has to hold the three ability circles.
+        const minimumAnswers = landscapeAnswerFloor(width, columns, 44);
         assert.ok(Math.abs(sceneWidth - Math.min(width - minimumAnswers - 6, height * 800 / 450)) < 1e-9);
+        assert.ok(answerWidth >= minimumAnswers, `the ability row keeps its room: ${answerWidth}`);
       } else {
         const minimumAnswers = rows * 44 + (rows - 1) * 6 + 16;
         assert.ok(Math.abs(sceneHeight - Math.min(height - minimumAnswers - 6, width * 450 / 800)) < 1e-9);
@@ -35,6 +37,28 @@ test('surplus landscape tablet width does not stretch answer controls indefinite
   const layout = calculateSceneLayout(2400, 1000, 10, true);
   assert.equal(layout.answerWidth, 320);
   assert.ok(Math.abs(layout.sceneWidth - 1000 * 800 / 450) < 1e-9);
+});
+
+// The reported bug: a landscape window tall enough for a big scene but not wide
+// enough for a comfortable answer column used to give the answers whatever the
+// height-fitted scene left over — 60 px at 900×620. The ability circles divide
+// that column by three, so they collapsed to about six pixels and vanished.
+test('a landscape level keeps room in the answer column for the ability circles', () => {
+  for (const [width, height] of [[900, 620], [1024, 600], [820, 560], [700, 560], [640, 480]]) {
+    for (const count of [5, 10]) {
+      const layout = calculateSceneLayout(width, height, count);
+      assert.ok(layout.landscape, `${width}×${height} is landscape`);
+      // styles.css sets an 8px padding and an 8px orb gap in the short-landscape block.
+      const orbRoom = (layout.answerWidth - 2 * 8 - 2 * 8) / 3;
+      assert.ok(orbRoom >= 40, `${width}×${height} with ${count} answers: circles got ${orbRoom.toFixed(1)}px`);
+      assert.ok(layout.sceneWidth > 0 && layout.sceneHeight > 0);
+    }
+  }
+
+  // Too small for both at full size: the answer row gives way so a scene survives.
+  const tiny = calculateSceneLayout(320, 240, 5);
+  assert.ok(tiny.sceneWidth >= 120, `the scene survives at 320×240: ${tiny.sceneWidth}`);
+  assert.ok((tiny.answerWidth - 2 * 8 - 2 * 8) / 3 >= 34, 'the circles stay clickable');
 });
 
 for (const count of [5, 10]) {
