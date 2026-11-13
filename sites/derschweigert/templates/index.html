@@ -3,83 +3,207 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Urs Schweigert | Digitale Projekte</title>
-  <meta name="description" content="Digitale Projekte: landhauscheck.com, Buchstabenzeit Learning App, Arithmoslayer Math Game." />
+  <title>Urs Schweigert | Digitale Produkte aus eigener Werkstatt</title>
+  <meta name="description" content="Aktuelle Projekte von Urs Schweigert: landhauscheck.com, Buchstabenzeit und Arithmoslayer. Und offen für neue Projektideen – sprechen Sie mich einfach an." />
+  <meta name="theme-color" content="#080F13" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="de_DE" />
+  <meta property="og:title" content="Urs Schweigert | Digitale Produkte aus eigener Werkstatt" />
+  <meta property="og:description" content="Hier stehen meine aktuellen Projekte – Standort-Dashboard, Lese-App und Kopfrechenspiel. Projektideen bespreche ich gern." />
+  <meta property="og:url" content="https://derschweigert.de/" />
+  <meta name="twitter:card" content="summary" />
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main">Zum Inhalt springen</a>
+
   <header class="navbar">
     <div class="container nav-inner">
-      <a href="/" class="brand" aria-label="Startseite">
-        <span class="brand-mark">DerSchweigert</span>
+      <a href="/" class="brand" aria-label="DerSchweigert – Startseite">
+        <img src="/static/logo-mark.svg" alt="" width="38" height="38" />
+        <span class="brand-name"><span class="brand-der">Der</span><span class="brand-main">Schweigert</span></span>
       </a>
       <button class="nav-toggle" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="primary-nav"><span></span></button>
       <nav class="nav-links" id="primary-nav" aria-label="Hauptnavigation">
-        <a href="#projects">Projekte</a>
+        <a href="#projekte">Projekte</a>
+        <a href="#werkstatt">Werkstatt</a>
+        <a href="#ueber">Über</a>
+        <a class="nav-cta" href="mailto:info@derschweigert.de">Kontakt</a>
       </nav>
     </div>
   </header>
 
-  <main>
+  <main id="main">
     <section class="hero">
-      <div class="container hero-shell">
-        <div class="hero-panel">
-          <div>
-            <span class="eyebrow">Digitale Projekte</span>
-            <h1>Praktische digitale Lösungen.</h1>
-            <p class="lead">Strategische Websites, spezielle Software und innovative Ideen im Fokus auf Klarheit und Nutzen.</p>
-            <div class="hero-actions">
-              <a class="btn btn-primary" href="#projects">Projekte entdecken</a>
+      <div class="container hero-grid">
+        <div>
+          <span class="eyebrow">Aktuelle Projekte · Eigene Werkstatt</span>
+          <h1 class="hero-title">Digitale Werkzeuge für den <em>echten Alltag</em>.</h1>
+          <p class="lead">Hier stehen meine aktuellen Projekte: Landhauscheck, Buchstabenzeit und Arithmoslayer – drei eigene Produkte, die täglich benutzt werden, ohne Werbung und ohne Konto-Zwang.</p>
+          <p class="lead lead-accent">Sie haben selbst eine Projektidee? Darüber spreche ich gern – unverbindlich und auf Augenhöhe.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#projekte">Aktuelle Projekte ansehen</a>
+            <a class="btn btn-secondary" href="mailto:info@derschweigert.de?subject=Projektidee">Projektidee besprechen</a>
+          </div>
+          <ul class="chips">
+            <li>Ohne Werbung</li>
+            <li>Ohne Benutzerkonto</li>
+            <li>Offen für Projektideen</li>
+          </ul>
+        </div>
+
+        <div class="work-mosaic" aria-label="Einblicke in die Projekte">
+          <a class="work-tile" href="https://landhauscheck.com" target="_blank" rel="noopener noreferrer" style="--tag: var(--proj-landhaus)">
+            <img src="/static/projects/landhauscheck.webp?v=2" alt="landhauscheck.com – Logo auf blauem Verlaufshintergrund" width="1200" height="750" loading="lazy" decoding="async" />
+            <span class="work-tile__tag">Web · Live</span>
+          </a>
+          <a class="work-tile" href="https://lesen.derschweigert.de" target="_blank" rel="noopener noreferrer" style="--tag: var(--proj-buchstaben)">
+            <img src="/static/projects/buchstabenzeit-thumb.webp?v=2" alt="Buchstabenzeit – Eulen-App-Icon" width="600" height="375" loading="lazy" decoding="async" />
+            <span class="work-tile__tag">iOS · Live</span>
+          </a>
+          <a class="work-tile work-tile--wide" href="https://arithmoslayer.de" target="_blank" rel="noopener noreferrer" style="--tag: var(--proj-arith)">
+            <img src="/static/projects/arithmoslayer.webp?v=2" alt="Arithmoslayer – Key Art mit Held und Drache" width="1000" height="625" loading="lazy" decoding="async" />
+            <span class="work-tile__tag">Web · TestFlight</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section id="projekte" class="section">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Projekte</span>
+          <h2>Das sind meine aktuellen Projekte.</h2>
+          <p>Drei Produkte, die im Alltag laufen – jedes mit einem konkreten Problem im Hintergrund. Alle selbst konzipiert, gestaltet und betrieben.</p>
+        </div>
+
+        <div class="project-grid">
+          <article class="project-card" style="--accent: var(--proj-landhaus)">
+            <div class="project-media">
+              <img class="project-image" src="/static/projects/landhauscheck.webp?v=2" alt="landhauscheck.com – Logo auf dem blauen Verlaufshintergrund der Web-App" width="1200" height="750" loading="lazy" decoding="async" />
             </div>
+            <div class="project-body">
+              <h3>landhauscheck.com</h3>
+              <p>Standortbasierte Übersicht für Zuhause: Wetter, Zugabfahrten, Müllabfuhr, Ladesäulen, Verkehr und Orte – auf einen Blick.</p>
+              <ul class="platforms" aria-label="Verfügbarkeit">
+                <li><a href="https://landhauscheck.com" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18M12 3c2.7 3.1 2.7 14.9 0 18M12 3c-2.7 3.1-2.7 14.9 0 18" fill="none" stroke="currentColor" stroke-width="1.7"/></svg><strong>Web</strong><em>Live</em></a></li>
+              </ul>
+              <ul class="chips">
+                <li>Live-Widgets</li>
+                <li>DE · EN · PT</li>
+                <li>Kein Login</li>
+              </ul>
+              <a class="btn btn-secondary" href="https://landhauscheck.com" target="_blank" rel="noopener noreferrer">Projekt ansehen</a>
+            </div>
+          </article>
+
+          <article class="project-card" style="--accent: var(--proj-buchstaben)">
+            <div class="project-media">
+              <img class="project-image" src="/static/projects/buchstabenzeit.webp?v=2" alt="Buchstabenzeit – Leseübung mit Silbenkarte und Eulen-App-Icon" width="1200" height="750" loading="lazy" decoding="async" />
+              <img class="project-icon" src="/static/projects/buchstabenzeit-icon.webp?v=2" alt="" width="160" height="160" loading="lazy" decoding="async" />
+            </div>
+            <div class="project-body">
+              <h3>Buchstabenzeit</h3>
+              <p>Lernapp für Lesefähigkeit und Buchstabenerkennung auf iPhone, iPad und Android: Buchstaben, Silben, Wörter und Sätze – offline, mit der Sprachausgabe des Geräts und im eigenen Tempo.</p>
+              <ul class="platforms" aria-label="Verfügbarkeit">
+                <li><a href="https://lesen.derschweigert.de" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18M12 3c2.7 3.1 2.7 14.9 0 18M12 3c-2.7 3.1-2.7 14.9 0 18" fill="none" stroke="currentColor" stroke-width="1.7"/></svg><strong>Web</strong><em>Im Browser</em></a></li>
+                <li><a href="mailto:info@derschweigert.de?subject=Buchstabenzeit%20Tester"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3.6 2.3 14.4 11.5 3.6 21.7a1.5 1.5 0 0 1-.35-.95V3.25c0-.36.13-.7.35-.95z"/><path fill="currentColor" opacity=".55" d="M4.75 1.65 16.1 7.9l-2.6 2.6L4.75 1.65z"/><path fill="currentColor" opacity=".55" d="M4.75 22.35 16.1 16.1l-2.6-2.6L4.75 22.35z"/><path fill="currentColor" opacity=".8" d="M17.3 8.5 20.6 10.4c.6.35.6 1.25 0 1.6l-3.3 1.9-2.7-2.7 2.7-2.7z"/></svg><strong>Google Play</strong><em>Geschlossener Test</em></a></li>
+                <li><a href="https://apps.apple.com/app/buchstabenzeit/id6831006870" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg><strong>App Store</strong><em>Verfügbar</em></a></li>
+              </ul>
+              <ul class="chips">
+                <li>Offline</li>
+                <li>Sprachausgabe</li>
+                <li>Ohne Werbung</li>
+              </ul>
+              <a class="btn btn-secondary" href="https://apps.apple.com/app/buchstabenzeit/id6831006870" target="_blank" rel="noopener noreferrer">Im App Store ansehen</a>
+            </div>
+          </article>
+
+          <article class="project-card" style="--accent: var(--proj-arith)">
+            <div class="project-media">
+              <img class="project-image" src="/static/projects/arithmoslayer.webp?v=2" alt="Arithmoslayer – Key Art mit Held, Drache und magischem Schloss" width="1000" height="625" loading="lazy" decoding="async" />
+              <img class="project-icon" src="/static/projects/arithmoslayer-icon.webp?v=2" alt="" width="160" height="160" loading="lazy" decoding="async" />
+            </div>
+            <div class="project-body">
+              <h3>Arithmoslayer</h3>
+              <p>Kopfrechen-Abenteuer in sechs Akten: schnelle Aufgaben, handgemalte Papierbühnen und ein Drache, der auf Antworten wartet.</p>
+              <ul class="platforms" aria-label="Verfügbarkeit">
+                <li><a href="https://arithmoslayer.de" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18M12 3c2.7 3.1 2.7 14.9 0 18M12 3c-2.7 3.1-2.7 14.9 0 18" fill="none" stroke="currentColor" stroke-width="1.7"/></svg><strong>Web</strong><em>Jetzt spielen</em></a></li>
+                <li><a href="https://testflight.apple.com/join/66sUYcn3" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg><strong>App Store</strong><em>TestFlight-Beta</em></a></li>
+                <li><a href="https://arithmoslayer.de/beta" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3.6 2.3 14.4 11.5 3.6 21.7a1.5 1.5 0 0 1-.35-.95V3.25c0-.36.13-.7.35-.95z"/><path fill="currentColor" opacity=".55" d="M4.75 1.65 16.1 7.9l-2.6 2.6L4.75 1.65z"/><path fill="currentColor" opacity=".55" d="M4.75 22.35 16.1 16.1l-2.6-2.6L4.75 22.35z"/><path fill="currentColor" opacity=".8" d="M17.3 8.5 20.6 10.4c.6.35.6 1.25 0 1.6l-3.3 1.9-2.7-2.7 2.7-2.7z"/></svg><strong>Google Play</strong><em>Warteliste</em></a></li>
+              </ul>
+              <ul class="chips">
+                <li>Kopfrechnen</li>
+                <li>Sechs Akte</li>
+                <li>Ohne Installation</li>
+              </ul>
+              <a class="btn btn-secondary" href="https://arithmoslayer.de" target="_blank" rel="noopener noreferrer">Spiel starten</a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="werkstatt" class="section">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Werkstatt</span>
+          <h2>Von der Idee bis zum Betrieb – aus einer Hand.</h2>
+          <p>Kein Agentur-Apparat, keine Übergaben: Wer das Produkt baut, kennt auch die Details, die es im Alltag tragen.</p>
+        </div>
+
+        <div class="process">
+          <div class="step">
+            <span class="step__num">01 · Zuschnitt</span>
+            <h3>Erst der Umfang, dann die Features</h3>
+            <p>Was soll das Produkt leisten – und was bewusst nicht? Ein enger, klarer Zuschnitt schlägt jede lange Liste.</p>
+          </div>
+          <div class="step">
+            <span class="step__num">02 · Bauen &amp; prüfen</span>
+            <h3>Kleine Schritte, echte Tests</h3>
+            <p>Prototyp, Test mit echten Nutzern, dann Feinschliff. Rückmeldungen aus der Beta landen in der nächsten Version.</p>
+          </div>
+          <div class="step">
+            <span class="step__num">03 · Betrieb</span>
+            <h3>Läuft – und bleibt aktuell</h3>
+            <p>Updates, Kosten, Monitoring und Datenschutz bleiben in derselben Hand. Fertig ist ein Produkt erst, wenn es zuverlässig läuft.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <section id="projects" class="section">
-      <div class="container">
-        <div class="section-head">
-          <div>
-            <span class="eyebrow">Projekte</span>
-            <h2>Aktuelle Projekte im Fokus.</h2>
-          </div>
+    <section id="ueber" class="section">
+      <div class="container about-grid">
+        <div class="about-portrait">
+          <img src="/static/portrait-760.webp" srcset="/static/portrait-480.webp 480w, /static/portrait-760.webp 760w" sizes="400px" alt="Porträt von Urs Schweigert" width="760" height="950" loading="lazy" decoding="async" />
         </div>
-
-        <div class="grid project-grid">
-          <article class="project-card">
-            <img class="project-image" src="/static/projects/landhauscheck.webp" alt="landhauscheck.com Logo" width="600" height="600" loading="lazy" decoding="async" />
-            <h3>landhauscheck.com</h3>
-            <p>Ein standortbasiertes Web-Dashboard mit Live-Widgets für Wetter, Verkehr, ÖPNV, Benzinpreise, Ladestationen, Orte und Müllabfuhr. Verfügbar in Deutsch, Englisch und Portugiesisch.</p>
-            <a class="btn btn-secondary" href="https://landhauscheck.com" target="_blank" rel="noopener noreferrer">Projekt ansehen</a>
-          </article>
-
-          <article class="project-card">
-            <img class="project-image" src="/static/projects/buchstabenzeit.webp" alt="Buchstabenzeit – Eulen-Maskottchen beim Lesen" width="600" height="600" loading="lazy" decoding="async" />
-            <h3>Buchstabenzeit</h3>
-            <p>Eine Android-Lernapp für Lesefähigkeit und Buchstabenerkennung. Offline verfügbar mit Sprachausgabe des Geräts. Derzeit in geschlossenem Test.</p>
-            <a class="btn btn-secondary" href="mailto:info@derschweigert.de?subject=Buchstabenzeit%20Tester">Als Tester beitreten</a>
-          </article>
-
-          <article class="project-card">
-            <img class="project-image" src="/static/projects/arithmoslayer.webp" alt="Arithmoslayer – Artwork zum mathematischen Browserspiel" width="600" height="400" loading="lazy" decoding="async" />
-            <h3>Arithmoslayer</h3>
-            <p>Ein mathematisches Browserspiel mit kreativen Herausforderungen zum Trainieren von Rechenfähigkeiten.</p>
-            <a class="btn btn-secondary" href="https://arithmoslayer.de" target="_blank" rel="noopener noreferrer">Spiel spielen</a>
-          </article>
+        <div class="about-body">
+          <span class="eyebrow">Über</span>
+          <h2>Eine Person, volle Verantwortung.</h2>
+          <p>Ich begleite Projekte von der ersten Frage bis zum laufenden Betrieb: Anforderungen klären, Oberflächen entwerfen, die passende Cloud-Architektur wählen – und aus Daten Dashboards machen, die im Alltag wirklich gelesen werden.</p>
+          <p>Dazu kommt der Blick auf die Abläufe dahinter: Wo kostet ein Prozess Zeit, wo lässt er sich automatisieren, wo reicht ein ehrliches „das braucht es nicht“? Statt wechselnder Teams arbeitet hier eine Person an allen Teilen – das hält Entscheidungen kurz und die Qualität nachvollziehbar.</p>
+          <ul class="chips">
+            <li>Planung</li>
+            <li>Design</li>
+            <li>Cloud-Strategie</li>
+            <li>Prozessoptimierung</li>
+            <li>Dashboarding</li>
+          </ul>
         </div>
       </div>
     </section>
 
     <section class="cta">
       <div class="container">
-        <div class="card">
+        <div class="cta-card">
           <div>
-            <span class="eyebrow">Mithelfen</span>
-            <h2>Tester gesucht</h2>
-            <p>Interessiert an neuen Projekten und noch nicht veröffentlichten Apps? Kontaktieren Sie uns unter <strong>info@derschweigert.de</strong>.</p>
+            <span class="eyebrow">Projektideen</span>
+            <h2>Projektidee im Kopf? Erzählen Sie sie mir.</h2>
+            <p>Ich bin bereit, über Projektideen zu sprechen: Website, App oder Spiel. Wir klopfen gemeinsam ab, was daraus werden kann – ehrlich, unverbindlich und ohne Verkaufsdruck.</p>
+            <p class="cta-note">Außerdem: Neue Versionen von Buchstabenzeit und Arithmoslayer teste ich zuerst mit Freiwilligen. <a href="mailto:info@derschweigert.de?subject=Tester">Als Tester anmelden</a>.</p>
           </div>
-          <a class="btn btn-primary" href="mailto:info@derschweigert.de?subject=Tester">Als Tester anmelden</a>
+          <a class="btn btn-primary" href="mailto:info@derschweigert.de?subject=Projektidee">Projektidee besprechen</a>
         </div>
       </div>
     </section>
@@ -87,9 +211,12 @@
 
   <footer class="footer">
     <div class="container footer-inner">
-      <div>
-        <strong>Urs Schweigert</strong>
-        <div>Digitale Projekte und Lösungen.</div>
+      <div class="footer-brand">
+        <span class="brand">
+          <img src="/static/logo-mark.svg" alt="" width="30" height="30" />
+          <span class="brand-name"><span class="brand-der">Der</span><span class="brand-main">Schweigert</span></span>
+        </span>
+        <span class="footer-tagline">Digitale Produkte, entwickelt und betrieben in Pfaffenhofen an der Glonn.</span>
       </div>
       <nav aria-label="Footer Navigation">
         <a href="/impressum">Impressum</a>

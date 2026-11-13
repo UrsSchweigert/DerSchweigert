@@ -1,0 +1,18 @@
+<svg width="320" height="64" viewBox="0 0 320 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DerSchweigert">
+  <defs>
+    <linearGradient id="lk-tile" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D333A"/>
+      <stop offset="1" stop-color="#0A1418"/>
+    </linearGradient>
+    <linearGradient id="lk-brass" x1="22" y1="14" x2="43" y2="50" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F2D79F"/>
+      <stop offset="0.55" stop-color="#C9A255"/>
+      <stop offset="1" stop-color="#9A7638"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="17" fill="url(#lk-tile)" stroke="#C9A255" stroke-opacity="0.45" stroke-width="1.5"/>
+  <path d="M42.5 22.5C42.5 17.6 37.6 14.5 32 14.5C26.2 14.5 21.5 17.6 21.5 22.3C21.5 27 25.4 29.3 32 30.6C38.6 31.9 42.5 34.4 42.5 39.2C42.5 44.6 37.6 49.5 32 49.5C26.2 49.5 21.5 46.4 21.5 41.5"
+        stroke="url(#lk-brass)" stroke-width="8" stroke-linecap="round"/>
+  <text x="80" y="34" font-family="'Iowan Old Style', Palatino, 'Palatino Linotype', Georgia, serif" font-size="22" fill="#F5EFE2"><tspan fill="#C9A255">Der</tspan><tspan font-weight="700">Schweigert</tspan></text>
+  <text x="81" y="50" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="8" letter-spacing="2.7" fill="#8E9A9C">DIGITALE PRODUKTE</text>
+</svg>
