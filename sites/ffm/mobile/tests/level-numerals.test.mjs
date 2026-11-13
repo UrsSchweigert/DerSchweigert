@@ -248,7 +248,9 @@ test('the shared stylesheet positions the artwork without text glyph fallbacks',
   assert.match(css, /\.title-level-numerals\s*\{[^}]*left:\s*calc\(var\(--safe-area-left[^}]*\+\s*8px\)/);
   assert.match(css, /\.title-level-numerals\s*\{[^}]*width:\s*clamp\(44px,\s*14vw,\s*96px\)/);
   assert.match(css, /\.title-level-numerals\s*\{[^}]*max-width:\s*20vw/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*pointer-events:\s*none/);
+  // The numeral takes the taps on purpose: three of them open the speedrun card
+  // (see speedrun-ui.js and speedrun-ui.test.js). It is not decorative ink.
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*pointer-events:\s*auto/);
   assert.match(css, /\.title-level-numerals\[hidden\]\s*\{\s*display:\s*none/);
   assert.doesNotMatch(css.match(/\.title-level-numerals\s*\{[^}]*\}/)[0], /font-/);
 });

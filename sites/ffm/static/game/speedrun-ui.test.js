@@ -27,6 +27,8 @@ function fakeElement(tagName) {
     },
     listenerCount(type) { return (listeners.get(type) ?? []).length; },
     focus() { node.focused = true; },
+    // Any element that is not a tap target answers "no match".
+    closest() { return null; },
   };
   return node;
 }
@@ -38,8 +40,20 @@ function fakeDocument(ids) {
     element.id = id;
     byId.set(id, element);
   }
-  const intro = fakeElement('p');
-  intro.className = 'splash-intro';
+  // The three title-screen displays the tap detector accepts. Each answers
+  // `closest()` for exactly its own selector, the way the real element would.
+  const tapTarget = (tagName, className, selector) => {
+    const element = fakeElement(tagName);
+    element.className = className;
+    element.closest = candidate => (String(candidate).split(',').map(part => part.trim()).includes(selector)
+      ? element
+      : null);
+    return element;
+  };
+  const levelNumber = tapTarget('p', 'splash-subtitle', '#continue-level');
+  levelNumber.id = 'continue-level';
+  const numeral = tapTarget('div', 'title-level-numerals', '.title-level-numerals');
+  const intro = tapTarget('p', 'splash-intro', '.splash-intro');
   // `hidden` starts unset for the elements that are only hidden by the API, to
   // prove the controller sets it rather than relying on the markup.
   // These two are toggled by the controller alone, so they start hidden only
@@ -48,13 +62,22 @@ function fakeDocument(ids) {
     if (byId.has(id)) byId.get(id).hidden = false;
   }
   if (byId.has('speedrun-overlay')) byId.get('speedrun-overlay').hidden = true;
+  const listeners = new Map();
   const doc = {
     getElementById: id => byId.get(id) ?? null,
     createElement: tagName => fakeElement(tagName),
-    querySelector: selector => (selector === '.splash-intro' ? intro : null),
-    addEventListener() {},
+    addEventListener(type, callback) {
+      listeners.set(type, [...(listeners.get(type) ?? []), callback]);
+    },
+    removeEventListener(type, callback) {
+      listeners.set(type, (listeners.get(type) ?? []).filter(entry => entry !== callback));
+    },
+    dispatch(type, event = {}) {
+      for (const callback of listeners.get(type) ?? []) callback({ type, ...event });
+    },
+    listenerCount(type) { return (listeners.get(type) ?? []).length; },
   };
-  return { byId, doc, intro };
+  return { byId, doc, intro, levelNumber, numeral };
 }
 
 function storage() {
@@ -71,14 +94,14 @@ const UI_IDS = [
 ];
 
 function setup({ translate = key => key, now } = {}) {
-  const { byId, doc, intro } = fakeDocument(UI_IDS);
+  const { byId, doc, intro, levelNumber, numeral } = fakeDocument(UI_IDS);
   const records = createSpeedrunRecords({ storage: storage() });
   const ui = createSpeedrunUi({ doc, translate, records, now });
-  return { byId, doc, intro, records, ui };
+  return { byId, doc, intro, levelNumber, numeral, records, ui };
 }
 
 describe('the hidden speedrun card', () => {
-  it('opens after three taps on the intro line, and not before', () => {
+  it('opens after three taps, and not before', () => {
     let clock = 0;
     const { ui, byId } = setup({ now: () => clock });
 
@@ -93,6 +116,30 @@ describe('the hidden speedrun card', () => {
     ui.close();
     assert.equal(byId.get('speedrun-overlay').hidden, true);
     assert.equal(byId.get('speedrun-overlay').style.display, 'none');
+  });
+
+  // The level number is the display every phone shows; the intro sentence is
+  // hidden on short and compact screens, which made the card unreachable.
+  for (const [name, pick] of [
+    ['the level line', harness => harness.levelNumber],
+    ['the illuminated numeral', harness => harness.numeral],
+    ['the intro line', harness => harness.intro],
+  ]) {
+    it(`opens after three taps on ${name}`, () => {
+      const harness = setup();
+      const element = pick(harness);
+      assert.ok(element, name);
+      for (let tap = 0; tap < 3; tap++) harness.doc.dispatch('click', { target: element });
+      assert.equal(harness.ui.isOpen(), true);
+    });
+  }
+
+  it('ignores three taps on anything else, such as a difficulty button', () => {
+    const { doc, ui } = setup();
+    const button = fakeElement('button');
+    button.className = 'diff-btn';
+    for (let tap = 0; tap < 3; tap++) doc.dispatch('click', { target: button });
+    assert.equal(ui.isOpen(), false);
   });
 
   it('ignores taps that are spread out, so an idle page cannot open it', () => {
