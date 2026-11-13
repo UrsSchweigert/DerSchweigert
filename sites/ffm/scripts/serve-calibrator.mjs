@@ -15,7 +15,7 @@
 import { execFileSync } from 'node:child_process';
 import { createReadStream, mkdirSync, realpathSync, rmSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,6 +80,38 @@ export function parseArgs(argv) {
     } else throw new Error(`unknown argument ${arg}`);
   }
   return options;
+}
+
+// True when something already answers on this port. Deliberately connects to both
+// loopback families: `python3 -m http.server` binds "::" only, so a node server can
+// still take 127.0.0.1 on the same number and the same URL ends up served by two
+// different trees — which is exactly the confusion this guard exists to stop.
+export function isPortBusy(port, hosts = ['127.0.0.1', '::1']) {
+  return new Promise((resolve) => {
+    let pending = hosts.length;
+    let busy = false;
+    const done = () => {
+      pending -= 1;
+      if (pending === 0) resolve(busy);
+    };
+    for (const host of hosts) {
+      const req = request({ host, port, path: '/', method: 'HEAD', timeout: 400 }, () => {
+        busy = true;
+        req.destroy();
+        done();
+      });
+      req.on('error', () => done());
+      req.on('timeout', () => { req.destroy(); done(); });
+      req.end();
+    }
+  });
+}
+
+export async function firstFreePort(start, attempts = 20, busy = isPortBusy) {
+  for (let port = start; port < start + attempts; port++) {
+    if (!(await busy(port))) return port;
+  }
+  return start;
 }
 
 export function createStaticServer(root) {
@@ -151,7 +183,7 @@ function usage() {
   ].join('\n');
 }
 
-function main(argv) {
+async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
     console.log(usage());
@@ -197,17 +229,21 @@ function main(argv) {
     cleanup = () => rmSync(workDir, { recursive: true, force: true });
   }
 
+  const port = await firstFreePort(options.port);
+  if (port !== options.port) {
+    console.log(`  port ${options.port} is already serving something — using ${port}`);
+  }
   const server = createStaticServer(servedRoot);
   server.on('error', (error) => {
     cleanup();
     if (error.code === 'EADDRINUSE') {
-      console.error(`port ${options.port} is in use — pass --port with a free one.`);
+      console.error(`port ${port} is in use — pass --port with a free one.`);
     } else {
       console.error(error.message);
     }
     process.exitCode = 1;
   });
-  server.listen(options.port, '127.0.0.1', () => {
+  server.listen(port, '127.0.0.1', () => {
     const { port } = server.address();
     console.log(`\n  serving  ${label}`);
     console.log(`  root     ${servedRoot}`);
@@ -237,10 +273,8 @@ export function isDirectInvocation(argvEntry, moduleUrl) {
 }
 
 if (isDirectInvocation(process.argv[1], import.meta.url)) {
-  try {
-    main(process.argv.slice(2));
-  } catch (error) {
+  main(process.argv.slice(2)).catch((error) => {
     console.error(error.message);
     process.exitCode = 1;
-  }
+  });
 }
