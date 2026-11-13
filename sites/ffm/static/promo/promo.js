@@ -90,8 +90,8 @@ export const DICTIONARY = {
   },
   'art.stripLabel': { de: 'Die sechs Akte', en: 'The six acts' },
   'art.stripHint': {
-    de: 'Seitlich wischen oder scrollen, um alle sechs Akte zu sehen.',
-    en: 'Swipe or scroll sideways to see all six acts.',
+    de: 'Der Streifen läuft von selbst – beim Ziehen, Scrollen oder Fokussieren hält er an.',
+    en: 'The strip runs by itself – drag, scroll or focus to pause.',
   },
   'art.act1': { de: 'Akt 1 · Das erste Licht', en: 'Act 1 · The First Light' },
   'art.act2': { de: 'Akt 2 · Die schwindende Ernte', en: 'Act 2 · The Fading Harvest' },
@@ -524,8 +524,7 @@ function prefersReducedMotion() {
 
 function initParallax() {
   const layers = Array.from(document.querySelectorAll('[data-parallax]'));
-  const filmstrip = document.querySelector('[data-filmstrip]');
-  if (!layers.length && !filmstrip) return;
+  if (!layers.length) return;
   if (prefersReducedMotion()) return;
 
   let ticking = false;
@@ -539,17 +538,6 @@ function initParallax() {
         el.style.transform = `translate3d(0, ${(scrollY * speed).toFixed(2)}px, 0)`;
       });
     }
-    if (filmstrip) {
-      const frames = filmstrip.querySelectorAll('[data-frame-img]');
-      const offset = filmstrip.scrollLeft;
-      const width = filmstrip.clientWidth || 1;
-      frames.forEach((img) => {
-        const frame = img.parentElement;
-        const center = frame.offsetLeft - offset + frame.offsetWidth / 2;
-        const delta = (center - width / 2) / width;
-        img.style.transform = `translate3d(${(delta * 18).toFixed(2)}px, 0, 0) scale(1.06)`;
-      });
-    }
   };
 
   const onScroll = () => {
@@ -560,8 +548,112 @@ function initParallax() {
 
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll, { passive: true });
-  if (filmstrip) filmstrip.addEventListener('scroll', onScroll, { passive: true });
   update();
+}
+
+// --- Pannable looping bands -------------------------------------------
+// The act strip is a real horizontal scroller (touch, trackpad, wheel and
+// mouse drag) whose content is duplicated once. A small rAF loop advances
+// scrollLeft and wraps at half the track, so the loop is seamless while
+// native panning and keyboard scrolling keep working. Dragging, wheeling or
+// focusing pauses the automatic advance and schedules a short resume.
+function initPannableBands() {
+  const bands = Array.from(document.querySelectorAll('[data-pannable-band]'));
+  if (!bands.length || prefersReducedMotion()) return;
+
+  const SPEED = 40;          // px per second
+  const RESUME_DELAY = 2400; // ms after the last interaction
+
+  for (const viewport of bands) {
+    const track = viewport.querySelector('[data-band-track]');
+    if (!track) continue;
+
+    let paused = false;
+    let dragging = false;
+    let visible = true;
+    let last = performance.now();
+    let resumeTimer = null;
+    let dragStartX = 0;
+    let dragStartLeft = 0;
+
+    const pause = () => {
+      paused = true;
+      if (resumeTimer !== null) {
+        clearTimeout(resumeTimer);
+        resumeTimer = null;
+      }
+    };
+    const resume = () => {
+      paused = false;
+      last = performance.now();
+    };
+    const resumeSoon = () => {
+      if (resumeTimer !== null) clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(resume, RESUME_DELAY);
+    };
+    const wrap = () => {
+      const half = track.scrollWidth / 2;
+      if (!half) return;
+      if (viewport.scrollLeft >= half) viewport.scrollLeft -= half;
+      else if (viewport.scrollLeft < 0) viewport.scrollLeft += half;
+    };
+    const endDrag = (event) => {
+      if (!dragging) return;
+      dragging = false;
+      viewport.classList.remove('is-dragging');
+      if (event && viewport.hasPointerCapture?.(event.pointerId)) {
+        viewport.releasePointerCapture(event.pointerId);
+      }
+      resumeSoon();
+    };
+
+    viewport.addEventListener('scroll', wrap, { passive: true });
+    viewport.addEventListener('focus', pause);
+    viewport.addEventListener('blur', resume);
+    viewport.addEventListener('wheel', () => { pause(); resumeSoon(); }, { passive: true });
+    viewport.addEventListener('touchstart', pause, { passive: true });
+    viewport.addEventListener('touchend', resumeSoon, { passive: true });
+    viewport.addEventListener('touchcancel', resumeSoon, { passive: true });
+
+    viewport.addEventListener('pointerdown', (event) => {
+      pause();
+      if (event.pointerType !== 'mouse' || event.button !== 0) return;
+      dragging = true;
+      dragStartX = event.clientX;
+      dragStartLeft = viewport.scrollLeft;
+      viewport.classList.add('is-dragging');
+      try {
+        viewport.setPointerCapture?.(event.pointerId);
+      } catch {
+        // Capture is an enhancement; dragging still works without it.
+      }
+      event.preventDefault();
+    });
+    viewport.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      viewport.scrollLeft = dragStartLeft - (event.clientX - dragStartX);
+      wrap();
+    });
+    viewport.addEventListener('pointerup', endDrag);
+    viewport.addEventListener('pointercancel', endDrag);
+
+    if (typeof IntersectionObserver === 'function') {
+      const observer = new IntersectionObserver(([entry]) => {
+        visible = entry.isIntersecting;
+      }, { threshold: 0.05 });
+      observer.observe(viewport);
+    }
+
+    const step = (now) => {
+      const dt = Math.min(64, now - last) / 1000;
+      last = now;
+      if (visible && !paused && !dragging && !document.hidden) {
+        viewport.scrollLeft += SPEED * dt;
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
 }
 
 function initReveal() {
@@ -600,6 +692,7 @@ function boot() {
   }
 
   initParallax();
+  initPannableBands();
   initReveal();
 }
 
