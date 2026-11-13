@@ -4,17 +4,22 @@ const TARGET = 44;
 const GAP = 6;
 const PADDING = 8;
 
-export function calculateSceneLayout(width, height, optionCount = 10, landscape = width >= height, minimumAnswerWidth = TARGET) {
+// reservedHeight is the space the answer zone spends on rows that are not the
+// answer grid (today: the ability circles and their caption line), so the grid
+// is sized from what is actually left for it.
+export function calculateSceneLayout(width, height, optionCount = 10, landscape = width >= height, minimumAnswerWidth = TARGET, reservedHeight = 0) {
   width = Math.max(0, Number(width) || 0);
   height = Math.max(0, Number(height) || 0);
   const count = Math.max(1, Math.floor(Number(optionCount) || 1));
   const targetWidth = Math.max(TARGET, Number(minimumAnswerWidth) || TARGET);
+  const reserved = Math.min(height, Math.max(0, Number(reservedHeight) || 0));
+  const answerBudget = Math.max(0, height - reserved);
   let columns;
   let rows;
   let sceneWidth;
   let sceneHeight;
   if (landscape) {
-    const availableRows = Math.max(1, Math.floor((height - 2 * PADDING + GAP) / (TARGET + GAP)));
+    const availableRows = Math.max(1, Math.floor((answerBudget - 2 * PADDING + GAP) / (TARGET + GAP)));
     // A compact three-column grid preserves a playable scene below a readable HUD.
     columns = Math.ceil(count / Math.min(5, availableRows));
     rows = Math.ceil(count / columns);
@@ -27,13 +32,13 @@ export function calculateSceneLayout(width, height, optionCount = 10, landscape 
       : count === 5 ? (availableColumns >= 5 ? 5 : 1) : Math.min(count, availableColumns);
     rows = Math.ceil(count / columns);
     const answerHeight = rows * TARGET + (rows - 1) * GAP + 2 * PADDING;
-    sceneHeight = Math.max(0, Math.min(height - answerHeight - GAP, width / RATIO));
+    sceneHeight = Math.max(0, Math.min(answerBudget - answerHeight - GAP, width / RATIO));
     sceneWidth = sceneHeight * RATIO;
   }
   return {
     landscape, columns, rows, sceneWidth, sceneHeight, minimumAnswerWidth: targetWidth,
     answerWidth: landscape ? Math.min(width - sceneWidth - GAP, Math.max(320, columns * targetWidth + (columns - 1) * GAP + 2 * PADDING)) : width,
-    answerHeight: landscape ? height : height - sceneHeight - GAP,
+    answerHeight: landscape ? answerBudget : height - sceneHeight - GAP,
   };
 }
 
@@ -42,6 +47,7 @@ export function initViewportLayout({ win = globalThis.window, doc = globalThis.d
   const wrap = doc?.getElementById('game-wrap');
   const options = doc?.getElementById('mc-buttons');
   const chrome = doc?.getElementById('gameplay-chrome');
+  const abilityBar = doc?.getElementById?.('ability-bar');
   if (!win || !root || !wrap) return { refresh() {}, destroy() {} };
   let destroyed = false;
   let frame = null;
@@ -79,8 +85,9 @@ export function initViewportLayout({ win = globalThis.window, doc = globalThis.d
       || [...(options?.children ?? [])].filter((el) => !el.hidden).length || 1;
     const minimumAnswerWidth = labelWidth();
     const chromeHeight = chrome && !chrome.hidden ? (chrome.offsetHeight || 0) + GAP : 0;
+    const abilityRow = abilityBar?.offsetHeight ? abilityBar.offsetHeight + GAP : 0;
     const layout = calculateSceneLayout(wrap.clientWidth, Math.max(0, wrap.clientHeight - chromeHeight), count,
-      win.innerWidth >= win.innerHeight, minimumAnswerWidth);
+      win.innerWidth >= win.innerHeight, minimumAnswerWidth, abilityRow);
     wrap.dataset.layout = layout.landscape ? 'landscape' : 'portrait';
     wrap.style.setProperty('--scene-width', `${layout.sceneWidth}px`);
     wrap.style.setProperty('--scene-height', `${layout.sceneHeight}px`);
@@ -100,6 +107,7 @@ export function initViewportLayout({ win = globalThis.window, doc = globalThis.d
   const resizeObserver = win.ResizeObserver ? new win.ResizeObserver(schedule) : null;
   resizeObserver?.observe(wrap);
   if (chrome) resizeObserver?.observe(chrome);
+  if (abilityBar) resizeObserver?.observe(abilityBar);
   const mutationObserver = win.MutationObserver ? new win.MutationObserver(schedule) : null;
   if (options) mutationObserver?.observe(options, {
     childList: true, characterData: true, attributes: true,

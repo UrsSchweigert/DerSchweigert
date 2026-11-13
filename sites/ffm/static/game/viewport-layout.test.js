@@ -201,6 +201,53 @@ test('visible chrome reserves real height without scaling the logical canvas', (
   controller.destroy();
 });
 
+test('the ability circle row is reserved out of the answer grid, never out of the scene', () => {
+  // Landscape: the right-hand answer column loses the circle row, so the grid
+  // re-flows into fewer, taller rows instead of overflowing the answer zone.
+  const tall = calculateSceneLayout(844, 288, 5, true);
+  const withCircles = calculateSceneLayout(844, 288, 5, true, 44, 71);
+  assert.ok(withCircles.rows <= tall.rows);
+  assert.ok(withCircles.columns >= tall.columns);
+  assert.ok((withCircles.answerHeight - 16 - (withCircles.rows - 1) * 6) / withCircles.rows >= 44);
+  assert.equal(withCircles.answerHeight, 288 - 71);
+  // The scene keeps the same height in landscape: the circles live beside it.
+  assert.equal(withCircles.sceneHeight, tall.sceneHeight);
+
+  // Portrait: the scene keeps its width-limited height when there is slack and
+  // gives up height only once the budget is tight.
+  const portrait = calculateSceneLayout(390, 660, 5, false);
+  const portraitWithCircles = calculateSceneLayout(390, 660, 5, false, 44, 71);
+  assert.ok(portraitWithCircles.sceneHeight <= portrait.sceneHeight);
+  const tight = calculateSceneLayout(320, 300, 5, false);
+  const tightWithCircles = calculateSceneLayout(320, 300, 5, false, 44, 71);
+  assert.ok(tightWithCircles.sceneHeight <= tight.sceneHeight);
+  assert.ok(tightWithCircles.answerHeight >= 16 + 44);
+
+  // A nonsense reservation can never produce a negative scene.
+  const clamped = calculateSceneLayout(390, 260, 5, false, 44, 5000);
+  assert.ok(clamped.sceneHeight >= 0 && clamped.answerHeight >= 0);
+  assert.ok(calculateSceneLayout(390, 260, 5, false, 44, NaN).sceneHeight
+    === calculateSceneLayout(390, 260, 5, false, 44, 0).sceneHeight);
+});
+
+test('the mounted ability bar feeds its measured height into the layout', () => {
+  const properties = new Map();
+  const style = { setProperty: (key, value) => properties.set(key, value) };
+  const wrap = { clientWidth: 844, clientHeight: 390, dataset: {}, style };
+  const options = { dataset: { optionCount: '5' }, children: [] };
+  const abilityBar = { offsetHeight: 71 };
+  const win = { ...events(), innerWidth: 844, innerHeight: 390 };
+  const doc = {
+    documentElement: { style, dataset: {} },
+    getElementById: id => ({ 'game-wrap': wrap, 'mc-buttons': options, 'ability-bar': abilityBar })[id],
+  };
+  const controller = initViewportLayout({ win, doc });
+  const expected = calculateSceneLayout(844, 390, 5, true, 44, 77);
+  assert.equal(String(properties.get('--answer-rows')), String(expected.rows));
+  assert.equal(String(properties.get('--answer-columns')), String(expected.columns));
+  controller.destroy();
+});
+
 test('screen IDs, pagination, playfield ownership and legal scrolling stay explicit', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   for (const id of ['playfield', 'game', 'combo-frame', 'input-zone', 'local-profiles', 'profile-root',

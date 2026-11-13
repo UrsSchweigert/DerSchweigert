@@ -340,27 +340,38 @@ describe('layout and purity', () => {
     assert.doesNotMatch(source, /\bDate\b|performance\.|setInterval|setTimeout|requestAnimationFrame|Math\.random/);
   });
 
-  it('reserves fixed-height, tabular readout lines and equal slot widths', async () => {
+  it('keeps the tabular readouts in a fixed caption line that cannot resize a circle', async () => {
     const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
 
-    const shared = /^\.ability-slot-cooldown,\n\.ability-slot-readout \{([^}]*)\}/m.exec(css);
-    assert.ok(shared, 'the cooldown and readout lines share one fixed-height rule');
-    assert.match(shared[1], /overflow: hidden/);
-    assert.match(shared[1], /tabular-nums/);
-    assert.match(shared[1], /text-overflow: ellipsis/);
+    // The readout is absolutely positioned under the circle, so a longer value
+    // can never widen or heighten the slot.
+    const readout = /^\.ability-slot-readout \{([^}]*)\}/m.exec(css);
+    assert.ok(readout);
+    assert.match(readout[1], /position: absolute/);
+    assert.match(readout[1], /top: calc\(100%/);
+    assert.match(readout[1], /overflow: hidden/);
+    assert.match(readout[1], /tabular-nums/);
+    assert.match(readout[1], /text-overflow: ellipsis/);
 
+    // The cooldown number sits over the middle of the circle.
     const cooldown = /^\.ability-slot-cooldown \{([^}]*)\}/m.exec(css);
     assert.ok(cooldown);
-    assert.match(cooldown[1], /height: 13px/);
+    assert.match(cooldown[1], /position: absolute/);
+    assert.match(cooldown[1], /font-variant-numeric: tabular-nums/);
 
-    const afterShared = css.slice(css.indexOf(shared[0]) + shared[0].length);
-    const readout = /^\.ability-slot-readout \{([^}]*)\}/m.exec(afterShared);
-    assert.ok(readout);
-    assert.match(readout[1], /height: 12px/);
+    // The bar reserves exactly one caption line under the circles.
+    const bar = /^#ability-bar \{([^}]*)\}/m.exec(css);
+    assert.ok(bar);
+    const reserved = Number(bar[1].match(/padding: 0 0 (\d+)px/)?.[1]);
+    const readoutLine = Number(readout[1].match(/line-height: (\d+)px/)?.[1]);
+    assert.ok(reserved > 0 && reserved >= readoutLine, `reserved ${reserved} vs line ${readoutLine}`);
 
+    // Three equal circles, each still a 44px+ touch target.
     const slot = /^\.ability-slot \{([^}]*)\}/m.exec(css);
     assert.ok(slot);
-    assert.match(slot[1], /flex: 1 1 0/);
-    assert.match(slot[1], /min-width: 44px/);
+    assert.match(slot[1], /flex: 0 0 auto/);
+    assert.match(slot[1], /border-radius: 50%/);
+    const size = Number(slot[1].match(/width: (\d+)px/)?.[1]);
+    assert.ok(size >= 44, `circle ${size}`);
   });
 });

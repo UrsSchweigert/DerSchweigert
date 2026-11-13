@@ -40,6 +40,13 @@ function fakeElement(tagName) {
       node.children.push(child);
       return child;
     },
+    insertBefore(child, reference) {
+      child.parentNode = node;
+      const index = reference ? node.children.indexOf(reference) : -1;
+      if (index < 0) node.children.push(child);
+      else node.children.splice(index, 0, child);
+      return child;
+    },
     setAttribute(name, value) { attributes[name] = String(value); },
     getAttribute(name) { return Object.hasOwn(attributes, name) ? attributes[name] : null; },
     removeAttribute(name) { delete attributes[name]; },
@@ -66,15 +73,25 @@ function fakeElement(tagName) {
   return node;
 }
 
-function fakeDocument() {
+function fakeDocument({ withAnswerZone = true } = {}) {
   const chrome = fakeElement('section');
   chrome.id = 'gameplay-chrome';
   const byId = new Map([['gameplay-chrome', chrome]]);
+  let answers = null;
+  if (withAnswerZone) {
+    const zone = fakeElement('div');
+    zone.id = 'input-zone';
+    answers = fakeElement('div');
+    answers.id = 'mc-buttons';
+    zone.appendChild(answers);
+    byId.set('input-zone', zone);
+    byId.set('mc-buttons', answers);
+  }
   const doc = {
     getElementById(id) { return byId.get(id) ?? null; },
     createElement(tagName) { return fakeElement(tagName); },
   };
-  return { chrome, doc };
+  return { chrome, byId, answers, doc };
 }
 
 const slotOf = (bar, id) => bar.element.children.find((slot) => slot.dataset.ability === id);
@@ -93,14 +110,17 @@ function keydown(key, extra = {}) {
 }
 
 describe('ability bar structure', () => {
-  it('creates exactly three native buttons in wind, storm, earth order inside #gameplay-chrome', () => {
-    const { chrome, doc } = fakeDocument();
+  it('creates exactly three native buttons in wind, storm, earth order under the sword row', () => {
+    const { byId, doc } = fakeDocument();
     const bar = createAbilityBar({ doc, translate: (key) => key });
 
     assert.equal(bar.element.id, ABILITY_BAR_ID);
     assert.equal(bar.element.getAttribute('role'), 'group');
     assert.equal(bar.element.getAttribute('aria-label'), 'ability.barLabel');
-    assert.deepEqual(chrome.children, [bar.element]);
+    // The circles are the line between the portrait sword row and the answers.
+    const zone = byId.get('input-zone');
+    assert.deepEqual(zone.children.map((child) => child.id), [ABILITY_BAR_ID, 'mc-buttons']);
+    assert.equal(byId.get('gameplay-chrome').children.length, 0);
     assert.equal(bar.element.children.length, 3);
     assert.deepEqual(
       bar.element.children.map((slot) => slot.dataset.ability),
@@ -111,6 +131,12 @@ describe('ability bar structure', () => {
       assert.equal(slot.type, 'button');
       assert.equal(slot.className, ABILITY_SLOT_CLASS);
     }
+  });
+
+  it('falls back to #gameplay-chrome when the answer zone is missing', () => {
+    const { chrome, doc } = fakeDocument({ withAnswerZone: false });
+    const bar = createAbilityBar({ doc, translate: (key) => key });
+    assert.deepEqual(chrome.children, [bar.element]);
   });
 
   it('takes names and descriptions from ability.<id>.name and ability.<id>.description', () => {
@@ -152,7 +178,7 @@ describe('ability bar structure', () => {
   });
 
   it('destroy removes the element and its listeners', () => {
-    const { chrome, doc } = fakeDocument();
+    const { byId, doc } = fakeDocument();
     const activated = [];
     const bar = createAbilityBar({ doc, onActivate: (id) => activated.push(id) });
     const wind = slotOf(bar, 'wind');
@@ -160,7 +186,7 @@ describe('ability bar structure', () => {
     assert.equal(wind.listenerCount('keydown'), 1);
 
     bar.destroy();
-    assert.equal(chrome.children.length, 0);
+    assert.equal(byId.get('input-zone').children.length, 1);
     assert.equal(wind.listenerCount('click'), 0);
     assert.equal(wind.listenerCount('keydown'), 0);
     wind.dispatchEvent({ type: 'click' });
@@ -296,29 +322,43 @@ describe('purity and layout', () => {
     }
   });
 
-  it('styles the bar as a normal-flow row with 44px targets and a conic sweep', async () => {
+  it('styles the bar as three centred circles with 44px+ targets and a conic sweep', async () => {
     const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
     const barRule = css.match(/#ability-bar\s*\{([^}]*)\}/)?.[1] ?? '';
-    assert.match(barRule, /grid-column:\s*1\s*\/\s*-1/);
-    assert.match(barRule, /width:\s*100%/);
+    // A normal-flow line of the answer zone, placed under the sword row.
+    assert.match(barRule, /order:\s*-1/);
+    assert.match(barRule, /flex:\s*0 0 100%/);
+    assert.match(barRule, /justify-content:\s*center/);
     assert.doesNotMatch(barRule, /position:\s*(fixed|absolute)/);
+    const swordsRule = css.match(/\.app-encounter-swords\s*\{([^}]*)\}/)?.[1] ?? '';
+    assert.match(swordsRule, /order:\s*-2/);
 
     const slotRule = css.match(/\.ability-slot\s*\{([^}]*)\}/)?.[1] ?? '';
-    assert.match(slotRule, /min-width:\s*44px/);
-    assert.match(slotRule, /min-height:\s*44px/);
+    assert.match(slotRule, /border-radius:\s*50%/);
+    const slotSize = Number(slotRule.match(/width:\s*(\d+)px/)?.[1]);
+    assert.ok(slotSize >= 44, `slot width ${slotSize}`);
+    assert.equal(Number(slotRule.match(/height:\s*(\d+)px/)?.[1]), slotSize);
+
+    const readoutRule = css.match(/\.ability-slot-readout\s*\{([^}]*)\}/)?.[1] ?? '';
+    assert.match(readoutRule, /position:\s*absolute/);
+    assert.match(readoutRule, /top:\s*calc\(100%/);
 
     const coolingRule = css.match(/\.ability-slot\[data-state="cooling"\]::after\s*\{([^}]*)\}/)?.[1] ?? '';
     assert.match(coolingRule, /conic-gradient/);
     assert.match(coolingRule, /--ability-progress/);
   });
 
-  it('the extra bar row still leaves the answers and portrait sword row visible', () => {
-    // 320x568 portrait with the app's four answers and the 22px sword row.
+  it('the circle row still leaves the answers and portrait sword row visible', () => {
+    // 320x568 portrait with the app's four answers, the 22px sword row and the
+    // 58px circles plus their 13px caption line: everything has to fit.
     const portraitChrome = 140;
     const portrait = calculateSceneLayout(320, 568 - portraitChrome - 6, 4, false);
     assert.ok(portrait.sceneWidth > 0 && portrait.sceneHeight > 0);
     const portraitInput = 568 - portraitChrome - 6 - portrait.sceneHeight;
-    assert.ok(portraitInput >= 16 + 22 + 6 + 44, `portrait input zone ${portraitInput}`);
+    assert.ok(
+      portraitInput >= 16 + 22 + 6 + 58 + 13 + 6 + 44,
+      `portrait input zone ${portraitInput}`,
+    );
 
     // 800x450 landscape with ten five-digit answers.
     const landscapeChrome = 100;
