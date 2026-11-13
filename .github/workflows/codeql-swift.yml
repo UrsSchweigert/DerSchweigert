@@ -47,6 +47,16 @@ jobs:
           cache-dependency-path: |
             sites/lesen/package-lock.json
             sites/ffm/mobile/package-lock.json
+      - name: Cache Swift Package Manager checkouts
+        # Only the shared repository cache is reused. DerivedData is deliberately not cached: an
+        # incremental build would skip compiling unchanged sources and CodeQL would extract an
+        # incomplete database.
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('sites/lesen/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'sites/ffm/mobile/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
       - name: Install Capacitor dependencies
         run: |
           set -euo pipefail
