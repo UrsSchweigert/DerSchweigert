@@ -230,7 +230,7 @@ change. No experimental rule is promoted by this implementation.
 
 ### Email verification, password reset, email change
 
-- Sending is done via AWS SES (`app/mailer.py`, plain-text emails, no templates/configuration sets). Reads `SES_SENDER_EMAIL` / `APP_BASE_URL` from `os.environ` at call time; both are also exposed on `app.config` and propagated into `os.environ` by `app/__init__.py`, same pattern as `DYNAMODB_*`.
+- Sending is done via AWS SES (`app/mailer.py`, plain-text emails, no templates/configuration sets). Reads `SES_SENDER_EMAIL` / `SES_CONFIGURATION_SET` / `APP_BASE_URL` / `BETA_WAITLIST_NOTIFY_EMAIL` from `os.environ` at call time; each is also exposed on `app.config` and propagated into `os.environ` by `app/__init__.py`, same pattern as `DYNAMODB_*`.
 - New accounts (`create_user`) are written with `email_verified: False`. **Pre-existing accounts created before this feature are grandfathered in as verified**: `get_user()` defaults a missing `email_verified` attribute to `True`, so no migration script was needed — only genuinely new rows can ever be `False`.
 - Single-use tokens (verification / password reset / email change) are stored in `ffm-users` as `TOKEN#<sha256 hex of the token>` / `T` items — only the SHA-256 digest is ever persisted; the plaintext token exists only in the emailed link (`create_token`/`consume_token` in `models.py`). `consume_token` deletes the item on success and leaves it untouched (not deleted) on a purpose mismatch or expiry, so a still-valid token for a different purpose can't be destroyed by an unrelated lookup. TTLs: 24h for `verify_email` and `change_email`, 1h for `reset_password`.
 - Endpoints: `POST /api/auth/verify-email`, `POST /api/auth/resend-verification`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `POST /api/auth/confirm-email-change`, plus authenticated `POST /api/profile/password` and `POST /api/profile/email`. `resend-verification`/`forgot-password` always return a generic response regardless of whether the account/email exists, to avoid leaking which emails are registered.
@@ -462,7 +462,14 @@ Added 2026-09-06 (Impressum/Datenschutz were entirely missing before). All of it
   (`400 google_mail_required` otherwise, `400 valid_email_required` for anything
   malformed) because Play's test track only invites Google accounts.
   Rate-limited per source IP (`BETA_WAITLIST_RATE_LIMIT`, default `5/minute`); a
-  rejected address writes nothing. The page at `/beta/` submits this form; the list is
+  rejected address writes nothing. Every *new* sign-up also emails the operator
+  (`BETA_WAITLIST_NOTIFY_EMAIL`, default `info@derschweigert.de`) via
+  `app/mailer.py`'s `send_beta_waitlist_notification`, so the list never has to be
+  polled; a repeat submission sends nothing, and a failed send is only logged to
+  stderr — the stored sign-up still succeeds. Delivery works even while SES is
+  sandboxed because `derschweigert.de` is a verified SES domain identity (managed
+  by the `email_forwarding` Terraform module); set the variable to an empty string
+  to disable the notification. The page at `/beta/` submits this form; the list is
   read with
   `python -m flask --app sites.ffm.app:create_app beta-admin export [--format csv|json]`
   when the Play test track opens.

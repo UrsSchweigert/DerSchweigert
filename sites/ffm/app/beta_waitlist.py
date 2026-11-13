@@ -11,11 +11,17 @@ so a sign-up can never collide with `USER#`/`BILLING#`/`CANCELREQUEST#` items.
 The route never looks up whether an account exists for the address, so it can
 not be used to enumerate accounts: a repeat submission only tells the
 submitter that this very address is already on the list.
+
+Every *new* sign-up also notifies the operator (app/mailer.py's
+send_beta_waitlist_notification, BETA_WAITLIST_NOTIFY_EMAIL) so the list does
+not have to be polled; repeat submissions are silent, and a failed send never
+fails the stored sign-up.
 """
 
 import csv
 import io
 import json
+import sys
 from datetime import datetime, timezone
 
 import click
@@ -23,6 +29,7 @@ from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 from flask import Blueprint, current_app, jsonify, request
 
+from . import mailer
 from .extensions import limiter
 from .models import _users
 from .validation import is_google_mail_address, is_valid_email
@@ -128,7 +135,14 @@ def submit():
     if locale not in _LOCALES:
         locale = _DEFAULT_LOCALE
 
-    _, created = create_signup(email, locale)
+    item, created = create_signup(email, locale)
+    if created:
+        try:
+            mailer.send_beta_waitlist_notification(
+                item['email'], item.get('submitted_at'), item.get('locale', locale),
+            )
+        except Exception as exc:  # the sign-up is already stored; a failed notification must not fail it
+            print(f"send_beta_waitlist_notification failed for {email}: {exc}", file=sys.stderr)
     status = 'registered' if created else 'already_registered'
     return jsonify(ok=True, status=status, message=_MESSAGES[status][locale]), (201 if created else 200)
 

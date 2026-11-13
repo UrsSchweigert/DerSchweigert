@@ -38,6 +38,7 @@ def create_app(config_class=None):
     os.environ['DYNAMODB_RATELIMIT_TABLE'] = app.config['DYNAMODB_RATELIMIT_TABLE']
     os.environ['SES_SENDER_EMAIL'] = app.config['SES_SENDER_EMAIL']
     os.environ['SES_CONFIGURATION_SET'] = app.config['SES_CONFIGURATION_SET']
+    os.environ['BETA_WAITLIST_NOTIFY_EMAIL'] = app.config['BETA_WAITLIST_NOTIFY_EMAIL']
     os.environ['APP_BASE_URL'] = app.config['APP_BASE_URL']
 
     allowed_origins = ["https://ffm.derschweigert.de"]

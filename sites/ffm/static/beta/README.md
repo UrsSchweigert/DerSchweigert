@@ -81,6 +81,11 @@ The endpoint is anonymous, so it validates strictly, rate-limits per source IP
 (`BETA_WAITLIST_RATE_LIMIT`, `5/minute`) and is idempotent: a repeat sign-up
 answers `200` with `already_registered` instead of writing a second item.
 
+Each *new* sign-up also notifies the owner by email
+(`BETA_WAITLIST_NOTIFY_EMAIL`, defaulting to `info@derschweigert.de`, sent by
+`app/mailer.py`'s `send_beta_waitlist_notification`); repeats stay silent, and a
+send failure is only logged — the stored sign-up still succeeds.
+
 `beta.js` submits with `fetch`, disables the button while the request runs and
 writes the outcome into the `role="status"` region for all five failure
 classes (400 malformed, 400 non-Gmail/Googlemail, 429 rate limit, network

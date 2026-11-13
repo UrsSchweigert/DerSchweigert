@@ -142,14 +142,20 @@ module "api" {
 
   environment_variables = merge(
     {
-      APP_ENV                        = "production"
-      FLASK_ENV                      = "production"
-      SECRET_KEY_ARN                 = aws_secretsmanager_secret.jwt_secret.arn
-      DYNAMODB_RATELIMIT_TABLE       = aws_dynamodb_table.ratelimits.name
-      RATELIMIT_STORAGE_URI          = "dynamodb://${aws_dynamodb_table.ratelimits.name}"
-      DYNAMODB_VISITS_TABLE          = aws_dynamodb_table.visits.name
-      SES_SENDER_EMAIL               = "no-reply@ffm.derschweigert.de"
-      SES_CONFIGURATION_SET          = aws_ses_configuration_set.ffm_transactional.name
+      APP_ENV                  = "production"
+      FLASK_ENV                = "production"
+      SECRET_KEY_ARN           = aws_secretsmanager_secret.jwt_secret.arn
+      DYNAMODB_RATELIMIT_TABLE = aws_dynamodb_table.ratelimits.name
+      RATELIMIT_STORAGE_URI    = "dynamodb://${aws_dynamodb_table.ratelimits.name}"
+      DYNAMODB_VISITS_TABLE    = aws_dynamodb_table.visits.name
+      SES_SENDER_EMAIL         = "no-reply@ffm.derschweigert.de"
+      SES_CONFIGURATION_SET    = aws_ses_configuration_set.ffm_transactional.name
+      # Operator address notified about each new Android beta sign-up
+      # (app/beta_waitlist.py -> app/mailer.py). Delivered through the
+      # verified derschweigert.de SES domain identity that the
+      # email_forwarding module already manages, so it also works while the
+      # account is still in the SES sandbox.
+      BETA_WAITLIST_NOTIFY_EMAIL     = "info@derschweigert.de"
       APP_BASE_URL                   = "https://ffm.derschweigert.de"
       TURNSTILE_SECRET_KEY_ARN       = data.aws_secretsmanager_secret.turnstile_secret.arn
       ADMIN_VISITS_TOKEN             = var.admin_visits_token

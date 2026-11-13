@@ -75,6 +75,11 @@ class BaseConfig:
     # so five submissions a minute is generous while still bounding
     # anonymous durable writes.
     BETA_WAITLIST_RATE_LIMIT = "5/minute"
+    # Operator address that hears about every *new* beta sign-up
+    # (app/mailer.py's send_beta_waitlist_notification). Empty disables the
+    # notification; tests set it empty so their sign-ups never leave the
+    # process, and dedicated tests set it explicitly to assert the send.
+    BETA_WAITLIST_NOTIFY_EMAIL = os.environ.get('BETA_WAITLIST_NOTIFY_EMAIL', 'info@derschweigert.de')
 
 
 class ProductionConfig(BaseConfig):
@@ -122,3 +127,7 @@ class TestingConfig(BaseConfig):
     # Same rationale again, for the Android beta waitlist (see
     # tests/test_beta_waitlist.py).
     BETA_WAITLIST_RATE_LIMIT = "1000/minute"
+    # Disabled by default so the suite's many sign-ups don't attempt an SES
+    # send; dedicated tests re-enable it on a per-test config subclass to
+    # assert the operator notification (see tests/test_beta_waitlist.py).
+    BETA_WAITLIST_NOTIFY_EMAIL = ''
