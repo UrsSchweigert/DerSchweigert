@@ -1050,6 +1050,32 @@ export class AudioEngine {
   }
 
   /**
+   * The fiend portal tearing open. There is no sample for this one: the door is
+   * a screen effect that fires on every spawn, so it is synthesised to stay
+   * cheap and to fit the moment exactly — a low rumble that opens under a
+   * rising band of noise (the rent in the air) with a sub-bass thump for weight
+   * and a thin shimmer as the light spills out.
+   *
+   * Deliberately quieter than a spell: it plays once per encounter, often right
+   * after a hit, and must sit under the game rather than in front of it.
+   *
+   * @returns {boolean} whether the cue played.
+   */
+  playFiendPortal() {
+    this._ensureCtx();
+    if (this._muted) return false;
+    const t = this._ctx.currentTime;
+    // The rent: a band of noise pulled upward as the door cuts itself open.
+    this._playNoiseBurst(0.34, t, 0.26, 220, 'bandpass', 1900, 3);
+    // Below it, the rumble of something heavy moving behind the door.
+    this._playSweep(72, 38, 'sawtooth', 0.55, t + 0.02, 0.2);
+    this._playTone(54, 'sine', 0.3, t, 0.22);
+    // And the light: a thin shimmer, quiet enough to be a detail.
+    this._playSweep(680, 1480, 'triangle', 0.22, t + 0.06, 0.07);
+    return true;
+  }
+
+  /**
    * One-shot cue for a successful ability cast. Each ability keeps its own
    * texture so the three buttons are tellable apart with the screen hidden:
    * wind is an airy rising whoosh, storm a crackling electric snap and earth a

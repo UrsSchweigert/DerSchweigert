@@ -1260,6 +1260,32 @@ describe('shared sound buses and event cues', () => {
       assert.equal(muted.context.nodes.length, before, 'a muted press builds no nodes');
     });
 
+    it('playFiendPortal opens a door: rumble, sub thump and a shimmer, under a spell', () => {
+      const { audio, context } = soundEngine();
+      assert.equal(audio.playFiendPortal(), true);
+      const tones = context.nodes.filter(n => n.kind === 'oscillator');
+      const freqs = tones.map(n => n.frequency.value);
+      assert.ok(freqs.some(f => f < 100), 'a sub-bass thump and a rumble');
+      assert.ok(freqs.some(f => f > 600), 'and a shimmer coming through the rent');
+      assert.ok(context.nodes.some(n => n.kind === 'buffer'), 'the rent is noise');
+
+      // It must stay below a spell: it fires on every encounter.
+      const peak = engine => Math.max(...engine.context.nodes
+        .filter(n => n.kind === 'gain' && n !== engine.audio._effectsBus && n !== engine.audio._musicBus)
+        .flatMap(n => n.gain.events.filter(e => typeof e[1] === 'number').map(e => e[1])));
+      const spell = soundEngine();
+      spell.audio.playAbilityPress();
+      assert.ok(peak({ context, audio }) < peak(spell),
+        `portal ${peak({ context, audio })} sits under a spell ${peak(spell)}`);
+
+      const muted = soundEngine();
+      muted.audio.toggleMute();
+      muted.audio._ensureCtx();
+      const before = muted.context.nodes.length;
+      assert.equal(muted.audio.playFiendPortal(), false);
+      assert.equal(muted.context.nodes.length, before, 'a muted portal builds no nodes');
+    });
+
     it('playAbilityRefused is a dull "not yet", not a shatter', () => {
       const press = soundEngine();
       press.audio.playAbilityPress();

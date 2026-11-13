@@ -190,11 +190,16 @@ replace, because they are mixed from waveforms rather than recorded:
 | --- | --- | --- |
 | `playAbilityPress()` | pressing a *ready* orb, before the cast is attempted | glass: two highpass/bandpass noise cracks plus five inharmonic partials between 2.6 and 7.3 kHz, each 0.05–0.15 s, over a 0.12 s sine drop for the body of the ball |
 | `playAbilityCast(id)` | a successful wind, storm or earth cast | wind: bandpass noise sweeping up plus a triangle sweep; storm: high bandpass snap into a thunder rumble; earth: deep sine drop under a low-passed rumble |
+| `playFiendPortal()` | a fiend's portal tearing open, with the visual effect | the rent: 0.34 s bandpass noise swept 220 Hz → 1.9 kHz; behind it a sawtooth rumble 72 → 38 Hz and a 54 Hz sine thump; over it a thin triangle shimmer 680 → 1480 Hz |
 
 The press cue is deliberately separate from the cast cue: the orb cracks under
 the finger, and the spell answers a moment later, so a refused cast (no fiend to
-blow away) still acknowledges the touch. Both are muted with everything else and
-build no nodes while muted.
+blow away) still acknowledges the touch. All of them are muted with everything
+else and build no nodes while muted.
+
+The portal cue is the quietest of the three on purpose: it fires on every spawn
+— every 0.5 s in a fast run — so it is mixed to sit under the game instead of in
+front of it, and it sounds with the door rather than with the fiend's first step.
 
 `setEffectsVolume(number)` and `setMusicVolume(number)` clamp finite numbers to
 0–1 and return the resulting value. Non-numeric/NaN/infinite inputs throw
