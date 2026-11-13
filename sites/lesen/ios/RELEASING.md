@@ -130,7 +130,7 @@ request maintainer-side project registration through supported project tooling.
 
 `CFBundleShortVersionString` comes from `MARKETING_VERSION` (committed default
 `1.0`) and `CFBundleVersion` from `CURRENT_PROJECT_VERSION` (committed default
-`1`), both defined in the owner-merged `project.pbxproj`. Do not hand-edit that
+`7`), both defined in the owner-merged `project.pbxproj`. Do not hand-edit that
 file per release. Override the values at build time instead, exactly as the
 Android build takes `-PbzVersionCode`/`-PbzVersionName`:
 
@@ -288,6 +288,50 @@ Apple references:
 [custom scripts](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts),
 [distribution workflows](https://developer.apple.com/documentation/xcode/creating-a-workflow-that-builds-your-app-for-distribution),
 [build numbering](https://developer.apple.com/documentation/xcode/setting-the-next-build-number-for-xcode-cloud-builds).
+
+### Diagnosing a failed Cloud build
+
+`** ARCHIVE SUCCEEDED **` and a produced `.ipa` do not mean the build passed:
+Cloud runs the App Store Connect hand-off after the archive, and that step has
+its own error. Read the log bundle before changing the project. Download it from
+the Report navigator's Cloud tab (or App Store Connect > app > Xcode Cloud >
+build > the failed action > Artifacts) as `Logs for App archive`. It contains:
+
+- `ci_post_clone.log` — npm restore, asset copy/verification, Capacitor sync,
+  `npm test`. A failure here is a project or toolchain problem.
+- `resolve_package_dependencies.log` — Swift package resolution against the
+  restored `node_modules`.
+- `xcodebuild-archive.log` — compiler, linker and signing errors.
+- `<method>-export-archive-logs/` — one directory per export method, each with
+  `xcodebuild-export-archive.log` and a `.xcdistributionlogs` directory holding
+  the `IDEDistribution*.log` files.
+
+Attribute the failure to the stage that reports it, not to the first log that
+mentions "error". Observed on builds 4, 5 and 7 (2026-11-13): each failed with
+`Preparing build for App Store Connect failed` after the post-clone hook, the
+archive and all three exports had passed. The bundle ends at
+`** EXPORT SUCCEEDED **`, so it does not contain the upload error itself — that
+text exists only in the Cloud log for the action. The bundle still carries the
+hint: only the `app-store` export records the App Store Connect lookup, and only
+for the app that fails.
+
+```text
+IDEDistribution.standard.log:
+  Failed to find an account with App Store Connect access for team <TEAM_ID>
+DVTITunesSoftwareService.log:
+  Unable to authenticate with App Store Connect … AuthenticationContextError
+```
+
+Treat that as evidence about the app, not proof about the project. Resolve it on
+the Apple side, in this order: confirm the app record still exists in App Store
+Connect with the same bundle id and that its Xcode Cloud product is still
+linked; confirm the Apple Account used by Cloud has Admin or App Manager access
+to the team (Account Holder, Admin, App Manager and Developer can use Xcode
+Cloud; other roles cannot); accept any pending agreement under Agreements, Tax,
+and Banking. A second app on the same team that builds and uploads successfully
+clears the account entirely and points at the failing app's record. Only a
+validation error naming the bundle (`ITMS-…`) points back at the archive and the
+project.
 
 ## Producing and uploading the build
 
