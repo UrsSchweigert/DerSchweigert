@@ -4071,7 +4071,10 @@ function gameLoop(ts) {
     const shake = globalThis.ffmScreenFx?.getShakeOffset?.();
     const sx = shake ? shake.x : 0;
     const sy = shake ? shake.y : 0;
-    if (sx || sy) {
+    // The scale is not free: it re-grids the pixel art while it is on screen, so
+    // a sub-pixel nudge is not worth it. Only a real impact (storm, earth) is
+    // allowed to move the camera — the spawn portal deliberately does not shake.
+    if (Math.abs(sx) >= 0.75 || Math.abs(sy) >= 0.75) {
       canvas.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) scale(1.015)`;
     } else if (canvas.style.transform) {
       canvas.style.transform = '';

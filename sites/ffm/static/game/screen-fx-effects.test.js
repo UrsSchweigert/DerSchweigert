@@ -371,6 +371,38 @@ test('the fiend portal anchors to the ground line it is given', () => {
   assert.ok(particles.every((p) => Math.abs(p.x - 760) < 120), 'everything stays near the portal');
 });
 
+test('a spawn never moves the camera: the portal thumps on the ground instead', () => {
+  const { fx } = make();
+  fx.play('fiendPortal', { x: 760, y: 360 });
+  // Run past the door's opening schedule (0.25 s), where the impact used to live,
+  // while the ground rings it fires are still alive.
+  for (let i = 0; i < 24; i += 1) fx.step(1 / 60);
+  assert.deepEqual(fx.getShakeOffset(), { x: 0, y: 0 },
+    'a spawn must not shake the playfield: the pixel art re-grids while it does');
+  // The weight is carried by a ground shockwave on the portal's own line.
+  const rings = fx._particles.filter((p) => p.type === 'ring' || p.type === 'oval');
+  assert.ok(rings.some((r) => Math.abs(r.y - 360) < 2), 'a ring lies on the ground line');
+});
+
+test('the portal recipe itself never asks for a shake', async () => {
+  const { createEffectTable } = await import('./screen-fx-effects.js');
+  const calls = [];
+  const scheduled = [];
+  const api = new Proxy({}, {
+    get: (_target, name) => (...args) => {
+      calls.push(String(name));
+      if (name === 'schedule') scheduled.push(args[1]);
+      if (name === 'countScale') return 1;
+      return undefined;
+    },
+  });
+  createEffectTable().fiendPortal(api, { x: 760, y: 360 });
+  // Run the deferred impact, which is where the shake used to hide.
+  for (const run of scheduled) run();
+  assert.ok(!calls.includes('shake'), 'no shake in the spawn recipe');
+  assert.ok(calls.includes('flash') && calls.includes('oval'), 'the thump is flash and rings');
+});
+
 test('the fiend portal survives an empty payload and reduced motion', () => {
   for (const reducedMotion of [false, true]) {
     const { fx } = make({ reducedMotion });

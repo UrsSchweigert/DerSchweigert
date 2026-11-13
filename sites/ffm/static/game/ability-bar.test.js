@@ -424,8 +424,10 @@ describe('purity and layout', () => {
 
     const barRule = css.match(/#ability-bar \{([^}]*)\}/)?.[1] ?? '';
     assert.match(barRule, /--ornament-size: clamp\(\s*34px/);
+    // The row stays tight between the balls so the dragons get the outside.
+    assert.match(barRule, /--ornament-size: clamp\([^;]*\), 84px\);/);
     assert.match(barRule, /--orb-size: 58px/);
-    assert.match(barRule, /--orb-gap:/);
+    assert.match(barRule, /--orb-gap: clamp\(6px, 2\.6vw, 12px\)/);
 
     // Heads inward: a clockwise turn on the left, the same turn mirrored on the right.
     assert.match(css, /\.ability-ornament--left \{ left: 0; transform: rotate\(90deg\); \}/);
