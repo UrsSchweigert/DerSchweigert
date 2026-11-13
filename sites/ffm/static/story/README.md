@@ -15,7 +15,7 @@ act opening plays when its first level starts (see [Integration](#integration)).
 
 | Path | Contents |
 | --- | --- |
-| `player/` | `diorama-player.js` (ES module, no game dependency) and its CSS |
+| `player/` | `diorama-player.js` (ES module, no game dependency), its CSS, and the generated paper-grain tile |
 | `scenes/index.json` | every scene and the slot it plays in (`intro`, `act`, `level`, `finish`) |
 | `scenes/<id>/scene.json` | layers, motion, lighting, subtitles (source of truth) |
 | `scenes/<id>/*.webp` | final layers (backdrop opaque, others with alpha) |
@@ -23,7 +23,7 @@ act opening plays when its first level starts (see [Integration](#integration)).
 | `scenes/<id>/narration/<lang>/` | recorded voice-over: one track, its stems and `timing.json` |
 | `sources/<id>/` | art packet (`layers.json`: prompts, references, retouches) and raw renders |
 | `references/` | approved hero reference sheet |
-| `tools/` | cutout, encoding and subtitle scripts |
+| `tools/` | cutout, encoding, paper-grain and subtitle scripts |
 | `ART-BIBLE.md` | consistency rules every layer is reviewed against |
 | `preview.html` | development preview |
 
@@ -224,6 +224,29 @@ the lowest wins.
 The stylesheet (`story/player/diorama-player.css`) is linked from
 `index.html`. Scenes stay optional and skippable: a missing or broken scene
 logs and continues into the level.
+
+### Keeping the compositor happy on Android
+
+A scene is a stack of full-stage layers with `mix-blend-mode` overlays on top,
+and an Android WebView composites every one of them at device resolution: on a
+1440p phone the intro needs about 40 layers and 350 MB of RGBA surfaces, so
+anything that adds a surface is worth avoiding.
+
+* **No SVG filters in the player's own chrome.** The paper grain over the scene
+  is a repeating image tile (`player/paper-grain.webp`, regenerate with
+  `python3 tools/paper-grain.py`). It used to be an inline `<feTurbulence>`
+  filter, which Blink re-rasterises whenever the scaled, rotated, blend-mode
+  layer is re-rastered; on some Android GPU paths that came back as a regular
+  grid of black squares across the whole scene, while iOS was unaffected.
+* **One `drop-shadow` per cutout, none on the backdrop.** Each shadow is a blur
+  of the whole cutout in its own offscreen surface. The backdrop is opaque and
+  covers the stage at every keyframe, so its shadow only falls on the black
+  stage behind it.
+* **Idle overlays are hidden, not just transparent.** The flash and the dim are
+  full-stage blend layers; a transparent one still costs its surface, so the
+  player sets `visibility: hidden` while no event is playing.
+* The stage is `isolation: isolate`, so every blend mode resolves inside the
+  stage instead of sampling the page behind it.
 
 Still to come: an act opening before each act's first level, a `before` scene
 when a level is started from the level-clear "Next level" button, and the
