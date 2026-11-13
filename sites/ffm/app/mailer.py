@@ -2,10 +2,10 @@
 with using the simplest boto3 client API for this small set of plain-text
 transactional emails).
 
-Reads APP_BASE_URL / SES_SENDER_EMAIL / SES_CONFIGURATION_SET from
-os.environ at call time (not at import time) so tests can override them
-per-test via monkeypatch/os.environ, matching how app/models.py reads
-DYNAMODB_USERS_TABLE.
+Reads APP_BASE_URL / SES_SENDER_EMAIL / SES_CONFIGURATION_SET /
+BETA_WAITLIST_NOTIFY_EMAIL from os.environ at call time (not at import
+time) so tests can override them per-test via monkeypatch/os.environ,
+matching how app/models.py reads DYNAMODB_USERS_TABLE.
 """
 import os
 
@@ -29,6 +29,10 @@ def _base_url():
 
 def _configuration_set():
     return os.environ.get('SES_CONFIGURATION_SET', '')
+
+
+def _beta_waitlist_notify_address():
+    return os.environ.get('BETA_WAITLIST_NOTIFY_EMAIL', '')
 
 
 def _send(to_email, subject, body_text):
@@ -633,3 +637,25 @@ def send_email_change_confirmation(to_email, username, token, language='en'):
         subject=copy['subject'],
         body_text=copy['body'].format(username=username, link=link),
     )
+
+
+def send_beta_waitlist_notification(email, submitted_at, locale):
+    """Tell the operator that a new address joined the Android beta list.
+
+    Operator-facing and therefore German-only, unlike the locale-selected
+    user templates above. No-op when BETA_WAITLIST_NOTIFY_EMAIL is empty
+    (local/dev/test default); callers are expected to swallow SES errors so
+    a notification failure never fails a sign-up that is already stored.
+    """
+    to_email = _beta_waitlist_notify_address()
+    if not to_email:
+        return
+    body_text = (
+        "Neue Anmeldung für die Android-Beta-Liste.\n\n"
+        f"E-Mail:      {email}\n"
+        f"Eingetragen: {submitted_at or 'unbekannt'}\n"
+        f"Sprache:     {locale}\n\n"
+        "Die vollständige Liste bekommst du mit:\n"
+        "python -m flask --app sites.ffm.app:create_app beta-admin export\n"
+    )
+    _send(to_email, subject=f"Neue Android-Beta-Anmeldung: {email}", body_text=body_text)

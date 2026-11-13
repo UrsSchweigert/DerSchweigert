@@ -11,6 +11,7 @@ import csv
 import io
 import json
 import os
+from unittest.mock import patch
 
 import boto3
 import pytest
@@ -218,6 +219,61 @@ def test_rate_limit_bounds_submissions_per_source(aws_mock):
         assert resp.status_code == 201
 
     assert test_client.post(ENDPOINT, json={'email': 'sixth@gmail.com'}).status_code == 429
+
+
+# ============ Operator notification ============
+
+NOTIFY = 'sites.ffm.app.mailer.send_beta_waitlist_notification'
+
+
+class NotifyingConfig(TestingConfig):
+    """TestingConfig disables the notification; these tests turn it on."""
+    BETA_WAITLIST_NOTIFY_EMAIL = 'info@derschweigert.de'
+
+
+def _notifying_client():
+    return create_app(NotifyingConfig).test_client()
+
+
+def test_a_new_signup_notifies_the_operator(aws_mock):
+    test_client = _notifying_client()
+    with patch(NOTIFY) as notify:
+        resp = test_client.post(ENDPOINT, json={'email': 'Notify@Gmail.com', 'locale': 'en'})
+
+    assert resp.status_code == 201
+    notify.assert_called_once()
+    email, submitted_at, locale = notify.call_args.args
+    assert email == 'notify@gmail.com', 'the notification carries the stored, normalised address'
+    assert submitted_at
+    assert locale == 'en'
+
+
+def test_a_repeat_signup_does_not_notify_again(aws_mock):
+    test_client = _notifying_client()
+    with patch(NOTIFY) as notify:
+        test_client.post(ENDPOINT, json={'email': 'once@gmail.com'})
+        resp = test_client.post(ENDPOINT, json={'email': 'once@gmail.com'})
+
+    assert resp.get_json()['status'] == 'already_registered'
+    assert notify.call_count == 1
+
+
+def test_a_failed_notification_does_not_fail_the_stored_signup(aws_mock):
+    test_client = _notifying_client()
+    with patch(NOTIFY, side_effect=RuntimeError('ses unavailable')):
+        resp = test_client.post(ENDPOINT, json={'email': 'resilient@gmail.com'})
+
+    assert resp.status_code == 201
+    assert [item['email'] for item in _stored_items()] == ['resilient@gmail.com']
+
+
+def test_notification_is_skipped_when_no_operator_address_is_configured(aws_mock):
+    test_client = create_app(TestingConfig).test_client()
+    with patch('sites.ffm.app.mailer._send') as send:
+        resp = test_client.post(ENDPOINT, json={'email': 'silent@gmail.com'})
+
+    assert resp.status_code == 201
+    send.assert_not_called()
 
 
 # ============ Operator CLI ============

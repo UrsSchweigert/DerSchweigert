@@ -435,3 +435,27 @@ def test_email_boundary_matches_entitlements_free_level_cutoff():
     from sites.ffm.app import entitlements
     source = inspect.getsource(entitlements.require_level_access)
     assert 'level <= 2' in source
+
+
+# ============ Android beta waitlist operator notification ============
+
+def test_beta_waitlist_notification_goes_to_the_configured_operator_address(monkeypatch):
+    sent = _capture(monkeypatch)
+    monkeypatch.setenv('BETA_WAITLIST_NOTIFY_EMAIL', 'info@derschweigert.de')
+
+    mailer.send_beta_waitlist_notification('tester@gmail.com', '2026-11-13T10:00:00+00:00', 'de')
+
+    assert sent['to_email'] == 'info@derschweigert.de'
+    assert 'tester@gmail.com' in sent['subject']
+    assert 'tester@gmail.com' in sent['body_text']
+    assert '2026-11-13T10:00:00+00:00' in sent['body_text']
+    assert 'de' in sent['body_text']
+
+
+def test_beta_waitlist_notification_is_a_noop_without_a_configured_address(monkeypatch):
+    sent = _capture(monkeypatch)
+    monkeypatch.setenv('BETA_WAITLIST_NOTIFY_EMAIL', '')
+
+    mailer.send_beta_waitlist_notification('tester@gmail.com', '2026-11-13T10:00:00+00:00', 'de')
+
+    assert sent == {}, 'no recipient means nothing is sent at all'
