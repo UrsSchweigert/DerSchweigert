@@ -125,14 +125,14 @@ describe('bonus readouts per level', () => {
     assert.equal(readoutOf(bar, 'earth'), '');
   });
 
-  it('level 7 spells out the storm rank earned at level 7', () => {
+  it('level 7 shows the storm rank as a number, the words stay in the name', () => {
     const bar = mount({ translate: t });
     setLocale('en');
     const { bonus } = render(bar, 7);
 
     assert.equal(bonus.stormRank, 1);
     assert.equal(slotOf(bar, 'storm').dataset.state, 'ready');
-    assert.equal(readoutOf(bar, 'storm'), 'Removes 2');
+    assert.equal(readoutOf(bar, 'storm'), '2');
     assert.equal(readoutOf(bar, 'earth'), '');
   });
 
@@ -143,9 +143,9 @@ describe('bonus readouts per level', () => {
 
     assert.equal(bonus.stormRank, 2);
     assert.equal(bonus.slowBonuses, 1);
-    assert.equal(readoutOf(bar, 'storm'), 'Removes 3');
+    assert.equal(readoutOf(bar, 'storm'), '3');
     // 8 s slow at factor 0.65 is a 35 % slow; one 0.05 speed bonus adds 5 %.
-    assert.equal(readoutOf(bar, 'earth'), 'Slow 40% · ×1');
+    assert.equal(readoutOf(bar, 'earth'), '40% · ×1');
   });
 
   it('level 60 shows every capped bonus', () => {
@@ -161,9 +161,12 @@ describe('bonus readouts per level', () => {
       },
       { stormRank: 5, slowBonuses: 6, spikeTargets: 5 },
     );
-    assert.equal(readoutOf(bar, 'storm'), 'Removes 6');
+    assert.equal(readoutOf(bar, 'storm'), '6');
     // 35 % spike slow plus the 30 % passive floor (FIEND_SPEED_FLOOR).
-    assert.equal(readoutOf(bar, 'earth'), 'Slow 65% · ×5');
+    assert.equal(readoutOf(bar, 'earth'), '65% · ×5');
+    // The visible caption is numbers only; the words live in the slot's name.
+    assert.equal(slotOf(bar, 'storm').getAttribute('aria-label'), 'Storm, Removes 6');
+    assert.equal(slotOf(bar, 'earth').getAttribute('aria-label'), 'Earth, Slow 65% · ×5');
   });
 });
 
@@ -220,11 +223,11 @@ describe('earth target readout', () => {
     });
 
     update(2);
-    assert.equal(readoutOf(bar, 'earth'), 'Slow 65% · ×2');
+    assert.equal(readoutOf(bar, 'earth'), '65% · ×2');
     update(99);
-    assert.equal(readoutOf(bar, 'earth'), 'Slow 65% · ×5');
+    assert.equal(readoutOf(bar, 'earth'), '65% · ×5');
     update(-3);
-    assert.equal(readoutOf(bar, 'earth'), 'Slow 65% · ×0');
+    assert.equal(readoutOf(bar, 'earth'), '65% · ×0');
   });
 
   it('keeps the earned targets when the spike is not running', () => {
@@ -234,7 +237,7 @@ describe('earth target readout', () => {
     assert.equal(runtime.spikeState.active, false);
     render(bar, 60, 1, { spikeTargetsLeft: 0 });
 
-    assert.equal(readoutOf(bar, 'earth'), 'Slow 65% · ×5');
+    assert.equal(readoutOf(bar, 'earth'), '65% · ×5');
   });
 });
 
@@ -266,8 +269,8 @@ describe('readout robustness', () => {
       }
     }
     assert.equal(cooldownOf(bar, 'wind'), 'Ready');
-    assert.equal(readoutOf(bar, 'storm'), 'Removes 1');
-    assert.equal(readoutOf(bar, 'earth'), 'Slow 35% · ×1');
+    assert.equal(readoutOf(bar, 'storm'), '1');
+    assert.equal(readoutOf(bar, 'earth'), '35% · ×1');
   });
 
   it('clamps synthetic bonuses that exceed every cap', () => {
@@ -279,8 +282,8 @@ describe('readout robustness', () => {
       bonus: { stormRank: 99, slowBonuses: 99, spikeTargets: 99 },
     });
 
-    assert.equal(readoutOf(bar, 'storm'), 'Removes 6');
-    assert.equal(readoutOf(bar, 'earth'), 'Slow 65% · ×5');
+    assert.equal(readoutOf(bar, 'storm'), '6');
+    assert.equal(readoutOf(bar, 'earth'), '65% · ×5');
   });
 
   it('falls back to the level-1 defaults without any model input', () => {
@@ -304,8 +307,8 @@ describe('localization', () => {
     render(bar, 60, 0.5);
 
     assert.equal(cooldownOf(bar, 'wind'), '66');
-    assert.equal(readoutOf(bar, 'storm'), 'Entfernt 6');
-    assert.equal(readoutOf(bar, 'earth'), 'Langsam 65% · ×5');
+    assert.equal(readoutOf(bar, 'storm'), '6');
+    assert.equal(readoutOf(bar, 'earth'), '65% · ×5');
 
     render(bar, 60, 1);
     assert.equal(cooldownOf(bar, 'wind'), 'Bereit');

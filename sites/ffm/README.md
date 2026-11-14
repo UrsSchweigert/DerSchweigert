@@ -153,10 +153,19 @@ Browser
   Its session panel explains the selected level from the authorized level config (operations, result ceiling,
   answer choices) and reports locked levels instead of guessing; that one-line explanation stays centred
   under the level selector.
-- The score-history chart plots one point per day, holding that day's best result: the highest submitted run
-  total on the web, the highest level score in the app. Several results of one day collapse into their best,
-  so the curve rises and falls with the daily results instead of drawing a never-decreasing record line. Its
-  summary reports the best score of the series and the number of saved results behind the points.
+- The score-history chart shows the total high score in the app: the sum of the player's per-level
+  bests after every saved result, seeded from level bests older than the kept history window so the
+  last point equals the listed bests. The web has no per-level bests to add up, so its chart plots one
+  point per day holding that day's best submitted score; several results of one day collapse into
+  their best. The app summary names the total high score, the web summary the best score of the
+  series, both with the number of saved results behind the points.
+- The Training tab's chart page is a sub-page of Practice: the tab stays lit while it is shown and
+  a "Back to practice" button returns to the practice list.
+- The speedrun records card is a fixed dialog whose level list is the only scroll region, so the
+  Close button stays reachable once all 60 levels have a recorded time. The ability orbs show only
+  the numbers of their bonus-aware readouts (storm removals, earth slow percent and targets); the
+  words live in each slot's accessible name, because the two captions of a row sit side by side in
+  too narrow a column for sentences.
 - Buttons have three visible tiers: brass *primary* (thicker 2px line plus a drawn diamond: start practice,
   resume, next level, save a score), red *danger* (discard a score, delete a player) and quiet
   navigation/pagination, whose paging arrows are drawn with CSS borders rather than glyphs.
