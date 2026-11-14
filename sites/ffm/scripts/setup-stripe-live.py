@@ -23,7 +23,7 @@ Order of operations:
   2. Prompt for the LIVE secret key (getpass, hidden; requires a real
      terminal -- refuses to fall back to echoed input).
   3. More read-only validation using that key:
-     - The given LIVE Price ID is livemode, active, EUR 3.00 (unit_amount
+     - The given LIVE Price ID is livemode, active, EUR 1.99 (unit_amount
        300), recurring every 3 months, tax_behavior=inclusive.
      - The given LIVE portal Configuration ID is livemode, active, allows
        cancellation (at_period_end) and payment method updates, and has
@@ -188,8 +188,8 @@ def validate_live_price(stripe_client, price_id):
         problems.append('not active')
     if price.currency != 'eur':
         problems.append(f'currency={price.currency!r} (expected eur)')
-    if price.unit_amount != 300:
-        problems.append(f'unit_amount={price.unit_amount!r} (expected 300)')
+    if price.unit_amount != 199:
+        problems.append(f'unit_amount={price.unit_amount!r} (expected 199)')
     if not recurring or recurring.interval != 'month' or recurring.interval_count != 3:
         problems.append('recurring is not every 3 months')
     if price.tax_behavior != 'inclusive':
@@ -254,7 +254,7 @@ def main():
 
         print('--- Read-only validation (Stripe, LIVE mode) ---')
         price = validate_live_price(stripe_client, args.price_id)
-        print(f'Price {price.id}: livemode active EUR 3.00 / 3 months, tax_behavior=inclusive — OK')
+        print(f'Price {price.id}: livemode active EUR 1.99 / 3 months, tax_behavior=inclusive — OK')
         portal = validate_live_portal_configuration(stripe_client, args.portal_id)
         print(f'Portal configuration {portal.id}: livemode active, cancel+payment-update only — OK')
         check_webhook_url_not_registered(stripe_client)

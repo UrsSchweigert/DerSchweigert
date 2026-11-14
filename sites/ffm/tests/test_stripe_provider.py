@@ -79,8 +79,8 @@ def _make_mock_client():
 class TestValidatePrice:
     """Test price validation with StripeClient.v1."""
 
-    def test_validate_price_300eur_quarterly(self, app_context):
-        """validate_price verifies 300 EUR quarterly pricing."""
+    def test_validate_price_199eur_quarterly(self, app_context):
+        """validate_price verifies 1.99 EUR quarterly pricing."""
         from sites.ffm.app import stripe_provider
 
         with patch('sites.ffm.app.stripe_provider._client') as mock_client_func:
@@ -91,12 +91,12 @@ class TestValidatePrice:
                 'id': 'price_quarterly',
                 'active': True,
                 'currency': 'eur',
-                'unit_amount': 300,
+                'unit_amount': 199,
                 'recurring': {'interval': 'month', 'interval_count': 3},
             }
 
             price = stripe_provider.validate_price('price_quarterly')
-            assert price['unit_amount'] == 300
+            assert price['unit_amount'] == 199
             assert price['currency'] == 'eur'
             assert price['recurring']['interval_count'] == 3
             mock_client.prices.retrieve.assert_called_once_with('price_quarterly')
@@ -113,7 +113,7 @@ class TestValidatePrice:
                 'id': 'price_wrong',
                 'active': True,
                 'currency': 'eur',
-                'unit_amount': 299,  # Wrong amount
+                'unit_amount': 300,  # Wrong amount
                 'recurring': {'interval': 'month', 'interval_count': 3},
             }
 
@@ -133,7 +133,7 @@ class TestValidatePrice:
                 'id': 'price_inactive',
                 'active': False,
                 'currency': 'eur',
-                'unit_amount': 300,
+                'unit_amount': 199,
                 'recurring': {'interval': 'month', 'interval_count': 3},
             }
 

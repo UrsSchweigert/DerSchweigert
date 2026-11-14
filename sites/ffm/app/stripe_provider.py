@@ -42,7 +42,7 @@ def validate_price(price_id):
     price = _plain(_client().prices.retrieve(price_id))
     recurring = price.get('recurring') or {}
     if not (price.get('active') and price.get('currency') == 'eur'
-            and price.get('unit_amount') == 300 and recurring.get('interval') == 'month'
+            and price.get('unit_amount') == 199 and recurring.get('interval') == 'month'
             and recurring.get('interval_count') == 3):
         raise ValueError('invalid_price')
     return price

@@ -75,10 +75,10 @@ OPERATOR_ADDRESS_LINES = ('Am Sonnenhang 12', '85235 Pfaffenhofen a.d. Glonn', '
 OPERATOR_EMAIL = 'info@derschweigert.de'
 
 #: Price/renewal facts as actually configured (see
-#: app/stripe_provider.py:validate_price -- 300 cents EUR every 3 calendar
+#: app/stripe_provider.py:validate_price -- 199 cents EUR every 3 calendar
 #: months -- which this text must stay consistent with).
-PRICE_EUR = '3,00 EUR'
-PRICE_EUR_EN = 'EUR 3.00'
+PRICE_EUR = '1,99 EUR'
+PRICE_EUR_EN = 'EUR 1.99'
 BILLING_INTERVAL_MONTHS = 3
 
 

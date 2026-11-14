@@ -955,8 +955,8 @@ Configuration:
    - Recurring: Yes
    - Billing period: Every 3 months
    - Currency: EUR
-   - Amount: €3.00 (final customer price; determine tax obligations before launch)
-   - Tax behavior: "Inclusive of tax" (so €3.00 is the final price)
+   - Amount: €1.99 (final customer price; determine tax obligations before launch)
+   - Tax behavior: "Inclusive of tax" (so €1.99 is the final price)
 4. Copy the **Price ID** (e.g., `price_1234567890ABC`) and set it in `stripe_price_id` variable
 5. **DO NOT PROCEED TO LIVE** until sandbox tests and legal/compliance review are complete.
 
@@ -1093,7 +1093,7 @@ What it does, strictly in this order:
    letting the key echo in plain text. Rejects anything without the exact
    `sk_live_` prefix.
 3. More read-only checks using that key: the given `--price-id` is live,
-   active, EUR 3.00, recurring every 3 months, `tax_behavior=inclusive`; the
+   active, EUR 1.99, recurring every 3 months, `tax_behavior=inclusive`; the
    given `--portal-id` is live, active, allows cancellation
    (end-of-period) and payment-method updates with subscription
    upgrades/downgrades disabled; and no existing webhook endpoint already
@@ -1151,7 +1151,7 @@ setting `grandfather_cutoff`) and a separate, explicit launch approval.
 
 **Sandbox test results (recorded 2026-10-15 from the preceding session):** Using the isolated local sandbox runner described
 above against a Stripe TEST backend, the following were exercised and worked as expected:
-checkout for the €3.00 / 3-calendar-month recurring price; gift-code stacking and renewal
+checkout for the €1.99 / 3-calendar-month recurring price; gift-code stacking and renewal
 postponement; the cancellation flow preserving access through the end of the already-paid
 period; no-card gift-code redemption independent of a paying account (`sandbox-gift`); and
 the Stripe customer portal (cancel-only configuration). These are functional/sandbox
