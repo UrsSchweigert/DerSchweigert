@@ -128,18 +128,18 @@ test('markup carries the German copy verbatim, so no-JS visitors see German', ()
 });
 
 test('German uses comma decimals, English uses dot decimals', () => {
-  assert.ok(html.includes('3,00 EUR'), 'German markup must show 3,00 EUR');
-  assert.ok(html.includes('3,99 EUR'), 'German markup must show 3,99 EUR');
-  assert.equal(DICTIONARY['prices.web.price'].en, 'EUR 3.00');
-  assert.equal(DICTIONARY['prices.app.price'].en, 'EUR 3.99');
+  assert.ok(html.includes('1,99 EUR'), 'German markup must show 1,99 EUR');
+  assert.ok(html.includes('2,99 EUR'), 'German markup must show 2,99 EUR');
+  assert.equal(DICTIONARY['prices.web.price'].en, 'EUR 1.99');
+  assert.equal(DICTIONARY['prices.app.price'].en, 'EUR 2.99');
 
   const offenders = [];
   for (const [key, entry] of Object.entries(DICTIONARY)) {
     if (key === 'prices.web.price' || key === 'prices.app.price') continue;
-    if (/3[.,]00(?!\d)/.test(entry.de) || /3[.,]99(?!\d)/.test(entry.de)) {
-      if (!/3,00|3,99/.test(entry.de)) offenders.push(`${key}.de`);
+    if (/1[.,]99(?!\d)/.test(entry.de) || /2[.,]99(?!\d)/.test(entry.de)) {
+      if (!/1,99|2,99/.test(entry.de)) offenders.push(`${key}.de`);
     }
-    if (/3,00|3,99/.test(entry.en)) offenders.push(`${key}.en`);
+    if (/1,99|2,99/.test(entry.en)) offenders.push(`${key}.en`);
   }
   assert.deepEqual(offenders, [], `wrong decimal separator in: ${offenders.join(', ')}`);
 });
