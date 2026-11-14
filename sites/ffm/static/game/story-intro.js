@@ -1,11 +1,14 @@
 // story-intro.js — decides which story diorama (see ../story/) plays, and when.
-// Three rules:
+// Four rules:
 //
 //   * the very first time the app is opened, the intro (prologue) plays once;
 //   * starting the first level of an act plays that act's opening scene, at
 //     most once per scene per run;
 //   * on the very first run the act I opening is skipped when the prologue has
-//     just played, so a new player is not shown two scenes before level 1.
+//     just played, so a new player is not shown two scenes before level 1;
+//   * a level never starts underneath a scene: a start asked for while one is
+//     on screen waits for it, because the level would otherwise take over the
+//     music under the narration.
 //
 // The "opened before" flag is device-wide (localStorage, like the locale
 // choice): it describes this install, not a player's progress, so it survives
@@ -14,6 +17,24 @@
 export const OPEN_SHOWN_KEY = 'arithmoslayer:story-intro-open-shown';
 export const INTRO_SCENE = 'intro';
 export const FIRST_LEVEL = 1;
+// A scene that cannot finish — a stalled decode, or the app backgrounded
+// mid-scene, where the scene clock stops — must never wedge a level start.
+export const SCENE_WAIT_MAX_MS = 120000;
+
+/** Resolves when `promise` settles, or after `limitMs`, whichever comes first. */
+function settle(promise, limitMs = SCENE_WAIT_MAX_MS) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      console.warn('A story scene did not finish; starting the level without it');
+      resolve();
+    }, limitMs);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    promise.then(done, done);
+  });
+}
 
 function defaultStorage() {
   try {
@@ -99,10 +120,17 @@ export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForL
       return playOnce(scene);
     },
 
-    /** Call when a level is about to start: opens the act that level begins. */
+    /** Call when a level is about to start: opens the act that level begins,
+     * and resolves only once no scene is on screen any more. */
     async playBeforeLevel(levelNumber) {
       if (typeof sceneForLevel !== 'function') return null;
       const level = Number(levelNumber);
+      // A level must never start under a scene that is still on screen: the
+      // scene's music would be the level's (see the module comment), and the
+      // act opening would be dropped by the one-scene-at-a-time rule. On a
+      // slow first launch the prologue is still loading when the player taps
+      // Play, which is exactly when this matters.
+      if (inFlight) await settle(inFlight);
       // The prologue has just played in this run, so the first act opening
       // would be a second scene before the player has done anything.
       if (level === FIRST_LEVEL && playedThisRun.has(scene)) return null;
