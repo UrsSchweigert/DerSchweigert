@@ -136,6 +136,64 @@ test('Xcode Cloud stops if the Node.js installation fails', async t => {
   assert.deepEqual(result.commands, ['brew install node@22']);
 });
 
+// App Store Connect refuses an upload whose MARKETING_VERSION still names a
+// released version: the train is closed, so the refusal happens after the
+// archive and every export have succeeded, where it costs a Cloud build and
+// looks like an account problem. These checks run in `npm test`, which the
+// Cloud post-clone hook runs before Xcode archives anything.
+const pbxprojSetting = (project, key) => new Set(
+  [...project.matchAll(new RegExp(`^\\s*${key} = ([^;]+);`, 'gm'))].map(match => match[1].trim()),
+);
+
+const versionTuple = (value) => {
+  assert.match(value, /^\d+(\.\d+)*$/, `"${value}" must be a numeric version`);
+  return value.split('.').map(Number);
+};
+
+const compareVersions = (left, right) => {
+  const a = versionTuple(left);
+  const b = versionTuple(right);
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0) return Math.sign(difference);
+  }
+  return 0;
+};
+
+test('the marketing version is one value and newer than the released App Store version', async () => {
+  const project = await readFile(new URL(
+    '../ios/App/App.xcodeproj/project.pbxproj', import.meta.url,
+  ), 'utf8');
+  const versions = pbxprojSetting(project, 'MARKETING_VERSION');
+  assert.equal(versions.size, 1,
+    `Debug and Release must carry one MARKETING_VERSION, found ${[...versions].join(', ') || 'none'}`);
+  const marketing = [...versions][0];
+
+  const recorded = (await readFile(new URL('../ios/RELEASED_VERSION', import.meta.url), 'utf8'))
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'));
+  assert.equal(recorded.length, 1, 'ios/RELEASED_VERSION must hold exactly one version line');
+
+  assert.equal(compareVersions(marketing, recorded[0]), 1,
+    `MARKETING_VERSION ${marketing} is not newer than the released ${recorded[0]}: ` +
+    'App Store Connect refuses uploads that still carry a released version. Bump ' +
+    'MARKETING_VERSION (Debug and Release) in ios/App/App.xcodeproj/project.pbxproj ' +
+    'after creating the next version in App Store Connect.');
+});
+
+test('the committed build number is one positive integer that a re-upload can raise', async () => {
+  const project = await readFile(new URL(
+    '../ios/App/App.xcodeproj/project.pbxproj', import.meta.url,
+  ), 'utf8');
+  const builds = pbxprojSetting(project, 'CURRENT_PROJECT_VERSION');
+  assert.equal(builds.size, 1,
+    `Debug and Release must carry one CURRENT_PROJECT_VERSION, found ${[...builds].join(', ') || 'none'}`);
+  assert.match([...builds][0], /^[1-9]\d*$/,
+    'CURRENT_PROJECT_VERSION must be a positive integer above the previously uploaded build');
+});
+
 test('the shared App scheme archives the real app target in Release', async () => {
   const scheme = await readFile(new URL(
     '../ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme', import.meta.url,
