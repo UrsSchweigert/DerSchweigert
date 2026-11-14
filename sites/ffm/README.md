@@ -1114,7 +1114,7 @@ What it does, strictly in this order:
 Run from the repository root:
 
 ```bash
-AWS_DEFAULT_REGION=eu-central-1 .venv/bin/python sites/ffm/scripts/setup-stripe-live.py --price-id price_1UQkljDYFrEur0X9y18ekslo --portal-id bpc_1UQkquDYFrEur0X9JdDK6pAG
+AWS_DEFAULT_REGION=eu-central-1 .venv/bin/python sites/ffm/scripts/setup-stripe-live.py --price-id price_1UbiJgDYFrEur0X9xkhSMSIn --portal-id bpc_1UQkquDYFrEur0X9JdDK6pAG
 ```
 
 Enter the LIVE secret key only at the hidden prompt, never as a CLI argument,
