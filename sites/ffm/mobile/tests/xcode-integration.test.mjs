@@ -78,3 +78,89 @@ test('the Cloud hook executes in the app checkout and stops immediately on prepa
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+// App Store Connect refuses an upload whose MARKETING_VERSION still names a
+// released version: the train is closed, so the refusal happens after the
+// archive and every export have succeeded, where it costs a Cloud build and
+// looks like an account problem. These checks run in `npm test`, which the
+// Cloud post-clone hook runs before Xcode archives anything.
+const pbxprojSetting = (project, key) => new Set(
+  [...project.matchAll(new RegExp(`^\\s*${key} = ([^;]+);`, 'gm'))].map(match => match[1].trim()),
+);
+
+const versionTuple = (value) => {
+  assert.match(value, /^\d+(\.\d+)*$/, `"${value}" must be a numeric version`);
+  return value.split('.').map(Number);
+};
+
+const compareVersions = (left, right) => {
+  const a = versionTuple(left);
+  const b = versionTuple(right);
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0) return Math.sign(difference);
+  }
+  return 0;
+};
+
+test('the marketing version is one value and newer than the released App Store version', async () => {
+  const project = await read('ios/App/App.xcodeproj/project.pbxproj');
+  const versions = pbxprojSetting(project, 'MARKETING_VERSION');
+  assert.equal(versions.size, 1,
+    `Debug and Release must carry one MARKETING_VERSION, found ${[...versions].join(', ') || 'none'}`);
+  const marketing = [...versions][0];
+
+  const recorded = (await read('ios/RELEASED_VERSION'))
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'));
+  assert.equal(recorded.length, 1, 'ios/RELEASED_VERSION must hold exactly one version line');
+
+  assert.equal(compareVersions(marketing, recorded[0]), 1,
+    `MARKETING_VERSION ${marketing} is not newer than the released ${recorded[0]}: ` +
+    'App Store Connect refuses uploads that still carry a released version. Bump ' +
+    'MARKETING_VERSION (Debug and Release) and CURRENT_PROJECT_VERSION in ' +
+    'ios/App/App.xcodeproj/project.pbxproj after creating the next version in App Store Connect.');
+});
+
+test('the committed build number is one positive integer that a re-upload can raise', async () => {
+  const project = await read('ios/App/App.xcodeproj/project.pbxproj');
+  const builds = pbxprojSetting(project, 'CURRENT_PROJECT_VERSION');
+  assert.equal(builds.size, 1,
+    `Debug and Release must carry one CURRENT_PROJECT_VERSION, found ${[...builds].join(', ') || 'none'}`);
+  assert.match([...builds][0], /^[1-9]\d*$/,
+    'CURRENT_PROJECT_VERSION must be a positive integer above the previously uploaded build');
+});
+
+test('a committed Xcode Cloud product manifest belongs to this app, not to Buchstabenzeit', async (t) => {
+  const cloudManifest = async (url) => {
+    try {
+      return JSON.parse(await readFile(url, 'utf8'));
+    } catch (error) {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    }
+  };
+
+  const own = await cloudManifest(
+    new URL('../ios/App/App.xcodeproj/xcshareddata/xcodecloud/manifest.json', import.meta.url));
+  if (!own) {
+    // Absent is correct until Xcode links this project to its Cloud product;
+    // Xcode writes the file then, and it is committed with the correct ids.
+    t.skip('no Cloud product manifest is committed for the Arithmo Slayer project');
+    return;
+  }
+
+  assert.match(own.id, /^[0-9a-f-]{36}$/, 'the manifest must carry an Xcode Cloud product id');
+  assert.equal(own.targets?.[0]?.name, 'App', 'the manifest must name the App target');
+
+  const other = await cloudManifest(
+    new URL('../../../lesen/ios/App/App.xcodeproj/xcshareddata/xcodecloud/manifest.json', import.meta.url));
+  if (other) {
+    assert.notEqual(own.id, other.id,
+      'this manifest carries the Buchstabenzeit product id: a copied manifest links the ' +
+      'Arithmo Slayer project to the wrong App Store Connect product. Let Xcode write it ' +
+      'for de.derschweigert.arithmoslayer instead of copying the other app\'s file.');
+  }
+});

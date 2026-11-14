@@ -39,8 +39,11 @@ test('the iOS bundle carries the app identity, both localizations and the encryp
   const pbx = await text(PBXPROJ);
   const bundleIds = pbx.match(/PRODUCT_BUNDLE_IDENTIFIER = de\.derschweigert\.arithmoslayer;/g) ?? [];
   assert.equal(bundleIds.length, 2, 'Debug and Release must both use the app bundle id');
-  for (const setting of ['MARKETING_VERSION = 1.0;', 'CURRENT_PROJECT_VERSION = 1;']) {
-    assert.ok(pbx.includes(setting), setting);
+  // The values are guarded in xcode-integration.test.mjs, which knows which
+  // App Store version is live; here only the binding is asserted.
+  for (const key of ['MARKETING_VERSION', 'CURRENT_PROJECT_VERSION']) {
+    const settings = pbx.match(new RegExp(`${key} = [^;]+;`, 'g')) ?? [];
+    assert.equal(settings.length, 2, `${key} must be set in Debug and Release`);
   }
 });
 

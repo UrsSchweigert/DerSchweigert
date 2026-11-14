@@ -1,0 +1,11 @@
+# App Store version of Arithmo Slayer that is public right now.
+#
+# App Store Connect closes a version train once that version is released. An
+# upload that still carries the released MARKETING_VERSION is refused during the
+# App Store Connect hand-off, after the archive and every export have succeeded.
+# `tests/xcode-integration.test.mjs` therefore fails until MARKETING_VERSION in
+# App/App.xcodeproj/project.pbxproj is greater than the version on the line
+# below, so the Cloud post-clone hook stops a doomed build before it archives.
+#
+# Only the owner updates this file, and only after the new version is live.
+1.0
