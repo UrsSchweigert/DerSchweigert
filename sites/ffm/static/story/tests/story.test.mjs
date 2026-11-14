@@ -7,8 +7,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cueAt, landscapeBox,
-  narrationLocale, sampleMotion, stageTransform, pickText, voicedCues,
+  COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cueAt, gradientStops, landscapeBox,
+  narrationLocale, parseCssColor, sampleMotion, stageTransform, pickText, voicedCues,
 } from '../player/diorama-player.js';
 import { LOCALES, toVtt } from '../tools/build-subtitles.mjs';
 
@@ -138,7 +138,7 @@ for (const id of sceneDirs) {
       const file = join(scenesDir, id, backdrop.src);
       const { width, height } = imageInfo(file);
       const drawnH = backdrop.width * height / width;
-      // Layer wrappers scale about 50% / 60% of the stage (see .diorama__layer).
+      // Layers scale about 50% / 60% of the stage (see the player's motion).
       const ox = STAGE_W * 0.5;
       const oy = STAGE_H * 0.6;
       for (const key of backdrop.motion ?? [{}]) {
@@ -362,18 +362,43 @@ describe('player helpers', () => {
 
 describe('player chrome', () => {
   const css = readFileSync(join(storyDir, 'player', 'diorama-player.css'), 'utf8');
+  const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
 
-  it('tiles the paper grain from a shipped image, not an SVG filter', () => {
-    // Blink re-rasterises this full-stage blend layer as the scene moves; an
-    // <feTurbulence> on that path painted black tiles on Android (see the
-    // README's "Keeping the compositor happy" section).
-    assert.doesNotMatch(css, /data:image\/svg/, 'the paper overlay must not rasterise an inline SVG filter');
+  it('paints the scene into one canvas, not a stack of composited layers', () => {
+    // Each DOM layer needs its own compositor surface; on a 1440p phone that
+    // exhausted the Android WebView's raster memory and dropped tiles showed as
+    // black rectangles (see the README's "Keeping the compositor happy").
+    assert.match(css, /\.diorama__canvas \{[^}]*display: block;/);
+    assert.doesNotMatch(css, /mix-blend-mode/, 'the lighting rig blends inside the canvas');
+    assert.doesNotMatch(css, /drop-shadow/, 'contact shadows are painted into the canvas');
+    assert.match(player, /getContext\('2d'\)/, 'the player paints through a 2D context');
+  });
+
+  it('tiles the paper grain from a shipped image', () => {
     const tile = join(storyDir, 'player', 'paper-grain.webp');
     assert.ok(existsSync(tile), 'player/paper-grain.webp is missing: run tools/paper-grain.py');
-    assert.match(css, /url\("paper-grain\.webp"\)/, 'the stylesheet must reference the paper tile');
+    assert.match(player, /paper-grain\.webp/, 'the player must load the paper tile');
+    assert.doesNotMatch(css, /data:image\/svg/, 'no inline SVG filter may stand in for the tile');
     const info = webpInfo(tile);
     assert.equal(info.width, 320, 'the tile is designed to repeat every 320 px');
     assert.equal(info.height, 320);
     assert.ok(info.hasAlpha, 'the paper tile is an alpha-only grain');
+  });
+
+  it('reads the colours and gradients the scenes are authored in', () => {
+    assert.deepEqual(parseCssColor('rgba(20, 10, 0, 0.45)'), { r: 20, g: 10, b: 0, a: 0.45 });
+    assert.deepEqual(parseCssColor('#cfe6ff'), { r: 207, g: 230, b: 255, a: 1 });
+    assert.deepEqual(parseCssColor('transparent'), { r: 0, g: 0, b: 0, a: 0 });
+    assert.equal(parseCssColor('not a colour'), null);
+
+    const linear = gradientStops(
+      'linear-gradient(180deg, rgba(40,52,110,0.30) 0%, rgba(20,26,60,0.10) 55%, rgba(30,18,10,0.35) 100%)');
+    assert.deepEqual(linear.map(stop => stop.at), [0, 0.55, 1]);
+    assert.deepEqual(linear[2].color, { r: 30, g: 18, b: 10, a: 0.35 });
+
+    const radial = gradientStops(
+      'radial-gradient(ellipse at 20% 15%, rgba(255,236,200,0) 0%, rgba(140,95,40,0.25) 100%)');
+    assert.deepEqual(radial.map(stop => stop.at), [0, 1]);
+    assert.equal(radial[0].color.a, 0);
   });
 });

@@ -225,28 +225,32 @@ The stylesheet (`story/player/diorama-player.css`) is linked from
 `index.html`. Scenes stay optional and skippable: a missing or broken scene
 logs and continues into the level.
 
-### Keeping the compositor happy on Android
+### Why the scene is a canvas
 
-A scene is a stack of full-stage layers with `mix-blend-mode` overlays on top,
-and an Android WebView composites every one of them at device resolution: on a
-1440p phone the intro needs about 40 layers and 350 MB of RGBA surfaces, so
-anything that adds a surface is worth avoiding.
+The player paints the whole theatre into a single `<canvas>`: layers with their
+contact shadows, the ambient tint, glows, motes, the flash/dim events and the
+paper sheet all go through the 2D context, whose `multiply`/`screen` blend
+modes match the CSS ones. Subtitles and the skip control stay DOM.
 
-* **No SVG filters in the player's own chrome.** The paper grain over the scene
-  is a repeating image tile (`player/paper-grain.webp`, regenerate with
-  `python3 tools/paper-grain.py`). It used to be an inline `<feTurbulence>`
-  filter, which Blink re-rasterises whenever the scaled, rotated, blend-mode
-  layer is re-rastered; on some Android GPU paths that came back as a regular
-  grid of black squares across the whole scene, while iOS was unaffected.
-* **One `drop-shadow` per cutout, none on the backdrop.** Each shadow is a blur
-  of the whole cutout in its own offscreen surface. The backdrop is opaque and
-  covers the stage at every keyframe, so its shadow only falls on the black
-  stage behind it.
-* **Idle overlays are hidden, not just transparent.** The flash and the dim are
-  full-stage blend layers; a transparent one still costs its surface, so the
-  player sets `visibility: hidden` while no event is playing.
-* The stage is `isolation: isolate`, so every blend mode resolves inside the
-  stage instead of sampling the page behind it.
+The earlier version built the scene as a stack of DOM layers with
+`mix-blend-mode` overlays. That needs a compositor surface per layer, and on a
+1440p phone the player held roughly 100 MP of RGBA — hundreds of megabytes —
+even after trimming filters and idle overlays. Android WebView then started
+dropping raster tiles, which showed as **black rectangles over the artwork**
+(iOS was unaffected, and it reproduced locally only when Chrome's GPU memory was
+capped, e.g. `--force-gpu-mem-available-mb=64`). The canvas costs one texture
+the size of the screen: the same frames paint at 13 % dark pixels with a 40 MB
+budget, where the DOM version renders 86 % of the frame as missing content.
+
+Two details worth keeping:
+
+* **The paper grain is an image tile** (`player/paper-grain.webp`, regenerate
+  with `python3 tools/paper-grain.py`), never an inline `<feTurbulence>`: Blink
+  re-runs an SVG filter whenever the scaled, rotated scene is re-rastered, and
+  that path also painted black tiles.
+* **Paint at device resolution, no higher** (`MAX_CANVAS_PIXELS`). The artwork
+  is upscaled anyway; rasterising the canvas above the screen size only buys
+  memory pressure.
 
 Still to come: an act opening before each act's first level, a `before` scene
 when a level is started from the level-clear "Next level" button, and the

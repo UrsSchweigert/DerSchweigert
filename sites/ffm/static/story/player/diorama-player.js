@@ -1,12 +1,21 @@
 // diorama-player.js — plays one layered paper-theatre story scene full screen.
 //
-// A scene (see ../scenes/*/scene.json and ../README.md) is 3-4 PNG layers placed
-// on a fixed 1920x1080 stage, each drifting along its own keyframed path so the
-// layers move in relation to one another (parallax), plus a lighting rig
+// A scene (see ../scenes/*/scene.json and ../README.md) is 3-4 WebP layers
+// placed on a fixed 1920x1080 stage, each drifting along its own keyframed path
+// so the layers move in relation to one another (parallax), plus a lighting rig
 // (ambient tint, glows, drifting motes, timed flashes) and localized subtitle
 // cues on top. The stage is scaled to cover any landscape screen, phone (up to
 // ~20:9) or tablet (4:3); important artwork stays inside the central safe area
 // (STAGE_SAFE) that every aspect ratio keeps visible.
+//
+// The scene is painted into ONE canvas, not built as a stack of DOM layers.
+// A DOM version needs a composited surface per layer (five full-stage layers,
+// each with a drop-shadow, plus six blend-mode overlays). On a 1440p phone the
+// compositor then holds ~100 MP of RGBA — hundreds of megabytes — and Android
+// WebView starts dropping raster tiles, which shows up as black rectangles over
+// the artwork. The canvas costs one texture the size of the screen and paints
+// the same pixels: layers, shadows, the lighting rig and the paper sheet all
+// go through the 2D context, whose blend modes match the CSS ones.
 //
 // The player has no dependency on the game, so it can be shown between levels,
 // before the first level, or after the last one:
@@ -176,20 +185,109 @@ function loadImage(src) {
   });
 }
 
+const SHADOW_COLOR = 'rgba(20, 10, 0, 0.45)';
+const SHADOW_BLUR = 12;
+const SHADOW_OFFSET_Y = 14;
+
+const NAMED_COLORS = new Map([
+  ['transparent', { r: 0, g: 0, b: 0, a: 0 }],
+  ['black', { r: 0, g: 0, b: 0, a: 1 }],
+  ['white', { r: 255, g: 255, b: 255, a: 1 }],
+]);
+
+/** A CSS colour as {r,g,b,a} (0-255, 0-1), or null when it cannot be read. */
+export function parseCssColor(value) {
+  const source = String(value ?? '').trim().toLowerCase();
+  const named = NAMED_COLORS.get(source);
+  if (named) return named;
+  const hex = source.match(/^#([0-9a-f]{3,8})$/);
+  if (hex) {
+    const digits = hex[1];
+    const channels = digits.length <= 4
+      ? digits.split('').map(digit => Number.parseInt(digit + digit, 16))
+      : [0, 2, 4, 6].slice(0, digits.length / 2).map(at => Number.parseInt(digits.slice(at, at + 2), 16));
+    return { r: channels[0], g: channels[1], b: channels[2], a: channels[3] === undefined ? 1 : channels[3] / 255 };
+  }
+  const fn = source.match(/^rgba?\(([^)]+)\)$/);
+  if (!fn) return null;
+  const parts = fn[1].split(/[,/\s]+/).filter(Boolean).map(Number);
+  if (parts.length < 3 || parts.slice(0, 3).some(channel => !Number.isFinite(channel))) return null;
+  return { r: parts[0], g: parts[1], b: parts[2], a: Number.isFinite(parts[3]) ? parts[3] : 1 };
+}
+
+const cssColor = color => `rgba(${color.r},${color.g},${color.b},${color.a})`;
+
+/** Colour stops of a CSS gradient string, in order, positions in 0-1. */
+export function gradientStops(gradient) {
+  const stops = [];
+  const pattern = /(rgba?\([^)]*\)|#[0-9a-f]{3,8}|transparent|black|white)\s*([\d.]+)?%/gi;
+  let match;
+  while ((match = pattern.exec(String(gradient ?? '')))) {
+    const color = parseCssColor(match[1]);
+    if (!color) continue;
+    const at = match[2] === undefined ? stops.length ? 1 : 0 : Number(match[2]) / 100;
+    stops.push({ color, at: Math.min(1, Math.max(0, at)) });
+  }
+  return stops;
+}
+
+/** Where a CSS gradient starts: the `at x% y%` of a radial gradient, or the
+ * top-centre of the 180deg linear gradients the scenes use. */
+function gradientOrigin(gradient, width, height) {
+  const radial = /radial-gradient\(\s*(circle|ellipse)?[^)]*?(?:at\s+([\d.]+)%\s+([\d.]+)%)?/i.exec(String(gradient ?? ''));
+  return {
+    ellipse: !/circle/i.test(radial?.[1] ?? ''),
+    x: width * (Number(radial?.[2] ?? 50) / 100),
+    y: height * (Number(radial?.[3] ?? 50) / 100),
+  };
+}
+
 /**
- * Hides a lighting overlay that is not contributing any pixels.
- *
- * Every blend-mode overlay spans the whole stage, so the compositor keeps a
- * full-stage surface for it whether or not it is visible: on a high-density
- * phone the flash and the dim alone are several megapixels of texture for a
- * few seconds of use. `visibility` is written only when it changes, so a fade
- * in progress keeps its per-frame opacity updates to itself.
+ * Radii of the `farthest-corner` ellipse CSS sizes a radial gradient to: the
+ * shape keeps the box's aspect ratio and touches the corner furthest from the
+ * centre, which is what the browser paints.
  */
-function hideIdleOverlay(node) {
-  const idle = !(Number.parseFloat(node.style.opacity) > 0);
-  if (idle === (node.dataset.idle === '1')) return;
-  node.dataset.idle = idle ? '1' : '0';
-  node.style.visibility = idle ? 'hidden' : 'visible';
+function farthestCorner(width, height, x, y) {
+  const dx = Math.max(x, width - x);
+  const dy = Math.max(y, height - y);
+  const ratio = width / height;
+  const rx = Math.sqrt(dx * dx + (dy * ratio) ** 2) || 1;
+  return { rx, ry: rx / ratio };
+}
+
+/** A 180deg (top to bottom) linear gradient for a CSS gradient string. */
+function linearPaint(ctx, gradient, width, height) {
+  const paint = ctx.createLinearGradient(0, 0, 0, height);
+  for (const { color, at } of gradientStops(gradient)) paint.addColorStop(at, cssColor(color));
+  return paint;
+}
+
+/**
+ * A radial gradient for a CSS gradient string. Ellipses are painted by scaling
+ * a unit circle, so the colour stops stay at their authored percentages.
+ */
+function radialPaint(ctx, gradient, width, height, origin = gradientOrigin(gradient, width, height)) {
+  if (!origin.ellipse) {
+    const radius = Math.max(origin.x, width - origin.x, origin.y, height - origin.y) || 1;
+    const paint = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, radius);
+    for (const { color, at } of gradientStops(gradient)) paint.addColorStop(at, cssColor(color));
+    return { paint, matrix: null };
+  }
+  const { rx, ry } = farthestCorner(width, height, origin.x, origin.y);
+  const paint = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  for (const { color, at } of gradientStops(gradient)) paint.addColorStop(at, cssColor(color));
+  return { paint, matrix: [rx, 0, 0, ry, origin.x, origin.y] };
+}
+
+/** Fills a rectangle with a CSS gradient, in the current transform. */
+function fillGradient(ctx, gradient, width, height) {
+  if (!gradientStops(gradient).length) return;
+  const { paint, matrix } = radialPaint(ctx, gradient, width, height);
+  ctx.save();
+  if (matrix) ctx.transform(...matrix);
+  ctx.fillStyle = paint;
+  ctx.fillRect(matrix ? -1 : 0, matrix ? -1 : 0, matrix ? 2 : width, matrix ? 2 : height);
+  ctx.restore();
 }
 
 /**
@@ -209,6 +307,7 @@ export function createDioramaPlayer({
   const reduce = reducedMotion ?? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   const text = { ...(DEFAULT_LABELS[locale] ?? DEFAULT_LABELS.en), ...labels };
   const duration = scene.duration;
+  const light = scene.lighting ?? {};
 
   const root = el('div', 'diorama', container);
   root.setAttribute('role', 'dialog');
@@ -216,53 +315,10 @@ export function createDioramaPlayer({
   root.setAttribute('aria-label', pickText(scene.title, locale));
   if (reduce) root.classList.add('diorama--reduced');
 
-  const stage = el('div', 'diorama__stage', root);
-  const layerEls = scene.layers.map(layer => {
-    const wrap = el('div', `diorama__layer diorama__layer--${layer.role}`, stage);
-    wrap.style.zIndex = String(layer.z ?? 0);
-    const img = el('img', 'diorama__img', wrap);
-    img.alt = '';
-    img.draggable = false;
-    Object.assign(img.style, {
-      left: `${layer.x}px`, top: `${layer.y}px`, width: `${layer.width}px`,
-    });
-    if (layer.shadow === false) img.classList.add('diorama__img--flat');
-    return { layer, wrap, img };
-  });
-
-  const light = scene.lighting ?? {};
-  const ambient = el('div', 'diorama__ambient', stage);
-  if (light.ambient) ambient.style.background = light.ambient;
-  const glowEls = (light.glows ?? []).map(glow => {
-    // A glow attached to a layer rides along with that layer's motion.
-    const host = layerEls.find(entry => entry.layer.id === glow.layer)?.wrap ?? stage;
-    const g = el('div', 'diorama__glow', host);
-    Object.assign(g.style, {
-      left: `${glow.x - glow.radius}px`, top: `${glow.y - glow.radius}px`,
-      width: `${glow.radius * 2}px`, height: `${glow.radius * 2}px`,
-      background: `radial-gradient(circle, ${glow.color} 0%, transparent 70%)`,
-      zIndex: String(glow.z ?? 50),
-    });
-    return { glow, g };
-  });
-  const motes = el('div', 'diorama__motes', stage);
-  if (!reduce && light.motes) {
-    for (let i = 0; i < light.motes.count; i++) {
-      const m = el('span', 'diorama__mote', motes);
-      // Deterministic spread so every playback looks the same.
-      const seed = (i * 7919) % 997 / 997;
-      const seed2 = (i * 104729) % 991 / 991;
-      m.style.left = `${Math.round(seed * STAGE_W)}px`;
-      m.style.top = `${Math.round(STAGE_H * (0.35 + seed2 * 0.6))}px`;
-      m.style.background = light.motes.color;
-      m.style.animationDelay = `${(-seed2 * 9).toFixed(2)}s`;
-      m.style.animationDuration = `${(7 + seed * 6).toFixed(2)}s`;
-    }
-  }
-  const flash = el('div', 'diorama__flash', stage);
-  const dim = el('div', 'diorama__dim', stage);
-  el('div', 'diorama__paper', root);
-  el('div', 'diorama__vignette', root);
+  // One canvas paints the whole theatre — layers, their contact shadows, the
+  // lighting rig and the paper. See the module comment.
+  const canvas = el('canvas', 'diorama__canvas', root);
+  const ctx = canvas.getContext('2d');
 
   const subtitle = el('p', 'diorama__subtitle', root);
   subtitle.setAttribute('aria-live', 'polite');
@@ -270,6 +326,13 @@ export function createDioramaPlayer({
   const skipBtn = el('button', 'diorama__btn diorama__btn--skip', controls);
   skipBtn.type = 'button';
   skipBtn.textContent = text.skip;
+
+  const images = scene.layers.map(() => null);
+  let grain = null;
+  let paper = null;
+  let paperSize = '';
+  // Backing-store geometry, recomputed on every resize.
+  const view = { turned: false, width: 0, height: 0, scale: 1, x: 0, y: 0, pixelRatio: 1 };
 
   let raf = 0;
   let startTs = 0;
@@ -282,6 +345,30 @@ export function createDioramaPlayer({
   let cues = scene.subtitles;
   let narrationAudio = null;
   let audioClocked = false;
+
+  /** Total device pixels the canvas may allocate. Keeping this bounded keeps
+   * a scene cheap on tablets with huge, high-density screens. */
+  const MAX_CANVAS_PIXELS = 6e6;
+
+  const paintPaper = () => {
+    if (!grain || !view.width) return;
+    const width = Math.max(1, Math.round(view.width * view.pixelRatio));
+    const height = Math.max(1, Math.round(view.height * view.pixelRatio));
+    const key = `${width}x${height}`;
+    if (paper && paperSize === key) return;
+    paper ??= document.createElement('canvas');
+    paper.width = width;
+    paper.height = height;
+    paperSize = key;
+    const paint = paper.getContext('2d');
+    paint.setTransform(1, 0, 0, 1, 0, 0);
+    const pattern = paint.createPattern(grain, 'repeat');
+    paint.fillStyle = pattern;
+    paint.fillRect(0, 0, width, height);
+    paint.setTransform(view.pixelRatio, 0, 0, view.pixelRatio, 0, 0);
+    fillGradient(paint, 'radial-gradient(ellipse at 20% 15%, rgba(255,236,200,0) 0%, rgba(140,95,40,0.25) 100%)',
+      view.width, view.height);
+  };
 
   // The scene is always landscape: a portrait screen gets the box rotated 90°
   // (see landscapeBox) so the paper theatre fills it edge to edge. The root is
@@ -305,42 +392,179 @@ export function createDioramaPlayer({
       root.style.removeProperty('--diorama-box-height');
     }
     const { scale, x, y } = stageTransform(box.width, box.height);
-    stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    view.turned = box.turned;
+    view.width = box.width;
+    view.height = box.height;
+    view.scale = scale;
+    view.x = x;
+    view.y = y;
+
+    // Paint at device resolution, no higher: the artwork is upscaled anyway,
+    // and this is what keeps the whole scene inside one canvas texture.
+    let pixelRatio = Number(window.devicePixelRatio) || 1;
+    let width = Math.round(box.width * pixelRatio);
+    let height = Math.round(box.height * pixelRatio);
+    if (width * height > MAX_CANVAS_PIXELS) {
+      const shrink = Math.sqrt(MAX_CANVAS_PIXELS / (width * height));
+      pixelRatio *= shrink;
+      width = Math.round(box.width * pixelRatio);
+      height = Math.round(box.height * pixelRatio);
+    }
+    view.pixelRatio = pixelRatio;
+    canvas.width = Math.max(1, width);
+    canvas.height = Math.max(1, height);
+    canvas.style.width = `${box.width}px`;
+    canvas.style.height = `${box.height}px`;
+    paintPaper();
+    if (images.some(Boolean)) render(elapsed);
   };
   const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
 
-  function render(t) {
-    for (const { layer, wrap } of layerEls) {
-      const m = sampleMotion(layer.motion, t);
+  /** Layer motion about the stage's 50% / 60% origin (see .diorama__layer). */
+  const applyMotion = (pose) => {
+    const ox = STAGE_W * 0.5;
+    const oy = STAGE_H * 0.6;
+    ctx.translate(ox + pose.x, oy + pose.y);
+    ctx.rotate((pose.rotate * Math.PI) / 180);
+    ctx.scale(pose.scale, pose.scale);
+    ctx.translate(-ox, -oy);
+  };
+
+  const drawLayers = (t) => {
+    scene.layers.forEach((layer, index) => {
+      const image = images[index];
+      if (!image) return;
+      const motion = sampleMotion(layer.motion, t);
       // Reduced motion: hold every layer in its settled final pose but keep
       // timed fades, so characters still appear when the subtitles need them.
-      const pose = reduce ? sampleMotion(layer.motion, duration) : m;
-      wrap.style.transform = `translate3d(${pose.x}px, ${pose.y}px, 0) rotate(${pose.rotate}deg) scale(${pose.scale})`;
-      wrap.style.opacity = String(m.opacity);
-    }
-    for (const { glow, g } of glowEls) {
+      const pose = reduce ? sampleMotion(layer.motion, duration) : motion;
+      if (motion.opacity <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = motion.opacity;
+      applyMotion(pose);
+      // Cardboard cutouts stand slightly apart: a soft contact shadow sells
+      // depth. The backdrop is opaque and covers the stage at every keyframe,
+      // so its shadow would only fall on the black stage behind it.
+      if (layer.shadow !== false && layer.role !== 'backdrop') {
+        ctx.shadowColor = SHADOW_COLOR;
+        ctx.shadowBlur = SHADOW_BLUR;
+        ctx.shadowOffsetY = SHADOW_OFFSET_Y;
+      }
+      const height = (layer.width * image.naturalHeight) / image.naturalWidth;
+      ctx.drawImage(image, layer.x, layer.y, layer.width, height);
+      ctx.restore();
+    });
+  };
+
+  const drawGlows = (t) => {
+    for (const glow of light.glows ?? []) {
       const active = t >= (glow.from ?? 0) && t < (glow.to ?? Infinity);
-      const pulse = reduce || !glow.pulse ? 1 : 0.75 + 0.25 * Math.sin(t * Math.PI * 2 / glow.pulse);
-      g.style.opacity = active ? String((glow.intensity ?? 1) * pulse) : '0';
+      if (!active) continue;
+      const pulse = reduce || !glow.pulse ? 1 : 0.75 + 0.25 * Math.sin((t * Math.PI * 2) / glow.pulse);
+      const color = parseCssColor(glow.color);
+      if (!color) continue;
+      const host = glow.layer ? scene.layers.find(layer => layer.id === glow.layer) : null;
+      // A glow attached to a layer rides along with that layer's motion, and
+      // fades with it (it is a child of the layer in the DOM version too).
+      const layerOpacity = host
+        ? sampleMotion(host.motion, t).opacity
+        : 1;
+      if (layerOpacity <= 0) continue;
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.globalAlpha = layerOpacity * (glow.intensity ?? 1) * pulse;
+      if (host) applyMotion(reduce ? sampleMotion(host.motion, duration) : sampleMotion(host.motion, t));
+      const paint = ctx.createRadialGradient(glow.x, glow.y, 0, glow.x, glow.y, glow.radius);
+      paint.addColorStop(0, cssColor(color));
+      paint.addColorStop(0.7, `rgba(${color.r},${color.g},${color.b},0)`);
+      ctx.fillStyle = paint;
+      ctx.beginPath();
+      ctx.arc(glow.x, glow.y, glow.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
-    flash.style.opacity = '0';
-    dim.style.opacity = '0';
-    for (const ev of light.events ?? []) {
-      if (t < ev.at || t >= ev.at + ev.duration) continue;
-      const p = (t - ev.at) / ev.duration;
-      // 'flash' rises and falls (screen); 'dim' fades in, holds, fades out (multiply).
-      const strength = ev.type === 'flash'
-        ? Math.sin(p * Math.PI)
-        : Math.min(1, p / 0.2, (1 - p) / 0.2);
-      const target = ev.type === 'flash' ? flash : dim;
-      target.style.background = ev.color;
-      target.style.opacity = String((ev.intensity ?? (ev.type === 'flash' ? 1 : 0.6)) * strength);
+  };
+
+  const drawMotes = (t) => {
+    const motes = light.motes;
+    if (reduce || !motes?.count) return;
+    const color = parseCssColor(motes.color) ?? { r: 255, g: 255, b: 255, a: 1 };
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = cssColor(color);
+    for (let i = 0; i < motes.count; i++) {
+      // Deterministic spread, so every playback looks the same.
+      const seed = ((i * 7919) % 997) / 997;
+      const seed2 = ((i * 104729) % 991) / 991;
+      const lifetime = 7 + seed * 6;
+      const phase = ((((t - seed2 * 9) % lifetime) + lifetime) % lifetime) / lifetime;
+      const opacity = phase < 0.15
+        ? (phase / 0.15) * 0.9
+        : phase < 0.8 ? 0.9 - ((phase - 0.15) / 0.65) * 0.2 : ((1 - phase) / 0.2) * 0.7;
+      if (opacity <= 0) continue;
+      const x = Math.round(seed * STAGE_W) + 60 * phase;
+      const y = Math.round(STAGE_H * (0.35 + seed2 * 0.6)) - 260 * phase;
+      ctx.globalAlpha = Math.min(1, opacity);
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
     }
-    // A transparent full-stage blend layer still costs a compositor surface,
-    // and these two are idle for all but a few seconds of a scene. Hide them
-    // outright unless an event is playing (see hideIdleOverlay).
-    hideIdleOverlay(flash);
-    hideIdleOverlay(dim);
+    ctx.restore();
+  };
+
+  const drawEvents = (t) => {
+    for (const event of light.events ?? []) {
+      if (t < event.at || t >= event.at + event.duration) continue;
+      const progress = (t - event.at) / event.duration;
+      // 'flash' rises and falls (screen); 'dim' fades in, holds, fades out.
+      const strength = event.type === 'flash'
+        ? Math.sin(progress * Math.PI)
+        : Math.min(1, progress / 0.2, (1 - progress) / 0.2);
+      const color = parseCssColor(event.color);
+      if (!color || strength <= 0) continue;
+      ctx.save();
+      ctx.globalCompositeOperation = event.type === 'flash' ? 'screen' : 'multiply';
+      ctx.globalAlpha = (event.intensity ?? (event.type === 'flash' ? 1 : 0.6)) * strength;
+      ctx.fillStyle = `rgb(${color.r},${color.g},${color.b})`;
+      ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+      ctx.restore();
+    }
+  };
+
+  function render(t) {
+    if (!view.width) return;
+    const ratio = view.pixelRatio;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Stage space: everything the scene is authored in.
+    ctx.setTransform(ratio * view.scale, 0, 0, ratio * view.scale, ratio * view.x, ratio * view.y);
+    drawLayers(t);
+    if (light.ambient) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      fillGradient(ctx, light.ambient, STAGE_W, STAGE_H);
+      ctx.restore();
+    }
+    drawGlows(t);
+    drawMotes(t);
+    drawEvents(t);
+
+    // Box space: the sheet and the vignette cover the whole screen, not the
+    // stage, exactly like they did as absolutely positioned elements.
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if (paper) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalAlpha = 0.55;
+      ctx.drawImage(paper, 0, 0, view.width, view.height);
+      ctx.restore();
+    }
+    ctx.save();
+    fillGradient(ctx, 'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(18,10,2,0.75) 100%)',
+      view.width, view.height);
+    ctx.restore();
+
     const cue = cueAt(cues, t);
     if (cue !== shownCue) {
       shownCue = cue;
@@ -421,10 +645,16 @@ export function createDioramaPlayer({
       const voice = narrationLocale(locale);
       const [timing] = await Promise.all([
         narration ? loadNarrationTiming(base, voice) : null,
-        Promise.all(layerEls.map(async ({ layer, img }) => {
-          const loaded = await loadImage(new URL(layer.src, base).href);
-          img.src = loaded.src;
-        })),
+        Promise.all([
+          ...scene.layers.map(async (layer, index) => {
+            images[index] = await loadImage(new URL(layer.src, base).href);
+          }),
+          // The grain sheet lives beside this module, not in the scene folder.
+          loadImage(new URL('./paper-grain.webp', import.meta.url).href).then(
+            (image) => { grain = image; },
+            () => { grain = null; },
+          ),
+        ]),
       ]);
       if (timing) cues = voicedCues(scene.subtitles, timing);
       if (timing && !muted && !finished) {
