@@ -684,7 +684,8 @@ ul {
   }
 }
 
-/* The apps are not published, so these are disabled buttons, never links. */
+/* Google Play stays a disabled marker until the Android release; the iOS app
+   is live and links out from the official Apple badge. */
 .btn-store {
   gap: 0.55em;
   padding: 0.7em 1.15em;
@@ -701,6 +702,28 @@ ul {
 .btn-store:disabled {
   opacity: 1;
   color: var(--ivory-muted);
+}
+
+.store-badge-link {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.store-badge-link img {
+  display: block;
+  width: auto;
+  height: 46px;
+  max-width: 100%;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55));
+}
+
+.store-badge-link:hover,
+.store-badge-link:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
 }
 
 .store-icon {
@@ -1580,6 +1603,29 @@ ul {
   text-transform: uppercase;
 }
 
+/* The iOS chip is a real link: solid instead of dashed, brass on hover. */
+.store-badge--live {
+  border-style: solid;
+  border-color: rgba(228, 197, 119, 0.45);
+  color: var(--ivory);
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+
+.store-badge--live:hover,
+.store-badge--live:focus-visible {
+  border-color: var(--brass-light);
+  background: rgba(228, 197, 119, 0.14);
+  transform: translateY(-1px);
+}
+
+.store-badge-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--hairline-soft);
@@ -2326,5 +2372,18 @@ ul {
 
   .heal-fill {
     width: 100%;
+  }
+
+  /* Store links lift on hover; without motion they still change colour. */
+  .store-badge-link,
+  .store-badge--live {
+    transition: none;
+  }
+
+  .store-badge-link:hover,
+  .store-badge-link:focus-visible,
+  .store-badge--live:hover,
+  .store-badge--live:focus-visible {
+    transform: none;
   }
 }

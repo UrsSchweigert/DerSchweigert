@@ -169,7 +169,7 @@ test('every asset reference is root-absolute, allow-listed or an anchor', () => 
   for (const match of css.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) urls.add(match[1]);
   for (const match of html.matchAll(/<link\b[^>]*\bhref="([^"]+)"/g)) urls.add(match[1]);
 
-  const allowedAbsolute = /^https:\/\/arithmoslayer\.de\//;
+  const allowedAbsolute = /^(?:https:\/\/arithmoslayer\.de\/|https:\/\/apps\.apple\.com\/)/;
   const bad = [];
   for (const url of urls) {
     if (url.startsWith('#') || url.startsWith('mailto:')) continue;
@@ -313,8 +313,10 @@ test('legal, support and pricing facts are present', () => {
     assert.ok(html.includes(`href="${href}"`), `missing footer link ${href}`);
   }
   assert.ok(html.includes('arithmoslayer_full_unlock') === false, 'internal product id must not leak into copy');
-  // Honest store messaging: coming-soon badges, never fake store URLs.
-  assert.ok(!/apps\.apple\.com|play\.google\.com/.test(html), 'no store URLs may be invented');
+  // The iOS app is live, so the one store URL on this page is the real
+  // listing; Google Play stays a coming-soon marker until Android ships.
+  assert.match(html, /href="https:\/\/apps\.apple\.com\/de\/app\/arithmo-slayer\/id6832570305"/);
+  assert.ok(!/play\.google\.com/.test(html), 'no Play Store URL before the Android release');
   assert.match(html, /prices\.app\.iosBadge/);
   assert.match(html, /prices\.app\.androidBadge/);
 });
@@ -592,8 +594,9 @@ test('the hero leads with the open beta, then the store badges, then the browser
   const beta = ctas.match(/<a class="hero-beta" href="\/beta\/">[\s\S]*?<\/a>/);
   assert.ok(beta, 'the hero needs the beta pill linking to /beta/');
 
-  // Order matters: the live offer leads, the coming-soon badges follow, and
-  // the browser game closes the block as the secondary action.
+  // Order matters: the live offer leads, the store entry points follow (the
+  // App Store badge first), and the browser game closes the block as the
+  // secondary action.
   const betaAt = ctas.indexOf('class="hero-beta"');
   const storeAt = ctas.indexOf('data-store-cta="appstore"');
   const browserAt = ctas.indexOf('class="btn btn-ghost" href="/play"');
@@ -616,27 +619,45 @@ test('the hero leads with the open beta, then the store badges, then the browser
   assert.match(css, /prefers-reduced-motion[\s\S]*?\.hero-beta,[\s\S]*?animation: none !important/);
 });
 
-test('the store buttons are disabled badges, never links', () => {
+test('the App Store badge links to the live listing, Google Play stays a marker', () => {
   const ctas = html.match(/<div class="hero-ctas">[\s\S]*?\n        <\/div>/)[0];
   assert.match(ctas, /class="btn btn-ghost" href="\/play"/, 'the browser button is the secondary action');
   assert.ok(ctas.includes('data-store-cta="appstore"'), 'App Store badge in the CTA row');
   assert.ok(ctas.includes('data-store-cta="playstore"'), 'Google Play badge in the CTA row');
 
+  // iOS shipped: the hero carries Apple's official badge, linked to the store.
+  const appStore = ctas.match(/<a\b[^>]*data-store-cta="appstore"[^>]*>[\s\S]*?<\/a>/)[0];
+  assert.match(appStore, /href="https:\/\/apps\.apple\.com\/de\/app\/arithmo-slayer\/id6832570305"/);
+  assert.match(appStore, /target="_blank"/);
+  assert.match(appStore, /rel="noopener"/);
+  assert.match(appStore, /data-i18n-aria-label="hero\.appStoreLink"/, 'the badge image needs a translated name');
+  assert.match(appStore, /src="\/promo\/art\/ui\/app-store-badge\.png"/, 'the official badge artwork');
+  assert.ok(!/badge-appstore\.svg/.test(appStore), 'the hand-drawn stand-in must not stand in for the real badge');
+
   const buttons = [...html.matchAll(/<button[^>]*data-store-cta="[a-z]+"[^>]*>/g)].map((match) => match[0]);
-  assert.equal(buttons.length, 2);
-  for (const tag of buttons) {
-    assert.match(tag, /\btype="button"/);
-    assert.match(tag, /\bdisabled\b/, 'the apps are unreleased, so the buttons are disabled');
-    assert.ok(!/\bhref=/.test(tag), 'store buttons must not navigate anywhere');
-  }
-  assert.ok(!/apps\.apple\.com|play\.google\.com|itunes\.apple\.com/.test(html), 'no invented store URLs');
-  assert.match(html, /src="\/promo\/art\/ui\/badge-appstore\.svg"/);
+  assert.equal(buttons.length, 1);
+  assert.match(buttons[0], /data-store-cta="playstore"/);
+  assert.match(buttons[0], /\btype="button"/);
+  assert.match(buttons[0], /\bdisabled\b/, 'Android is unreleased, so the button is disabled');
+  assert.ok(!/\bhref=/.test(buttons[0]), 'store buttons must not navigate anywhere');
   assert.match(html, /src="\/promo\/art\/ui\/badge-playstore\.svg"/);
   // The "coming soon" marker has to be visible in the label itself.
-  assert.ok(DICTIONARY['hero.ctaAppStore'].de.includes('Bald'));
-  assert.ok(DICTIONARY['hero.ctaAppStore'].en.includes('Coming soon'));
   assert.ok(DICTIONARY['hero.ctaPlayStore'].de.includes('Bald'));
   assert.ok(DICTIONARY['hero.ctaPlayStore'].en.includes('Coming soon'));
+});
+
+test('the pricing and family cards link the iOS chip, never the Android one', () => {
+  const chips = [...html.matchAll(/<div class="store-badges">[\s\S]*?<\/div>/g)].map((match) => match[0]);
+  assert.equal(chips.length, 2, 'pricing card and family CTA each carry one store row');
+  for (const chip of chips) {
+    const ios = chip.match(/<a\b[^>]*>\s*<img[^>]*badge-appstore\.svg[\s\S]*?<\/a>/);
+    assert.ok(ios, 'the iOS chip is a link');
+    assert.match(ios[0], /href="https:\/\/apps\.apple\.com\/de\/app\/arithmo-slayer\/id6832570305"/);
+    assert.match(ios[0], /target="_blank"/);
+    assert.match(ios[0], /rel="noopener"/);
+    assert.match(ios[0], /data-i18n="prices\.app\.iosBadge"/, 'the chip keeps its translatable label');
+    assert.ok(!/<a\b[^>]*androidBadge/.test(chip), 'Android has no store page yet, so it stays text');
+  }
 });
 
 test('the hero splits two to one and stacks the phone below the copy', () => {
