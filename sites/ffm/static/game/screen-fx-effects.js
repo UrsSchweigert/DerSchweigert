@@ -33,6 +33,7 @@ export const EFFECT_NAMES = [
   'stormRemoval',
   'spikeCast',
   'fiendPortal',
+  'bonusFlow',
 ];
 
 // The sword's own ramp (#1460c0 / #40a0f0 / #88d0ff / #c8f0ff in
@@ -633,6 +634,96 @@ function dragonFinisher(api, payload) {
   });
 }
 
+// The level bonus is announced in the header but strengthens a spell in the
+// answer zone, so this carries the light from the pill into the orb it just
+// upgraded: the sentence and the spell visibly belong together. A flat run
+// reads as a laser, so the motes follow a shallow arc above the straight line.
+const BONUS_FLOW_SECONDS = 0.75;
+const BONUS_FLOW_ARC = 38;
+// The header seam above the playfield, for a caller with no pill to measure.
+const BONUS_FLOW_DEFAULT_FROM = { x: 400, y: -30 };
+
+/**
+ * Flight of motes from the bonus pill into the ability orb it strengthens.
+ *
+ * `from` (the pill's centre) and `to` (the orb's centre) are unbounded world
+ * coordinates: the screen-fx layer draws outside the 800x450 playfield, which
+ * is what lets the flight cross from the header into the answer column. Both
+ * fall back to a sensible point so the recipe is safe with an empty payload.
+ */
+function bonusFlow(api, payload) {
+  const pointOf = (candidate, fallback) => (candidate
+    && Number.isFinite(candidate.x) && Number.isFinite(candidate.y) ? candidate : fallback);
+  const to = pointOf(payload && payload.to, DEFAULT_ORIGIN);
+  const from = pointOf(payload && payload.from, BONUS_FLOW_DEFAULT_FROM);
+  const palette = PALETTES[(payload && payload.ability) || ''] || PALETTES.gold;
+  const duration = payload && Number.isFinite(payload.duration) && payload.duration > 0
+    ? payload.duration
+    : BONUS_FLOW_SECONDS;
+
+  // Arrival: the orb takes the light. Sparks fly inward, so it reads as
+  // absorbed by the ball rather than as another explosion beside it.
+  const arrive = () => {
+    api.flash(to.x, to.y, '#ffffff', 34, 0.14, 0.95);
+    api.flash(to.x, to.y, pick(palette), 62, 0.34, 0.55);
+    api.ring(to.x, to.y, pick(palette), 4, 70, 0.5, 3);
+    api.glow(to.x, to.y, pick(palette), 26, 26, 0.55, 0.75, 0.8);
+    for (let i = 0; i < count(api, 3); i++) {
+      const angle = rand(0, TAU);
+      const start = rand(34, 56);
+      api.spark(
+        to.x + Math.cos(angle) * start,
+        to.y + Math.sin(angle) * start,
+        angle + Math.PI,
+        rand(60, 150),
+        pick(palette),
+        rand(0.22, 0.42),
+      );
+    }
+  };
+
+  const control = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - BONUS_FLOW_ARC };
+  const at = (t) => {
+    const u = 1 - t;
+    return {
+      x: u * u * from.x + 2 * u * t * control.x + t * t * to.x,
+      y: u * u * from.y + 2 * u * t * control.y + t * t * to.y,
+    };
+  };
+  // Quadratic bezier tangent, so each mote leaves along the arc instead of
+  // drifting off it.
+  const heading = (t) => {
+    const u = 1 - t;
+    return {
+      x: 2 * u * (control.x - from.x) + 2 * t * (to.x - control.x),
+      y: 2 * u * (control.y - from.y) + 2 * t * (to.y - control.y),
+    };
+  };
+
+  // The pill catches the light first, so the flight has a visible source.
+  api.glow(from.x, from.y, pick(palette), 30, 20, 0.5, 0.5, 0.4);
+  api.emitter(duration, 26, (progress) => {
+    const point = at(progress);
+    const direction = heading(progress);
+    const length = Math.hypot(direction.x, direction.y) || 1;
+    for (let i = 0; i < count(api, 2); i++) {
+      const speed = rand(40, 110);
+      api.ember(
+        point.x + rand(-6, 6),
+        point.y + rand(-6, 6),
+        (direction.x / length) * speed + rand(-9, 9),
+        (direction.y / length) * speed,
+        pick(palette),
+        rand(0.28, 0.5),
+      );
+    }
+    if (Math.random() < 0.5) {
+      api.glow(point.x, point.y, pick(palette), rand(7, 13), rand(7, 13), rand(0.25, 0.4), 0.4, 0.6);
+    }
+  });
+  api.schedule(duration, arrive);
+}
+
 export function createEffectTable() {
   return {
     correctAnswer,
@@ -654,6 +745,7 @@ export function createEffectTable() {
     stormRemoval,
     spikeCast,
     fiendPortal,
+    bonusFlow,
     // Granular pieces: the game drives these per frame / per hit so the trail
     // and the blast stay locked to the real projectile rather than a guess.
     fireTrail,

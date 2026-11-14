@@ -8,6 +8,7 @@ import {
   MAX_SWORDS,
   SWORD_CLASS,
   SWORD_FILLED_CLASS,
+  SWORD_LOST_CLASS,
   createEncounterSwords,
   resolveSwords,
 } from './encounter-swords.js';
@@ -99,16 +100,37 @@ function recordFx() {
 
 describe('resolveSwords', () => {
   it('draws one sword per enemy and fills the beaten ones', () => {
-    assert.deepEqual(resolveSwords({ defeated: 2, total: 5 }), { swords: 5, filled: 2 });
-    assert.deepEqual(resolveSwords({}), { swords: 0, filled: 0 });
+    assert.deepEqual(resolveSwords({ defeated: 2, total: 5 }), { swords: 5, filled: 2, lost: 0 });
+    assert.deepEqual(resolveSwords({}), { swords: 0, filled: 0, lost: 0 });
+  });
+
+  it('keeps a slot for every enemy the level started with', () => {
+    // A storm shrank the level from 6 to 4: the row still shows 6 slots, 2 empty.
+    assert.deepEqual(resolveSwords({ defeated: 1, total: 4, slots: 6 }), {
+      swords: 6,
+      filled: 1,
+      lost: 2,
+    });
+    // Slot counts are never below the live total, even if a caller passes both.
+    assert.deepEqual(resolveSwords({ defeated: 0, total: 5, slots: 3 }), {
+      swords: 5,
+      filled: 0,
+      lost: 0,
+    });
   });
 
   it('never fills more swords than it draws and scales past MAX_SWORDS', () => {
-    assert.deepEqual(resolveSwords({ defeated: 9, total: 3 }), { swords: 3, filled: 3 });
+    assert.deepEqual(resolveSwords({ defeated: 9, total: 3 }), { swords: 3, filled: 3, lost: 0 });
     assert.deepEqual(resolveSwords({ defeated: 0, total: MAX_SWORDS + 30 }), {
       swords: MAX_SWORDS,
       filled: 0,
+      lost: 0,
     });
+    // Scaled down, the emptied share stays in the row as empty slots.
+    const scaled = resolveSwords({ defeated: 0, total: MAX_SWORDS + 30, slots: MAX_SWORDS * 2 });
+    assert.equal(scaled.swords, MAX_SWORDS);
+    assert.equal(scaled.filled, 0);
+    assert.equal(scaled.lost, Math.round((MAX_SWORDS * 2 - (MAX_SWORDS + 30)) / 2));
   });
 });
 
@@ -134,26 +156,43 @@ describe('sword row', () => {
       'the sword that just filled glints');
   });
 
-  it('takes swords off the row when a storm shrinks the level', () => {
+  it('empties the slots of the swords a storm takes, keeping the row in place', () => {
     const { doc } = fakeDocument();
     const plays = recordFx();
     const widget = createEncounterSwords({ doc });
 
-    widget.updateEncounterProgress({ defeated: 1, total: 6 });
+    widget.updateEncounterProgress({ defeated: 1, total: 6, slots: 6 });
     const original = [...widget.swords];
     assert.equal(original.length, 6);
 
-    widget.updateEncounterProgress({ defeated: 1, total: 4 });
-    assert.equal(widget.swords.length, 4, 'the two removed enemies lost their swords');
-    assert.equal(original[4].parentNode, null, 'the fifth sword left the DOM');
-    assert.equal(original[5].parentNode, null, 'the sixth sword left the DOM');
-    assert.equal(
-      widget.swords.map((sword) => sword.classList.contains(SWORD_FILLED_CLASS)).filter(Boolean).length,
-      1,
+    widget.updateEncounterProgress({ defeated: 1, total: 4, slots: 6 });
+    assert.equal(widget.swords.length, 6, 'the row keeps a slot for every enemy the level had');
+    assert.deepEqual(widget.swords, original, 'the remaining swords keep their nodes and positions');
+    assert.deepEqual(
+      widget.swords.map((sword) => sword.classList.contains(SWORD_LOST_CLASS)),
+      [false, false, false, false, true, true],
+      'the two removed enemies leave empty slots on the right',
+    );
+    assert.deepEqual(
+      widget.swords.map((sword) => sword.classList.contains(SWORD_FILLED_CLASS)),
+      [true, false, false, false, false, false],
       'the beaten sword keeps its fill; removals come off the empty end',
     );
     assert.equal(plays.filter((play) => play.name === 'swordGain').length, 0,
       'a removal never glints like an earned sword');
+  });
+
+  it('keeps emptied slots empty when a later storm takes more swords', () => {
+    const { doc } = fakeDocument();
+    const widget = createEncounterSwords({ doc });
+    widget.updateEncounterProgress({ defeated: 0, total: 6, slots: 6 });
+    widget.updateEncounterProgress({ defeated: 0, total: 4, slots: 6 });
+
+    widget.updateEncounterProgress({ defeated: 0, total: 2, slots: 6 });
+    assert.deepEqual(
+      widget.swords.map((sword) => sword.classList.contains(SWORD_LOST_CLASS)),
+      [false, false, true, true, true, true],
+    );
   });
 
   it('shatters the departing swords at their own positions', () => {
@@ -168,6 +207,17 @@ describe('sword row', () => {
     // Row rects are 12x20 at (100,500); with a 1:1 mapping the effect lands in
     // the middle of the sword, the same conversion the glint uses.
     assert.deepEqual(lost[0].payload, { x: 106, y: 510 });
+  });
+
+  it('shatters only the swords that still stand after an earlier storm', () => {
+    const { doc } = fakeDocument();
+    const plays = recordFx();
+    const widget = createEncounterSwords({ doc });
+    widget.updateEncounterProgress({ defeated: 0, total: 6, slots: 6 });
+    widget.updateEncounterProgress({ defeated: 0, total: 4, slots: 6 });
+    // Two slots are already empty, so at most four swords can break this time.
+    assert.equal(widget.shatter(9), 4);
+    assert.equal(plays.filter((play) => play.name === 'swordLost').length, 4);
   });
 
   it('shatters no more swords than the row holds and stays silent when hidden', () => {

@@ -602,8 +602,12 @@ let state = {
   enemiesDefeated: 0,
   // Enemies the level still holds. Beating one fills a sword and leaves this
   // alone; a storm takes enemies off the level and shrinks it, so the portrait
-  // sword row loses exactly those swords.
+  // sword row empties exactly those slots (see levelSwordSlots).
   levelEnemies: 0,
+  // The enemy count the level started with. The sword row keeps one slot per
+  // entry, so a storm removal leaves an empty slot where that sword stood
+  // instead of shortening the row and re-centring every remaining sword.
+  levelSwordSlots: 0,
   fiendsSpawned: 0,
   timerMax: 10,
   timerRemaining: 10,
@@ -2822,6 +2826,35 @@ function abilityCastOrigin() {
   return centre || { x: HERO_X, y: hero.y - HERO_CENTRE_ABOVE_GROUND };
 }
 
+// The level bonus is announced as text in the header, but it always strengthens
+// one spell in the answer zone. This flies a glow from the pill into that orb,
+// so the sentence and the orb it changed read as the same thing. Measured from
+// the real boxes: portrait has the orbs under the playfield, landscape beside
+// it, and the app puts them in the answer column on both.
+function playBonusFlow(bonus) {
+  const fx = globalThis.ffmScreenFx;
+  const abilityId = bonus && typeof bonus.abilityId === 'string' ? bonus.abilityId : '';
+  if (!fx || !abilityId) return false;
+  const orb = document.querySelector(`.ability-slot[data-ability="${abilityId}"]`);
+  const pill = document.getElementById('bonus-notice');
+  const centreOf = (element) => {
+    if (!element || typeof element.getBoundingClientRect !== 'function') return null;
+    const rect = element.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  };
+  const orbPoint = centreOf(orb);
+  if (!orbPoint) return false;
+  const pillPoint = centreOf(pill);
+  const to = globalThis.ffmFx?.worldFromPoint(orbPoint);
+  if (!to) return false;
+  return fx.play('bonusFlow', {
+    from: pillPoint ? globalThis.ffmFx?.worldFromPoint(pillPoint) : null,
+    to,
+    ability: abilityId,
+  });
+}
+
 // The one place a successful cast makes noise and light. Earth also starts the
 // persistent slow aura; the one-shot recipes are windCast, stormCast and
 // spikeCast.
@@ -3033,6 +3066,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
     : practiceRun
       ? 10
       : cfg?.waveSize ?? 0;
+  state.levelSwordSlots = state.levelEnemies;
   state.fiendsSpawned = 0;
   spawnQueue = [];
   requeuedFiends = [];
@@ -3079,7 +3113,15 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
     const bonus = !practiceRun && typeof bonusForLevel === 'function'
       ? bonusForLevel(cfg.level)
       : null;
-    gameplayChrome?.showBonusNotice?.(bonus);
+    if (gameplayChrome?.showBonusNotice?.(bonus) && bonus) {
+      // One beat later: this runs before the first frame of the level, while
+      // the header is still hidden from the previous screen and has no box to
+      // measure. The layer's clock only advances with the game loop, so a
+      // paused level never fires the flow late.
+      const fx = globalThis.ffmScreenFx;
+      if (fx?.schedule) fx.schedule(0.12, () => playBonusFlow(bonus));
+      else playBonusFlow(bonus);
+    }
   }
   diffSelect.style.display = 'none';
   pauseOverlay.style.display = 'none';
@@ -4593,7 +4635,7 @@ function gameLoop(ts) {
   } : null;
   const practiceProgress = practiceRun?.session.snapshot();
   const encounterProgress = practiceRun?.endless ? null : state.isShapesMode
-    ? { defeated: practiceProgress.resolvedProblems, total: 10 }
+    ? { defeated: practiceProgress.resolvedProblems, total: 10, slots: state.levelSwordSlots || 10 }
     : {
       defeated: state.enemiesDefeated,
       // The level's own count, shrunk by storm removals, so a cast takes the
@@ -4603,6 +4645,9 @@ function gameLoop(ts) {
         : practiceRun
           ? practiceRun.kind === 'targeted' ? practiceRun.targetProblems.length : 10
           : cfg?.waveSize ?? 0,
+      // What the level started with: the row keeps a slot for every one of
+      // them, so the shrunk total shows up as empty slots on the right.
+      slots: state.levelSwordSlots,
     };
   gameplayChrome.update({
     ...state, paused, reveal: inputDisabled || ['reveal', 'retreat', 'death'].includes(activeFiend?.state),

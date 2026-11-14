@@ -56,23 +56,41 @@ export class InputManager {
   }
 
   _bindMCButton(btn) {
-    let secondarySubmitted = false;
+    // Pointer ids that went down on this button. A release only counts as a tap
+    // on the button when the press began there, so dragging off the playfield
+    // and letting go over an answer never submits one.
+    const pressed = new Set();
+    let pointerHandled = false;
     const submit = () => {
       if (this._enabled && this._mode === 'multiple-choice') this._submit(btn.textContent.trim(), btn);
     };
-    btn.addEventListener('pointerdown', () => { secondarySubmitted = false; });
+    btn.addEventListener('pointerdown', e => {
+      pressed.add(e.pointerId);
+      pointerHandled = false;
+    });
+    btn.addEventListener('pointercancel', e => { pressed.delete(e.pointerId); });
     btn.addEventListener('keydown', e => {
       if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault();
     });
-    // Secondary heal-hold touches do not synthesize clicks. Primary pointers,
-    // keyboard Enter/Space and assistive activation use the native click path.
+    // A touch submits on the release itself, primary or not, instead of waiting
+    // for the click the browser synthesizes afterwards: the answer is the same,
+    // one gesture-recognition step earlier, and it no longer matters whether the
+    // WebView decides to drop that click. Mouse, keyboard Enter/Space and
+    // assistive activation keep the native click path.
     btn.addEventListener('pointerup', e => {
-      if (e.isPrimary !== false || (e.pointerType && e.pointerType !== 'touch')) return;
-      secondarySubmitted = true;
+      if (!pressed.delete(e.pointerId)) return;
+      if (e.pointerType && e.pointerType !== 'touch') return;
+      pointerHandled = true;
       submit();
     });
     btn.addEventListener('click', e => {
-      if (secondarySubmitted && e.detail > 0) return;
+      // The click that follows a touch release is the same tap that already
+      // submitted. This matters even when the answer callback re-enables input
+      // immediately, which is why the guard is not `_enabled`.
+      if (pointerHandled && e.detail > 0) {
+        pointerHandled = false;
+        return;
+      }
       submit();
     });
   }

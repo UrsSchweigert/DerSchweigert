@@ -63,14 +63,14 @@ test('every bonus level shows exactly one notice naming the ability and value', 
   }
 });
 
-test('the notice counts down six seconds of gameplay time', () => {
+test('the notice counts down twelve seconds of gameplay time', () => {
   const { chrome, notice } = fixture();
   chrome.showBonusNotice(bonusForLevel(7));
 
-  chrome.tickBonusNotice(5.9);
-  assert.equal(notice.hidden, false, 'still readable before six seconds');
+  chrome.tickBonusNotice(11.9);
+  assert.equal(notice.hidden, false, 'still readable before twelve seconds');
   chrome.tickBonusNotice(0.1);
-  assert.equal(notice.hidden, true, 'hidden at six seconds');
+  assert.equal(notice.hidden, true, 'hidden at twelve seconds');
   assert.equal(notice.textContent, '');
 });
 
@@ -78,11 +78,11 @@ test('pause freezes the countdown until gameplay resumes', () => {
   const { chrome, notice } = fixture();
   chrome.showBonusNotice(bonusForLevel(12));
 
-  assert.equal(chrome.tickBonusNotice(3, { paused: true }), 6);
-  chrome.tickBonusNotice(5.9, { paused: true });
+  assert.equal(chrome.tickBonusNotice(3, { paused: true }), 12);
+  chrome.tickBonusNotice(11.9, { paused: true });
   assert.equal(notice.hidden, false, 'paused time never burns the notice');
 
-  chrome.tickBonusNotice(5.9);
+  chrome.tickBonusNotice(11.9);
   assert.equal(notice.hidden, false);
   chrome.tickBonusNotice(0.1);
   assert.equal(notice.hidden, true);
@@ -171,6 +171,35 @@ test('the pill is absolutely positioned so it adds no row', async () => {
   const noticeRule = css.match(/#bonus-notice\s*\{[^}]*\}/)?.[0] || '';
   assert.match(noticeRule, /position:\s*absolute/);
   assert.match(noticeRule, /pointer-events:\s*none/);
+});
+
+test('landscape keeps the pill inside the scene, clear of the answer panel', async () => {
+  const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+  const landscape = css.match(/#game-wrap\[data-layout="landscape"\] #bonus-notice\s*\{[^}]*\}/)?.[0];
+  assert.ok(landscape, 'the landscape rule exists');
+  // The answers paint over the header in landscape (z-index 20 against the
+  // pill's 2), so the pill is clamped to the scene column instead of the
+  // header: its right edge stops one answer column plus a gap short of the
+  // header's.
+  assert.match(landscape, /right:\s*calc\(var\(--answer-width\)/);
+  assert.match(landscape, /max-width:\s*calc\(var\(--scene-width\)/);
+  assert.match(landscape, /margin-inline:\s*auto/);
+  assert.match(landscape, /transform:\s*none/);
+});
+
+test('main.js flies the bonus glow into the orb the bonus strengthened', async () => {
+  const source = await readFile(new URL('./main.js', import.meta.url), 'utf8');
+  const flow = source.match(/function playBonusFlow\(bonus\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(flow, 'playBonusFlow must exist');
+  assert.match(flow, /ability-slot\[data-ability="\$\{abilityId\}"\]/,
+    'it targets the orb by the bonus ability id');
+  assert.match(flow, /worldFromPoint/, 'it converts the measured boxes into world space');
+  assert.match(flow, /play\('bonusFlow'/, 'it plays the bonusFlow recipe');
+
+  const finish = source.match(/function finishStartLevel\([\s\S]*?\n\}/)?.[0];
+  assert.match(finish, /showBonusNotice\?\.\(bonus\) && bonus/,
+    'the flow only runs for a levied bonus that actually showed a notice');
+  assert.match(finish, /playBonusFlow\(bonus\)/);
 });
 
 test('main.js announces the level bonus once, ticks it and clears it', async () => {

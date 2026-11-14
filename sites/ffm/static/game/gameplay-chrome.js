@@ -52,9 +52,10 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
     slowTargets: 'Bonus: {ability} +{value} spike target',
   };
   // A bonus notice is a non-blocking status pill, not a timer the player has
-  // to beat: six seconds of gameplay time is long enough to read it while
-  // solving the first problem and never interrupts the level.
-  const BONUS_NOTICE_SECONDS = 6;
+  // to beat: twelve seconds of gameplay time let a reader finish reading it
+  // after the first problem without ever interrupting the level. It used to be
+  // six, which ran out while a slower reader was still on the first question.
+  const BONUS_NOTICE_SECONDS = 12;
   let bonusNoticeRemaining = 0;
 
   function clearBonusNotice() {

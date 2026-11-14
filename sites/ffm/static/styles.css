@@ -94,6 +94,21 @@ body {
   pointer-events: none;
 }
 
+/* Landscape puts the answers in their own column beside the scene, but the
+ * notice's host spans both columns, so a pill centred on the header ran under
+ * the answer panel (z-index 20 beats the pill's 2) and lost its right end —
+ * worst for the long German sentences. Anchor it to the scene column instead:
+ * the bonus belongs to the playfield the spells are cast from. */
+#game-wrap[data-layout="landscape"] #bonus-notice {
+  left: 0;
+  right: calc(var(--answer-width) + 12px);
+  width: fit-content;
+  max-width: calc(var(--scene-width) - 8px);
+  margin-inline: auto;
+  transform: none;
+  text-align: center;
+}
+
 #active-question {
   grid-column: 1 / -1;
   min-height: 28px;
@@ -726,6 +741,13 @@ body {
 
 .app-encounter-sword--filled::before {
   background: linear-gradient(180deg, #c8f7c5 0%, #5fd068 45%, #2e8b3a 100%);
+}
+
+/* A slot a storm emptied: the space stays in the row, the sword is gone. The
+ * silhouette keeps a trace so the gap reads as "taken", not as "never there",
+ * but it stays far dimmer than a pending sword (0.24) and the fill sparkles. */
+.app-encounter-sword--lost::before {
+  background: rgba(255, 255, 255, 0.07);
 }
 
 @keyframes ffm-sword-fill {
@@ -2595,6 +2617,21 @@ body { color: var(--ivory); }
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* Press feedback. A tap used to change nothing on the control itself: the
+ * native tap highlight is off (see the -webkit-tap-highlight-color rules) and
+ * the first visible answer is the canvas effect on the next frame, which reads
+ * as lag on a phone. The scale is compositor-only and the global
+ * prefers-reduced-motion block neutralises it, so the colour change is what
+ * still confirms the press for a player who asked for less motion. */
+.mc-btn:active:not(:disabled) {
+  background: linear-gradient(145deg, #2a5747, #0f241c);
+  transform: scale(0.96);
+}
+.ability-slot:active:not(:disabled) { transform: scale(0.94); }
+#btn-pause-game:active:not(:disabled),
+.diff-btn:active:not(:disabled),
+.splash-btn:active:not(:disabled) { transform: scale(0.97); }
 
 .overlay {
   background: rgba(3, 10, 7, 0.82);
