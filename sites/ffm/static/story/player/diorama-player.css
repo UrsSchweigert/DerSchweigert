@@ -33,119 +33,14 @@
   transform: translate(-50%, -50%) rotate(90deg);
 }
 
-.diorama__stage {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 1920px;
-  height: 1080px;
-  transform-origin: 0 0;
-  overflow: hidden;
-  /* Every blend-mode overlay lives inside the stage, so the stage itself is
-   * the blend group: Blink never has to sample the page behind it. */
-  isolation: isolate;
-}
-
-.diorama__layer {
-  position: absolute;
-  inset: 0;
-  transform-origin: 50% 60%;
-  will-change: transform, opacity;
-}
-
-.diorama__img {
-  position: absolute;
+/* The scene itself: one canvas, painted at device resolution by the player.
+ * Everything the theatre is made of — layers, contact shadows, the lighting
+ * rig, the paper sheet and the vignette — is drawn into it (see the module
+ * comment in diorama-player.js for why it is not a stack of DOM layers). */
+.diorama__canvas {
   display: block;
-  height: auto;
-  pointer-events: none;
-  /* Cardboard cutouts stand slightly apart: a soft contact shadow sells depth.
-   * One shadow, not two: each drop-shadow is a separate blur of the whole (up
-   * to 2500 px wide) cutout in its own offscreen surface, and on a 1440p phone
-   * that surface is the largest thing the story player composites. */
-  filter: drop-shadow(0 14px 12px rgba(20, 10, 0, 0.45));
-}
-
-/* The backdrop is opaque and covers the stage at every keyframe, so its shadow
- * only ever falls on the black stage behind it: no pixels, one surface less. */
-.diorama__layer--backdrop .diorama__img { filter: none; }
-
-.diorama__img--flat { filter: none; }
-
-.diorama__ambient,
-.diorama__flash,
-.diorama__dim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  mix-blend-mode: multiply;
-  z-index: 40;
-}
-
-.diorama__dim {
-  opacity: 0;
-  z-index: 58;
-}
-
-.diorama__flash {
-  mix-blend-mode: screen;
-  opacity: 0;
-  z-index: 60;
-}
-
-.diorama__glow {
-  position: absolute;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  border-radius: 50%;
-  opacity: 0;
-}
-
-.diorama__motes {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 55;
-}
-
-.diorama__mote {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  opacity: 0;
-  box-shadow: 0 0 10px 3px currentColor;
-  mix-blend-mode: screen;
-  animation: diorama-mote 9s linear infinite;
-}
-
-@keyframes diorama-mote {
-  0% { transform: translate(0, 0); opacity: 0; }
-  15% { opacity: 0.9; }
-  80% { opacity: 0.7; }
-  100% { transform: translate(60px, -260px); opacity: 0; }
-}
-
-/* Aged-paper surface over everything: fibre noise plus warm, uneven toning.
- * The grain is a plain image tile (story/tools/paper-grain.py), not an SVG
- * filter: Blink re-rasterises this full-screen, scaled, blend-mode layer as the
- * scene moves, and re-running an <feTurbulence> on that path painted black
- * tiles on Android. */
-.diorama__paper {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  mix-blend-mode: multiply;
-  opacity: 0.55;
-  background:
-    radial-gradient(ellipse at 20% 15%, rgba(255, 236, 200, 0) 0%, rgba(140, 95, 40, 0.25) 100%),
-    url("paper-grain.webp");
-}
-
-.diorama__vignette {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(18, 10, 2, 0.75) 100%);
+  width: 100%;
+  height: 100%;
 }
 
 .diorama__subtitle {
@@ -227,4 +122,3 @@
   .diorama__subtitle { transition: none; }
 }
 
-.diorama--reduced .diorama__mote { display: none; }
