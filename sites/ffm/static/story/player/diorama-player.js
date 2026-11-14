@@ -159,6 +159,31 @@ export function stageTransform(viewW, viewH) {
 /** A landscape box shorter than this gets the slimmer subtitle strip. */
 export const COMPACT_BOX_HEIGHT = 500;
 
+// The Android WebView needs a moment before the first audio frame is audible.
+// Starting the scene clock first forced the old catch-up rule to seek the
+// narration forward, which cut the opening line; the scene now waits for the
+// voice (bounded) and starts both at zero.
+export const NARRATION_START_MAX_MS = 3000;
+
+/** Resolves true when the track is audibly playing, false on error or timeout. */
+function startsPlaying(audio, limitMs = NARRATION_START_MAX_MS) {
+  return new Promise((resolve) => {
+    let timer = 0;
+    const done = (value) => {
+      clearTimeout(timer);
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('error', onError);
+      resolve(value);
+    };
+    const onPlaying = () => done(true);
+    const onError = () => done(false);
+    audio.addEventListener('playing', onPlaying);
+    audio.addEventListener('error', onError);
+    audio.play().then(() => done(true), () => done(false));
+    timer = setTimeout(() => done(false), limitMs);
+  });
+}
+
 function el(tag, className, parent) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -174,22 +199,6 @@ function loadImage(src) {
     img.onerror = () => reject(new Error(`Story layer failed to load: ${src}`));
     img.src = src;
   });
-}
-
-/**
- * Hides a lighting overlay that is not contributing any pixels.
- *
- * Every blend-mode overlay spans the whole stage, so the compositor keeps a
- * full-stage surface for it whether or not it is visible: on a high-density
- * phone the flash and the dim alone are several megapixels of texture for a
- * few seconds of use. `visibility` is written only when it changes, so a fade
- * in progress keeps its per-frame opacity updates to itself.
- */
-function hideIdleOverlay(node) {
-  const idle = !(Number.parseFloat(node.style.opacity) > 0);
-  if (idle === (node.dataset.idle === '1')) return;
-  node.dataset.idle = idle ? '1' : '0';
-  node.style.visibility = idle ? 'hidden' : 'visible';
 }
 
 /**
@@ -277,6 +286,7 @@ export function createDioramaPlayer({
   let shownCue = null;
   let resolvePlay = null;
   let finished = false;
+  let paused = false;
   // Cue list and clock source: the voice-over, when the scene ships one, is
   // both the timeline and the truth for when each line is on screen.
   let cues = scene.subtitles;
@@ -336,11 +346,6 @@ export function createDioramaPlayer({
       target.style.background = ev.color;
       target.style.opacity = String((ev.intensity ?? (ev.type === 'flash' ? 1 : 0.6)) * strength);
     }
-    // A transparent full-stage blend layer still costs a compositor surface,
-    // and these two are idle for all but a few seconds of a scene. Hide them
-    // outright unless an event is playing (see hideIdleOverlay).
-    hideIdleOverlay(flash);
-    hideIdleOverlay(dim);
     const cue = cueAt(cues, t);
     if (cue !== shownCue) {
       shownCue = cue;
@@ -429,36 +434,36 @@ export function createDioramaPlayer({
       if (timing) cues = voicedCues(scene.subtitles, timing);
       if (timing && !muted && !finished) {
         narrationAudio = loadNarrationAudio(base, voice, timing);
-        // If the track only becomes audible after the scene started, slip it
-        // forward to the scene clock instead of rewinding the picture to it.
-        narrationAudio.addEventListener('playing', () => {
-          const { currentTime, duration: audioDuration } = narrationAudio ?? {};
-          if (elapsed > 0.2 && Math.abs(currentTime - elapsed) > 0.2) {
-            try {
-              narrationAudio.currentTime = Math.min(elapsed, audioDuration || elapsed);
-            } catch {
-              // A track that cannot seek simply plays from where it is.
-            }
-          }
-        });
       }
       fit();
       resizeObserver?.observe(root);
       window.addEventListener('resize', fit);
       root.classList.add('is-playing');
       skipBtn.focus();
+      render(0);
       return new Promise(resolve => {
         resolvePlay = resolve;
         if (finished) {
           resolve('skipped');
           return;
         }
-        if (narrationAudio) {
-          // A blocked autoplay only costs the voice; the scene runs on the
-          // requestAnimationFrame clock either way.
-          narrationAudio.play().catch(() => {});
-        }
-        raf = requestAnimationFrame(tick);
+        const begin = async () => {
+          if (narrationAudio) {
+            // Wait for the first audible frame before the scene clock starts.
+            // A blocked or broken track only costs the voice; the scene still
+            // runs, silently, from zero.
+            const started = await startsPlaying(narrationAudio);
+            if ((!started || narrationAudio?.paused) && !finished) stopNarration();
+          }
+          if (finished) {
+            resolve('skipped');
+            return;
+          }
+          if (paused || raf) return; // pause()/resume() already owns the clock
+          startTs = 0;
+          raf = requestAnimationFrame(tick);
+        };
+        begin();
       });
     },
     /** Jump to a time (seconds); used by the preview scrubber and tests. */
@@ -476,11 +481,13 @@ export function createDioramaPlayer({
     },
     /** Freeze on the current frame (preview stills, app backgrounding). */
     pause() {
+      paused = true;
       cancelAnimationFrame(raf);
       raf = 0;
       narrationAudio?.pause();
     },
     resume() {
+      paused = false;
       if (finished || raf || elapsed >= duration) return;
       startTs = 0;
       narrationAudio?.play().catch(() => {});

@@ -41,9 +41,6 @@
   height: 1080px;
   transform-origin: 0 0;
   overflow: hidden;
-  /* Every blend-mode overlay lives inside the stage, so the stage itself is
-   * the blend group: Blink never has to sample the page behind it. */
-  isolation: isolate;
 }
 
 .diorama__layer {
@@ -58,16 +55,9 @@
   display: block;
   height: auto;
   pointer-events: none;
-  /* Cardboard cutouts stand slightly apart: a soft contact shadow sells depth.
-   * One shadow, not two: each drop-shadow is a separate blur of the whole (up
-   * to 2500 px wide) cutout in its own offscreen surface, and on a 1440p phone
-   * that surface is the largest thing the story player composites. */
-  filter: drop-shadow(0 14px 12px rgba(20, 10, 0, 0.45));
+  /* Cardboard cutouts stand slightly apart: a soft contact shadow sells depth. */
+  filter: drop-shadow(0 14px 12px rgba(20, 10, 0, 0.45)) drop-shadow(0 2px 2px rgba(20, 10, 0, 0.35));
 }
-
-/* The backdrop is opaque and covers the stage at every keyframe, so its shadow
- * only ever falls on the black stage behind it: no pixels, one surface less. */
-.diorama__layer--backdrop .diorama__img { filter: none; }
 
 .diorama__img--flat { filter: none; }
 
@@ -126,10 +116,9 @@
 }
 
 /* Aged-paper surface over everything: fibre noise plus warm, uneven toning.
- * The grain is a plain image tile (story/tools/paper-grain.py), not an SVG
- * filter: Blink re-rasterises this full-screen, scaled, blend-mode layer as the
- * scene moves, and re-running an <feTurbulence> on that path painted black
- * tiles on Android. */
+ * The grain is a shipped image tile, never an inline SVG filter: Blink
+ * re-rasterises this full-screen blend layer as the scene moves, and an
+ * <feTurbulence> on that path painted black tiles on Android. */
 .diorama__paper {
   position: absolute;
   inset: 0;
