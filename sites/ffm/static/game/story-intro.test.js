@@ -210,6 +210,56 @@ test('a second scene never stacks on the one already playing', async () => {
   assert.deepEqual(calls, ['intro', 'intro'], 'once the screen is free, a replay is allowed');
 });
 
+test('a level start asked for while a scene is on screen waits for it', async () => {
+  const storage = memoryStorage();
+  const starts = [];
+  let release = null;
+  const intro = createStoryIntro({
+    play: (scene) => { starts.push(scene); return new Promise((resolve) => { release = resolve; }); },
+    storage,
+    sceneForLevel,
+  });
+
+  // The prologue is loading/playing over the title screen, and the player taps
+  // Play before it is finished. The level used to start underneath it, taking
+  // over the music while the narration was still running.
+  const opening = intro.playOnOpen();
+  let settled = false;
+  const levelStart = intro.playBeforeLevel(FIRST_LEVEL).then((scene) => { settled = true; return scene; });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(settled, false, 'the level start must wait for the prologue');
+  assert.deepEqual(starts, ['intro'], 'nothing may start underneath the prologue');
+
+  release('ended');
+  assert.equal(await opening, 'ended');
+  assert.equal(await levelStart, null, 'the prologue covers act I, so no second scene');
+  assert.deepEqual(starts, ['intro']);
+});
+
+test('the next act waits for the scene already on screen', async () => {
+  const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
+  const starts = [];
+  const releases = [];
+  const intro = createStoryIntro({
+    play: (scene) => { starts.push(scene); return new Promise((resolve) => { releases.push(resolve); }); },
+    storage,
+    sceneForLevel,
+  });
+
+  const firstAct = intro.playBeforeLevel(11);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const secondAct = intro.playBeforeLevel(21);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(starts, ['act-2'], 'act III may not open over act II');
+
+  releases[0]('ended');
+  assert.equal(await firstAct, 'ended');
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(starts, ['act-2', 'act-3'], 'the queued act opens once the screen is free');
+  releases[1]('skipped');
+  assert.equal(await secondAct, 'skipped');
+});
+
 test('a manual replay still keeps the act I opening from stacking on it', async () => {
   const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
   const { calls, play } = recorder();
