@@ -187,7 +187,7 @@ export const DICTIONARY = {
   },
   'prices.web.tag': { de: 'Im Browser', en: 'In the browser' },
   'prices.web.name': { de: 'Web-Abo', en: 'Web subscription' },
-  'prices.web.price': { de: '3,00 EUR', en: 'EUR 3.00' },
+  'prices.web.price': { de: '1,99 EUR', en: 'EUR 1.99' },
   'prices.web.period': { de: 'alle 3 Monate', en: 'every 3 months' },
   'prices.web.note': {
     de: 'Inklusive Steuern · verlängert sich automatisch · jederzeit kündbar',
@@ -203,7 +203,7 @@ export const DICTIONARY = {
   'prices.web.cta': { de: 'Im Browser spielen', en: 'Play in the browser' },
   'prices.app.tag': { de: 'Empfohlen', en: 'Recommended' },
   'prices.app.name': { de: 'App-Einmalkauf', en: 'App one-time purchase' },
-  'prices.app.price': { de: '3,99 EUR', en: 'EUR 3.99' },
+  'prices.app.price': { de: '2,99 EUR', en: 'EUR 2.99' },
   'prices.app.period': { de: 'einmalig', en: 'one-time' },
   'prices.app.note': {
     de: 'Einmalig freigeschaltet · kein Abo, keine Verlängerung',
@@ -234,8 +234,8 @@ export const DICTIONARY = {
   'prices.compare.r1web': { de: 'Abo', en: 'Subscription' },
   'prices.compare.r1app': { de: 'Einmalkauf', en: 'One-time purchase' },
   'prices.compare.row2': { de: 'Abrechnung', en: 'Billing' },
-  'prices.compare.r2web': { de: '3,00 EUR alle 3 Monate', en: 'EUR 3.00 every 3 months' },
-  'prices.compare.r2app': { de: '3,99 EUR einmalig', en: 'EUR 3.99 once' },
+  'prices.compare.r2web': { de: '1,99 EUR alle 3 Monate', en: 'EUR 1.99 every 3 months' },
+  'prices.compare.r2app': { de: '2,99 EUR einmalig', en: 'EUR 2.99 once' },
   'prices.compare.row3': { de: 'Konto nötig', en: 'Account needed' },
   'prices.compare.r3web': { de: 'Ja, für Premium', en: 'Yes, for premium' },
   'prices.compare.r3app': { de: 'Nein', en: 'No' },
@@ -296,13 +296,13 @@ export const DICTIONARY = {
   'faq.title': { de: 'Häufige Fragen', en: 'Frequently asked questions' },
   'faq.q1': { de: 'Warum ist das Web-Abo ein Abo?', en: 'Why is the web version a subscription?' },
   'faq.a1': {
-    de: 'Im Browser läuft das Spiel auf unseren Servern: Konto, synchronisierter Fortschritt und Bestenliste brauchen laufende Infrastruktur. Deshalb ist der Web-Zugang ein Abo – 3,00 EUR alle 3 Monate, inklusive Steuern, jederzeit kündbar.',
-    en: 'In the browser the game runs on our servers: account, synced progress and leaderboard need infrastructure that keeps running. That is why web access is a subscription – EUR 3.00 every 3 months, taxes included, cancellable anytime.',
+    de: 'Im Browser läuft das Spiel auf unseren Servern: Konto, synchronisierter Fortschritt und Bestenliste brauchen laufende Infrastruktur. Deshalb ist der Web-Zugang ein Abo – 1,99 EUR alle 3 Monate, inklusive Steuern, jederzeit kündbar.',
+    en: 'In the browser the game runs on our servers: account, synced progress and leaderboard need infrastructure that keeps running. That is why web access is a subscription – EUR 1.99 every 3 months, taxes included, cancellable anytime.',
   },
   'faq.q2': { de: 'Was bekomme ich mit dem Einmalkauf?', en: 'What does the one-time purchase include?' },
   'faq.a2': {
-    de: 'Für 3,99 EUR einmalig schaltest du in der App Level 3–60 frei – ohne Abo. Der Kauf gilt geräteweit für alle Profile auf diesem Gerät; bei einer Erstattung entfällt der Zugang.',
-    en: 'For a one-time EUR 3.99 you unlock levels 3–60 in the app – no subscription. The purchase is device-wide and covers every profile on that device; a refund ends the entitlement.',
+    de: 'Für 2,99 EUR einmalig schaltest du in der App Level 3–60 frei – ohne Abo. Der Kauf gilt geräteweit für alle Profile auf diesem Gerät; bei einer Erstattung entfällt der Zugang.',
+    en: 'For a one-time EUR 2.99 you unlock levels 3–60 in the app – no subscription. The purchase is device-wide and covers every profile on that device; a refund ends the entitlement.',
   },
   'faq.q3': { de: 'Muss ich zahlen, um es auszuprobieren?', en: 'Do I have to pay to try it?' },
   'faq.a3': {
