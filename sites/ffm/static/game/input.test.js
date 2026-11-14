@@ -48,8 +48,10 @@ it('resizes choices across modes and accepts secondary touch without duplicate a
     assert.equal(container.style.display, '');
     assert.equal(container.hidden, false);
     assert.equal(elements['free-text-zone'].hidden, true);
-    container.children[4].dispatch('pointerup', { pointerId: 2, isPrimary: false });
-    container.children[3].dispatch('pointerup', { pointerId: 2 });
+    container.children[4].dispatch('pointerdown', { pointerId: 2, isPrimary: false, pointerType: 'touch' });
+    container.children[4].dispatch('pointerup', { pointerId: 2, isPrimary: false, pointerType: 'touch' });
+    // A release on a different button than the press is not a tap on it.
+    container.children[3].dispatch('pointerup', { pointerId: 2, pointerType: 'touch' });
     assert.deepEqual(answers, ['4']);
     assert.ok(container.children.every(button => button.disabled));
 
@@ -60,7 +62,8 @@ it('resizes choices across modes and accepts secondary touch without duplicate a
     assert.equal(elements['answer-input'].disabled, false);
     assert.equal(elements['strike-btn'].disabled, false);
     assert.ok(container.children.every(button => button.disabled));
-    container.children[0].dispatch('pointerup', { pointerId: 2 });
+    container.children[0].dispatch('pointerdown', { pointerId: 2, pointerType: 'touch' });
+    container.children[0].dispatch('pointerup', { pointerId: 2, pointerType: 'touch' });
     assert.deepEqual(answers, ['4']);
     assert.equal(container.style.display, '');
     assert.equal(container.hidden, true);
@@ -127,11 +130,14 @@ it('native keyboard/click activation and secondary touch never submit twice when
     const button = elements['mc-buttons'].children[0];
     button.dispatch('pointerdown', { isPrimary: true, pointerType: 'touch' });
     button.dispatch('pointerup', { isPrimary: true, pointerType: 'touch' });
-    assert.deepEqual(answers, []);
+    assert.deepEqual(answers, ['1'], 'the release itself answers');
+    // The click the browser appends to that same tap must not answer again,
+    // even though the callback above re-enabled input immediately.
     button.dispatch('click', { detail: 1 });
     assert.deepEqual(answers, ['1']);
     button.dispatch('pointerdown', { isPrimary: false, pointerType: 'touch' });
     button.dispatch('pointerup', { isPrimary: false, pointerType: 'touch' });
+    assert.deepEqual(answers, ['1', '1'], 'a second touch answers once more');
     button.dispatch('click', { detail: 1 });
     assert.deepEqual(answers, ['1', '1']);
     button.focus();

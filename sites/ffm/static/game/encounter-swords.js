@@ -27,6 +27,10 @@ export const MAX_SWORDS = 30;
 export const SWORDS_CLASS = 'app-encounter-swords';
 export const SWORD_CLASS = 'app-encounter-sword';
 export const SWORD_FILLED_CLASS = 'app-encounter-sword--filled';
+// A sword a storm took off the level: the slot stays in the row and goes empty,
+// so the player sees where the removed enemies were instead of watching every
+// remaining sword slide towards the middle.
+export const SWORD_LOST_CLASS = 'app-encounter-sword--lost';
 export const SWORDS_CONTAINER_ID = 'input-zone';
 export const SWORDS_ANCHOR_ID = 'mc-buttons';
 
@@ -36,18 +40,31 @@ function toCount(value) {
 }
 
 /**
- * Resolve how many swords to draw and how many are filled. A total above
- * MAX_SWORDS is scaled down so every sword still stands for a share of the
- * level, and a level that is fully beaten always shows every sword filled.
- * @param {{ defeated?: unknown, total?: unknown }} [progress]
- * @returns {{ swords: number, filled: number }}
+ * Resolve how many sword slots to draw, how many are filled and how many the
+ * storm emptied.
+ *
+ * `slots` is the count the level started with and `total` what it still holds;
+ * a storm shrinks `total`, so the difference stays in the row as empty slots.
+ * A slot count above MAX_SWORDS is scaled down so every sword still stands for a
+ * share of the level, and a level that is fully beaten always shows every sword
+ * filled.
+ * @param {{ defeated?: unknown, total?: unknown, slots?: unknown }} [progress]
+ * @returns {{ swords: number, filled: number, lost: number }}
  */
-export function resolveSwords({ defeated, total } = {}) {
-  const enemies = toCount(total);
-  if (enemies === 0) return { swords: 0, filled: 0 };
-  const beaten = Math.min(toCount(defeated), enemies);
-  if (enemies <= MAX_SWORDS) return { swords: enemies, filled: beaten };
-  return { swords: MAX_SWORDS, filled: Math.floor((beaten / enemies) * MAX_SWORDS) };
+export function resolveSwords({ defeated, total, slots } = {}) {
+  const remaining = toCount(total);
+  const original = Math.max(remaining, toCount(slots));
+  if (original === 0) return { swords: 0, filled: 0, lost: 0 };
+  const beaten = Math.min(toCount(defeated), remaining);
+  const lost = original - remaining;
+  if (original <= MAX_SWORDS) return { swords: original, filled: beaten, lost };
+  const scale = MAX_SWORDS / original;
+  const scaledLost = Math.min(MAX_SWORDS, Math.round(lost * scale));
+  return {
+    swords: MAX_SWORDS,
+    filled: Math.min(MAX_SWORDS - scaledLost, Math.floor(beaten * scale)),
+    lost: scaledLost,
+  };
 }
 
 /**
@@ -68,6 +85,7 @@ export function createEncounterSwords({
   const swords = [];
   let element = null;
   let filledCount = 0;
+  let lostCount = 0;
 
   if (container && anchor && typeof doc.createElement === 'function') {
     element = doc.createElement('div');
@@ -89,8 +107,8 @@ export function createEncounterSwords({
     // invalidated style each time.
     const hide = resolved.swords === 0;
     if (element.hidden !== hide) element.hidden = hide;
-    // A length change is a new level or a storm shrinking the row, not a kill:
-    // it must not glint as if a sword had been earned.
+    // A length change is a new level or a storm emptying slots, not a kill: it
+    // must not glint as if a sword had been earned.
     let countChanged = false;
     if (swords.length !== resolved.swords) {
       while (swords.length > resolved.swords) swords.pop().remove?.();
@@ -101,17 +119,23 @@ export function createEncounterSwords({
         element.appendChild(sword);
       }
       filledCount = -1;
+      lostCount = -1;
       countChanged = true;
     }
-    if (filledCount !== resolved.filled) {
+    if (filledCount !== resolved.filled || lostCount !== resolved.lost) {
       const gained = !countChanged && resolved.filled > filledCount
         ? resolved.filled - filledCount
         : 0;
+      // The emptied slots are the row's tail: the storm takes the enemies at the
+      // end of the level, so the swords that remain keep their positions.
+      const firstLost = resolved.swords - resolved.lost;
       swords.forEach((sword, index) => {
         sword.classList?.toggle?.(SWORD_FILLED_CLASS, index < resolved.filled);
+        sword.classList?.toggle?.(SWORD_LOST_CLASS, index >= firstLost);
       });
       if (gained > 0) glint(swords[resolved.filled - 1]);
       filledCount = resolved.filled;
+      lostCount = resolved.lost;
     }
     return resolved;
   }
@@ -123,14 +147,15 @@ export function createEncounterSwords({
     playAtSword(sword, 'swordGain');
   }
 
-  // The storm's receipt on the row: the rightmost `count` swords are about to
-  // be taken off the level, so puff them out at their own positions before the
-  // next update() removes the nodes. A hidden row (landscape) reports a 0x0
-  // rect and stays silent, exactly like the glint.
+  // The storm's receipt on the row: the rightmost swords that still stand for
+  // an enemy are about to be taken off the level, so puff them out at their own
+  // positions before the next update() empties their slots. Slots an earlier
+  // storm already emptied are skipped — there is no sword left to shatter.
   function shatter(count) {
-    const removed = Math.min(toCount(count), swords.length);
+    const live = swords.filter((sword) => !sword.classList?.contains?.(SWORD_LOST_CLASS));
+    const removed = Math.min(toCount(count), live.length);
     if (removed === 0) return 0;
-    for (const sword of swords.slice(swords.length - removed)) {
+    for (const sword of live.slice(live.length - removed)) {
       playAtSword(sword, 'swordLost');
     }
     return removed;
@@ -158,6 +183,7 @@ export function createEncounterSwords({
     element = null;
     swords.length = 0;
     filledCount = 0;
+    lostCount = 0;
   }
 
   return {

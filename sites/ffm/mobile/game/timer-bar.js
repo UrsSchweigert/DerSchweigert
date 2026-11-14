@@ -85,6 +85,7 @@ export function createTimerBar({ doc = globalThis.document, containerId = 'gamep
   const container = doc?.getElementById?.(containerId) ?? null;
   let element = null;
   let fill = null;
+  let lastColor = null;
 
   if (container && typeof doc.createElement === 'function') {
     element = doc.createElement('div');
@@ -109,9 +110,15 @@ export function createTimerBar({ doc = globalThis.document, containerId = 'gamep
     // width write put the bar on the layout path 60 times a second and a width
     // transition could never settle. A transform is composited instead.
     fill.style.transform = `scaleX(${Math.round(resolved.ratio * 1000) / 1000})`;
-    fill.style.backgroundColor = resolved.untimed
-      ? TIMER_UNTIMED_COLOR
-      : timerBarColor(resolved.ratio);
+    // The colour is quantised to an integer rgb() triple by timerBarRgb(), but
+    // it still moves on nearly every frame while the bar drains. Writing it
+    // anyway repainted the bar 60 times a second; a colour that did not change
+    // is not worth a paint on a phone.
+    const color = resolved.untimed ? TIMER_UNTIMED_COLOR : timerBarColor(resolved.ratio);
+    if (lastColor !== color) {
+      lastColor = color;
+      fill.style.backgroundColor = color;
+    }
     return resolved;
   }
 

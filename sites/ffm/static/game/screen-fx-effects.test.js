@@ -122,7 +122,7 @@ function layerCtx(canvases) {
 }
 
 test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a function', () => {
-  assert.equal(EFFECT_NAMES.length, 19);
+  assert.equal(EFFECT_NAMES.length, 20);
   const table = createEffectTable();
   // The five granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
@@ -203,6 +203,25 @@ test('fireball holds its explosion until the flight ends', () => {
   const after = fx.getParticleCount();
   assert.ok(after > before, 'particles spike once the flight ends');
   assert.equal(fx._particles.some((p) => p.type === 'ring'), true, 'the impact ring appears');
+});
+
+test('bonusFlow carries the light from the pill into the orb it strengthened', () => {
+  const { fx } = make();
+  const from = { x: 240, y: -30 };
+  const to = { x: 560, y: 470 };
+  assert.equal(fx.play('bonusFlow', { from, to, ability: 'storm' }), true);
+
+  // The flight is the announcement; only its arrival may mark the orb.
+  for (let i = 0; i < 40; i++) fx.step(1 / 60); // 0.667s < 0.75s
+  assert.equal(fx._particles.some((p) => p.type === 'ring'), false,
+    'no arrival ring while the motes are still travelling');
+  const before = fx.getParticleCount();
+  for (let i = 0; i < 10; i++) fx.step(1 / 60); // crosses 0.75s
+  assert.ok(fx.getParticleCount() > before, 'the arrival burst lands after the flight');
+  const ring = fx._particles.find((p) => p.type === 'ring');
+  assert.ok(ring, 'the orb answers with a ring');
+  assert.ok(Math.hypot(ring.x - to.x, ring.y - to.y) < 0.001,
+    'the ring is drawn on the orb, not at the pill');
 });
 
 test('a scheduled fireball impact does not fire while paused and fires after resume', () => {

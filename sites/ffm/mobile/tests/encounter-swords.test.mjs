@@ -15,6 +15,7 @@ import {
   MAX_SWORDS,
   SWORD_CLASS,
   SWORD_FILLED_CLASS,
+  SWORD_LOST_CLASS,
   SWORDS_CLASS,
   createEncounterSwords,
   resolveSwords,
@@ -109,18 +110,20 @@ const filledIndexes = (widget) => widget.swords
 
 test('one sword per enemy, filled by the defeated count', () => {
   assert.equal(MAX_SWORDS, 30, 'a campaign level has 30 enemies');
-  assert.deepEqual(resolveSwords({ defeated: 0, total: 30 }), { swords: 30, filled: 0 });
-  assert.deepEqual(resolveSwords({ defeated: 7, total: 30 }), { swords: 30, filled: 7 });
-  assert.deepEqual(resolveSwords({ defeated: 30, total: 30 }), { swords: 30, filled: 30 });
-  assert.deepEqual(resolveSwords({ defeated: 3, total: 5 }), { swords: 5, filled: 3 }, 'targeted practice');
-  assert.deepEqual(resolveSwords({ defeated: 40, total: 10 }), { swords: 10, filled: 10 }, 'never overfills');
-  assert.deepEqual(resolveSwords({ defeated: -2, total: 10 }), { swords: 10, filled: 0 });
-  assert.deepEqual(resolveSwords({ defeated: 1, total: 0 }), { swords: 0, filled: 0 }, 'no total, no row');
-  assert.deepEqual(resolveSwords({ defeated: 'x', total: Number.NaN }), { swords: 0, filled: 0 });
-  assert.deepEqual(resolveSwords(), { swords: 0, filled: 0 });
-  assert.deepEqual(resolveSwords({ defeated: 30, total: 60 }), { swords: MAX_SWORDS, filled: 15 },
+  assert.deepEqual(resolveSwords({ defeated: 0, total: 30 }), { swords: 30, filled: 0, lost: 0 });
+  assert.deepEqual(resolveSwords({ defeated: 7, total: 30 }), { swords: 30, filled: 7, lost: 0 });
+  assert.deepEqual(resolveSwords({ defeated: 30, total: 30 }), { swords: 30, filled: 30, lost: 0 });
+  assert.deepEqual(resolveSwords({ defeated: 3, total: 5 }), { swords: 5, filled: 3, lost: 0 }, 'targeted practice');
+  assert.deepEqual(resolveSwords({ defeated: 40, total: 10 }), { swords: 10, filled: 10, lost: 0 }, 'never overfills');
+  assert.deepEqual(resolveSwords({ defeated: -2, total: 10 }), { swords: 10, filled: 0, lost: 0 });
+  assert.deepEqual(resolveSwords({ defeated: 1, total: 0 }), { swords: 0, filled: 0, lost: 0 }, 'no total, no row');
+  assert.deepEqual(resolveSwords({ defeated: 'x', total: Number.NaN }), { swords: 0, filled: 0, lost: 0 });
+  assert.deepEqual(resolveSwords(), { swords: 0, filled: 0, lost: 0 });
+  assert.deepEqual(resolveSwords({ defeated: 30, total: 60 }), { swords: MAX_SWORDS, filled: 15, lost: 0 },
     'larger totals scale onto the bounded sword budget');
-  assert.deepEqual(resolveSwords({ defeated: 60, total: 60 }), { swords: MAX_SWORDS, filled: MAX_SWORDS });
+  assert.deepEqual(resolveSwords({ defeated: 60, total: 60 }), { swords: MAX_SWORDS, filled: MAX_SWORDS, lost: 0 });
+  assert.deepEqual(resolveSwords({ defeated: 1, total: 5, slots: 8 }), { swords: 8, filled: 1, lost: 3 },
+    'a storm keeps the emptied slots in the row');
 });
 
 test('the row sits above the answer buttons and fills left to right', () => {
@@ -146,6 +149,14 @@ test('the row sits above the answer buttons and fills left to right', () => {
   assert.deepEqual(filledIndexes(widget), [0, 1, 2], 'beaten enemies fill from the left');
   widget.updateEncounterProgress({ defeated: 30, total: 30 });
   assert.equal(filledIndexes(widget).length, 30, 'the dragon finish fills every sword');
+
+  widget.updateEncounterProgress({ defeated: 3, total: 27, slots: 30 });
+  assert.equal(element.children.length, 30, 'a storm keeps one slot per enemy the level had');
+  assert.equal(
+    widget.swords.filter((sword) => sword.classList.contains(SWORD_LOST_CLASS)).length,
+    3,
+    'the three removed enemies leave empty slots on the right',
+  );
 
   widget.updateEncounterProgress({ defeated: 1, total: 5 });
   assert.equal(element.children.length, 5, 'a shorter run resizes the row');
