@@ -129,7 +129,7 @@ request maintainer-side project registration through supported project tooling.
 ## Versioning
 
 `CFBundleShortVersionString` comes from `MARKETING_VERSION` (committed default
-`1.0.1`) and `CFBundleVersion` from `CURRENT_PROJECT_VERSION` (committed default
+`1.0.2`) and `CFBundleVersion` from `CURRENT_PROJECT_VERSION` (committed default
 `7`), both defined in the owner-merged `project.pbxproj`. Do not hand-edit that
 file per release. Override the values at build time instead, exactly as the
 Android build takes `-PbzVersionCode`/`-PbzVersionName`:
@@ -149,6 +149,13 @@ Rules:
   Android `versionName` where practical.
 - Bump `MARKETING_VERSION` for a user-visible release; the about dialog shows
   the native version through `@capacitor/app` `getInfo()`.
+- `ios/RELEASED_VERSION` records the version that is live on the App Store, and
+  `tests/xcode-cloud.test.mjs` fails while `MARKETING_VERSION` is not newer than
+  it. The Cloud post-clone hook runs `npm test` before Xcode archives, so a
+  build aimed at a closed version train stops in minutes instead of spending an
+  archive on an upload Apple will refuse. Bump both `MARKETING_VERSION` values
+  (Debug and Release) to the next version, and only update
+  `ios/RELEASED_VERSION` after that version is live.
 - Record git revision, Xcode version, both version values, date, and release
   notes for every release.
 
@@ -326,7 +333,12 @@ Treat that as evidence about the app, not proof about the project. Resolve it on
 the Apple side, in this order. First check the marketing version: once an App
 Store version is released, its train is closed, and an upload still carrying
 that `MARKETING_VERSION` is refused — create the next version in App Store
-Connect and raise `MARKETING_VERSION` before building again. Then confirm the app
+Connect and raise `MARKETING_VERSION` before building again. Buchstabenzeit 1.0.1
+went live on 2026-11-13, which closes that train: the committed
+`MARKETING_VERSION` is `1.0.2` for exactly this reason, and an upload of the
+unbumped revision repeats the failure. `ios/RELEASED_VERSION` plus the guard in
+`tests/xcode-cloud.test.mjs` now fail the Cloud post-clone hook instead of
+letting such a build reach the hand-off. Then confirm the app
 record still exists with the same bundle id and that its Xcode Cloud product is
 still linked. Then confirm the Apple Account used by Cloud has Admin or App
 Manager access to the team (Account Holder, Admin, App Manager and Developer can
@@ -414,7 +426,7 @@ signing path.
 
 | Date | Git revision | Xcode | MARKETING_VERSION | CURRENT_PROJECT_VERSION | TestFlight build | Device checks | Notes |
 | --- | --- | --- | ---: | ---: | --- | --- | --- |
-| _none yet_ | | | 1.0 | 1 | — | — | Project scaffolded; no signed build or TestFlight install performed. |
+| 2026-11-13 | `fc626ec6` | — | 1.0.1 | 7 | — | — | 1.0.1 live on the App Store; that train is closed, so the next upload must carry `MARKETING_VERSION` 1.0.2. |
 
 ## Continuous integration
 

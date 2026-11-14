@@ -70,7 +70,8 @@ pixels and a 13-inch iPad producing 2064 x 2752 pixels (or 12.9-inch iPad at
 For distribution, choose your Apple Developer team under **Signing &
 Capabilities**, enable automatic signing, and select **Any iOS Device (arm64)**.
 Check the version/build under **General**; each uploaded build number must be
-unused (the current project build is 2). Choose **Product > Archive**, then
+unused (the current project build is 7, and `MARKETING_VERSION` is `1.0.2`).
+Choose **Product > Archive**, then
 **Window > Organizer > Archives > Distribute App > App Store Connect**.
 Validate/upload with your account and select the processed build in App Store
 Connect. An archive built with `CODE_SIGNING_ALLOWED=NO` is only an unsigned
