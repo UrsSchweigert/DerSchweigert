@@ -2936,6 +2936,50 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   margin-block: auto;
 }
 
+/* Landscape stacks the answer zone exactly like portrait: the circle row keeps
+ * its natural height and the grid takes whatever is left. Previously the grid
+ * sized itself from the whole answer zone (rows * 70px), so on a short phone
+ * the ability row pushed the last answer rows off-screen. The auto margins
+ * centre a grid that is capped on a roomy tablet; on a short screen `100%`
+ * wins and the rows share the remaining height instead of overflowing it. */
+#game-wrap[data-layout="landscape"] #input-zone {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+#game-wrap[data-layout="landscape"] #input-zone > #ability-bar {
+  flex: 0 0 auto;
+}
+
+/* The empty timer slot is not a flex item here, so it cannot cost a gap out of
+ * the answers. Nothing in the game writes into it. */
+#game-wrap[data-layout="landscape"] #input-zone > #timer-bar-container:empty {
+  display: none;
+}
+
+#game-wrap[data-layout="landscape"] #input-zone > #mc-buttons {
+  flex: 0 1 auto;
+  height: min(100%, calc(var(--answer-rows, 2) * var(--answer-row-max, 84px)
+    + (var(--answer-rows, 2) - 1) * 6px));
+  min-height: 0;
+  margin-block: auto;
+  grid-template-columns: repeat(var(--answer-columns, 5), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--answer-rows, 2), minmax(0, 1fr));
+}
+
+/* The layout still keeps every answer at 44px wherever the screen allows it.
+ * These floors only stop a single impossible cell (a 10-choice level on a
+ * 480×240 window) from pushing the whole grid off-screen; the label size above
+ * shrinks with the cell instead. */
+#game-wrap[data-layout="landscape"] .mc-btn {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  font-size: var(--answer-font-size, 18px);
+}
+
 #game-wrap[data-layout="portrait"] #input-zone::before {
   content: "";
   position: absolute;
