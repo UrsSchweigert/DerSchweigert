@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { calculateSceneLayout, initViewportLayout, landscapeAnswerFloor } from './viewport-layout.js';
+import { answerFontSize, calculateSceneLayout, initViewportLayout, landscapeAnswerFloor, MAX_ANSWER_ROW } from './viewport-layout.js';
 
 for (const [width, height] of [[304, 500], [552, 252], [359, 591], [796, 307], [752, 956], [1008, 700], [1348, 956], [2024, 1468], [304, 172]]) {
   for (const count of [4, 5, 10]) {
@@ -270,6 +270,69 @@ test('the mounted ability bar feeds its measured height into the layout', () => 
   assert.equal(String(properties.get('--answer-rows')), String(expected.rows));
   assert.equal(String(properties.get('--answer-columns')), String(expected.columns));
   controller.destroy();
+});
+
+test('landscape answer labels grow into the cell and never past its width', () => {
+  const metrics = { textWidth: 22, decoration: 10 };
+  const roomy = answerFontSize({ answerWidth: 320, answerHeight: 400, columns: 2, rows: 3 }, metrics);
+  const tight = answerFontSize({ answerWidth: 162, answerHeight: 160, columns: 2, rows: 3 }, metrics);
+  assert.ok(roomy > tight, `roomy ${roomy} > tight ${tight}`);
+  assert.ok(roomy <= 26, `the design cap holds: ${roomy}`);
+  assert.ok(tight >= 14, `the floor keeps it legible: ${tight}`);
+
+  // A five-digit label in a narrow cell is bounded by the text, not the cell.
+  const wide = { answerWidth: 220, answerHeight: 300, columns: 3, rows: 3 };
+  const cellWidth = (220 - 18 - 2 * 6) / 3;
+  const fit = 18 * (cellWidth - 10 - 2) / 54;
+  assert.ok(answerFontSize(wide, { textWidth: 54, decoration: 10 }) <= fit + 1e-9);
+  assert.equal(answerFontSize(wide, metrics), 26);
+});
+
+test('the answer grid fills the landing column and scales its labels', async () => {
+  const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+  const zone = /#game-wrap\[data-layout="landscape"\] #input-zone \{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.match(zone, /flex-direction:\s*column/);
+  assert.match(zone, /flex-wrap:\s*nowrap/);
+  const grid = /#game-wrap\[data-layout="landscape"\] #input-zone > #mc-buttons \{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.match(grid, /height:\s*min\(100%,\s*calc\(var\(--answer-rows[^;]+var\(--answer-row-max, 84px\)/);
+  assert.match(grid, /grid-template-rows:\s*repeat\(var\(--answer-rows[^)]+\),\s*minmax\(0, 1fr\)\)/);
+  const button = /#game-wrap\[data-layout="landscape"\] \.mc-btn \{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.match(button, /font-size:\s*var\(--answer-font-size/);
+  assert.match(button, /min-height:\s*0/);
+});
+
+test('a short landscape screen keeps a scene beside ten answers', () => {
+  const layout = calculateSceneLayout(480, 156, 10, true, 44, 61);
+  assert.equal(layout.columns, 5);
+  assert.equal(layout.rows, 2);
+  assert.ok(layout.sceneWidth > 0, `scene survived: ${layout.sceneWidth}`);
+  assert.ok(layout.sceneWidth + 6 + layout.answerWidth <= 480 + 1e-9);
+  assert.ok(layout.answerWidth >= 262);
+
+  // The grid still fits the reserved rows wherever 44px rows are possible.
+  for (const [width, height] of [[568, 320], [640, 360], [844, 390], [667, 375], [480, 320], [568, 280]]) {
+    const result = calculateSceneLayout(width, height, 10, true, 44, 61);
+    const area = Math.max(0, result.answerHeight - 18);
+    const cell = (area - (result.rows - 1) * 6) / result.rows;
+    assert.ok(cell >= 44 - 1e-9, `${width}×${height}: rows got ${cell.toFixed(1)}px`);
+    assert.ok(result.sceneWidth + 6 + result.answerWidth <= width + 1e-9);
+  }
+});
+
+test('the answer column never pushes past the window', () => {
+  for (const [width, height] of [[320, 240], [480, 260], [480, 240], [360, 280], [552, 252], [304, 172]]) {
+    for (const count of [5, 10]) {
+      const layout = calculateSceneLayout(width, height, count, true, 44, 60);
+      assert.ok(layout.sceneWidth >= 0);
+      assert.ok(layout.sceneWidth + 6 + layout.answerWidth <= width + 1e-9,
+        `${width}×${height} ${count}: scene ${layout.sceneWidth} + answers ${layout.answerWidth}`);
+      assert.ok(layout.answerWidth > 0);
+    }
+  }
+});
+
+test('the layout row cap is a real CSS value', () => {
+  assert.equal(MAX_ANSWER_ROW, 84);
 });
 
 test('screen IDs, pagination, playfield ownership and legal scrolling stay explicit', async () => {

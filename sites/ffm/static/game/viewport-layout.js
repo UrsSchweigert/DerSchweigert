@@ -2,7 +2,17 @@
 const RATIO = 800 / 450;
 const TARGET = 44;
 const GAP = 6;
-const PADDING = 8;
+// The answer zone pads 8px and draws a 1px border on each side. Both are part
+// of the column the grid has to fit in, so they count as padding here.
+const PADDING = 9;
+// One answer row never needs to be taller than this; on a tablet the grid stays
+// compact and centres itself instead of ballooning to fill the whole column.
+export const MAX_ANSWER_ROW = 84;
+// Labels are measured at this size so a font that scales with the cell cannot
+// feed back into the column count it was derived from.
+const FONT_REFERENCE = 18;
+const FONT_MIN = 14;
+const FONT_MAX = 26;
 // The ability bar always shows three circles, and in landscape it lives in the
 // answer column above the answers. Their row is therefore a floor on that
 // column's width: below it the orbs shrink to a few pixels and vanish.
@@ -26,6 +36,38 @@ export function landscapeAnswerFloor(width, columns, targetWidth) {
   return Math.min(Math.max(gridWidth, orbRowWidth), Math.max(gridWidth, usable * 0.45));
 }
 
+/**
+ * Pick the answer label size for the space a grid cell actually gets.
+ *
+ * Landscape rows now share all the space left under the ability circles, so a
+ * cell can be much taller than the 44px floor; the label follows it up to a
+ * cap. It also never grows past the cell width: the column count was chosen
+ * from the widest label at FONT_REFERENCE, and the same measurement bounds the
+ * scaling here.
+ *
+ * @param {{answerWidth: number, answerHeight: number, columns: number, rows: number}} layout
+ *   the values returned by calculateSceneLayout.
+ * @param {{textWidth?: number, decoration?: number}} [metrics]
+ *   widest label and its horizontal padding/border, both measured at FONT_REFERENCE.
+ * @returns {number} the label font size in CSS pixels.
+ */
+export function answerFontSize(layout, { textWidth = 0, decoration = 0 } = {}) {
+  const columns = Math.max(1, Math.floor(Number(layout.columns) || 1));
+  const rows = Math.max(1, Math.floor(Number(layout.rows) || 1));
+  const gridWidth = Math.max(0, (Number(layout.answerWidth) || 0) - 2 * PADDING);
+  const cellWidth = Math.max(0, (gridWidth - (columns - 1) * GAP) / columns);
+  const gridHeight = Math.min(
+    Math.max(0, (Number(layout.answerHeight) || 0) - 2 * PADDING),
+    rows * MAX_ANSWER_ROW + (rows - 1) * GAP,
+  );
+  const cellHeight = Math.max(0, (gridHeight - (rows - 1) * GAP) / rows);
+  const ideal = Math.min(cellWidth * 0.46, cellHeight * 0.52, FONT_MAX);
+  const fit = textWidth > 0
+    ? FONT_REFERENCE * Math.max(0, cellWidth - decoration - 2) / textWidth
+    : FONT_MAX;
+  return Math.max(FONT_MIN, Math.min(ideal, fit));
+}
+
 // reservedHeight is the space the answer zone spends on rows that are not the
 // answer grid (today: the ability circles and their caption line), so the grid
 // is sized from what is actually left for it.
@@ -47,8 +89,12 @@ export function calculateSceneLayout(width, height, optionCount = 10, landscape 
   let reservedAnswerWidth = 0;
   if (landscape) {
     const availableRows = Math.max(1, Math.floor((answerBudget - 2 * PADDING + GAP) / (TARGET + GAP)));
-    // A compact three-column grid preserves a playable scene below a readable HUD.
-    columns = Math.ceil(count / Math.min(5, availableRows));
+    // A compact grid preserves a playable scene beside a readable HUD. Five
+    // columns are the widest this ever goes: when a short window can only fit
+    // one 44px row, spilling ten choices into one row used to take the whole
+    // width and leave no scene, so the grid adds a second row and lets the
+    // buttons share the height instead.
+    columns = Math.min(5, Math.ceil(count / Math.min(5, availableRows)));
     rows = Math.ceil(count / columns);
     reservedAnswerWidth = landscapeAnswerFloor(width, columns, targetWidth);
     sceneWidth = Math.max(0, Math.min(width - reservedAnswerWidth - GAP, height * RATIO));
@@ -66,8 +112,13 @@ export function calculateSceneLayout(width, height, optionCount = 10, landscape 
     landscape, columns, rows, sceneWidth, sceneHeight, minimumAnswerWidth: targetWidth,
     answerWidth: landscape
       // Never below the reserved floor, never past the space the scene left; the
-      // 320px comfort width only widens a column that already has the room.
-      ? Math.max(reservedAnswerWidth, Math.min(width - sceneWidth - GAP, Math.max(320, reservedAnswerWidth)))
+      // 320px comfort width only widens a column that already has the room. On
+      // a window too narrow for even the reserved floor, the column gives way
+      // rather than pushing answers off the screen.
+      ? Math.min(
+        Math.max(reservedAnswerWidth, Math.min(width - sceneWidth - GAP, Math.max(320, reservedAnswerWidth))),
+        Math.max(0, width - sceneWidth - GAP),
+      )
       : width,
     answerHeight: landscape ? answerBudget : height - sceneHeight - GAP,
   };
@@ -84,23 +135,32 @@ export function initViewportLayout({ win = globalThis.window, doc = globalThis.d
   let frame = null;
   const viewport = win.visualViewport;
   const measuringContext = doc.createElement?.('canvas').getContext?.('2d');
-  function labelWidth() {
+  function labelMetrics() {
     let minimum = TARGET;
+    let textWidth = 0;
+    let decoration = 0;
     for (const button of options?.children ?? []) {
       if (button.hidden) continue;
       const css = win.getComputedStyle?.(button);
       if (!css) continue;
-      const fontSize = parseFloat(css.fontSize) || 14;
+      const fontSize = parseFloat(css.fontSize) || FONT_REFERENCE;
       const text = button.textContent ?? '';
       if (measuringContext) measuringContext.font = css.font || `${fontSize}px ${css.fontFamily}`;
       const measuredTextWidth = measuringContext?.measureText(text).width ?? text.length * fontSize;
       const letterSpacing = parseFloat(css.letterSpacing) || 0;
-      const textWidth = measuredTextWidth + Math.max(0, text.length - 1) * letterSpacing;
-      const decoration = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+      // Measure at the reference size so the scaled label cannot change the
+      // column count and then be re-scaled from that new count.
+      const labelWidth = measuredTextWidth * (FONT_REFERENCE / fontSize)
+        + Math.max(0, text.length - 1) * letterSpacing;
+      const buttonDecoration = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
         .reduce((total, property) => total + (parseFloat(css[property]) || 0), 0);
-      minimum = Math.max(minimum, Math.ceil(textWidth + decoration + 2));
+      if (labelWidth >= textWidth) {
+        textWidth = labelWidth;
+        decoration = buttonDecoration;
+      }
+      minimum = Math.max(minimum, Math.ceil(labelWidth + buttonDecoration + 2));
     }
-    return minimum;
+    return { minimum, textWidth, decoration };
   }
   function refresh() {
     if (destroyed) return;
@@ -114,7 +174,8 @@ export function initViewportLayout({ win = globalThis.window, doc = globalThis.d
     root.dataset.viewportKeyboard = String(height < win.innerHeight - 80);
     const count = Number(options?.dataset.optionCount)
       || [...(options?.children ?? [])].filter((el) => !el.hidden).length || 1;
-    const minimumAnswerWidth = labelWidth();
+    const metrics = labelMetrics();
+    const minimumAnswerWidth = metrics.minimum;
     const chromeHeight = chrome && !chrome.hidden ? (chrome.offsetHeight || 0) + GAP : 0;
     const abilityRow = abilityBar?.offsetHeight ? abilityBar.offsetHeight + GAP : 0;
     const layout = calculateSceneLayout(wrap.clientWidth, Math.max(0, wrap.clientHeight - chromeHeight), count,
@@ -125,8 +186,12 @@ export function initViewportLayout({ win = globalThis.window, doc = globalThis.d
     wrap.style.setProperty('--answer-columns', layout.columns);
     wrap.style.setProperty('--answer-rows', layout.rows);
     wrap.style.setProperty('--answer-min-width', `${minimumAnswerWidth}px`);
+    wrap.style.setProperty('--answer-row-max', `${MAX_ANSWER_ROW}px`);
     wrap.style.setProperty('--answer-width', `${layout.answerWidth}px`);
     wrap.style.setProperty('--answer-portrait-width', `${Math.max(620, layout.columns * minimumAnswerWidth + (layout.columns - 1) * GAP + 2 * PADDING)}px`);
+    if (layout.landscape) {
+      wrap.style.setProperty('--answer-font-size', `${answerFontSize(layout, metrics).toFixed(1)}px`);
+    }
   }
   function schedule() {
     if (destroyed || frame !== null) return;
