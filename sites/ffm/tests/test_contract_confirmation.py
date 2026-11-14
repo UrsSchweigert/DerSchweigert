@@ -94,7 +94,7 @@ def mock_stripe_provider(monkeypatch):
 
 _VALID_PRICE = {
     'id': 'price_quarterly', 'active': True, 'currency': 'eur',
-    'unit_amount': 300, 'recurring': {'interval': 'month', 'interval_count': 3},
+    'unit_amount': 199, 'recurring': {'interval': 'month', 'interval_count': 3},
 }
 
 

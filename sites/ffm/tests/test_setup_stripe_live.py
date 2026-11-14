@@ -31,7 +31,7 @@ VALID_PRICE = types.SimpleNamespace(
     livemode=True,
     active=True,
     currency='eur',
-    unit_amount=300,
+    unit_amount=199,
     recurring=types.SimpleNamespace(interval='month', interval_count=3),
     tax_behavior='inclusive',
 )
