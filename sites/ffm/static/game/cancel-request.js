@@ -306,6 +306,8 @@ export function initCancelRequestForm(doc = document) {
 
   let pendingIdempotencyKey = null;
   let pendingPayload = null;
+  // The live receipt download URL, kept so the next receipt can revoke it.
+  let receiptObjectUrl = null;
 
   function showForm() {
     form.hidden = false;
@@ -326,8 +328,13 @@ export function initCancelRequestForm(doc = document) {
     reviewPanel.hidden = true;
     receiptPanel.hidden = false;
     if (downloadLink) {
+      // One receipt download per page view: the previous blob URL is released
+      // before the next one is minted, so re-opening a receipt cannot strand
+      // the old Blob in memory.
+      if (receiptObjectUrl) URL.revokeObjectURL?.(receiptObjectUrl);
       const blob = new Blob([buildReceiptText(receipt)], { type: 'text/plain;charset=utf-8' });
-      downloadLink.href = URL.createObjectURL(blob);
+      receiptObjectUrl = URL.createObjectURL(blob);
+      downloadLink.href = receiptObjectUrl;
       downloadLink.download = `kuendigungsanfrage-${receipt.request_id}.txt`;
       downloadLink.hidden = false;
     }

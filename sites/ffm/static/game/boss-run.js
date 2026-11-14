@@ -180,6 +180,10 @@ export function initWardenMode({
   let dragonTimer = null;
   let bannerTimer = null;
   let phaseTimer = null;
+  // Bumped by every openFight() and close(); a fight whose level config
+  // resolves after a newer one started (or after the overlay was closed) must
+  // not install a session or a clock that nobody owns.
+  let fightGeneration = 0;
 
   function results() {
     return readBossResults(storage);
@@ -270,6 +274,7 @@ export function initWardenMode({
   }
 
   function close() {
+    fightGeneration += 1;
     clearTimers();
     session = null;
     overlay.hidden = true;
@@ -277,6 +282,14 @@ export function initWardenMode({
   }
 
   async function openFight(bossId) {
+    // "Fight again" re-enters here while the finished fight's clock is still
+    // running (showResult() never closes the overlay). Both a retry and a
+    // second click while the level config loads would orphan the previous
+    // interval: it can no longer be cleared, and every orphan keeps ticking
+    // onClockTick against the new attempt, draining the Warden clock faster
+    // with each retry.
+    const generation = ++fightGeneration;
+    clearTimers();
     const boss = getBoss(bossId);
     overlay.hidden = false;
     resultEl.hidden = true;
@@ -292,6 +305,8 @@ export function initWardenMode({
       promptEl.textContent = t('boss.loadError');
       return;
     }
+    // A newer fight started, or the overlay was closed, while loading.
+    if (generation !== fightGeneration) return;
 
     const difficulty = getDifficulty();
     const attempt = createAttempt({ bossId, difficulty, seed: Date.now() });

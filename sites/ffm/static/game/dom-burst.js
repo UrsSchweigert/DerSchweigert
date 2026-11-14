@@ -17,6 +17,12 @@ export const BURST_SHARD_CLASS = 'dom-burst-shard';
 
 const DEFAULT_COUNT = 12;
 const MAX_COUNT = 40;
+// A shard is normally collected on its own `animationend`. That event never
+// arrives when the animation does not run at all — a hidden host, or a
+// `display:none` ancestor — which would leave every shard of every burst in the
+// DOM for the rest of the session. The fallback sits past the longest flight
+// (MAX_COUNT delay + 700 ms) and only removes what is already invisible.
+const SHARD_FALLBACK_MS = 1400;
 // Tones are pure data so a burst can never smuggle colours into the stylesheet:
 // the CSS reads them through the custom properties below.
 export const BURST_TONES = Object.freeze({
@@ -51,6 +57,11 @@ export function createDomBurst({
   random = Math.random,
 } = {}) {
   const create = doc?.createElement?.bind(doc);
+  // The fallback cleanup runs on the page's own timer, never on a global one:
+  // a document without a window (test doubles, detached documents) simply has
+  // no fallback and keeps relying on `animationend`.
+  const scheduleFallback = doc?.defaultView?.setTimeout?.bind(doc.defaultView) ?? null;
+  const clearTimer = doc?.defaultView?.clearTimeout?.bind(doc.defaultView) ?? null;
   let live = 0;
 
   function burst(host, tone = 'glass', count = DEFAULT_COUNT) {
@@ -77,7 +88,12 @@ export function createDomBurst({
       shard.style.setProperty('--burst-rot', `${Math.round(randomBetween(random, -shape.spin, shape.spin))}deg`);
       shard.style.setProperty('--burst-size', `${size}px`);
       shard.style.setProperty('--burst-delay', `${Math.round(i * 8)}ms`);
+      let forgotten = false;
+      let fallback = null;
       const forget = () => {
+        if (forgotten) return;
+        forgotten = true;
+        if (fallback) clearTimer?.(fallback);
         live = Math.max(0, live - 1);
         shard.removeEventListener?.('animationend', forget);
         shard.remove?.();
@@ -85,6 +101,7 @@ export function createDomBurst({
       shard.addEventListener?.('animationend', forget);
       host.appendChild(shard);
       live += 1;
+      fallback = scheduleFallback?.(forget, SHARD_FALLBACK_MS) ?? null;
     }
     return total;
   }
