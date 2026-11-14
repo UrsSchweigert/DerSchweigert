@@ -1,8 +1,9 @@
 # `/promo/` — Arithmo Slayer landing page
 
-One static page that sells the browser game (subscription) and the upcoming
-iOS/Android apps (one-time purchase) together. It is plain HTML + CSS + a
-single ES module: no build step, no dependencies, no external requests.
+One static page that sells the browser game (subscription) and the iOS app
+(one-time purchase, live on the App Store) next to the upcoming Android app.
+It is plain HTML + CSS + a single ES module: no build step, no dependencies,
+no external requests.
 
 | File | Purpose |
 | --- | --- |
@@ -30,13 +31,13 @@ function rewrites `/` and `/promo` to `/promo/index.html` without changing the
 browser URL. That is why **nothing** may be a bare relative path — `promo.css`
 would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 `promo.test.js` fails on any `src`/`href` that is not root-absolute,
-`https://arithmoslayer.de/…`, `mailto:` or a `#anchor`.
+`https://arithmoslayer.de/…`, the App Store listing, `mailto:` or a `#anchor`.
 
 ## What the page shows
 
 | Section | Anchor | Content |
 | --- | --- | --- |
-| Hero | `#hero` | Centred poster: kicker, logo with shine, headline, then the CTA block in priority order — the brass-filled, glowing **open-beta pill** (`hero.betaLabel`/`hero.betaText` → `/beta/`, own row) first, the two disabled store badges second, the browser game as a ghost button last — plus the payment-split subline. The stage is landscape only (act-1 backdrop, sunrise gradient, intro village, parallax) — no characters. |
+| Hero | `#hero` | Centred poster: kicker, logo with shine, headline, then the CTA block in priority order — the brass-filled, glowing **open-beta pill** (`hero.betaLabel`/`hero.betaText` → `/beta/`, own row) first, then the official Apple **“Download on the App Store” badge** (`art/ui/app-store-badge.png`) linked to the listing and the disabled Google Play marker, the browser game as a ghost button last — plus the payment-split subline. The stage is landscape only (act-1 backdrop, sunrise gradient, intro village, parallax) — no characters. |
 | Gameplay band | `#screenshots` | Five half-size full portrait app captures (strike, fireball, blitz, dragon, healing) in CSS phone bodies, looping right above the generations section in the same pannable ribbon as the acts. A duplicated `aria-hidden` set makes the loop seamless; drag, scroll or focus pauses it. |
 | Age cards | `#generationen` | Kindergarten / Grundschule / Erwachsene: `art/heroes/hero-*.webp` standing on `art/stages/stage-*.webp`, one aspect ratio and one hero baseline for all three. |
 | Handcrafted | `#kunst` | Story wrap-up, the six finished acts from `art/acts/act-1…6.webp` in a pannable, self-advancing loop with their real titles (the six frames are 30 % larger than the old filmstrip), three action stills (`art/action/{fight,fireball,lightning}.webp`), and the fiend parade with the dragon. |
@@ -90,8 +91,10 @@ must be referenced and exist, the three action stills must exist (`.png` or
 bodies with 1170×2532 dimensions and captions, the band must duplicate them
 into an `aria-hidden` set, be pannable and pause on focus or drag, the icon counts per difficulty
 card are asserted by counting `data-icon="sword"` / `data-icon="shape"`, the
-phone mockup must use the webp screenshot, and the store buttons must be
-disabled buttons without `href`.
+phone mockup must use the webp screenshot, and exactly one `<button disabled>`
+(the Google Play marker) may carry no `href` — the App Store badge and the two
+iOS chips have to link to
+`https://apps.apple.com/de/app/arithmo-slayer/id6832570305`.
 
 ## Why there are no inline scripts
 

@@ -40,13 +40,13 @@ export const DICTIONARY = {
   'hero.kicker': { de: 'Kopfrechnen-Abenteuer in sechs Akten', en: 'A mental-math adventure in six acts' },
   'hero.title': { de: 'Kopfrechnen für Jung und Alt', en: 'Mental math for young and old' },
   'hero.sub': {
-    de: 'Schnelle Rechenaufgaben, handgemalte Papierbühnen und ein Drache, der wartet: im Browser im Abo, die App für iPhone und Android kommt als Einmalkauf – kein Abo, keine Verlängerung.',
-    en: 'Fast arithmetic, hand-painted paper stages and a dragon that is waiting: subscription in the browser, the app for iPhone and Android is coming as a one-time purchase – no subscription, no renewal.',
+    de: 'Schnelle Rechenaufgaben, handgemalte Papierbühnen und ein Drache, der wartet: im Browser im Abo, die iPhone-App gibt es im App Store als Einmalkauf – kein Abo, keine Verlängerung.',
+    en: 'Fast arithmetic, hand-painted paper stages and a dragon that is waiting: subscription in the browser, the iPhone app is on the App Store as a one-time purchase – no subscription, no renewal.',
   },
   'hero.ctaWeb': { de: 'Im Browser spielen', en: 'Play in the browser' },
   'hero.betaLabel': { de: 'Offene Beta', en: 'Open beta' },
   'hero.betaText': { de: 'Jetzt auf iPhone und Android testen', en: 'Test it on iPhone and Android now' },
-  'hero.ctaAppStore': { de: 'Bald im App Store', en: 'Coming soon to the App Store' },
+  'hero.appStoreLink': { de: 'Arithmo Slayer im App Store laden', en: 'Download Arithmo Slayer on the App Store' },
   'hero.ctaPlayStore': { de: 'Bald bei Google Play', en: 'Coming soon to Google Play' },
   'hero.ctaApp': { de: 'Zur App-Version', en: 'About the app version' },
   'hero.print': {
@@ -219,7 +219,7 @@ export const DICTIONARY = {
     en: 'Playable without internet – only purchase and restore need a connection',
   },
   'prices.app.f4': { de: 'Kauf gilt geräteweit – für alle Profile auf dem Gerät', en: 'Device-wide – covers every profile on the device' },
-  'prices.app.iosBadge': { de: 'Bald im App Store', en: 'Coming soon to the App Store' },
+  'prices.app.iosBadge': { de: 'Jetzt im App Store', en: 'Now on the App Store' },
   'prices.app.androidBadge': { de: 'Bald bei Google Play', en: 'Coming soon to Google Play' },
   'prices.app.cta': { de: 'Mehr zur Familien-App', en: 'More about the family app' },
   'prices.compare.title': { de: 'Abo und Einmalkauf im Vergleich', en: 'Subscription and one-time purchase compared' },
@@ -326,8 +326,8 @@ export const DICTIONARY = {
 
   // Footer
   'footer.tagline': {
-    de: 'Kopfrechnen für Jung und Alt – im Browser, die App für iOS und Android ist in Vorbereitung.',
-    en: 'Mental math for young and old – in the browser; the app for iOS and Android is in preparation.',
+    de: 'Kopfrechnen für Jung und Alt – im Browser, die iPhone-App im App Store, die Android-App folgt in Kürze.',
+    en: 'Mental math for young and old – in the browser, the iPhone app on the App Store, the Android app to follow.',
   },
   'footer.play': { de: 'Zum Spiel', en: 'Go to the game' },
   'footer.legalTitle': { de: 'Rechtliches', en: 'Legal' },

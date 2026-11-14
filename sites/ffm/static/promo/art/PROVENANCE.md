@@ -83,12 +83,15 @@ All six: 1920×1080, lossy WebP q86 method 6, 273–368 KB.
 | --- | --- |
 | `ui/title-screen.png` | Screenshot of the app: `python3 -m http.server` on `sites/ffm/static`, headless Chromium (Playwright) at a 390×844 viewport, `deviceScaleFactor: 3` → **1170×2532** device px, English default locale. Cookie banner accepted and the auto-playing "Broken Wards" intro skipped before the shot. No model, no retouching. |
 | `ui/title-screen.webp` | Same capture re-encoded, WebP q88 method 6, 1170×2532. |
-| `ui/badge-appstore.svg` | Hand-authored SVG (outlined apple + leaf). No external assets, no embedded font, no script; monochrome `currentColor` on a transparent ground, with `color="#c49a48"` (`--brass`) as the fallback for `<img>` use. |
+| `ui/badge-appstore.svg` | Hand-authored SVG (outlined apple + leaf). No external assets, no embedded font, no script; monochrome `currentColor` on a transparent ground, with `color="#c49a48"` (`--brass`) as the fallback for `<img>` use. Used only as the small chip icon next to the “Jetzt im App Store” link. |
 | `ui/badge-playstore.svg` | Hand-authored SVG (play triangle in a rounded square), same rules. |
+| `ui/app-store-badge.png` | Apple's official black “Download on the App Store” badge, **not** drawn here: the project owner supplied the artwork (a two-badge sheet with the Google Play badge) as a PNG on 2026-11-14. Only the App Store half was kept: cropped to its bounding box, the baked-in transparency checkerboard was flood-filled to alpha, trimmed, and saved lossless (`PNG`, 563×167, 15 KB). It is used unmodified, per Apple's marketing guidelines, and only to link to the listing. |
 
-The two badges are drawn from scratch as generic marks; they are not the official
-Apple or Google badge artwork and must not be presented as such. The page labels
-them "coming soon" and renders them without a link.
+The hand-drawn glyphs (`badge-appstore.svg`, `badge-playstore.svg`) are generic
+marks, not the official Apple or Google badge artwork, and must not be
+presented as such. The Play marker stays a disabled, unlinked “coming soon”
+button; the App Store entry point is the official badge above and the two
+“Jetzt im App Store” chips in the pricing and family sections.
 
 ## shots/
 
