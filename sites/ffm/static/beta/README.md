@@ -49,7 +49,7 @@ route, or a `#anchor`.
 | Section | Anchor | Content |
 | --- | --- | --- |
 | Hero | — | Kicker, logo, headline, the live TestFlight button, the Android waitlist link and the title-screen phone mockup. |
-| Gameplay band | `#screenshots` | The same half-size pannable, self-advancing five-capture band as the landing page, in CSS phone bodies. It reuses `/promo/promo.css` and the shared `shots.*` dictionary keys; drag, scroll or focus pauses it, reduced motion makes it a plain scroller. |
+| Gameplay band | `#screenshots` | The same static five-capture gallery as the landing page, in CSS phone bodies. It reuses `/promo/promo.css` and the shared `shots.*` dictionary keys; the row fills the section column from landscape up, scrolls sideways in portrait, and highlights the hovered capture. |
 | Requirements | — | Three centred facts under the hero: iOS 15, the free TestFlight app, free of charge without an account. |
 | iOS track | `#ios` | "Open now": facts, then four steps (install TestFlight → accept the invitation → install and play → send feedback), the 90-day note, the free-unlock note and the invitation button. |
 | Android track | `#android` | "In preparation": facts, then four steps (enter the Google address → wait for the invitation → join and install → send feedback), the waitlist form, and the promo-code note. |
