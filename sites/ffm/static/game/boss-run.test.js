@@ -119,3 +119,134 @@ describe('release switch', () => {
     assert.equal(initWardenMode({ platform: {}, doc, search: '' }), null);
   });
 });
+
+// --- fight clock ownership -------------------------------------------------
+//
+// The Warden clock is a 1 Hz interval owned by the fight that is on screen.
+// "Fight again" re-enters openFight() while the finished fight's interval is
+// still running, so the old clock has to be released before the new one starts:
+// an orphaned interval can never be cleared again and keeps ticking the new
+// attempt, draining the clock once per abandoned fight.
+
+function stubElement(id = '') {
+  const listeners = new Map();
+  const element = {
+    id,
+    type: '',
+    className: '',
+    hidden: false,
+    disabled: false,
+    textContent: '',
+    innerHTML: '',
+    dataset: {},
+    children: [],
+    style: { setProperty() {}, removeProperty() {} },
+    classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+    append(...nodes) { element.children.push(...nodes); },
+    appendChild(node) { element.children.push(node); return node; },
+    insertBefore(node) { element.children.unshift(node); return node; },
+    setAttribute() {},
+    getAttribute: () => null,
+    removeAttribute() {},
+    addEventListener(type, fn) { listeners.set(type, fn); },
+    removeEventListener() {},
+    querySelector: () => stubElement(),
+    querySelectorAll: () => [],
+    focus() {},
+  };
+  return element;
+}
+
+// Records every interval the fight starts, without scheduling anything.
+function patchIntervals() {
+  const realSetInterval = globalThis.setInterval;
+  const realClearInterval = globalThis.clearInterval;
+  const live = new Map();
+  let created = 0;
+  globalThis.setInterval = (fn) => {
+    created += 1;
+    live.set(created, fn);
+    return created;
+  };
+  globalThis.clearInterval = (id) => { live.delete(id); };
+  return {
+    get created() { return created; },
+    get live() { return live.size; },
+    restore() {
+      globalThis.setInterval = realSetInterval;
+      globalThis.clearInterval = realClearInterval;
+    },
+  };
+}
+
+function fightHarness({ band = BAND, pending = null } = {}) {
+  const byId = new Map();
+  const doc = {
+    body: stubElement('body'),
+    querySelector: () => null,
+    createElement: () => stubElement(),
+    getElementById: (id) => {
+      if (!byId.has(id)) byId.set(id, stubElement(id));
+      return byId.get(id);
+    },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const platform = {
+    getAuthorizedLevelConfig: () => (pending ?? Promise.resolve(band)),
+  };
+  const mode = initWardenMode({
+    platform,
+    getClearedLevels: () => [],
+    getDifficulty: () => 'medium',
+    storage: null,
+    force: true,
+    doc,
+  });
+  return { mode, doc };
+}
+
+describe('Warden fight clock', () => {
+  it('releases the previous clock when a fight is opened again from its result screen', async () => {
+    const timers = patchIntervals();
+    const realMatchMedia = globalThis.matchMedia;
+    // Reduced motion keeps the dragon on setTimeout instead of an interval, so
+    // every interval counted here is a Warden clock.
+    globalThis.matchMedia = () => ({ matches: true });
+    try {
+      const { mode } = fightHarness();
+      await mode.open('warden-dawn');
+      assert.equal(timers.live, 1, 'one clock per fight');
+      await mode.open('warden-dawn');
+      assert.equal(timers.created, 2);
+      assert.equal(timers.live, 1, 'the retry replaced the clock instead of orphaning it');
+      mode.close();
+      assert.equal(timers.live, 0, 'closing the overlay stops the clock');
+    } finally {
+      timers.restore();
+      if (realMatchMedia === undefined) delete globalThis.matchMedia;
+      else globalThis.matchMedia = realMatchMedia;
+    }
+  });
+
+  it('lets only the newest open win when two fights are started at once', async () => {
+    const timers = patchIntervals();
+    const realMatchMedia = globalThis.matchMedia;
+    globalThis.matchMedia = () => ({ matches: true });
+    let release = () => {};
+    const gate = new Promise((resolve) => { release = resolve; });
+    try {
+      const band = Promise.resolve(BAND).then(() => gate).then(() => BAND);
+      const { mode } = fightHarness({ pending: band });
+      const first = mode.open('warden-dawn');
+      const second = mode.open('warden-dawn');
+      release();
+      await Promise.all([first, second]);
+      assert.equal(timers.live, 1, 'the slower open must not install a second clock');
+    } finally {
+      timers.restore();
+      if (realMatchMedia === undefined) delete globalThis.matchMedia;
+      else globalThis.matchMedia = realMatchMedia;
+    }
+  });
+});

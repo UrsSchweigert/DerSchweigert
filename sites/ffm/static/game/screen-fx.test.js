@@ -16,6 +16,7 @@ import {
   WORLD_HEIGHT,
   DPR_TIERS,
   PARTICLE_SIZE_SCALE,
+  MAX_PARTICLES,
 } from './screen-fx.js';
 
 function recordingContext() {
@@ -210,6 +211,16 @@ test('a registered effect receives the api and payload and play returns true', (
   assert.equal(received.api, fx);
   assert.equal(received.payload, payload);
   assert.ok(fx.getParticleCount() > 0);
+});
+
+test('live particles are capped, so a runaway emitter cannot grow without bound', () => {
+  const { fx } = make({ intensity: MAX_INTENSITY });
+  for (let i = 0; i < MAX_PARTICLES + 120; i += 1) {
+    fx.spark(0, 0, 0, 10, '#ffffff', 5);
+  }
+  assert.equal(fx.getParticleCount(), MAX_PARTICLES, 'the newest spawn displaces the oldest');
+  fx.clear();
+  assert.equal(fx.getParticleCount(), 0);
 });
 
 test('isActive reports particles, pending timers and clear', () => {

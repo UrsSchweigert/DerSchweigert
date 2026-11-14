@@ -1014,7 +1014,7 @@ export class Fiend extends Entity {
   get retreatSpeed() { return this._retreatSpeed; }
   hit() { this.hp-- > 1 ? this.setState('hit') : this.setState('death'); }
   attack() { this.setState('attack'); }
-  on(ev, fn) { this._events.addEventListener(ev, fn); }
+  on(ev, fn, options) { this._events.addEventListener(ev, fn, options); }
   _emit(ev) { this._events.dispatchEvent(new Event(ev)); }
 
   // Blown off the screen *towards the player*: the sprite grows as if it left

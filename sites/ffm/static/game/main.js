@@ -3454,8 +3454,13 @@ function spawnNextFiend() {
     fiend.setState('walk');
   }
   if (fiend) {
-    fiend.on('retreated', () => { onFiendRetreated(fiend); });
-    fiend.on('dead', () => { onFiendDead(fiend); });
+    // A requeued fiend is spawned again through this same path, so the pair is
+    // registered `once`: each retreat/death consumes it and the next spawn adds
+    // a fresh pair. Without that, every requeue stacked another handler on the
+    // same EventTarget (no off() exists) and one retreat ran onFiendRetreated
+    // once per stacked copy.
+    fiend.on('retreated', () => { onFiendRetreated(fiend); }, { once: true });
+    fiend.on('dead', () => { onFiendDead(fiend); }, { once: true });
     if (typeof spikeSpawnSlowLeft !== 'undefined' && spikeSpawnSlowLeft > 0 &&
         typeof abilityRuntime !== 'undefined' && abilityRuntime?.spikeState.active &&
         typeof applySpikeSlow === 'function' &&
@@ -3486,6 +3491,9 @@ function onFiendRetreated(fiend) {
 
 function onFiendDead(fiend) {
   fiends = fiends.filter(f => f !== fiend);
+  // A dead fiend never retreats, so the spike's restore hook would otherwise
+  // keep the removed fiend in the set until the spike's own timer runs out.
+  if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
 }
 
 function checkAllDefeated() {

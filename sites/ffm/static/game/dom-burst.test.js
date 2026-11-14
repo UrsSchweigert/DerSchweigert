@@ -47,6 +47,27 @@ function fakeElement() {
 const fakeDoc = () => ({ createElement: () => fakeElement() });
 const fixedRandom = () => 0.5;
 
+// A window stub with manual timers, so the fallback cleanup can be fired
+// without waiting and stray timers can be counted.
+function fakeWindow() {
+  const timers = new Map();
+  let nextId = 1;
+  return {
+    pending: () => timers.size,
+    setTimeout(fn, ms) { const id = nextId++; timers.set(id, { fn, ms }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    fireAll() {
+      for (const [id, timer] of [...timers]) {
+        timers.delete(id);
+        timer.fn();
+      }
+    },
+    delays: () => [...timers.values()].map((timer) => timer.ms),
+  };
+}
+
+const fakeDocWithWindow = (win) => ({ createElement: () => fakeElement(), defaultView: win });
+
 describe('HUD bursts', () => {
   it('appends one shard per count, all decorative and on their own offsets', () => {
     const burst = createDomBurst({ doc: fakeDoc(), random: fixedRandom });
@@ -76,6 +97,30 @@ describe('HUD bursts', () => {
     assert.equal(host.children.length, 2);
     assert.equal(burst.activeCount(), 2);
     assert.equal(first.listenerCount('animationend'), 0, 'the listener is dropped with the shard');
+  });
+
+  it('also removes shards when the animation never runs, and clears that fallback on a normal end', () => {
+    // A hidden host (or a display:none ancestor) never fires animationend, so
+    // every shard of every burst would stay in the DOM for the session.
+    const win = fakeWindow();
+    const burst = createDomBurst({ doc: fakeDocWithWindow(win), random: fixedRandom });
+    const host = fakeHost();
+    burst.burst(host, 'glass', 4);
+    assert.equal(burst.activeCount(), 4);
+    assert.equal(win.pending(), 4, 'one fallback timer per shard');
+    assert.ok(win.delays().every((ms) => ms > 700), 'the fallback outlasts the longest flight');
+    win.fireAll();
+    assert.equal(host.children.length, 0, 'the fallback collects every shard');
+    assert.equal(burst.activeCount(), 0);
+
+    // The normal path must not leave its timers behind.
+    const win2 = fakeWindow();
+    const burst2 = createDomBurst({ doc: fakeDocWithWindow(win2), random: fixedRandom });
+    const host2 = fakeHost();
+    burst2.burst(host2, 'glass', 2);
+    for (const shard of host2.children) shard.fire('animationend');
+    assert.equal(burst2.activeCount(), 0);
+    assert.equal(win2.pending(), 0, 'animationend cancels the fallback timer');
   });
 
   it('gives the score tone an upward throw and the glass tone a full circle', () => {

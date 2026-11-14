@@ -15,6 +15,11 @@ export const MAX_DPR = 2;
 export const DPR_TIERS = [2, 1.5, 1.25];
 
 const MAX_STEP = 0.05;          // seconds; a single frame may not advance further
+// Hard ceiling on live particles. Lifetime already retires every spawn, but a
+// stuck or boosted emitter must not be able to grow the array without bound on
+// a device that is dropping frames: past this point the oldest particle is
+// dropped so the newest (the one the player just triggered) still reads.
+export const MAX_PARTICLES = 1200;
 const SLOW_FRAME_SECONDS = 1 / 50;
 const LADDER_SAMPLES = 90;
 const WASH_BUDGET_SECONDS = 1;
@@ -270,6 +275,7 @@ export function createScreenFx(options = {}) {
     }
     particle.px = particle.x;
     particle.py = particle.y;
+    if (instance._particles.length >= MAX_PARTICLES) instance._particles.shift();
     instance._particles.push(particle);
     return particle;
   };
