@@ -368,17 +368,19 @@ body {
 .ability-slot[data-state="ready"][data-icon="loaded"] .ability-slot-cooldown { display: none; }
 .ability-slot[data-state="locked"] .ability-slot-cooldown { display: none; }
 
-/* The bonus-aware readout ("Removes 2", "Slow 30% · ×3") is a caption under the
- * circle: it never pushes the circle size around and stays legible. */
+/* The bonus-aware caption ("3", "30% · ×3") is a number line under the
+ * circle: it never pushes the circle size around, and its width is capped at
+ * the orb plus half of each neighbouring gap, so two captions of one row can
+ * never overlap. */
 .ability-slot-readout {
   position: absolute;
   top: calc(100% + 1px);
   left: 50%;
   display: block;
-  max-width: 104px;
+  max-width: calc(100% + var(--orb-gap) - 4px);
   transform: translateX(-50%);
   overflow: hidden;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 12px;
   color: #cdd6f4;
   font-variant-numeric: tabular-nums;
@@ -605,7 +607,7 @@ body {
   #ability-bar { --orb-cap: 44px; --orb-gap: 8px; padding-bottom: 11px; }
   .ability-ornament { top: 22px; }
   .ability-slot-cooldown { font-size: 17px; }
-  .ability-slot-readout { max-width: 84px; font-size: 8px; line-height: 10px; }
+  .ability-slot-readout { font-size: 9px; line-height: 10px; }
 }
 
 #game {
@@ -3222,16 +3224,21 @@ body:not(.legal-body) {
   letter-spacing: 0.02em;
 }
 
-/* The records card: a plain overlay card with a scannable list. It has to fit
- * twelve-ish rows of level bests on a phone, so it scrolls rather than grows. */
+/* The records card: a fixed dialog whose level list is the only scroll
+ * region. A finished playthrough records all 60 levels, so the list scrolls
+ * between a standing header and the Close button. The whole card used to
+ * scroll, which pushed the button below three screens of rows and left the
+ * dialog looking like a dead end. */
 .speedrun-card {
   display: flex;
   flex-direction: column;
   gap: 12px;
   max-width: 420px;
   max-height: min(80vh, 620px);
-  overflow-y: auto;
+  overflow: hidden;
 }
+
+.speedrun-card > * { flex-shrink: 0; }
 
 .speedrun-toggle {
   display: flex;
@@ -3266,11 +3273,19 @@ body:not(.legal-body) {
 
 .speedrun-levels {
   margin: 0;
-  padding: 0;
+  padding: 0 2px 0 0;
   list-style: none;
   display: grid;
   gap: 2px;
   font-variant-numeric: tabular-nums;
+  /* The one scroll region: it takes whatever height the header and the Close
+   * button leave, and scrolls its rows instead of overflowing the card. */
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(169, 185, 237, 0.55) transparent;
 }
 
 .speedrun-levels li {

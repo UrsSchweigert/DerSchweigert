@@ -5,9 +5,10 @@
 // cooldown progress and the earned bonus runtime through update(), so the HUD
 // never owns a timer. Cooldowns tick in the pure model (cooldown-abilities.js)
 // only while the encounter is running; this module only renders what it is
-// given. The second line of each slot spells out the bonus-aware readout
-// (remaining seconds or "Ready", storm removals, earth slow strength and
-// remaining targets) so a player can see what a level bonus changed.
+// given. The caption under each slot shows the bonus-aware numbers (storm
+// removals, earth slow strength and remaining targets) so a player can see what
+// a level bonus changed; the words behind those numbers live in the slot's
+// accessible name, not in the row.
 
 import {
   ABILITY_ROSTER,
@@ -252,7 +253,7 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
       name: '',
       description: '',
       cooldownText: null,
-      readoutText: null,
+      captionText: null,
       ariaLabel: '',
       sweep: null,
       onClick: null,
@@ -379,21 +380,25 @@ export function createAbilityBar({ doc = globalThis.document, translate, onActiv
       slot.cooldownEl.textContent = cooldownText;
     }
 
-    // The readout spells out what the earned bonuses changed for this slot.
-    // Locked slots stay blank; the numbers are already clamped by
-    // deriveAbilityReadouts(), so this only picks the localized template.
+    // The accessible name spells out what the earned bonuses changed for this
+    // slot; the visible caption under the orb carries only the numbers. Both
+    // captions of a row sit side by side in a narrow column, and the old
+    // sentences ("Removes 2", "Slow 30% · ×3") collided there.
     let readoutText = '';
+    let captionText = '';
     if (state !== 'locked' && slot.id === 'storm') {
       readoutText = message('ability.storm.readout', READOUT_FALLBACKS.storm, { count: readouts.stormCount });
+      captionText = String(readouts.stormCount);
     } else if (state !== 'locked' && slot.id === 'earth') {
       readoutText = message('ability.earth.readout', READOUT_FALLBACKS.earth, {
         percent: readouts.slowPercent,
         targets: readouts.targets,
       });
+      captionText = `${readouts.slowPercent}% · ×${readouts.targets}`;
     }
-    if (slot.readoutText !== readoutText) {
-      slot.readoutText = readoutText;
-      slot.readoutEl.textContent = readoutText;
+    if (slot.captionText !== captionText) {
+      slot.captionText = captionText;
+      slot.readoutEl.textContent = captionText;
     }
 
     // The readout line is aria-hidden so it never announces every cooldown

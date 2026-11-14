@@ -238,6 +238,9 @@ describe('the speedrun markup and styles ship together', () => {
   it('keeps the clock width steady while it ticks', () => {
     assert.match(styles, /#speedrun-readout \{[^}]*font-variant-numeric: tabular-nums;/);
     assert.match(styles, /\.speedrun-levels li \{[^}]*justify-content: space-between;/);
-    assert.match(styles, /\.speedrun-card \{[^}]*max-height:[^}]*overflow-y: auto;/);
+    // The card is a fixed dialog; only the level list scrolls, so the Close
+    // button stays on screen however many levels are recorded.
+    assert.match(styles, /\.speedrun-card \{[^}]*max-height:[^}]*overflow: hidden;/);
+    assert.match(styles, /\.speedrun-levels \{[^}]*overflow-y: auto;/);
   });
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { t, setLocale } from './i18n.js';
-import { dailyBestTrend } from './score-trend.js';
+import { dailyBestTrend, highScoreTrend } from './score-trend.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 const renderers = source.slice(source.indexOf('function formatTrendDate('),
@@ -13,7 +13,7 @@ function render(history, locale = 'en', response = { history }) {
   setLocale(locale);
   const container = { style: {}, innerHTML: '' };
   vm.runInNewContext(`${renderers}\nrenderScoreHistory(response, container);`, {
-    response, container, t, dailyBestTrend,
+    response, container, t, dailyBestTrend, highScoreTrend,
     escHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
   });
   return container;
@@ -124,18 +124,19 @@ test('histories without timestamps keep even spacing', () => {
   assert.deepEqual(points.map((point) => point.x), [54, 171, 288]);
 });
 
-test('the app chart plots its daily best series with its own label', () => {
+test('the app chart plots the cumulative total high score with its own label', () => {
   const history = [
     { level: 1, score: 300, achieved_at: '2026-11-01T10:00:00Z' },
     { level: 2, score: 400, achieved_at: '2026-11-02T10:00:00Z' },
   ];
   for (const locale of ['en', 'de']) {
-    const chart = render(null, locale, { trend: dailyBestTrend(history) });
-    assert.ok(chart.innerHTML.includes(t('scoreHistory.dailyBest', { score: 400, count: 2 })));
-    assert.match(chart.innerHTML, />400<\/text>/);
+    const chart = render(null, locale, { trend: highScoreTrend(history) });
+    assert.ok(chart.innerHTML.includes(t('scoreHistory.totalHighScore', { score: 700, count: 2 })));
+    assert.match(chart.innerHTML, />700<\/text>/, 'the axis tops out at the summed level bests');
+    assert.match(chart.innerHTML, /polyline/);
   }
 });
 
-test('main.js feeds the app progress chart the daily best series', () => {
-  assert.match(source, /renderScoreHistory\(\{ trend: dailyBestTrend\(state\?\.history \|\| \[\]\) \}, personalScoreHistoryChart\)/);
+test('main.js feeds the app progress chart the cumulative total high score', () => {
+  assert.match(source, /renderScoreHistory\(\{ trend: highScoreTrend\(state\?\.history \|\| \[\], best\) \}, personalScoreHistoryChart\)/);
 });

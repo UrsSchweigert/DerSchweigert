@@ -1,8 +1,43 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dailyBestTrend } from './score-trend.js';
+import { dailyBestTrend, highScoreTrend } from './score-trend.js';
 
 const scores = series => series.map(point => point.score);
+
+test('the app total adds up the per-level bests as they are beaten', () => {
+  const trend = highScoreTrend([
+    { level: 1, score: 300, achieved_at: '2026-11-01T10:00:00' },
+    { level: 2, score: 400, achieved_at: '2026-11-01T12:00:00' },
+    { level: 1, score: 100, achieved_at: '2026-11-02T10:00:00' },
+    { level: 1, score: 500, achieved_at: '2026-11-02T12:00:00' },
+  ]);
+  assert.deepEqual(scores(trend), [300, 700, 700, 900]);
+});
+
+test('a level best that predates the kept history still counts', () => {
+  const trend = highScoreTrend([
+    { level: 2, score: 400, achieved_at: '2026-11-05T10:00:00' },
+  ], [
+    { level: 1, score: 300, achieved_at: '2026-10-01T10:00:00' },
+    { level: 3, score: 900, achieved_at: '2026-11-05T11:00:00' },
+  ]);
+  assert.deepEqual(scores(trend), [700], 'only the older level best is seeded');
+});
+
+test('an unfinished attempt counts once it improves the level best', () => {
+  const trend = highScoreTrend([
+    { level: 1, score: 400, achieved_at: '2026-11-01T10:00:00', unfinished: true },
+  ]);
+  assert.deepEqual(scores(trend), [400]);
+  assert.equal(trend[0].unfinished, true);
+});
+
+test('the total survives scores that are missing or invalid', () => {
+  const trend = highScoreTrend([{ level: 1 }, { level: 2, score: 'x' }, { level: 2, score: 250 }]);
+  assert.deepEqual(scores(trend), [0, 0, 250]);
+  assert.deepEqual(highScoreTrend(null), []);
+  assert.deepEqual(highScoreTrend(undefined, [{ level: 1, score: 10 }]), []);
+});
 
 test('one point per day holding that day\'s best result', () => {
   const trend = dailyBestTrend([

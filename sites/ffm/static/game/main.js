@@ -66,7 +66,7 @@ import { getSkillIntro } from './skill-intro.js';
 import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
 import { createStoryIntro } from './story-intro.js';
-import { dailyBestTrend } from './score-trend.js';
+import { dailyBestTrend, highScoreTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
 import { createScreenFx } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
@@ -1225,10 +1225,10 @@ function buildScoreHistorySvg(history, summaryKey = 'scoreHistory.highScore') {
 
 function renderScoreHistory(historyResponse, container) {
   if (!container) return;
-  // One point per day with that day's best result: the app passes its locally
-  // built series, the web its submitted run totals.
+  // The app passes its locally built cumulative total-high-score series; the
+  // web its submitted level scores, which it can only group per day.
   const history = historyResponse?.trend ?? dailyBestTrend(historyResponse?.history || []);
-  const summaryKey = historyResponse?.trend ? 'scoreHistory.dailyBest' : 'scoreHistory.highScore';
+  const summaryKey = historyResponse?.trend ? 'scoreHistory.totalHighScore' : 'scoreHistory.highScore';
   if (history.length === 0) {
     container.style.display = '';
     container.innerHTML = `<p class="score-history-summary">${escHtml(t('scoreHistory.empty'))}</p>`;
@@ -1422,9 +1422,9 @@ function renderPersonalDevelopment(state) {
       .join('');
   }
 
-  // The chart plots one point per day with the best level score of that day,
-  // so the line can rise and fall with the player's daily results.
-  renderScoreHistory({ trend: dailyBestTrend(state?.history || []) }, personalScoreHistoryChart);
+  // The app has the player's per-level bests, so the chart plots the total high
+  // score (their sum) after every saved result instead of a single level score.
+  renderScoreHistory({ trend: highScoreTrend(state?.history || [], best) }, personalScoreHistoryChart);
 
   personalCompletedOverview.textContent = t('personalDevelopment.completed', {
     completed: completed.length,
@@ -4839,8 +4839,11 @@ function applyTitlePage(name) {
   for (const section of document.querySelectorAll('[data-title-page]')) {
     section.hidden = section.dataset.titlePage !== name;
   }
+  // The history page is a sub-page of Practice (opened from the chart button
+  // there), so its tab stays lit and doubles as the way back.
+  const navPage = name === 'history' ? 'progress' : name;
   for (const button of document.querySelectorAll('.title-navigation [data-title-target]')) {
-    button.setAttribute('aria-pressed', String(button.dataset.titleTarget === name));
+    button.setAttribute('aria-pressed', String(button.dataset.titleTarget === navPage));
   }
 }
 
