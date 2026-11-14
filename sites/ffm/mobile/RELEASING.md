@@ -35,6 +35,11 @@ All commands run from `sites/ffm/mobile/`. Nothing secret is ever committed.
   and launch screen wiring, and the privacy manifest (no tracking, no tracking
   domains, no collected data, only `CA92.1` user-defaults access) compiled into
   the app target's Resources phase.
+- `tests/xcode-integration.test.mjs` — the shared `App` scheme, the Cloud
+  post-clone hook and its stopping behaviour, and the two values App Store
+  Connect rejects an upload over: `MARKETING_VERSION` must be newer than
+  `ios/RELEASED_VERSION`, and `CURRENT_PROJECT_VERSION` must be a positive
+  integer. It also refuses a Cloud product manifest copied from another app.
 
 That is static evidence. Native compilation is the M2 owner job in
 `.github/workflows/arithmoslayer-native.yml` (`./gradlew assembleDebug` and `xcodebuild
@@ -200,11 +205,34 @@ Record each upload below. A row without a git revision is not evidence.
 
 `ios/App/App.xcodeproj/project.pbxproj` holds one scheme for both
 configurations: `MARKETING_VERSION` (`CFBundleShortVersionString`, currently
-`1.0`) and `CURRENT_PROJECT_VERSION` (`CFBundleVersion`, currently `1`). Bump
+`1.0.1`) and `CURRENT_PROJECT_VERSION` (`CFBundleVersion`, currently `2`). Bump
 `MARKETING_VERSION` for a user-visible release and always increase
 `CURRENT_PROJECT_VERSION` for every upload, including re-uploads of the same
 marketing version. The plist reads both values, so no version literal is
 duplicated there.
+
+**A released version closes its App Store Connect train.** Version 1.0 is live,
+and an upload that still carries `MARKETING_VERSION = 1.0` is refused during the
+App Store Connect hand-off — after the archive and every export have succeeded,
+so it reads like a signing or account problem. That is the failure Buchstabenzeit
+hit on three consecutive builds. Create the next version record in App Store
+Connect first, then raise `MARKETING_VERSION` here, exactly as 1.0.1 was raised
+for the Arithmo Slayer 1.0 release.
+
+`ios/RELEASED_VERSION` records the version that is public right now: one
+version per line, `#` comments allowed. `tests/xcode-integration.test.mjs` fails
+while `MARKETING_VERSION` is not newer than that line, and the Cloud post-clone
+hook runs `npm test` before Xcode archives anything, so a forgotten bump stops
+the build in minutes instead of spending a Cloud build on an upload Apple will
+refuse. Only the owner edits that file, and only after the new version is live —
+that edit is what reopens the check for the next release.
+
+Record every uploaded iOS build below. The build column is what the next Cloud
+workflow needs: App Store Connect's Next Build Number must stay above it.
+
+| Date | Revision | Marketing version | Build | Result | Notes |
+| --- | --- | --- | ---: | --- | --- |
+| | | | | | |
 
 ## Permissions and the merged manifest (Android)
 
@@ -440,6 +468,142 @@ purchase whose unlock silently disappears. `purchase.js` acknowledges every
 granted purchase; if an unlock vanishes minutes after a successful test
 purchase, start there and confirm the refund in the Orders tab.
 
+## Xcode Cloud (iOS owner)
+
+The repository carries the parts of the Cloud build that are files, and nothing
+else: the workflow, the team, the App Store Connect association and the
+distribution settings live in Apple's service.
+
+- The shared `App` scheme at
+  `ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme`, archiving in
+  Release.
+- The executable `ios/App/ci_scripts/ci_post_clone.sh`, next to the Xcode
+  project. It finds `sites/ffm/mobile` under `CI_PRIMARY_REPOSITORY_PATH` in
+  Cloud (relative to the script for local runs), uses Node.js 22+ (installing
+  `node@22` through Homebrew if necessary), runs `npm ci`, copies and verifies
+  the offline bundle, syncs Capacitor iOS and runs `npm test`. Any failed step
+  stops the build, and Swift package resolution then finds the local plugin
+  packages under `node_modules`.
+- `ios/RELEASED_VERSION` and the version checks in `tests/xcode-integration.test.mjs`,
+  which stop a build whose `MARKETING_VERSION` names a released version (see
+  *Versioning*).
+- `ios/App/App.xcodeproj/xcshareddata/xcodecloud/manifest.json` ties the
+  project to its Xcode Cloud product. Xcode writes it when the product is
+  linked; commit only the file Xcode generated for
+  `de.derschweigert.arithmoslayer`. A manifest copied from the Buchstabenzeit
+  project carries that product id and points this project at the wrong app;
+  `tests/xcode-integration.test.mjs` rejects such a copy. Until the product is
+  linked the file is absent and the check skips.
+
+Do not commit `node_modules`, `www`, copied native assets, signing material or
+Cloud build artifacts. No CocoaPods installation or upload script is needed: the
+Cloud archive action does the native build and signing.
+
+### One-time owner setup in Xcode and App Store Connect
+
+1. Commit and push the revision Cloud should build — Cloud clones the remote
+   commit and cannot see uncommitted changes.
+2. Open `ios/App/App.xcodeproj` and select the shared `App` scheme. In the App
+   target's Signing & Capabilities, confirm automatic signing and team
+   `2F695PTZC6` for Release as well as Debug.
+3. Ensure App Store Connect has an iOS app record for
+   `de.derschweigert.arithmoslayer`, and that it carries the version you are
+   about to upload (1.0.1 today). A released version cannot accept new builds.
+4. Choose Product > Xcode Cloud > Create Workflow, select the Arithmo Slayer
+   product and authorize Xcode Cloud's GitHub connection for
+   `UrsSchweigert/DerSchweigert`.
+5. Configure the workflow; these settings are Apple's, not repository files:
+
+   | Setting | Value |
+   | --- | --- |
+   | Name | Arithmo Slayer - Manual TestFlight |
+   | Editing | Restrict editing, as Apple requires for App Store-eligible archives |
+   | Environment | Current supported released Xcode and compatible macOS; Clean enabled |
+   | Start conditions | Manual starts only, using the dormant condition below |
+   | Action | Archive, iOS, scheme `App`, Release |
+   | Distribution preparation | **TestFlight and App Store** |
+   | Post-action | Internal TestFlight testing; select an internal tester group |
+   | Secrets/custom variables | None required by the bootstrap |
+
+   Apple's documented manual-start setup uses a start condition that never
+   matches: set a tag condition for the reserved tag
+   `__arithmoslayer_manual_only__`, **never create that tag**, and remove the
+   default branch-change, pull-request and scheduled conditions. Start builds
+   explicitly in Xcode or App Store Connect instead.
+
+   Choose **TestFlight and App Store**, not **TestFlight (Internal Testing
+   Only)**: the latter cannot be submitted to App Review later. Selecting an
+   internal tester group still limits automatic distribution to that group.
+   Do not add a native Test action — this project has no XCTest target, and
+   `npm test` already runs in the post-clone hook.
+6. If a build number was already uploaded for this version, open App Store
+   Connect > app > Xcode Cloud > Settings > Build Number and set Next Build
+   Number above it. Cloud increments build numbers per distributed build; the
+   marketing version always comes from `MARKETING_VERSION`, so a new release is
+   a committed project change, never a workflow setting.
+7. Save the workflow and start its first build explicitly. After merging,
+   select `main` for release builds. Check the post-clone log for npm restore,
+   offline bundle verification, Capacitor sync and passing tests, then the
+   Archive and TestFlight post-action results.
+
+To reproduce the Cloud preparation locally, from a disposable checkout with
+Node.js 22+ and Xcode installed:
+
+```bash
+./ios/App/ci_scripts/ci_post_clone.sh
+```
+
+It restores dependencies and generated output; it does not sign, archive,
+upload or publish, so a passing local run is not proof of a successful Cloud
+run. Record the remote commit, Cloud build number, Xcode version and
+archive/upload result in the release record.
+
+Apple references:
+[custom scripts](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts),
+[distribution workflows](https://developer.apple.com/documentation/xcode/creating-a-workflow-that-builds-your-app-for-distribution),
+[build numbering](https://developer.apple.com/documentation/xcode/setting-the-next-build-number-for-xcode-cloud-builds).
+
+### Diagnosing a rejected upload
+
+`** ARCHIVE SUCCEEDED **` and a produced `.ipa` do not mean the build passed:
+Cloud runs the App Store Connect hand-off after the archive and that step has
+its own error. Read the log bundle — from the Report navigator's Cloud tab or
+App Store Connect > app > Xcode Cloud > build > the failed action > Artifacts,
+as `Logs for App archive` — before changing the project:
+
+- `ci_post_clone.log` — npm restore, asset copy/verification, Capacitor sync,
+  `npm test`. A failure here is a project or toolchain problem.
+- `resolve_package_dependencies.log` — Swift package resolution against the
+  restored `node_modules`.
+- `xcodebuild-archive.log` — compiler, linker and signing errors.
+- `<method>-export-archive-logs/` — one directory per export method, each with
+  `xcodebuild-export-archive.log` and the `IDEDistribution*.log` files. Only
+  `app-store` records the App Store Connect lookup, and only for the app that
+  fails.
+
+Check these in order. The first one cost Buchstabenzeit three builds and is
+exactly the trap a new release of this app walks into:
+
+1. **Is the version train open?** `MARKETING_VERSION` must name a version that
+   exists in App Store Connect and has not been released. A released version
+   refuses every upload, with no validation error naming the bundle. Fix it by
+   creating the next version in App Store Connect, raising `MARKETING_VERSION`
+   and `CURRENT_PROJECT_VERSION`, and updating `ios/RELEASED_VERSION` once the
+   old version is the public one.
+2. Is the build number above the last upload for that version? Set Next Build
+   Number in App Store Connect > Xcode Cloud > Settings.
+3. Does the app record still exist with bundle id
+   `de.derschweigert.arithmoslayer`, and is its Cloud product linked?
+4. Has the Apple Account Cloud uses Admin or App Manager access to team
+   `2F695PTZC6` (Account Holder, Admin, App Manager and Developer can use Xcode
+   Cloud; other roles cannot), and is every agreement under Agreements, Tax, and
+   Banking accepted?
+
+Only a validation error naming the bundle (`ITMS-…`) points back at the archive
+and the project; `Failed to find an account with App Store Connect access` or
+`Unable to authenticate with App Store Connect` are statements about the app
+record and the account, not about this repository.
+
 ## TestFlight install (iOS owner)
 
 Producing the archive, signing it with the owner's team and provisioning
@@ -491,6 +655,7 @@ cannot be claimed from a passing JavaScript test.
 | App icon and launch screen match the artwork on the home screen and at launch | iPhone | | `<revision>` | open |
 | German and English system languages both show translated UI and legal pages | iPhone | | `<revision>` | open |
 | In-App Purchase capability is enabled and a sandbox purchase succeeds | App Store Connect + device | The committed target carried the capability and the sandbox purchase above succeeded from the same build. Observed 2026-11-11. | `4e749e5` | owner-verified |
+| A Cloud build of 1.0.1 reaches TestFlight instead of being refused at the App Store Connect hand-off | App Store Connect | | `<revision>` | open |
 
 The iOS silent switch, the interruption and the safe-area gates are the
 `PENDING_MANUAL_GATES` exported by `game/lifecycle.js`;
@@ -555,6 +720,11 @@ accounts) and stay open until the evidence above exists.
   `de.derschweigert.arithmoslayer`, provisioning and distribution certificates,
   plus the App Store Connect app record. No signing secrets are defined for
   this app yet; the owner decides their names and storage.
+- **iOS Cloud product and the 1.0.1 train.** With 1.0 live, App Store Connect
+  must carry an open 1.0.1 version, and the Arithmo Slayer Xcode Cloud product
+  must be linked to the project so Xcode writes its own
+  `xcshareddata/xcodecloud/manifest.json`. Linking is an Xcode action on the
+  owner's account; the committed project already names `1.0.1` and build `2`.
 - **Audio session.** Keep the default category, or record an owner decision for
   an explicit one (see above).
 - **Native compilation.** The M2 macOS job is owner-run and only reports the

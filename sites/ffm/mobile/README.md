@@ -342,6 +342,13 @@ dependencies, prepares and verifies the offline bundle, syncs native plugins, an
 mobile tests before Xcode resolves packages. It uses Node.js 22+ or installs Homebrew's
 `node@22` on the Cloud runner if needed. Preparation failures stop the build.
 
+Version 1.0 is live on the App Store, so `MARKETING_VERSION` now names 1.0.1: an
+upload that still carries a released version is refused at the App Store Connect
+hand-off, after the archive has already succeeded. `ios/RELEASED_VERSION` records
+the public version and `npm test` fails while `MARKETING_VERSION` is not newer, so
+the post-clone hook stops that build early. `RELEASING.md` has the workflow
+settings and the checklist for diagnosing a rejected upload.
+
 Configure branch triggers, signing team, App Store Connect association and optional
 TestFlight distribution in Apple's UI. Those account settings are not repository files
 and are not automatically provisioned here. No store upload runs from GitHub Actions.
@@ -362,7 +369,7 @@ reason to the maintainer instead:
 - `package.json`, `package-lock.json` — dependency additions, version bumps, Capacitor major upgrades, scripts.
   This includes any new Capacitor plugin (purchases, preferences, keep-awake) and the `npm install` that follows.
 - `android/` — Gradle files, `AndroidManifest.xml`, resources, `versionCode`/`versionName`, permissions, backup rules.
-- `ios/` — `Info.plist`, `project.pbxproj`, `PrivacyInfo.xcprivacy`, entitlements, capabilities, localisations.
+- `ios/` — `Info.plist`, `project.pbxproj`, `PrivacyInfo.xcprivacy`, `RELEASED_VERSION`, entitlements, capabilities, localisations.
 - `capacitor.config.json` — `appId`, `appName`, `webDir`, `server` settings and native plugin configuration; an
   identity change also requires regenerating both native projects.
 - Signing material and store credentials (keystores, provisioning profiles, certificates, service credentials).
