@@ -475,7 +475,7 @@ test('three action stills replace the sprite demo', () => {
   assert.match(html, /src="\/game\/dragon\.webp"/);
 });
 
-test('the gameplay band loops five full portrait app captures above the generations', () => {
+test('the gameplay gallery shows five full portrait app captures above the generations', () => {
   const band = sectionMarkup('screenshots');
   const shots = [
     ['level-01-strike', 'shots.strike'],
@@ -486,12 +486,9 @@ test('the gameplay band loops five full portrait app captures above the generati
   ];
 
   assert.equal((band.match(/<figure class="shot-frame">/g) || []).length, 5,
-    'one primary shot frame per action');
+    'one shot frame per action');
   assert.equal((band.match(/<div class="phone">/g) || []).length, 5,
-    'every primary screenshot sits in the CSS phone body');
-  assert.equal((band.match(/<figure class="shot-frame shot-clone">/g) || []).length, 5,
-    'the loop needs a second, aria-hidden set of five');
-  assert.match(band, /<div class="shot-band-set" aria-hidden="true">/);
+    'every screenshot sits in the CSS phone body');
 
   for (const [name, key] of shots) {
     const url = `/promo/art/shots/${name}.webp`;
@@ -508,11 +505,19 @@ test('the gameplay band loops five full portrait app captures above the generati
     assert.match(DICTIONARY[key].en, /^Level \d+ · \S/);
   }
 
-  // The band uses the same pannable loop as the acts.
-  assert.match(band, /<div class="shot-band-viewport" data-pannable-band tabindex="0" role="region"/);
-  assert.match(band, /<div class="shot-band-track" data-band-track>/);
-  assert.match(css, /\[data-pannable-band\] \{[\s\S]*?overflow-x: auto/);
-  assert.match(css, /cursor: grab/);
+  // A still gallery: no duplicated set, no self-advancing ribbon.
+  assert.equal((band.match(/shot-clone/g) || []).length, 0,
+    'a static gallery needs no duplicated set');
+  assert.ok(!band.includes('data-pannable-band'), 'the gallery must not be a looping band');
+  assert.ok(!band.includes('shot-band-track'), 'the track wrapper only existed for the loop');
+  assert.match(band, /<div class="shot-band-viewport" tabindex="0" role="region"/);
+  assert.match(band, /<div class="shot-band-set">/);
+  assert.match(css, /\.shot-band-set \{[\s\S]*?width: max-content/,
+    'portrait rows keep their natural width and scroll');
+  assert.match(css, /@media \(min-width: 900px\) and \(min-height: 560px\) \{[\s\S]*?\.shot-frame \{\s*flex: 1 1 0/,
+    'the row fills the section column from landscape up');
+  assert.match(css, /\.shot-frame:hover \.phone \{[\s\S]*?box-shadow:/,
+    'a hovered capture gets the glow highlight');
   assert.ok(html.indexOf('id="screenshots"') < html.indexOf('id="generationen"'),
     'the band sits right above the generations section');
 });

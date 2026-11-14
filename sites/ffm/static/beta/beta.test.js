@@ -330,17 +330,16 @@ test('the page reuses the landing-page design system and adds only its own CSS',
 
 // --- art, module and a11y ----------------------------------------------
 
-test('the beta page carries the looping gameplay band above the requirements', () => {
+test('the beta page carries the static gameplay gallery above the requirements', () => {
   const start = html.indexOf('class="shot-band"');
   const end = html.indexOf('class="beta-strip"');
   assert.ok(start > -1 && end > start, 'the band must sit right above the requirements strip');
   const band = html.slice(start, end);
 
   assert.equal((band.match(/<figure class="shot-frame">/g) || []).length, 5,
-    'one primary shot per action');
-  assert.equal((band.match(/<figure class="shot-frame shot-clone">/g) || []).length, 5,
-    'the loop needs a duplicated, aria-hidden set');
-  assert.match(band, /<div class="shot-band-set" aria-hidden="true">/);
+    'one shot per action');
+  assert.equal((band.match(/shot-clone/g) || []).length, 0,
+    'the shared gallery is static, so it needs no duplicated set');
 
   for (const name of ['level-01-strike', 'level-10-fireball', 'level-20-blitz',
     'level-30-dragon', 'level-40-healing']) {
@@ -349,8 +348,9 @@ test('the beta page carries the looping gameplay band above the requirements', (
     assert.ok(existsSync(join(webRoot, url)), `missing ${url} on disk`);
   }
 
-  assert.match(band, /<div class="shot-band-viewport" data-pannable-band tabindex="0" role="region"/);
-  assert.match(band, /<div class="shot-band-track" data-band-track>/);
+  assert.match(band, /<div class="shot-band-viewport" tabindex="0" role="region"/);
+  assert.match(band, /<div class="shot-band-set">/);
+  assert.ok(!band.includes('data-pannable-band'), 'the gallery must not be a looping band');
   assert.ok(!band.includes('strip-hint'), 'the band carries no disclaimer hint');
 });
 

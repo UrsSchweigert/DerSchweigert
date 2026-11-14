@@ -38,7 +38,7 @@ would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 | Section | Anchor | Content |
 | --- | --- | --- |
 | Hero | `#hero` | Centred poster: kicker, logo with shine, headline, then the CTA block in priority order — the brass-filled, glowing **open-beta pill** (`hero.betaLabel`/`hero.betaText` → `/beta/`, own row) first, then the official Apple **“Download on the App Store” badge** (`art/ui/app-store-badge.png`) linked to the listing and the disabled Google Play marker, the browser game as a ghost button last — plus the payment-split subline. The stage is landscape only (act-1 backdrop, sunrise gradient, intro village, parallax) — no characters. |
-| Gameplay band | `#screenshots` | Five half-size full portrait app captures (strike, fireball, blitz, dragon, healing) in CSS phone bodies, looping right above the generations section in the same pannable ribbon as the acts. A duplicated `aria-hidden` set makes the loop seamless; drag, scroll or focus pauses it. |
+| Gameplay band | `#screenshots` | Five full portrait app captures (strike, fireball, blitz, dragon, healing) in CSS phone bodies, as one static row that shares the section column from 900 px up (short landscape windows keep a height-capped horizontal scroller), right above the generations section. Hovering a capture lifts it into a brass glow; in portrait the row scrolls sideways at a legible phone size. |
 | Age cards | `#generationen` | Kindergarten / Grundschule / Erwachsene: `art/heroes/hero-*.webp` standing on `art/stages/stage-*.webp`, one aspect ratio and one hero baseline for all three. |
 | Handcrafted | `#kunst` | Story wrap-up, the six finished acts from `art/acts/act-1…6.webp` in a pannable, self-advancing loop with their real titles (the six frames are 30 % larger than the old filmstrip), three action stills (`art/action/{fight,fireball,lightning}.webp`), and the fiend parade with the dragon. |
 | How it plays | `#spiel` | Four difficulty cards with inline-SVG iconography (shape trio for Shapes, one to three swords for Easy/Medium/Hard) and a visually hidden "difficulty n of 3" sentence. |
@@ -64,9 +64,8 @@ Every `<img>` carries `width`/`height`; only the hero backdrop uses
 * `art/shots/` — five full portrait 1170×2532 captures from the **app bundle**
   (`mobile/www`), one per action and level: strike (1), fireball (10), blitz
   (20), dragon (30), healing (40). They are uncropped, so the encounter sword
-  row and the action bar stay in frame. The page shows them at half size in the
-  looping `#screenshots` band; that loop is markup-only (a second
-  `aria-hidden` set of the same five), so the files are still generated once.
+  row and the action bar stay in frame. The page shows them once, in the static
+  `#screenshots` gallery, sized to the section column from 900 px up.
   `tools/capture-gameplay.py` regenerates them; nothing is played by hand.
 * `art/ui/title-screen.webp` — the real app screenshot (1170×2532). The 2.79 MB
   `.png` next to it is the source and must stay unreferenced.
@@ -88,8 +87,9 @@ sprite, the three age cards must pair `hero-child`/`hero-teen`/`hero-adult`
 with `stage-small`/`stage-mid`/`stage-grand`, all six `art/acts/act-N.webp`
 must be referenced and exist, the three action stills must exist (`.png` or
 `.webp`), the five `art/shots/level-*.webp` captures must exist in their phone
-bodies with 1170×2532 dimensions and captions, the band must duplicate them
-into an `aria-hidden` set, be pannable and pause on focus or drag, the icon counts per difficulty
+bodies with 1170×2532 dimensions and captions, the gallery must stay static
+(no duplicated set, no pannable attributes) and give the hovered capture a
+glow highlight, the icon counts per difficulty
 card are asserted by counting `data-icon="sword"` / `data-icon="shape"`, the
 phone mockup must use the webp screenshot, and exactly one `<button disabled>`
 (the Google Play marker) may carry no `href` — the App Store badge and the two

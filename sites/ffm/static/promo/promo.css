@@ -936,26 +936,43 @@ ul {
   padding-block: clamp(18px, 2.6vw, 34px);
 }
 
-.act-band-viewport,
-.shot-band-viewport {
-  padding: 6px var(--gutter);
-}
-
 .act-band-viewport {
+  padding: 6px var(--gutter);
   padding-bottom: 20px;
 }
 
+/* The gallery is static: one row that shares the section column, so the five
+   phones line up with the copy and cards above and below. On portrait screens
+   it stays a manual horizontal scroller so each capture keeps a legible size. */
 .shot-band-viewport {
-  padding-bottom: 14px;
+  width: min(calc(var(--max) + var(--gutter) * 2), 100%);
+  margin-inline: auto;
+  padding: 22px var(--gutter) 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
 
-.act-band-set,
-.shot-band-set {
+.shot-band-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.act-band-set {
   display: flex;
   gap: var(--band-gap);
   /* The trailing gap makes each set exactly half the track, so wrapping
      scrollLeft at half width lands on identical content. */
   padding-right: var(--band-gap);
+}
+
+.shot-band-set {
+  display: flex;
+  gap: var(--band-gap);
+  /* Portrait rows keep their natural width and scroll instead of shrinking;
+     when the row is narrower than the column it centres instead of hanging
+     off the left edge. */
+  width: max-content;
+  margin-inline: auto;
 }
 
 .frame {
@@ -1007,9 +1024,9 @@ ul {
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
 }
 
-/* Gameplay band: five full portrait app captures in the same pannable ribbon
-   as the acts. Each phone is half the size of the original filmstrip, so the
-   band reads as a moving ribbon rather than a second gallery. */
+/* Gameplay gallery: five full portrait app captures as CSS phone bodies. It is
+   static — no loop — and on landscape/desktop the row fills the section column.
+   On phones it scrolls sideways at a legible size. */
 .shot-band .section-head {
   margin-bottom: clamp(14px, 2vw, 24px);
 }
@@ -1032,7 +1049,11 @@ ul {
 }
 
 .shot-frame {
-  flex: 0 0 clamp(95px, 12vw, 130px);
+  /* Portrait screens keep a legible phone: two to three captures visible, the
+     rest a swipe away. Filling the column here would shrink them to unreadable
+     slivers, and the height term keeps a landscape phone from turning the row
+     into a wall of screenshots. */
+  flex: 0 0 clamp(110px, min(38vw, 26vh), 170px);
   display: flex;
   flex-direction: column;
   gap: 0.45em;
@@ -1041,18 +1062,23 @@ ul {
 
 .shot-frame .phone {
   max-width: 100%;
-  padding: 6px;
-  border-radius: 20px;
+  padding: clamp(6px, 0.9vw, 10px);
+  border-radius: clamp(20px, 2.2vw, 30px);
+  transition: transform 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease;
 }
 
 .shot-frame .phone-notch {
-  top: 10px;
+  top: clamp(10px, 1.3vw, 16px);
   width: 34%;
-  height: 4px;
+  height: clamp(4px, 0.5vw, 6px);
 }
 
 .shot-frame .phone-screen {
-  border-radius: 15px;
+  border-radius: clamp(15px, 1.7vw, 24px);
+}
+
+.shot-frame .phone-screen img {
+  transition: filter 0.28s ease;
 }
 
 .shot-frame figcaption {
@@ -1063,12 +1089,48 @@ ul {
   letter-spacing: 0.04em;
   text-align: center;
   text-transform: uppercase;
+  transition: color 0.28s ease;
+}
+
+/* Hover highlight: the pointed-at capture lifts and picks up the same brass
+   glow the page uses on its interactive art. */
+@media (hover: hover) {
+  .shot-frame:hover .phone {
+    transform: translateY(-4px);
+    border-color: rgba(233, 199, 122, 0.72);
+    box-shadow:
+      0 0 0 1px rgba(233, 199, 122, 0.42),
+      0 0 26px -2px rgba(196, 154, 72, 0.5),
+      0 0 64px -12px rgba(196, 154, 72, 0.4),
+      0 34px 70px -34px rgba(0, 0, 0, 0.95);
+  }
+
+  .shot-frame:hover .phone-screen img {
+    filter: saturate(1.05) brightness(1.06);
+  }
+
+  .shot-frame:hover figcaption {
+    color: var(--brass-light);
+  }
+}
+
+/* From landscape/desktop up the row fills the section column, so the five
+   captures line up with the generations grid below. Short landscape windows
+   keep the scroller above, where the height term in the frame width applies. */
+@media (min-width: 900px) and (min-height: 560px) {
+  .shot-band-set {
+    width: 100%;
+  }
+
+  .shot-frame {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* Without the automatic advance the duplicate set is just a second copy. */
-  .act-band-set[aria-hidden="true"],
-  .shot-band-set[aria-hidden="true"] {
+  .act-band-set[aria-hidden="true"] {
     display: none;
   }
 }

@@ -562,13 +562,19 @@ function initPannableBands() {
     if (!track || !firstSet) continue;
 
     // A two-set track only loops while one set is at least as wide as the
-    // viewport. On wide screens (the five small phones are narrower than a
-    // desktop) clone the primary set until the scroll range covers one unit.
+    // visible content (the padding is peek space, not content). On wide
+    // screens the primary set can be narrower than the band, so clone it
+    // until the scroll range covers one unit plus one visible width.
     const unitWidth = () => firstSet.getBoundingClientRect().width || 1;
+    const visibleWidth = () => {
+      const styles = getComputedStyle(viewport);
+      const padX = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+      return Math.max(1, viewport.clientWidth - padX);
+    };
     const ensureCopies = () => {
       const unit = unitWidth();
       if (!unit) return;
-      while (track.scrollWidth < unit + viewport.clientWidth) {
+      while (track.scrollWidth + 1 < unit + visibleWidth()) {
         const clone = firstSet.cloneNode(true);
         clone.setAttribute('aria-hidden', 'true');
         track.appendChild(clone);
