@@ -58,6 +58,10 @@ Browser
 - Store graphics (key-art masters, the compositor and the launcher-icon source):
   `sites/ffm/store-art/` — upload slots and the Pillow recipe in
   `sites/ffm/store-art/README.md`
+- Marketing pack (landscape app screenshots in German and English, store copy,
+  captions): `sites/ffm/marketing/` — regenerate with
+  `python3 sites/ffm/marketing/tools/build.py`, see
+  `sites/ffm/marketing/README.md`
 
 ## Important current behavior
 

@@ -40,3 +40,11 @@ sites/ffm/store-art/google-play/
 sites/ffm/store-art/press/
 sites/ffm/store-art/**/*.preview.jpg
 sites/ffm/store-art/handoff/
+
+# The marketing pack is generated from the app bundle by marketing/tools/build.py. It is
+# ~56 MB of screenshots in two languages, so only the recipe (README, copy/, tools/) is tracked.
+sites/ffm/marketing/build/
+
+# The Buchstabenzeit marketing pack is generated from the app bundle by
+# marketing-pack/tools/build.py; only the recipe (README, copy/, tools/) is tracked.
+sites/lesen/marketing-pack/build/
