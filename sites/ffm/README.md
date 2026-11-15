@@ -66,6 +66,13 @@ Browser
 - The game is a single static page with a canvas plus DOM overlays for auth, difficulty selection, level clear, game over, and input.
 - `main.js` owns almost all runtime state in one module-level `state` object plus a few side arrays (`fiends`, `spawnQueue`, `requeuedFiends`, `answerTimes`, `activeLightningBolts`).
 - The current curriculum is **60 levels**, not 40. The tests enforce four 15-level blocks.
+- `fiendHP` is spent on milestone levels only: **2 at 20, 30 and 40, 3 at 50 and 60, 1
+  everywhere else**. A fiend with more than one hit point shows one dark halo per
+  point above its head and asks a new problem after each non-lethal hit. On top of
+  that, `GAME_CONFIG.eliteFiendChance` still makes ~10 % of spawns elite at 3 HP on
+  any level, which is where the halo occasionally appears outside the milestones.
+  Changing `fiendHP` changes the level baselines: re-run
+  `node sites/ffm/scripts/update-level-data.mjs` afterwards.
 - Each level currently uses `waveSize: 30`, but the current loop behaves more like "30 enemies per level" than a multi-wave system:
   - `waveNumber` exists in state but is not driving any real multi-wave progression.
   - `triggerWaveClear()` immediately transitions to level clear after all queued/requeued fiends are defeated.

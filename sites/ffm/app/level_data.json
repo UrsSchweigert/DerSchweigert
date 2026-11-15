@@ -346,7 +346,7 @@
       },
       "maxResult": 20,
       "fiendType": "magelitch",
-      "fiendHP": 2,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
       "baseline_score": 200438
@@ -374,7 +374,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 261038
+      "baseline_score": 226238
     },
     {
       "level": 16,
@@ -399,7 +399,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 288338
+      "baseline_score": 253538
     },
     {
       "level": 17,
@@ -421,10 +421,10 @@
       },
       "maxResult": 100,
       "fiendType": "bonehead",
-      "fiendHP": 2,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 317138
+      "baseline_score": 282338
     },
     {
       "level": 18,
@@ -449,7 +449,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 386738
+      "baseline_score": 312638
     },
     {
       "level": 19,
@@ -474,7 +474,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 418538
+      "baseline_score": 344438
     },
     {
       "level": 20,
@@ -499,7 +499,7 @@
       "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 451838
+      "baseline_score": 377738
     },
     {
       "level": 21,
@@ -524,7 +524,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 530438
+      "baseline_score": 456338
     },
     {
       "level": 22,
@@ -549,7 +549,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 566738
+      "baseline_score": 492638
     },
     {
       "level": 23,
@@ -571,10 +571,10 @@
       },
       "maxResult": 100,
       "fiendType": "magelitch",
-      "fiendHP": 2,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 604538
+      "baseline_score": 530438
     },
     {
       "level": 24,
@@ -599,7 +599,7 @@
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 692138
+      "baseline_score": 569738
     },
     {
       "level": 25,
@@ -622,10 +622,10 @@
       },
       "maxResult": 30,
       "fiendType": "bonehead",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 732938
+      "baseline_score": 610538
     },
     {
       "level": 26,
@@ -648,10 +648,10 @@
       },
       "maxResult": 50,
       "fiendType": "birdfoe",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 886838
+      "baseline_score": 652838
     },
     {
       "level": 27,
@@ -674,10 +674,10 @@
       },
       "maxResult": 72,
       "fiendType": "toadlord",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1045238
+      "baseline_score": 696638
     },
     {
       "level": 28,
@@ -700,10 +700,10 @@
       },
       "maxResult": 120,
       "fiendType": "slimeling",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1208138
+      "baseline_score": 741938
     },
     {
       "level": 29,
@@ -726,10 +726,10 @@
       },
       "maxResult": 150,
       "fiendType": "wolffoe",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1375538
+      "baseline_score": 788738
     },
     {
       "level": 30,
@@ -752,10 +752,10 @@
       },
       "maxResult": 200,
       "fiendType": "bonehead",
-      "fiendHP": 3,
+      "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1547438
+      "baseline_score": 837038
     },
     {
       "level": 31,
@@ -778,10 +778,10 @@
       },
       "maxResult": 120,
       "fiendType": "magelitch",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1723838
+      "baseline_score": 945638
     },
     {
       "level": 32,
@@ -804,10 +804,10 @@
       },
       "maxResult": 150,
       "fiendType": "bonehead",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1904738
+      "baseline_score": 996938
     },
     {
       "level": 33,
@@ -830,10 +830,10 @@
       },
       "maxResult": 240,
       "fiendType": "toadlord",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2090138
+      "baseline_score": 1049738
     },
     {
       "level": 34,
@@ -857,10 +857,10 @@
       },
       "maxResult": 100,
       "fiendType": "magelitch",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2280038
+      "baseline_score": 1104038
     },
     {
       "level": 35,
@@ -884,10 +884,10 @@
       },
       "maxResult": 144,
       "fiendType": "wolffoe",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2474438
+      "baseline_score": 1159838
     },
     {
       "level": 36,
@@ -911,10 +911,10 @@
       },
       "maxResult": 144,
       "fiendType": "snakefoe",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2673338
+      "baseline_score": 1217138
     },
     {
       "level": 37,
@@ -938,10 +938,10 @@
       },
       "maxResult": 225,
       "fiendType": "toadlord",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2876738
+      "baseline_score": 1275938
     },
     {
       "level": 38,
@@ -965,10 +965,10 @@
       },
       "maxResult": 400,
       "fiendType": "birdfoe",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3084638
+      "baseline_score": 1336238
     },
     {
       "level": 39,
@@ -992,10 +992,10 @@
       },
       "maxResult": 600,
       "fiendType": "magelitch",
-      "fiendHP": 3,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3297038
+      "baseline_score": 1398038
     },
     {
       "level": 40,
@@ -1019,10 +1019,10 @@
       },
       "maxResult": 720,
       "fiendType": "bonehead",
-      "fiendHP": 3,
+      "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3513938
+      "baseline_score": 1461338
     },
     {
       "level": 41,
@@ -1046,10 +1046,10 @@
       },
       "maxResult": 800,
       "fiendType": "toadlord",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3735338
+      "baseline_score": 1599938
     },
     {
       "level": 42,
@@ -1073,10 +1073,10 @@
       },
       "maxResult": 1000,
       "fiendType": "magelitch",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 4054538
+      "baseline_score": 1666238
     },
     {
       "level": 43,
@@ -1100,10 +1100,10 @@
       },
       "maxResult": 960,
       "fiendType": "wolffoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 4379738
+      "baseline_score": 1734038
     },
     {
       "level": 44,
@@ -1127,10 +1127,10 @@
       },
       "maxResult": 1200,
       "fiendType": "snakefoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 4710938
+      "baseline_score": 1803338
     },
     {
       "level": 45,
@@ -1154,10 +1154,10 @@
       },
       "maxResult": 1440,
       "fiendType": "toadlord",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 5048138
+      "baseline_score": 1874138
     },
     {
       "level": 46,
@@ -1181,10 +1181,10 @@
       },
       "maxResult": 1690,
       "fiendType": "magelitch",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 5391338
+      "baseline_score": 1946438
     },
     {
       "level": 47,
@@ -1208,10 +1208,10 @@
       },
       "maxResult": 1960,
       "fiendType": "snakefoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 5740538
+      "baseline_score": 2020238
     },
     {
       "level": 48,
@@ -1235,10 +1235,10 @@
       },
       "maxResult": 2000,
       "fiendType": "wolffoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 6095738
+      "baseline_score": 2095538
     },
     {
       "level": 49,
@@ -1262,10 +1262,10 @@
       },
       "maxResult": 1200,
       "fiendType": "magelitch",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 6456938
+      "baseline_score": 2172338
     },
     {
       "level": 50,
@@ -1289,10 +1289,10 @@
       },
       "maxResult": 1800,
       "fiendType": "snakefoe",
-      "fiendHP": 4,
+      "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 6824138
+      "baseline_score": 2250638
     },
     {
       "level": 51,
@@ -1316,10 +1316,10 @@
       },
       "maxResult": 2250,
       "fiendType": "wolffoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 7197338
+      "baseline_score": 2517038
     },
     {
       "level": 52,
@@ -1343,10 +1343,10 @@
       },
       "maxResult": 2700,
       "fiendType": "toadlord",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 7576538
+      "baseline_score": 2598338
     },
     {
       "level": 53,
@@ -1370,10 +1370,10 @@
       },
       "maxResult": 3600,
       "fiendType": "birdfoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 7961738
+      "baseline_score": 2681138
     },
     {
       "level": 54,
@@ -1397,10 +1397,10 @@
       },
       "maxResult": 3960,
       "fiendType": "magelitch",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 8352938
+      "baseline_score": 2765438
     },
     {
       "level": 55,
@@ -1424,10 +1424,10 @@
       },
       "maxResult": 4800,
       "fiendType": "snakefoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 8750138
+      "baseline_score": 2851238
     },
     {
       "level": 56,
@@ -1451,10 +1451,10 @@
       },
       "maxResult": 5200,
       "fiendType": "wolffoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 9153338
+      "baseline_score": 2938538
     },
     {
       "level": 57,
@@ -1478,10 +1478,10 @@
       },
       "maxResult": 5600,
       "fiendType": "magelitch",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 9562538
+      "baseline_score": 3027338
     },
     {
       "level": 58,
@@ -1505,10 +1505,10 @@
       },
       "maxResult": 6000,
       "fiendType": "snakefoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 9977738
+      "baseline_score": 3117638
     },
     {
       "level": 59,
@@ -1532,10 +1532,10 @@
       },
       "maxResult": 6400,
       "fiendType": "wolffoe",
-      "fiendHP": 4,
+      "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 10398938
+      "baseline_score": 3209438
     },
     {
       "level": 60,
@@ -1559,10 +1559,10 @@
       },
       "maxResult": 7000,
       "fiendType": "toadlord",
-      "fiendHP": 4,
+      "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 10826138
+      "baseline_score": 3302738
     }
   ]
 }
