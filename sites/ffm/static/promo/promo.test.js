@@ -420,6 +420,13 @@ test('the age cards pair one hero with one growing stage each', () => {
   for (const key of ['gen.kindergarten.title', 'gen.primary.title', 'gen.adults.title']) {
     assert.ok(gen.includes(`data-i18n="${key}"`), `missing card heading ${key}`);
   }
+
+  // The stage names must not read as an age recommendation, so the note below
+  // them names the content-based store rating and says what the stages are.
+  assert.match(gen, /data-i18n="gen\.note"/, 'the age cards need the rating note');
+  assert.match(DICTIONARY['gen.note'].de, /9\+/);
+  assert.match(DICTIONARY['gen.note'].de, /keine Altersempfehlung/);
+  assert.match(DICTIONARY['gen.note'].en, /not an age recommendation/);
 });
 
 test('all six act dioramas are shown with their real titles', () => {
