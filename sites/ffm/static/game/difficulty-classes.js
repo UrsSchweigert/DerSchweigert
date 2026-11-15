@@ -88,7 +88,7 @@ function buildFiendClasses() {
         stage,
         spriteSet: set,
         gridIndex,
-        spritePath: `./fiend-sprites/set${set}-${String(gridIndex).padStart(2, '0')}.png`,
+        spritePath: `./fiend-sprites/set${set}-${String(gridIndex).padStart(2, '0')}.webp`,
         scoreValue: SCORE_STEP * id,
         bottomPadRatio: BOTTOM_PAD_RATIO[id - 1],
       });
@@ -102,7 +102,7 @@ function buildFiendClasses() {
       stage: 'dragon',
       spriteSet: STAGES.length + 1,
       gridIndex: 5,          // the dragon slot the variant derives from
-      spritePath: `./fiend-sprites/${variant.sprite}.png`,
+      spritePath: `./fiend-sprites/${variant.sprite}.webp`,
       scoreValue: SCORE_STEP * id,
       bottomPadRatio: BOTTOM_PAD_RATIO[id - 1],
     });

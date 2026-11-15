@@ -851,9 +851,9 @@ that argument would make every fiend arrive early. `difficulty.test.js` asserts 
 
 ### Fiend sprites and their ground shadow
 
-Fiends are single PNGs in `static/game/fiend-sprites/` (60 of them: young
-`set1-01.png` … `set1-18.png`, old `set2-…`, ancient `set3-…`, plus
-`dragon-1.png` … `dragon-6.png`), picked per level through
+Fiends are single WebP files in `static/game/fiend-sprites/` (60 of them: young
+`set1-01.webp` … `set1-18.webp`, old `set2-…`, ancient `set3-…`, plus
+`dragon-1.webp` … `dragon-6.webp`), picked per level through
 `difficulty-classes.js`, which also carries the hand-calibrated
 `BOTTOM_PAD_RATIO` that puts each creature's feet on `GROUND_Y`
 (`calibrate.html` fits that; align the feet, not the shadow). The calibrator has
@@ -899,6 +899,31 @@ edits without touching the manifest; only `Generate + copy` changes what ships.
   rather than baking a shadow back into art.
 - Fiends drawn from code (the `Slimeling`/`Bonehead`/… fallbacks, used only when
   a class sprite is missing) call the same helper.
+
+### Asset preload and first paint
+
+`asset-preload.js` splits the image manifest in two, and the split is what keeps
+the title screen fast:
+
+- `buildCriticalAssetManifest()` is the hero atlas and the fireball, ~0.6 MB —
+  the whole of what the title screen can show. Only that list gates
+  `#loading-overlay`, so the menu is interactive in ~2.8 s on a 9 Mbps / 60 ms
+  link instead of ~11 s.
+- `buildDeferredAssetManifest()` is the dragon, the six chapter backgrounds and
+  all 60 fiend class sprites. `main.js` starts it the moment the critical list
+  settles, so it downloads while the player reads the title screen and picks a
+  difficulty.
+- `buildAssetManifest()` is still the union of both, and `startLevel()` still
+  waits for `assetsLoaded` (both lists) before painting, so the original
+  guarantee holds: a fiend never appears as the procedural placeholder and then
+  pops into its art.
+
+Keep the lists disjoint — `asset-preload.test.js` asserts the union is exactly
+`buildAssetManifest()` and that no URL appears in both.
+
+The sprites themselves are WebP (see `scripts/optimize-art.py`, `SPRITE_GLOBS`):
+q88 at the source resolution, because they are drawn at 152 px wide from a
+256-344 px source. Converted, the 60 files went from 6.94 MB to 1.53 MB.
 
 ### Running the calibrator
 

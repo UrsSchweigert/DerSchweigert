@@ -41,7 +41,7 @@ import {
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
-import { preloadGameAssets, preloadAbilityIcons } from './asset-preload.js';
+import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
 import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
@@ -331,11 +331,24 @@ function hideLoadingOverlay() {
   if (loadingOverlay) loadingOverlay.style.display = 'none';
 }
 
-const assetsLoaded = preloadGameAssets((loaded, total) => {
+// First paint only needs the hero atlas and the fireball; the dragon, the six
+// chapter backgrounds and all 60 fiend class sprites are reachable only once a
+// level starts. Fetching them in front of the overlay instead of behind it cost
+// 11 s to a playable title screen on a 9 Mbps / 60 ms link, against 2.8 s for
+// the critical list alone.
+const criticalAssetsLoaded = preloadGameAssets((loaded, total) => {
   const pct = total > 0 ? Math.round((loaded / total) * 100) : 100;
   if (loadingBarFill) loadingBarFill.style.width = pct + '%';
   if (loadingPercentEl) loadingPercentEl.textContent = pct + '%';
-});
+}, buildCriticalAssetManifest());
+
+// Started once the title screen is unblocked, so the two lists never compete
+// for bandwidth. startLevel() still waits for this before painting a level, so
+// a fiend can never appear as the procedural placeholder and pop into its art.
+const deferredAssetsLoaded = criticalAssetsLoaded.then(
+  () => preloadGameAssets(undefined, buildDeferredAssetManifest()),
+);
+const assetsLoaded = Promise.all([criticalAssetsLoaded, deferredAssetsLoaded]);
 
 // The three ability icons are optional owner-delivered art; warming them in
 // the background keeps the first unlock from flashing the text fallback.
@@ -346,16 +359,16 @@ preloadAbilityIcons();
 // permanently trap the player behind a black screen — fall back to
 // revealing the game after a generous timeout even if preload never
 // settles, accepting the small risk of a placeholder flicker over an
-// unplayable page. Shared by the initial page-load preload below and by
-// every startLevel() transition (see startLevel in the Level/Wave setup
-// section), which re-shows this same overlay/bar so a level never starts
-// rendering until its assets (including that level's own stage background,
-// via renderer.waitForBackgroundLoad()) are actually ready.
+// unplayable page. Used by the first-paint preload below, which only waits
+// for the critical list, and by every startLevel() transition (see startLevel
+// in the Level/Wave setup section), which re-shows this same overlay/bar so a
+// level never starts rendering until its assets (including that level's own
+// stage background, via renderer.waitForBackgroundLoad()) are actually ready.
 const LOADING_SAFETY_TIMEOUT_MS = 30000;
 // Resolves once the first-paint loading screen is hidden, so the app-only
 // first-open notice appears over the title screen rather than behind it.
 const loadingDone = Promise.race([
-  assetsLoaded,
+  criticalAssetsLoaded,
   new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
 ]).then(hideLoadingOverlay);
 

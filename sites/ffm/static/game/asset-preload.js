@@ -40,20 +40,29 @@ export function abilityOrnamentUrl() {
 }
 
 /**
- * Pure (no DOM/network) list-builder, so it's unit-testable: every image URL
- * the game can ever display in a session — the hero atlas, the
- * dragon/fireball combo-ability sprites, all per-chapter stage backgrounds
- * (any of which can be reached immediately via the level-jump feature, not
- * just sequentially), and every fiend class sprite (fiend class assignment
- * is level-dependent and randomized, so any of the 36 can appear on any
- * level per the 50/30/20 weighting in difficulty-classes.js).
+ * The part of the manifest the title screen cannot be shown without: the hero
+ * atlas and the fireball. Everything else is only reachable once a level
+ * starts, so it is fetched while the player is still on the title screen
+ * instead of holding them behind the loading bar.
  * @returns {string[]} absolute URLs, resolved relative to this module.
  */
-export function buildAssetManifest() {
-  const urls = [
+export function buildCriticalAssetManifest() {
+  return [
     new URL('./hero/hero-atlas.webp', import.meta.url).href,
-    new URL('./dragon.webp', import.meta.url).href,
     new URL('./fireball.png', import.meta.url).href,
+  ];
+}
+
+/**
+ * The rest of the manifest: the dragon summon, the six chapter backgrounds and
+ * every fiend class sprite. buildAssetManifest() is the union of this and
+ * buildCriticalAssetManifest(), so the two lists can be loaded in sequence
+ * without fetching anything twice.
+ * @returns {string[]} absolute URLs, resolved relative to this module.
+ */
+export function buildDeferredAssetManifest() {
+  const urls = [
+    new URL('./dragon.webp', import.meta.url).href,
   ];
   for (let i = 1; i <= STAGE_COUNT; i++) {
     urls.push(new URL(`./stage-${i}.webp`, import.meta.url).href);
@@ -65,15 +74,24 @@ export function buildAssetManifest() {
 }
 
 /**
- * Preload every image in buildAssetManifest(), reporting progress as each
- * one settles. A single missing/broken file resolves (doesn't reject) on
- * its `error` event too, so one bad asset can't hang the loading bar
- * forever — it just won't get the "no popping in" guarantee for that one.
+ * Every image URL the game can ever display in a session, critical list first.
+ * @returns {string[]} absolute URLs, resolved relative to this module.
+ */
+export function buildAssetManifest() {
+  return [...buildCriticalAssetManifest(), ...buildDeferredAssetManifest()];
+}
+
+/**
+ * Preload a list of images (the full buildAssetManifest() by default),
+ * reporting progress as each one settles. A single missing/broken file
+ * resolves (doesn't reject) on its `error` event too, so one bad asset can't
+ * hang the loading bar forever — it just won't get the "no popping in"
+ * guarantee for that one.
  * @param {(loaded: number, total: number) => void} [onProgress]
+ * @param {string[]} [urls] the list to load; defaults to the full manifest.
  * @returns {Promise<void>} resolves once every asset has loaded or errored.
  */
-export function preloadGameAssets(onProgress) {
-  const urls = buildAssetManifest();
+export function preloadGameAssets(onProgress, urls = buildAssetManifest()) {
   const total = urls.length;
   let loaded = 0;
 
