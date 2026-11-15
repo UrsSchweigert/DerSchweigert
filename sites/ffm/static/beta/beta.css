@@ -32,6 +32,12 @@
   min-height: clamp(560px, 86svh, 860px);
 }
 
+/* The official App Store badge replaces the text CTA. Centring it keeps the
+   46px artwork on the middle line of the taller ghost button next to it. */
+.beta-store-link {
+  align-self: center;
+}
+
 /* ------------------------------------------------- requirements strip */
 
 .beta-strip {

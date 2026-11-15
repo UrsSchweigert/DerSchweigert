@@ -30,8 +30,9 @@ const html = read('index.html');
 const css = read('beta.css');
 const js = read('beta.js');
 
-const TESTFLIGHT_JOIN = 'https://testflight.apple.com/join/66sUYcn3';
-const TESTFLIGHT_APP = 'https://apps.apple.com/app/testflight/id899247664';
+// The public iOS beta concluded, so the page links the live store listing and
+// no longer hands out a TestFlight invitation.
+const APP_STORE = 'https://apps.apple.com/de/app/arithmo-slayer/id6832570305';
 
 // Escapes every regex metacharacter, backslash included, so a URL can be
 // matched literally: an unescaped '.' would also match 'appleXcom'.
@@ -158,17 +159,37 @@ test('markup carries the German copy verbatim, so no-JS visitors see German', ()
 
 // --- iOS links and honesty ----------------------------------------------
 
-test('the iOS beta is a real TestFlight link in the hero, the steps and the track footer', () => {
-  const occurrences = html.split(`href="${TESTFLIGHT_JOIN}"`).length - 1;
-  assert.equal(occurrences, 3, 'hero, step 2 and the iOS track must all link to the TestFlight invitation');
-  for (const tag of html.match(new RegExp(`<a\\b[^>]*href="${escapeRegExp(TESTFLIGHT_JOIN)}"[^>]*>`, 'g'))) {
+test('the concluded iOS beta points at the live App Store listing in the hero and the track', () => {
+  const occurrences = html.split(`href="${APP_STORE}"`).length - 1;
+  assert.equal(occurrences, 2, 'the hero CTA and the iOS track must both link the store listing');
+  for (const tag of html.match(new RegExp(`<a\\b[^>]*href="${escapeRegExp(APP_STORE)}"[^>]*>`, 'g'))) {
     assert.match(tag, /target="_blank"/, 'external store links open in a new tab');
     assert.match(tag, /rel="noopener"/, 'external links need rel="noopener"');
   }
+
+  // Both entry points carry Apple's official badge, like the landing page, and
+  // get their accessible name from the dictionary because the artwork has none.
+  for (const link of html.match(new RegExp(`<a\\b[^>]*href="${escapeRegExp(APP_STORE)}"[^>]*>[\\s\\S]*?</a>`, 'g'))) {
+    assert.match(link, /class="store-badge-link/, 'the badge uses the shared landing-page class');
+    assert.match(link, /src="\/promo\/art\/ui\/app-store-badge\.png"/, 'the official badge artwork');
+    assert.match(link, /alt=""/, 'the artwork is decorative; the link carries the name');
+    assert.match(link, /data-i18n-aria-label="beta\.appStoreLink"/, 'the badge needs a translated name');
+  }
 });
 
-test('the TestFlight app link is the real App Store entry', () => {
-  assert.ok(html.includes(`href="${TESTFLIGHT_APP}"`), 'step 1 must link to the TestFlight app');
+test('the page states that the iOS beta is over, thanks the testers and drops TestFlight', () => {
+  assert.ok(!/testflight\.apple\.com/.test(html), 'no TestFlight invitation may stay once the beta is closed');
+  assert.ok(!/apps\.apple\.com\/app\/testflight/.test(html), 'the TestFlight app itself is no longer part of the flow');
+  assert.equal((html.match(/<ol class="beta-steps">/g) || []).length, 1,
+    'only the Android track keeps its step list');
+
+  assert.match(DICTIONARY['beta.ios.badge'].de, /Abgeschlossen/);
+  assert.match(DICTIONARY['beta.ios.badge'].en, /Concluded/);
+  assert.match(DICTIONARY['beta.hero.title'].de, /abgeschlossen/);
+  // The thanks have to be visible, not just implied by the badge.
+  assert.match(DICTIONARY['beta.hero.sub'].de, /[Dd]anke/);
+  assert.match(DICTIONARY['beta.ios.note'].de, /[Dd]anke/);
+  assert.match(html, /data-i18n="beta\.ios\.note"/);
 });
 
 test('Android is never presented as released: no Play link, a waitlist instead', () => {
@@ -206,17 +227,19 @@ test('the page states the real platform minimums', () => {
   assert.match(html, /Android 7\.0 oder neuer/);
 });
 
-test('both tracks explain how the full version behaves during the beta', () => {
+test('both tracks explain how the full version behaves around the beta', () => {
   const ios = html.match(/id="ios"[\s\S]*?<\/article>/)[0];
   const android = html.match(/id="android"[\s\S]*?<\/article>/)[0];
 
-  assert.match(ios, /data-i18n="beta\.ios\.unlockText"/, 'iOS must say the beta unlock is free');
+  assert.match(ios, /data-i18n="beta\.ios\.unlockText"/, 'iOS must say what the full version costs after the beta');
   assert.match(android, /data-i18n="beta\.android\.unlockText"/, 'Android must explain the promo-code route');
   assert.match(android, /data-i18n="beta\.android\.unlockLink"/, 'Android needs the request link');
   assert.match(android, /href="mailto:info@derschweigert\.de\?subject=[^"]*Promo-Code/, 'the request goes by mail');
 
-  // The public facts the copy depends on: free on iOS, free promo code on Android.
-  assert.match(DICTIONARY['beta.ios.unlockText'].de, /kostenlos|nichts/i);
+  // The public facts the copy depends on: one-time purchase on iOS now that the
+  // beta is over, free promo code while the Android beta runs.
+  assert.match(DICTIONARY['beta.ios.unlockText'].de, /Einmalkauf/);
+  assert.match(DICTIONARY['beta.ios.unlockText'].de, /kein Abo/);
   assert.match(DICTIONARY['beta.android.unlockText'].de, /Promo-Code/);
   assert.match(DICTIONARY['beta.faq.a1'].de, /Promo-Code/, 'the cost FAQ must mention the Android route too');
 });
@@ -287,7 +310,7 @@ test('every reference is root-absolute, allow-listed or an anchor', () => {
   for (const match of html.matchAll(/\b(?:src|href)="([^"]+)"/g)) urls.add(match[1]);
   for (const match of css.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) urls.add(match[1]);
 
-  const allowList = [TESTFLIGHT_JOIN, TESTFLIGHT_APP];
+  const allowList = [APP_STORE];
   const allowedAbsolute = /^https:\/\/arithmoslayer\.de\//;
   const bad = [];
   for (const url of urls) {
