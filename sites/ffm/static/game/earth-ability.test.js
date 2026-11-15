@@ -285,12 +285,48 @@ describe('hit-point halos', () => {
       assert.equal(rings.filter((ring) => ring.life > 0).length, 2,
         'and only the answers still owed are shown');
 
+      // The last answer still shows its bead: "1 left" is information.
+      fiend.hit();
+      fiend.update(1 / 60);
+      assert.equal(rings.filter((ring) => ring.life > 0).length, 1,
+        'the final answer keeps its bead');
+
       // A hit that finishes the fiend takes every ring with it.
       fiend.hit();
       fiend.update(1 / 60);
       assert.equal(rings.filter((ring) => ring.life > 0).length, 0);
     } finally {
       delete globalThis.ffmScreenFx;
+    }
+  });
+
+  it('counts down one bead per hit, all the way to the last answer', () => {
+    // 3 HP: 3 → 2 → 1 → gone. 2 HP: 2 → 1 → gone. The beads are the answers
+    // still owed, so the last one must not vanish a hit early.
+    for (const [hp, expected] of [[3, [3, 2, 1, 0]], [2, [2, 1, 0]]]) {
+      const fiend = new Fiend(400, 380, { hp, palette });
+      const beads = [];
+      const fx = {
+        halo(x, y, color, radius, life) {
+          const bead = { type: 'halo', life, maxLife: life, x, y, radius, pulse: 1, spin: 0, color };
+          beads.push(bead);
+          return bead;
+        },
+        play() { return true; },
+      };
+      globalThis.ffmScreenFx = fx;
+      try {
+        fiend.update(1 / 60);
+        const seen = [beads.filter((bead) => bead.life > 0).length];
+        while (fiend.hp > 0) {
+          fiend.hit();
+          fiend.update(1 / 60);
+          seen.push(beads.filter((bead) => bead.life > 0).length);
+        }
+        assert.deepEqual(seen, expected, `${hp} HP counts down one at a time`);
+      } finally {
+        delete globalThis.ffmScreenFx;
+      }
     }
   });
 
@@ -368,10 +404,18 @@ describe('hit-point halos', () => {
       fiend.hit();
       assert.equal(plays.filter((p) => p.name === 'hitPointBurst').length, 2,
         'each spent point burst where it floated');
-      const settled = sparkles.length;
+
+      // The last answer still has its bead, so its sparkle keeps going.
+      const beforeLast = plays.filter((p) => p.name === 'haloSparkle').length;
       for (let i = 0; i < 30; i++) fiend.update(1 / 60);
-      assert.equal(plays.filter((p) => p.name === 'haloSparkle').length, settled,
-        'the last answer has no bead, so nothing sparkles');
+      const withLast = plays.filter((p) => p.name === 'haloSparkle').length;
+      assert.ok(withLast > beforeLast, 'the last bead still sparkles');
+
+      // The hit that finishes the fiend takes the bead, and its sparkle, with it.
+      fiend.hit();
+      for (let i = 0; i < 30; i++) fiend.update(1 / 60);
+      assert.equal(plays.filter((p) => p.name === 'haloSparkle').length, withLast,
+        'a dead fiend has no bead left to sparkle');
     } finally {
       delete globalThis.ffmScreenFx;
     }

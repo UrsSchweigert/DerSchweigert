@@ -1009,6 +1009,10 @@ export class Fiend extends Entity {
   constructor(x, y, cfg) {
     super(x, y);
     this.hp = cfg.hp;
+    // Remembered so the last halo survives while the fiend still has an answer
+    // left. Without it a one-hit fiend — the ordinary case — would carry a halo
+    // from the moment it spawns.
+    this.startHp = cfg.hp;
     this._pal = cfg.palette;
     this.walkSpeed = 50;
     this._retreatSpeed = this.walkSpeed * 2;
@@ -1336,7 +1340,11 @@ export class Fiend extends Entity {
   // allocation after the first frame.
   _syncHaloRings() {
     const fx = globalThis.ffmScreenFx;
-    const wanted = this.hp >= 2 && !this.isDead ? this.hp : 0;
+    // One bead per answer still owed, including the last one: a three-hit fiend
+    // counts 3 → 2 → 1 and a two-hit one 2 → 1. A fiend that never had more than
+    // one answer stays halo-free, so the beads keep meaning "this one is special".
+    const showsHalos = this.startHp >= 2 && this.hp > 0 && !this.isDead;
+    const wanted = showsHalos ? this.hp : 0;
     if (!this._haloRings) this._haloRings = [];
     if (wanted === 0 || !fx) {
       this._clearHaloRings();
