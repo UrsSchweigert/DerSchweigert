@@ -347,8 +347,13 @@ export function createDioramaPlayer({
   let audioClocked = false;
 
   /** Total device pixels the canvas may allocate. Keeping this bounded keeps
-   * a scene cheap on tablets with huge, high-density screens. */
-  const MAX_CANVAS_PIXELS = 6e6;
+   * a scene cheap on tablets with huge, high-density screens. The scene is
+   * repainted every frame (layers, ambient multiply, glows, motes, sheet,
+   * vignette), so this multiplies straight into fill rate: at 6 MP a 3x phone
+   * (1170x2532 = 3.0 MP) never hit the cap and a tablet could allocate 24 MB
+   * of framebuffer per frame. 2.2 MP is just above 1080p, which is already
+   * above what the upscaled painted layers can resolve. */
+  const MAX_CANVAS_PIXELS = 2.2e6;
 
   const paintPaper = () => {
     if (!grain || !view.width) return;
