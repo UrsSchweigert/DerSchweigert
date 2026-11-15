@@ -4,7 +4,7 @@
 // particles, washes, vignettes and shakes through the public helpers only.
 // Nothing here touches the DOM or throws on a missing payload field.
 
-import { PARTICLE_SIZE_SCALE, WORLD_HEIGHT } from './screen-fx.js';
+import { PARTICLE_SIZE_SCALE, WORLD_HEIGHT, WORLD_WIDTH } from './screen-fx.js';
 
 const TAU = Math.PI * 2;
 // The answer effects are anchored to the answer row on purpose: the burst is
@@ -529,20 +529,116 @@ function spikeCast(api, payload) {
   api.shake(5.2, 0.26);
 }
 
-// The persistent half of the earth cast: one quiet pulse per emitter tick,
+// The persistent half of the earth cast: one sparkly pulse per emitter tick,
 // anchored to the slowed fiend. main.js drives it for exactly the runtime's
-// spike duration, so it disappears when the slow does.
+// spike duration, so it disappears when the slow does. Everything is a grain of
+// light — motes and glints rising off the ground — instead of a flat ring,
+// which read as a drawn circle rather than as a spell.
 function spikeAura(api, payload) {
   const { x, y } = castPoint(payload);
   const raw = payload && payload.progress !== undefined ? payload.progress : 0;
   const p = Math.max(0, Math.min(1, raw));
   const ground = y + 42;
-  api.ring(x, ground, '#c9a15a', 8 + 16 * p, 20 + 26 * p, 0.3, 1 + p);
-  api.mote(x + rand(-26, 26), ground, rand(-12, 12), rand(-70, -24), pick(PALETTES.earth), rand(1.4, 2.4));
-  if (Math.random() < 0.4) {
-    api.ember(x + rand(-18, 18), ground, rand(-8, 8), rand(-50, -18), pick(PALETTES.earth), rand(0.35, 0.7));
+  for (let i = 0; i < count(api, 4); i++) {
+    api.ember(x + rand(-30, 30), ground + rand(-4, 4), rand(-12, 12), -rand(70, 130),
+      pick(PALETTES.earth), rand(0.5, 0.85));
+  }
+  if (Math.random() < 0.6) {
+    api.spark(x + rand(-20, 20), ground - rand(2, 10), -Math.PI / 2 + rand(-0.8, 0.8),
+      rand(30, 90), '#f0e0b0', rand(0.2, 0.4));
+  }
+  // One glint that fades with the spike's own progress, so the aura visibly
+  // winds down instead of stopping mid-glow.
+  api.glow(x, ground, '#e8c98a', 8 + 18 * (1 - p), 4 + 8 * (1 - p), 0.24, 0.12 + 0.14 * (1 - p));
+}
+
+// The sparkle the spike leaves on the fiend it holds: driven from entities.js
+// while `spikeSlowed` is set, at the creature's feet.
+function spikeSparkle(api, payload) {
+  const { x, y } = castPoint(payload);
+  const radius = payload && Number.isFinite(payload.radius) ? payload.radius : 26;
+  const angle = rand(0, TAU);
+  api.ember(x + Math.cos(angle) * radius * 0.7, y + Math.sin(angle) * radius * 0.2,
+    rand(-8, 8), -rand(40, 80), pick(PALETTES.earth), rand(0.34, 0.55));
+  api.ember(x + Math.cos(angle + Math.PI) * radius * 0.5, y, rand(-8, 8), -rand(30, 60),
+    pick(PALETTES.earth), rand(0.3, 0.5));
+  if (Math.random() < 0.5) {
+    api.spark(x + rand(-radius, radius) * 0.5, y, -Math.PI / 2 + rand(-0.6, 0.6),
+      rand(20, 60), '#f6ecc0', rand(0.16, 0.3));
   }
 }
+
+// ── Hit points ──────────────────────────────────────────────────────────────
+// One hit point of a multi-hit fiend. entities.js drives these two per emit and
+// per hit so the ring floats above the creature it belongs to; both are pure
+// particles, so a halo breathes and drifts instead of sitting on the sprite as
+// a flat disc, and a spent one explodes. The layer blends additively, so a halo
+// reads as a dim violet ember with a bright pinpoint rather than as a dark hole.
+function hitPointHalo(api, payload) {
+  const { x, y } = castPoint(payload);
+  const radius = payload && Number.isFinite(payload.radius) ? payload.radius : 9;
+  // The bed has to be bright enough to read as one bead per hit point — that
+  // is the whole point of the halo — while the grains around it keep it alive.
+  api.glow(x, y, '#7a52b8', radius * 1.05, radius * 0.95, 0.22, 0.42);
+  api.glow(x, y, '#d8c8ff', radius * 0.42, radius * 0.42, 0.2, 0.34);
+  const angle = rand(0, TAU);
+  api.ember(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius * 0.7,
+    Math.cos(angle + Math.PI / 2) * rand(14, 26), -rand(6, 18),
+    pick(['#6a4a92', '#7d5aab', '#4a2d6e']), rand(0.24, 0.36));
+  if (Math.random() < 0.5) {
+    api.spark(x + rand(-2, 2), y + rand(-2, 2), rand(0, TAU), rand(8, 22), '#e4d8ff', 0.14);
+  }
+}
+
+function hitPointBurst(api, payload) {
+  const { x, y } = castPoint(payload);
+  const radius = payload && Number.isFinite(payload.radius) ? payload.radius : 9;
+  api.ring(x, y, '#b48cf0', radius, radius * 7, 0.34, 3);
+  api.flash(x, y, '#efe4ff', radius * 6, 0.18, 0.8);
+  for (let i = 0; i < count(api, 12); i++) {
+    api.spark(x, y, rand(0, TAU), rand(70, 240),
+      pick(['#d8c8ff', '#8a5cd0', '#ffffff', '#b48cf0']), rand(0.24, 0.5));
+  }
+  for (let i = 0; i < count(api, 7); i++) {
+    const angle = rand(0, TAU);
+    api.shard(x, y, Math.cos(angle) * rand(50, 170), Math.sin(angle) * rand(50, 120) - 40,
+      pick(['#3a2154', '#5c3a80', '#4a2d6e']), rand(2, 4.5));
+  }
+}
+
+// ── The thunderstorm of a multi-hit level ───────────────────────────────────
+// main.js arms one emitter for the whole level, so the storm is a property of
+// the level rather than of a single effect. Each tick re-adds the dim wash
+// (addWash throttles repeated washes, so the playfield settles at a steady
+// darkness instead of fading to black) and sheets rain across the scene.
+function stormRain(api, payload) {
+  const intensity = payload && Number.isFinite(payload.intensity) ? payload.intensity : 1;
+  // Re-washed on roughly every fourth tick: more often would spend the layer's
+  // wash budget and make the dimming pulse instead of hold.
+  if (Math.random() < 0.28) api.addWash('#050912', 0.2, 0.7);
+  // Two bands of drops: one starting at the top edge and one already part-way
+  // down, so a tick never looks like a fresh curtain at the same height.
+  for (let i = 0; i < count(api, 12 * intensity); i++) {
+    api.streak(rand(-30, WORLD_WIDTH + 30), rand(-30, 40), rand(-110, -50), rand(430, 660),
+      pick(['#9fc8ff', '#c8e2ff', '#7fb0e8']), rand(9, 22), rand(1, 2));
+  }
+  for (let i = 0; i < count(api, 6 * intensity); i++) {
+    api.streak(rand(0, WORLD_WIDTH), rand(90, WORLD_HEIGHT), rand(-110, -50), rand(430, 660),
+      pick(['#9fc8ff', '#7fb0e8']), rand(9, 18), rand(1, 2));
+  }
+}
+
+function stormBolt(api, payload) {
+  const x = payload && Number.isFinite(payload.x) ? payload.x : rand(110, WORLD_WIDTH - 110);
+  // The bolt is a narrow beam from the top edge plus the flash it throws on the
+  // ground, and a shake, so a strike is felt as well as seen.
+  api.beam(x, -10, rand(3, 7), rand(170, 340), '#eaf4ff', 0.16, 0.9);
+  api.flash(x, 30, '#dfeaff', 200, 0.22, 0.8);
+  api.spark(x, rand(40, 120), Math.PI / 2, rand(180, 320), '#eaf4ff', 0.34);
+  api.addWash('#0a1024', 0.14, 0.45);
+  api.shake(4.4, 0.26);
+}
+
 
 function levelWon(api) {
   const firework = (x, y, colors) => {
@@ -753,5 +849,12 @@ export function createEffectTable() {
     boltTrail,
     boltImpact,
     spikeAura,
+    // Hit points and the multi-hit level storm are driven the same way: the
+    // fiend owns the position of its halos, and the level owns its weather.
+    hitPointHalo,
+    hitPointBurst,
+    spikeSparkle,
+    stormRain,
+    stormBolt,
   };
 }

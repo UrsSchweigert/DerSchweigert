@@ -988,6 +988,15 @@ const FIEND_EXIT_X = CANVAS_W + 100;
 // crawl off-screen for close to 10s.
 const RETREAT_MAX_SECONDS = 3;
 
+/** How often the hit-point halos and the slow sparkle are re-emitted. */
+const HALO_EMIT_SECONDS = 0.09;
+/** Halo geometry as fractions of the sprite box, so a small blob and a tall
+ *  wolf get the same readable crown instead of one size for all. */
+const HALO_ORBIT_X = 0.30;
+const HALO_ORBIT_Y = 0.05;
+const HALO_CROWN_Y = 0.11;
+const HALO_SIZE_RATIO = 0.09;
+
 export class Fiend extends Entity {
   constructor(x, y, cfg) {
     super(x, y);
@@ -1000,6 +1009,13 @@ export class Fiend extends Entity {
     this._redFlash = 0;
     this._particlesSpawned = false;
     this._particles = [];
+    // One dark halo per remaining hit point. A multi-HP fiend that survives a
+    // hit used to look exactly like a fresh one, which made "why is it asking
+    // again?" unreadable. The halos are emitted through the screen-fx layer
+    // (see _emitStatusParticles), so they drift and sparkle like the rest of
+    // the game's particles.
+    this._haloPhase = 0;
+    this._haloEmit = HALO_EMIT_SECONDS;
     this._events = new EventTarget();
     this._dur = 8;
     this.isElite = false;
@@ -1015,7 +1031,12 @@ export class Fiend extends Entity {
   // Fixed once retreat begins (see setState), so the pace stays constant for
   // the whole flight off-screen instead of drifting with the fiend's walk speed.
   get retreatSpeed() { return this._retreatSpeed; }
-  hit() { this.hp-- > 1 ? this.setState('hit') : this.setState('death'); }
+  hit() {
+    // The halo this hit destroys bursts where it floated; the remaining ones
+    // keep orbiting, so one glance says how many answers are left.
+    if (this.hp > 1) this._burstHalo(this.hp - 1);
+    this.hp-- > 1 ? this.setState('hit') : this.setState('death');
+  }
   attack() { this.setState('attack'); }
   on(ev, fn, options) { this._events.addEventListener(ev, fn, options); }
   _emit(ev) { this._events.dispatchEvent(new Event(ev)); }
@@ -1041,6 +1062,12 @@ export class Fiend extends Entity {
 
   update(dt) {
     super.update(dt);
+    this._haloPhase += dt;
+    this._haloEmit += dt;
+    if (this._haloEmit >= HALO_EMIT_SECONDS) {
+      this._haloEmit = 0;
+      this._emitStatusParticles();
+    }
     // Blown at the viewer: no walking, no retreating — the flight toward the
     // camera owns the sprite until it has faded out, then it reports 'retreated'
     // so the normal cleanup (array removal, next spawn) still runs.
@@ -1239,6 +1266,67 @@ export class Fiend extends Entity {
 
   // Subclasses paint their body here.
   _drawBody(_ctx) {}
+
+  // ── Hit points and the earth slow ────────────────────────────────────────
+  // Every fiend that needs more than one correct answer carries one dark halo
+  // per hit point, and the halo a hit destroys bursts into brass chips. Before
+  // this the only cue was that the same fiend asked again, which read like a
+  // bug ("did my answer count?") — the reason the level-20 report came in.
+
+  /** Where halo `index` of `count` floats at the current phase, plus the ring
+   *  size for this sprite. Everything is derived from the sprite box so the
+   *  crown sits above the head of the drawn creature, not above the canvas. */
+  _haloLayout() {
+    const { bx, by, drawW, drawH } = this._spriteBox();
+    return {
+      cx: bx + drawW / 2,
+      cy: by + drawH * HALO_CROWN_Y,
+      rx: drawW * HALO_ORBIT_X,
+      ry: drawH * HALO_ORBIT_Y,
+      size: Math.max(3, drawW * HALO_SIZE_RATIO),
+    };
+  }
+
+  _haloPoint(index, count = Math.max(0, this.hp)) {
+    const { cx, cy, rx, ry } = this._haloLayout();
+    const start = -Math.PI / 2;
+    const angle = count <= 1 ? start : start + (Math.PI * 2 * index) / count;
+    const phase = this._haloPhase * 0.9;
+    return {
+      x: cx + Math.cos(angle + phase) * rx,
+      y: cy + Math.sin(angle + phase) * ry,
+    };
+  }
+
+  // One spent hit point explodes where it floated. The explosion is a screen-fx
+  // recipe rather than canvas drawing, so it shares the particle layer with
+  // every other spark in the game.
+  _burstHalo(index) {
+    const point = this._haloPoint(index);
+    globalThis.ffmScreenFx?.play?.('hitPointBurst', {
+      ...point,
+      radius: this._haloLayout().size * 0.9,
+    });
+  }
+
+  // Halos and the earth sparkle are emitted, not painted: every ~90 ms a few
+  // grains of light leave each hit point and each slowed fiend's feet, so the
+  // markers breathe and drift instead of sitting on the sprite as flat discs.
+  _emitStatusParticles() {
+    const fx = globalThis.ffmScreenFx;
+    if (!fx?.play) return;
+    if (this.hp >= 2 && !this.isDead) {
+      const radius = this._haloLayout().size * 0.9;
+      for (let i = 0; i < this.hp; i++) {
+        const { x, y } = this._haloPoint(i);
+        fx.play('hitPointHalo', { x, y, radius });
+      }
+    }
+    if (this.spikeSlowed && this.hp > 0) {
+      const { drawW } = this._spriteBox();
+      fx.play('spikeSparkle', { x: this.x, y: this.y - P, radius: drawW * 0.34 });
+    }
+  }
 }
 
 // ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────

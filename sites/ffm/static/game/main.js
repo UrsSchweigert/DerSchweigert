@@ -2577,6 +2577,7 @@ function resumePendingLevel() {
 }
 
 function clearPremiumSession() {
+  if (typeof stopStorm === 'function') stopStorm();
   setAnswerInputVisible(false);
   gameplayTimers.length = 0;
   // Drop in-flight projectiles too, so no collision callback can fire after
@@ -2602,6 +2603,36 @@ function clearPremiumSession() {
   if (typeof startMenuMusic === 'function') startMenuMusic();
   syncKeepAwake();
   updateHUDLogoutVisibility();
+}
+
+// --- Multi-hit level storm ---
+// A level whose fiends need more than one answer runs under a thunderstorm: the
+// playfield is dimmed, rain sheets across it and the odd bolt lands. The storm
+// belongs to the level, so it is armed once when the level starts and stopped on
+// clear, game over and quit — a chain of `schedule` ticks with a token, so
+// stopping it is immediate and no stale tick can re-arm it.
+let stormToken = 0;
+
+function stopStorm() {
+  stormToken += 1;
+}
+
+function startStorm(cfg) {
+  stopStorm();
+  const fx = globalThis.ffmScreenFx;
+  const multiHit = Number(cfg?.fiendHP) > 1;
+  if (!multiHit || !fx?.play || !fx?.schedule) return false;
+  const token = stormToken;
+  const tick = () => {
+    if (token !== stormToken) return;
+    fx.play('stormRain', {});
+    // One bolt every few seconds, never on the first tick, so the level opens
+    // with rain and the thunder arrives as a surprise.
+    if (Math.random() < 0.035) fx.play('stormBolt', { x: 110 + Math.random() * (CANVAS_W - 220) });
+    fx.schedule(0.12, tick);
+  };
+  fx.schedule(0.12, tick);
+  return true;
 }
 
 // --- Level/Wave setup ---
@@ -2826,6 +2857,10 @@ function activateAbility(id) {
   // Storm always leaves one enemy behind, so a wave with nothing to spare is
   // refused before the cooldown is spent.
   if (id === 'storm' && remainingEnemyCount() < 2) return false;
+  // Earth holds whatever the level still has to send; with nothing left to
+  // slow the press must not burn the three-minute cooldown (wind and storm
+  // refuse for the same reason).
+  if (id === 'earth' && remainingEnemyCount() < 1) return false;
   if (!abilityRuntime.activate(id)) return false;
   // Captured before the cast: wind and storm remove the active fiend, so its
   // centre has to be read while it is still on the field. The `typeof` keeps
@@ -2895,6 +2930,10 @@ function playAbilityCastFeedback(id, origin) {
 // The earth slow's aura runs for exactly as long as the runtime's spike: the
 // emitter is sized from spikeState.durationSeconds and every pulse re-checks
 // the token, so stopSpikeAura silences it the moment the slow is cleared.
+// Each pulse is anchored to a *slowed* fiend. The single origin it used before
+// (the active fiend, or the hero's hands when none was active) pointed at the
+// wrong sprite most of the time, because the spike also holds the spawns that
+// have not walked in yet.
 function startSpikeAura() {
   const spike = abilityRuntime?.spikeState;
   const duration = spike?.active ? spike.durationSeconds : 0;
@@ -2907,7 +2946,12 @@ function startSpikeAura() {
     // The runtime can clear the slow early (pause, level change, game over), so
     // the aura follows it instead of outliving it.
     if (!abilityRuntime?.spikeState.active) return;
-    fx.play('spikeAura', { ...abilityCastOrigin(), progress });
+    for (const fiend of spikeSlowedFiends) {
+      if (!fiend || fiend.isDead) continue;
+      const centre = globalThis.ffmFx?.fiendCentre?.(fiend) ||
+        { x: fiend.x, y: fiend.y - 20 * LOGICAL_PX };
+      fx.play('spikeAura', { ...centre, progress });
+    }
   });
 }
 
@@ -3153,6 +3197,10 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   levelClearOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
   if (practiceBadgeRetryButton) practiceBadgeRetryButton.hidden = true;
+  // The level's own weather: a multi-hit level dims the playfield and storms,
+  // which announces "these fiends take more than one answer" before the first
+  // one arrives. Practice and Shapes never carry it.
+  if (typeof startStorm === 'function') startStorm(practiceRun ? null : cfg);
   updateHUDLogoutVisibility();
   hud.update(state);
   audio.startLevelBGM(cfg.level, cfg.chapter);
@@ -3503,6 +3551,13 @@ function spawnNextFiend() {
 }
 
 function onFiendRetreated(fiend) {
+  // A requeued fiend comes back through spawnNextFiend(), so remember that the
+  // spike still holds it: the base speed is restored here (the walk-off must
+  // not crawl), but the slow has to return with the next approach while the
+  // spike is still running. Without this the spike silently lost its hold on
+  // every fiend that a wrong answer sent back — the opposite of what
+  // activatePendingProblem() documents.
+  if (fiend?.spikeSlowed && requeuedFiends.includes(fiend)) fiend.spikeSlowOnReturn = true;
   if (fiend?.spikeSlowed) {
     restoreSpikeSlow(fiend);
     spikeSlowedFiends.delete(fiend);
@@ -3928,12 +3983,10 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
 
   scheduleGameplayTimeout(() => {
     if (activeFiend) {
-      // A fiend that leaves the field (retreat/requeue or shapes removal) drops
-      // its spike slow and returns to its base speed.
-      if (typeof restoreSpikeSlow === 'function' && activeFiend.spikeSlowed) {
-        restoreSpikeSlow(activeFiend);
-        if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(activeFiend);
-      }
+      // The spike slow is *not* dropped here: onFiendRetreated() restores the
+      // base speed once the fiend actually walks off, and remembers the slow so
+      // a requeued fiend returns still held by a running spike. Clearing it at
+      // this point (before the retreat) is what used to lose it for good.
       const p = activeFiend.problem;
       // Shapes problems have no text question (see shapes.js's
       // displayMode: 'shapes') — fall back to a plain "Answer: N" reveal.
@@ -3984,11 +4037,15 @@ function activatePendingProblem() {
   const mode = getCurrentInputMode();
   // A requeued fiend comes back with a freshly computed base speed; if it was
   // slowed before it retreated, the active spike re-applies the slow on top.
-  const wasSpikeSlowed = typeof restoreSpikeSlow === 'function' && Boolean(fiend.spikeSlowed);
+  // `spikeSlowOnReturn` is what onFiendRetreated() left behind, because the
+  // base speed has to be restored for the walk-off.
+  const wasSpikeSlowed = typeof restoreSpikeSlow === 'function' &&
+    (Boolean(fiend.spikeSlowed) || fiend.spikeSlowOnReturn === true);
   if (wasSpikeSlowed) {
     restoreSpikeSlow(fiend);
     if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
   }
+  delete fiend.spikeSlowOnReturn;
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x,
     typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
   if (wasSpikeSlowed && typeof abilityRuntime !== 'undefined' &&
@@ -4059,6 +4116,9 @@ function triggerWaveClear() {
   if (waveClearing) return;
   waveClearing = true;
   gameRunning = false;
+  // The storm belongs to the level, so the level-clear fanfare plays in clear
+  // weather.
+  if (typeof stopStorm === 'function') stopStorm();
   syncKeepAwake();
   hero.setState('victory');
 
@@ -4283,6 +4343,8 @@ function triggerLevelClear() {
 
 function triggerGameOver(won = false) {
   if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
+  // The storm ends with the level, whichever way it ended.
+  if (typeof stopStorm === 'function') stopStorm();
   setAnswerInputVisible(false);
   if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   campaignWon = won;
@@ -4356,7 +4418,18 @@ function triggerGameOver(won = false) {
 // --- Timer ---
 function updateTimer(dt) {
   if (!state.timerActive) return;
-  state.timerRemaining -= dt;
+  // The earth spike slows the clock it was cast against, not just the sprite:
+  // a slowed fiend's problem timer burns at the spike's factor, so the spell
+  // buys real answering time. Slowing only the walk-in made the fiend fall
+  // behind its own timer — the sprite was still marching when the clock had
+  // already run out. The `typeof` guards keep extracted-function tests running
+  // without main.js.
+  let step = dt;
+  if (typeof abilityRuntime !== 'undefined' && abilityRuntime?.spikeState.active &&
+      typeof activeFiend !== 'undefined' && activeFiend?.spikeSlowed) {
+    step = dt * abilityRuntime.spikeState.factor;
+  }
+  state.timerRemaining -= step;
   if (state.timerRemaining <= 0) {
     state.timerRemaining = 0;
     state.timerActive = false;
