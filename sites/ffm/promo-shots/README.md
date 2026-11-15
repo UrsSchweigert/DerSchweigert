@@ -27,3 +27,9 @@ The script writes the PNG masters here and the WebP files to
 `../static/promo/art/shots/`. The capture method (seeded app state, level-grid
 jump, combo band, frozen frame) is documented in
 `../static/promo/art/PROVENANCE.md` and `../static/promo/README.md`.
+
+The same script also captures the **landscape** sets for the stores —
+`--preset phone61` (2556×1179, the App Store 6.1"/6.3" slot) and `--preset
+wide` (1920×1080, Google Play), each with `--locale de` or `--locale en`. Those
+stills are not used by the website; the marketing pack builds them into
+`../marketing/build/` (see `../marketing/README.md`).

@@ -66,7 +66,11 @@ Every `<img>` carries `width`/`height`; only the hero backdrop uses
   (20), dragon (30), healing (40). They are uncropped, so the encounter sword
   row and the action bar stay in frame. The page shows them once, in the static
   `#screenshots` gallery, sized to the section column from 900 px up.
-  `tools/capture-gameplay.py` regenerates them; nothing is played by hand.
+  `tools/capture-gameplay.py` regenerates them; nothing is played by hand. The
+  same tool captures the landscape store sets (`--preset phone61` → 2556×1179
+  for the App Store 6.1"/6.3" slot, `--preset wide` → 1920×1080 for Play,
+  `--locale de|en`) that `../marketing/tools/build.py` files into the marketing
+  pack.
 * `art/ui/title-screen.webp` — the real app screenshot (1170×2532). The 2.79 MB
   `.png` next to it is the source and must stay unreferenced.
 
