@@ -569,35 +569,38 @@ function spikeSparkle(api, payload) {
 }
 
 // ── Hit points ──────────────────────────────────────────────────────────────
-// One hit point of a multi-hit fiend. entities.js drives these two per emit and
-// per hit so the ring floats above the creature it belongs to; both are pure
-// particles, so a halo breathes and drifts instead of sitting on the sprite as
-// a flat disc, and a spent one explodes. The layer blends additively, so a halo
-// reads as a dim violet ember with a bright pinpoint rather than as a dark hole.
-/** Kept in step with `HALO_EMIT_SECONDS` in entities.js: one ring at a time. */
-const HALO_RING_LIFE = 0.12;
+// A spent hit point explodes where it floated. The bead that is still owed is
+// not a recipe: it is one held `halo` particle per point (see
+// Fiend._syncHaloRings), because a re-emitted particle per tick overlapped its
+// own predecessor and made one halo read as two.
 
-function hitPointHalo(api, payload) {
+// The living half of a hit-point bead: grains that sweep along the rim and
+// peel off it, driven from entities.js a few times a second per bead. Embers and
+// sparks only — a `glow` here would rebuild a radial gradient on every frame,
+// which is what made the first halos expensive on the Android WebView.
+function haloSparkle(api, payload) {
   const { x, y } = castPoint(payload);
   const radius = payload && Number.isFinite(payload.radius) ? payload.radius : 9;
-  // A stroked ring plus a bright grain, with no soft bed: a halo is re-emitted
-  // about eleven times a second per hit point, and a `glow` builds a radial
-  // gradient on every frame it lives, which is by far the most expensive
-  // particle in this layer on the Android WebView. The ring reads as the bead,
-  // the grain keeps it alive, and the cost is an arc and two circles.
-  // One ring per hit point, and no growth: a expanding ring overlapping the next
-  // emission made a single halo read as two, so the count on screen did not
-  // match the answers still owed. The ring's life equals the emit interval, so
-  // exactly one is alive per point at any moment.
-  const ring = radius * 0.9;
-  api.ring(x, y, '#8a62c8', ring, ring, HALO_RING_LIFE, 2.2);
-  api.ember(x, y, 0, 0, '#d8c8ff', 0.16);
   const angle = rand(0, TAU);
-  api.ember(x + Math.cos(angle) * radius * 0.8, y + Math.sin(angle) * radius * 0.55,
-    Math.cos(angle + Math.PI / 2) * rand(14, 26), -rand(6, 18),
-    pick(['#6a4a92', '#7d5aab', '#4a2d6e']), rand(0.24, 0.36));
-  if (Math.random() < 0.4) {
-    api.spark(x + rand(-2, 2), y + rand(-2, 2), rand(0, TAU), rand(8, 22), '#e4d8ff', 0.14);
+  // Two grains on opposite sides of the rim, sweeping tangentially: a ring of
+  // light that turns, rather than dust sitting still on the bead.
+  for (let i = 0; i < 2; i++) {
+    const a = angle + i * Math.PI;
+    const spread = radius * rand(0.85, 1.05);
+    api.ember(x + Math.cos(a) * spread, y + Math.sin(a) * spread * 0.85,
+      -Math.sin(a) * rand(26, 46), Math.cos(a) * rand(14, 24) - rand(2, 12),
+      pick(['#c9b6ff', '#8a5cd0', '#e4d8ff']), rand(0.26, 0.42));
+  }
+  // An outward flick, so the bead looks like it is shedding sparks.
+  if (Math.random() < 0.35) {
+    api.ember(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius * 0.85,
+      Math.cos(angle) * rand(20, 50), Math.sin(angle) * rand(14, 30) - rand(10, 26),
+      pick(['#b48cf0', '#efe6ff']), rand(0.2, 0.34));
+  }
+  // Now and then a needle of light across the rim.
+  if (Math.random() < 0.22) {
+    api.spark(x + rand(-radius, radius) * 0.7, y + rand(-radius, radius) * 0.6,
+      rand(0, TAU), rand(20, 60), '#f4ecff', rand(0.08, 0.15));
   }
 }
 
@@ -870,7 +873,7 @@ export function createEffectTable() {
     spikeAura,
     // Hit points and the multi-hit level storm are driven the same way: the
     // fiend owns the position of its halos, and the level owns its weather.
-    hitPointHalo,
+    haloSparkle,
     hitPointBurst,
     spikeSparkle,
     stormRain,

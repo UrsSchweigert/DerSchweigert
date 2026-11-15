@@ -677,3 +677,54 @@ test('a confined layer covers the playfield instead of the viewport', () => {
   fx.frame(1 / 60);
   assert.equal(fx.canvas.style.top, '90px');
 });
+
+test('draws a hit-point halo from one cached sprite, not a gradient per frame', () => {
+  // The bead used to be re-emitted ~8x/s per hit point and each frame of a
+  // `glow` built a radial gradient — the single most expensive thing this layer
+  // can do on an Android WebView. It is now rasterised once and blitted.
+  const env = fixture();
+  let gradients = 0;
+  const createElement = env.doc.createElement.bind(env.doc);
+  env.doc.createElement = (tag) => {
+    const canvas = createElement(tag);
+    const getContext = canvas.getContext.bind(canvas);
+    canvas.getContext = (type) => {
+      const ctx = getContext(type);
+      if (ctx && !ctx.__gradientCounted) {
+        ctx.__gradientCounted = true;
+        const base = ctx.createRadialGradient.bind(ctx);
+        ctx.createRadialGradient = (...args) => { gradients += 1; return base(...args); };
+      }
+      return ctx;
+    };
+    return canvas;
+  };
+  const fx = createScreenFx({ document: env.doc, bloom: false });
+
+  const bead = fx.halo(400, 200, '#8a62c8', 12, 1);
+  assert.equal(bead.type, 'halo');
+  fx.render();
+  const rasterised = gradients;
+  assert.ok(rasterised >= 1, 'rasterising the bead builds its gradients exactly once');
+
+  const layer = layerCtx(env.canvases);
+  const before = layer.calls.filter((call) => call.method === 'drawImage').length;
+  for (let i = 0; i < 5; i++) fx.render();
+  assert.equal(gradients, rasterised, 'and no frame after that builds another gradient');
+  assert.equal(layer.calls.filter((call) => call.method === 'drawImage').length, before + 5,
+    'each frame is exactly one blit of the cached bead');
+});
+
+test('breathing and turning a halo needs no new particle or sprite', () => {
+  const { fx } = make({ bloom: false });
+  const bead = fx.halo(400, 200, '#8a62c8', 12, 1);
+  fx.render();
+  const sprites = fx._haloSprites.size;
+  for (let i = 0; i < 30; i++) {
+    bead.pulse = 1 + Math.sin(i) * 0.08;
+    bead.spin = i * 0.1;
+    bead.life = bead.maxLife;
+    fx.render();
+  }
+  assert.equal(fx._haloSprites.size, sprites, 'one sprite serves every pulse and rotation');
+});
