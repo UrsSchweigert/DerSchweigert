@@ -1312,13 +1312,16 @@ function renderLevelJumpOptions(profile) {
   updateTitleStartingLevel();
 }
 
-function updateTitleStartingLevel(nextLevel = 1, continuationLabel = null) {
+function updateTitleStartingLevel(nextLevel = 1, continuationLabel = null, clearedLevels = null) {
   const level = Number(levelGrid.value) || nextLevel;
   const mode = levelGrid.value ? 'replay' : 'continuation';
   titleLevelNumerals.updateLevelSelection({ level, mode });
   const continuation = document.getElementById('continue-level');
+  // A selected level the player has not cleared is not a replay: the "unlocked"
+  // test profile can start anywhere, and calling that a replay would be wrong.
+  const replaying = !clearedLevels || clearedLevels.includes(level);
   if (continuation) continuation.textContent = platform.isApp
-    ? (mode === 'replay' ? t('campaign.replay', { level })
+    ? (mode === 'replay' ? t(replaying ? 'campaign.replay' : 'campaign.startAt', { level })
       : continuationLabel ?? t('campaign.continueAt', { level }))
     : t('title.levelNumerals', { level });
 }
@@ -1512,7 +1515,7 @@ function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   });
   levelJumpRow.style.display = '';
   document.getElementById('title-levels-btn').hidden = false;
-  updateTitleStartingLevel(progress.nextLevel ?? 1, label);
+  updateTitleStartingLevel(progress.nextLevel ?? 1, label, progress.cleared);
 }
 
 function renderPlayerIdentity() {
@@ -1984,7 +1987,16 @@ document.querySelectorAll('#difficulty-select [data-difficulty]').forEach(btn =>
         const profileId = platform.localProfiles.getActiveProfile().id;
         const { completed } = await platform.getCompletedLevels(profileId);
         const progress = getCampaignProgress(completed);
-        if (jumpValue && !progress.cleared.includes(targetLevel)) {
+        // The Levels page offers a cleared level for replay — and, for the
+        // "unlocked" test profile, every level (see test-profile.js). Refuse a
+        // level this player was not offered, so replaying stays limited to
+        // cleared levels without blocking the hatch.
+        const levelTest = isLevelTestProfile({
+          isApp: true,
+          profileName: activeLocalPlayer?.name,
+          premiumAccess,
+        });
+        if (jumpValue && !progress.cleared.includes(targetLevel) && !levelTest) {
           throw new Error('Selected replay level has not been completed by this player');
         }
         if (!jumpValue) targetLevel = progress.nextLevel ?? 1;

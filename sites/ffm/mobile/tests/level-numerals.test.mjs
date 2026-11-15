@@ -114,7 +114,9 @@ test('main.js shares the same title widget for web starts and native continuatio
   assert.match(source, /import \{ createLevelNumerals \} from '\.\/level-numerals\.js'/);
   assert.equal((source.match(/createLevelNumerals\(\{/g) ?? []).length, 1);
   assert.match(source, /titleLevelNumerals\.updateLevelSelection\(\{ level: 1 \}\)/);
-  assert.match(source, /updateTitleStartingLevel\(progress\.nextLevel \?\? 1, label\)/);
+  // The third argument is the cleared list: a jump to an uncleared level is
+  // labelled a start rather than a replay (the "unlocked" test profile).
+  assert.match(source, /updateTitleStartingLevel\(progress\.nextLevel \?\? 1, label, progress\.cleared\)/);
   assert.match(source, /else updateTitleStartingLevel\(\)/);
   assert.doesNotMatch(source, /registerWidget\('level-numerals'/);
 });
