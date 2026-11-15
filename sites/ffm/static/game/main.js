@@ -3511,6 +3511,12 @@ function onFiendRetreated(fiend) {
   activeFiend = null;
   inputDisabled = false;
   input.disable();
+  // A fiend that leaves the field is one way an encounter resolves without a
+  // death animation (a blown-away fiend, a requeued one), and removing it is
+  // the last moment anything happens in the level. Re-check here so the wave
+  // still clears when this was the final encounter instead of leaving a level
+  // that runs on with no fiend and no way to conclude.
+  if (checkAllDefeated()) triggerWaveClear();
 }
 
 function onFiendDead(fiend) {
@@ -3521,15 +3527,22 @@ function onFiendDead(fiend) {
 }
 
 function checkAllDefeated() {
+  // "Nothing left to fight" = nothing queued, nothing requeued, and no live
+  // fiend still on the field. A fiend blown at the camera by wind or storm is
+  // already defeated (its sword is filled) but keeps flying for a moment; it
+  // reports 'retreated' when it is gone and onFiendRetreated() re-runs this
+  // check, so the wave clears with a clean field instead of freezing the sprite
+  // mid-flight. Every other removal path must re-check too.
+  const fiendsStillOnField = () => fiends.every(f => f.isDead || f.state === 'retreat');
   if (state.isShapesMode) {
     if (practiceRun?.endless) return false;
     return practiceRun?.session.isComplete() &&
       spawnQueue.length === 0 && requeuedFiends.length === 0 &&
-      fiends.every(f => f.isDead || f.state === 'retreat');
+      fiendsStillOnField();
   }
   return spawnQueue.length === 0 &&
          requeuedFiends.length === 0 &&
-         fiends.every(f => f.isDead || f.state === 'retreat');
+         fiendsStillOnField();
 }
 
 function recordPracticeEncounterDefeated() {

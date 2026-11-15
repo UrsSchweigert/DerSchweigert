@@ -9,12 +9,27 @@ export function resolveDragonBreath(fiends) {
   return defeated;
 }
 
-/** Fiends that no longer represent a remaining encounter: already dead, or
- *  walking off the field after a retreat. */
+/** Fiends that no longer represent a remaining encounter: already dead, blown
+ *  off the field by wind or storm (the sprite is still flying out), or walking
+ *  off after a retreat. */
 const RESOLVED_FIEND_STATES = new Set(['death', 'retreat']);
 
+/**
+ * True when a fiend is no longer an encounter the level still owes the player:
+ * dead, blown at the camera by wind or storm, or walking off after a retreat.
+ *
+ * This is the accounting question (how many encounters are left, what a dragon
+ * breath or a storm may still claim). Whether the wave is *complete* is a
+ * stricter one — a blown fiend is defeated but still owns the field for the
+ * length of its flight — and `checkAllDefeated()` in main.js answers that.
+ */
+export function isResolvedFiend(fiend) {
+  return !fiend || fiend.isDead === true || fiend.isLeaving === true ||
+    RESOLVED_FIEND_STATES.has(fiend.state);
+}
+
 function isRemainingFiend(fiend) {
-  return Boolean(fiend) && !fiend.isDead && !RESOLVED_FIEND_STATES.has(fiend.state);
+  return Boolean(fiend) && !isResolvedFiend(fiend);
 }
 
 /** How many encounters are still unresolved when a dragon breath lands: every

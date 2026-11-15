@@ -1008,6 +1008,9 @@ export class Fiend extends Entity {
   }
 
   get isDead() { return this.hp <= 0; }
+  /** Already fired at the viewer (wind/storm): the sprite is still flying out,
+   *  but the encounter is over. */
+  get isLeaving() { return Boolean(this._blowAway); }
   get palette() { return this._pal; }
   // Fixed once retreat begins (see setState), so the pace stays constant for
   // the whole flight off-screen instead of drifting with the fiend's walk speed.
@@ -2046,8 +2049,11 @@ class SpellProjectile {
 
     const target = this.target;
     // A target that died or left the fight before the projectile arrived ends
-    // it silently: no damage, no hit sound, no reaction.
-    if (target.isDead || target.state === 'death' || target.state === 'retreat' || target.removed) {
+    // it silently: no damage, no hit sound, no reaction. A fiend blown at the
+    // camera by wind or storm counts as gone here as well — it is already
+    // defeated and flying out, so a bolt in flight must not hit it again.
+    if (target.isDead || target.isLeaving === true ||
+        target.state === 'death' || target.state === 'retreat' || target.removed) {
       this._life = 0;
       this.target = null;
       return;
