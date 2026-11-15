@@ -1127,6 +1127,15 @@ export function createScreenFx(options = {}) {
     instance._shake.time = Math.max(instance._shake.time, duration);
   };
 
+  // Drop only the full-screen washes. A level-long effect (the storm's dim)
+  // owns its wash and has to be able to end it without clearing the particles
+  // the rest of the screen is still using.
+  instance.clearWashes = function clearWashes() {
+    if (instance._destroyed) return;
+    instance._washes = [];
+    instance._washTimes = [];
+  };
+
   // Reset everything in flight without tearing down the layer or its canvas.
   // Used when the game state is replaced (new level, restart) so a torrent or
   // a scheduled impact from the previous encounter cannot bleed into the next.
@@ -1134,6 +1143,9 @@ export function createScreenFx(options = {}) {
     if (instance._destroyed) return;
     instance._particles = [];
     instance._washes = [];
+    // The wash budget history belongs to the effects just cleared: left behind,
+    // it throttles the next level's long wash to a fifth of its alpha.
+    instance._washTimes = [];
     instance._vignettes = [];
     instance._shake = null;
     instance._timers = [];

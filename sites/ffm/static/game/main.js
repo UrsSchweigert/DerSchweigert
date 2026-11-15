@@ -2615,6 +2615,8 @@ let stormToken = 0;
 
 function stopStorm() {
   stormToken += 1;
+  // The level's own dim goes with it; the particles it threw are left alone.
+  globalThis.ffmScreenFx?.clearWashes?.();
 }
 
 function startStorm(cfg) {
@@ -2622,6 +2624,10 @@ function startStorm(cfg) {
   const fx = globalThis.ffmScreenFx;
   const multiHit = Number(cfg?.fiendHP) > 1;
   if (!multiHit || !fx?.play || !fx?.schedule) return false;
+  // The dim is added once and held for the level: a wash keeps a constant alpha
+  // for its whole life and then vanishes, so re-adding short ones (the first
+  // version) made the whole screen step lighter and darker instead of settling.
+  fx.play('stormDim', {});
   const token = stormToken;
   const tick = () => {
     if (token !== stormToken) return;
@@ -2936,7 +2942,10 @@ function playAbilityCastFeedback(id, origin) {
 // have not walked in yet.
 function startSpikeAura() {
   const spike = abilityRuntime?.spikeState;
-  const duration = spike?.active ? spike.durationSeconds : 0;
+  // The spike can be refreshed by every target it takes hold of, so the aura is
+  // sized for the whole chain and lets each pulse check that the spike is still
+  // running (it already does).
+  const duration = spike?.active ? spike.durationSeconds * (spike.targets + 1) : 0;
   spikeAuraToken += 1;
   const token = spikeAuraToken;
   const fx = globalThis.ffmScreenFx;
@@ -3539,6 +3548,11 @@ function spawnNextFiend() {
         applySpikeSlow(fiend, abilityRuntime.spikeState.factor)) {
       spikeSlowedFiends.add(fiend);
       spikeSpawnSlowLeft -= 1;
+      // Each promised target gets its own window. Without this the single
+      // duration ran out while the slowed fiend in front of the player was
+      // still being answered, so the second and third target never arrived in
+      // time and the spell read as "only one fiend".
+      abilityRuntime?.refreshSpike?.();
     }
     fiends.push(fiend);
     // The entrance: a portal on the level's own ground line, so the fiend appears

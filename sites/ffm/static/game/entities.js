@@ -989,7 +989,7 @@ const FIEND_EXIT_X = CANVAS_W + 100;
 const RETREAT_MAX_SECONDS = 3;
 
 /** How often the hit-point halos and the slow sparkle are re-emitted. */
-const HALO_EMIT_SECONDS = 0.09;
+const HALO_EMIT_SECONDS = 0.12;
 /** Halo geometry as fractions of the sprite box, so a small blob and a tall
  *  wolf get the same readable crown instead of one size for all. */
 const HALO_ORBIT_X = 0.30;

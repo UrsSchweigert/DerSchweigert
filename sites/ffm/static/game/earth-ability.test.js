@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 import { createAbilityRuntime, applySpikeSlow, restoreSpikeSlow } from './cooldown-abilities.js';
+import { createEffectTable } from './screen-fx-effects.js';
 import { countDragonRemainingEncounters } from './encounter-flow.js';
 
 globalThis.Image ??= class {
@@ -263,7 +264,7 @@ describe('hit-point halos', () => {
   it('emits one halo per remaining hit point and bursts the one a hit destroys', () => {
     const fiend = new Fiend(400, 380, { hp: 3, palette });
     const fx = withLayer(fiend, (target) => {
-      target.update(0.1);           // crosses the emit interval once
+      target.update(0.13);          // crosses the emit interval once
       target.hit();
     });
 
@@ -276,26 +277,45 @@ describe('hit-point halos', () => {
     // The ring keeps announcing what is left, not what was paid.
     const after = layer();
     globalThis.ffmScreenFx = after;
-    fiend.update(0.1);
+    fiend.update(0.13);
     delete globalThis.ffmScreenFx;
     assert.equal(after.plays.filter((p) => p.name === 'hitPointHalo').length, 2);
   });
 
   it('leaves a one-hit fiend halo-free, so halos themselves mean "more than one answer"', () => {
     const fiend = new Fiend(400, 380, { hp: 1, palette });
-    const fx = withLayer(fiend, (target) => target.update(0.1));
+    const fx = withLayer(fiend, (target) => target.update(0.13));
     assert.equal(fx.plays.length, 0);
   });
 
   it('sparkles the feet of a slowed fiend only while it is slowed', () => {
     const fiend = new Fiend(400, 380, { hp: 2, palette });
     applySpikeSlow(fiend, 0.65);
-    const slowed = withLayer(fiend, (target) => target.update(0.1));
+    const slowed = withLayer(fiend, (target) => target.update(0.13));
     assert.equal(slowed.plays.filter((p) => p.name === 'spikeSparkle').length, 1);
 
     restoreSpikeSlow(fiend);
-    const plain = withLayer(fiend, (target) => target.update(0.1));
+    const plain = withLayer(fiend, (target) => target.update(0.13));
     assert.equal(plain.plays.filter((p) => p.name === 'spikeSparkle').length, 0);
+  });
+
+  it('spends no radial gradients on hit points', () => {
+    // A halo is re-emitted ~8x/s per hit point; a glow particle builds a
+    // gradient on every frame it lives, which is what made the Android build
+    // feel heavy on multi-hit levels.
+    // Called against a recording api rather than a live layer: the point is
+    // which primitives the recipe asks for, and `glow` is the one that builds a
+    // gradient on every frame.
+    const calls = [];
+    const api = new Proxy({}, {
+      get: (_target, name) => {
+        if (name === 'countScale' || name === 'alphaScale') return () => 1;
+        return (...args) => { calls.push({ name, args }); };
+      },
+    });
+    createEffectTable().hitPointHalo(api, { x: 300, y: 200, radius: 12 });
+    assert.equal(calls.filter((c) => c.name === 'glow').length, 0, 'no gradients');
+    assert.ok(calls.some((c) => c.name === 'ring'), 'the bead is a cheap stroked ring');
   });
 
   it('draws nothing on the canvas for hit points or the slow', () => {
@@ -370,5 +390,31 @@ describe('the multi-hit level storm', () => {
     const { ctx, timers } = stormContext();
     assert.equal(ctx.startStorm(null), false);
     assert.equal(timers.length, 0);
+  });
+});
+
+describe('the spike reaches every target it promises', () => {
+  it('keeps a window per target instead of one shared countdown', () => {
+    // The timeout used to outlive the spell: two answers at five seconds each
+    // already ran past the eight-second spike, so the second fiend spawned into
+    // clear weather although the orb read "x3".
+    const runtime = createAbilityRuntime({ level: 20, spikeSlow: { targets: 3, durationSeconds: 8, factor: 0.65 } });
+    runtime.activate('earth');
+    runtime.tick(10, { encounterRunning: true });
+    assert.equal(runtime.spikeState.active, false, 'the first window does run out');
+
+    // A spawn that the budget holds refreshes the countdown for its own window.
+    const second = createAbilityRuntime({ level: 20, spikeSlow: { targets: 3, durationSeconds: 8, factor: 0.65 } });
+    second.activate('earth');
+    second.tick(6, { encounterRunning: true });
+    assert.equal(second.refreshSpike(), true);
+    assert.equal(second.spikeState.remainingSeconds, 8, 'the next target starts its own eight seconds');
+    second.tick(7, { encounterRunning: true });
+    assert.equal(second.spikeState.active, true, 'so the second fiend is still held when it arrives');
+  });
+
+  it('refreshes only while a spike is running', () => {
+    const runtime = createAbilityRuntime({ level: 20 });
+    assert.equal(runtime.refreshSpike(), false);
   });
 });

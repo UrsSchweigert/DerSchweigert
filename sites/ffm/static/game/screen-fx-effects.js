@@ -577,15 +577,18 @@ function spikeSparkle(api, payload) {
 function hitPointHalo(api, payload) {
   const { x, y } = castPoint(payload);
   const radius = payload && Number.isFinite(payload.radius) ? payload.radius : 9;
-  // The bed has to be bright enough to read as one bead per hit point — that
-  // is the whole point of the halo — while the grains around it keep it alive.
-  api.glow(x, y, '#7a52b8', radius * 1.05, radius * 0.95, 0.22, 0.42);
-  api.glow(x, y, '#d8c8ff', radius * 0.42, radius * 0.42, 0.2, 0.34);
+  // A stroked ring plus a bright grain, with no soft bed: a halo is re-emitted
+  // about eleven times a second per hit point, and a `glow` builds a radial
+  // gradient on every frame it lives, which is by far the most expensive
+  // particle in this layer on the Android WebView. The ring reads as the bead,
+  // the grain keeps it alive, and the cost is an arc and two circles.
+  api.ring(x, y, '#8a62c8', radius * 0.5, radius * 0.95, 0.18, 2.2);
+  api.ember(x, y, 0, 0, '#d8c8ff', 0.16);
   const angle = rand(0, TAU);
-  api.ember(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius * 0.7,
+  api.ember(x + Math.cos(angle) * radius * 0.8, y + Math.sin(angle) * radius * 0.55,
     Math.cos(angle + Math.PI / 2) * rand(14, 26), -rand(6, 18),
     pick(['#6a4a92', '#7d5aab', '#4a2d6e']), rand(0.24, 0.36));
-  if (Math.random() < 0.5) {
+  if (Math.random() < 0.4) {
     api.spark(x + rand(-2, 2), y + rand(-2, 2), rand(0, TAU), rand(8, 22), '#e4d8ff', 0.14);
   }
 }
@@ -613,9 +616,6 @@ function hitPointBurst(api, payload) {
 // darkness instead of fading to black) and sheets rain across the scene.
 function stormRain(api, payload) {
   const intensity = payload && Number.isFinite(payload.intensity) ? payload.intensity : 1;
-  // Re-washed on roughly every fourth tick: more often would spend the layer's
-  // wash budget and make the dimming pulse instead of hold.
-  if (Math.random() < 0.28) api.addWash('#050912', 0.2, 0.7);
   // Two bands of drops: one starting at the top edge and one already part-way
   // down, so a tick never looks like a fresh curtain at the same height.
   for (let i = 0; i < count(api, 12 * intensity); i++) {
@@ -626,6 +626,16 @@ function stormRain(api, payload) {
     api.streak(rand(0, WORLD_WIDTH), rand(90, WORLD_HEIGHT), rand(-110, -50), rand(430, 660),
       pick(['#9fc8ff', '#7fb0e8']), rand(9, 18), rand(1, 2));
   }
+}
+
+// The dim of a storm level, added once and held. A wash keeps a constant alpha
+// for its whole duration and then disappears, so re-adding short ones (the
+// first version) made the whole screen step darker and lighter instead of
+// settling: overlapping windows stacked to 0.36, a lone window sat at 0.2, and
+// the layer's wash budget then throttled some of them to 0.04. One wash that
+// outlives the level is both smooth and one fillRect per frame.
+function stormDim(api) {
+  api.addWash('#050912', 0.2, 900);
 }
 
 function stormBolt(api, payload) {
@@ -856,5 +866,6 @@ export function createEffectTable() {
     spikeSparkle,
     stormRain,
     stormBolt,
+    stormDim,
   };
 }

@@ -127,7 +127,7 @@ test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a f
   // The five granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
   const granular = ['fireTrail', 'fireImpact', 'boltTrail', 'boltImpact', 'spikeAura',
-    'hitPointHalo', 'hitPointBurst', 'spikeSparkle', 'stormRain', 'stormBolt'];
+    'hitPointHalo', 'hitPointBurst', 'spikeSparkle', 'stormRain', 'stormBolt', 'stormDim'];
   assert.deepEqual(Object.keys(table).sort(), [...EFFECT_NAMES, ...granular].sort());
   for (const name of [...EFFECT_NAMES, ...granular]) {
     assert.equal(typeof table[name], 'function', `${name} is a function`);
@@ -382,10 +382,12 @@ test('the spike aura is a sparkle that sits on the ground and eases off', () => 
 test('a hit point halo is an ember bead and a spent one explodes', () => {
   const halo = make();
   halo.fx.play('hitPointHalo', { x: 300, y: 200, radius: 12 });
-  const bed = halo.fx._particles.filter((p) => p.type === 'glow');
-  assert.ok(bed.length >= 1, 'the bead has a soft bed so it reads as one point');
-  const embers = halo.fx._particles.filter((p) => p.type === 'ember');
-  assert.ok(embers.length >= 1, 'and a grain drifting off it');
+  const ring = halo.fx._particles.find((p) => p.type === 'ring');
+  assert.ok(ring, 'the bead is a stroked ring, not a gradient');
+  assert.equal(halo.fx._particles.filter((p) => p.type === 'glow').length, 0,
+    'no radial gradients: a halo is re-emitted every 120 ms');
+  assert.ok(halo.fx._particles.filter((p) => p.type === 'ember').length >= 1,
+    'and a grain drifting off it');
   const spread = Math.max(...halo.fx._particles.map((p) => Math.abs(p.x - 300)));
   assert.ok(spread <= 16, 'nothing strays far from the point it marks');
 
@@ -398,11 +400,14 @@ test('a hit point halo is an ember bead and a spent one explodes', () => {
 
 test('the storm rains, dims the playfield and can land a bolt', () => {
   const rain = make();
-  // The dim is re-applied on a fraction of the ticks (so it holds instead of
-  // pulsing), so a single tick may not carry one.
-  for (let i = 0; i < 30 && rain.fx._washes.length === 0; i++) rain.fx.play('stormRain', {});
+  rain.fx.play('stormRain', {});
   assert.ok(rain.fx._particles.filter((p) => p.type === 'streak').length >= 10, 'rain falls');
-  assert.ok(rain.fx._washes.length >= 1, 'the playfield is dimmed');
+  assert.equal(rain.fx._washes.length, 0, 'rain itself never touches the whole-screen dim');
+
+  const dim = make();
+  dim.fx.play('stormDim', {});
+  assert.equal(dim.fx._washes.length, 1, 'the dim is a single wash, added once');
+  assert.ok(dim.fx._washes[0].duration > 60, 'that outlives the level instead of expiring');
 
   const bolt = make({ reducedMotion: false });
   bolt.fx.play('stormBolt', { x: 400 });
