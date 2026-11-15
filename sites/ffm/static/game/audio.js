@@ -1401,6 +1401,30 @@ export class AudioEngine {
     this._rotation.pause();
   }
 
+  /**
+   * Silence the whole output while the app is in the background (Capacitor
+   * lifecycle seam, see mobile/game/lifecycle.js). pauseBGM() alone leaves the
+   * voices outside a level ringing — the victory hymn on the level-clear
+   * screen — and Android keeps a WebView audible in the background, so
+   * suspending the context here freezes every voice mid-flight instead of
+   * cutting it: returning to the app continues exactly where it stopped.
+   */
+  suspendForBackground() {
+    this.pauseBGM();
+    const suspended = this._ctx?.suspend?.();
+    suspended?.catch?.(() => {});
+  }
+
+  /**
+   * Undo suspendForBackground(). `music` stays false for a pause the game owns
+   * (the pause menu, contextual help), so returning never restarts a playlist
+   * the player stopped.
+   */
+  resumeFromBackground(music = true) {
+    this._ensureCtx();
+    if (music) this.resumeBGM();
+  }
+
   resumeBGM() {
     if (!this._musicSession) return;
     // Returning to the app after an interruption leaves the context

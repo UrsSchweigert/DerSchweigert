@@ -1463,6 +1463,32 @@ it('resumes a paused menu session instead of restarting it', () => {
   assert.equal(state.plays, 2);
 });
 
+it('the background seam silences the whole output and keeps a game-owned pause', () => {
+  const state = { plays: 0 };
+  const audio = new AudioEngine({
+    tracks: [{ file: 'menu.mp3' }],
+    levelMusic: { menu: ['menu.mp3'], levels: {} },
+    baseUrl: null,
+    makeAudio: () => fakeAudio(state),
+  });
+  const context = { state: 'running', suspends: 0, suspend() { this.suspends++; return Promise.resolve(); } };
+  audio._ensureCtx = () => {};
+  audio._ctx = context;
+  audio.startMenuBGM();
+  const current = audio._rotation.currentAudio;
+  const playsBefore = state.plays;
+
+  audio.suspendForBackground();
+  assert.equal(current.pauses, 1, 'the playlist stops');
+  assert.equal(context.suspends, 1, 'the context freezes the victory hymn and any ringing cue');
+  assert.equal(audio._musicSession.paused, true);
+
+  audio.resumeFromBackground(false);
+  assert.equal(state.plays, playsBefore, 'a music pause the game owns is never resumed');
+  audio.resumeFromBackground();
+  assert.equal(state.plays, playsBefore + 1, 'the menu playlist comes back');
+});
+
 it('ships the chosen menu track and repeats every level track for two levels', async () => {
   const config = JSON.parse(await readFile(new URL('./level-music.json', import.meta.url)));
   const { TOTAL_LEVELS } = await import('./levels.js');
