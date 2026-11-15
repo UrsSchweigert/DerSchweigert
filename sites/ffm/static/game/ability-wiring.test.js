@@ -14,6 +14,8 @@ import {
   restoreSpikeSlow,
   SPIKE_SLOW_CAPS,
   SPIKE_SLOW_DEFAULTS,
+  SPIKE_SLOW_GROWTH,
+  spikeSlowForBonuses,
 } from './cooldown-abilities.js';
 import { BONUS_CAPS, applyBonus, bonusForLevel, createBonusRuntime } from './bonus-ladder.js';
 import { createAbilityBar } from './ability-bar.js';
@@ -41,6 +43,8 @@ function finishStartContext({ checkAllDefeated } = {}) {
     createAbilityRuntime,
     countDragonRemainingEncounters,
     SPIKE_SLOW_DEFAULTS,
+    SPIKE_SLOW_GROWTH,
+    spikeSlowForBonuses,
     createBonusRuntime,
     applyBonus,
     bonusForLevel,
@@ -225,10 +229,13 @@ describe('earned bonuses', () => {
     }
 
     assert.equal(runtime.activate('earth'), true);
-    assert.equal(runtime.spikeState.targets, Math.min(
-      SPIKE_SLOW_CAPS.targets,
-      SPIKE_SLOW_DEFAULTS.targets + expected.runtime.spikeTargets,
-    ), 'the earned spike targets were applied up to the documented cap');
+    const grown = spikeSlowForBonuses(expected.runtime.spikeTargets);
+    assert.equal(runtime.spikeState.targets, grown.targets,
+      'the earned spike targets were applied up to the documented cap');
+    assert.equal(runtime.spikeState.durationSeconds, grown.durationSeconds,
+      'each earth bonus also lengthens the spike');
+    assert.equal(runtime.spikeState.factor, grown.factor,
+      'and strengthens it, down to the documented floor');
   });
 
   it('applies the ladder at a mid-campaign start, not only at the caps', () => {
@@ -595,12 +602,12 @@ describe('earth ability', () => {
 
     assert.deepEqual(readRuntime(context).spikeState, {
       active: true,
-      remainingSeconds: 8,
-      durationSeconds: 8,
-      factor: 0.65,
+      remainingSeconds: 10,
+      durationSeconds: 10,
+      factor: 0.3,
       targets: 1,
     });
-    assert.equal(fiend.walkSpeed, 65, 'the active fiend is slowed by 35 %');
+    assert.equal(fiend.walkSpeed, 30, 'the active fiend is held to 30 % of its speed');
     assert.equal(fiend.spikeBaseSpeed, 100, 'the base speed is stored');
     assert.equal(fiend.spikeSlowed, true);
     assert.equal(vm.runInContext('spikeSpawnSlowLeft', context), 1,
@@ -622,7 +629,7 @@ describe('earth ability', () => {
     runtime.tick(180, { encounterRunning: true });
     assert.equal(vm.runInContext("activateAbility('earth')", context), true);
 
-    assert.equal(fiend.walkSpeed, 65, 'still 0.65 of the original base');
+    assert.equal(fiend.walkSpeed, 30, 'still the same 0.3 of the original base');
     assert.equal(fiend.spikeBaseSpeed, 100);
     vm.runInContext('clearSpikeSlow();', context);
     assert.equal(fiend.walkSpeed, 100, 'one restore returns the original speed');

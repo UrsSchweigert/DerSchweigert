@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { getCampaignProgress, resetLevelAttempt } from './campaign-progress.js';
 import { createLevelGrid } from './level-grid.js';
+import { isLevelTestProfile, levelAvailability } from './test-profile.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 const difficulty = source.slice(source.indexOf("document.querySelectorAll('#difficulty-select [data-difficulty]').forEach"),
@@ -98,6 +99,12 @@ test('native title artwork follows continuation, replay, player reset and campai
     titleLevelNumerals: { updateLevelSelection(value) { selection = value; } },
     document: { getElementById: id => id === 'continue-level' ? continuation : { dataset: {}, hidden: false } },
     t: (key, vars) => `${key}:${vars?.level ?? ''}`,
+    // The level-test hatch: off here, so this test keeps pinning the ordinary
+    // continuation page for a normal player on a paid device.
+    isLevelTestProfile,
+    levelAvailability,
+    premiumAccess: true,
+    activeLocalPlayer: { name: 'Ada' },
   };
   vm.createContext(context);
   for (const name of ['updateTitleStartingLevel', 'renderLocalCampaign']) {
@@ -121,6 +128,41 @@ test('native title artwork follows continuation, replay, player reset and campai
   context.renderLocalCampaign(Array.from({ length: 60 }, (_, i) => i + 1));
   assert.equal(selection.level, 1);
   assert.equal(continuation.textContent, 'campaign.complete:');
+});
+
+test('a paid app profile named "unlocked" gets every level as a tile', () => {
+  // The hatch behind "jump into level 47 to look at its storm": every level is
+  // one tap away, and only for that player.
+  const grid = createLevelGrid({ doc: null });
+  let selection;
+  const context = {
+    platform: { isApp: true },
+    getCampaignProgress,
+    levelGrid: grid,
+    levelJumpRow: { style: {} },
+    TOTAL_LEVELS: 60,
+    titleLevelNumerals: { updateLevelSelection(value) { selection = value; } },
+    document: { getElementById: () => ({ dataset: {}, hidden: false }) },
+    t: (key, vars) => `${key}:${vars?.level ?? ''}`,
+    isLevelTestProfile,
+    levelAvailability,
+    premiumAccess: true,
+    activeLocalPlayer: { name: 'unlocked' },
+  };
+  vm.createContext(context);
+  for (const name of ['updateTitleStartingLevel', 'renderLocalCampaign']) {
+    vm.runInContext(source.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))[0], context);
+  }
+
+  context.renderLocalCampaign([1, 2, 3]);
+  assert.equal(grid.entries.length, 60);
+  assert.equal(grid.entries.filter((entry) => entry.state === 'locked').length, 0,
+    'nothing is locked for the test profile');
+
+  grid.value = '47';
+  assert.equal(grid.value, '47', 'the far end of the curriculum is selectable');
+  context.renderLocalCampaign([1, 2, 3]);
+  assert.equal(selection.level, 47, 'and the title offers to start there');
 });
 
 test('picking a level tile updates the title and returns to the Play page', () => {

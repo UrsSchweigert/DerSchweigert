@@ -178,6 +178,25 @@ at levels 5, 25 and 34 after authorization, with Continue/Skip and no score writ
 Canonical product/dividend ranges remain unchanged; the generator supports explicit
 `maxProduct`/`maxDividend` constraints for a separately reviewed curriculum change.
 
+### Level testing hatch: the `unlocked` player
+
+Reaching level 47 to look at its storm should not mean clearing 46 levels. In the
+app, a local player literally named **`unlocked`** gets every curriculum level on
+the Levels page as a tappable tile (capitals and surrounding spaces are ignored),
+so any level can be entered directly. Only that player is affected: every other
+profile keeps the usual continuation-only page.
+
+Two gates keep it from being a way around the store:
+
+- **App only.** The website has no local profiles, and no level-test path.
+- **Paid unlock only.** The hatch follows the cached store entitlement. On an
+  unpaid device the tiles stay locked, because level 3 and up would only reach
+  the paywall anyway — `getAuthorizedLevelConfig()` still refuses them.
+
+The rule lives in `static/game/test-profile.js` (`isLevelTestProfile`,
+`levelAvailability`) and is applied wherever the Levels page is rendered
+(`renderLocalCampaign` in `main.js`).
+
 ### Visual and audio validation boundary
 
 The shared interface uses dusk-forest, ivory and brass colors with reduced-motion

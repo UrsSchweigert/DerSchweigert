@@ -49,7 +49,7 @@ import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAbilityBar } from './ability-bar.js';
 import { BONUS_CAPS, applyBonus, bonusForLevel, createBonusRuntime } from './bonus-ladder.js';
-import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow, SPIKE_SLOW_DEFAULTS } from './cooldown-abilities.js';
+import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow, spikeSlowForBonuses } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
 import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
@@ -65,6 +65,7 @@ import {
 import { getSkillIntro } from './skill-intro.js';
 import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
+import { isLevelTestProfile, levelAvailability } from './test-profile.js';
 import { createStoryIntro } from './story-intro.js';
 import { dailyBestTrend, highScoreTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
@@ -152,6 +153,12 @@ let volumeControl = null;
 // play area, the pause menu and the title navigation.
 let helpOverlay = null;
 
+// The cached store entitlement, kept in step by syncNoticeHelp() below (launch,
+// every return to the foreground, a finished purchase). The level grid renders
+// synchronously and needs this without awaiting the store, and the "unlocked"
+// test profile is only honoured while it is true.
+let premiumAccess = false;
+
 // App-only: a player who owns the unlock has nothing left to be told about
 // what is free, so the "What is free?" entries follow the store entitlement.
 // The buttons start hidden in the markup and are revealed by the first-open
@@ -168,6 +175,14 @@ async function syncNoticeHelp() {
   for (const id of ['first-open-notice-help', 'btn-notice-help']) {
     const button = document.getElementById(id);
     if (button) button.hidden = unlocked;
+  }
+  // A launch or purchase that flips the entitlement can change what the Levels
+  // page offers a test profile, and the grid may well have been rendered before
+  // the store answered.
+  const gained = unlocked && !premiumAccess;
+  premiumAccess = unlocked;
+  if (gained && currentPersonalDevelopment) {
+    renderLocalCampaign(currentPersonalDevelopment.completed);
   }
   return unlocked;
 }
@@ -1483,7 +1498,15 @@ function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   levelGrid.render({
     total: TOTAL_LEVELS,
     defaultLevel: progress.nextLevel ?? 1,
-    available: progress.cleared,
+    available: levelAvailability({
+      testProfile: isLevelTestProfile({
+        isApp: platform.isApp,
+        profileName: activeLocalPlayer?.name,
+        premiumAccess,
+      }),
+      cleared: progress.cleared,
+      total: TOTAL_LEVELS,
+    }),
     labelFor: ({ level, state }) => t(state === 'locked' ? 'levels.locked'
       : state === 'default' && !progress.complete ? 'campaign.continueAt' : 'campaign.replay', { level }),
   });
@@ -2889,9 +2912,7 @@ function beginAbilityRun(level, rank = undefined, spikeSlow = undefined) {
     level: safeLevel,
     rank: safeRank,
     slowBonuses: earned?.slowBonuses ?? 0,
-    spikeSlow: spikeSlow ?? {
-      targets: SPIKE_SLOW_DEFAULTS.targets + (earned?.spikeTargets ?? 0),
-    },
+    spikeSlow: spikeSlow ?? spikeSlowForBonuses(earned?.spikeTargets ?? 0),
     cooldownReductions: readouts?.cooldowns,
   });
   return abilityRuntime;
@@ -3174,7 +3195,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
         rank: levelBonuses.runtime.stormRank,
         slowBonuses: levelBonuses.runtime.slowBonuses,
         cooldownReductions: levelBonuses.cooldowns,
-        spikeSlow: { targets: SPIKE_SLOW_DEFAULTS.targets + levelBonuses.runtime.spikeTargets },
+        spikeSlow: spikeSlowForBonuses(levelBonuses.runtime.spikeTargets),
       });
     }
   }
