@@ -76,6 +76,10 @@ export const DICTIONARY = {
     de: 'Reflex-Training: Hard gibt 5 Sekunden und 3 Herzen, Combos belohnen Serien, und die Bestenliste vergleicht Jahrgänge.',
     en: 'Reflex training: Hard gives 5 seconds and 3 hearts, combos reward streaks, and the leaderboard compares year groups.',
   },
+  'gen.note': {
+    de: 'Einstufung im App Store: 9+ (leichte Fantasy-Gewalt) – die drei Stufen sind Schwierigkeitsgrade, keine Altersempfehlung.',
+    en: 'App Store rating: 9+ (mild fantasy violence) – the three stages are difficulty levels, not an age recommendation.',
+  },
 
   // Handgemachte Kunst
   'art.kicker': { de: 'Handgemacht', en: 'Handcrafted' },
