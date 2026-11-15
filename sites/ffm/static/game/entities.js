@@ -988,8 +988,8 @@ const FIEND_EXIT_X = CANVAS_W + 100;
 // crawl off-screen for close to 10s.
 const RETREAT_MAX_SECONDS = 3;
 
-/** How long the shards of a destroyed hit-point halo stay visible. */
-const HALO_BURST_SECONDS = 0.4;
+/** How often the hit-point halos and the slow sparkle are re-emitted. */
+const HALO_EMIT_SECONDS = 0.09;
 /** Halo geometry as fractions of the sprite box, so a small blob and a tall
  *  wolf get the same readable crown instead of one size for all. */
 const HALO_ORBIT_X = 0.30;
@@ -1009,11 +1009,13 @@ export class Fiend extends Entity {
     this._redFlash = 0;
     this._particlesSpawned = false;
     this._particles = [];
-    // One dark halo per remaining hit point, plus the shards of the halos that
-    // a hit just took away. A multi-HP fiend that survives a hit used to look
-    // exactly like a fresh one, which made "why is it asking again?" unreadable.
+    // One dark halo per remaining hit point. A multi-HP fiend that survives a
+    // hit used to look exactly like a fresh one, which made "why is it asking
+    // again?" unreadable. The halos are emitted through the screen-fx layer
+    // (see _emitStatusParticles), so they drift and sparkle like the rest of
+    // the game's particles.
     this._haloPhase = 0;
-    this._haloBursts = [];
+    this._haloEmit = HALO_EMIT_SECONDS;
     this._events = new EventTarget();
     this._dur = 8;
     this.isElite = false;
@@ -1061,9 +1063,10 @@ export class Fiend extends Entity {
   update(dt) {
     super.update(dt);
     this._haloPhase += dt;
-    if (this._haloBursts.length) {
-      for (const burst of this._haloBursts) burst.elapsed += dt;
-      this._haloBursts = this._haloBursts.filter(burst => burst.elapsed < HALO_BURST_SECONDS);
+    this._haloEmit += dt;
+    if (this._haloEmit >= HALO_EMIT_SECONDS) {
+      this._haloEmit = 0;
+      this._emitStatusParticles();
     }
     // Blown at the viewer: no walking, no retreating — the flight toward the
     // camera owns the sprite until it has faded out, then it reports 'retreated'
@@ -1241,7 +1244,6 @@ export class Fiend extends Entity {
   draw(ctx) {
     if (!this._blowAway) {
       this._drawBody(ctx);
-      this._drawStatusMarkers(ctx);
       return;
     }
     const flight = this._blowAway;
@@ -1296,93 +1298,34 @@ export class Fiend extends Entity {
     };
   }
 
+  // One spent hit point explodes where it floated. The explosion is a screen-fx
+  // recipe rather than canvas drawing, so it shares the particle layer with
+  // every other spark in the game.
   _burstHalo(index) {
-    this._haloBursts.push({ ...this._haloPoint(index), elapsed: 0 });
+    const point = this._haloPoint(index);
+    globalThis.ffmScreenFx?.play?.('hitPointBurst', {
+      ...point,
+      radius: this._haloLayout().size * 0.9,
+    });
   }
 
-  _drawStatusMarkers(ctx) {
-    this._drawSpikeSlow(ctx);
-    this._drawHitpointHalos(ctx);
-    this._drawHaloBursts(ctx);
-  }
-
-  _drawHitpointHalos(ctx) {
-    // A one-hit fiend has nothing to count, so it stays halo-free and the
-    // presence of halos alone says "this one takes more than one answer".
-    if (this.hp < 2) return;
-    const { size } = this._haloLayout();
-    for (let i = 0; i < this.hp; i++) {
-      const { x, y } = this._haloPoint(i);
-      const pulse = 0.9 + 0.1 * Math.sin(this._haloPhase * 3 + i);
-      const r = size * pulse;
-      ctx.save();
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = '#120c18';
-      ctx.beginPath();
-      ctx.ellipse(x, y, r, r, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Thin brass rim: the dark ring must not vanish on a dark stage.
-      ctx.strokeStyle = 'rgba(201,161,90,0.8)';
-      ctx.lineWidth = Math.max(1, P * 0.6);
-      ctx.beginPath();
-      ctx.ellipse(x, y, r, r, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  _drawHaloBursts(ctx) {
-    if (this._haloBursts.length === 0) return;
-    const { size } = this._haloLayout();
-    for (const burst of this._haloBursts) {
-      const t = Math.min(1, burst.elapsed / HALO_BURST_SECONDS);
-      const fade = 1 - t;
-      const reach = size * (1 + 1.6 * t);
-      ctx.save();
-      ctx.globalAlpha = fade;
-      ctx.strokeStyle = '#120c18';
-      ctx.lineWidth = Math.max(1, P * 0.8);
-      ctx.beginPath();
-      ctx.ellipse(burst.x, burst.y, reach, reach * 0.8, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = '#c9a15a';
-      const chip = Math.max(1, size * 0.4 * fade);
-      for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI * 2 * i) / 6;
-        const dist = size * 1.6 * t * (0.7 + 0.3 * (i % 2));
-        ctx.fillRect(burst.x + Math.cos(angle) * dist - chip / 2,
-          burst.y + Math.sin(angle) * dist * 0.75 - chip / 2, chip, chip);
+  // Halos and the earth sparkle are emitted, not painted: every ~90 ms a few
+  // grains of light leave each hit point and each slowed fiend's feet, so the
+  // markers breathe and drift instead of sitting on the sprite as flat discs.
+  _emitStatusParticles() {
+    const fx = globalThis.ffmScreenFx;
+    if (!fx?.play) return;
+    if (this.hp >= 2 && !this.isDead) {
+      const radius = this._haloLayout().size * 0.9;
+      for (let i = 0; i < this.hp; i++) {
+        const { x, y } = this._haloPoint(i);
+        fx.play('hitPointHalo', { x, y, radius });
       }
-      ctx.restore();
     }
-  }
-
-  // The earth spike weighs a fiend down. The dust aura alone fired at whatever
-  // was active, so it never said *which* fiends the spell was holding; this
-  // ring and its rock chips stay on every slowed fiend for as long as it is
-  // slowed.
-  _drawSpikeSlow(ctx) {
-    if (!this.spikeSlowed || this.hp <= 0) return;
-    const { drawW } = this._spriteBox();
-    const t = this._haloPhase * 1.4;
-    const reach = 1 + 0.08 * Math.sin(t);
-    const rx = drawW * 0.36 * reach;
-    const ry = drawW * 0.12 * reach;
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = '#c9a15a';
-    ctx.lineWidth = Math.max(1, P * 0.7);
-    ctx.beginPath();
-    ctx.ellipse(this.x, this.y - P, rx, ry, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = '#7a6a55';
-    const chip = Math.max(1.5, drawW * 0.05);
-    for (let i = 0; i < 3; i++) {
-      const angle = t + (Math.PI * 2 * i) / 3;
-      ctx.fillRect(this.x + Math.cos(angle) * rx * 0.82 - chip / 2,
-        this.y - 3 * P + Math.sin(angle) * ry * 0.8 - chip / 2, chip, chip);
+    if (this.spikeSlowed && this.hp > 0) {
+      const { drawW } = this._spriteBox();
+      fx.play('spikeSparkle', { x: this.x, y: this.y - P, radius: drawW * 0.34 });
     }
-    ctx.restore();
   }
 }
 

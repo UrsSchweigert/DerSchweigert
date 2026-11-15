@@ -2577,6 +2577,7 @@ function resumePendingLevel() {
 }
 
 function clearPremiumSession() {
+  if (typeof stopStorm === 'function') stopStorm();
   setAnswerInputVisible(false);
   gameplayTimers.length = 0;
   // Drop in-flight projectiles too, so no collision callback can fire after
@@ -2602,6 +2603,36 @@ function clearPremiumSession() {
   if (typeof startMenuMusic === 'function') startMenuMusic();
   syncKeepAwake();
   updateHUDLogoutVisibility();
+}
+
+// --- Multi-hit level storm ---
+// A level whose fiends need more than one answer runs under a thunderstorm: the
+// playfield is dimmed, rain sheets across it and the odd bolt lands. The storm
+// belongs to the level, so it is armed once when the level starts and stopped on
+// clear, game over and quit — a chain of `schedule` ticks with a token, so
+// stopping it is immediate and no stale tick can re-arm it.
+let stormToken = 0;
+
+function stopStorm() {
+  stormToken += 1;
+}
+
+function startStorm(cfg) {
+  stopStorm();
+  const fx = globalThis.ffmScreenFx;
+  const multiHit = Number(cfg?.fiendHP) > 1;
+  if (!multiHit || !fx?.play || !fx?.schedule) return false;
+  const token = stormToken;
+  const tick = () => {
+    if (token !== stormToken) return;
+    fx.play('stormRain', {});
+    // One bolt every few seconds, never on the first tick, so the level opens
+    // with rain and the thunder arrives as a surprise.
+    if (Math.random() < 0.035) fx.play('stormBolt', { x: 110 + Math.random() * (CANVAS_W - 220) });
+    fx.schedule(0.12, tick);
+  };
+  fx.schedule(0.12, tick);
+  return true;
 }
 
 // --- Level/Wave setup ---
@@ -3166,6 +3197,10 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   levelClearOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
   if (practiceBadgeRetryButton) practiceBadgeRetryButton.hidden = true;
+  // The level's own weather: a multi-hit level dims the playfield and storms,
+  // which announces "these fiends take more than one answer" before the first
+  // one arrives. Practice and Shapes never carry it.
+  if (typeof startStorm === 'function') startStorm(practiceRun ? null : cfg);
   updateHUDLogoutVisibility();
   hud.update(state);
   audio.startLevelBGM(cfg.level, cfg.chapter);
@@ -4081,6 +4116,9 @@ function triggerWaveClear() {
   if (waveClearing) return;
   waveClearing = true;
   gameRunning = false;
+  // The storm belongs to the level, so the level-clear fanfare plays in clear
+  // weather.
+  if (typeof stopStorm === 'function') stopStorm();
   syncKeepAwake();
   hero.setState('victory');
 
@@ -4305,6 +4343,8 @@ function triggerLevelClear() {
 
 function triggerGameOver(won = false) {
   if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
+  // The storm ends with the level, whichever way it ended.
+  if (typeof stopStorm === 'function') stopStorm();
   setAnswerInputVisible(false);
   if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   campaignWon = won;

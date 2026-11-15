@@ -240,12 +240,69 @@ describe('earth spike', () => {
 });
 
 describe('hit-point halos', () => {
-  // A halo is one *filled* ring (plus a stroked brass rim), while the burst
-  // ring and the slow marker are stroked only; counting fills therefore counts
-  // halos, and the ellipse total counts everything drawn.
-  function recordingCtx(rings) {
+  // The halos are emitted through the screen-fx layer now, so a fake layer is
+  // enough to see how many hit points are announced and what a hit spends.
+  function layer() {
+    const plays = [];
+    return { plays, play(name, payload) { plays.push({ name, payload }); return true; } };
+  }
+
+  function withLayer(fiend, run) {
+    const fx = layer();
+    globalThis.ffmScreenFx = fx;
+    try {
+      run(fiend, fx);
+    } finally {
+      delete globalThis.ffmScreenFx;
+    }
+    return fx;
+  }
+
+  const palette = { body: '#000', dark: '#000', hi: '#000' };
+
+  it('emits one halo per remaining hit point and bursts the one a hit destroys', () => {
+    const fiend = new Fiend(400, 380, { hp: 3, palette });
+    const fx = withLayer(fiend, (target) => {
+      target.update(0.1);           // crosses the emit interval once
+      target.hit();
+    });
+
+    const halos = fx.plays.filter((p) => p.name === 'hitPointHalo');
+    assert.equal(halos.length, 3, 'a three-hit fiend announces three halos');
+    const bursts = fx.plays.filter((p) => p.name === 'hitPointBurst');
+    assert.equal(bursts.length, 1, 'exactly the halo the hit destroyed explodes');
+    assert.equal(fiend.hp, 2);
+
+    // The ring keeps announcing what is left, not what was paid.
+    const after = layer();
+    globalThis.ffmScreenFx = after;
+    fiend.update(0.1);
+    delete globalThis.ffmScreenFx;
+    assert.equal(after.plays.filter((p) => p.name === 'hitPointHalo').length, 2);
+  });
+
+  it('leaves a one-hit fiend halo-free, so halos themselves mean "more than one answer"', () => {
+    const fiend = new Fiend(400, 380, { hp: 1, palette });
+    const fx = withLayer(fiend, (target) => target.update(0.1));
+    assert.equal(fx.plays.length, 0);
+  });
+
+  it('sparkles the feet of a slowed fiend only while it is slowed', () => {
+    const fiend = new Fiend(400, 380, { hp: 2, palette });
+    applySpikeSlow(fiend, 0.65);
+    const slowed = withLayer(fiend, (target) => target.update(0.1));
+    assert.equal(slowed.plays.filter((p) => p.name === 'spikeSparkle').length, 1);
+
+    restoreSpikeSlow(fiend);
+    const plain = withLayer(fiend, (target) => target.update(0.1));
+    assert.equal(plain.plays.filter((p) => p.name === 'spikeSparkle').length, 0);
+  });
+
+  it('draws nothing on the canvas for hit points or the slow', () => {
+    const fiend = new Fiend(400, 380, { hp: 3, palette });
+    applySpikeSlow(fiend, 0.65);
+    const rings = { fills: 0, ellipses: [] };
     const ctx = {
-      rings,
       save() {}, restore() {}, beginPath() {}, stroke() {},
       fill() { rings.fills += 1; },
       ellipse(...args) { rings.ellipses.push(args); },
@@ -255,54 +312,63 @@ describe('hit-point halos', () => {
       set lineWidth(_v) {}, get lineWidth() { return 0; },
       set globalAlpha(_v) {}, get globalAlpha() { return 1; },
     };
-    return ctx;
+    withLayer(fiend, (target) => target.draw(ctx));
+    assert.equal(rings.fills, 0, 'no filled halo discs any more');
+    assert.equal(rings.ellipses.length, 0, 'and no drawn rings either');
+  });
+});
+
+describe('the multi-hit level storm', () => {
+  function stormContext() {
+    const plays = [];
+    const timers = [];
+    const fx = {
+      play(name, payload) { plays.push({ name, payload }); return true; },
+      schedule(seconds, fn) { timers.push({ seconds, fn }); return { at: seconds }; },
+    };
+    const ctx = { globalThis: { ffmScreenFx: fx }, CANVAS_W: 800, Math };
+    vm.createContext(ctx);
+    vm.runInContext([
+      'let stormToken = 0;',
+      functionSource('stopStorm'),
+      functionSource('startStorm'),
+    ].join('\n'), ctx);
+    return { ctx, plays, timers, fx };
   }
 
-  function draw(fiend) {
-    const rings = { fills: 0, ellipses: [] };
-    fiend.draw(recordingCtx(rings));
-    return rings;
+  function runTimers(timers, times = 1) {
+    for (let i = 0; i < times; i++) {
+      const due = timers.splice(0, timers.length);
+      for (const timer of due) timer.fn();
+    }
   }
 
-  const palette = { body: '#000', dark: '#000', hi: '#000' };
+  it('arms the storm only for a level whose fiends take more than one answer', () => {
+    const single = stormContext();
+    assert.equal(single.ctx.startStorm({ fiendHP: 1 }), false);
+    assert.equal(single.timers.length, 0, 'a one-hit level stays in clear weather');
 
-  it('draws one halo per remaining hit point and bursts the one a hit destroys', () => {
-    const fiend = new Fiend(400, 380, { hp: 3, palette });
-    assert.equal(draw(fiend).fills, 3, 'a three-hit fiend shows three halos');
-
-    fiend.hit();
-    assert.equal(fiend.hp, 2);
-    assert.equal(fiend._haloBursts.length, 1, 'the destroyed halo bursts');
-    const afterHit = draw(fiend);
-    assert.equal(afterHit.fills, 2, 'two halos are left to count');
-    assert.equal(afterHit.ellipses.length, 2 * 2 + 1, 'and the burst ring is drawn as well');
-
-    fiend.hit();
-    assert.equal(fiend._haloBursts.length, 2);
-    fiend.hit();
-    assert.equal(fiend.hp, 0);
-    assert.equal(fiend.state, 'death');
+    const multi = stormContext();
+    assert.equal(multi.ctx.startStorm({ fiendHP: 2 }), true);
+    assert.equal(multi.timers.length, 1, 'the first tick is scheduled');
+    runTimers(multi.timers, 3);
+    assert.ok(multi.plays.some((p) => p.name === 'stormRain'), 'it rains');
+    assert.equal(multi.timers.length, 1, 'and keeps rescheduling itself');
   });
 
-  it('leaves a one-hit fiend halo-free, so halos themselves mean "more than one answer"', () => {
-    const fiend = new Fiend(400, 380, { hp: 1, palette });
-    assert.equal(draw(fiend).fills, 0);
+  it('stops for good when the level ends, wherever the storm was', () => {
+    const { ctx, plays, timers } = stormContext();
+    ctx.startStorm({ fiendHP: 3 });
+    runTimers(timers, 2);
+    const before = plays.length;
+    ctx.stopStorm();
+    runTimers(timers, 3);
+    assert.equal(plays.length, before, 'no tick survives the level ending');
   });
 
-  it('marks a slowed fiend at its feet only while it is slowed', () => {
-    const fiend = new Fiend(400, 380, { hp: 2, palette });
-    const plain = draw(fiend).ellipses.length;
-    applySpikeSlow(fiend, 0.65);
-    assert.equal(draw(fiend).ellipses.length, plain + 1, 'the spike ring is the extra ellipse');
-    restoreSpikeSlow(fiend);
-    assert.equal(draw(fiend).ellipses.length, plain, 'and it disappears with the slow');
-  });
-
-  it('lets the burst expire instead of accumulating rings', () => {
-    const fiend = new Fiend(400, 380, { hp: 2, palette });
-    fiend.hit();
-    assert.equal(fiend._haloBursts.length, 1);
-    fiend.update(1);
-    assert.equal(fiend._haloBursts.length, 0, 'the shards fade within a second');
+  it('never storms in practice, which passes no level config', () => {
+    const { ctx, timers } = stormContext();
+    assert.equal(ctx.startStorm(null), false);
+    assert.equal(timers.length, 0);
   });
 });

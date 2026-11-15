@@ -126,7 +126,8 @@ test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a f
   const table = createEffectTable();
   // The five granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
-  const granular = ['fireTrail', 'fireImpact', 'boltTrail', 'boltImpact', 'spikeAura'];
+  const granular = ['fireTrail', 'fireImpact', 'boltTrail', 'boltImpact', 'spikeAura',
+    'hitPointHalo', 'hitPointBurst', 'spikeSparkle', 'stormRain', 'stormBolt'];
   assert.deepEqual(Object.keys(table).sort(), [...EFFECT_NAMES, ...granular].sort());
   for (const name of [...EFFECT_NAMES, ...granular]) {
     assert.equal(typeof table[name], 'function', `${name} is a function`);
@@ -360,19 +361,55 @@ test('reduced motion suppresses the storm cast wash and shake', () => {
   assert.ok(reducedCount < normalCount, 'reduced motion spawns fewer particles');
 });
 
-test('the spike aura pulse grows with progress and stays on the ground', () => {
+test('the spike aura is a sparkle that sits on the ground and eases off', () => {
   const low = make();
   low.fx.play('spikeAura', { x: 400, y: 280, progress: 0.1 });
-  const lowRing = low.fx._particles.find((p) => p.type === 'ring');
+  const lowGlow = low.fx._particles.find((p) => p.type === 'glow');
 
   const high = make();
   high.fx.play('spikeAura', { x: 400, y: 280, progress: 0.9 });
-  const highRing = high.fx._particles.find((p) => p.type === 'ring');
+  const highGlow = high.fx._particles.find((p) => p.type === 'glow');
 
-  assert.ok(lowRing && highRing, 'every pulse draws a ring');
-  assert.ok(highRing.r1 > lowRing.r1, 'the pulse widens as the slow runs out');
-  assert.ok(highRing.y > 280, 'the pulse sits at the ground under the target');
+  assert.ok(lowGlow && highGlow, 'every pulse leaves a glint');
+  assert.ok(lowGlow.rx > highGlow.rx, 'the glint shrinks as the spike runs out');
+  assert.ok(highGlow.y > 280, 'the sparkle sits at the ground under the target');
+  assert.equal(low.fx._particles.filter((p) => p.type === 'ring').length, 0,
+    'the aura is particles now, not a drawn ring');
+  assert.ok(low.fx._particles.filter((p) => p.type === 'ember').length >= 2,
+    'grains of light rise off the ground');
 });
+
+test('a hit point halo is an ember bead and a spent one explodes', () => {
+  const halo = make();
+  halo.fx.play('hitPointHalo', { x: 300, y: 200, radius: 12 });
+  const bed = halo.fx._particles.filter((p) => p.type === 'glow');
+  assert.ok(bed.length >= 1, 'the bead has a soft bed so it reads as one point');
+  const embers = halo.fx._particles.filter((p) => p.type === 'ember');
+  assert.ok(embers.length >= 1, 'and a grain drifting off it');
+  const spread = Math.max(...halo.fx._particles.map((p) => Math.abs(p.x - 300)));
+  assert.ok(spread <= 16, 'nothing strays far from the point it marks');
+
+  const burst = make();
+  burst.fx.play('hitPointBurst', { x: 300, y: 200, radius: 12 });
+  assert.ok(burst.fx._particles.some((p) => p.type === 'ring'), 'the explosion throws a ring');
+  assert.ok(burst.fx._particles.filter((p) => p.type === 'spark').length >= 3, 'and sparks');
+  assert.ok(burst.fx._particles.some((p) => p.type === 'shard'), 'and shards');
+});
+
+test('the storm rains, dims the playfield and can land a bolt', () => {
+  const rain = make();
+  // The dim is re-applied on a fraction of the ticks (so it holds instead of
+  // pulsing), so a single tick may not carry one.
+  for (let i = 0; i < 30 && rain.fx._washes.length === 0; i++) rain.fx.play('stormRain', {});
+  assert.ok(rain.fx._particles.filter((p) => p.type === 'streak').length >= 10, 'rain falls');
+  assert.ok(rain.fx._washes.length >= 1, 'the playfield is dimmed');
+
+  const bolt = make({ reducedMotion: false });
+  bolt.fx.play('stormBolt', { x: 400 });
+  assert.ok(bolt.fx._particles.some((p) => p.type === 'beam'), 'the bolt is a beam');
+  assert.ok(bolt.fx._shakes > 0 || bolt.fx.getShakeOffset(), 'and it shakes the screen');
+});
+
 
 test('the fiend portal anchors to the ground line it is given', () => {
   const { fx } = make();
