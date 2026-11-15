@@ -1896,7 +1896,11 @@ if (!platform.isApp) splashLoginBtn.addEventListener('click', () => {
 });
 
 // --- Difficulty select ---
-document.querySelectorAll('#difficulty-select .diff-btn').forEach(btn => {
+// Only the buttons that name a difficulty: the splash overlay also holds the
+// Back buttons of the Practice submenu and the history page, and those share
+// the `diff-btn` class. Matching them started a level (with NaN hearts, since
+// they carry no data-hearts) instead of just navigating back.
+document.querySelectorAll('#difficulty-select [data-difficulty]').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (profileMutationPending || levelStarting || pendingSkillIntro) return;
     if (btn.dataset.difficulty === 'shapes') {
@@ -4747,7 +4751,9 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
         root, adapter: platform.localProfiles, translate: t,
         onBusyChange: busy => {
           profileMutationPending = busy;
-          for (const button of document.querySelectorAll('#difficulty-select .diff-btn')) button.disabled = busy;
+          // Same set as the difficulty handler: the Practice and history Back
+          // buttons are not difficulty buttons and must stay clickable.
+          for (const button of document.querySelectorAll('#difficulty-select [data-difficulty]')) button.disabled = busy;
           if (btnStartPractice) btnStartPractice.disabled = busy;
         },
         canSwitch: () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting,

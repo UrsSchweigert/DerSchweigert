@@ -6,7 +6,7 @@ import { getCampaignProgress, resetLevelAttempt } from './campaign-progress.js';
 import { createLevelGrid } from './level-grid.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
-const difficulty = source.slice(source.indexOf("document.querySelectorAll('#difficulty-select .diff-btn').forEach"),
+const difficulty = source.slice(source.indexOf("document.querySelectorAll('#difficulty-select [data-difficulty]').forEach"),
   source.indexOf('function onLevelGridSelect('));
 
 function setup({ completed = [1, 2], selected = '', fail = false, difficultyKind = 'hard' } = {}) {

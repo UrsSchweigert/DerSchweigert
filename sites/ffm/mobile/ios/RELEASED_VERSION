@@ -8,4 +8,4 @@
 # below, so the Cloud post-clone hook stops a doomed build before it archives.
 #
 # Only the owner updates this file, and only after the new version is live.
-1.0
+1.0.1
