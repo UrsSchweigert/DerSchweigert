@@ -988,6 +988,15 @@ const FIEND_EXIT_X = CANVAS_W + 100;
 // crawl off-screen for close to 10s.
 const RETREAT_MAX_SECONDS = 3;
 
+/** How long the shards of a destroyed hit-point halo stay visible. */
+const HALO_BURST_SECONDS = 0.4;
+/** Halo geometry as fractions of the sprite box, so a small blob and a tall
+ *  wolf get the same readable crown instead of one size for all. */
+const HALO_ORBIT_X = 0.30;
+const HALO_ORBIT_Y = 0.05;
+const HALO_CROWN_Y = 0.11;
+const HALO_SIZE_RATIO = 0.09;
+
 export class Fiend extends Entity {
   constructor(x, y, cfg) {
     super(x, y);
@@ -1000,6 +1009,11 @@ export class Fiend extends Entity {
     this._redFlash = 0;
     this._particlesSpawned = false;
     this._particles = [];
+    // One dark halo per remaining hit point, plus the shards of the halos that
+    // a hit just took away. A multi-HP fiend that survives a hit used to look
+    // exactly like a fresh one, which made "why is it asking again?" unreadable.
+    this._haloPhase = 0;
+    this._haloBursts = [];
     this._events = new EventTarget();
     this._dur = 8;
     this.isElite = false;
@@ -1015,7 +1029,12 @@ export class Fiend extends Entity {
   // Fixed once retreat begins (see setState), so the pace stays constant for
   // the whole flight off-screen instead of drifting with the fiend's walk speed.
   get retreatSpeed() { return this._retreatSpeed; }
-  hit() { this.hp-- > 1 ? this.setState('hit') : this.setState('death'); }
+  hit() {
+    // The halo this hit destroys bursts where it floated; the remaining ones
+    // keep orbiting, so one glance says how many answers are left.
+    if (this.hp > 1) this._burstHalo(this.hp - 1);
+    this.hp-- > 1 ? this.setState('hit') : this.setState('death');
+  }
   attack() { this.setState('attack'); }
   on(ev, fn, options) { this._events.addEventListener(ev, fn, options); }
   _emit(ev) { this._events.dispatchEvent(new Event(ev)); }
@@ -1041,6 +1060,11 @@ export class Fiend extends Entity {
 
   update(dt) {
     super.update(dt);
+    this._haloPhase += dt;
+    if (this._haloBursts.length) {
+      for (const burst of this._haloBursts) burst.elapsed += dt;
+      this._haloBursts = this._haloBursts.filter(burst => burst.elapsed < HALO_BURST_SECONDS);
+    }
     // Blown at the viewer: no walking, no retreating — the flight toward the
     // camera owns the sprite until it has faded out, then it reports 'retreated'
     // so the normal cleanup (array removal, next spawn) still runs.
@@ -1217,6 +1241,7 @@ export class Fiend extends Entity {
   draw(ctx) {
     if (!this._blowAway) {
       this._drawBody(ctx);
+      this._drawStatusMarkers(ctx);
       return;
     }
     const flight = this._blowAway;
@@ -1239,6 +1264,126 @@ export class Fiend extends Entity {
 
   // Subclasses paint their body here.
   _drawBody(_ctx) {}
+
+  // ── Hit points and the earth slow ────────────────────────────────────────
+  // Every fiend that needs more than one correct answer carries one dark halo
+  // per hit point, and the halo a hit destroys bursts into brass chips. Before
+  // this the only cue was that the same fiend asked again, which read like a
+  // bug ("did my answer count?") — the reason the level-20 report came in.
+
+  /** Where halo `index` of `count` floats at the current phase, plus the ring
+   *  size for this sprite. Everything is derived from the sprite box so the
+   *  crown sits above the head of the drawn creature, not above the canvas. */
+  _haloLayout() {
+    const { bx, by, drawW, drawH } = this._spriteBox();
+    return {
+      cx: bx + drawW / 2,
+      cy: by + drawH * HALO_CROWN_Y,
+      rx: drawW * HALO_ORBIT_X,
+      ry: drawH * HALO_ORBIT_Y,
+      size: Math.max(3, drawW * HALO_SIZE_RATIO),
+    };
+  }
+
+  _haloPoint(index, count = Math.max(0, this.hp)) {
+    const { cx, cy, rx, ry } = this._haloLayout();
+    const start = -Math.PI / 2;
+    const angle = count <= 1 ? start : start + (Math.PI * 2 * index) / count;
+    const phase = this._haloPhase * 0.9;
+    return {
+      x: cx + Math.cos(angle + phase) * rx,
+      y: cy + Math.sin(angle + phase) * ry,
+    };
+  }
+
+  _burstHalo(index) {
+    this._haloBursts.push({ ...this._haloPoint(index), elapsed: 0 });
+  }
+
+  _drawStatusMarkers(ctx) {
+    this._drawSpikeSlow(ctx);
+    this._drawHitpointHalos(ctx);
+    this._drawHaloBursts(ctx);
+  }
+
+  _drawHitpointHalos(ctx) {
+    // A one-hit fiend has nothing to count, so it stays halo-free and the
+    // presence of halos alone says "this one takes more than one answer".
+    if (this.hp < 2) return;
+    const { size } = this._haloLayout();
+    for (let i = 0; i < this.hp; i++) {
+      const { x, y } = this._haloPoint(i);
+      const pulse = 0.9 + 0.1 * Math.sin(this._haloPhase * 3 + i);
+      const r = size * pulse;
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#120c18';
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Thin brass rim: the dark ring must not vanish on a dark stage.
+      ctx.strokeStyle = 'rgba(201,161,90,0.8)';
+      ctx.lineWidth = Math.max(1, P * 0.6);
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  _drawHaloBursts(ctx) {
+    if (this._haloBursts.length === 0) return;
+    const { size } = this._haloLayout();
+    for (const burst of this._haloBursts) {
+      const t = Math.min(1, burst.elapsed / HALO_BURST_SECONDS);
+      const fade = 1 - t;
+      const reach = size * (1 + 1.6 * t);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.strokeStyle = '#120c18';
+      ctx.lineWidth = Math.max(1, P * 0.8);
+      ctx.beginPath();
+      ctx.ellipse(burst.x, burst.y, reach, reach * 0.8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#c9a15a';
+      const chip = Math.max(1, size * 0.4 * fade);
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI * 2 * i) / 6;
+        const dist = size * 1.6 * t * (0.7 + 0.3 * (i % 2));
+        ctx.fillRect(burst.x + Math.cos(angle) * dist - chip / 2,
+          burst.y + Math.sin(angle) * dist * 0.75 - chip / 2, chip, chip);
+      }
+      ctx.restore();
+    }
+  }
+
+  // The earth spike weighs a fiend down. The dust aura alone fired at whatever
+  // was active, so it never said *which* fiends the spell was holding; this
+  // ring and its rock chips stay on every slowed fiend for as long as it is
+  // slowed.
+  _drawSpikeSlow(ctx) {
+    if (!this.spikeSlowed || this.hp <= 0) return;
+    const { drawW } = this._spriteBox();
+    const t = this._haloPhase * 1.4;
+    const reach = 1 + 0.08 * Math.sin(t);
+    const rx = drawW * 0.36 * reach;
+    const ry = drawW * 0.12 * reach;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = '#c9a15a';
+    ctx.lineWidth = Math.max(1, P * 0.7);
+    ctx.beginPath();
+    ctx.ellipse(this.x, this.y - P, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#7a6a55';
+    const chip = Math.max(1.5, drawW * 0.05);
+    for (let i = 0; i < 3; i++) {
+      const angle = t + (Math.PI * 2 * i) / 3;
+      ctx.fillRect(this.x + Math.cos(angle) * rx * 0.82 - chip / 2,
+        this.y - 3 * P + Math.sin(angle) * ry * 0.8 - chip / 2, chip, chip);
+    }
+    ctx.restore();
+  }
 }
 
 // ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────

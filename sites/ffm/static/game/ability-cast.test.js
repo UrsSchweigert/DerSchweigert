@@ -76,7 +76,7 @@ function castEnv({
     `abilityRuntime = createAbilityRuntime(${JSON.stringify(runtimeOptions)});`,
     `function castWindAbility() { __calls.casts.push('wind'); activeFiend = __nextFiend; return ${castResult}; }`,
     `function castStormAbility() { __calls.casts.push('storm'); activeFiend = __nextFiend; return ${castResult}; }`,
-    `function castEarthAbility() { __calls.casts.push('earth'); activeFiend = __nextFiend; return ${castResult}; }`,
+    `function castEarthAbility() { __calls.casts.push('earth'); activeFiend = __nextFiend; if (activeFiend) spikeSlowedFiends.add(activeFiend); return ${castResult}; }`,
     ...EXTRACTED.map(functionSource),
   ].join('\n'), context);
   return {
