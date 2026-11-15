@@ -119,9 +119,13 @@ export function deriveAbilityReadouts({ runtime, bonus, spikeTargetsLeft } = {})
   const passiveMultiplier = Math.min(clampNumber(runtime?.fiendSpeedMultiplier, FIEND_SPEED_FLOOR, 1, 1), ladderMultiplier);
   // The earth readout reports the slow the earth bonuses add up to: the spike
   // factor while a spike runs (the level-1 default otherwise, so the line never
-  // flickers between casts) plus the passive slow each slowSpeed bonus bought.
+  // flickers between casts) and the passive slow each slowSpeed bonus bought.
+  // They multiply — applySpikeSlow() scales the speed the passive slow already
+  // reduced — so the honest figure is 1 − factor × passive. Adding them instead
+  // overstated the slow and, now that the spike alone is a 70 % slow, saturated
+  // the line at 100 %.
   const slowPercent = wholeCount(
-    Math.round((1 - spikeFactor) * 100 + (1 - passiveMultiplier) * 100),
+    Math.round((1 - spikeFactor * passiveMultiplier) * 100),
     0,
     100,
     0,

@@ -49,7 +49,7 @@ import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAbilityBar } from './ability-bar.js';
 import { BONUS_CAPS, applyBonus, bonusForLevel, createBonusRuntime } from './bonus-ladder.js';
-import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow, SPIKE_SLOW_DEFAULTS } from './cooldown-abilities.js';
+import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow, spikeSlowForBonuses } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
 import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
@@ -2912,9 +2912,7 @@ function beginAbilityRun(level, rank = undefined, spikeSlow = undefined) {
     level: safeLevel,
     rank: safeRank,
     slowBonuses: earned?.slowBonuses ?? 0,
-    spikeSlow: spikeSlow ?? {
-      targets: SPIKE_SLOW_DEFAULTS.targets + (earned?.spikeTargets ?? 0),
-    },
+    spikeSlow: spikeSlow ?? spikeSlowForBonuses(earned?.spikeTargets ?? 0),
     cooldownReductions: readouts?.cooldowns,
   });
   return abilityRuntime;
@@ -3197,7 +3195,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
         rank: levelBonuses.runtime.stormRank,
         slowBonuses: levelBonuses.runtime.slowBonuses,
         cooldownReductions: levelBonuses.cooldowns,
-        spikeSlow: { targets: SPIKE_SLOW_DEFAULTS.targets + levelBonuses.runtime.spikeTargets },
+        spikeSlow: spikeSlowForBonuses(levelBonuses.runtime.spikeTargets),
       });
     }
   }
