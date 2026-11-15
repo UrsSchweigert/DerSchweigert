@@ -125,9 +125,11 @@ const DICTIONARY = {
   },
   'personalDevelopment.title': { en: 'Practice', de: 'Training' },
   'personalDevelopment.perLevelBest': { en: 'Level {level}: {score} points', de: 'Level {level}: {score} Punkte' },
+  // Only ever shown for a level that has not been cleared: a cleared level's
+  // best is always a cleared run (see the profile store's ranking rule).
   'personalDevelopment.perLevelBestUnfinished': {
-    en: 'Level {level}: {score} points (unfinished attempt, not cleared)',
-    de: 'Level {level}: {score} Punkte (unfertiger Versuch, nicht geschafft)',
+    en: 'Level {level}: {score} points (best reached, level not yet cleared)',
+    de: 'Level {level}: {score} Punkte (bester Stand, Level noch nicht geschafft)',
   },
   'personalDevelopment.completed': { en: '{completed} of {total} levels completed', de: '{completed} von {total} Leveln geschafft' },
   'personalDevelopment.noProgress': {

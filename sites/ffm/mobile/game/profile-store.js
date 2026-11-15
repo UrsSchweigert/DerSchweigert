@@ -170,6 +170,40 @@ export function createProfileStore(backend, {
     return clone(result);
   });
 
+  // A cleared run outranks an unfinished one (see recordPartialAttempt and
+  // recordLevel), but a document written before that rule can still hold a
+  // partial in the best slot of a level the player has since cleared — and then
+  // no completion could ever displace it. The completion receipts are the
+  // authority: one per cleared attempt, written once and never pruned, so the
+  // best cleared score is recomputed from them. Idempotent, and it only ever
+  // touches levels that are actually in `completed`.
+  const repairBestEntries = (doc) => {
+    let changed = false;
+    for (const profile of doc.profiles) {
+      if (!Array.isArray(profile.best) || !Array.isArray(profile.completed)) continue;
+      for (const level of profile.completed) {
+        const slot = profile.best.find((entry) => entry.level === level);
+        if (!slot || slot.unfinished !== true) continue;
+        let winner = null;
+        for (const receipt of Object.values(profile.completions ?? {})) {
+          if (!receipt || receipt.level !== level || !Number.isFinite(receipt.score)) continue;
+          if (!winner || receipt.score > winner.score) winner = receipt;
+        }
+        if (!winner) continue;
+        profile.best = profile.best.filter((entry) => entry.level !== level);
+        profile.best.push({
+          level,
+          score: winner.score,
+          difficulty: winner.difficulty ?? null,
+          achieved_at: slot.achieved_at,
+        });
+        profile.best.sort((a, b) => a.level - b.level);
+        changed = true;
+      }
+    }
+    return changed;
+  };
+
   return {
     initialize({ defaultName = 'Player 1' } = {}) {
       return serialize(async () => {
@@ -182,6 +216,7 @@ export function createProfileStore(backend, {
             return parsed;
           });
           document = loaded;
+          if (repairBestEntries(document)) await commit(document);
         } else {
           const profile = fresh(defaultName);
           await commit({ version: PROFILE_SCHEMA_VERSION, activeProfileId: profile.id, profiles: [profile] });
@@ -282,7 +317,14 @@ export function createProfileStore(backend, {
           return resultFor(receipt);
         }
         const best = profile.best.find((entry) => entry.level === level);
-        const bestImproved = score > (best?.score ?? 0);
+        // A cleared run outranks an unfinished one: a partial only takes the
+        // best slot of a level that is still uncleared, or beats another
+        // partial. Letting it outrank a completion would leave the level
+        // advertising an unfinished score that no clear could ever replace.
+        const cleared = (profile.completed ?? []).includes(level);
+        const bestImproved = best
+          ? best.unfinished === true && score > best.score
+          : !cleared;
         const timestamp = now();
         const entry = { level, score, difficulty, achieved_at: timestamp instanceof Date ? timestamp.toISOString() : timestamp,
           unfinished: true };
@@ -338,7 +380,11 @@ export function createProfileStore(backend, {
           return resultFor(receipt);
         }
         const best = profile.best.find((entry) => entry.level === level);
-        const bestImproved = score > (best?.score ?? 0);
+        // Cleared outranks unfinished: the completion takes the slot even when
+        // the partial it replaces reached a higher score.
+        // `score > 0` keeps the long-standing rule that a cleared level with no
+        // points does not invent a best entry.
+        const bestImproved = best ? (best.unfinished === true || score > best.score) : score > 0;
         const timestamp = now();
         const entry = { level, score, difficulty, achieved_at: timestamp instanceof Date ? timestamp.toISOString() : timestamp,
           ...(hasAttempt ? { attemptSummary } : {}) };
