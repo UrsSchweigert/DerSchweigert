@@ -68,7 +68,7 @@ import { createLevelGrid } from './level-grid.js';
 import { createStoryIntro } from './story-intro.js';
 import { dailyBestTrend, highScoreTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
-import { createScreenFx } from './screen-fx.js';
+import { createScreenFx, FX_Z_INDEX } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
 import { createEncounterSwords } from './encounter-swords.js';
 import { createDomBurst } from './dom-burst.js';
@@ -830,6 +830,20 @@ const hud = new HUD(renderer);
 globalThis.ffmScreenFx = createScreenFx({
   playfield: document.getElementById('playfield'),
   effects: createEffectTable(),
+  reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+});
+// Weather has a layer of its own, pinned to the playfield: rain and the storm
+// dim must never wash across the answer row, and the scene-sized canvas is
+// cheaper to clear and composite than a viewport-sized one. It sits one step
+// under the gameplay layer so a spell cast during a storm still reads on top,
+// and it has no bloom — rain does not need the extra blur passes.
+globalThis.ffmStormFx = createScreenFx({
+  playfield: document.getElementById('playfield'),
+  effects: createEffectTable(),
+  confined: true,
+  zIndex: FX_Z_INDEX - 1,
+  id: 'storm-fx',
+  bloom: false,
   reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
 });
 // The app shell serves bundled tracks from the WebView's own origin, so their
@@ -2644,13 +2658,14 @@ function stopStorm() {
   stormToken += 1;
   stormRunning = false;
   fxFrameCarry = 0;
-  // The level's own dim goes with it; the particles it threw are left alone.
-  globalThis.ffmScreenFx?.clearWashes?.();
+  // The weather owns its layer outright: stopping it clears dim, rain and bolts
+  // without touching the gameplay particles on the layer above.
+  globalThis.ffmStormFx?.clear?.();
 }
 
 function startStorm(cfg) {
   stopStorm();
-  const fx = globalThis.ffmScreenFx;
+  const fx = globalThis.ffmStormFx;
   const multiHit = Number(cfg?.fiendHP) > 1;
   if (!multiHit || !fx?.play || !fx?.schedule) return false;
   // The dim is added once and held for the level: a wash keeps a constant alpha
@@ -4525,17 +4540,23 @@ function gameLoop(ts) {
   const dt = frameDelta(ts, lastTs);
   lastTs = ts;
 
-  if (!paused && globalThis.ffmScreenFx?.isActive()) {
+  if (!paused && (globalThis.ffmScreenFx?.isActive() || globalThis.ffmStormFx?.isActive())) {
     // A storm level advances the layer at 30 Hz (see fxStepFor); every other
     // level keeps one particle step per rendered frame.
     const fxStep = fxStepFor(dt, stormRunning, fxFrameCarry);
     fxFrameCarry = fxStep.carry;
-    if (fxStep.step > 0) globalThis.ffmScreenFx?.frame(fxStep.step);
+    if (fxStep.step > 0) {
+      globalThis.ffmScreenFx?.frame(fxStep.step);
+      globalThis.ffmStormFx?.frame(fxStep.step);
+    }
     // Whole-screen shake: the canvas moves with the same offset the layer uses
     // for its particles, plus a hair of scale so no gap shows at the edges.
+    // Both layers can shake; a bolt on the weather layer must move the scene
+    // with it, or the rain would slide out of the storm.
     const shake = globalThis.ffmScreenFx?.getShakeOffset?.();
-    const sx = shake ? shake.x : 0;
-    const sy = shake ? shake.y : 0;
+    const stormShake = globalThis.ffmStormFx?.getShakeOffset?.();
+    const sx = (shake ? shake.x : 0) + (stormShake ? stormShake.x : 0);
+    const sy = (shake ? shake.y : 0) + (stormShake ? stormShake.y : 0);
     // The scale is not free: it re-grids the pixel art while it is on screen, so
     // a sub-pixel nudge is not worth it. Only a real impact (storm, earth) is
     // allowed to move the camera — the spawn portal deliberately does not shake.

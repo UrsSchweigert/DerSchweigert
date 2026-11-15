@@ -358,7 +358,7 @@ describe('the multi-hit level storm', () => {
       play(name, payload) { plays.push({ name, payload }); return true; },
       schedule(seconds, fn) { timers.push({ seconds, fn }); return { at: seconds }; },
     };
-    const ctx = { globalThis: { ffmScreenFx: fx }, CANVAS_W: 800, Math };
+    const ctx = { globalThis: { ffmStormFx: fx }, CANVAS_W: 800, Math };
     vm.createContext(ctx);
     vm.runInContext([
       'let stormToken = 0;',

@@ -642,3 +642,38 @@ test('render keeps using the cached mapping so drawing never forces a reflow', (
   }
   assert.equal(reads, 1, 'one measurement per frame, not one per drawn particle');
 });
+
+test('a confined layer covers the playfield instead of the viewport', () => {
+  const env = fixture();
+  const fx = createScreenFx({
+    document: env.doc,
+    confined: true,
+    zIndex: 89,
+    id: 'storm-fx',
+    bloom: false,
+  });
+  // The scene sits at 100,50 and is 400x225 inside an 800x450 viewport.
+  env.playfield.left = 100;
+  env.playfield.top = 50;
+  env.playfield.width = 400;
+  env.playfield.height = 225;
+  fx.frame(1 / 60);
+
+  assert.equal(fx.canvas.id, 'storm-fx');
+  assert.equal(fx.canvas.style.zIndex, '89', 'it sits under the gameplay layer');
+  assert.equal(fx.getBloom?.() ?? false, false);
+  assert.equal(fx.canvas.style.left, '100px', 'pinned over the scene, not the viewport');
+  assert.equal(fx.canvas.style.top, '50px');
+  assert.equal(fx.canvas.style.width, '400px');
+  assert.equal(fx.canvas.style.height, '225px');
+
+  // World (0,0) is the top-left of the scene, so a wash can never reach the
+  // answer row below it.
+  assert.deepEqual(fx.worldToScreen(0, 0), { x: 0, y: 0 });
+  assert.deepEqual(fx.worldToScreen(400, 225), { x: 200, y: 112.5 });
+
+  // A moved scene takes the canvas with it on the next frame.
+  env.playfield.top = 90;
+  fx.frame(1 / 60);
+  assert.equal(fx.canvas.style.top, '90px');
+});
