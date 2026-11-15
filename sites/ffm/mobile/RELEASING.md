@@ -205,19 +205,19 @@ Record each upload below. A row without a git revision is not evidence.
 
 `ios/App/App.xcodeproj/project.pbxproj` holds one scheme for both
 configurations: `MARKETING_VERSION` (`CFBundleShortVersionString`, currently
-`1.0.1`) and `CURRENT_PROJECT_VERSION` (`CFBundleVersion`, currently `2`). Bump
+`1.0.2`) and `CURRENT_PROJECT_VERSION` (`CFBundleVersion`, currently `3`). Bump
 `MARKETING_VERSION` for a user-visible release and always increase
 `CURRENT_PROJECT_VERSION` for every upload, including re-uploads of the same
 marketing version. The plist reads both values, so no version literal is
 duplicated there.
 
-**A released version closes its App Store Connect train.** Version 1.0 is live,
-and an upload that still carries `MARKETING_VERSION = 1.0` is refused during the
+**A released version closes its App Store Connect train.** Version 1.0.1 is live,
+and an upload that still carries `MARKETING_VERSION = 1.0.1` is refused during the
 App Store Connect hand-off — after the archive and every export have succeeded,
 so it reads like a signing or account problem. That is the failure Buchstabenzeit
 hit on three consecutive builds. Create the next version record in App Store
-Connect first, then raise `MARKETING_VERSION` here, exactly as 1.0.1 was raised
-for the Arithmo Slayer 1.0 release.
+Connect first, then raise `MARKETING_VERSION` here, exactly as 1.0.2 was raised
+for the Arithmo Slayer 1.0.1 release.
 
 `ios/RELEASED_VERSION` records the version that is public right now: one
 version per line, `#` comments allowed. `tests/xcode-integration.test.mjs` fails
@@ -508,7 +508,7 @@ Cloud archive action does the native build and signing.
    `2F695PTZC6` for Release as well as Debug.
 3. Ensure App Store Connect has an iOS app record for
    `de.derschweigert.arithmoslayer`, and that it carries the version you are
-   about to upload (1.0.1 today). A released version cannot accept new builds.
+   about to upload (1.0.2 today). A released version cannot accept new builds.
 4. Choose Product > Xcode Cloud > Create Workflow, select the Arithmo Slayer
    product and authorize Xcode Cloud's GitHub connection for
    `UrsSchweigert/DerSchweigert`.
@@ -655,7 +655,7 @@ cannot be claimed from a passing JavaScript test.
 | App icon and launch screen match the artwork on the home screen and at launch | iPhone | | `<revision>` | open |
 | German and English system languages both show translated UI and legal pages | iPhone | | `<revision>` | open |
 | In-App Purchase capability is enabled and a sandbox purchase succeeds | App Store Connect + device | The committed target carried the capability and the sandbox purchase above succeeded from the same build. Observed 2026-11-11. | `4e749e5` | owner-verified |
-| A Cloud build of 1.0.1 reaches TestFlight instead of being refused at the App Store Connect hand-off | App Store Connect | | `<revision>` | open |
+| A Cloud build of 1.0.2 reaches TestFlight instead of being refused at the App Store Connect hand-off | App Store Connect | | `<revision>` | open |
 
 The iOS silent switch, the interruption and the safe-area gates are the
 `PENDING_MANUAL_GATES` exported by `game/lifecycle.js`;
@@ -720,11 +720,11 @@ accounts) and stay open until the evidence above exists.
   `de.derschweigert.arithmoslayer`, provisioning and distribution certificates,
   plus the App Store Connect app record. No signing secrets are defined for
   this app yet; the owner decides their names and storage.
-- **iOS Cloud product and the 1.0.1 train.** With 1.0 live, App Store Connect
-  must carry an open 1.0.1 version, and the Arithmo Slayer Xcode Cloud product
+- **iOS Cloud product and the 1.0.2 train.** With 1.0.1 live, App Store Connect
+  must carry an open 1.0.2 version, and the Arithmo Slayer Xcode Cloud product
   must be linked to the project so Xcode writes its own
   `xcshareddata/xcodecloud/manifest.json`. Linking is an Xcode action on the
-  owner's account; the committed project already names `1.0.1` and build `2`.
+  owner's account; the committed project already names `1.0.2` and build `3`.
 - **Audio session.** Keep the default category, or record an owner decision for
   an explicit one (see above).
 - **Native compilation.** The M2 macOS job is owner-run and only reports the
