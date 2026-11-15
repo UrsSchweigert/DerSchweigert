@@ -68,7 +68,7 @@ import { createLevelGrid } from './level-grid.js';
 import { createStoryIntro } from './story-intro.js';
 import { dailyBestTrend, highScoreTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
-import { createScreenFx } from './screen-fx.js';
+import { createScreenFx, FX_Z_INDEX } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
 import { createEncounterSwords } from './encounter-swords.js';
 import { createDomBurst } from './dom-burst.js';
@@ -830,6 +830,20 @@ const hud = new HUD(renderer);
 globalThis.ffmScreenFx = createScreenFx({
   playfield: document.getElementById('playfield'),
   effects: createEffectTable(),
+  reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+});
+// Weather has a layer of its own, pinned to the playfield: rain and the storm
+// dim must never wash across the answer row, and the scene-sized canvas is
+// cheaper to clear and composite than a viewport-sized one. It sits one step
+// under the gameplay layer so a spell cast during a storm still reads on top,
+// and it has no bloom — rain does not need the extra blur passes.
+globalThis.ffmStormFx = createScreenFx({
+  playfield: document.getElementById('playfield'),
+  effects: createEffectTable(),
+  confined: true,
+  zIndex: FX_Z_INDEX - 1,
+  id: 'storm-fx',
+  bloom: false,
   reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
 });
 // The app shell serves bundled tracks from the WebView's own origin, so their
@@ -2612,16 +2626,54 @@ function clearPremiumSession() {
 // clear, game over and quit — a chain of `schedule` ticks with a token, so
 // stopping it is immediate and no stale tick can re-arm it.
 let stormToken = 0;
+let stormRunning = false;
+// The particle layer steps at 30 Hz while a storm runs: rain and lightning do
+// not need 60, and a full-viewport composite of a DPR-2 canvas is the most
+// expensive per-frame work the game does on a phone. Sprites, input and the HUD
+// keep the full frame rate, and a level without weather is untouched.
+const FX_STORM_STEP_SECONDS = 1 / 30;
+const FX_MAX_STEP_SECONDS = 1 / 20;
+let fxFrameCarry = 0;
+
+/**
+ * How much time the particle layer should advance this frame, and what to carry
+ * into the next one. Pure, so the cadence is testable without the game loop.
+ * @param {number} dt frame delta in seconds
+ * @param {boolean} storm whether a storm level is on screen
+ * @param {number} carry time left over from the previous frame
+ * @returns {{ step: number, carry: number }} `step` is 0 when no frame is due
+ */
+function fxStepFor(dt, storm, carry = 0) {
+  const elapsed = Number.isFinite(dt) && dt > 0 ? dt : 0;
+  if (!storm) return { step: elapsed, carry: 0 };
+  const next = carry + elapsed;
+  if (next < FX_STORM_STEP_SECONDS) return { step: 0, carry: next };
+  return {
+    step: Math.min(next, FX_MAX_STEP_SECONDS),
+    carry: next - FX_STORM_STEP_SECONDS,
+  };
+}
 
 function stopStorm() {
   stormToken += 1;
+  stormRunning = false;
+  fxFrameCarry = 0;
+  // The weather owns its layer outright: stopping it clears dim, rain and bolts
+  // without touching the gameplay particles on the layer above.
+  globalThis.ffmStormFx?.clear?.();
 }
 
 function startStorm(cfg) {
   stopStorm();
-  const fx = globalThis.ffmScreenFx;
+  const fx = globalThis.ffmStormFx;
   const multiHit = Number(cfg?.fiendHP) > 1;
   if (!multiHit || !fx?.play || !fx?.schedule) return false;
+  // The dim is added once and held for the level: a wash keeps a constant alpha
+  // for its whole life and then vanishes, so re-adding short ones (the first
+  // version) made the whole screen step lighter and darker instead of settling.
+  fx.play('stormDim', {});
+  stormRunning = true;
+  fxFrameCarry = 0;
   const token = stormToken;
   const tick = () => {
     if (token !== stormToken) return;
@@ -2936,7 +2988,10 @@ function playAbilityCastFeedback(id, origin) {
 // have not walked in yet.
 function startSpikeAura() {
   const spike = abilityRuntime?.spikeState;
-  const duration = spike?.active ? spike.durationSeconds : 0;
+  // The spike can be refreshed by every target it takes hold of, so the aura is
+  // sized for the whole chain and lets each pulse check that the spike is still
+  // running (it already does).
+  const duration = spike?.active ? spike.durationSeconds * (spike.targets + 1) : 0;
   spikeAuraToken += 1;
   const token = spikeAuraToken;
   const fx = globalThis.ffmScreenFx;
@@ -3539,6 +3594,11 @@ function spawnNextFiend() {
         applySpikeSlow(fiend, abilityRuntime.spikeState.factor)) {
       spikeSlowedFiends.add(fiend);
       spikeSpawnSlowLeft -= 1;
+      // Each promised target gets its own window. Without this the single
+      // duration ran out while the slowed fiend in front of the player was
+      // still being answered, so the second and third target never arrived in
+      // time and the spell read as "only one fiend".
+      abilityRuntime?.refreshSpike?.();
     }
     fiends.push(fiend);
     // The entrance: a portal on the level's own ground line, so the fiend appears
@@ -4480,13 +4540,23 @@ function gameLoop(ts) {
   const dt = frameDelta(ts, lastTs);
   lastTs = ts;
 
-  if (!paused && globalThis.ffmScreenFx?.isActive()) {
-    globalThis.ffmScreenFx?.frame(dt);
+  if (!paused && (globalThis.ffmScreenFx?.isActive() || globalThis.ffmStormFx?.isActive())) {
+    // A storm level advances the layer at 30 Hz (see fxStepFor); every other
+    // level keeps one particle step per rendered frame.
+    const fxStep = fxStepFor(dt, stormRunning, fxFrameCarry);
+    fxFrameCarry = fxStep.carry;
+    if (fxStep.step > 0) {
+      globalThis.ffmScreenFx?.frame(fxStep.step);
+      globalThis.ffmStormFx?.frame(fxStep.step);
+    }
     // Whole-screen shake: the canvas moves with the same offset the layer uses
     // for its particles, plus a hair of scale so no gap shows at the edges.
+    // Both layers can shake; a bolt on the weather layer must move the scene
+    // with it, or the rain would slide out of the storm.
     const shake = globalThis.ffmScreenFx?.getShakeOffset?.();
-    const sx = shake ? shake.x : 0;
-    const sy = shake ? shake.y : 0;
+    const stormShake = globalThis.ffmStormFx?.getShakeOffset?.();
+    const sx = (shake ? shake.x : 0) + (stormShake ? stormShake.x : 0);
+    const sy = (shake ? shake.y : 0) + (stormShake ? stormShake.y : 0);
     // The scale is not free: it re-grids the pixel art while it is on screen, so
     // a sub-pixel nudge is not worth it. Only a real impact (storm, earth) is
     // allowed to move the camera — the spawn portal deliberately does not shake.

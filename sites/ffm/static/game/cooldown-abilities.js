@@ -361,6 +361,19 @@ export function createAbilityRuntime({
       return Math.min(1 + stormRank, Math.max(0, left - 1));
     },
 
+    /**
+     * Restart the earth-spike countdown without touching anything else. Called
+     * when the spike takes hold of the next spawn: every target it promises
+     * gets its own stretch of time, instead of all of them sharing one countdown
+     * that usually died while the first slowed fiend was still being answered.
+     * @returns {boolean} whether a spike was running to refresh.
+     */
+    refreshSpike() {
+      if (!spike.active) return false;
+      spike = { ...spike, remainingSeconds: spike.durationSeconds };
+      return true;
+    },
+
     /** Snapshot of the earth-spike slow; reset to an inert state after it ends. */
     get spikeState() {
       return { ...spike };

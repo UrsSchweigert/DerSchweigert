@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 import { createAbilityRuntime, applySpikeSlow, restoreSpikeSlow } from './cooldown-abilities.js';
+import { createEffectTable } from './screen-fx-effects.js';
 import { countDragonRemainingEncounters } from './encounter-flow.js';
 
 globalThis.Image ??= class {
@@ -260,42 +261,73 @@ describe('hit-point halos', () => {
 
   const palette = { body: '#000', dark: '#000', hi: '#000' };
 
-  it('emits one halo per remaining hit point and bursts the one a hit destroys', () => {
+  it('holds one ring per remaining hit point and bursts the one a hit destroys', () => {
+    // Rings are persistent now: exactly one particle per answer still owed, so
+    // the count on screen cannot drift from the count of questions left.
     const fiend = new Fiend(400, 380, { hp: 3, palette });
-    const fx = withLayer(fiend, (target) => {
-      target.update(0.1);           // crosses the emit interval once
-      target.hit();
-    });
+    const rings = [];
+    const fx = {
+      plays: [],
+      ring() { const ring = { life: 1, maxLife: 1, x: 0, y: 0 }; rings.push(ring); return ring; },
+      play(name, payload) { this.plays.push({ name, payload }); return true; },
+    };
+    globalThis.ffmScreenFx = fx;
+    try {
+      fiend.update(1 / 60);
+      assert.equal(rings.length, 3, 'a three-hit fiend holds three rings');
+      assert.ok(rings.every((ring) => ring.life === ring.maxLife), 'held at full alpha, so it does not blink');
 
-    const halos = fx.plays.filter((p) => p.name === 'hitPointHalo');
-    assert.equal(halos.length, 3, 'a three-hit fiend announces three halos');
-    const bursts = fx.plays.filter((p) => p.name === 'hitPointBurst');
-    assert.equal(bursts.length, 1, 'exactly the halo the hit destroyed explodes');
-    assert.equal(fiend.hp, 2);
+      fiend.hit();
+      assert.equal(fx.plays.filter((p) => p.name === 'hitPointBurst').length, 1,
+        'exactly the ring the hit destroyed explodes');
+      assert.equal(fiend.hp, 2);
+      fiend.update(1 / 60);
+      assert.equal(rings.filter((ring) => ring.life > 0).length, 2,
+        'and only the answers still owed are shown');
 
-    // The ring keeps announcing what is left, not what was paid.
-    const after = layer();
-    globalThis.ffmScreenFx = after;
-    fiend.update(0.1);
-    delete globalThis.ffmScreenFx;
-    assert.equal(after.plays.filter((p) => p.name === 'hitPointHalo').length, 2);
+      // A hit that finishes the fiend takes every ring with it.
+      fiend.hit();
+      fiend.update(1 / 60);
+      assert.equal(rings.filter((ring) => ring.life > 0).length, 0);
+    } finally {
+      delete globalThis.ffmScreenFx;
+    }
   });
 
   it('leaves a one-hit fiend halo-free, so halos themselves mean "more than one answer"', () => {
     const fiend = new Fiend(400, 380, { hp: 1, palette });
-    const fx = withLayer(fiend, (target) => target.update(0.1));
+    const fx = withLayer(fiend, (target) => target.update(0.13));
     assert.equal(fx.plays.length, 0);
   });
 
   it('sparkles the feet of a slowed fiend only while it is slowed', () => {
     const fiend = new Fiend(400, 380, { hp: 2, palette });
     applySpikeSlow(fiend, 0.65);
-    const slowed = withLayer(fiend, (target) => target.update(0.1));
+    const slowed = withLayer(fiend, (target) => target.update(0.13));
     assert.equal(slowed.plays.filter((p) => p.name === 'spikeSparkle').length, 1);
 
     restoreSpikeSlow(fiend);
-    const plain = withLayer(fiend, (target) => target.update(0.1));
+    const plain = withLayer(fiend, (target) => target.update(0.13));
     assert.equal(plain.plays.filter((p) => p.name === 'spikeSparkle').length, 0);
+  });
+
+  it('spends no radial gradients on hit points', () => {
+    // A halo is re-emitted ~8x/s per hit point; a glow particle builds a
+    // gradient on every frame it lives, which is what made the Android build
+    // feel heavy on multi-hit levels.
+    // Called against a recording api rather than a live layer: the point is
+    // which primitives the recipe asks for, and `glow` is the one that builds a
+    // gradient on every frame.
+    const calls = [];
+    const api = new Proxy({}, {
+      get: (_target, name) => {
+        if (name === 'countScale' || name === 'alphaScale') return () => 1;
+        return (...args) => { calls.push({ name, args }); };
+      },
+    });
+    createEffectTable().hitPointHalo(api, { x: 300, y: 200, radius: 12 });
+    assert.equal(calls.filter((c) => c.name === 'glow').length, 0, 'no gradients');
+    assert.ok(calls.some((c) => c.name === 'ring'), 'the bead is a cheap stroked ring');
   });
 
   it('draws nothing on the canvas for hit points or the slow', () => {
@@ -326,7 +358,7 @@ describe('the multi-hit level storm', () => {
       play(name, payload) { plays.push({ name, payload }); return true; },
       schedule(seconds, fn) { timers.push({ seconds, fn }); return { at: seconds }; },
     };
-    const ctx = { globalThis: { ffmScreenFx: fx }, CANVAS_W: 800, Math };
+    const ctx = { globalThis: { ffmStormFx: fx }, CANVAS_W: 800, Math };
     vm.createContext(ctx);
     vm.runInContext([
       'let stormToken = 0;',
@@ -370,5 +402,69 @@ describe('the multi-hit level storm', () => {
     const { ctx, timers } = stormContext();
     assert.equal(ctx.startStorm(null), false);
     assert.equal(timers.length, 0);
+  });
+});
+
+describe('the spike reaches every target it promises', () => {
+  it('keeps a window per target instead of one shared countdown', () => {
+    // The timeout used to outlive the spell: two answers at five seconds each
+    // already ran past the eight-second spike, so the second fiend spawned into
+    // clear weather although the orb read "x3".
+    const runtime = createAbilityRuntime({ level: 20, spikeSlow: { targets: 3, durationSeconds: 8, factor: 0.65 } });
+    runtime.activate('earth');
+    runtime.tick(10, { encounterRunning: true });
+    assert.equal(runtime.spikeState.active, false, 'the first window does run out');
+
+    // A spawn that the budget holds refreshes the countdown for its own window.
+    const second = createAbilityRuntime({ level: 20, spikeSlow: { targets: 3, durationSeconds: 8, factor: 0.65 } });
+    second.activate('earth');
+    second.tick(6, { encounterRunning: true });
+    assert.equal(second.refreshSpike(), true);
+    assert.equal(second.spikeState.remainingSeconds, 8, 'the next target starts its own eight seconds');
+    second.tick(7, { encounterRunning: true });
+    assert.equal(second.spikeState.active, true, 'so the second fiend is still held when it arrives');
+  });
+
+  it('refreshes only while a spike is running', () => {
+    const runtime = createAbilityRuntime({ level: 20 });
+    assert.equal(runtime.refreshSpike(), false);
+  });
+});
+
+describe('the storm steps the particle layer at 30 Hz', () => {
+  function stepOf(dt, storm, carry) {
+    const ctx = { Number, Math };
+    vm.createContext(ctx);
+    vm.runInContext([
+      'const FX_STORM_STEP_SECONDS = 1 / 30;',
+      'const FX_MAX_STEP_SECONDS = 1 / 20;',
+      functionSource('fxStepFor'),
+    ].join('\n'), ctx);
+    return ctx.fxStepFor(dt, storm, carry);
+  }
+
+  it('runs one particle step every other frame at 60 fps', () => {
+    let carry = 0;
+    let steps = 0;
+    for (let i = 0; i < 60; i++) {
+      const out = stepOf(1 / 60, true, carry);
+      carry = out.carry;
+      if (out.step > 0) steps += 1;
+    }
+    assert.equal(steps, 30, 'sixty rendered frames advance the layer thirty times');
+  });
+
+  it('keeps the full rate when no storm is running', () => {
+    for (let i = 0; i < 60; i++) {
+      const out = stepOf(1 / 60, false, 0);
+      assert.equal(out.step, 1 / 60, 'every frame steps the layer');
+      assert.equal(out.carry, 0);
+    }
+  });
+
+  it('caps a long hitch so the storm cannot jump, and keeps the remainder', () => {
+    const out = stepOf(0.25, true, 0);
+    assert.equal(out.step, 1 / 20, 'a stalled frame advances at most 50 ms');
+    assert.ok(out.carry > 0, 'and the rest is carried, not dropped');
   });
 });

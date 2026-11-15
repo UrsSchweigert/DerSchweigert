@@ -128,6 +128,14 @@ export function createScreenFx(options = {}) {
       ? !!options.reducedMotion
       : (typeof root.matchMedia === 'function' ? !!root.matchMedia('(prefers-reduced-motion: reduce)').matches : false),
     _bloom: options.bloom !== false,
+    // A confined layer's canvas *is* the playfield: it is positioned and sized
+    // to the scene rect, so a wash or a streak can only ever cover the scene
+    // and never spill over the answer row. Its world mapping is therefore 1:1
+    // inside that box (offset 0) instead of offset by the playfield's position
+    // on a viewport-sized canvas.
+    _confined: options.confined === true,
+    _zIndex: Number.isFinite(options.zIndex) ? options.zIndex : FX_Z_INDEX,
+    _canvasId: typeof options.id === 'string' ? options.id : 'screen-fx',
     _paused: false,
     _destroyed: false,
 
@@ -235,7 +243,7 @@ export function createScreenFx(options = {}) {
 
   // The visible canvas is the only element this module creates and mounts.
   instance.canvas = instance._makeCanvas();
-  instance.canvas.id = 'screen-fx';
+  instance.canvas.id = instance._canvasId;
   if (typeof instance.canvas.setAttribute === 'function') instance.canvas.setAttribute('aria-hidden', 'true');
   const style = instance.canvas.style || (instance.canvas.style = {});
   style.position = 'fixed';
@@ -243,7 +251,7 @@ export function createScreenFx(options = {}) {
   style.width = '100%';
   style.height = '100%';
   style.pointerEvents = 'none';
-  style.zIndex = String(FX_Z_INDEX);
+  style.zIndex = String(instance._zIndex);
 
   if (instance._host && typeof instance._host.appendChild === 'function') {
     instance._host.appendChild(instance.canvas);
@@ -480,9 +488,20 @@ export function createScreenFx(options = {}) {
   instance.resize = function resize() {
     if (instance._destroyed) return;
     instance._rect = instance._readRect();
-    const viewport = instance._viewportSize();
-    instance._cssW = viewport.width;
-    instance._cssH = viewport.height;
+    let box;
+    if (instance._confined) {
+      const rect = instance._rect;
+      box = {
+        left: rect.left || 0,
+        top: rect.top || 0,
+        width: Math.max(1, rect.width || WORLD_WIDTH),
+        height: Math.max(1, rect.height || WORLD_HEIGHT),
+      };
+    } else {
+      box = { left: 0, top: 0, ...instance._viewportSize() };
+    }
+    instance._cssW = box.width;
+    instance._cssH = box.height;
     const dpr = instance._dpr;
     const width = Math.max(1, Math.round(instance._cssW * dpr));
     const height = Math.max(1, Math.round(instance._cssH * dpr));
@@ -492,6 +511,12 @@ export function createScreenFx(options = {}) {
     // stretch the canvas whenever innerWidth/innerHeight differ from the
     // element's own box (scrollbars, visualViewport, page zoom).
     if (instance.canvas.style) {
+      if (instance._confined) {
+        // Pinned over the scene instead of filling the viewport.
+        instance.canvas.style.inset = 'auto';
+        instance.canvas.style.left = box.left + 'px';
+        instance.canvas.style.top = box.top + 'px';
+      }
       instance.canvas.style.width = instance._cssW + 'px';
       instance.canvas.style.height = instance._cssH + 'px';
     }
@@ -518,15 +543,26 @@ export function createScreenFx(options = {}) {
   // the sprites as soon as the viewport changed.
   instance._syncLayout = function syncLayout() {
     if (instance._destroyed) return;
-    const viewport = instance._viewportSize();
-    if (viewport.width !== instance._cssW || viewport.height !== instance._cssH) {
-      instance.resize();
-      return;
+    // A confined layer's canvas *is* the scene, so its size is the rect below;
+    // comparing it against the viewport would re-resize (and re-measure the
+    // layout) on every single frame.
+    if (!instance._confined) {
+      const viewport = instance._viewportSize();
+      if (viewport.width !== instance._cssW || viewport.height !== instance._cssH) {
+        instance.resize();
+        return;
+      }
     }
     const rect = instance._readRect();
     const current = instance._rect;
     if (!current || rect.left !== current.left || rect.top !== current.top
       || rect.width !== current.width || rect.height !== current.height) {
+      if (instance._confined) {
+        // The canvas box *is* the rect here, so a moved or resized scene has to
+        // take the canvas with it.
+        instance.resize();
+        return;
+      }
       instance._rect = rect;
     }
   };
@@ -537,8 +573,8 @@ export function createScreenFx(options = {}) {
     const rect = instance._rect;
     return {
       scale: rect.width / WORLD_WIDTH,
-      offsetX: rect.left,
-      offsetY: rect.top,
+      offsetX: instance._confined ? 0 : rect.left,
+      offsetY: instance._confined ? 0 : rect.top,
       width: rect.width,
       height: rect.height,
     };
@@ -1127,6 +1163,15 @@ export function createScreenFx(options = {}) {
     instance._shake.time = Math.max(instance._shake.time, duration);
   };
 
+  // Drop only the full-screen washes. A level-long effect (the storm's dim)
+  // owns its wash and has to be able to end it without clearing the particles
+  // the rest of the screen is still using.
+  instance.clearWashes = function clearWashes() {
+    if (instance._destroyed) return;
+    instance._washes = [];
+    instance._washTimes = [];
+  };
+
   // Reset everything in flight without tearing down the layer or its canvas.
   // Used when the game state is replaced (new level, restart) so a torrent or
   // a scheduled impact from the previous encounter cannot bleed into the next.
@@ -1134,6 +1179,9 @@ export function createScreenFx(options = {}) {
     if (instance._destroyed) return;
     instance._particles = [];
     instance._washes = [];
+    // The wash budget history belongs to the effects just cleared: left behind,
+    // it throttles the next level's long wash to a fifth of its alpha.
+    instance._washTimes = [];
     instance._vignettes = [];
     instance._shake = null;
     instance._timers = [];
