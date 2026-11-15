@@ -2612,9 +2612,38 @@ function clearPremiumSession() {
 // clear, game over and quit — a chain of `schedule` ticks with a token, so
 // stopping it is immediate and no stale tick can re-arm it.
 let stormToken = 0;
+let stormRunning = false;
+// The particle layer steps at 30 Hz while a storm runs: rain and lightning do
+// not need 60, and a full-viewport composite of a DPR-2 canvas is the most
+// expensive per-frame work the game does on a phone. Sprites, input and the HUD
+// keep the full frame rate, and a level without weather is untouched.
+const FX_STORM_STEP_SECONDS = 1 / 30;
+const FX_MAX_STEP_SECONDS = 1 / 20;
+let fxFrameCarry = 0;
+
+/**
+ * How much time the particle layer should advance this frame, and what to carry
+ * into the next one. Pure, so the cadence is testable without the game loop.
+ * @param {number} dt frame delta in seconds
+ * @param {boolean} storm whether a storm level is on screen
+ * @param {number} carry time left over from the previous frame
+ * @returns {{ step: number, carry: number }} `step` is 0 when no frame is due
+ */
+function fxStepFor(dt, storm, carry = 0) {
+  const elapsed = Number.isFinite(dt) && dt > 0 ? dt : 0;
+  if (!storm) return { step: elapsed, carry: 0 };
+  const next = carry + elapsed;
+  if (next < FX_STORM_STEP_SECONDS) return { step: 0, carry: next };
+  return {
+    step: Math.min(next, FX_MAX_STEP_SECONDS),
+    carry: next - FX_STORM_STEP_SECONDS,
+  };
+}
 
 function stopStorm() {
   stormToken += 1;
+  stormRunning = false;
+  fxFrameCarry = 0;
   // The level's own dim goes with it; the particles it threw are left alone.
   globalThis.ffmScreenFx?.clearWashes?.();
 }
@@ -2628,6 +2657,8 @@ function startStorm(cfg) {
   // for its whole life and then vanishes, so re-adding short ones (the first
   // version) made the whole screen step lighter and darker instead of settling.
   fx.play('stormDim', {});
+  stormRunning = true;
+  fxFrameCarry = 0;
   const token = stormToken;
   const tick = () => {
     if (token !== stormToken) return;
@@ -4495,7 +4526,11 @@ function gameLoop(ts) {
   lastTs = ts;
 
   if (!paused && globalThis.ffmScreenFx?.isActive()) {
-    globalThis.ffmScreenFx?.frame(dt);
+    // A storm level advances the layer at 30 Hz (see fxStepFor); every other
+    // level keeps one particle step per rendered frame.
+    const fxStep = fxStepFor(dt, stormRunning, fxFrameCarry);
+    fxFrameCarry = fxStep.carry;
+    if (fxStep.step > 0) globalThis.ffmScreenFx?.frame(fxStep.step);
     // Whole-screen shake: the canvas moves with the same offset the layer uses
     // for its particles, plus a hair of scale so no gap shows at the edges.
     const shake = globalThis.ffmScreenFx?.getShakeOffset?.();

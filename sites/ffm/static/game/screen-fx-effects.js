@@ -574,6 +574,9 @@ function spikeSparkle(api, payload) {
 // particles, so a halo breathes and drifts instead of sitting on the sprite as
 // a flat disc, and a spent one explodes. The layer blends additively, so a halo
 // reads as a dim violet ember with a bright pinpoint rather than as a dark hole.
+/** Kept in step with `HALO_EMIT_SECONDS` in entities.js: one ring at a time. */
+const HALO_RING_LIFE = 0.12;
+
 function hitPointHalo(api, payload) {
   const { x, y } = castPoint(payload);
   const radius = payload && Number.isFinite(payload.radius) ? payload.radius : 9;
@@ -582,7 +585,12 @@ function hitPointHalo(api, payload) {
   // gradient on every frame it lives, which is by far the most expensive
   // particle in this layer on the Android WebView. The ring reads as the bead,
   // the grain keeps it alive, and the cost is an arc and two circles.
-  api.ring(x, y, '#8a62c8', radius * 0.5, radius * 0.95, 0.18, 2.2);
+  // One ring per hit point, and no growth: a expanding ring overlapping the next
+  // emission made a single halo read as two, so the count on screen did not
+  // match the answers still owed. The ring's life equals the emit interval, so
+  // exactly one is alive per point at any moment.
+  const ring = radius * 0.9;
+  api.ring(x, y, '#8a62c8', ring, ring, HALO_RING_LIFE, 2.2);
   api.ember(x, y, 0, 0, '#d8c8ff', 0.16);
   const angle = rand(0, TAU);
   api.ember(x + Math.cos(angle) * radius * 0.8, y + Math.sin(angle) * radius * 0.55,
@@ -596,7 +604,8 @@ function hitPointHalo(api, payload) {
 function hitPointBurst(api, payload) {
   const { x, y } = castPoint(payload);
   const radius = payload && Number.isFinite(payload.radius) ? payload.radius : 9;
-  api.ring(x, y, '#b48cf0', radius, radius * 7, 0.34, 3);
+  // Small enough to read as the spent point exploding, not as another halo.
+  api.ring(x, y, '#b48cf0', radius, radius * 3.2, 0.34, 3);
   api.flash(x, y, '#efe4ff', radius * 6, 0.18, 0.8);
   for (let i = 0; i < count(api, 12); i++) {
     api.spark(x, y, rand(0, TAU), rand(70, 240),

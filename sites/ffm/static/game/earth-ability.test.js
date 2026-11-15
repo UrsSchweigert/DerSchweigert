@@ -261,25 +261,37 @@ describe('hit-point halos', () => {
 
   const palette = { body: '#000', dark: '#000', hi: '#000' };
 
-  it('emits one halo per remaining hit point and bursts the one a hit destroys', () => {
+  it('holds one ring per remaining hit point and bursts the one a hit destroys', () => {
+    // Rings are persistent now: exactly one particle per answer still owed, so
+    // the count on screen cannot drift from the count of questions left.
     const fiend = new Fiend(400, 380, { hp: 3, palette });
-    const fx = withLayer(fiend, (target) => {
-      target.update(0.13);          // crosses the emit interval once
-      target.hit();
-    });
+    const rings = [];
+    const fx = {
+      plays: [],
+      ring() { const ring = { life: 1, maxLife: 1, x: 0, y: 0 }; rings.push(ring); return ring; },
+      play(name, payload) { this.plays.push({ name, payload }); return true; },
+    };
+    globalThis.ffmScreenFx = fx;
+    try {
+      fiend.update(1 / 60);
+      assert.equal(rings.length, 3, 'a three-hit fiend holds three rings');
+      assert.ok(rings.every((ring) => ring.life === ring.maxLife), 'held at full alpha, so it does not blink');
 
-    const halos = fx.plays.filter((p) => p.name === 'hitPointHalo');
-    assert.equal(halos.length, 3, 'a three-hit fiend announces three halos');
-    const bursts = fx.plays.filter((p) => p.name === 'hitPointBurst');
-    assert.equal(bursts.length, 1, 'exactly the halo the hit destroyed explodes');
-    assert.equal(fiend.hp, 2);
+      fiend.hit();
+      assert.equal(fx.plays.filter((p) => p.name === 'hitPointBurst').length, 1,
+        'exactly the ring the hit destroyed explodes');
+      assert.equal(fiend.hp, 2);
+      fiend.update(1 / 60);
+      assert.equal(rings.filter((ring) => ring.life > 0).length, 2,
+        'and only the answers still owed are shown');
 
-    // The ring keeps announcing what is left, not what was paid.
-    const after = layer();
-    globalThis.ffmScreenFx = after;
-    fiend.update(0.13);
-    delete globalThis.ffmScreenFx;
-    assert.equal(after.plays.filter((p) => p.name === 'hitPointHalo').length, 2);
+      // A hit that finishes the fiend takes every ring with it.
+      fiend.hit();
+      fiend.update(1 / 60);
+      assert.equal(rings.filter((ring) => ring.life > 0).length, 0);
+    } finally {
+      delete globalThis.ffmScreenFx;
+    }
   });
 
   it('leaves a one-hit fiend halo-free, so halos themselves mean "more than one answer"', () => {
@@ -416,5 +428,43 @@ describe('the spike reaches every target it promises', () => {
   it('refreshes only while a spike is running', () => {
     const runtime = createAbilityRuntime({ level: 20 });
     assert.equal(runtime.refreshSpike(), false);
+  });
+});
+
+describe('the storm steps the particle layer at 30 Hz', () => {
+  function stepOf(dt, storm, carry) {
+    const ctx = { Number, Math };
+    vm.createContext(ctx);
+    vm.runInContext([
+      'const FX_STORM_STEP_SECONDS = 1 / 30;',
+      'const FX_MAX_STEP_SECONDS = 1 / 20;',
+      functionSource('fxStepFor'),
+    ].join('\n'), ctx);
+    return ctx.fxStepFor(dt, storm, carry);
+  }
+
+  it('runs one particle step every other frame at 60 fps', () => {
+    let carry = 0;
+    let steps = 0;
+    for (let i = 0; i < 60; i++) {
+      const out = stepOf(1 / 60, true, carry);
+      carry = out.carry;
+      if (out.step > 0) steps += 1;
+    }
+    assert.equal(steps, 30, 'sixty rendered frames advance the layer thirty times');
+  });
+
+  it('keeps the full rate when no storm is running', () => {
+    for (let i = 0; i < 60; i++) {
+      const out = stepOf(1 / 60, false, 0);
+      assert.equal(out.step, 1 / 60, 'every frame steps the layer');
+      assert.equal(out.carry, 0);
+    }
+  });
+
+  it('caps a long hitch so the storm cannot jump, and keeps the remainder', () => {
+    const out = stepOf(0.25, true, 0);
+    assert.equal(out.step, 1 / 20, 'a stalled frame advances at most 50 ms');
+    assert.ok(out.carry > 0, 'and the rest is carried, not dropped');
   });
 });

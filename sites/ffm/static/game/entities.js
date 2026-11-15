@@ -988,8 +988,12 @@ const FIEND_EXIT_X = CANVAS_W + 100;
 // crawl off-screen for close to 10s.
 const RETREAT_MAX_SECONDS = 3;
 
-/** How often the hit-point halos and the slow sparkle are re-emitted. */
+/** How often the earth sparkle under a slowed fiend is re-emitted. */
 const HALO_EMIT_SECONDS = 0.12;
+/** The hit-point ring: one particle per answer still owed, held at full alpha
+ *  so the count on screen always equals the answers left. */
+const HALO_RING_LIFE = 1;
+const HALO_RING_RADIUS = 11;
 /** Halo geometry as fractions of the sprite box, so a small blob and a tall
  *  wolf get the same readable crown instead of one size for all. */
 const HALO_ORBIT_X = 0.30;
@@ -1016,6 +1020,7 @@ export class Fiend extends Entity {
     // the game's particles.
     this._haloPhase = 0;
     this._haloEmit = HALO_EMIT_SECONDS;
+    this._haloRings = [];
     this._events = new EventTarget();
     this._dur = 8;
     this.isElite = false;
@@ -1035,7 +1040,9 @@ export class Fiend extends Entity {
     // The halo this hit destroys bursts where it floated; the remaining ones
     // keep orbiting, so one glance says how many answers are left.
     if (this.hp > 1) this._burstHalo(this.hp - 1);
-    this.hp-- > 1 ? this.setState('hit') : this.setState('death');
+    this.hp--;
+    if (this.hp <= 0) this._clearHaloRings();
+    this.hp > 0 ? this.setState('hit') : this.setState('death');
   }
   attack() { this.setState('attack'); }
   on(ev, fn, options) { this._events.addEventListener(ev, fn, options); }
@@ -1046,6 +1053,7 @@ export class Fiend extends Entity {
   // edge, and fades late, so the eye reads depth instead of a sideways slide.
   // Used by the wind and storm abilities.
   blowTowardViewer(duration = 0.75) {
+    this._clearHaloRings();
     this._blowAway = { elapsed: 0, duration: Math.max(0.15, duration) };
     this.setState('idle');
   }
@@ -1053,6 +1061,8 @@ export class Fiend extends Entity {
   setState(s) {
     super.setState(s);
     if (s === 'retreat') {
+      // A requeued fiend leaves the field; its rings come back with it.
+      this._clearHaloRings();
       const distance = Math.max(1, FIEND_EXIT_X - this.x);
       // Never slower than the old 2x-walk-speed pace, but always fast enough
       // to finish within RETREAT_MAX_SECONDS.
@@ -1063,10 +1073,11 @@ export class Fiend extends Entity {
   update(dt) {
     super.update(dt);
     this._haloPhase += dt;
+    this._syncHaloRings();
     this._haloEmit += dt;
     if (this._haloEmit >= HALO_EMIT_SECONDS) {
       this._haloEmit = 0;
-      this._emitStatusParticles();
+      this._emitSpikeSparkle();
     }
     // Blown at the viewer: no walking, no retreating — the flight toward the
     // camera owns the sprite until it has faded out, then it reports 'retreated'
@@ -1309,23 +1320,63 @@ export class Fiend extends Entity {
     });
   }
 
-  // Halos and the earth sparkle are emitted, not painted: every ~90 ms a few
-  // grains of light leave each hit point and each slowed fiend's feet, so the
-  // markers breathe and drift instead of sitting on the sprite as flat discs.
-  _emitStatusParticles() {
+  // Hit points are one persistent ring per answer still owed, moved onto the
+  // crown every frame. Emitting a fresh ring per tick (the first version) left
+  // two or three of them alive at once — expanding, overlapping, and fading on
+  // their own clocks — so the count on screen did not match the answers left.
+  // Holding one particle per point makes the count exact and costs no
+  // allocation after the first frame.
+  _syncHaloRings() {
     const fx = globalThis.ffmScreenFx;
-    if (!fx?.play) return;
-    if (this.hp >= 2 && !this.isDead) {
-      const radius = this._haloLayout().size * 0.9;
-      for (let i = 0; i < this.hp; i++) {
-        const { x, y } = this._haloPoint(i);
-        fx.play('hitPointHalo', { x, y, radius });
-      }
+    const wanted = this.hp >= 2 && !this.isDead ? this.hp : 0;
+    if (!this._haloRings) this._haloRings = [];
+    if (wanted === 0 || !fx) {
+      this._clearHaloRings();
+      return;
     }
-    if (this.spikeSlowed && this.hp > 0) {
-      const { drawW } = this._spriteBox();
-      fx.play('spikeSparkle', { x: this.x, y: this.y - P, radius: drawW * 0.34 });
+    while (this._haloRings.length > wanted) {
+      const ring = this._haloRings.pop();
+      if (ring) ring.life = 0;
     }
+    while (this._haloRings.length < wanted) {
+      const ring = typeof fx.ring === 'function'
+        ? fx.ring(this.x, this.y, '#8a62c8', HALO_RING_RADIUS, HALO_RING_RADIUS, HALO_RING_LIFE, 2.2)
+        : null;
+      this._haloRings.push(ring);
+    }
+    const radius = this._haloLayout().size;
+    for (let i = 0; i < this._haloRings.length; i++) {
+      const ring = this._haloRings[i];
+      if (!ring) continue;
+      const point = this._haloPoint(i, wanted);
+      ring.x = point.x;
+      ring.y = point.y;
+      ring.px = point.x;
+      ring.py = point.y;
+      // Pinned to full life: a ring that fades on its own clock blinks out
+      // between emissions, which is exactly what made counting impossible.
+      ring.life = HALO_RING_LIFE;
+      ring.maxLife = HALO_RING_LIFE;
+      ring.r1 = radius;
+      ring.r0 = radius;
+    }
+  }
+
+  _clearHaloRings() {
+    if (!this._haloRings || this._haloRings.length === 0) return;
+    for (const ring of this._haloRings) {
+      if (ring) ring.life = 0;
+    }
+    this._haloRings.length = 0;
+  }
+
+  // The earth sparkle under a slowed fiend stays an emission: it is a shimmer,
+  // not a countable marker, so a tick of grains is exactly right.
+  _emitSpikeSparkle() {
+    const fx = globalThis.ffmScreenFx;
+    if (!fx?.play || !this.spikeSlowed || this.hp <= 0) return;
+    const { drawW } = this._spriteBox();
+    fx.play('spikeSparkle', { x: this.x, y: this.y - P, radius: drawW * 0.34 });
   }
 }
 
