@@ -16,22 +16,36 @@ export const ABILITY_ROSTER = Object.freeze([
 ]);
 
 /**
- * Default earth-spike slow. The spike slows at most one fiend by 35 % for 8 s.
+ * Default earth-spike slow: the spike holds at most one fiend to 30 % of its
+ * walk speed for 10 s.
  */
 export const SPIKE_SLOW_DEFAULTS = Object.freeze({
-  durationSeconds: 8,
-  factor: 0.65,
+  durationSeconds: 10,
+  factor: 0.3,
   targets: 1,
 });
 
 /**
- * Documented caps for the earth-spike slow: at most 15 s, a speed factor that
- * never drops below 0.4, and at most 5 simultaneous targets.
+ * Documented caps for the earth-spike slow: at most 30 s, a speed factor that
+ * never drops below 0.15, and at most 5 simultaneous targets. The duration cap
+ * bounds the banked stretch too, so a chain of instant kills cannot leave the
+ * field slowed for the rest of the level.
  */
 export const SPIKE_SLOW_CAPS = Object.freeze({
-  durationSeconds: 15,
-  factorFloor: 0.4,
+  durationSeconds: 30,
+  factorFloor: 0.15,
   targets: 5,
+});
+
+/**
+ * How each earth bonus from the level ladder deepens the spike. The same bonus
+ * already adds a target; it now also lengthens the stretch and strengthens the
+ * slow, so earth grows in all three directions as the campaign advances.
+ * Clamped by SPIKE_SLOW_CAPS through `spikeSlowForBonuses`.
+ */
+export const SPIKE_SLOW_GROWTH = Object.freeze({
+  secondsPerBonus: 2,
+  factorStepPerBonus: 0.03,
 });
 
 /** Passive fiend-speed multiplier floor (a 30 % slow). */
@@ -116,6 +130,23 @@ export function clampSpikeSlow(params = {}) {
     factor: Math.min(1, Math.max(SPIKE_SLOW_CAPS.factorFloor, factor)),
     targets: Math.min(SPIKE_SLOW_CAPS.targets, Math.max(1, Math.trunc(targets))),
   };
+}
+
+/**
+ * The spike a player has earned by `bonusCount` earth bonuses: a longer stretch
+ * and a heavier slow on top of the defaults, clamped to the documented caps.
+ * @param {number} [bonusCount] - earth bonuses collected so far, 0 or more.
+ * @returns {{ durationSeconds: number, factor: number, targets: number }}
+ */
+export function spikeSlowForBonuses(bonusCount = 0) {
+  const bonuses = Number.isFinite(bonusCount) && bonusCount > 0 ? Math.trunc(bonusCount) : 0;
+  return clampSpikeSlow({
+    durationSeconds: SPIKE_SLOW_DEFAULTS.durationSeconds + bonuses * SPIKE_SLOW_GROWTH.secondsPerBonus,
+    // Rounded to thousandths: 0.3 - 0.03 is 0.24000000000000002 in binary
+    // floating point, and that noise would reach the HUD and every test.
+    factor: Math.round((SPIKE_SLOW_DEFAULTS.factor - bonuses * SPIKE_SLOW_GROWTH.factorStepPerBonus) * 1000) / 1000,
+    targets: SPIKE_SLOW_DEFAULTS.targets + bonuses,
+  });
 }
 
 /**
@@ -362,15 +393,20 @@ export function createAbilityRuntime({
     },
 
     /**
-     * Restart the earth-spike countdown without touching anything else. Called
-     * when the spike takes hold of the next spawn: every target it promises
-     * gets its own stretch of time, instead of all of them sharing one countdown
-     * that usually died while the first slowed fiend was still being answered.
-     * @returns {boolean} whether a spike was running to refresh.
+     * Hand the spike to the next spawn. Called when the spike takes hold of
+     * another fiends: the time left on the current stretch is *banked* and the
+     * next target's stretch is that leftover plus a full duration, so answering
+     * a slowed fiend quickly carries its unused seconds forward instead of
+     * throwing them away. Bounded by SPIKE_SLOW_CAPS.durationSeconds.
+     * @returns {boolean} whether a spike was running to hand over.
      */
     refreshSpike() {
       if (!spike.active) return false;
-      spike = { ...spike, remainingSeconds: spike.durationSeconds };
+      const banked = spike.remainingSeconds + spike.durationSeconds;
+      spike = {
+        ...spike,
+        remainingSeconds: Math.min(SPIKE_SLOW_CAPS.durationSeconds, banked),
+      };
       return true;
     },
 

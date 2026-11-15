@@ -173,6 +173,11 @@ Browser
   the numbers of their bonus-aware readouts (storm removals, earth slow percent and targets); the
   words live in each slot's accessible name, because the two captions of a row sit side by side in
   too narrow a column for sentences.
+- Earth holds its targets to **30 % of their walk speed for 10 s** at unlock (level 11). Every earth
+  bonus from the level ladder also lengthens the stretch (+2 s), deepens the slow (-0.03) and adds a
+  target, clamped to 30 s / 0.15 / 5 targets. Answering a slowed fiend before its stretch ends does
+  not waste the rest: the leftover seconds are banked onto the next target's stretch (leftover + a
+  full duration, capped at 30 s), so a quickly cleared chain keeps the field slowed.
 - Buttons have three visible tiers: brass *primary* (thicker 2px line plus a drawn diamond: start practice,
   resume, next level, save a score), red *danger* (discard a score, delete a player) and quiet
   navigation/pagination, whose paging arrows are drawn with CSS borders rather than glyphs.

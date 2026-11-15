@@ -518,23 +518,27 @@ describe('the multi-hit level storm', () => {
 });
 
 describe('the spike reaches every target it promises', () => {
-  it('keeps a window per target instead of one shared countdown', () => {
+  it('hands its leftover time to the next target instead of one shared countdown', () => {
     // The timeout used to outlive the spell: two answers at five seconds each
-    // already ran past the eight-second spike, so the second fiend spawned into
-    // clear weather although the orb read "x3".
-    const runtime = createAbilityRuntime({ level: 20, spikeSlow: { targets: 3, durationSeconds: 8, factor: 0.65 } });
+    // already ran past the spike, so the second fiend spawned into clear
+    // weather although the orb read "x3".
+    const runtime = createAbilityRuntime({ level: 20, spikeSlow: { targets: 3, durationSeconds: 10, factor: 0.3 } });
     runtime.activate('earth');
-    runtime.tick(10, { encounterRunning: true });
-    assert.equal(runtime.spikeState.active, false, 'the first window does run out');
+    runtime.tick(11, { encounterRunning: true });
+    assert.equal(runtime.spikeState.active, false, 'the first stretch does run out');
 
-    // A spawn that the budget holds refreshes the countdown for its own window.
-    const second = createAbilityRuntime({ level: 20, spikeSlow: { targets: 3, durationSeconds: 8, factor: 0.65 } });
+    // A fast kill banks what was left onto the next target's stretch.
+    const second = createAbilityRuntime({ level: 20, spikeSlow: { targets: 3, durationSeconds: 10, factor: 0.3 } });
     second.activate('earth');
     second.tick(6, { encounterRunning: true });
+    assert.equal(second.spikeState.remainingSeconds, 4);
     assert.equal(second.refreshSpike(), true);
-    assert.equal(second.spikeState.remainingSeconds, 8, 'the next target starts its own eight seconds');
-    second.tick(7, { encounterRunning: true });
+    assert.equal(second.spikeState.remainingSeconds, 14,
+      'the four seconds left plus a full ten for the next target');
+    second.tick(12, { encounterRunning: true });
     assert.equal(second.spikeState.active, true, 'so the second fiend is still held when it arrives');
+    second.tick(3, { encounterRunning: true });
+    assert.equal(second.spikeState.active, false, 'and the banked stretch ends when it is spent');
   });
 
   it('refreshes only while a spike is running', () => {
