@@ -994,6 +994,10 @@ const HALO_EMIT_SECONDS = 0.12;
  *  so the count on screen always equals the answers left. */
 const HALO_RING_LIFE = 1;
 const HALO_RING_RADIUS = 11;
+const HALO_COLOR = '#8a62c8';
+/** How often each bead sheds a sparkle. Fast enough to read as living light,
+ *  slow enough that five beads do not become a particle storm themselves. */
+const HALO_SPARKLE_SECONDS = 0.16;
 /** Halo geometry as fractions of the sprite box, so a small blob and a tall
  *  wolf get the same readable crown instead of one size for all. */
 const HALO_ORBIT_X = 0.30;
@@ -1073,6 +1077,7 @@ export class Fiend extends Entity {
   update(dt) {
     super.update(dt);
     this._haloPhase += dt;
+    this._haloDt = dt;
     this._syncHaloRings();
     this._haloEmit += dt;
     if (this._haloEmit >= HALO_EMIT_SECONDS) {
@@ -1303,9 +1308,12 @@ export class Fiend extends Entity {
     const start = -Math.PI / 2;
     const angle = count <= 1 ? start : start + (Math.PI * 2 * index) / count;
     const phase = this._haloPhase * 0.9;
+    // Each bead bobs on its own offset, so a row of them reads as separate
+    // lights drifting over the head instead of a rigid ring drawn in the air.
+    const bob = Math.sin(this._haloPhase * 2.3 + index * 2.1) * ry * 0.45;
     return {
       x: cx + Math.cos(angle + phase) * rx,
-      y: cy + Math.sin(angle + phase) * ry,
+      y: cy + Math.sin(angle + phase) * ry + bob,
     };
   }
 
@@ -1339,12 +1347,16 @@ export class Fiend extends Entity {
       if (ring) ring.life = 0;
     }
     while (this._haloRings.length < wanted) {
-      const ring = typeof fx.ring === 'function'
-        ? fx.ring(this.x, this.y, '#8a62c8', HALO_RING_RADIUS, HALO_RING_RADIUS, HALO_RING_LIFE, 2.2)
-        : null;
-      this._haloRings.push(ring);
+      this._haloRings.push(this._makeHaloBead(fx));
     }
     const radius = this._haloLayout().size;
+    if (!this._haloSparkleT) this._haloSparkleT = [];
+    while (this._haloSparkleT.length < wanted) {
+      // Staggered, so the beads do not all sparkle on the same frame.
+      this._haloSparkleT.push(Math.random() * HALO_SPARKLE_SECONDS);
+    }
+    this._haloSparkleT.length = wanted;
+    const lastDt = this._haloDt || 0;
     for (let i = 0; i < this._haloRings.length; i++) {
       const ring = this._haloRings[i];
       if (!ring) continue;
@@ -1353,13 +1365,47 @@ export class Fiend extends Entity {
       ring.y = point.y;
       ring.px = point.x;
       ring.py = point.y;
-      // Pinned to full life: a ring that fades on its own clock blinks out
+      // The bead is a held sprite; what makes it alive is the particles it
+      // sheds every tick, drawn from the same layer as every other spark.
+      this._haloSparkleT[i] -= lastDt;
+      if (this._haloSparkleT[i] <= 0) {
+        this._haloSparkleT[i] = HALO_SPARKLE_SECONDS * (0.75 + Math.random() * 0.5);
+        this._emitHaloSparkle(point, radius);
+      }
+      // Pinned to full life: a bead that fades on its own clock blinks out
       // between emissions, which is exactly what made counting impossible.
       ring.life = HALO_RING_LIFE;
       ring.maxLife = HALO_RING_LIFE;
-      ring.r1 = radius;
-      ring.r0 = radius;
+      if (ring.type === 'halo') {
+        // The bead itself is a cached sprite, so breathing and turning are two
+        // numbers per frame, not two gradients.
+        ring.radius = radius;
+        ring.pulse = 1 + Math.sin(this._haloPhase * 3.1 + i * 2.1) * 0.08;
+        ring.spin = this._haloPhase * 1.5 + i * 2.1;
+      } else {
+        ring.r1 = radius;
+        ring.r0 = radius;
+      }
     }
+  }
+
+  _emitHaloSparkle(point, radius) {
+    const fx = globalThis.ffmScreenFx;
+    if (!fx || typeof fx.play !== 'function') return;
+    fx.play('haloSparkle', { x: point.x, y: point.y, radius });
+  }
+
+  // One bead per answer still owed. `halo` is the glowing sprite; a plain ring
+  // is the fallback for a layer that predates it (and for the test doubles),
+  // so the "one particle per hit point" invariant holds either way.
+  _makeHaloBead(fx) {
+    if (typeof fx.halo === 'function') {
+      return fx.halo(this.x, this.y, HALO_COLOR, HALO_RING_RADIUS, HALO_RING_LIFE);
+    }
+    if (typeof fx.ring === 'function') {
+      return fx.ring(this.x, this.y, HALO_COLOR, HALO_RING_RADIUS, HALO_RING_RADIUS, HALO_RING_LIFE, 2.2);
+    }
+    return null;
   }
 
   _clearHaloRings() {
@@ -1368,6 +1414,7 @@ export class Fiend extends Entity {
       if (ring) ring.life = 0;
     }
     this._haloRings.length = 0;
+    if (this._haloSparkleT) this._haloSparkleT.length = 0;
   }
 
   // The earth sparkle under a slowed fiend stays an emission: it is a shimmer,

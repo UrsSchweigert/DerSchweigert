@@ -127,7 +127,7 @@ test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a f
   // The five granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
   const granular = ['fireTrail', 'fireImpact', 'boltTrail', 'boltImpact', 'spikeAura',
-    'hitPointHalo', 'hitPointBurst', 'spikeSparkle', 'stormRain', 'stormBolt', 'stormDim'];
+    'haloSparkle', 'hitPointBurst', 'spikeSparkle', 'stormRain', 'stormBolt', 'stormDim'];
   assert.deepEqual(Object.keys(table).sort(), [...EFFECT_NAMES, ...granular].sort());
   for (const name of [...EFFECT_NAMES, ...granular]) {
     assert.equal(typeof table[name], 'function', `${name} is a function`);
@@ -379,17 +379,17 @@ test('the spike aura is a sparkle that sits on the ground and eases off', () => 
     'grains of light rise off the ground');
 });
 
-test('a hit point halo is an ember bead and a spent one explodes', () => {
-  const halo = make();
-  halo.fx.play('hitPointHalo', { x: 300, y: 200, radius: 12 });
-  const ring = halo.fx._particles.find((p) => p.type === 'ring');
-  assert.ok(ring, 'the bead is a stroked ring, not a gradient');
-  assert.equal(halo.fx._particles.filter((p) => p.type === 'glow').length, 0,
-    'no radial gradients: a halo is re-emitted every 120 ms');
-  assert.ok(halo.fx._particles.filter((p) => p.type === 'ember').length >= 1,
-    'and a grain drifting off it');
-  const spread = Math.max(...halo.fx._particles.map((p) => Math.abs(p.x - 300)));
-  assert.ok(spread <= 16, 'nothing strays far from the point it marks');
+test('a hit-point bead is one sprite particle, and a spent one explodes', () => {
+  // The bead itself is not a recipe any more: entities.js holds one `halo`
+  // particle per answer still owed, so nothing is re-emitted (see
+  // Fiend._syncHaloRings).
+  const bead = make();
+  const particle = bead.fx.halo(300, 200, '#8a62c8', 12, 1);
+  assert.equal(particle.type, 'halo');
+  assert.equal(bead.fx._particles.filter((p) => p.type === 'halo').length, 1,
+    'one particle marks one hit point');
+  assert.equal(bead.fx._particles.filter((p) => p.type === 'glow').length, 0,
+    'and it costs no glow particle');
 
   const burst = make();
   burst.fx.play('hitPointBurst', { x: 300, y: 200, radius: 12 });

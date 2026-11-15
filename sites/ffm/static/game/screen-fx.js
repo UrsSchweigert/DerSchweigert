@@ -14,6 +14,16 @@ export const WORLD_HEIGHT = 450;
 export const MAX_DPR = 2;
 export const DPR_TIERS = [2, 1.5, 1.25];
 
+// A halo is a glowing bead: a soft bloom, a bright rim, an inner ring and three
+// orbiting glints. Built from primitives it would need a radial gradient per
+// particle per frame — the single most expensive thing this layer can do on an
+// Android WebView — so it is rasterised once into an offscreen sprite and every
+// frame is one drawImage plus a rotate. Oversampled so it stays crisp when the
+// world is scaled up on a large viewport.
+const HALO_SPRITE_SCALE = 4;
+const HALO_SPRITE_SPAN = 2.9;   // sprite width as a multiple of the rim radius
+const HALO_SPRITE_LIMIT = 12;   // distinct (colour, radius) sprites kept around
+
 const MAX_STEP = 0.05;          // seconds; a single frame may not advance further
 // Hard ceiling on live particles. Lifetime already retires every spawn, but a
 // stuck or boosted emitter must not be able to grow the array without bound on
@@ -148,6 +158,7 @@ export function createScreenFx(options = {}) {
     _dtBuffer: [],
     _timers: [],
     _emitters: [],
+    _haloSprites: new Map(),
 
     _rect: { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT },
     _cssW: WORLD_WIDTH,
@@ -342,6 +353,20 @@ export function createScreenFx(options = {}) {
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, Math.max(0.5, radius), 0, Math.PI * 2);
         ctx.stroke();
+        break;
+      }
+      // A cached-sprite bead: one blit, no gradient built here. `spin` turns the
+      // rim glints and `pulse` breathes the whole bead.
+      case 'halo': {
+        const sprite = instance._haloSprite(particle.color, particle.radius);
+        if (!sprite) break;
+        const pulse = particle.pulse > 0 ? particle.pulse : 1;
+        const span = Math.max(1, particle.radius * HALO_SPRITE_SPAN) * pulse;
+        ctx.save();
+        ctx.translate(particle.x, particle.y);
+        if (particle.spin) ctx.rotate(particle.spin);
+        ctx.drawImage(sprite, -span / 2, -span / 2, span, span);
+        ctx.restore();
         break;
       }
       case 'arc':
@@ -877,6 +902,91 @@ export function createScreenFx(options = {}) {
       if (!first) first = particle;
     }
     return first;
+  };
+
+  // Rasterised once per (colour, rim radius) pair. The bead is drawn with the
+  // rim on the sprite's own edge, so callers keep thinking in world units: one
+  // `halo` particle covers HALO_SPRITE_SPAN × its radius.
+  instance._haloSprite = function haloSprite(color, radius) {
+    const cssR = Math.max(3, radius) * HALO_SPRITE_SCALE;
+    const key = `${color}|${Math.round(cssR)}`;
+    const cached = instance._haloSprites.get(key);
+    if (cached !== undefined) return cached;
+    let sprite = null;
+    const size = Math.ceil(cssR * HALO_SPRITE_SPAN);
+    const canvas = instance._makeCanvas();
+    canvas.width = size;
+    canvas.height = size;
+    const surface = canvas.getContext ? canvas.getContext('2d') : null;
+    if (surface) {
+      const c = size / 2;
+      // Bloom first: a deep violet cloud, strongest at the centre so the bead
+      // reads as something burning rather than as a drawn circle.
+      const bloom = surface.createRadialGradient(c, c, 0, c, c, cssR * 1.40);
+      bloom.addColorStop(0, withAlpha(color, 0.88));
+      bloom.addColorStop(0.30, withAlpha(color, 0.5));
+      bloom.addColorStop(0.62, withAlpha(color, 0.24));
+      bloom.addColorStop(0.85, withAlpha(color, 0.1));
+      bloom.addColorStop(1, withAlpha(color, 0));
+      surface.fillStyle = bloom;
+      surface.beginPath();
+      surface.arc(c, c, cssR * 1.40, 0, Math.PI * 2);
+      surface.fill();
+      // A second, hotter cloud inside the rim, warm instead of violet, so the
+      // middle of the bead is lit from within.
+      const core = surface.createRadialGradient(c, c, 0, c, c, cssR * 0.62);
+      core.addColorStop(0, withAlpha('#ffffff', 0.75));
+      core.addColorStop(0.35, withAlpha('#e8dcff', 0.34));
+      core.addColorStop(1, withAlpha('#b48cf0', 0));
+      surface.fillStyle = core;
+      surface.beginPath();
+      surface.arc(c, c, cssR * 0.62, 0, Math.PI * 2);
+      surface.fill();
+      // Rim: thin and tinted, not a white band — it only has to stay countable.
+      surface.lineWidth = Math.max(1, cssR * 0.16);
+      surface.strokeStyle = withAlpha(color, 0.42);
+      surface.beginPath();
+      surface.arc(c, c, cssR * 1.05, 0, Math.PI * 2);
+      surface.stroke();
+      surface.lineWidth = Math.max(1, cssR * 0.085);
+      surface.strokeStyle = withAlpha('#e6d8ff', 0.34);
+      surface.beginPath();
+      surface.arc(c, c, cssR, 0, Math.PI * 2);
+      surface.stroke();
+      // Three glints on the rim. The whole sprite spins, so these read as a
+      // bead turning in place — motion without changing its size or count.
+      for (let i = 0; i < 3; i++) {
+        const angle = (Math.PI * 2 * i) / 3;
+        surface.fillStyle = withAlpha('#ffffff', i === 0 ? 0.72 : 0.34);
+        surface.beginPath();
+        surface.arc(c + Math.cos(angle) * cssR, c + Math.sin(angle) * cssR,
+          Math.max(1, cssR * (i === 0 ? 0.085 : 0.05)), 0, Math.PI * 2);
+        surface.fill();
+      }
+      sprite = canvas;
+    }
+    if (instance._haloSprites.size >= HALO_SPRITE_LIMIT) instance._haloSprites.clear();
+    instance._haloSprites.set(key, sprite);
+    return sprite;
+  };
+
+  instance.halo = function halo(x, y, color, radius, durationSeconds) {
+    const duration = durationSeconds || 1;
+    return instance._addParticle({
+      type: 'halo',
+      x,
+      y,
+      life: duration,
+      maxLife: duration,
+      radius: radius || 10,
+      // Driven by the owner every frame (see Fiend._syncHaloRings): a halo is
+      // held, and only breathes and turns.
+      pulse: 1,
+      spin: 0,
+      color,
+      alpha: instance._alphaScale(),
+      blend: 'lighter',
+    });
   };
 
   instance.ember = function ember(x, y, vx, vy, color, life) {

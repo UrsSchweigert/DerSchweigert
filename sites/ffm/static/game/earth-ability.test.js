@@ -311,23 +311,91 @@ describe('hit-point halos', () => {
     assert.equal(plain.plays.filter((p) => p.name === 'spikeSparkle').length, 0);
   });
 
-  it('spends no radial gradients on hit points', () => {
-    // A halo is re-emitted ~8x/s per hit point; a glow particle builds a
-    // gradient on every frame it lives, which is what made the Android build
-    // feel heavy on multi-hit levels.
-    // Called against a recording api rather than a live layer: the point is
-    // which primitives the recipe asks for, and `glow` is the one that builds a
-    // gradient on every frame.
-    const calls = [];
-    const api = new Proxy({}, {
-      get: (_target, name) => {
-        if (name === 'countScale' || name === 'alphaScale') return () => 1;
-        return (...args) => { calls.push({ name, args }); };
+  it('holds the bead as one halo particle per hit point, breathing and turning', () => {
+    const fiend = new Fiend(400, 380, { hp: 3, palette });
+    const beads = [];
+    const fx = {
+      plays: [],
+      halo(x, y, color, radius, life) {
+        const bead = {
+          type: 'halo', life, maxLife: life, x, y, radius, pulse: 1, spin: 0, color,
+        };
+        beads.push(bead);
+        return bead;
       },
-    });
-    createEffectTable().hitPointHalo(api, { x: 300, y: 200, radius: 12 });
-    assert.equal(calls.filter((c) => c.name === 'glow').length, 0, 'no gradients');
-    assert.ok(calls.some((c) => c.name === 'ring'), 'the bead is a cheap stroked ring');
+      play(name, payload) { this.plays.push({ name, payload }); return true; },
+    };
+    globalThis.ffmScreenFx = fx;
+    try {
+      fiend.update(1 / 60);
+      assert.equal(beads.length, 3, 'one glowing bead per answer still owed');
+      assert.ok(beads.every((bead) => bead.life === bead.maxLife), 'held, so the count never blinks');
+      const firstSpins = beads.map((bead) => bead.spin);
+      const firstPulses = beads.map((bead) => bead.pulse);
+
+      fiend.update(0.25);
+      assert.equal(beads.length, 3, 'no re-emission: the beads are the same three particles');
+      assert.ok(beads.some((bead, i) => bead.spin !== firstSpins[i]), 'they turn');
+      assert.ok(beads.some((bead, i) => bead.pulse !== firstPulses[i]), 'and breathe');
+
+      fiend.hit();
+      fiend.update(1 / 60);
+      assert.equal(beads.filter((bead) => bead.life > 0).length, 2,
+        'a hit spends exactly one bead');
+    } finally {
+      delete globalThis.ffmScreenFx;
+    }
+  });
+
+  it('sheds sparkles from every bead, at the bead, without a gradient', () => {
+    const fiend = new Fiend(400, 380, { hp: 3, palette });
+    const plays = [];
+    const fx = {
+      halo() { return { type: 'halo', life: 1, maxLife: 1 }; },
+      play(name, payload) { plays.push({ name, payload }); return true; },
+    };
+    globalThis.ffmScreenFx = fx;
+    try {
+      for (let i = 0; i < 72; i++) fiend.update(1 / 60);
+      const sparkles = plays.filter((p) => p.name === 'haloSparkle');
+      // Three beads at one sparkle each ~160 ms over 1.2 s: a dozen at the very
+      // least, so the light is visibly moving between frames.
+      assert.ok(sparkles.length >= 12, `expected a steady sparkle, saw ${sparkles.length}`);
+      assert.ok(sparkles.every((p) => Number.isFinite(p.payload.x) && p.payload.radius > 0),
+        'every sparkle is placed on the bead it belongs to');
+
+      fiend.hit();
+      fiend.hit();
+      assert.equal(plays.filter((p) => p.name === 'hitPointBurst').length, 2,
+        'each spent point burst where it floated');
+      const settled = sparkles.length;
+      for (let i = 0; i < 30; i++) fiend.update(1 / 60);
+      assert.equal(plays.filter((p) => p.name === 'haloSparkle').length, settled,
+        'the last answer has no bead, so nothing sparkles');
+    } finally {
+      delete globalThis.ffmScreenFx;
+    }
+  });
+
+  it('falls back to a plain ring when the layer has no halo sprite', () => {
+    const fiend = new Fiend(400, 380, { hp: 2, palette });
+    const rings = [];
+    const fx = {
+      ring(x, y, color, r0, r1, life) {
+        const ring = { type: 'ring', x, y, r0, r1, life, maxLife: life };
+        rings.push(ring);
+        return ring;
+      },
+      play() { return true; },
+    };
+    globalThis.ffmScreenFx = fx;
+    try {
+      fiend.update(1 / 60);
+      assert.equal(rings.length, 2);
+      assert.ok(rings.every((ring) => ring.life === ring.maxLife));
+    } finally {
+      delete globalThis.ffmScreenFx;
+    }
   });
 
   it('draws nothing on the canvas for hit points or the slow', () => {
