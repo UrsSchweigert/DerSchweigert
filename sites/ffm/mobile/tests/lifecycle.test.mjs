@@ -61,8 +61,10 @@ function fakeKeepAwakePlugin() {
   };
 }
 
-// Mirrors the main.js facade: pause()/resume() own the BGM, exactly like
-// pauseGame()/resumeGame() call audio.pauseBGM()/resumeBGM().
+// Mirrors the main.js facade: pause()/resume() own the BGM of a running level,
+// exactly like pauseGame()/resumeGame() call audio.pauseBGM()/resumeBGM(), and
+// suspendAudio()/resumeAudio() cover the music no level owns (title playlist,
+// story intro, result screens). resumeAudio() skips a pause the game owns.
 function fakeGame() {
   const audio = { pauseBGM: 0, resumeBGM: 0 };
   const state = { running: false, paused: false, backs: 0, backConsumed: false };
@@ -84,6 +86,12 @@ function fakeGame() {
       if (!state.paused) return;
       state.paused = false;
       audio.resumeBGM++;
+    },
+    suspendAudio() {
+      audio.pauseBGM++;
+    },
+    resumeAudio() {
+      if (!state.paused) audio.resumeBGM++;
     },
     goBack() {
       state.backs++;
@@ -157,8 +165,55 @@ test('a background event while not playing leaves the game alone', async () => {
   app.emit('appStateChange', { isActive: false });
   app.emit('appStateChange', { isActive: true });
   assert.equal(game.state.paused, false);
-  assert.equal(game.audio.pauseBGM, 0);
-  assert.equal(game.audio.resumeBGM, 0);
+  assert.equal(game.audio.pauseBGM, 1, 'the music outside a level is still suspended');
+  assert.equal(game.audio.resumeBGM, 1);
+});
+
+test('the title playlist is suspended on background and resumed exactly once', async () => {
+  const { app, game, keepAwake, lifecycle } = await setup();
+  lifecycle.setKeepAwake(true);
+
+  app.emit('appStateChange', { isActive: false });
+  assert.equal(game.state.paused, false, 'no level runs, so nothing is paused');
+  assert.equal(game.audio.pauseBGM, 1, 'Android keeps a WebView audible unless this seam stops it');
+  assert.equal(keepAwake.calls.allowSleep, 1, 'the title screen never holds the screen awake');
+
+  app.emit('appStateChange', { isActive: true });
+  assert.equal(game.audio.resumeBGM, 1);
+  assert.equal(game.state.paused, false);
+});
+
+test('a background trip resumes the music through one path only', async () => {
+  const { app, game } = await setup();
+  game.start();
+  app.emit('appStateChange', { isActive: false });
+  app.emit('appStateChange', { isActive: true });
+  assert.equal(game.audio.pauseBGM, 1, 'pauseGame() already stops the level music');
+  assert.equal(game.audio.resumeBGM, 1, 'resumeGame() owns it; the menu path must not resume too');
+});
+
+test('a level the player paused keeps its music off after a background trip', async () => {
+  const { app, game } = await setup();
+  game.start();
+  game.pause();
+  assert.equal(game.audio.pauseBGM, 1);
+
+  app.emit('appStateChange', { isActive: false });
+  app.emit('appStateChange', { isActive: true });
+  assert.equal(game.state.paused, true, 'the player pause survives');
+  assert.equal(game.audio.resumeBGM, 0, 'and its silence does too');
+});
+
+test('a facade without the audio hooks still runs the lifecycle', async () => {
+  const app = fakeAppPlugin();
+  const game = fakeGame();
+  delete game.suspendAudio;
+  delete game.resumeAudio;
+  const lifecycle = createLifecycle({ app, game });
+  await lifecycle.start();
+  app.emit('appStateChange', { isActive: false });
+  app.emit('appStateChange', { isActive: true });
+  assert.equal(game.state.paused, false);
 });
 
 test('Android Back pauses while playing, backs out while paused, exits otherwise', async () => {
@@ -287,6 +342,8 @@ test('main.js wires the lifecycle only in the app build', async () => {
   assert.match(source, /isPaused: \(\) => paused/);
   assert.match(source, /pause: pauseGame/);
   assert.match(source, /resume: resumeGame/);
+  assert.match(source, /suspendAudio: \(\) => audio\.suspendForBackground\(\)/);
+  assert.match(source, /resumeAudio: \(\) => audio\.resumeFromBackground\(!paused\)/);
   assert.match(source, /goBack: handleAppBack/);
   assert.match(source, /appLifecycle\.start\(\)/);
 

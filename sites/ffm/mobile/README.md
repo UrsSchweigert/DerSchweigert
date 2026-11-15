@@ -82,7 +82,9 @@ theatre fills the screen and the player turns the phone. Gameplay itself is
 unaffected.
 
 `appStateChange` and `backButton` events: it pauses gameplay and BGM when the app leaves the foreground,
-resumes only when that pause was automatic (a pause the player chose stays), maps Android Back to
+suspends the music that belongs to no level (title playlist, story intro, result screens) as well —
+Android keeps a WebView audible in the background, where iOS silences the app through its own audio
+session — resumes only when that pause was automatic (a pause the player chose stays), maps Android Back to
 pause → back out of the quit confirmation → exit, and drives `@capacitor-community/keep-awake` so the screen
 stays awake only while a level is running. Orientation follows the device — the native shells lock nothing
 and both iOS build configurations target iPhone and iPad. The uncropped 800×450 scene maximizes remaining

@@ -242,10 +242,10 @@ if (platform.isApp) {
       });
     })
     .catch(() => {});
-  // Pause gameplay and music while the app is in the background, resume only
-  // after an automatic pause, map the Android back button, and keep the
-  // screen awake only while a level is running. The web build never loads
-  // this module.
+  // Pause gameplay and music while the app is in the background — including
+  // the music no level owns — resume only after an automatic pause, map the
+  // Android back button, and keep the screen awake only while a level is
+  // running. The web build never loads this module.
   import('./lifecycle.js')
     .then(({ createAppPlugin, createKeepAwakePlugin, createLifecycle }) => {
       const app = createAppPlugin();
@@ -258,6 +258,13 @@ if (platform.isApp) {
           isPaused: () => paused,
           pause: pauseGame,
           resume: resumeGame,
+          // The title playlist, the story intro, the result screens and the
+          // victory hymn play outside any level, so the level pause above never
+          // reaches them — Android keeps the WebView's audio running in the
+          // background. Resuming keeps a pause the game owns, so returning from
+          // the background never overrides the player.
+          suspendAudio: () => audio.suspendForBackground(),
+          resumeAudio: () => audio.resumeFromBackground(!paused),
           goBack: handleAppBack,
         },
       });
