@@ -1195,3 +1195,7 @@ The hero-pack plan needs ten art issues that generate sheets, split them and bui
   included, could tell whether the rejection was right. Every delivered image is now saved in the store folder (0600) and
   recorded in the ledger; `harness art PLAN --show ID [--open]` finds it. A failed save never costs the worker its paid image.
 * The three adventurer tries made before this change are lost.
+
+## A Blocked issue's definition can be corrected in place
+
+`harness import-issues --add --redefine ISSUE PLAN FILE` replaces only the definition fields (criteria, anchors, commands and so on) of a Blocked issue and keeps its branch, pull request and attempts. A new plan version still refuses to replace an issue a worker has touched; this is the owner's explicit, per-issue exception for a definition that makes every attempt block. The change is journaled as a `redefinition` document.
