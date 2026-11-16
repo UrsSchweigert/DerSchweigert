@@ -64,6 +64,8 @@ When the tier is unknown, treat it as Tier B.
 
 * **Image generation never puts the generator key in a worker.** When a plan names an art budget, `harness run` serves a loopback-only art service. A worker container holds the service address and a random per-run token, forwarded by name, and nothing else: the fal key, the model, the output size and the credit budget are decided and held by trusted code. The token is worth only the credits left in the plan, and the service is not reachable from outside the machine. Reference images are limited to small PNG files and prompts are screened for credentials.
 
+* **The Teams webhook URL is a secret that can only post.** It lets the run write cards to the owner's own chat. It lives in `<store>/teams.webhook` (mode `0600`), is never printed or logged, is accepted only for Microsoft Workflows hosts over https, and is used only by the trusted run process: a worker never receives it. Cards carry issue ids, states and task text, pass through the credential scrubber, and contain no prompts or tokens.
+
 ## Local Dashboard
 
 The dashboard is a trusted local control surface, not a remote administration

@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import time
 
-from . import approval, artservice, assets, claudecode, humantasks, investigate, isolation, models, plans, reconcile, runner, schemas, status, workrecord
+from . import approval, artservice, assets, claudecode, teams, humantasks, investigate, isolation, models, plans, reconcile, runner, schemas, status, workrecord
 from .github import GhCli, GitHubError
 from .approval import AuthorizationError, plan_entity
 from .checks import SandboxChecker
@@ -357,11 +357,22 @@ def runner_command(args) -> int:
             # a finished run is not resumed; it is watched until the owner merges or the watch expires
             return runner.watch_promotion(sched, args.interval, args.max_ticks,
                                           lambda e: print(json.dumps(e, sort_keys=True), flush=True))
-        art_service = None
+        art_service = teams_service = None
         try:
             art_service = runner.start_art_service(store, args.plan_id, version, sched, args.dry_run)
-            return runner.run_loop(sched, args.interval, args.max_ticks, lambda e: print(json.dumps(e, sort_keys=True), flush=True))
+            from . import remote as remote_mod
+            remote_mod.load_harness_env(Path(root) if root else _repo_root())  # HARNESS_TEAMS_* intervals from the app env file
+            teams_service = runner.start_teams_service(store, args.plan_id, sched, args.dry_run)
+
+            def emit(event):
+                print(json.dumps(event, sort_keys=True), flush=True)
+                if teams_service is not None:
+                    teams_service.emit(event)
+
+            return runner.run_loop(sched, args.interval, args.max_ticks, emit)
         finally:
+            if teams_service is not None:
+                teams_service.stop("the run process ended")
             if art_service is not None:
                 art_service.stop()
             if tunnel is not None:
@@ -403,6 +414,50 @@ def claude_command(args) -> int:
         print("error: %s" % exc, file=sys.stderr)
         return 2
     print("saved %s (%s). Check it with `harness models --refresh`." % (path, claudecode.redacted(home)))
+    return 0
+
+
+def teams_command(args) -> int:
+    """Set up, check, test or remove the Teams webhook the run reports to. The URL is a secret: it is never printed."""
+    home = args.home or default_home()
+    if args.action == "status":
+        url = teams.load_url(home)
+        if not url:
+            print("no Teams webhook in %s; run `harness teams login`" % teams.path(home))
+            return 1
+        print("teams webhook: %s (%s, mode %o)" % (teams.redacted(url), teams.path(home), os.stat(teams.path(home)).st_mode & 0o777))
+        return 0
+    if args.action == "logout":
+        print("removed %s" % teams.path(home) if teams.remove_url(home) else "no Teams webhook in %s" % teams.path(home))
+        return 0
+    if args.action == "test":
+        url = teams.load_url(home)
+        if not url:
+            print("error: no Teams webhook; run `harness teams login`", file=sys.stderr)
+            return 2
+        poster = teams.Poster(url)
+        ok = poster.post(teams.card("Harness test message", "good", lines=["If you can read this in Teams, the harness can report to you."],
+                                    footer=time.strftime("%a %H:%M:%S")))
+        print("sent: check your Teams chat" if ok else "failed: %s" % (poster.last_error or "no answer"))
+        return 0 if ok else 1
+    if args.url_env:
+        url = os.environ.get(args.url_env, "").strip()
+        if not url:
+            print("error: %s is empty or unset" % args.url_env, file=sys.stderr)
+            return 2
+    else:
+        if not sys.stdin.isatty():
+            print("error: pass --url-env VAR, or run in a terminal to be prompted", file=sys.stderr)
+            return 2
+        print("In Teams: Workflows > 'Send webhook alerts to a chat' (or a flow with the trigger 'When a Teams webhook request is received'")
+        print("and the action 'Post card in a chat or channel' to yourself). Copy the URL it gives you and paste it here.")
+        url = getpass.getpass("Webhook URL (not echoed): ").strip()
+    try:
+        teams.save_url(home, url)
+    except (ValueError, OSError) as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 2
+    print("saved %s (%s). Check it with `harness teams test`." % (teams.path(home), teams.redacted(url)))
     return 0
 
 
@@ -793,6 +848,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     asx.add_argument("action", choices=["probe"])
     i = sub.add_parser("isolation", help="Tier A worker sandbox: build the image, verify it, or show the tier")
     i.add_argument("action", choices=["build", "verify", "status"])
+    tm = sub.add_parser("teams", help="the Microsoft Teams webhook the run reports to (tasks, alerts, activity, status)")
+    tm.add_argument("action", choices=["login", "status", "test", "logout"])
+    tm.add_argument("--url-env", help="read the webhook URL from this environment variable instead of prompting")
     ar = sub.add_parser("art", help="show the image-generation budget of a plan and what was spent")
     ar.add_argument("plan_id")
     ar.add_argument("--last", type=int, default=10, help="how many recent calls to list")
@@ -948,6 +1006,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return claude_command(args)
         if args.cmd == "art":
             return art_command(args)
+        if args.cmd == "teams":
+            return teams_command(args)
         if args.cmd == "models":
             return models_command(args)
         if args.cmd == "watch":

@@ -373,6 +373,23 @@ def start_art_service(store: Store, plan_id: str, version: int, sched: Scheduler
     return service
 
 
+def start_teams_service(store: Store, plan_id: str, sched: Scheduler, dry_run: bool):
+    """Start reporting to the owner's Teams chat when a webhook is configured. A rehearsal never posts.
+
+    The task notifier joins the scheduler's own, so requests, reminders and escalations reach Teams as well; the
+    caller feeds it the scheduler's events. Returns the service, or None when Teams is not set up.
+    """
+    from . import teams
+    url = teams.load_url(store.home)
+    if dry_run or not url:
+        return None
+    activity, status = teams.settings_minutes(os.environ)
+    service = teams.TeamsService(store.home, plan_id, teams.Poster(url), activity_minutes=activity, status_minutes=status).start()
+    sched.notifier = MultiNotifier(sched.notifier, service.notifier) if sched.notifier is not None else service.notifier
+    print("teams reporting to %s (activity every %g min, status every %g min)" % (teams.redacted(url), activity, status), file=sys.stderr, flush=True)
+    return service
+
+
 def watch_promotion(sched: Scheduler, interval: float, max_ticks: Optional[int], emit) -> int:
     """Watch a finished run whose pull request the owner has not merged yet.
 

@@ -1174,3 +1174,17 @@ The hero-pack plan needs ten art issues that generate sheets, split them and bui
   sandbox verification checks both (`art_libs`, `art_generate_tool`) and that no art credential is present by default.
 * Not changed: generated art does not pass through the asset manifest, so the sprite class limits (1 MB) do not apply
   to sheets; provenance lives in the ledger and in the hero pack's own `PROVENANCE.md`.
+
+## The run reports to the owner's Teams chat (2026-11-16)
+
+* The owner wanted status, actions, activity and tasks in a private Teams chat. The Microsoft 365 connector Claude has was
+  checked first: its granted scopes are mail, calendar, files and people, with no Teams or chat permission, and it only
+  works inside a Claude session, while the harness is a separate process. So delivery is a Teams Workflows webhook that the
+  harness posts Adaptive Cards to: no app registration, no Graph token and no refresh.
+* Tasks and decisions go out at once with the command that answers them, through the harness's existing notifier (so
+  reminders and escalations come along). Alerts are rate-limited to twelve an hour and then folded into the activity digest,
+  so a failure storm cannot flood the chat. Routine activity is one digest per period and only when something happened.
+* Posting runs on a background thread with a short timeout and a bounded queue, so Teams being slow or down can never stall
+  the scheduler; failed cards are dropped, not queued forever.
+* The URL is stored like the other secrets (0600, redacted, host-allowlisted). A killed process sends no farewell; the
+  absence of the hourly status card is the signal.

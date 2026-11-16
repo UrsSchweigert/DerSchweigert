@@ -165,6 +165,36 @@ made while you are limited does not mark your models unavailable for a day.
 `investigate` is interactive, so it stops instead of waiting and tells you when
 to rerun it.
 
+### Reporting to your Teams chat
+
+`harness run` can report to your private Microsoft Teams chat while it works, so you do not have to watch a terminal:
+
+| What | When | Example |
+|---|---|---|
+| **Tasks and decisions** | at once, with the options and the exact `harness respond ...` command; reminders and escalations too | "Action needed: decision" |
+| **Alerts** | at once, at most 12 an hour (the rest join the digest): a blocked issue, a subscription limit wait, a paused or stopped run, a finished phase, an environment failure | "ffmhero-art-tooling attempt failed: schema_invalid -> block" |
+| **Activity** | one digest every 15 minutes, only when something happened: workers started, pull requests opened and merged, issues Done, overseer decisions | "implementer started on ffmhero-selection (sonnet)" |
+| **Status** | when the run starts and every 60 minutes: phases, issue counts, who is working, blocked issues, open tasks, art credits left, a limit wait | "Harness status" |
+
+Delivery uses a **Teams Workflows webhook**: a flow with the trigger *When a Teams webhook request is received* and the
+action *Post card in a chat or channel*, posting to you. Set it up once:
+
+1. In Teams, open **Workflows**, choose **Send webhook alerts to a chat** (or build the flow above), pick your own chat and
+   copy the URL it shows.
+2. `harness teams login` and paste the URL (it is not echoed; `--url-env VAR` reads it from an environment variable).
+3. `harness teams test` posts a test card. `harness teams status` shows the redacted address; `harness teams logout` removes it.
+
+* **The URL is a secret**: anyone holding it can post to your chat. It lives in `<store>/teams.webhook` (mode 0600), is never
+  printed or logged, and only Microsoft Workflows hosts are accepted (`*.logic.azure.com`, `*.powerplatform.com`,
+  `*.webhook.office.com`).
+* **The run never waits for Teams.** Posting happens on a background thread with a 15-second timeout; a rate limit or a server
+  error is retried twice and then the card is dropped. A rehearsal (`--dry-run`) posts nothing.
+* **Intervals**: `HARNESS_TEAMS_ACTIVITY_MINUTES` and `HARNESS_TEAMS_STATUS_MINUTES` in `sites/derschweigert/.env`.
+* **A killed run cannot say goodbye.** A normal stop or Ctrl+C posts "Harness run stopped"; if the process is killed, the
+  missing status card an hour later is the signal.
+* This does **not** use the Microsoft 365 connector Claude has: it carries no Teams permission, and it exists only inside a
+  Claude session, while the harness is its own process.
+
 ### Image generation for workers (the art service)
 
 A worker session is one-shot, so it cannot ask a broker for an image and wait for the answer. When the approved plan
@@ -928,6 +958,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `models` | Show the picker menu and which ids your Claude subscription accepts | `--source claude`, `--refresh` |
 | `claude` | Store, show, or remove the Claude subscription token workers use | `login` (prompts; or `--token-env VAR`), `status`, `logout` |
 | `art` | Show a plan's image-generation budget and the latest calls | `PLAN_ID`, `--last N` |
+| `teams` | Set up, check, test or remove the Teams webhook the run reports to | `login` (prompts; or `--url-env VAR`), `status`, `test`, `logout` |
 | `approve PLAN_ID` | Record your one-time approval (real terminal) | `--version` |
 | `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version`, `--add` (add the file's issues and leave the plan's other issues alone) |
 | `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version`, `--no-tunnel` |
