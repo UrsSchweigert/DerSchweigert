@@ -1142,6 +1142,23 @@ def test_an_issue_that_already_has_work_is_not_silently_skipped(tmp_path):
         runner.import_issues(store, "fx", None, str(corrected), "base2")
 
 
+def test_a_revision_that_leaves_an_issue_alone_does_not_trip_over_its_work_in_flight(tmp_path):
+    """Importing a revised plan while some other issue is under review must work: only changed definitions need replacing."""
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i1"), head_rev="a" * 40, pr=7))
+
+    assert runner.import_issues(store, "fx", None, str(first), "base2") == [], "unchanged: nothing to report, nothing refused"
+    issue = store.get_issue("i1")
+    assert issue["head_rev"] == "a" * 40 and issue["pr"] == 7 and issue["base_rev"] == "base1", "the work and its base are left exactly as they were"
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["changed"])]))
+    with pytest.raises(runner.RunRefused, match="has work recorded"):
+        runner.import_issues(store, "fx", None, str(corrected), "base2")  # a changed definition under work is still refused
+
+
 def test_an_issue_id_of_another_plan_is_reported(tmp_path):
     store = make_plan(tmp_path)
     other = tmp_path / "other.json"
