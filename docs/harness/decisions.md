@@ -1156,3 +1156,21 @@ The owner chose to run every worker on their Claude subscription and to drop eve
 * Claude Code reports real token counts per session. They are recorded as `runtime_usage` ("measured") and win over the
   agent's own estimate and the size lower bound. The reported dollar figure is kept only as an API-equivalent number;
   nothing is billed per token on a subscription.
+
+## Workers generate images through a local art service (2026-11-16)
+
+The hero-pack plan needs ten art issues that generate sheets, split them and build atlases in one session.
+
+* The asset broker's `asset_request` action exists, but no run constructs a broker and the worker prompt never offers
+  it, so a worker had no way to request an image. A one-shot session also cannot submit a request and wait for the
+  answer. The planned "fal provider behind `_ai`" would therefore have turned every art issue into an upload task.
+* `harness run` now serves an **art service** on loopback when the approved plan carries `art: {generator, credits}`,
+  and the image carries `art-generate`. The fal key, the model, the size limits and the budget stay in trusted code;
+  a container gets an address and a per-run token. Credits are reserved before the paid call (so parallel workers cannot
+  overspend) and refunded on failure, and every call is recorded in a ledger in the store folder.
+* The art block is part of the approval digest. Existing plans have none, so their digests do not change.
+* The service is reached as `host.docker.internal`, added for implementer attempts only. Checked with Colima.
+* The worker image gained numpy, scipy and Pillow at the versions the repository's tests use, plus `art-generate`; the
+  sandbox verification checks both (`art_libs`, `art_generate_tool`) and that no art credential is present by default.
+* Not changed: generated art does not pass through the asset manifest, so the sprite class limits (1 MB) do not apply
+  to sheets; provenance lives in the ledger and in the hero pack's own `PROVENANCE.md`.

@@ -29,6 +29,11 @@ RUN apt-get update \
 RUN pip3 install --no-cache-dir --break-system-packages "gdtoolkit==${GDTOOLKIT_VERSION}" \
     && rm -rf /root/.cache/pip
 
+# Art tooling for sites/ffm/scripts (hero_poses.py, hero_frames.py, hero_portrait.py, hero_prompts.py): the same
+# versions the repository's test environment uses, so a worker and CI cut and pack a sprite identically.
+RUN pip3 install --no-cache-dir --break-system-packages "numpy==2.0.2" "scipy==1.13.1" "Pillow==11.3.0" \
+    && rm -rf /root/.cache/pip
+
 # The Godot editor binary, used headless only. Export templates and the Android SDK stay out of the
 # image: Android builds are a human-owned release workflow.
 COPY install_godot.py /opt/harness/install_godot.py
@@ -47,6 +52,11 @@ RUN git clone --depth 1 --branch v9.6.1 https://github.com/bitwes/Gut.git /tmp/g
     && chmod -R a+rX /opt/harness/godot
 COPY godot-test /opt/harness/godot-test
 RUN chmod 0755 /opt/harness/godot-test && ln -sf /opt/harness/godot-test /usr/local/bin/godot-test
+
+# Image generation for workers. The command only carries a request to the art service on the owner's machine; the
+# generator key and the budget stay there (see artservice.py).
+COPY art-generate /usr/local/bin/art-generate
+RUN chmod 0755 /usr/local/bin/art-generate
 
 # Trusted browser and engine checks. Workers cannot change them: they live in the image, not in the repository.
 COPY smoke/ /opt/harness/smoke/

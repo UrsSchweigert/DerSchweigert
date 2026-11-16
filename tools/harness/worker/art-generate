@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Generate one image through the harness art service. Standard library only.
+
+    art-generate --prompt-file prompt.txt --reference plate.png --seed 7 --size 1024 --out sheet.png
+    art-generate status
+
+The service runs on the owner's machine and holds the generator key; this command only carries the request. It needs
+ART_SERVICE_URL and ART_SERVICE_TOKEN, which the harness sets for implementer attempts when the plan has an art budget.
+Exit codes: 0 done, 2 budget used up, 3 request refused, 4 service or generator unavailable.
+"""
+import argparse
+import base64
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+TIMEOUT_S = 420
+
+
+def call(path, body=None):
+    url, token = os.environ.get("ART_SERVICE_URL", ""), os.environ.get("ART_SERVICE_TOKEN", "")
+    if not url or not token:
+        print("art-generate: no art service for this attempt (the plan has no art budget, or this is not an implementer attempt)",
+              file=sys.stderr)
+        sys.exit(4)
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    request = urllib.request.Request(url + path, data=data, method="GET" if body is None else "POST",
+                                     headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as exc:
+        try:
+            message = json.load(exc).get("error", "")
+        except ValueError:
+            message = ""
+        print("art-generate: %s (HTTP %d)" % (message or "request failed", exc.code), file=sys.stderr)
+        sys.exit(2 if exc.code == 402 else 3 if exc.code < 500 else 4)
+    except (urllib.error.URLError, OSError) as exc:
+        print("art-generate: the art service is not reachable: %s" % exc, file=sys.stderr)
+        sys.exit(4)
+
+
+def main(argv):
+    parser = argparse.ArgumentParser(description="Generate one image through the harness art service.")
+    parser.add_argument("command", nargs="?", choices=["generate", "status"], default="generate")
+    parser.add_argument("--prompt")
+    parser.add_argument("--prompt-file")
+    parser.add_argument("--reference", action="append", default=[], help="a PNG reference image (up to 2, 2.5 MB each)")
+    parser.add_argument("--seed", type=int)
+    parser.add_argument("--size", type=int, default=1024, choices=[512, 768, 1024])
+    parser.add_argument("--out")
+    parser.add_argument("--issue", default="", help="the issue this image is for, recorded with the call")
+    parser.add_argument("--label", default="", help="a short note recorded with the call, e.g. rogue idle sheet")
+    args = parser.parse_args(argv)
+
+    if args.command == "status":
+        print(json.dumps(call("/v1/status"), indent=1))
+        return 0
+    if bool(args.prompt) == bool(args.prompt_file) or not args.out:
+        parser.error("give exactly one of --prompt and --prompt-file, and --out")
+    prompt = args.prompt
+    if args.prompt_file:
+        with open(args.prompt_file, encoding="utf-8") as fh:
+            prompt = fh.read().strip()
+    references = []
+    for path in args.reference:
+        with open(path, "rb") as fh:
+            references.append(base64.b64encode(fh.read()).decode("ascii"))
+    result = call("/v1/generate", {"prompt": prompt, "size": args.size, "seed": args.seed, "references": references,
+                                  "issue_id": args.issue, "label": args.label})
+    with open(args.out, "wb") as fh:
+        fh.write(base64.b64decode(result.pop("png")))
+    print(json.dumps(result, indent=1))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
