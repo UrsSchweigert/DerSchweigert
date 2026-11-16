@@ -18,6 +18,16 @@ Raw sheets are not committed. Date: 2026-11-16.
 | adventurer | portrait | portrait prompt, unchanged | 303 | art-0013 | fal-ai/flux-pro/kontext | idle-1 portrait plate (hero_portrait.py --reference) | 2026-11-16 |
 | adventuress | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0014 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
 | adventuress | idle (identity try 2, rejected) | idle prompt + "Hair smooth and rounded, no spikes, tied back in a low ponytail; whole figure head to boots." | 202 | art-0015 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| monk | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0026 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
+| monk | idle (identity try 2, kept) | idle prompt + corrective sentence: profile facing right, plain wrapped orange robe, no shoulder armour, no buckle, bare bound fists | 202 | art-0027 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| monk | idle (identity try 3, rejected) | idle prompt + corrective sentence: same side view facing right, never from behind, white cloth hand bindings | 303 | art-0028 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| monk | walk | walk prompt, unchanged | 202 | art-0029 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| monk | swing | swing prompt, unchanged | 202 | art-0030 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| monk | hurt | hurt prompt, unchanged | 202 | art-0031 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| monk | dead | dead prompt, unchanged | 202 | art-0032 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| monk | victory | victory prompt, unchanged | 202 | art-0033 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| monk | cast | cast prompt, unchanged | 202 | art-0034 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| monk | portrait | portrait prompt, unchanged | 202 | art-0035 | fal-ai/flux-pro/kontext | idle-1 portrait plate (hero_portrait.py --reference) | 2026-11-16 |
 
 ## Adventurer
 
@@ -38,3 +48,18 @@ blonde hair, single pauldron, red scarf, dark outfit, oversized blade) and misse
 default plate carries the old spikes over (the adventurer was not delivered, so no regenerated idle-1 exists).
 A third try from the same plate was not spent. No clip sheets or portrait were generated. No adventuress art is
 committed; the manifest row is kept. Re-render once a delivered adventurer idle-1 can serve as the style reference.
+
+## Monk
+
+NEEDS RE-RENDER
+
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0026..0028) from the softened default plate (adventurer not
+delivered); try 2 kept as least bad. Clip sheets and bust at seed 202 (art-0029..0035). The generator returned
+944x1104 sheets, so they were padded to square with the backdrop colour before hero_poses.py --split; anchors are the
+tool-detected ones (strike [48, -8], cast [[24, -82], [28, -42]]); contact-sheet.webp was re-encoded lossless WebP
+(the tool writes PNG data, 491 KB).
+Review gate: no likeness to an existing game character, no text, no frame or background, child-safe, no spiky hair
+(shaved head), weapon (fist) reaches past idle in all swing frames, standing height equal at 163 px except the swing
+clip, which is larger. Missed look rules: facing (cells 2 and 4 of most sheets are front or back views, not
+facing right), hands not clearly bound, swing frames taller than idle, hurt/cast/victory poses barely differ from
+idle. Re-render once a delivered adventurer idle-1 exists as style reference.
