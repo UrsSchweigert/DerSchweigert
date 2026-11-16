@@ -1187,3 +1187,11 @@ The hero-pack plan needs ten art issues that generate sheets, split them and bui
 * The overseer's packet carries the review rounds and the criteria, so its data cap is 16000 characters instead of 4000: the
   usual cap would cut the packet mid-JSON and drop the rules for its own answer. Review findings are kept to 1200 characters
   instead of 400 so their measurements survive.
+
+## The art service keeps every image it delivers (2026-11-16)
+
+* The first adventurer attempt generated three identity sheets, judged all three as failing its look rules and left nothing
+  behind, because the service returned the images to the worker and kept only the prompt, seed and checksum. Nobody, the owner
+  included, could tell whether the rejection was right. Every delivered image is now saved in the store folder (0600) and
+  recorded in the ledger; `harness art PLAN --show ID [--open]` finds it. A failed save never costs the worker its paid image.
+* The three adventurer tries made before this change are lost.

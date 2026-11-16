@@ -419,10 +419,20 @@ def art_command(args) -> int:
             print("plan %s v%d has no art budget" % (args.plan_id, latest["plan"]["version"]))
             return 0
         summary = artservice.Ledger(store.home, args.plan_id, art["credits"]).summary()
+        if args.show:
+            call = next((c for c in summary["calls"] if c["call_id"] == args.show), None)
+            if call is None or not call.get("file") or not os.path.isfile(call["file"]):
+                print("error: %s has no saved image (images are kept from the day the art service started keeping them)" % args.show, file=sys.stderr)
+                return 2
+            print(call["file"])
+            if args.open and sys.platform == "darwin":
+                subprocess.run(["open", call["file"]], check=False)
+            return 0
         print("%s: %d of %d images used, %d left (%d delivered, %d failed and refunded); generator %s" % (
             args.plan_id, summary["used"], summary["credits"], summary["remaining"], summary["delivered"], summary["failed"], art["generator"]))
         for call in summary["calls"][-args.last:]:
-            print("  %s %-9s %-24s seed %-11s %s" % (call["call_id"], call["status"], call.get("issue_id") or "-", call.get("seed", "-"), call.get("label") or ""))
+            print("  %s %-9s %-24s seed %-11s %s%s" % (call["call_id"], call["status"], call.get("issue_id") or "-", call.get("seed", "-"), call.get("label") or "",
+                                                       "  [image saved]" if call.get("file") else ""))
         return 0
     finally:
         store.close()
@@ -796,6 +806,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ar = sub.add_parser("art", help="show the image-generation budget of a plan and what was spent")
     ar.add_argument("plan_id")
     ar.add_argument("--last", type=int, default=10, help="how many recent calls to list")
+    ar.add_argument("--show", metavar="CALL_ID", help="print where a generated image is saved, e.g. art-0004")
+    ar.add_argument("--open", action="store_true", help="with --show: open the image (macOS)")
     cl = sub.add_parser("claude", help="the Claude subscription token workers use (from `claude setup-token`)")
     cl.add_argument("action", choices=["login", "status", "logout"])
     cl.add_argument("--token-env", help="read the token from this environment variable instead of prompting")
