@@ -1190,3 +1190,51 @@ def test_update_email_falls_back_to_english_for_missing_locale(client):
         }, headers=headers)
     assert r.status_code == 200
     assert captured.get('language') == 'en'
+
+
+def test_profile_hero_default_null_and_set_read_back(client):
+    headers = register_and_login(client, "herodef", "herodef@example.com", "password123", 2010)
+    assert client.get('/api/profile', headers=headers).get_json()['user']['hero'] is None
+
+    r = client.patch('/api/profile', json={"hero": "monk"}, headers=headers)
+    assert r.status_code == 200
+    assert r.get_json()['user'] == {"username": "herodef", "first_grade_year": 2010, "hero": "monk"}
+    assert client.get('/api/profile', headers=headers).get_json()['user']['hero'] == "monk"
+
+
+def test_profile_hero_clear_with_null(client):
+    headers = register_and_login(client, "heroclr", "heroclr@example.com", "password123")
+    client.patch('/api/profile', json={"hero": "monk"}, headers=headers)
+    r = client.patch('/api/profile', json={"hero": None}, headers=headers)
+    assert r.status_code == 200
+    assert r.get_json()['user']['hero'] is None
+    assert client.get('/api/profile', headers=headers).get_json()['user']['hero'] is None
+
+
+def test_profile_hero_invalid_inputs_write_nothing(client):
+    headers = register_and_login(client, "herobad", "herobad@example.com", "password123", 2010)
+    client.patch('/api/profile', json={"hero": "monk"}, headers=headers)
+    for bad in [1, True, ["monk"], {}, "", "Monk", "1monk", "a" * 33, "monk\n", "mo nk", "mo_nk"]:
+        r = client.patch('/api/profile', json={"hero": bad, "first_grade_year": 2011}, headers=headers)
+        assert r.status_code == 400, f"expected 400 for hero={bad!r}"
+    user = client.get('/api/profile', headers=headers).get_json()['user']
+    assert user['hero'] == "monk"
+    assert user['first_grade_year'] == 2010
+
+
+def test_profile_hero_and_year_patch_independently(client):
+    headers = register_and_login(client, "heroind", "heroind@example.com", "password123", 2010)
+    client.patch('/api/profile', json={"hero": "monk"}, headers=headers)
+
+    r = client.patch('/api/profile', json={"first_grade_year": 2012}, headers=headers)
+    assert r.get_json()['user'] == {"username": "heroind", "first_grade_year": 2012, "hero": "monk"}
+
+    r = client.patch('/api/profile', json={"hero": "a" * 32}, headers=headers)
+    assert r.get_json()['user']['first_grade_year'] == 2012
+    user = client.get('/api/profile', headers=headers).get_json()['user']
+    assert user['first_grade_year'] == 2012 and user['hero'] == "a" * 32
+
+
+def test_profile_hero_unauthenticated(client):
+    r = client.patch('/api/profile', json={"hero": "monk"})
+    assert r.status_code == 401
