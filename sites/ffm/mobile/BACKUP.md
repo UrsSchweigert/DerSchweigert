@@ -11,7 +11,7 @@ covers it, how to verify a restore, and the native flags later phases must keep.
 
 | Record | Capacitor Preferences key | Content |
 | --- | --- | --- |
-| Family profiles | `arithmoslayer:profiles` | selected profile ID, stable player IDs/names, each player's bests, latest 100 history entries, sorted completed levels, completion receipts and optional practice badges/receipts |
+| Family profiles | `arithmoslayer:profiles` | selected profile ID, stable player IDs/names, each player's optional hero choice, bests, latest 100 history entries, sorted completed levels, completion receipts and optional practice badges/receipts |
 | Standalone per-level best | `arithmoslayer:progress:best` | legacy standalone helper's best score, difficulty and timestamp per level |
 | Standalone score history | `arithmoslayer:progress:history` | legacy standalone helper's latest 100 timestamped entries |
 | Standalone completed levels | `arithmoslayer:progress:completed` | legacy standalone helper's sorted cleared levels |
@@ -31,6 +31,10 @@ The summary and previous same-level/same-difficulty comparison are committed in
 that same write. Summary-bearing receipts return their original
 `previousAttemptSummary` on retry, even after later attempts are recorded.
 Documents and receipts without summaries remain valid and never invent statistics.
+
+Each player's optional hero choice (`setHero(id,heroId)`, cleared with `null`) is
+a field of that same document, so it is backed up and restored with the player and
+adds no key, no schema version and no migration.
 
 Practice badges are optional fields in the same version-1 family document.
 `recordPractice({profileId,sessionId,badgeIds})` atomically records descriptive
