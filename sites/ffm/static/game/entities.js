@@ -41,8 +41,19 @@ function _radialGlow(ctx, x, y, radius, alpha, core, mid) {
   ctx.restore();
 }
 
-const _heroAtlas = new Image();
-_heroAtlas.src = HERO_ATLAS;
+// The default atlas is created on first use, so a player whose selected hero
+// has its own atlas never fetches the adventurer's.
+let _heroAtlas = null;
+function defaultHeroAtlas() {
+  if (!_heroAtlas) {
+    _heroAtlas = new Image();
+    _heroAtlas.src = HERO_ATLAS;
+  }
+  return _heroAtlas;
+}
+// What a skin without an atlas draws with: not complete, so Hero.draw takes
+// the procedural canvas hero.
+const NO_ATLAS = Object.freeze({ complete: false, naturalWidth: 0 });
 const _dragonSprite = new Image();
 _dragonSprite.src = new URL('./dragon.webp', import.meta.url).href;
 const _fireballSprite = new Image();
@@ -137,7 +148,7 @@ export class Hero extends Entity {
     this._healAura = 0;       // countdown (seconds) — post-level-clear heal flash
     this._holdHealActive = false; // continuous flag — hold-to-heal in progress
     this._holdHealRatio = 0;  // 0..1 progress toward the next healed heart, for intensity
-    this._atlas = _heroAtlas;  // per-instance skin; setSkin swaps these
+    this._atlas = null;  // per-instance skin; null = the default atlas, created on first draw
     this._frames = HERO_FRAMES;
     this.strike = 'sword';
     this.anim = new HeroAnimator();
@@ -154,6 +165,7 @@ export class Hero extends Entity {
   setSkin(skin) {
     if (!skin || typeof skin !== 'object') return;
     if (skin.atlas) this._atlas = skin.atlas;
+    else if (skin.atlas === null) this._atlas = NO_ATLAS;
     if (skin.frames && typeof skin.frames === 'object') this._frames = skin.frames;
     this.strike = typeof skin.strike === 'string' && skin.strike ? skin.strike : 'sword';
     this.anim.clips = buildHeroClips(skin.anchors);
@@ -299,6 +311,7 @@ export class Hero extends Entity {
     const bob = 0;
     const fr = 0;
 
+    if (!this._atlas) this._atlas = defaultHeroAtlas();
     if (this._atlas.complete && this._atlas.naturalWidth) {
       this._drawAtlasFrame(ctx);
       return;
