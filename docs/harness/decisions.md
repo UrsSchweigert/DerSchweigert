@@ -1195,3 +1195,8 @@ The hero-pack plan needs ten art issues that generate sheets, split them and bui
   included, could tell whether the rejection was right. Every delivered image is now saved in the store folder (0600) and
   recorded in the ledger; `harness art PLAN --show ID [--open]` finds it. A failed save never costs the worker its paid image.
 * The three adventurer tries made before this change are lost.
+
+## Plans are checked against the phase scope and the worker's capabilities before work is paid for
+
+- **Scope closure.** When a refiner declares `plan_files` outside the phase `path_allowlist`, the refinement is rejected once (kind `plan_out_of_scope`, deterministic) with the reason handed to the next refiner. If the next plan is still out of scope, the issue is held for the owner (`plan_scope_gap`) and no implementer is started. This mirrors the diff gate, which used to be the first place the gap showed up, after an attempt was spent.
+- **Capability lint.** `plans.capability_problems` refuses issue text that asks for a manual test, a human task, an asset request or pipeline, or image generation without a plan `art` budget. It runs in the investigator's draft validation and in `import-issues`. A negated mention ("no manual test") is allowed.
