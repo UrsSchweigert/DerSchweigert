@@ -9,6 +9,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CATALOGUE_IDS,
+  HERO_PACK_ID,
+  PRODUCTS,
   PRODUCT_ID,
   PRODUCT_TYPE,
   PURCHASE_OUTCOMES,
@@ -408,4 +411,102 @@ test('classifyError covers the store-specific failure families', () => {
   assert.equal(classifyError({ code: 'ITEM_ALREADY_OWNED' }), PURCHASE_OUTCOMES.ALREADY_OWNED);
   assert.equal(classifyError(new Error('boom')), PURCHASE_OUTCOMES.ERROR);
   assert.equal(classifyError(null), PURCHASE_OUTCOMES.ERROR);
+});
+
+const heroTx = (overrides = {}) => transaction({ productIdentifier: HERO_PACK_ID, ...overrides });
+
+test('the catalogue is frozen and names both products', () => {
+  assert.equal(PRODUCT_ID, 'arithmoslayer_full_unlock');
+  assert.equal(HERO_PACK_ID, 'arithmoslayer_hero_pack');
+  assert.deepEqual([...CATALOGUE_IDS], [PRODUCT_ID, HERO_PACK_ID]);
+  assert.equal(Object.isFrozen(PRODUCTS), true);
+  assert.equal(Object.isFrozen(CATALOGUE_IDS), true);
+});
+
+test('the adapter sends the hero pack id with the same product type', async () => {
+  const calls = [];
+  const scope = {
+    Capacitor: { Plugins: { NativePurchases: {
+      async getProduct(payload) { calls.push(['getProduct', payload]); return { product: null }; },
+      async purchaseProduct(payload) { calls.push(['purchaseProduct', payload]); return {}; },
+    } } },
+  };
+  const adapter = createPurchasesPlugin(scope);
+  await adapter.getProduct(HERO_PACK_ID);
+  await adapter.purchaseProduct(HERO_PACK_ID);
+  assert.deepEqual(calls, [
+    ['getProduct', { productIdentifier: HERO_PACK_ID, productType: PRODUCT_TYPE }],
+    ['purchaseProduct', { productIdentifier: HERO_PACK_ID, productType: PRODUCT_TYPE, quantity: 1 }],
+  ]);
+});
+
+test('a hero pack purchase gates first, settles and maps outcomes like the unlock', async () => {
+  const ids = [];
+  const h = createHarness();
+  h.plugin.getProduct = async (id) => { h.events.push('getProduct'); ids.push(id); return PRODUCT; };
+  h.plugin.purchaseProduct = async (id) => { h.events.push('purchaseProduct'); ids.push(id); if (h.state.purchaseError) throw h.state.purchaseError; return h.state.purchase; };
+  h.state.purchase = heroTx({ isAcknowledged: false });
+  const result = await h.store.purchase({ productId: HERO_PACK_ID });
+  assert.equal(result.outcome, PURCHASE_OUTCOMES.SUCCESS);
+  assert.equal(result.acknowledged, true);
+  assert.equal(acknowledgeCalls(h.events).length, 1);
+  assert.deepEqual(ids, [HERO_PACK_ID, HERO_PACK_ID]);
+  assert.equal(h.events[0], 'gate:purchase');
+
+  h.state.purchase = heroTx({ purchaseState: '0' });
+  assert.equal((await h.store.purchase({ productId: HERO_PACK_ID })).outcome, PURCHASE_OUTCOMES.PENDING);
+  h.state.purchaseError = Object.assign(new Error('User cancelled'), { code: 'CANCELLED' });
+  assert.equal((await h.store.purchase({ productId: HERO_PACK_ID })).outcome, PURCHASE_OUTCOMES.CANCELLED);
+});
+
+test('a hero pack already owned is reported without a second purchase', async () => {
+  const h = createHarness();
+  h.state.purchases = [heroTx()];
+  const result = await h.store.purchase({ productId: HERO_PACK_ID });
+  assert.equal(result.outcome, PURCHASE_OUTCOMES.ALREADY_OWNED);
+  assert.equal(h.events.includes('purchaseProduct'), false);
+  h.state.purchases = [transaction()];
+  assert.equal(h.store.productId, PRODUCT_ID);
+});
+
+test('a denied gate never reaches the plugin for a pack purchase or a restore', async () => {
+  const h = createHarness({ allow: false });
+  assert.equal((await h.store.purchase({ productId: HERO_PACK_ID })).outcome, PURCHASE_OUTCOMES.GATED);
+  assert.equal((await h.store.restore()).outcome, RESTORE_OUTCOMES.GATED);
+  assert.deepEqual(h.events, ['gate:purchase', 'gate:restore']);
+});
+
+test('a product outside the catalogue is rejected without any plugin call', async () => {
+  const h = createHarness();
+  assert.equal((await h.store.purchase({ productId: 'other' })).outcome, PURCHASE_OUTCOMES.ERROR);
+  assert.deepEqual(await h.store.queryProduct('other'), { product: null, error: 'unknown product' });
+  assert.deepEqual(h.events, []);
+});
+
+test('queryProduct reads the hero pack and defaults to the unlock', async () => {
+  const h = createHarness();
+  const ids = [];
+  h.plugin.getProduct = async (id) => { ids.push(id); return PRODUCT; };
+  await h.store.queryProduct(HERO_PACK_ID);
+  await h.store.queryProduct();
+  assert.deepEqual(ids, [HERO_PACK_ID, PRODUCT_ID]);
+});
+
+test('restore lists owned catalogue products with one restore and one read', async () => {
+  const h = createHarness();
+  h.state.purchases = [transaction(), heroTx()];
+  const both = await h.store.restore();
+  assert.equal(both.entitled, true);
+  assert.deepEqual(both.ownedProducts, [PRODUCT_ID, HERO_PACK_ID]);
+  assert.equal(h.events.filter((e) => e === 'restorePurchases').length, 1);
+  assert.equal(h.events.filter((e) => e === 'getPurchases').length, 1);
+
+  h.state.purchases = [heroTx()];
+  assert.deepEqual(await h.store.restore(), {
+    outcome: RESTORE_OUTCOMES.RESTORED,
+    entitled: false,
+    ownedProducts: [HERO_PACK_ID],
+  });
+  h.state.purchases = [];
+  assert.deepEqual(await h.store.restore(), { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false });
 });
