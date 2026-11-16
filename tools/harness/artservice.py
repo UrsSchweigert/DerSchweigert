@@ -231,6 +231,18 @@ class ArtService:
                 arguments["image_urls"] = urls
         return arguments
 
+    def save_image(self, call_id: str, png: bytes) -> Optional[str]:
+        """Keep a delivered image in the store folder (mode 0600). A failure to save never costs the worker its paid image."""
+        try:
+            folder = os.path.join(os.path.dirname(self.ledger.path), "art-images", re.sub(r"[^A-Za-z0-9._-]", "_", self.plan_id))
+            os.makedirs(folder, mode=0o700, exist_ok=True)
+            target = os.path.join(folder, call_id + ".png")
+            with open(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "wb") as fh:
+                fh.write(png)
+            return target
+        except OSError:
+            return None
+
     def generate(self, body: Dict[str, Any]) -> Dict[str, Any]:
         arguments = self.check(body)
         entry = self.ledger.reserve({
@@ -252,7 +264,10 @@ class ArtService:
             self.ledger.settle(call_id, status="failed", error="the generator did not return a PNG")
             raise ArtUnavailable("the generator did not return a PNG")
         digest = hashlib.sha256(png).hexdigest()
-        self.ledger.settle(call_id, status="delivered", seed=result.get("seed"), sha256=digest, bytes=len(png))
+        # Every image is kept for the owner, whatever the worker decides about it: a worker that rejects its own tries
+        # leaves nothing else to look at, and the first three adventurer tries were lost exactly that way.
+        saved = self.save_image(call_id, png)
+        self.ledger.settle(call_id, status="delivered", seed=result.get("seed"), sha256=digest, bytes=len(png), file=saved)
         return {"call_id": call_id, "model": self.model, "seed": result.get("seed"), "sha256": digest,
                 "remaining": self.ledger.remaining(), "png": base64.b64encode(png).decode("ascii")}
 

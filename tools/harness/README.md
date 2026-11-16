@@ -193,6 +193,9 @@ art-generate status
   a failed generation is refunded because fal bills only what it delivers. The ledger is
   `<store>/art-ledger-<plan>.json` (mode 0600), so the budget survives restarts and a new plan version keeps its plan's
   spend. `harness art PLAN_ID` shows what was used and the latest calls.
+* **Every delivered image is kept** in `<store>/art-images/<plan>/art-NNNN.png` (mode 0600), whatever the worker decides about it.
+  A worker that rejects its own tries leaves nothing else to look at. `harness art PLAN --show art-0004` prints where an image
+  is, and `--open` opens it on macOS. The ledger marks saved images.
 * **Provenance is recorded by trusted code:** prompt, seed, model, checksum and issue for every call. The command prints
   the seed and call id so a worker can cite them in `PROVENANCE.md`.
 * **Exit codes of `art-generate`:** 0 done, 2 budget used up, 3 request refused, 4 service or generator unavailable. A
