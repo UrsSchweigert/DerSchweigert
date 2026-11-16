@@ -452,3 +452,8 @@
   outline: 2px solid var(--focus-ring, #fff0bd);
   outline-offset: 2px;
 }
+
+.pack-sheet-card button {
+  min-height: 44px;
+  min-width: 44px;
+}
