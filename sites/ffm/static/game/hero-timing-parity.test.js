@@ -17,7 +17,8 @@ describe('default hero clips', () => {
       assert.deepEqual(got.frames, want.frames, name);
       assert.equal(got.loop, want.loop, name);
       assert.equal(got.next, want.next, name);
-      assert.deepEqual(SAMPLES.map((t) => got.track(t)), want.track, name);
+      // JSON round trip: the snapshot cannot hold -0.
+      assert.deepEqual(JSON.parse(JSON.stringify(SAMPLES.map((t) => got.track(t)))), want.track, name);
     }
   });
 
