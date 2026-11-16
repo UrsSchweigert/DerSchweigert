@@ -37,6 +37,8 @@ export const BUNDLE_FILES = Object.freeze([
   ...REQUIRED_FILES,
   'game/levels.js',
   'game/levels/manifest.json',
+  'game/heroes.js',
+  'game/heroes/manifest.json',
   'game/renderer.js',
   'game/entities.js',
   'game/hero/hero-atlas.webp',
@@ -212,6 +214,20 @@ async function levelImagesIn(dir) {
   return names.filter((name) => LEVEL_IMAGE_RE.test(name)).sort();
 }
 
+const HERO_FILES = ['portrait.webp', 'hero-atlas.webp', 'hero-frames.js'];
+
+async function heroFilesIn(dir) {
+  const entries = await readdir(join(dir, 'game/heroes'), { withFileTypes: true }).catch(() => []);
+  const found = [];
+  for (const entry of entries.filter((item) => item.isDirectory())) {
+    for (const file of HERO_FILES) {
+      const rel = `game/heroes/${entry.name}/${file}`;
+      if (await isFile(join(dir, rel))) found.push(rel);
+    }
+  }
+  return found;
+}
+
 // A committed icon must be real WebP art, not a placeholder of another type.
 async function isWebp(path) {
   const handle = await open(path, 'r').catch(() => null);
@@ -244,6 +260,13 @@ export async function bundleReport(bundleDir = DEFAULT_BUNDLE_DIR, sourceDir = S
   const missing = present.filter((name) => !copiedInBundle.has(name));
   for (const name of missing) {
     problems.push(`level image present in the source but not copied: ${LEVEL_DIR}/${name}`);
+  }
+
+  // Hero art is delivered per hero: only the files the source ships must be copied.
+  for (const rel of await heroFilesIn(sourceDir)) {
+    if (!(await isFile(join(bundleDir, rel)))) {
+      problems.push(`hero file present in the source but not copied: ${rel}`);
+    }
   }
 
   const iconsPresent = [];
