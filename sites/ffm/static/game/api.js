@@ -173,11 +173,21 @@ export const api = {
     return res.json();
   },
 
-  async updateProfile(firstGradeYear) {
+  // updateProfile(year) keeps the legacy one-argument call; updateProfile({ firstGradeYear, hero })
+  // sends only the keys that are present.
+  async updateProfile(arg) {
+    let payload;
+    if (arg !== null && typeof arg === 'object') {
+      payload = {};
+      if ('firstGradeYear' in arg) payload.first_grade_year = arg.firstGradeYear;
+      if ('hero' in arg) payload.hero = arg.hero;
+    } else {
+      payload = { first_grade_year: arg };
+    }
     const res = await this._fetch('/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ first_grade_year: firstGradeYear })
+      body: JSON.stringify(payload)
     });
     return res.json();
   },

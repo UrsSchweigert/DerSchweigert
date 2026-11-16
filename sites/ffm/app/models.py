@@ -64,6 +64,7 @@ def get_user(username):
         'email': item['email'],
         'password_hash': item['password_hash'],
         'first_grade_year': _int_or_none(item.get('first_grade_year')),
+        'hero': item.get('hero') if isinstance(item.get('hero'), str) else None,
         'created_at': item['created_at'],
         # Pre-existing accounts created before email verification existed
         # have no `email_verified` attribute at all in DynamoDB. Defaulting
@@ -375,6 +376,21 @@ def update_user_first_grade_year(username, first_grade_year):
     except ClientError as exc:
         if exc.response['Error']['Code'] != 'ConditionalCheckFailedException':
             raise
+
+
+def update_user_hero(username, hero):
+    """Set or clear (None) the cosmetic hero id on the profile item only."""
+    if hero is None:
+        _users().update_item(
+            Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+            UpdateExpression='REMOVE hero',
+        )
+    else:
+        _users().update_item(
+            Key={'pk': f'USER#{username}', 'sk': 'PROFILE'},
+            UpdateExpression='SET hero = :v',
+            ExpressionAttributeValues={':v': hero},
+        )
 
 
 def ensure_stable_id(username):
