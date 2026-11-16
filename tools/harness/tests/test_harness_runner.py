@@ -1794,3 +1794,34 @@ def test_adapter_poll_separates_an_invalid_file_from_a_missing_one(tmp_path):
     (tmp_path / "result.json").write_text("{not json")
     poll = a.poll(finished_handle(tmp_path, 0), 0)
     assert poll.error["kind"] == "schema_invalid" and "not valid JSON" in poll.error["detail"]
+
+
+def test_redefine_replaces_a_blocked_issue_in_place_and_keeps_its_work(tmp_path):
+    store = make_plan(tmp_path)
+
+    def load(doc):
+        f = tmp_path / "issues.json"
+        f.write_text(json.dumps([doc]))
+        return str(f)
+
+    runner.import_issues(store, "fx", None, load(ISSUE), "base1")
+    issue = store.get_issue("i1")
+    issue["head_rev"], issue["pr"] = "abc", 7
+    store.put_issue(issue)
+    store.transition("issue", "i1", "Blocked", "coordinator", {"reason": "x"})
+    new = dict(ISSUE, acceptance_criteria=["Placeholder is fine."])
+    with pytest.raises(runner.RunRefused):
+        runner.import_issues(store, "fx", None, load(new), "base1", replace=False)
+    assert runner.import_issues(store, "fx", None, load(new), "base1", replace=False, redefine=("i1",)) == ["i1"]
+    kept = store.get_issue("i1")
+    assert kept["acceptance_criteria"] == ["Placeholder is fine."] and kept["pr"] == 7 and kept["head_rev"] == "abc"
+    assert store.state("issue", "i1") == "Blocked"
+
+
+def test_redefine_refuses_an_issue_that_is_not_blocked(tmp_path):
+    store = make_plan(tmp_path)
+    f = tmp_path / "issues.json"
+    f.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(f), "base1")
+    with pytest.raises(runner.RunRefused):
+        runner.import_issues(store, "fx", None, str(f), "base1", replace=False, redefine=("i1",))

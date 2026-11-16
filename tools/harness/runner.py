@@ -8,7 +8,8 @@ import sqlite3
 import subprocess
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+import hashlib
+from typing import Any, Dict, List, Optional, Sequence
 
 from . import approval, models, plans, schemas
 import sys
@@ -42,7 +43,7 @@ class RunRefused(Exception):
 
 
 def import_issues(store: Store, plan_id: str, version: Optional[int], path: str, base_rev: str,
-                  replace: bool = False) -> List[str]:
+                  replace: bool = False, redefine: Sequence[str] = ()) -> List[str]:
     """Load refined issues supplied by a human or an investigator pass. They enter Ready after validation against the approved plan.
 
     `replace` says the file is the plan's whole issue set, as `import-issues` declares: an issue of this plan that the
@@ -86,6 +87,12 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         if phase is None or not doc["requirement_ids"] or not set(doc["requirement_ids"]) <= set(phase["requirements"]):
             raise RunRefused("issue %s must reference one approved phase and its requirement IDs" % doc["issue_id"])
         existing = store.get_issue(doc["issue_id"])
+        if doc["issue_id"] in redefine:
+            if existing is None:
+                raise RunRefused("issue %s cannot be redefined: it does not exist" % doc["issue_id"])
+            _redefine(store, existing, doc, plan_id)
+            replaced.append(doc["issue_id"])
+            continue
         if existing is not None and store.state("issue", doc["issue_id"]) == "Cancelled":
             _revive_or_refuse(store, existing, plan_id)
             store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev,
@@ -173,6 +180,27 @@ def _adopt_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> No
     if _has_work(store, existing):
         raise RunRefused("issue %s is already %s and has work recorded; a new plan version cannot replace it"
                          % (issue_id, store.state("issue", issue_id)))
+
+
+def _redefine(store: Store, existing: Dict[str, Any], doc: Dict[str, Any], plan_id: str) -> None:
+    """Replace only the definition of a Blocked issue, keeping its branch, pull request, attempts and history.
+
+    A plan version may not replace an issue a worker has touched, because that would drop the work. A definition
+    that turns out to be wrong, so that every attempt blocks on it, is the one case the owner must be able to
+    correct in place. The request names the issue, the issue must be Blocked, and the change is journaled.
+    """
+    issue_id = existing["issue_id"]
+    if existing.get("plan_id") != plan_id:
+        raise RunRefused("issue %s already belongs to plan %s; issue ids are global" % (issue_id, existing.get("plan_id")))
+    state = store.state("issue", issue_id)
+    if state != "Blocked":
+        raise RunRefused("issue %s is %s; only a Blocked issue can be redefined in place" % (issue_id, state))
+    definition = _definition(doc)
+    old = plans.canonical({key: existing.get(key) for key in definition})
+    updated = dict(existing)
+    updated.update(definition)
+    store.put_issue(updated)
+    store.put_doc("redefinition", issue_id, {"fields": sorted(definition), "before_digest": hashlib.sha256(old).hexdigest()})
 
 
 def _revive_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> None:

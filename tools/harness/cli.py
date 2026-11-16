@@ -339,7 +339,8 @@ def runner_command(args) -> int:
                 raise runner.RunRefused("validation configuration errors prevent issue import: %s" %
                                         "; ".join("%s: %s" % (r["command"], r.get("output", "")) for r in config_errors[:3]))
             base = _import_base(root, plans.base_branch(stored["plan"]))
-            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=not args.add)) or "nothing new")
+            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=not args.add,
+                                                          redefine=tuple(args.redefine))) or "nothing new")
             return 0
         if not store.list_issues(args.plan_id):
             raise runner.RunRefused("no issues to schedule: supply refined issues with `import-issues`. Issue creation from phases is not automated yet")
@@ -736,6 +737,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ii = sub.add_parser("import-issues", help="load refined implementation issues for an approved plan")
     ii.add_argument("--add", action="store_true",
                     help="add the issues in the file and leave the plan's other issues alone, instead of replacing the whole set")
+    ii.add_argument("--redefine", action="append", default=[], metavar="ISSUE",
+                    help="replace the definition of this Blocked issue in place, keeping its pull request and history")
     ii.add_argument("plan_id")
     ii.add_argument("file")
     ii.add_argument("--version", type=int)

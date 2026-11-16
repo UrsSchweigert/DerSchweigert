@@ -1196,6 +1196,9 @@ The hero-pack plan needs ten art issues that generate sheets, split them and bui
   recorded in the ledger; `harness art PLAN --show ID [--open]` finds it. A failed save never costs the worker its paid image.
 * The three adventurer tries made before this change are lost.
 
+## A Blocked issue's definition can be corrected in place
+
+`harness import-issues --add --redefine ISSUE PLAN FILE` replaces only the definition fields (criteria, anchors, commands and so on) of a Blocked issue and keeps its branch, pull request and attempts. A new plan version still refuses to replace an issue a worker has touched; this is the owner's explicit, per-issue exception for a definition that makes every attempt block. The change is journaled as a `redefinition` document.
 ## Plans are checked against the phase scope and the worker's capabilities before work is paid for
 
 - **Scope closure.** When a refiner declares `plan_files` outside the phase `path_allowlist`, the refinement is rejected once (kind `plan_out_of_scope`, deterministic) with the reason handed to the next refiner. If the next plan is still out of scope, the issue is held for the owner (`plan_scope_gap`) and no implementer is started. This mirrors the diff gate, which used to be the first place the gap showed up, after an attempt was spent.
