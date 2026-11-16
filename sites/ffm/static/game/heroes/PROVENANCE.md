@@ -162,3 +162,33 @@ committed; the manifest row is kept. Re-render once a delivered adventurer idle-
 | soldier-f | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0069 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
 | soldier-f | idle (identity try 2, rejected) | idle prompt + "No spiky hair, no scarf, no shoulder armour, no cape, a round buckler on the left arm and a sword in the right hand in every pose." | 202 | art-0070 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
 | soldier-f | idle (identity try 3, rejected) | idle prompt + "Long brown hair in a low braid under a steel helmet with a brass nose guard, plain brown tunic, a round wooden buckler on the left arm, a short arming sword." | 303 | art-0071 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+
+## Priestess
+
+NEEDS RE-RENDER
+
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0072..0074) from the softened default plate (adventurer not
+delivered); try 2 kept. Try 1 carried over the old hero's spiky blonde hair, scarf and pauldron and read as an
+existing game character; try 3 came back dark-clothed with a cape and a back view. Clip sheets and bust at seed 202
+(art-0075..0081). The generator returned 944x1104 sheets, padded to square with the backdrop colour before
+hero_poses.py --split; all clips were split with --flip because the sheets face left. Anchors are the
+tool-detected ones (strike [55, -103], cast [[19, -88], [23, -62]]); contact-sheet.webp was re-encoded lossless WebP.
+Review gate: no likeness to an existing game character in the kept art, no text, no frame or background, child-safe,
+no spiky hair (smooth high ponytail), fist reaches past idle in all swing frames. Missed look rules: hands not
+clearly bound, hair a high ponytail rather than a knot, cells 2 and 4 of most sheets are side or three-quarter
+views, standing height equal at 163 px except the swing clip (larger), walk/hurt/cast poses barely differ from
+idle, dead-1 has a stray fragment, the bust pass returned a small full-figure portrait. Re-render once a delivered
+adventurer idle-1 exists as style reference.
+
+| hero | clip | prompt summary | seed | call id | model | reference | date |
+|---|---|---|---|---|---|---|---|
+| priestess | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0072 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
+| priestess | idle (identity try 2, kept) | idle prompt + corrective sentence: profile facing right, long dark hair in a high knot, plain wrapped cream robe with a sash, no shoulder armour, no scarf, no cape, bare bound fists | 202 | art-0073 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| priestess | idle (identity try 3, rejected) | idle prompt + corrective sentence: same side view facing right, never from behind, smooth dark hair in a high knot, white cloth hand bindings, whole figure head to boots | 303 | art-0074 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| priestess | walk | walk prompt, unchanged | 202 | art-0075 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| priestess | swing | swing prompt, unchanged | 202 | art-0076 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| priestess | hurt | hurt prompt, unchanged | 202 | art-0077 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| priestess | dead | dead prompt, unchanged | 202 | art-0078 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| priestess | victory | victory prompt, unchanged | 202 | art-0079 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| priestess | cast | cast prompt, unchanged | 202 | art-0080 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
+| priestess | portrait | portrait prompt, unchanged | 202 | art-0081 | fal-ai/flux-pro/kontext | idle-1 portrait plate (hero_portrait.py --reference) | 2026-11-16 |
