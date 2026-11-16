@@ -56,11 +56,14 @@ describe('buckler, staff and fist strike FX', () => {
   for (const family of ['buckler', 'staff', 'fist']) {
     it(`${family} waits for the hit frame and fades with the shared constant`, () => {
       assert.equal(draw(family, HIT - 0.1).length, 0);
+      assert.equal(draw(family, HIT - 0.03).length, 0, 'nothing in the windup frame');
+      assert.equal(draw(family, HIT - 1e-9).length, 0);
       assert.ok(draw(family, HIT).length > 0);
       assert.ok(draw(family, HIT + 0.3).length > 0);
       assert.equal(draw(family, HIT + 0.55).length, 0);
       const alphas = (t) => draw(family, t).filter((c) => c[0] === 'set' && c[1] === 'globalAlpha').map((c) => c[2]);
       assert.ok(Math.max(...alphas(HIT + 0.3)) < Math.max(...alphas(HIT)));
+      assert.ok(Math.max(...alphas(HIT)) <= 1);
     });
     it(`${family} uses canvas primitives only`, () => {
       assert.ok(!draw(family, HIT).some((c) => c[0] === 'drawImage'));

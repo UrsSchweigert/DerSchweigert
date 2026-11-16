@@ -165,8 +165,9 @@ const FAMILIES = { sword, buckler, staff, fist, bow };
  */
 export function drawStrikeFx(ctx, family, { cx, cy, t, hitStart, glow }) {
   const draw = FAMILIES[family] ?? sword;
-  // Only the bow flies before the hit; everything else waits for its frame.
-  if (draw !== bow && t < hitStart - 0.06) return;
+  // The bow flies from the clip's first frame. The sword keeps its slight lead
+  // into the windup; every other family starts on the frame flagged at "hit".
+  if (draw === sword ? t < hitStart - 0.06 : draw !== bow && t < hitStart) return;
   const fade = Math.max(0, 1 - (t - hitStart) / FX_FADE);
   if (fade <= 0) return;
   // The FX sets alpha, line width and stroke colours; it owns its own state.
