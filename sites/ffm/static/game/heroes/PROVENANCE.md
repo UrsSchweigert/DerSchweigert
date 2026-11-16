@@ -79,3 +79,19 @@ delivered adventurer idle-1 can serve as the style reference.
 | princess | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0039 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
 | princess | idle (identity try 2, rejected) | idle prompt + "Hair smooth and rounded in a low bun under the circlet, no spikes, no scarf, no shoulder armour, no cape." | 202 | art-0040 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
 | princess | idle (identity try 3, rejected) | idle prompt + "Long dark brown hair, smooth and rounded, no spikes, no scarf, no shoulder armour, a gold circlet, a slim rapier in the right hand." | 303 | art-0041 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+
+## Princess-armed
+
+NEEDS RE-RENDER (not committed: likeness)
+
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0045..0047), all with the unchanged idle prompt, from the softened
+default plate (adventurer not delivered). Every try read as an existing game character (spiky blonde hair, red scarf,
+pauldron, dark outfit, oversized blade carried over from the plate) and missed the hair rule; the staff and sword were
+only partly present. No clip sheets or portrait were generated. No princess-armed art is committed; the manifest row
+is kept. Re-render once a delivered adventurer idle-1 can serve as the style reference.
+
+| hero | clip | prompt summary | seed | call id | model | reference | date |
+|---|---|---|---|---|---|---|---|
+| princess-armed | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0045 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
+| princess-armed | idle (identity try 2, rejected) | idle prompt, unchanged | 202 | art-0046 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| princess-armed | idle (identity try 3, rejected) | idle prompt, unchanged | 303 | art-0047 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
