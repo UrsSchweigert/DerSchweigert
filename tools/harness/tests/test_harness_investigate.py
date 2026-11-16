@@ -475,6 +475,20 @@ def test_a_stuck_worker_is_cancelled_and_retried(out):
     assert res["status"] == "ok" and len(adapter.cancelled) == 1
 
 
+def test_a_worker_still_busy_at_the_timeout_is_not_retried(out):
+    """A busy attempt cut off by --timeout loses its work; an identical retry would run out the same way."""
+    clock = [0.0]
+    adapter = FakeInvestigatorAdapter("busy", good_draft())
+    adapter.poll = lambda h, now: Poll("running", now, None, None)  # active right up to the end
+
+    def sleep(s):
+        clock[0] += 100
+
+    with pytest.raises(investigate.InvestigationError, match="still working when it reached --timeout 1000s.*--timeout 3000"):
+        run(make(adapter, clock=lambda: clock[0], sleep=sleep, timeout=1000, inactivity=10**9), out)
+    assert len(adapter.cancelled) == 1 and len(adapter.models_used) == 1, "no second attempt was started"
+
+
 def test_inactivity_is_a_timeout_too(out):
     clock = [1000.0]
     adapter = FakeInvestigatorAdapter("busy", good_draft())
