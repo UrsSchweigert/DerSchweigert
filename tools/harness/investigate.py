@@ -65,7 +65,7 @@ Rules:
 - You are the delegating agent: choose the model for each role on each issue, not a fixed model tier per role. Use only task.json model_options. Their relative_cost bands are advisory cost categories, not role assignments or live prices. Prefer an inexpensive model for bounded, well-tested work; pay for deeper reasoning up front when uncertainty, interacting components, or risk justify it. Explain each choice using the actual task and available validation.
 - The refiner re-checks whether a task still matches the code after it changed; it writes no files. Choose the cheapest model whose band fits the judgement: the standard band for a task with clear anchors and reliable tests, a stronger one only when the decision itself is the hard part (conflicting requirements, a wide change across interacting modules, no test to lean on). Name that reason. Trusted code keeps refinement on the standard band for a first pass and escalates it to the strong band on its own evidence - a previous pass on the same issue that produced an unusable answer - so a cheap first choice is not a risk you have to buy away.
 - Choose an independent reviewer with a different model from the implementer whenever another model is available. The reviewer may be cheaper when the diff is straightforward and tests are reliable. Respect model_budget: do not choose a strong implementation model when strong_implementation_attempts_per_issue is zero. Existing evidence-based repair escalation may override the initial choices after a quality failure.
-- Phase ids look like P1, P2. Issue ids are lowercase letters, digits, and dashes (for example flop-training-logic).
+- Phase ids look like P1, P2. Issue ids are lowercase letters, digits, and dashes, at most 41 characters (for example flop-training-logic).
 - Every requirement id from task.json appears in at least one phase. Each phase delivers a demonstrable increment, ordered by dependency and risk. Dependencies list phase ids and must not form a cycle.
 - path_allowlist holds repository-relative prefixes. Directories end with "/". Be tight: only what the phase must change, including its tests. Never include .github/, tools/harness/, docs/harness/, or the repository root.
 - Every phase has at least one issue, and every requirement in a phase is covered by an issue in that phase. An issue covers part of one phase, uses only requirement ids from that phase, and is small enough for one worker session (a diff well under 800 lines).
@@ -252,7 +252,7 @@ def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], re
         except ValueError as exc:
             problems.append("issue %s: %s" % (iid, exc))
         if not ISSUE_ID.match(iid):
-            problems.append("issue id %r must be lowercase letters, digits, and dashes" % iid)
+            problems.append("issue id %r must use lowercase letters, digits, and dashes and be 1 to 41 characters (it has %d)" % (iid, len(iid)))
         phase = by_phase.get(i["phase_id"])
         if phase is None:
             problems.append("issue %s: unknown phase %s" % (iid, i["phase_id"]))
