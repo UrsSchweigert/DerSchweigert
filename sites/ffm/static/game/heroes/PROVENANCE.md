@@ -28,6 +28,9 @@ Raw sheets are not committed. Date: 2026-11-16.
 | monk | victory | victory prompt, unchanged | 202 | art-0033 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
 | monk | cast | cast prompt, unchanged | 202 | art-0034 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
 | monk | portrait | portrait prompt, unchanged | 202 | art-0035 | fal-ai/flux-pro/kontext | idle-1 portrait plate (hero_portrait.py --reference) | 2026-11-16 |
+| rogue | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0051 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
+| rogue | idle (identity try 2, rejected) | idle prompt + corrective sentence: hair covered by a green hood, no spikes, no scarf, no shoulder armour, no sword, shortbow in the left hand | 202 | art-0052 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| rogue | idle (identity try 3, rejected) | idle prompt + corrective sentence: same side view facing right, green hood, leather tunic, no cape, no sword, wooden shortbow | 303 | art-0053 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
 
 ## Adventurer
 
@@ -95,3 +98,14 @@ is kept. Re-render once a delivered adventurer idle-1 can serve as the style ref
 | princess-armed | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0045 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
 | princess-armed | idle (identity try 2, rejected) | idle prompt, unchanged | 202 | art-0046 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
 | princess-armed | idle (identity try 3, rejected) | idle prompt, unchanged | 303 | art-0047 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+
+## Rogue
+
+NEEDS RE-RENDER (not committed: likeness)
+
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0051..0053) from the softened default plate (adventurer not
+delivered). Every try read as an existing game character (spiky blonde hair or dark hood over the same outfit, red
+scarf, single pauldron, red cape, oversized blade) and ignored the shortbow; try 2 also turned one pose to the back.
+Missed look rules: shortbow, forest-green leather, silhouette distinct from the old hero. No clip sheets or portrait
+were generated. No rogue art is committed; the manifest row is kept. Re-render once a delivered adventurer idle-1
+can serve as the style reference.
