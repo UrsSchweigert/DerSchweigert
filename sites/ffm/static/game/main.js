@@ -42,6 +42,7 @@ import {
 import { CookieConsent } from './cookie-consent.js';
 import { createHeroSkinManager } from './hero-skin.js';
 import { resolveHero } from './heroes.js';
+import { renderHeroIdentity } from './hero-identity.js';
 import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
@@ -1558,6 +1559,27 @@ function renderPlayerIdentity() {
     }
   }
   document.getElementById('switch-player-btn')?.toggleAttribute('hidden', !platform.isApp);
+  // typeof: the extracted-function tests run this without the portrait helper.
+  if (typeof paintHeroIdentity === 'function') paintHeroIdentity();
+}
+
+// Paints the gated hero's portrait into the running channel's rows only: the
+// app identity rows, or the web account greeting for a logged-in player. The
+// sequence guards against an older async choice landing after a newer one.
+let heroIdentitySeq = 0;
+async function paintHeroIdentity() {
+  const seq = ++heroIdentitySeq;
+  const heroId = await resolveActiveHeroId();
+  if (seq !== heroIdentitySeq) return;
+  const hero = resolveHero(heroId, { entitled: true });
+  if (platform.isApp) {
+    for (const id of ['playing-as', 'progress-player-name', 'pause-player-name']) {
+      const row = document.getElementById(id)?.parentElement;
+      if (row) renderHeroIdentity(row, activeLocalPlayer?.name ? hero : null, { t });
+    }
+  } else if (splashGreeting) {
+    renderHeroIdentity(splashGreeting, platform.isLoggedIn && splashGreeting.textContent ? hero : null, { t });
+  }
 }
 
 function practiceOwnerId() {

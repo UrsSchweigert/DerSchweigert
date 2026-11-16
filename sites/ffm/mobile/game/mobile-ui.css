@@ -457,3 +457,20 @@
   min-height: 44px;
   min-width: 44px;
 }
+
+/* Hero portrait beside the player name in the identity rows. */
+.player-identity .hero-identity-portrait,
+.playing-as-row .hero-identity-portrait {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  margin-right: 6px;
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: middle;
+}
+
+.hero-identity-portrait-placeholder {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
