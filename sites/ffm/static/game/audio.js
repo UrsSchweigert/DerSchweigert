@@ -832,6 +832,30 @@ export class AudioEngine {
   }
 
   /**
+   * The strike cue for a weapon family. Sword (and any unknown family) is the
+   * sword-slash cue; the others are synthesised from the engine's helpers.
+   */
+  playStrike(family) {
+    this._ensureCtx();
+    if (this._muted || !this._ctx) return;
+    if (!['buckler', 'staff', 'fist', 'bow'].includes(family)) return this.playSwordSwing();
+    const now = this._ctx.currentTime;
+    if (family === 'buckler') {
+      this._playNoiseBurst(0.08, now, 0.25, 700, 'lowpass');
+      this._playTone(180, 'square', 0.09, now, 0.25);
+    } else if (family === 'staff') {
+      this._playSweep(500, 1400, 'sine', 0.18, now, 0.22);
+      this._playTone(1760, 'triangle', 0.12, now + 0.05, 0.12);
+    } else if (family === 'fist') {
+      this._playNoiseBurst(0.06, now, 0.3, 500, 'lowpass');
+      this._playTone(110, 'sine', 0.1, now, 0.35);
+    } else {
+      this._playNoiseBurst(0.07, now, 0.15, 3000, 'bandpass', 1200, 2);
+      this._playSweep(900, 300, 'triangle', 0.1, now + 0.03, 0.15);
+    }
+  }
+
+  /**
    * A fiend's own impact when the blade lands but it survives. `type` is the
    * fiend type key from levels.js; an unknown type keeps the shared crack.
    */
