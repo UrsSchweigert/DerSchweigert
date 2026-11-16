@@ -17,30 +17,12 @@ Raw sheets are not committed. Date: 2026-11-16.
 | adventurer | cast | cast prompt, unchanged | 303 | art-0012 | fal-ai/flux-pro/kontext | accepted idle sheet | 2026-11-16 |
 | adventurer | portrait | portrait prompt, unchanged | 303 | art-0013 | fal-ai/flux-pro/kontext | idle-1 portrait plate (hero_portrait.py --reference) | 2026-11-16 |
 
-## Adventurer review gate (self-check, for the owner's review of source/contact-sheet.webp)
+## Adventurer
 
-Delivered as the closest try, per the human guidance; the owner judges it at the pause after P4.
+NEEDS RE-RENDER (not committed: likeness)
 
-- **Hair (rule missed):** all three tries kept spiky hair, far more than three small rounded tufts. The
-  softened plate barely differs from today's idle-1 (hair area 940 -> 924 px), so the reference carried
-  the spikes over and the corrective sentences did not remove them. This is the main miss.
-NEEDS RE-RENDER
-
-Attempts: 3 identity tries (seeds 101, 202, 303; art-0004..0006), clip sheets all seed 303. Missed look rule: hair (spikes, not at most three small rounded tufts).
-
-- **PLACEHOLDER:** per the owner's guidance this art is a placeholder; the sheet needs a re-render by
-  the owner in a later session. A missed look rule is a known limitation, not a failure.
-- **Likeness (needs owner attention):** the figure (spiky blonde hair, one pauldron, red scarf, dark outfit,
-  large blade) is derived from today's hero and may read as an existing game character. Not cleared.
-- Equal standing height: idle/walk/hurt/cast/victory frames scale to 163 px (others 154-165).
-- Weapon in every swing frame: visible in the contact sheet, but the sword check reports
-  `idle-3: tip is cut off by the sprite edge` (FAIL) and "no blade visible" / "blade shorter than 40px"
-  warnings in many non-swing frames, so `--strict` exits 1. The files were still written.
-- Sheet framing: generated sheets came back 944x1104 (the plate's aspect, not square), so each cell was
-  placed unscaled on a square magenta sheet before `hero_poses.py --split`. Figures touch the bottom of
-  their cells, which cut the idle-3 sword tip.
-- dead-3 / dead-4 carry small stray scraps above the figure; dead-1 has a loose scarf piece beside it.
-- Silhouette distinct from adventuress: not measured; left to the owner.
-- No text, frame or background seen. Child-safe: nothing beyond the sword and a fallen pose.
-- Anchors used: strike [80, -139], cast [[39, -108], [54, -95]] (detected).
-- Contact sheet (28 frames plus portrait): 192-colour quantised lossless WebP, 216 KB, to fit the 400 KB cap.
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0004..0006), then clip sheets and portrait at seed 303
+(art-0007..0013). The result read as an existing game character (spiky blonde hair, single pauldron, red scarf,
+dark outfit, oversized blade), so no adventurer art is committed (atlas, frames, portrait, contact sheet removed).
+The manifest row is kept. Hair rule also missed (spikes, not at most three small rounded tufts): the softened
+plate barely differed from today's idle-1 and carried the spikes over. The rows above record the generation calls.
