@@ -1,4 +1,4 @@
-"""Runtime adapter interface and the Copilot CLI adapter that runs inside the Tier A sandbox.
+"""Runtime adapter interface and the Claude Code CLI adapter that runs inside the Tier A sandbox.
 
 The interface is non-blocking (start, poll, cancel) so the scheduler owns heartbeats, timeouts, and cancellation.
 """
@@ -16,7 +16,7 @@ import time
 from collections import namedtuple
 from typing import Any, Dict, List, Optional
 
-from . import isolation, models, providers, usage as usage_mod
+from . import claudecode, isolation, usage as usage_mod
 
 WorkRequest = namedtuple("WorkRequest", "attempt_id epoch issue_id role tier model packet branch")
 Poll = namedtuple("Poll", "state last_activity result error")
@@ -121,60 +121,50 @@ def build_prompt(req: WorkRequest) -> str:
 class _Handle:
     def __init__(self, req: WorkRequest, workdir: str, proc: subprocess.Popen, name: str):
         self.req, self.workdir, self.proc, self.name = req, workdir, proc, name
+        self.result_event: Optional[Dict[str, Any]] = None  # Claude Code's final stream-json event: outcome and usage
         self.last_activity = time.time()
         self.tail: List[str] = []
         self.cancelled = False
 
 
-class CopilotCliAdapter(Adapter):
-    name = "copilot-cli"
+class ClaudeCodeAdapter(Adapter):
+    """Claude Code CLI workers in the Tier A sandbox, on the owner's Claude subscription (see claudecode.py)."""
+
+    name = "claude-code"
 
     def __init__(self, store_home: str, source_repo: str, base: str = "main"):
         self.store_home, self.source_repo, self.base = store_home, source_repo, base
-        self.token_file = os.path.join(store_home, "copilot.token")
+        self.token_file = claudecode.token_path(store_home)
 
-    def provider_for(self, model_id: str) -> Optional[Dict[str, str]]:
-        """The BYOK environment for this model id, when its source has a configured provider profile."""
-        catalog = models.load_catalog(self.store_home)
-        return providers.env_for(self.store_home, models.source_for(model_id, catalog), model_id)
-
-    def _credential(self, candidates: Optional[List[str]]) -> tuple:
-        """(token file or None, reason). A Copilot id needs the token; a BYOK id needs only its profile."""
-        has_token = os.path.exists(self.token_file)
-        if candidates:
-            uncovered = [m for m in candidates if self.provider_for(m) is None]
-            if uncovered and not has_token:
-                return None, "copilot.token is missing and no provider profile covers: " + ", ".join(uncovered[:3])
-        elif not has_token and not providers.load(self.store_home):
-            return None, "copilot.token is missing from the store and no provider profile is configured"
-        return (self.token_file if has_token else None), ""
+    def credential(self) -> Optional[Dict[str, str]]:
+        """The environment that authenticates a worker, or None when claude.token is missing."""
+        return claudecode.env_for(self.store_home)
 
     def probe(self, candidates: Optional[List[str]] = None) -> Dict[str, Any]:
         if not isolation.docker_available():
             return {"available": False, "reason": "docker is not available", "models": None}
         if isolation.image_id() is None:
             return {"available": False, "reason": "worker image is not built", "models": None}
-        token_file, problem = self._credential(candidates)
-        if problem:
-            return {"available": False, "reason": problem, "models": None}
+        credential = self.credential()
+        if credential is None:
+            return {"available": False, "reason": "claude.token is missing: run `harness claude login`", "models": None}
         accepted = None
         if candidates:
             work = isolation.new_workdir("models-")
             try:
                 accepted = []
                 for m in candidates:
-                    provider = self.provider_for(m)
-                    res = isolation.run_worker(work, ["copilot", "-p", "reply OK", "--model", m, "--silent"],
-                                               token_file, timeout=120, provider=provider)
+                    res = isolation.run_worker(work, claudecode.probe_command(m), credential, timeout=120)
                     output = res.stdout + res.stderr
-                    # BYOK failures (bad key, unreachable endpoint) surface as a non-zero exit, not as the
-                    # Copilot "model is not available" sentence, so both conditions count as not accepted.
-                    if res.returncode == 0 and "is not available" not in output:
+                    # A subscription at its limit still proves the token and the model id; refusing the id would
+                    # cache it as unavailable for a day and refuse the run long after the window resets.
+                    if claudecode.usage_limit([output], time.time()) is not None:
+                        accepted.append(m)
+                    elif res.returncode == 0 and '"is_error":true' not in output.replace(" ", ""):
                         accepted.append(m)
             finally:
                 shutil.rmtree(work, ignore_errors=True)
-        reason = "sandbox and image present; token and/or provider profile configured"
-        return {"available": True, "reason": reason, "models": accepted}
+        return {"available": True, "reason": "sandbox and image present; claude.token configured", "models": accepted}
 
     def _prepare(self, req: WorkRequest, prompt: Optional[str] = None) -> str:
         work = isolation.new_workdir("w-%s-" % re.sub(r"\W+", "_", req.attempt_id)[:30])
@@ -226,23 +216,27 @@ class CopilotCliAdapter(Adapter):
         return work
 
     def start(self, req: WorkRequest, prompt: Optional[str] = None) -> _Handle:
+        credential = self.credential()
+        if credential is None:
+            raise RuntimeError("claude.token is missing: run `harness claude login`")
         work = self._prepare(req, prompt)
         name = "harness-%s-%s" % (re.sub(r"[^A-Za-z0-9_.-]", "_", req.attempt_id), os.urandom(3).hex())
-        model = ["--model", req.model] if req.model else []
         script = ("cd /work/repo && git config user.name harness && git config user.email harness@localhost && "
-                  "copilot -p \"$(cat /work/prompt.txt)\" %s --allow-all-tools --allow-all-paths --no-ask-user; echo $? > /work/exit_code" % " ".join(model))
-        provider = self.provider_for(req.model) if req.model else None
-        # A BYOK attempt needs no GitHub token at all; a Copilot attempt needs no provider profile.
-        token_file = None if provider else self.token_file
-        args = isolation.docker_args(work, ["sh", "-c", script],
-                                     pass_env=isolation.pass_env_names(token_file, provider), name=name)
-        env = isolation.worker_env_for_attempt(token_file, provider)
+                  + claudecode.work_command(req.model) + "; echo $? > /work/exit_code")
+        args = isolation.docker_args(work, ["sh", "-c", script], pass_env=isolation.pass_env_names(credential), name=name)
+        env = isolation.worker_env_for_attempt(credential)
         proc = subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
         handle = _Handle(req, work, proc, name)
 
         def pump():
             for line in proc.stdout:
                 handle.last_activity = time.time()
+                shown, event = claudecode.render(line)
+                if event is not None:
+                    handle.result_event = event
+                if shown is None:
+                    continue
+                line = shown
                 handle.tail = (handle.tail + [line.rstrip()])[-20:]
 
         threading.Thread(target=pump, daemon=True).start()
@@ -260,6 +254,16 @@ class CopilotCliAdapter(Adapter):
         except (OSError, ValueError):
             pass
         # No result: classify from evidence. Token counts in the usage summary must not look like an error code.
+        evidence = [text] + ([str(handle.result_event.get("result", ""))] if handle.result_event else [])
+        reset_at = claudecode.usage_limit(evidence, now)
+        if reset_at is not None:
+            return Poll("finished", handle.last_activity, None,
+                        {"kind": "usage_limit", "retry_at": reset_at,
+                         "detail": "Claude subscription limit reached; resumes after %s"
+                                   % time.strftime("%Y-%m-%d %H:%M", time.localtime(reset_at))})
+        if claudecode.CREDENTIAL_TEXT.search("\n".join(evidence)):
+            return Poll("finished", handle.last_activity, None,
+                        {"kind": "credentials", "detail": "Claude Code rejected claude.token: run `harness claude login`"})
         if re.search(r"rate limit|HTTP 429|\b429 Too Many", text, re.I):
             return Poll("finished", handle.last_activity, None, {"kind": "rate_limit"})
         if re.search(r"authentication|not authorized|HTTP 401|bad credentials", text, re.I):
@@ -278,9 +282,13 @@ class CopilotCliAdapter(Adapter):
         """What trusted code can tell about the session: a lower bound from the prompt and files exchanged, and any usage lines in the output."""
         def size(*names: str) -> int:
             return sum(os.path.getsize(os.path.join(handle.workdir, n)) for n in names if os.path.isfile(os.path.join(handle.workdir, n)))
-        return {"size_estimate": {"input_tokens": usage_mod.tokens_from_size(size("prompt.txt", "task.json")),
-                                  "output_tokens": usage_mod.tokens_from_size(size("result.json"))},
-                "runtime_lines": usage_mod.runtime_lines(handle.tail)}
+        out = {"size_estimate": {"input_tokens": usage_mod.tokens_from_size(size("prompt.txt", "task.json")),
+                                 "output_tokens": usage_mod.tokens_from_size(size("result.json"))},
+               "runtime_lines": usage_mod.runtime_lines(handle.tail)}
+        measured = claudecode.measured_usage(getattr(handle, "result_event", None))  # real counts beat estimates
+        if measured:
+            out["runtime_usage"] = measured
+        return out
 
     def describe(self, handle: _Handle) -> str:
         """The latest worker action (lines starting with a bullet), else the latest output line, for progress display."""

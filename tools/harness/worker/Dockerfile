@@ -9,14 +9,18 @@ ARG GUT_COMMIT=c80954f47bed74a0a2c471d472c0389f98e0a8f6
 ARG TARGETARCH
 
 # PLAYWRIGHT_BROWSERS_PATH keeps Chromium outside the worker's home, which is a tmpfs at run time.
+# Claude Code runs headless on the owner's subscription token. Auto-update, telemetry, and error reporting are
+# off: the image is pinned and attested, and a worker must not change its own runtime.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
-    NODE_PATH=/usr/local/lib/node_modules
+    NODE_PATH=/usr/local/lib/node_modules \
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+    DISABLE_AUTOUPDATER=1
 
 # libfontconfig1 is the only shared library the Godot binary loads eagerly; the X11, GL, and audio
 # drivers are only opened by display drivers, and workers run headless.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git python3 python3-pip ca-certificates libfontconfig1 \
-    && npm install -g @github/copilot@1.0.103 playwright@1.64.1 \
+    && npm install -g @anthropic-ai/claude-code@2.1.310 playwright@1.64.1 \
     && npx playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/* \
     && npm cache clean --force

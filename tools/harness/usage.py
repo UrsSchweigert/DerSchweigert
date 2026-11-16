@@ -13,7 +13,8 @@ MAX_TOKENS = 50_000_000
 PRICE_FILE = "model-prices.json"
 PRICE_FIELDS = ("per_million_input", "per_million_output", "per_attempt")
 USAGE_LINE = re.compile(r"tokens?|usage|premium", re.I)
-SOURCE_LABEL = {"agent_estimate": "agent estimate", "size_estimate": "size only"}
+SOURCE_LABEL = {"runtime_usage": "measured", "agent_estimate": "agent estimate", "size_estimate": "size only"}
+SOURCES = tuple(SOURCE_LABEL)  # best first: what the runtime measured, then the agent's word, then a size lower bound
 NO_DATA = "unavailable: the runtime reports no per-attempt token or cost data to the harness, and no agent gave an estimate"
 
 
@@ -57,9 +58,9 @@ def load_prices(home: str) -> Dict[str, Any]:
 
 
 def attempt_tokens(meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """The best figure for one attempt: the agent's own estimate, else the size-based lower bound."""
+    """The best figure for one attempt: what the runtime measured, else the agent's own estimate, else the size-based lower bound."""
     recorded = meta.get("usage") or {}
-    for source in ("agent_estimate", "size_estimate"):
+    for source in SOURCES:
         if recorded.get(source):
             return dict(recorded[source], source=source)
     return None
@@ -77,7 +78,7 @@ def attempt_cost(model: Optional[str], tokens: Optional[Dict[str, Any]], prices:
 
 def summarize(attempts: Iterable[Dict[str, Any]], prices: Dict[str, Any]) -> Dict[str, Any]:
     """Totals by model and role, with a count of how each attempt's figure was obtained."""
-    counts = {"agent_estimate": 0, "size_estimate": 0, "no_data": 0}
+    counts = {"runtime_usage": 0, "agent_estimate": 0, "size_estimate": 0, "no_data": 0}
     total = {"input_tokens": 0, "output_tokens": 0}
     groups: Dict[str, Dict[str, Dict[str, Any]]] = {"model": {}, "role": {}}
     cost, unpriced, n = 0.0, set(), 0
@@ -112,7 +113,7 @@ def count(n: int) -> str:
 
 
 def has_data(summary: Dict[str, Any]) -> bool:
-    return summary["counts"]["agent_estimate"] + summary["counts"]["size_estimate"] > 0
+    return sum(summary["counts"].get(source, 0) for source in SOURCES) > 0
 
 
 def cost_text(summary: Dict[str, Any]) -> str:
@@ -133,8 +134,9 @@ def headline(summary: Dict[str, Any]) -> str:
     if not has_data(summary):
         return NO_DATA
     c = summary["counts"]
-    return "estimated: ~%s input and ~%s output tokens over %d attempts (%d agent estimates, %d size-only lower bounds, %d without data); %s" % (
-        count(summary["input_tokens"]), count(summary["output_tokens"]), summary["attempts"], c["agent_estimate"], c["size_estimate"], c["no_data"], cost_text(summary))
+    measured = "%d measured, " % c["runtime_usage"] if c.get("runtime_usage") else ""
+    return "estimated: ~%s input and ~%s output tokens over %d attempts (%s%d agent estimates, %d size-only lower bounds, %d without data); %s" % (
+        count(summary["input_tokens"]), count(summary["output_tokens"]), summary["attempts"], measured, c["agent_estimate"], c["size_estimate"], c["no_data"], cost_text(summary))
 
 
 def attempt_label(meta: Dict[str, Any]) -> str:

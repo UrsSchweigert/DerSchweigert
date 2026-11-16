@@ -28,6 +28,9 @@ infra/terraform/lambda.zip
 infra/terraform/sites/landhauscheck/terraform.tfvars
 infra/terraform/sites/landhauscheck-dev/terraform.tfvars
 
+# The fal.ai API key file that sites/ffm/scripts/regenerate_fiends.py reads — never commit it.
+tools/fal_key.txt
+
 # Local editor workspace files
 *.code-workspace
 

@@ -50,8 +50,8 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "run_wall_clock_s": None, "pull_requests_per_run": None, "github_write_retries": 5,
         "human_reminder_after_s": 86400, "human_reminders_max": 3, "human_escalation_after_s": 259200,
     },
-    "model_sources": ["copilot"],
-    "model_tiers": {"low": ["claude-haiku-4.5"], "standard": ["claude-sonnet-5"], "strong": ["claude-opus-5", "claude-opus-4.8"]},
+    "model_sources": ["claude"],
+    "model_tiers": {"low": ["claude-haiku-5-5"], "standard": ["claude-sonnet-5-5"], "strong": ["claude-opus-5-5"]},
     "diff_size_cap": 800,
     "assets": {
         "allowed_sources": ["repository", "cc0_library", "procedural"],

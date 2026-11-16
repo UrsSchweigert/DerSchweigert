@@ -4,7 +4,7 @@ import os
 import pytest
 
 from harness import status, usage
-from harness.adapter import CopilotCliAdapter, WorkRequest, _Handle, build_prompt
+from harness.adapter import ClaudeCodeAdapter, WorkRequest, _Handle, build_prompt
 from harness_doubles import Env
 
 AGENT = {"input_tokens": 12000, "output_tokens": 800, "basis": "read about 40 files"}
@@ -84,10 +84,10 @@ def test_the_real_adapter_estimates_from_file_sizes_and_keeps_usage_lines(tmp_pa
     (tmp_path / "result.json").write_text("r" * 81)
     handle = _Handle(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "b"), str(tmp_path), Proc(), "n")
     handle.tail = ["working", "Total usage est: 1 Premium request"]
-    reported = CopilotCliAdapter(str(tmp_path), str(tmp_path)).usage(handle)
+    reported = ClaudeCodeAdapter(str(tmp_path), str(tmp_path)).usage(handle)
     assert reported == {"size_estimate": {"input_tokens": 200, "output_tokens": 21}, "runtime_lines": ["Total usage est: 1 Premium request"]}
     (tmp_path / "result.json").unlink()
-    assert CopilotCliAdapter(str(tmp_path), str(tmp_path)).usage(handle)["size_estimate"]["output_tokens"] == 0
+    assert ClaudeCodeAdapter(str(tmp_path), str(tmp_path)).usage(handle)["size_estimate"]["output_tokens"] == 0
 
 
 # -- reporting ----------------------------------------------------------------------------------------------------
@@ -99,13 +99,13 @@ def test_the_report_totals_estimates_by_plan_model_and_role_and_names_the_source
     report = status.build_report(env.store.home, env.clock())
     detail = report["usage_detail"]
     assert detail["total"]["input_tokens"] == 24000 and detail["total"]["output_tokens"] == 1600
-    assert detail["total"]["counts"] == {"agent_estimate": 2, "size_estimate": 0, "no_data": 0} and list(detail["plans"]) == ["fx"]
+    assert detail["total"]["counts"] == {"runtime_usage": 0, "agent_estimate": 2, "size_estimate": 0, "no_data": 0} and list(detail["plans"]) == ["fx"]
     assert {r["name"] for r in detail["total"]["by_role"]} == {"implementer", "reviewer"} and sum(r["attempts"] for r in detail["total"]["by_model"]) == 2
     assert report["usage"].startswith("estimated: ~24.0k input and ~1.6k output tokens over 2 attempts (2 agent estimates, 0 size-only")
     assert report["budgets"]["fx"]["tokens_and_cost"] == "~24.0k in / ~1.6k out tokens (estimate)"
     json.dumps(report)  # the dashboard serves this
     text = status.render(report)
-    assert "usage: estimated" in text and "never from the runtime" in text and "claude-haiku-4.5: ~12.0k in" in text
+    assert "usage: estimated" in text and "never from the runtime" in text and "claude-haiku-5-5: ~12.0k in" in text
 
 
 def test_the_report_stays_unavailable_when_no_attempt_has_any_estimate(tmp_path):
@@ -154,18 +154,18 @@ def test_cost_uses_the_owners_prices_and_flags_models_without_one(tmp_path):
     env = Env(tmp_path)
     env.adapter.agent_usage = {"input_tokens": 1_000_000, "output_tokens": 200_000}
     finished(env)
-    write_prices(env, {"unit": "USD", "models": {"claude-haiku-4.5": {"per_million_input": 1.0, "per_million_output": 5.0}}})
+    write_prices(env, {"unit": "USD", "models": {"claude-haiku-5-5": {"per_million_input": 1.0, "per_million_output": 5.0}}})
     report = status.build_report(env.store.home, env.clock())
     cost = report["usage_detail"]["total"]["cost"]
-    assert cost["status"] == "estimate" and cost["unit"] == "USD" and cost["unpriced_models"] == ["claude-sonnet-5"]
+    assert cost["status"] == "estimate" and cost["unit"] == "USD" and cost["unpriced_models"] == ["claude-sonnet-5-5"]
     assert cost["value"] == 2.0  # only the haiku attempt is priced: 1 USD of input and 1 USD of output
-    assert "cost ~USD 2.00; no price for claude-sonnet-5" in report["usage"]
+    assert "cost ~USD 2.00; no price for claude-sonnet-5-5" in report["usage"]
 
 
 def test_a_per_attempt_price_covers_request_based_billing(tmp_path):
     env = Env(tmp_path)
     finished(env)
-    write_prices(env, {"unit": "premium requests", "models": {"claude-haiku-4.5": {"per_attempt": 0.33}, "claude-sonnet-5": {"per_attempt": 1}}})
+    write_prices(env, {"unit": "premium requests", "models": {"claude-haiku-5-5": {"per_attempt": 0.33}, "claude-sonnet-5-5": {"per_attempt": 1}}})
     cost = status.build_report(env.store.home, env.clock())["usage_detail"]["total"]["cost"]
     assert cost["value"] == 1.33 and cost["unit"] == "premium requests" and cost["unpriced_models"] == []
 

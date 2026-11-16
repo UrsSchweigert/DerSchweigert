@@ -11,7 +11,7 @@ NO_ANALYSIS = {"analyses_per_issue": 0}
 NO_HELP = {"delegator_consults_per_issue": 0, "analyses_per_issue": 0}
 
 RETRY_WITH_SONNET = {"action": "retry", "diagnosis": "The helper lives in the shared module.", "guidance": "Import the helper from src/shared.py.",
-                     "model_choice": {"model": "claude-sonnet-5", "reason": "The dependency analysis needs a more capable model."}}
+                     "model_choice": {"model": "claude-sonnet-5-5", "reason": "The dependency analysis needs a more capable model."}}
 
 
 def implementers(env):
@@ -86,10 +86,10 @@ def test_a_stuck_report_consults_the_delegator_who_picks_the_next_model_and_guid
     env.start()
     env.run_until(lambda: env.state("i1") == "Done")
     first, second = implementers(env)
-    assert [first["model"], second["model"]] == ["claude-haiku-4.5", "claude-sonnet-5"]
+    assert [first["model"], second["model"]] == ["claude-haiku-5-5", "claude-sonnet-5-5"]
     assert second["routing_source"] == "delegator" and "more capable model" in second["routing_note"]
     [consult] = consultations(env)
-    assert consult["outcome"] == "Succeeded" and consult["decision"]["action"] == "retry" and consult["model"] == "claude-sonnet-5"
+    assert consult["outcome"] == "Succeeded" and consult["decision"]["action"] == "retry" and consult["model"] == "claude-sonnet-5-5"
     data = packet_data(env.adapter.started[[r.role for r in env.adapter.started].index("implementer", 1)])
     assert data["delegator_guidance"] == ["Import the helper from src/shared.py."] and data["previous_failures"][0]["kind"] == "worker_blocked"
     issue = env.store.get_issue("i1")
@@ -115,7 +115,7 @@ def test_the_delegator_is_given_the_stuck_report_history_and_model_menu(tmp_path
     request = next(r for r in env.adapter.started if r.role == "delegator")
     data = packet_data(request)
     assert "does not exist anywhere" in data["stuck_report"] and request.tier == "standard"
-    assert {o["model"] for o in data["model_options"]} == {"claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"}
+    assert {o["model"] for o in data["model_options"]} == {"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}
     assert data["strong_attempts_remaining"] == 2 and data["attempts"][0]["failure_kind"] == "worker_blocked"
 
 
@@ -124,7 +124,7 @@ def test_a_delegator_decision_without_a_model_keeps_the_current_one(tmp_path):
     env.adapter.script("i1", "implementer", "blocked", "ok")
     env.start()
     env.run_until(lambda: env.state("i1") == "Done")
-    assert [a["model"] for a in implementers(env)] == ["claude-haiku-4.5", "claude-haiku-4.5"]
+    assert [a["model"] for a in implementers(env)] == ["claude-haiku-5-5", "claude-haiku-5-5"]
 
 
 def test_the_delegator_can_hand_the_question_to_the_owner(tmp_path):
@@ -151,8 +151,8 @@ def test_a_second_stuck_report_goes_to_the_owner_not_back_to_the_delegator(tmp_p
 
 @pytest.mark.parametrize("decision, used, message", [
     (dict(RETRY_WITH_SONNET, model_choice={"model": "unapproved-model", "reason": "Cheap."}), 0, "configured"),
-    (dict(RETRY_WITH_SONNET, model_choice={"model": "claude-opus-5", "reason": "Hard."}), 2, "budget"),
-    (dict(RETRY_WITH_SONNET, model_choice={"model": "claude-sonnet-5", "reason": " "}), 0, "reason"),
+    (dict(RETRY_WITH_SONNET, model_choice={"model": "claude-opus-5-5", "reason": "Hard."}), 2, "budget"),
+    (dict(RETRY_WITH_SONNET, model_choice={"model": "claude-sonnet-5-5", "reason": " "}), 0, "reason"),
     (dict(RETRY_WITH_SONNET, diagnosis="  "), 0, "diagnosis"),
     (dict(RETRY_WITH_SONNET, guidance="use ghp_" + "b" * 36), 0, "credential"),
     ({"action": "ask_owner", "diagnosis": "d", "model_choice": RETRY_WITH_SONNET["model_choice"]}, 0, "only applies to a retry"),
@@ -235,8 +235,8 @@ def test_a_delegator_retry_that_matches_the_chosen_reviewer_reroutes_the_review(
     env = Env(tmp_path)
     issue = env.store.get_issue("i1")
     issue["model_choices"] = {
-        "implementer": {"model": "claude-haiku-4.5", "reason": "A bounded change with strong test coverage."},
-        "reviewer": {"model": "claude-sonnet-5", "reason": "One standard-tier model is enough for this diff."},
+        "implementer": {"model": "claude-haiku-5-5", "reason": "A bounded change with strong test coverage."},
+        "reviewer": {"model": "claude-sonnet-5-5", "reason": "One standard-tier model is enough for this diff."},
     }
     env.store.put_issue(issue)
     env.adapter.script("i1", "implementer", "blocked", "ok")
@@ -245,6 +245,6 @@ def test_a_delegator_retry_that_matches_the_chosen_reviewer_reroutes_the_review(
     env.run_until(lambda: env.state("i1") == "Done")
     implementations = [a for a in env.store.list_attempts("i1") if a["role"] == "implementer"]
     review = next(a for a in env.store.list_attempts("i1") if a["role"] == "reviewer")
-    assert [a["model"] for a in implementations] == ["claude-haiku-4.5", "claude-sonnet-5"]
-    assert review["model"] != "claude-sonnet-5" and review["independent"] is True
-    assert "claude-sonnet-5" in review["routing_note"]
+    assert [a["model"] for a in implementations] == ["claude-haiku-5-5", "claude-sonnet-5-5"]
+    assert review["model"] != "claude-sonnet-5-5" and review["independent"] is True
+    assert "claude-sonnet-5-5" in review["routing_note"]

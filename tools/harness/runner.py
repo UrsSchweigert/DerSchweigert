@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from . import approval, models, plans, schemas
 import sys
 
-from .adapter import CopilotCliAdapter
+from .adapter import ClaudeCodeAdapter
 from .checks import DryRunPublisher, SandboxChecker
 from .github import GhCli
 from .humantasks import MultiNotifier, TerminalNotifier
@@ -212,7 +212,7 @@ def trusted_clone(home: str, source_repo: str, base: str = "main", remote: Optio
     return repo
 
 
-def cached_models(adapter: CopilotCliAdapter, home: str, candidates: List[str], force: bool = False) -> Optional[List[str]]:
+def cached_models(adapter: ClaudeCodeAdapter, home: str, candidates: List[str], force: bool = False) -> Optional[List[str]]:
     """Models the runtime accepts. Probing costs a call per model, so the result is cached for a day."""
     path = os.path.join(home, "models.json")
     if os.path.exists(path) and not force:
@@ -244,7 +244,7 @@ def probe_menu(home: str, sources: List[str], repo_root: str = "", *, refresh: b
     catalog = catalog or models.load_catalog(home)
     menu = models.menu_for(sources, catalog)
     candidates = sorted({model for ids in menu.values() for model in ids})
-    adapter = CopilotCliAdapter(home, repo_root or home, "main")
+    adapter = ClaudeCodeAdapter(home, repo_root or home, "main")
     available = cached_models(adapter, home, candidates, force=refresh) if candidates else []
     return {"sources": list(sources), "menu": menu, "candidates": candidates, "available": list(available or []),
             "reachable": available is not None, "reason": "" if available is not None else adapter.probe().get("reason", ""),
@@ -262,7 +262,7 @@ def make_rehearsal(home: str) -> str:
         src.close()
         dst.close()
     os.chmod(os.path.join(dest, "harness.sqlite"), 0o600)
-    for name in ("approval.key", "isolation.json", "models.json", "copilot.token"):
+    for name in ("approval.key", "isolation.json", "models.json", "claude.token"):
         if os.path.exists(os.path.join(home, name)):
             shutil.copyfile(os.path.join(home, name), os.path.join(dest, name))
             os.chmod(os.path.join(dest, name), 0o600)
@@ -322,7 +322,6 @@ def discard_run_branch(store: Store, plan_id: str, version: Optional[int], repo_
 def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dry_run: bool, remote_url: Optional[str],
                     repo_slug: Optional[str], owner: str) -> Scheduler:
     home = store.home
-    token = os.path.join(home, "copilot.token")
     broker_token = os.path.join(home, "broker.token")
     plan = store.get_plan(plan_id, version)["plan"]
     base = plans.base_branch(plan)
@@ -333,10 +332,10 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
         ensure_run_branch(clone.path, remote_url, base, run, broker_token)
         clone = trusted_clone(home, repo_root, run, remote_url, broker_token)
         target = run
-    adapter = CopilotCliAdapter(home, clone.path, target)
+    adapter = ClaudeCodeAdapter(home, clone.path, target)
     probe = adapter.probe()
     if not probe["available"]:
-        raise RunRefused("run refused: the Copilot CLI sandbox adapter is unavailable: %s" % probe["reason"])
+        raise RunRefused("run refused: the Claude Code sandbox adapter is unavailable: %s" % probe["reason"])
     tiers = plan["policy"]["model_tiers"]
     candidates = sorted({m for v in tiers.values() for m in ([v] if isinstance(v, str) else v)})
     available = cached_models(adapter, home, candidates)
@@ -352,7 +351,7 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
     if not dry_run:
         from .workrecord import GitHubNotifier
         notifier = MultiNotifier(notifier, GitHubNotifier(GhCli(repo_slug, token_file=broker_token), store, plan_id))
-    return Scheduler(store, plan_id, version, adapter, clone, SandboxChecker(clone, token), publisher, available_models=available, owner=owner, notifier=notifier,
+    return Scheduler(store, plan_id, version, adapter, clone, SandboxChecker(clone), publisher, available_models=available, owner=owner, notifier=notifier,
                      free_space_floor_bytes=scheduler_mod.WORK_ROOT_FREE_BYTES, mono_clock=time.monotonic)
 
 

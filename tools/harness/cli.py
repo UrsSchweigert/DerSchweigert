@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import time
 
-from . import approval, assets, humantasks, investigate, isolation, models, plans, providers, reconcile, runner, schemas, status, workrecord
+from . import approval, assets, claudecode, humantasks, investigate, isolation, models, plans, reconcile, runner, schemas, status, workrecord
 from .github import GhCli, GitHubError
 from .approval import AuthorizationError, plan_entity
 from .checks import SandboxChecker
@@ -28,6 +28,8 @@ def _slug(path: str) -> str:
 
 
 SOURCES_ENV = models.SOURCES_ENV
+INVESTIGATOR_MODEL_ENV = "HARNESS_INVESTIGATOR_MODEL"
+MODEL_ID = re.compile(r"[a-z0-9][a-z0-9.:_-]{1,63}")
 
 
 def operator_model_sources() -> Optional[List[str]]:
@@ -151,7 +153,7 @@ def preflight_checks(store: Store, repo_root: str, checks: List[Dict[str, str]],
     """Run approved check definitions in the worker image before approval or issue import."""
     repo = GitRepo(repo_root, "main")
     head = repo.base_head()
-    checker = SandboxChecker(repo, os.path.join(store.home, "copilot.token"))
+    checker = SandboxChecker(repo)
     results = checker.preflight(head, checks)
     record = {"head": head, "results": results, "checked_at": time.time()}
     store.put_doc("check_preflight_result", key, record)
@@ -363,44 +365,36 @@ def runner_command(args) -> int:
         store.close()
 
 
-def providers_command(args) -> int:
-    """Show, set, or remove a BYOK provider profile. The key is never echoed and never passed as an argument."""
+def claude_command(args) -> int:
+    """Store, show, or remove the Claude subscription token. The token is never echoed and never passed as an argument."""
     home = args.home or default_home()
-    if args.action == "show":
-        profiles = providers.redacted(home)
-        if not profiles:
-            print("no provider profiles in %s" % providers.path(home))
-            return 0
-        print(json.dumps(profiles, indent=2, sort_keys=True))
+    path = claudecode.token_path(home)
+    if args.action == "status":
+        if not claudecode.has_token(home):
+            print("no Claude token in %s; run `harness claude login`" % path)
+            return 1
+        print("claude.token: %s (%s, mode %o)" % (claudecode.redacted(home), path, os.stat(path).st_mode & 0o777))
         return 0
-    source = (args.source or "").strip()
-    if source not in models.SOURCES:
-        print("error: choose a source from %s" % ", ".join(models.SOURCES), file=sys.stderr)
-        return 2
-    if source == "copilot":
-        print("error: copilot uses copilot.token, not a provider profile", file=sys.stderr)
-        return 2
-    if args.action == "rm":
-        removed = providers.remove(home, source)
-        print("removed %s" % source if removed else "no profile for %s" % source)
+    if args.action == "logout":
+        print("removed %s" % path if claudecode.remove_token(home) else "no Claude token in %s" % path)
         return 0
-    if args.api_key_env:
-        key = os.environ.get(args.api_key_env, "").strip()
-        if not key:
-            print("error: %s is empty or unset" % args.api_key_env, file=sys.stderr)
+    if args.token_env:
+        token = os.environ.get(args.token_env, "").strip()
+        if not token:
+            print("error: %s is empty or unset" % args.token_env, file=sys.stderr)
             return 2
     else:
         if not sys.stdin.isatty():
-            print("error: pass --api-key-env VAR, or run in a terminal to be prompted", file=sys.stderr)
+            print("error: pass --token-env VAR, or run in a terminal to be prompted", file=sys.stderr)
             return 2
-        key = getpass.getpass("API key for %s (not echoed): " % source).strip()
+        print("Run `claude setup-token` in another terminal, sign in with your Claude subscription, and paste the token it prints.")
+        token = getpass.getpass("Claude token (not echoed): ").strip()
     try:
-        cfg = providers.save(home, source, api_key=key, base_url=args.base_url, kind=args.type)
+        claudecode.save_token(home, token)
     except (ValueError, OSError) as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2
-    print("saved %s -> %s (%s), key %s" % (source, cfg["baseUrl"], cfg["type"],
-                                           providers.redacted(home).get(source, {}).get("apiKey", "")))
+    print("saved %s (%s). Check it with `harness models --refresh`." % (path, claudecode.redacted(home)))
     return 0
 
 
@@ -438,12 +432,22 @@ def investigate_command(args) -> int:
             raise runner.RunRefused("investigate refused, Tier B: %s. Run `isolation verify` first" % iso["reason"])
         root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
         clone = runner.trusted_clone(store.home, root, "main")
-        from .adapter import CopilotCliAdapter
-        adapter = CopilotCliAdapter(store.home, clone.path, "main")
+        from .adapter import ClaudeCodeAdapter
+        adapter = ClaudeCodeAdapter(store.home, clone.path, "main")
         probe = adapter.probe()
         if not probe["available"]:
-            raise runner.RunRefused("the Copilot CLI sandbox adapter is unavailable: %s" % probe["reason"])
-        sources = model_sources_arg(args.model_source, root)
+            raise runner.RunRefused("the Claude Code sandbox adapter is unavailable: %s" % probe["reason"])
+        sources = model_sources_arg(args.model_source, root)  # also loads the HARNESS_* keys from the app env file
+        pinned = (args.model or os.environ.get(INVESTIGATOR_MODEL_ENV, "")).strip() or None
+        if pinned:
+            if not MODEL_ID.fullmatch(pinned):
+                raise runner.RunRefused("%r is not a model id" % pinned)
+            # Probed directly, not through the menu cache: one model must not replace the cached menu.
+            accepted = adapter.probe([pinned]).get("models") or []
+            if pinned not in accepted:
+                raise runner.RunRefused("the investigator model %s is not accepted by your Claude subscription; "
+                                        "check the id, or drop --model / %s to use the menu" % (pinned, INVESTIGATOR_MODEL_ENV))
+            print("Investigator pinned to %s." % pinned, flush=True)
         policy = plans.with_model_sources(plans.DEFAULT_POLICY, sources, models.load_catalog(store.home))
         tiers = policy["model_tiers"]
         candidates = sorted({m for v in tiers.values() for m in ([v] if isinstance(v, str) else v)})
@@ -456,7 +460,7 @@ def investigate_command(args) -> int:
         interactive = not args.non_interactive and sys.stdin.isatty()
         print("Starting the investigator (Ctrl+C stops it safely). Progress lines follow.", flush=True)
         inv = investigate.Investigator(adapter, clone, policy, available, tier=args.tier, max_rounds=args.max_rounds, timeout=args.timeout,
-                                       log=lambda m: print(m, flush=True), cache_home=store.home)
+                                       log=lambda m: print(m, flush=True), cache_home=store.home, model=pinned)
         try:
             feedback = list(args.feedback)
             if args.feedback_file:
@@ -647,7 +651,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--fixture", action="store_true", help="mark the plan as a test fixture")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--model-source", action="append", choices=list(models.SOURCES),
-                   help="where the picker menu takes models from (repeatable; default: the phases file's choice, else copilot)")
+                   help="where the picker menu takes models from (repeatable; default: the phases file's choice, else claude)")
     p.add_argument("--assets-dir", help="repository-relative asset output directory for this plan (for example apps/arithmoslayer/assets/)")
     p.add_argument("--base-branch",
                    help="branch the run branch is cut from and the branch run pull requests target (default: main)")
@@ -707,8 +711,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     iv.add_argument("--requirements", required=True)
     iv.add_argument("--out", help="output directory (default: <requirements>_plan next to the requirements file)")
     iv.add_argument("--tier", choices=["low", "standard", "strong"], default="standard")
+    iv.add_argument("--model", help="pin the investigator to this model id, e.g. claude-fable-5-2 (default: "
+                                    "$%s, else the menu model of --tier); the drafted plan keeps its own menu"
+                                    % INVESTIGATOR_MODEL_ENV)
     iv.add_argument("--model-source", action="append", choices=list(models.SOURCES),
-                    help="where the picker menu takes models from (repeatable; default copilot)")
+                    help="where the picker menu takes models from (repeatable; default claude)")
     iv.add_argument("--max-rounds", type=int, default=3, help="how many times the investigator may ask questions")
     iv.add_argument("--non-interactive", action="store_true", help="write questions.md and stop instead of asking in the terminal")
     iv.add_argument("--answers", help="JSON file mapping question id to answer, to continue a non-interactive run")
@@ -756,12 +763,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     asx.add_argument("action", choices=["probe"])
     i = sub.add_parser("isolation", help="Tier A worker sandbox: build the image, verify it, or show the tier")
     i.add_argument("action", choices=["build", "verify", "status"])
-    pv = sub.add_parser("providers", help="manage BYOK provider profiles (endpoint and key) for non-Copilot sources")
-    pv.add_argument("action", choices=["show", "set", "rm"])
-    pv.add_argument("source", nargs="?", help="model source, e.g. deepseek")
-    pv.add_argument("--base-url", help="API endpoint; defaults to the known URL for the source")
-    pv.add_argument("--type", default="openai", choices=["openai", "azure", "anthropic"], help="provider wire type")
-    pv.add_argument("--api-key-env", help="read the key from this environment variable instead of prompting")
+    cl = sub.add_parser("claude", help="the Claude subscription token workers use (from `claude setup-token`)")
+    cl.add_argument("action", choices=["login", "status", "logout"])
+    cl.add_argument("--token-env", help="read the token from this environment variable instead of prompting")
     md = sub.add_parser("models", help="show the picker menu per source and which models this runtime accepts")
     md.add_argument("--source", action="append", choices=list(models.SOURCES), help="source to show (repeatable; default all)")
     md.add_argument("--refresh", action="store_true", help="probe again instead of using the cached result")
@@ -907,8 +911,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         if args.cmd == "isolation":
             return isolation_command(args.action, args.home)
-        if args.cmd == "providers":
-            return providers_command(args)
+        if args.cmd == "claude":
+            return claude_command(args)
         if args.cmd == "models":
             return models_command(args)
         if args.cmd == "watch":

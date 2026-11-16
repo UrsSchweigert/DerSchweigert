@@ -309,7 +309,7 @@ def test_a_worker_that_writes_no_result_is_transient_not_deterministic():
 def test_a_repeated_failure_signature_escalates_the_model_tier(tmp_path):
     """The harness already changes the packet; when the model produced nothing, the model is what has to change."""
     env = Env(tmp_path, budgets=dict(LONG, transient_retries=10, repair_attempts=10),
-              available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5"])
+              available_models=["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"])
     env.adapter.script("i1", "implementer", *["error:no_result"] * 6)
     env.start()
     env.run_until(lambda: len(env.adapter.started) >= 3, advance=700)
@@ -322,17 +322,17 @@ def test_the_escalation_skips_a_tier_that_offers_the_same_model(tmp_path):
     """This plan maps low and standard both to the cheapest model. Escalating one label up repeated the same failure
     under a different name; the model is what has to change."""
     env = Env(tmp_path, budgets=dict(LONG, transient_retries=10, repair_attempts=10),
-              available_models=["deepseek/deepseek-flash", "deepseek/deepseek-v4-pro"],
-              model_sources=["deepseek"],
-              policy_overrides={"model_tiers": {"low": ["deepseek/deepseek-flash"],
-                                                "standard": ["deepseek/deepseek-flash"],
-                                                "strong": ["deepseek/deepseek-v4-pro"]}})
+              available_models=["claude-haiku-5-5", "claude-sonnet-5-5"],
+              model_sources=["claude"],
+              policy_overrides={"model_tiers": {"low": ["claude-haiku-5-5"],
+                                                "standard": ["claude-haiku-5-5"],
+                                                "strong": ["claude-sonnet-5-5"]}})
     env.adapter.script("i1", "implementer", *["error:no_result"] * 6)
     env.start()
     env.run_until(lambda: len(env.adapter.started) >= 3, advance=700)
     models_used = [req.model for req in env.adapter.started if req.role == "implementer"]
-    assert models_used[0] == "deepseek/deepseek-flash"
-    assert models_used[2] == "deepseek/deepseek-v4-pro"  # straight past the tier that repeats the same model
+    assert models_used[0] == "claude-haiku-5-5"
+    assert models_used[2] == "claude-sonnet-5-5"  # straight past the tier that repeats the same model
 
 
 def test_an_attempt_left_by_a_stopped_runner_is_requeued_without_charge(tmp_path):

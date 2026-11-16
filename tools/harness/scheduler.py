@@ -596,7 +596,8 @@ class Scheduler:
             if kind == "cancelled":
                 self._release(meta["attempt_id"])
                 return
-            self._record_failure(meta, kind, now, poll.error.get("detail", kind), tail=self._attempt_tail(h))
+            self._record_failure(meta, kind, now, poll.error.get("detail", kind), tail=self._attempt_tail(h),
+                                 retry_at=poll.error.get("retry_at"))
             return
         result = poll.result
         try:
@@ -617,7 +618,7 @@ class Scheduler:
 
     def _record_failure(self, meta: Dict[str, Any], kind: str, now: float, detail: str, outcome: Optional[str] = None,
                         already_final: bool = False, evidence: Optional[Dict[str, Any]] = None,
-                        tail: Optional[List[str]] = None) -> None:
+                        tail: Optional[List[str]] = None, retry_at: Optional[float] = None) -> None:
         """Classify by code, finish the attempt, update budgets, and retry, block, or pause."""
         attempt_id, issue_id = meta["attempt_id"], meta["issue_id"]
         prior_timeout = any(a["attempt_id"] != attempt_id and a.get("outcome") == "TimedOut" and a.get("packet_digest") == meta.get("packet_digest")
@@ -654,7 +655,7 @@ class Scheduler:
         issue["last_failures"][-1]["signature"] = failure_signature
         decision = {"action": "block", "reason": HELPER_FAILURE[meta["role"]]} if (
             meta["role"] in HELPER_FAILURE and fclass in (failures.DETERMINISTIC, failures.POLICY, failures.CONFIGURATION)
-        ) else failures.decide(fclass, issue, budgets, now, self.rng)  # a failed helper must not spend the implementer's repair budget
+        ) else failures.decide(fclass, issue, budgets, now, self.rng, retry_at=retry_at)  # a failed helper must not spend the implementer's repair budget
         if fclass == failures.REPORTED and decision["action"] == "block" and self._schedule_analysis(issue):
             decision = {"action": "analyze"}
         # An oversize diff is a sizing problem, not a policy violation: the worker wrote the work, it just does not fit
@@ -666,6 +667,8 @@ class Scheduler:
         self._emit("attempt_failed", attempt=attempt_id, issue=issue_id, kind=kind, failure_class=fclass, action=decision["action"])
         if decision["action"] == "analyze":
             self._emit("analysis_scheduled", issue=issue_id, trigger="stuck_report")
+        if decision.get("wait") == "usage_limit":
+            self._emit("usage_limit_wait", issue=issue_id, resume_at=issue["not_before"], detail=detail[:200])
         state = self.store.state("issue", issue_id)
         if kind == ENVIRONMENT_KIND and decision["action"] == "block" and self._only_environment_failures(issue):
             # No worker ever ran, so nothing was learned about this issue and retrying it cannot help: every other
@@ -1808,7 +1811,8 @@ class Scheduler:
     def _packet(self, issue: Dict[str, Any], role: str, tier: str) -> Dict[str, Any]:
         phase = self._phase(issue)
         data: Any = {}
-        evidence = [f for f in issue["last_failures"] if f["class"] != failures.TRANSIENT]  # infrastructure noise is not evidence
+        # Infrastructure noise and subscription limits say nothing about the work, so neither is evidence.
+        evidence = [f for f in issue["last_failures"] if f["class"] not in (failures.TRANSIENT, failures.QUOTA)]
         if role == "implementer" and [f for f in evidence if f["role"] != "reviewer"]:
             data = {"previous_failures": [f for f in evidence if f["role"] != "reviewer"][-3:]}
         own = [f for f in evidence if f["role"] == role]

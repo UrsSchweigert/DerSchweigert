@@ -240,7 +240,7 @@ class Clock:
 class Env:
     """An approved plan, Tier A attestation override, and a scheduler wired to doubles."""
 
-    def __init__(self, tmp_path, issues=None, allowlist=("src/",), merge_policy=None, available_models=("claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"),
+    def __init__(self, tmp_path, issues=None, allowlist=("src/",), merge_policy=None, available_models=("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-8"),
                  budgets=None, phases=None, authorized_operations=None, model_sources=None, policy_overrides=None):
         self.store = Store(str(tmp_path / "home"))
         phases = phases or [

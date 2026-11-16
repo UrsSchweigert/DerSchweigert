@@ -60,7 +60,7 @@ When the tier is unknown, treat it as Tier B.
 * Keep credentials out of worker environments, arguments, task packets, logs, issue content, and sanitized telemetry.
 * Workers cannot mutate GitHub state or authorize their own actions. They return action proposals, and the broker validates each against the approval record and the current lease epoch before acting.
 * Request secret configuration from humans through an external channel, never through issues or comments.
-* **BYOK model keys are the one credential a worker necessarily holds.** When a model source has a provider profile in `<store>/providers.json` (mode `0600`), that source's runs receive its API key by environment name, and only for attempts that use it. This is a deliberate, bounded exception: such a key is billable, so give it a spend cap, keep the profile out of the repository and out of plan packets, and never configure a profile whose key also grants repository access. A run that uses only `copilot` ids forwards no provider key at all, and a `copilot` token is not sent to a BYOK attempt.
+* **The Claude subscription token is the one credential a worker necessarily holds.** Every model attempt receives `<store>/claude.token` (mode `0600`) by environment name (`CLAUDE_CODE_OAUTH_TOKEN`); check containers receive no credential. The token grants no repository access, but it can spend the owner's subscription limits, so keep it out of the repository and out of plan packets, and revoke it from the Claude account settings if a worker could have exfiltrated it. `ANTHROPIC_API_KEY` is never forwarded, and the sandbox probe verifies its absence, because Claude Code would prefer it over the subscription and bill API credit.
 
 ## Local Dashboard
 

@@ -7,6 +7,10 @@ import json
 from typing import Any, Callable, Dict, List, Optional
 
 TRANSIENT, DETERMINISTIC, POLICY, SYSTEMIC = "transient", "deterministic", "policy", "systemic"
+# The subscription's session or weekly limit is reached. Nothing is wrong with the work and no attempt can succeed
+# before the window resets, so the issue waits for the reset and spends no retry budget at all.
+QUOTA = "quota"
+QUOTA_DEFAULT_WAIT_S = 30 * 60
 REPORTED = "reported"  # the worker says it cannot finish: a request for direction, not evidence of anything
 
 # Evidence kinds observed by trusted code mapped to a failure class.
@@ -18,6 +22,7 @@ KIND_CLASS = {
     "scope_violation": POLICY, "escalation_path": POLICY, "approval": POLICY, "permission": POLICY,
     "protected_branch": POLICY, "diff_too_large": POLICY,
     "isolation": SYSTEMIC, "credentials": SYSTEMIC, "budget": SYSTEMIC,
+    "usage_limit": QUOTA,
     "worker_blocked": REPORTED,
 }
 CONFIGURATION = "configuration"
@@ -49,7 +54,7 @@ def backoff_delay(failures: int, base: float = 5.0, cap: float = 600.0, rng: Cal
 
 
 def decide(failure_class: str, issue: Dict[str, Any], budgets: Dict[str, Any], now: float,
-           rng: Callable[[], float] = random.random) -> Dict[str, Any]:
+           rng: Callable[[], float] = random.random, retry_at: Optional[float] = None) -> Dict[str, Any]:
     """Update the issue's counters and return the next action: retry, consult, block, or pause.
 
     Transient failures use their own budget. Deterministic failures use the repair budget and must change an
@@ -58,6 +63,10 @@ def decide(failure_class: str, issue: Dict[str, Any], budgets: Dict[str, Any], n
     """
     if failure_class == SYSTEMIC:
         return {"action": "pause"}
+    if failure_class == QUOTA:
+        resume = retry_at if isinstance(retry_at, (int, float)) and retry_at > now else now + QUOTA_DEFAULT_WAIT_S
+        issue["not_before"] = max(issue.get("not_before", 0.0), resume)
+        return {"action": "retry", "delay": issue["not_before"] - now, "wait": "usage_limit"}
     if failure_class == REPORTED:
         if issue.get("consults", 0) >= budgets.get("delegator_consults_per_issue", 0):
             return {"action": "block", "reason": "the worker reported it cannot solve the task"}
