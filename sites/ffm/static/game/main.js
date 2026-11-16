@@ -40,7 +40,7 @@ import {
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
-import { createHeroSkinManager } from './hero-skin.js';
+import { createHeroSkinManager, loadHeroSkin } from './hero-skin.js';
 import { resolveHero } from './heroes.js';
 import { renderHeroIdentity } from './hero-identity.js';
 import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
@@ -5002,6 +5002,134 @@ if (!platform.isApp) {
   // (each hop can also hit a cold Lambda) before anything is shown.
   leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
 }
+// App hero picker: the shared grid in a dialog over the profile list. Lock
+// state comes from the cached hero pack entitlement, so it works offline.
+let heroPackOwned = false;
+async function readHeroPackOwned() {
+  try {
+    heroPackOwned = (await platform.getBillingStatus())?.hero_pack === true;
+  } catch {
+    heroPackOwned = false;
+  }
+}
+const heroPortraitFor = profile => resolveHero(profile.hero, { entitled: true }).portrait;
+const canSwitchProfiles = () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting;
+
+async function openHeroPicker(profile) {
+  if (document.querySelector('.hero-picker-overlay')) return;
+  await readHeroPackOwned();
+  const { mountHeroPicker } = await import('./hero-picker.js');
+  let selectedId = resolveHero(profile.hero, { entitled: true }).id;
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay hero-picker-overlay';
+  const card = document.createElement('div');
+  card.className = 'overlay-card hero-picker-card';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-modal', 'true');
+  card.setAttribute('aria-labelledby', 'hero-picker-title');
+  const title = document.createElement('h2');
+  title.id = 'hero-picker-title';
+  title.textContent = t('heroes.title');
+  const gridRoot = document.createElement('div');
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'diff-btn hero-picker-close';
+  closeBtn.textContent = t('heroes.close');
+  card.append(title, gridRoot, closeBtn);
+  overlay.append(card);
+
+  // One preview atlas at a time; the sequence drops a load that lost the race.
+  let previewSkin = null;
+  let previewSeq = 0;
+  const releasePreview = () => {
+    try { if (previewSkin?.atlas) previewSkin.atlas.src = ''; } catch { /* nothing to release */ }
+    previewSkin = null;
+  };
+  const renderPreview = async (entry, area) => {
+    const seq = ++previewSeq;
+    const skin = await loadHeroSkin({ heroId: entry.id });
+    if (seq !== previewSeq) {
+      try { if (skin.atlas) skin.atlas.src = ''; } catch { /* nothing to release */ }
+      return;
+    }
+    releasePreview();
+    previewSkin = skin;
+    area.replaceChildren();
+    const frame = skin.atlas && skin.frames?.['idle-1'];
+    if (!frame) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = frame.w;
+    canvas.height = frame.h;
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', t(entry.nameKey));
+    canvas.getContext('2d')?.drawImage(skin.atlas, frame.x, frame.y, frame.w, frame.h, 0, 0, frame.w, frame.h);
+    area.append(canvas);
+  };
+
+  let packSheet = null;
+  let picker = null;
+  const setStatus = text => {
+    const status = gridRoot.querySelector('[data-hero-status]');
+    if (status) status.textContent = text;
+  };
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    previewSeq++;
+    picker?.destroy();
+    releasePreview();
+    overlay.remove();
+    document.querySelector('#profile-root .profile-change-hero')?.focus();
+  };
+  function onKey(event) {
+    if (event.key === 'Escape' && !document.querySelector('.pack-sheet-overlay')) close();
+  }
+  document.addEventListener('keydown', onKey);
+  closeBtn.addEventListener('click', close);
+
+  picker = mountHeroPicker(gridRoot, {
+    t,
+    getSelectedId: () => selectedId,
+    canChange: canSwitchProfiles,
+    isLocked: entry => !entry.free && !heroPackOwned,
+    renderPreview,
+    onSelect: async entry => {
+      try {
+        await platform.localProfiles.setHero(profile.id, entry.id);
+      } catch (error) {
+        console.error('Unable to save the hero', error);
+        setStatus(t('heroes.saveFailed'));
+        return;
+      }
+      selectedId = entry.id;
+      activeLocalPlayer = platform.localProfiles.getActiveProfile();
+      picker.update();
+      setStatus(t('heroes.saved'));
+      await profileUI?.refresh();
+      renderPlayerIdentity();
+      refreshHeroSkin();
+    },
+    onLocked: async () => {
+      try {
+        const { createPackSheet } = await import('./pack-sheet.js');
+        packSheet ??= createPackSheet({
+          platform,
+          locale: getLocale(),
+          opener: gridRoot.querySelector('button[data-hero-id]:focus') ?? closeBtn,
+          onGranted: async () => {
+            await readHeroPackOwned();
+            picker?.update();
+          },
+        });
+        await packSheet.open();
+      } catch (error) {
+        console.error('Unable to open the hero pack sheet', error);
+      }
+    },
+  });
+  document.body.append(overlay);
+  gridRoot.querySelector('button[data-hero-id]')?.focus();
+}
+
 const ensureLocalProfiles = createRetryableInitialization(async () => {
   if (platform.isApp) {
     await platform.localProfiles.initialize({ defaultName: t('profiles.defaultName') });
@@ -5019,7 +5147,9 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
           for (const button of document.querySelectorAll('#difficulty-select [data-difficulty]')) button.disabled = busy;
           if (btnStartPractice) btnStartPractice.disabled = busy;
         },
-        canSwitch: () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting,
+        canSwitch: canSwitchProfiles,
+        portraitFor: heroPortraitFor,
+        onChangeHero: profile => { void openHeroPicker(profile); },
         onSelected: async () => {
           clearMissedProblemsForOwner(platform.localProfiles.getActiveProfile().id);
           personalBestPage = 0;
