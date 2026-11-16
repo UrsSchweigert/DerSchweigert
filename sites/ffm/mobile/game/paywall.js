@@ -39,7 +39,7 @@ export function paywallText(key, locale = DEFAULT_LOCALE, vars = {}) {
     (vars[name] === undefined ? match : String(vars[name])));
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -79,7 +79,12 @@ export function buildPaywallMarkup({ locale = DEFAULT_LOCALE, price = null } = {
 }
 
 /** Default view: an overlay inserted into the document body. */
-export function createDomPaywallView({ doc = globalThis.document } = {}) {
+export function createDomPaywallView({
+  doc = globalThis.document,
+  overlayClass = 'overlay paywall-overlay',
+  actionAttr = 'data-paywall-action',
+  statusSelector = '.paywall-status',
+} = {}) {
   let overlay = null;
   const find = (selector) => overlay?.querySelector(selector) ?? null;
   return {
@@ -87,23 +92,23 @@ export function createDomPaywallView({ doc = globalThis.document } = {}) {
       if (!doc?.body) return null;
       if (!overlay) {
         overlay = doc.createElement('div');
-        overlay.className = 'overlay paywall-overlay';
+        overlay.className = overlayClass;
         doc.body.appendChild(overlay);
       }
       overlay.innerHTML = markup;
       for (const action of ['buy', 'restore', 'close']) {
-        find(`[data-paywall-action="${action}"]`)?.addEventListener('click', handlers[action]);
+        find(`[${actionAttr}="${action}"]`)?.addEventListener('click', handlers[action]);
       }
       return overlay;
     },
     setStatus(text, { error = false } = {}) {
-      const node = find('.paywall-status');
+      const node = find(statusSelector);
       if (!node) return;
       node.textContent = text;
       node.classList.toggle('error-msg', error);
     },
     setBusy(busy) {
-      for (const button of overlay?.querySelectorAll('[data-paywall-action]') ?? []) {
+      for (const button of overlay?.querySelectorAll(`[${actionAttr}]`) ?? []) {
         button.disabled = busy;
       }
     },
