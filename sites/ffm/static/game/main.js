@@ -40,6 +40,8 @@ import {
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
+import { createHeroSkinManager } from './hero-skin.js';
+import { resolveHero } from './heroes.js';
 import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
@@ -350,11 +352,23 @@ function hideLoadingOverlay() {
 // level starts. Fetching them in front of the overlay instead of behind it cost
 // 11 s to a playable title screen on a 9 Mbps / 60 ms link, against 2.8 s for
 // the critical list alone.
+// The stored hero the player may use; null (logged out, revoked, unreadable)
+// means the adventurer. platform.getActiveHeroSkin() never rejects, and the
+// choice itself stays stored when it is not honoured.
+async function resolveActiveHeroId() {
+  try {
+    return resolveHero(await platform.getActiveHeroSkin?.(), { entitled: true }).id;
+  } catch {
+    return resolveHero(null).id;
+  }
+}
+const activeHeroEntry = resolveHero(await resolveActiveHeroId(), { entitled: true });
+
 const criticalAssetsLoaded = preloadGameAssets((loaded, total) => {
   const pct = total > 0 ? Math.round((loaded / total) * 100) : 100;
   if (loadingBarFill) loadingBarFill.style.width = pct + '%';
   if (loadingPercentEl) loadingPercentEl.textContent = pct + '%';
-}, buildCriticalAssetManifest());
+}, buildCriticalAssetManifest(activeHeroEntry));
 
 // Started once the title screen is unblocked, so the two lists never compete
 // for bandwidth. startLevel() still waits for this before painting a level, so
@@ -981,6 +995,19 @@ hapticsToggle?.addEventListener('change', () => {
 
 // --- Entity state ---
 let hero = new Hero();
+const heroSkins = createHeroSkinManager();
+async function applyActiveHeroSkin() {
+  try {
+    await heroSkins.apply(hero, await resolveActiveHeroId());
+  } catch (error) {
+    console.error('Unable to apply the hero skin', error);
+  }
+}
+// Outside startLevel the skin is only swapped while no level is in play.
+function refreshHeroSkin() {
+  if (gameRunning || levelStarting) return;
+  applyActiveHeroSkin();
+}
 let fiends = [];
 let spawnQueue = [];
 let requeuedFiends = [];
@@ -1923,6 +1950,8 @@ function updateHUDLogoutVisibility() {
 }
 
 function applyAuthUIState() {
+  // typeof: the extracted-function tests run this without the skin helpers.
+  if (typeof refreshHeroSkin === 'function') refreshHeroSkin();
   if (platform.isApp) return;
   renderPlayerIdentity();
   if (platform.username) {
@@ -2780,6 +2809,9 @@ async function startLevel(levelIndex, includeBaseline = false) {
       baselineScore = cfg.baseline_score;
     }
 
+    // Level start is the one safe moment to swap the skin: the overlay is up
+    // and no encounter exists. An unchanged choice loads nothing.
+    if (typeof applyActiveHeroSkin === 'function') await applyActiveHeroSkin();
     const ready = Promise.all([assetsLoaded, renderer.waitForBackgroundLoad()]);
     await Promise.race([
       ready,
@@ -4972,6 +5004,7 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
           currentPersonalDevelopment = null;
           activeLocalPlayer = platform.localProfiles.getActiveProfile();
           renderPlayerIdentity();
+          refreshHeroSkin();
           levelGrid.value = '';
           await refreshPracticeBadges();
           personalBestList.textContent = '';
@@ -5000,6 +5033,7 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
       });
     }
   }
+  refreshHeroSkin();
   await refreshProfileAndLeaderboard();
 });
 ensureLocalProfiles().then(refreshPracticeBadges).catch(error => {

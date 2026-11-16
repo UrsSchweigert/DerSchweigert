@@ -44,11 +44,14 @@ export function abilityOrnamentUrl() {
  * atlas and the fireball. Everything else is only reachable once a level
  * starts, so it is fetched while the player is still on the title screen
  * instead of holding them behind the loading bar.
+ * @param {{atlas?: string}} [selectedHero] a roster hero; its atlas replaces
+ *   the default one. Omitted, the list is the adventurer's.
  * @returns {string[]} absolute URLs, resolved relative to this module.
  */
-export function buildCriticalAssetManifest() {
+export function buildCriticalAssetManifest(selectedHero) {
+  const atlas = typeof selectedHero?.atlas === 'string' ? selectedHero.atlas : 'hero/hero-atlas.webp';
   return [
-    new URL('./hero/hero-atlas.webp', import.meta.url).href,
+    new URL(`./${atlas}`, import.meta.url).href,
     new URL('./fireball.png', import.meta.url).href,
   ];
 }
