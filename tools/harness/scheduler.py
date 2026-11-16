@@ -1074,6 +1074,16 @@ class Scheduler:
             # whose file list trusted code could not read.
             self._record_failure(meta, "schema_invalid", now, str(exc))
             return
+        outside = self._plan_outside_scope(issue, declared)
+        repeated = bool(outside) and any(f.get("kind") == "plan_out_of_scope" for f in issue.get("last_failures", []))
+        if outside and not repeated:
+            # Scope closure: a plan that needs files the phase may not touch can never pass the diff gate. The
+            # refiner is told once, in its next packet, to plan inside the scope or ask for the change.
+            self._record_failure(meta, "plan_out_of_scope", now,
+                                 "the plan writes files outside task.path_allowlist: %s. Plan only files inside "
+                                 "task.path_allowlist, or report needs_input and name the scope change the owner must approve."
+                                 % ", ".join(outside)[:600])
+            return
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {})
         self._release(meta["attempt_id"])
         meta.update(outcome="Succeeded", finished_at=now)
@@ -1091,6 +1101,17 @@ class Scheduler:
         issue["base_rev"] = self.repo.base_head()
         issue.pop("plan_prerequisites", None)  # a fresh plan answers the previous one; the guard below records it again if it still applies
         self.store.put_issue(issue)
+        if outside:
+            detail = "the plan needs files outside the phase scope: %s" % ", ".join(outside)
+            issue["last_failures"].append({"attempt": meta["attempt_id"], "role": "refiner", "kind": "plan_out_of_scope",
+                                           "class": "human", "detail": detail[:400]})
+            issue["last_failures"] = issue["last_failures"][-6:]
+            issue["blocked_reason"] = ("%s; no implementer was started. Widen the phase scope or send the issue back to be re-planned."
+                                       % detail)[:300]
+            self.store.put_issue(issue)
+            self._emit("plan_scope_gap", issue=issue["issue_id"], paths=outside, attempt=meta["attempt_id"])
+            self._block(issue, now)
+            return
         if self._plan_needs_owner_merge(issue, declared, meta, now):
             return
         self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"base": issue["base_rev"]}, now=now)
@@ -1105,6 +1126,12 @@ class Scheduler:
             if not self._schedule_triage(issue, now, force=True):
                 self._block(issue, now)
             return
+
+    def _plan_outside_scope(self, issue: Dict[str, Any], declared: List[str]) -> List[str]:
+        if not declared:
+            return []
+        working = issue.get("working_directory") or self._phase(issue).get("working_directory", ".")
+        return broker.planned_out_of_scope(declared, self._phase(issue)["path_allowlist"], working)
 
     def _declared_plan_files(self, meta: Dict[str, Any], result: Dict[str, Any]) -> List[str]:
         """The files the refiner says its plan writes, under the contract its dispatch was recorded with.

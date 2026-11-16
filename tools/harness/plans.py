@@ -261,6 +261,34 @@ def art_policy_problems(art: Any) -> List[str]:
     return problems
 
 
+# What a worker cannot do in this harness. A task whose text asks for one of these can only end in a blocked
+# attempt, so it is refused at draft and import time. A mention that says the thing is NOT needed is fine.
+_UNAVAILABLE = [
+    (re.compile(r"manual[ -]test|manual(?:ly)? (?:verif|check|test)", re.I), "a manual test (no human is present during an attempt)"),
+    (re.compile(r"request_human_task|human task", re.I), "a human task (workers cannot raise one)"),
+    (re.compile(r"asset request|asset pipeline", re.I), "an asset request or pipeline (not available to workers)"),
+]
+_NEGATION = re.compile(r"\b(no|not|never|without|none|neither|nor|avoid|except|instead of)\b|n't", re.I)
+_ART_USE = re.compile(r"art-generate|generate (?:an? )?images?|image generation", re.I)
+
+
+def capability_problems(issue: Dict[str, Any], policy: Dict[str, Any]) -> List[str]:
+    """Problems with a task that asks a worker for something it cannot do; a negated mention is allowed."""
+    texts = [str(issue.get("title", "")), str(issue.get("description", ""))]
+    texts += [str(c) for c in issue.get("acceptance_criteria", []) or []]
+    problems = []
+    for text in texts:
+        for pattern, what in _UNAVAILABLE:
+            for match in pattern.finditer(text):
+                before = text[max(0, match.start() - 30):match.start()]
+                if not _NEGATION.search(before):
+                    problems.append("issue %s asks for %s: %r" % (issue.get("issue_id", "?"), what, text[:100]))
+                    break
+        if _ART_USE.search(text) and not policy.get("art"):
+            problems.append("issue %s uses image generation but the plan has no art budget (policy.art)" % issue.get("issue_id", "?"))
+    return list(dict.fromkeys(problems))
+
+
 def with_art(policy: Optional[Dict[str, Any]], art: Dict[str, Any]) -> Dict[str, Any]:
     """Bind an image-generation budget into a plan's policy copy. It is part of the approval digest."""
     problems = art_policy_problems(art)
