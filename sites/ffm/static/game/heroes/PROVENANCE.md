@@ -63,3 +63,19 @@ Review gate: no likeness to an existing game character, no text, no frame or bac
 clip, which is larger. Missed look rules: facing (cells 2 and 4 of most sheets are front or back views, not
 facing right), hands not clearly bound, swing frames taller than idle, hurt/cast/victory poses barely differ from
 idle. Re-render once a delivered adventurer idle-1 exists as style reference.
+
+## Princess
+
+NEEDS RE-RENDER (not committed: likeness)
+
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0039..0041) from the softened default plate (adventurer not
+delivered). Every try read as an existing game character (spiky blonde hair, pauldron, belt and gloves carried over
+from the plate; try 3 also kept the oversized blade and showed a back view) and missed the hair and facing rules. No
+clip sheets or portrait were generated. No princess art is committed; the manifest row is kept. Re-render once a
+delivered adventurer idle-1 can serve as the style reference.
+
+| hero | clip | prompt summary | seed | call id | model | reference | date |
+|---|---|---|---|---|---|---|---|
+| princess | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0039 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
+| princess | idle (identity try 2, rejected) | idle prompt + "Hair smooth and rounded in a low bun under the circlet, no spikes, no scarf, no shoulder armour, no cape." | 202 | art-0040 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| princess | idle (identity try 3, rejected) | idle prompt + "Long dark brown hair, smooth and rounded, no spikes, no scarf, no shoulder armour, a gold circlet, a slim rapier in the right hand." | 303 | art-0041 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
