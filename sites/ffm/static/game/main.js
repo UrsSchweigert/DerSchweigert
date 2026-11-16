@@ -3985,7 +3985,8 @@ function handleCorrectAnswer(origin) {
       hero.setState('swing');
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
-      audio.playSwordSwing();
+      if (!hero.strike || hero.strike === 'sword') audio.playSwordSwing();
+      else audio.playStrike(hero.strike);
       globalThis.ffmHaptics?.impact();
       audio.playFiendHit?.(fiend.type);
 
