@@ -201,7 +201,7 @@ class FakeAdapter(Adapter):
             queue = self.verdicts.get(req.issue_id) or ["approve"]
             verdict = queue.pop(0) if len(queue) > 1 else queue[0]
             result.update(outcome=verdict, revision="someone-elses-head" if step == "wrong_revision" else self.repo.branch_head(branch),
-                          risks=["finding"] if verdict != "approve" else [])
+                          risks=(getattr(self, "risks", None) or ["finding"]) if verdict != "approve" else [])
         elif req.role == "refiner":
             result["outcome"] = "needs_input" if step == "needs_input" else "not_sure" if step == "not_sure" else "ready"
             if step in ("needs_input", "not_sure"):

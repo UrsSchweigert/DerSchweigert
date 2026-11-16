@@ -62,7 +62,8 @@ HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "
 # What the overseer may decide. Everything else stays with the owner: a scope breach, an escalation path, a permission
 # problem, an isolation failure, or a cancelled plan is not a process question.
 OVERSEER_KINDS = {"checks_failed", "check_configuration", "schema_invalid", "patch_changed", "push_rejected",
-                  "merge_conflict", "diff_too_large", "worker_blocked", "lease_lost", "inactivity", "timeout", "no_result"}
+                  "merge_conflict", "diff_too_large", "worker_blocked", "lease_lost", "inactivity", "timeout", "no_result",
+                  "review_loop"}  # review_loop: the second round of review findings, see _check_review_loop
 # inactivity and timeout belong here for the same reason lease_lost does: the attempt produced no result, and nothing
 # observed so far says the issue is at fault. Leaving them out sent every stalled worker to the owner as if it were a
 # decision about the game.
@@ -1043,7 +1044,7 @@ class Scheduler:
                                  "findings": result["risks"][:10]}, now)
         self._emit("review", issue=issue["issue_id"], verdict=verdict)
         if verdict == "changes":
-            self._issue_failure(issue, "review_findings", "; ".join(result["risks"])[:400] or "changes requested", now)
+            self._issue_failure(issue, "review_findings", "; ".join(result["risks"])[:1200] or "changes requested", now)
 
     def _on_refiner(self, meta, h, result, now) -> None:
         issue = self.store.get_issue(meta["issue_id"])
@@ -1432,11 +1433,31 @@ class Scheduler:
         self.store.put_issue(issue)
         if invalidate_evidence:
             self.store.transition("issue", issue["issue_id"], "In Progress", self.runner_id, {"reason": kind}, now=now)
+            if kind == "review_findings":
+                self._check_review_loop(issue, now)
         else:
             # In Review has no edge to Ready, so step through In Progress. Ready lets the resume path rebuild review from
             # the evidence that was kept instead of spending a model attempt on work that is already done.
             self.store.transition("issue", issue["issue_id"], "In Progress", self.runner_id, {"reason": kind}, now=now)
             self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"reason": kind, "evidence_kept": True}, now=now)
+
+    def _check_review_loop(self, issue: Dict[str, Any], now: float) -> None:
+        """Report a second round of review findings to the overseer before a third repair is paid for.
+
+        Trusted code cannot read two findings and see that they pull in opposite directions, but a model can. On the hero
+        pack's `ffmhero-art-tooling` a reviewer first found a softening filter too aggressive (the face went
+        transparent) and then too weak (the spikes were untouched), because the acceptance criteria asked for a filter
+        and a hair mask that could not both hold. Three implementer attempts and three strong reviews went into that
+        before the last one approved. The overseer reads the findings next to the criteria: it sends a converging
+        repair on with a concrete hint, and escalates a conflict to the owner with the criteria named. Once per issue.
+        """
+        rounds = sum(1 for f in issue["last_failures"] if f["kind"] == "review_findings")
+        if rounds < 2 or issue.get("review_loop_checked"):
+            return
+        issue["review_loop_checked"] = True
+        self._emit("review_loop", issue=issue["issue_id"], rounds=rounds)
+        if not self._overseer_instead(issue, "review_loop", now, "In Progress"):
+            self.store.put_issue(issue)  # the overseer is off or spent: the repair goes ahead as before
 
     # -- integration: drift, staleness, merge gate ------------------------------
 
@@ -1835,6 +1856,9 @@ class Scheduler:
                 data = dict(data, your_previous_analysis_was_rejected=own[-2:])
         if role == "overseer":
             data = {"recorded_failures": evidence[-6:], "blocked_reason": issue.get("blocked_reason", ""),
+                    "review_rounds": [{"round": n, "findings": f["detail"]} for n, f in enumerate(
+                        (f for f in issue["last_failures"] if f["kind"] == "review_findings"), 1)],
+                    "acceptance_criteria": [c[:700] for c in (issue.get("acceptance_criteria") or [])[:14]],
                     "attempts": [{"attempt": a["attempt_id"], "role": a["role"], "tier": a.get("tier"), "model": a.get("model"),
                                   "outcome": a.get("outcome"), "kind": a.get("failure_kind"), "detail": (a.get("detail") or "")[:300]}
                                  for a in self.store.list_attempts(issue["issue_id"])][-8:],
@@ -1970,7 +1994,9 @@ class Scheduler:
             self.store.put_issue(issue)
             self._block(issue, now)
             return
-        packet["untrusted_data"] = broker.sanitize_untrusted(packet["untrusted_data"])
+        # The overseer's data is built by trusted code from recorded failures, review rounds and acceptance criteria, and
+        # it ends with the rules for its own answer. A cut at the usual 4000 characters would drop exactly that tail.
+        packet["untrusted_data"] = broker.sanitize_untrusted(packet["untrusted_data"], 16000 if role == "overseer" else 4000)
         if role == "reviewer":
             packet["reviewed_head"] = issue["head_rev"]  # trusted value, outside the untrusted data block
         if role == "implementer" and issue.get("head_rev") and self.repo.pinned(issue["issue_id"]) == issue["head_rev"]:

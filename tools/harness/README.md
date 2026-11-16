@@ -50,7 +50,7 @@ Words used throughout:
 | Model choice | The delegating investigator picks a concrete model for each task's implementer, reviewer, and refiner, with a reason balancing cost and quality. |
 | Model tier | An approved relative cost band: `low` (Haiku), `standard` (Sonnet), `strong` (Opus). These bands describe the model menu and bound repair escalation; they do not assign models to roles on newly investigated tasks. |
 | Human task | A question the harness asks you: a decision, an asset, or a manual test. |
-| Overseer | The top-tier agent that answers a stuck issue's *process* question before you are asked: retry, extend a budget, or refine. It never cancels, approves, merges, or changes policy; when it finds a harness defect or a content question, it escalates to you with its diagnosis. |
+| Overseer | The top-tier agent that answers a stuck issue's *process* question before you are asked: retry, extend a budget, or refine. It never cancels, approves, merges, or changes policy; when it finds a harness defect or a content question, it escalates to you with its diagnosis. It is also consulted once per issue when review findings come back a second time (see below). |
 
 What an issue goes through: a **refiner** re-checks it if the code under it changed, and plans it once when its declared implementer tier is `standard` or `strong` (the plan and the tier the plan really needs are what the implementer gets), an **implementer** builds it in a throwaway copy of the repository, the harness runs the issue's own check commands, an **independent reviewer** (a different model) reviews the diff, the harness opens a pull request and merges it when every gate passes, and it reruns the checks on the merged `main`. Only then is the issue Done. A phase is Done when all its issues are Done and its exit checks pass.
 
@@ -286,6 +286,16 @@ agent. Plans approved before this change carry no consultation budget, so their
 stuck reports skip the consultation until you approve a new plan version. Failed checks and review findings keep the repair budget and tier
 escalation and do not trigger a consultation. Each consultation is one extra AI
 call.
+
+#### Review loops
+
+When a reviewer requests changes a **second** time on the same issue, the harness reports it to the overseer
+(`review_loop` event) before paying for a third repair. The overseer reads both rounds of findings next to the issue's
+acceptance criteria and decides whether they converge. If each round fixed what the last one found, it retries with the
+remaining finding as a hint. If the findings flip between opposite defects (too aggressive, then too weak) or ask for
+properties the criteria cannot satisfy together, it escalates to you with `cause: content`, naming the conflicting
+criteria, so you can change the criteria instead of paying for more rounds. This happens once per issue and counts against
+the overseer's rounds; with the overseer off, the repairs go on as before and the loop is still reported.
 
 #### Strong analysis and split proposals
 

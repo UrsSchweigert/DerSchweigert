@@ -1174,3 +1174,16 @@ The hero-pack plan needs ten art issues that generate sheets, split them and bui
   sandbox verification checks both (`art_libs`, `art_generate_tool`) and that no art credential is present by default.
 * Not changed: generated art does not pass through the asset manifest, so the sprite class limits (1 MB) do not apply
   to sheets; provenance lives in the ledger and in the hero pack's own `PROVENANCE.md`.
+
+## A second round of review findings goes to the overseer (2026-11-16)
+
+* On the hero pack's `ffmhero-art-tooling`, review findings flipped between opposite defects: a hair-softening filter first
+  cleared the face (too aggressive), then barely touched the spikes (too weak). The acceptance criteria asked for a filter and
+  a hair mask that could not both hold. It approved only on the third repair, after three implementer attempts and three strong
+  reviews, and the repair budget was exactly used up.
+* Trusted code cannot tell that two findings pull in opposite directions, so it hands the second round to the overseer, which
+  reads the findings with the acceptance criteria. A converging repair goes on with a concrete hint; a conflict goes to the owner
+  as a content question, naming the criteria. Once per issue, within the overseer's existing round bound.
+* The overseer's packet carries the review rounds and the criteria, so its data cap is 16000 characters instead of 4000: the
+  usual cap would cut the packet mid-JSON and drop the rules for its own answer. Review findings are kept to 1200 characters
+  instead of 400 so their measurements survive.
