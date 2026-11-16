@@ -7,7 +7,7 @@ import pytest
 
 from harness import adapter as adapter_mod
 from harness import approval, cli, isolation, publisher, runner
-from harness.adapter import CopilotCliAdapter, WorkRequest, build_prompt
+from harness.adapter import ClaudeCodeAdapter, WorkRequest, build_prompt
 from harness.broker import BrokerRejected
 from harness.github import GhCli, GitHubError
 from harness.publisher import GitHubPublisher, merge_base_into, push_branch
@@ -211,7 +211,7 @@ def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):
     adapter2 = FakeAdapter(env.repo, env.clock)
     adapter2.script("flaky", "implementer", "error:infra")
     s2 = Scheduler(env.store, "fx", 1, adapter2, env.repo, env.checker, env.publisher, clock=env.clock, isolation_override=TIER_A,
-                   available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"], runner_id="runner-2")
+                   available_models=["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-8"], runner_id="runner-2")
     env.sched, env.adapter = s2, adapter2
     env.clock.advance(65)  # the dead runner's plan lock expires after two heartbeats
     s2.start(env.clock())
@@ -620,7 +620,7 @@ def finished_handle(tmp_path, rc=0, tail=(), result=None, cancelled=False):
     (0, [], None, "no_result"),  # a clean exit with no file at all produced nothing; that is not a schema violation
 ])
 def test_adapter_poll_classifies_outcomes(tmp_path, rc, tail, result, expected):
-    a = CopilotCliAdapter(str(tmp_path), str(tmp_path))
+    a = ClaudeCodeAdapter(str(tmp_path), str(tmp_path))
     poll = a.poll(finished_handle(tmp_path, rc, tail, result), 0)
     assert poll.state == "finished"
     assert (poll.error or {}).get("kind") == expected
@@ -629,7 +629,7 @@ def test_adapter_poll_classifies_outcomes(tmp_path, rc, tail, result, expected):
 
 
 def test_adapter_poll_reports_cancellation_and_running(tmp_path):
-    a = CopilotCliAdapter(str(tmp_path), str(tmp_path))
+    a = ClaudeCodeAdapter(str(tmp_path), str(tmp_path))
     assert a.poll(finished_handle(tmp_path, 137, cancelled=True), 0).error == {"kind": "cancelled"}
     running = finished_handle(tmp_path)
     running.proc._rc = None
@@ -652,7 +652,7 @@ def test_adapter_prepares_an_isolated_workdir_from_the_trusted_clone(tmp_path, m
         fh.write("x\n")
     git(src, "add", "-A")
     git(src, "commit", "-q", "-m", "i")
-    a = CopilotCliAdapter(str(tmp_path / "home"), src)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), src)
     req = WorkRequest("i1#2", 2, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
     work = a._prepare(req)
     assert git(os.path.join(work, "repo"), "rev-parse", "--abbrev-ref", "HEAD") == "harness/i1"
@@ -664,12 +664,12 @@ def test_adapter_prepares_an_isolated_workdir_from_the_trusted_clone(tmp_path, m
 
 def test_adapter_probe_reports_missing_pieces(tmp_path, monkeypatch):
     monkeypatch.setattr(isolation, "docker_available", lambda: False)
-    assert CopilotCliAdapter(str(tmp_path), str(tmp_path)).probe()["available"] is False
+    assert ClaudeCodeAdapter(str(tmp_path), str(tmp_path)).probe()["available"] is False
     monkeypatch.setattr(isolation, "docker_available", lambda: True)
     monkeypatch.setattr(isolation, "image_id", lambda image=isolation.IMAGE: None)
-    assert "image" in CopilotCliAdapter(str(tmp_path), str(tmp_path)).probe()["reason"]
+    assert "image" in ClaudeCodeAdapter(str(tmp_path), str(tmp_path)).probe()["reason"]
     monkeypatch.setattr(isolation, "image_id", lambda image=isolation.IMAGE: "sha256:x")
-    assert "copilot.token" in CopilotCliAdapter(str(tmp_path), str(tmp_path)).probe()["reason"]
+    assert "claude.token" in ClaudeCodeAdapter(str(tmp_path), str(tmp_path)).probe()["reason"]
 
 
 def test_trusted_clone_tracks_the_base_branch(tmp_path):
@@ -769,7 +769,7 @@ def test_rehearsal_is_a_separate_copy_of_the_state(tmp_path):
     for s in ("Refining", "Ready"):
         store.transition("issue", "i1", s, "t")
     (tmp_path / "home" / "isolation.json").write_text("{}")
-    (tmp_path / "home" / "copilot.token").write_text("tok")
+    (tmp_path / "home" / "claude.token").write_text("tok")
     path = runner.make_rehearsal(store.home)
     assert os.path.dirname(path) == store.home
     copy = Store(path)
@@ -778,7 +778,7 @@ def test_rehearsal_is_a_separate_copy_of_the_state(tmp_path):
     copy.transition("issue", "i1", "In Progress", "rehearsal")
     copy.cx.execute("UPDATE entities SET state='Completed' WHERE machine='plan'")
     assert store.state("issue", "i1") == "Ready" and store.state("plan", "fx@v1") == "Approved"  # the real store is untouched
-    for name in ("approval.key", "isolation.json", "copilot.token", "harness.sqlite"):
+    for name in ("approval.key", "isolation.json", "claude.token", "harness.sqlite"):
         assert oct(os.stat(os.path.join(path, name)).st_mode & 0o777) == "0o600"
 
 
@@ -864,7 +864,7 @@ def test_a_reviewer_workdir_is_checked_out_at_the_branch_under_review(tmp_path, 
     git(src, "commit", "-q", "-m", "work")
     git(str(tmp_path), "--git-dir", trusted, "fetch", "-q", src, "+refs/heads/harness/i1:refs/heads/harness/i1")
     reviewed = git(src, "rev-parse", "HEAD")
-    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), trusted)
     reviewer = a._prepare(WorkRequest("i1#2", 1, "i1", "reviewer", "strong", None, {}, "harness/i1"))
     implementer = a._prepare(WorkRequest("i1#3", 1, "i1", "implementer", "standard", None, {}, "harness/i1"))
     assert git(os.path.join(reviewer, "repo"), "rev-parse", "HEAD") == reviewed and os.path.exists(os.path.join(reviewer, "repo", "new.txt"))
@@ -897,7 +897,7 @@ def test_preparing_a_worker_folder_keeps_executable_files_executable_and_the_tre
     git(src, "commit", "-q", "-m", "i")
     trusted = str(tmp_path / "trusted.git")
     git(str(tmp_path), "clone", "-q", "--bare", src, trusted)
-    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), trusted)
     work = a._prepare(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "harness/i1"))
     repo = os.path.join(work, "repo")
     assert os.stat(os.path.join(repo, "gradlew")).st_mode & 0o111 and os.stat(os.path.join(repo, "scripts", "run.sh")).st_mode & 0o111  # still executable
@@ -921,7 +921,7 @@ def test_a_mode_only_change_in_the_worker_copy_is_not_committed(tmp_path, monkey
     git(src, "commit", "-q", "-m", "i")
     trusted = str(tmp_path / "trusted.git")
     git(str(tmp_path), "clone", "-q", "--bare", src, trusted)
-    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), trusted)
     repo = os.path.join(a._prepare(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "harness/i1")), "repo")
     os.chmod(os.path.join(repo, "tool.sh"), 0o644)  # an accidental chmod by the worker or a tool
     assert git(repo, "status", "--porcelain") == "" and git(repo, "config", "core.fileMode") == "false"
@@ -957,7 +957,7 @@ def test_a_repair_workdir_starts_from_the_last_good_head_and_pushes_as_a_fast_fo
     git(src, "commit", "-q", "-m", "diverged")
     git(str(tmp_path), "--git-dir", trusted, "fetch", "-q", src, "+refs/heads/harness/i1:refs/heads/harness/i1")
     assert repo.branch_head("harness/i1") != good and repo.pinned("i1") == good
-    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), trusted)
     repair = a._prepare(WorkRequest("i1#4", 1, "i1", "implementer", "standard", None, {"resume_from": "harness-good/i1"}, "harness/i1"))
     repo_dir = os.path.join(repair, "repo")
     assert git(repo_dir, "rev-parse", "HEAD") == good and os.path.exists(os.path.join(repo_dir, "first.txt"))
@@ -1241,7 +1241,7 @@ def test_a_worker_starts_on_a_run_branch_that_is_not_the_default(tmp_path, monke
     git(src, "add", "-A")
     git(src, "commit", "-q", "-m", "i")
     git(src, "branch", "harness/run/fx")
-    adapter = CopilotCliAdapter(str(tmp_path / "home"), src, "harness/run/fx")
+    adapter = ClaudeCodeAdapter(str(tmp_path / "home"), src, "harness/run/fx")
     req = WorkRequest("i1#1", 1, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
 
     work = adapter._prepare(req)
@@ -1262,7 +1262,7 @@ def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkey
         fh.write("x\n")
     git(src, "add", "-A")
     git(src, "commit", "-q", "-m", "i")
-    adapter = CopilotCliAdapter(str(tmp_path / "home"), src)
+    adapter = ClaudeCodeAdapter(str(tmp_path / "home"), src)
     req = WorkRequest("i1#1", 1, "i1", "reviewer", "low", None, {"issue_id": "i1"}, "harness/i1")
     handle = _Handle(req, adapter._prepare(req), None, "probe")
 
@@ -1541,7 +1541,7 @@ def test_a_worker_starts_on_a_run_branch_that_is_not_the_default(tmp_path, monke
     git(src, "add", "-A")
     git(src, "commit", "-q", "-m", "i")
     git(src, "branch", "harness/run/fx")
-    adapter = CopilotCliAdapter(str(tmp_path / "home"), src, "harness/run/fx")
+    adapter = ClaudeCodeAdapter(str(tmp_path / "home"), src, "harness/run/fx")
     req = WorkRequest("i1#1", 1, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
 
     work = adapter._prepare(req)
@@ -1562,7 +1562,7 @@ def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkey
         fh.write("x\n")
     git(src, "add", "-A")
     git(src, "commit", "-q", "-m", "i")
-    adapter = CopilotCliAdapter(str(tmp_path / "home"), src)
+    adapter = ClaudeCodeAdapter(str(tmp_path / "home"), src)
     req = WorkRequest("i1#1", 1, "i1", "reviewer", "low", None, {"issue_id": "i1"}, "harness/i1")
     handle = _Handle(req, adapter._prepare(req), None, "probe")
 
@@ -1773,7 +1773,7 @@ def test_the_runner_reclaims_working_copies_left_by_a_dead_runner(monkeypatch, t
 
 def test_adapter_poll_separates_an_invalid_file_from_a_missing_one(tmp_path):
     """A present but unparseable result.json is a schema problem; an absent one is a worker that produced nothing."""
-    a = CopilotCliAdapter(str(tmp_path), str(tmp_path))
+    a = ClaudeCodeAdapter(str(tmp_path), str(tmp_path))
     (tmp_path / "result.json").write_text("{not json")
     poll = a.poll(finished_handle(tmp_path, 0), 0)
     assert poll.error["kind"] == "schema_invalid" and "not valid JSON" in poll.error["detail"]

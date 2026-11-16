@@ -2,7 +2,7 @@
 
 Tier A is reported only when a fresh, signed attestation exists and the image it covers is unchanged.
 Known limit: container egress is not restricted, so a worker can reach the network. The only credential
-a worker holds is the Copilot-only token, which has no repository access.
+a worker holds is the Claude Code subscription token, which has no repository access.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from . import plans
 IMAGE = "harness-worker:1"
 ATTESTATION_TTL_S = 24 * 3600
 WORKER_UID = 10001
-COPILOT_TOKEN_ENV = "COPILOT_GITHUB_TOKEN"
+CLAUDE_TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 
 _CREDENTIAL_NAME = re.compile(r"(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL|PRIVATE_KEY|^GH_|^GITHUB_|^SSH_AUTH_SOCK$|^AWS_|^BLENDERMCP_|^HARNESS_)", re.I)
 
@@ -83,32 +83,28 @@ def docker_args(workdir: str, command: List[str], pass_env: Optional[List[str]] 
     return args + [image] + command
 
 
-def pass_env_names(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None) -> List[str]:
-    """Names forwarded into the worker for one attempt: the Copilot token and/or a BYOK provider profile."""
-    names = [COPILOT_TOKEN_ENV] if copilot_token_file else []
-    return names + list(provider or {})
+def pass_env_names(credential: Optional[Mapping[str, str]] = None) -> List[str]:
+    """Names forwarded into the worker for one attempt: the Claude subscription token, when the attempt needs one."""
+    return list(credential or {})
 
 
-def _worker_env(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
+def _worker_env(credential: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
     env = scrub_env(os.environ)
-    if copilot_token_file:
-        with open(copilot_token_file) as fh:
-            env[COPILOT_TOKEN_ENV] = fh.read().strip()
-    for name, value in (provider or {}).items():
+    for name, value in (credential or {}).items():
         env[name] = value
     return env
 
 
-def worker_env_for_attempt(copilot_token_file: Optional[str], provider: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
+def worker_env_for_attempt(credential: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
     """The environment for one worker process: scrubbed host env plus the credential the attempt needs."""
-    return _worker_env(copilot_token_file, provider)
+    return _worker_env(credential)
 
 
-def start_worker(workdir: str, command: List[str], copilot_token_file: Optional[str], *, name: str,
-                 provider: Optional[Mapping[str, str]] = None) -> subprocess.Popen:
-    args = docker_args(workdir, command, pass_env_names(copilot_token_file, provider), name=name)
+def start_worker(workdir: str, command: List[str], credential: Optional[Mapping[str, str]] = None, *,
+                 name: str) -> subprocess.Popen:
+    args = docker_args(workdir, command, pass_env_names(credential), name=name)
     return subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                            env=_worker_env(copilot_token_file, provider))
+                            env=_worker_env(credential))
 
 
 def cancel_worker(name: str, proc: Optional[subprocess.Popen] = None) -> None:
@@ -123,11 +119,10 @@ def cancel_worker(name: str, proc: Optional[subprocess.Popen] = None) -> None:
             proc.wait(timeout=5)
 
 
-def run_worker(workdir: str, command: List[str], copilot_token_file: Optional[str] = None, timeout: int = 1800,
-               provider: Optional[Mapping[str, str]] = None) -> subprocess.CompletedProcess:
+def run_worker(workdir: str, command: List[str], credential: Optional[Mapping[str, str]] = None,
+               timeout: int = 1800) -> subprocess.CompletedProcess:
     """Run a command in the sandbox. Credentials travel in the docker client's environment, not its arguments."""
-    return _docker(docker_args(workdir, command, pass_env_names(copilot_token_file, provider)), timeout=timeout,
-                   env=_worker_env(copilot_token_file, provider))
+    return _docker(docker_args(workdir, command, pass_env_names(credential)), timeout=timeout, env=_worker_env(credential))
 
 
 # -- verification -------------------------------------------------------------
@@ -136,7 +131,8 @@ PROBE_SCRIPT = r"""
 chk() { if eval "$2"; then echo "$1=pass"; else echo "$1=fail"; fi; }
 chk non_root '[ "$(id -u)" != 0 ]'
 chk no_host_credentials_in_env '[ -z "${GH_TOKEN:-}${GITHUB_TOKEN:-}${GH_NEW_TOKEN:-}${AWS_SECRET_ACCESS_KEY:-}" ]'
-chk no_copilot_token_unless_passed '[ -z "${COPILOT_GITHUB_TOKEN:-}" ]'
+chk no_claude_token_unless_passed '[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]'
+chk no_anthropic_api_key '[ -z "${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}" ]'
 chk store_path_absent '[ ! -e "$STORE_PATH" ]'
 chk host_home_absent '[ ! -e /Users ] && [ ! -e /host_mnt ] && [ ! -e /home/worker/.config/gh ]'
 chk no_ssh_agent '[ -z "${SSH_AUTH_SOCK:-}" ]'
@@ -145,7 +141,7 @@ chk rootfs_read_only '! touch /usr/probe 2>/dev/null && ! touch /etc/probe 2>/de
 chk workdir_writable 'touch /work/probe_ok'
 chk no_capabilities 'grep -q "^CapEff:[[:space:]]*0000000000000000" /proc/self/status'
 chk no_new_privileges 'grep -q "^NoNewPrivs:[[:space:]]*1" /proc/self/status'
-chk copilot_installed 'command -v copilot >/dev/null'
+chk claude_installed 'command -v claude >/dev/null'
 chk smoke_tool '[ -f /opt/harness/smoke/lesen.mjs ] && ls -d /opt/pw-browsers/chromium* >/dev/null 2>&1 && node -e "require(\"playwright\")" >/dev/null 2>&1'
 chk godot_pinned 'godot --headless --version 2>/dev/null | grep -qx "4.7.2.stable.official.ed1daf0bf"'
 chk gdtoolkit_pinned 'python3 -c "import importlib.metadata as m, sys; sys.exit(0 if m.version(\"gdtoolkit\") == \"4.5.0\" else 1)"'
@@ -155,9 +151,9 @@ chk godot_test_tool 'command -v godot-test >/dev/null && [ -f /opt/harness/godot
 """
 
 REQUIRED_CHECKS = [
-    "non_root", "no_host_credentials_in_env", "no_copilot_token_unless_passed", "store_path_absent", "host_home_absent",
+    "non_root", "no_host_credentials_in_env", "no_claude_token_unless_passed", "no_anthropic_api_key", "store_path_absent", "host_home_absent",
     "no_ssh_agent", "no_docker_socket", "rootfs_read_only", "workdir_writable", "no_capabilities", "no_new_privileges",
-    "copilot_installed", "smoke_tool", "godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool", "ios_shell_tool",
+    "claude_installed", "smoke_tool", "godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool", "ios_shell_tool",
 ]
 
 
@@ -212,7 +208,8 @@ def probe(store_home: str, image: str = IMAGE) -> Dict[str, Any]:
     try:
         host_env = scrub_env(os.environ)
         # Canaries: credential-looking host variables that the launcher must not forward.
-        host_env.update({"GH_TOKEN": "canary", "GITHUB_TOKEN": "canary", "GH_NEW_TOKEN": "canary", "SSH_AUTH_SOCK": "/tmp/canary.sock"})
+        host_env.update({"GH_TOKEN": "canary", "GITHUB_TOKEN": "canary", "GH_NEW_TOKEN": "canary", "SSH_AUTH_SOCK": "/tmp/canary.sock",
+                         "ANTHROPIC_API_KEY": "canary", "CLAUDE_CODE_OAUTH_TOKEN": "canary"})
         args = docker_args(work, ["sh", "-c", PROBE_SCRIPT], pass_env=None, image=image)
         args[args.index(image):args.index(image)] = ["-e", "STORE_PATH=" + os.path.realpath(store_home)]
         out = _docker(args, timeout=120, env=host_env)

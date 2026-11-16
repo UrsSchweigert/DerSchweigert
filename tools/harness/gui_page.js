@@ -34,10 +34,10 @@
   const shortened = value => value ? String(value).slice(0, 12) : "-";
   const formatTime = timestamp => timestamp ? new Date(timestamp * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit"}) : "-";
   function tokensText(attempt) {
-    const estimate = attempt.usage?.agent_estimate || attempt.usage?.size_estimate;
+    const estimate = attempt.usage?.runtime_usage || attempt.usage?.agent_estimate || attempt.usage?.size_estimate;
     if (!estimate) return "-";
     const count = value => value >= 1e6 ? (value / 1e6).toFixed(1) + "M" : value >= 1e3 ? (value / 1e3).toFixed(1) + "k" : String(value);
-    return `~${count(estimate.input_tokens)} in / ~${count(estimate.output_tokens)} out (${attempt.usage.agent_estimate ? "agent estimate" : "size only"})`;
+    return `~${count(estimate.input_tokens)} in / ~${count(estimate.output_tokens)} out (${attempt.usage.runtime_usage ? "measured" : attempt.usage.agent_estimate ? "agent estimate" : "size only"})`;
   }
   function duration(seconds) {
     if (seconds === null || seconds === undefined || !Number.isFinite(Number(seconds))) return "-";
@@ -124,7 +124,7 @@
     byId("mode-badge").hidden = !snapshot.read_only; byId("issue-count").textContent = issues.filter(issue => !snapshot.archived_issues.includes(issue.issue_id)).length;
     byId("task-count").textContent = tasks.length; byId("task-count").hidden = !tasks.length;
     byId("updated-time").textContent = "Updated " + formatTime(snapshot.now);
-    const total = snapshot.usage_detail?.total, measured = total && total.counts.agent_estimate + total.counts.size_estimate > 0;
+    const total = snapshot.usage_detail?.total, measured = total && (total.counts.runtime_usage || 0) + total.counts.agent_estimate + total.counts.size_estimate > 0;
     byId("usage-note").textContent = "Tokens and cost: " + (measured ? snapshot.usage : "unavailable"); byId("usage-note").title = snapshot.usage || "";
     const failedRun = snapshot.managed_runs.find(job => job.plan_id === selectedPlan && !job.running && job.exit_code !== 0);
     const preparation = workspaces.filter(item => item.plan_id === selectedPlan).map(item => item.job).filter(Boolean)

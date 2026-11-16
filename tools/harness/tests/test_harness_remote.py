@@ -112,7 +112,10 @@ def test_remote_does_not_proxy_unlisted_paths(relay):
         assert request(relay, "GET", path, headers=cookie)[0] == 404
 
 
-def test_remote_requires_a_pin_and_loopback_binding(tmp_path):
+def test_remote_requires_a_pin_and_loopback_binding(tmp_path, monkeypatch):
+    # An empty PIN falls back to HARNESS_GUI_PIN, which an earlier test can leave behind by loading the real
+    # sites/derschweigert/.env; without this the result depends on test order.
+    monkeypatch.delenv("HARNESS_GUI_PIN", raising=False)
     with pytest.raises(ValueError, match="PIN"):
         remote.make_server("http://127.0.0.1:8765", port=0, pin="")
     with pytest.raises(ValueError, match="loopback"):

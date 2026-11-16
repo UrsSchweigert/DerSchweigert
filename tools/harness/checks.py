@@ -86,8 +86,8 @@ class _CheckHandle:
 class SandboxChecker(Checker):
     """Exports a trusted revision and polls bounded, cancellable Tier A commands."""
 
-    def __init__(self, repo: Repo, token_file: str, timeout: int = 900, *, clock: Callable[[], float] = time.monotonic):
-        self.repo, self.token_file, self.timeout = repo, token_file, timeout
+    def __init__(self, repo: Repo, token_file: Optional[str] = None, timeout: int = 900, *, clock: Callable[[], float] = time.monotonic):
+        self.repo, self.token_file, self.timeout = repo, token_file, timeout  # token_file is unused: checks hold no credential
         self.clock = clock
 
     def start(self, issue_id: str, head_rev: str, commands: List[str]) -> _CheckHandle:
@@ -167,7 +167,8 @@ class SandboxChecker(Checker):
         if handle.proc is None:
             handle.tail, handle.timed_out = "", False
             wrapped = ["timeout", "--kill-after=5", str(self.timeout), "sh", "-c", command]
-            handle.proc = isolation.start_worker(handle.workdir, wrapped, self.token_file, name=handle.name)
+            # Checks run repository commands, not a model: they get no credential at all.
+            handle.proc = isolation.start_worker(handle.workdir, wrapped, None, name=handle.name)
             handle.started_at = self.clock()
             proc = handle.proc
 

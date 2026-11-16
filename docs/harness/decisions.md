@@ -1134,3 +1134,25 @@ keeps its old behaviour (`_overseer_config` defaults the key to off). The role s
 The test double `Env` opts out explicitly: its tests are about owner-facing behaviour - what becomes a human task,
 what a repair budget does, how a block is recorded - and would otherwise route every one of them through a model.
 One test pins the new default and the opt-out digest difference instead.
+
+
+## Workers run on Claude Code with the owner's subscription (2026-11-16)
+
+The owner chose to run every worker on their Claude subscription and to drop every other runtime.
+
+* The worker runtime is the Claude Code CLI (`@anthropic-ai/claude-code@2.1.310`, pinned in the image) instead of the
+  GitHub Copilot CLI. `claude` is the only model source (`claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`);
+  `copilot`, `deepseek`, `local`, BYOK provider profiles, and `copilot.token` are removed. Plans approved with a removed
+  source fail validation and need a new plan version.
+* Workers authenticate with a long-lived OAuth token from `claude setup-token`, stored as `<store>/claude.token` and
+  forwarded by name like the earlier token. Harness work therefore uses the subscription's session and weekly limits,
+  not API credit. `ANTHROPIC_API_KEY` is scrubbed and its absence is a required sandbox check, because Claude Code
+  would prefer it and bill the API silently. Adding the checks (`claude_installed`, `no_claude_token_unless_passed`,
+  `no_anthropic_api_key`) means the image must be rebuilt and verified again.
+* A reached subscription limit is its own failure kind (`usage_limit`, class `quota`). The reset time is read from
+  Claude Code's message and the issue waits until then (30 minutes when no time can be read). It spends no budget,
+  is no evidence for escalation, and raises no decision task: a transient retry budget with a 10-minute backoff cap
+  would block every issue long before a weekly window resets. The investigator, being interactive, stops instead.
+* Claude Code reports real token counts per session. They are recorded as `runtime_usage` ("measured") and win over the
+  agent's own estimate and the size lower bound. The reported dollar figure is kept only as an API-equivalent number;
+  nothing is billed per token on a subscription.

@@ -350,8 +350,12 @@ class Investigator:
                  ask: Callable[[Dict[str, Any]], Optional[str]] = terminal_ask, tier: str = "standard", max_rounds: int = 3,
                  max_attempts: int = 6, timeout: float = 1200.0, inactivity: float = 600.0, poll_interval: float = 3.0, heartbeat: float = 15.0,
                  clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
-                 log: Callable[[str], None] = lambda m: None, cache_home: Optional[str] = None):
+                 log: Callable[[str], None] = lambda m: None, cache_home: Optional[str] = None,
+                 model: Optional[str] = None):
         self.adapter, self.repo, self.policy, self.models = adapter, repo, policy, available_models
+        # The owner may pin the investigator to one model (`investigate --model`), which need not be on the
+        # plan's menu: the investigator only drafts, and the plans it drafts keep their own approved menu.
+        self.model = model
         self.ask, self.tier, self.max_rounds, self.max_attempts = ask, tier, max_rounds, max_attempts
         self.timeout, self.inactivity, self.poll_interval, self.heartbeat = timeout, inactivity, poll_interval, heartbeat
         self.clock, self.sleep, self.log = clock, sleep, log
@@ -400,7 +404,12 @@ class Investigator:
                  % (attempt, len(entry["summary"]), len(entry.get("modules") or [])))
 
     def _invoke(self, attempt: int, tier: str, packet: Dict[str, Any]):
-        route = models.resolve_model(tier, self.policy["model_tiers"], self.models)
+        if self.model:
+            # A pinned model has nowhere to escalate to, so it counts as the top tier: a rejected draft earns the
+            # same bounded repair attempts as one from the strongest menu model, never a different model.
+            route = {"model": self.model, "tier": models.TIERS[-1], "routing": True, "note": "pinned by the owner"}
+        else:
+            route = models.resolve_model(tier, self.policy["model_tiers"], self.models)
         if route["routing"] and route["model"] is None:
             raise InvestigationError("no configured planning model is available")
         req = WorkRequest("investigate#%d" % attempt, 1, "investigate", "investigator", route["tier"], route["model"], packet, "harness/investigate")
@@ -513,7 +522,12 @@ class Investigator:
             if poll.error:
                 kind = poll.error.get("kind", "runtime_crash")
                 if kind == "credentials":
-                    raise InvestigationError("the runtime rejected its credentials: check copilot.token")
+                    raise InvestigationError("the runtime rejected its credentials: %s"
+                                             % poll.error.get("detail", "check claude.token"))
+                if kind == "usage_limit":
+                    # Waiting hours inside an interactive investigation helps nobody; the answers so far are saved.
+                    raise InvestigationError("%s. Rerun the same command then, or choose another --model-source"
+                                             % poll.error.get("detail", "the Claude subscription limit is reached"))
                 if kind in TRANSIENT_KINDS or kind in ("timeout", "inactivity"):
                     transient += 1
                     self.log("transient failure (%s), retrying" % kind)

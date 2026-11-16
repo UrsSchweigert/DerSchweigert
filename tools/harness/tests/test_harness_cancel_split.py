@@ -170,8 +170,8 @@ def test_the_owner_can_apply_a_split_and_the_plan_completes(tmp_path):
 
 
 def test_applied_parts_carry_the_models_the_analyst_chose(tmp_path):
-    choices = {"implementer": {"model": "claude-sonnet-5", "reason": "The model layer is intricate."},
-               "reviewer": {"model": "claude-haiku-4.5", "reason": "A narrow diff with reliable tests."}}
+    choices = {"implementer": {"model": "claude-sonnet-5-5", "reason": "The model layer is intricate."},
+               "reviewer": {"model": "claude-haiku-5-5", "reason": "A narrow diff with reliable tests."}}
     analysis = dict(SPLIT, split=[part("i1-model", ["F1.1"], model_choices=choices), part("i1-view", ["F1.2"], deps=["i1-model"])])
     env = Env(tmp_path)
     escalate_with_split(env, analysis)
@@ -179,12 +179,12 @@ def test_applied_parts_carry_the_models_the_analyst_chose(tmp_path):
     env.run_until(lambda: env.state("i1-model") == "Done", advance=60)
     assert env.store.get_issue("i1-model")["model_choices"] == choices
     first = next(a for a in env.store.list_attempts("i1-model") if a["role"] == "implementer")
-    assert first["model"] == "claude-sonnet-5" and first["routing_source"] == "delegator"
+    assert first["model"] == "claude-sonnet-5-5" and first["routing_source"] == "delegator"
 
 
 @pytest.mark.parametrize("choices, message", [
     ({"implementer": {"model": "unapproved-model", "reason": "Cheap."}}, "configured"),
-    ({"implementer": {"model": "claude-opus-5", "reason": " "}}, "reason"),
+    ({"implementer": {"model": "claude-opus-5-5", "reason": " "}}, "reason"),
 ])
 def test_part_model_choices_are_validated_with_the_analysis(tmp_path, choices, message):
     env = Env(tmp_path)
@@ -231,11 +231,11 @@ def test_a_split_that_stops_validating_goes_back_to_the_owner(tmp_path):
 
 
 def test_an_unavailable_part_model_stops_the_split_at_apply_time(tmp_path):
-    choices = {"implementer": {"model": "claude-sonnet-5", "reason": "Intricate."}}
+    choices = {"implementer": {"model": "claude-sonnet-5-5", "reason": "Intricate."}}
     env = Env(tmp_path)
     escalate_with_split(env, dict(SPLIT, split=[part("i1-model", ["F1.1"], model_choices=choices), part("i1-view", ["F1.2"], deps=["i1-model"])]))
     respond(env, APPLY)
-    env.sched.available_models = ["claude-haiku-4.5"]
+    env.sched.available_models = ["claude-haiku-5-5"]
     env.tick(60)
     assert env.state("i1") == "Blocked" and "not available" in env.store.get_issue("i1")["blocked_reason"]
 

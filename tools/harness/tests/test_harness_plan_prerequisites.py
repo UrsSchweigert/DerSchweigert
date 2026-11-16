@@ -11,7 +11,7 @@ from harness_doubles import Env
 
 LONG_BUDGETS = {"lease_s": 10**7, "run_wall_clock_s": 10**8, "worker_timeout_s": 10**7, "inactivity_timeout_s": 10**7}
 
-# The plan claude-sonnet-5 actually returned for lesen-parent-report. Step 7 is the one that cost an attempt.
+# The plan claude-sonnet-5-5 actually returned for lesen-parent-report. Step 7 is the one that cost an attempt.
 PARENT_REPORT_PLAN = [
     "static/platform.mjs: add a clock-injectable practice-time helper inside createWebProgress that reads/writes a new store key.",
     "static/platform.mjs: add createWebExport(win) that uses win.Capacitor.Plugins.Filesystem + Share when present.",

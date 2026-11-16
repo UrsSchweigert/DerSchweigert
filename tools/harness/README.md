@@ -88,80 +88,82 @@ be `standard` or stronger — refinement stays a judgement role, so a `low`-tier
 selection is refused at plan validation — and the overseer's strong floor is
 untouched.
 
-### Model sources
+### Models: your Claude subscription
 
-The tier menu is the union of the sources you choose. Pass `--model-source` to
-`investigate` and `plan` (repeatable) and the plan records them, so you approve
-the exact menu:
+Every worker (investigator, refiner, implementer, reviewer, delegator, analyst,
+overseer) runs the **Claude Code CLI** inside the Docker sandbox, signed in with
+your Claude subscription. Harness work therefore uses your plan's **session
+(5-hour) and weekly limits**, the same pool as your own Claude Code sessions,
+and never API credit. The only model source is `claude`:
+
+| Tier | Model id (passed to `claude --model`) |
+|---|---|
+| `low` | `claude-haiku-5-5` |
+| `standard` | `claude-sonnet-5-5` |
+| `strong` | `claude-opus-5-5` |
+
+`harness models` probes them and shows which ones your subscription accepts:
 
 ```
-harness investigate --requirements req.md --model-source deepseek --model-source local
-harness plan --requirements req.md --phases req.md_plan/phases.json      # keeps the draft's sources
-harness plan --requirements req.md --phases req.md_plan/phases.json --model-source copilot  # overrides it
+harness models --refresh
 ```
 
-Sources are `copilot`, `deepseek`, and `local`. The default is `copilot`. Each
-source contributes candidate ids per tier, and `harness models` probes them and
-shows which ones this runtime accepts:
-
-```
-harness models --source local
-```
-
-**A standing source choice.** Set `HARNESS_MODEL_SOURCES` (comma separated, for
-example `deepseek,copilot`) to decide which sources every new run is allowed to
-use. `investigate`, `start`, and dashboard planning then stop asking and stop
-defaulting to `copilot`; the dashboard's older `HARNESS_INVESTIGATOR_SOURCES` is
-the fallback, and an explicit `--model-source` still wins. Both keys are read
-from the git-ignored `sites/derschweigert/.env`, so the choice survives a new
-terminal without exporting anything. Unknown names are dropped, and a source
-without an accepted id still refuses to start rather than routing untested.
-
-An id the runtime rejects is dropped from the menu. If a source has no accepted
-id, `investigate` refuses to start and a plan built from it has no pickable
-model, rather than silently routing to an untested one. If this
-runtime names the models differently, replace any source/tier list in
+To use other ids (an alias such as `opus`, or an older model as a second
+`strong` choice), replace a tier list in
 `~/.local/state/derschweigert-harness/model_catalog.json`, for example
-`{"local": {"strong": ["my-local-model"]}}`. The file is read when a plan is
-built; it never changes an approved plan.
+`{"claude": {"strong": ["claude-opus-5-5", "claude-opus-4-8"]}}`. The file is read
+when a plan is built; it never changes an approved plan. With three models the
+reviewer can always run on a different model than the implementer.
 
-Selecting only `local` models also runs the investigator, implementer, and
-reviewer on them. Keep two distinct models available per plan if you want an
-independent reviewer.
+The older `copilot`, `deepseek`, and `local` sources, the Copilot CLI,
+`copilot.token`, and BYOK provider profiles (`harness providers`) are removed. A
+plan approved with one of them fails validation: build and approve a new plan
+version, which defaults to `claude`.
 
-Verified on GitHub Copilot CLI 1.0.103 in the worker image: only the four
-`copilot` ids above are accepted by GitHub's own routing (`auto` also works but
-is not a menu entry). A `deepseek` or `local` id is accepted only once that
-source has a **provider profile** (below); without one the probe rejects it.
-
-### BYOK provider profiles
-
-The worker runtime is fixed, but it can be pointed at an OpenAI-compatible
-endpoint with the `COPILOT_PROVIDER_*` variables it documents (`copilot help
-providers`). The harness stores one profile per source and gives it to a worker
-only for attempts that use that source:
+#### Signing in
 
 ```sh
-# the key is read from an environment variable, never from the command line
-DEEPSEEK_API_KEY=sk-... harness providers set deepseek --api-key-env DEEPSEEK_API_KEY
-harness providers show      # the key is redacted
-harness providers rm deepseek
-harness models --source deepseek --refresh   # proves the endpoint and key work
+claude setup-token          # on your Mac: sign in with your Claude account; prints a long-lived token
+harness claude login        # paste it (not echoed); saved as <store>/claude.token, mode 0600
+harness claude status       # shows the redacted token
+harness models --refresh    # proves the token and the model ids work
+harness claude logout       # removes the token
 ```
 
-* Profiles live in `<store>/providers.json`, mode `0600`, and follow the same
-  rule as `copilot.token`: the value travels in the docker client's
-  environment and is forwarded by *name* into the sandbox.
-* A BYOK attempt needs no GitHub token; a `copilot` attempt needs no profile.
-  A plan that mixes both forwards both.
-* The wire model is the part of the id after the source prefix, so
-  `deepseek/deepseek-flash` is sent to the provider as `deepseek-flash`.
-* `providers set` defaults to the source's known endpoint
-  (`https://api.deepseek.com` for `deepseek`); pass `--base-url` to override,
-  for example `https://api.deepseek.com/v1` or a local Ollama
-  (`http://127.0.0.1:11434/v1`).
-* A probe treats a non-zero exit as "not accepted", so a wrong key or an
-  unreachable endpoint shows up as a rejected id rather than a silent pass.
+If Claude Code is not installed on your Mac, `npx @anthropic-ai/claude-code@2.1.310 setup-token`
+does the same. `harness claude login --token-env VAR` reads the token from an
+environment variable instead of prompting.
+
+* The token travels like the other store secrets: in the docker client's
+  environment, forwarded into the sandbox by *name* (`CLAUDE_CODE_OAUTH_TOKEN`),
+  never as an argument. Check containers get no credential at all.
+* `ANTHROPIC_API_KEY` never reaches a worker. Claude Code prefers an API key over
+  the subscription token, so a forwarded key would quietly bill API credit
+  instead. The environment scrubber drops it, and `isolation verify` checks
+  that it is absent (`no_anthropic_api_key`). `login` refuses an API key
+  (`sk-ant-api...`) for the same reason.
+* Workers run `claude -p ... --dangerously-skip-permissions`: the sandbox, not a
+  permission prompt, is the boundary. Auto-update and telemetry are off in the
+  image (`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`).
+* A rejected or expired token is a `credentials` failure. It pauses the run
+  rather than spending retries; run `harness claude login` again and resume.
+
+#### When the subscription limit is reached
+
+When your session or weekly limit runs out, Claude Code stops with a message
+that names the reset time. The harness reads the time from that message and
+**parks the issue until the window resets**. It records a `usage_limit` failure
+(class `quota`), emits a `usage_limit_wait` event, and sets the issue's
+`not_before` to the reset time plus a minute. It spends **no** transient or repair
+budget, counts as no evidence for a stronger model, and never raises a decision
+task, so a run that hits the weekly limit on Monday continues on its own when the
+limit resets. When the message carries no readable time, the harness checks back
+after 30 minutes; such a check-back costs a container start and no usage.
+
+A model probe that hits the limit still counts the model as accepted, so a probe
+made while you are limited does not mark your models unavailable for a day.
+`investigate` is interactive, so it stops instead of waiting and tells you when
+to rerun it.
 
 The dashboard's **Models** view lists the same catalog per source and tier and
 probes on demand. A probe runs in the background, one at a time, at most once a
@@ -183,13 +185,14 @@ The `investigate --tier` option selects the planning agent only. Changing the
 approved model menu or budgets still requires renewed plan approval.
 
 An optional `model_routing` object in `phases.json` pins the refiner and separates
-routine models from escalation models. For example:
+routine models from escalation models. Use it to keep routine work on the cheaper
+models, so it uses less of your subscription limits. For example:
 
 ```json
 {
-  "routine_models": ["deepseek/deepseek-flash", "deepseek/deepseek-v4-pro"],
-  "refiner": "claude-opus-5",
-  "escalation_models": ["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5"]
+  "routine_models": ["claude-haiku-5-5", "claude-sonnet-5-5"],
+  "refiner": "claude-opus-5-5",
+  "escalation_models": ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"]
 }
 ```
 
@@ -198,11 +201,11 @@ Every fresh issue is refined first. Routine implementation and independent
 review stay inside `routine_models`; quality repairs and delegator, analyst,
 and overseer consultations use `escalation_models`. The refiner remains pinned
 in both cases, and it is dispatched at the band the signed model is approved at
-(`claude-sonnet-5` runs as `standard`, `claude-opus-5` as `strong`) without a
+(`claude-sonnet-5-5` runs as `standard`, `claude-opus-5-5` as `strong`) without a
 tier upgrade. The signature also wins over a per-issue `model_choices.refiner`
 written under an earlier plan version: switching the refiner is a new plan
 version, and recorded issues and their history are not rewritten for it.
-Missing models fail closed, never falling back to another source
+Missing models fail closed, never falling back to another model
 or the runtime default. Plans without this object keep their existing behavior.
 Changing it requires a new plan version and personal approval. Reimporting an
 unchanged completed issue preserves its historical evidence; completed work
@@ -287,10 +290,10 @@ You need:
 | `gh` signed in as the repository owner | `gh auth status` | logged in, scopes include `repo` and `read:project` |
 | Worker image | `docker images harness-worker` | `harness-worker:1` is listed |
 | Engine toolchain in the image | `docker run --rm harness-worker:1 sh -c 'godot --headless --version; gdlint --version'` | `4.7.2.stable.official...` and gdtoolkit `4.5.0` |
-| Token files | `ls -l ~/.local/state/derschweigert-harness/` | `broker.token` and `copilot.token`, both `-rw-------` |
+| Token files | `ls -l ~/.local/state/derschweigert-harness/` | `broker.token` and `claude.token`, both `-rw-------` |
 
 * `broker.token`: a GitHub token the harness uses to open and merge pull requests. Keep it in the store folder only, never in the repository.
-* `copilot.token`: a fine-grained token with only the **Copilot Requests** account permission and no repository access. Workers receive only this one. It expires, so renew it before the date it was issued for.
+* `claude.token`: a long-lived Claude subscription token from `claude setup-token`, saved with `harness claude login`. Workers receive only this one; it has no repository access. Harness work uses your subscription's session and weekly limits. It lasts about a year; run `claude setup-token` and `harness claude login` again when it expires.
 * Optional: Blender (`blender` on your PATH) for procedural assets.
 * Godot is not installed on your machine: the pinned Godot 4 editor, gdtoolkit (`gdlint`, `gdformat`), and the GUT test
   runner live in the worker image. Changing any of them means rebuilding the image and rerunning `isolation verify`.
@@ -356,7 +359,7 @@ step the store already shows as done, so rerunning it resumes where you stopped.
 ```sh
 harness start
 # or, without prompts for the file and the sources:
-harness start --requirements uploads/20261026_improvements.md --model-source copilot
+harness start --requirements uploads/20261026_improvements.md
 ```
 
 Use the individual commands below when you want to do one step at a time.
@@ -667,7 +670,7 @@ An attempt's figure is its agent estimate when it gave one, otherwise the size-o
 The harness cannot know your prices, so cost stays unavailable until you add `model-prices.json` to the store folder:
 
 ```json
-{"unit": "USD", "models": {"claude-haiku-4.5": {"per_million_input": 1.0, "per_million_output": 5.0}, "claude-sonnet-5": {"per_attempt": 1}}}
+{"unit": "USD", "models": {"claude-haiku-5-5": {"per_million_input": 1.0, "per_million_output": 5.0}, "claude-sonnet-5-5": {"per_attempt": 1}}}
 ```
 
 Each model takes `per_million_input`, `per_million_output`, and `per_attempt` (for request-based billing). Use your own numbers and unit. Models without a price are listed as unpriced and left out of the total, and an invalid file is reported and ignored.
@@ -684,12 +687,21 @@ A worker's own question (`needs_input` from the refiner) is triaged by the harne
 same git-ignored env file (only `HARNESS_*` keys):
 
 ```sh
-HARNESS_INVESTIGATOR_SOURCES=deepseek     # comma separated; empty keeps the policy default
+HARNESS_INVESTIGATOR_SOURCES=claude       # comma separated; empty keeps the policy default
 HARNESS_INVESTIGATOR_TIER=strong          # low | standard | strong; empty keeps the default
+HARNESS_INVESTIGATOR_MODEL=claude-fable-5-2  # pin the investigator to one model; empty uses the tier's menu model
 ```
 
 The investigator writes the chosen sources into the draft, so the `plan` step and everything after it
-inherit them. Without these keys the investigator runs on the policy default (copilot, tier standard).
+inherit them. Without these keys the investigator runs on the policy default (claude, tier standard).
+
+**Pinning the investigator model.** `harness investigate --model claude-fable-5-2` (or
+`HARNESS_INVESTIGATOR_MODEL`, which the dashboard uses too) runs every investigator attempt on that model
+instead of the menu model of `--tier`. The model does not have to be on the plan's menu, and the plan it
+drafts keeps its own menu, so the refiner, implementers, reviewers and the strong analyst are unaffected.
+The id is probed against your subscription before the investigation starts and the run is refused when it
+is not accepted; it never falls back to another model. A pinned model has nowhere to escalate, so a
+rejected draft gets the same bounded repair attempts as one from the strongest tier.
 
 **Intent.** `harness plan --intent "..."` records one paragraph on why the plan exists. It is inside the
 approval digest and every task packet carries it, together with the titles of the requirements the issue
@@ -872,9 +884,10 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | Command | Purpose | Options |
 |---|---|---|
 | `start` | One guided path: environment, investigate, plan, approve, import, run. Resumes where the store says you stopped. | `--requirements FILE`, `--out DIR`, `--plan-id`, `--tier`, `--model-source` (repeatable), `--repo`, `--redraft` |
-| `investigate` | Draft phases and issues from requirements. Asks you questions. | `--requirements FILE` (required), `--out DIR`, `--tier low\|standard\|strong` (default standard), `--model-source copilot\|deepseek\|local` (repeatable, default copilot), `--max-rounds N`, `--non-interactive`, `--answers FILE`, `--feedback TEXT` (repeatable), `--feedback-file FILE`, `--timeout SECONDS`, `--force` |
-| `plan` | Validate and save a plan | `--requirements`, `--phases FILE`, `--plan-id`, `--model-source copilot\|deepseek\|local` (repeatable, default: the phases file, else copilot), `--assets-dir DIR` (per-plan asset directory, default `assets/`), `--overseer` / `--no-overseer` (top-tier overseer answers process blocks; **default on** since 2026-11-12, `--no-overseer` opts out), `--dry-run`, `--fixture` |
-| `models` | Show the picker menu per source and which ids this runtime accepts | `--source copilot\|deepseek\|local` (repeatable), `--refresh` |
+| `investigate` | Draft phases and issues from requirements. Asks you questions. | `--requirements FILE` (required), `--out DIR`, `--tier low\|standard\|strong` (default standard), `--model ID` (pin the investigator, e.g. `claude-fable-5-2`), `--model-source claude` (repeatable, default claude), `--max-rounds N`, `--non-interactive`, `--answers FILE`, `--feedback TEXT` (repeatable), `--feedback-file FILE`, `--timeout SECONDS`, `--force` |
+| `plan` | Validate and save a plan | `--requirements`, `--phases FILE`, `--plan-id`, `--model-source claude` (repeatable, default: the phases file, else claulot), `--assets-dir DIR` (per-plan asset directory, default `assets/`), `--overseer` / `--no-overseer` (top-tier overseer answers process blocks; **default on** since 2026-11-12, `--no-overseer` opts out), `--dry-run`, `--fixture` |
+| `models` | Show the picker menu and which ids your Claude subscription accepts | `--source claude`, `--refresh` |
+| `claude` | Store, show, or remove the Claude subscription token workers use | `login` (prompts; or `--token-env VAR`), `status`, `logout` |
 | `approve PLAN_ID` | Record your one-time approval (real terminal) | `--version` |
 | `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version`, `--add` (add the file's issues and leave the plan's other issues alone) |
 | `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version`, `--no-tunnel` |
@@ -931,7 +944,7 @@ that branch and the run's pull requests target it).
 | What | Where |
 |---|---|
 | All state (plans, issues, attempts, evidence, tasks, journal, events) | `~/.local/state/derschweigert-harness/harness.sqlite` (read with `status` and `issue`; do not edit by hand) |
-| Approval signing key, tokens, sandbox attestation, model cache | the same folder: `approval.key`, `broker.token`, `copilot.token`, `isolation.json`, `models.json` |
+| Approval signing key, tokens, sandbox attestation, model cache | the same folder: `approval.key`, `broker.token`, `claude.token`, `isolation.json`, `models.json` |
 | The harness's own copy of the repository | `~/.local/state/derschweigert-harness/trusted-clone.git` (a bare clone; worker branches are inspected here) |
 | Proposed splits from the strong analysis, and your optional price file | `analyses/` and `model-prices.json` in the same folder |
 | Rehearsal copies of your state | `~/.local/state/derschweigert-harness/rehearsal-<time>/` (safe to delete) |
@@ -962,7 +975,8 @@ Plans are stored in the database, not in a folder, so they will not show up in y
 | `... does not exist at the base revision and is not inside the phase path allowlist` | The check names a file no worker may create. Fix the command or add the path to the phase's `path_allowlist`, then prepare a new plan version. |
 | `investigate` shows nothing for a while | It is working: reading the repository takes a few minutes, and a progress line prints every 15 seconds. It stops after 10 quiet minutes. |
 | Containers left after Ctrl+C | `docker ps -a \| grep harness`, then `docker rm -f NAME`. |
-| `copilot.token` rejected or expired | Create a new fine-grained token (Copilot Requests permission, no repository access), save it to `~/.local/state/derschweigert-harness/copilot.token` with mode 600, and rerun `isolation verify`. |
+| `claude.token` rejected or expired (run paused with a `credentials` failure) | Run `claude setup-token`, then `harness claude login`, `harness models --refresh`, and resume the run. Make sure the token is a subscription token (`sk-ant-oat...`), not an API key. |
+| Issues wait with `usage_limit` | Your Claude session or weekly limit is reached. Nothing to do: the issue resumes after the reset time shown in `harness issue ID`. To keep working sooner, put routine work on cheaper models with `model_routing`. |
 | `harness pause` does nothing | The running process started before `pause` existed. Stop it with Ctrl+C and restart with `resume`. |
 | `[CopilotCLIAgents] Failed to fetch custom agents: Canceled` | A harmless VS Code Copilot panel message, unrelated to the harness. |
 | `FAIL: ... sets server.url` or `FAIL: ... does not parse as a property list` | The iOS shell check. A `server.url` makes the app load from the network; an unparsable `Info.plist` or `PrivacyInfo.xcprivacy` fails closed. Fix the file, or run `sh tools/harness/worker/smoke/ios_shell.sh "$PWD" sites/lesen` locally to see every problem at once. |
@@ -986,7 +1000,7 @@ What is enforced:
 What is not, honestly:
 
 * A repository whose plan cannot provide the required server-side protection cannot use autonomous merging. Convention alone is insufficient; unverifiable protection is a blocker, not an exemption.
-* The worker sandbox has open outbound network access. A worker could send out its task folder or its Copilot-only token.
+* The worker sandbox has open outbound network access. A worker could send out its task folder or the Claude subscription token, which grants no repository access but can spend your subscription limits.
 * `broker.token` is a broad classic token. Treat the store folder as sensitive.
 * Blender runs on your machine, not in the sandbox. Host execution refuses scripts unless trusted code explicitly allowlists the exact reviewed script through `BlenderCli(reviewed_scripts=...)`. Worker requests cannot grant that permission. The blocklist remains defense in depth, not isolation; prefer submitting the generated asset through a human task.
 * The overseer is **on for every new plan** since 2026-11-12 (`--no-overseer` opts out, and the setting is part of the approval digest), because a process block that reaches you costs a stall plus a session switch while the overseer only runs on an issue that is already blocked. The older rule - budgets and policy are decided by trusted code rather than by a model - still holds: the overseer is bounded per issue, may only retry, extend one budget, or refine, and never decides an amount of money. With it on, it removes process questions from your queue, not judgement. It cannot cancel, approve, merge, or change policy, and it cannot touch `tools/harness/`: a harness defect it finds becomes a decision task with its diagnosis attached, which you still have to act on. It is bounded per issue (`policy.overseer.rounds_per_issue`, default 2) and never runs on an authority failure such as a scope breach or an isolation problem.
@@ -1033,7 +1047,7 @@ When applying a published fix to the runtime:
 ```sh
 HARNESS_LIVE=0 python3 -m pytest tools/harness/tests -q # offline harness suite
 python3 -m pytest -q                                  # root-configured site and harness tests
-HARNESS_LIVE=1 python3 -m pytest tools/harness/tests/test_harness_live.py   # real Copilot CLI and Blender; spends a little usage
+HARNESS_LIVE=1 python3 -m pytest tools/harness/tests/test_harness_live.py   # real Claude Code and Blender; spends a little subscription usage
 ```
 
 Test doubles (`harness_doubles.py`, `harness_fakes.py`) exist only for fault injection and are labeled as doubles. Bugs found against the real runtime should get a live test, because several of the real-run bugs so far (reviewer, post-merge checks, refiner) were invisible to the doubles.

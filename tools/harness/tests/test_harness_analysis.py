@@ -52,7 +52,7 @@ def test_an_escalation_gets_a_strong_analysis_before_the_owner_is_asked(tmp_path
     escalate(env, SPLIT)
     assert [a["role"] for a in env.store.list_attempts("i1")] == ["implementer", "delegator", "analyst"]
     [analyst] = attempts(env, "analyst")
-    assert analyst["tier"] == "strong" and analyst["model"] == "claude-opus-5" and analyst["outcome"] == "Succeeded"
+    assert analyst["tier"] == "strong" and analyst["model"] == "claude-opus-5-5" and analyst["outcome"] == "Succeeded"
     extra = task_extra(env)
     assert extra["analysis"]["recommendation"] == "split" and "cannot be built in one session" in extra["analysis"]["root_cause"]
     assert [p["issue_id"] for p in extra["analysis"]["parts"]] == ["i1-model", "i1-view"]
@@ -100,7 +100,7 @@ def test_the_strong_analyst_is_given_the_problem_and_the_rules_a_split_must_foll
     env = Env(tmp_path)
     escalate(env, SPLIT)
     request = next(r for r in env.adapter.started if r.role == "analyst")
-    assert request.tier == "strong" and request.model == "claude-opus-5" and request.packet["path_allowlist"] == ["src/"]
+    assert request.tier == "strong" and request.model == "claude-opus-5-5" and request.packet["path_allowlist"] == ["src/"]
     data = packet_data(request)
     assert data["delegator_diagnosis"] == "This is too large for one session." and "does not exist anywhere" in data["stuck_report"]
     rules = data["split_rules"]
@@ -151,7 +151,7 @@ def test_the_owner_can_retry_with_the_guidance_after_the_analysis(tmp_path):
 
 # -- when no analysis happens ---------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("available", [("claude-haiku-4.5", "claude-sonnet-5"), None])
+@pytest.mark.parametrize("available", [("claude-haiku-5-5", "claude-sonnet-5-5"), None])
 def test_without_a_strong_model_the_owner_is_asked_directly(tmp_path, available):
     env = Env(tmp_path, available_models=available)
     escalate(env)

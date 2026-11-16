@@ -163,7 +163,7 @@ def test_restart_reclaims_pending_checks_after_expiry(tmp_path, stage):
     adapter = FakeAdapter(env.repo, env.clock)
     env.checker, env.adapter = checker, adapter
     env.sched = Scheduler(env.store, "fx", 1, adapter, env.repo, checker, env.publisher, clock=env.clock,
-                          isolation_override=TIER_A, available_models=["claude-haiku-4.5", "claude-sonnet-5"], runner_id="runner-2")
+                          isolation_override=TIER_A, available_models=["claude-haiku-5-5", "claude-sonnet-5-5"], runner_id="runner-2")
     env.clock.advance(65)  # a crashed runner keeps its plan lock for two heartbeats
     env.sched.start()
     env.tick(5)
@@ -430,7 +430,7 @@ def test_crash_recovery_resumes_from_the_store_alone(tmp_path):
     from harness_doubles import FakeAdapter, TIER_A
     adapter2 = FakeAdapter(env.repo, env.clock)
     s2 = Scheduler(env.store, "fx", 1, adapter2, env.repo, env.checker, env.publisher, clock=env.clock, isolation_override=TIER_A,
-                   available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5"], runner_id="runner-2")
+                   available_models=["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"], runner_id="runner-2")
     env.clock.advance(65)  # the dead runner's plan lock expires after two heartbeats
     s2.start(env.clock())
     s2.tick(env.clock.advance(5))
@@ -714,7 +714,7 @@ def test_a_run_record_without_an_end_stamp_does_not_keep_growing(tmp_path):
 def test_a_worker_that_never_started_does_not_use_up_the_strong_budget(tmp_path):
     env = Env(tmp_path, budgets=dict(LONG_BUDGETS, strong_attempts_per_issue=1))
     issue = env.store.get_issue("i1")
-    issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "needs the strong model"}}
+    issue["model_choices"] = {"implementer": {"model": "claude-opus-5-5", "reason": "needs the strong model"}}
     env.store.put_issue(issue)
 
     def explode(req):
@@ -738,7 +738,7 @@ def test_a_second_runner_cannot_take_the_same_plan(tmp_path):
     env = Env(tmp_path, budgets=LONG_BUDGETS)
     env.sched.start(now=1000.0)
     other = Scheduler(env.store, "fx", 1, env.adapter, env.repo, env.checker, env.publisher, clock=env.clock,
-                      rng=lambda: 0.0, isolation_override=TIER_A, available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"])
+                      rng=lambda: 0.0, isolation_override=TIER_A, available_models=["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-8"])
     other.runner_id = "runner-2"
 
     with pytest.raises(BrokerRejected, match="already being run by runner-1"):
@@ -754,7 +754,7 @@ def test_the_lock_expires_so_a_crashed_runner_does_not_block_the_plan(tmp_path):
     env.sched.release()
 
     other = Scheduler(env.store, "fx", 1, env.adapter, env.repo, env.checker, env.publisher, clock=env.clock,
-                      rng=lambda: 0.0, isolation_override=TIER_A, available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"])
+                      rng=lambda: 0.0, isolation_override=TIER_A, available_models=["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-8"])
     other.runner_id = "runner-2"
 
     other.start(now=1010.0)  # the plan was released, so a new runner may take it
@@ -768,7 +768,7 @@ def test_a_splittable_task_does_not_get_the_strongest_tier(tmp_path, monkeypatch
     env = Env(tmp_path, budgets=dict(LONG_BUDGETS, strong_attempts_per_issue=1))
     issue = env.store.get_issue("i1")
     issue["code_anchors"] = ["src/a.py", "src/b.py"]
-    issue["model_choices"] = {"implementer": {"model": "claude-opus-5", "reason": "looks big"}}
+    issue["model_choices"] = {"implementer": {"model": "claude-opus-5-5", "reason": "looks big"}}
     issue["planned"] = True  # planning is covered elsewhere; this test is about who implements
     env.store.put_issue(issue)
     started = []
