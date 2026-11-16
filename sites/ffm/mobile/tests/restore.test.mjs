@@ -9,7 +9,7 @@
 // leave the cache and the levels untouched.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RESTORE_OUTCOMES, PRODUCT_ID, createPurchaseStore, createPurchasesPlugin } from '../game/purchase.js';
+import { RESTORE_OUTCOMES, PRODUCT_ID, HERO_PACK_ID, createPurchaseStore, createPurchasesPlugin } from '../game/purchase.js';
 import { buildPaywallMarkup, createPaywall, paywallText } from '../game/paywall.js';
 
 // Map-backed Preferences and a NativePurchases fake whose restorePurchases
@@ -57,7 +57,7 @@ globalThis.Capacitor = {
 };
 
 const { default: platform } = await import('../game/platform-adapter.js');
-const { ENTITLEMENT_KEY } = await import('../game/entitlement.js');
+const { ENTITLEMENT_KEY, HERO_PACK_ENTITLEMENT_KEY } = await import('../game/entitlement.js');
 
 function reset() {
   preferences.clear();
@@ -224,4 +224,87 @@ test('the paywall reports nothing-to-restore and restore errors without granting
     assert.equal(view.statuses.at(-1).text, paywallText(key, 'de'));
     assert.equal(preferences.has(ENTITLEMENT_KEY), false);
   }
+});
+
+const pack = () => owned({ productIdentifier: HERO_PACK_ID, transactionId: 'tx-pack' });
+
+function paywallFor(view, granted) {
+  return createPaywall({
+    platform,
+    purchaseStore: store(),
+    gateUi: passingUi,
+    view,
+    locale: 'en',
+    onGranted: () => granted.push('resume'),
+  });
+}
+
+test('one restore action restores both products and opens level 3', async () => {
+  reset();
+  fake.restorable = [owned(), pack()];
+  const view = fakeView();
+  const granted = [];
+
+  const result = await paywallFor(view, granted).restore();
+
+  assert.equal(result.granted, true);
+  assert.equal(result.status.hero_pack, true);
+  assert.deepEqual(granted, ['resume']);
+  assert.equal(JSON.parse(preferences.get(ENTITLEMENT_KEY)).entitled, true);
+  assert.equal(JSON.parse(preferences.get(HERO_PACK_ENTITLEMENT_KEY)).entitled, true);
+  assert.equal((await platform.getBillingStatus()).hero_pack, true);
+  await assert.rejects(platform.getAuthorizedLevelConfig(2), unlocked);
+});
+
+test('owning only the pack caches the pack and keeps level 3 locked', async () => {
+  reset();
+  fake.restorable = [pack()];
+  const view = fakeView();
+  const granted = [];
+
+  const result = await paywallFor(view, granted).restore();
+
+  assert.equal(result.granted, false);
+  assert.equal(result.packRestored, true);
+  assert.deepEqual(granted, []);
+  assert.equal(view.closed, false);
+  assert.equal(view.statuses.at(-1).text, paywallText('paywall.restoredPack', 'en'));
+  assert.notEqual(view.statuses.at(-1).text, paywallText('paywall.nothingToRestore', 'en'));
+  assert.equal(JSON.parse(preferences.get(HERO_PACK_ENTITLEMENT_KEY)).entitled, true);
+  assert.equal(JSON.parse(preferences.get(ENTITLEMENT_KEY)).entitled, false);
+  const billing = await platform.getBillingStatus();
+  assert.equal(billing.hero_pack, true);
+  assert.equal(billing.premium_access, false);
+  await assert.rejects(platform.getAuthorizedLevelConfig(2), locked);
+});
+
+test('owning only the unlock leaves hero_pack false', async () => {
+  reset();
+  fake.restorable = [owned()];
+
+  const result = await paywallFor(fakeView(), []).restore();
+
+  assert.equal(result.granted, true);
+  assert.equal(result.status.hero_pack, false);
+  assert.equal(JSON.parse(preferences.get(HERO_PACK_ENTITLEMENT_KEY)).entitled, false);
+});
+
+test('error, denied gate and nothing to restore write neither key', async () => {
+  for (const setup of [
+    () => { fake.restoreError = new Error('store down'); },
+    () => {},
+  ]) {
+    reset();
+    setup();
+    await paywallFor(fakeView(), []).restore();
+    assert.equal(preferences.has(ENTITLEMENT_KEY), false);
+    assert.equal(preferences.has(HERO_PACK_ENTITLEMENT_KEY), false);
+  }
+  reset();
+  fake.restorable = [owned(), pack()];
+  await createPaywall({
+    platform, purchaseStore: store(), gateUi: denyingUi, view: fakeView(), locale: 'en',
+  }).restore();
+  assert.equal(preferences.has(ENTITLEMENT_KEY), false);
+  assert.equal(preferences.has(HERO_PACK_ENTITLEMENT_KEY), false);
 });

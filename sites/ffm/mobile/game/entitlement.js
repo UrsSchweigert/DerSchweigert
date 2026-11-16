@@ -8,7 +8,7 @@
 // `offline: true`. Only a successful read without an owned, non-revoked
 // transaction (a refund) clears the cache.
 
-import { PRODUCT_ID, isPurchased } from './purchase.js';
+import { HERO_PACK_ID, PRODUCT_ID, isPurchased } from './purchase.js';
 
 /** The only entitlement schema version this module understands. */
 export const ENTITLEMENT_SCHEMA_VERSION = 1;
@@ -16,8 +16,12 @@ export const ENTITLEMENT_SCHEMA_VERSION = 1;
 /** The single key holding the cached entitlement. */
 export const ENTITLEMENT_KEY = 'arithmoslayer:entitlement';
 
+/** The key holding the cached hero pack grant; same schema as the unlock. */
+export const HERO_PACK_ENTITLEMENT_KEY = 'arithmoslayer:entitlement:hero_pack';
+
 const NOT_ENTITLED = Object.freeze({
   premium_access: false,
+  hero_pack: false,
   entitled: false,
   reason: 'not_entitled',
   source: 'none',
@@ -31,23 +35,24 @@ function isPlainObject(value) {
 }
 
 /** A missing, corrupt or unknown-version document reads as no entitlement. */
-function normalizeRecord(parsed) {
+function normalizeRecord(parsed, defaultProductId = PRODUCT_ID) {
   if (!isPlainObject(parsed) || parsed.version !== ENTITLEMENT_SCHEMA_VERSION) return null;
   if (parsed.entitled !== true || typeof parsed.checked_at !== 'string' || !parsed.checked_at) {
     return null;
   }
   return {
     entitled: true,
-    product_id: typeof parsed.product_id === 'string' ? parsed.product_id : PRODUCT_ID,
+    product_id: typeof parsed.product_id === 'string' ? parsed.product_id : defaultProductId,
     transaction_id: typeof parsed.transaction_id === 'string' ? parsed.transaction_id : null,
     checked_at: parsed.checked_at,
   };
 }
 
-function statusOf(record) {
-  if (!record) return { ...NOT_ENTITLED };
+function statusOf(record, heroPack = false) {
+  if (!record) return { ...NOT_ENTITLED, hero_pack: heroPack };
   return {
     premium_access: true,
+    hero_pack: heroPack,
     entitled: true,
     reason: 'store_purchase',
     source: 'cache',
@@ -68,6 +73,8 @@ export function createEntitlementStore({
   productId = PRODUCT_ID,
   now = () => new Date().toISOString(),
 } = {}) {
+  const unlock = { key: ENTITLEMENT_KEY, id: productId };
+  const pack = { key: HERO_PACK_ENTITLEMENT_KEY, id: HERO_PACK_ID };
   const available = () => Boolean(
     backend
     && typeof backend.get === 'function'
@@ -75,23 +82,25 @@ export function createEntitlementStore({
     && (typeof backend.isAvailable !== 'function' || backend.isAvailable()),
   );
 
-  async function read() {
+  async function read(product = unlock) {
     if (!available()) return null;
     try {
-      const raw = await backend.get(ENTITLEMENT_KEY);
-      return typeof raw === 'string' && raw !== '' ? normalizeRecord(JSON.parse(raw)) : null;
+      const raw = await backend.get(product.key);
+      return typeof raw === 'string' && raw !== ''
+        ? normalizeRecord(JSON.parse(raw), product.id)
+        : null;
     } catch {
       return null;
     }
   }
 
-  async function write(record) {
+  async function write(record, product = unlock) {
     if (!available()) return false;
     try {
-      await backend.set(ENTITLEMENT_KEY, JSON.stringify({
+      await backend.set(product.key, JSON.stringify({
         version: ENTITLEMENT_SCHEMA_VERSION,
         entitled: record.entitled === true,
-        product_id: record.product_id ?? productId,
+        product_id: record.product_id ?? product.id,
         transaction_id: record.transaction_id ?? null,
         checked_at: record.checked_at ?? now(),
         reason: record.reason ?? (record.entitled === true ? 'store_purchase' : 'not_entitled'),
@@ -103,7 +112,7 @@ export function createEntitlementStore({
   }
 
   async function getStatus() {
-    return statusOf(await read());
+    return statusOf(await read(), (await read(pack)) !== null);
   }
 
   /**
@@ -113,7 +122,11 @@ export function createEntitlementStore({
    */
   const offlineStatus = async () => {
     const status = await getStatus();
-    return { ...status, offline: true, cached: status.premium_access };
+    return {
+      ...status,
+      offline: true,
+      cached: status.premium_access || status.hero_pack,
+    };
   };
 
   async function refresh() {
@@ -127,7 +140,11 @@ export function createEntitlementStore({
     const owned = (Array.isArray(purchases) ? purchases : []).find(
       (transaction) => transaction?.productIdentifier === productId && isPurchased(transaction),
     );
+    const ownedPack = (Array.isArray(purchases) ? purchases : []).find(
+      (transaction) => transaction?.productIdentifier === HERO_PACK_ID && isPurchased(transaction),
+    );
     const checkedAt = now();
+    const heroPack = await reconcile(pack, ownedPack, checkedAt);
     if (!owned) {
       const hadGrant = (await read()) !== null;
       const saved = await write({
@@ -137,6 +154,7 @@ export function createEntitlementStore({
       });
       return {
         ...NOT_ENTITLED,
+        hero_pack: heroPack,
         reason: hadGrant ? 'revoked' : 'not_entitled',
         source: 'store',
         checked_at: checkedAt,
@@ -151,7 +169,27 @@ export function createEntitlementStore({
       checked_at: checkedAt,
     };
     const saved = await write(record);
-    return { ...statusOf(record), source: 'store', cached: saved, offline: false };
+    return { ...statusOf(record, heroPack), source: 'store', cached: saved, offline: false };
+  }
+
+  // Write the pack grant (or its revocation) and report whether it is owned.
+  async function reconcile(product, owned, checkedAt) {
+    if (owned) {
+      await write({
+        entitled: true,
+        product_id: product.id,
+        transaction_id: owned.transactionId ?? owned.purchaseToken ?? null,
+        checked_at: checkedAt,
+      }, product);
+      return true;
+    }
+    const hadGrant = (await read(product)) !== null;
+    await write({
+      entitled: false,
+      checked_at: checkedAt,
+      reason: hadGrant ? 'revoked' : 'not_entitled',
+    }, product);
+    return false;
   }
 
   return { read, write, getStatus, refresh };
