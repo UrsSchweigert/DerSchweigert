@@ -11,6 +11,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROGRESS_KEYS, createPreferencesBackend } from '../game/progress-store.js';
+import { PROFILE_KEY, createProfileStore } from '../game/profile-store.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const text = (rel) => readFile(join(root, rel), 'utf8');
@@ -66,6 +67,34 @@ test('the Preferences backend reads and writes through the injected bridge', asy
 
   // Outside the WebView there is no bridge, so the store reads as empty.
   assert.equal(createPreferencesBackend({}).isAvailable(), false);
+});
+
+test('a hero choice lives inside the backed-up profile document with no new key', async () => {
+  const data = new Map();
+  const writes = [];
+  const bridge = { Capacitor: { Plugins: { Preferences: {
+    async get({ key }) { return { value: data.get(key) ?? null }; },
+    async set({ key, value }) { writes.push(key); data.set(key, value); },
+  } } } };
+  const store = createProfileStore(createPreferencesBackend(bridge), {
+    makeId: () => 'profile-1', now: () => '2026-11-08T12:00:00.000Z',
+  });
+  await store.initialize({ defaultName: 'Alex' });
+  writes.length = 0;
+
+  assert.deepEqual(await store.setHero('profile-1', 'ninja-cat'), { id: 'profile-1', name: 'Alex', hero: 'ninja-cat' });
+  assert.deepEqual(writes, [PROFILE_KEY]);
+  assert.deepEqual([...data.keys()], [PROFILE_KEY]);
+  const backedUp = JSON.parse(data.get(PROFILE_KEY));
+  assert.equal(backedUp.version, 1);
+  assert.equal(backedUp.profiles[0].hero, 'ninja-cat');
+
+  const restored = createProfileStore(createPreferencesBackend(bridge), { makeId: () => 'profile-9' });
+  assert.deepEqual(await restored.initialize(), { id: 'profile-1', name: 'Alex', hero: 'ninja-cat' });
+
+  const doc = await text('BACKUP.md');
+  assert.match(doc, /hero choice[\s\S]{0,120}same document/);
+  assert.match(doc, /adds no key/);
 });
 
 test('Android Auto Backup includes the progress store', async () => {

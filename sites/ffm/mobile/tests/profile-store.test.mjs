@@ -697,3 +697,113 @@ test('loading leaves a document alone when no cleared level holds a partial best
   await reloaded.initialize();
   assert.equal(backend.writes.length, writes + 1, 'no repair write on a healthy document');
 });
+
+test('setHero stores, clears and rejects invalid ids without writing', async () => {
+  const { store, backend, data } = fixture();
+  const profile = await store.initialize();
+  assert.equal('hero' in store.getActiveProfile(), false, 'a new profile has no hero');
+  assert.deepEqual(await store.setHero(profile.id, 'ninja-cat'), { id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' });
+  assert.deepEqual(store.getActiveProfile(), { id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' });
+  assert.deepEqual(await store.listProfiles(), [{ id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' }]);
+  assert.equal(JSON.parse(data.get(PROFILE_KEY)).profiles[0].hero, 'ninja-cat');
+
+  const writes = backend.writes.length;
+  for (const bad of ['Ninja', '1cat', 'cat_', '', 'a'.repeat(33), ' cat', 7, undefined, {}]) {
+    await assert.rejects(store.setHero(profile.id, bad), { code: 'invalid_hero' }, String(bad));
+  }
+  assert.equal(backend.writes.length, writes, 'invalid ids write nothing');
+  assert.equal(store.getActiveProfile().hero, 'ninja-cat');
+
+  assert.deepEqual(await store.setHero(profile.id, null), { id: 'profile-1', name: 'Player 1' });
+  assert.equal('hero' in store.getActiveProfile(), false);
+  assert.equal('hero' in JSON.parse(data.get(PROFILE_KEY)).profiles[0], false);
+});
+
+test('setHero rejects an unknown profile like renameProfile and leaves state unchanged', async () => {
+  const { store, backend } = fixture();
+  await store.initialize();
+  const writes = backend.writes.length;
+  await assert.rejects(store.setHero('missing', 'ninja-cat'), { code: 'profile_not_found' });
+  await assert.rejects(store.setHero('missing', null), { code: 'profile_not_found' });
+  assert.equal(backend.writes.length, writes);
+});
+
+test('a failed setHero write leaves memory and storage at the committed hero', async () => {
+  const { store, backend, data } = fixture();
+  await store.initialize();
+  await store.setHero('profile-1', 'ninja-cat');
+  const stored = data.get(PROFILE_KEY);
+  backend.failWrites = true;
+  await assert.rejects(store.setHero('profile-1', 'robot'), storageError);
+  await assert.rejects(store.setHero('profile-1', null), storageError);
+  assert.equal(store.getActiveProfile().hero, 'ninja-cat');
+  assert.equal(data.get(PROFILE_KEY), stored);
+  backend.failWrites = false;
+  assert.deepEqual(await store.setHero('profile-1', 'robot'), { id: 'profile-1', name: 'Player 1', hero: 'robot' });
+});
+
+test('a well-formed unknown hero id is kept, while malformed stored heroes read as absent', async () => {
+  const profile = (hero) => ({
+    id: 'profile-1', name: 'Player 1', best: [], history: [], completed: [], completions: {}, hero,
+  });
+  for (const hero of [42, null, ['ninja'], 'Ninja', 'x'.repeat(40)]) {
+    const { store, data } = fixture({ [PROFILE_KEY]: JSON.stringify({
+      version: PROFILE_SCHEMA_VERSION, activeProfileId: 'profile-1', profiles: [profile(hero)],
+    }) });
+    assert.deepEqual(await store.initialize(), { id: 'profile-1', name: 'Player 1' }, JSON.stringify(hero));
+    assert.equal('hero' in store.getActiveProfile(), false, JSON.stringify(hero));
+    assert.deepEqual(JSON.parse(data.get(PROFILE_KEY)).profiles[0].hero, hero, 'the stored value is not rewritten on load');
+  }
+  const { store } = fixture({ [PROFILE_KEY]: JSON.stringify({
+    version: PROFILE_SCHEMA_VERSION, activeProfileId: 'profile-1', profiles: [profile('ninja-cat')],
+  }) });
+  assert.deepEqual(await store.initialize(), { id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' });
+  assert.equal(store.getActiveProfile().hero, 'ninja-cat', 'the well-formed unknown id is kept');
+});
+
+test('legacy documents without a hero load unchanged and are written back without a hero key', async () => {
+  const legacy = {
+    version: PROFILE_SCHEMA_VERSION, activeProfileId: 'profile-1',
+    profiles: [{ id: 'profile-1', name: 'Player 1', best: [], history: [], completed: [], completions: {} }],
+  };
+  const { store, data, backend } = fixture({ [PROFILE_KEY]: JSON.stringify(legacy) });
+  assert.deepEqual(await store.initialize(), { id: 'profile-1', name: 'Player 1' });
+  await store.renameProfile('profile-1', 'Renamed');
+  const written = JSON.parse(data.get(PROFILE_KEY));
+  assert.equal(written.version, PROFILE_SCHEMA_VERSION);
+  assert.equal(written.activeProfileId, 'profile-1');
+  assert.equal(backend.writes.length, 1);
+  assert.equal(data.get(PROFILE_KEY).includes('"hero"'), false);
+});
+
+test('hero survives rename, select, score, practice and other-profile deletion', async () => {
+  const { store, data } = fixture();
+  const first = await store.initialize({ defaultName: 'Alex' });
+  await store.setHero(first.id, 'ninja-cat');
+  const second = await store.createProfile('Sam');
+  await store.setHero(second.id, 'robot');
+  await store.renameProfile(first.id, 'Alexa');
+  await store.selectProfile(first.id);
+  await store.recordLevel(completion(first.id, 'run-1', 50, 1));
+  await store.recordPartialAttempt(partial(first.id, 'pause-1', 20, 2));
+  await store.recordPractice({ profileId: first.id, sessionId: 'practice-1', badgeIds: ['practice-addition'] });
+  assert.equal(store.getActiveProfile().hero, 'ninja-cat');
+  assert.equal((await store.listProfiles())[0].hero, 'ninja-cat');
+  assert.equal(JSON.parse(data.get(PROFILE_KEY)).profiles[0].hero, 'ninja-cat');
+
+  await store.selectProfile(second.id);
+  await store.deleteProfile(first.id, { confirmed: true });
+  assert.deepEqual(await store.listProfiles(), [{ id: second.id, name: 'Sam', hero: 'robot' }]);
+  assert.equal(store.getActiveProfile().hero, 'robot');
+});
+
+test('a new profile starts without a hero even after another profile chose one', async () => {
+  const { store } = fixture();
+  await store.initialize();
+  await store.setHero('profile-1', 'ninja-cat');
+  assert.deepEqual(await store.createProfile('Newcomer'), { id: 'profile-2', name: 'Newcomer' });
+  assert.deepEqual(await store.listProfiles(), [
+    { id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' },
+    { id: 'profile-2', name: 'Newcomer' },
+  ]);
+});

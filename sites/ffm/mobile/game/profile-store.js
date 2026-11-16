@@ -3,6 +3,7 @@ import { SCORE_HISTORY_LIMIT } from './progress-store.js';
 export const PROFILE_KEY = 'arithmoslayer:profiles';
 export const PROFILE_SCHEMA_VERSION = 1;
 export const PROFILE_NAME_LIMIT = 40;
+export const HERO_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 export const PRACTICE_BADGE_IDS = Object.freeze([
   'practice-targeted', 'practice-addition', 'practice-subtraction',
   'practice-multiplication', 'practice-division', 'practice-shapes',
@@ -13,6 +14,7 @@ const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const levelValid = (level) => Number.isInteger(level) && level >= 1;
 const scoreValid = (score) => typeof score === 'number' && Number.isFinite(score) && score >= 0;
+const heroValid = (hero) => typeof hero === 'string' && HERO_ID_PATTERN.test(hero);
 const attemptFields = ['firstAttemptCorrect', 'firstAttemptTotal', 'correctAnswers',
   'incorrectAnswers', 'timeouts', 'bestStreak'];
 
@@ -150,7 +152,10 @@ export function createProfileStore(backend, {
     if (!profile) throw error('profile_not_found', 'Profile does not exist');
     return profile;
   };
-  const summary = (profile) => ({ id: profile.id, name: profile.name });
+  // A malformed stored hero reads as absent; the document itself stays valid.
+  const summary = (profile) => ({
+    id: profile.id, name: profile.name, ...(heroValid(profile.hero) ? { hero: profile.hero } : {}),
+  });
   const fresh = (name, doc) => {
     const id = makeId();
     if (typeof id !== 'string' || !id || doc?.profiles.some((item) => item.id === id)) {
@@ -243,6 +248,18 @@ export function createProfileStore(backend, {
     renameProfile: (id, name) => mutate((doc) => {
       const profile = find(doc, id);
       profile.name = nameValue(name);
+      return summary(profile);
+    }),
+    // null clears the choice; an invalid id throws before the single write.
+    setHero: (id, hero) => mutate((doc) => {
+      const profile = find(doc, id);
+      if (hero === null) {
+        delete profile.hero;
+      } else if (heroValid(hero)) {
+        profile.hero = hero;
+      } else {
+        throw error('invalid_hero', 'Choose a valid hero ID or clear the choice');
+      }
       return summary(profile);
     }),
     deleteProfile: (id, { confirmed = false } = {}) => mutate((doc) => {
