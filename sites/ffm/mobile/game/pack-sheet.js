@@ -182,6 +182,11 @@ export function createPackSheet({
       if (result.outcome === RESTORE_OUTCOMES.GATED) return fail(result.outcome, 'pack.gated', true);
       if (result.outcome === RESTORE_OUTCOMES.ERROR) return fail(result.outcome, 'pack.restoreError', true);
       if (!result.ownedProducts?.includes(HERO_PACK_ID)) {
+        // Only the full unlock came back: cache it, but grant no hero.
+        if (result.entitled || result.ownedProducts?.length) {
+          const status = await withBusy(() => platform.refreshEntitlement());
+          return { ...fail(result.outcome, 'pack.nothingToRestore'), status };
+        }
         return fail(result.outcome, 'pack.nothingToRestore');
       }
       return grant(result.outcome, 'pack.restored', 'pack.nothingToRestore', false);

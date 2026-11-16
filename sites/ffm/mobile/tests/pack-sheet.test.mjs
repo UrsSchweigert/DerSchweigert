@@ -164,9 +164,27 @@ test('restore with only the full unlock reports nothing to restore', async () =>
   });
   const result = await ctx.sheet.restore();
   assert.equal(result.granted, false);
-  assert.equal(ctx.platform.refreshes, 0);
+  assert.equal(ctx.platform.refreshes, 1);
+  assert.equal(result.status.premium_access, true);
   assert.equal(ctx.granted, 0);
+  assert.equal(ctx.view.closed, 0);
   assert.equal(ctx.view.statuses.at(-1).text, packText('pack.nothingToRestore', 'en'));
+});
+
+test('restore with nothing owned refreshes nothing; pack without hero_pack grants nothing', async () => {
+  const none = make({
+    store: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false, ownedProducts: [] } }),
+  });
+  assert.equal((await none.sheet.restore()).granted, false);
+  assert.equal(none.platform.refreshes, 0);
+  assert.equal(none.view.statuses.at(-1).text, packText('pack.nothingToRestore', 'en'));
+  const stale = make({
+    store: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false, ownedProducts: [HERO_PACK_ID] } }),
+    platform: fakePlatform({ premium_access: true, hero_pack: false }),
+  });
+  assert.equal((await stale.sheet.restore()).granted, false);
+  assert.equal(stale.granted, 0);
+  assert.equal(stale.view.statuses.at(-1).text, packText('pack.nothingToRestore', 'en'));
 });
 
 test('restore gated and error outcomes grant nothing', async () => {
