@@ -15,6 +15,8 @@ globalThis.fetch = async (url, options = {}) => {
 
 const {
   PLATFORM_METHODS,
+  HERO_METHODS,
+  PERSONAL_METHODS,
   PLATFORM_PROPERTIES,
   PLATFORM_CAPABILITIES,
   assertPlatformAdapter,
@@ -51,6 +53,14 @@ describe('platform interface', () => {
     assert.equal(new Set(PLATFORM_METHODS).size, PLATFORM_METHODS.length);
     assert.deepEqual([...PLATFORM_PROPERTIES], ['isLoggedIn', 'username', 'localProfiles']);
     assert.deepEqual([...PLATFORM_CAPABILITIES], ['isApp', 'hasAccount', 'hasLeaderboard']);
+  });
+
+  it('lists the hero method apart from the personal ones', () => {
+    assert.deepEqual([...HERO_METHODS], ['getActiveHeroSkin']);
+    assert.ok(PLATFORM_METHODS.includes('getActiveHeroSkin'));
+    assert.deepEqual([...PERSONAL_METHODS], ['getAccountAvailability', 'getBestScores', 'getCompletedLevels']);
+    assert.equal(typeof webPlatform.getActiveHeroSkin, 'function');
+    assert.equal(typeof appPlatform.getActiveHeroSkin, 'function');
   });
 
   it('routes every game-to-platform call through the adapter', async () => {
@@ -100,6 +110,10 @@ describe('platform interface', () => {
     const missingMethod = fakeAdapter();
     delete missingMethod.postLevelScore;
     assert.throws(() => assertPlatformAdapter(missingMethod), /postLevelScore/);
+
+    const missingHero = fakeAdapter();
+    delete missingHero.getActiveHeroSkin;
+    assert.throws(() => assertPlatformAdapter(missingHero), /getActiveHeroSkin/);
 
     const missingCapability = fakeAdapter({ hasAccount: 'yes' });
     assert.throws(() => assertPlatformAdapter(missingCapability), /hasAccount/);

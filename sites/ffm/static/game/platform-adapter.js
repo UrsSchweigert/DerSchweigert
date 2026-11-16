@@ -14,6 +14,9 @@ import {
 } from './access-flow.js';
 import { API_METHODS } from './platform.js';
 
+// The latest profile response this session, so the hero needs no extra request.
+let cachedProfile = null;
+
 const platform = {
   isApp: false,
   hasAccount: true,
@@ -50,6 +53,23 @@ const platform = {
     return { premium_access: false, source: 'none', offline: false };
   },
 
+  // The account's hero id when premium_access allows it, else null. Never
+  // rejects. Logged out makes no request; the profile comes from the latest
+  // response already forwarded (one getProfile only when none is cached) and
+  // billing is read fresh on each call, only once a hero is stored.
+  async getActiveHeroSkin() {
+    try {
+      if (!api.isLoggedIn) return null;
+      const profile = cachedProfile ?? await platform.getProfile();
+      const hero = profile?.hero;
+      if (typeof hero !== 'string' || hero === '') return null;
+      const status = await api.getBillingStatus();
+      return api.isLoggedIn && status?.premium_access === true ? hero : null;
+    } catch {
+      return null;
+    }
+  },
+
   postSpeedrunRun(run) {
     return api.postSpeedrunRun(run);
   },
@@ -73,6 +93,28 @@ const platform = {
 
 for (const name of API_METHODS) {
   platform[name] = (...args) => api[name](...args);
+}
+
+// Remember the profile response only while its session lasts; a new or ended
+// session drops it so one account's hero never reaches the next.
+const rememberProfile = (name) => {
+  platform[name] = async (...args) => {
+    const profile = await api[name](...args);
+    cachedProfile = api.isLoggedIn && profile && typeof profile === 'object' ? profile : null;
+    return profile;
+  };
+};
+rememberProfile('getProfile');
+rememberProfile('updateProfile');
+for (const name of ['login', 'logout', 'register']) {
+  platform[name] = async (...args) => {
+    cachedProfile = null;
+    try {
+      return await api[name](...args);
+    } finally {
+      cachedProfile = null;
+    }
+  };
 }
 
 export default platform;
