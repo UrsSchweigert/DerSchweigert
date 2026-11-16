@@ -239,6 +239,38 @@ def with_overseer(policy: Optional[Dict[str, Any]], enabled: bool, rounds_per_is
     return policy
 
 
+ART_GENERATOR = re.compile(r"fal-ai/[a-z0-9][a-z0-9./_-]{1,80}")
+ART_MAX_CREDITS = 2000
+
+
+def art_policy_problems(art: Any) -> List[str]:
+    """Problems with a plan's `art` block. An absent block is fine: image generation is then off for the run."""
+    if art is None:
+        return []
+    if not isinstance(art, dict):
+        return ["policy.art must be an object"]
+    problems = []
+    unknown = sorted(set(art) - {"generator", "credits"})
+    if unknown:
+        problems.append("policy.art has unknown keys: %s" % ", ".join(unknown))
+    generator, credits = art.get("generator"), art.get("credits")
+    if not isinstance(generator, str) or not ART_GENERATOR.fullmatch(generator):
+        problems.append("policy.art.generator must name a fal endpoint such as fal-ai/flux-pro/kontext")
+    if type(credits) is not int or not 0 < credits <= ART_MAX_CREDITS:
+        problems.append("policy.art.credits must be a whole number from 1 to %d (one credit per generated image)" % ART_MAX_CREDITS)
+    return problems
+
+
+def with_art(policy: Optional[Dict[str, Any]], art: Dict[str, Any]) -> Dict[str, Any]:
+    """Bind an image-generation budget into a plan's policy copy. It is part of the approval digest."""
+    problems = art_policy_problems(art)
+    if problems:
+        raise ValueError("; ".join(problems))
+    policy = copy.deepcopy(policy or DEFAULT_POLICY)
+    policy["art"] = {"generator": art["generator"], "credits": art["credits"]}
+    return policy
+
+
 def with_assets_dir(policy: Optional[Dict[str, Any]], value: str) -> Dict[str, Any]:
     """Bind an asset output directory (for example `apps/arithmoslayer/assets/`) into a plan's policy copy."""
     problem = assets_output_dir_problem(value)
@@ -335,6 +367,7 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
             problems.append("policy.model_routing.refiner must be an approved standard or strong model: %s" % exc)
         if not models.routed_tiers(plan["policy"], "overseer")["strong"]:
             problems.append("policy.model_routing.escalation_models needs an approved strong model")
+    problems.extend(art_policy_problems(plan["policy"].get("art")))
     assets = plan["policy"].get("assets") or {}
     problem = assets_output_dir_problem(assets.get("output_dir"))
     if problem:

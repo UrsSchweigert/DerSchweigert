@@ -355,6 +355,24 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
                      free_space_floor_bytes=scheduler_mod.WORK_ROOT_FREE_BYTES, mono_clock=time.monotonic)
 
 
+def start_art_service(store: Store, plan_id: str, version: int, sched: Scheduler, dry_run: bool):
+    """Start the image-generation service when the approved plan names a budget, and hand its address to the adapter.
+
+    A rehearsal never starts it: it must not spend, so a worker's `art-generate` then says there is no service.
+    Returns the running service, or None when art is off.
+    """
+    from . import artservice
+    policy = store.get_plan(plan_id, version)["plan"]["policy"]
+    if dry_run or not artservice.enabled(policy):
+        return None
+    service = artservice.ArtService(store.home, plan_id, policy["art"]).start()
+    sched.adapter.art_env = service.container_env()
+    summary = service.ledger.summary()
+    print("art service on 127.0.0.1:%d, %s, %d of %d images left" % (
+        service.port, policy["art"]["generator"], summary["remaining"], summary["credits"]), file=sys.stderr, flush=True)
+    return service
+
+
 def watch_promotion(sched: Scheduler, interval: float, max_ticks: Optional[int], emit) -> int:
     """Watch a finished run whose pull request the owner has not merged yet.
 

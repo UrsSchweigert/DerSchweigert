@@ -62,6 +62,8 @@ When the tier is unknown, treat it as Tier B.
 * Request secret configuration from humans through an external channel, never through issues or comments.
 * **The Claude subscription token is the one credential a worker necessarily holds.** Every model attempt receives `<store>/claude.token` (mode `0600`) by environment name (`CLAUDE_CODE_OAUTH_TOKEN`); check containers receive no credential. The token grants no repository access, but it can spend the owner's subscription limits, so keep it out of the repository and out of plan packets, and revoke it from the Claude account settings if a worker could have exfiltrated it. `ANTHROPIC_API_KEY` is never forwarded, and the sandbox probe verifies its absence, because Claude Code would prefer it over the subscription and bill API credit.
 
+* **Image generation never puts the generator key in a worker.** When a plan names an art budget, `harness run` serves a loopback-only art service. A worker container holds the service address and a random per-run token, forwarded by name, and nothing else: the fal key, the model, the output size and the credit budget are decided and held by trusted code. The token is worth only the credits left in the plan, and the service is not reachable from outside the machine. Reference images are limited to small PNG files and prompts are screened for credentials.
+
 ## Local Dashboard
 
 The dashboard is a trusted local control surface, not a remote administration

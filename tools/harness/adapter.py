@@ -82,7 +82,17 @@ ANALYSIS_EXAMPLE = {
 }
 
 
-def build_prompt(req: WorkRequest) -> str:
+ART_NOTE = (
+    " The harness art service is available for this attempt. Generate images with `art-generate --prompt-file P.txt "
+    "[--reference PLATE.png] --seed N --size 1024 --out OUT.png --issue <issue_id> --label <short note>`; each image costs one "
+    "credit from a budget shared by every issue, and `art-generate status` shows what is left. It is the only way to "
+    "generate images in this run: wherever the task mentions an asset request, source ai or the asset pipeline for "
+    "generation, it means this command. Never call an image API directly and never look for a key. Keep each call's "
+    "seed and call_id for any provenance the task asks you to record, and generate only what the task needs."
+)
+
+
+def build_prompt(req: WorkRequest, art: bool = False) -> str:
     example = dict(RESULT_EXAMPLE, outcome=OUTCOMES.get(req.role, "done"))
     if req.role == "delegator":
         example["decision"] = DECISION_EXAMPLE
@@ -115,6 +125,7 @@ def build_prompt(req: WorkRequest) -> str:
         "When finished, write /work/result.json as JSON with exactly these keys: %s.%s Do not push or contact GitHub."
         " Fill in usage_estimate with a rough estimate of the tokens you read and wrote in this session, and how you estimated them; do not spend effort measuring it."
         % (req.role, ROLE_INSTRUCTIONS.get(req.role, ""), json.dumps(example), allowed.get(req.role, ""))
+        + (ART_NOTE if art else "")
     )
 
 
@@ -135,6 +146,9 @@ class ClaudeCodeAdapter(Adapter):
     def __init__(self, store_home: str, source_repo: str, base: str = "main"):
         self.store_home, self.source_repo, self.base = store_home, source_repo, base
         self.token_file = claudecode.token_path(store_home)
+        # Set by `harness run` when the plan has an art budget: the service address and per-run token, which only
+        # implementer attempts receive. The generator key is never part of it.
+        self.art_env: Optional[Dict[str, str]] = None
 
     def credential(self) -> Optional[Dict[str, str]]:
         """The environment that authenticates a worker, or None when claude.token is missing."""
@@ -219,11 +233,15 @@ class ClaudeCodeAdapter(Adapter):
         credential = self.credential()
         if credential is None:
             raise RuntimeError("claude.token is missing: run `harness claude login`")
-        work = self._prepare(req, prompt)
+        art = self.art_env if req.role == "implementer" and self.art_env else None
+        if art:
+            credential = dict(credential, **art)
+        work = self._prepare(req, prompt or build_prompt(req, art=bool(art)))
         name = "harness-%s-%s" % (re.sub(r"[^A-Za-z0-9_.-]", "_", req.attempt_id), os.urandom(3).hex())
         script = ("cd /work/repo && git config user.name harness && git config user.email harness@localhost && "
                   + claudecode.work_command(req.model) + "; echo $? > /work/exit_code")
-        args = isolation.docker_args(work, ["sh", "-c", script], pass_env=isolation.pass_env_names(credential), name=name)
+        args = isolation.docker_args(work, ["sh", "-c", script], pass_env=isolation.pass_env_names(credential), name=name,
+                                     host_gateway="host.docker.internal" if art else None)
         env = isolation.worker_env_for_attempt(credential)
         proc = subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
         handle = _Handle(req, work, proc, name)

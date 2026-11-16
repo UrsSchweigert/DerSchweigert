@@ -733,6 +733,7 @@ def test_the_investigator_uses_the_configured_models(tmp_path, monkeypatch):
     monkeypatch.delenv("HARNESS_MODEL_SOURCES", raising=False)  # the operator default would win over this key
     monkeypatch.setenv("HARNESS_INVESTIGATOR_SOURCES", "claude")
     monkeypatch.setenv("HARNESS_INVESTIGATOR_TIER", "strong")
+    monkeypatch.delenv("HARNESS_INVESTIGATOR_MODEL", raising=False)  # the owner's .env may pin one; an earlier test can load it
     choices = gui_workflow.investigator_choices(tmp_path)
     assert choices == {"sources": ["claude"], "tier": "strong", "model": ""}
 
@@ -747,6 +748,7 @@ def test_the_investigator_keeps_the_default_when_nothing_is_configured(tmp_path,
     monkeypatch.delenv("HARNESS_MODEL_SOURCES", raising=False)
     monkeypatch.delenv("HARNESS_INVESTIGATOR_SOURCES", raising=False)
     monkeypatch.delenv("HARNESS_INVESTIGATOR_TIER", raising=False)
+    monkeypatch.delenv("HARNESS_INVESTIGATOR_MODEL", raising=False)
     choices = gui_workflow.investigator_choices(tmp_path)
     assert choices == {"sources": [], "tier": "", "model": ""}
     args = gui_workflow.investigate_args({"home": "/h", "requirements": "/r"}, tmp_path / "out", choices)
