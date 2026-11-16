@@ -24,6 +24,10 @@ Delivered as the closest try, per the human guidance; the owner judges it at the
 - **Hair (rule missed):** all three tries kept spiky hair, far more than three small rounded tufts. The
   softened plate barely differs from today's idle-1 (hair area 940 -> 924 px), so the reference carried
   the spikes over and the corrective sentences did not remove them. This is the main miss.
+NEEDS RE-RENDER
+
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0004..0006), clip sheets all seed 303. Missed look rule: hair (spikes, not at most three small rounded tufts).
+
 - **PLACEHOLDER:** per the owner's guidance this art is a placeholder; the sheet needs a re-render by
   the owner in a later session. A missed look rule is a known limitation, not a failure.
 - **Likeness (needs owner attention):** the figure (spiky blonde hair, one pauldron, red scarf, dark outfit,
