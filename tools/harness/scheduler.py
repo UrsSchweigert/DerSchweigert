@@ -1806,6 +1806,7 @@ class Scheduler:
         return dict(self._history_data(issue, evidence), delegator_diagnosis=diagnosis,
                     model_options=models.model_options(self._plan()["policy"]["model_tiers"], self.available_models), split_rules={
             "parts": "2 to %d" % splits.MAX_PARTS, "diff_size_cap": self._plan()["policy"]["diff_size_cap"], "requirement_ids": issue["requirement_ids"],
+            "issue_id": "lowercase letters, digits and dashes, 1 to %d characters" % splits.MAX_ID, "max_text_chars": splits.MAX_TEXT,
             "original_dependencies": issue["deps"], "existing_issue_ids": sorted(i["issue_id"] for i in self.store.list_issues())})
 
     def _packet(self, issue: Dict[str, Any], role: str, tier: str) -> Dict[str, Any]:
@@ -1826,6 +1827,12 @@ class Scheduler:
             data = self._delegator_data(issue, evidence)
         if role == "analyst":
             data = self._analyst_data(issue, evidence)
+            # A retry used to be blind: its history leaves out analyst failures and no guidance reached it, so the
+            # overseer's hint and the owner's option 2 changed nothing and the same rejection came back.
+            if issue.get("guidance"):
+                data = dict(data, human_guidance=issue["guidance"])
+            if own:
+                data = dict(data, your_previous_analysis_was_rejected=own[-2:])
         if role == "overseer":
             data = {"recorded_failures": evidence[-6:], "blocked_reason": issue.get("blocked_reason", ""),
                     "attempts": [{"attempt": a["attempt_id"], "role": a["role"], "tier": a.get("tier"), "model": a.get("model"),

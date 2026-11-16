@@ -9,7 +9,14 @@ from . import broker, plans
 
 MAX_PARTS = 6
 MAX_TEXT = 2000
-ISSUE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
+MAX_ID = 41
+ISSUE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,%d}$" % (MAX_ID - 1))
+
+
+def issue_id_problem(iid: str) -> str:
+    """Why a proposed issue id is refused, naming both rules. The length cap used to go unmentioned, so an analyst that
+    derived a descriptive id from its parent's long id was refused again and again with a message its id satisfied."""
+    return "issue id %r must use lowercase letters, digits, and dashes and be 1 to %d characters (it has %d)" % (iid, MAX_ID, len(iid))
 
 
 def _safe_path(path: str) -> bool:
@@ -63,7 +70,7 @@ def validate_split(parts: List[Dict[str, Any]], original: Dict[str, Any], phase:
     for p in parts:
         iid = p["issue_id"]
         if not ISSUE_ID.match(iid):
-            problems.append("issue id %r must be lowercase letters, digits, and dashes" % iid)
+            problems.append(issue_id_problem(iid))
         if iid in existing_ids:
             problems.append("issue id %r already exists" % iid)
         reqs = set(p["requirement_ids"])
