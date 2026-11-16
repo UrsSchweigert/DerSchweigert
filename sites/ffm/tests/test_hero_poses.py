@@ -111,3 +111,20 @@ def test_despill_takes_the_plate_tint_off_the_edge_only():
     assert tuple(out[10, 10]) == (70, 50, 66), "the art's own mild purple stays"
     assert tuple(out[12, 12]) == (64, 40, 74) and count == 2, "a seam keeps only the art's allowance"
     assert hero_poses.despill(rgb, figure, np.array([250.0, 250.0, 250.0]))[1] == 0
+
+
+def test_split_writes_into_out_dir_when_given(tmp_path, monkeypatch):
+    stage = tmp_path / "stage"
+    monkeypatch.setattr(hero_poses, "STAGE_DIR", stage)
+    sheet = Image.new("RGB", (480, 480), PLATES["magenta"])
+    for x, y in ((0, 0), (240, 0), (0, 240), (240, 240)):
+        sheet.paste(scene(PLATES["magenta"])[0], (x, y))
+    path = tmp_path / "sheet.png"
+    sheet.save(path)
+    out = tmp_path / "hero" / "rogue"
+    assert hero_poses.main(["--split", str(path), "--name", "idle", "--out", str(out)]) == 0
+    assert sorted(p.name for p in out.iterdir()) == [
+        "idle-1.png", "idle-2.png", "idle-3.png", "idle-4.png", "idle-preview.png"]
+    assert not stage.exists()
+    assert hero_poses.main(["--split", str(path), "--name", "idle"]) == 0
+    assert (stage / "idle-1.png").is_file()
