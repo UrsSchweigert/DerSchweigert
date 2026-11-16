@@ -72,6 +72,9 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
                                       strong_budget=plan["policy"]["budgets"]["strong_attempts_per_issue"] if role == "implementer" else 1)
             except ValueError as exc:
                 raise RunRefused("issue %s %s model choice: %s" % (doc["issue_id"], role, exc)) from exc
+        unavailable = plans.capability_problems(doc, plan["policy"])
+        if unavailable:
+            raise RunRefused("; ".join(unavailable))
         working_directory = doc.get("working_directory", ".")
         if (not working_directory or os.path.isabs(working_directory) or "\\" in working_directory
                 or ".." in working_directory.split("/")):

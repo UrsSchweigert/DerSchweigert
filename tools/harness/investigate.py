@@ -251,6 +251,7 @@ def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], re
                                     strong_budget=policy["budgets"]["strong_attempts_per_issue"])
         except ValueError as exc:
             problems.append("issue %s: %s" % (iid, exc))
+        problems.extend(plans.capability_problems(i, policy))
         if not ISSUE_ID.match(iid):
             problems.append("issue id %r must use lowercase letters, digits, and dashes and be 1 to 41 characters (it has %d)" % (iid, len(iid)))
         phase = by_phase.get(i["phase_id"])
