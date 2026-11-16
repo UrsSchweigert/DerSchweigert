@@ -225,3 +225,12 @@ def test_style_reference_is_a_magenta_plate_x4(tmp_path):
     assert plate.shape == (280, 280, 3)
     assert tuple(plate[0, 0]) == (255, 0, 255)
     assert tuple(plate[0, 140]) == (255, 0, 255), "the spike is gone, the plate shows"
+
+
+
+def test_softening_stays_at_the_edge_of_todays_atlas():
+    img = hero_frames.load_atlas_frame(hero_frames.STYLE_DEFAULT_DIR)
+    out = hero_frames.soften_hair(img)
+    near_background = hero_frames._grow(np.pad(img[:, :, 3] == 0, 8, constant_values=True), 7)[8:-8, 8:-8]
+    changed = (out != img).any(axis=2)
+    assert changed.any() and not (changed & ~near_background).any(), "the face is never eaten"

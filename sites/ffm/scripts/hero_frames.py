@@ -1368,59 +1368,73 @@ def _holes(silhouette: np.ndarray) -> int:
     return max(0, _components(~silhouette)[1] - 1)
 
 
-def _soften_pass(rgba: np.ndarray, offsets: list[tuple[int, int]], radius: int) -> np.ndarray:
-    margin = radius + 2
-    a = _padded(rgba, margin)
+def _grow(mask: np.ndarray, steps: int = 1) -> np.ndarray:
+    """8-connected dilation; the mask needs a margin of `steps` pixels."""
+    for _ in range(steps):
+        mask = mask | _roll(mask, 1, 0) | _roll(mask, -1, 0)
+        mask = mask | _roll(mask, 0, 1) | _roll(mask, 0, -1)
+    return mask
+
+
+def _soften_pass(a: np.ndarray, core: np.ndarray) -> bool:
+    """One trimming pass in place on a padded frame; True when something changed.
+
+    `core` is the original figure with its hair part opened: only pixels
+    outside it (hair parts thinner than 2*radius) are ever cleared, so the
+    pass cannot eat into the head or the face and pixels never come back.
+    """
     sil = a[:, :, 3] > 0
     hair = _largest_blob(_hair_mask(a.astype(int)))
     if not hair.any():
-        return rgba
-
-    def grow(m):
-        return m | _roll(m, 1, 0) | _roll(m, -1, 0) | _roll(m, 0, 1) | _roll(m, 0, -1)
-
-    edge = sil & ~(_roll(sil, 1, 0) & _roll(sil, -1, 0) & _roll(sil, 0, 1) & _roll(sil, 0, -1))
-    near = grow(hair)
-    part = hair | (near & edge)
-    touches = grow(~sil)
-    labels, count = _components(part & ~_opening(part, offsets))
-    clear = np.zeros_like(sil)
+        return False
+    outline = _grow(hair, 2) & sil & ~hair
+    labels, count = _components(sil & ~core & (hair | outline))
+    touches = _grow(~sil)
+    reach = ~_grow(core, 2)
     holes = _holes(sil)
+    clear = np.zeros_like(sil)
     for label in range(1, count + 1):
         piece = labels == label
-        if piece.sum() < radius:
-            continue            # pixel-grid rounding of a curve, not a protrusion
-        # Only a protrusion of the silhouette goes: a piece that never touches
-        # the background would be a hole inside the figure.
-        if (piece & touches).any() and _holes(sil & ~(clear | piece)) <= holes:
+        # A protrusion holds hair, meets the background and reaches past the
+        # pixel rounding of the core; it may not leave a hole in the figure.
+        if ((piece & hair).any() and (piece & touches).any() and (piece & reach).any()
+                and _holes(sil & ~(clear | piece)) <= holes):
             clear |= piece
     if not clear.any():
-        return rgba
-    tone = OUTLINE_TONE
-    rim = edge & near & ~hair & ~clear
-    if rim.any():
-        tone = tuple(int(v) for v in np.median(a[rim][:, :3], axis=0))
-    out = a.copy()
-    out[clear] = 0
-    out[hair & ~clear & grow(clear), :3] = tone
-    return out[margin:-margin, margin:-margin]
+        return False
+    # Hair or outline left floating once its neck is gone goes with it.
+    rest, n = _components(sil & ~clear)
+    if n > 1:
+        main = np.bincount(rest.ravel())[1:].argmax() + 1
+        for label in range(1, n + 1):
+            piece = rest == label
+            if label != main and not (piece & ~(hair | outline)).any():
+                clear |= piece
+    edge = outline & ~clear & _grow(~sil)
+    tone = tuple(int(v) for v in np.median(a[edge][:, :3], axis=0)) if edge.any() else OUTLINE_TONE
+    a[clear] = 0
+    a[hair & ~clear & _grow(clear), :3] = tone
+    return True
 
 
 def soften_hair(rgba: np.ndarray, radius: int = HAIR_RADIUS) -> np.ndarray:
     """Trim hair parts of the silhouette thinner than 2*radius, deterministically.
 
-    Spikes are removed by an opening of the hair (plus its outline) restricted to
-    pieces that touch the background; exposed hair is recoloured to the outline
-    tone. Repeated until nothing changes, so a second call is a no-op.
+    The hair part of the silhouette (hair plus its outline) is opened once with
+    a disk 2*radius across; pieces the opening removes that stick out into the
+    background are cleared, and hair they leave exposed takes the outline tone.
+    Passes repeat until nothing changes, so a second call is a no-op.
     """
-    offsets = _disk(radius)
-    out = rgba.copy()
-    for _ in range(12):
-        nxt = _soften_pass(out, offsets, radius)
-        if np.array_equal(nxt, out):
-            break
-        out = nxt
-    return out
+    margin = radius + 3
+    a = _padded(rgba, margin)
+    sil = a[:, :, 3] > 0
+    hair = _largest_blob(_hair_mask(a.astype(int)))
+    part = hair | (_grow(hair, 2) & sil)
+    core = (sil & ~part) | _opening(part, _disk(radius))
+    changed = False
+    while _soften_pass(a, core):
+        changed = True
+    return a[margin:-margin, margin:-margin].copy() if changed else rgba
 
 
 def load_atlas_frame(directory: Path, frame_id: str = "idle-1") -> np.ndarray:
