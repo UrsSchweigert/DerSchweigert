@@ -4,7 +4,6 @@ import { generateProblem, getArithmeticOptionCount, sampleFiendType, TOTAL_LEVEL
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
 import { LEVEL_ART_MANIFEST, resolveLevelBackground, stageArtUrl } from './level-art.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon, getHeroGroundOffsetPx } from './entities.js';
-import { castHandAnchor } from './hero-anim.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import {
@@ -1047,7 +1046,7 @@ const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this dist
 const SPELL_TARGET_Y_OFFSET = 60;
 
 function spellLaunchPoint() {
-  const [dx, dy] = castHandAnchor();
+  const [dx, dy] = hero.castHandAnchor();
   return { x: hero.x + dx, y: hero.y + getHeroGroundOffsetPx() + dy };
 }
 // Must match Fireball's `life` (in entities.js) in milliseconds, so the hit

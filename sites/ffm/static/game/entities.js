@@ -4,7 +4,7 @@ import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W, CANVAS_H } from './renderer.js'
 import { FIEND_COMBAT_X } from './difficulty.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
 import { HERO_ATLAS, HERO_FRAMES } from './hero/hero-frames.js';
-import { HeroAnimator } from './hero-anim.js';
+import { HeroAnimator, buildHeroClips, castHandAnchor } from './hero-anim.js';
 
 const P = LOGICAL_PX; // shorthand
 
@@ -136,10 +136,31 @@ export class Hero extends Entity {
     this._healAura = 0;       // countdown (seconds) — post-level-clear heal flash
     this._holdHealActive = false; // continuous flag — hold-to-heal in progress
     this._holdHealRatio = 0;  // 0..1 progress toward the next healed heart, for intensity
+    this._atlas = _heroAtlas;  // per-instance skin; setSkin swaps these
+    this._frames = HERO_FRAMES;
+    this.strike = 'sword';
     this.anim = new HeroAnimator();
     this.anim.play('idle');
     this._castFx = null;      // 'fire' | 'bolt' — drives the cast glow palette
     this._holdPose = false;   // keep a finished one-shot clip on its last pose
+  }
+
+  /**
+   * Gives this hero one skin: {atlas, frames, anchors, strike}. Timings stay
+   * the shared table; only the strike/cast FX anchors come from the skin.
+   * Unusable parts keep what the hero already has.
+   */
+  setSkin(skin) {
+    if (!skin || typeof skin !== 'object') return;
+    if (skin.atlas) this._atlas = skin.atlas;
+    if (skin.frames && typeof skin.frames === 'object') this._frames = skin.frames;
+    this.strike = typeof skin.strike === 'string' && skin.strike ? skin.strike : 'sword';
+    this.anim.clips = buildHeroClips(skin.anchors);
+  }
+
+  /** The active skin's casting palm, relative to the frame pivot. */
+  castHandAnchor() {
+    return castHandAnchor(this.anim.clips.cast);
   }
 
   update(dt) {
@@ -277,7 +298,7 @@ export class Hero extends Entity {
     const bob = 0;
     const fr = 0;
 
-    if (_heroAtlas.complete && _heroAtlas.naturalWidth) {
+    if (this._atlas.complete && this._atlas.naturalWidth) {
       this._drawAtlasFrame(ctx);
       return;
     }
@@ -519,7 +540,7 @@ export class Hero extends Entity {
   }
 
   _drawAtlasFrame(ctx) {
-    const frame = HERO_FRAMES[this.anim.frameId];
+    const frame = this._frames[this.anim.frameId];
     if (!frame) return;
     const tf = this.anim.transform;
     const w = frame.w * HERO_SCALE;
@@ -543,10 +564,10 @@ export class Hero extends Entity {
       // The lean pivots at the feet, so the hero never floats off the ground.
       ctx.translate(left + frame.px * HERO_SCALE, top + frame.py * HERO_SCALE);
       ctx.rotate(tf.rot);
-      ctx.drawImage(_heroAtlas, frame.x, frame.y, frame.w, frame.h,
+      ctx.drawImage(this._atlas, frame.x, frame.y, frame.w, frame.h,
         -frame.px * HERO_SCALE, -frame.py * HERO_SCALE, w, h);
     } else {
-      ctx.drawImage(_heroAtlas, frame.x, frame.y, frame.w, frame.h, left, top, w, h);
+      ctx.drawImage(this._atlas, frame.x, frame.y, frame.w, frame.h, left, top, w, h);
     }
     ctx.restore();
 

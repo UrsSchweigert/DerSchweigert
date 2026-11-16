@@ -17,12 +17,20 @@
 
 const TAU = Math.PI * 2;
 
+function deepFreeze(o) {
+  if (o && typeof o === 'object') {
+    for (const v of Object.values(o)) deepFreeze(v);
+    Object.freeze(o);
+  }
+  return o;
+}
+
 // `track(t)` receives the clip's normalized progress in [0, 1] and returns the
 // transform applied to the drawn sprite. dx/dy are art pixels, rot is radians.
 // They are deliberately small and translation-only where possible: scaling a
 // pixel-art sprite by a few percent re-samples it and makes the blocks flicker,
 // while a one-pixel bob at a slow sine rate reads as breathing.
-export const HERO_CLIPS = {
+export const HERO_TIMING = deepFreeze({
   // Four frames of breathing, one per pose in the idle group: neutral, inhale,
   // full inhale, exhale. The transform adds a sub-pixel bob so the cycle does
   // not look like four stills.
@@ -54,7 +62,7 @@ export const HERO_CLIPS = {
   swing: {
     frames: [
       { f: 'swing-1', ms: 85 },
-      { f: 'swing-2', ms: 55, at: 'hit', fx: 'slash', fxAt: [70, -55] },
+      { f: 'swing-2', ms: 55, at: 'hit', fx: 'slash' },
       { f: 'swing-3', ms: 60 },
       { f: 'swing-4', ms: 95 },
     ],
@@ -105,14 +113,49 @@ export const HERO_CLIPS = {
   cast: {
     frames: [
       { f: 'cast-1', ms: 90, at: 'charge' },
-      { f: 'cast-2', ms: 110, at: 'release', fx: 'cast', fxAt: [100, -122] },
-      { f: 'cast-3', ms: 140, fx: 'cast', fxAt: [94, -126] },
+      { f: 'cast-2', ms: 110, at: 'release', fx: 'cast' },
+      { f: 'cast-3', ms: 140, fx: 'cast' },
       { f: 'cast-4', ms: 170 },
     ],
     next: 'idle',
     track: (t) => ({ dx: t < 0.35 ? -2 + 4 * (t / 0.35) : 2 + 3 * Math.min(1, (t - 0.35) / 0.65) }),
   },
-};
+});
+
+/** Today's anchors: the strike FX point and the two cast FX points. */
+export const DEFAULT_HERO_ANCHORS = deepFreeze({ strike: [70, -55], cast: [[100, -122], [94, -126]] });
+
+const isPoint = (p) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === 'number' && Number.isFinite(n));
+
+// Per-point fallback so one bad value never costs the skin its other anchors.
+function resolveAnchors(anchors) {
+  const d = DEFAULT_HERO_ANCHORS;
+  const cast = Array.isArray(anchors?.cast) ? anchors.cast : [];
+  return {
+    strike: isPoint(anchors?.strike) ? [...anchors.strike] : [...d.strike],
+    cast: d.cast.map((p, i) => (isPoint(cast[i]) ? [...cast[i]] : [...p])),
+  };
+}
+
+/**
+ * Builds the clip table for one skin. Every timing comes from the shared
+ * HERO_TIMING table; a skin can only place the strike FX (second swing frame)
+ * and the two cast FX (second and third cast frame). Anything else in
+ * `anchors` is ignored and missing or malformed points use today's values.
+ */
+export function buildHeroClips(anchors = DEFAULT_HERO_ANCHORS) {
+  const a = resolveAnchors(anchors);
+  const clips = {};
+  for (const [name, clip] of Object.entries(HERO_TIMING)) {
+    clips[name] = { ...clip, frames: clip.frames.map((f) => ({ ...f })) };
+  }
+  clips.swing.frames[1].fxAt = a.strike;
+  clips.cast.frames[1].fxAt = a.cast[0];
+  clips.cast.frames[2].fxAt = a.cast[1];
+  return clips;
+}
+
+export const HERO_CLIPS = buildHeroClips();
 
 const IDENTITY = { dx: 0, dy: 0, rot: 0 };
 

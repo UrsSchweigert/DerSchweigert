@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { HERO_CLIPS } from './hero-anim.js';
+import { HERO_CLIPS, HERO_TIMING, DEFAULT_HERO_ANCHORS, buildHeroClips } from './hero-anim.js';
 import { HERO_FRAMES } from './hero/hero-frames.js';
 
 // Literal snapshot of the clips as they shipped before the skin seam: frames,
@@ -27,4 +27,68 @@ describe('default hero clips', () => {
       for (const fr of clip.frames) assert.ok(HERO_FRAMES[fr.f], fr.f);
     }
   });
+});
+
+const timingOf = (clips) => Object.fromEntries(Object.entries(clips).map(([n, c]) => [n, {
+  loop: c.loop, next: c.next,
+  frames: c.frames.map(({ f, ms, at, fx }) => ({ f, ms, at, fx })),
+}]));
+
+function assertSharedTiming(clips, frames, label) {
+  assert.deepEqual(timingOf(clips), timingOf(HERO_TIMING), label);
+  for (const [name, clip] of Object.entries(clips)) {
+    for (const fr of clip.frames) assert.ok(frames[fr.f], `${label} ${name} ${fr.f}`);
+  }
+}
+
+describe('buildHeroClips', () => {
+  it('with default anchors equals HERO_CLIPS and the snapshot', () => {
+    const built = buildHeroClips(DEFAULT_HERO_ANCHORS);
+    assert.deepEqual(built.swing.frames, HERO_CLIPS.swing.frames);
+    for (const [name, want] of Object.entries(SNAPSHOT)) {
+      assert.deepEqual(built[name].frames, want.frames, name);
+    }
+    assertSharedTiming(built, HERO_FRAMES, 'default');
+  });
+
+  it('lets a skin move only the strike and cast anchors', () => {
+    const built = buildHeroClips({
+      strike: [1, 2], cast: [[3, 4], [5, 6]], ms: 5, frames: [], loop: false,
+    });
+    assert.deepEqual(built.swing.frames[1].fxAt, [1, 2]);
+    assert.deepEqual(built.cast.frames[1].fxAt, [3, 4]);
+    assert.deepEqual(built.cast.frames[2].fxAt, [5, 6]);
+    assertSharedTiming(built, HERO_FRAMES, 'skinned');
+  });
+
+  it('falls back to today\'s values for missing or malformed anchors', () => {
+    for (const bad of [undefined, null, 7, {}, { strike: 'x', cast: 4 }, { strike: [1], cast: [[NaN, 1]] }]) {
+      assert.deepEqual(buildHeroClips(bad).swing.frames, HERO_CLIPS.swing.frames);
+      assert.deepEqual(buildHeroClips(bad).cast.frames, HERO_CLIPS.cast.frames);
+    }
+    const half = buildHeroClips({ strike: [9, 9], cast: [null, [7, 8]] });
+    assert.deepEqual(half.swing.frames[1].fxAt, [9, 9]);
+    assert.deepEqual(half.cast.frames[1].fxAt, DEFAULT_HERO_ANCHORS.cast[0]);
+    assert.deepEqual(half.cast.frames[2].fxAt, [7, 8]);
+  });
+
+  it('does not share frames with the frozen table', () => {
+    const built = buildHeroClips();
+    assert.ok(Object.isFrozen(HERO_TIMING.swing.frames[0]));
+    assert.notEqual(built.swing.frames[0], HERO_TIMING.swing.frames[0]);
+  });
+});
+
+describe('every hero on disk', () => {
+  const dir = new URL('./heroes/', import.meta.url);
+  const manifest = JSON.parse(fs.readFileSync(new URL('manifest.json', dir), 'utf8'));
+  for (const hero of manifest.heroes) {
+    const url = new URL(hero.frames, import.meta.url);
+    it(hero.id, async (t) => {
+      if (!fs.existsSync(url)) return t.skip('no frames module');
+      const mod = await import(url.href);
+      const clips = buildHeroClips(mod.HERO_ANCHORS);
+      assertSharedTiming(clips, mod.HERO_FRAMES, hero.id);
+    });
+  }
 });
