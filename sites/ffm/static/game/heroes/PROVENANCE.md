@@ -109,3 +109,20 @@ scarf, single pauldron, red cape, oversized blade) and ignored the shortbow; try
 Missed look rules: shortbow, forest-green leather, silhouette distinct from the old hero. No clip sheets or portrait
 were generated. No rogue art is committed; the manifest row is kept. Re-render once a delivered adventurer idle-1
 can serve as the style reference.
+
+## Rogue-f
+
+NEEDS RE-RENDER (not committed: likeness)
+
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0057..0059) from the softened default plate (adventurer not
+delivered). Every try read as an existing game character (spiky blonde or brown hair, dark outfit, scarf or cape,
+pauldron, oversized blade carried over from the plate) and ignored the shortbow; try 2 also turned one pose to the
+back. Missed look rules: shortbow, hood and forest-green leather, silhouette distinct from the old hero. No clip
+sheets or portrait were generated. No rogue-f art is committed; the manifest row is kept. Re-render once a delivered
+adventurer idle-1 can serve as the style reference.
+
+| hero | clip | prompt summary | seed | call id | model | reference | date |
+|---|---|---|---|---|---|---|---|
+| rogue-f | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0057 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
+| rogue-f | idle (identity try 2, rejected) | idle prompt + "Hair long, smooth and rounded in a braid, no spikes, no scarf, no shoulder armour, no cape, a shortbow in the left hand in every pose." | 202 | art-0058 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| rogue-f | idle (identity try 3, rejected) | idle prompt + "Dark brown hair, smooth and rounded, no spikes, no scarf, no armour, no sword, a green hood and a curved shortbow held in the left hand." | 303 | art-0059 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
