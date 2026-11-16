@@ -919,6 +919,30 @@ const DICTIONARY = {
   'boss.hollowKing.silence': { en: 'Silence', de: 'Stille' },
   'boss.hollowKing.unmaking': { en: 'The Unmaking', de: 'Das Entmachen' },
   'boss.hollowKing.mastery': { en: 'The Last Lesson', de: 'Die letzte Lektion' },
+
+  // Hero picker, identity portrait and web account picker. Locked heroes use
+  // neutral wording: no price, no urgency. Pack sheet strings live in its module.
+  'heroes.name.adventurer': { en: 'Adventurer', de: 'Abenteurer' },
+  'heroes.name.adventuress': { en: 'Adventuress', de: 'Abenteurerin' },
+  'heroes.name.princess': { en: 'Princess', de: 'Prinzessin' },
+  'heroes.name.princess-armed': { en: 'Warrior Princess', de: 'Kriegerprinzessin' },
+  'heroes.name.rogue': { en: 'Rogue', de: 'Waldläufer' },
+  'heroes.name.rogue-f': { en: 'Rogue', de: 'Waldläuferin' },
+  'heroes.name.soldier': { en: 'Soldier', de: 'Soldat' },
+  'heroes.name.soldier-f': { en: 'Soldier', de: 'Soldatin' },
+  'heroes.name.monk': { en: 'Monk', de: 'Mönch' },
+  'heroes.name.priestess': { en: 'Priestess', de: 'Priesterin' },
+  'heroes.title': { en: 'Choose your hero', de: 'Wähle deinen Helden' },
+  'heroes.change': { en: 'Change hero', de: 'Helden ändern' },
+  'heroes.selected': { en: 'Selected', de: 'Ausgewählt' },
+  'heroes.locked': { en: 'Locked', de: 'Gesperrt' },
+  'heroes.portraitAlt': { en: 'Portrait of {name}', de: 'Porträt von {name}' },
+  'heroes.placeholderAlt': { en: 'Hero portrait placeholder', de: 'Platzhalter für das Heldenporträt' },
+  'heroes.blockedWhilePlaying': { en: 'Heroes can be changed between games.', de: 'Helden lassen sich zwischen den Spielen wechseln.' },
+  'heroes.saved': { en: 'Hero saved.', de: 'Held gespeichert.' },
+  'heroes.saveFailed': { en: 'Could not save the hero. Please try again.', de: 'Der Held konnte nicht gespeichert werden. Bitte versuche es erneut.' },
+  'heroes.close': { en: 'Close', de: 'Schließen' },
+  'heroes.webLocked': { en: 'Available with a Premium subscription.', de: 'Mit einem Premium-Abo verfügbar.' },
 };
 
 // --- Known server/error identifiers --------------------------------------
