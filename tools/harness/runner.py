@@ -94,9 +94,14 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
             added.append(doc["issue_id"])
             continue
         if existing is not None:
-            if (existing.get("plan_id") == plan_id and _unchanged(existing, doc)
-                    and store.state("issue", doc["issue_id"]) == "Done"):
+            same_definition = existing.get("plan_id") == plan_id and _unchanged(existing, doc)
+            if same_definition and store.state("issue", doc["issue_id"]) == "Done":
                 continue  # preserve completed work and its exact historical evidence on a plan revision
+            if same_definition and _has_work(store, existing):
+                # A revision that leaves this issue's definition alone has nothing to replace, so work in flight is no
+                # obstacle. It used to be refused ("already In Review and has work recorded") even though only other
+                # issues had changed, which made the whole revision unimportable while anything was under review.
+                continue
             _adopt_or_refuse(store, existing, plan_id)
             if _unchanged(existing, doc):
                 if base_rev and existing.get("base_rev") != base_rev:
@@ -151,6 +156,12 @@ def _unchanged(existing: Dict[str, Any], doc: Dict[str, Any]) -> bool:
     return plans.canonical({key: existing.get(key) for key in definition}) == plans.canonical(definition)
 
 
+def _has_work(store: Store, existing: Dict[str, Any]) -> bool:
+    """Whether a worker has touched the issue: a branch head, a pull request, a claim, or a state past Ready/Blocked."""
+    return bool(existing.get("head_rev") or existing.get("pr") is not None or store.active_claims_for(existing["issue_id"])
+                or store.state("issue", existing["issue_id"]) not in ("Inbox", "Refining", "Ready", "Blocked"))
+
+
 def _adopt_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> None:
     """A new plan version may replace an issue definition that no worker has touched yet.
 
@@ -159,11 +170,9 @@ def _adopt_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> No
     issue_id = existing["issue_id"]
     if existing.get("plan_id") != plan_id:
         raise RunRefused("issue %s already belongs to plan %s; issue ids are global" % (issue_id, existing.get("plan_id")))
-    state = store.state("issue", issue_id)
-    if existing.get("head_rev") or existing.get("pr") is not None or store.active_claims_for(issue_id) or \
-            state not in ("Inbox", "Refining", "Ready", "Blocked"):
+    if _has_work(store, existing):
         raise RunRefused("issue %s is already %s and has work recorded; a new plan version cannot replace it"
-                         % (issue_id, state))
+                         % (issue_id, store.state("issue", issue_id)))
 
 
 def _revive_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> None:
