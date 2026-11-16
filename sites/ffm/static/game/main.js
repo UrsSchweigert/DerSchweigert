@@ -41,7 +41,7 @@ import {
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
 import { createHeroSkinManager, loadHeroSkin } from './hero-skin.js';
-import { resolveHero } from './heroes.js';
+import { resolveHero, HEROES } from './heroes.js';
 import { renderHeroIdentity } from './hero-identity.js';
 import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
@@ -2463,6 +2463,60 @@ if (!platform.isApp) document.getElementById('btn-cancel-subscription').addEvent
   }
 });
 
+// Web-only hero picker in the account modal. Logged-out players and the app
+// never reach the import, so no request is made for the picker.
+const accountHeroPicker = platform.isApp ? null : document.getElementById('account-hero-picker');
+let accountHeroMount = null;
+async function mountAccountHeroPicker(profile) {
+  accountHeroMount?.destroy();
+  accountHeroMount = null;
+  if (!accountHeroPicker) return;
+  if (!platform.isLoggedIn) {
+    accountHeroPicker.hidden = true;
+    return;
+  }
+  let premium = false;
+  try {
+    premium = (await platform.getBillingStatus())?.premium_access === true;
+  } catch {
+    premium = false;
+  }
+  let selectedId = resolveHero(profile?.user?.hero, { entitled: premium }).id;
+  const { mountHeroPicker } = await import('./hero-picker.js');
+  if (!platform.isLoggedIn) return;
+  accountHeroPicker.hidden = false;
+  accountHeroMount = mountHeroPicker(document.getElementById('account-hero-picker-grid'), {
+    heroes: HEROES,
+    t,
+    getSelectedId: () => selectedId,
+    isLocked: (entry) => !entry.free && !premium,
+    canChange: () => !gameRunning && !levelStarting && !completionPending,
+    onSelect: async (entry) => {
+      const previous = selectedId;
+      selectedId = entry.id;
+      accountProfileMessage.classList.remove('success-msg');
+      accountProfileMessage.textContent = '';
+      try {
+        const result = await platform.updateProfile({ hero: entry.id });
+        if (result?.error) throw new Error(result.error);
+        accountProfileMessage.classList.add('success-msg');
+        accountProfileMessage.textContent = t('heroes.saved');
+        paintHeroIdentity();
+        refreshHeroSkin();
+      } catch (err) {
+        selectedId = previous;
+        accountHeroMount?.update();
+        accountProfileMessage.textContent = err?.message ? translateServerMessage(err.message) : t('heroes.saveFailed');
+      }
+    },
+    onLocked: () => {
+      accountProfileMessage.classList.remove('success-msg');
+      accountProfileMessage.textContent = t('heroes.webLocked');
+      showAccountTab(tabAccountBilling, accountBillingPanel);
+    },
+  });
+}
+
 async function populateAccountModal() {
   if (platform.isApp) return;
   accountProfileMessage.textContent = '';
@@ -2480,6 +2534,7 @@ async function populateAccountModal() {
       accountPendingEmailNote.style.display = 'none';
     }
     renderPersonalBest(profile, accountPersonalBest);
+    await mountAccountHeroPicker(profile);
   } catch (err) {
     accountProfileMessage.textContent = t('account.loadProfileFailed');
   }
