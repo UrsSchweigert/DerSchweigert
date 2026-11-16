@@ -13,6 +13,7 @@ import {
   SUPPORTED_LOCALES,
   DEFAULT_LOCALE,
 } from './i18n.js';
+import { HEROES } from './heroes.js';
 
 // --- Minimal fake localStorage -------------------------------------------
 // Node has no global `localStorage` by default (confirmed: ReferenceError
@@ -403,5 +404,54 @@ describe('ability slot readout keys', () => {
       }
       assert.equal(t('ability.slot.ready'), locale === 'en' ? 'Ready' : 'Bereit');
     }
+  });
+});
+
+describe('hero picker keys', () => {
+  const UI_KEYS = [
+    'heroes.title',
+    'heroes.change',
+    'heroes.selected',
+    'heroes.locked',
+    'heroes.portraitAlt',
+    'heroes.placeholderAlt',
+    'heroes.blockedWhilePlaying',
+    'heroes.saved',
+    'heroes.saveFailed',
+    'heroes.close',
+    'heroes.webLocked',
+  ];
+  const placeholders = (text) => [...String(text).matchAll(/\{([a-zA-Z0-9_]+)\}/g)]
+    .map((match) => match[1])
+    .sort();
+
+  it('resolves every roster hero name to a non-empty string in both locales', () => {
+    for (const hero of HEROES) {
+      for (const locale of ['en', 'de']) {
+        setLocale(locale);
+        const text = t(hero.nameKey);
+        assert.notEqual(text, hero.nameKey, `${hero.nameKey} ${locale} is missing`);
+        assert.ok(text.trim().length > 0, `${hero.nameKey} ${locale} is empty`);
+      }
+    }
+  });
+
+  it('has both locales for every heroes.* UI key with matching placeholders', () => {
+    for (const key of UI_KEYS) {
+      setLocale('en');
+      const en = t(key);
+      setLocale('de');
+      const de = t(key);
+      assert.notEqual(en, key, `${key} is missing its English string`);
+      assert.notEqual(de, key, `${key} is missing its German string`);
+      assert.deepEqual(placeholders(de), placeholders(en), `${key} placeholder parity`);
+    }
+  });
+
+  it('interpolates the portrait name in both locales', () => {
+    setLocale('en');
+    assert.equal(t('heroes.portraitAlt', { name: 'Monk' }), 'Portrait of Monk');
+    setLocale('de');
+    assert.equal(t('heroes.portraitAlt', { name: 'Mönch' }), 'Porträt von Mönch');
   });
 });
