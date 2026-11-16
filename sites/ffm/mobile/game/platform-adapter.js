@@ -218,6 +218,19 @@ const platform = {
     return { entries: [], levels: [] };
   },
 
+  // The active profile's hero id when the cached hero pack is owned, else
+  // null. Offline-safe and never rejects; premium_access plays no part.
+  async getActiveHeroSkin() {
+    try {
+      await localProfiles.initialize();
+      const hero = localProfiles.getActiveProfile().hero;
+      if (typeof hero !== 'string' || hero === '') return null;
+      return (await entitlement.getStatus()).hero_pack === true ? hero : null;
+    } catch {
+      return null;
+    }
+  },
+
   // Billing is the cached store entitlement, not a subscription.
   async getBillingStatus() {
     return { ...NOT_ENTITLED, ...(await entitlement.getStatus()) };
