@@ -351,3 +351,43 @@ def test_the_art_command_shows_the_budget_and_recent_calls(stored_plan, capsys):
     out = capsys.readouterr().out
     assert "2 of 5 images used, 3 left" in out and "ffmhero-art-rogue" in out and "monk idle" in out and "fal-ai/flux-pro/kontext" in out
     assert cli.main(["--home", stored_plan.home, "art", "nope"]) == 2
+
+
+# -- every delivered image is kept for the owner ------------------------------------------------------------------------
+
+def test_every_delivered_image_is_kept_in_the_store_for_the_owner(service, tmp_path):
+    status, doc = generate(service, issue_id="ffmhero-art-adventurer", label="adventurer idle try1")
+    assert status == 200
+    call = service.ledger.summary()["calls"][0]
+    kept = call["file"]
+    assert open(kept, "rb").read() == PNG == base64.b64decode(doc["png"]), "the kept file is the image the worker received"
+    assert kept.endswith("art-images/plan-a/art-0001.png") and oct(os.stat(kept).st_mode & 0o777) == "0o600"
+    assert oct(os.stat(os.path.dirname(kept)).st_mode & 0o777) == "0o700"
+
+
+def test_a_failed_save_never_costs_the_worker_its_paid_image(service, monkeypatch):
+    monkeypatch.setattr(os, "makedirs", lambda *a, **k: (_ for _ in ()).throw(OSError("disk full")))
+    status, doc = generate(service)
+    assert status == 200 and base64.b64decode(doc["png"]) == PNG
+    assert service.ledger.summary()["calls"][0]["file"] is None and service.ledger.remaining() == 4
+
+
+def test_the_art_command_shows_and_opens_a_kept_image_and_says_when_there_is_none(stored_plan, capsys, monkeypatch):
+    svc = artservice.ArtService(stored_plan.home, "art-plan", ART, generate=FakeFal(), token="t0ken").start()
+    try:
+        generate(svc, issue_id="i1", label="try1")
+        svc.ledger.settle("art-0001", file=None)  # an image from before images were kept
+        generate(svc, issue_id="i1", label="try2")
+    finally:
+        svc.stop()
+    assert cli.main(["--home", stored_plan.home, "art", "art-plan", "--show", "art-0002"]) == 0
+    path = capsys.readouterr().out.strip()
+    assert open(path, "rb").read() == PNG
+    opened = []
+    monkeypatch.setattr(cli.subprocess, "run", lambda args, **kw: opened.append(args))
+    monkeypatch.setattr(cli.sys, "platform", "darwin")
+    assert cli.main(["--home", stored_plan.home, "art", "art-plan", "--show", "art-0002", "--open"]) == 0 and opened == [["open", path]]
+    capsys.readouterr()
+    assert cli.main(["--home", stored_plan.home, "art", "art-plan", "--show", "art-0001"]) == 2 and "no saved image" in capsys.readouterr().err
+    assert cli.main(["--home", stored_plan.home, "art", "art-plan", "--show", "art-9999"]) == 2
+    assert cli.main(["--home", stored_plan.home, "art", "art-plan"]) == 0 and "[image saved]" in capsys.readouterr().out
