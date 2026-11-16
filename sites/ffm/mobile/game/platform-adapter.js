@@ -59,6 +59,7 @@ const FREE_LEVELS = Object.freeze([
 const NOT_ENTITLED = Object.freeze({
   access_control_enabled: true,
   premium_access: false,
+  hero_pack: false,
   reason: 'not_entitled',
   access_until: null,
   paid_until: null,
