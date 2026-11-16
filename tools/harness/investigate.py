@@ -80,6 +80,7 @@ Rules:
 """
 
 
+ACTIVE_AT_TIMEOUT_S = 120  # activity this recent at the timeout means the worker was busy, not hung
 MAX_TOP_TIER_ATTEMPTS = 2  # a rejection at the strongest tier only earns one repair attempt; pro models are expensive
 
 
@@ -429,7 +430,9 @@ class Investigator:
                     self.log("  still working: %ds elapsed, last activity %ds ago%s" % (now - started, max(now - poll.last_activity, 0), (" | " + line) if line else ""))
                 if now - started > self.timeout:
                     self.adapter.cancel(handle)
-                    return route, type(poll)("finished", poll.last_activity, None, {"kind": "timeout"})
+                    # Was it still working? A busy agent that runs out of time needs more time, not a fresh start.
+                    active = now - poll.last_activity < ACTIVE_AT_TIMEOUT_S
+                    return route, type(poll)("finished", poll.last_activity, None, {"kind": "timeout", "active": active})
                 if now - poll.last_activity > self.inactivity:
                     self.adapter.cancel(handle)
                     return route, type(poll)("finished", poll.last_activity, None, {"kind": "inactivity"})
@@ -528,6 +531,13 @@ class Investigator:
                     # Waiting hours inside an interactive investigation helps nobody; the answers so far are saved.
                     raise InvestigationError("%s. Rerun the same command then, or choose another --model-source"
                                              % poll.error.get("detail", "the Claude subscription limit is reached"))
+                if kind == "timeout" and poll.error.get("active"):
+                    # The first Fable run spent its whole 20 minutes reading the repository, was cut off while writing
+                    # the draft, and an identical retry would only have repeated that. Stop and let the owner decide.
+                    raise InvestigationError(
+                        "attempt %d was still working when it reached --timeout %ds, so its work is lost and an identical "
+                        "retry would most likely run out the same way. Rerun with a higher limit, for example "
+                        "--timeout %d (your answers so far are kept)" % (attempt, self.timeout, int(self.timeout * 3)))
                 if kind in TRANSIENT_KINDS or kind in ("timeout", "inactivity"):
                     transient += 1
                     self.log("transient failure (%s), retrying" % kind)
