@@ -144,3 +144,21 @@ once a delivered adventurer idle-1 can serve as the style reference.
 | soldier | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0063 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
 | soldier | idle (identity try 2, rejected) | idle prompt + "No spiky hair, no scarf, no shoulder armour, no cape, a round buckler on the left arm and a sword in the right hand in every pose." | 202 | art-0064 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
 | soldier | idle (identity try 3, rejected) | idle prompt + "Short brown hair under a steel helmet with a brass nose guard, plain brown tunic, a round wooden buckler on the left arm, a short arming sword." | 303 | art-0065 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+
+## Soldier (female)
+
+NEEDS RE-RENDER (not committed: likeness)
+
+Attempts: 3 identity tries (seeds 101, 202, 303; art-0069..0071) from the softened default plate (adventurer not
+delivered). Tries 1 and 2 carried over the old hero's look (spiky blonde hair, shoulder pauldron, dark outfit,
+oversized blade, red cape in some poses) and read as an existing game character; try 2 also turned one pose to the
+back and had no buckler. Try 3 dropped the old look but came back as a bust crop with no buckler, no sword and a
+brass pauldron instead of a nose guard. Missed look rules: round buckler on the left arm, arming sword, full-figure
+poses, silhouette distinct from the old hero. No clip sheets or portrait were generated. No soldier-f art is
+committed; the manifest row is kept. Re-render once a delivered adventurer idle-1 can serve as the style reference.
+
+| hero | clip | prompt summary | seed | call id | model | reference | date |
+|---|---|---|---|---|---|---|---|
+| soldier-f | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0069 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
+| soldier-f | idle (identity try 2, rejected) | idle prompt + "No spiky hair, no scarf, no shoulder armour, no cape, a round buckler on the left arm and a sword in the right hand in every pose." | 202 | art-0070 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
+| soldier-f | idle (identity try 3, rejected) | idle prompt + "Long brown hair in a low braid under a steel helmet with a brass nose guard, plain brown tunic, a round wooden buckler on the left arm, a short arming sword." | 303 | art-0071 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
