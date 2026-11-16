@@ -61,7 +61,7 @@ const platform = {
     try {
       if (!api.isLoggedIn) return null;
       const profile = cachedProfile ?? await platform.getProfile();
-      const hero = profile?.hero;
+      const hero = profile?.user?.hero;
       if (typeof hero !== 'string' || hero === '') return null;
       const status = await api.getBillingStatus();
       return api.isLoggedIn && status?.premium_access === true ? hero : null;
@@ -95,12 +95,14 @@ for (const name of API_METHODS) {
   platform[name] = (...args) => api[name](...args);
 }
 
-// Remember the profile response only while its session lasts; a new or ended
-// session drops it so one account's hero never reaches the next.
+// Remember the profile response ({ user: { ..., hero } }) only while its
+// session lasts; a new or ended session drops it so one account's hero never
+// reaches the next. An error body leaves the last good profile in place.
 const rememberProfile = (name) => {
   platform[name] = async (...args) => {
     const profile = await api[name](...args);
-    cachedProfile = api.isLoggedIn && profile && typeof profile === 'object' ? profile : null;
+    if (!api.isLoggedIn) cachedProfile = null;
+    else if (profile?.user && typeof profile.user === 'object') cachedProfile = profile;
     return profile;
   };
 };

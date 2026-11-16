@@ -28,7 +28,7 @@ const count = (path) => requests.filter((p) => p === path).length;
 describe('web getActiveHeroSkin', () => {
   beforeEach(async () => {
     failing = false;
-    profileBody = { hero: 'knight' };
+    profileBody = { user: { username: 'kid', first_grade_year: 2010, hero: 'knight' } };
     billingBody = { premium_access: true };
     requests = [];
     await platform.logout().catch(() => {});
@@ -56,17 +56,33 @@ describe('web getActiveHeroSkin', () => {
 
   it('skips billing when no hero is stored', async () => {
     await platform.login('kid', 'pw');
-    profileBody = { hero: null };
+    profileBody = { user: { username: 'kid', first_grade_year: 2010, hero: null } };
     assert.equal(await platform.getActiveHeroSkin(), null);
     assert.equal(count('/billing/status'), 0);
   });
 
   it('uses the profile the adapter already forwarded', async () => {
     await platform.login('kid', 'pw');
-    profileBody = { hero: 'mage' };
+    profileBody = { user: { username: 'kid', first_grade_year: 2010, hero: 'mage' } };
     await platform.updateProfile({ hero: 'mage' });
     requests = [];
     assert.equal(await platform.getActiveHeroSkin(), 'mage');
+    assert.equal(count('/profile'), 0);
+  });
+
+  it('ignores a top-level hero outside the user object', async () => {
+    await platform.login('kid', 'pw');
+    profileBody = { hero: 'knight', user: { username: 'kid', hero: null } };
+    assert.equal(await platform.getActiveHeroSkin(), null);
+  });
+
+  it('keeps the last good profile when an update returns an error body', async () => {
+    await platform.login('kid', 'pw');
+    await platform.getProfile();
+    profileBody = { error: 'invalid hero' };
+    await platform.updateProfile({ hero: 'nope' });
+    requests = [];
+    assert.equal(await platform.getActiveHeroSkin(), 'knight');
     assert.equal(count('/profile'), 0);
   });
 
@@ -88,7 +104,7 @@ describe('web getActiveHeroSkin', () => {
     await platform.getActiveHeroSkin();
     await platform.logout();
     await platform.login('kid', 'pw');
-    profileBody = { hero: 'mage' };
+    profileBody = { user: { username: 'kid', first_grade_year: 2010, hero: 'mage' } };
     assert.equal(await platform.getActiveHeroSkin(), 'mage');
   });
 });
