@@ -16,6 +16,8 @@ Raw sheets are not committed. Date: 2026-11-16.
 | adventurer | victory | victory prompt, unchanged | 303 | art-0011 | fal-ai/flux-pro/kontext | accepted idle sheet | 2026-11-16 |
 | adventurer | cast | cast prompt, unchanged | 303 | art-0012 | fal-ai/flux-pro/kontext | accepted idle sheet | 2026-11-16 |
 | adventurer | portrait | portrait prompt, unchanged | 303 | art-0013 | fal-ai/flux-pro/kontext | idle-1 portrait plate (hero_portrait.py --reference) | 2026-11-16 |
+| adventuress | idle (identity try 1, rejected) | idle prompt, unchanged | 101 | art-0014 | fal-ai/flux-pro/kontext | softened style plate (hero_frames.py --style-reference, adventurer not delivered) | 2026-11-16 |
+| adventuress | idle (identity try 2, rejected) | idle prompt + "Hair smooth and rounded, no spikes, tied back in a low ponytail; whole figure head to boots." | 202 | art-0015 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
 
 ## Adventurer
 
@@ -26,3 +28,13 @@ Attempts: 3 identity tries (seeds 101, 202, 303; art-0004..0006), then clip shee
 dark outfit, oversized blade), so no adventurer art is committed (atlas, frames, portrait, contact sheet removed).
 The manifest row is kept. Hair rule also missed (spikes, not at most three small rounded tufts): the softened
 plate barely differed from today's idle-1 and carried the spikes over. The rows above record the generation calls.
+
+## Adventuress
+
+NEEDS RE-RENDER (not committed: likeness)
+
+Attempts: 2 identity tries (seeds 101, 202; art-0014, art-0015). Both read as an existing game character (spiky
+blonde hair, single pauldron, red scarf, dark outfit, oversized blade) and missed the hair rule; the softened
+default plate carries the old spikes over (the adventurer was not delivered, so no regenerated idle-1 exists).
+A third try from the same plate was not spent. No clip sheets or portrait were generated. No adventuress art is
+committed; the manifest row is kept. Re-render once a delivered adventurer idle-1 can serve as the style reference.
