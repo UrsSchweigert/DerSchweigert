@@ -560,6 +560,9 @@ class Investigator:
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
                 continue
             self._remember_context(attempt, draft.get("repo_context"))
+            # The reading is cache material with its own caps (repocontext.MAX_SUMMARY); the prompt allows a
+            # 4000-character summary, so it must not be held to the 2000-character plan-string limit below.
+            draft.pop("repo_context", None)
             if draft["status"] == "questions":
                 qs = draft.get("questions") or []
                 if not qs or len(qs) > MAX_QUESTIONS or state["rounds"] >= self.max_rounds:

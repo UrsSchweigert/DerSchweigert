@@ -71,6 +71,16 @@ def test_a_reading_from_a_rejected_attempt_is_reused_by_the_next_one(tmp_path):
     assert repocontext.load(str(tmp_path), key()) is not None
 
 
+def test_a_long_summary_within_the_prompt_cap_does_not_reject_the_draft(tmp_path):
+    summary = "layout and traps. " * 207  # 3726 characters: allowed by the prompt, over the 2000 plan-string limit
+    draft = mutate(lambda d: d.update(repo_context={"summary": summary, "modules": [{"path": "sites/ffm/", "role": "game"}]}))
+    adapter = FakeInvestigatorAdapter(draft)
+    res = run(make(adapter, cache_home=str(tmp_path)), tmp_path / "plan")
+    assert res["status"] == "ok"
+    assert len(adapter.packets) == 1
+    assert repocontext.load(str(tmp_path), key())["summary"] == summary.strip()
+
+
 def test_a_reused_reading_is_dropped_when_the_base_commit_moves(tmp_path):
     repocontext.save(str(tmp_path), key(), {"summary": "reading of base1"})
     repo = FakeRepo()
