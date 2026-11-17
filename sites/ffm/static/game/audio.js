@@ -108,6 +108,7 @@ export class AudioEngine {
     this._healChargeVoice = null;
     this._effectsBus = null;
     this._musicBus = null;
+    this._narrationBus = null;
     this._voices = new Set();
     this._mediaSources = new Map();
     this._musicGainRouting = musicGainRouting;
@@ -298,6 +299,8 @@ export class AudioEngine {
     if (!this._ctx) return;
     this._effectsBus.gain.setValueAtTime(this._muted ? 0 : this._effectsVolume * EFFECTS_HEADROOM, this._ctx.currentTime);
     this._musicBus.gain.setValueAtTime(this._muted ? 0 : this._musicVolume * this._musicDuck, this._ctx.currentTime);
+    // Narration answers only to the mute switch, not to the music or effects sliders.
+    this._narrationBus?.gain.setValueAtTime(this._muted ? 0 : 1, this._ctx.currentTime);
   }
 
   // Background music dips for any number of reasons and comes back afterwards.
@@ -1409,6 +1412,136 @@ export class AudioEngine {
       });
   }
 
+  /**
+   * A story narration track played through Web Audio, so it takes the same
+   * output path (and the same hardware silent switch behaviour on iOS) as the
+   * music and effects. Offers the subset of an <audio> element the diorama
+   * player uses; returns null when there is no usable AudioContext.
+   */
+  createNarrationVoice(url) {
+    try {
+      this._ensureCtx();
+    } catch {
+      return null;
+    }
+    const engine = this;
+    const ctx = this._ctx;
+    if (!ctx || typeof ctx.decodeAudioData !== 'function' || typeof ctx.createBufferSource !== 'function') {
+      return null;
+    }
+    if (!this._narrationBus) {
+      this._narrationBus = ctx.createGain();
+      this._narrationBus.connect(this._output);
+      this._updateBusGains();
+    }
+    const bus = this._narrationBus;
+    const voices = (this._narrationVoices ??= new Set());
+    const listeners = [];
+    let buffer = null;
+    let source = null;
+    let startedAt = 0;
+    let offset = 0;
+    let loading = null;
+    let released = false;
+
+    const position = () => {
+      if (!source) return offset;
+      return Math.min(buffer.duration, offset + Math.max(0, ctx.currentTime - startedAt));
+    };
+    const stopSource = () => {
+      if (!source) return;
+      const node = source;
+      source = null;
+      node.onended = null;
+      try { node.stop(); } catch { /* already stopped */ }
+      node.disconnect();
+    };
+    const startSource = () => {
+      const node = ctx.createBufferSource();
+      node.buffer = buffer;
+      node.connect(bus);
+      node.onended = () => {
+        if (source !== node) return;
+        source = null;
+        node.disconnect();
+        offset = buffer.duration;
+        voice.paused = true;
+        voice.ended = true;
+      };
+      source = node;
+      startedAt = ctx.currentTime;
+      node.start(startedAt, offset);
+    };
+    const release = () => {
+      released = true;
+      stopSource();
+      buffer = null;
+      voice.paused = true;
+      voice.readyState = 0;
+      voices.delete(voice);
+    };
+    const voice = {
+      paused: true,
+      ended: false,
+      readyState: 0,
+      get duration() { return buffer ? buffer.duration : NaN; },
+      get currentTime() { return position(); },
+      set currentTime(value) {
+        const target = Number(value);
+        if (!Number.isFinite(target)) return;
+        offset = Math.max(0, buffer ? Math.min(target, buffer.duration) : target);
+        if (buffer && offset < buffer.duration) voice.ended = false;
+        if (source) {
+          stopSource();
+          startSource();
+        }
+      },
+      addEventListener(type, handler) {
+        if (type === 'playing') listeners.push(handler);
+      },
+      play() {
+        if (released) return Promise.reject(new Error('narration released'));
+        voice.paused = false;
+        const begin = () => {
+          if (released || voice.paused || source) return;
+          if (voice.ended || offset >= buffer.duration) offset = 0;
+          voice.ended = false;
+          engine._ensureCtx();
+          startSource();
+          listeners.forEach(handler => handler());
+        };
+        if (buffer) {
+          begin();
+          return Promise.resolve();
+        }
+        loading ??= engine._loadTrackBytes(url)
+          .then(bytes => ctx.decodeAudioData(bytes))
+          .then((decoded) => {
+            if (released) return;
+            buffer = decoded;
+            voice.readyState = 4;
+          });
+        return loading.then(() => {
+          if (released) throw new Error('narration released');
+          begin();
+        });
+      },
+      pause() {
+        if (source) offset = position();
+        stopSource();
+        voice.paused = true;
+      },
+      removeAttribute() { release(); },
+      load() { release(); },
+    };
+    voices.add(voice);
+    return voice;
+  }
+
+  _releaseNarrationVoices() {
+    for (const voice of [...(this._narrationVoices ?? [])]) voice.load();
+  }
+
   stopBGM() {
     this._menuRequest += 1;
     this._menuPlayBlocked = false;
@@ -1477,6 +1610,7 @@ export class AudioEngine {
     this._muted = muted;
     this._updateBusGains();
     if (muted) {
+      this._releaseNarrationVoices();
       for (const voice of this._voices) {
         voice.source.stop();
         voice.nodes.forEach(node => node.disconnect());
