@@ -4,7 +4,7 @@
 // and node tests. Atlas loading, entitlements and profile writes stay with the
 // caller, which passes them in as callbacks.
 
-import { HEROES } from './heroes.js';
+import { HEROES, heroAssetUrl } from './heroes.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -31,7 +31,7 @@ export function buildHeroGridMarkup(options) {
     selectedId,
     isLocked = () => false,
     t,
-    portraitUrl = (hero) => hero.portrait,
+    portraitUrl = (hero) => heroAssetUrl(hero.portrait),
   } = options;
   const items = heroes.map((hero) => {
     const locked = Boolean(isLocked(hero));

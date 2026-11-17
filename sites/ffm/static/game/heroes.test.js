@@ -162,3 +162,10 @@ describe('heroes.js source', () => {
     assert.doesNotMatch(source, /\bfetch\b/);
   });
 });
+
+it('heroAssetUrl resolves a roster path against the game folder, not the page', async () => {
+  const { heroAssetUrl } = await import('./heroes.js');
+  const url = heroAssetUrl('heroes/rogue/portrait.webp');
+  assert.match(url, /^file:|^https?:/);
+  assert.ok(url.endsWith('/game/heroes/rogue/portrait.webp'), url);
+});

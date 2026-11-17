@@ -28,3 +28,11 @@ test('main.js gates the skin, identity portrait, app picker and web picker on th
   assert.match(source, /if \(!platform\.isLoggedIn \|\| !heroPackOn\(\)\) \{\s*accountHeroPicker\.hidden = true;/);
   assert.match(source, /heroPackOn\(\) && platform\.isLoggedIn && splashGreeting\.textContent/);
 });
+
+test('the title screen shows the player badge only for the toggled player and a tap opens Players', async () => {
+  const source = await readFile(new URL('./main.js', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<button type="button" id="title-player-badge"[^>]*hidden>/);
+  assert.match(source, /paintTitlePlayerBadge\(heroPackOn\(\) && /);
+  assert.match(source, /titlePlayerBadge\?\.addEventListener\('click', \(\) => document\.getElementById\('title-family-btn'\)\?\.click\(\)\)/);
+});

@@ -4,6 +4,8 @@
 // that fails to load, shows a neutral placeholder; the placeholder has no src,
 // so swapping to it makes no request and cannot loop.
 
+import { heroAssetUrl } from './heroes.js';
+
 export const HERO_IDENTITY_ATTR = 'data-hero-identity';
 export const HERO_IDENTITY_CLASS = 'hero-identity-portrait';
 
@@ -26,7 +28,7 @@ function buildPortrait(doc, hero, t, showPlaceholder) {
   const img = doc.createElement('img');
   img.className = HERO_IDENTITY_CLASS;
   img.setAttribute('alt', t('heroes.portraitAlt', { name: t(hero.nameKey) }));
-  img.setAttribute('src', hero.portrait);
+  img.setAttribute('src', heroAssetUrl(hero.portrait));
   img.setAttribute('decoding', 'async');
   img.addEventListener('error', showPlaceholder);
   return img;

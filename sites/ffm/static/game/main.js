@@ -41,7 +41,7 @@ import {
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
 import { createHeroSkinManager, loadHeroSkin } from './hero-skin.js';
-import { resolveHero, HEROES } from './heroes.js';
+import { resolveHero, HEROES, heroAssetUrl } from './heroes.js';
 import { featureOn } from './feature-flags.js';
 import { renderHeroIdentity } from './hero-identity.js';
 import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
@@ -1582,12 +1582,23 @@ function renderPlayerIdentity() {
 // Paints the gated hero's portrait into the running channel's rows only: the
 // app identity rows, or the web account greeting for a logged-in player. The
 // sequence guards against an older async choice landing after a newer one.
+// The title screen's player badge: the hero portrait beside the level numerals; a tap opens Players.
+const titlePlayerBadge = document.getElementById('title-player-badge');
+titlePlayerBadge?.addEventListener('click', () => document.getElementById('title-family-btn')?.click());
+function paintTitlePlayerBadge(hero) {
+  if (!titlePlayerBadge) return;
+  renderHeroIdentity(titlePlayerBadge, hero, { t });
+  titlePlayerBadge.hidden = !hero;
+  const name = platform.isApp ? activeLocalPlayer?.name : platform.username;
+  if (hero && name) titlePlayerBadge.setAttribute('aria-label', name);
+}
 let heroIdentitySeq = 0;
 async function paintHeroIdentity() {
   const seq = ++heroIdentitySeq;
   const heroId = await resolveActiveHeroId();
   if (seq !== heroIdentitySeq) return;
   const hero = resolveHero(heroId, { entitled: true });
+  paintTitlePlayerBadge(heroPackOn() && (platform.isApp ? Boolean(activeLocalPlayer?.name) : platform.isLoggedIn) ? hero : null);
   if (platform.isApp) {
     for (const id of ['playing-as', 'progress-player-name', 'pause-player-name']) {
       const row = document.getElementById(id)?.parentElement;
@@ -5083,7 +5094,7 @@ async function readHeroPackOwned() {
     heroPackOwned = false;
   }
 }
-const heroPortraitFor = profile => resolveHero(profile.hero, { entitled: true }).portrait;
+const heroPortraitFor = profile => heroAssetUrl(resolveHero(profile.hero, { entitled: true }).portrait);
 const canSwitchProfiles = () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting;
 
 async function openHeroPicker(profile) {

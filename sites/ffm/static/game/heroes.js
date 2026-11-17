@@ -16,6 +16,11 @@ export const HERO_STRIKE_FAMILIES = Object.freeze([
 
 export const DEFAULT_HERO_ID = 'adventurer';
 
+// Roster paths are relative to this file, not to the page that shows them: use this for an <img src>.
+export function heroAssetUrl(path) {
+  return new URL(path, import.meta.url).href;
+}
+
 export const HERO_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 
 function hero(id, strike, free = false) {

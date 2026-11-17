@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { renderHeroIdentity } from './hero-identity.js';
-import { HEROES, resolveHero } from './heroes.js';
+import { HEROES, resolveHero, heroAssetUrl } from './heroes.js';
 import { t } from './i18n.js';
 
 const source = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
@@ -38,7 +38,7 @@ test('inserts one portrait with localised alt text and keeps other children', ()
   assert.equal(owned(row).length, 1);
   assert.equal(row.children[1], name);
   assert.equal(owned(row)[0].getAttribute('alt'), 'Portrait of Adventurer');
-  assert.equal(owned(row)[0].getAttribute('src'), adventurer.portrait);
+  assert.equal(owned(row)[0].getAttribute('src'), heroAssetUrl(adventurer.portrait));
 });
 
 test('updates in place for another hero and removes when there is none', () => {
@@ -46,7 +46,7 @@ test('updates in place for another hero and removes when there is none', () => {
   renderHeroIdentity(row, adventurer, { t });
   renderHeroIdentity(row, monk, { t });
   assert.equal(owned(row).length, 1);
-  assert.equal(owned(row)[0].getAttribute('src'), monk.portrait);
+  assert.equal(owned(row)[0].getAttribute('src'), heroAssetUrl(monk.portrait));
   renderHeroIdentity(row, null, { t });
   assert.equal(row.children.length, 0);
   assert.equal(renderHeroIdentity(null, monk, { t }), null);
@@ -87,6 +87,7 @@ function channel({ isApp, isLoggedIn = true, stored = 'monk', name = 'Ann' }) {
     document: { getElementById: (id) => { queried.push(id); return elements[id]; } },
     resolveActiveHeroId: async () => stored,
     heroPackOn: () => true,
+    paintTitlePlayerBadge: () => {},
   };
   vm.createContext(context);
   vm.runInContext(source.match(/let heroIdentitySeq[\s\S]*?\n\}\n/)[0] + '\nthis.paint = paintHeroIdentity;', context);
