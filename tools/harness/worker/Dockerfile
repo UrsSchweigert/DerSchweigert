@@ -29,7 +29,7 @@ RUN apt-get update \
 RUN pip3 install --no-cache-dir --break-system-packages "gdtoolkit==${GDTOOLKIT_VERSION}" \
     && rm -rf /root/.cache/pip
 
-# Art tooling for sites/ffm/scripts (hero_poses.py, hero_frames.py, hero_portrait.py, hero_prompts.py): the same
+# Art tooling for sites/ffm/scripts (hero_frames.py, hero_regions.py, hero_recolor.py): the same
 # versions the repository's test environment uses, so a worker and CI cut and pack a sprite identically.
 RUN pip3 install --no-cache-dir --break-system-packages "numpy==2.0.2" "scipy==1.13.1" "Pillow==11.3.0" \
     && rm -rf /root/.cache/pip
