@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { getSkillIntro } from './skill-intro.js';
 
 describe('getSkillIntro', () => {
-  it('provides two-stage subtraction practice at level 5 with five answer choices', () => {
-    const intro = getSkillIntro(5);
+  it('provides two-stage subtraction practice at level 10 with five answer choices', () => {
+    const intro = getSkillIntro(10);
 
     assert.equal(intro.operation, '-');
     assert.equal(intro.localizationKey, 'skillIntro.subtraction');
@@ -17,8 +17,8 @@ describe('getSkillIntro', () => {
     assert.equal(intro.untimed, true);
   });
 
-  it('provides a valid multiplication worked example at level 25 with ten choices', () => {
-    const intro = getSkillIntro(25);
+  it('provides a valid multiplication worked example at level 20 with ten choices', () => {
+    const intro = getSkillIntro(20);
 
     assert.equal(intro.operation, '*');
     assert.equal(intro.exampleProblem.question, '5 × 3 = ?');
@@ -29,8 +29,8 @@ describe('getSkillIntro', () => {
     assert.equal(intro.untimed, true);
   });
 
-  it('provides exact division practice at level 34 with ten choices', () => {
-    const intro = getSkillIntro(34);
+  it('provides exact division practice at level 30 with ten choices', () => {
+    const intro = getSkillIntro(30);
 
     assert.equal(intro.operation, '/');
     assert.equal(intro.exampleProblem.question, '20 ÷ 4 = ?');
@@ -42,8 +42,8 @@ describe('getSkillIntro', () => {
   });
 
   it('returns no intro outside the planned skill milestones', () => {
-    assert.equal(getSkillIntro(4), null);
-    assert.equal(getSkillIntro(26), null);
+    assert.equal(getSkillIntro(9), null);
+    assert.equal(getSkillIntro(21), null);
   });
 
   it('rejects invalid level numbers', () => {

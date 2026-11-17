@@ -1,21 +1,21 @@
 import { generateProblem } from './levels.js';
 
 const SKILL_INTROS = {
-  5: {
+  10: {
     operation: '-',
     operands: { a: 8, b: 3 },
     answer: 5,
     ranges: { a: [8, 8], b: [3, 3] },
     slug: 'subtraction',
   },
-  25: {
+  20: {
     operation: '*',
     operands: { a: 5, b: 3 },
     answer: 15,
     ranges: { a: [5, 5], b: [3, 3] },
     slug: 'multiplication',
   },
-  34: {
+  30: {
     operation: '/',
     operands: { a: 5, b: 4 },
     answer: 5,
@@ -43,6 +43,7 @@ export function getSkillIntro(level) {
     operations: [intro.operation],
     operandRange: intro.ranges,
     maxResult: intro.answer,
+    missingOperand: false,   // a worked example always reads a ? b = ?
   });
 
   return {

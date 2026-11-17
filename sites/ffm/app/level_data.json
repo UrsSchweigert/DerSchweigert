@@ -13,14 +13,14 @@
       "operandRange": {
         "a": [
           1,
-          5
+          3
         ],
         "b": [
           1,
-          5
+          3
         ]
       },
-      "maxResult": 10,
+      "maxResult": 6,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
@@ -89,10 +89,10 @@
         ],
         "b": [
           1,
-          9
+          10
         ]
       },
-      "maxResult": 19,
+      "maxResult": 20,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
@@ -104,21 +104,19 @@
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
-        "+",
-        "+",
-        "-"
+        "+"
       ],
       "operandRange": {
         "a": [
-          1,
+          0,
           11
         ],
         "b": [
-          1,
-          8
+          0,
+          11
         ]
       },
-      "maxResult": 19,
+      "maxResult": 22,
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
@@ -130,21 +128,19 @@
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
-        "+",
-        "+",
-        "-"
+        "+"
       ],
       "operandRange": {
         "a": [
-          1,
-          14
+          0,
+          12
         ],
         "b": [
-          1,
-          5
+          0,
+          12
         ]
       },
-      "maxResult": 19,
+      "maxResult": 24,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
@@ -156,21 +152,19 @@
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
-        "+",
-        "+",
-        "-"
+        "+"
       ],
       "operandRange": {
         "a": [
-          1,
-          10
+          0,
+          13
         ],
         "b": [
-          1,
-          9
+          0,
+          13
         ]
       },
-      "maxResult": 19,
+      "maxResult": 26,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
@@ -182,19 +176,19 @@
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
-        "-"
+        "+"
       ],
       "operandRange": {
         "a": [
-          5,
-          19
+          0,
+          14
         ],
         "b": [
-          1,
-          10
+          0,
+          14
         ]
       },
-      "maxResult": 18,
+      "maxResult": 28,
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
@@ -206,20 +200,19 @@
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
-        "+",
-        "-"
+        "+"
       ],
       "operandRange": {
         "a": [
-          1,
-          10
+          0,
+          15
         ],
         "b": [
-          1,
-          9
+          0,
+          15
         ]
       },
-      "maxResult": 19,
+      "maxResult": 30,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
@@ -231,20 +224,38 @@
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "+",
-        "-"
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+"
       ],
       "operandRange": {
         "a": [
-          2,
-          12
+          0,
+          16
         ],
         "b": [
-          1,
-          7
+          0,
+          16
         ]
       },
-      "maxResult": 19,
+      "maxResult": 32,
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
@@ -256,100 +267,172 @@
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
+        "-",
+        "-",
+        "-",
+        "-",
         "+",
-        "-"
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+"
       ],
       "operandRange": {
         "a": [
-          2,
-          12
+          0,
+          16
         ],
         "b": [
-          1,
-          7
+          0,
+          16
         ]
       },
-      "maxResult": 19,
+      "maxResult": 32,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 132038
+      "baseline_score": 132226
     },
     {
       "level": 12,
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "+",
-        "-"
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+"
       ],
       "operandRange": {
         "a": [
-          1,
-          20
+          0,
+          17
         ],
         "b": [
-          1,
-          20
+          0,
+          17
         ]
       },
-      "maxResult": 20,
+      "maxResult": 34,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 153338
+      "baseline_score": 153717
     },
     {
       "level": 13,
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "+",
-        "-"
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+"
       ],
       "operandRange": {
         "a": [
-          1,
-          20
+          0,
+          18
         ],
         "b": [
-          1,
-          20
+          0,
+          18
         ]
       },
-      "maxResult": 20,
+      "maxResult": 36,
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 176138
+      "baseline_score": 176712
     },
     {
       "level": 14,
       "chapter": 1,
       "chapterName": "Grade 1 Foundations",
       "operations": [
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "+",
-        "-"
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+"
       ],
       "operandRange": {
         "a": [
-          1,
-          20
+          0,
+          18
         ],
         "b": [
-          1,
-          20
+          0,
+          18
         ]
       },
-      "maxResult": 20,
+      "maxResult": 36,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 200438
+      "baseline_score": 201211
     },
     {
       "level": 15,
@@ -361,20 +444,20 @@
       ],
       "operandRange": {
         "a": [
-          1,
-          20
+          0,
+          19
         ],
         "b": [
-          1,
-          20
+          0,
+          19
         ]
       },
-      "maxResult": 20,
+      "maxResult": 38,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 226238
+      "baseline_score": 227214
     },
     {
       "level": 16,
@@ -386,20 +469,20 @@
       ],
       "operandRange": {
         "a": [
-          10,
-          40
+          0,
+          19
         ],
         "b": [
-          10,
-          40
+          0,
+          19
         ]
       },
-      "maxResult": 80,
+      "maxResult": 38,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 253538
+      "baseline_score": 254720
     },
     {
       "level": 17,
@@ -411,20 +494,20 @@
       ],
       "operandRange": {
         "a": [
-          20,
-          60
+          0,
+          19
         ],
         "b": [
-          10,
-          40
+          0,
+          19
         ]
       },
-      "maxResult": 100,
+      "maxResult": 38,
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 282338
+      "baseline_score": 283730
     },
     {
       "level": 18,
@@ -436,20 +519,20 @@
       ],
       "operandRange": {
         "a": [
-          20,
-          80
+          0,
+          20
         ],
         "b": [
-          1,
-          40
+          0,
+          20
         ]
       },
-      "maxResult": 120,
+      "maxResult": 40,
       "fiendType": "birdfoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 312638
+      "baseline_score": 314244
     },
     {
       "level": 19,
@@ -461,145 +544,295 @@
       ],
       "operandRange": {
         "a": [
-          30,
-          100
+          0,
+          20
         ],
         "b": [
-          1,
-          60
+          0,
+          20
         ]
       },
-      "maxResult": 160,
+      "maxResult": 40,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 344438
+      "baseline_score": 346262
     },
     {
       "level": 20,
       "chapter": 2,
       "chapterName": "Grade 1-2 Expansion",
       "operations": [
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
         "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "-",
+        "-",
+        "-",
+        "-",
         "-"
       ],
       "operandRange": {
         "a": [
-          10,
-          100
+          0,
+          21
         ],
         "b": [
-          1,
-          50
+          0,
+          21
         ]
       },
-      "maxResult": 100,
+      "maxResult": 42,
       "fiendType": "slimeling",
       "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 377738
+      "baseline_score": 379783,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 21,
       "chapter": 2,
       "chapterName": "Grade 1-2 Expansion",
       "operations": [
+        "*",
+        "*",
+        "*",
         "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "-"
       ],
       "operandRange": {
         "a": [
-          10,
-          100
+          0,
+          21
         ],
         "b": [
-          1,
-          70
+          0,
+          21
         ]
       },
-      "maxResult": 100,
+      "maxResult": 42,
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 456338
+      "baseline_score": 458833,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 22,
       "chapter": 2,
       "chapterName": "Grade 1-2 Expansion",
       "operations": [
+        "*",
+        "*",
+        "*",
+        "*",
         "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "-"
       ],
       "operandRange": {
         "a": [
-          1,
-          100
+          0,
+          21
         ],
         "b": [
-          1,
-          100
+          0,
+          21
         ]
       },
-      "maxResult": 100,
+      "maxResult": 42,
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 492638
+      "baseline_score": 495362,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 23,
       "chapter": 2,
       "chapterName": "Grade 1-2 Expansion",
       "operations": [
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
         "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "-"
       ],
       "operandRange": {
         "a": [
-          1,
-          100
+          0,
+          22
         ],
         "b": [
-          1,
-          100
+          0,
+          22
         ]
       },
-      "maxResult": 100,
+      "maxResult": 44,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 530438
+      "baseline_score": 533395,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 24,
       "chapter": 2,
       "chapterName": "Grade 1-2 Expansion",
       "operations": [
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
         "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "-"
       ],
       "operandRange": {
         "a": [
-          1,
-          100
+          0,
+          22
         ],
         "b": [
-          1,
-          100
+          0,
+          22
         ]
       },
-      "maxResult": 100,
+      "maxResult": 44,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 569738
+      "baseline_score": 572931,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 25,
@@ -612,20 +845,32 @@
       ],
       "operandRange": {
         "a": [
-          1,
-          10
+          0,
+          22
         ],
         "b": [
-          2,
-          3
+          0,
+          22
         ]
       },
-      "maxResult": 30,
+      "maxResult": 44,
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 610538
+      "baseline_score": 613971,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            13
+          ],
+          "b": [
+            0,
+            13
+          ]
+        }
+      }
     },
     {
       "level": 26,
@@ -638,20 +883,32 @@
       ],
       "operandRange": {
         "a": [
-          1,
-          10
+          0,
+          23
         ],
         "b": [
-          2,
-          5
+          0,
+          23
         ]
       },
-      "maxResult": 50,
+      "maxResult": 46,
       "fiendType": "birdfoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 652838
+      "baseline_score": 656515,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            16
+          ],
+          "b": [
+            0,
+            16
+          ]
+        }
+      }
     },
     {
       "level": 27,
@@ -664,20 +921,32 @@
       ],
       "operandRange": {
         "a": [
-          1,
-          12
+          0,
+          23
         ],
         "b": [
-          2,
-          6
+          0,
+          23
         ]
       },
-      "maxResult": 72,
+      "maxResult": 46,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 696638
+      "baseline_score": 700563,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            19
+          ],
+          "b": [
+            0,
+            19
+          ]
+        }
+      }
     },
     {
       "level": 28,
@@ -690,20 +959,32 @@
       ],
       "operandRange": {
         "a": [
-          1,
-          100
+          0,
+          23
         ],
         "b": [
-          2,
-          8
+          0,
+          23
         ]
       },
-      "maxResult": 120,
+      "maxResult": 46,
       "fiendType": "slimeling",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 741938
+      "baseline_score": 746114,
+      "operandRangeByOp": {
+        "*": {
+          "a": [
+            0,
+            22
+          ],
+          "b": [
+            0,
+            22
+          ]
+        }
+      }
     },
     {
       "level": 29,
@@ -716,151 +997,295 @@
       ],
       "operandRange": {
         "a": [
-          1,
-          100
+          0,
+          24
         ],
         "b": [
-          2,
-          9
+          0,
+          24
         ]
       },
-      "maxResult": 150,
+      "maxResult": 48,
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 788738
+      "baseline_score": 793169
     },
     {
       "level": 30,
       "chapter": 2,
       "chapterName": "Grade 1-2 Expansion",
       "operations": [
+        "/",
+        "/",
+        "/",
+        "/",
+        "/",
+        "/",
+        "/",
+        "/",
+        "/",
+        "/",
+        "+",
+        "+",
+        "+",
         "+",
         "-",
+        "-",
+        "-",
+        "*",
+        "*",
         "*"
       ],
       "operandRange": {
         "a": [
-          1,
-          100
+          0,
+          24
         ],
         "b": [
-          2,
-          10
+          0,
+          24
         ]
       },
-      "maxResult": 200,
+      "maxResult": 48,
       "fiendType": "bonehead",
       "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 837038
+      "baseline_score": 841728,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 31,
       "chapter": 3,
       "chapterName": "Grade 3-4 Core Arithmetic",
       "operations": [
+        "/",
+        "/",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
         "+",
         "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "*",
+        "*",
+        "*",
+        "*",
+        "*",
         "*"
       ],
       "operandRange": {
         "a": [
-          2,
-          12
+          0,
+          24
         ],
         "b": [
-          2,
-          10
+          0,
+          24
         ]
       },
-      "maxResult": 120,
+      "maxResult": 48,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 945638
+      "baseline_score": 950853,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 32,
       "chapter": 3,
       "chapterName": "Grade 3-4 Core Arithmetic",
       "operations": [
+        "/",
+        "/",
+        "/",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
         "+",
         "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "*",
+        "*",
+        "*",
+        "*",
         "*"
       ],
       "operandRange": {
         "a": [
-          2,
-          15
+          0,
+          24
         ],
         "b": [
-          2,
-          10
+          0,
+          24
         ]
       },
-      "maxResult": 150,
+      "maxResult": 48,
       "fiendType": "bonehead",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 996938
+      "baseline_score": 1002419,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 33,
       "chapter": 3,
       "chapterName": "Grade 3-4 Core Arithmetic",
       "operations": [
+        "/",
+        "/",
+        "/",
+        "/",
+        "+",
+        "+",
+        "+",
+        "+",
+        "+",
         "+",
         "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "*",
+        "*",
+        "*",
+        "*",
         "*"
       ],
       "operandRange": {
         "a": [
-          2,
-          20
+          0,
+          25
         ],
         "b": [
-          2,
-          12
+          0,
+          25
         ]
       },
-      "maxResult": 240,
+      "maxResult": 50,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1049738
+      "baseline_score": 1055489,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 34,
       "chapter": 3,
       "chapterName": "Grade 3-4 Core Arithmetic",
       "operations": [
+        "/",
+        "/",
+        "/",
+        "/",
+        "/",
+        "+",
+        "+",
+        "+",
+        "+",
         "+",
         "-",
+        "-",
+        "-",
+        "-",
+        "-",
         "*",
-        "/"
+        "*",
+        "*",
+        "*",
+        "*"
       ],
       "operandRange": {
         "a": [
-          2,
-          10
+          0,
+          25
         ],
         "b": [
-          2,
-          10
+          0,
+          25
         ]
       },
-      "maxResult": 100,
+      "maxResult": 50,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1104038
+      "baseline_score": 1110063,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            10
+          ],
+          "b": [
+            0,
+            10
+          ]
+        }
+      }
     },
     {
       "level": 35,
@@ -874,20 +1299,32 @@
       ],
       "operandRange": {
         "a": [
-          2,
-          12
+          0,
+          25
         ],
         "b": [
-          2,
-          12
+          0,
+          25
         ]
       },
-      "maxResult": 144,
+      "maxResult": 50,
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1159838
+      "baseline_score": 1166141,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            13
+          ],
+          "b": [
+            0,
+            13
+          ]
+        }
+      }
     },
     {
       "level": 36,
@@ -901,20 +1338,32 @@
       ],
       "operandRange": {
         "a": [
-          2,
-          12
+          0,
+          25
         ],
         "b": [
-          2,
-          12
+          0,
+          25
         ]
       },
-      "maxResult": 144,
+      "maxResult": 50,
       "fiendType": "snakefoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1217138
+      "baseline_score": 1223722,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            16
+          ],
+          "b": [
+            0,
+            16
+          ]
+        }
+      }
     },
     {
       "level": 37,
@@ -928,20 +1377,32 @@
       ],
       "operandRange": {
         "a": [
-          5,
-          15
+          0,
+          26
         ],
         "b": [
-          2,
-          15
+          0,
+          26
         ]
       },
-      "maxResult": 225,
+      "maxResult": 52,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1275938
+      "baseline_score": 1282807,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            19
+          ],
+          "b": [
+            0,
+            19
+          ]
+        }
+      }
     },
     {
       "level": 38,
@@ -955,20 +1416,32 @@
       ],
       "operandRange": {
         "a": [
-          5,
-          20
+          0,
+          26
         ],
         "b": [
-          2,
-          20
+          0,
+          26
         ]
       },
-      "maxResult": 400,
+      "maxResult": 52,
       "fiendType": "birdfoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1336238
+      "baseline_score": 1343396,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            22
+          ],
+          "b": [
+            0,
+            22
+          ]
+        }
+      }
     },
     {
       "level": 39,
@@ -982,20 +1455,32 @@
       ],
       "operandRange": {
         "a": [
-          10,
-          50
+          0,
+          26
         ],
         "b": [
-          2,
-          12
+          0,
+          26
         ]
       },
-      "maxResult": 600,
+      "maxResult": 52,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1398038
+      "baseline_score": 1405489,
+      "operandRangeByOp": {
+        "/": {
+          "a": [
+            0,
+            25
+          ],
+          "b": [
+            0,
+            25
+          ]
+        }
+      }
     },
     {
       "level": 40,
@@ -1009,20 +1494,20 @@
       ],
       "operandRange": {
         "a": [
-          10,
-          60
+          0,
+          26
         ],
         "b": [
-          2,
-          12
+          0,
+          26
         ]
       },
-      "maxResult": 720,
+      "maxResult": 52,
       "fiendType": "bonehead",
       "fiendHP": 2,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1461338
+      "baseline_score": 1469085
     },
     {
       "level": 41,
@@ -1036,20 +1521,20 @@
       ],
       "operandRange": {
         "a": [
-          50,
-          400
+          0,
+          27
         ],
         "b": [
-          2,
-          12
+          0,
+          27
         ]
       },
-      "maxResult": 800,
+      "maxResult": 54,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1599938
+      "baseline_score": 1608285
     },
     {
       "level": 42,
@@ -1063,20 +1548,20 @@
       ],
       "operandRange": {
         "a": [
-          100,
-          600
+          0,
+          27
         ],
         "b": [
-          2,
-          12
+          0,
+          27
         ]
       },
-      "maxResult": 1000,
+      "maxResult": 54,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1666238
+      "baseline_score": 1674889
     },
     {
       "level": 43,
@@ -1090,20 +1575,20 @@
       ],
       "operandRange": {
         "a": [
-          10,
-          80
+          0,
+          27
         ],
         "b": [
-          2,
-          12
+          0,
+          27
         ]
       },
-      "maxResult": 960,
+      "maxResult": 54,
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1734038
+      "baseline_score": 1742997
     },
     {
       "level": 44,
@@ -1117,20 +1602,20 @@
       ],
       "operandRange": {
         "a": [
-          20,
-          100
+          0,
+          27
         ],
         "b": [
-          2,
-          12
+          0,
+          27
         ]
       },
-      "maxResult": 1200,
+      "maxResult": 54,
       "fiendType": "snakefoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1803338
+      "baseline_score": 1812608
     },
     {
       "level": 45,
@@ -1144,20 +1629,20 @@
       ],
       "operandRange": {
         "a": [
-          20,
-          120
+          0,
+          27
         ],
         "b": [
-          2,
-          12
+          0,
+          27
         ]
       },
-      "maxResult": 1440,
+      "maxResult": 54,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1874138
+      "baseline_score": 1883723
     },
     {
       "level": 46,
@@ -1171,20 +1656,20 @@
       ],
       "operandRange": {
         "a": [
-          20,
-          130
+          0,
+          28
         ],
         "b": [
-          2,
-          13
+          0,
+          28
         ]
       },
-      "maxResult": 1690,
+      "maxResult": 56,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 1946438
+      "baseline_score": 1956342
     },
     {
       "level": 47,
@@ -1198,20 +1683,20 @@
       ],
       "operandRange": {
         "a": [
-          20,
-          140
+          0,
+          28
         ],
         "b": [
-          2,
-          14
+          0,
+          28
         ]
       },
-      "maxResult": 1960,
+      "maxResult": 56,
       "fiendType": "snakefoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2020238
+      "baseline_score": 2030465
     },
     {
       "level": 48,
@@ -1225,20 +1710,20 @@
       ],
       "operandRange": {
         "a": [
-          50,
-          500
+          0,
+          28
         ],
         "b": [
-          2,
-          15
+          0,
+          28
         ]
       },
-      "maxResult": 2000,
+      "maxResult": 56,
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2095538
+      "baseline_score": 2106091
     },
     {
       "level": 49,
@@ -1252,20 +1737,20 @@
       ],
       "operandRange": {
         "a": [
-          10,
-          100
+          0,
+          28
         ],
         "b": [
-          2,
-          12
+          0,
+          28
         ]
       },
-      "maxResult": 1200,
+      "maxResult": 56,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2172338
+      "baseline_score": 2183221
     },
     {
       "level": 50,
@@ -1279,20 +1764,20 @@
       ],
       "operandRange": {
         "a": [
-          20,
-          120
+          0,
+          28
         ],
         "b": [
-          2,
-          15
+          0,
+          28
         ]
       },
-      "maxResult": 1800,
+      "maxResult": 56,
       "fiendType": "snakefoe",
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2250638
+      "baseline_score": 2261855
     },
     {
       "level": 51,
@@ -1306,20 +1791,20 @@
       ],
       "operandRange": {
         "a": [
-          30,
-          150
+          0,
+          29
         ],
         "b": [
-          2,
-          15
+          0,
+          29
         ]
       },
-      "maxResult": 2250,
+      "maxResult": 58,
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2517038
+      "baseline_score": 2529268
     },
     {
       "level": 52,
@@ -1333,20 +1818,20 @@
       ],
       "operandRange": {
         "a": [
-          40,
-          180
+          0,
+          29
         ],
         "b": [
-          2,
-          15
+          0,
+          29
         ]
       },
-      "maxResult": 2700,
+      "maxResult": 58,
       "fiendType": "toadlord",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2598338
+      "baseline_score": 2610909
     },
     {
       "level": 53,
@@ -1360,20 +1845,20 @@
       ],
       "operandRange": {
         "a": [
-          50,
-          200
+          0,
+          29
         ],
         "b": [
-          2,
-          18
+          0,
+          29
         ]
       },
-      "maxResult": 3600,
+      "maxResult": 58,
       "fiendType": "birdfoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2681138
+      "baseline_score": 2694054
     },
     {
       "level": 54,
@@ -1387,20 +1872,20 @@
       ],
       "operandRange": {
         "a": [
-          60,
-          220
+          0,
+          29
         ],
         "b": [
-          2,
-          18
+          0,
+          29
         ]
       },
-      "maxResult": 3960,
+      "maxResult": 58,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2765438
+      "baseline_score": 2778703
     },
     {
       "level": 55,
@@ -1414,20 +1899,20 @@
       ],
       "operandRange": {
         "a": [
-          70,
-          240
+          0,
+          29
         ],
         "b": [
-          2,
-          20
+          0,
+          29
         ]
       },
-      "maxResult": 4800,
+      "maxResult": 58,
       "fiendType": "snakefoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2851238
+      "baseline_score": 2864856
     },
     {
       "level": 56,
@@ -1441,20 +1926,20 @@
       ],
       "operandRange": {
         "a": [
-          80,
-          260
+          0,
+          29
         ],
         "b": [
-          2,
-          20
+          0,
+          29
         ]
       },
-      "maxResult": 5200,
+      "maxResult": 58,
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 2938538
+      "baseline_score": 2952512
     },
     {
       "level": 57,
@@ -1468,20 +1953,20 @@
       ],
       "operandRange": {
         "a": [
-          90,
-          280
+          0,
+          30
         ],
         "b": [
-          2,
-          20
+          0,
+          30
         ]
       },
-      "maxResult": 5600,
+      "maxResult": 60,
       "fiendType": "magelitch",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3027338
+      "baseline_score": 3041672
     },
     {
       "level": 58,
@@ -1495,20 +1980,20 @@
       ],
       "operandRange": {
         "a": [
-          100,
-          300
+          0,
+          30
         ],
         "b": [
-          2,
-          20
+          0,
+          30
         ]
       },
-      "maxResult": 6000,
+      "maxResult": 60,
       "fiendType": "snakefoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3117638
+      "baseline_score": 3132336
     },
     {
       "level": 59,
@@ -1522,20 +2007,20 @@
       ],
       "operandRange": {
         "a": [
-          120,
-          320
+          0,
+          30
         ],
         "b": [
-          2,
-          20
+          0,
+          30
         ]
       },
-      "maxResult": 6400,
+      "maxResult": 60,
       "fiendType": "wolffoe",
       "fiendHP": 1,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3209438
+      "baseline_score": 3224504
     },
     {
       "level": 60,
@@ -1549,20 +2034,20 @@
       ],
       "operandRange": {
         "a": [
-          150,
-          350
+          0,
+          30
         ],
         "b": [
-          2,
-          20
+          0,
+          30
         ]
       },
-      "maxResult": 7000,
+      "maxResult": 60,
       "fiendType": "toadlord",
       "fiendHP": 3,
       "waveSize": 30,
       "inputMode": "multiple-choice",
-      "baseline_score": 3302738
+      "baseline_score": 3318175
     }
   ]
 }

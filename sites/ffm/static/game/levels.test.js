@@ -2,7 +2,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { LevelConfig, generateProblem, getArithmeticOptionCount, chapterForLevel, getFiendWeights, sampleFiendType, TOTAL_LEVELS } from './levels.js';
+import { LevelConfig, generateProblem, getArithmeticOptionCount, chapterForLevel, getFiendWeights, sampleFiendType, revealQuestion, MISSING_OPERAND_FROM_LEVEL, missingOperandShare, bossRoundKinds, isBossRoundLevel, BOSS_ROUND_LEVELS, TOP_WEIGHT_FROM_LEVEL, TOTAL_LEVELS } from './levels.js';
 const _FullLevelConfig = JSON.parse(readFileSync(new URL('../../app/level_data.json', import.meta.url))).levels;
 
 describe('LevelConfig', () => {
@@ -32,87 +32,68 @@ describe('LevelConfig', () => {
     });
   });
 
-  it('should enforce 15-level curriculum blocks', () => {
-    const block1 = _FullLevelConfig.slice(0, 15);
-    const block2 = _FullLevelConfig.slice(15, 30);
-    const block3 = _FullLevelConfig.slice(30, 45);
-    const block4 = _FullLevelConfig.slice(45, 60);
-
-    assert.ok(block1.every(cfg => cfg.chapter === 1), 'Levels 1-15 should be chapter 1');
-    assert.ok(block1.every(cfg => cfg.maxResult <= 20), 'Levels 1-15 should stay in Zahlenraum 20');
-    assert.ok(block1.every(cfg => cfg.operations.every(op => ['+', '-'].includes(op))), 'Levels 1-15 should use only + and -');
-
-    assert.ok(block2.every(cfg => cfg.chapter === 2), 'Levels 16-30 should be chapter 2');
-    assert.ok(block2.some(cfg => cfg.operations.includes('*')), 'Levels 16-30 should introduce multiplication');
-    assert.ok(block2.every(cfg => !cfg.operations.includes('/')), 'Levels 16-30 should not include division');
-
-    assert.ok(block3.every(cfg => cfg.chapter === 3), 'Levels 31-45 should be chapter 3');
-    assert.ok(block3.some(cfg => cfg.operations.includes('*')), 'Levels 31-45 should include multiplication');
-    assert.ok(block3.some(cfg => cfg.operations.includes('/')), 'Levels 31-45 should include division');
-
-    assert.ok(block4.every(cfg => cfg.chapter === 4), 'Levels 46-60 should be chapter 4');
-    assert.ok(block4.every(cfg => cfg.operations.length >= 2), 'Levels 46-60 should use mixed operations');
-  });
-
-  it('keeps level 11 familiar before level 12 widens the operands', () => {
-    assert.deepEqual(_FullLevelConfig[10].operandRange, _FullLevelConfig[9].operandRange);
-    assert.equal(_FullLevelConfig[10].maxResult, _FullLevelConfig[9].maxResult);
-    assert.deepEqual(_FullLevelConfig[11].operandRange, { a: [1, 20], b: [1, 20] });
-  });
-
-  it('audits unchanged product (2–7500) and dividend (4–7500) envelopes across all 60 levels and 59 transitions', () => {
-    const adjacentTransitions = _FullLevelConfig.slice(1).map((cfg, index) => [
-      _FullLevelConfig[index],
-      cfg,
-    ]);
-    assert.equal(adjacentTransitions.length, 59);
-    adjacentTransitions.forEach(([previous, current]) => {
-      assert.equal(current.level, previous.level + 1);
-      assert.ok(current.operandRange.a.every(Number.isSafeInteger));
-      assert.ok(current.operandRange.b.every(Number.isSafeInteger));
+  it('grows the largest operand steeply early and softly late: 3 at level 1, 10 at level 4, 30 at level 60', () => {
+    const cap = level => _FullLevelConfig[level - 1].operandRange.a[1];
+    _FullLevelConfig.forEach(cfg => {
+      assert.deepEqual(cfg.operandRange.b, cfg.operandRange.a, `level ${cfg.level}`);
+      assert.equal(cfg.operandRange.a[0], cfg.level >= 5 ? 0 : 1, `level ${cfg.level} lower bound`);
+      assert.equal(cfg.maxResult, 2 * cap(cfg.level));
     });
+    assert.equal(cap(1), 3);
+    assert.equal(cap(4), 10);
+    assert.equal(cap(60), 30);
+    _FullLevelConfig.slice(1).forEach(cfg => {
+      assert.ok(cap(cfg.level) >= cap(cfg.level - 1), `level ${cfg.level} never gets easier`);
+    });
+    const gain = (from, to) => cap(to) - cap(from);
+    assert.ok(gain(1, 11) > gain(25, 35) && gain(25, 35) > gain(50, 60), 'growth slows down');
+    assert.ok(gain(1, 4) >= 7, 'the first three levels already climb to 10');
+  });
 
-    const envelopes = operation => {
-      const applicable = _FullLevelConfig.filter(cfg => cfg.operations.includes(operation));
-      return {
-        min: Math.min(...applicable.map(cfg => cfg.operandRange.a[0] * cfg.operandRange.b[0])),
-        max: Math.max(...applicable.map(cfg => cfg.operandRange.a[1] * cfg.operandRange.b[1])),
-      };
-    };
+  it('unlocks one operation every ten levels and mixes all four from level 40', () => {
+    const unlock = { '+': 1, '-': 10, '*': 20, '/': 30 };
+    _FullLevelConfig.forEach(cfg => {
+      const ops = new Set(cfg.operations);
+      for (const [op, from] of Object.entries(unlock)) {
+        assert.equal(ops.has(op), cfg.level >= from, `level ${cfg.level} ${op}`);
+      }
+    });
+    _FullLevelConfig.filter(cfg => cfg.level >= 40).forEach(cfg => {
+      assert.deepEqual(cfg.operations, ['+', '-', '*', '/'], `level ${cfg.level}`);
+    });
+  });
 
-    assert.deepEqual(envelopes('*'), { min: 2, max: 7500 });
-    assert.deepEqual(envelopes('/'), { min: 4, max: 7500 });
-    assert.ok(_FullLevelConfig.every(cfg => !('maxProduct' in cfg) && !('maxDividend' in cfg)),
-      'Canonical operand/product/dividend ranges remain unchanged pending a curriculum decision');
+  it('leans half of the unlock levels (10, 20, 30) on the new operation', () => {
+    [[10, '-'], [20, '*'], [30, '/']].forEach(([level, op]) => {
+      const ops = _FullLevelConfig[level - 1].operations;
+      assert.equal(ops.filter(o => o === op).length * 2, ops.length, `level ${level}`);
+    });
+  });
+
+  it('keeps every product and dividend within 30 x 30', () => {
+    assert.ok(_FullLevelConfig.every(cfg => cfg.operandRange.a[1] <= 30 && cfg.operandRange.b[1] <= 30));
+    assert.ok(_FullLevelConfig.every(cfg => !('maxProduct' in cfg) && !('maxDividend' in cfg)));
   });
 });
 
 describe('generateProblem', () => {
   it('should return correct math for all 60 levels', () => {
     for (let i = 0; i < TOTAL_LEVELS; i++) {
-      const problem = generateProblem(i, 42, _FullLevelConfig[i]);
-
-      const questionMatch = problem.question.match(/^(\d+)\s*([+\-−×÷])\s*(\d+)\s*=\s*\?$/);
-      assert.ok(questionMatch, `Level ${i + 1} question should be in format "a OP b = ?", got: ${problem.question}`);
-
-      const a = parseInt(questionMatch[1], 10);
-      const op = questionMatch[2];
-      const b = parseInt(questionMatch[3], 10);
-
-      let expected;
-      if (op === '+') {
-        expected = a + b;
-      } else if (op === '-' || op === '−') {
-        expected = a - b;
-      } else if (op === '×') {
-        expected = a * b;
-      } else if (op === '÷') {
-        expected = Math.floor(a / b);
-      } else {
-        assert.fail(`Unknown operator: ${op}`);
+      for (let seed = 0; seed < 60; seed++) {
+        const problem = generateProblem(i, seed, _FullLevelConfig[i]);
+        const match = problem.question.match(/^(\?|\d+)\s*([+\-−×÷])\s*(\?|\d+)\s*=\s*(\?|\d+)$/);
+        assert.ok(match, `Level ${i + 1} question should be "a OP b = ?" or a missing-operand form, got: ${problem.question}`);
+        const sign = { '+': '+', '-': '-', '*': '×', '/': '÷' }[problem.operation];
+        assert.equal(match[2].replace('−', '-'), sign.replace('−', '-'));
+        const apply = { '+': (x, y) => x + y, '-': (x, y) => x - y, '*': (x, y) => x * y, '/': (x, y) => x / y }[problem.operation];
+        assert.equal(apply(problem.a, problem.b), problem.result, `${problem.question} operands`);
+        const blanks = [match[1], match[3], match[4]].filter(part => part === '?').length;
+        assert.equal(blanks, 1, `${problem.question} has exactly one blank`);
+        if (problem.hidden === 'a') assert.equal(problem.answer, problem.a);
+        else if (problem.hidden === 'b') assert.equal(problem.answer, problem.b);
+        else assert.equal(problem.answer, problem.result);
+        assert.equal(revealQuestion(problem), problem.question.replace('?', String(problem.answer)));
       }
-
-      assert.strictEqual(problem.answer, expected, `Level ${i + 1} answer mismatch: expected ${expected}, got ${problem.answer}`);
     }
   });
 
@@ -132,16 +113,16 @@ describe('generateProblem', () => {
         assert.ok(problem.options.every(n =>
           Number.isSafeInteger(n) && n >= 0 && Math.abs(n - problem.answer) <= radius));
         if (problem.operation === '/') {
-          assert.ok(problem.answer >= rangeA[0] && problem.answer <= rangeA[1]);
+          assert.ok(problem.result >= rangeA[0] && problem.result <= rangeA[1]);
           assert.ok(problem.b >= Math.max(1, rangeB[0]) && problem.b <= rangeB[1]);
-          assert.equal(problem.a, problem.answer * problem.b);
+          assert.equal(problem.a, problem.result * problem.b);
         } else {
           assert.ok(problem.a >= rangeA[0] && problem.a <= rangeA[1]);
           assert.ok(problem.b >= rangeB[0] && problem.b <= rangeB[1]);
         }
         if (problem.operation === '-') assert.ok(problem.b <= problem.a);
         if (['+', '-'].includes(problem.operation)) {
-          assert.ok(problem.answer <= _FullLevelConfig[i].maxResult);
+          assert.ok(problem.result <= _FullLevelConfig[i].maxResult);
         }
         assert.deepEqual(problem, generateProblem(i, seed, _FullLevelConfig[i]));
       }
@@ -255,8 +236,8 @@ describe('generateProblem', () => {
     };
     for (let seed = 0; seed < 100; seed++) {
       const problem = generateProblem(10, seed, multiplicationConfig);
-      assert.ok(problem.answer <= multiplicationConfig.maxProduct);
-      assert.equal(problem.answer, problem.a * problem.b);
+      assert.ok(problem.result <= multiplicationConfig.maxProduct);
+      assert.equal(problem.result, problem.a * problem.b);
     }
 
     const divisionConfig = {
@@ -268,7 +249,7 @@ describe('generateProblem', () => {
     for (let seed = 0; seed < 100; seed++) {
       const problem = generateProblem(10, seed, divisionConfig);
       assert.ok(problem.a <= divisionConfig.maxDividend);
-      assert.equal(problem.a, problem.answer * problem.b);
+      assert.equal(problem.a, problem.result * problem.b);
     }
 
     assert.throws(() => generateProblem(10, 42, {
@@ -446,6 +427,199 @@ describe('fiend composition 50/30/20 rule', () => {
       const observed = counts[w.type] / numSamples;
       assert.ok(Math.abs(observed - w.weight) < 0.05,
         `Type ${w.type} observed frequency ${observed} should be within 0.05 of weight ${w.weight}`);
+    }
+  });
+});
+
+describe('missing-operand questions and zero', () => {
+  const unlockLevel = MISSING_OPERAND_FROM_LEVEL;
+
+  it('only appear from level 10 and never before', () => {
+    for (let i = 0; i < unlockLevel - 1; i++) {
+      for (let seed = 0; seed < 200; seed++) {
+        assert.equal(generateProblem(i, seed, _FullLevelConfig[i]).hidden, null);
+      }
+    }
+  });
+
+  it('hide either operand for every operation, with the hidden value as the answer', () => {
+    const seen = new Set();
+    for (let i = unlockLevel - 1; i < TOTAL_LEVELS; i++) {
+      for (let seed = 0; seed < 300; seed++) {
+        const p = generateProblem(i, seed, _FullLevelConfig[i]);
+        if (p.hidden) seen.add(`${p.operation}${p.hidden}`);
+      }
+    }
+    for (const op of ['+', '-', '*', '/']) {
+      assert.ok(seen.has(`${op}a`) && seen.has(`${op}b`), `${op} hides both operands`);
+    }
+  });
+
+  it('ramps from one question in four at level 10 to one in two at level 60', () => {
+    assert.equal(missingOperandShare(9), 0);
+    assert.equal(missingOperandShare(10), 0.25);
+    assert.equal(missingOperandShare(60), 0.5);
+    for (const level of [10, 35, 60]) {
+      let hidden = 0;
+      const total = 4000;
+      for (let seed = 0; seed < total; seed++) {
+        if (generateProblem(level - 1, seed, _FullLevelConfig[level - 1]).hidden) hidden++;
+      }
+      // Zero-operand multiplications and zero quotients stay ordinary, so allow a small dip.
+      const expected = missingOperandShare(level);
+      assert.ok(hidden / total > expected - 0.06 && hidden / total < expected + 0.03,
+        `level ${level}: share ${hidden / total} vs ${expected}`);
+    }
+  });
+
+  it('has exactly one solution and never divides by zero', () => {
+    for (let i = 0; i < TOTAL_LEVELS; i++) {
+      for (let seed = 0; seed < 400; seed++) {
+        const p = generateProblem(i, seed, _FullLevelConfig[i]);
+        if (p.operation === '/') assert.ok(p.b >= 1, `${p.question} divides by a non-zero number`);
+        if (p.hidden && p.operation === '*') {
+          assert.ok((p.hidden === 'a' ? p.b : p.a) !== 0, `${p.question} is ambiguous`);
+        }
+        if (p.hidden && p.operation === '/') {
+          assert.ok(p.result !== 0 || p.hidden === 'a', `${p.question} is ambiguous`);
+          if (p.hidden === 'b') assert.ok(p.answer >= 1);
+        }
+        assert.ok(!/÷\s*0\b/.test(p.question), p.question);
+      }
+    }
+  });
+
+  it('offers zero as an operand only from level 5', () => {
+    for (let level = 1; level <= 6; level++) {
+      const questions = new Set();
+      for (let seed = 0; seed < 400; seed++) {
+        questions.add(generateProblem(level - 1, seed, _FullLevelConfig[level - 1]).question);
+      }
+      const hasZero = [...questions].some(q => /(^|\s)0(\s|$)/.test(q));
+      assert.equal(hasZero, level >= 5, `level ${level}`);
+    }
+    const level1 = new Set();
+    for (let seed = 0; seed < 300; seed++) level1.add(generateProblem(0, seed, _FullLevelConfig[0]).question);
+    assert.ok([...level1].every(q => !/[4-9]/.test(q)), 'level 1 stays within 1-3');
+  });
+
+  it('keeps answer choices valid for hidden operands', () => {
+    for (let seed = 0; seed < 300; seed++) {
+      const p = generateProblem(9, seed, _FullLevelConfig[9]);
+      assert.equal(p.options.length, 5);
+      assert.equal(p.options.filter(n => n === p.answer).length, 1);
+      assert.ok(p.options.every(n => n >= 0));
+    }
+  });
+});
+
+describe('livelier questions', () => {
+  const cfgOf = level => _FullLevelConfig[level - 1];
+  const sample = (level, count, options) =>
+    Array.from({ length: count }, (_, seed) => generateProblem(level - 1, seed, cfgOf(level), options));
+
+  it('skips dull ordinary questions from level 10 on', () => {
+    for (let level = 10; level <= 60; level++) {
+      for (const p of sample(level, 300, { missing: false })) {
+        if (p.operation === '*') assert.ok(p.a > 1 && p.b > 1, `${p.question}`);
+        if (p.operation === '/') assert.ok(p.b > 1 && p.result > 0, `${p.question}`);
+        if (p.operation === '-') assert.ok(p.a !== p.b, `${p.question}`);
+        if (p.operation === '+') assert.ok(p.a + p.b > 0, `${p.question}`);
+      }
+    }
+  });
+
+  it('opens x and / gently: operands stay at 10 for five levels, then grow to the level cap', () => {
+    for (const [op, from] of [['*', 20], ['/', 30]]) {
+      for (let level = from; level < from + 5; level++) {
+        const cap = cfgOf(level).operandRangeByOp?.[op]?.a[1];
+        assert.equal(cap, 10, `${op} at level ${level}`);
+        for (const p of sample(level, 300, { operations: [op], missing: false })) {
+          const factors = op === '*' ? [p.a, p.b] : [p.result, p.b];
+          assert.ok(factors.every(n => n <= 10), `${p.question} at level ${level}`);
+        }
+      }
+      const later = cfgOf(from + 5).operandRangeByOp?.[op]?.a[1] ?? cfgOf(from + 5).operandRange.a[1];
+      assert.ok(later > 10);
+    }
+  });
+
+  it('eases the new operation after each unlock level and climbs back to an even mix', () => {
+    for (const [op, from] of [['-', 10], ['*', 20], ['/', 30]]) {
+      const share = level => {
+        const ops = cfgOf(level).operations;
+        return ops.filter(o => o === op).length / ops.length;
+      };
+      assert.equal(share(from), 0.5);
+      assert.ok(share(from + 1) < 0.25, `level ${from + 1} is easier`);
+      for (let level = from + 1; level < from + 4; level++) {
+        assert.ok(share(level + 1) > share(level), `level ${level + 1} climbs back`);
+      }
+      const unique = new Set(cfgOf(from + 5).operations);
+      assert.equal(cfgOf(from + 5).operations.length, unique.size, `level ${from + 5} is an even mix`);
+    }
+  });
+
+  it('weights operand draws towards the top third of the range from level 5', () => {
+    assert.equal(TOP_WEIGHT_FROM_LEVEL, 5);
+    const level = 30;
+    const cap = cfgOf(level).operandRange.a[1];
+    const problems = sample(level, 3000, { operations: ['+'], missing: false });
+    const topShare = problems.filter(p => p.a >= (cap * 2) / 3).length / problems.length;
+    assert.ok(topShare > 0.45, `top-third share ${topShare}`);
+  });
+
+  it('keeps the data deterministic per seed with forced kinds', () => {
+    assert.deepEqual(generateProblem(29, 7, cfgOf(30), { missing: true }), generateProblem(29, 7, cfgOf(30), { missing: true }));
+  });
+
+  it('shows runestone counts for some additions on levels 1-2 only', () => {
+    const shown = sample(1, 200).filter(p => p.visual);
+    assert.ok(shown.length > 40 && shown.length < 160, `${shown.length} runestone questions`);
+    shown.forEach(p => {
+      assert.ok(p.a + p.b <= 6, `${p.question} has at most six stones`);
+      assert.deepEqual(p.visual, { a: p.a, b: p.b });
+      assert.equal(p.operation, '+');
+      assert.match(p.question, /^\d \+ \d = \?$/, 'the digits stay in the question for reveals and summaries');
+    });
+    for (const level of [3, 9, 10, 30]) assert.ok(sample(level, 100).every(p => p.visual === null));
+    const level2 = sample(2, 600).filter(p => p.operation === '+');
+    assert.ok(level2.some(p => p.a + p.b > 6 && p.visual === null), 'bigger sums stay digits on level 2');
+    assert.ok(level2.some(p => p.a + p.b <= 6 && p.visual), 'small sums still get stones on level 2');
+    assert.ok(level2.every(p => p.a + p.b > 6 ? p.visual === null : true));
+    assert.ok(sample(1, 100).every(p => !('display' in p)));
+  });
+
+  it('asks a boss round three different question types', () => {
+    assert.deepEqual([...BOSS_ROUND_LEVELS], [20, 30, 40, 50, 60]);
+    assert.ok(BOSS_ROUND_LEVELS.every(isBossRoundLevel) && !isBossRoundLevel(25));
+    for (const level of BOSS_ROUND_LEVELS) {
+      const [ordinary, newest, missing] = bossRoundKinds(level);
+      assert.deepEqual(ordinary, { missing: false });
+      assert.ok(newest.operations.length > 0);
+      for (const p of sample(level, 100, newest)) {
+        assert.ok(newest.operations.includes(p.operation));
+        assert.equal(p.hidden, null, 'the second hit is a plain question of the newest operation');
+      }
+      for (const p of sample(level, 100, ordinary)) assert.equal(p.hidden, null);
+      for (const p of sample(level, 100, missing)) {
+        assert.ok(p.hidden, `${p.question} hides an operand`);
+        assert.ok(p.question.includes('?') && !p.question.endsWith('= ?'));
+      }
+    }
+  });
+});
+
+describe('fiends from the two levels before', () => {
+  it('every level still mixes its own fiend type with the two before it (50/30/20)', () => {
+    for (let level = 3; level <= 60; level++) {
+      const weights = getFiendWeights(level);
+      const types = new Set(weights.map(w => w.type));
+      for (const back of [0, 1, 2]) {
+        const prior = getFiendWeights(level - back)[0].type;
+        assert.ok(types.has(prior), `level ${level} includes the fiend of level ${level - back}`);
+      }
+      assert.ok(Math.abs(weights.reduce((sum, w) => sum + w.weight, 0) - 1) < 1e-9);
     }
   });
 });

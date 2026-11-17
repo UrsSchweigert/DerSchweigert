@@ -76,7 +76,7 @@
  * rows: the localized instruction and one unbroken row of shapes.
  *
  * The renderer writes the per-row font size inline, scaled from the measured
- * header width, so a count of 1-10 never wraps between shapes and never needs
+ * header width, so a count of 1-6 never wraps between shapes and never needs
  * clipping or ellipsis. Only the header text is restructured: #input-zone,
  * #mc-buttons and the 44px answer targets keep their web geometry. */
 #active-question[data-shapes-header="two-rows"] {

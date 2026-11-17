@@ -13,7 +13,7 @@ import { resetLevelAttempt } from './campaign-progress.js';
 import { getSkillIntro } from './skill-intro.js';
 import { isAbilityBandStart } from './combo-abilities.js';
 import { generateShapesProblem } from './shapes.js';
-import { getArithmeticOptionCount } from './levels.js';
+import { getArithmeticOptionCount, revealQuestion } from './levels.js';
 import { PRACTICE_KINDS } from './practice-session.js';
 import { setLocale, t } from './i18n.js';
 import {
@@ -371,7 +371,7 @@ test('worked examples render only after authorization and both intro actions sta
     vm.runInContext(`${fn('renderSkillIntro')}\n${fn('showSkillIntro')}\n` +
       `btnSkillIntroContinue.addEventListener('click', () => pendingSkillIntro?.());\n` +
       `btnSkillIntroSkip.addEventListener('click', () => pendingSkillIntro?.());`, context);
-    context.showSkillIntro(getSkillIntro(34), 33, { level: 34 }, 0);
+    context.showSkillIntro(getSkillIntro(30), 29, { level: 30 }, 0);
     assert.equal(context.skillIntroOverlay.style.display, 'flex');
     assert.match(context.skillIntroBody.textContent, /20\/4\/5/);
     assert.match(context.skillIntroExample.textContent, /20\/4\/5/);
@@ -495,7 +495,7 @@ function correctAnswerContext(kind, { hearts = 5, maxHearts = 5, hp = 1 } = {}) 
     spawnInterval: 2, shouldPreserveTimerAfterHit: () => true,
     recordPracticeEncounterDefeated: null,
     getCurrentInputMode: () => 'multiple-choice',
-    generateProblem: () => problem(),
+    generateProblem: () => problem(), nextHitProblem: () => problem(),
     platform: { getCurrentLevelConfig: () => ({ level: 1 }) },
     queueProblemActivation: (fiendArg, options) => { context.queued = { fiend: fiendArg, options }; },
   };
@@ -641,7 +641,7 @@ test('targeted mistakes wait through correction and retry the same problem; fina
     input: { disable() {} }, inputDisabled: false,
     scheduleGameplayTimeout: callback => targetedTimers.push(callback),
     healTipShown: true, triggerGameOver() {}, requeuedFiends: [],
-    t: key => key, console: { error() {} },
+    t: key => key, console: { error() {} }, revealQuestion,
   };
   vm.createContext(targeted);
   vm.runInContext(mistake, targeted);
