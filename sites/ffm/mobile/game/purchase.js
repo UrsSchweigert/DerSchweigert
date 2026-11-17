@@ -1,7 +1,7 @@
 // purchase.js — One-time unlock purchase through StoreKit 2 and Google Play.
 //
-// The app sells two independent non-consumable products: the full unlock
-// (arithmoslayer_full_unlock) and the hero pack (arithmoslayer_hero_pack).
+// The app sells one non-consumable product, the full unlock (arithmoslayer_full_unlock),
+// which also includes the hero colour schemes.
 // The open-source @capgo/native-purchases plugin (MPL-2.0) wraps StoreKit 2 on
 // iOS and Google Play Billing on Android; there is no backend, no receipt
 // server and no third-party purchase service. Prices always come from the
@@ -22,14 +22,8 @@ import { gate as parentalGate } from './parental-gate.js';
 /** The single non-consumable unlock sold by the app. */
 export const PRODUCT_ID = 'arithmoslayer_full_unlock';
 
-/** The non-consumable hero pack sold by the app. */
-export const HERO_PACK_ID = 'arithmoslayer_hero_pack';
-
-/** Every product the app sells. */
-export const PRODUCTS = Object.freeze({ FULL_UNLOCK: PRODUCT_ID, HERO_PACK: HERO_PACK_ID });
-
 /** The catalogue ids, in a stable order. */
-export const CATALOGUE_IDS = Object.freeze([PRODUCT_ID, HERO_PACK_ID]);
+export const CATALOGUE_IDS = Object.freeze([PRODUCT_ID]);
 
 /** Google Play / StoreKit product type for a one-time purchase. */
 export const PRODUCT_TYPE = 'inapp';

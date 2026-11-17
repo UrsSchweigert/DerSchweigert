@@ -7,7 +7,6 @@
 
 import {
   PURCHASE_OUTCOMES,
-  HERO_PACK_ID,
   RESTORE_OUTCOMES,
   createPurchaseStore,
   createPurchasesPlugin,
@@ -23,7 +22,6 @@ export const STRINGS = Object.freeze({
   'paywall.close': { en: 'Not now', de: 'Später' },
   'paywall.success': { en: 'Purchase complete. All levels are unlocked.', de: 'Kauf abgeschlossen. Alle Level sind freigeschaltet.' },
   'paywall.restored': { en: 'Purchase restored. All levels are unlocked.', de: 'Kauf wiederhergestellt. Alle Level sind freigeschaltet.' },
-  'paywall.restoredPack': { en: 'Hero pack restored.', de: 'Heldenpaket wiederhergestellt.' },
   'paywall.cancelled': { en: 'Purchase cancelled.', de: 'Kauf abgebrochen.' },
   'paywall.pending': { en: 'Purchase pending approval. Levels unlock once the store confirms it.', de: 'Kauf wartet auf Bestätigung. Freischaltung folgt, sobald der Store ihn bestätigt.' },
   'paywall.gated': { en: 'Ask an adult to complete the parental gate.', de: 'Bitte einen Erwachsenen, die Elternkontrolle abzuschließen.' },
@@ -250,16 +248,6 @@ export function createPaywall({
         return fail(result.outcome, 'paywall.restoreError', true);
       }
       if (result.entitled) return grant(result.outcome, 'paywall.restored');
-      if (result.ownedProducts?.includes(HERO_PACK_ID)) {
-        const status = await withBusy(() => platform.refreshEntitlement());
-        return {
-          outcome: result.outcome,
-          granted: false,
-          packRestored: status?.hero_pack === true,
-          status,
-          message: message('paywall.restoredPack'),
-        };
-      }
       return fail(result.outcome, 'paywall.nothingToRestore');
     },
   };

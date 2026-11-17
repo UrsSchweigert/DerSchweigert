@@ -5103,14 +5103,15 @@ if (!platform.isApp) {
   // (each hop can also hit a cold Lambda) before anything is shown.
   leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
 }
-// App hero picker: the shared grid in a dialog over the profile list. Lock
-// state comes from the cached hero pack entitlement, so it works offline.
-let heroPackOwned = false;
-async function readHeroPackOwned() {
+// App hero picker: the shared grid in a dialog over the profile list. The colour
+// schemes come with the regular full unlock, so lock state is the cached unlock
+// entitlement (works offline), and a locked scheme opens the regular paywall.
+let heroUnlocked = false;
+async function readHeroUnlocked() {
   try {
-    heroPackOwned = (await platform.getBillingStatus())?.hero_pack === true;
+    heroUnlocked = (await platform.getBillingStatus())?.premium_access === true;
   } catch {
-    heroPackOwned = false;
+    heroUnlocked = false;
   }
 }
 const heroPortraitFor = profile => heroAssetUrl(resolveHero(profile.hero, { entitled: true }).portrait);
@@ -5118,7 +5119,7 @@ const canSwitchProfiles = () => diffSelect.style.display !== 'none' && !completi
 
 async function openHeroPicker(profile) {
   if (document.querySelector('.hero-picker-overlay')) return;
-  await readHeroPackOwned();
+  await readHeroUnlocked();
   const { mountHeroPicker } = await import('./hero-picker.js');
   let selectedId = resolveHero(profile.hero, { entitled: true }).id;
   const overlay = document.createElement('div');
@@ -5167,7 +5168,6 @@ async function openHeroPicker(profile) {
     area.append(canvas);
   };
 
-  let packSheet = null;
   let picker = null;
   const setStatus = text => {
     const status = gridRoot.querySelector('[data-hero-status]');
@@ -5182,7 +5182,7 @@ async function openHeroPicker(profile) {
     document.querySelector('#profile-root .profile-change-hero')?.focus();
   };
   function onKey(event) {
-    if (event.key === 'Escape' && !document.querySelector('.pack-sheet-overlay')) close();
+    if (event.key === 'Escape' && !document.querySelector('.paywall-overlay')) close();
   }
   document.addEventListener('keydown', onKey);
   closeBtn.addEventListener('click', close);
@@ -5191,7 +5191,7 @@ async function openHeroPicker(profile) {
     t,
     getSelectedId: () => selectedId,
     canChange: canSwitchProfiles,
-    isLocked: entry => !entry.free && !heroPackOwned,
+    isLocked: entry => !entry.free && !heroUnlocked,
     renderPreview,
     onSelect: async entry => {
       try {
@@ -5211,19 +5211,17 @@ async function openHeroPicker(profile) {
     },
     onLocked: async () => {
       try {
-        const { createPackSheet } = await import('./pack-sheet.js');
-        packSheet ??= createPackSheet({
+        const { createPaywall } = await import('./paywall.js');
+        await createPaywall({
           platform,
           locale: getLocale(),
-          opener: gridRoot.querySelector('button[data-hero-id]:focus') ?? closeBtn,
           onGranted: async () => {
-            await readHeroPackOwned();
+            await readHeroUnlocked();
             picker?.update();
           },
-        });
-        await packSheet.open();
+        }).open();
       } catch (error) {
-        console.error('Unable to open the hero pack sheet', error);
+        console.error('Unable to open the unlock paywall', error);
       }
     },
   });

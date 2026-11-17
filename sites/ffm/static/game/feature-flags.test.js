@@ -23,7 +23,7 @@ test('main.js gates the skin, identity portrait, app picker and web picker on th
   assert.match(source, /function heroPackOn\(/);
   assert.match(source, /async function resolveActiveHeroId\(\) \{\s*try \{\s*if \(!heroPackOn\(\)\) return resolveHero\(null\)\.id;/);
   assert.ok(!/TEST UNLOCK/.test(source), 'the local-testing unlock must not ship');
-  assert.match(source, /isLocked: entry => !entry\.free && !heroPackOwned,/);
+  assert.match(source, /isLocked: entry => !entry\.free && !heroUnlocked,/);
   assert.match(source, /heroFeature: \(\) => heroPackOn\(\)/);
   assert.match(source, /if \(!platform\.isLoggedIn \|\| !heroPackOn\(\)\) \{\s*accountHeroPicker\.hidden = true;/);
   assert.match(source, /heroPackOn\(\) && platform\.isLoggedIn && splashGreeting\.textContent/);

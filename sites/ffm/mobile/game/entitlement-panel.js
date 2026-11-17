@@ -164,7 +164,6 @@ export function buildEntitlementMarkup({
 export function outcomeFromResult(result, action) {
   if (action === 'restore') {
     if (result?.granted) return { key: 'paywall.restored', error: false };
-    if (result?.packRestored) return { key: 'paywall.restoredPack', error: false };
     if (result?.outcome === RESTORE_OUTCOMES.GATED) return { key: 'paywall.gated', error: true };
     if (result?.outcome === RESTORE_OUTCOMES.ERROR) return { key: 'paywall.restoreError', error: true };
     if (result?.outcome === RESTORE_OUTCOMES.RESTORED) {
@@ -352,7 +351,7 @@ export function createEntitlementPanel({
     try {
       const result = await paywallForCurrentLocale()[action]();
       outcome = outcomeFromResult(result, action);
-      if ((result?.granted || result?.packRestored) && result?.status) await applyStatus(result.status);
+      if (result?.granted && result?.status) await applyStatus(result.status);
       return result;
     } catch {
       outcome = {
