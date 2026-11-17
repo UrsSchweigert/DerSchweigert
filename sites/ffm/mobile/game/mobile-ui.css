@@ -504,6 +504,8 @@
   opacity: 0.6;
 }
 #local-profiles .profile-change-hero,
+#local-profiles .profile-rename,
+#local-profiles .profile-delete,
 .hero-picker-overlay .hero-picker-item,
 .hero-picker-overlay .hero-picker-close {
   min-width: 44px;
@@ -543,7 +545,25 @@
   max-height: 120px;
   width: auto;
 }
+#local-profiles .profile-rename,
+#local-profiles .profile-delete {
+  flex: 0 0 auto;
+  font-weight: 700;
+  padding: 0 8px;
+  border-radius: 8px;
+}
+/* Red text on a dark border keeps the delete glyph readable on the dialog. */
+#local-profiles .profile-delete {
+  color: #ff6b6b;
+  border: 2px solid #ff6b6b;
+  background: var(--ink-900, #1b1b2a);
+}
+#local-profiles .profile-delete:disabled {
+  opacity: 0.5;
+}
 #local-profiles .profile-change-hero:focus-visible,
+#local-profiles .profile-rename:focus-visible,
+#local-profiles .profile-delete:focus-visible,
 .hero-picker-overlay button:focus-visible {
   outline: 2px solid var(--focus-ring, #fff0bd);
   outline-offset: 2px;
