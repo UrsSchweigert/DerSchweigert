@@ -414,6 +414,7 @@ const DICTIONARY = {
   'campaign2.genius.play': { en: 'Play', de: 'Spielen' },
   'campaign2.genius.back': { en: 'Back to Campaign I', de: 'Zurück zu Abenteuer I' },
   'campaign2.genius.backStatus': { en: 'Switch', de: 'Wechseln' },
+  'campaign2.restore': { en: 'Restore purchases', de: 'Käufe wiederherstellen' },
   'campaign2.continueAt': { en: 'Campaign II: continue at Level {level}', de: 'Abenteuer II: weiter bei Level {level}' },
   'campaign2.complete': { en: 'Campaign II complete — replay from the start', de: 'Abenteuer II geschafft — spiele von vorn' },
   'campaign2.note.web': {
