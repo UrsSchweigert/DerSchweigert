@@ -227,9 +227,13 @@ if (platform.isApp) {
   // engine and persisted preferences as the pause-menu audio settings. It is
   // created after the engine exists because the overlay import resolves after
   // this synchronous module body.
-  import('./volume-control.js')
-    .then(({ createVolumeControl }) => {
+  Promise.all([
+    import('./volume-control.js'),
+    import('./ios-platform.js').catch(() => null),
+  ])
+    .then(([{ createVolumeControl }, iosPlatform]) => {
       volumeControl = createVolumeControl({
+        silentSwitchHint: Boolean(iosPlatform?.isIosApp()),
         doc: document,
         audio,
         translate: t,
@@ -2704,9 +2708,11 @@ function updateMuteButtonLabel() {
 }
 
 muteBtn.addEventListener('click', () => {
+  const wasMuted = audio.muted;
   audio.toggleMute();
   persistAudioPreferences();
   updateMuteButtonLabel();
+  volumeControl?.noteMuteChange?.(wasMuted);
 });
 
 langToggleBtn?.addEventListener('click', () => {

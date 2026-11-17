@@ -387,6 +387,7 @@ const DICTIONARY = {
     en: 'Music volume control is not available on this device. Use the device volume buttons.',
     de: 'Die Musiklautstärke ist auf diesem Gerät nicht einstellbar. Nutze die Lautstärketasten des Geräts.',
   },
+  'audio.silentSwitchHint': { en: 'Sound is on. Still silent? Check the silent switch (silent mode) on your device.', de: 'Ton ist an. Trotzdem still? Prüfe den Stummschalter (Lautlos-Modus) am Gerät.' },
   'audio.musicVolumeReady': { en: 'Music volume control is available.', de: 'Die Musiklautstärke kann angepasst werden.' },
   'audio.effectsVolume': { en: 'Effects volume', de: 'Effektlautstärke' },
   'audio.haptics': { en: 'Vibration', de: 'Vibration' },
