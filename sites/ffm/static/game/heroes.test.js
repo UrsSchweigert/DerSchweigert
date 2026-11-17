@@ -12,19 +12,15 @@ import {
 
 const ROSTER_IDS = [
   'adventurer',
-  'adventuress',
-  'princess',
-  'princess-armed',
-  'rogue',
-  'rogue-f',
-  'soldier',
-  'soldier-f',
-  'monk',
-  'priestess',
+  'wood',
+  'flint',
+  'carl',
+  'ori',
+  'quirl',
 ];
 
 describe('roster', () => {
-  it('lists the ten heroes in roster order', () => {
+  it('lists the six heroes in roster order', () => {
     assert.deepEqual(
       HEROES.map((entry) => entry.id),
       ROSTER_IDS,
@@ -38,19 +34,10 @@ describe('roster', () => {
   });
 
   it('assigns the strike family of each hero', () => {
+    const ids = ROSTER_IDS;
     const strikes = Object.fromEntries(HEROES.map((entry) => [entry.id, entry.strike]));
-    assert.deepEqual(strikes, {
-      adventurer: 'sword',
-      adventuress: 'sword',
-      princess: 'sword',
-      'princess-armed': 'sword',
-      rogue: 'bow',
-      'rogue-f': 'bow',
-      soldier: 'buckler',
-      'soldier-f': 'buckler',
-      monk: 'fist',
-      priestess: 'fist',
-    });
+    assert.deepEqual(strikes, Object.fromEntries(ids.map((id) => [id, 'sword'])));
+
   });
 
   it('marks exactly one hero as free, and it is the default', () => {
@@ -110,16 +97,16 @@ describe('resolveHero', () => {
   it('returns the default for numbers, objects and symbols without throwing', () => {
     assert.equal(resolveHero(0).id, 'adventurer');
     assert.equal(resolveHero(42).id, 'adventurer');
-    assert.equal(resolveHero({ id: 'rogue' }).id, 'adventurer');
-    assert.equal(resolveHero(['rogue']).id, 'adventurer');
-    assert.equal(resolveHero(Symbol('rogue')).id, 'adventurer');
+    assert.equal(resolveHero({ id: 'wood' }).id, 'adventurer');
+    assert.equal(resolveHero(['wood']).id, 'adventurer');
+    assert.equal(resolveHero(Symbol('wood')).id, 'adventurer');
   });
 
   it('returns the default for ids that fail the pattern', () => {
     assert.equal(resolveHero('').id, 'adventurer');
     assert.equal(resolveHero('Rogue').id, 'adventurer');
-    assert.equal(resolveHero('1rogue').id, 'adventurer');
-    assert.equal(resolveHero('rogue_f').id, 'adventurer');
+    assert.equal(resolveHero('1wood').id, 'adventurer');
+    assert.equal(resolveHero('wood_f').id, 'adventurer');
     assert.equal(resolveHero(`a${'b'.repeat(32)}`).id, 'adventurer');
   });
 
@@ -128,17 +115,17 @@ describe('resolveHero', () => {
   });
 
   it('returns the default for a pack hero that is not entitled', () => {
-    assert.equal(resolveHero('rogue').id, 'adventurer');
-    assert.equal(resolveHero('rogue', {}).id, 'adventurer');
-    assert.equal(resolveHero('rogue', { entitled: false }).id, 'adventurer');
-    assert.equal(resolveHero('rogue', { entitled: 'true' }).id, 'adventurer');
-    assert.equal(resolveHero('rogue', { entitled: 1 }).id, 'adventurer');
-    assert.equal(resolveHero('rogue', null).id, 'adventurer');
+    assert.equal(resolveHero('wood').id, 'adventurer');
+    assert.equal(resolveHero('wood', {}).id, 'adventurer');
+    assert.equal(resolveHero('wood', { entitled: false }).id, 'adventurer');
+    assert.equal(resolveHero('wood', { entitled: 'true' }).id, 'adventurer');
+    assert.equal(resolveHero('wood', { entitled: 1 }).id, 'adventurer');
+    assert.equal(resolveHero('wood', null).id, 'adventurer');
   });
 
   it('returns the chosen pack hero when entitled is true', () => {
-    assert.equal(resolveHero('rogue', { entitled: true }).id, 'rogue');
-    assert.equal(resolveHero('priestess', { entitled: true }).id, 'priestess');
+    assert.equal(resolveHero('wood', { entitled: true }).id, 'wood');
+    assert.equal(resolveHero('ori', { entitled: true }).id, 'ori');
   });
 
   it('returns the free hero regardless of entitlement', () => {
@@ -148,8 +135,8 @@ describe('resolveHero', () => {
   });
 
   it('returns the same frozen roster entry objects', () => {
-    assert.equal(resolveHero('monk', { entitled: true }), HEROES[8]);
-    assert.ok(Object.isFrozen(resolveHero('monk', { entitled: true })));
+    assert.equal(resolveHero('quirl', { entitled: true }), HEROES[5]);
+    assert.ok(Object.isFrozen(resolveHero('quirl', { entitled: true })));
   });
 });
 
@@ -165,7 +152,7 @@ describe('heroes.js source', () => {
 
 it('heroAssetUrl resolves a roster path against the game folder, not the page', async () => {
   const { heroAssetUrl } = await import('./heroes.js');
-  const url = heroAssetUrl('heroes/rogue/portrait.webp');
+  const url = heroAssetUrl('heroes/wood/portrait.webp');
   assert.match(url, /^file:|^https?:/);
-  assert.ok(url.endsWith('/game/heroes/rogue/portrait.webp'), url);
+  assert.ok(url.endsWith('/game/heroes/wood/portrait.webp'), url);
 });

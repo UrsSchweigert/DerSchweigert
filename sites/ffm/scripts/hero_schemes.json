@@ -1,0 +1,148 @@
+{
+ "_doc": "Colour schemes for the one hero. Per region: h = hue shift in degrees, s / v = multipliers, set_h/set_s = force a hue and a minimum saturation (for the near-black gloves and boots), lift = raise the black point 0..1. Regions: hair skin tunic scarf cape gloves boots. Edit, run hero_recolor.py, look at the sheet.",
+ "adventurer": {},
+ "wood": {
+  "tunic": {
+   "h": 170,
+   "s": 1.19,
+   "v": 1.7
+  },
+  "cape": {
+   "h": 24
+  },
+  "scarf": {
+   "h": 40,
+   "v": 1.05
+  },
+  "hair": {
+   "h": -8,
+   "s": 1.05
+  },
+  "gloves": {
+   "set_h": 22,
+   "set_s": 0.55,
+   "lift": 0.2
+  },
+  "boots": {
+   "set_h": 18,
+   "set_s": 0.5,
+   "lift": 0.18
+  }
+ },
+ "flint": {
+  "tunic": {
+   "h": -95,
+   "s": 1.12,
+   "v": 1.7
+  },
+  "cape": {
+   "h": 120,
+   "s": 0.8,
+   "v": 0.9
+  },
+  "scarf": {
+   "h": 60
+  },
+  "hair": {
+   "h": -22,
+   "s": 0.95
+  },
+  "gloves": {
+   "set_h": 95,
+   "set_s": 0.5,
+   "lift": 0.18
+  },
+  "boots": {
+   "set_h": 28,
+   "set_s": 0.45,
+   "lift": 0.14
+  }
+ },
+ "carl": {
+  "tunic": {
+   "h": 50,
+   "v": 1.7,
+   "s": 1.25
+  },
+  "cape": {
+   "h": 305,
+   "s": 0.9
+  },
+  "scarf": {
+   "h": 40,
+   "v": 1.1
+  },
+  "hair": {
+   "h": 6
+  },
+  "gloves": {
+   "set_h": 280,
+   "set_s": 0.45,
+   "lift": 0.2
+  },
+  "boots": {
+   "set_h": 275,
+   "set_s": 0.4,
+   "lift": 0.16
+  }
+ },
+ "ori": {
+  "tunic": {
+   "h": 175,
+   "s": 1.0,
+   "v": 2.04
+  },
+  "cape": {
+   "h": 35,
+   "v": 1.05
+  },
+  "scarf": {
+   "h": 330
+  },
+  "hair": {
+   "h": -14,
+   "s": 1.1
+  },
+  "gloves": {
+   "set_h": 10,
+   "set_s": 0.5,
+   "lift": 0.22
+  },
+  "boots": {
+   "set_h": 12,
+   "set_s": 0.5,
+   "lift": 0.2
+  }
+ },
+ "quirl": {
+  "tunic": {
+   "h": 100,
+   "s": 1.0,
+   "v": 1.87
+  },
+  "cape": {
+   "h": -20,
+   "s": 0.8,
+   "v": 1.1
+  },
+  "scarf": {
+   "h": 20,
+   "v": 1.1
+  },
+  "hair": {
+   "h": 8,
+   "s": 0.9,
+   "v": 0.85
+  },
+  "gloves": {
+   "set_h": 340,
+   "set_s": 0.4,
+   "lift": 0.22
+  },
+  "boots": {
+   "set_h": 345,
+   "set_s": 0.4,
+   "lift": 0.2
+  }
+ }
+}

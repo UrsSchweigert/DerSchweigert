@@ -31,18 +31,18 @@ const importer = (failing = []) => async (url) => {
 describe('loadHeroSkin', () => {
   it('loads the selected hero atlas, frames, anchors and strike family', async () => {
     const { createImage } = fakeImages();
-    const skin = await loadHeroSkin({ heroId: 'rogue', createImage, importFrames: importer() });
-    assert.equal(skin.id, 'rogue');
-    assert.equal(skin.strike, 'bow');
+    const skin = await loadHeroSkin({ heroId: 'wood', createImage, importFrames: importer() });
+    assert.equal(skin.id, 'wood');
+    assert.equal(skin.strike, 'sword');
     assert.equal(skin.frames, frames);
     assert.deepEqual(skin.anchors.strike, [1, 2]);
-    assert.match(skin.atlas.src, /heroes\/rogue\/hero-atlas\.webp$/);
+    assert.match(skin.atlas.src, /heroes\/wood\/hero-atlas\.webp$/);
   });
 
   it('falls back to the adventurer when the atlas or frames fail', async () => {
-    for (const [imgFail, modFail] of [[['heroes/rogue/'], []], [[], ['heroes/rogue/']]]) {
+    for (const [imgFail, modFail] of [[['heroes/wood/'], []], [[], ['heroes/wood/']]]) {
       const { createImage } = fakeImages(imgFail);
-      const skin = await loadHeroSkin({ heroId: 'rogue', createImage, importFrames: importer(modFail) });
+      const skin = await loadHeroSkin({ heroId: 'wood', createImage, importFrames: importer(modFail) });
       assert.equal(skin.id, 'adventurer');
       assert.ok(skin.atlas);
     }
@@ -50,7 +50,7 @@ describe('loadHeroSkin', () => {
 
   it('yields an atlas-less skin when the adventurer fails too, and never throws', async () => {
     const { createImage } = fakeImages(['.webp']);
-    const skin = await loadHeroSkin({ heroId: 'rogue', createImage, importFrames: importer() });
+    const skin = await loadHeroSkin({ heroId: 'wood', createImage, importFrames: importer() });
     assert.equal(skin.atlas, null);
     const bad = await loadHeroSkin({ heroId: 42, createImage, importFrames: async () => ({}) });
     assert.equal(bad.atlas, null);
@@ -68,7 +68,7 @@ describe('createHeroSkinManager', () => {
     await manager.apply(h, 'adventurer');
     assert.equal(made.length, 1);
     const first = made[0];
-    await manager.apply(h, 'rogue');
+    await manager.apply(h, 'wood');
     assert.equal(made.length, 2);
     assert.equal(h.skins.length, 2);
     assert.equal(first.src, '');
@@ -80,7 +80,7 @@ describe('createHeroSkinManager', () => {
     const manager = createHeroSkinManager({ createImage, importFrames: importer() });
     const h = hero();
     await manager.apply(h, 'adventurer');
-    const pending = manager.apply(h, 'rogue');
+    const pending = manager.apply(h, 'wood');
     assert.ok(made[0].src);
     await pending;
   });
@@ -89,7 +89,7 @@ describe('createHeroSkinManager', () => {
     const { createImage } = fakeImages(['.webp']);
     const manager = createHeroSkinManager({ createImage, importFrames: importer() });
     const h = hero();
-    await manager.apply(h, 'rogue');
+    await manager.apply(h, 'wood');
     assert.equal(h.skins[0].atlas, null);
   });
 });

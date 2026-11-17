@@ -30,7 +30,7 @@ def bust(tmp_path):
 
 def test_roster_ids_in_order():
     ids = hp.roster_ids()
-    assert ids[0] == "adventurer" and len(ids) == 10 and "priestess" == ids[-1]
+    assert ids[0] == "adventurer" and len(ids) == 6 and "quirl" == ids[-1]
 
 
 def test_key_uses_chroma_rule():
@@ -61,10 +61,10 @@ def test_check_passes(capsys):
 
 
 def test_hero_writes_only_the_portrait(heroes_dir, bust):
-    assert hp.main(["--hero", "rogue", "--from", str(bust)]) == 0
+    assert hp.main(["--hero", "wood", "--from", str(bust)]) == 0
     files = sorted(p.relative_to(heroes_dir).as_posix() for p in heroes_dir.rglob("*") if p.is_file())
-    assert files == ["rogue/portrait.webp"]
-    hp.validate((heroes_dir / "rogue" / "portrait.webp").read_bytes())
+    assert files == ["wood/portrait.webp"]
+    hp.validate((heroes_dir / "wood" / "portrait.webp").read_bytes())
 
 
 def test_unknown_hero_rejected(heroes_dir, bust):
@@ -75,13 +75,13 @@ def test_unknown_hero_rejected(heroes_dir, bust):
 def test_empty_figure_refused(heroes_dir, tmp_path):
     plate = tmp_path / "plate.png"
     Image.new("RGB", (100, 100), (255, 0, 255)).save(plate)
-    assert hp.main(["--hero", "rogue", "--from", str(plate)]) == 1
+    assert hp.main(["--hero", "wood", "--from", str(plate)]) == 1
     assert not heroes_dir.exists()
 
 
 def test_oversize_refused(heroes_dir, bust, monkeypatch):
     monkeypatch.setattr(hp, "MAX_BYTES", 100)
-    assert hp.main(["--hero", "rogue", "--from", str(bust)]) == 1
+    assert hp.main(["--hero", "wood", "--from", str(bust)]) == 1
     assert not heroes_dir.exists()
 
 
@@ -114,10 +114,10 @@ def test_reference_plate(tmp_path):
 
 
 def test_contact_sheet_skips_missing(heroes_dir, bust, tmp_path):
-    hp.main(["--hero", "monk", "--from", str(bust)])
-    hp.main(["--hero", "rogue", "--from", str(bust)])
+    hp.main(["--hero", "quirl", "--from", str(bust)])
+    hp.main(["--hero", "wood", "--from", str(bust)])
     out = tmp_path / "sheet.png"
-    assert hp.write_contact_sheet(out) == ["rogue", "monk"]
+    assert hp.write_contact_sheet(out) == ["wood", "quirl"]
     sheet = Image.open(out)
     assert sheet.getpixel((0, 0)) == hp.SHEET_BG
     assert sheet.width == 96 * 2

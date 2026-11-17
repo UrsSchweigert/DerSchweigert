@@ -1,4 +1,4 @@
-// The shared hero roster: the ten heroes a family profile can choose from, in
+// The shared hero roster: the six colour schemes of the one hero a family profile can choose from, in
 // roster order, plus the one rule for turning a stored choice into the hero to
 // use. The module is pure data and logic (no imports, no DOM, no network) so the
 // web app and both native apps can load the same file.
@@ -36,21 +36,19 @@ function hero(id, strike, free = false) {
   });
 }
 
+// One hero, six colour schemes (scripts/hero_recolor.py bakes them from static/game/hero/).
+// Ari is the original colours and keeps the id 'adventurer', the stored default.
 export const HEROES = Object.freeze([
   Object.freeze({
     ...hero('adventurer', 'sword', true),
     atlas: 'hero/hero-atlas.webp',
     frames: 'hero/hero-frames.js',
   }),
-  hero('adventuress', 'sword'),
-  hero('princess', 'sword'),
-  hero('princess-armed', 'sword'),
-  hero('rogue', 'bow'),
-  hero('rogue-f', 'bow'),
-  hero('soldier', 'buckler'),
-  hero('soldier-f', 'buckler'),
-  hero('monk', 'fist'),
-  hero('priestess', 'fist'),
+  hero('wood', 'sword'),
+  hero('flint', 'sword'),
+  hero('carl', 'sword'),
+  hero('ori', 'sword'),
+  hero('quirl', 'sword'),
 ]);
 
 // Returns the hero to use for a stored choice. Anything that is not a known,

@@ -204,3 +204,7 @@ adventurer idle-1 exists as style reference.
 | priestess | victory | victory prompt, unchanged | 202 | art-0079 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
 | priestess | cast | cast prompt, unchanged | 202 | art-0080 | fal-ai/flux-pro/kontext | accepted idle sheet (try 2) | 2026-11-16 |
 | priestess | portrait | portrait prompt, unchanged | 202 | art-0081 | fal-ai/flux-pro/kontext | idle-1 portrait plate (hero_portrait.py --reference) | 2026-11-16 |
+
+## Current state (2026-11-17): one hero, six colour schemes
+
+The separate hero sprites above were retired. The roster is the original hero (`static/game/hero/`, shown as "Ari", id `adventurer`) plus five colour schemes of it: Wood, Flint, Carl, Ori, Quirl. They are not new art: `sites/ffm/scripts/hero_recolor.py` recolours the original atlas region by region (hair, skin, tunic, scarf, cape, gloves, boots) from `sites/ffm/scripts/data/hero-regions.png` (built by `hero_regions.py`) and `hero_schemes.json`. Edit a scheme there and rerun the script to change it.
