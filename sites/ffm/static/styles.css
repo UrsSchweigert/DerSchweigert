@@ -112,7 +112,7 @@ body {
  * worst for the long German sentences. Anchor it to the scene column instead:
  * the bonus belongs to the playfield the spells are cast from. */
 #game-wrap[data-layout="landscape"] #bonus-notice {
-  left: var(--sword-column-width, 0px);
+  left: calc(var(--sword-column-width, 0px) + 6px);
   right: calc(var(--answer-width) + 12px);
   width: fit-content;
   max-width: calc(var(--scene-width) - 8px);
@@ -721,7 +721,10 @@ body {
 
 /* Landscape shows the same swords as a vertical column at the left edge of
  * #game-wrap instead (created by encounter-swords.js; no markup). The slots
- * shrink evenly (min size 0) so 30 swords fit a 320px-high window. */
+ * shrink evenly (min size 0) so 30 swords fit a 320px-high window. The column
+ * fills its own grid track (--sword-column-width, set by viewport-layout.js)
+ * and adds no margin: body already pads #game-wrap by the left safe-area
+ * inset, so the track itself sits inside the safe area. */
 .app-encounter-swords-column {
   display: none;
 }
@@ -735,9 +738,10 @@ body {
   align-items: center;
   justify-content: flex-start;
   gap: 2px;
-  width: calc(var(--sword-column-width, 34px) - 6px);
+  width: 100%;
+  min-width: 0;
   min-height: 0;
-  margin-left: min(var(--safe-area-left, 0px), 6px);
+  margin: 0;
   padding: 2px 0;
   pointer-events: none;
   user-select: none;

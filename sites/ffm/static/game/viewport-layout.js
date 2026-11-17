@@ -17,7 +17,8 @@ const FONT_MAX = 26;
 // answer column above the answers. Their row is therefore a floor on that
 // column's width: below it the orbs shrink to a few pixels and vanish.
 const ORB_COLUMNS = 3;
-// The landscape sword column's widest slot; the gap to the scene comes on top.
+// The landscape sword column's widest track. The grid gap to the scene comes on
+// top, so the width taken from the scene and the answers is this plus GAP.
 const SWORD_COLUMN_MAX = 28;
 
 /**
@@ -184,9 +185,10 @@ export function initViewportLayout({ win = globalThis.window, doc = globalThis.d
     const chromeHeight = chrome && !chrome.hidden ? (chrome.offsetHeight || 0) + GAP : 0;
     const abilityRow = abilityBar?.offsetHeight ? abilityBar.offsetHeight + GAP : 0;
     const landscape = win.innerWidth >= win.innerHeight;
-    const swordColumn = landscape ? Math.min(SWORD_COLUMN_MAX, wrap.clientWidth) + GAP : 0;
+    // The CSS variable is the bare grid track; #game-wrap's gap follows it.
+    const swordColumn = landscape ? Math.min(SWORD_COLUMN_MAX, wrap.clientWidth) : 0;
     const layout = calculateSceneLayout(wrap.clientWidth, Math.max(0, wrap.clientHeight - chromeHeight), count,
-      landscape, minimumAnswerWidth, abilityRow, swordColumn);
+      landscape, minimumAnswerWidth, abilityRow, swordColumn ? swordColumn + GAP : 0);
     wrap.dataset.layout = layout.landscape ? 'landscape' : 'portrait';
     wrap.style.setProperty('--sword-column-width', `${swordColumn}px`);
     wrap.style.setProperty('--scene-width', `${layout.sceneWidth}px`);

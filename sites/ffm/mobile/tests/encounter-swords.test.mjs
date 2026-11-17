@@ -370,6 +370,10 @@ test('the shared stylesheet shows the swords as a landscape column', async () =>
   assert.match(css, /grid-template-columns:\s*var\(--sword-column-width, 0px\) var\(--scene-width\)/);
   assert.match(css, /\[data-layout="landscape"\] > #playfield\s*\{\s*grid-column:\s*2/);
   assert.match(css, /\[data-layout="landscape"\] > #input-zone\s*\{\s*grid-column:\s*3/);
+  const column = css.match(/#game-wrap\[data-layout="landscape"\]\s*\.app-encounter-swords-column\s*\{([^}]*)\}/)[1];
+  assert.match(column, /width:\s*100%/, 'the column fills its own grid track');
+  assert.doesNotMatch(column, /margin-left|calc\(var\(--sword-column-width/,
+    'no margin pushes the column out of its track; body padding keeps it inside the safe area');
   assert.doesNotMatch(mobile, /encounter-sword/, 'mobile-ui.css stays free of sword rules');
   assert.doesNotMatch(css, /https?:\/\//);
 });

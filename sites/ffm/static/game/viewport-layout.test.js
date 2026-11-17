@@ -217,10 +217,11 @@ test('visible chrome reserves real height without scaling the logical canvas', (
     getElementById: id => ({ 'game-wrap': wrap, 'gameplay-chrome': chrome, 'mc-buttons': options })[id],
   };
   const controller = initViewportLayout({ win, doc });
-  // Landscape reserves the 28px sword column plus the 6px gap.
+  // Landscape reserves the 28px sword column plus the 6px grid gap after it;
+  // the CSS variable is the bare track, the gap comes from #game-wrap.
   const expected = calculateSceneLayout(552, 158, 10, true, 44, 0, 34);
   assert.equal(properties.get('--scene-height'), `${expected.sceneHeight}px`);
-  assert.equal(properties.get('--sword-column-width'), '34px');
+  assert.equal(properties.get('--sword-column-width'), '28px');
   chrome.hidden = true;
   controller.refresh();
   assert.equal(properties.get('--scene-height'), `${calculateSceneLayout(552, 252, 10, true, 44, 0, 34).sceneHeight}px`);
@@ -355,11 +356,13 @@ test('screen IDs, pagination, playfield ownership and legal scrolling stay expli
 
 for (const [width, height] of [[844, 390], [667, 375]]) {
   test(`keeps the scene clear of the sword column at ${width}x${height}`, () => {
-    const reserved = 34;
+    // The real grid: column track, gap, scene track, gap, answer track.
+    const column = 28;
     const base = calculateSceneLayout(width, height, 10, true, 44, 0);
-    const layout = calculateSceneLayout(width, height, 10, true, 44, 0, reserved);
+    const layout = calculateSceneLayout(width, height, 10, true, 44, 0, column + 6);
     assert.ok(layout.sceneWidth <= base.sceneWidth);
-    assert.ok(reserved + layout.sceneWidth + 6 + layout.answerWidth <= width + 0.001);
+    assert.ok(column + 6 + layout.sceneWidth + 6 + layout.answerWidth <= width + 0.001,
+      'column, scene and answers fit beside each other with both grid gaps');
     const grid = layout.columns * 44 + (layout.columns - 1) * 6 + 18;
     assert.ok(layout.answerWidth >= grid - 0.001, 'answers keep their minimum width');
   });
