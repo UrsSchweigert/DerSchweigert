@@ -7,8 +7,8 @@
 // behind the 402-equivalent error until the cache says otherwise.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ENTITLEMENT_KEY, HERO_PACK_ENTITLEMENT_KEY, ENTITLEMENT_SCHEMA_VERSION, createEntitlementStore } from '../game/entitlement.js';
-import { HERO_PACK_ID, PRODUCT_ID } from '../game/purchase.js';
+import { ENTITLEMENT_KEY, ENTITLEMENT_SCHEMA_VERSION, createEntitlementStore } from '../game/entitlement.js';
+import { PRODUCT_ID } from '../game/purchase.js';
 
 // The app adapter resolves the Capacitor bridge lazily, so installing this
 // fake before the first call exercises the real Preferences + NativePurchases
@@ -137,7 +137,6 @@ test('a literal current-format document reads as the same status', async () => {
   const status = await createEntitlementStore({ backend }).getStatus();
   assert.deepEqual(status, {
     premium_access: true,
-    hero_pack: false,
     entitled: true,
     reason: 'store_purchase',
     source: 'cache',
@@ -147,24 +146,7 @@ test('a literal current-format document reads as the same status', async () => {
   });
 });
 
-test('the pack and the unlock are cached independently', async () => {
-  const packOnly = createBackend();
-  const a = await createEntitlementStore({
-    backend: packOnly, getPurchases: async () => [owned({ productIdentifier: HERO_PACK_ID })],
-  }).refresh();
-  assert.equal(a.hero_pack, true);
-  assert.equal(a.premium_access, false);
-  assert.equal(JSON.parse(packOnly.data.get(HERO_PACK_ENTITLEMENT_KEY)).product_id, HERO_PACK_ID);
-
-  const unlockOnly = createBackend();
-  const b = await createEntitlementStore({
-    backend: unlockOnly, getPurchases: async () => [owned()],
-  }).refresh();
-  assert.equal(b.premium_access, true);
-  assert.equal(b.hero_pack, false);
-});
-
-test('a failed read keeps both caches untouched and reports them offline', async () => {
+test('a failed read keeps the cache untouched and reports them offline', async () => {
   const backend = createBackend({ [ENTITLEMENT_KEY]: LITERAL_DOC });
   const before = new Map(backend.data);
   const failing = createEntitlementStore({
@@ -176,19 +158,11 @@ test('a failed read keeps both caches untouched and reports them offline', async
   assert.deepEqual(backend.data, before);
 });
 
-test('a read without the pack revokes it and leaves the unlock document alone', async () => {
+test('a store read that no longer lists the unlock revokes it', async () => {
   const backend = createBackend({ [ENTITLEMENT_KEY]: LITERAL_DOC });
-  let items = [owned({ productIdentifier: HERO_PACK_ID })];
-  const store = createEntitlementStore({
-    backend,
-    getPurchases: async () => [owned({ transactionId: 'tx-old' }), ...items],
-  });
-  assert.equal((await store.refresh()).hero_pack, true);
-  items = [];
-  const status = await store.refresh();
-  assert.equal(status.hero_pack, false);
-  const doc = JSON.parse(backend.data.get(HERO_PACK_ENTITLEMENT_KEY));
+  const status = await createEntitlementStore({ backend, getPurchases: async () => [] }).refresh();
+  assert.equal(status.premium_access, false);
+  const doc = JSON.parse(backend.data.get(ENTITLEMENT_KEY));
   assert.equal(doc.entitled, false);
   assert.equal(doc.reason, 'revoked');
-  assert.equal(JSON.parse(backend.data.get(ENTITLEMENT_KEY)).entitled, true);
 });

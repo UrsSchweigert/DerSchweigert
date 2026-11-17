@@ -25,6 +25,9 @@ const FILES = Object.freeze({
   frames: 'hero-frames.js',
 });
 const ALLOWED = new Set([...Object.values(FILES), 'source']);
+// macOS sync or copy conflicts leave "hero-atlas 2.webp" next to the original. They are local leftovers,
+// not art, so the check skips them instead of failing on files nobody committed.
+const CONFLICT_COPY = /^.+ \d+(\.[A-Za-z0-9]+)?$/;
 const FRAME_KEYS = ['x', 'y', 'w', 'h', 'px', 'py'];
 
 function webpDimensions(buf) {
@@ -173,6 +176,7 @@ export async function checkHeroes({ dir = here, roster = HEROES, require, settle
     }
     if (dirs.includes(id)) {
       for (const entry of await readdir(heroDir)) {
+        if (CONFLICT_COPY.test(entry)) continue;
         if (!ALLOWED.has(entry)) problems.push(`heroes/${id}/${entry} is not an allowed hero file`);
       }
     }

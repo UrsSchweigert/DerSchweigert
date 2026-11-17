@@ -453,10 +453,6 @@
   outline-offset: 2px;
 }
 
-.pack-sheet-card button {
-  min-height: 44px;
-  min-width: 44px;
-}
 
 /* Hero portrait beside the player name in the identity rows. */
 .player-identity .hero-identity-portrait,
