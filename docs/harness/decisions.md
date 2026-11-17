@@ -1156,3 +1156,50 @@ The owner chose to run every worker on their Claude subscription and to drop eve
 * Claude Code reports real token counts per session. They are recorded as `runtime_usage` ("measured") and win over the
   agent's own estimate and the size lower bound. The reported dollar figure is kept only as an API-equivalent number;
   nothing is billed per token on a subscription.
+
+## Workers generate images through a local art service (2026-11-16)
+
+The hero-pack plan needs ten art issues that generate sheets, split them and build atlases in one session.
+
+* The asset broker's `asset_request` action exists, but no run constructs a broker and the worker prompt never offers
+  it, so a worker had no way to request an image. A one-shot session also cannot submit a request and wait for the
+  answer. The planned "fal provider behind `_ai`" would therefore have turned every art issue into an upload task.
+* `harness run` now serves an **art service** on loopback when the approved plan carries `art: {generator, credits}`,
+  and the image carries `art-generate`. The fal key, the model, the size limits and the budget stay in trusted code;
+  a container gets an address and a per-run token. Credits are reserved before the paid call (so parallel workers cannot
+  overspend) and refunded on failure, and every call is recorded in a ledger in the store folder.
+* The art block is part of the approval digest. Existing plans have none, so their digests do not change.
+* The service is reached as `host.docker.internal`, added for implementer attempts only. Checked with Colima.
+* The worker image gained numpy, scipy and Pillow at the versions the repository's tests use, plus `art-generate`; the
+  sandbox verification checks both (`art_libs`, `art_generate_tool`) and that no art credential is present by default.
+* Not changed: generated art does not pass through the asset manifest, so the sprite class limits (1 MB) do not apply
+  to sheets; provenance lives in the ledger and in the hero pack's own `PROVENANCE.md`.
+
+## A second round of review findings goes to the overseer (2026-11-16)
+
+* On the hero pack's `ffmhero-art-tooling`, review findings flipped between opposite defects: a hair-softening filter first
+  cleared the face (too aggressive), then barely touched the spikes (too weak). The acceptance criteria asked for a filter and
+  a hair mask that could not both hold. It approved only on the third repair, after three implementer attempts and three strong
+  reviews, and the repair budget was exactly used up.
+* Trusted code cannot tell that two findings pull in opposite directions, so it hands the second round to the overseer, which
+  reads the findings with the acceptance criteria. A converging repair goes on with a concrete hint; a conflict goes to the owner
+  as a content question, naming the criteria. Once per issue, within the overseer's existing round bound.
+* The overseer's packet carries the review rounds and the criteria, so its data cap is 16000 characters instead of 4000: the
+  usual cap would cut the packet mid-JSON and drop the rules for its own answer. Review findings are kept to 1200 characters
+  instead of 400 so their measurements survive.
+
+## The art service keeps every image it delivers (2026-11-16)
+
+* The first adventurer attempt generated three identity sheets, judged all three as failing its look rules and left nothing
+  behind, because the service returned the images to the worker and kept only the prompt, seed and checksum. Nobody, the owner
+  included, could tell whether the rejection was right. Every delivered image is now saved in the store folder (0600) and
+  recorded in the ledger; `harness art PLAN --show ID [--open]` finds it. A failed save never costs the worker its paid image.
+* The three adventurer tries made before this change are lost.
+
+## A Blocked issue's definition can be corrected in place
+
+`harness import-issues --add --redefine ISSUE PLAN FILE` replaces only the definition fields (criteria, anchors, commands and so on) of a Blocked issue and keeps its branch, pull request and attempts. A new plan version still refuses to replace an issue a worker has touched; this is the owner's explicit, per-issue exception for a definition that makes every attempt block. The change is journaled as a `redefinition` document.
+## Plans are checked against the phase scope and the worker's capabilities before work is paid for
+
+- **Scope closure.** When a refiner declares `plan_files` outside the phase `path_allowlist`, the refinement is rejected once (kind `plan_out_of_scope`, deterministic) with the reason handed to the next refiner. If the next plan is still out of scope, the issue is held for the owner (`plan_scope_gap`) and no implementer is started. This mirrors the diff gate, which used to be the first place the gap showed up, after an attempt was spent.
+- **Capability lint.** `plans.capability_problems` refuses issue text that asks for a manual test, a human task, an asset request or pipeline, or image generation without a plan `art` budget. It runs in the investigator's draft validation and in `import-issues`. A negated mention ("no manual test") is allowed.

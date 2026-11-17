@@ -50,7 +50,7 @@ Words used throughout:
 | Model choice | The delegating investigator picks a concrete model for each task's implementer, reviewer, and refiner, with a reason balancing cost and quality. |
 | Model tier | An approved relative cost band: `low` (Haiku), `standard` (Sonnet), `strong` (Opus). These bands describe the model menu and bound repair escalation; they do not assign models to roles on newly investigated tasks. |
 | Human task | A question the harness asks you: a decision, an asset, or a manual test. |
-| Overseer | The top-tier agent that answers a stuck issue's *process* question before you are asked: retry, extend a budget, or refine. It never cancels, approves, merges, or changes policy; when it finds a harness defect or a content question, it escalates to you with its diagnosis. |
+| Overseer | The top-tier agent that answers a stuck issue's *process* question before you are asked: retry, extend a budget, or refine. It never cancels, approves, merges, or changes policy; when it finds a harness defect or a content question, it escalates to you with its diagnosis. It is also consulted once per issue when review findings come back a second time (see below). |
 
 What an issue goes through: a **refiner** re-checks it if the code under it changed, and plans it once when its declared implementer tier is `standard` or `strong` (the plan and the tier the plan really needs are what the implementer gets), an **implementer** builds it in a throwaway copy of the repository, the harness runs the issue's own check commands, an **independent reviewer** (a different model) reviews the diff, the harness opens a pull request and merges it when every gate passes, and it reruns the checks on the merged `main`. Only then is the issue Done. A phase is Done when all its issues are Done and its exit checks pass.
 
@@ -165,6 +165,48 @@ made while you are limited does not mark your models unavailable for a day.
 `investigate` is interactive, so it stops instead of waiting and tells you when
 to rerun it.
 
+### Image generation for workers (the art service)
+
+A worker session is one-shot, so it cannot ask a broker for an image and wait for the answer. When the approved plan
+carries an `art` block, `harness run` starts a small **art service** on your machine, bound to `127.0.0.1`, and the
+worker image carries an `art-generate` command that calls it. Only implementer attempts receive it.
+
+```json
+{ "phases": [...], "art": { "generator": "fal-ai/flux-pro/kontext", "credits": 320 } }
+```
+
+That block goes in `phases.json` and is part of the approval digest, so you approve the model and the budget (one
+credit per generated image) with the plan. A plan without it has no image generation.
+
+```sh
+art-generate --prompt-file sheet.txt --reference plate.png --seed 7 --size 1024 --out sheet.png --issue ffmhero-art-rogue --label "rogue idle sheet"
+art-generate status
+```
+
+* **The key stays on your machine.** The service resolves the fal key like `tools/fal_image.py` does (environment,
+  Keychain, `~/.config/fal/key`, the repository `.env`). A container receives only the service address
+  (`ART_SERVICE_URL`) and a random per-run token (`ART_SERVICE_TOKEN`), forwarded by name. The token is worth no more
+  than the budget left, and the service answers only on loopback.
+* **A worker cannot widen anything.** The model is the plan's `art.generator`; the output is a fixed square (512, 768 or
+  1024 px); at most two PNG reference files of 2.5 MB each; prompts are screened for credentials.
+* **The budget is hard.** Each call reserves a credit before the paid request, so parallel workers cannot overspend, and
+  a failed generation is refunded because fal bills only what it delivers. The ledger is
+  `<store>/art-ledger-<plan>.json` (mode 0600), so the budget survives restarts and a new plan version keeps its plan's
+  spend. `harness art PLAN_ID` shows what was used and the latest calls.
+* **Every delivered image is kept** in `<store>/art-images/<plan>/art-NNNN.png` (mode 0600), whatever the worker decides about it.
+  A worker that rejects its own tries leaves nothing else to look at. `harness art PLAN --show art-0004` prints where an image
+  is, and `--open` opens it on macOS. The ledger marks saved images.
+* **Provenance is recorded by trusted code:** prompt, seed, model, checksum and issue for every call. The command prints
+  the seed and call id so a worker can cite them in `PROVENANCE.md`.
+* **Exit codes of `art-generate`:** 0 done, 2 budget used up, 3 request refused, 4 service or generator unavailable. A
+  rehearsal (`--dry-run`) starts no service and spends nothing.
+* A container reaches your machine as `host.docker.internal`; the harness adds that name for implementer attempts only.
+  This was verified with Colima; Docker Desktop provides it as well.
+
+The worker image also carries numpy, scipy and Pillow, so a worker can run the art scripts in `sites/ffm/scripts/`.
+Changing the image means `harness isolation build` and `harness isolation verify`; the sandbox checks `art_libs` and
+`art_generate_tool` for it.
+
 The dashboard's **Models** view lists the same catalog per source and tier and
 probes on demand. A probe runs in the background, one at a time, at most once a
 minute, and never in `--read-only` mode; the page shows when each id was last
@@ -247,6 +289,16 @@ agent. Plans approved before this change carry no consultation budget, so their
 stuck reports skip the consultation until you approve a new plan version. Failed checks and review findings keep the repair budget and tier
 escalation and do not trigger a consultation. Each consultation is one extra AI
 call.
+
+#### Review loops
+
+When a reviewer requests changes a **second** time on the same issue, the harness reports it to the overseer
+(`review_loop` event) before paying for a third repair. The overseer reads both rounds of findings next to the issue's
+acceptance criteria and decides whether they converge. If each round fixed what the last one found, it retries with the
+remaining finding as a hint. If the findings flip between opposite defects (too aggressive, then too weak) or ask for
+properties the criteria cannot satisfy together, it escalates to you with `cause: content`, naming the conflicting
+criteria, so you can change the criteria instead of paying for more rounds. This happens once per issue and counts against
+the overseer's rounds; with the overseer off, the repairs go on as before and the loop is still reported.
 
 #### Strong analysis and split proposals
 
@@ -888,6 +940,7 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `plan` | Validate and save a plan | `--requirements`, `--phases FILE`, `--plan-id`, `--model-source claude` (repeatable, default: the phases file, else claulot), `--assets-dir DIR` (per-plan asset directory, default `assets/`), `--overseer` / `--no-overseer` (top-tier overseer answers process blocks; **default on** since 2026-11-12, `--no-overseer` opts out), `--dry-run`, `--fixture` |
 | `models` | Show the picker menu and which ids your Claude subscription accepts | `--source claude`, `--refresh` |
 | `claude` | Store, show, or remove the Claude subscription token workers use | `login` (prompts; or `--token-env VAR`), `status`, `logout` |
+| `art` | Show a plan's image-generation budget and the latest calls | `PLAN_ID`, `--last N` |
 | `approve PLAN_ID` | Record your one-time approval (real terminal) | `--version` |
 | `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version`, `--add` (add the file's issues and leave the plan's other issues alone) |
 | `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version`, `--no-tunnel` |

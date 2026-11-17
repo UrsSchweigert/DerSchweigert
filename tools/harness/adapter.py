@@ -56,8 +56,8 @@ ROLE_INSTRUCTIONS = {
     "reviewer": "Review the diff and validation results in task.json against the scope. /work/repo is checked out at the head under review. Change no files. Set outcome to approve or changes_requested and list findings in risks. Set revision to the reviewed_head value in task.json, exactly.",
     "investigator": "Investigate /work/repo for the task. Change no files.",
     "delegator": "An implementer could not complete the task. task.json holds its stuck report, the attempt history, model_options with relative cost bands, and strong_attempts_remaining. Study /work/repo to diagnose the blocker. Change no files. Decide what happens next. Use action retry when another attempt can succeed: put concrete hints for the next attempt in guidance, and choose the next implementer's model in model_choice, an exact id from model_options with the cost and quality reason. Use a stronger model only when the diagnosis shows the task needs it, never when strong_attempts_remaining is zero. Use action ask_owner when the task is ambiguous, too large, or needs a human decision: say in diagnosis what the owner must decide and, if the task is too big, how to split it. Always explain the blocker in diagnosis.",
-    "overseer": "An issue is stuck and the harness will not hand every stuck issue to the owner. Read /work/task.json: the issue, its plan policy and budgets, and every recorded failure with its classification. Decide what happens next, and name the cause, because the owner only sees what you escalate. task.overseer_rules lists the actions you may choose; never choose anything else. action retry when the next attempt can succeed, and put the concrete hint in guidance. action extend_budget when the retry budget is what stopped it and another attempt within budget is justified. action refine when the task itself is unclear or too large. action escalate when no harness action can fix it: put cause harness_defect when the harness or its tooling is at fault, and cause content when the owner must decide something about the game itself, then say in reason exactly what is broken or which decision is needed. Never claim a failure is the worker's fault without citing the recorded evidence. Never change files.",
-    "analyst": "A task could not be completed and needs a deeper analysis before the owner decides. task.json holds the original task, the stuck report, the delegating agent's diagnosis, the attempt history, and split_rules. Study /work/repo thoroughly. Change no files. Find the root cause: what is missing, ambiguous, too large, or contradictory, citing the files you read. Then recommend one of: split, when the task should become several smaller issues; retry, when another attempt can succeed, and put concrete hints in guidance; needs_owner, when only a human decision can unblock it, and list each decision in questions, one clear sentence each. For a split, propose parts in split that follow split_rules: new issue ids, requirement_ids that together cover every requirement of the original, code_anchors inside path_allowlist or existing files, deps only on other parts or the original's dependencies, validation_commands, and a diff well under diff_size_cap lines per part. Optionally give a part model_choices for implementer, reviewer, or refiner, each an exact id from model_options with the cost and quality reason. Leave out split unless the recommendation is split.",
+    "overseer": "An issue is stuck and the harness will not hand every stuck issue to the owner. Read /work/task.json: the issue, its plan policy and budgets, and every recorded failure with its classification. Decide what happens next, and name the cause, because the owner only sees what you escalate. task.overseer_rules lists the actions you may choose; never choose anything else. action retry when the next attempt can succeed, and put the concrete hint in guidance. action extend_budget when the retry budget is what stopped it and another attempt within budget is justified. action refine when the task itself is unclear or too large. action escalate when no harness action can fix it: put cause harness_defect when the harness or its tooling is at fault, and cause content when the owner must decide something about the game itself, then say in reason exactly what is broken or which decision is needed. Never claim a failure is the worker's fault without citing the recorded evidence. When the recorded failures are review_findings (task.json lists them as review_rounds next to the issue's acceptance_criteria), decide whether the rounds converge: if the findings flip between opposite defects (too aggressive, then too weak) or demand properties that the acceptance criteria cannot all satisfy together, that is a loop, not progress. Name the conflicting criteria and the measurement that flips, and choose escalate with cause content so the owner can change the criteria. If each round fixed what the last one found and the remaining finding is concrete, choose retry and put that finding in guidance. Never change files.",
+    "analyst": "A task could not be completed and needs a deeper analysis before the owner decides. task.json holds the original task, the stuck report, the delegating agent's diagnosis, the attempt history, and split_rules. Study /work/repo thoroughly. Change no files. If task.json carries human_guidance or your_previous_analysis_was_rejected, follow the guidance and correct exactly what was rejected. Find the root cause: what is missing, ambiguous, too large, or contradictory, citing the files you read. Then recommend one of: split, when the task should become several smaller issues; retry, when another attempt can succeed, and put concrete hints in guidance; needs_owner, when only a human decision can unblock it, and list each decision in questions, one clear sentence each. For a split, propose parts in split that follow split_rules: new issue ids (lowercase letters, digits and dashes, 1 to 41 characters: a short stem of your own, never the original's id plus a long suffix), requirement_ids that together cover every requirement of the original, code_anchors inside path_allowlist or existing files, deps only on other parts or the original's dependencies, validation_commands, and a diff well under diff_size_cap lines per part. Every text field, the root cause and each part's text included, must stay under 2000 characters: write terse bullets and count them. Optionally give a part model_choices for implementer, reviewer, or refiner, each an exact id from model_options with the cost and quality reason. Leave out split unless the recommendation is split.",
 }
 
 RESULT_EXAMPLE = {"attempt_id": "<attempt_id from task.json>", "epoch": "<epoch from task.json, an integer>", "outcome": "done", "changed_files": [], "revision": "<git HEAD sha>",
@@ -82,7 +82,17 @@ ANALYSIS_EXAMPLE = {
 }
 
 
-def build_prompt(req: WorkRequest) -> str:
+ART_NOTE = (
+    " The harness art service is available for this attempt. Generate images with `art-generate --prompt-file P.txt "
+    "[--reference PLATE.png] --seed N --size 1024 --out OUT.png --issue <issue_id> --label <short note>`; each image costs one "
+    "credit from a budget shared by every issue, and `art-generate status` shows what is left. It is the only way to "
+    "generate images in this run: wherever the task mentions an asset request, source ai or the asset pipeline for "
+    "generation, it means this command. Never call an image API directly and never look for a key. Keep each call's "
+    "seed and call_id for any provenance the task asks you to record, and generate only what the task needs."
+)
+
+
+def build_prompt(req: WorkRequest, art: bool = False) -> str:
     example = dict(RESULT_EXAMPLE, outcome=OUTCOMES.get(req.role, "done"))
     if req.role == "delegator":
         example["decision"] = DECISION_EXAMPLE
@@ -115,6 +125,7 @@ def build_prompt(req: WorkRequest) -> str:
         "When finished, write /work/result.json as JSON with exactly these keys: %s.%s Do not push or contact GitHub."
         " Fill in usage_estimate with a rough estimate of the tokens you read and wrote in this session, and how you estimated them; do not spend effort measuring it."
         % (req.role, ROLE_INSTRUCTIONS.get(req.role, ""), json.dumps(example), allowed.get(req.role, ""))
+        + (ART_NOTE if art else "")
     )
 
 
@@ -135,6 +146,9 @@ class ClaudeCodeAdapter(Adapter):
     def __init__(self, store_home: str, source_repo: str, base: str = "main"):
         self.store_home, self.source_repo, self.base = store_home, source_repo, base
         self.token_file = claudecode.token_path(store_home)
+        # Set by `harness run` when the plan has an art budget: the service address and per-run token, which only
+        # implementer attempts receive. The generator key is never part of it.
+        self.art_env: Optional[Dict[str, str]] = None
 
     def credential(self) -> Optional[Dict[str, str]]:
         """The environment that authenticates a worker, or None when claude.token is missing."""
@@ -219,11 +233,15 @@ class ClaudeCodeAdapter(Adapter):
         credential = self.credential()
         if credential is None:
             raise RuntimeError("claude.token is missing: run `harness claude login`")
-        work = self._prepare(req, prompt)
+        art = self.art_env if req.role == "implementer" and self.art_env else None
+        if art:
+            credential = dict(credential, **art)
+        work = self._prepare(req, prompt or build_prompt(req, art=bool(art)))
         name = "harness-%s-%s" % (re.sub(r"[^A-Za-z0-9_.-]", "_", req.attempt_id), os.urandom(3).hex())
         script = ("cd /work/repo && git config user.name harness && git config user.email harness@localhost && "
                   + claudecode.work_command(req.model) + "; echo $? > /work/exit_code")
-        args = isolation.docker_args(work, ["sh", "-c", script], pass_env=isolation.pass_env_names(credential), name=name)
+        args = isolation.docker_args(work, ["sh", "-c", script], pass_env=isolation.pass_env_names(credential), name=name,
+                                     host_gateway="host.docker.internal" if art else None)
         env = isolation.worker_env_for_attempt(credential)
         proc = subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
         handle = _Handle(req, work, proc, name)

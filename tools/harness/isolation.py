@@ -62,7 +62,7 @@ def build_image(context: Optional[str] = None) -> str:
 
 
 def docker_args(workdir: str, command: List[str], pass_env: Optional[List[str]] = None, memory: str = "2g", cpus: str = "2",
-                pids: int = 512, image: str = IMAGE, name: Optional[str] = None) -> List[str]:
+                pids: int = 512, image: str = IMAGE, name: Optional[str] = None, host_gateway: Optional[str] = None) -> List[str]:
     """Arguments for `docker run`. Only `workdir` is mounted. Env vars listed in `pass_env` are forwarded by name, never by value."""
     args = [
         "run", "--rm", "--init",
@@ -78,6 +78,9 @@ def docker_args(workdir: str, command: List[str], pass_env: Optional[List[str]] 
     ]
     if name:
         args += ["--name", name]
+    if host_gateway:
+        # Lets the worker reach the owner's loopback-only art service by this name. Nothing else about the network changes.
+        args += ["--add-host", "%s:host-gateway" % host_gateway]
     for name in pass_env or []:
         args += ["-e", name]
     return args + [image] + command
@@ -142,6 +145,8 @@ chk workdir_writable 'touch /work/probe_ok'
 chk no_capabilities 'grep -q "^CapEff:[[:space:]]*0000000000000000" /proc/self/status'
 chk no_new_privileges 'grep -q "^NoNewPrivs:[[:space:]]*1" /proc/self/status'
 chk claude_installed 'command -v claude >/dev/null'
+chk art_libs 'python3 -c "import numpy, scipy, PIL" >/dev/null 2>&1'
+chk art_generate_tool 'command -v art-generate >/dev/null && [ -z "${ART_SERVICE_TOKEN:-}${ART_SERVICE_URL:-}" ]'
 chk smoke_tool '[ -f /opt/harness/smoke/lesen.mjs ] && ls -d /opt/pw-browsers/chromium* >/dev/null 2>&1 && node -e "require(\"playwright\")" >/dev/null 2>&1'
 chk godot_pinned 'godot --headless --version 2>/dev/null | grep -qx "4.7.2.stable.official.ed1daf0bf"'
 chk gdtoolkit_pinned 'python3 -c "import importlib.metadata as m, sys; sys.exit(0 if m.version(\"gdtoolkit\") == \"4.5.0\" else 1)"'
@@ -153,7 +158,7 @@ chk godot_test_tool 'command -v godot-test >/dev/null && [ -f /opt/harness/godot
 REQUIRED_CHECKS = [
     "non_root", "no_host_credentials_in_env", "no_claude_token_unless_passed", "no_anthropic_api_key", "store_path_absent", "host_home_absent",
     "no_ssh_agent", "no_docker_socket", "rootfs_read_only", "workdir_writable", "no_capabilities", "no_new_privileges",
-    "claude_installed", "smoke_tool", "godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool", "ios_shell_tool",
+    "claude_installed", "art_libs", "art_generate_tool", "smoke_tool", "godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool", "ios_shell_tool",
 ]
 
 

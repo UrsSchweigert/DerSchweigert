@@ -8,7 +8,8 @@ import sqlite3
 import subprocess
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+import hashlib
+from typing import Any, Dict, List, Optional, Sequence
 
 from . import approval, models, plans, schemas
 import sys
@@ -42,7 +43,7 @@ class RunRefused(Exception):
 
 
 def import_issues(store: Store, plan_id: str, version: Optional[int], path: str, base_rev: str,
-                  replace: bool = False) -> List[str]:
+                  replace: bool = False, redefine: Sequence[str] = ()) -> List[str]:
     """Load refined issues supplied by a human or an investigator pass. They enter Ready after validation against the approved plan.
 
     `replace` says the file is the plan's whole issue set, as `import-issues` declares: an issue of this plan that the
@@ -71,6 +72,9 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
                                       strong_budget=plan["policy"]["budgets"]["strong_attempts_per_issue"] if role == "implementer" else 1)
             except ValueError as exc:
                 raise RunRefused("issue %s %s model choice: %s" % (doc["issue_id"], role, exc)) from exc
+        unavailable = plans.capability_problems(doc, plan["policy"])
+        if unavailable:
+            raise RunRefused("; ".join(unavailable))
         working_directory = doc.get("working_directory", ".")
         if (not working_directory or os.path.isabs(working_directory) or "\\" in working_directory
                 or ".." in working_directory.split("/")):
@@ -83,6 +87,12 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
         if phase is None or not doc["requirement_ids"] or not set(doc["requirement_ids"]) <= set(phase["requirements"]):
             raise RunRefused("issue %s must reference one approved phase and its requirement IDs" % doc["issue_id"])
         existing = store.get_issue(doc["issue_id"])
+        if doc["issue_id"] in redefine:
+            if existing is None:
+                raise RunRefused("issue %s cannot be redefined: it does not exist" % doc["issue_id"])
+            _redefine(store, existing, doc, plan_id)
+            replaced.append(doc["issue_id"])
+            continue
         if existing is not None and store.state("issue", doc["issue_id"]) == "Cancelled":
             _revive_or_refuse(store, existing, plan_id)
             store.put_issue(new_issue(doc["issue_id"], plan_id, doc["phase_id"], doc["requirement_ids"], base_rev=base_rev,
@@ -91,9 +101,14 @@ def import_issues(store: Store, plan_id: str, version: Optional[int], path: str,
             added.append(doc["issue_id"])
             continue
         if existing is not None:
-            if (existing.get("plan_id") == plan_id and _unchanged(existing, doc)
-                    and store.state("issue", doc["issue_id"]) == "Done"):
+            same_definition = existing.get("plan_id") == plan_id and _unchanged(existing, doc)
+            if same_definition and store.state("issue", doc["issue_id"]) == "Done":
                 continue  # preserve completed work and its exact historical evidence on a plan revision
+            if same_definition and _has_work(store, existing):
+                # A revision that leaves this issue's definition alone has nothing to replace, so work in flight is no
+                # obstacle. It used to be refused ("already In Review and has work recorded") even though only other
+                # issues had changed, which made the whole revision unimportable while anything was under review.
+                continue
             _adopt_or_refuse(store, existing, plan_id)
             if _unchanged(existing, doc):
                 if base_rev and existing.get("base_rev") != base_rev:
@@ -148,6 +163,12 @@ def _unchanged(existing: Dict[str, Any], doc: Dict[str, Any]) -> bool:
     return plans.canonical({key: existing.get(key) for key in definition}) == plans.canonical(definition)
 
 
+def _has_work(store: Store, existing: Dict[str, Any]) -> bool:
+    """Whether a worker has touched the issue: a branch head, a pull request, a claim, or a state past Ready/Blocked."""
+    return bool(existing.get("head_rev") or existing.get("pr") is not None or store.active_claims_for(existing["issue_id"])
+                or store.state("issue", existing["issue_id"]) not in ("Inbox", "Refining", "Ready", "Blocked"))
+
+
 def _adopt_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> None:
     """A new plan version may replace an issue definition that no worker has touched yet.
 
@@ -156,11 +177,30 @@ def _adopt_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> No
     issue_id = existing["issue_id"]
     if existing.get("plan_id") != plan_id:
         raise RunRefused("issue %s already belongs to plan %s; issue ids are global" % (issue_id, existing.get("plan_id")))
-    state = store.state("issue", issue_id)
-    if existing.get("head_rev") or existing.get("pr") is not None or store.active_claims_for(issue_id) or \
-            state not in ("Inbox", "Refining", "Ready", "Blocked"):
+    if _has_work(store, existing):
         raise RunRefused("issue %s is already %s and has work recorded; a new plan version cannot replace it"
-                         % (issue_id, state))
+                         % (issue_id, store.state("issue", issue_id)))
+
+
+def _redefine(store: Store, existing: Dict[str, Any], doc: Dict[str, Any], plan_id: str) -> None:
+    """Replace only the definition of a Blocked issue, keeping its branch, pull request, attempts and history.
+
+    A plan version may not replace an issue a worker has touched, because that would drop the work. A definition
+    that turns out to be wrong, so that every attempt blocks on it, is the one case the owner must be able to
+    correct in place. The request names the issue, the issue must be Blocked, and the change is journaled.
+    """
+    issue_id = existing["issue_id"]
+    if existing.get("plan_id") != plan_id:
+        raise RunRefused("issue %s already belongs to plan %s; issue ids are global" % (issue_id, existing.get("plan_id")))
+    state = store.state("issue", issue_id)
+    if state != "Blocked":
+        raise RunRefused("issue %s is %s; only a Blocked issue can be redefined in place" % (issue_id, state))
+    definition = _definition(doc)
+    old = plans.canonical({key: existing.get(key) for key in definition})
+    updated = dict(existing)
+    updated.update(definition)
+    store.put_issue(updated)
+    store.put_doc("redefinition", issue_id, {"fields": sorted(definition), "before_digest": hashlib.sha256(old).hexdigest()})
 
 
 def _revive_or_refuse(store: Store, existing: Dict[str, Any], plan_id: str) -> None:
@@ -353,6 +393,24 @@ def build_scheduler(store: Store, plan_id: str, version: int, repo_root: str, dr
         notifier = MultiNotifier(notifier, GitHubNotifier(GhCli(repo_slug, token_file=broker_token), store, plan_id))
     return Scheduler(store, plan_id, version, adapter, clone, SandboxChecker(clone), publisher, available_models=available, owner=owner, notifier=notifier,
                      free_space_floor_bytes=scheduler_mod.WORK_ROOT_FREE_BYTES, mono_clock=time.monotonic)
+
+
+def start_art_service(store: Store, plan_id: str, version: int, sched: Scheduler, dry_run: bool):
+    """Start the image-generation service when the approved plan names a budget, and hand its address to the adapter.
+
+    A rehearsal never starts it: it must not spend, so a worker's `art-generate` then says there is no service.
+    Returns the running service, or None when art is off.
+    """
+    from . import artservice
+    policy = store.get_plan(plan_id, version)["plan"]["policy"]
+    if dry_run or not artservice.enabled(policy):
+        return None
+    service = artservice.ArtService(store.home, plan_id, policy["art"]).start()
+    sched.adapter.art_env = service.container_env()
+    summary = service.ledger.summary()
+    print("art service on 127.0.0.1:%d, %s, %d of %d images left" % (
+        service.port, policy["art"]["generator"], summary["remaining"], summary["credits"]), file=sys.stderr, flush=True)
+    return service
 
 
 def watch_promotion(sched: Scheduler, interval: float, max_ticks: Optional[int], emit) -> int:

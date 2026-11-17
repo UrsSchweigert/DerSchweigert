@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import time
 
-from . import approval, assets, claudecode, humantasks, investigate, isolation, models, plans, reconcile, runner, schemas, status, workrecord
+from . import approval, artservice, assets, claudecode, humantasks, investigate, isolation, models, plans, reconcile, runner, schemas, status, workrecord
 from .github import GhCli, GitHubError
 from .approval import AuthorizationError, plan_entity
 from .checks import SandboxChecker
@@ -58,6 +58,7 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
     draft_sources = None
     draft_assets_dir = None
     draft_routing = None
+    draft_art = None
     if phases_path:
         with open(phases_path, encoding="utf-8") as fh:
             data = json.load(fh)
@@ -66,6 +67,7 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
         assets = data.get("assets") if isinstance(data, dict) else None
         draft_assets_dir = assets.get("output_dir") if isinstance(assets, dict) else None
         draft_routing = data.get("model_routing") if isinstance(data, dict) else None
+        draft_art = data.get("art") if isinstance(data, dict) else None
     plan_id = plan_id or _slug(requirements)
     latest = store.get_plan(plan_id) if store else None
     version = latest["plan"]["version"] + 1 if latest else 1
@@ -78,6 +80,8 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
         policy = plans.with_overseer(policy or plans.DEFAULT_POLICY, overseer)
     if draft_routing is not None:
         policy = dict(policy or plans.DEFAULT_POLICY, model_routing=draft_routing)
+    if draft_art is not None:
+        policy = plans.with_art(policy, draft_art)  # raises ValueError on a bad block, before anything is saved
     if base_branch and base_branch.strip():
         # The run branch is cut from this branch and its pull requests target it, so a plan may land its work on a
         # branch that is not main. The choice is part of the approval digest.
@@ -335,7 +339,8 @@ def runner_command(args) -> int:
                 raise runner.RunRefused("validation configuration errors prevent issue import: %s" %
                                         "; ".join("%s: %s" % (r["command"], r.get("output", "")) for r in config_errors[:3]))
             base = _import_base(root, plans.base_branch(stored["plan"]))
-            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=not args.add)) or "nothing new")
+            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=not args.add,
+                                                          redefine=tuple(args.redefine))) or "nothing new")
             return 0
         if not store.list_issues(args.plan_id):
             raise runner.RunRefused("no issues to schedule: supply refined issues with `import-issues`. Issue creation from phases is not automated yet")
@@ -353,9 +358,13 @@ def runner_command(args) -> int:
             # a finished run is not resumed; it is watched until the owner merges or the watch expires
             return runner.watch_promotion(sched, args.interval, args.max_ticks,
                                           lambda e: print(json.dumps(e, sort_keys=True), flush=True))
+        art_service = None
         try:
+            art_service = runner.start_art_service(store, args.plan_id, version, sched, args.dry_run)
             return runner.run_loop(sched, args.interval, args.max_ticks, lambda e: print(json.dumps(e, sort_keys=True), flush=True))
         finally:
+            if art_service is not None:
+                art_service.stop()
             if tunnel is not None:
                 tunnel.stop()
     except (runner.RunRefused, approval.AuthorizationError) as exc:
@@ -396,6 +405,38 @@ def claude_command(args) -> int:
         return 2
     print("saved %s (%s). Check it with `harness models --refresh`." % (path, claudecode.redacted(home)))
     return 0
+
+
+def art_command(args) -> int:
+    """Show the image-generation budget and what was spent. Reads the ledger the art service keeps; starts nothing."""
+    store = Store(args.home)
+    try:
+        latest = store.get_plan(args.plan_id)
+        if latest is None:
+            print("error: no plan %s" % args.plan_id, file=sys.stderr)
+            return 2
+        art = latest["plan"]["policy"].get("art")
+        if not art:
+            print("plan %s v%d has no art budget" % (args.plan_id, latest["plan"]["version"]))
+            return 0
+        summary = artservice.Ledger(store.home, args.plan_id, art["credits"]).summary()
+        if args.show:
+            call = next((c for c in summary["calls"] if c["call_id"] == args.show), None)
+            if call is None or not call.get("file") or not os.path.isfile(call["file"]):
+                print("error: %s has no saved image (images are kept from the day the art service started keeping them)" % args.show, file=sys.stderr)
+                return 2
+            print(call["file"])
+            if args.open and sys.platform == "darwin":
+                subprocess.run(["open", call["file"]], check=False)
+            return 0
+        print("%s: %d of %d images used, %d left (%d delivered, %d failed and refunded); generator %s" % (
+            args.plan_id, summary["used"], summary["credits"], summary["remaining"], summary["delivered"], summary["failed"], art["generator"]))
+        for call in summary["calls"][-args.last:]:
+            print("  %s %-9s %-24s seed %-11s %s%s" % (call["call_id"], call["status"], call.get("issue_id") or "-", call.get("seed", "-"), call.get("label") or "",
+                                                       "  [image saved]" if call.get("file") else ""))
+        return 0
+    finally:
+        store.close()
 
 
 def models_command(args) -> int:
@@ -696,6 +737,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ii = sub.add_parser("import-issues", help="load refined implementation issues for an approved plan")
     ii.add_argument("--add", action="store_true",
                     help="add the issues in the file and leave the plan's other issues alone, instead of replacing the whole set")
+    ii.add_argument("--redefine", action="append", default=[], metavar="ISSUE",
+                    help="replace the definition of this Blocked issue in place, keeping its pull request and history")
     ii.add_argument("plan_id")
     ii.add_argument("file")
     ii.add_argument("--version", type=int)
@@ -763,6 +806,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     asx.add_argument("action", choices=["probe"])
     i = sub.add_parser("isolation", help="Tier A worker sandbox: build the image, verify it, or show the tier")
     i.add_argument("action", choices=["build", "verify", "status"])
+    ar = sub.add_parser("art", help="show the image-generation budget of a plan and what was spent")
+    ar.add_argument("plan_id")
+    ar.add_argument("--last", type=int, default=10, help="how many recent calls to list")
+    ar.add_argument("--show", metavar="CALL_ID", help="print where a generated image is saved, e.g. art-0004")
+    ar.add_argument("--open", action="store_true", help="with --show: open the image (macOS)")
     cl = sub.add_parser("claude", help="the Claude subscription token workers use (from `claude setup-token`)")
     cl.add_argument("action", choices=["login", "status", "logout"])
     cl.add_argument("--token-env", help="read the token from this environment variable instead of prompting")
@@ -913,6 +961,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return isolation_command(args.action, args.home)
         if args.cmd == "claude":
             return claude_command(args)
+        if args.cmd == "art":
+            return art_command(args)
         if args.cmd == "models":
             return models_command(args)
         if args.cmd == "watch":

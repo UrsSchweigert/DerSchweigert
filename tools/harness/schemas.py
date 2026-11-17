@@ -80,6 +80,7 @@ POLICY = {
     "model_sources?": [str],
     "model_tiers": dict,
     "model_routing?": {"routine_models": [str], "refiner": str, "escalation_models": [str]},
+    "art?": {"generator": str, "credits": int},  # image generation for workers through the art service; absent = off
     "diff_size_cap": int,
     "assets?": dict,
     "manual_testing?": dict,

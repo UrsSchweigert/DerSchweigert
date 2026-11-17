@@ -1142,6 +1142,23 @@ def test_an_issue_that_already_has_work_is_not_silently_skipped(tmp_path):
         runner.import_issues(store, "fx", None, str(corrected), "base2")
 
 
+def test_a_revision_that_leaves_an_issue_alone_does_not_trip_over_its_work_in_flight(tmp_path):
+    """Importing a revised plan while some other issue is under review must work: only changed definitions need replacing."""
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i1"), head_rev="a" * 40, pr=7))
+
+    assert runner.import_issues(store, "fx", None, str(first), "base2") == [], "unchanged: nothing to report, nothing refused"
+    issue = store.get_issue("i1")
+    assert issue["head_rev"] == "a" * 40 and issue["pr"] == 7 and issue["base_rev"] == "base1", "the work and its base are left exactly as they were"
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["changed"])]))
+    with pytest.raises(runner.RunRefused, match="has work recorded"):
+        runner.import_issues(store, "fx", None, str(corrected), "base2")  # a changed definition under work is still refused
+
+
 def test_an_issue_id_of_another_plan_is_reported(tmp_path):
     store = make_plan(tmp_path)
     other = tmp_path / "other.json"
@@ -1777,3 +1794,34 @@ def test_adapter_poll_separates_an_invalid_file_from_a_missing_one(tmp_path):
     (tmp_path / "result.json").write_text("{not json")
     poll = a.poll(finished_handle(tmp_path, 0), 0)
     assert poll.error["kind"] == "schema_invalid" and "not valid JSON" in poll.error["detail"]
+
+
+def test_redefine_replaces_a_blocked_issue_in_place_and_keeps_its_work(tmp_path):
+    store = make_plan(tmp_path)
+
+    def load(doc):
+        f = tmp_path / "issues.json"
+        f.write_text(json.dumps([doc]))
+        return str(f)
+
+    runner.import_issues(store, "fx", None, load(ISSUE), "base1")
+    issue = store.get_issue("i1")
+    issue["head_rev"], issue["pr"] = "abc", 7
+    store.put_issue(issue)
+    store.transition("issue", "i1", "Blocked", "coordinator", {"reason": "x"})
+    new = dict(ISSUE, acceptance_criteria=["Placeholder is fine."])
+    with pytest.raises(runner.RunRefused):
+        runner.import_issues(store, "fx", None, load(new), "base1", replace=False)
+    assert runner.import_issues(store, "fx", None, load(new), "base1", replace=False, redefine=("i1",)) == ["i1"]
+    kept = store.get_issue("i1")
+    assert kept["acceptance_criteria"] == ["Placeholder is fine."] and kept["pr"] == 7 and kept["head_rev"] == "abc"
+    assert store.state("issue", "i1") == "Blocked"
+
+
+def test_redefine_refuses_an_issue_that_is_not_blocked(tmp_path):
+    store = make_plan(tmp_path)
+    f = tmp_path / "issues.json"
+    f.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(f), "base1")
+    with pytest.raises(runner.RunRefused):
+        runner.import_issues(store, "fx", None, str(f), "base1", replace=False, redefine=("i1",))
