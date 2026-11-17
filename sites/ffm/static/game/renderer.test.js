@@ -70,3 +70,15 @@ test('the web timer bar paints the track and clamps the filled width', () => {
   new Renderer(empty.canvas).drawTimerBar(0, 0, 100, -1);
   assert.equal(empty.fills[2].w, 0, 'a negative ratio never fills backwards');
 });
+
+test('drawShapeBubble keeps all six runestones in one row inside the bubble', () => {
+  const { canvas } = fakeCanvas();
+  const renderer = new Renderer(canvas);
+  const icons = [];
+  renderer._drawBubbleChrome = () => {};
+  renderer._drawShapeIcon = (shapeType, cx, cy) => icons.push({ cx, cy });
+  renderer.drawShapeBubble(200, 200, 'circle', 6);
+  assert.equal(icons.length, 6);
+  assert.equal(new Set(icons.map((icon) => icon.cy)).size, 1, 'six stones share one row');
+  assert.equal(new Set(icons.map((icon) => icon.cx)).size, 6, 'six distinct columns');
+});
