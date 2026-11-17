@@ -12,6 +12,7 @@ import {
   readAudioPreferences,
   writeAudioPreferences,
 } from './audio-preferences.js';
+import { createHeartbeat, isLowHealth } from './low-health.js';
 import { createHaptics } from './haptics.js';
 import { noopVibration, resolveVibrationSource } from './haptics-source.js';
 import {
@@ -4668,6 +4669,8 @@ let animFrameId = null;
 let lastTs = null;
 // Set once the loop has drawn its final frame and stopped asking for more.
 let loopParked = false;
+// Paces the red edge pulse while the hero is at low health.
+const lowHealthBeat = createHeartbeat();
 
 // Repainting the playfield is a full-canvas raster every frame, and the phone
 // pays for it in heat and battery. A paused level, the title screen, the
@@ -4769,6 +4772,9 @@ function gameLoop(ts) {
   });
 
   if (gameRunning && !paused) {
+    if (lowHealthBeat.tick(dt, isLowHealth(state.hearts, state.maxHearts))) {
+      globalThis.ffmScreenFx?.play('lowHealthPulse');
+    }
     answerClock.advance(dt, state.timerActive && !inputDisabled);
     updateTimer(dt);
 
@@ -4913,6 +4919,8 @@ function gameLoop(ts) {
 
     if (hero.state === 'walk' && !heroLunge) state.scrollX += 100 * dt;
     hero.lunging = heroLunge !== null && hero.state !== 'swing';
+  } else {
+    lowHealthBeat.reset();
   }
 
   renderer.clear();

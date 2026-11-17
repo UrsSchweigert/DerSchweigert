@@ -842,6 +842,21 @@ function bonusFlow(api, payload) {
   api.schedule(duration, arrive);
 }
 
+// One heartbeat of the low-health warning: red embers drift in from all four
+// edges of the playfield. Embers are single particles, so the cap is exact.
+function lowHealthPulse(api) {
+  const perEdge = count(api, 12);
+  for (let i = 0; i < perEdge; i++) {
+    const along = i / perEdge;
+    const x = lerp(20, WORLD_WIDTH - 20, along);
+    const y = lerp(20, WORLD_HEIGHT - 20, along);
+    api.ember(x, 0, rand(-8, 8), rand(20, 60), pick(PALETTES.red), rand(0.6, 1.1));
+    api.ember(x, WORLD_HEIGHT, rand(-8, 8), rand(-60, -20), pick(PALETTES.red), rand(0.6, 1.1));
+    api.ember(0, y, rand(20, 60), rand(-8, 8), pick(PALETTES.red), rand(0.6, 1.1));
+    api.ember(WORLD_WIDTH, y, rand(-60, -20), rand(-8, 8), pick(PALETTES.red), rand(0.6, 1.1));
+  }
+}
+
 export function createEffectTable() {
   return {
     correctAnswer,
@@ -879,5 +894,6 @@ export function createEffectTable() {
     stormRain,
     stormBolt,
     stormDim,
+    lowHealthPulse,
   };
 }
