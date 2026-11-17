@@ -12,12 +12,17 @@
 // When music gain routing is unavailable the module omits the music slider and
 // shows the localized audio.musicVolumeUnavailable explanation, so the app
 // never offers a dead control.
+//
+// With `silentSwitchHint` (iOS app only) a user unmute shows a general
+// "check the silent switch" line; the speaker icon keeps showing only the
+// in-app setting and the switch position is never detected.
 
 export const VOLUME_CONTROL_ID = 'app-audio-control';
 export const VOLUME_CONTROL_CLASS = 'app-audio-control';
 export const VOLUME_CONTROL_PANEL_CLASS = 'app-audio-control-panel';
 export const VOLUME_CONTROL_ROW_CLASS = 'app-audio-control-row';
 export const VOLUME_CONTROL_STATUS_ID = 'app-audio-volume-status';
+export const SILENT_SWITCH_HINT_ID = 'app-audio-silent-switch-hint';
 export const MUSIC_VOLUME_INPUT_ID = 'app-music-volume';
 export const EFFECTS_VOLUME_INPUT_ID = 'app-effects-volume';
 export const VOLUME_CONTROL_ANCHOR_ID = 'mute-btn';
@@ -51,6 +56,7 @@ function inertControl() {
     get effectsInput() { return null; },
     get musicAvailable() { return false; },
     refresh: () => ({ music: false, status: '' }),
+    noteMuteChange: () => false,
     destroy: () => {},
   };
 }
@@ -64,6 +70,7 @@ function inertControl() {
  * @param {(key: string, vars?: object) => string} [options.translate]
  * @param {() => void} [options.persist] device-wide preferences writer
  * @param {(message: string, error: unknown) => void} [options.warn] error sink
+ * @param {boolean} [options.silentSwitchHint] show the silent-switch hint after a user unmute
  * @param {string} [options.anchorId] existing button to insert after
  * @returns {object} handle with refresh()/destroy() and the rendered inputs
  */
@@ -73,6 +80,7 @@ export function createVolumeControl({
   translate = key => key,
   persist = () => {},
   warn = () => {},
+  silentSwitchHint = false,
   anchorId = VOLUME_CONTROL_ANCHOR_ID,
 } = {}) {
   const anchor = doc?.getElementById?.(anchorId) ?? null;
@@ -102,6 +110,12 @@ export function createVolumeControl({
   status.id = VOLUME_CONTROL_STATUS_ID;
   status.className = 'screen-status';
   setAttributes(status, { role: 'status' });
+
+  const hint = doc.createElement('p');
+  hint.id = SILENT_SWITCH_HINT_ID;
+  hint.className = 'screen-status';
+  setAttributes(hint, { role: 'status' });
+  let hintVisible = false;
 
   function makeRow(kind, id, labelKey, apply) {
     const row = doc.createElement('div');
@@ -151,6 +165,7 @@ export function createVolumeControl({
   }
 
   panel.appendChild(status);
+  panel.appendChild(hint);
   panel.appendChild(effects.row);
 
   function refresh() {
@@ -169,8 +184,18 @@ export function createVolumeControl({
     anchor.setAttribute('aria-label', muteLabel);
     const message = text(available ? 'audio.musicVolumeReady' : 'audio.musicVolumeUnavailable');
     setText(status, message);
+    // Only re-translates a hint that is already showing; never raises one.
+    if (hintVisible) setText(hint, text('audio.silentSwitchHint'));
     details.setAttribute('data-music-available', String(available));
     return { music: available, status: message };
+  }
+
+  // Called by the mute handler after the user toggled mute. `wasMuted` is the
+  // state before the toggle: the hint shows on muted -> unmuted and clears on mute.
+  function noteMuteChange(wasMuted) {
+    hintVisible = Boolean(silentSwitchHint && wasMuted && !audio?.muted);
+    setText(hint, hintVisible ? text('audio.silentSwitchHint') : '');
+    return hintVisible;
   }
 
   parent.insertBefore(details, anchor.nextSibling ?? null);
@@ -192,10 +217,12 @@ export function createVolumeControl({
     element: details,
     summary,
     status,
+    hint,
     get musicInput() { return music?.input ?? null; },
     get effectsInput() { return effects.input; },
     get musicAvailable() { return music !== null; },
     refresh,
+    noteMuteChange,
     destroy() {
       parent.insertBefore(anchor, details);
       anchor.textContent = originalMuteText;

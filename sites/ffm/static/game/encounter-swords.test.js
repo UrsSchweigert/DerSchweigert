@@ -70,11 +70,14 @@ function fakeDocument({ rect } = {}) {
   container.id = 'input-zone';
   const anchor = fakeNode(rect);
   anchor.id = 'mc-buttons';
+  const wrap = fakeNode(rect);
+  wrap.id = 'game-wrap';
   const created = [];
   const doc = {
     getElementById(id) {
       if (id === 'input-zone') return container;
       if (id === 'mc-buttons') return anchor;
+      if (id === 'game-wrap') return wrap;
       return null;
     },
     createElement() {
@@ -83,7 +86,7 @@ function fakeDocument({ rect } = {}) {
       return node;
     },
   };
-  return { doc, container, anchor, created };
+  return { doc, container, anchor, wrap, created };
 }
 
 function recordFx() {
@@ -237,5 +240,49 @@ describe('sword row', () => {
     hiddenWidget.updateEncounterProgress({ defeated: 0, total: 3 });
     assert.equal(hiddenWidget.shatter(2), 2);
     assert.equal(silent.length, 0, 'a hidden row fires no effect');
+  });
+
+  it('mirrors the row in a landscape column that is a direct child of #game-wrap', () => {
+    const { doc, wrap } = fakeDocument();
+    const widget = createEncounterSwords({ doc });
+    const column = widget.column;
+    assert.equal(column.className, 'app-encounter-swords-column');
+    assert.equal(column.attributes['aria-hidden'], 'true');
+    assert.equal(column.parentNode, wrap);
+    assert.equal(column.hidden, true);
+
+    widget.updateEncounterProgress({ defeated: 2, total: 4, slots: 6 });
+    assert.equal(column.hidden, false);
+    assert.equal(widget.columnSwords.length, 6);
+    const state = (list) => list.map((sword) => [
+      sword.classList.contains(SWORD_FILLED_CLASS), sword.classList.contains(SWORD_LOST_CLASS)]);
+    assert.deepEqual(state(widget.columnSwords), state(widget.swords));
+    widget.updateEncounterProgress({ defeated: 3, total: 3, slots: 6 });
+    assert.deepEqual(state(widget.columnSwords), state(widget.swords));
+    widget.updateEncounterProgress({ defeated: 0, total: 0 });
+    assert.equal(column.hidden, true);
+    assert.equal(widget.columnSwords.length, 0);
+  });
+
+  it('plays effects at the laid-out container and destroys both', () => {
+    const { doc, wrap } = fakeDocument();
+    const plays = recordFx();
+    const widget = createEncounterSwords({ doc });
+    widget.updateEncounterProgress({ defeated: 0, total: 3 });
+    // Landscape: the row reports 0x0, the column is laid out.
+    const zero = { left: 0, top: 0, width: 0, height: 0 };
+    widget.swords.forEach((sword) => { sword.getBoundingClientRect = () => zero; });
+    widget.columnSwords.forEach((sword, i) => {
+      sword.getBoundingClientRect = () => ({ left: 4, top: 10 * i, width: 12, height: 8 });
+    });
+    widget.updateEncounterProgress({ defeated: 1, total: 3 });
+    assert.deepEqual(plays.at(-1), { name: 'swordGain', payload: { x: 10, y: 4 } });
+    widget.shatter(1);
+    assert.deepEqual(plays.at(-1), { name: 'swordLost', payload: { x: 10, y: 24 } });
+
+    widget.destroy();
+    assert.equal(wrap.children.length, 0);
+    assert.equal(widget.column, null);
+    assert.equal(widget.columnSwords.length, 0);
   });
 });

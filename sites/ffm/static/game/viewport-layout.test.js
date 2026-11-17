@@ -217,11 +217,14 @@ test('visible chrome reserves real height without scaling the logical canvas', (
     getElementById: id => ({ 'game-wrap': wrap, 'gameplay-chrome': chrome, 'mc-buttons': options })[id],
   };
   const controller = initViewportLayout({ win, doc });
-  const expected = calculateSceneLayout(552, 158, 10);
+  // Landscape reserves the 28px sword column plus the 6px grid gap after it;
+  // the CSS variable is the bare track, the gap comes from #game-wrap.
+  const expected = calculateSceneLayout(552, 158, 10, true, 44, 0, 34);
   assert.equal(properties.get('--scene-height'), `${expected.sceneHeight}px`);
+  assert.equal(properties.get('--sword-column-width'), '28px');
   chrome.hidden = true;
   controller.refresh();
-  assert.equal(properties.get('--scene-height'), `${calculateSceneLayout(552, 252, 10).sceneHeight}px`);
+  assert.equal(properties.get('--scene-height'), `${calculateSceneLayout(552, 252, 10, true, 44, 0, 34).sceneHeight}px`);
   controller.destroy();
 });
 
@@ -349,4 +352,24 @@ test('screen IDs, pagination, playfield ownership and legal scrolling stay expli
   assert.match(css, /\.title-legal\s*\{\s*overflow-y:\s*auto/);
   const renderer = await readFile(new URL('./renderer.js', import.meta.url), 'utf8');
   assert.doesNotMatch(renderer, /querySelector\('#input-zone'\)|offsetHeight|ResizeObserver/);
+});
+
+for (const [width, height] of [[844, 390], [667, 375]]) {
+  test(`keeps the scene clear of the sword column at ${width}x${height}`, () => {
+    // The real grid: column track, gap, scene track, gap, answer track.
+    const column = 28;
+    const base = calculateSceneLayout(width, height, 10, true, 44, 0);
+    const layout = calculateSceneLayout(width, height, 10, true, 44, 0, column + 6);
+    assert.ok(layout.sceneWidth <= base.sceneWidth);
+    assert.ok(column + 6 + layout.sceneWidth + 6 + layout.answerWidth <= width + 0.001,
+      'column, scene and answers fit beside each other with both grid gaps');
+    const grid = layout.columns * 44 + (layout.columns - 1) * 6 + 18;
+    assert.ok(layout.answerWidth >= grid - 0.001, 'answers keep their minimum width');
+  });
+}
+
+test('ignores the reserved width in portrait and defaults to zero', () => {
+  const portrait = calculateSceneLayout(390, 844, 10, false, 44, 0);
+  assert.deepEqual(calculateSceneLayout(390, 844, 10, false, 44, 0, 34), portrait);
+  assert.deepEqual(calculateSceneLayout(844, 390, 10, true, 44, 0, 0), calculateSceneLayout(844, 390, 10, true));
 });

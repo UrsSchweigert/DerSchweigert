@@ -43,10 +43,18 @@ body {
 }
 
 #game-wrap[data-layout="landscape"] {
-  grid-template-columns: var(--scene-width) var(--answer-width, minmax(0, 1fr));
+  grid-template-columns: var(--sword-column-width, 0px) var(--scene-width) var(--answer-width, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
   justify-content: center;
 }
+
+/* Landscape places its three blocks explicitly: the sword column
+ * (encounter-swords.js) owns the first grid column for the full height under
+ * the chrome row, the scene the second and the answers the third. */
+#game-wrap[data-layout="landscape"] > #playfield { grid-column: 2; grid-row: 1; }
+#game-wrap[data-layout="landscape"] > #input-zone { grid-column: 3; grid-row: 1; }
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > #playfield,
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > #input-zone { grid-row: 2; }
 
 #game-wrap:has(#gameplay-chrome:not([hidden])) {
   grid-template-rows: auto var(--scene-height) minmax(0, 1fr);
@@ -54,6 +62,10 @@ body {
 
 #game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) {
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > .app-encounter-swords-column {
+  grid-row: 2;
 }
 
 #gameplay-chrome {
@@ -100,7 +112,7 @@ body {
  * worst for the long German sentences. Anchor it to the scene column instead:
  * the bonus belongs to the playfield the spells are cast from. */
 #game-wrap[data-layout="landscape"] #bonus-notice {
-  left: 0;
+  left: calc(var(--sword-column-width, 0px) + 6px);
   right: calc(var(--answer-width) + 12px);
   width: fit-content;
   max-width: calc(var(--scene-width) - 8px);
@@ -707,6 +719,46 @@ body {
   user-select: none;
 }
 
+/* Landscape shows the same swords as a vertical column at the left edge of
+ * #game-wrap instead (created by encounter-swords.js; no markup). The slots
+ * shrink evenly (min size 0) so 30 swords fit a 320px-high window. The column
+ * fills its own grid track (--sword-column-width, set by viewport-layout.js)
+ * and adds no margin: body already pads #game-wrap by the left safe-area
+ * inset, so the track itself sits inside the safe area. */
+.app-encounter-swords-column {
+  display: none;
+}
+
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 0;
+  pointer-events: none;
+  user-select: none;
+  visibility: visible;
+}
+
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column[hidden] {
+  visibility: hidden;
+}
+
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column .app-encounter-sword {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 22px;
+  width: 12px;
+}
+
 #game-wrap[data-layout="portrait"] .app-encounter-swords {
   display: flex !important;
 }
@@ -725,15 +777,21 @@ body {
   height: 20px;
 }
 
+/* The sword silhouette, declared once: the portrait bar and the difficulty
+ * picker icons both draw it. */
+.diff-sword::before,
 .app-encounter-sword::before {
   content: "";
   display: block;
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.24);
   clip-path: polygon(50% 0, 62% 9%, 62% 62%, 90% 62%, 90% 71%, 58% 71%, 58% 88%,
     66% 88%, 66% 100%, 34% 100%, 34% 88%, 42% 88%, 42% 71%, 10% 71%, 10% 62%,
     38% 62%, 38% 9%);
+}
+
+.app-encounter-sword::before {
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .app-encounter-sword--filled {
@@ -2190,6 +2248,18 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 .title-player-badge[hidden] { display: none; }
 .title-player-badge .hero-identity-portrait { display: block; width: 100%; height: 100%; margin: 0; border-radius: 0; object-fit: cover; }
 .title-player-badge:focus-visible { outline: 3px solid var(--focus-ring, #fff0bd); outline-offset: 2px; }
+/* Short landscape menus: the numerals and the badge share the 44px title row, so
+   the numerals no longer reach the menu sheet below it. Play keeps its own layout. */
+@media (orientation: landscape) and (max-height: 460px) {
+  #difficulty-select:has(.title-page:not([hidden]):not(.title-play)) .title-level-numerals { width: 44px; }
+  #difficulty-select:has(.title-page:not([hidden]):not(.title-play)) .title-level-numerals svg { max-height: 44px; }
+  #difficulty-select:has(.title-page:not([hidden]):not(.title-play)) .title-player-badge {
+    left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 16px + 44px);
+  }
+}
+@media (orientation: landscape) and (max-height: 400px) {
+  .title-level-numerals svg { max-height: 44px; }
+}
 /* Tabs take the width their label needs and wrap onto a second row when six
  * of them (plus help) do not fit. A pressed tab is bold and therefore wider, so
  * a fixed six-column grid used to clip "Training" on 320px phones. */
@@ -2968,6 +3038,9 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 }
 .splash-diff-btn .diff-label { flex: 0 0 25%; }
 .splash-diff-btn .diff-detail { text-align: right; }
+.diff-swords { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; height: 20px; }
+.diff-sword { flex: 0 0 12px; width: 12px; height: 20px; }
+.diff-sword::before { background: linear-gradient(180deg, #c8f7c5 0%, #5fd068 45%, #2e8b3a 100%); }
 #game-wrap[data-layout="portrait"] #input-zone {
   position: relative;
   isolation: isolate;

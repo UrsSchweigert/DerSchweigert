@@ -220,14 +220,15 @@ export function mountProfileUI({
             }));
           }
         }
+        // Compact glyphs keep the row short; the aria-labels keep the words.
         if (typeof adapter.renameProfile === 'function') {
-          row.append(button(text('profiles.rename'), () => openStage({ type: 'rename', ...profile }), {
-            blocked: true, ariaLabel: `${text('profiles.rename')}: ${profile.name}`,
+          row.append(button('ABC', () => openStage({ type: 'rename', ...profile }), {
+            blocked: true, className: 'profile-rename', ariaLabel: `${text('profiles.rename')}: ${profile.name}`,
           }));
         }
         if (typeof adapter.deleteProfile === 'function') {
-          const remove = button(text('profiles.delete'), () => openStage({ type: 'delete', ...profile }), {
-            blocked: true, ariaLabel: `${text('profiles.delete')}: ${profile.name}`,
+          const remove = button('X', () => openStage({ type: 'delete', ...profile }), {
+            blocked: true, className: 'profile-delete', ariaLabel: `${text('profiles.delete')}: ${profile.name}`,
           });
           remove.disabled ||= profiles.length <= 1;
           row.append(remove);

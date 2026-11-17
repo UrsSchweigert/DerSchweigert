@@ -12,6 +12,7 @@ import {
   readAudioPreferences,
   writeAudioPreferences,
 } from './audio-preferences.js';
+import { createHeartbeat, isLowHealth } from './low-health.js';
 import { createHaptics } from './haptics.js';
 import { noopVibration, resolveVibrationSource } from './haptics-source.js';
 import {
@@ -226,9 +227,13 @@ if (platform.isApp) {
   // engine and persisted preferences as the pause-menu audio settings. It is
   // created after the engine exists because the overlay import resolves after
   // this synchronous module body.
-  import('./volume-control.js')
-    .then(({ createVolumeControl }) => {
+  Promise.all([
+    import('./volume-control.js'),
+    import('./ios-platform.js').catch(() => null),
+  ])
+    .then(([{ createVolumeControl }, iosPlatform]) => {
       volumeControl = createVolumeControl({
+        silentSwitchHint: Boolean(iosPlatform?.isIosApp()),
         doc: document,
         audio,
         translate: t,
@@ -432,8 +437,16 @@ async function playStoryScene(sceneId) {
       return response.json();
     }),
   ]);
+  // iOS app only: narration goes through Web Audio like the music and effects,
+  // so the hardware silent switch silences it too. Web and Android keep the
+  // <audio> element; a failing import just keeps that path.
+  const iosPlatform = platform.isApp
+    ? await import('./ios-platform.js').catch(() => null)
+    : null;
+  const useWebAudioNarration = Boolean(iosPlatform?.isIosApp());
   const player = createDioramaPlayer({
     container: document.body,
+    ...(useWebAudioNarration ? { createNarration: url => audio.createNarrationVoice(url) } : {}),
     scene,
     baseUrl: sceneBase,
     locale: getLocale(),
@@ -2695,9 +2708,11 @@ function updateMuteButtonLabel() {
 }
 
 muteBtn.addEventListener('click', () => {
+  const wasMuted = audio.muted;
   audio.toggleMute();
   persistAudioPreferences();
   updateMuteButtonLabel();
+  volumeControl?.noteMuteChange?.(wasMuted);
 });
 
 langToggleBtn?.addEventListener('click', () => {
@@ -4668,6 +4683,8 @@ let animFrameId = null;
 let lastTs = null;
 // Set once the loop has drawn its final frame and stopped asking for more.
 let loopParked = false;
+// Paces the red edge pulse while the hero is at low health.
+const lowHealthBeat = createHeartbeat();
 
 // Repainting the playfield is a full-canvas raster every frame, and the phone
 // pays for it in heat and battery. A paused level, the title screen, the
@@ -4769,6 +4786,9 @@ function gameLoop(ts) {
   });
 
   if (gameRunning && !paused) {
+    if (lowHealthBeat.tick(dt, isLowHealth(state.hearts, state.maxHearts))) {
+      globalThis.ffmScreenFx?.play('lowHealthPulse');
+    }
     answerClock.advance(dt, state.timerActive && !inputDisabled);
     updateTimer(dt);
 
@@ -4913,6 +4933,8 @@ function gameLoop(ts) {
 
     if (hero.state === 'walk' && !heroLunge) state.scrollX += 100 * dt;
     hero.lunging = heroLunge !== null && hero.state !== 'swing';
+  } else {
+    lowHealthBeat.reset();
   }
 
   renderer.clear();

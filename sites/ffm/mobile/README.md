@@ -264,7 +264,8 @@ from same-origin blob URLs so it can share the Web Audio gain path; the music
 slider accepts a gain before first playback and applies it to the routed track.
 One title speaker menu contains music, effects and mute controls; the UI states
 the limitation only when routing is unavailable. See [MUSIC.md](MUSIC.md)
-for the routing path and the physical-device listening gates. No new songs or
+for the routing path and the physical-device listening gates, and
+[CAR-AUDIO.md](CAR-AUDIO.md) for the unverified choppy car audio diagnosis. No new songs or
 hero/weapon art are included.
 
 #### Physical-device audio gates
@@ -277,7 +278,7 @@ iOS and Android device:
 - Bundled music and effects are audible through the speaker and headphones.
 - The app music slider changes live gain at 0, 0.2 and 1 while a track plays,
   and the effects slider changes the next effect cue.
-- The iOS silent switch silences music and effects; unmuting restores them.
+- The iOS silent switch silences music, effects and story narration; unmuting restores them and shows a hint to check the silent switch.
 - A call or alarm interruption pauses music and gameplay, and returning resumes
   both exactly once with mute and gain preserved.
 - Background/foreground transitions do not duplicate playback.
