@@ -4669,6 +4669,8 @@ let animFrameId = null;
 let lastTs = null;
 // Set once the loop has drawn its final frame and stopped asking for more.
 let loopParked = false;
+// Paces the red edge pulse while the hero is at low health.
+const lowHealthBeat = createHeartbeat();
 
 // Repainting the playfield is a full-canvas raster every frame, and the phone
 // pays for it in heat and battery. A paused level, the title screen, the
@@ -4677,8 +4679,6 @@ let loopParked = false;
 // a level is live, while a gameplay timer still has to mature (the practice
 // wave-clear delay and the chained hit sequences outlive gameRunning) and while
 // the screen-fx layer still has particles to fade out.
-const lowHealthBeat = createHeartbeat();
-
 function needsFrame() {
   if (paused) return false;
   if (gameRunning) return true;

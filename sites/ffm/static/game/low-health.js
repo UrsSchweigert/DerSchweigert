@@ -4,9 +4,12 @@
 export const LOW_HEALTH_RATIO = 0.3;
 export const HEARTBEAT_PERIOD = 1;
 
-/** Low health: at least one heart left, and under 30% of the maximum or the last heart. */
+/**
+ * Low health: at least one heart left, below the maximum, and under 30% of the
+ * maximum or the last heart. A full-health hero is never low, even at maxHearts 1.
+ */
 export function isLowHealth(hearts, maxHearts) {
-  if (!(hearts > 0)) return false;
+  if (!(hearts > 0) || hearts >= maxHearts) return false;
   return hearts === 1 || hearts / maxHearts < LOW_HEALTH_RATIO;
 }
 

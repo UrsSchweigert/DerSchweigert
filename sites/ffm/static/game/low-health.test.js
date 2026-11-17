@@ -9,7 +9,8 @@ test('the low-health rule table', () => {
   assert.deepEqual(low(5), [1]);
   assert.deepEqual(low(3), [1]);
   assert.equal(isLowHealth(0, 5), false);
-  assert.equal(isLowHealth(1, 1), true);
+  assert.equal(isLowHealth(1, 1), false);
+  assert.equal(isLowHealth(1, 2), true);
 });
 
 test('the period sits between 0.8s and 1.2s', () => {
