@@ -464,7 +464,7 @@
   display: inline-block;
   width: 28px;
   height: 28px;
-  margin-right: 6px;
+  margin-right: 12px;
   border-radius: 50%;
   object-fit: cover;
   vertical-align: middle;
@@ -478,6 +478,7 @@
 /* App hero picker and profile row portraits. */
 #local-profiles .profile-portrait {
   flex: 0 0 auto;
+  margin-right: 8px;
   width: 44px;
   height: 44px;
   border-radius: 8px;

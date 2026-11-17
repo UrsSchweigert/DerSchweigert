@@ -3356,7 +3356,7 @@ body:not(.legal-body) {
 .hero-picker-item.is-locked { opacity: 0.8; }
 .hero-picker-portrait, .hero-picker-placeholder, .hero-identity-portrait { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: rgba(255, 255, 255, 0.15); }
 .hero-picker-placeholder, .hero-identity-portrait-placeholder { display: inline-block; }
-.hero-identity-portrait { width: 28px; height: 28px; vertical-align: middle; margin-right: 6px; }
+.hero-identity-portrait { width: 28px; height: 28px; vertical-align: middle; margin-right: 12px; }
 .hero-picker-lock { position: absolute; top: 2px; right: 2px; min-width: 22px; padding: 0 4px; border-radius: 4px; background: #000; color: #fff; font-size: 14px; line-height: 22px; text-align: center; }
 .hero-picker-name { font-size: 12px; text-align: center; }
 .hero-picker-status { min-height: 16px; margin: 0; font-size: 12px; color: #f0d080; }
