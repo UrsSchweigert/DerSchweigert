@@ -4,7 +4,7 @@
 // www/game/encounter-swords.js in the app bundle, and is imported once by
 // main.js for both channels. These tests pin the sword count (one per enemy,
 // bounded), the left-to-right green fill, the row placement directly above the
-// answer buttons, teardown, the shared main.js wiring, the portrait-only CSS,
+// answer buttons, teardown, the shared main.js wiring, the portrait row and landscape column CSS,
 // and the 320px portrait touch-target budget.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -238,7 +238,7 @@ test('one shared module and one stylesheet block serve both channels', async () 
   assert.doesNotMatch(appCss, /app-encounter-sword/, 'the app overlay keeps no copy of the sword rules');
 });
 
-test('the shared stylesheet draws portrait-only green swords', async () => {
+test('the shared stylesheet draws the green portrait row', async () => {
   const css = await readFile(join(staticDir, 'styles.css'), 'utf8');
 
   assert.match(css, /\.app-encounter-swords\s*\{[^}]*display:\s*none/,
@@ -358,4 +358,18 @@ test('a defeat does not glint at a hidden sword row', () => {
   } finally {
     fx.restore();
   }
+});
+
+test('the shared stylesheet shows the swords as a landscape column', async () => {
+  const css = await readFile(join(staticDir, 'styles.css'), 'utf8');
+  const mobile = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
+
+  assert.match(css, /\.app-encounter-swords-column\s*\{\s*display:\s*none/, 'hidden outside landscape');
+  assert.match(css, /#game-wrap\[data-layout="landscape"\]\s*\.app-encounter-swords-column\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*grid-column:\s*1;[^}]*grid-row:\s*1 \/ -1;[^}]*pointer-events:\s*none/);
+  assert.match(css, /\.app-encounter-swords-column \.app-encounter-sword\s*\{[^}]*flex:\s*1 1 0;[^}]*min-height:\s*0/);
+  assert.match(css, /grid-template-columns:\s*var\(--sword-column-width, 0px\) var\(--scene-width\)/);
+  assert.match(css, /\[data-layout="landscape"\] > #playfield\s*\{\s*grid-column:\s*2/);
+  assert.match(css, /\[data-layout="landscape"\] > #input-zone\s*\{\s*grid-column:\s*3/);
+  assert.doesNotMatch(mobile, /encounter-sword/, 'mobile-ui.css stays free of sword rules');
+  assert.doesNotMatch(css, /https?:\/\//);
 });

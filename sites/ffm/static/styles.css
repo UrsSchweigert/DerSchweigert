@@ -43,10 +43,18 @@ body {
 }
 
 #game-wrap[data-layout="landscape"] {
-  grid-template-columns: var(--scene-width) var(--answer-width, minmax(0, 1fr));
+  grid-template-columns: var(--sword-column-width, 0px) var(--scene-width) var(--answer-width, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
   justify-content: center;
 }
+
+/* Landscape places its three blocks explicitly: the sword column
+ * (encounter-swords.js) owns the first grid column for the full height under
+ * the chrome row, the scene the second and the answers the third. */
+#game-wrap[data-layout="landscape"] > #playfield { grid-column: 2; grid-row: 1; }
+#game-wrap[data-layout="landscape"] > #input-zone { grid-column: 3; grid-row: 1; }
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > #playfield,
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > #input-zone { grid-row: 2; }
 
 #game-wrap:has(#gameplay-chrome:not([hidden])) {
   grid-template-rows: auto var(--scene-height) minmax(0, 1fr);
@@ -54,6 +62,10 @@ body {
 
 #game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) {
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > .app-encounter-swords-column {
+  grid-row: 2;
 }
 
 #gameplay-chrome {
@@ -100,7 +112,7 @@ body {
  * worst for the long German sentences. Anchor it to the scene column instead:
  * the bonus belongs to the playfield the spells are cast from. */
 #game-wrap[data-layout="landscape"] #bonus-notice {
-  left: 0;
+  left: var(--sword-column-width, 0px);
   right: calc(var(--answer-width) + 12px);
   width: fit-content;
   max-width: calc(var(--scene-width) - 8px);
@@ -705,6 +717,42 @@ body {
   padding: 0 2px;
   pointer-events: none;
   user-select: none;
+}
+
+/* Landscape shows the same swords as a vertical column at the left edge of
+ * #game-wrap instead (created by encounter-swords.js; no markup). The slots
+ * shrink evenly (min size 0) so 30 swords fit a 320px-high window. */
+.app-encounter-swords-column {
+  display: none;
+}
+
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  width: calc(var(--sword-column-width, 34px) - 6px);
+  min-height: 0;
+  margin-left: min(var(--safe-area-left, 0px), 6px);
+  padding: 2px 0;
+  pointer-events: none;
+  user-select: none;
+  visibility: visible;
+}
+
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column[hidden] {
+  visibility: hidden;
+}
+
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column .app-encounter-sword {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 22px;
+  width: 12px;
 }
 
 #game-wrap[data-layout="portrait"] .app-encounter-swords {
