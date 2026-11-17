@@ -511,6 +511,27 @@
   min-width: 44px;
   min-height: 44px;
 }
+/* The hero picker is a dialog below the title bar, so the sound button, the player
+ * badge and the level numerals stay visible above it. The bar is 44px where the
+ * numerals are capped at 44px (see styles.css), and 84px on wide screens. */
+.overlay.hero-picker-overlay {
+  --hero-title-bar-height: 84px;
+  --hero-picker-shift: calc(var(--safe-area-top, env(safe-area-inset-top, 0px))
+    + 8px + var(--hero-title-bar-height) + 8px);
+  --hero-picker-top: calc(var(--viewport-top, 0px) + var(--hero-picker-shift));
+  top: var(--hero-picker-top);
+  /* The visual-viewport height minus the shift keeps the bottom edge where the plain overlay has it. */
+  height: calc(var(--overlay-height) - var(--hero-picker-shift));
+  /* The shift already covers the top inset; do not count it again inside the box. */
+  padding-top: 0;
+}
+@media (max-width: 600px), (orientation: landscape) and (max-height: 460px) {
+  .overlay.hero-picker-overlay { --hero-title-bar-height: 44px; }
+}
+/* The blur artwork extends 8px past the box; start it at the picker edge, not above it. */
+.overlay:not(.splash-screen).hero-picker-overlay::before {
+  top: 0;
+}
 .hero-picker-overlay .hero-picker-card {
   max-height: 100%;
   overflow-y: auto;
