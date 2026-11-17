@@ -9,6 +9,16 @@
 export const CAMPAIGN2_PRODUCT_ID = 'arithmoslayer_genius_unlock';
 
 /**
+ * Whether the title screen shows the Genius Campaign button. Players who own the app product
+ * always see it (they bought it, so they can switch at once, even on a fresh install). Everyone
+ * else, including web subscribers, sees it only after beating level 40 for the first time.
+ */
+export function geniusButtonVisible({ platform, ownsProduct = false, revealed = false }) {
+  if (platform !== 'web' && platform !== 'app') throw new RangeError(`Unknown platform "${platform}"`);
+  return revealed || (platform === 'app' && ownsProduct);
+}
+
+/**
  * @param {{platform: 'web'|'app', premiumAccess?: boolean, ownedProductIds?: string[]}} state
  *   `premiumAccess` is the existing web entitlement (the subscription); `ownedProductIds`
  *   are the app's owned store products (see mobile/game/entitlement.js).

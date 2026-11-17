@@ -8,7 +8,7 @@ import {
   IMPLEMENTED_LEVELS_2, OPTION_COUNT_2, TOTAL_LEVELS_2, KINDS, levelMix, isBossRoundLevel2, BOSS_ROUND_LEVELS_2,
 } from './campaign2-levels.js';
 import { expressionHtml, expressionText, answerHtml } from './math-render.js';
-import { campaign2Access, CAMPAIGN2_PRODUCT_ID } from './access.js';
+import { campaign2Access, geniusButtonVisible, CAMPAIGN2_PRODUCT_ID } from './access.js';
 import { getSkillIntro2, INTRO_TEXT_2 } from './intro-text.js';
 
 const SEEDS = Array.from({ length: 300 }, (_, i) => i * 7919 + 13);
@@ -263,5 +263,17 @@ describe('Genius Campaign reveal', () => {
     const broken = createGeniusReveal({ storage: { getItem() { throw new Error('no'); }, setItem() { throw new Error('no'); } } });
     assert.equal(broken.isRevealed(), false);
     assert.doesNotThrow(() => broken.reveal());
+  });
+});
+
+describe('who sees the Genius Campaign button', () => {
+  it('app owners always, everyone else only once level 40 is beaten', () => {
+    assert.equal(geniusButtonVisible({ platform: 'app', ownsProduct: true, revealed: false }), true);
+    assert.equal(geniusButtonVisible({ platform: 'app', ownsProduct: false, revealed: false }), false);
+    assert.equal(geniusButtonVisible({ platform: 'app', ownsProduct: false, revealed: true }), true, 'not bought, level 40 beaten: it appears so they can buy');
+    assert.equal(geniusButtonVisible({ platform: 'web', revealed: false }), false, 'a subscription alone does not show it early');
+    assert.equal(geniusButtonVisible({ platform: 'web', ownsProduct: true, revealed: false }), false, 'the web has no product to own');
+    assert.equal(geniusButtonVisible({ platform: 'web', revealed: true }), true);
+    assert.throws(() => geniusButtonVisible({ platform: 'tv' }), RangeError);
   });
 });

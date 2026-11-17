@@ -75,7 +75,7 @@ import { getCampaign2LevelConfig, ABILITY_LEVEL } from './campaign2/config.js';
 import { getSkillIntro2, INTRO_TEXT_2 } from './campaign2/intro-text.js';
 import { createCampaign2Progress } from './campaign2/progress.js';
 import { createGeniusReveal, geniusEarned } from './campaign2/genius.js';
-import { campaign2Access } from './campaign2/access.js';
+import { campaign2Access, geniusButtonVisible } from './campaign2/access.js';
 import { expressionHtml } from './campaign2/math-render.js';
 import { runestoneDataUri } from './runestone.js';
 import { createLevelNumerals } from './level-numerals.js';
@@ -2142,13 +2142,19 @@ async function renderCampaignSwitch() {
   const wrap = document.getElementById('genius-campaign');
   const button = document.getElementById('genius-campaign-btn');
   if (!wrap || !button) return;
-  if (!geniusReveal().isRevealed()) {
+  const access = await getCampaign2AccessNow();
+  // An app owner of the product sees the button at once; everyone else after beating level 40.
+  const visible = geniusButtonVisible({
+    platform: platform.isApp ? 'app' : 'web',
+    ownsProduct: platform.isApp && access.granted,
+    revealed: geniusReveal().isRevealed(),
+  });
+  if (!visible) {
     wrap.hidden = true;
     if (selectedCampaign === 2) selectedCampaign = 1;   // a stale selection never hides the way back
   } else {
     wrap.hidden = false;
     const inTwo = selectedCampaign === 2;
-    const access = await getCampaign2AccessNow();
     const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
     set('genius-title', inTwo ? 'campaign2.genius.back' : 'campaign2.genius.title');
     set('genius-eyebrow', 'campaign2.genius.eyebrow');
@@ -2161,6 +2167,14 @@ async function renderCampaignSwitch() {
     }
   }
   updateTitleStartingLevel();
+}
+// App only: restoring a purchase made on another device or before a reinstall. Opens the
+// Campaign II purchase screen, which has the parental-gated Restore button (a player who has
+// not beaten level 40 cannot see the Genius button yet, so this is their way in).
+const restoreButton = document.getElementById('restore-purchases-btn');
+if (restoreButton && platform.isApp) {
+  restoreButton.hidden = false;
+  restoreButton.addEventListener('click', () => openCampaign2Purchase());
 }
 document.getElementById('genius-campaign-btn')?.addEventListener('click', async () => {
   if (levelStarting || pendingSkillIntro) return;
