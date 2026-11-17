@@ -88,6 +88,21 @@ test('panel copy is bilingual and never implies a subscription or cross-platform
   }
 });
 
+test('the full state shows only the unlock line and Restore, in both locales', () => {
+  const english = buildEntitlementMarkup({ locale: 'en', statusKey: 'full', freeCount: 60, totalLevels: 60, price: '4,99 €', showBuy: true });
+  const german = buildEntitlementMarkup({ locale: 'de', statusKey: 'full', freeCount: 60, totalLevels: 60, price: '4,99 €', showBuy: true });
+  assert.match(english, /<p class="entitlement-status" role="status" aria-live="polite">All levels unlocked<\/p>/);
+  assert.match(english, /data-entitlement-status="full"/);
+  assert.match(german, /<p class="entitlement-status" role="status" aria-live="polite">Alle Level freigeschaltet<\/p>/);
+  for (const text of [english, german]) {
+    assert.doesNotMatch(text, /Your version|Deine Version|levels are available|Alle \d+ Level|entitlement-unlock|entitlement-device|entitlement-free|data-entitlement-action="buy"/);
+    assert.match(text, /data-entitlement-action="restore"/);
+    assert.doesNotMatch(text, /class="entitlement-outcome/, 'an empty outcome line adds no height');
+  }
+  const withOutcome = buildEntitlementMarkup({ locale: 'en', statusKey: 'full', outcomeKey: 'paywall.restored', outcomeText: 'Restored.' });
+  assert.match(withOutcome, /class="entitlement-outcome[^>]*>Restored\.<\/p>/);
+});
+
 test('the price comes from the store product, never a hard-coded amount', async () => {
   const { view } = await loadedPanel({
     platform: fakePlatform(), purchaseStore: fakeStore({ product: { priceString: '7,25 €' } }), totalLevels: 60,
@@ -133,7 +148,7 @@ test('free, full, offline and error are distinct panel states', async () => {
   assert.match(free.view.markup, /data-entitlement-action="buy"/);
   const full = await loadedPanel({ platform: fakePlatform({ status: { premium_access: true } }), purchaseStore: fakeStore(), totalLevels: 60 });
   assert.match(full.view.markup, /data-entitlement-status="full"/);
-  assert.match(full.view.markup, /All 60 levels are available\./);
+  assert.match(full.view.markup, /data-entitlement-status="full"[\s\S]*All levels unlocked</);
   assert.doesNotMatch(full.view.markup, /data-entitlement-action="buy"/);
   assert.match(full.view.markup, /data-entitlement-action="restore"/);
   const offline = await loadedPanel({ platform: fakePlatform({ status: { premium_access: false, offline: true } }), purchaseStore: fakeStore(), totalLevels: 60 });
