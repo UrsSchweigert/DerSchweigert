@@ -164,6 +164,8 @@ const DICTIONARY = {
   'nav.progress': { en: 'Practice', de: 'Training' },
   'nav.players': { en: 'Players', de: 'Spieler' },
   'nav.levels': { en: 'Levels', de: 'Level' },
+  'levels.select': { en: 'Select', de: 'Auswählen' },
+  'levels.cancel': { en: 'Cancel', de: 'Abbrechen' },
   'nav.leaderboard': { en: 'Ranking', de: 'Rangliste' },
   // First-open thank-you notice (app build): thanks, purpose, a short plea to
   // try, then the one-time unlock. Kept to four kind sentences on purpose.
@@ -426,6 +428,9 @@ const DICTIONARY = {
     de: '{name} und den gesamten Fortschritt löschen?',
   },
   'profiles.confirm': { en: 'Confirm deletion', de: 'Löschen bestätigen' },
+  'profiles.gateQuestion': { en: 'Ask an adult: what is {question}?', de: 'Frag einen Erwachsenen: Was ist {question}?' },
+  'profiles.gateAnswer': { en: 'Type the result', de: 'Ergebnis eingeben' },
+  'profiles.gateWrong': { en: 'That is not right. Ask an adult to help.', de: 'Das stimmt nicht. Bitte einen Erwachsenen um Hilfe.' },
   'profiles.switchBlocked': {
     en: 'Return to the title screen before changing players.',
     de: 'Kehre zum Titel zurück, bevor du den Spieler wechselst.',
@@ -939,6 +944,8 @@ const DICTIONARY = {
   'heroes.saved': { en: 'Hero saved.', de: 'Held gespeichert.' },
   'heroes.saveFailed': { en: 'Could not save the hero. Please try again.', de: 'Der Held konnte nicht gespeichert werden. Bitte versuche es erneut.' },
   'heroes.close': { en: 'Close', de: 'Schließen' },
+  'heroes.confirm': { en: 'Change hero', de: 'Held wechseln' },
+  'heroes.cancel': { en: 'Cancel', de: 'Abbrechen' },
   'heroes.webLocked': { en: 'Available with a Premium subscription.', de: 'Mit einem Premium-Abo verfügbar.' },
 };
 

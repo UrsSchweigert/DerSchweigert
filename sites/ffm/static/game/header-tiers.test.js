@@ -77,7 +77,7 @@ test('paging controls draw a direction triangle without extra text', () => {
   assert.ok(base, 'the shared triangle box exists');
   assert.match(base, /content: '';/, 'a drawn box, not a glyph');
   assert.match(base, /border-top: 5px solid transparent;/);
-  for (const id of ['leaderboard-prev', 'leaderboard-next', 'personal-best-prev', 'personal-best-next']) {
+  for (const id of ['leaderboard-prev', 'leaderboard-next']) {
     assert.match(html, new RegExp(`id="${id}"[^>]*data-page-direction="(?:previous|next)"`), id);
     const tag = html.match(new RegExp(`<button[^>]*id="${id}"[^>]*>([\\s\\S]*?)</button>`));
     assert.equal(tag?.[1]?.trim(), '', `${id} keeps an empty label for the drawn triangle`);

@@ -258,7 +258,7 @@
   overflow-wrap: anywhere;
 }
 
-.entitlement-status { color: var(--brass-light, #e4c577); }
+.entitlement-status { color: var(--brass-light, #e4c577); text-align: center; }
 .entitlement-panel[data-entitlement-status="full"] .entitlement-status { color: #80f080; }
 .entitlement-panel[data-entitlement-status="offline"] .entitlement-status { color: #ffe080; }
 .entitlement-panel[data-entitlement-status="error"] .entitlement-status { color: #ff8080; }
@@ -503,7 +503,8 @@
 #local-profiles .profile-rename,
 #local-profiles .profile-delete,
 .hero-picker-overlay .hero-picker-item,
-.hero-picker-overlay .hero-picker-close {
+.hero-picker-overlay .hero-picker-close,
+.hero-picker-overlay .hero-picker-confirm {
   min-width: 44px;
   min-height: 44px;
 }

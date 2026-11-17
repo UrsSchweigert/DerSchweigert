@@ -46,7 +46,7 @@ test('the dialog card stays inside the reduced box and scrolls, with 44px hero b
   const css = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
 
   assert.match(css, /\.hero-picker-overlay \.hero-picker-card\s*\{\s*max-height:\s*100%;\s*overflow-y:\s*auto;\s*\}/);
-  assert.match(css, /\.hero-picker-overlay \.hero-picker-item,\s*\.hero-picker-overlay \.hero-picker-close\s*\{\s*min-width:\s*44px;\s*min-height:\s*44px;\s*\}/);
+  assert.match(css, /\.hero-picker-overlay \.hero-picker-item,\s*\.hero-picker-overlay \.hero-picker-close,\s*\.hero-picker-overlay \.hero-picker-confirm\s*\{\s*min-width:\s*44px;\s*min-height:\s*44px;\s*\}/);
 });
 
 test('the hero picker rules leave the top bar and the plain overlay alone', async () => {

@@ -1,4 +1,5 @@
 import { PROFILE_NAME_LIMIT } from './profile-store.js';
+import { generateChallenge, questionText, checkAnswer, resolveLocale } from './parental-gate.js';
 
 const LABELS = {
   'profiles.create': 'New player',
@@ -12,6 +13,9 @@ const LABELS = {
   'profiles.page': 'Page {page} of {pages}',
   'profiles.confirmDelete': 'Delete {name} and all their progress?',
   'profiles.confirm': 'Delete player',
+  'profiles.gateQuestion': 'Ask an adult: what is {question}?',
+  'profiles.gateAnswer': 'Type the result',
+  'profiles.gateWrong': 'That is not right. Ask an adult to help.',
   'profiles.switchBlocked': 'Finish the current game before changing players.',
   'profiles.storageError': 'Player data could not be saved. Please try again.',
   'profiles.invalidName': 'Enter a name of 1-40 characters.',
@@ -22,7 +26,7 @@ const LABELS = {
 
 export function mountProfileUI({
   root, adapter, translate = (key) => LABELS[key], canSwitch = () => true,
-  portraitFor = null, onChangeHero = null, heroFeature = () => true,
+  random = Math.random, locale = null, portraitFor = null, onChangeHero = null, heroFeature = () => true,
   onSelected = () => {}, onError = () => {}, onBusyChange = () => {},
 }) {
   if (!root?.ownerDocument) throw new TypeError('A profile UI root is required');
@@ -175,14 +179,38 @@ export function mountProfileUI({
       form.append(label, controls);
       panel.append(form);
     } else if (stage?.type === 'delete') {
-      const confirmation = node('div', 'profile-confirmation');
+      const confirmation = node('form', 'profile-confirmation');
       confirmation.append(node('p', '', text('profiles.confirmDelete', { name: stage.name })));
+      // Parental check: a child must solve the shared parental-gate sum first.
+      stage.challenge ??= generateChallenge(random);
+      const loc = resolveLocale(typeof locale === 'function' ? locale() : locale ?? doc.documentElement?.lang?.slice(0, 2));
+      const label = node('label', 'profile-gate', text('profiles.gateQuestion', { question: questionText(stage.challenge, loc) }));
+      const answer = node('input', 'profile-gate-input');
+      answer.type = 'text';
+      answer.setAttribute('inputmode', 'numeric');
+      answer.setAttribute('aria-label', text('profiles.gateAnswer'));
+      answer.autocomplete = 'off';
+      answer.disabled = busy || !canSwitch();
+      answer.addEventListener('input', () => { stage.answer = answer.value; });
+      answer.value = stage.answer ?? '';
+      label.append(answer);
+      confirmation.append(label);
       const controls = node('div', 'profile-actions');
       const id = stage.id;
+      const confirmButton = button(text('profiles.confirm'), () => {
+        if (!checkAnswer(stage.challenge, answer.value)) {
+          stage.challenge = generateChallenge(random);
+          stage.answer = '';
+          message = text('profiles.gateWrong');
+          render();
+          root.querySelector('.profile-gate-input')?.focus();
+          return;
+        }
+        return action(() => adapter.deleteProfile(id, { confirmed: true }), true);
+      }, { blocked: true, className: 'action-danger' });
+      confirmation.addEventListener('submit', (event) => { event.preventDefault(); confirmButton.click(); });
       controls.append(
-        button(text('profiles.confirm'), () => action(
-          () => adapter.deleteProfile(id, { confirmed: true }), true,
-        ), { blocked: true, className: 'action-danger' }),
+        confirmButton,
         button(text('profiles.cancel'), () => { stage = null; message = ''; render(); }),
       );
       confirmation.append(controls);
@@ -238,9 +266,11 @@ export function mountProfileUI({
       const controls = node('div', 'profile-actions');
       controls.append(button(text('profiles.create'), () => openStage({ type: 'create', name: '' }), { blocked: true }));
       const pagination = node('div', 'profile-pagination');
-      const previous = button(text('profiles.previous'), () => { page--; render(); }, { pageDirection: 'previous' });
+      const previous = button('', () => { page--; render(); }, { pageDirection: 'previous', ariaLabel: text('profiles.previous') });
+      previous.setAttribute('title', text('profiles.previous'));
       previous.disabled ||= page <= 0;
-      const next = button(text('profiles.next'), () => { page++; render(); }, { pageDirection: 'next' });
+      const next = button('', () => { page++; render(); }, { pageDirection: 'next', ariaLabel: text('profiles.next') });
+      next.setAttribute('title', text('profiles.next'));
       next.disabled ||= page >= pages - 1;
       const indicator = node('span', '', text('profiles.page', { page: page + 1, pages }));
       pagination.append(previous, indicator, next);

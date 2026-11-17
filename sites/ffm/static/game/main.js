@@ -82,6 +82,7 @@ import { createEncounterSwords } from './encounter-swords.js';
 import { createDomBurst } from './dom-burst.js';
 import { TOTAL_RUN_LEVELS, createSpeedrunRecords, createSpeedrunTimer, formatRunTime } from './speedrun.js';
 import { createSpeedrunUi } from './speedrun-ui.js';
+import { scrollToHighestLevel } from './scroll-focus.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -1130,7 +1131,6 @@ let profileUI = null;
 let entitlementPanel = null;
 let firstOpenNotice = null;
 let activeTitlePage = 'play';
-let personalBestPage = 0;
 const PERSONAL_BEST_PAGE_SIZE = 3;
 let leaderboardPage = 0;
 let profileMutationPending = false;
@@ -1519,12 +1519,9 @@ function renderPersonalDevelopment(state) {
   if (best.length === 0) {
     personalBestList.innerHTML = `<li>${t('personalDevelopment.noProgress')}</li>`;
   } else {
-    const pageCount = Math.max(1, Math.ceil(best.length / PERSONAL_BEST_PAGE_SIZE));
-    personalBestPage = Math.min(personalBestPage, pageCount - 1);
-    personalBestList.innerHTML = best.slice(
-      personalBestPage * PERSONAL_BEST_PAGE_SIZE, (personalBestPage + 1) * PERSONAL_BEST_PAGE_SIZE,
-    )
-      .map((entry) => `<li>${t(entry.unfinished === true
+    // Every level with a score is listed in one scrolling list (no paging).
+    personalBestList.innerHTML = best
+      .map((entry) => `<li data-level="${Number(entry.level)}">${t(entry.unfinished === true
         ? 'personalDevelopment.perLevelBestUnfinished'
         : 'personalDevelopment.perLevelBest', {
         level: entry.level,
@@ -1541,13 +1538,14 @@ function renderPersonalDevelopment(state) {
     completed: completed.length,
     total: Math.max(TOTAL_LEVELS, completed.length),
   });
-  const pages = Math.max(1, Math.ceil(best.length / PERSONAL_BEST_PAGE_SIZE));
-  const previous = document.getElementById('personal-best-prev');
-  const next = document.getElementById('personal-best-next');
-  const pageLabel = document.getElementById('personal-best-page');
-  if (previous) previous.disabled = personalBestPage === 0;
-  if (next) next.disabled = personalBestPage >= pages - 1;
-  if (pageLabel) pageLabel.textContent = t('common.page', { page: personalBestPage + 1, pages });
+  scrollPersonalBestToHighest();
+}
+
+// Opens the list at the highest level that has a score (the top when none).
+// A hidden page has no layout, so this also runs when the Practice page shows.
+function scrollPersonalBestToHighest() {
+  if (!personalBestList || personalBestList.closest('[hidden]')) return;
+  scrollToHighestLevel(personalBestList);
 }
 
 function renderLocalCampaign(completed, { resetSelection = false } = {}) {
@@ -1881,6 +1879,11 @@ practiceLevelSelect?.addEventListener('change', () => {
   showPracticeStatus('');
   updatePracticeLevelHint();
 });
+document.getElementById('btn-open-practice')?.addEventListener('click', () => {
+  if (!practicePanel) return;
+  practicePanel.open = true;
+  practicePanel.querySelector('#practice-kind')?.focus?.({ preventScroll: true });
+});
 practicePanel?.addEventListener('toggle', () => {
   if (practicePanel.open) resetLevelSummaries();
 });
@@ -1892,7 +1895,7 @@ practicePanel?.addEventListener('toggle', () => {
 function closePracticePanel() {
   if (!practicePanel?.open) return false;
   practicePanel.open = false;
-  practicePanel.querySelector('summary')?.focus?.();
+  document.getElementById('btn-open-practice')?.focus?.();
   return true;
 }
 document.getElementById('btn-close-practice')?.addEventListener('click', closePracticePanel);
@@ -5134,7 +5137,10 @@ async function openHeroPicker(profile) {
   if (document.querySelector('.hero-picker-overlay')) return;
   await readHeroUnlocked();
   const { mountHeroPicker } = await import('./hero-picker.js');
-  let selectedId = resolveHero(profile.hero, { entitled: true }).id;
+  // committedId is the saved hero; selectedId is the highlighted choice and
+  // only becomes the saved hero when "Change hero" is pressed.
+  let committedId = resolveHero(profile.hero, { entitled: true }).id;
+  let selectedId = committedId;
   const overlay = document.createElement('div');
   overlay.className = 'overlay hero-picker-overlay';
   const card = document.createElement('div');
@@ -5146,11 +5152,25 @@ async function openHeroPicker(profile) {
   title.id = 'hero-picker-title';
   title.textContent = t('heroes.title');
   const gridRoot = document.createElement('div');
+  const actions = document.createElement('div');
+  actions.className = 'hero-picker-actions';
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'button';
+  confirmBtn.className = 'diff-btn action-primary hero-picker-confirm';
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'diff-btn hero-picker-close';
-  closeBtn.textContent = t('heroes.close');
-  card.append(title, gridRoot, closeBtn);
+  actions.append(confirmBtn, closeBtn);
+  card.append(title, gridRoot, actions);
+  // "Change hero" needs a different, unlocked hero and a moment between games.
+  const syncActions = () => {
+    title.textContent = t('heroes.title');
+    confirmBtn.textContent = t('heroes.confirm');
+    closeBtn.textContent = t('heroes.cancel');
+    const entry = HEROES.find(hero => hero.id === selectedId);
+    const locked = !entry || (!entry.free && !heroUnlocked);
+    confirmBtn.disabled = selectedId === committedId || locked || !canSwitchProfiles();
+  };
   overlay.append(card);
 
   // One preview atlas at a time; the sequence drops a load that lost the race.
@@ -5188,6 +5208,7 @@ async function openHeroPicker(profile) {
   };
   const close = () => {
     document.removeEventListener('keydown', onKey);
+    stopLocale();
     previewSeq++;
     picker?.destroy();
     releasePreview();
@@ -5198,7 +5219,41 @@ async function openHeroPicker(profile) {
     if (event.key === 'Escape' && !document.querySelector('.paywall-overlay')) close();
   }
   document.addEventListener('keydown', onKey);
+  // The title bar stays usable under the dialog: sound and language act in
+  // place, so a language switch re-renders the dialog text instead of leaving
+  // it in the old language.
+  const stopLocale = onLocaleChange(() => { picker?.update(); syncActions(); });
   closeBtn.addEventListener('click', close);
+  confirmBtn.addEventListener('click', async () => {
+    if (confirmBtn.disabled) return;
+    if (!canSwitchProfiles()) {
+      setStatus(t('heroes.blockedWhilePlaying'));
+      syncActions();
+      return;
+    }
+    const entry = HEROES.find(hero => hero.id === selectedId);
+    if (!entry) return;
+    confirmBtn.disabled = true;
+    try {
+      if (platform.isApp) {
+        await platform.localProfiles.setHero(profile.id, entry.id);
+      } else {
+        const result = await platform.updateProfile({ hero: entry.id });
+        if (result?.error) throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Unable to save the hero', error);
+      setStatus(t('heroes.saveFailed'));
+      syncActions();
+      return;
+    }
+    committedId = entry.id;
+    if (platform.isApp) activeLocalPlayer = platform.localProfiles.getActiveProfile();
+    await profileUI?.refresh();
+    renderPlayerIdentity();
+    refreshHeroSkin();
+    close();
+  });
 
   picker = mountHeroPicker(gridRoot, {
     t,
@@ -5206,26 +5261,10 @@ async function openHeroPicker(profile) {
     canChange: canSwitchProfiles,
     isLocked: entry => !entry.free && !heroUnlocked,
     renderPreview,
-    onSelect: async entry => {
-      try {
-        if (platform.isApp) {
-          await platform.localProfiles.setHero(profile.id, entry.id);
-        } else {
-          const result = await platform.updateProfile({ hero: entry.id });
-          if (result?.error) throw new Error(result.error);
-        }
-      } catch (error) {
-        console.error('Unable to save the hero', error);
-        setStatus(t('heroes.saveFailed'));
-        return;
-      }
+    // Selecting only highlights; "Change hero" saves it.
+    onSelect: entry => {
       selectedId = entry.id;
-      if (platform.isApp) activeLocalPlayer = platform.localProfiles.getActiveProfile();
-      picker.update();
-      setStatus(t('heroes.saved'));
-      await profileUI?.refresh();
-      renderPlayerIdentity();
-      refreshHeroSkin();
+      syncActions();
     },
     onLocked: async () => {
       try {
@@ -5243,6 +5282,7 @@ async function openHeroPicker(profile) {
       }
     },
   });
+  syncActions();
   document.body.append(overlay);
   gridRoot.querySelector('button[data-hero-id]')?.focus();
 }
@@ -5269,7 +5309,6 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
         onChangeHero: profile => { void openHeroPicker(profile); },
         onSelected: async () => {
           clearMissedProblemsForOwner(platform.localProfiles.getActiveProfile().id);
-          personalBestPage = 0;
           currentPersonalDevelopment = null;
           activeLocalPlayer = platform.localProfiles.getActiveProfile();
           renderPlayerIdentity();
@@ -5343,12 +5382,6 @@ if (platform.isApp) {
     })
     .catch(() => {});
 }
-for (const [id, delta] of [['personal-best-prev', -1], ['personal-best-next', 1]]) {
-  document.getElementById(id)?.addEventListener('click', () => {
-    personalBestPage = Math.max(0, personalBestPage + delta);
-    renderPersonalDevelopment(currentPersonalDevelopment);
-  });
-}
 for (const [id, delta] of [['leaderboard-prev', -1], ['leaderboard-next', 1]]) {
   document.getElementById(id)?.addEventListener('click', () => {
     leaderboardPage = Math.max(0, leaderboardPage + delta);
@@ -5371,6 +5404,7 @@ function applyTitlePage(name) {
   for (const button of document.querySelectorAll('.title-navigation [data-title-target]')) {
     button.setAttribute('aria-pressed', String(button.dataset.titleTarget === navPage));
   }
+  if (name === 'progress') scrollPersonalBestToHighest();
 }
 
 // The intro and the menu pages swap behind a fade to black. The very first
@@ -5400,6 +5434,12 @@ for (const button of document.querySelectorAll('[data-title-target]')) {
     }
   });
 }
+// Cancel leaves the Levels page without choosing: the default start level stays.
+document.getElementById('btn-level-cancel')?.addEventListener('click', () => {
+  levelGrid.value = '';
+  if (platform.isApp && currentPersonalDevelopment) renderLocalCampaign(currentPersonalDevelopment.completed);
+  else updateTitleStartingLevel();
+});
 document.getElementById('title-leaderboard-btn').hidden = platform.isApp;
 document.getElementById('title-progress-btn').hidden = false;
 document.getElementById('title-family-btn').hidden = !platform.isApp;

@@ -52,6 +52,7 @@ class Element {
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const findButton = (root, text) => root.querySelectorAll('button').find((button) => button.textContent === text);
+const findLabelled = (root, label) => root.querySelectorAll('button').find((button) => button.attributes['aria-label'] === label);
 const rows = (root) => root.querySelectorAll('.profile-row');
 const status = (root) => root.querySelector('.profile-status').textContent;
 
@@ -102,12 +103,17 @@ async function fixture({ count = 1, height = 800, translate, extra = {} } = {}) 
 test('profile choices are paginated without scrolling and adapt to tiny landscape', async () => {
   const { root, ui, view, listeners } = await fixture({ count: 7 });
   assert.equal(rows(root).length, 3);
-  assert.equal(findButton(root, 'Previous').disabled, true);
-  findButton(root, 'Next').click();
+  for (const label of ['Previous', 'Next']) {
+    const arrow = findLabelled(root, label);
+    assert.equal(arrow.textContent, '', 'no visible text beside the arrow');
+    assert.equal(arrow.attributes.title, label);
+  }
+  assert.equal(findLabelled(root, 'Previous').disabled, true);
+  findLabelled(root, 'Next').click();
   assert.deepEqual(rows(root).map((row) => row.querySelector('.profile-select').textContent), ['Player 4', 'Player 5', 'Player 6']);
-  findButton(root, 'Next').click();
+  findLabelled(root, 'Next').click();
   assert.equal(rows(root).length, 1);
-  assert.equal(findButton(root, 'Next').disabled, true);
+  assert.equal(findLabelled(root, 'Next').disabled, true);
   view.innerHeight = 320;
   view.visualViewport.height = 320;
   listeners.get('resize')();
@@ -178,13 +184,25 @@ test('create and rename forms replace the list, support safe names and retain st
 });
 
 test('deletion has a separate confirmation stage and cancel never deletes', async () => {
-  const { root, adapter, selected } = await fixture({ count: 2 });
+  const { root, adapter, selected } = await fixture({ count: 2, extra: { random: () => 0, locale: 'en' } });
   rows(root)[1].querySelector('.profile-delete').click();
   assert.equal(rows(root).length, 0);
   assert.match(root.querySelector('.profile-confirmation').textContent, /Delete Player 2 and all their progress/);
   findButton(root, 'Cancel').click();
   assert.equal((await adapter.listProfiles()).length, 2);
   rows(root)[1].querySelector('.profile-delete').click();
+  assert.match(root.querySelector('.profile-gate').textContent, /six times six/);
+  findButton(root, 'Delete player').click();
+  await tick();
+  assert.equal((await adapter.listProfiles()).length, 2, 'unsolved gate does not delete');
+  root.querySelector('.profile-gate-input').value = '12';
+  root.querySelector('.profile-gate-input').dispatch('input');
+  findButton(root, 'Delete player').click();
+  await tick();
+  assert.equal((await adapter.listProfiles()).length, 2, 'wrong answer does not delete');
+  assert.match(status(root), /not right/);
+  root.querySelector('.profile-gate-input').value = '36';
+  root.querySelector('.profile-gate-input').dispatch('input');
   findButton(root, 'Delete player').click();
   await tick();
   assert.deepEqual(await adapter.listProfiles(), [{ id: 'id-1', name: 'First' }]);

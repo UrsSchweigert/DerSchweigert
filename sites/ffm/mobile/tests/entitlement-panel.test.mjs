@@ -296,3 +296,9 @@ test('outcome mapping covers every purchase and restore result', () => {
   assert.equal(outcomeFromResult({ outcome: RESTORE_OUTCOMES.ERROR, entitled: false }, 'restore').key, 'paywall.restoreError');
   assert.equal(outcomeFromResult(null, 'restore').key, 'paywall.restoreError');
 });
+
+test('the status line is centered in the panel', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../game/mobile-ui.css', import.meta.url), 'utf8');
+  assert.match(css, /\.entitlement-status\s*\{[^}]*text-align:\s*center/);
+});

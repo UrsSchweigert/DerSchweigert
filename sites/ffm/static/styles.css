@@ -2925,16 +2925,11 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 #practice-description, #practice-unscored, #practice-badges, #practice-status, #btn-start-practice, #music-volume-status {
   grid-column: 1 / -1;
 }
-/* The practice panel is a submenu of the Training tab: its summary carries the
- * tab's own heading style (monospace, --text-heading, ivory, bold) instead of
- * the quiet disclosure-label look. */
-#practice-panel > summary {
-  font-family: var(--font-prose);
-  font-size: var(--text-heading);
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--ivory);
-}
+/* The practice panel is opened by the real #btn-open-practice button (primary
+ * tier); the <summary> stays in the DOM only because <details> needs it. */
+#practice-panel > summary { display: none; }
+#btn-open-practice { width: 100%; min-height: 44px; flex-shrink: 0; }
+.title-page:has(#practice-panel[open]) #btn-open-practice { display: none; }
 /* The level hint sits under the level selector and spans the control column.
  * It is a one-line label for the chosen level, not running text, so it stays
  * centred (the dialog-wide left alignment for passages does not apply to it). */
@@ -3143,6 +3138,40 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   min-height: 0;
 }
 #practice-panel[open] .practice-controls { align-content: start; }
+
+/* The per-level scores are one scrolling list instead of pages. The Practice
+ * sheet is as tall as the band (minus the footer navigation and the title bar,
+ * which sit outside it); the list takes what the heading, the Practice button
+ * and the chart button leave, and scrolls inside that. While the practice
+ * submenu is open the whole sheet scrolls again, as on every other menu page. */
+.title-page[data-title-page="progress"]:not(:has(#practice-panel[open])) {
+  height: 100%;
+  max-height: calc(100dvh - env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+}
+.title-page[data-title-page="progress"] #personal-development:not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.title-page[data-title-page="progress"] #personal-best-list {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.level-jump-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  flex-shrink: 0;
+}
+.level-jump-actions button { min-height: 44px; margin: 0; }
 
 .skill-intro-card { gap: 10px; }
 .skill-intro-example {
@@ -3364,7 +3393,10 @@ body:not(.legal-body) {
 }
 
 .speedrun-levels {
+  position: relative;
   margin: 0;
+  /* Bounded so the list scrolls even when the card is not height-limited. */
+  max-height: min(45dvh, 320px);
   padding: 0 2px 0 0;
   list-style: none;
   display: grid;
@@ -3441,6 +3473,8 @@ body:not(.legal-body) {
 }
 
 /* Web hero picker (account modal) and the hero portrait beside player names. */
+.hero-picker-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+.hero-picker-actions .diff-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .hero-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; margin: 8px 0; }
 .hero-picker-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px; min-height: 44px; padding: 6px; border: 2px solid transparent; border-radius: 8px; background: rgba(255, 255, 255, 0.06); color: inherit; cursor: pointer; }
 .hero-picker-item:focus-visible { outline: 3px solid #ffd54a; outline-offset: 2px; }

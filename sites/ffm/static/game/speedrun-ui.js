@@ -9,6 +9,7 @@
 // Nothing here decides when time passes — see speedrun.js for the run itself.
 
 import { formatRunClock, formatRunTime } from './speedrun.js';
+import { scrollToHighestLevel } from './scroll-focus.js';
 
 const TAP_WINDOW_MS = 700;
 const TAPS_TO_OPEN = 3;
@@ -65,6 +66,7 @@ export function createSpeedrunUi({ doc = globalThis.document, translate, records
     levelList.textContent = '';
     for (const { level, ms } of bests) {
       const row = doc.createElement('li');
+      row.dataset.level = String(level);
       const label = doc.createElement('span');
       label.textContent = message('levels.level', 'Level {level}', { level });
       const time = doc.createElement('strong');
@@ -79,6 +81,8 @@ export function createSpeedrunUi({ doc = globalThis.document, translate, records
     if (!overlay) return false;
     overlay.hidden = false;
     overlay.style.display = 'flex';
+    // Open on the last completed level; the list has layout only once shown.
+    if (levelList) scrollToHighestLevel(levelList);
     closeButton?.focus?.({ preventScroll: true });
     return true;
   }

@@ -14,7 +14,11 @@ function fakeElement(tagName) {
     tagName: String(tagName).toUpperCase(),
     id: '', className: '', textContent: '', title: '', hidden: false, checked: false,
     style: {},
+    dataset: {},
+    scrollTop: 0,
+    offsetTop: 40,
     children: [],
+    querySelectorAll() { return node.children.filter(child => child.dataset?.level !== undefined); },
     append(...items) { node.children.push(...items); },
     addEventListener(type, callback) {
       listeners.set(type, [...(listeners.get(type) ?? []), callback]);
@@ -167,6 +171,18 @@ describe('the hidden speedrun card', () => {
     assert.equal(rows[0].children[1].textContent, '1:01.000');
     assert.equal(rows[1].children[1].textContent, '0:05.005');
     assert.equal(byId.get('speedrun-empty').hidden, true);
+  });
+
+  it('opens the list scrolled to the last completed level', () => {
+    const { ui, records, byId } = setup();
+    records.recordLevel(1, 61_000);
+    records.recordLevel(4, 5_005);
+    const list = byId.get('speedrun-levels');
+    list.scrollTop = 0;
+    ui.open();
+    assert.equal(list.children[1].dataset.level, '4');
+    // Every fake row sits 40px down, so a moved scrollTop proves the scroll ran.
+    assert.equal(list.scrollTop, 40);
   });
 
   it('says so when there is nothing to show yet', () => {
