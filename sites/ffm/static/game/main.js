@@ -371,9 +371,6 @@ function heroPackOn() {
 async function resolveActiveHeroId() {
   try {
     if (!heroPackOn()) return resolveHero(null).id;
-    // TEST UNLOCK (remove before release): in the app a player named TOGGLE wears any hero without
-    // owning the pack, so the feature can be tried without a store purchase.
-    if (platform.isApp) return resolveHero(platform.localProfiles?.getActiveProfile?.()?.hero, { entitled: true }).id;
     return resolveHero(await platform.getActiveHeroSkin?.(), { entitled: true }).id;
   } catch {
     return resolveHero(null).id;
@@ -5172,7 +5169,7 @@ async function openHeroPicker(profile) {
     t,
     getSelectedId: () => selectedId,
     canChange: canSwitchProfiles,
-    isLocked: entry => !entry.free && !heroPackOwned && !heroPackOn(), // heroPackOn(): TEST UNLOCK, remove before release
+    isLocked: entry => !entry.free && !heroPackOwned,
     renderPreview,
     onSelect: async entry => {
       try {
