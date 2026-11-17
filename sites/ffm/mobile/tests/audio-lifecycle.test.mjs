@@ -4,6 +4,7 @@
 // which own BGM pause/resume. These tests inject fakes: they prove the JS
 // wiring stops and restores the engine once, not device audio behaviour.
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { AudioEngine } from '../../static/game/audio.js';
 import { createLifecycle } from '../game/lifecycle.js';
@@ -84,4 +85,11 @@ test('an app interruption pauses and resumes bundled music exactly once', async 
   assert.equal(audio.musicVolume, 0.35);
   assert.equal(audio.muted, false);
   lifecycle.stop();
+});
+
+test('main.js wires the Web Audio narration factory only for the iOS app', () => {
+  const source = readFileSync(new URL('../../static/game/main.js', import.meta.url), 'utf8');
+  assert.match(source, /platform\.isApp\s*\?\s*await import\('\.\/ios-platform\.js'\)\.catch\(\(\) => null\)/);
+  assert.match(source, /iosPlatform\?\.isIosApp\(\)/);
+  assert.match(source, /useWebAudioNarration \? \{ createNarration: url => audio\.createNarrationVoice\(url\) \} : \{\}/);
 });

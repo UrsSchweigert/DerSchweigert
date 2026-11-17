@@ -433,8 +433,16 @@ async function playStoryScene(sceneId) {
       return response.json();
     }),
   ]);
+  // iOS app only: narration goes through Web Audio like the music and effects,
+  // so the hardware silent switch silences it too. Web and Android keep the
+  // <audio> element; a failing import just keeps that path.
+  const iosPlatform = platform.isApp
+    ? await import('./ios-platform.js').catch(() => null)
+    : null;
+  const useWebAudioNarration = Boolean(iosPlatform?.isIosApp());
   const player = createDioramaPlayer({
     container: document.body,
+    ...(useWebAudioNarration ? { createNarration: url => audio.createNarrationVoice(url) } : {}),
     scene,
     baseUrl: sceneBase,
     locale: getLocale(),
