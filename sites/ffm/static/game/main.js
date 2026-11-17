@@ -12,6 +12,7 @@ import {
   readAudioPreferences,
   writeAudioPreferences,
 } from './audio-preferences.js';
+import { createHeartbeat, isLowHealth } from './low-health.js';
 import { createHaptics } from './haptics.js';
 import { noopVibration, resolveVibrationSource } from './haptics-source.js';
 import {
@@ -4676,6 +4677,8 @@ let loopParked = false;
 // a level is live, while a gameplay timer still has to mature (the practice
 // wave-clear delay and the chained hit sequences outlive gameRunning) and while
 // the screen-fx layer still has particles to fade out.
+const lowHealthBeat = createHeartbeat();
+
 function needsFrame() {
   if (paused) return false;
   if (gameRunning) return true;
@@ -4769,6 +4772,9 @@ function gameLoop(ts) {
   });
 
   if (gameRunning && !paused) {
+    if (lowHealthBeat.tick(dt, isLowHealth(state.hearts, state.maxHearts))) {
+      globalThis.ffmScreenFx?.play('lowHealthPulse');
+    }
     answerClock.advance(dt, state.timerActive && !inputDisabled);
     updateTimer(dt);
 
@@ -4913,6 +4919,8 @@ function gameLoop(ts) {
 
     if (hero.state === 'walk' && !heroLunge) state.scrollX += 100 * dt;
     hero.lunging = heroLunge !== null && hero.state !== 'swing';
+  } else {
+    lowHealthBeat.reset();
   }
 
   renderer.clear();

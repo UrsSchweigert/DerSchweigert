@@ -127,7 +127,7 @@ test('EFFECT_NAMES lists every recipe and createEffectTable maps each one to a f
   // The five granular pieces are extra entries: the game drives them per frame
   // and per hit, so the composite recipes are not the only usable names.
   const granular = ['fireTrail', 'fireImpact', 'boltTrail', 'boltImpact', 'spikeAura',
-    'haloSparkle', 'hitPointBurst', 'spikeSparkle', 'stormRain', 'stormBolt', 'stormDim'];
+    'haloSparkle', 'hitPointBurst', 'spikeSparkle', 'stormRain', 'stormBolt', 'stormDim', 'lowHealthPulse'];
   assert.deepEqual(Object.keys(table).sort(), [...EFFECT_NAMES, ...granular].sort());
   for (const name of [...EFFECT_NAMES, ...granular]) {
     assert.equal(typeof table[name], 'function', `${name} is a function`);
@@ -473,4 +473,22 @@ test('the fiend portal survives an empty payload and reduced motion', () => {
     for (let i = 0; i < 120; i++) fx.step(1 / 60);
     assert.doesNotThrow(() => fx.step(1 / 60), 'emitters expire cleanly');
   }
+});
+
+test('lowHealthPulse rings all four edges with a capped, short-lived, red burst', () => {
+  const particles = [];
+  const api = {
+    countScale: () => 1,
+    ember: (x, y, vx, vy, color, life) => particles.push({ x, y, color, life }),
+    shake: () => assert.fail('no shake'),
+    addWash: () => assert.fail('no wash'),
+    addVignette: () => assert.fail('no vignette'),
+  };
+  createEffectTable().lowHealthPulse(api);
+  assert.ok(particles.length > 0 && particles.length <= 60);
+  assert.ok(particles.some((p) => p.y === 0));
+  assert.ok(particles.some((p) => p.y === 450));
+  assert.ok(particles.some((p) => p.x === 0));
+  assert.ok(particles.some((p) => p.x === 800));
+  assert.ok(particles.every((p) => p.life <= 1.2 && PALETTES.red.includes(p.color)));
 });
