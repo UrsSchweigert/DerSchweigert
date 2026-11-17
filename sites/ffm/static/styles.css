@@ -725,15 +725,21 @@ body {
   height: 20px;
 }
 
+/* The sword silhouette, declared once: the portrait bar and the difficulty
+ * picker icons both draw it. */
+.diff-sword::before,
 .app-encounter-sword::before {
   content: "";
   display: block;
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.24);
   clip-path: polygon(50% 0, 62% 9%, 62% 62%, 90% 62%, 90% 71%, 58% 71%, 58% 88%,
     66% 88%, 66% 100%, 34% 100%, 34% 88%, 42% 88%, 42% 71%, 10% 71%, 10% 62%,
     38% 62%, 38% 9%);
+}
+
+.app-encounter-sword::before {
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .app-encounter-sword--filled {
@@ -2968,6 +2974,9 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 }
 .splash-diff-btn .diff-label { flex: 0 0 25%; }
 .splash-diff-btn .diff-detail { text-align: right; }
+.diff-swords { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; height: 20px; }
+.diff-sword { flex: 0 0 12px; width: 12px; height: 20px; }
+.diff-sword::before { background: linear-gradient(180deg, #c8f7c5 0%, #5fd068 45%, #2e8b3a 100%); }
 #game-wrap[data-layout="portrait"] #input-zone {
   position: relative;
   isolation: isolate;
