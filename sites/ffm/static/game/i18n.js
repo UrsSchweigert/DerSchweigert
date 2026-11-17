@@ -923,16 +923,12 @@ const DICTIONARY = {
 
   // Hero picker, identity portrait and web account picker. Locked heroes use
   // neutral wording: no price, no urgency. Pack sheet strings live in its module.
-  'heroes.name.adventurer': { en: 'Adventurer', de: 'Abenteurer' },
-  'heroes.name.adventuress': { en: 'Adventuress', de: 'Abenteurerin' },
-  'heroes.name.princess': { en: 'Princess', de: 'Prinzessin' },
-  'heroes.name.princess-armed': { en: 'Warrior Princess', de: 'Kriegerprinzessin' },
-  'heroes.name.rogue': { en: 'Rogue', de: 'Waldläufer' },
-  'heroes.name.rogue-f': { en: 'Rogue', de: 'Waldläuferin' },
-  'heroes.name.soldier': { en: 'Soldier', de: 'Soldat' },
-  'heroes.name.soldier-f': { en: 'Soldier', de: 'Soldatin' },
-  'heroes.name.monk': { en: 'Monk', de: 'Mönch' },
-  'heroes.name.priestess': { en: 'Priestess', de: 'Priesterin' },
+  'heroes.name.adventurer': { en: 'Ari', de: 'Ari' },
+  'heroes.name.wood': { en: 'Wood', de: 'Wood' },
+  'heroes.name.flint': { en: 'Flint', de: 'Flint' },
+  'heroes.name.carl': { en: 'Carl', de: 'Carl' },
+  'heroes.name.ori': { en: 'Ori', de: 'Ori' },
+  'heroes.name.quirl': { en: 'Quirl', de: 'Quirl' },
   'heroes.title': { en: 'Choose your hero', de: 'Wähle deinen Helden' },
   'heroes.change': { en: 'Change hero', de: 'Helden ändern' },
   'heroes.selected': { en: 'Selected', de: 'Ausgewählt' },

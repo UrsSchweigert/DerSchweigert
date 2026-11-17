@@ -57,9 +57,9 @@ async function withTree(setup, fn, rows = HEROES.map(row)) {
 }
 
 const validArt = async (put) => {
-  await put('rogue/portrait.webp', webp(256, 256, 2000));
-  await put('rogue/hero-atlas.webp', webp(512, 512, 5000));
-  await put('rogue/hero-frames.js', framesSource({ anchors: { strike: [1, 2], cast: [[3, 4], [5, 6]] } }));
+  await put('wood/portrait.webp', webp(256, 256, 2000));
+  await put('wood/hero-atlas.webp', webp(512, 512, 5000));
+  await put('wood/hero-frames.js', framesSource({ anchors: { strike: [1, 2], cast: [[3, 4], [5, 6]] } }));
 };
 
 async function problemsFor(setup, rows) {
@@ -88,11 +88,11 @@ test('every manifest row agrees with the roster', async () => {
 });
 
 test('a complete valid hero passes and one missing hero id is only a note', async () => {
-  const rows = HEROES.map(row).filter((r) => r.id !== 'monk');
+  const rows = HEROES.map(row).filter((r) => r.id !== 'quirl');
   await withTree(validArt, async (dir) => {
-    const { problems, notes } = await checkHeroes({ dir, require: 'rogue' });
+    const { problems, notes } = await checkHeroes({ dir, require: 'wood' });
     assert.deepEqual(problems, []);
-    assert.ok(notes.includes('no manifest row for monk'));
+    assert.ok(notes.includes('no manifest row for quirl'));
   }, rows);
 });
 
@@ -114,7 +114,7 @@ test('an entries item whose path does not exist fails', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'ffm-heroes-'));
   try {
     await writeFile(join(dir, 'manifest.json'), JSON.stringify({
-      version: 1, heroes: HEROES.map(row), entries: [{ path: 'heroes/rogue/portrait.webp' }],
+      version: 1, heroes: HEROES.map(row), entries: [{ path: 'heroes/wood/portrait.webp' }],
     }));
     const { problems } = await checkHeroes({ dir });
     assert.equal(problems.length, 1);
@@ -125,17 +125,17 @@ test('an entries item whose path does not exist fails', async () => {
 
 test('file defects fail', async () => {
   const cases = {
-    'atlas not webp': (put) => put('rogue/hero-atlas.webp', Buffer.alloc(100)),
-    'atlas too big': (put) => put('rogue/hero-atlas.webp', webp(512, 512, 700 * 1024 + 1)),
-    'portrait not webp': (put) => put('rogue/portrait.webp', Buffer.alloc(100)),
-    'portrait wrong size': (put) => put('rogue/portrait.webp', webp(128, 256, 2000)),
-    'portrait too big': (put) => put('rogue/portrait.webp', webp(256, 256, 24 * 1024 + 1)),
-    'stray file': (put) => put('rogue/notes.txt', 'x'),
-    'missing frame': (put) => put('rogue/hero-frames.js', framesSource({ drop: 'cast-4' })),
-    'frame without px': (put) => put('rogue/hero-frames.js', framesSource({ bad: true })),
-    'bad strike anchor': (put) => put('rogue/hero-frames.js', framesSource({ anchors: { strike: [1], cast: [[1, 2], [3, 4]] } })),
-    'bad cast anchor': (put) => put('rogue/hero-frames.js', framesSource({ anchors: { strike: [1, 2], cast: [[1, 2]] } })),
-    'non-finite anchor': (put) => put('rogue/hero-frames.js', 'export const HERO_FRAMES = {};\nexport const HERO_ANCHORS = { strike: [NaN, 1], cast: [[1, 2], [3, 4]] };\n'),
+    'atlas not webp': (put) => put('wood/hero-atlas.webp', Buffer.alloc(100)),
+    'atlas too big': (put) => put('wood/hero-atlas.webp', webp(512, 512, 700 * 1024 + 1)),
+    'portrait not webp': (put) => put('wood/portrait.webp', Buffer.alloc(100)),
+    'portrait wrong size': (put) => put('wood/portrait.webp', webp(128, 256, 2000)),
+    'portrait too big': (put) => put('wood/portrait.webp', webp(256, 256, 24 * 1024 + 1)),
+    'stray file': (put) => put('wood/notes.txt', 'x'),
+    'missing frame': (put) => put('wood/hero-frames.js', framesSource({ drop: 'cast-4' })),
+    'frame without px': (put) => put('wood/hero-frames.js', framesSource({ bad: true })),
+    'bad strike anchor': (put) => put('wood/hero-frames.js', framesSource({ anchors: { strike: [1], cast: [[1, 2], [3, 4]] } })),
+    'bad cast anchor': (put) => put('wood/hero-frames.js', framesSource({ anchors: { strike: [1, 2], cast: [[1, 2]] } })),
+    'non-finite anchor': (put) => put('wood/hero-frames.js', 'export const HERO_FRAMES = {};\nexport const HERO_ANCHORS = { strike: [NaN, 1], cast: [[1, 2], [3, 4]] };\n'),
   };
   for (const [name, setup] of Object.entries(cases)) {
     assert.notDeepEqual(await problemsFor(setup), [], name);
@@ -145,7 +145,7 @@ test('file defects fail', async () => {
 test('source/ and the three art files are allowed', async () => {
   const problems = await problemsFor(async (put, dir) => {
     await validArt(put);
-    await put('rogue/source/sheet.png', 'x');
+    await put('wood/source/sheet.png', 'x');
   });
   assert.deepEqual(problems, []);
 });
@@ -153,10 +153,10 @@ test('source/ and the three art files are allowed', async () => {
 test('--require and --settled', async () => {
   const run = (options, setup, rows) =>
     withTree(setup, async (dir) => (await checkHeroes({ dir, ...options })).problems, rows);
-  assert.notDeepEqual(await run({ require: 'rogue' }), []);
-  assert.deepEqual(await run({ require: 'rogue' }, validArt), []);
-  assert.notDeepEqual(await run({ settled: 'rogue' }), []);
-  assert.deepEqual(await run({ settled: 'rogue' }, null, HEROES.map(row).filter((r) => r.id !== 'rogue')), []);
-  assert.deepEqual(await run({ settled: 'rogue' }, validArt), []);
+  assert.notDeepEqual(await run({ require: 'wood' }), []);
+  assert.deepEqual(await run({ require: 'wood' }, validArt), []);
+  assert.notDeepEqual(await run({ settled: 'wood' }), []);
+  assert.deepEqual(await run({ settled: 'wood' }, null, HEROES.map(row).filter((r) => r.id !== 'wood')), []);
+  assert.deepEqual(await run({ settled: 'wood' }, validArt), []);
   assert.notDeepEqual(await run({ require: 'nobody' }), []);
 });

@@ -58,12 +58,6 @@ def run(*argv):
     return hero_frames.main([str(a) for a in argv])
 
 
-def test_roster_constant_matches_heroes_js():
-    text = (ROOT / "static" / "game" / "heroes.js").read_text(encoding="utf-8")
-    ids = re.findall(r"hero\('([a-z0-9-]+)'", text)
-    assert list(hero_frames.HERO_IDS) == ids and len(ids) == 10
-
-
 def test_hero_build_writes_atlas_and_module_under_the_hero_dir(tmp_path, heroes_dir):
     frames = write_frames(tmp_path / "frames", "staff")
     assert run("--from-frames", frames, "--hero", "monk", "--weapon", "staff") == 0

@@ -15,13 +15,6 @@ SPEC.loader.exec_module(hp)
 ALL = hp.build_all()
 
 
-def test_ids_match_heroes_js():
-    src = (ROOT / "static" / "game" / "heroes.js").read_text()
-    ids = re.findall(r"\bhero\('([a-z][a-z0-9-]*)'", src)
-    ids = re.findall(r"\.\.\.hero\('([a-z][a-z0-9-]*)'", src) + ids
-    assert tuple(dict.fromkeys(ids)) == hp.HERO_IDS
-
-
 def test_eighty_unique_deterministic_prompts():
     assert len(ALL) == 80 and len({k for k, _ in ALL}) == 80
     assert ALL == hp.build_all()

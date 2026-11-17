@@ -26,7 +26,7 @@ class FakeEl {
 }
 
 const adventurer = HEROES[0];
-const monk = HEROES.find((h) => h.id === 'monk');
+const quirl = HEROES.find((h) => h.id === 'quirl');
 const owned = (row) => row.children.filter((c) => c.hasAttribute('data-hero-identity'));
 
 test('inserts one portrait with localised alt text and keeps other children', () => {
@@ -37,19 +37,19 @@ test('inserts one portrait with localised alt text and keeps other children', ()
   renderHeroIdentity(row, adventurer, { t });
   assert.equal(owned(row).length, 1);
   assert.equal(row.children[1], name);
-  assert.equal(owned(row)[0].getAttribute('alt'), 'Portrait of Adventurer');
+  assert.equal(owned(row)[0].getAttribute('alt'), 'Portrait of Ari');
   assert.equal(owned(row)[0].getAttribute('src'), heroAssetUrl(adventurer.portrait));
 });
 
 test('updates in place for another hero and removes when there is none', () => {
   const row = new FakeEl('p');
   renderHeroIdentity(row, adventurer, { t });
-  renderHeroIdentity(row, monk, { t });
+  renderHeroIdentity(row, quirl, { t });
   assert.equal(owned(row).length, 1);
-  assert.equal(owned(row)[0].getAttribute('src'), heroAssetUrl(monk.portrait));
+  assert.equal(owned(row)[0].getAttribute('src'), heroAssetUrl(quirl.portrait));
   renderHeroIdentity(row, null, { t });
   assert.equal(row.children.length, 0);
-  assert.equal(renderHeroIdentity(null, monk, { t }), null);
+  assert.equal(renderHeroIdentity(null, quirl, { t }), null);
 });
 
 test('image error swaps to the placeholder once, without a src', () => {
@@ -72,7 +72,7 @@ test('a hero without a portrait shows the placeholder', () => {
   assert.ok(el.getAttribute('aria-label'));
 });
 
-function channel({ isApp, isLoggedIn = true, stored = 'monk', name = 'Ann' }) {
+function channel({ isApp, isLoggedIn = true, stored = 'quirl', name = 'Ann' }) {
   const rows = {};
   const elements = {};
   for (const id of ['playing-as', 'progress-player-name', 'pause-player-name']) {
@@ -116,5 +116,5 @@ test('logged-out web player gets no portrait', async () => {
 });
 
 test('a locked choice shows the adventurer', () => {
-  assert.equal(resolveHero('monk', { entitled: false }).id, 'adventurer');
+  assert.equal(resolveHero('quirl', { entitled: false }).id, 'adventurer');
 });

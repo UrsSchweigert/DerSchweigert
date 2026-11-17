@@ -9,67 +9,39 @@
       "frames": "heroes/adventurer/hero-frames.js"
     },
     {
-      "id": "adventuress",
+      "id": "wood",
       "strike": "sword",
-      "portrait": "heroes/adventuress/portrait.webp",
-      "atlas": "heroes/adventuress/hero-atlas.webp",
-      "frames": "heroes/adventuress/hero-frames.js"
+      "portrait": "heroes/wood/portrait.webp",
+      "atlas": "heroes/wood/hero-atlas.webp",
+      "frames": "heroes/wood/hero-frames.js"
     },
     {
-      "id": "princess",
+      "id": "flint",
       "strike": "sword",
-      "portrait": "heroes/princess/portrait.webp",
-      "atlas": "heroes/princess/hero-atlas.webp",
-      "frames": "heroes/princess/hero-frames.js"
+      "portrait": "heroes/flint/portrait.webp",
+      "atlas": "heroes/flint/hero-atlas.webp",
+      "frames": "heroes/flint/hero-frames.js"
     },
     {
-      "id": "princess-armed",
+      "id": "carl",
       "strike": "sword",
-      "portrait": "heroes/princess-armed/portrait.webp",
-      "atlas": "heroes/princess-armed/hero-atlas.webp",
-      "frames": "heroes/princess-armed/hero-frames.js"
+      "portrait": "heroes/carl/portrait.webp",
+      "atlas": "heroes/carl/hero-atlas.webp",
+      "frames": "heroes/carl/hero-frames.js"
     },
     {
-      "id": "rogue",
-      "strike": "bow",
-      "portrait": "heroes/rogue/portrait.webp",
-      "atlas": "heroes/rogue/hero-atlas.webp",
-      "frames": "heroes/rogue/hero-frames.js"
+      "id": "ori",
+      "strike": "sword",
+      "portrait": "heroes/ori/portrait.webp",
+      "atlas": "heroes/ori/hero-atlas.webp",
+      "frames": "heroes/ori/hero-frames.js"
     },
     {
-      "id": "rogue-f",
-      "strike": "bow",
-      "portrait": "heroes/rogue-f/portrait.webp",
-      "atlas": "heroes/rogue-f/hero-atlas.webp",
-      "frames": "heroes/rogue-f/hero-frames.js"
-    },
-    {
-      "id": "soldier",
-      "strike": "buckler",
-      "portrait": "heroes/soldier/portrait.webp",
-      "atlas": "heroes/soldier/hero-atlas.webp",
-      "frames": "heroes/soldier/hero-frames.js"
-    },
-    {
-      "id": "soldier-f",
-      "strike": "buckler",
-      "portrait": "heroes/soldier-f/portrait.webp",
-      "atlas": "heroes/soldier-f/hero-atlas.webp",
-      "frames": "heroes/soldier-f/hero-frames.js"
-    },
-    {
-      "id": "monk",
-      "strike": "fist",
-      "portrait": "heroes/monk/portrait.webp",
-      "atlas": "heroes/monk/hero-atlas.webp",
-      "frames": "heroes/monk/hero-frames.js"
-    },
-    {
-      "id": "priestess",
-      "strike": "fist",
-      "portrait": "heroes/priestess/portrait.webp",
-      "atlas": "heroes/priestess/hero-atlas.webp",
-      "frames": "heroes/priestess/hero-frames.js"
+      "id": "quirl",
+      "strike": "sword",
+      "portrait": "heroes/quirl/portrait.webp",
+      "atlas": "heroes/quirl/hero-atlas.webp",
+      "frames": "heroes/quirl/hero-frames.js"
     }
   ],
   "entries": []

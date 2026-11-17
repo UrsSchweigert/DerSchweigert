@@ -83,7 +83,7 @@ test('markup: one button per hero in roster order with names and aria-pressed', 
   assert.deepEqual(ids, HEROES.map((h) => h.id));
   assert.equal((html.match(/<button type="button"/g) ?? []).length, HEROES.length);
   assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1);
-  assert.match(html, /<span class="hero-picker-name">\[heroes\.name\.rogue\]<\/span>/);
+  assert.match(html, /<span class="hero-picker-name">\[heroes\.name\.wood\]<\/span>/);
   assert.match(html, /role="status"/);
 });
 
@@ -91,7 +91,7 @@ test('markup: locked hero has badge with text alternative and locked name', () =
   const html = buildHeroGridMarkup({ selectedId: 'adventurer', isLocked: (h) => !h.free, t });
   assert.equal((html.match(/hero-picker-lock/g) ?? []).length, HEROES.length - 1);
   assert.match(html, /role="img" aria-label="\[heroes\.locked\]"/);
-  assert.match(html, /aria-label="\[heroes\.name\.monk\], \[heroes\.locked\]"/);
+  assert.match(html, /aria-label="\[heroes\.name\.quirl\], \[heroes\.locked\]"/);
   assert.match(html, /class="hero-picker-item is-locked"/);
   assert.match(html, /aria-label="\[heroes\.name\.adventurer\], \[heroes\.selected\]"/);
 });
@@ -108,9 +108,9 @@ test('markup escapes names and urls', () => {
 
 test('locked hero calls onLocked only', () => {
   const { root, calls } = setup();
-  const button = root.querySelectorAll('button[data-hero-id]')[8];
+  const button = root.querySelectorAll('button[data-hero-id]')[5];
   button.fire('click');
-  assert.deepEqual(calls.locked, ['monk']);
+  assert.deepEqual(calls.locked, ['quirl']);
   assert.deepEqual(calls.select, []);
 });
 
@@ -118,7 +118,7 @@ test('available hero calls onSelect once and updates aria-pressed', () => {
   const { root, calls } = setup({ isLocked: () => false });
   const buttons = root.querySelectorAll('button[data-hero-id]');
   buttons[1].fire('click');
-  assert.deepEqual(calls.select, ['adventuress']);
+  assert.deepEqual(calls.select, ['wood']);
   assert.equal(buttons[1].getAttribute('aria-pressed'), 'true');
   assert.equal(buttons[0].getAttribute('aria-pressed'), 'false');
 });
@@ -146,7 +146,7 @@ test('preview shows the selected hero first, then the focused one', () => {
   assert.equal(calls.preview[0][0], 'adventurer');
   assert.ok('data-hero-preview' in calls.preview[0][1].attrs);
   root.querySelectorAll('button[data-hero-id]')[4].fire('focus');
-  assert.equal(calls.preview.at(-1)[0], 'rogue');
+  assert.equal(calls.preview.at(-1)[0], 'ori');
 });
 
 test('destroy removes listeners', () => {
