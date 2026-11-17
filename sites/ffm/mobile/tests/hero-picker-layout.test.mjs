@@ -20,9 +20,11 @@ test('the picker top sits below the title bar with the safe-area and viewport of
   const css = await readFile(join(root, 'game', 'mobile-ui.css'), 'utf8');
   const rule = css.match(/\.overlay\.hero-picker-overlay\s*\{[^}]*\}/)[0];
 
-  assert.match(rule, /--hero-picker-top:\s*calc\(var\(--viewport-top,\s*0px\)\s*\+\s*var\(--safe-area-top,\s*env\(safe-area-inset-top,\s*0px\)\)\s*\+\s*8px\s*\+\s*var\(--hero-title-bar-height\)\s*\+\s*8px\)/);
+  assert.match(rule, /--hero-picker-shift:\s*calc\(var\(--safe-area-top,\s*env\(safe-area-inset-top,\s*0px\)\)\s*\+\s*8px\s*\+\s*var\(--hero-title-bar-height\)\s*\+\s*8px\)/);
+  assert.match(rule, /--hero-picker-top:\s*calc\(var\(--viewport-top,\s*0px\)\s*\+\s*var\(--hero-picker-shift\)\)/);
   assert.match(rule, /top:\s*var\(--hero-picker-top\)/);
-  assert.match(rule, /height:\s*calc\(100%\s*-\s*var\(--hero-picker-top\)\)/);
+  assert.match(rule, /height:\s*calc\(var\(--overlay-height\)\s*-\s*var\(--hero-picker-shift\)\)/);
+  assert.match(rule, /padding-top:\s*0/);
   assert.doesNotMatch(rule, /z-index/);
 });
 
