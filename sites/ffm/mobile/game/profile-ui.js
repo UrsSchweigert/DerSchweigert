@@ -198,13 +198,27 @@ export function mountProfileUI({
           blocked: true, className: 'profile-select',
         });
         select.setAttribute('aria-pressed', String(profile.id === activeId));
-        if (heroFeature() && typeof portraitFor === 'function') row.append(portrait(portraitFor(profile)));
-        row.append(select);
-        if (heroFeature() && typeof onChangeHero === 'function' && profile.id === activeId) {
-          row.append(button(text('heroes.change'), () => onChangeHero(profile), {
-            blocked: true, className: 'profile-change-hero',
-            ariaLabel: `${text('heroes.change')}: ${profile.name}`,
-          }));
+        const showHero = heroFeature();
+        const changeHero = showHero && typeof onChangeHero === 'function' && profile.id === activeId;
+        if (changeHero && typeof portraitFor === 'function') {
+          // The active player's portrait is the Change hero button: the hero is both shown and changed here.
+          const label = `${text('heroes.change')}: ${profile.name}`;
+          const holder = button('', () => onChangeHero(profile), {
+            blocked: true, className: 'profile-change-hero profile-change-hero-portrait', ariaLabel: label,
+          });
+          holder.setAttribute('title', text('heroes.change'));
+          holder.append(portrait(portraitFor(profile)));
+          row.append(holder);
+          row.append(select);
+        } else {
+          if (showHero && typeof portraitFor === 'function') row.append(portrait(portraitFor(profile)));
+          row.append(select);
+          if (changeHero) {
+            row.append(button(text('heroes.change'), () => onChangeHero(profile), {
+              blocked: true, className: 'profile-change-hero',
+              ariaLabel: `${text('heroes.change')}: ${profile.name}`,
+            }));
+          }
         }
         if (typeof adapter.renameProfile === 'function') {
           row.append(button(text('profiles.rename'), () => openStage({ type: 'rename', ...profile }), {
