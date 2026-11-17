@@ -2221,12 +2221,15 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 #continue-level { margin: 0; }
 #continue-level:empty { display: none; }
 .title-level-numerals {
+  --numeral-height: 44px;
+  --numeral-width: calc(var(--numeral-height) * (var(--level-numeral-digits, 1) * 30 + 22) / 86);
   position: absolute;
   top: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 8px);
   left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 8px);
   z-index: 3;
-  width: clamp(44px, 14vw, 96px);
-  max-width: 20vw;
+  /* Same 44px height as the title-bar controls and the player badge. */
+  height: var(--numeral-height);
+  width: var(--numeral-width);
   /* Clickable on purpose: three taps here open the speedrun card (see
      speedrun-ui.js), and this numeral is the level display the title screen
      always shows — the intro sentence under it is hidden on small phones. */
@@ -2234,19 +2237,13 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   user-select: none;
   filter: drop-shadow(0 2px 3px #070e0b);
 }
-.title-level-numerals svg { display: block; width: 100%; max-height: 84px; }
+.title-level-numerals svg { display: block; width: 100%; height: 100%; }
 .title-level-numerals[hidden] { display: none; }
-@media (max-width: 600px) {
-  .title-level-numerals svg { max-height: 44px; }
-}
-@media (orientation: landscape) and (max-height: 400px) {
-  .title-level-numerals { width: 44px; }
-}
-/* The player's hero portrait sits right of the level numerals and opens the Players page. */
+/* The player's hero portrait sits right of the level numerals and opens the hero picker (web) or Players page (app). */
 .title-player-badge {
   position: absolute;
   top: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 8px);
-  left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 16px + min(clamp(44px, 14vw, 96px), 20vw));
+  left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 16px + 44px * (var(--level-numeral-digits, 1) * 30 + 22) / 86);
   z-index: 3;
   width: 44px;
   height: 44px;
@@ -2262,18 +2259,6 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 .title-player-badge[hidden] { display: none; }
 .title-player-badge .hero-identity-portrait { display: block; width: 100%; height: 100%; margin: 0; border-radius: 0; object-fit: cover; }
 .title-player-badge:focus-visible { outline: 3px solid var(--focus-ring, #fff0bd); outline-offset: 2px; }
-/* Short landscape menus: the numerals and the badge share the 44px title row, so
-   the numerals no longer reach the menu sheet below it. Play keeps its own layout. */
-@media (orientation: landscape) and (max-height: 460px) {
-  #difficulty-select:has(.title-page:not([hidden]):not(.title-play)) .title-level-numerals { width: 44px; }
-  #difficulty-select:has(.title-page:not([hidden]):not(.title-play)) .title-level-numerals svg { max-height: 44px; }
-  #difficulty-select:has(.title-page:not([hidden]):not(.title-play)) .title-player-badge {
-    left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 16px + 44px);
-  }
-}
-@media (orientation: landscape) and (max-height: 400px) {
-  .title-level-numerals svg { max-height: 44px; }
-}
 /* Tabs take the width their label needs and wrap onto a second row when six
  * of them (plus help) do not fit. A pressed tab is bold and therefore wider, so
  * a fixed six-column grid used to clip "Training" on 320px phones. */

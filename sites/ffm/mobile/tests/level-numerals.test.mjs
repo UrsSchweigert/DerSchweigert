@@ -262,8 +262,10 @@ test('the shared stylesheet positions the artwork without text glyph fallbacks',
   assert.match(css, /\.title-level-numerals\s*\{[^}]*position:\s*absolute/);
   assert.match(css, /\.title-level-numerals\s*\{[^}]*top:\s*calc\(var\(--safe-area-top[^}]*\+\s*8px\)/);
   assert.match(css, /\.title-level-numerals\s*\{[^}]*left:\s*calc\(var\(--safe-area-left[^}]*\+\s*8px\)/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*width:\s*clamp\(44px,\s*14vw,\s*96px\)/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*max-width:\s*20vw/);
+  // Same 44px height as the title-bar controls; the width follows the digit count.
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*--numeral-height:\s*44px/);
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*height:\s*var\(--numeral-height\)/);
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*width:\s*var\(--numeral-width\)/);
   // The numeral takes the taps on purpose: three of them open the speedrun card
   // (see speedrun-ui.js and speedrun-ui.test.js). It is not decorative ink.
   assert.match(css, /\.title-level-numerals\s*\{[^}]*pointer-events:\s*auto/);
@@ -305,13 +307,8 @@ test('on short landscape menus the numerals and badge stay in the 44px row above
   }
 });
 
-test('the short landscape rules are pinned after the base numerals block', async () => {
+test('the numerals are one 44px tall at every viewport and the badge follows their width', async () => {
   const css = await readFile(join(staticDir, 'styles.css'), 'utf8');
-  const base = css.indexOf('.title-level-numerals {');
-  const menuRule = css.indexOf('#difficulty-select:has(.title-page:not([hidden]):not(.title-play)) .title-level-numerals { width: 44px; }');
-
-  assert.ok(base >= 0 && menuRule > base, 'the menu rules come after the base numerals block');
-  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 460px\)\s*\{[^@]*#difficulty-select:has\(\.title-page:not\(\[hidden\]\):not\(\.title-play\)\) \.title-level-numerals svg\s*\{\s*max-height:\s*44px/);
-  assert.match(css, /#difficulty-select:has\(\.title-page:not\(\[hidden\]\):not\(\.title-play\)\) \.title-player-badge\s*\{\s*left:\s*calc\(var\(--safe-area-left, env\(safe-area-inset-left, 0px\)\) \+ 16px \+ 44px\)/);
-  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 400px\)\s*\{\s*\.title-level-numerals svg\s*\{\s*max-height:\s*44px/);
+  assert.doesNotMatch(css, /\.title-level-numerals svg\s*\{[^}]*max-height/);
+  assert.match(css, /\.title-player-badge\s*\{[^}]*left:\s*calc\([^}]*16px \+ 44px \* \(var\(--level-numeral-digits, 1\) \* 30 \+ 22\) \/ 86\)/);
 });
