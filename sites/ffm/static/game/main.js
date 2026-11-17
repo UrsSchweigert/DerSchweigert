@@ -1600,7 +1600,11 @@ function renderPlayerIdentity() {
 // sequence guards against an older async choice landing after a newer one.
 // The title screen's player badge: the hero portrait beside the level numerals; a tap opens Players.
 const titlePlayerBadge = document.getElementById('title-player-badge');
-titlePlayerBadge?.addEventListener('click', () => document.getElementById('title-family-btn')?.click());
+titlePlayerBadge?.addEventListener('click', () => {
+  // The app has the Players page; the web has no player dialogue, so the badge opens the hero picker.
+  if (platform.isApp) { document.getElementById('title-family-btn')?.click(); return; }
+  void resolveActiveHeroId().then(hero => openHeroPicker({ hero }));
+});
 function paintTitlePlayerBadge(hero) {
   if (!titlePlayerBadge) return;
   renderHeroIdentity(titlePlayerBadge, hero, { t });
@@ -5204,14 +5208,19 @@ async function openHeroPicker(profile) {
     renderPreview,
     onSelect: async entry => {
       try {
-        await platform.localProfiles.setHero(profile.id, entry.id);
+        if (platform.isApp) {
+          await platform.localProfiles.setHero(profile.id, entry.id);
+        } else {
+          const result = await platform.updateProfile({ hero: entry.id });
+          if (result?.error) throw new Error(result.error);
+        }
       } catch (error) {
         console.error('Unable to save the hero', error);
         setStatus(t('heroes.saveFailed'));
         return;
       }
       selectedId = entry.id;
-      activeLocalPlayer = platform.localProfiles.getActiveProfile();
+      if (platform.isApp) activeLocalPlayer = platform.localProfiles.getActiveProfile();
       picker.update();
       setStatus(t('heroes.saved'));
       await profileUI?.refresh();

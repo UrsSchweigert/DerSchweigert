@@ -99,6 +99,8 @@ export function createLevelNumerals({
     element.setAttribute('aria-label', translate(LEVEL_NUMERALS_LABEL_KEY, { level: resolved.level }));
     element.setAttribute(LEVEL_NUMERALS_MODE_ATTRIBUTE, resolved.mode);
     element.hidden = false;
+    // The numeral card is as tall as the title-bar controls; the badge beside it needs its width.
+    container.style?.setProperty('--level-numeral-digits', String(String(resolved.level).length));
     return resolved;
   }
 

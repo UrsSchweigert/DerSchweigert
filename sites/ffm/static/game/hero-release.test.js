@@ -18,5 +18,5 @@ test('the hero themes unlock with the regular full unlock, in the app and on the
 test('the title screen shows the player badge and a tap opens Players', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /<button type="button" id="title-player-badge"[^>]*hidden>/);
-  assert.match(source, /titlePlayerBadge\?\.addEventListener\('click', \(\) => document\.getElementById\('title-family-btn'\)\?\.click\(\)\)/);
+  assert.match(source, /titlePlayerBadge\?\.addEventListener\('click', \(\) => \{[\s\S]*?title-family-btn[\s\S]*?openHeroPicker/);
 });
