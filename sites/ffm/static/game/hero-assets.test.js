@@ -150,6 +150,21 @@ test('source/ and the three art files are allowed', async () => {
   assert.deepEqual(problems, []);
 });
 
+test('macOS conflict copies ("name 2.ext") are ignored, a real stray file still fails', async () => {
+  const copies = await problemsFor(async (put) => {
+    await validArt(put);
+    await put('wood/hero-atlas 2.webp', 'x');
+    await put('wood/portrait 2.webp', 'x');
+    await put('wood/hero-frames 2.js', 'x');
+  });
+  assert.deepEqual(copies, []);
+  const stray = await problemsFor(async (put) => {
+    await validArt(put);
+    await put('wood/notes.txt', 'x');
+  });
+  assert.notDeepEqual(stray, []);
+});
+
 test('--require and --settled', async () => {
   const run = (options, setup, rows) =>
     withTree(setup, async (dir) => (await checkHeroes({ dir, ...options })).problems, rows);
