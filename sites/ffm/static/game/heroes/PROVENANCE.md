@@ -32,6 +32,17 @@ Raw sheets are not committed. Date: 2026-11-16.
 | rogue | idle (identity try 2, rejected) | idle prompt + corrective sentence: hair covered by a green hood, no spikes, no scarf, no shoulder armour, no sword, shortbow in the left hand | 202 | art-0052 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
 | rogue | idle (identity try 3, rejected) | idle prompt + corrective sentence: same side view facing right, green hood, leather tunic, no cape, no sword, wooden shortbow | 303 | art-0053 | fal-ai/flux-pro/kontext | softened style plate | 2026-11-16 |
 
+## Interim state (2026-11-17): every hero wears the existing hero
+
+The generated hero art did not work out (every try read as an existing game character), and a human artist will
+make the real sprites. Until then all ten roster heroes use the game's existing hero so the pack can be tested end
+to end: `heroes/<id>/hero-atlas.webp` and `hero-frames.js` are byte copies of `static/game/hero/` for the nine pack
+heroes (the adventurer still loads `hero/` directly), and every `portrait.webp` is the existing hero's idle-1 head
+and shoulders, cropped 128x128 and scaled x2 nearest-neighbour to 256x256. The earlier generated monk and priestess
+placeholders and their contact sheets were replaced (they stay in git history). Strike family and display name
+still differ per hero; the look does not. The "NEEDS RE-RENDER" sections below describe the AI attempts and still
+apply: each hero needs real art from the artist. To replace a hero, overwrite its three files and its section.
+
 ## Adventurer
 
 NEEDS RE-RENDER (not committed: likeness)
