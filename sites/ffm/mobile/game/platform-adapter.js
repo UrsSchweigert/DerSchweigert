@@ -11,7 +11,7 @@
 // ./lifecycle.js and is wired by main.js inside its platform.isApp branch.
 import { createPreferencesBackend } from './progress-store.js';
 import { createLocalProfileAdapter } from './local-profile-adapter.js';
-import { createPurchasesPlugin } from './purchase.js';
+import { createPurchasesPlugin, CAMPAIGN2_PRODUCT_ID } from './purchase.js';
 import { createEntitlementStore } from './entitlement.js';
 
 // Progress and the entitlement cache share the Capacitor Preferences store.
@@ -20,6 +20,15 @@ const purchases = createPurchasesPlugin();
 const entitlement = createEntitlementStore({
   backend: createPreferencesBackend(),
   getPurchases: () => purchases.getPurchases(),
+});
+
+// Campaign II is a second non-consumable with its own cached entitlement, so owning it offline
+// keeps working and a refund revokes it, exactly like the full unlock above.
+const campaign2Entitlement = createEntitlementStore({
+  backend: createPreferencesBackend(),
+  getPurchases: () => purchases.getPurchases(),
+  productId: CAMPAIGN2_PRODUCT_ID,
+  key: 'arithmoslayer:entitlement:campaign2',
 });
 
 // level-data.js is generated into www/ at build time, so premium configs are
@@ -239,6 +248,17 @@ const platform = {
   // cache when the store is unreachable (offline).
   async refreshEntitlement() {
     return entitlement.refresh();
+  },
+
+  // The extra store products this player owns (today: Campaign II). Reads the store and
+  // keeps the cached answer when it is unreachable. Never rejects.
+  async getOwnedProductIds() {
+    try {
+      const status = await campaign2Entitlement.refresh();
+      return status?.premium_access === true ? [CAMPAIGN2_PRODUCT_ID] : [];
+    } catch {
+      return [];
+    }
   },
 };
 

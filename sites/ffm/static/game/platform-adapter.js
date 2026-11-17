@@ -53,6 +53,12 @@ const platform = {
     return { premium_access: false, source: 'none', offline: false };
   },
 
+  // Extra store products are an app-only idea: on the web Campaign II is part of the
+  // subscription (see campaign2/access.js), so there is nothing to own separately.
+  async getOwnedProductIds() {
+    return [];
+  },
+
   // The account's hero id when premium_access allows it, else null. Never
   // rejects. Logged out makes no request; the profile comes from the latest
   // response already forwarded (one getProfile only when none is cached) and

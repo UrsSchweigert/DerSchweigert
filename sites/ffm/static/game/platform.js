@@ -78,6 +78,7 @@ export const ACCESS_FLOW_METHODS = Object.freeze([
 // checkout. The web adapter keeps this a no-op.
 export const ENTITLEMENT_METHODS = Object.freeze([
   'refreshEntitlement',
+  'getOwnedProductIds',
 ]);
 
 export const PLATFORM_METHODS = Object.freeze([

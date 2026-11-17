@@ -411,9 +411,9 @@ test('classifyError covers the store-specific failure families', () => {
   assert.equal(classifyError(null), PURCHASE_OUTCOMES.ERROR);
 });
 
-test('the catalogue is frozen and holds only the full unlock', () => {
+test('the catalogue is frozen and holds the full unlock and Campaign II', () => {
   assert.equal(PRODUCT_ID, 'arithmoslayer_full_unlock');
-  assert.deepEqual([...CATALOGUE_IDS], [PRODUCT_ID]);
+  assert.deepEqual([...CATALOGUE_IDS], [PRODUCT_ID, 'arithmoslayer_genius_unlock']);
   assert.equal(Object.isFrozen(CATALOGUE_IDS), true);
 });
 

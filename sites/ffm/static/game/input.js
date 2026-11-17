@@ -40,7 +40,8 @@ export class InputManager {
         || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')) return;
       if (!/^\d$/.test(e.key)) return;
       // Match by label value so pressing '4' submits the button showing '4', not the 4th button
-      const match = this._mcButtons.find(btn => btn.textContent.trim() === e.key);
+      // (Campaign 2 buttons carry a data-value and stacked maths; they have no digit label to match.)
+      const match = this._mcButtons.find(btn => btn.dataset.value === undefined && btn.textContent.trim() === e.key);
       if (match) this._submit(match.textContent.trim(), match);
     });
     this._syncDisabled();
@@ -62,7 +63,7 @@ export class InputManager {
     const pressed = new Set();
     let pointerHandled = false;
     const submit = () => {
-      if (this._enabled && this._mode === 'multiple-choice') this._submit(btn.textContent.trim(), btn);
+      if (this._enabled && this._mode === 'multiple-choice') this._submit(btn.dataset.value ?? btn.textContent.trim(), btn);
     };
     btn.addEventListener('pointerdown', e => {
       pressed.add(e.pointerId);
@@ -161,7 +162,13 @@ export class InputManager {
     this._answerInput.value = '';
   }
 
-  setMCOptions(options) {
+  /**
+   * @param {Array} options - the answers; the value a button submits.
+   * @param {string[]} [html] - optional markup for each button (Campaign 2 stacked fractions,
+   *   roots...). Built by campaign2/math-render.js from validated answer keys, never from
+   *   free text. Such a button submits its option, not its text.
+   */
+  setMCOptions(options, html = null) {
     while (this._mcButtons.length > options.length) {
       this._mcButtons.pop().remove();
     }
@@ -178,7 +185,13 @@ export class InputManager {
     this._mcContainer.dataset.optionCount = String(options.length);
     options.forEach((val, i) => {
       this._mcButtons[i].dataset.index = String(i);
-      this._mcButtons[i].textContent = String(val);
+      if (html) {
+        this._mcButtons[i].dataset.value = String(val);
+        this._mcButtons[i].innerHTML = html[i];
+      } else {
+        delete this._mcButtons[i].dataset.value;
+        this._mcButtons[i].textContent = String(val);
+      }
     });
     this._syncDisabled();
   }

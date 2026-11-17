@@ -409,6 +409,7 @@ export function generateProblem(levelIndex, rngSeed, config, options = {}) {
 /** The question with its blank filled in, for the reveal after a miss or timeout. */
 export function revealQuestion(problem) {
   if (!problem?.question) return '';
+  if (problem.revealText) return problem.revealText;   // Campaign 2 builds its own (stacked-maths text)
   return problem.hidden
     ? problem.question.replace('?', String(problem.answer))
     : problem.question.replace(' = ?', ` = ${problem.answer}`);

@@ -22,8 +22,14 @@ import { gate as parentalGate } from './parental-gate.js';
 /** The single non-consumable unlock sold by the app. */
 export const PRODUCT_ID = 'arithmoslayer_full_unlock';
 
+/**
+ * Campaign 2 (Arithmoslayer II, the Genius Campaign), a second non-consumable. Keep it equal to
+ * CAMPAIGN2_PRODUCT_ID in static/game/campaign2/access.js (a test fails if they drift apart).
+ */
+export const CAMPAIGN2_PRODUCT_ID = 'arithmoslayer_genius_unlock';
+
 /** The catalogue ids, in a stable order. */
-export const CATALOGUE_IDS = Object.freeze([PRODUCT_ID]);
+export const CATALOGUE_IDS = Object.freeze([PRODUCT_ID, CAMPAIGN2_PRODUCT_ID]);
 
 /** Google Play / StoreKit product type for a one-time purchase. */
 export const PRODUCT_TYPE = 'inapp';

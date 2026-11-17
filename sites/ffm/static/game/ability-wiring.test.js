@@ -292,7 +292,7 @@ describe('game loop wiring', () => {
     const loop = functionSource('gameLoop');
     assert.match(
       loop,
-      /abilityBar\.update\(\{\s*\n\s*level: state\.level,\s*\n\s*progress: abilityRuntime \? \(id\) => abilityRuntime\.progress\(id\) : 1,/,
+      /abilityBar\.update\(\{\s*\n\s*level: state\.campaign === 2 \? ABILITY_LEVEL : state\.level,\s*\n\s*progress: abilityRuntime \? \(id\) => abilityRuntime\.progress\(id\) : 1,/,
       'the bar must receive the current level and a progress lookup',
     );
   });
