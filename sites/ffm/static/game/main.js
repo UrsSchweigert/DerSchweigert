@@ -69,6 +69,14 @@ import {
   getPracticeEliteHp,
 } from './practice-session.js';
 import { getSkillIntro } from './skill-intro.js';
+import { generateGameProblem2 } from './campaign2/problem.js';
+import { bossRoundKinds2, isBossRoundLevel2, TOTAL_LEVELS_2 } from './campaign2/campaign2-levels.js';
+import { getCampaign2LevelConfig, ABILITY_LEVEL } from './campaign2/config.js';
+import { getSkillIntro2, INTRO_TEXT_2 } from './campaign2/intro-text.js';
+import { createCampaign2Progress } from './campaign2/progress.js';
+import { createGeniusReveal, geniusEarned } from './campaign2/genius.js';
+import { campaign2Access } from './campaign2/access.js';
+import { expressionHtml } from './campaign2/math-render.js';
 import { runestoneDataUri } from './runestone.js';
 import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
@@ -166,6 +174,10 @@ let helpOverlay = null;
 // synchronously and needs this without awaiting the store, and the "unlocked"
 // test profile is only honoured while it is true.
 let premiumAccess = false;
+
+// Which campaign the title screen has selected (1: the 60-level campaign, 2: Arithmoslayer II),
+// (the level being played carries its own: state.campaign). Declared up here because title code runs early.
+let selectedCampaign = 1;
 
 // App-only: a player who owns the unlock has nothing left to be told about
 // what is free, so the "What is free?" entries follow the store entitlement.
@@ -582,34 +594,68 @@ const FIEND_PALETTES = {
   ],
 };
 
+function campaign2Progress() {
+  return createCampaign2Progress({ playerId: campaign2PlayerId() });
+}
+// Campaign 2 is part of the web subscription; the apps sell it as one more in-app product.
+async function getCampaign2AccessNow() {
+  if (platform.isApp) {
+    let owned = [];
+    try { owned = (await platform.getOwnedProductIds?.()) ?? []; } catch { owned = []; }
+    return campaign2Access({ platform: 'app', ownedProductIds: owned });
+  }
+  let premium = false;
+  try { premium = (await platform.getBillingStatus())?.premium_access === true; } catch { premium = false; }
+  return campaign2Access({ platform: 'web', premiumAccess: premium });
+}
+async function getCampaign2Config(levelIndex) {
+  const access = await getCampaign2AccessNow();
+  if (!access.granted) {
+    const error = new Error('Campaign 2 is locked');
+    error.code = 'campaign2_locked';
+    error.reason = access.reason;
+    throw error;
+  }
+  return getCampaign2LevelConfig(levelIndex + 1);
+}
+
 // A multi-hit fiend asks a fresh question after every hit. The last fiend of a
 // boss-round level (20, 30, 40, 50, 60) walks through three different question
 // types in a row instead: ordinary, the newest operation, then a missing operand.
+//
+// Campaign 2 (Arithmoslayer II, cfg.campaign === 2) has its own question generator, boss
+// kinds, and scene / ability levels; Campaign 1 configs carry none of those fields.
+const isBossFor = cfg => (cfg.campaign === 2 ? isBossRoundLevel2(cfg.level) : isBossRoundLevel(cfg.level));
+function makeProblem(cfg, options) {
+  return cfg.campaign === 2
+    ? generateGameProblem2(cfg.level, Date.now(), options)
+    : generateProblem(cfg.level - 1, Date.now(), cfg, options);
+}
 function nextHitProblem(fiend, cfg) {
   if (fiend.bossRound && !practiceRun) {
     fiend.bossStep = (fiend.bossStep ?? 0) + 1;
-    const kinds = bossRoundKinds(cfg.level);
-    return generateProblem(cfg.level - 1, Date.now(), cfg, kinds[fiend.bossStep % kinds.length]);
+    const kinds = cfg.campaign === 2 ? bossRoundKinds2(cfg.level) : bossRoundKinds(cfg.level);
+    return makeProblem(cfg, kinds[fiend.bossStep % kinds.length]);
   }
-  return generateProblem(cfg.level - 1, Date.now(), cfg);
+  return makeProblem(cfg);
 }
 
 // --- Fiend factory ---
 function createFiend(levelIndex, x) {
   const cfg = platform.getCurrentLevelConfig();
   if (!cfg) throw new Error('Level config not loaded');
-  const problem = generateProblem(levelIndex, Date.now(), cfg);
+  const problem = cfg.campaign === 2 ? makeProblem(cfg) : generateProblem(levelIndex, Date.now(), cfg);
   const spawnIndex = state.fiendsSpawned;
   state.fiendsSpawned++;
-  const fiendTypeKey = String(sampleFiendType(cfg.level, spawnIndex) || cfg.fiendType || '').toLowerCase();
+  const fiendTypeKey = String(sampleFiendType(cfg.artLevel ?? cfg.level, spawnIndex) || cfg.fiendType || '').toLowerCase();
   const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey] ?? OPERATOR_FIEND[problem.operation] ?? Slimeling;
   const isElite = Math.random() < GAME_CONFIG.eliteFiendChance;
   const practiceElite = practiceRun?.kind === 'elite';
-  const bossRound = !practiceRun && isBossRoundLevel(cfg.level) && spawnIndex === cfg.waveSize - 1;
+  const bossRound = !practiceRun && isBossFor(cfg) && spawnIndex === cfg.waveSize - 1;
   const hp = practiceElite ? getPracticeEliteHp(cfg.fiendHP)
     : bossRound ? Math.max(BOSS_ROUND_HITS, cfg.fiendHP)
       : isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
-  const tier = Math.min(3, Math.floor(levelIndex / 15));
+  const tier = Math.min(3, Math.floor(((cfg.artLevel ?? cfg.level) - 1) / 15));
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[tier] : undefined;
   const fiend = new FiendClass(x, groundY, hp, palette);
@@ -618,7 +664,7 @@ function createFiend(levelIndex, x) {
   fiend.problem = problem;
   fiend.isElite = practiceElite || (isElite && !bossRound);
   fiend.bossRound = bossRound;
-  fiend.fiendClassId = sampleFiendClassId(cfg.level, spawnIndex);
+  fiend.fiendClassId = sampleFiendClassId(cfg.artLevel ?? cfg.level, spawnIndex);
   fiend.type = fiendTypeKey;
   audio.prepareFiend?.(fiendTypeKey);
   if (practiceRun && practiceRun.kind !== 'targeted' && problem.operation) {
@@ -1352,6 +1398,7 @@ function renderScoreHistory(historyResponse, container) {
 function renderLevelJumpOptions(profile) {
   const scores = profile && profile.scores ? profile.scores : [];
   const levels = [...new Set(scores.map((s) => s.level))].sort((a, b) => a - b);
+  if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ reachedLevels: levels });
   if (levels.length === 0) {
     levelJumpRow.style.display = 'none';
     levelGrid.render({ total: TOTAL_LEVELS, defaultLevel: 1, available: [] });
@@ -1372,6 +1419,13 @@ function renderLevelJumpOptions(profile) {
 }
 
 function updateTitleStartingLevel(nextLevel = 1, continuationLabel = null, clearedLevels = null) {
+  if (typeof selectedCampaign !== 'undefined' && selectedCampaign === 2) {
+    const next = campaign2Progress().next();
+    titleLevelNumerals.updateLevelSelection({ level: next ?? TOTAL_LEVELS_2, mode: 'continuation' });
+    const line = document.getElementById('continue-level');
+    if (line) line.textContent = next ? t('campaign2.continueAt', { level: next }) : t('campaign2.complete');
+    return;
+  }
   const level = Number(levelGrid.value) || nextLevel;
   const mode = levelGrid.value ? 'replay' : 'continuation';
   titleLevelNumerals.updateLevelSelection({ level, mode });
@@ -1550,6 +1604,7 @@ function scrollPersonalBestToHighest() {
 
 function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   const progress = getCampaignProgress(completed);
+  if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ cleared: progress.cleared });
   if (resetSelection) levelGrid.value = '';
   const label = progress.complete ? t('campaign.complete') : t('campaign.continueAt', { level: progress.nextLevel });
   const selectorLabel = document.getElementById('level-jump-label');
@@ -1638,7 +1693,7 @@ function clearMissedProblemsForOwner(ownerId = practiceOwnerId()) {
 }
 
 function rememberMissedProblem(problem, levelIndex) {
-  if (!problem || practiceRun || state.isShapesMode) return;
+  if (!problem || practiceRun || state.isShapesMode || problem.campaign === 2) return;
   const ownerId = runProfileId ?? practiceOwnerId();
   if (missedProblemsOwner !== ownerId) clearMissedProblemsForOwner(ownerId);
   const level = levelIndex + 1;
@@ -1849,6 +1904,19 @@ function showSkillIntro(intro, levelIndex, cfg, baselineScore) {
 function renderSkillIntro() {
   if (!activeSkillIntro) return;
   const [explanation, example] = activeSkillIntro.stages;
+  if (activeSkillIntro.localizationKey?.startsWith('c2Intro.')) {
+    // Campaign 2: texts live in campaign2/intro-text.js, the example is laid out as stacked maths.
+    const text = key => INTRO_TEXT_2[key]?.[getLocale()] ?? INTRO_TEXT_2[key]?.en ?? '';
+    if (skillIntroTitle) skillIntroTitle.textContent = t('practice.intro.title', { level: activeSkillIntro.level });
+    if (skillIntroBody) skillIntroBody.textContent = text(explanation.localizationKey);
+    if (skillIntroExample) {
+      skillIntroExample.innerHTML = `<div class="m2-intro-math">${expressionHtml(example.tokens)}</div>`;
+      const note = document.createElement('p');
+      note.textContent = text(example.localizationKey);
+      skillIntroExample.appendChild(note);
+    }
+    return;
+  }
   const values = {
     ...explanation.values,
     a: activeSkillIntro.exampleProblem.a,
@@ -2055,6 +2123,73 @@ if (!platform.isApp) splashLoginBtn.addEventListener('click', () => {
   }
 });
 
+// --- Genius Campaign button (Campaign II) ---
+// Shown once the player has beaten level 40 of the main campaign (campaign2/genius.js). It
+// switches between the campaigns, and while Campaign II is locked it manages the unlock: the
+// web subscription (login / billing) or the app's in-app purchase.
+function campaign2PlayerId() {
+  return platform.isApp
+    ? (platform.localProfiles?.getActiveProfile?.().id ?? 'app')
+    : (platform.username || 'web');
+}
+const geniusReveal = () => createGeniusReveal({ playerId: campaign2PlayerId() });
+/** Called wherever progress becomes known; reveals the button the first time level 40 shows as beaten. */
+function noteGeniusProgress(progress) {
+  if (!geniusEarned(progress)) return;
+  if (geniusReveal().reveal() && typeof renderCampaignSwitch === 'function') renderCampaignSwitch();
+}
+async function renderCampaignSwitch() {
+  const wrap = document.getElementById('genius-campaign');
+  const button = document.getElementById('genius-campaign-btn');
+  if (!wrap || !button) return;
+  if (!geniusReveal().isRevealed()) {
+    wrap.hidden = true;
+    if (selectedCampaign === 2) selectedCampaign = 1;   // a stale selection never hides the way back
+  } else {
+    wrap.hidden = false;
+    const inTwo = selectedCampaign === 2;
+    const access = await getCampaign2AccessNow();
+    const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
+    set('genius-title', inTwo ? 'campaign2.genius.back' : 'campaign2.genius.title');
+    set('genius-eyebrow', 'campaign2.genius.eyebrow');
+    set('genius-status', inTwo ? 'campaign2.genius.backStatus' : access.granted ? 'campaign2.genius.play' : 'campaign2.genius.unlock');
+    button.setAttribute('aria-pressed', String(inTwo));
+    const note = document.getElementById('campaign2-note');
+    if (note) {
+      note.hidden = access.granted || !inTwo;
+      note.textContent = t(platform.isApp ? 'campaign2.note.app' : 'campaign2.note.web');
+    }
+  }
+  updateTitleStartingLevel();
+}
+document.getElementById('genius-campaign-btn')?.addEventListener('click', async () => {
+  if (levelStarting || pendingSkillIntro) return;
+  if (selectedCampaign === 2) {
+    selectedCampaign = 1;
+  } else if ((await getCampaign2AccessNow()).granted) {
+    selectedCampaign = 2;
+  } else if (platform.isApp) {
+    openCampaign2Purchase();            // the in-app purchase
+  } else if (platform.isLoggedIn) {
+    openBillingPanel();                 // the subscription
+  } else {
+    showAuthForm(loginForm);            // log in (or register) first
+    setAuthModalVisible(true);
+  }
+  renderCampaignSwitch();
+});
+// The app sells Campaign 2 as one more in-app product (see campaign2/access.js).
+async function openCampaign2Purchase() {
+  try {
+    const { createPaywall } = await import('./paywall.js');   // the app bundle's own module
+    await createPaywall({
+      platform, locale: getLocale(), product: 'campaign2', onGranted: () => renderCampaignSwitch(),
+    }).open();
+  } catch (error) {
+    console.error('Campaign 2 purchase failed', error);
+  }
+}
+
 // --- Difficulty select ---
 // Only the buttons that name a difficulty: the splash overlay also holds the
 // Back buttons of the Practice submenu and the history page, and those share
@@ -2077,13 +2212,18 @@ document.querySelectorAll('#difficulty-select [data-difficulty]').forEach(btn =>
       state.isShapesMode = false;
       state.difficulty = btn.dataset.difficulty;
       state.timerMax = parseInt(btn.dataset.timer);
+      state.baseTimerMax = state.timerMax;   // Campaign 2 stretches this per level
       state.timerRemaining = state.timerMax;
       state.maxHearts = parseInt(btn.dataset.hearts);
       state.hearts = state.maxHearts;
       healTipShown = false;
       const jumpValue = levelGrid.value;
       let targetLevel = jumpValue ? parseInt(jumpValue, 10) : 1;
-      if (platform.isApp) {
+      const campaign2Selected = typeof selectedCampaign !== 'undefined' && selectedCampaign === 2;
+      if (campaign2Selected) {
+        // Campaign 2 continues from its own device-local progress (or starts over once complete).
+        targetLevel = campaign2Progress().next() ?? 1;
+      } else if (platform.isApp) {
         const profileId = platform.localProfiles.getActiveProfile().id;
         const { completed } = await platform.getCompletedLevels(profileId);
         const progress = getCampaignProgress(completed);
@@ -2105,12 +2245,12 @@ document.querySelectorAll('#difficulty-select [data-difficulty]').forEach(btn =>
       // Run start: fresh cooldowns for the selected campaign level. The
       // `typeof` keeps extracted-function tests (which run this block without
       // main.js) working, matching the volumeControl guard above.
-      if (typeof beginAbilityRun === 'function') beginAbilityRun(targetLevel);
+      if (typeof beginAbilityRun === 'function') beginAbilityRun(targetLevel);   // Campaign 2 is lifted to its ability level by finishStartLevel
       state.score = 0;
       levelStartScore = state.score;
       // Level 1 opens the story: play the intro unless it already ran this
       // session (the first app open shows it before the title appears).
-      await storyIntro.playBeforeLevel(targetLevel);
+      if (!campaign2Selected) await storyIntro.playBeforeLevel(targetLevel);
       diffSelect.style.display = 'none';
       await startLevel(targetIndex, true);
     } catch (error) {
@@ -2915,7 +3055,9 @@ async function startLevel(levelIndex, includeBaseline = false) {
       runProfileId = platform.localProfiles.getActiveProfile().id;
     }
     // Fetch level config (handles authorization for premium levels)
-    const cfg = await platform.getAuthorizedLevelConfig(levelIndex, includeBaseline);
+    const cfg = typeof selectedCampaign !== 'undefined' && selectedCampaign === 2
+      ? await getCampaign2Config(levelIndex)
+      : await platform.getAuthorizedLevelConfig(levelIndex, includeBaseline);
 
     // Check if this request became stale (user logged in/out, or new level started)
     if (myGeneration !== levelRequestGeneration || originalUsername !== platform.username) {
@@ -2926,11 +3068,11 @@ async function startLevel(levelIndex, includeBaseline = false) {
     // Don't set config until we've verified generation
     platform.setCurrentLevelConfig(cfg);
 
-    renderer.setBackgroundByLevel(cfg.level);
+    renderer.setBackgroundByLevel(cfg.artLevel ?? cfg.level);
     applyLevelGround(renderer.groundY);
     // Warm only the current and next level art; the following levels are not
     // requested, and a level without a manifest entry is skipped entirely.
-    renderer.preloadLevelArt?.([cfg.level, cfg.level + 1]);
+    renderer.preloadLevelArt?.([cfg.artLevel ?? cfg.level, (cfg.artLevel ?? cfg.level) + 1]);
 
     // Apply baseline score to state if requested and available
     let baselineScore = 0;
@@ -2952,7 +3094,7 @@ async function startLevel(levelIndex, includeBaseline = false) {
         return; // Silently ignore stale request
       }
       hideLoadingOverlay();
-      const intro = getSkillIntro(cfg.level);
+      const intro = cfg.campaign === 2 ? getSkillIntro2(cfg.level) : getSkillIntro(cfg.level);
       if (intro) {
         showSkillIntro(intro, levelIndex, cfg, baselineScore);
         return;
@@ -2986,6 +3128,18 @@ function handleLevelConfigError(err, levelIndex) {
   const level = levelIndex + 1;
   let message = t('auth.failedToLoadLevel', { level });
   const isPractice = Boolean(practiceRun);
+
+  if (err.code === 'campaign2_locked') {
+    // Not entitled: back to the title, where the note under the campaign switch says how to get it.
+    audio.stopBGM();
+    diffSelect.style.display = 'flex';
+    updateHUDLogoutVisibility();
+    renderCampaignSwitch();
+    if (platform.isApp) openCampaign2Purchase();
+    else if (platform.isLoggedIn) openBillingPanel();
+    else { showAuthForm(loginForm); setAuthModalVisible(true); }
+    return;
+  }
 
   audio.stopBGM();
   if (isPractice) {
@@ -3344,6 +3498,11 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   currentLevelIndex = levelIndex;
   levelStartScore = state.score;
   state.level = cfg.level;
+  state.campaign = cfg.campaign === 2 ? 2 : 1;
+  // Campaign 2 plays with every hero ability from its first level; Campaign 1 earns them by level.
+  const abilityLevel = cfg.abilityLevel ?? cfg.level;
+  // Campaign 2 questions need more thinking time: the chosen difficulty's timer, stretched per level.
+  if (cfg.campaign === 2) state.timerMax = Math.round((state.baseTimerMax ?? state.timerMax) * cfg.timerScale);
   // A run keeps its cooldowns across levels; the first level of a run creates
   // the runtime (run-start call sites do this earlier, this is the fallback).
   // The `typeof` keeps extracted-function tests running without main.js.
@@ -3355,13 +3514,13 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // cooldown reductions.
   let levelBonuses = null;
   if (typeof bonusReadoutsForLevel === 'function' && typeof levelBonusRuntime !== 'undefined') {
-    levelBonuses = bonusReadoutsForLevel(cfg.level);
+    levelBonuses = bonusReadoutsForLevel(abilityLevel);
     levelBonusRuntime = levelBonuses.runtime;
     levelBonusCooldowns = levelBonuses.cooldowns;
   }
   if (typeof abilityRuntime !== 'undefined') {
-    if (abilityRuntime) abilityRuntime.setLevel(cfg.level);
-    else beginAbilityRun(cfg.level);
+    if (abilityRuntime) abilityRuntime.setLevel(abilityLevel);
+    else beginAbilityRun(abilityLevel);
     if (levelBonuses && abilityRuntime?.setBonuses) {
       abilityRuntime.setBonuses({
         rank: levelBonuses.runtime.stormRank,
@@ -3416,7 +3575,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // level that follows the one it just finished; anything else ends it. The
   // `typeof` keeps extracted-function tests running without main.js.
   if (typeof speedrunTimer !== 'undefined') {
-    if (!practiceRun && !state.isShapesMode && speedrunTimer.start(state.level)) {
+    if (!practiceRun && !state.isShapesMode && cfg.campaign !== 2 && speedrunTimer.start(state.level)) {
       if (state.level === 1) speedrunSplits = [];
     } else {
       speedrunTimer.abandon();
@@ -3427,7 +3586,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // The `typeof` keeps extracted-function tests running without main.js.
   if (typeof gameplayChrome !== 'undefined') {
     const bonus = !practiceRun && typeof bonusForLevel === 'function'
-      ? bonusForLevel(cfg.level)
+      ? bonusForLevel(abilityLevel)
       : null;
     if (gameplayChrome?.showBonusNotice?.(bonus) && bonus) {
       // One beat later: this runs before the first frame of the level, while
@@ -3451,7 +3610,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   if (typeof startStorm === 'function') startStorm(practiceRun ? null : cfg);
   updateHUDLogoutVisibility();
   hud.update(state);
-  audio.startLevelBGM(cfg.level, cfg.chapter);
+  audio.startLevelBGM(cfg.artLevel ?? cfg.level, cfg.chapter);
   flushDeferredMusicVolume();
   syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
@@ -3561,7 +3720,9 @@ btnPauseSave.addEventListener('click', async () => {
   pauseSaveError.textContent = '';
   try {
     if (completedLevelSave) await completedLevelSave();
-    if (platform.isApp) {
+    if (state.campaign === 2) {
+      // Campaign 2 keeps no server or profile score yet, so there is nothing to bank.
+    } else if (platform.isApp) {
       // Bank the reached score only: recordPartialAttempt keeps the level
       // unfinished and leaves completed/continuation untouched.
       await platform.localProfiles.recordPartialAttempt({
@@ -3927,7 +4088,10 @@ function handleAnswer(value, point) {
   if (['retreat', 'reveal', 'death'].includes(activeFiend.state)) return;
   // ignore if value contains no digits (prevents empty or accidental submissions)
   if (!/\d/.test(value)) return;
-  const correct = parseInt(value, 10) === activeFiend.problem.answer;
+  // Campaign 2 answers are exact keys ("7/12", "6√2"), compared as text; arithmetic answers are integers.
+  const correct = activeFiend.problem.campaign === 2
+    ? value === activeFiend.problem.answer
+    : parseInt(value, 10) === activeFiend.problem.answer;
   const origin = globalThis.ffmFx?.worldFromPoint(point);
   if (correct) {
     handleCorrectAnswer(origin);
@@ -4316,7 +4480,7 @@ function activatePendingProblem() {
   if (mode === 'multiple-choice') {
     const mcOptions = fiend.problem.options ??
       [fiend.problem.answer, ...(fiend.problem.distractors || [])].sort(() => Math.random() - 0.5);
-    input.setMCOptions(mcOptions);
+    input.setMCOptions(mcOptions, fiend.problem.optionsHtml ?? null);
   }
   input.enable(mode);
 }
@@ -4384,7 +4548,7 @@ function triggerWaveClear() {
   // Level-complete fanfare: the bundled hymn, or the synth cue when it cannot
   // be decoded. The call stays inline because tests evaluate these functions
   // on their own.
-  if (state.level < TOTAL_LEVELS) {
+  if (state.level < (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS)) {
     const hymn = audio.playVictoryHymn?.();
     if (hymn?.then) hymn.then((started) => { if (!started) audio.playLevelClear?.(); });
     else audio.playLevelClear?.();
@@ -4526,7 +4690,11 @@ function triggerLevelClear() {
     }
   }
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
-  if (!practiceRun && !completedLevelSave && (platform.isApp || platform.isLoggedIn)) {
+  const campaign2 = state.campaign === 2;
+  // Campaign 2 progress stays on this device; it has no server or profile record yet.
+  if (campaign2) campaign2Progress().markCleared(completedLevelNum);
+  else if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ cleared: [completedLevelNum], reachedLevels: [completedLevelNum] });
+  if (!practiceRun && !campaign2 && !completedLevelSave && (platform.isApp || platform.isLoggedIn)) {
     completedLevelSave = createLevelCompletion(platform, {
       level: completedLevelNum, score: state.score - levelStartScore,
       difficulty: state.difficulty, profileId: runProfileId, completionId: createCompletionId(),
@@ -4536,7 +4704,10 @@ function triggerLevelClear() {
   lastLevelClearNum = completedLevelNum;
   levelClearTitle.textContent = t('overlay.levelClearTitle', { level: completedLevelNum });
   levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
-  if (typeof renderLevelClearPreview === 'function') renderLevelClearPreview(state.level + 1);
+  if (campaign2) {
+    // The preview names the next scene by its Campaign 1 number, which means nothing here.
+    levelClearPreview?.style.setProperty('display', 'none');
+  } else if (typeof renderLevelClearPreview === 'function') renderLevelClearPreview(state.level + 1);
   renderAttemptAccomplishment('level-attempt-summary');
   topBar.style.display = 'flex';
   const finishCompletion = async action => {
@@ -4557,9 +4728,9 @@ function triggerLevelClear() {
       for (const button of [btnNextLevel, btnReplayLevel, btnSaveScoreReturnTitle]) button.disabled = false;
     }
   };
-  btnNextLevel.textContent = t(completedLevelNum >= TOTAL_LEVELS ? 'overlay.finishGame' : 'overlay.nextLevel');
+  btnNextLevel.textContent = t(completedLevelNum >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS) ? 'overlay.finishGame' : 'overlay.nextLevel');
   btnNextLevel.onclick = () => finishCompletion(() => {
-    if (completedLevelNum >= TOTAL_LEVELS) triggerGameOver(true);
+    if (completedLevelNum >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS)) triggerGameOver(true);
     else {
       levelClearOverlay.style.display = 'none';
       startLevel(completedIndex + 1);
@@ -4580,7 +4751,7 @@ function triggerLevelClear() {
   }
   btnSaveScoreReturnTitle.onclick = () => finishCompletion(async () => {
     if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
-    if (!practiceRun && !platform.isApp && platform.isLoggedIn) await platform.postHighScore(state.score, state.level);
+    if (!practiceRun && !campaign2 && !platform.isApp && platform.isLoggedIn) await platform.postHighScore(state.score, state.level);
     await refreshProfileAndLeaderboard();
     levelClearOverlay.style.display = 'none';
     if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
@@ -4632,7 +4803,7 @@ function triggerGameOver(won = false) {
     ? won ? 'practice.resultsTitle' : 'overlay.gameOverTitle'
     : won ? 'campaign.victory' : 'overlay.gameOverTitle');
   // Shapes mode is unscored — never submit a high score for it.
-  if (platform.isLoggedIn && !practiceRun && !state.isShapesMode) {
+  if (platform.isLoggedIn && !practiceRun && !state.isShapesMode && state.campaign !== 2) {
     platform.postHighScore(state.score, state.level).then(() => {
       refreshProfileAndLeaderboard();
     }).catch(() => {});
@@ -4791,7 +4962,7 @@ function gameLoop(ts) {
     speedrunUi?.updateClock(speedrunRecords.enabled ? speedrunTimer.snapshot() : null);
   }
   abilityBar.update({
-    level: state.level,
+    level: state.campaign === 2 ? ABILITY_LEVEL : state.level,
     progress: abilityRuntime ? (id) => abilityRuntime.progress(id) : 1,
     runtime: abilityRuntime,
     bonus: typeof levelBonusRuntime !== 'undefined' ? levelBonusRuntime : null,
@@ -5405,6 +5576,7 @@ function applyTitlePage(name) {
     button.setAttribute('aria-pressed', String(button.dataset.titleTarget === navPage));
   }
   if (name === 'progress') scrollPersonalBestToHighest();
+  if (name === 'play') renderCampaignSwitch();
 }
 
 // The intro and the menu pages swap behind a fade to black. The very first
@@ -5507,7 +5679,7 @@ onLocaleChange(() => {
     levelClearTitle.textContent = t('overlay.levelClearTitle', { level: lastLevelClearNum });
     levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
     renderLevelClearPreview(lastLevelClearNum + 1);
-    btnNextLevel.textContent = t(state.level >= TOTAL_LEVELS ? 'overlay.finishGame' : 'overlay.nextLevel');
+    btnNextLevel.textContent = t(state.level >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS) ? 'overlay.finishGame' : 'overlay.nextLevel');
     if (!platform.isApp && !platform.isLoggedIn) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   }
   if (gameOverOverlay.style.display !== 'none') {

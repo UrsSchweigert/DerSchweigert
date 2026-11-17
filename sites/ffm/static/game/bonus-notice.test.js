@@ -206,7 +206,7 @@ test('main.js announces the level bonus once, ticks it and clears it', async () 
   const source = await readFile(new URL('./main.js', import.meta.url), 'utf8');
   const finish = source.match(/function finishStartLevel\([\s\S]*?\n\}/)?.[0];
   assert.ok(finish, 'finishStartLevel must exist');
-  assert.match(finish, /bonusForLevel\(cfg\.level\)/);
+  assert.match(finish, /bonusForLevel\(abilityLevel\)/);
   assert.match(finish, /showBonusNotice\?\.\(bonus\)/);
   assert.match(finish, /practiceRun/);
 

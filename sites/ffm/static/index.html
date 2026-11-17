@@ -98,6 +98,19 @@
         <button type="button" data-title-target="family" data-i18n="profiles.switchPlayer">Switch player</button>
       </div>
       <p id="continue-level" class="splash-subtitle"></p>
+      <!-- Appears once the player has beaten level 40 for the first time (campaign2/genius.js). -->
+      <div id="genius-campaign" class="genius-campaign" hidden>
+        <button type="button" id="genius-campaign-btn" class="genius-btn" aria-pressed="false">
+          <span class="genius-ornament" aria-hidden="true"></span>
+          <span class="genius-text">
+            <span class="genius-eyebrow" id="genius-eyebrow" data-i18n="campaign2.genius.eyebrow">Campaign II</span>
+            <span class="genius-title" id="genius-title" data-i18n="campaign2.genius.title">Genius Campaign</span>
+            <span class="genius-status" id="genius-status" data-i18n="campaign2.genius.unlock">Unlock</span>
+          </span>
+          <span class="genius-ornament genius-ornament--mirror" aria-hidden="true"></span>
+        </button>
+      </div>
+      <p id="campaign2-note" class="splash-subtitle" hidden></p>
       <!-- app-omit:start -->
       <div class="splash-login-row">
         <button id="splash-login-btn" class="splash-btn splash-btn--secondary" data-i18n="splash.loginRegister">Login / Register</button>

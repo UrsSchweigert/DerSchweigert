@@ -1,5 +1,6 @@
 import { appendRunestones } from './runestone.js';
 import { MAX_SHAPE_COUNT } from './shapes.js';
+import { expressionHtml, expressionText } from './campaign2/math-render.js';
 
 const STONE_ADVANCE_EM = 0.9;      // stone width plus its gap, in the row's font size
 const STONE_SUM_BUDGET_PX = 300;   // narrowest usable header width
@@ -24,10 +25,11 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
     const el = element('active-question');
     if (!el || !doc?.createElement) return;
     if (!lines) {
-      if (el.dataset?.shapesHeader === 'two-rows' || el.dataset?.stoneSum) {
+      if (el.dataset?.shapesHeader === 'two-rows' || el.dataset?.stoneSum || el.dataset?.mathKey) {
         el.textContent = '';
         delete el.dataset.shapesHeader;
         delete el.dataset.stoneSum;
+        delete el.dataset.mathKey;
         if (el.style) el.style.fontSize = '';
         el.removeAttribute?.('aria-label');
       }
@@ -48,6 +50,21 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
       }
       el.appendChild(row);
     }
+  }
+  // A Campaign 2 question (fractions, powers, roots, logarithms) laid out as stacked maths,
+  // written once per problem like the stone sum.
+  function setQuestionMath(tokens) {
+    const el = element('active-question');
+    if (!el || !doc?.createElement) return false;
+    const html = expressionHtml(tokens);
+    if (el.dataset?.mathKey === html) return true;
+    el.textContent = '';
+    delete el.dataset.shapesHeader;
+    delete el.dataset.stoneSum;
+    el.dataset.mathKey = html;
+    el.innerHTML = html;
+    el.setAttribute?.('aria-label', expressionText(tokens));
+    return true;
   }
   // A counted addition on the first levels: "<stones> + <stones> = ?", written
   // once per problem (the key stops it being rewritten every frame).
@@ -218,6 +235,7 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
     let question = '';
     let shapesLines = null;
     let stoneSum = null;
+    let mathTokens = null;
     let ownedByWidget = false;
     if (active) {
       if (problem.displayMode === 'shapes') {
@@ -237,6 +255,9 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
       } else if (problem.visual) {
         stoneSum = problem.visual;
         question = problem.question || '';
+      } else if (problem.math) {
+        mathTokens = problem.math;
+        question = problem.question || '';
       } else {
         question = problem.question || '';
       }
@@ -252,11 +273,14 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
       ownedByWidget = false;
       shapesLines = null;
       stoneSum = null;
+      mathTokens = null;
       question = correction;
     }
     if (!ownedByWidget) {
       if (shapesLines) {
         setQuestionLines(shapesLines);
+      } else if (mathTokens && setQuestionMath(mathTokens)) {
+        // written by setQuestionMath
       } else if (stoneSum && setStoneSum(stoneSum)) {
         // drawn above
       } else {

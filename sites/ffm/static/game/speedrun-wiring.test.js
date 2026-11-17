@@ -26,7 +26,7 @@ function bodyOf(name) {
 describe('the run timer is fed by the game and nothing else', () => {
   it('starts a run only for a campaign level', () => {
     const body = bodyOf('finishStartLevel');
-    assert.match(body, /if \(!practiceRun && !state\.isShapesMode && speedrunTimer\.start\(state\.level\)\) \{/);
+    assert.match(body, /if \(!practiceRun && !state\.isShapesMode && cfg\.campaign !== 2 && speedrunTimer\.start\(state\.level\)\) \{/);
     assert.match(body, /if \(state\.level === 1\) speedrunSplits = \[\];/, 'a fresh run starts with no splits');
     assert.match(body, /\} else \{\n      speedrunTimer\.abandon\(\);/, 'a practice run or Shapes is never a run');
   });

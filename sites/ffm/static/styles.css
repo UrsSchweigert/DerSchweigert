@@ -3486,3 +3486,65 @@ body:not(.legal-body) {
 .hero-picker-lock { position: absolute; top: 2px; right: 2px; min-width: 22px; padding: 0 4px; border-radius: 4px; background: #000; color: #fff; font-size: 14px; line-height: 22px; text-align: center; }
 .hero-picker-name { font-size: 12px; text-align: center; }
 .hero-picker-status { min-height: 16px; margin: 0; font-size: 12px; color: #f0d080; }
+
+/* Campaign 2 (Arithmoslayer II) maths: stacked fractions and mixed numbers (campaign2/math-render.js). */
+.m2-expr { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; }
+.m2-mixed { display: inline-flex; align-items: center; gap: 0.15em; }
+.m2-frac { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.05; font-size: 0.8em; }
+.m2-frac .m2-num { padding: 0 0.2em 0.08em; border-bottom: 0.09em solid currentColor; }
+.m2-frac .m2-den { padding: 0.08em 0.2em 0; }
+.m2-blank { opacity: 0.85; }
+.m2-int { font-variant-numeric: tabular-nums; }
+.m2-pow { display: inline-flex; align-items: flex-start; }
+.m2-sup, .m2-sub { font-size: 0.62em; line-height: 1; }
+.m2-sup { align-self: flex-start; margin-left: 0.08em; position: relative; top: -0.15em; }
+.m2-sub { position: relative; top: 0.35em; margin-right: 0.12em; }
+.m2-sup .m2-expr, .m2-sup .m2-frac { font-size: 1em; }
+.m2-root { display: inline-flex; align-items: flex-end; }
+.m2-idx { font-size: 0.55em; align-self: flex-start; margin-right: -0.1em; }
+.m2-rad { border-top: 0.09em solid currentColor; padding: 0.04em 0.15em 0; margin-left: -0.05em; }
+.m2-surd { display: inline-flex; align-items: flex-end; gap: 0.05em; }
+.m2-paren { opacity: 0.9; }
+.m2-log { margin-right: 0.15em; }
+
+/* The Genius Campaign button (title screen, after level 40): gilt frame, jewelled corners, a slow shimmer. */
+.genius-campaign { display: flex; justify-content: center; margin: 0.7rem 0 0.4rem; }
+.genius-btn {
+  --gold-1: #fff3b0; --gold-2: #e0ad22; --gold-3: #a8740c;
+  position: relative; display: inline-flex; align-items: center; gap: 0.9rem; max-width: 100%;
+  padding: 0.7rem 1.5rem; border: 3px solid transparent; border-radius: 1rem; cursor: pointer;
+  font-family: Georgia, 'Palatino Linotype', 'Times New Roman', serif; text-align: center; color: var(--gold-1);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(120, 80, 220, 0.55), transparent 60%) padding-box,
+    linear-gradient(#2b1658, #120a2e) padding-box,
+    linear-gradient(135deg, var(--gold-1), var(--gold-2) 28%, var(--gold-1) 48%, var(--gold-3) 70%, #ffe27a) border-box;
+  box-shadow: 0 0 0 2px #3a2706, 0 0 20px rgba(255, 196, 60, 0.5), inset 0 0 16px rgba(255, 214, 100, 0.28), 0 6px 0 #2a1c05;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+  overflow: hidden;
+}
+.genius-btn::before, .genius-btn::after { content: ''; position: absolute; width: 0.55rem; height: 0.55rem; background: var(--gold-1); transform: rotate(45deg); box-shadow: 0 0 6px var(--gold-2); }
+.genius-btn::before { top: 0.35rem; left: 0.35rem; }
+.genius-btn::after { bottom: 0.35rem; right: 0.35rem; }
+.genius-text { position: relative; display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.1; }
+.genius-eyebrow { font-size: 0.68rem; letter-spacing: 0.32em; text-transform: uppercase; color: #cdb6ff; }
+.genius-title {
+  font-size: 1.45rem; font-weight: 700; letter-spacing: 0.06em; white-space: nowrap; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  background: linear-gradient(180deg, #fffbe0, #ffd24d 55%, #c8901a); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.genius-status { font-size: 0.74rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold-2); }
+.genius-ornament { position: relative; width: 1.9rem; height: 1.9rem; flex: none; filter: drop-shadow(0 0 5px rgba(255, 200, 60, 0.7)); }
+/* An eight-point star: two gilt squares, one turned 45 degrees, around a violet jewel (no inline SVG, no clip-path). */
+.genius-ornament::before, .genius-ornament::after { content: ''; position: absolute; inset: 0.3rem; background: linear-gradient(160deg, var(--gold-1), var(--gold-2) 55%, var(--gold-3)); border-radius: 1px; }
+.genius-ornament::after { transform: rotate(45deg); background: radial-gradient(circle at 50% 50%, #7c4dff 0 0.22rem, transparent 0.24rem), linear-gradient(160deg, var(--gold-1), var(--gold-2) 55%, var(--gold-3)); }
+.genius-ornament--mirror { transform: scaleX(-1); }
+.genius-btn > .genius-text::after { content: ''; position: absolute; inset: -0.7rem -2rem; background: linear-gradient(105deg, transparent 40%, rgba(255, 245, 190, 0.35) 50%, transparent 60%); transform: translateX(-120%); animation: genius-shimmer 4.5s ease-in-out infinite; pointer-events: none; }
+@keyframes genius-shimmer { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+.genius-btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.genius-btn:active { transform: translateY(3px); box-shadow: 0 0 0 2px #3a2706, 0 0 14px rgba(255, 196, 60, 0.5), inset 0 0 16px rgba(255, 214, 100, 0.28), 0 2px 0 #2a1c05; }
+.genius-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.genius-btn[aria-pressed="true"] { filter: saturate(0.75); }
+.genius-btn[aria-pressed="true"] .genius-title { font-size: 1.1rem; }
+@media (prefers-reduced-motion: reduce) { .genius-btn > .genius-text::after { animation: none; display: none; } .genius-btn { transition: none; } }
+.m2-intro-math { font-size: 1.8em; text-align: center; margin: 0.4em 0; }
+.mc-btn .m2-expr { font-size: 1.15em; justify-content: center; }
+.mc-btn .m2-frac { font-size: 0.85em; }

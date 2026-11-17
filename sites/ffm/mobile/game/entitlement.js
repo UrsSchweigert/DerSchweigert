@@ -59,16 +59,17 @@ function statusOf(record) {
 
 /**
  * Create the entitlement store around an injectable backend and purchase reader.
- * @param {{backend?: object, getPurchases?: Function, productId?: string, now?: () => string}} options
+ * @param {{backend?: object, getPurchases?: Function, productId?: string, key?: string, now?: () => string}} options
  * @returns {object} store API with read/write/getStatus/refresh
  */
 export function createEntitlementStore({
   backend,
   getPurchases,
   productId = PRODUCT_ID,
+  key = ENTITLEMENT_KEY,
   now = () => new Date().toISOString(),
 } = {}) {
-  const unlock = { key: ENTITLEMENT_KEY, id: productId };
+  const unlock = { key, id: productId };
   const available = () => Boolean(
     backend
     && typeof backend.get === 'function'
