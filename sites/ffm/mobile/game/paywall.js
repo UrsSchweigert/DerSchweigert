@@ -15,13 +15,13 @@ import { DEFAULT_LOCALE, resolveLocale } from './parental-gate.js';
 
 export const STRINGS = Object.freeze({
   'paywall.title': { en: 'Unlock levels 3-60', de: 'Level 3–60 freischalten' },
-  'paywall.description': { en: 'One purchase unlocks every level. Levels 1-2 stay free.', de: 'Ein Kauf schaltet alle Level frei. Level 1–2 bleiben kostenlos.' },
+  'paywall.description': { en: 'One purchase unlocks every level and all hero themes. Levels 1-2 stay free.', de: 'Ein Kauf schaltet alle Level und alle Heldenfarben frei. Level 1–2 bleiben kostenlos.' },
   'paywall.buy': { en: 'Buy for {price}', de: 'Für {price} kaufen' },
   'paywall.buyNoPrice': { en: 'Buy full unlock', de: 'Vollversion kaufen' },
   'paywall.restore': { en: 'Restore purchase', de: 'Kauf wiederherstellen' },
   'paywall.close': { en: 'Not now', de: 'Später' },
-  'paywall.success': { en: 'Purchase complete. All levels are unlocked.', de: 'Kauf abgeschlossen. Alle Level sind freigeschaltet.' },
-  'paywall.restored': { en: 'Purchase restored. All levels are unlocked.', de: 'Kauf wiederhergestellt. Alle Level sind freigeschaltet.' },
+  'paywall.success': { en: 'Purchase complete. All levels and hero themes are unlocked.', de: 'Kauf abgeschlossen. Alle Level und Heldenfarben sind freigeschaltet.' },
+  'paywall.restored': { en: 'Purchase restored. All levels and hero themes are unlocked.', de: 'Kauf wiederhergestellt. Alle Level und Heldenfarben sind freigeschaltet.' },
   'paywall.cancelled': { en: 'Purchase cancelled.', de: 'Kauf abgebrochen.' },
   'paywall.pending': { en: 'Purchase pending approval. Levels unlock once the store confirms it.', de: 'Kauf wartet auf Bestätigung. Freischaltung folgt, sobald der Store ihn bestätigt.' },
   'paywall.gated': { en: 'Ask an adult to complete the parental gate.', de: 'Bitte einen Erwachsenen, die Elternkontrolle abzuschließen.' },
