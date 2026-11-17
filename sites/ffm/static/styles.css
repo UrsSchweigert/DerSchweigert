@@ -154,6 +154,20 @@ body {
   font: bold 22px/28px monospace;
 }
 
+/* Runestones: the one counting image (see game/runestone.js), sized from the
+ * row's font so it scales with the header like the glyphs it replaced. */
+.runestone {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  margin: 0 0.3em 0 0;
+  vertical-align: -0.12em;
+  image-rendering: pixelated;
+}
+#active-question[data-stone-sum] { font: bold 22px/28px monospace; }
+#active-question .stone-sum-stones { white-space: nowrap; }
+#active-question .stone-sum-stones .runestone { margin-right: 0.3em; }
+
 #gameplay-chrome[data-question-rows="1"] #active-question {
   white-space: nowrap;
   overflow: hidden;

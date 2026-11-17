@@ -131,7 +131,7 @@ keeps the full name and all profile actions.
 
 Gameplay reports defeated encounters (not answered or mastered questions), upcoming combo spells using the
 actual 6/11/21 thresholds; every band fires with certainty. Mistake corrections and timeout feedback remain in
-the readable question area. Shapes counts agree across the canvas, DOM and answers for the full 1-10 range.
+the readable question area. Shapes counts agree across the canvas, DOM and answers for the full 1-6 range.
 Healing progress describes the left quarter of the playfield; recovery still takes nine seconds and is interrupted
 by injury. Experimental recovery is separate from ordinary hold-to-heal.
 

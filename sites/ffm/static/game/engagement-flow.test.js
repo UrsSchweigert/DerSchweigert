@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { createAttemptSummary } from './attempt-summary.js';
+import { revealQuestion } from './levels.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 
@@ -19,7 +20,7 @@ test('actual mistake flow distinguishes timeout from wrong choice and tracks rep
       hero: { setState() {} }, audio: { playWrong() {}, playTimeout() {} }, hud: { update() {} },
       input: { disable() {} }, scheduleGameplayTimeout: (fn) => timers.push(fn),
       healTipShown: true, triggerGameOver() { throw new Error('unexpected defeat'); },
-      requeuedFiends: [], t: key => key,
+      requeuedFiends: [], t: key => key, revealQuestion,
     };
     vm.createContext(context);
     vm.runInContext(wrong, context);

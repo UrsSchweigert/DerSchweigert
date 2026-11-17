@@ -2,7 +2,7 @@
 export const TOTAL_LEVELS = 60;
 export const LevelConfig = [
   { level: 1, chapter: 1, chapterName: 'Grade 1 Foundations', operations: ['+'],
-    operandRange: { a: [1, 5], b: [1, 5] }, maxResult: 10,
+    operandRange: { a: [1, 3], b: [1, 3] }, maxResult: 6,
     fiendType: 'slimeling', fiendHP: 1, waveSize: 30, inputMode: 'multiple-choice' },
   { level: 2, chapter: 1, chapterName: 'Grade 1 Foundations', operations: ['+'],
     operandRange: { a: [1, 6], b: [1, 6] }, maxResult: 12,
@@ -165,7 +165,15 @@ function getErrorCandidates(operation, a, b, answer) {
   return [answer - 1, answer + 1, a * b, a - b, a];
 }
 
-function generateOptions(answer, operation, a, b, rng, count) {
+// Missing-operand questions ("6 + ? = 10") start here: one question in four
+// hides an operand at level 10, rising evenly to one in two at level 60.
+export const MISSING_OPERAND_FROM_LEVEL = 10;
+export function missingOperandShare(level) {
+  if (level < MISSING_OPERAND_FROM_LEVEL) return 0;
+  return 0.25 + (0.25 * (level - MISSING_OPERAND_FROM_LEVEL)) / (TOTAL_LEVELS - MISSING_OPERAND_FROM_LEVEL);
+}
+
+function generateOptions(answer, operation, a, b, rng, count, errorCandidates) {
   if (!Number.isSafeInteger(answer) || answer < 0) {
     throw new Error(`Cannot generate answer choices for invalid answer ${answer}`);
   }
@@ -184,7 +192,7 @@ function generateOptions(answer, operation, a, b, rng, count) {
     return false;
   };
 
-  shuffle(getErrorCandidates(operation, a, b, answer).filter(isInWindow), rng).forEach(add);
+  shuffle((errorCandidates ?? getErrorCandidates(operation, a, b, answer)).filter(isInWindow), rng).forEach(add);
   for (let attempts = 0; distractors.length < count - 1 && attempts < count * 32; attempts++) {
     const offset = rng.nextInt(1, radius);
     const side = rng.next() & 1 ? 1 : -1;
@@ -206,7 +214,127 @@ function generateOptions(answer, operation, a, b, rng, count) {
   return { distractors, options: shuffle([answer, ...distractors], rng) };
 }
 
-export function generateProblem(levelIndex, rngSeed, config) {
+// Zero joins the operands at level 5 (see scripts/linear-curriculum.mjs). From
+// then on half of the operand draws come from the top third of the range so a
+// level feels like its number instead of mostly easy questions.
+export const TOP_WEIGHT_FROM_LEVEL = 5;
+// From here ordinary questions skip the dull ones: x 0, x 1, / 1, 0 / n, n - n, 0 + 0.
+export const TRIVIAL_FILTER_FROM_LEVEL = 10;
+// Levels 1-2 show some additions as counted runestones instead of digits
+// (`visual: { a, b }`, drawn by the renderer and the header; see runestone.js),
+// but only when both operands together make at most six stones.
+export const OBJECT_VISUAL_MAX_LEVEL = 2;
+export const OBJECT_VISUAL_MAX_SUM = 6;
+// Bonus points for answering a missing-operand question (it is the harder form).
+export const MISSING_OPERAND_BONUS = 25;
+// The last fiend of these levels is a boss round: three hits, three question types.
+export const BOSS_ROUND_LEVELS = Object.freeze([20, 30, 40, 50, 60]);
+export const BOSS_ROUND_HITS = 3;
+
+export function isBossRoundLevel(level) {
+  return BOSS_ROUND_LEVELS.includes(level);
+}
+
+/** The three question types of a boss round, easiest first. */
+export function bossRoundKinds(level) {
+  const newest = level >= 40 ? ['*', '/'] : level >= 30 ? ['/'] : ['*'];
+  return [{ missing: false }, { operations: newest, missing: false }, { missing: true }];
+}
+
+function weightedInt(rng, min, max, level) {
+  if (level >= TOP_WEIGHT_FROM_LEVEL && max - min >= 5 && rng.nextInt(0, 1) === 0) {
+    return rng.nextInt(min + Math.ceil(((max - min) * 2) / 3), max);
+  }
+  return rng.nextInt(min, max);
+}
+
+function isTrivial(operation, a, b, answer, level) {
+  if (level < TRIVIAL_FILTER_FROM_LEVEL) return false;
+  if (operation === '+') return a === 0 && b === 0;
+  if (operation === '-') return a === b;
+  if (operation === '*') return a <= 1 || b <= 1;
+  return b === 1 || answer === 0;
+}
+
+function rangesFor(cfg, operation) {
+  const override = cfg.operandRangeByOp?.[operation];
+  if (!override) return [getOperandRange(cfg, 'a'), getOperandRange(cfg, 'b')];
+  return [getOperandRange({ ...cfg, operandRange: override }, 'a'), getOperandRange({ ...cfg, operandRange: override }, 'b')];
+}
+
+function drawEquation(cfg, operation, rangeA, rangeB, answerCeiling, rng) {
+  const level = cfg.level;
+  let a, b, answer;
+  if (operation === '+') {
+    const maxA = Math.min(rangeA[1], answerCeiling - rangeB[0], MAX_SAFE_ANSWER - rangeB[0]);
+    a = weightedInt(rng, rangeA[0], maxA, level);
+    const maxB = Math.min(rangeB[1], answerCeiling - a, MAX_SAFE_ANSWER - a);
+    b = weightedInt(rng, rangeB[0], maxB, level);
+    answer = a + b;
+  } else if (operation === '-') {
+    const minA = Math.max(rangeA[0], rangeB[0]);
+    const maxA = Math.min(
+      rangeA[1],
+      answerCeiling > MAX_SAFE_ANSWER - rangeB[1] ? MAX_SAFE_ANSWER : answerCeiling + rangeB[1],
+    );
+    a = weightedInt(rng, minA, maxA, level);
+    const minB = Math.max(rangeB[0], a - answerCeiling);
+    b = rng.nextInt(minB, Math.min(rangeB[1], a));
+    answer = a - b;
+  } else if (operation === '*') {
+    const productCeiling = getOptionalAnswerCeiling(cfg, 'maxProduct');
+    const maxA = rangeB[0] === 0
+      ? rangeA[1]
+      : Math.min(
+        rangeA[1],
+        Math.floor(MAX_SAFE_ANSWER / rangeB[0]),
+        Math.floor(productCeiling / rangeB[0]),
+      );
+    a = weightedInt(rng, rangeA[0], maxA, level);
+    const maxB = a === 0
+      ? rangeB[1]
+      : Math.min(
+        rangeB[1],
+        Math.floor(MAX_SAFE_ANSWER / a),
+        Math.floor(productCeiling / a),
+      );
+    b = weightedInt(rng, rangeB[0], maxB, level);
+    answer = a * b;
+  } else {
+    const minDivisor = Math.max(1, rangeB[0]);
+    const dividendCeiling = getOptionalAnswerCeiling(cfg, 'maxDividend');
+    const maxAnswer = Math.min(
+      rangeA[1],
+      Math.floor(MAX_SAFE_ANSWER / minDivisor),
+      Math.floor(dividendCeiling / minDivisor),
+    );
+    answer = weightedInt(rng, rangeA[0], maxAnswer, level);
+    b = answer === 0
+      ? rangeB[1]
+      : weightedInt(
+        rng,
+        minDivisor,
+        Math.min(
+          rangeB[1],
+          Math.floor(MAX_SAFE_ANSWER / answer),
+          Math.floor(dividendCeiling / answer),
+        ),
+        level,
+      );
+    a = answer * b;
+  }
+  return { a, b, answer };
+}
+
+/**
+ * @param {number} levelIndex - 0-based level index.
+ * @param {number} rngSeed
+ * @param {object} [config] - the level's config (required from level 3).
+ * @param {{operations?: string[], missing?: boolean}} [options] - forces the
+ *   question type: `operations` restricts the operation, `missing: true` hides
+ *   an operand, `missing: false` never does (boss rounds use these).
+ */
+export function generateProblem(levelIndex, rngSeed, config, options = {}) {
   // For levels 0-1 (free levels 1-2), allow default fallback to LevelConfig
   // For levels 2+ (premium levels 3+), require explicit config parameter
   let cfg = config;
@@ -226,76 +354,62 @@ export function generateProblem(levelIndex, rngSeed, config) {
   }
 
   const rng = lcg(rngSeed);
-  const rangeA = getOperandRange(cfg, 'a');
-  const rangeB = getOperandRange(cfg, 'b');
   const answerCeiling = getAnswerCeiling(cfg);
   for (const operation of new Set(cfg.operations)) {
+    const [rangeA, rangeB] = rangesFor(cfg, operation);
     validateOperationConfig(cfg, operation, rangeA, rangeB, answerCeiling);
   }
-  const operation = cfg.operations[rng.next() % cfg.operations.length];
-  let a, b, answer, question;
-  if (operation === '+') {
-    const maxA = Math.min(rangeA[1], answerCeiling - rangeB[0], MAX_SAFE_ANSWER - rangeB[0]);
-    a = rng.nextInt(rangeA[0], maxA);
-    const maxB = Math.min(rangeB[1], answerCeiling - a, MAX_SAFE_ANSWER - a);
-    b = rng.nextInt(rangeB[0], maxB);
-    answer = a + b;
-    question = `${a} + ${b} = ?`;
-  } else if (operation === '-') {
-    const minA = Math.max(rangeA[0], rangeB[0]);
-    const maxA = Math.min(
-      rangeA[1],
-      answerCeiling > MAX_SAFE_ANSWER - rangeB[1] ? MAX_SAFE_ANSWER : answerCeiling + rangeB[1],
-    );
-    a = rng.nextInt(minA, maxA);
-    const minB = Math.max(rangeB[0], a - answerCeiling);
-    b = rng.nextInt(minB, Math.min(rangeB[1], a));
-    answer = a - b;
-    question = `${a} - ${b} = ?`;
-  } else if (operation === '*') {
-    const productCeiling = getOptionalAnswerCeiling(cfg, 'maxProduct');
-    const maxA = rangeB[0] === 0
-      ? rangeA[1]
-      : Math.min(
-        rangeA[1],
-        Math.floor(MAX_SAFE_ANSWER / rangeB[0]),
-        Math.floor(productCeiling / rangeB[0]),
-      );
-    a = rng.nextInt(rangeA[0], maxA);
-    const maxB = a === 0
-      ? rangeB[1]
-      : Math.min(
-        rangeB[1],
-        Math.floor(MAX_SAFE_ANSWER / a),
-        Math.floor(productCeiling / a),
-      );
-    b = rng.nextInt(rangeB[0], maxB);
-    answer = a * b;
-    question = `${a} × ${b} = ?`;
-  } else if (operation === '/') {
-    const minDivisor = Math.max(1, rangeB[0]);
-    const dividendCeiling = getOptionalAnswerCeiling(cfg, 'maxDividend');
-    const maxAnswer = Math.min(
-      rangeA[1],
-      Math.floor(MAX_SAFE_ANSWER / minDivisor),
-      Math.floor(dividendCeiling / minDivisor),
-    );
-    answer = rng.nextInt(rangeA[0], maxAnswer);
-    b = answer === 0
-      ? rangeB[1]
-      : rng.nextInt(
-        minDivisor,
-        Math.min(
-          rangeB[1],
-          Math.floor(MAX_SAFE_ANSWER / answer),
-          Math.floor(dividendCeiling / answer),
-        ),
-      );
-    a = answer * b;
-    question = `${a} ÷ ${b} = ?`;
+  const pool = options.operations?.length
+    ? cfg.operations.filter(op => options.operations.includes(op))
+    : cfg.operations;
+  const operations = pool.length ? pool : cfg.operations;
+  const forceMissing = options.missing === true;
+  const allowMissing = options.missing !== false && cfg.missingOperand !== false;
+  const share = forceMissing ? 1 : allowMissing ? missingOperandShare(cfg.level) : 0;
+  const count = getArithmeticOptionCount(cfg.level);
+
+  let drawn = null;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const operation = operations[rng.next() % operations.length];
+    const [rangeA, rangeB] = rangesFor(cfg, operation);
+    const { a, b, answer } = drawEquation(cfg, operation, rangeA, rangeB, answerCeiling, rng);
+    const result = answer;
+    let hidden = null;
+    if (rng.nextInt(0, 99) < Math.round(share * 100)) {
+      hidden = rng.next() & 1 ? 'a' : 'b';
+      // A hidden operand must be the only solution: 0 x ? and ? x 0 equal 0 for
+      // every value, and 0 / ? = 0 likewise, so those stay ordinary questions.
+      // (A divisor is never 0, so division by 0 cannot appear in any form.)
+      if (operation === '*' && (hidden === 'a' ? b : a) === 0) hidden = null;
+      if (operation === '/' && result === 0) hidden = hidden === 'b' ? 'a' : null;
+    }
+    if (forceMissing && !hidden) continue;
+    drawn = { operation, a, b, result, hidden };
+    if (hidden || !isTrivial(operation, a, b, result, cfg.level)) break;
   }
-  const { distractors, options } = generateOptions(
-    answer, operation, a, b, rng, getArithmeticOptionCount(cfg.level),
-  );
-  return { question, answer, operation, distractors, options, a, b };
+  const { operation, a, b, result, hidden } = drawn;
+  const sign = { '+': '+', '-': '-', '*': '×', '/': '÷' }[operation];
+
+  if (hidden) {
+    const shown = hidden === 'a' ? b : a;
+    const hiddenValue = hidden === 'a' ? a : b;
+    const question = hidden === 'a' ? `? ${sign} ${b} = ${result}` : `${a} ${sign} ? = ${result}`;
+    const slips = [hiddenValue - 1, hiddenValue + 1, result, shown, result + shown, Math.abs(result - shown)];
+    const { distractors, options: choices } = generateOptions(hiddenValue, operation, a, b, rng, count, slips);
+    return { question, visual: null, answer: hiddenValue, operation, distractors, options: choices, a, b, result, hidden };
+  }
+  const question = `${a} ${sign} ${b} = ?`;
+  const visual = cfg.level <= OBJECT_VISUAL_MAX_LEVEL && operation === '+' && a + b <= OBJECT_VISUAL_MAX_SUM
+    && rng.nextInt(0, 1) === 0
+    ? { a, b } : null;
+  const { distractors, options: choices } = generateOptions(result, operation, a, b, rng, count);
+  return { question, visual, answer: result, operation, distractors, options: choices, a, b, result, hidden };
+}
+
+/** The question with its blank filled in, for the reveal after a miss or timeout. */
+export function revealQuestion(problem) {
+  if (!problem?.question) return '';
+  return problem.hidden
+    ? problem.question.replace('?', String(problem.answer))
+    : problem.question.replace(' = ?', ` = ${problem.answer}`);
 }

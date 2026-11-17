@@ -1,4 +1,4 @@
-import { LevelConfig } from './levels.js';
+import { LevelConfig, MISSING_OPERAND_BONUS, missingOperandShare } from './levels.js';
 import { getFiendClassWeights, getFiendClass } from './difficulty-classes.js';
 
 const SPEED_BONUS_MAX = 50;   // matches the max speedBonus in main.js's handleCorrectAnswer (perfect-timing assumption)
@@ -28,10 +28,12 @@ export function assumedDragonPathLevelScore(level, configOverride) {
   if (!cfg) return 0;
   const hits = cfg.waveSize * cfg.fiendHP;
   const classBase = expectedClassScoreForLevel(level);
+  // Missing-operand questions pay a flat bonus on top of the class score.
+  const insightBonus = missingOperandShare(level) * MISSING_OPERAND_BONUS;
   let total = 0;
   for (let i = 1; i <= hits; i++) {
     const comboBonus = (i - 1) * COMBO_BONUS_PER_HIT; // state.combo is the PRE-increment value at hit i
-    total += classBase + SPEED_BONUS_MAX + comboBonus;
+    total += classBase + SPEED_BONUS_MAX + comboBonus + insightBonus;
   }
   return Math.round(total);
 }

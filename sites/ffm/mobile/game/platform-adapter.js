@@ -48,7 +48,7 @@ export class PlatformUnavailableError extends Error {
 // entitlement exists.
 const FREE_LEVELS = Object.freeze([
   { level: 1, chapter: 1, chapterName: 'Grade 1 Foundations', operations: ['+'],
-    operandRange: { a: [1, 5], b: [1, 5] }, maxResult: 10,
+    operandRange: { a: [1, 3], b: [1, 3] }, maxResult: 6,
     fiendType: 'slimeling', fiendHP: 1, waveSize: 30, inputMode: 'multiple-choice' },
   { level: 2, chapter: 1, chapterName: 'Grade 1 Foundations', operations: ['+'],
     operandRange: { a: [1, 6], b: [1, 6] }, maxResult: 12,

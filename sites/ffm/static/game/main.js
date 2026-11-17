@@ -1,6 +1,9 @@
 // main.js — Complete game loop for Arithmo Slayer
 
-import { generateProblem, getArithmeticOptionCount, sampleFiendType, TOTAL_LEVELS } from './levels.js';
+import {
+  BOSS_ROUND_HITS, MISSING_OPERAND_BONUS, bossRoundKinds, generateProblem, getArithmeticOptionCount,
+  isBossRoundLevel, revealQuestion, sampleFiendType, TOTAL_LEVELS,
+} from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
 import { LEVEL_ART_MANIFEST, resolveLevelBackground, stageArtUrl } from './level-art.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon, getHeroGroundOffsetPx } from './entities.js';
@@ -66,6 +69,7 @@ import {
   getPracticeEliteHp,
 } from './practice-session.js';
 import { getSkillIntro } from './skill-intro.js';
+import { runestoneDataUri } from './runestone.js';
 import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
 import { isLevelTestProfile, levelAvailability } from './test-profile.js';
@@ -219,7 +223,7 @@ if (platform.isApp) {
       return import('./shapes-header.js');
     })
     .then(({ createShapesHeader }) => {
-      gameplayChrome.setShapesHeader(createShapesHeader({ doc: document }));
+      gameplayChrome.setShapesHeader(createShapesHeader({ doc: document, stoneSrc: runestoneDataUri() }));
     })
     .catch(() => {});
   // App-only music/effects gain control in the top bar, wired to the same
@@ -577,6 +581,18 @@ const FIEND_PALETTES = {
   ],
 };
 
+// A multi-hit fiend asks a fresh question after every hit. The last fiend of a
+// boss-round level (20, 30, 40, 50, 60) walks through three different question
+// types in a row instead: ordinary, the newest operation, then a missing operand.
+function nextHitProblem(fiend, cfg) {
+  if (fiend.bossRound && !practiceRun) {
+    fiend.bossStep = (fiend.bossStep ?? 0) + 1;
+    const kinds = bossRoundKinds(cfg.level);
+    return generateProblem(cfg.level - 1, Date.now(), cfg, kinds[fiend.bossStep % kinds.length]);
+  }
+  return generateProblem(cfg.level - 1, Date.now(), cfg);
+}
+
 // --- Fiend factory ---
 function createFiend(levelIndex, x) {
   const cfg = platform.getCurrentLevelConfig();
@@ -588,8 +604,10 @@ function createFiend(levelIndex, x) {
   const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey] ?? OPERATOR_FIEND[problem.operation] ?? Slimeling;
   const isElite = Math.random() < GAME_CONFIG.eliteFiendChance;
   const practiceElite = practiceRun?.kind === 'elite';
+  const bossRound = !practiceRun && isBossRoundLevel(cfg.level) && spawnIndex === cfg.waveSize - 1;
   const hp = practiceElite ? getPracticeEliteHp(cfg.fiendHP)
-    : isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
+    : bossRound ? Math.max(BOSS_ROUND_HITS, cfg.fiendHP)
+      : isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
   const tier = Math.min(3, Math.floor(levelIndex / 15));
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[tier] : undefined;
@@ -597,7 +615,8 @@ function createFiend(levelIndex, x) {
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X,
     typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
   fiend.problem = problem;
-  fiend.isElite = practiceElite || isElite;
+  fiend.isElite = practiceElite || (isElite && !bossRound);
+  fiend.bossRound = bossRound;
   fiend.fiendClassId = sampleFiendClassId(cfg.level, spawnIndex);
   fiend.type = fiendTypeKey;
   audio.prepareFiend?.(fiendTypeKey);
@@ -3964,7 +3983,7 @@ function resolveFireballHit(fiend) {
       targetX: HERO_X,
       onArrive: () => {
         const cfg = platform.getCurrentLevelConfig();
-        if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
+        if (cfg) fiend.problem = nextHitProblem(fiend, cfg);
         queueProblemActivation(fiend, { preserveTimer });
         inputDisabled = false;
       }
@@ -4007,7 +4026,8 @@ function handleCorrectAnswer(origin) {
   const comboBonus  = activeFiend.wasRequeued ? 0 : state.combo * 10;
   const multiplier  = activeFiend.isElite ? GAME_CONFIG.elitePointMultiplier : 1;
   const classBase   = getFiendClass(activeFiend.fiendClassId).scoreValue;
-  const points      = (classBase + speedBonus + comboBonus) * multiplier;
+  const insightBonus = !practiceRun && problem.hidden ? MISSING_OPERAND_BONUS : 0;   // the harder, backwards form
+  const points      = (classBase + speedBonus + comboBonus + insightBonus) * multiplier;
 
   // Shapes mode is deliberately unscored (no score/combo/leaderboard) —
   // combo staying at 0 also naturally keeps pickComboAbility() below from
@@ -4106,7 +4126,7 @@ function handleCorrectAnswer(origin) {
           targetX: HERO_X,
           onArrive: () => {
             const cfg = platform.getCurrentLevelConfig();
-            if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
+            if (cfg) fiend.problem = nextHitProblem(fiend, cfg);
             queueProblemActivation(fiend, { preserveTimer });
             inputDisabled = false;
           }
@@ -4148,7 +4168,7 @@ function handleCorrectAnswer(origin) {
           targetX: HERO_X,
           onArrive: () => {
             const cfg = platform.getCurrentLevelConfig();
-            if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
+            if (cfg) fiend.problem = nextHitProblem(fiend, cfg);
             queueProblemActivation(fiend, { preserveTimer });
             inputDisabled = false;
           }
@@ -4219,7 +4239,7 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
       // Shapes problems have no text question (see shapes.js's
       // displayMode: 'shapes') — fall back to a plain "Answer: N" reveal.
       activeFiend._revealText = p.question
-        ? p.question.replace(' = ?', ' = ' + p.answer)
+        ? revealQuestion(p)
         : t('feedback.shapesAnswer', { count: p.answer });
       activeFiend.setState('reveal');
 
@@ -4937,6 +4957,8 @@ function gameLoop(ts) {
     if (f.problem && f.x < FIEND_ENTRY_TRIGGER_X && !f.isDead && f.state !== 'death') {
       if (f.problem.displayMode === 'shapes' && f.state !== 'reveal') {
         renderer.drawShapeBubble(f.x, f.y - 20 * LOGICAL_PX, f.problem.shapeType, f.problem.count, f === activeFiend);
+      } else if (f.problem.visual && f.state !== 'reveal') {
+        renderer.drawStoneSumBubble(f.x, f.y - 20 * LOGICAL_PX, f.problem.visual.a, f.problem.visual.b, f === activeFiend);
       } else {
         const bubbleText = f.state === 'reveal'
           ? (f._revealText || f.problem.question)
@@ -4993,7 +5015,7 @@ function gameLoop(ts) {
     // The header shows the answer alone and keeps it short enough for the
     // question column; the fiend's speech bubble carries the full sentence.
     question: activeFiend.problem.question
-      ? activeFiend.problem.question.replace(' = ?', ` = ${activeFiend.problem.answer}`)
+      ? revealQuestion(activeFiend.problem)
       : t('feedback.shapesAnswerShort', { count: activeFiend.problem.answer }),
   } : null;
   const practiceProgress = practiceRun?.session.snapshot();
