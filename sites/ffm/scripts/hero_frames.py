@@ -137,7 +137,7 @@ GRIP: dict[str, str] = {
     "swing-windup": "two", "swing-strike": "two", "swing-impact": "two", "swing-follow": "two",
     "hurt": "one", "dead": "loose", "victory-raise": "one",
     "victory-plant": "one", "cast": "one",
-    # Four-frame clips drawn by hand from a pose sheet (scripts/hero_poses.py).
+    # Four-frame clips drawn by hand from a pose sheet (drawn outside this repo).
     # The strike is the only two-handed clip; the cast keeps the sword in one
     # hand and casts with the free one.
     **{f"swing-{i}": "two" for i in range(1, 5)},
@@ -146,7 +146,7 @@ GRIP: dict[str, str] = {
 
 # The clips the hero actually plays, and how many four-frame groups each has.
 # Used by --from-frames, which builds the atlas out of individual frame PNGs
-# (one pose sheet per clip, split by scripts/hero_poses.py) instead of out of
+# (one pose sheet per clip, split by hand) instead of out of
 # the master sheet.
 CLIP_FRAMES: dict[str, int] = {
     "idle": 4, "walk": 4, "swing": 4, "hurt": 4, "dead": 4, "victory": 4, "cast": 4,
@@ -1518,7 +1518,7 @@ def main(argv: list[str]) -> int:
                              "pixels (a stray mark otherwise drags the frame's box and pivot)")
     parser.add_argument("--from-frames", metavar="DIR",
                         help="build the atlas from <clip>-<n>.png pose files in DIR "
-                             "(written by scripts/hero_poses.py)")
+                             "(one pose-sheet PNG per clip)")
     parser.add_argument("--hero", metavar="ID", help="build one roster hero into static/game/heroes/<id>/ "
                         "(needs --from-frames with all 28 frames and --weapon)")
     parser.add_argument("--weapon", choices=WEAPONS, help="the hero's strike family; picks the weapon check")
