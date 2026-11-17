@@ -277,7 +277,7 @@ iOS and Android device:
 - Bundled music and effects are audible through the speaker and headphones.
 - The app music slider changes live gain at 0, 0.2 and 1 while a track plays,
   and the effects slider changes the next effect cue.
-- The iOS silent switch silences music and effects; unmuting restores them.
+- The iOS silent switch silences music, effects and story narration; unmuting restores them and shows a hint to check the silent switch.
 - A call or alarm interruption pauses music and gameplay, and returning resumes
   both exactly once with mute and gain preserved.
 - Background/foreground transitions do not duplicate playback.

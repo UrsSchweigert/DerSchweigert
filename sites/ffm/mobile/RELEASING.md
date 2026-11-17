@@ -649,7 +649,7 @@ cannot be claimed from a passing JavaScript test.
 | Refund / revocation | sandbox settings | | `<revision>` | open |
 | Android Back behaviour (pause → confirm → exit) | Android | | `<revision>` | open |
 | Interruption (call/background) pauses game and music | Android | | `<revision>` | open |
-| iOS silent switch silences BGM and effects, and unmuting restores them without a restart | iPhone | | `<revision>` | open |
+| iOS silent switch silences BGM, effects and story narration, and unmuting restores them without a restart and shows the silent switch hint | iPhone | | `<revision>` | open |
 | Audio interruption (call, other app) pauses and resumes gameplay and BGM exactly once | iPhone, Android | | `<revision>` | open |
 | Controls clear notches, rounded corners and gesture bars in both orientations | notched phone | | `<revision>` | open |
 | App icon and launch screen match the artwork on the home screen and at launch | iPhone | | `<revision>` | open |
@@ -665,8 +665,10 @@ proves the behaviour.
 ## iOS audio session and the silent switch
 
 The web game follows the device's ring/silent switch, exactly as it does in
-Safari: with the switch on silent, background music and effects are muted, and
-flipping it back restores them. The committed `AppDelegate.swift` and
+Safari: with the switch on silent, background music, effects and story narration
+(which plays through the Web Audio engine in the iOS app) must all fall silent,
+and flipping it back restores them. Unmuting in the sound menu shows a general
+hint to check the silent switch; the speaker icon only shows the in-app setting. The committed `AppDelegate.swift` and
 `SceneDelegate.swift` never set an `AVAudioSession` category, so iOS keeps the
 default `AVAudioSessionCategorySoloAmbient`, which honours the switch. Do not
 add `AVAudioSessionCategoryPlayback` without an owner decision: it makes the
