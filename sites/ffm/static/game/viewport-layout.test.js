@@ -341,7 +341,7 @@ test('the layout row cap is a real CSS value', () => {
 test('screen IDs, pagination, playfield ownership and legal scrolling stay explicit', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   for (const id of ['playfield', 'game', 'combo-frame', 'input-zone', 'local-profiles', 'profile-root',
-    'personal-development-error', 'personal-best-prev', 'personal-best-next', 'personal-best-page']) {
+    'personal-development-error', 'personal-best-list', 'btn-open-practice']) {
     assert.ok(html.includes(`id="${id}"`), id);
   }
   assert.match(html, /id="playfield"[\s\S]*id="game"[\s\S]*id="combo-frame"[\s\S]*<\/div><!-- #playfield -->/);

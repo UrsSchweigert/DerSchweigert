@@ -186,8 +186,9 @@
         <p id="personal-development-error" class="screen-status error-msg" role="status"></p>
         <ol id="personal-best-list" class="leaderboard-list"></ol>
       </section>
+        <button type="button" id="btn-open-practice" class="action-primary" aria-controls="practice-panel" data-i18n="practice.title">Practice sessions</button>
         <details id="practice-panel" class="compact-disclosure">
-          <summary data-i18n="practice.title">Practice sessions</summary>
+          <summary hidden data-i18n="practice.title">Practice sessions</summary>
           <div class="practice-controls">
             <label for="practice-kind" data-i18n="practice.sessionType">Session type</label>
             <select id="practice-kind" aria-describedby="practice-description practice-unscored">
@@ -209,10 +210,7 @@
             <button type="button" id="btn-close-practice" class="diff-btn practice-back" data-i18n="practice.back">Back</button>
           </div>
         </details>
-        <nav class="screen-pagination" aria-label="Practice pages">
-          <button id="personal-best-prev" type="button" aria-label="Previous page" data-page-direction="previous"></button>
-        <span id="personal-best-page" role="status">1</span>
-        <button id="personal-best-next" type="button" aria-label="Next page" data-page-direction="next"></button>
+        <nav class="screen-pagination" aria-label="Practice">
         <button id="personal-history-toggle" type="button" data-title-target="history" data-i18n-aria-label="scoreHistory.title" aria-label="High score development">📈</button>
       </nav>
       </section>
@@ -231,7 +229,10 @@
         <p id="level-jump-label" class="level-jump-label" data-i18n="leaderboard.jumpLabel">Jump to a level you've already cleared:</p>
         <div id="level-jump-grid" class="level-jump-grid" role="group" aria-labelledby="level-jump-label"></div>
       </div>
-      <button type="button" data-title-target="play">▶</button>
+      <div class="level-jump-actions">
+        <button type="button" id="btn-level-cancel" class="diff-btn" data-title-target="play" data-i18n="levels.cancel">Cancel</button>
+        <button type="button" id="btn-level-select" class="action-primary" data-title-target="play"><span aria-hidden="true">▶ </span><span data-i18n="levels.select">Select</span></button>
+      </div>
       </section>
       <section data-title-page="legal" class="title-page title-legal" hidden>
       <p class="splash-legal-links">
@@ -435,7 +436,7 @@
       </label>
       <p id="speedrun-best-run" class="speedrun-best-run"></p>
       <h3 class="speedrun-heading" data-i18n="speedrun.levelsHeading">Best time per level</h3>
-      <ol id="speedrun-levels" class="speedrun-levels"></ol>
+      <ol id="speedrun-levels" class="speedrun-levels" tabindex="0" data-i18n-aria-label="speedrun.levelsHeading" aria-label="Best time per level"></ol>
       <p id="speedrun-empty" class="speedrun-empty" data-i18n="speedrun.empty" hidden>No level times recorded yet.</p>
       <button type="button" class="diff-btn" id="speedrun-close" data-i18n="speedrun.close">Close</button>
     </div>

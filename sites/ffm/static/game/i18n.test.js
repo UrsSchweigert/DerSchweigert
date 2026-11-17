@@ -419,6 +419,8 @@ describe('hero picker keys', () => {
     'heroes.saved',
     'heroes.saveFailed',
     'heroes.close',
+    'heroes.confirm',
+    'heroes.cancel',
     'heroes.webLocked',
   ];
   const placeholders = (text) => [...String(text).matchAll(/\{([a-zA-Z0-9_]+)\}/g)]

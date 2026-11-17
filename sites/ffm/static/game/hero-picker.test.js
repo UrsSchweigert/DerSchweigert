@@ -163,3 +163,17 @@ test('source: imports only heroes.js, no focus trap, key listener, timer or plat
   const code = SOURCE.replace(/^\s*\/\/.*$/gm, '');
   assert.ok(!/setTimeout|setInterval|requestAnimationFrame|keydown|keyup|keypress|tabindex|\bdocument\.|\bwindow\.|fetch\(|localStorage/i.test(code));
 });
+
+test('source: main.js previews on select and saves only through the Change hero button', () => {
+  const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+  const start = main.indexOf('async function openHeroPicker');
+  const body = main.slice(start, main.indexOf('const ensureLocalProfiles', start));
+  const onSelect = body.slice(body.indexOf('onSelect:'), body.indexOf('onLocked:'));
+  assert.ok(!/setHero|updateProfile/.test(onSelect), 'selecting must not write');
+  assert.match(body, /confirmBtn\.addEventListener\('click'/);
+  assert.match(body, /diff-btn action-primary hero-picker-confirm/);
+  assert.match(body, /t\('heroes\.confirm'\)/);
+  assert.match(body, /t\('heroes\.cancel'\)/);
+  assert.match(body, /selectedId === committedId \|\| locked \|\| !canSwitchProfiles\(\)/);
+  assert.match(body, /onLocaleChange\(/);
+});

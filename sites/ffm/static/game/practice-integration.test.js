@@ -179,17 +179,17 @@ test('the practice panel is a submenu with the tab title style and its own way b
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
-  // The summary carries the Training tab's own heading style.
-  const summary = css.match(/^#practice-panel > summary \{([^}]*)\}/m)?.[1];
-  assert.ok(summary, 'practice submenu title rule missing');
-  assert.match(summary, /font-family:\s*var\(--font-prose\);/);
-  assert.match(summary, /font-size:\s*var\(--text-heading\);/);
-  assert.match(summary, /font-weight:\s*700;/);
-  assert.match(summary, /color:\s*var\(--ivory\);/);
+  // A real primary button opens the submenu; the <summary> is not shown.
+  assert.match(html, /<button type="button" id="btn-open-practice" class="action-primary"[^>]*data-i18n="practice\.title">Practice sessions<\/button>/);
+  assert.match(css, /^#practice-panel > summary \{ display: none; \}/m);
+  assert.match(source, /getElementById\('btn-open-practice'\)\?\.addEventListener\('click'[\s\S]*?practicePanel\.open = true;/);
+  // The per-level scores scroll instead of paging.
+  assert.doesNotMatch(html, /personal-best-(prev|next|page)/);
+  assert.match(css, /#personal-best-list \{[^}]*overflow-y: auto;/);
 
   // A back control closes the submenu and the summary can take focus back.
   assert.match(html, /<button type="button" id="btn-close-practice" class="diff-btn practice-back" data-i18n="practice.back">Back<\/button>/);
-  assert.match(source, /function closePracticePanel\(\) \{[\s\S]*?practicePanel\.open = false;[\s\S]*?querySelector\('summary'\)\?\.focus\?\.\(\);/);
+  assert.match(source, /function closePracticePanel\(\) \{[\s\S]*?practicePanel\.open = false;[\s\S]*?getElementById\('btn-open-practice'\)\?\.focus\?\.\(\);/);
   assert.match(source, /getElementById\('btn-close-practice'\)\?\.addEventListener\('click', closePracticePanel\)/);
   assert.match(source, /practicePanel\?\.addEventListener\('keydown',[\s\S]*?'Escape'[\s\S]*?closePracticePanel\(\)/);
   const back = css.match(/^#btn-close-practice \{([^}]*)\}/m)?.[1];
