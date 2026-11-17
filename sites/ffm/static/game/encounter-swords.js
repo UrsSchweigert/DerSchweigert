@@ -10,6 +10,10 @@
 // display:none outside portrait, so landscape and the app bundle's portrait
 // layout decide visibility; see .app-encounter-swords in styles.css.
 //
+// Landscape shows the same swords as a narrow vertical column at the left edge
+// of #game-wrap. The module creates that mirror itself (no markup), keeps it in
+// step with the row after every update, and CSS shows exactly one of the two.
+//
 // `total` is what the level still holds: a storm that removes enemies from the
 // level shrinks it, so those swords leave the row. The caller may fire
 // `shatter(count)` on the cast to puff the departing swords off before the next
@@ -25,6 +29,8 @@
 export const MAX_SWORDS = 30;
 
 export const SWORDS_CLASS = 'app-encounter-swords';
+export const SWORDS_COLUMN_CLASS = 'app-encounter-swords-column';
+export const SWORDS_WRAP_ID = 'game-wrap';
 export const SWORD_CLASS = 'app-encounter-sword';
 export const SWORD_FILLED_CLASS = 'app-encounter-sword--filled';
 // A sword a storm took off the level: the slot stays in the row and goes empty,
@@ -82,8 +88,11 @@ export function createEncounterSwords({
 } = {}) {
   const container = doc?.getElementById?.(containerId) ?? null;
   const anchor = doc?.getElementById?.(anchorId) ?? null;
+  const wrap = doc?.getElementById?.(SWORDS_WRAP_ID) ?? null;
   const swords = [];
+  const columnSwords = [];
   let element = null;
+  let column = null;
   let filledCount = 0;
   let lostCount = 0;
 
@@ -98,6 +107,13 @@ export function createEncounterSwords({
     } else {
       container.appendChild(element);
     }
+    if (wrap && typeof wrap.appendChild === 'function') {
+      column = doc.createElement('div');
+      column.className = SWORDS_COLUMN_CLASS;
+      column.setAttribute('aria-hidden', 'true');
+      column.hidden = true;
+      wrap.appendChild(column);
+    }
   }
 
   function updateEncounterProgress(progress = {}) {
@@ -107,6 +123,7 @@ export function createEncounterSwords({
     // invalidated style each time.
     const hide = resolved.swords === 0;
     if (element.hidden !== hide) element.hidden = hide;
+    if (column && column.hidden !== hide) column.hidden = hide;
     // A length change is a new level or a storm emptying slots, not a kill: it
     // must not glint as if a sword had been earned.
     let countChanged = false;
@@ -117,6 +134,13 @@ export function createEncounterSwords({
         sword.className = SWORD_CLASS;
         swords.push(sword);
         element.appendChild(sword);
+      }
+      while (columnSwords.length > resolved.swords) columnSwords.pop().remove?.();
+      while (column && columnSwords.length < resolved.swords) {
+        const sword = doc.createElement('span');
+        sword.className = SWORD_CLASS;
+        columnSwords.push(sword);
+        column.appendChild(sword);
       }
       filledCount = -1;
       lostCount = -1;
@@ -129,11 +153,13 @@ export function createEncounterSwords({
       // The emptied slots are the row's tail: the storm takes the enemies at the
       // end of the level, so the swords that remain keep their positions.
       const firstLost = resolved.swords - resolved.lost;
-      swords.forEach((sword, index) => {
-        sword.classList?.toggle?.(SWORD_FILLED_CLASS, index < resolved.filled);
-        sword.classList?.toggle?.(SWORD_LOST_CLASS, index >= firstLost);
-      });
-      if (gained > 0) glint(swords[resolved.filled - 1]);
+      for (const list of [swords, columnSwords]) {
+        list.forEach((sword, index) => {
+          sword.classList?.toggle?.(SWORD_FILLED_CLASS, index < resolved.filled);
+          sword.classList?.toggle?.(SWORD_LOST_CLASS, index >= firstLost);
+        });
+      }
+      if (gained > 0) glint(resolved.filled - 1);
       filledCount = resolved.filled;
       lostCount = resolved.lost;
     }
@@ -143,8 +169,8 @@ export function createEncounterSwords({
   // Spark at the sword that just filled. The screen-FX layer lives in main.js,
   // so it is reached through the same global handle the rest of the game uses;
   // on a page without it this is simply a no-op.
-  function glint(sword) {
-    playAtSword(sword, 'swordGain');
+  function glint(index) {
+    playAtSword(index, 'swordGain');
   }
 
   // The storm's receipt on the row: the rightmost swords that still stand for
@@ -152,23 +178,36 @@ export function createEncounterSwords({
   // positions before the next update() empties their slots. Slots an earlier
   // storm already emptied are skipped — there is no sword left to shatter.
   function shatter(count) {
-    const live = swords.filter((sword) => !sword.classList?.contains?.(SWORD_LOST_CLASS));
+    const live = [];
+    swords.forEach((sword, index) => {
+      if (!sword.classList?.contains?.(SWORD_LOST_CLASS)) live.push(index);
+    });
     const removed = Math.min(toCount(count), live.length);
     if (removed === 0) return 0;
-    for (const sword of live.slice(live.length - removed)) {
-      playAtSword(sword, 'swordLost');
+    for (const index of live.slice(live.length - removed)) {
+      playAtSword(index, 'swordLost');
     }
     return removed;
   }
 
-  function playAtSword(sword, effect) {
+  // The sword at `index` of whichever container is laid out; the other one is
+  // display:none and reports a 0x0 rect.
+  function playAtSword(index, effect) {
     const fx = globalThis.ffmScreenFx;
-    const rect = sword?.getBoundingClientRect?.();
-    if (!fx || !rect) return;
-    // The row only renders in portrait; landscape keeps it display:none, so a
-    // sword there reports a 0x0 rect at the viewport origin and the world
-    // conversion below would spray the effect into the top-left corner of the
-    // screen.
+    if (!fx) return;
+    let rect = null;
+    for (const list of [swords, columnSwords]) {
+      const candidate = list[index]?.getBoundingClientRect?.();
+      if (candidate && candidate.width > 0 && candidate.height > 0) {
+        rect = candidate;
+        break;
+      }
+      rect ??= candidate ?? null;
+    }
+    if (!rect) return;
+    // A container that is not laid out reports a 0x0 rect at the viewport
+    // origin and the world conversion below would spray the effect into the
+    // top-left corner of the screen.
     if (!(rect.width > 0) || !(rect.height > 0)) return;
     const map = fx.mapping?.();
     if (!map || !map.scale) return;
@@ -181,7 +220,10 @@ export function createEncounterSwords({
   function destroy() {
     if (element) element.remove?.();
     element = null;
+    if (column) column.remove?.();
+    column = null;
     swords.length = 0;
+    columnSwords.length = 0;
     filledCount = 0;
     lostCount = 0;
   }
@@ -190,7 +232,11 @@ export function createEncounterSwords({
     get element() {
       return element;
     },
+    get column() {
+      return column;
+    },
     swords,
+    columnSwords,
     updateEncounterProgress,
     shatter,
     destroy,
