@@ -108,7 +108,7 @@ test('both adapters implement getActiveHeroSkin', async () => {
   assert.equal(typeof web.default.getActiveHeroSkin, 'function');
 });
 
-test('getActiveHeroSkin follows the active profile and the cached hero pack', async () => {
+test('getActiveHeroSkin follows the active profile and the cached full unlock', async () => {
   const store = new Map();
   const realCapacitor = globalThis.Capacitor;
   const realFetch = globalThis.fetch;
@@ -117,8 +117,8 @@ test('getActiveHeroSkin follows the active profile and the cached hero pack', as
     set: async ({ key, value }) => { store.set(key, value); },
   } } };
   globalThis.fetch = async () => { throw new Error('no network'); };
-  const grantPack = () => store.set('arithmoslayer:entitlement:hero_pack', JSON.stringify({
-    version: 1, entitled: true, product_id: 'hero_pack', checked_at: '2026-01-01T00:00:00.000Z',
+  const grantPack = () => store.set('arithmoslayer:entitlement', JSON.stringify({
+    version: 1, entitled: true, product_id: 'arithmoslayer_full_unlock', checked_at: '2026-01-01T00:00:00.000Z',
   }));
   try {
     const platform = appModule.default;
@@ -127,13 +127,13 @@ test('getActiveHeroSkin follows the active profile and the cached hero pack', as
     const first = profiles.getActiveProfile();
     await profiles.setHero(first.id, 'knight');
 
-    assert.equal(await platform.getActiveHeroSkin(), null, 'no pack');
+    assert.equal(await platform.getActiveHeroSkin(), null, 'no unlock');
     grantPack();
-    assert.equal(await platform.getActiveHeroSkin(), 'knight', 'pack plus hero');
+    assert.equal(await platform.getActiveHeroSkin(), 'knight', 'unlock plus hero');
 
-    store.delete('arithmoslayer:entitlement:hero_pack');
+    store.delete('arithmoslayer:entitlement');
     assert.equal((await profiles.getActiveProfile()).hero, 'knight');
-    assert.equal(await platform.getActiveHeroSkin(), null, 'revoked pack keeps the profile hero');
+    assert.equal(await platform.getActiveHeroSkin(), null, 'revoked unlock keeps the profile hero');
 
     grantPack();
     const second = await profiles.createProfile('Second');

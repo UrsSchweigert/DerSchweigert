@@ -183,12 +183,12 @@ const DICTIONARY = {
     de: 'Probier es einfach aus: Auch die Übungsarten sind gratis, ohne Konto.',
   },
   'notice.unlock': {
-    en: 'One purchase unlocks levels {from}–{total} – no subscription, no recurring charges.',
-    de: 'Ein einmaliger Kauf schaltet danach Level {from}–{total} frei – ohne Abo, ohne laufende Kosten.',
+    en: 'One purchase unlocks levels {from}–{total} and all hero themes – no subscription, no recurring charges.',
+    de: 'Ein einmaliger Kauf schaltet danach Level {from}–{total} und alle Heldenfarben frei – ohne Abo, ohne laufende Kosten.',
   },
   'notice.unlockAll': {
-    en: 'One purchase unlocks the remaining levels – no subscription, no recurring charges.',
-    de: 'Ein einmaliger Kauf schaltet alle Level frei – ohne Abo, ohne laufende Kosten.',
+    en: 'One purchase unlocks the remaining levels and all hero themes – no subscription, no recurring charges.',
+    de: 'Ein einmaliger Kauf schaltet alle Level und alle Heldenfarben frei – ohne Abo, ohne laufende Kosten.',
   },
   'notice.continue': { en: 'Continue', de: 'Weiter' },
   'notice.reopen': { en: 'What is free?', de: 'Was ist kostenlos?' },
@@ -206,7 +206,7 @@ const DICTIONARY = {
   },
   'help.title.title': { en: 'Title screen', de: 'Startbildschirm' },
   'help.title.summary': { en: 'Choose a difficulty, then start a campaign level or a training session.', de: 'Wähle einen Schwierigkeitsgrad und starte dann ein Abenteuerlevel oder eine Übungseinheit.' },
-  'help.title.tip1': { en: 'Levels 1–2 are free; one purchase unlocks levels 3–60.', de: 'Level 1–2 sind kostenlos; ein Kauf schaltet Level 3–60 frei.' },
+  'help.title.tip1': { en: 'Levels 1–2 are free; one purchase unlocks levels 3–60 and all hero themes.', de: 'Level 1–2 sind kostenlos; ein Kauf schaltet Level 3–60 und alle Heldenfarben frei.' },
   'help.title.tip2': { en: 'Play continues at your first unfinished level.', de: 'Das Spiel geht beim ersten ungeschafften Level weiter.' },
   'help.title.tip3': { en: 'Switch the language here; audio settings are in the pause menu.', de: 'Hier wechselst du die Sprache; die Audioeinstellungen sind im Pausenmenü.' },
   'help.play.title': { en: 'Playing a level', de: 'Ein Level spielen' },
@@ -674,8 +674,8 @@ const DICTIONARY = {
     de: 'Derzeit ist keine weitere Zahlung geplant.',
   },
   'billing.disclosure': {
-    en: 'Premium subscription unlocks levels 3-60. Free players can enjoy levels 1-2 anytime.',
-    de: 'Das Premium-Abo schaltet die Level 3–60 frei. Kostenlose Spieler können Level 1–2 jederzeit spielen.',
+    en: 'Premium subscription unlocks levels 3-60 and all hero themes. Free players can enjoy levels 1-2 anytime.',
+    de: 'Das Premium-Abo schaltet die Level 3–60 und alle Heldenfarben frei. Kostenlose Spieler können Level 1–2 jederzeit spielen.',
   },
   'billing.confirmCancelRenewals': {
     en: 'Stop future renewals? Already-paid and gifted access will remain available.',
