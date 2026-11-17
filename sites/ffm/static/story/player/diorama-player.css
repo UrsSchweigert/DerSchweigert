@@ -122,3 +122,23 @@
   .diorama__subtitle { transition: none; }
 }
 
+
+/* Reduce Motion must not move the scene. styles.css switches animation off for
+ * people who ask for it with `* { transform: none !important }`, which also
+ * strips the turn that fits the landscape scene to a portrait phone and the
+ * centring of the subtitle strip: the scene then sat at the screen centre with
+ * its Skip button off-screen, as a hard-edged picture over the lower right of
+ * the title menu. These are layout, not motion (the player's own reduced-motion
+ * handling is the diorama--reduced class), so they are restated with a higher
+ * specificity. */
+.diorama.is-turned {
+  transform: translate(-50%, -50%) rotate(90deg) !important;
+}
+
+.diorama .diorama__subtitle {
+  transform: translate(-50%, 8px) !important;
+}
+
+.diorama .diorama__subtitle.is-visible {
+  transform: translate(-50%, 0) !important;
+}

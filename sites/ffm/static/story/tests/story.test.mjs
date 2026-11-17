@@ -364,6 +364,18 @@ describe('player chrome', () => {
   const css = readFileSync(join(storyDir, 'player', 'diorama-player.css'), 'utf8');
   const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
 
+  it('keeps the turn and the strip centring when the visitor asks for reduced motion', () => {
+    // styles.css kills every transform under prefers-reduced-motion; without these
+    // restated rules a portrait phone shows the scene as a hard-edged picture over
+    // the lower right of the title menu with its Skip button off-screen.
+    assert.match(css, /\.diorama\.is-turned \{\s*transform: translate\(-50%, -50%\) rotate\(90deg\) !important;/);
+    assert.match(css, /\.diorama \.diorama__subtitle \{\s*transform: translate\(-50%, 8px\) !important;/);
+    assert.match(css, /\.diorama \.diorama__subtitle\.is-visible \{\s*transform: translate\(-50%, 0\) !important;/);
+    const site = readFileSync(join(storyDir, '..', 'styles.css'), 'utf8');
+    assert.match(site, /prefers-reduced-motion: reduce\) \{[^}]*transform: none !important;/,
+      'if the site-wide rule goes away, these restated rules can go too');
+  });
+
   it('paints the scene into one canvas, not a stack of composited layers', () => {
     // Each DOM layer needs its own compositor surface; on a 1440p phone that
     // exhausted the Android WebView's raster memory and dropped tiles showed as
