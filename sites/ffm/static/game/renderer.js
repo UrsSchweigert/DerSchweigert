@@ -306,7 +306,7 @@ export class Renderer {
 
     ctx.fillStyle=isActive?'#1020a0':'#303030';
     for(let i=0;i<count;i++){
-      const col=i%5,row=Math.floor(i/5);
+      const col=i%MAX_SHAPE_COUNT,row=Math.floor(i/MAX_SHAPE_COUNT);
       const cx=bx+padX+col*(cell+gap)+cell/2;
       const cy=by+padY+row*(cell+gap)+cell/2;
       this._drawShapeIcon(shapeType,cx,cy,cell,isActive);

@@ -3009,7 +3009,10 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 }
 .title-play-intro .splash-intro, .title-play-intro .splash-subtitle,
 .title-play-intro .player-identity, .title-play-intro #continue-level {
-  text-shadow: 0 2px 4px #000, 0 0 8px #000, 0 0 16px #000;
+  /* Stacked, tight-to-wide shadow keeps the white text legible over the bright moon. */
+  text-shadow:
+    0 1px 1px #000, 0 2px 3px #000, 0 3px 6px rgba(0, 0, 0, 0.95),
+    0 0 6px #000, 0 0 12px #000, 0 0 22px rgba(0, 0, 0, 0.95), 0 0 34px rgba(0, 0, 0, 0.8);
 }
 .splash-diff-buttons {
   grid-template-columns: minmax(0, 1fr);
