@@ -36,11 +36,12 @@ Raw sheets are not committed. Date: 2026-11-16.
 
 The generated hero art did not work out (every try read as an existing game character), and a human artist will
 make the real sprites. Until then all ten roster heroes use the game's existing hero so the pack can be tested end
-to end: `heroes/<id>/hero-atlas.webp` and `hero-frames.js` are byte copies of `static/game/hero/` for the nine pack
-heroes (the adventurer still loads `hero/` directly), and every `portrait.webp` is the existing hero's idle-1 head
-and shoulders, cropped 128x128 and scaled x2 nearest-neighbour to 256x256. The earlier generated monk and priestess
+to end. The nine pack heroes get a hue-shifted copy of `static/game/hero/` (a different hue per hero, built by
+`sites/ffm/scripts/hero_placeholder_tint.py`; `hero-frames.js` is a plain copy), and every `portrait.webp` is that
+hero's idle-1 head and shoulders, cropped 128x128 and scaled x2 nearest-neighbour to 256x256. The adventurer keeps
+the original colours and still loads `hero/` directly. The earlier generated monk and priestess
 placeholders and their contact sheets were replaced (they stay in git history). Strike family and display name
-still differ per hero; the look does not. The "NEEDS RE-RENDER" sections below describe the AI attempts and still
+and hue differ per hero; the figure does not. The "NEEDS RE-RENDER" sections below describe the AI attempts and still
 apply: each hero needs real art from the artist. To replace a hero, overwrite its three files and its section.
 
 ## Adventurer

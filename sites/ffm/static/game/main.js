@@ -42,6 +42,7 @@ import {
 import { CookieConsent } from './cookie-consent.js';
 import { createHeroSkinManager, loadHeroSkin } from './hero-skin.js';
 import { resolveHero, HEROES } from './heroes.js';
+import { featureOn } from './feature-flags.js';
 import { renderHeroIdentity } from './hero-identity.js';
 import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
@@ -356,8 +357,20 @@ function hideLoadingOverlay() {
 // The stored hero the player may use; null (logged out, revoked, unreadable)
 // means the adventurer. platform.getActiveHeroSkin() never rejects, and the
 // choice itself stays stored when it is not honoured.
+// The hero pack is still being tested: it shows only for a player named TOGGLE (feature-flags.js).
+// App: the active local profile; web: the logged-in account name. Read the adapter, not
+// activeLocalPlayer, because this runs before that variable exists.
+function heroPackOn() {
+  try {
+    const name = platform.isApp ? platform.localProfiles?.getActiveProfile?.()?.name : platform.username;
+    return featureOn('heroPack', name);
+  } catch {
+    return false;
+  }
+}
 async function resolveActiveHeroId() {
   try {
+    if (!heroPackOn()) return resolveHero(null).id;
     return resolveHero(await platform.getActiveHeroSkin?.(), { entitled: true }).id;
   } catch {
     return resolveHero(null).id;
@@ -1575,10 +1588,10 @@ async function paintHeroIdentity() {
   if (platform.isApp) {
     for (const id of ['playing-as', 'progress-player-name', 'pause-player-name']) {
       const row = document.getElementById(id)?.parentElement;
-      if (row) renderHeroIdentity(row, activeLocalPlayer?.name ? hero : null, { t });
+      if (row) renderHeroIdentity(row, heroPackOn() && activeLocalPlayer?.name ? hero : null, { t });
     }
   } else if (splashGreeting) {
-    renderHeroIdentity(splashGreeting, platform.isLoggedIn && splashGreeting.textContent ? hero : null, { t });
+    renderHeroIdentity(splashGreeting, heroPackOn() && platform.isLoggedIn && splashGreeting.textContent ? hero : null, { t });
   }
 }
 
@@ -2471,7 +2484,7 @@ async function mountAccountHeroPicker(profile) {
   accountHeroMount?.destroy();
   accountHeroMount = null;
   if (!accountHeroPicker) return;
-  if (!platform.isLoggedIn) {
+  if (!platform.isLoggedIn || !heroPackOn()) {
     accountHeroPicker.hidden = true;
     return;
   }
@@ -5204,6 +5217,7 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
         },
         canSwitch: canSwitchProfiles,
         portraitFor: heroPortraitFor,
+        heroFeature: () => heroPackOn(),
         onChangeHero: profile => { void openHeroPicker(profile); },
         onSelected: async () => {
           clearMissedProblemsForOwner(platform.localProfiles.getActiveProfile().id);

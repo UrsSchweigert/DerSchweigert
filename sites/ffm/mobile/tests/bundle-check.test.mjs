@@ -524,15 +524,15 @@ test('a hero file present in the source must reach the bundle, an absent hero ne
   await withSource(async (source) => {
     await withBundle(async (dir) => {
       assert.deepEqual(await bundleCheck(dir, source), []);
-      await mkdir(join(source, 'game/heroes/rogue'), { recursive: true });
-      await writeFile(join(source, 'game/heroes/rogue/portrait.webp'), 'x');
+      await mkdir(join(source, 'game/heroes/future-hero'), { recursive: true });
+      await writeFile(join(source, 'game/heroes/future-hero/portrait.webp'), 'x');
       const problems = await bundleCheck(dir, source);
       assert.ok(
-        problems.some((problem) => problem.includes('game/heroes/rogue/portrait.webp')),
+        problems.some((problem) => problem.includes('game/heroes/future-hero/portrait.webp')),
         problems.join('\n'),
       );
-      await mkdir(join(dir, 'game/heroes/rogue'), { recursive: true });
-      await writeFile(join(dir, 'game/heroes/rogue/portrait.webp'), 'x');
+      await mkdir(join(dir, 'game/heroes/future-hero'), { recursive: true });
+      await writeFile(join(dir, 'game/heroes/future-hero/portrait.webp'), 'x');
       assert.deepEqual(await bundleCheck(dir, source), []);
     });
   });

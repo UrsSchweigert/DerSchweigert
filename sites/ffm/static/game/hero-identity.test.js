@@ -86,6 +86,7 @@ function channel({ isApp, isLoggedIn = true, stored = 'monk', name = 'Ann' }) {
     activeLocalPlayer: { name }, splashGreeting, t, renderHeroIdentity, resolveHero,
     document: { getElementById: (id) => { queried.push(id); return elements[id]; } },
     resolveActiveHeroId: async () => stored,
+    heroPackOn: () => true,
   };
   vm.createContext(context);
   vm.runInContext(source.match(/let heroIdentitySeq[\s\S]*?\n\}\n/)[0] + '\nthis.paint = paintHeroIdentity;', context);

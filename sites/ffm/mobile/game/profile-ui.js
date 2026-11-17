@@ -22,7 +22,7 @@ const LABELS = {
 
 export function mountProfileUI({
   root, adapter, translate = (key) => LABELS[key], canSwitch = () => true,
-  portraitFor = null, onChangeHero = null,
+  portraitFor = null, onChangeHero = null, heroFeature = () => true,
   onSelected = () => {}, onError = () => {}, onBusyChange = () => {},
 }) {
   if (!root?.ownerDocument) throw new TypeError('A profile UI root is required');
@@ -198,9 +198,9 @@ export function mountProfileUI({
           blocked: true, className: 'profile-select',
         });
         select.setAttribute('aria-pressed', String(profile.id === activeId));
-        if (typeof portraitFor === 'function') row.append(portrait(portraitFor(profile)));
+        if (heroFeature() && typeof portraitFor === 'function') row.append(portrait(portraitFor(profile)));
         row.append(select);
-        if (typeof onChangeHero === 'function' && profile.id === activeId) {
+        if (heroFeature() && typeof onChangeHero === 'function' && profile.id === activeId) {
           row.append(button(text('heroes.change'), () => onChangeHero(profile), {
             blocked: true, className: 'profile-change-hero',
             ariaLabel: `${text('heroes.change')}: ${profile.name}`,

@@ -360,3 +360,12 @@ test('portrait and Change hero are opt-in, and the action is on the active row o
   await ui.refresh();
   assert.equal(root.querySelector('.profile-change-hero').disabled, true);
 });
+
+test('heroFeature false hides the portrait and the Change hero action', async () => {
+  const { root } = await fixture({
+    count: 2,
+    extra: { portraitFor: () => 'heroes/x/portrait.webp', onChangeHero: () => {}, heroFeature: () => false },
+  });
+  assert.equal(root.querySelectorAll('.profile-portrait').length, 0);
+  assert.equal(root.querySelectorAll('.profile-change-hero').length, 0);
+});
