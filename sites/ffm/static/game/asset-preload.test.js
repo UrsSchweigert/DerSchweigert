@@ -98,3 +98,14 @@ describe('buildAbilityIconUrls', () => {
     assert.ok(!buildAbilityIconUrls().includes(abilityOrnamentUrl()));
   });
 });
+
+describe('buildCriticalAssetManifest hero selection', () => {
+  it('swaps in the selected hero atlas and keeps the rest of the list', () => {
+    const base = buildCriticalAssetManifest();
+    assert.match(base[0], /\/hero\/hero-atlas\.webp$/);
+    const rogue = buildCriticalAssetManifest({ atlas: 'heroes/rogue/hero-atlas.webp' });
+    assert.match(rogue[0], /\/heroes\/rogue\/hero-atlas\.webp$/);
+    assert.deepEqual(rogue.slice(1), base.slice(1));
+    assert.deepEqual(buildCriticalAssetManifest(undefined), base);
+  });
+});

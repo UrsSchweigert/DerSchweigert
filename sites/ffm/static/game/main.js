@@ -4,7 +4,6 @@ import { generateProblem, getArithmeticOptionCount, sampleFiendType, TOTAL_LEVEL
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
 import { LEVEL_ART_MANIFEST, resolveLevelBackground, stageArtUrl } from './level-art.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon, getHeroGroundOffsetPx } from './entities.js';
-import { castHandAnchor } from './hero-anim.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import {
@@ -41,6 +40,10 @@ import {
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
+import { createHeroSkinManager, loadHeroSkin } from './hero-skin.js';
+import { resolveHero, HEROES, heroAssetUrl } from './heroes.js';
+import { featureOn } from './feature-flags.js';
+import { renderHeroIdentity } from './hero-identity.js';
 import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
@@ -351,11 +354,35 @@ function hideLoadingOverlay() {
 // level starts. Fetching them in front of the overlay instead of behind it cost
 // 11 s to a playable title screen on a 9 Mbps / 60 ms link, against 2.8 s for
 // the critical list alone.
+// The stored hero the player may use; null (logged out, revoked, unreadable)
+// means the adventurer. platform.getActiveHeroSkin() never rejects, and the
+// choice itself stays stored when it is not honoured.
+// The hero pack is still being tested: it shows only for a player named TOGGLE (feature-flags.js).
+// App: the active local profile; web: the logged-in account name. Read the adapter, not
+// activeLocalPlayer, because this runs before that variable exists.
+function heroPackOn() {
+  try {
+    const name = platform.isApp ? platform.localProfiles?.getActiveProfile?.()?.name : platform.username;
+    return featureOn('heroPack', name);
+  } catch {
+    return false;
+  }
+}
+async function resolveActiveHeroId() {
+  try {
+    if (!heroPackOn()) return resolveHero(null).id;
+    return resolveHero(await platform.getActiveHeroSkin?.(), { entitled: true }).id;
+  } catch {
+    return resolveHero(null).id;
+  }
+}
+const activeHeroEntry = resolveHero(await resolveActiveHeroId(), { entitled: true });
+
 const criticalAssetsLoaded = preloadGameAssets((loaded, total) => {
   const pct = total > 0 ? Math.round((loaded / total) * 100) : 100;
   if (loadingBarFill) loadingBarFill.style.width = pct + '%';
   if (loadingPercentEl) loadingPercentEl.textContent = pct + '%';
-}, buildCriticalAssetManifest());
+}, buildCriticalAssetManifest(activeHeroEntry));
 
 // Started once the title screen is unblocked, so the two lists never compete
 // for bandwidth. startLevel() still waits for this before painting a level, so
@@ -982,6 +1009,19 @@ hapticsToggle?.addEventListener('change', () => {
 
 // --- Entity state ---
 let hero = new Hero();
+const heroSkins = createHeroSkinManager();
+async function applyActiveHeroSkin() {
+  try {
+    await heroSkins.apply(hero, await resolveActiveHeroId());
+  } catch (error) {
+    console.error('Unable to apply the hero skin', error);
+  }
+}
+// Outside startLevel the skin is only swapped while no level is in play.
+function refreshHeroSkin() {
+  if (gameRunning || levelStarting) return;
+  applyActiveHeroSkin();
+}
 let fiends = [];
 let spawnQueue = [];
 let requeuedFiends = [];
@@ -1047,7 +1087,7 @@ const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this dist
 const SPELL_TARGET_Y_OFFSET = 60;
 
 function spellLaunchPoint() {
-  const [dx, dy] = castHandAnchor();
+  const [dx, dy] = hero.castHandAnchor();
   return { x: hero.x + dx, y: hero.y + getHeroGroundOffsetPx() + dy };
 }
 // Must match Fireball's `life` (in entities.js) in milliseconds, so the hit
@@ -1532,6 +1572,38 @@ function renderPlayerIdentity() {
     }
   }
   document.getElementById('switch-player-btn')?.toggleAttribute('hidden', !platform.isApp);
+  // typeof: the extracted-function tests run this without the portrait helper.
+  if (typeof paintHeroIdentity === 'function') paintHeroIdentity();
+}
+
+// Paints the gated hero's portrait into the running channel's rows only: the
+// app identity rows, or the web account greeting for a logged-in player. The
+// sequence guards against an older async choice landing after a newer one.
+// The title screen's player badge: the hero portrait beside the level numerals; a tap opens Players.
+const titlePlayerBadge = document.getElementById('title-player-badge');
+titlePlayerBadge?.addEventListener('click', () => document.getElementById('title-family-btn')?.click());
+function paintTitlePlayerBadge(hero) {
+  if (!titlePlayerBadge) return;
+  renderHeroIdentity(titlePlayerBadge, hero, { t });
+  titlePlayerBadge.hidden = !hero;
+  const name = platform.isApp ? activeLocalPlayer?.name : platform.username;
+  if (hero && name) titlePlayerBadge.setAttribute('aria-label', name);
+}
+let heroIdentitySeq = 0;
+async function paintHeroIdentity() {
+  const seq = ++heroIdentitySeq;
+  const heroId = await resolveActiveHeroId();
+  if (seq !== heroIdentitySeq) return;
+  const hero = resolveHero(heroId, { entitled: true });
+  paintTitlePlayerBadge(heroPackOn() && (platform.isApp ? Boolean(activeLocalPlayer?.name) : platform.isLoggedIn) ? hero : null);
+  if (platform.isApp) {
+    for (const id of ['playing-as', 'progress-player-name', 'pause-player-name']) {
+      const row = document.getElementById(id)?.parentElement;
+      if (row) renderHeroIdentity(row, heroPackOn() && activeLocalPlayer?.name ? hero : null, { t });
+    }
+  } else if (splashGreeting) {
+    renderHeroIdentity(splashGreeting, heroPackOn() && platform.isLoggedIn && splashGreeting.textContent ? hero : null, { t });
+  }
 }
 
 function practiceOwnerId() {
@@ -1924,6 +1996,8 @@ function updateHUDLogoutVisibility() {
 }
 
 function applyAuthUIState() {
+  // typeof: the extracted-function tests run this without the skin helpers.
+  if (typeof refreshHeroSkin === 'function') refreshHeroSkin();
   if (platform.isApp) return;
   renderPlayerIdentity();
   if (platform.username) {
@@ -2413,6 +2487,60 @@ if (!platform.isApp) document.getElementById('btn-cancel-subscription').addEvent
   }
 });
 
+// Web-only hero picker in the account modal. Logged-out players and the app
+// never reach the import, so no request is made for the picker.
+const accountHeroPicker = platform.isApp ? null : document.getElementById('account-hero-picker');
+let accountHeroMount = null;
+async function mountAccountHeroPicker(profile) {
+  accountHeroMount?.destroy();
+  accountHeroMount = null;
+  if (!accountHeroPicker) return;
+  if (!platform.isLoggedIn || !heroPackOn()) {
+    accountHeroPicker.hidden = true;
+    return;
+  }
+  let premium = false;
+  try {
+    premium = (await platform.getBillingStatus())?.premium_access === true;
+  } catch {
+    premium = false;
+  }
+  let selectedId = resolveHero(profile?.user?.hero, { entitled: premium }).id;
+  const { mountHeroPicker } = await import('./hero-picker.js');
+  if (!platform.isLoggedIn) return;
+  accountHeroPicker.hidden = false;
+  accountHeroMount = mountHeroPicker(document.getElementById('account-hero-picker-grid'), {
+    heroes: HEROES,
+    t,
+    getSelectedId: () => selectedId,
+    isLocked: (entry) => !entry.free && !premium,
+    canChange: () => !gameRunning && !levelStarting && !completionPending,
+    onSelect: async (entry) => {
+      const previous = selectedId;
+      selectedId = entry.id;
+      accountProfileMessage.classList.remove('success-msg');
+      accountProfileMessage.textContent = '';
+      try {
+        const result = await platform.updateProfile({ hero: entry.id });
+        if (result?.error) throw new Error(result.error);
+        accountProfileMessage.classList.add('success-msg');
+        accountProfileMessage.textContent = t('heroes.saved');
+        paintHeroIdentity();
+        refreshHeroSkin();
+      } catch (err) {
+        selectedId = previous;
+        accountHeroMount?.update();
+        accountProfileMessage.textContent = err?.message ? translateServerMessage(err.message) : t('heroes.saveFailed');
+      }
+    },
+    onLocked: () => {
+      accountProfileMessage.classList.remove('success-msg');
+      accountProfileMessage.textContent = t('heroes.webLocked');
+      showAccountTab(tabAccountBilling, accountBillingPanel);
+    },
+  });
+}
+
 async function populateAccountModal() {
   if (platform.isApp) return;
   accountProfileMessage.textContent = '';
@@ -2430,6 +2558,7 @@ async function populateAccountModal() {
       accountPendingEmailNote.style.display = 'none';
     }
     renderPersonalBest(profile, accountPersonalBest);
+    await mountAccountHeroPicker(profile);
   } catch (err) {
     accountProfileMessage.textContent = t('account.loadProfileFailed');
   }
@@ -2781,6 +2910,9 @@ async function startLevel(levelIndex, includeBaseline = false) {
       baselineScore = cfg.baseline_score;
     }
 
+    // Level start is the one safe moment to swap the skin: the overlay is up
+    // and no encounter exists. An unchanged choice loads nothing.
+    if (typeof applyActiveHeroSkin === 'function') await applyActiveHeroSkin();
     const ready = Promise.all([assetsLoaded, renderer.waitForBackgroundLoad()]);
     await Promise.race([
       ready,
@@ -3986,7 +4118,8 @@ function handleCorrectAnswer(origin) {
       hero.setState('swing');
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
-      audio.playSwordSwing();
+      if (!hero.strike || hero.strike === 'sword') audio.playSwordSwing();
+      else audio.playStrike(hero.strike);
       globalThis.ffmHaptics?.impact();
       audio.playFiendHit?.(fiend.type);
 
@@ -4948,6 +5081,134 @@ if (!platform.isApp) {
   // (each hop can also hit a cold Lambda) before anything is shown.
   leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
 }
+// App hero picker: the shared grid in a dialog over the profile list. Lock
+// state comes from the cached hero pack entitlement, so it works offline.
+let heroPackOwned = false;
+async function readHeroPackOwned() {
+  try {
+    heroPackOwned = (await platform.getBillingStatus())?.hero_pack === true;
+  } catch {
+    heroPackOwned = false;
+  }
+}
+const heroPortraitFor = profile => heroAssetUrl(resolveHero(profile.hero, { entitled: true }).portrait);
+const canSwitchProfiles = () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting;
+
+async function openHeroPicker(profile) {
+  if (document.querySelector('.hero-picker-overlay')) return;
+  await readHeroPackOwned();
+  const { mountHeroPicker } = await import('./hero-picker.js');
+  let selectedId = resolveHero(profile.hero, { entitled: true }).id;
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay hero-picker-overlay';
+  const card = document.createElement('div');
+  card.className = 'overlay-card hero-picker-card';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-modal', 'true');
+  card.setAttribute('aria-labelledby', 'hero-picker-title');
+  const title = document.createElement('h2');
+  title.id = 'hero-picker-title';
+  title.textContent = t('heroes.title');
+  const gridRoot = document.createElement('div');
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'diff-btn hero-picker-close';
+  closeBtn.textContent = t('heroes.close');
+  card.append(title, gridRoot, closeBtn);
+  overlay.append(card);
+
+  // One preview atlas at a time; the sequence drops a load that lost the race.
+  let previewSkin = null;
+  let previewSeq = 0;
+  const releasePreview = () => {
+    try { if (previewSkin?.atlas) previewSkin.atlas.src = ''; } catch { /* nothing to release */ }
+    previewSkin = null;
+  };
+  const renderPreview = async (entry, area) => {
+    const seq = ++previewSeq;
+    const skin = await loadHeroSkin({ heroId: entry.id });
+    if (seq !== previewSeq) {
+      try { if (skin.atlas) skin.atlas.src = ''; } catch { /* nothing to release */ }
+      return;
+    }
+    releasePreview();
+    previewSkin = skin;
+    area.replaceChildren();
+    const frame = skin.atlas && skin.frames?.['idle-1'];
+    if (!frame) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = frame.w;
+    canvas.height = frame.h;
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', t(entry.nameKey));
+    canvas.getContext('2d')?.drawImage(skin.atlas, frame.x, frame.y, frame.w, frame.h, 0, 0, frame.w, frame.h);
+    area.append(canvas);
+  };
+
+  let packSheet = null;
+  let picker = null;
+  const setStatus = text => {
+    const status = gridRoot.querySelector('[data-hero-status]');
+    if (status) status.textContent = text;
+  };
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    previewSeq++;
+    picker?.destroy();
+    releasePreview();
+    overlay.remove();
+    document.querySelector('#profile-root .profile-change-hero')?.focus();
+  };
+  function onKey(event) {
+    if (event.key === 'Escape' && !document.querySelector('.pack-sheet-overlay')) close();
+  }
+  document.addEventListener('keydown', onKey);
+  closeBtn.addEventListener('click', close);
+
+  picker = mountHeroPicker(gridRoot, {
+    t,
+    getSelectedId: () => selectedId,
+    canChange: canSwitchProfiles,
+    isLocked: entry => !entry.free && !heroPackOwned,
+    renderPreview,
+    onSelect: async entry => {
+      try {
+        await platform.localProfiles.setHero(profile.id, entry.id);
+      } catch (error) {
+        console.error('Unable to save the hero', error);
+        setStatus(t('heroes.saveFailed'));
+        return;
+      }
+      selectedId = entry.id;
+      activeLocalPlayer = platform.localProfiles.getActiveProfile();
+      picker.update();
+      setStatus(t('heroes.saved'));
+      await profileUI?.refresh();
+      renderPlayerIdentity();
+      refreshHeroSkin();
+    },
+    onLocked: async () => {
+      try {
+        const { createPackSheet } = await import('./pack-sheet.js');
+        packSheet ??= createPackSheet({
+          platform,
+          locale: getLocale(),
+          opener: gridRoot.querySelector('button[data-hero-id]:focus') ?? closeBtn,
+          onGranted: async () => {
+            await readHeroPackOwned();
+            picker?.update();
+          },
+        });
+        await packSheet.open();
+      } catch (error) {
+        console.error('Unable to open the hero pack sheet', error);
+      }
+    },
+  });
+  document.body.append(overlay);
+  gridRoot.querySelector('button[data-hero-id]')?.focus();
+}
+
 const ensureLocalProfiles = createRetryableInitialization(async () => {
   if (platform.isApp) {
     await platform.localProfiles.initialize({ defaultName: t('profiles.defaultName') });
@@ -4965,13 +5226,17 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
           for (const button of document.querySelectorAll('#difficulty-select [data-difficulty]')) button.disabled = busy;
           if (btnStartPractice) btnStartPractice.disabled = busy;
         },
-        canSwitch: () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting,
+        canSwitch: canSwitchProfiles,
+        portraitFor: heroPortraitFor,
+        heroFeature: () => heroPackOn(),
+        onChangeHero: profile => { void openHeroPicker(profile); },
         onSelected: async () => {
           clearMissedProblemsForOwner(platform.localProfiles.getActiveProfile().id);
           personalBestPage = 0;
           currentPersonalDevelopment = null;
           activeLocalPlayer = platform.localProfiles.getActiveProfile();
           renderPlayerIdentity();
+          refreshHeroSkin();
           levelGrid.value = '';
           await refreshPracticeBadges();
           personalBestList.textContent = '';
@@ -5000,6 +5265,7 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
       });
     }
   }
+  refreshHeroSkin();
   await refreshProfileAndLeaderboard();
 });
 ensureLocalProfiles().then(refreshPracticeBadges).catch(error => {

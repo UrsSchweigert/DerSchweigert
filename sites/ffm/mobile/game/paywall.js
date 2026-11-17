@@ -7,6 +7,7 @@
 
 import {
   PURCHASE_OUTCOMES,
+  HERO_PACK_ID,
   RESTORE_OUTCOMES,
   createPurchaseStore,
   createPurchasesPlugin,
@@ -22,6 +23,7 @@ export const STRINGS = Object.freeze({
   'paywall.close': { en: 'Not now', de: 'Später' },
   'paywall.success': { en: 'Purchase complete. All levels are unlocked.', de: 'Kauf abgeschlossen. Alle Level sind freigeschaltet.' },
   'paywall.restored': { en: 'Purchase restored. All levels are unlocked.', de: 'Kauf wiederhergestellt. Alle Level sind freigeschaltet.' },
+  'paywall.restoredPack': { en: 'Hero pack restored.', de: 'Heldenpaket wiederhergestellt.' },
   'paywall.cancelled': { en: 'Purchase cancelled.', de: 'Kauf abgebrochen.' },
   'paywall.pending': { en: 'Purchase pending approval. Levels unlock once the store confirms it.', de: 'Kauf wartet auf Bestätigung. Freischaltung folgt, sobald der Store ihn bestätigt.' },
   'paywall.gated': { en: 'Ask an adult to complete the parental gate.', de: 'Bitte einen Erwachsenen, die Elternkontrolle abzuschließen.' },
@@ -37,7 +39,7 @@ export function paywallText(key, locale = DEFAULT_LOCALE, vars = {}) {
     (vars[name] === undefined ? match : String(vars[name])));
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -77,7 +79,12 @@ export function buildPaywallMarkup({ locale = DEFAULT_LOCALE, price = null } = {
 }
 
 /** Default view: an overlay inserted into the document body. */
-export function createDomPaywallView({ doc = globalThis.document } = {}) {
+export function createDomPaywallView({
+  doc = globalThis.document,
+  overlayClass = 'overlay paywall-overlay',
+  actionAttr = 'data-paywall-action',
+  statusSelector = '.paywall-status',
+} = {}) {
   let overlay = null;
   const find = (selector) => overlay?.querySelector(selector) ?? null;
   return {
@@ -85,23 +92,23 @@ export function createDomPaywallView({ doc = globalThis.document } = {}) {
       if (!doc?.body) return null;
       if (!overlay) {
         overlay = doc.createElement('div');
-        overlay.className = 'overlay paywall-overlay';
+        overlay.className = overlayClass;
         doc.body.appendChild(overlay);
       }
       overlay.innerHTML = markup;
       for (const action of ['buy', 'restore', 'close']) {
-        find(`[data-paywall-action="${action}"]`)?.addEventListener('click', handlers[action]);
+        find(`[${actionAttr}="${action}"]`)?.addEventListener('click', handlers[action]);
       }
       return overlay;
     },
     setStatus(text, { error = false } = {}) {
-      const node = find('.paywall-status');
+      const node = find(statusSelector);
       if (!node) return;
       node.textContent = text;
       node.classList.toggle('error-msg', error);
     },
     setBusy(busy) {
-      for (const button of overlay?.querySelectorAll('[data-paywall-action]') ?? []) {
+      for (const button of overlay?.querySelectorAll(`[${actionAttr}]`) ?? []) {
         button.disabled = busy;
       }
     },
@@ -243,6 +250,16 @@ export function createPaywall({
         return fail(result.outcome, 'paywall.restoreError', true);
       }
       if (result.entitled) return grant(result.outcome, 'paywall.restored');
+      if (result.ownedProducts?.includes(HERO_PACK_ID)) {
+        const status = await withBusy(() => platform.refreshEntitlement());
+        return {
+          outcome: result.outcome,
+          granted: false,
+          packRestored: status?.hero_pack === true,
+          status,
+          message: message('paywall.restoredPack'),
+        };
+      }
       return fail(result.outcome, 'paywall.nothingToRestore');
     },
   };

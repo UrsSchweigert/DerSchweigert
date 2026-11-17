@@ -16,10 +16,13 @@ const LABELS = {
   'profiles.storageError': 'Player data could not be saved. Please try again.',
   'profiles.invalidName': 'Enter a name of 1-40 characters.',
   'profiles.lastProfile': 'Keep at least one player.',
+  'heroes.change': 'Change hero',
+  'heroes.placeholderAlt': 'Hero portrait placeholder',
 };
 
 export function mountProfileUI({
   root, adapter, translate = (key) => LABELS[key], canSwitch = () => true,
+  portraitFor = null, onChangeHero = null, heroFeature = () => true,
   onSelected = () => {}, onError = () => {}, onBusyChange = () => {},
 }) {
   if (!root?.ownerDocument) throw new TypeError('A profile UI root is required');
@@ -62,6 +65,22 @@ export function mountProfileUI({
     if (className) element.className = className;
     if (content !== undefined) element.textContent = content;
     return element;
+  };
+  // The portrait is decoration beside the name: no alt text, and a neutral
+  // placeholder (without a src, so no second request) when it is missing.
+  const placeholder = () => {
+    const holder = node('span', 'profile-portrait profile-portrait-placeholder');
+    holder.setAttribute('aria-hidden', 'true');
+    return holder;
+  };
+  const portrait = (url) => {
+    if (typeof url !== 'string' || !url) return placeholder();
+    const img = node('img', 'profile-portrait');
+    img.setAttribute('alt', '');
+    img.setAttribute('aria-hidden', 'true');
+    img.addEventListener('error', () => { if (img.parentNode) img.replaceWith(placeholder()); });
+    img.setAttribute('src', url);
+    return img;
   };
   const report = (failure) => {
     const key = failure.code === 'invalid_profile_name' ? 'profiles.invalidName'
@@ -179,7 +198,28 @@ export function mountProfileUI({
           blocked: true, className: 'profile-select',
         });
         select.setAttribute('aria-pressed', String(profile.id === activeId));
-        row.append(select);
+        const showHero = heroFeature();
+        const changeHero = showHero && typeof onChangeHero === 'function' && profile.id === activeId;
+        if (changeHero && typeof portraitFor === 'function') {
+          // The active player's portrait is the Change hero button: the hero is both shown and changed here.
+          const label = `${text('heroes.change')}: ${profile.name}`;
+          const holder = button('', () => onChangeHero(profile), {
+            blocked: true, className: 'profile-change-hero profile-change-hero-portrait', ariaLabel: label,
+          });
+          holder.setAttribute('title', text('heroes.change'));
+          holder.append(portrait(portraitFor(profile)));
+          row.append(holder);
+          row.append(select);
+        } else {
+          if (showHero && typeof portraitFor === 'function') row.append(portrait(portraitFor(profile)));
+          row.append(select);
+          if (changeHero) {
+            row.append(button(text('heroes.change'), () => onChangeHero(profile), {
+              blocked: true, className: 'profile-change-hero',
+              ariaLabel: `${text('heroes.change')}: ${profile.name}`,
+            }));
+          }
+        }
         if (typeof adapter.renameProfile === 'function') {
           row.append(button(text('profiles.rename'), () => openStage({ type: 'rename', ...profile }), {
             blocked: true, ariaLabel: `${text('profiles.rename')}: ${profile.name}`,

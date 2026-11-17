@@ -573,6 +573,45 @@ describe('shared sound buses and event cues', () => {
       assert.equal(source.starts.length, 1);
     });
 
+    it('strike cue follows the family: sword takes the sample, the rest are synthesised', async () => {
+      for (const family of ['sword', 'nonsense', undefined]) {
+        const { audio, context } = cuesEngine();
+        const cues = [];
+        const playCue = audio._playCue.bind(audio);
+        audio._playCue = (cue, opts) => { cues.push([cue, opts.gain]); return playCue(cue, opts); };
+        audio.playStrike(family);
+        assert.deepEqual(cues, [['sword-slash', 1.6]], `${family} is the sword cue`);
+        await settle();
+        const before = context.nodes.length;
+        audio.playStrike(family);
+        assert.ok(context.nodes.slice(before).some(node => node.kind === 'buffer' && node.buffer));
+      }
+      for (const family of ['buckler', 'staff', 'fist', 'bow']) {
+        const { audio, context } = cuesEngine();
+        let sampled = 0;
+        audio._playCue = () => { sampled++; return true; };
+        audio.playStrike(family);
+        const nodes = context.nodes.filter(node => node.kind === 'oscillator' || node.kind === 'buffer');
+        assert.equal(sampled, 0, `${family} never asks for a sample`);
+        assert.ok(nodes.length >= 2, `${family} is synthesised`);
+        for (const g of context.nodes.filter(n => n.kind === 'gain' && n !== audio._effectsBus && n !== audio._musicBus)) {
+          assert.deepEqual(g.connections, [audio._effectsBus]);
+        }
+        audio.toggleMute();
+        const muted = context.nodes.length;
+        audio.playStrike(family);
+        assert.equal(context.nodes.length, muted, `${family} is silent when muted`);
+      }
+    });
+
+    it('strike cue is a silent no-op without an audio context', () => {
+      const audio = new AudioEngine({ tracks: [{ file: 'a.mp3' }], makeContext: () => null, baseUrl: 'https://localhost/game/' });
+      audio._ensureCtx = () => {};
+      for (const family of ['sword', 'buckler', 'staff', 'fist', 'bow']) {
+        assert.doesNotThrow(() => audio.playStrike(family));
+      }
+    });
+
     it('never repeats the same variant back to back', () => {
       // Worst case for the picker: every draw lands on the same index.
       const { audio } = cuesEngine({ random: () => 0 });

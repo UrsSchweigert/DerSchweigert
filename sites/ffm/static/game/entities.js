@@ -4,7 +4,8 @@ import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W, CANVAS_H } from './renderer.js'
 import { FIEND_COMBAT_X } from './difficulty.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
 import { HERO_ATLAS, HERO_FRAMES } from './hero/hero-frames.js';
-import { HeroAnimator } from './hero-anim.js';
+import { drawStrikeFx } from './strike-fx.js';
+import { HeroAnimator, buildHeroClips, castHandAnchor } from './hero-anim.js';
 
 const P = LOGICAL_PX; // shorthand
 
@@ -40,8 +41,19 @@ function _radialGlow(ctx, x, y, radius, alpha, core, mid) {
   ctx.restore();
 }
 
-const _heroAtlas = new Image();
-_heroAtlas.src = HERO_ATLAS;
+// The default atlas is created on first use, so a player whose selected hero
+// has its own atlas never fetches the adventurer's.
+let _heroAtlas = null;
+function defaultHeroAtlas() {
+  if (!_heroAtlas) {
+    _heroAtlas = new Image();
+    _heroAtlas.src = HERO_ATLAS;
+  }
+  return _heroAtlas;
+}
+// What a skin without an atlas draws with: not complete, so Hero.draw takes
+// the procedural canvas hero.
+const NO_ATLAS = Object.freeze({ complete: false, naturalWidth: 0 });
 const _dragonSprite = new Image();
 _dragonSprite.src = new URL('./dragon.webp', import.meta.url).href;
 const _fireballSprite = new Image();
@@ -136,10 +148,32 @@ export class Hero extends Entity {
     this._healAura = 0;       // countdown (seconds) — post-level-clear heal flash
     this._holdHealActive = false; // continuous flag — hold-to-heal in progress
     this._holdHealRatio = 0;  // 0..1 progress toward the next healed heart, for intensity
+    this._atlas = null;  // per-instance skin; null = the default atlas, created on first draw
+    this._frames = HERO_FRAMES;
+    this.strike = 'sword';
     this.anim = new HeroAnimator();
     this.anim.play('idle');
     this._castFx = null;      // 'fire' | 'bolt' — drives the cast glow palette
     this._holdPose = false;   // keep a finished one-shot clip on its last pose
+  }
+
+  /**
+   * Gives this hero one skin: {atlas, frames, anchors, strike}. Timings stay
+   * the shared table; only the strike/cast FX anchors come from the skin.
+   * Unusable parts keep what the hero already has.
+   */
+  setSkin(skin) {
+    if (!skin || typeof skin !== 'object') return;
+    if (skin.atlas) this._atlas = skin.atlas;
+    else if (skin.atlas === null) this._atlas = NO_ATLAS;
+    if (skin.frames && typeof skin.frames === 'object') this._frames = skin.frames;
+    this.strike = typeof skin.strike === 'string' && skin.strike ? skin.strike : 'sword';
+    this.anim.clips = buildHeroClips(skin.anchors);
+  }
+
+  /** The active skin's casting palm, relative to the frame pivot. */
+  castHandAnchor() {
+    return castHandAnchor(this.anim.clips.cast);
   }
 
   update(dt) {
@@ -277,7 +311,8 @@ export class Hero extends Entity {
     const bob = 0;
     const fr = 0;
 
-    if (_heroAtlas.complete && _heroAtlas.naturalWidth) {
+    if (!this._atlas) this._atlas = defaultHeroAtlas();
+    if (this._atlas.complete && this._atlas.naturalWidth) {
       this._drawAtlasFrame(ctx);
       return;
     }
@@ -519,7 +554,7 @@ export class Hero extends Entity {
   }
 
   _drawAtlasFrame(ctx) {
-    const frame = HERO_FRAMES[this.anim.frameId];
+    const frame = this._frames[this.anim.frameId];
     if (!frame) return;
     const tf = this.anim.transform;
     const w = frame.w * HERO_SCALE;
@@ -543,10 +578,10 @@ export class Hero extends Entity {
       // The lean pivots at the feet, so the hero never floats off the ground.
       ctx.translate(left + frame.px * HERO_SCALE, top + frame.py * HERO_SCALE);
       ctx.rotate(tf.rot);
-      ctx.drawImage(_heroAtlas, frame.x, frame.y, frame.w, frame.h,
+      ctx.drawImage(this._atlas, frame.x, frame.y, frame.w, frame.h,
         -frame.px * HERO_SCALE, -frame.py * HERO_SCALE, w, h);
     } else {
-      ctx.drawImage(_heroAtlas, frame.x, frame.y, frame.w, frame.h, left, top, w, h);
+      ctx.drawImage(this._atlas, frame.x, frame.y, frame.w, frame.h, left, top, w, h);
     }
     ctx.restore();
 
@@ -575,74 +610,18 @@ export class Hero extends Entity {
       if (f.at === 'hit') break;
       before += f.ms;
     }
-    const t = this._clipProgress();
-    const hitStart = before / total;
-    if (t < hitStart - 0.06) return;
-    const fade = Math.max(0, 1 - (t - hitStart) / 0.55);
-    if (fade <= 0) return;
-
-    // The FX sets alpha, line width and stroke colours; without its own save
-    // the trailing restore() popped the renderer's state instead, which tore
-    // the frame apart for as long as the swing was on screen.
-    ctx.save();
-
-    // The arc is centred on the hands and sweeps along the path the blade
-    // travelled, from up-right to down-right, so it reads as a trail rather
-    // than a decoration floating next to the hero.
-    const anchor = this.anim.frame.fxAt ?? [-19, -40];
-    const cx = left + (frame.px + anchor[0]) * HERO_SCALE;
-    const cy = top + (frame.py + anchor[1]) * HERO_SCALE;
-    // Fatter than the blade it trails: an ellipse wide in x and shorter in y,
-    // stroked in four layers (soft outer haze, body, bright edge, white core)
-    // so the slash has structure instead of being one uniform line.
-    const radiusX = 146, radiusY = 98;
-    const a0 = -1.35, a1 = 0.92, a1x = a1;
-    const layers = [
-      [26, '#1b4f8c', 0.26],
-      [16, '#2f8fd8', 0.42],
-      [9, '#7fd4ff', 0.68],
-      [3.5, '#ffffff', 0.95],
-    ];
-    for (const [width, colour, alpha] of layers) {
-      ctx.globalAlpha = fade * alpha;
-      ctx.lineWidth = width;
-      ctx.strokeStyle = colour;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, radiusX, radiusY, -0.38, a0, a1x);
-      ctx.stroke();
-    }
-    // Structured glow: the leading edge of the sweep burns brighter, and the
-    // tail feathers out, so the eye reads direction of travel.
-    for (let i = 0; i < 5; i++) {
-      const from = a0 + (a1x - a0) * (i / 5);
-      const to = a0 + (a1x - a0) * ((i + 1) / 5) + 0.03;
-      ctx.globalAlpha = fade * (0.1 + 0.22 * i);
-      ctx.lineWidth = 18 + i * 4;
-      ctx.strokeStyle = i >= 3 ? '#bfeaff' : '#3d8fd0';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, radiusX, radiusY, -0.38, from, to);
-      ctx.stroke();
-    }
-
-    // A single burst at the impact, same light as the cast: the swing is the
-    // moment the hit lands, so it gets one flash rather than a steady glow.
-    const burst = Math.max(0, 1 - (t - hitStart) / 0.3);
-    _radialGlow(ctx, cx + Math.cos(a1x) * radiusX, cy + Math.sin(a1x) * radiusY,
-      64 * (0.7 + 0.5 * burst), 0.8 * burst, '#ffffff', '#8fd8ff');
-
-    // Sparks fly off the blade end, where the arc is brightest.
-    ctx.globalAlpha = fade;
-    ctx.strokeStyle = '#cfeeff';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 4; i++) {
-      const a = a1x - 0.18 + i * 0.14;
-      const r0 = 1.0, r1 = 1.0 + (0.1 + (i % 2) * 0.08);
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a) * radiusX * r0, cy + Math.sin(a) * radiusY * r0);
-      ctx.lineTo(cx + Math.cos(a) * radiusX * r1, cy + Math.sin(a) * radiusY * r1);
-      ctx.stroke();
-    }
-    ctx.restore();
+    // The bow's arrow flies during the windup, when the current frame carries
+    // no anchor; it reads the hit frame's so the path never jumps.
+    const anchor = (this.strike === 'bow'
+      ? clip.frames.find((f) => f.at === 'hit')?.fxAt
+      : this.anim.frame.fxAt) ?? [-19, -40];
+    drawStrikeFx(ctx, this.strike, {
+      cx: left + (frame.px + anchor[0]) * HERO_SCALE,
+      cy: top + (frame.py + anchor[1]) * HERO_SCALE,
+      t: this._clipProgress(),
+      hitStart: before / total,
+      glow: _radialGlow,
+    });
   }
 
   // Glow in the raised palm while the cast clip plays. The hand sits at the

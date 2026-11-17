@@ -284,7 +284,8 @@ def split(args) -> int:
         f"{args.name}-3": (0, half),
         f"{args.name}-4": (half, half),
     }
-    STAGE_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.out) if getattr(args, "out", None) else STAGE_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
     poses, reports = {}, {}
     for frame_id, (x, y) in cells.items():
         reports[frame_id] = CutReport()
@@ -299,12 +300,12 @@ def split(args) -> int:
         if args.flip:
             pose = pose.transpose(Image.FLIP_LEFT_RIGHT)
         fitted = scale_by(pose, factor)
-        fitted.save(STAGE_DIR / f"{frame_id}.png", format="PNG", optimize=True)
+        fitted.save(out_dir / f"{frame_id}.png", format="PNG", optimize=True)
         fitted_all[frame_id] = fitted
         print(f"  {frame_id}: {pose.size[0]}x{pose.size[1]} -> {fitted.size[0]}x{fitted.size[1]}  "
               f"{reports[frame_id].line()}")
     print(f"  (scale {factor:.3f} taken from {reference_id})")
-    shown = preview(fitted_all, STAGE_DIR / f"{args.name}-preview.png")
+    shown = preview(fitted_all, out_dir / f"{args.name}-preview.png")
     print(f"  preview: {shown}")
     return 0
 
@@ -406,6 +407,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--generate", metavar="CLIP",
                         help="render a new sheet for CLIP (idle, walk, swing, hurt, dead, victory, cast) "
                              "from its current atlas frames on a chroma plate, then split it")
+    parser.add_argument("--out", metavar="DIR",
+                        help="with --split: write the frames and preview here (default: build/hero-regen), "
+                             "so frames of different heroes never share a directory")
     parser.add_argument("--name", default="idle", help="animation name, used for the frame ids")
     parser.add_argument("--height", type=int, default=TARGET_HEIGHT_PX,
                         help="height of the standing frame the sheet is scaled to")

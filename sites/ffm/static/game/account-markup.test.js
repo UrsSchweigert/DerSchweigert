@@ -162,3 +162,24 @@ it('does not overstate facts in the legal drafts (terms, privacy, cancellation)'
   assert.ok(!/Kalendermonaate|Kontoddaten|letzteZahlunge/.test(cancelPage), 'cancel.html should not contain known typos');
   assert.match(cancelPage, /Ihr Spielfortschritt und Ihre Kontodaten/, 'cancel.html should use correct German grammar for retained data');
 });
+
+it('places the web hero picker container inside the account modal app-omit region only', () => {
+  const idx = html.indexOf('id="account-hero-picker"');
+  assert.ok(idx > html.indexOf('id="account-profile-panel"'));
+  const start = html.lastIndexOf('<!-- app-omit:start -->', idx);
+  const end = html.indexOf('<!-- app-omit:end -->', idx);
+  assert.ok(start >= 0 && end > idx);
+  assert.ok(!html.slice(start, idx).includes('<!-- app-omit:end -->'));
+  const stripped = html.replace(/<!-- app-omit:start -->[\s\S]*?<!-- app-omit:end -->/g, '');
+  assert.ok(!stripped.includes('account-hero-picker'));
+});
+
+it('styles the web picker with 44px targets, focus ring and a textual lock', () => {
+  assert.match(css, /\.hero-picker-item\s*\{[^}]*min-height:\s*44px/);
+  assert.match(css, /\.hero-picker-item:focus-visible/);
+  assert.ok(html.includes('data-i18n="heroes.title"'));
+});
+
+it('saves only the hero from the account picker', () => {
+  assert.match(source, /platform\.updateProfile\(\{ hero: entry\.id \}\)/);
+});

@@ -55,7 +55,7 @@ const findButton = (root, text) => root.querySelectorAll('button').find((button)
 const rows = (root) => root.querySelectorAll('.profile-row');
 const status = (root) => root.querySelector('.profile-status').textContent;
 
-async function fixture({ count = 1, height = 800, translate } = {}) {
+async function fixture({ count = 1, height = 800, translate, extra = {} } = {}) {
   const data = new Map();
   const backend = {
     fail: false,
@@ -90,6 +90,7 @@ async function fixture({ count = 1, height = 800, translate } = {}) {
   const ui = mountProfileUI({
     root, adapter, translate,
     canSwitch: () => allowed,
+    ...extra,
     onSelected: (profile) => { selected.push(profile); },
     onError: (error) => { errors.push(error); },
     onBusyChange: (busy) => { busyChanges.push(busy); },
@@ -327,4 +328,52 @@ test('busy create form disables its input and all navigation controls', async ()
   resolve();
   await ui.whenIdle();
   assert.equal(adapter.getActiveProfile().name, 'New');
+});
+
+test('portrait and Change hero are opt-in, and the action is on the active row only', async () => {
+  const plain = await fixture({ count: 2 });
+  assert.equal(plain.root.querySelectorAll('.profile-portrait').length, 0);
+  assert.equal(plain.root.querySelectorAll('.profile-change-hero').length, 0);
+
+  const asked = [];
+  const changed = [];
+  const { root, adapter, ui, block } = await fixture({
+    count: 2,
+    extra: {
+      portraitFor: (profile) => { asked.push(profile.name); return profile.name === 'First' ? 'heroes/x/portrait.webp' : null; },
+      onChangeHero: (profile) => { changed.push(profile.id); },
+    },
+  });
+  const portraits = root.querySelectorAll('.profile-portrait');
+  assert.equal(portraits.length, 2, 'the active row portrait sits inside the button');
+  assert.equal(portraits[0].tagName, 'IMG');
+  assert.equal(portraits[0].attributes.src, 'heroes/x/portrait.webp');
+  assert.equal(portraits[0].attributes.alt, '');
+  assert.match(portraits[1].className, /profile-portrait-placeholder/);
+  const actions = root.querySelectorAll('.profile-change-hero');
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].textContent, '', 'the button is the portrait, not text');
+  assert.match(actions[0].className, /profile-change-hero-portrait/);
+  assert.equal(actions[0].attributes['aria-label'], `Change hero: ${adapter.getActiveProfile().name}`);
+  actions[0].click();
+  assert.deepEqual(changed, [adapter.getActiveProfile().id]);
+  block();
+  await ui.refresh();
+  assert.equal(root.querySelector('.profile-change-hero').disabled, true);
+});
+
+test('heroFeature false hides the portrait and the Change hero action', async () => {
+  const { root } = await fixture({
+    count: 2,
+    extra: { portraitFor: () => 'heroes/x/portrait.webp', onChangeHero: () => {}, heroFeature: () => false },
+  });
+  assert.equal(root.querySelectorAll('.profile-portrait').length, 0);
+  assert.equal(root.querySelectorAll('.profile-change-hero').length, 0);
+});
+
+test('without a portrait source the Change hero action stays a text button', async () => {
+  const { root } = await fixture({ count: 2, extra: { onChangeHero: () => {} } });
+  const actions = root.querySelectorAll('.profile-change-hero');
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].textContent, 'Change hero');
 });

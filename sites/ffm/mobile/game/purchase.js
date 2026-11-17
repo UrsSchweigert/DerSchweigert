@@ -1,6 +1,7 @@
 // purchase.js — One-time unlock purchase through StoreKit 2 and Google Play.
 //
-// The app sells exactly one non-consumable product, arithmoslayer_full_unlock.
+// The app sells two independent non-consumable products: the full unlock
+// (arithmoslayer_full_unlock) and the hero pack (arithmoslayer_hero_pack).
 // The open-source @capgo/native-purchases plugin (MPL-2.0) wraps StoreKit 2 on
 // iOS and Google Play Billing on Android; there is no backend, no receipt
 // server and no third-party purchase service. Prices always come from the
@@ -20,6 +21,15 @@ import { gate as parentalGate } from './parental-gate.js';
 
 /** The single non-consumable unlock sold by the app. */
 export const PRODUCT_ID = 'arithmoslayer_full_unlock';
+
+/** The non-consumable hero pack sold by the app. */
+export const HERO_PACK_ID = 'arithmoslayer_hero_pack';
+
+/** Every product the app sells. */
+export const PRODUCTS = Object.freeze({ FULL_UNLOCK: PRODUCT_ID, HERO_PACK: HERO_PACK_ID });
+
+/** The catalogue ids, in a stable order. */
+export const CATALOGUE_IDS = Object.freeze([PRODUCT_ID, HERO_PACK_ID]);
 
 /** Google Play / StoreKit product type for a one-time purchase. */
 export const PRODUCT_TYPE = 'inapp';
@@ -119,16 +129,16 @@ export function createPurchasesPlugin(scope = globalThis) {
         && typeof plugin.getPurchases === 'function',
       );
     },
-    async getProduct() {
+    async getProduct(productId = PRODUCT_ID) {
       const { product } = await call('getProduct')({
-        productIdentifier: PRODUCT_ID,
+        productIdentifier: productId,
         productType: PRODUCT_TYPE,
       });
       return product ?? null;
     },
-    async purchaseProduct() {
+    async purchaseProduct(productId = PRODUCT_ID) {
       return call('purchaseProduct')({
-        productIdentifier: PRODUCT_ID,
+        productIdentifier: productId,
         productType: PRODUCT_TYPE,
         quantity: 1,
       });
@@ -171,8 +181,10 @@ export function createPurchaseStore({
     throw new TypeError('purchase store needs a gate function');
   }
 
-  const owns = (purchases) => (Array.isArray(purchases) ? purchases : [])
-    .find((transaction) => transaction?.productIdentifier === productId && isPurchased(transaction)) ?? null;
+  const inCatalogue = (id) => id === productId || CATALOGUE_IDS.includes(id);
+
+  const owns = (purchases, id = productId) => (Array.isArray(purchases) ? purchases : [])
+    .find((transaction) => transaction?.productIdentifier === id && isPurchased(transaction)) ?? null;
 
   // Settling is best effort: a charged purchase has already granted the
   // entitlement, and a failed finish can be retried from the store queue.
@@ -204,27 +216,32 @@ export function createPurchaseStore({
     /**
      * Query the store's localised product, so the paywall can show the
      * store price string instead of a hard-coded amount.
+     * @param {string} [id] catalogue product id, default the bound product
      * @returns {Promise<{product: object|null, error: string|null}>}
      */
-    async queryProduct() {
+    async queryProduct(id = productId) {
+      if (!inCatalogue(id)) return { product: null, error: 'unknown product' };
       try {
-        return { product: await plugin.getProduct(), error: null };
+        return { product: await plugin.getProduct(id), error: null };
       } catch (error) {
         return { product: null, error: messageOf(error) };
       }
     },
 
     /**
-     * Gate, then buy the unlock.
-     * @param {{ui: {ask: Function}, random?: () => number, locale?: string}} options
+     * Gate, then buy a catalogue product (default the bound unlock).
+     * @param {{ui: {ask: Function}, random?: () => number, locale?: string, productId?: string}} options
      * @returns {Promise<object>} purchase outcome
      */
-    async purchase({ ui, random = Math.random, locale } = {}) {
+    async purchase({ ui, random = Math.random, locale, productId: id = productId } = {}) {
+      if (!inCatalogue(id)) {
+        return { outcome: PURCHASE_OUTCOMES.ERROR, error: 'unknown product' };
+      }
       if (!(await gate({ ui, random, locale, action: 'purchase' }))) {
         return { outcome: PURCHASE_OUTCOMES.GATED };
       }
 
-      const owned = owns(await history());
+      const owned = owns(await history(), id);
       if (owned) {
         const settled = await settle(owned);
         return {
@@ -237,14 +254,14 @@ export function createPurchaseStore({
 
       let product;
       try {
-        product = await plugin.getProduct();
+        product = await plugin.getProduct(id);
       } catch (error) {
         return { outcome: PURCHASE_OUTCOMES.ERROR, error: messageOf(error) };
       }
 
       let transaction;
       try {
-        transaction = await plugin.purchaseProduct();
+        transaction = await plugin.purchaseProduct(id);
       } catch (error) {
         return { outcome: classifyError(error), error: messageOf(error) };
       }
@@ -267,9 +284,10 @@ export function createPurchaseStore({
 
     /**
      * Gate, then ask the store to restore the unlock on a fresh install or a
-     * new device signed in with the same store account.
+     * new device signed in with the same store account. `ownedProducts` lists
+     * the owned catalogue ids and is present only when at least one is owned.
      * @param {{ui: {ask: Function}, random?: () => number, locale?: string}} options
-     * @returns {Promise<{outcome: string, entitled: boolean, transaction?: object, error?: string|null}>}
+     * @returns {Promise<{outcome: string, entitled: boolean, ownedProducts?: string[], transaction?: object, error?: string|null}>}
      */
     async restore({ ui, random = Math.random, locale } = {}) {
       if (!(await gate({ ui, random, locale, action: 'restore' }))) {
@@ -277,14 +295,23 @@ export function createPurchaseStore({
       }
       try {
         await plugin.restorePurchases();
-        const owned = owns(await plugin.getPurchases());
+        const purchases = await plugin.getPurchases();
+        const ownedProducts = [...new Set([productId, ...CATALOGUE_IDS])]
+          .filter((id) => owns(purchases, id));
+        for (const id of ownedProducts) {
+          if (id !== productId) await settle(owns(purchases, id));
+        }
+        const owned = owns(purchases);
         if (!owned) {
-          return { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false };
+          return ownedProducts.length
+            ? { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false, ownedProducts }
+            : { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false };
         }
         const settled = await settle(owned);
         return {
           outcome: RESTORE_OUTCOMES.RESTORED,
           entitled: true,
+          ownedProducts,
           transaction: owned,
           acknowledged: settled.acknowledged,
           error: settled.error,

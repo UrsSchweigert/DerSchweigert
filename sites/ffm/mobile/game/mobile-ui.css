@@ -452,3 +452,99 @@
   outline: 2px solid var(--focus-ring, #fff0bd);
   outline-offset: 2px;
 }
+
+.pack-sheet-card button {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Hero portrait beside the player name in the identity rows. */
+.player-identity .hero-identity-portrait,
+.playing-as-row .hero-identity-portrait {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  margin-right: 12px;
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: middle;
+}
+
+.hero-identity-portrait-placeholder {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* App hero picker and profile row portraits. */
+#local-profiles .profile-portrait {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+/* The active player's portrait is the Change hero button. */
+#local-profiles .profile-change-hero-portrait {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  padding: 2px;
+  border-radius: 10px;
+}
+#local-profiles .profile-change-hero-portrait .profile-portrait {
+  margin-right: 0;
+}
+#local-profiles .profile-portrait-placeholder {
+  display: inline-block;
+  background: var(--ink-900, #1b1b2a);
+  border: 1px solid currentColor;
+  opacity: 0.6;
+}
+#local-profiles .profile-change-hero,
+.hero-picker-overlay .hero-picker-item,
+.hero-picker-overlay .hero-picker-close {
+  min-width: 44px;
+  min-height: 44px;
+}
+.hero-picker-overlay .hero-picker-card {
+  max-height: 100%;
+  overflow-y: auto;
+}
+.hero-picker-overlay .hero-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+}
+.hero-picker-overlay .hero-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+}
+.hero-picker-overlay .hero-picker-portrait,
+.hero-picker-overlay .hero-picker-placeholder {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+.hero-picker-overlay .hero-picker-item.is-selected {
+  outline: 2px solid currentColor;
+}
+.hero-picker-overlay .hero-picker-preview {
+  min-height: 80px;
+  display: flex;
+  justify-content: center;
+}
+.hero-picker-overlay .hero-picker-preview canvas {
+  max-height: 120px;
+  width: auto;
+}
+#local-profiles .profile-change-hero:focus-visible,
+.hero-picker-overlay button:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}

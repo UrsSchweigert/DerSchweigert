@@ -59,6 +59,7 @@ const FREE_LEVELS = Object.freeze([
 const NOT_ENTITLED = Object.freeze({
   access_control_enabled: true,
   premium_access: false,
+  hero_pack: false,
   reason: 'not_entitled',
   access_until: null,
   paid_until: null,
@@ -215,6 +216,19 @@ const platform = {
 
   async getSpeedrunLeaderboard() {
     return { entries: [], levels: [] };
+  },
+
+  // The active profile's hero id when the cached hero pack is owned, else
+  // null. Offline-safe and never rejects; premium_access plays no part.
+  async getActiveHeroSkin() {
+    try {
+      await localProfiles.initialize();
+      const hero = localProfiles.getActiveProfile().hero;
+      if (typeof hero !== 'string' || hero === '') return null;
+      return (await entitlement.getStatus()).hero_pack === true ? hero : null;
+    } catch {
+      return null;
+    }
   },
 
   // Billing is the cached store entitlement, not a subscription.

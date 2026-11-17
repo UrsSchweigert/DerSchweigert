@@ -509,3 +509,31 @@ test('the gameplay focus trap keeps its overlay list', async () => {
     /const overlays = \['pause-overlay', 'heal-tip-overlay', 'level-clear', 'game-over', 'skill-intro', 'first-open-notice'\]/,
   );
 });
+
+test('the hero manifest and roster are required bundle files', async () => {
+  for (const rel of ['game/heroes/manifest.json', 'game/heroes.js']) {
+    await withBundle(async (dir) => {
+      await rm(join(dir, rel));
+      const problems = await bundleCheck(dir);
+      assert.ok(problems.some((problem) => problem.includes(rel)), problems.join('\n'));
+    });
+  }
+});
+
+test('a hero file present in the source must reach the bundle, an absent hero need not', async () => {
+  await withSource(async (source) => {
+    await withBundle(async (dir) => {
+      assert.deepEqual(await bundleCheck(dir, source), []);
+      await mkdir(join(source, 'game/heroes/future-hero'), { recursive: true });
+      await writeFile(join(source, 'game/heroes/future-hero/portrait.webp'), 'x');
+      const problems = await bundleCheck(dir, source);
+      assert.ok(
+        problems.some((problem) => problem.includes('game/heroes/future-hero/portrait.webp')),
+        problems.join('\n'),
+      );
+      await mkdir(join(dir, 'game/heroes/future-hero'), { recursive: true });
+      await writeFile(join(dir, 'game/heroes/future-hero/portrait.webp'), 'x');
+      assert.deepEqual(await bundleCheck(dir, source), []);
+    });
+  });
+});

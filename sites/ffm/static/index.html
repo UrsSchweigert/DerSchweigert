@@ -86,6 +86,7 @@
 
   <div id="difficulty-select" class="overlay splash-screen">
     <div class="splash-bg" aria-hidden="true"></div>
+    <button type="button" id="title-player-badge" class="title-player-badge" hidden></button>
     <div class="splash-content">
       <h1 class="splash-title" aria-label="Arithmo Slayer"><img class="title-logo" src="game/title-logo.webp" alt="Arithmo Slayer" width="1408" height="680"></h1>
       <div class="title-pages">
@@ -325,6 +326,10 @@
           <button type="submit" data-i18n="account.save">Save</button>
           <p id="account-profile-message" class="error-msg"></p>
         </form>
+        <section id="account-hero-picker" class="account-hero-picker" aria-labelledby="account-hero-picker-title" hidden>
+          <h3 id="account-hero-picker-title" data-i18n="heroes.title">Choose your hero</h3>
+          <div id="account-hero-picker-grid"></div>
+        </section>
       </div>
 
       <div id="account-password-panel" style="display:none">
