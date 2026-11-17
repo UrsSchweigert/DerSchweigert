@@ -264,7 +264,8 @@ from same-origin blob URLs so it can share the Web Audio gain path; the music
 slider accepts a gain before first playback and applies it to the routed track.
 One title speaker menu contains music, effects and mute controls; the UI states
 the limitation only when routing is unavailable. See [MUSIC.md](MUSIC.md)
-for the routing path and the physical-device listening gates. No new songs or
+for the routing path and the physical-device listening gates, and
+[CAR-AUDIO.md](CAR-AUDIO.md) for the unverified choppy car audio diagnosis. No new songs or
 hero/weapon art are included.
 
 #### Physical-device audio gates
