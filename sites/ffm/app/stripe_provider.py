@@ -12,6 +12,11 @@ from flask import current_app
 # renders events at its own pinned version, so the helpers accept both shapes.
 API_VERSION = '2026-10-28.endive'
 
+# The subscription's price in cents (EUR 1.99, tax inclusive, every 3 months).
+# validate_price() requires it and billing._valid_paid_end() counts only invoices
+# that paid at least this much, so the two can never disagree again.
+PRICE_UNIT_AMOUNT = 199
+
 
 def _secret(name):
     value = current_app.config.get(name) or os.environ.get(name)
@@ -73,7 +78,7 @@ def validate_price(price_id):
     price = _plain(_client().prices.retrieve(price_id))
     recurring = price.get('recurring') or {}
     if not (price.get('active') and price.get('currency') == 'eur'
-            and price.get('unit_amount') == 199 and recurring.get('interval') == 'month'
+            and price.get('unit_amount') == PRICE_UNIT_AMOUNT and recurring.get('interval') == 'month'
             and recurring.get('interval_count') == 3):
         raise ValueError('invalid_price')
     return price

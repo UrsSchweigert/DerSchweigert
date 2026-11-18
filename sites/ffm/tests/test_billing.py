@@ -2752,3 +2752,42 @@ def test_charge_refunded_with_current_api_shapes_finds_invoice_via_invoice_payme
     mock_stripe_provider.subscriptions.retrieve.assert_any_call('sub_refund_now')
     with billing_app.app_context():
         assert billing_store.get_billing_state(stable_id)['paid_until'] is None  # the refunded period no longer counts
+
+
+def test_a_real_price_invoice_counts_toward_paid_until(billing_app, mock_stripe_provider):
+    """Regression: _valid_paid_end() required amount_paid >= 300 from the original
+    EUR 3.00 price, but #454 moved the price to EUR 1.99 (199 cents, tax inclusive).
+    A subscriber's real invoice then never counted, so a paying customer got no
+    paid_until. The threshold is now the price itself (PRICE_UNIT_AMOUNT)."""
+    from sites.ffm.app import billing
+    from sites.ffm.app import stripe_provider
+
+    period_end = int(datetime.now(timezone.utc).timestamp()) + 90 * 86400
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [{
+        'id': 'inv_real_price', 'customer': 'cus_real', 'subscription': 'sub_real', 'status': 'paid',
+        'currency': 'eur', 'amount_paid': stripe_provider.PRICE_UNIT_AMOUNT, 'paid': True,
+        'customer_address': {'country': 'DE'}, 'charge': 'ch_real',
+        'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': period_end}, 'proration': False}]},
+    }]
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_real', 'paid': True, 'refunded': False, 'amount_refunded': 0, 'disputed': False,
+        'billing_details': {'address': {'country': 'DE'}},
+    }
+    with billing_app.app_context():
+        paid_until = billing._valid_paid_end({'id': 'sub_real', 'customer': 'cus_real'})
+    assert stripe_provider.PRICE_UNIT_AMOUNT == 199
+    assert paid_until == datetime.fromtimestamp(period_end, timezone.utc).isoformat()
+
+
+def test_an_invoice_below_the_price_still_does_not_count(billing_app, mock_stripe_provider):
+    from sites.ffm.app import billing
+
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [{
+        'id': 'inv_partial', 'customer': 'cus_real', 'subscription': 'sub_real', 'status': 'paid',
+        'currency': 'eur', 'amount_paid': 100, 'paid': True, 'customer_address': {'country': 'DE'},
+        'charge': 'ch_partial', 'lines': {'data': [{'price': {'id': 'price_quarterly'},
+                                                    'period': {'end': 2_000_000_000}, 'proration': False}]},
+    }]
+    with billing_app.app_context():
+        assert billing._valid_paid_end({'id': 'sub_real', 'customer': 'cus_real'}) is None
+    mock_stripe_provider.charges.retrieve.assert_not_called()
