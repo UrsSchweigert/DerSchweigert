@@ -5,6 +5,8 @@ import vm from 'node:vm';
 import { getCampaignProgress, resetLevelAttempt } from './campaign-progress.js';
 import { createLevelGrid } from './level-grid.js';
 import { isLevelTestProfile, levelAvailability } from './test-profile.js';
+import { createCampaign2Progress } from './campaign2/progress.js';
+import { TOTAL_LEVELS_2 } from './campaign2/campaign2-levels.js';
 
 const source = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 const difficulty = source.slice(source.indexOf("document.querySelectorAll('#difficulty-select [data-difficulty]').forEach"),
@@ -92,6 +94,7 @@ test('web title shows selected start level and preserves a valid replay on refre
     t: (key, vars) => `${key}:${vars?.level ?? ''}`,
   };
   vm.createContext(context);
+  vm.runInContext(source.match(/function isCampaign2Selected\([\s\S]*?\n\}/)[0], context);
   vm.runInContext(source.match(/function updateTitleStartingLevel\([\s\S]*?\n\}/)[0], context);
   vm.runInContext(source.match(/function renderLevelJumpOptions\([\s\S]*?\n\}/)[0], context);
   context.renderLevelJumpOptions({ scores: [{ level: 5 }] });
@@ -131,7 +134,7 @@ test('native title artwork follows continuation, replay, player reset and campai
     activeLocalPlayer: { name: 'Ada' },
   };
   vm.createContext(context);
-  for (const name of ['updateTitleStartingLevel', 'renderLocalCampaign']) {
+  for (const name of ['isCampaign2Selected', 'updateTitleStartingLevel', 'renderLocalCampaign']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))[0], context);
   }
   context.renderLocalCampaign([1, 3]);
@@ -174,7 +177,7 @@ test('a paid app profile named "unlocked" gets every level as a tile', () => {
     activeLocalPlayer: { name: 'unlocked' },
   };
   vm.createContext(context);
-  for (const name of ['updateTitleStartingLevel', 'renderLocalCampaign']) {
+  for (const name of ['isCampaign2Selected', 'updateTitleStartingLevel', 'renderLocalCampaign']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))[0], context);
   }
 
@@ -187,6 +190,167 @@ test('a paid app profile named "unlocked" gets every level as a tile', () => {
   assert.equal(grid.value, '47', 'the far end of the curriculum is selectable');
   context.renderLocalCampaign([1, 2, 3]);
   assert.equal(selection.level, 47, 'and the title offers to start there');
+});
+
+// --- Campaign II on the Levels page ---
+// The owner's report: the "unlocked" player in Campaign II saw Campaign I's 60 levels, and a
+// picked level neither started nor showed in the title's level numeral (it stayed at 1).
+function memoryStorage(seed = {}) {
+  const data = new Map(Object.entries(seed));
+  return {
+    getItem: key => (data.has(key) ? data.get(key) : null),
+    setItem: (key, value) => data.set(key, String(value)),
+    removeItem: key => data.delete(key),
+  };
+}
+function campaign2Store(cleared = []) {
+  return createCampaign2Progress({ playerId: 'player-a', storage: memoryStorage(
+    cleared.length ? { 'arithmoslayer:campaign2:player-a': JSON.stringify({ version: 1, cleared }) } : {}) });
+}
+const fnSource = name => source.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))?.[0] ?? '';
+
+function levelsPage({ isApp = true, profileName = 'unlocked', campaign = 2, cleared2 = [], premium = true } = {}) {
+  const grid = createLevelGrid({ doc: null });
+  const shown = { selection: null, line: { textContent: '' }, levelsButton: { hidden: true } };
+  const context = {
+    platform: { isApp },
+    selectedCampaign: campaign,
+    getCampaignProgress,
+    campaign2Progress: () => campaign2Store(cleared2),
+    levelGrid: grid,
+    levelJumpRow: { style: {} },
+    TOTAL_LEVELS: 60,
+    TOTAL_LEVELS_2,
+    titleLevelNumerals: { updateLevelSelection(value) { shown.selection = value; } },
+    document: { getElementById: id => (id === 'continue-level' ? shown.line
+      : id === 'title-levels-btn' ? shown.levelsButton : { dataset: {}, hidden: false }) },
+    t: (key, vars) => `${key}:${vars?.level ?? ''}`,
+    isLevelTestProfile, levelAvailability, premiumAccess: premium,
+    activeLocalPlayer: { name: profileName },
+  };
+  vm.createContext(context);
+  for (const name of ['isCampaign2Selected', 'renderCampaign2Levels', 'updateTitleStartingLevel',
+    'renderLocalCampaign', 'renderLevelJumpOptions']) {
+    vm.runInContext(fnSource(name), context);
+  }
+  return { context, grid, shown };
+}
+
+test('the unlocked player in Campaign II gets its 40 levels, not Campaign I\'s 60', () => {
+  const { context, grid } = levelsPage({ profileName: 'UNLOCKED' });
+  context.renderLocalCampaign([1, 2, 3]);
+  assert.equal(grid.entries.length, TOTAL_LEVELS_2);
+  assert.equal(TOTAL_LEVELS_2, 40);
+  assert.equal(grid.entries.filter(entry => entry.state === 'locked').length, 0, 'every Campaign II level is open');
+
+  // Switching back to Campaign I brings its 60 back.
+  context.selectedCampaign = 1;
+  context.renderLocalCampaign([1, 2, 3]);
+  assert.equal(grid.entries.length, 60);
+  assert.equal(grid.entries.filter(entry => entry.state === 'locked').length, 0);
+});
+
+test('any other player in Campaign II sees 40 levels: its cleared ones and the next', () => {
+  const { context, grid } = levelsPage({ profileName: 'Ada', cleared2: [1, 2, 5] });
+  context.renderLocalCampaign([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);   // Campaign I progress must not leak in
+  assert.equal(grid.entries.length, 40);
+  assert.deepEqual(grid.entries.filter(entry => entry.state !== 'locked').map(entry => [entry.level, entry.value]),
+    [[1, '1'], [2, '2'], [3, ''], [5, '5']]);
+});
+
+test('a Campaign II level picked on the Levels page shows in the title numeral', () => {
+  const { context, grid, shown } = levelsPage({ profileName: 'unlocked', cleared2: [1, 2] });
+  context.renderLocalCampaign([]);
+  assert.equal(shown.selection.level, 3, 'the continuation before a pick');
+  assert.equal(shown.line.textContent, 'campaign2.continueAt:3');
+  grid.value = '17';
+  context.renderLocalCampaign([]);   // what onLevelGridSelect does in the app
+  assert.equal(shown.selection.level, 17);
+  assert.equal(shown.selection.mode, 'replay');
+  assert.equal(shown.line.textContent, 'campaign.startAt:17', 'an uncleared level is a start, not a replay');
+  grid.value = '2';
+  context.renderLocalCampaign([]);
+  assert.equal(shown.line.textContent, 'campaign.replay:2');
+  grid.value = '41';
+  assert.equal(grid.value, '', 'Campaign II has no level 41');
+});
+
+test('the web Levels page lists Campaign II\'s 40 levels while it is chosen', () => {
+  const { context, grid, shown } = levelsPage({ isApp: false, profileName: null, cleared2: [1, 2, 3, 4] });
+  context.renderLevelJumpOptions({ scores: [{ level: 55 }] });
+  assert.equal(grid.entries.length, 40);
+  assert.deepEqual(grid.entries.filter(entry => entry.state !== 'locked').map(entry => entry.level), [1, 2, 3, 4, 5]);
+  assert.equal(shown.levelsButton.hidden, false);
+  grid.value = '3';
+  context.renderLevelJumpOptions({ scores: [{ level: 55 }] });
+  assert.equal(shown.selection.level, 3);
+  assert.equal(shown.line.textContent, 'title.levelNumerals:3');
+  context.selectedCampaign = 1;
+  context.renderLevelJumpOptions({ scores: [{ level: 55 }] });
+  assert.equal(grid.entries.length, 60, 'Campaign I keeps its 60');
+});
+
+function campaign2Start({ selected = '', profileName = 'unlocked', premium = true, cleared2 = [], isApp = true } = {}) {
+  const run = setup({ selected, profileName, premium });
+  run.context.platform.isApp = isApp;
+  Object.assign(run.context, { selectedCampaign: 2, TOTAL_LEVELS_2, campaign2Progress: () => campaign2Store(cleared2) });
+  return run;
+}
+
+test('picking a Campaign II level starts that level', async () => {
+  const unlocked = campaign2Start({ selected: '17', profileName: 'UNLOCKED' });
+  await unlocked.start();
+  assert.deepEqual(unlocked.starts, [[16, true]], 'level 17 of Campaign II, not its continuation');
+  assert.deepEqual(unlocked.introPlays, [], 'Campaign II has no story intro');
+
+  const replay = campaign2Start({ selected: '2', profileName: 'Ada', cleared2: [1, 2, 3] });
+  await replay.start();
+  assert.deepEqual(replay.starts, [[1, true]], 'a cleared level replays');
+
+  const web = campaign2Start({ selected: '3', profileName: null, cleared2: [1, 2, 3], isApp: false });
+  await web.start();
+  assert.deepEqual(web.starts, [[2, true]], 'and on the web');
+
+  const next = campaign2Start({ profileName: 'Ada', cleared2: [1, 2, 3] });
+  await next.start();
+  assert.deepEqual(next.starts, [[3, true]], 'no pick: the continuation');
+});
+
+test('Campaign II refuses a level that was not offered', async () => {
+  const normal = campaign2Start({ selected: '17', profileName: 'Ada', cleared2: [1] });
+  await normal.start();
+  assert.deepEqual(normal.starts, []);
+  const tooFar = campaign2Start({ selected: '47', profileName: 'unlocked' });
+  await tooFar.start();
+  assert.deepEqual(tooFar.starts, [], 'a stale Campaign I pick past level 40 never starts');
+});
+
+test('switching campaign clears the pick and re-renders the Levels page', () => {
+  const choose = fnSource('chooseCampaign');
+  const refresh = fnSource('refreshLevelGrid');
+  const grid = { value: '47' };
+  const calls = [];
+  const context = {
+    selectedCampaign: 1, levelGrid: grid, platform: { isApp: true },
+    currentPersonalDevelopment: { completed: [1] }, currentProfile: null,
+    campaignSelection: () => ({ set() {} }),
+    renderLocalCampaign: () => calls.push('app'), renderLevelJumpOptions: () => calls.push('web'),
+    updateTitleStartingLevel: () => calls.push('title'),
+  };
+  vm.createContext(context);
+  vm.runInContext(choose, context);
+  vm.runInContext(refresh, context);
+  context.chooseCampaign(2);
+  assert.equal(grid.value, '', 'a Campaign I pick means nothing in Campaign II');
+  context.refreshLevelGrid();
+  context.platform.isApp = false;
+  context.refreshLevelGrid();
+  assert.deepEqual(calls, ['app', 'web']);
+  grid.value = '5';
+  context.chooseCampaign(2);
+  assert.equal(grid.value, '5', 're-choosing the same campaign keeps the pick');
+  // The switch re-renders the grid, not only the title line.
+  assert.match(fnSource('renderCampaignSwitch'), /refreshLevelGrid\(\);\n\}$/);
 });
 
 test('a jump to an uncleared level is labelled a start, not a replay', () => {
@@ -205,7 +369,7 @@ test('a jump to an uncleared level is labelled a start, not a replay', () => {
     isLevelTestProfile, levelAvailability, premiumAccess: true, activeLocalPlayer: { name: 'unlocked' },
   };
   vm.createContext(context);
-  for (const name of ['updateTitleStartingLevel', 'renderLocalCampaign']) {
+  for (const name of ['isCampaign2Selected', 'updateTitleStartingLevel', 'renderLocalCampaign']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))[0], context);
   }
 

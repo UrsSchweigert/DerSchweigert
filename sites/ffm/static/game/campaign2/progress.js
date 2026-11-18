@@ -26,6 +26,12 @@ export function createCampaign2Progress({ storage = globalThis.localStorage, pla
       for (let level = 1; level <= TOTAL_LEVELS_2; level++) if (!done.includes(level)) return level;
       return null;
     },
+    /** Shaped like Campaign I's getCampaignProgress, so the Levels page reads either one. */
+    progress() {
+      const cleared = read();
+      const nextLevel = this.next();
+      return { cleared, nextLevel, complete: nextLevel === null };
+    },
     markCleared(level) {
       if (!Number.isInteger(level) || level < 1 || level > TOTAL_LEVELS_2) throw new RangeError('Invalid Campaign 2 level');
       const cleared = clean([...read(), level]);

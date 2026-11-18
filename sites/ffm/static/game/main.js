@@ -1403,6 +1403,12 @@ function renderScoreHistory(historyResponse, container) {
 }
 
 function renderLevelJumpOptions(profile) {
+  // The Levels page lists the campaign being played. Campaign II has its own 40 levels and
+  // its own (device-local) progress; the account's scores are Campaign I levels only.
+  if (isCampaign2Selected()) {
+    renderCampaign2Levels();
+    return;
+  }
   const scores = profile && profile.scores ? profile.scores : [];
   const levels = [...new Set(scores.map((s) => s.level))].sort((a, b) => a - b);
   if (levels.length === 0) {
@@ -1424,13 +1430,50 @@ function renderLevelJumpOptions(profile) {
   updateTitleStartingLevel();
 }
 
+// The `typeof` keeps extracted-function tests (which run without main.js's globals) working.
+function isCampaign2Selected() {
+  return typeof selectedCampaign !== 'undefined' && selectedCampaign === 2;
+}
+
+// Campaign II's Levels page, on the web and in the app: its own 40 levels, the next one to
+// play as the default tile, the cleared ones to replay, and every level for the "unlocked"
+// test profile (test-profile.js). It used to fall through to Campaign I's 60-level grid,
+// whose pick the Campaign II start then ignored.
+function renderCampaign2Levels({ resetSelection = false } = {}) {
+  const progress = campaign2Progress().progress();
+  if (resetSelection) levelGrid.value = '';
+  levelGrid.render({
+    total: TOTAL_LEVELS_2,
+    defaultLevel: progress.nextLevel ?? 1,
+    available: levelAvailability({
+      testProfile: isLevelTestProfile({
+        isApp: platform.isApp,
+        profileName: activeLocalPlayer?.name,
+        premiumAccess,
+      }),
+      cleared: progress.cleared,
+      total: TOTAL_LEVELS_2,
+    }),
+    labelFor: ({ level, state }) => t(state === 'locked' ? 'levels.locked'
+      : state === 'default' && !progress.complete ? 'campaign.continueAt' : 'campaign.replay', { level }),
+  });
+  levelJumpRow.style.display = '';
+  document.getElementById('title-levels-btn').hidden = false;
+  updateTitleStartingLevel();
+}
+
 function updateTitleStartingLevel(nextLevel = 1, continuationLabel = null, clearedLevels = null) {
-  if (typeof selectedCampaign !== 'undefined' && selectedCampaign === 2) {
-    const next = campaign2Progress().next();
-    titleLevelNumerals.updateLevelSelection({ level: next ?? TOTAL_LEVELS_2, mode: 'continuation' });
-    const line = document.getElementById('continue-level');
-    if (line) line.textContent = next ? t('campaign2.continueAt', { level: next }) : t('campaign2.complete');
-    return;
+  if (isCampaign2Selected()) {
+    const progress = campaign2Progress().progress();
+    if (!levelGrid.value) {
+      const next = progress.nextLevel;
+      titleLevelNumerals.updateLevelSelection({ level: next ?? TOTAL_LEVELS_2, mode: 'continuation' });
+      const line = document.getElementById('continue-level');
+      if (line) line.textContent = next ? t('campaign2.continueAt', { level: next }) : t('campaign2.complete');
+      return;
+    }
+    // A level picked on Campaign II's Levels page: the title names it like a Campaign I pick.
+    clearedLevels = progress.cleared;
   }
   const level = Number(levelGrid.value) || nextLevel;
   const mode = levelGrid.value ? 'replay' : 'continuation';
@@ -1609,12 +1652,17 @@ function scrollPersonalBestToHighest() {
 }
 
 function renderLocalCampaign(completed, { resetSelection = false } = {}) {
-  const progress = getCampaignProgress(completed);
-  if (resetSelection) levelGrid.value = '';
-  const label = progress.complete ? t('campaign.complete') : t('campaign.continueAt', { level: progress.nextLevel });
   const selectorLabel = document.getElementById('level-jump-label');
   selectorLabel.dataset.i18n = 'campaign.chooseLevel';
   selectorLabel.textContent = t('campaign.chooseLevel');
+  // `completed` is Campaign I progress; Campaign II keeps its own.
+  if (isCampaign2Selected()) {
+    renderCampaign2Levels({ resetSelection });
+    return;
+  }
+  const progress = getCampaignProgress(completed);
+  if (resetSelection) levelGrid.value = '';
+  const label = progress.complete ? t('campaign.complete') : t('campaign.continueAt', { level: progress.nextLevel });
   levelGrid.render({
     total: TOTAL_LEVELS,
     defaultLevel: progress.nextLevel ?? 1,
@@ -2150,8 +2198,21 @@ function loadCampaignSelection() {
   renderCampaignSwitch();
 }
 function chooseCampaign(campaign) {
-  selectedCampaign = campaign === 2 ? 2 : 1;
+  const next = campaign === 2 ? 2 : 1;
+  // A level picked in one campaign means nothing in the other (level 47 has no Campaign II
+  // twin): a switch starts the new campaign from its own continuation.
+  if (next !== selectedCampaign) levelGrid.value = '';
+  selectedCampaign = next;
   campaignSelection().set(selectedCampaign);
+}
+// Re-render the Levels page for the campaign now selected (60 levels or 40).
+function refreshLevelGrid() {
+  if (platform.isApp) {
+    if (currentPersonalDevelopment) renderLocalCampaign(currentPersonalDevelopment.completed);
+    else updateTitleStartingLevel();
+  } else {
+    renderLevelJumpOptions(currentProfile);
+  }
 }
 // The switch lives with the player it belongs to. The app keeps it in the player dialog (the
 // Players page), between the player list and the purchase panel; the web keeps it in the
@@ -2225,7 +2286,8 @@ async function renderCampaignSwitch() {
   // is in the player dialog (app) or the profile (web).
   const emblem = document.getElementById('campaign-emblem');
   if (emblem) emblem.hidden = wrap.hidden || selectedCampaign !== 2;
-  updateTitleStartingLevel();
+  // The Levels page follows the campaign too, not only the title line.
+  refreshLevelGrid();
 }
 document.getElementById('genius-campaign-btn')?.addEventListener('click', async () => {
   if (levelStarting || pendingSkillIntro) return;
@@ -2288,8 +2350,23 @@ document.querySelectorAll('#difficulty-select [data-difficulty]').forEach(btn =>
       let targetLevel = jumpValue ? parseInt(jumpValue, 10) : 1;
       const campaign2Selected = typeof selectedCampaign !== 'undefined' && selectedCampaign === 2;
       if (campaign2Selected) {
-        // Campaign 2 continues from its own device-local progress (or starts over once complete).
-        targetLevel = campaign2Progress().next() ?? 1;
+        // Campaign 2 continues from its own device-local progress (or starts over once
+        // complete), or starts the level picked on its Levels page: a cleared one, or any of
+        // its 40 for the "unlocked" test profile, the same rule as Campaign I below.
+        const progress2 = campaign2Progress().progress();
+        if (jumpValue) {
+          const levelTest = isLevelTestProfile({
+            isApp: platform.isApp,
+            profileName: activeLocalPlayer?.name,
+            premiumAccess,
+          });
+          if (!(targetLevel >= 1 && targetLevel <= TOTAL_LEVELS_2)
+            || (!progress2.cleared.includes(targetLevel) && !levelTest)) {
+            throw new Error('Selected Campaign II level was not offered to this player');
+          }
+        } else {
+          targetLevel = progress2.nextLevel ?? 1;
+        }
       } else if (platform.isApp) {
         const profileId = platform.localProfiles.getActiveProfile().id;
         const { completed } = await platform.getCompletedLevels(profileId);
