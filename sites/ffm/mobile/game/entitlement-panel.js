@@ -1,7 +1,10 @@
 // entitlement-panel.js — App-only player-section entitlement panel.
 //
-// Shows the device-wide store entitlement on the Players page, explains the
+// Shows the device-wide store entitlements on the Players page, explains the
 // one-time unlock, uses the store's localised price, and offers buy/restore.
+// Both products are listed side by side: the full unlock (Campaign I, levels
+// 3-60) and Campaign II (Genius). They are independent: either can be bought
+// first, and owning one never hides or gates the other.
 // It adds no purchase API: status comes from the platform seam, the price from
 // purchase.js, and buy/restore run through paywall.js (which parental-gates
 // every store call). The free-content sentence is derived by probing the
@@ -31,6 +34,10 @@ export const STRINGS = Object.freeze({
   'entitlement.free.all': { en: 'All {total} levels are available.', de: 'Alle {total} Level sind verfügbar.' },
   'entitlement.free.none': { en: 'No level is free to play.', de: 'Kein Level ist kostenlos spielbar.' },
   'entitlement.free.unknown': { en: 'Some levels are free to play.', de: 'Einige Level sind kostenlos spielbar.' },
+  'entitlement.campaign1.title': { en: 'Campaign I: Arithmetic', de: 'Abenteuer I: Rechnen' },
+  'entitlement.campaign2.title': { en: 'Campaign II: Genius', de: 'Abenteuer II: Genie' },
+  'entitlement.campaign2.owned': { en: 'Campaign II unlocked', de: 'Abenteuer II freigeschaltet' },
+  'entitlement.campaign2.offer': { en: 'Forty more levels of fractions, powers, roots and logarithms. A separate one-time purchase; it does not need the full unlock.', de: 'Vierzig weitere Level mit Brüchen, Potenzen, Wurzeln und Logarithmen. Ein eigener Einmalkauf; die Vollversion ist dafür nicht nötig.' },
 });
 
 /** Default probe ceiling when the caller does not supply the level count. */
@@ -126,6 +133,9 @@ export function buildEntitlementMarkup({
   outcomeError = false,
   busy = false,
   showBuy = true,
+  // Campaign II: null when the platform cannot sell it (then the section is left out),
+  // else { owned, price }. It never depends on statusKey: the products are independent.
+  campaign2 = null,
 } = {}) {
   const loc = resolveLocale(locale);
   const buy = price
@@ -139,7 +149,10 @@ export function buildEntitlementMarkup({
     `<div class="entitlement-panel" data-entitlement-status="${escapeHtml(statusKey)}"`,
     `     data-entitlement-outcome="${escapeHtml(outcomeKey)}">`,
   ];
-  if (!full) {
+  // Listed next to Campaign II, the full unlock is named as the campaign it opens.
+  if (campaign2) {
+    lines.push(`  <h2 class="entitlement-title">${escapeHtml(entitlementText('entitlement.campaign1.title', loc))}</h2>`);
+  } else if (!full) {
     lines.push(`  <h2 class="entitlement-title">${escapeHtml(entitlementText('entitlement.title', loc))}</h2>`);
   }
   lines.push(`  <p class="entitlement-status" role="status" aria-live="polite">${escapeHtml(statusText(statusKey, loc))}</p>`);
@@ -148,12 +161,37 @@ export function buildEntitlementMarkup({
     lines.push(`  <p class="entitlement-unlock">${escapeHtml(entitlementText('entitlement.unlock', loc))}</p>`);
     lines.push(`  <p class="entitlement-device">${escapeHtml(entitlementText('entitlement.device', loc))}</p>`);
   }
-  lines.push('  <div class="entitlement-actions">');
-  if (showBuy && !full) {
-    lines.push(`    <button type="button" class="diff-btn action-primary" data-entitlement-action="buy"${disabled}>${escapeHtml(buy)}</button>`);
+  const buyButton = showBuy && !full
+    ? `    <button type="button" class="diff-btn action-primary" data-entitlement-action="buy"${disabled}>${escapeHtml(buy)}</button>`
+    : null;
+  const restoreButton = `    <button type="button" class="diff-btn" data-entitlement-action="restore"${disabled}>${escapeHtml(restore)}</button>`;
+  if (!campaign2) {
+    lines.push('  <div class="entitlement-actions">');
+    if (buyButton) lines.push(buyButton);
+    lines.push(restoreButton);
+    lines.push('  </div>');
+  } else if (buyButton) {
+    lines.push('  <div class="entitlement-actions">', buyButton, '  </div>');
   }
-  lines.push(`    <button type="button" class="diff-btn" data-entitlement-action="restore"${disabled}>${escapeHtml(restore)}</button>`);
-  lines.push('  </div>');
+  if (campaign2) {
+    const owned = campaign2.owned === true;
+    const buy2 = campaign2.price
+      ? paywallText('paywall.buy', loc, { price: campaign2.price })
+      : paywallText('paywall.campaign2.buyNoPrice', loc);
+    lines.push(`  <section class="entitlement-product entitlement-campaign2" data-entitlement-campaign2="${owned ? 'owned' : 'offered'}">`);
+    lines.push(`    <h2 class="entitlement-title">${escapeHtml(entitlementText('entitlement.campaign2.title', loc))}</h2>`);
+    if (owned) {
+      lines.push(`    <p class="entitlement-status">${escapeHtml(entitlementText('entitlement.campaign2.owned', loc))}</p>`);
+    } else {
+      lines.push(`    <p class="entitlement-unlock">${escapeHtml(entitlementText('entitlement.campaign2.offer', loc))}</p>`);
+      lines.push('    <div class="entitlement-actions">');
+      lines.push(`      <button type="button" class="diff-btn action-primary" data-entitlement-action="buyCampaign2"${disabled}>${escapeHtml(buy2)}</button>`);
+      lines.push('    </div>');
+    }
+    lines.push('  </section>');
+    // One Restore under both products: the store restores every purchase at once.
+    lines.push('  <div class="entitlement-actions">', restoreButton, '  </div>');
+  }
   if (!full || outcomeText) {
     lines.push(`  <p class="entitlement-outcome${outcomeError ? ' error-msg' : ''}" role="status" aria-live="polite">${escapeHtml(outcomeText)}</p>`);
   }
@@ -191,7 +229,7 @@ export function createDomEntitlementView({ root } = {}) {
   return {
     render(markup, handlers = {}) {
       root.innerHTML = markup;
-      for (const action of ['buy', 'restore']) {
+      for (const action of ['buy', 'buyCampaign2', 'restore']) {
         root
           .querySelector(`[data-entitlement-action="${action}"]`)
           ?.addEventListener('click', handlers[action]);
@@ -230,6 +268,8 @@ export function createEntitlementPanel({
   totalLevels = null,
   onGranted = () => {},
   onExtrasRestored = () => {},
+  // Called after Campaign II was bought here, so the caller can refresh the campaign switch.
+  onCampaign2Granted = () => {},
   probe = probeFreeLevels,
 } = {}) {
   if (!platform || typeof platform.getBillingStatus !== 'function') {
@@ -241,8 +281,20 @@ export function createEntitlementPanel({
   const store = purchaseStore ?? createPurchaseStore({ plugin: plugin ?? createPurchasesPlugin() });
   const screen = view ?? createDomEntitlementView({ root });
 
+  // Campaign II is sold here whenever the platform can tell whether it is owned.
+  const sellsCampaign2 = typeof platform.getOwnedProductIds === 'function';
+  // The same store, bound to Campaign II: price, purchase and restore all go through the one
+  // injected store (and its plugin), only with the other product id.
+  const campaign2Store = {
+    productId: CAMPAIGN2_PRODUCT_ID,
+    queryProduct: () => store.queryProduct(CAMPAIGN2_PRODUCT_ID),
+    purchase: (options = {}) => store.purchase({ ...options, productId: CAMPAIGN2_PRODUCT_ID }),
+    restore: (options) => store.restore(options),
+  };
+
   let status = null;
   let product = null;
+  let campaign2 = sellsCampaign2 ? { owned: false, price: null } : null;
   let freeCount = null;
   let outcome = null;
   let busy = false;
@@ -280,8 +332,9 @@ export function createEntitlementPanel({
       outcomeError: Boolean(outcome?.error),
       busy,
       showBuy: !premium && statusKey !== 'error',
+      campaign2,
     });
-    screen.render(markup, { buy, restore });
+    screen.render(markup, { buy, buyCampaign2, restore });
     screen.setBusy(busy);
   }
 
@@ -309,6 +362,8 @@ export function createEntitlementPanel({
       const queried = await store.queryProduct().catch(() => ({ product: null }));
       if (destroyed || version !== loadVersion) return null;
       product = queried?.product ?? null;
+      await readCampaign2();
+      if (destroyed || version !== loadVersion) return null;
       return status;
     } catch {
       if (destroyed || version !== loadVersion) return null;
@@ -324,6 +379,17 @@ export function createEntitlementPanel({
     }
   }
 
+  // Owned and price of Campaign II; a store that cannot answer leaves it offered, without a price.
+  async function readCampaign2() {
+    if (!sellsCampaign2) return;
+    let owned = false;
+    try { owned = ((await platform.getOwnedProductIds()) ?? []).includes(CAMPAIGN2_PRODUCT_ID); } catch { owned = false; }
+    const queried = owned ? null : await campaign2Store.queryProduct().catch(() => ({ product: null }));
+    campaign2 = { owned, price: owned ? null : priceLabel(queried?.product) };
+  }
+
+  const silentView = () => ({ render() {}, setStatus() {}, setBusy() {}, close() {} });
+
   function paywallForCurrentLocale() {
     const loc = resolveLocale(getLocale());
     if (!paywall || paywallLocale !== loc) {
@@ -332,12 +398,7 @@ export function createEntitlementPanel({
         locale: loc,
         purchaseStore: store,
         gateUi,
-        view: {
-          render() {},
-          setStatus() {},
-          setBusy() {},
-          close() {},
-        },
+        view: silentView(),
         onGranted: () => onGranted(),
       });
       paywallLocale = loc;
@@ -353,7 +414,40 @@ export function createEntitlementPanel({
     let owned = [];
     try { owned = (await platform.getOwnedProductIds()) ?? []; } catch { owned = []; }
     if (owned.length) onExtrasRestored(owned);
+    if (campaign2) campaign2 = { ...campaign2, owned: owned.includes(CAMPAIGN2_PRODUCT_ID) || campaign2.owned };
     return owned;
+  }
+
+  // Campaign II is bought here without the full unlock: its own paywall controller, bound
+  // to the Campaign II product, with the same parental gate.
+  async function buyCampaign2() {
+    if (!sellsCampaign2 || busy || destroyed) return null;
+    busy = true;
+    outcome = null;
+    render();
+    try {
+      const result = await createPaywall({
+        platform,
+        locale: resolveLocale(getLocale()),
+        product: 'campaign2',
+        purchaseStore: campaign2Store,
+        gateUi,
+        view: silentView(),
+        onGranted: () => onCampaign2Granted(),
+      }).buy();
+      const mapped = outcomeFromResult(result, 'buy');
+      outcome = result?.granted ? { key: 'paywall.campaign2.success', error: false } : mapped;
+      if (result?.granted) campaign2 = { ...campaign2, owned: true };
+      return result;
+    } catch {
+      outcome = { key: 'paywall.error', error: true };
+      return null;
+    } finally {
+      if (!destroyed) {
+        busy = false;
+        render();
+      }
+    }
   }
 
   async function run(action) {
@@ -409,9 +503,11 @@ export function createEntitlementPanel({
     refresh,
     render,
     buy,
+    buyCampaign2,
     restore,
     destroy,
     getStatus: () => status,
+    getCampaign2: () => campaign2,
     getFreeCount: () => freeCount,
     getOutcome: () => outcome,
   };

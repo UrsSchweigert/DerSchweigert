@@ -107,6 +107,8 @@ const EXCLUDED_SAMPLES = [
   'beta/index.html',
   'beta/beta.css',
   'beta/README.md',
+  'game/phone-frame.js',
+  'phone-frame.css',
   '.DS_Store',
 ];
 

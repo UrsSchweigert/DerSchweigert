@@ -15,6 +15,12 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="story/player/diorama-player.css">
   <link rel="stylesheet" href="boss.css">
+  <!-- app-omit:start -->
+  <!-- Web only: on a wide screen the game plays inside a portrait phone frame. The script
+       must stay the last thing in <head> (it decides before the body is parsed). -->
+  <link rel="stylesheet" href="phone-frame.css">
+  <script src="game/phone-frame.js"></script>
+  <!-- app-omit:end -->
 </head>
 <body>
   <div id="loading-overlay">
@@ -98,8 +104,9 @@
         <button type="button" data-title-target="family" data-i18n="profiles.switchPlayer">Switch player</button>
       </div>
       <p id="continue-level" class="splash-subtitle"></p>
-      <!-- App only: the picture of Campaign II, shown while the active player has
-           chosen it. The switch itself lives on the Players page (main.js moves it). -->
+      <!-- The picture of Campaign II, shown while the active player has chosen it. The switch
+           itself lives on the Players page in the app and in the account profile on the web
+           (main.js moves it there); a tap on the picture leads to it. -->
       <button type="button" id="campaign-emblem" class="campaign-emblem" data-title-target="family" hidden data-i18n-aria-label="campaign.emblem" aria-label="Campaign II: Genius. Change it on the Players page.">
         <img class="campaign-switch-dragon" src="game/intro-replay.webp" alt="" width="176" height="176">
         <span class="campaign-switch-text" aria-hidden="true">
@@ -108,9 +115,9 @@
         </span>
         <img class="campaign-switch-dragon campaign-switch-dragon--mirror" src="game/intro-replay.webp" alt="" width="176" height="176">
       </button>
-      <!-- Appears once the player has beaten level 40 for the first time (campaign2/genius.js),
-           or at once for an app owner of Campaign II. Names the campaign being played; a tap
-           switches to the other one. -->
+      <!-- Always offered (campaign2/access.js): Campaign II needs no Campaign I progress and not
+           the full unlock. Names the campaign being played; a tap switches to the other one, or
+           opens the Campaign II purchase (app) or the subscription (web) while it is locked. -->
       <div id="genius-campaign" class="campaign-switch" hidden>
         <button type="button" id="genius-campaign-btn" class="campaign-switch-btn" aria-pressed="false">
           <img class="campaign-switch-dragon" src="game/intro-replay.webp" alt="" width="176" height="176">

@@ -256,9 +256,10 @@ test('the one Restore also brings Campaign II back and says so', async () => {
     purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.GATED, entitled: false } }),
     totalLevels: 60,
   });
+  const readsBeforeRestore = reads;   // loading the panel reads it once, for the Campaign II row
   await gated.panel.restore();
   assert.equal(gated.panel.getOutcome().key, 'paywall.gated');
-  assert.equal(reads, 0, 'a failed gate never reads the store');
+  assert.equal(reads, readsBeforeRestore, 'a failed gate never reads the store');
   const nothing = await loadedPanel({
     platform: withExtra({ status: { premium_access: false } }, []),
     purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false } }),
@@ -351,4 +352,81 @@ test('the status line is centered in the panel', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('../game/mobile-ui.css', import.meta.url), 'utf8');
   assert.match(css, /\.entitlement-status\s*\{[^}]*text-align:\s*center/);
+});
+
+// Owner decision after #586: Campaign II is listed next to the full unlock and is fully
+// independent of it. Either can be bought first, and owning one never hides the other.
+test('Campaign II is listed next to the full unlock, whatever the full-unlock state', async () => {
+  const withExtra = (status, ids) => Object.assign(fakePlatform({ status }), { async getOwnedProductIds() { return ids; } });
+  for (const premium of [false, true]) {
+    const { view } = await loadedPanel({
+      platform: withExtra({ premium_access: premium }, []), purchaseStore: fakeStore(), totalLevels: 60,
+    });
+    assert.match(view.markup, /Campaign I: Arithmetic/);
+    assert.match(view.markup, /Campaign II: Genius/);
+    assert.match(view.markup, /data-entitlement-campaign2="offered"/);
+    assert.match(view.markup, /data-entitlement-action="buyCampaign2"[^>]*>Buy for 4,99 €</, 'the store price of Campaign II');
+    assert.match(view.markup, /does not need the full unlock/);
+    assert.equal((view.markup.match(/data-entitlement-action="restore"/g) ?? []).length, 1, 'one Restore for both');
+    assert.ok(view.markup.indexOf('buyCampaign2') < view.markup.indexOf('data-entitlement-action="restore"'), 'Restore sits under both products');
+  }
+  // Campaign II owned without the full unlock: the full unlock is still offered.
+  const only2 = await loadedPanel({
+    platform: withExtra({ premium_access: false }, [CAMPAIGN2_PRODUCT_ID]), purchaseStore: fakeStore(), totalLevels: 60,
+  });
+  assert.match(only2.view.markup, /data-entitlement-campaign2="owned"[\s\S]*Campaign II unlocked/);
+  assert.match(only2.view.markup, /data-entitlement-action="buy"/);
+  assert.doesNotMatch(only2.view.markup, /buyCampaign2/);
+  const german = buildEntitlementMarkup({ locale: 'de', statusKey: 'free', campaign2: { owned: false, price: null } });
+  assert.match(german, /Abenteuer II: Genie/);
+  assert.match(german, /Abenteuer II kaufen/);
+  assert.match(german, /Abenteuer I: Rechnen/);
+  for (const text of [german, only2.view.markup]) assert.doesNotMatch(text, /subscription|Abo|level 40/i);
+});
+
+test('buying Campaign II from the panel buys that product only, through the parental gate', async () => {
+  const gateUi = { ask: async () => 42 };
+  const store = fakeStore({ purchase: { outcome: PURCHASE_OUTCOMES.SUCCESS } });
+  let owned = [];
+  const granted = [];
+  const platform = Object.assign(fakePlatform({ status: { premium_access: false } }), {
+    async getOwnedProductIds() { return owned; },
+  });
+  const { panel, view } = await loadedPanel({
+    platform, purchaseStore: store, gateUi, totalLevels: 60, onCampaign2Granted: () => granted.push(1),
+  });
+  const originalPurchase = store.purchase;
+  store.purchase = async (options) => { owned = [CAMPAIGN2_PRODUCT_ID]; return originalPurchase(options); };
+  const result = await panel.buyCampaign2();
+  assert.equal(result.granted, true);
+  assert.equal(store.calls[0][0], 'purchase');
+  assert.equal(store.calls[0][1].productId, CAMPAIGN2_PRODUCT_ID, 'never the full unlock');
+  assert.equal(store.calls[0][1].ui, gateUi);
+  assert.equal(panel.getOutcome().key, 'paywall.campaign2.success');
+  assert.deepEqual(granted, [1]);
+  assert.match(view.markup, /data-entitlement-campaign2="owned"/);
+  assert.equal(panel.getStatus().premium_access, false, 'the full unlock is untouched');
+  assert.match(view.markup, /data-entitlement-action="buy"/, 'the full unlock is still for sale');
+
+  // A cancelled Campaign II purchase is reported like any other cancellation.
+  const cancelled = await loadedPanel({
+    platform: Object.assign(fakePlatform(), { async getOwnedProductIds() { return []; } }),
+    purchaseStore: fakeStore({ purchase: { outcome: PURCHASE_OUTCOMES.CANCELLED } }), totalLevels: 60,
+  });
+  await cancelled.panel.buyCampaign2();
+  assert.equal(cancelled.panel.getOutcome().key, 'paywall.cancelled');
+});
+
+test('Restore marks Campaign II as owned in the list, also without the full unlock', async () => {
+  const platform = Object.assign(fakePlatform({ status: { premium_access: false } }), {
+    reads: 0,
+    async getOwnedProductIds() { platform.reads += 1; return platform.reads > 1 ? [CAMPAIGN2_PRODUCT_ID] : []; },
+  });
+  const { panel, view } = await loadedPanel({
+    platform, purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false } }), totalLevels: 60,
+  });
+  assert.match(view.markup, /data-entitlement-campaign2="offered"/);
+  await panel.restore();
+  assert.equal(panel.getOutcome().key, 'paywall.campaign2.restored');
+  assert.match(view.markup, /data-entitlement-campaign2="owned"/);
 });

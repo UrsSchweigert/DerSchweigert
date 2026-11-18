@@ -73,6 +73,10 @@ export const EXCLUDED = [
   // has no marketing page.
   /^promo(\/|$)/,
   /^beta(\/|$)/,
+  // The desktop phone frame is web-only: the app is the phone (index.html links
+  // both files inside app-omit, so nothing in the bundle refers to them).
+  /^game\/phone-frame\.js$/,
+  /^phone-frame\.css$/,
 ];
 
 export const REQUIRED_FILES = ['index.html', 'styles.css', 'game/main.js', 'game/level-data.js'];

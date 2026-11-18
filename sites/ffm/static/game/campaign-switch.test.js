@@ -1,6 +1,6 @@
 // campaign-switch.test.js — the campaign choice belongs to the player, the app keeps the
-// switch on the Players page, and the title shows the Campaign II picture only to a player
-// who chose it.
+// switch on the Players page and the web in the account profile, Campaign II is offered with
+// no level-40 gate, and the title shows the Campaign II picture only to a player who chose it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -54,13 +54,25 @@ test('main.js reloads the choice for the active player and stores every switch',
   assert.doesNotMatch(handler.slice(0, handler.indexOf('renderCampaignSwitch();')), /selectedCampaign = /);
 });
 
-test('the app moves the switch onto the Players page, above the purchase panel', () => {
+test('the app moves the switch onto the Players page, the web into the account profile', () => {
   assert.match(main, /if \(platform\.isApp\) \{[\s\S]{0,200}familyPage\.insertBefore\(switchWrap, document\.getElementById\('entitlement-root'\)\)/);
+  assert.match(main, /\} else \{[\s\S]{0,200}profilePanel\.insertBefore\(switchWrap, document\.getElementById\('account-hero-picker'\)\)/);
+  assert.match(html, /id="account-profile-panel"[\s\S]*id="account-hero-picker"/);
 });
 
-test('the title shows the Campaign II picture only in the app and only while it is chosen', () => {
+test('Campaign II is offered with no level gate and no reveal flag', () => {
+  // Owner decision after #586: Campaign II is independent of Campaign I.
+  assert.doesNotMatch(main, /noteGeniusProgress|geniusReveal|geniusEarned|geniusButtonVisible|campaign2\/genius\.js/);
+  assert.match(main, /const visible = campaignSwitchVisible\(\{/);
+  assert.doesNotMatch(html, /level 40/i, 'no markup comment promises a level-40 reveal');
+});
+
+test('the title shows the Campaign II picture only while it is chosen, and it leads to the switch', () => {
   assert.match(html, /<button type="button" id="campaign-emblem" class="campaign-emblem" data-title-target="family" hidden/);
-  assert.match(main, /emblem\.hidden = !platform\.isApp \|\| wrap\.hidden \|\| selectedCampaign !== 2;/);
+  assert.match(main, /emblem\.hidden = wrap\.hidden \|\| selectedCampaign !== 2;/);
+  // The web has no Players page: the picture opens the account profile that holds the switch.
+  assert.match(main, /emblem\.removeAttribute\('data-title-target'\);[\s\S]{0,400}showAccountTab\(tabAccountProfile, accountProfilePanel\);/);
+  assert.match(i18n, /'campaign\.emblem\.web': \{ en: '[^']*profile[^']*', de: '[^']*Profil[^']*' \}/);
 });
 
 test('the switch names the campaign being played, with dragons and in the menu colours', () => {
@@ -80,4 +92,11 @@ test('the switch and the picture scale with the space they get', () => {
   assert.match(rules, /\.campaign-switch-btn \{[^}]*max-width: 100%;/);
   assert.match(rules, /\.campaign-switch-title \{[^}]*font-size: clamp\(/);
   assert.match(rules, /container-type: inline-size;/);
+});
+
+test('the web profile that holds the switch scrolls instead of cutting it off', () => {
+  // A phone held sideways, a short window or the desktop phone frame is shorter than the
+  // Profile tab (email form, campaign switch, hero picker): the card itself scrolls.
+  assert.match(css, /#account-modal \.overlay-card \{ overflow-y: auto;/);
+  assert.match(css, /#account-modal \.overlay-card > \* \{ flex-shrink: 0; \}/);
 });

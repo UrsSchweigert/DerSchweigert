@@ -1981,6 +1981,12 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 }
 #level-clear .overlay-card, #game-over .overlay-card { overflow-y: auto; }
 #level-clear .overlay-card > *, #game-over .overlay-card > * { flex-shrink: 0; }
+/* The web account dialog scrolls as one card: its Profile tab (email form, campaign switch,
+ * hero picker) is taller than a phone screen held sideways, and a short window or the phone
+ * frame (phone-frame.js) must not cut its lower half off unreachably. The panels keep their
+ * height instead of being squeezed. */
+#account-modal .overlay-card { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+#account-modal .overlay-card > * { flex-shrink: 0; }
 #level-attempt-summary, #defeat-attempt-summary { white-space: pre-line; overflow-wrap: normal; }
 #level-attempt-summary:empty, #defeat-attempt-summary:empty { display: none; }
 /* Next-scene preview: the upcoming level's art above its title. The inline

@@ -237,7 +237,7 @@ const DICTIONARY = {
   'help.levels.tip2': { en: 'When all 60 levels are cleared, play restarts at level 1.', de: 'Wenn alle 60 Level geschafft sind, beginnt das Spiel wieder bei Level 1.' },
   'help.levels.tip3': { en: 'Training modes never unlock campaign levels.', de: 'Übungsarten schalten nie Abenteuerlevel frei.' },
   'help.players.title': { en: 'Family players', de: 'Familien-Spieler' },
-  'help.players.summary': { en: 'Rename, switch or delete the local players on this device, choose each player’s campaign and restore purchases.', de: 'Lokale Spieler auf diesem Gerät umbenennen, wechseln oder löschen, das Abenteuer jedes Spielers wählen und Käufe wiederherstellen.' },
+  'help.players.summary': { en: 'Rename, switch or delete the local players on this device, choose each player’s campaign, buy the full unlock or Campaign II and restore purchases.', de: 'Lokale Spieler auf diesem Gerät umbenennen, wechseln oder löschen, das Abenteuer jedes Spielers wählen, die Vollversion oder Abenteuer II kaufen und Käufe wiederherstellen.' },
   'help.players.tip1': { en: 'Each player keeps separate progress, scores, practice badges, hero and campaign choice.', de: 'Jeder Spieler hat eigenen Fortschritt, eigene Punkte, Übungsabzeichen, Helden und eigene Abenteuer-Wahl.' },
   'help.players.tip2': { en: 'Adding players comes with the full unlock; at least one player must remain.', de: 'Weitere Spieler gibt es mit der Vollversion; mindestens ein Spieler muss bleiben.' },
   'help.players.tip3': { en: 'Deleting a player removes that player’s data.', de: 'Beim Löschen eines Spielers werden seine Daten entfernt.' },
@@ -408,8 +408,8 @@ const DICTIONARY = {
   'campaign.complete': { en: 'Campaign complete — replay your favourites', de: 'Abenteuer geschafft — spiele deine Lieblingslevel erneut' },
   'campaign.victory': { en: 'Adventure complete!', de: 'Abenteuer geschafft!' },
   'campaign.chooseLevel': { en: 'Continue or replay a cleared level:', de: 'Weiterspielen oder ein geschafftes Level wiederholen:' },
-  // The campaign switch (Players page in the app, title screen on the web) names the
-  // campaign being played and offers the other one.
+  // The campaign switch (the Players page in the app, the account profile on the web) names
+  // the campaign being played and offers the other one. Campaign II needs no Campaign I.
   'campaign.switch.eyebrow1': { en: 'Campaign I', de: 'Abenteuer I' },
   'campaign.switch.eyebrow2': { en: 'Campaign II', de: 'Abenteuer II' },
   'campaign.switch.title1': { en: 'Arithmetic', de: 'Rechnen' },
@@ -418,6 +418,7 @@ const DICTIONARY = {
   'campaign.switch.toArithmetic': { en: 'Switch to Arithmetic', de: 'Zu Rechnen wechseln' },
   'campaign.switch.unlock': { en: 'Unlock Genius', de: 'Genie freischalten' },
   'campaign.emblem': { en: 'Campaign II: Genius. Change it on the Players page.', de: 'Abenteuer II: Genie. Wechsle es auf der Spieler-Seite.' },
+  'campaign.emblem.web': { en: 'Campaign II: Genius. Change it in your profile.', de: 'Abenteuer II: Genie. Wechsle es in deinem Profil.' },
   'campaign2.continueAt': { en: 'Campaign II: continue at Level {level}', de: 'Abenteuer II: weiter bei Level {level}' },
   'campaign2.complete': { en: 'Campaign II complete — replay from the start', de: 'Abenteuer II geschafft — spiele von vorn' },
   'campaign2.note.web': {
@@ -425,8 +426,8 @@ const DICTIONARY = {
     de: 'Abenteuer II (Brüche, Potenzen, Wurzeln und Logarithmen) ist im Abo enthalten. Melde dich an und schließe das Abo ab, um zu spielen.',
   },
   'campaign2.note.app': {
-    en: 'Campaign II (fractions, powers, roots and logarithms) is a separate in-app purchase. Start a level on the Play page to unlock it.',
-    de: 'Abenteuer II (Brüche, Potenzen, Wurzeln und Logarithmen) ist ein separater In-App-Kauf. Starte auf der Spielen-Seite ein Level, um es freizuschalten.',
+    en: 'Campaign II (fractions, powers, roots and logarithms) is a separate in-app purchase, listed below next to the full unlock. It does not need the full unlock.',
+    de: 'Abenteuer II (Brüche, Potenzen, Wurzeln und Logarithmen) ist ein separater In-App-Kauf, unten neben der Vollversion. Die Vollversion ist dafür nicht nötig.',
   },
   'campaign.startAt': { en: 'Start at level {level}', de: 'Beginne bei Level {level}' },
   'title.levelNumerals': { en: 'Starting level {level}', de: 'Startlevel {level}' },

@@ -308,6 +308,15 @@ test('stripAppOnlyDom removes marked regions and rejects an unclosed marker', ()
   );
 });
 
+// The web's desktop phone frame (static/game/phone-frame.js) must never reach the app: the
+// app is the phone, and a framed app on a tablet would run the game in an iframe.
+test('the app bundle carries no phone frame', async () => {
+  assert.ok(isExcluded('game/phone-frame.js'));
+  assert.ok(isExcluded('phone-frame.css'));
+  const index = stripAppOnlyDom(await readFile(join(staticDir, 'index.html'), 'utf8'));
+  assert.doesNotMatch(index, /phone-frame/);
+});
+
 test('APP_OVERLAY points at the app-only game modules', () => {
   assert.equal(toPosix(APP_OVERLAY), toPosix(join(root, 'game')));
 });
