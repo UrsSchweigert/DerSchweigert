@@ -66,37 +66,6 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
   }
 }
 
-# ── Stats PIN Guard (CloudFront Function) ────────────────────────────────────
-# Runs at the edge on every /stats.html viewer-request.
-# Checks for the lhc_pin cookie; redirects to /stats-login.html if absent or wrong.
-# The PIN is also validated server-side in the FastAPI stats endpoint via
-# X-Stats-Pin header, providing defence in depth.
-#
-# ⚠️ PIN CHANGE: the PIN comes from var.stats_pin (DERSCHWEIGERT_ADMIN_PIN secret), shared
-# with the Lambda STATS_PIN env var. Run `tofu apply` + `bash scripts/deploy.sh aws --frontend-only`.
-
-resource "aws_cloudfront_function" "stats_pin_guard" {
-  name    = "${local.name}-stats-pin-guard"
-  runtime = "cloudfront-js-2.0"
-  comment = "Guard /stats.html — redirect to /stats-login.html if lhc_pin cookie is missing or wrong"
-  publish = true
-
-  code = <<-EOT
-    function handler(event) {
-      var cookies = event.request.cookies;
-      var pin = cookies['lhc_pin'];
-      if (!pin || pin.value !== '${var.stats_pin}') {
-        return {
-          statusCode: 302,
-          statusDescription: 'Found',
-          headers: { location: { value: '/stats-login.html' } }
-        };
-      }
-      return event.request;
-    }
-  EOT
-}
-
 # ── Origin Access Control ─────────────────────────────────────────────────────
 # OAC is the modern way to let CloudFront sign requests to S3 (replaces OAI).
 
@@ -191,47 +160,10 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
-      # Include CloudFront viewer geographic headers so the backend can geolocate
-      # sessions without external API calls. These are added by CloudFront automatically.
-      headers = [
-        "Authorization", "Accept", "Content-Type", "Origin",
-        "CloudFront-Viewer-Country",
-        "CloudFront-Viewer-City",
-        "CloudFront-Viewer-Latitude",
-        "CloudFront-Viewer-Longitude",
-        "X-Stats-Pin",
-      ]
-      # Forward lhc_devmode so the Lambda middleware can skip tracking for the developer.
+      headers = ["Authorization", "Accept", "Content-Type", "Origin"]
       cookies {
-        forward = "whitelist"
-        whitelisted_names = ["lhc_devmode"]
+        forward = "none"
       }
-    }
-  }
-
-  # /stats.html — protected by CloudFront Function PIN guard.
-  # Cookie is NOT forwarded to S3 (OAC doesn't need it); the CF Function
-  # runs before the origin request and handles the auth redirect.
-  ordered_cache_behavior {
-    path_pattern              = "/stats.html"
-    allowed_methods           = ["GET", "HEAD"]
-    cached_methods            = ["GET", "HEAD"]
-    target_origin_id          = "S3-${aws_s3_bucket.frontend.bucket}"
-    viewer_protocol_policy    = "redirect-to-https"
-    compress                  = true
-    min_ttl                   = 0
-    default_ttl               = 0
-    max_ttl                   = 0
-    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
-
-    function_association {
-      event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.stats_pin_guard.arn
-    }
-
-    forwarded_values {
-      query_string = false
-      cookies { forward = "none" }
     }
   }
 
