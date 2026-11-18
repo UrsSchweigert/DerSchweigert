@@ -457,3 +457,25 @@ describe('hero picker keys', () => {
     assert.equal(t('heroes.portraitAlt', { name: 'Mönch' }), 'Porträt von Mönch');
   });
 });
+
+// The in-app help follows the Players page of #586: adding players needs the full unlock,
+// the page holds the campaign choice and Restore, and sound sits in the title bar and the
+// pause card's speaker button (not a pause-menu entry any more).
+describe('in-app help matches the current Players page and sound controls', () => {
+  it('says so in both languages', () => {
+    setLocale('en');
+    assert.match(t('help.players.tip2'), /full unlock/);
+    assert.match(t('help.players.summary'), /campaign/);
+    assert.match(t('help.players.summary'), /restore purchases/);
+    assert.match(t('help.title.tip1'), /more players/);
+    assert.match(t('help.title.tip3'), /speaker button/);
+    assert.doesNotMatch(t('campaign2.note.app'), /Tap a difficulty/);
+    setLocale('de');
+    assert.match(t('help.players.tip2'), /Vollversion/);
+    assert.match(t('help.players.summary'), /Abenteuer/);
+    assert.match(t('help.players.summary'), /Käufe wiederherstellen/);
+    assert.match(t('help.title.tip1'), /weitere Spieler/);
+    assert.match(t('help.title.tip3'), /Lautsprechertaste/);
+    assert.doesNotMatch(t('campaign2.note.app'), /Tippe auf eine Schwierigkeit/);
+  });
+});

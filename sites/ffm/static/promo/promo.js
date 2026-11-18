@@ -68,12 +68,12 @@ export const DICTIONARY = {
   },
   'gen.primary.title': { de: 'Grundschule', en: 'Primary school' },
   'gen.primary.text': {
-    de: 'Hier beginnt das Rechnen: Easy gibt 15 Sekunden und 7 Herzen, und der Feldzug über 60 Level öffnet sich Akt für Akt.',
+    de: 'Hier beginnt das Rechnen: Leicht gibt 15 Sekunden und 7 Herzen, und das Abenteuer über 60 Level öffnet sich Akt für Akt.',
     en: 'Where the arithmetic starts: Easy gives 15 seconds and 7 hearts, and the 60-level campaign opens up act by act.',
   },
   'gen.adults.title': { de: 'Erwachsene', en: 'Adults' },
   'gen.adults.text': {
-    de: 'Reflex-Training: Hard gibt 5 Sekunden und 3 Herzen, Combos belohnen Serien, und die Bestenliste vergleicht Jahrgänge.',
+    de: 'Reflex-Training: Schwer gibt 5 Sekunden und 3 Herzen, Combos belohnen Serien, und die Bestenliste vergleicht Jahrgänge.',
     en: 'Reflex training: Hard gives 5 seconds and 3 hearts, combos reward streaks, and the leaderboard compares year groups.',
   },
   'gen.note': {
@@ -101,18 +101,24 @@ export const DICTIONARY = {
   'art.act6': { de: 'Akt 6 · Der leere Thron', en: 'Act 6 · The Empty Throne' },
   'art.actionTitle': { de: 'Der Held im Kampf', en: 'The hero in combat' },
   'art.actionText': {
-    de: 'Drei Momente aus dem Kampf, gemalt im Stil der Bühnen: Nahkampf, Feuerball und die Blitzkugel als Combo-Finale.',
-    en: 'Three moments from combat, painted in the style of the stages: melee, fireball and a lightning combo finish.',
+    de: 'Drei Momente aus dem Kampf, gemalt im Stil der Bühnen: Nahkampf, Feuerball und die Blitzkugel als Combo-Angriff.',
+    en: 'Three moments from combat, painted in the style of the stages: melee, fireball and a lightning combo strike.',
   },
   'art.actionFight': { de: 'Nahkampf – der Hieb sitzt.', en: 'Melee — the swing lands.' },
   'art.actionFireball': { de: 'Feuerball auf Distanz.', en: 'Fireball at range.' },
-  'art.actionLightning': { de: 'Blitzkugel als Combo-Finale.', en: 'Lightning ball as the combo finale.' },
+  'art.actionLightning': {
+    de: 'Blitzkugel ab Serie 11.',
+    en: 'Lightning ball from combo 11.',
+  },
   'art.fiendsTitle': { de: '36 Feinde und ein Drache', en: '36 fiends and a dragon' },
   'art.fiendsText': {
-    de: '36 einzeln gezeichnete Feind-Sprites in zwei Sets, vom Schleim bis zum Skelett-Krieger, dazu ein Drache als Boss. 16-Bit-Nostalgie, gemalt wie ein Papiertheater.',
-    en: '36 individually drawn fiend sprites in two sets, from slime to skeleton warrior, plus a dragon as the boss. 16-bit nostalgia, painted like a paper theatre.',
+    de: '36 einzeln gezeichnete Feind-Sprites in zwei Sets, vom Schleim bis zum Skelett-Krieger, dazu der Drache als höchste Combo-Stufe. 16-Bit-Nostalgie, gemalt wie ein Papiertheater.',
+    en: '36 individually drawn fiend sprites in two sets, from slime to skeleton warrior, plus the dragon as the highest combo tier. 16-bit nostalgia, painted like a paper theatre.',
   },
-  'art.dragonCaption': { de: 'Der Drache wartet am Ende des Feldzugs.', en: 'The dragon waits at the end of the campaign.' },
+  'art.dragonCaption': {
+    de: 'Ab Serie 21 greift der Drache ein.',
+    en: 'From combo 21 the dragon joins the fight.',
+  },
 
   // Gameplay filmstrip: real portrait captures from the app build
   'shots.kicker': { de: 'Aus dem Spiel', en: 'From the game' },
@@ -132,10 +138,13 @@ export const DICTIONARY = {
   'play.kicker': { de: 'So spielt es sich', en: 'How it plays' },
   'play.title': { de: 'Drei Schwierigkeiten, ein Formen-Modus', en: 'Three difficulties, a shapes mode' },
   'play.lead': {
-    de: 'Du wählst das Tempo, das Spiel liefert die Fragen: Easy, Medium und Hard führen durch dieselben 60 Level in sechs Akten – Shapes ist der freie Formen-Modus daneben.',
+    de: 'Du wählst das Tempo, das Spiel liefert die Fragen: Leicht, Mittel und Schwer führen durch dieselben 60 Level in sechs Akten – Formen ist der freie Zähl-Modus daneben.',
     en: 'You pick the tempo, the game brings the questions: Easy, Medium and Hard lead through the same 60 levels in six acts – Shapes is the free-form practice mode alongside.',
   },
-  'play.shapes.name': { de: 'Shapes', en: 'Shapes' },
+  'play.shapes.name': {
+    de: 'Formen',
+    en: 'Shapes',
+  },
   'play.shapes.icons': {
     de: 'Formen-Modus: Quadrat, Dreieck und Kreis zählen',
     en: 'Shapes mode: counting squares, triangles and circles',
@@ -145,15 +154,24 @@ export const DICTIONARY = {
     de: 'Der Einstieg ohne Druck: Formen zählen ohne Punkte und ohne Ende – 25 Sekunden pro Frage, 9 Herzen.',
     en: 'The no-pressure entry: count shapes with no score and no end – 25 seconds per question, 9 hearts.',
   },
-  'play.easy.name': { de: 'Easy', en: 'Easy' },
+  'play.easy.name': {
+    de: 'Leicht',
+    en: 'Easy',
+  },
   'play.easy.icons': { de: 'Schwierigkeit 1 von 3', en: 'Difficulty 1 of 3' },
   'play.easy.meta': { de: '15 Sekunden · 7 Herzen', en: '15 seconds · 7 hearts' },
   'play.easy.text': { de: 'Viel Zeit, viele Leben. Ideal zum Ankommen.', en: 'Plenty of time, plenty of lives. Ideal to settle in.' },
-  'play.medium.name': { de: 'Medium', en: 'Medium' },
+  'play.medium.name': {
+    de: 'Mittel',
+    en: 'Medium',
+  },
   'play.medium.icons': { de: 'Schwierigkeit 2 von 3', en: 'Difficulty 2 of 3' },
   'play.medium.meta': { de: '10 Sekunden · 5 Herzen', en: '10 seconds · 5 hearts' },
   'play.medium.text': { de: 'Der Takt für jeden Tag: flott, aber fair.', en: 'The everyday tempo: brisk but fair.' },
-  'play.hard.name': { de: 'Hard', en: 'Hard' },
+  'play.hard.name': {
+    de: 'Schwer',
+    en: 'Hard',
+  },
   'play.hard.icons': { de: 'Schwierigkeit 3 von 3', en: 'Difficulty 3 of 3' },
   'play.hard.meta': { de: '5 Sekunden · 3 Herzen', en: '5 seconds · 3 hearts' },
   'play.hard.text': { de: 'Volle Konzentration. Ein Fehler tut weh.', en: 'Full focus. One mistake hurts.' },
@@ -198,8 +216,8 @@ export const DICTIONARY = {
     en: 'Taxes included · renews automatically · cancel anytime',
   },
   'prices.web.f1': {
-    de: 'Level 1–2 gratis, Premium schaltet Level 3–60 frei',
-    en: 'Levels 1–2 free, premium unlocks levels 3–60',
+    de: 'Level 1–2 gratis, Premium schaltet Level 3–60 und Abenteuer II: Genie frei',
+    en: 'Levels 1–2 free, premium unlocks levels 3–60 and Campaign II: Genius',
   },
   'prices.web.f2': { de: 'Cloud-Konto mit synchronisiertem Fortschritt', en: 'Cloud account with synced progress' },
   'prices.web.f3': { de: 'Bestenliste inklusive', en: 'Leaderboard included' },
@@ -214,8 +232,8 @@ export const DICTIONARY = {
     en: 'Unlocked with one payment · no subscription, no renewal',
   },
   'prices.app.f1': {
-    de: 'Einmal zahlen und Level 3–60 freischalten',
-    en: 'Pay once and unlock levels 3–60',
+    de: 'Einmal zahlen und Level 3–60, alle Heldenfarben und weitere Spieler freischalten',
+    en: 'Pay once and unlock levels 3–60, all hero themes and more players',
   },
   'prices.app.f2': { de: 'Kein Konto nötig', en: 'No account required' },
   'prices.app.f3': {
@@ -258,12 +276,15 @@ export const DICTIONARY = {
   'prices.compare.row9': { de: 'Bestenliste', en: 'Leaderboard' },
   'prices.compare.r9web': { de: 'Ja', en: 'Yes' },
   'prices.compare.r9app': { de: 'Nein, in der App ausgeblendet', en: 'No, hidden in the app' },
+  'prices.compare.row10': { de: 'Abenteuer II: Genie', en: 'Campaign II: Genius' },
+  'prices.compare.r10web': { de: 'Ja, im Abo enthalten', en: 'Yes, included in the subscription' },
+  'prices.compare.r10app': { de: 'Eigener Einmalkauf', en: 'Separate one-time purchase' },
   'prices.compare.row8': { de: 'Kündigung', en: 'Cancellation' },
   'prices.compare.r8web': { de: 'Jederzeit im Konto', en: 'Anytime in your account' },
   'prices.compare.r8app': { de: 'Nicht nötig – kein Abo', en: 'Not needed – no subscription' },
   'prices.footnote': {
-    de: 'Alle Preise inklusive Steuern. Der App-Preis ist der geplante Preis; im Store gilt der jeweils lokale Preis. Die Apps erscheinen später in den Stores; bis dahin spielst du Arithmo Slayer im Browser.',
-    en: 'All prices include taxes. The app price is the planned price; the store shows the local price. The apps will arrive in the stores later; until then you play Arithmo Slayer in the browser.',
+    de: 'Alle Preise inklusive Steuern. Der App-Preis ist der geplante Preis; im Store gilt der jeweils lokale Preis. Abenteuer II: Genie ist in der App ein eigener Einmalkauf zum Preis, den der Store zeigt. Die iPhone-App gibt es im App Store, die Android-App folgt bei Google Play.',
+    en: 'All prices include taxes. The app price is the planned price; the store shows the local price. In the app, Campaign II: Genius is a separate one-time purchase at the price the store shows. The iPhone app is on the App Store; the Android app follows on Google Play.',
   },
 
   // Familie
@@ -305,8 +326,8 @@ export const DICTIONARY = {
   },
   'faq.q2': { de: 'Was bekomme ich mit dem Einmalkauf?', en: 'What does the one-time purchase include?' },
   'faq.a2': {
-    de: 'Für 2,99 EUR einmalig schaltest du in der App Level 3–60 frei – ohne Abo. Der Kauf gilt geräteweit für alle Profile auf diesem Gerät; bei einer Erstattung entfällt der Zugang.',
-    en: 'For a one-time EUR 2.99 you unlock levels 3–60 in the app – no subscription. The purchase is device-wide and covers every profile on that device; a refund ends the entitlement.',
+    de: 'Für 2,99 EUR einmalig schaltest du in der App Level 3–60, alle Heldenfarben und weitere Spieler frei – ohne Abo. Der Kauf gilt geräteweit für alle Profile auf diesem Gerät; bei einer Erstattung entfällt der Zugang.',
+    en: 'For a one-time EUR 2.99 you unlock levels 3–60, all hero themes and more players in the app – no subscription. The purchase is device-wide and covers every profile on that device; a refund ends the entitlement.',
   },
   'faq.q3': { de: 'Muss ich zahlen, um es auszuprobieren?', en: 'Do I have to pay to try it?' },
   'faq.a3': {
@@ -326,6 +347,11 @@ export const DICTIONARY = {
   'faq.q6': { de: 'Welche Sprachen gibt es?', en: 'Which languages are available?' },
   'faq.a6': { de: 'Das Spiel gibt es auf Deutsch und Englisch – diese Website ebenfalls.', en: 'The game is available in German and English – and so is this website.' },
   'faq.q7': { de: 'Brauchen Kinder in der App ein Konto?', en: 'Do kids need an account in the app?' },
+  'faq.q8': { de: 'Was ist Abenteuer II: Genie?', en: 'What is Campaign II: Genius?' },
+  'faq.a8': {
+    de: 'Das zweite Abenteuer nach Level 40: 40 Level mit Brüchen, Potenzen, Wurzeln und Logarithmen, mit vier Antworten pro Aufgabe und mehr Zeit. Im Web-Abo ist es enthalten, in der App ist es ein eigener Einmalkauf. Gewechselt wird auf der Spieler-Seite der App, im Web auf dem Startbildschirm.',
+    en: 'The second campaign after level 40: 40 levels of fractions, powers, roots and logarithms, with four answers per question and more time. It is included in the web subscription and a separate one-time purchase in the app. You switch campaigns on the app\'s Players page, or on the title screen on the web.',
+  },
   'faq.a7': { de: 'Nein. In der App legst du lokale Profile an – ohne E-Mail-Adresse und ohne Passwort.', en: 'No. In the app you create local profiles – no email address, no password.' },
 
   // Footer
