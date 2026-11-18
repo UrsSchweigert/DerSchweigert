@@ -514,7 +514,7 @@ def test_only_a_running_plan_can_be_paused(tmp_path):
 
 
 def test_status_and_cli_report_a_requested_pause(tmp_path, capsys):
-    from harness import cli, runner, status
+    from harness import cli, status
     env = Env(tmp_path, budgets=dict(LONG_BUDGETS))
     env.adapter.script("i1", "implementer", "busy")
     env.start()

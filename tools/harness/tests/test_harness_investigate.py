@@ -654,7 +654,6 @@ def test_describe_prefers_the_latest_action():
 
 
 def test_container_names_are_unique_per_start(tmp_path, monkeypatch):
-    from harness import isolation
     from harness.adapter import ClaudeCodeAdapter, WorkRequest
     import subprocess as sp
     seen = []

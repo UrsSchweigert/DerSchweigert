@@ -422,7 +422,6 @@ class TestErrorSanitization:
     def test_stripe_error_message_never_echoed(self, monkeypatch, capsys):
         secretsmanager_client = _make_secretsmanager_client()
         session, _ = _make_session(secretsmanager_client)
-        secret_price = types.SimpleNamespace(**VALID_PRICE.__dict__)
         stripe_client = MagicMock()
         stripe_client.v1.prices.retrieve.side_effect = stripe.InvalidRequestError(
             message='No such price: price_abc belonging to account acct_SECRETVALUE123',

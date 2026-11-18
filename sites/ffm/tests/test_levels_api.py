@@ -5,7 +5,6 @@ Tests authentication guards, access control, and level configuration loading.
 
 import pytest
 import os
-from unittest.mock import patch
 
 import boto3
 from moto import mock_aws

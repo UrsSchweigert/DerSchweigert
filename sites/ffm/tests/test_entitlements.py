@@ -1,8 +1,7 @@
 """Tests for access control, billing, and entitlements."""
 
 import os
-from datetime import datetime, timedelta, timezone, date
-from calendar import monthrange
+from datetime import datetime, timedelta, timezone
 import pytest
 import boto3
 from unittest.mock import patch
@@ -21,7 +20,6 @@ os.environ['DYNAMODB_RATELIMIT_TABLE'] = 'ffm-ratelimits-test'
 from sites.ffm.app import models
 from sites.ffm.app import billing_store
 from sites.ffm.app import entitlements
-from sites.ffm.app.config import TestingConfig
 
 
 @pytest.fixture(scope='function')
@@ -120,7 +118,7 @@ class TestStableID:
         now = models._now()
         _users = models._users()
         _users.put_item(Item={
-            'pk': f'USER#olduser',
+            'pk': 'USER#olduser',
             'sk': 'PROFILE',
             'username': 'olduser',
             'email': 'old@example.com',
@@ -138,7 +136,7 @@ class TestStableID:
         assert user['stable_id'] == stable_id
 
     def test_ensure_stable_id_idempotent(self, aws_mock):
-        user = models.create_user('bob', 'bob@example.com', 'hash')
+        models.create_user('bob', 'bob@example.com', 'hash')
         stable_id_1 = models.ensure_stable_id('bob')
         stable_id_2 = models.ensure_stable_id('bob')
         assert stable_id_1 == stable_id_2
@@ -288,7 +286,7 @@ class TestAccessStatus:
         assert status['reason'] == 'free'
 
     def test_access_status_unverified_user(self, aws_mock):
-        user = models.create_user('unverified', 'unverified@example.com', 'hash')
+        models.create_user('unverified', 'unverified@example.com', 'hash')
         # User starts with email_verified=False
 
         config = type('Config', (), {
@@ -304,10 +302,9 @@ class TestAccessStatus:
 
     def test_access_status_grandfathered_user(self, aws_mock):
         # Create user with old created_at
-        now = models._now()
         _users = models._users()
         _users.put_item(Item={
-            'pk': f'USER#grandfather',
+            'pk': 'USER#grandfather',
             'sk': 'PROFILE',
             'username': 'grandfather',
             'email': 'old@example.com',
@@ -413,7 +410,7 @@ class TestLevelAccess:
         assert code == 401
 
     def test_level_3_requires_email_verification(self, aws_mock):
-        user = models.create_user('unverified_l3', 'unverified_l3@example.com', 'hash')
+        models.create_user('unverified_l3', 'unverified_l3@example.com', 'hash')
 
         config = type('Config', (), {
             'get': lambda self, key, default=None: {
@@ -427,7 +424,7 @@ class TestLevelAccess:
         assert code == 403
 
     def test_level_3_requires_payment(self, aws_mock):
-        user = models.create_user('free_l3', 'free_l3@example.com', 'hash')
+        models.create_user('free_l3', 'free_l3@example.com', 'hash')
         models.set_email_verified('free_l3', True)
 
         config = type('Config', (), {
@@ -663,7 +660,6 @@ class TestTransactionRegression:
 
         # Get state before completion attempt
         state_before = billing_store.get_billing_state(billing_uuid)
-        code_before = billing_store.get_code_state(code_hash)
 
         # Simulate transaction fault by changing version (CAS failure)
         with pytest.raises(ValueError, match='version_mismatch'):

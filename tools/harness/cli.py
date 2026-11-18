@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import shutil
 import subprocess
 import time
 
@@ -786,7 +785,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ar.add_argument("kind", choices=["plan", "workspace"])
     ar.add_argument("target", help="the plan id or workspace id")
     ar.add_argument("--undo", action="store_true", help="show it in the dashboard again")
-    tk = sub.add_parser("tasks", help="list open human tasks")
+    sub.add_parser("tasks", help="list open human tasks")
     st = sub.add_parser("sync-tasks", help="mirror open human tasks as GitHub issues")
     st.add_argument("plan_id")
     st.add_argument("--repo")

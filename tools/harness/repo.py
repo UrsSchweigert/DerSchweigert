@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tempfile
 from collections import namedtuple
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 RebaseResult = namedtuple("RebaseResult", "conflict head patch_id")
 

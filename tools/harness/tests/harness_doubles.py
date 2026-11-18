@@ -1,10 +1,9 @@
 """TEST DOUBLES for fault injection. They are not real integrations: FakeAdapter stands in for the runtime,
 FakeRepo for git, and FakeChecker for the sandboxed check runner."""
-import itertools
 import json
 import os
 
-from harness import approval, cli, humantasks, plans
+from harness import approval, humantasks, plans
 from harness.adapter import Adapter, Poll
 from harness.checks import Checker, DryRunPublisher
 from harness.repo import RebaseResult, Repo
