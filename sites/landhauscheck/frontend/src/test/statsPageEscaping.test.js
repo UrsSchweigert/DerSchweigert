@@ -11,9 +11,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 const html = readFileSync(resolve(__dirname, "../../public/stats.html"), "utf-8");
 
 function loadPage() {
-  const body = html.slice(html.indexOf("<body"), html.lastIndexOf("</body>"));
-  document.body.innerHTML = body.replace(/<script[\s\S]*?<\/script>/g, "");
-  const script = html.slice(html.lastIndexOf("<script>") + "<script>".length, html.lastIndexOf("</script>"));
+  // Parse the page as a document (scripts do not run in DOMParser output), take
+  // its inline script's source, and mount the body without any script elements.
+  const parsed = new DOMParser().parseFromString(html, "text/html");
+  const scripts = [...parsed.querySelectorAll("script")];
+  const script = scripts.filter((el) => !el.src).pop().textContent;
+  scripts.forEach((el) => el.remove());
+  document.body.replaceWith(document.importNode(parsed.body, true));
   // Drop the page's own polling bootstrap; the tests call the renderers directly.
   const code = script.replace(/^load\(\);$/m, "").replace(/^setInterval\(load, 30_000\);$/m, "");
   return new Function(
