@@ -2902,14 +2902,23 @@ body { color: var(--ivory); }
 }
 .tab-btn:focus { outline: none; }
 .tab-btn:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
-/* The dialogs' close X sits in the card's top-right corner, 44px square, and the tab row
- * keeps that corner free: at any width the first row of tabs ends before the X. */
-:is(#account-modal, #auth-modal, #checkout-modal, #auth-status-modal) .overlay-card { position: relative; }
-:is(.close-btn, #close-auth) {
-  top: 4px;
-  right: 4px;
+/* The dialogs' close X has a row of its own: the first row of the card, right-aligned, a
+ * 44px square. It is a normal flex item (the cards are flex columns), not an absolutely
+ * placed button, so no tab, heading or field can ever be laid out underneath it, however
+ * the tabs wrap (account: 5 tabs, login: 2) or the card scrolls. */
+:is(#account-modal, #auth-modal, #checkout-modal, #auth-status-modal) .overlay-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+:is(#account-modal, #auth-modal, #checkout-modal, #auth-status-modal) :is(.close-btn, #close-auth) {
+  position: static;
+  align-self: flex-end;
+  flex: 0 0 auto;
+  order: -1;
   width: 44px;
   height: 44px;
+  margin: -4px -4px 0 0;
   padding: 0;
   line-height: 1;
   color: var(--ivory);
@@ -2917,7 +2926,6 @@ body { color: var(--ivory); }
 :is(.close-btn, #close-auth):hover { color: var(--brass-light); }
 :is(.close-btn, #close-auth):focus { outline: none; }
 :is(.close-btn, #close-auth):focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
-#account-tabs, #auth-tabs { margin-inline-end: 44px; }
 /* The rest of the old indigo inside those dialogs: text links ("Forgot password?", the
  * billing Terms links) read brass, and Redeem is a secondary forest button. */
 .link-btn, .billing-disclosure a { color: var(--brass-light); }
@@ -2938,7 +2946,6 @@ body { color: var(--ivory); }
   border-color: var(--brass);
   background: linear-gradient(145deg, #315641, #19372b);
 }
-#checkout-modal .overlay-card > h2 { padding-inline-end: 44px; }
 .title-navigation button:focus-visible, .screen-pagination button:focus-visible,
 .profile-ui button:focus-visible, .title-page > button:focus-visible,
 .diff-btn:focus-visible, .splash-btn:focus-visible {

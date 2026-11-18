@@ -38,6 +38,13 @@ export const PIXEL_FONT = {
   '8':['01110','10001','10001','01110','10001','10001','01110'],
   '9':['01110','10001','10001','01111','00001','00010','01100'],
   '+':['00000','00100','00100','11111','00100','00100','00000'],
+  // Campaign II maths (fractions, powers, roots, logarithms). Without these the
+  // bubble drew "1/4 = ?/8" as "1 4 = ? 8": a missing glyph falls back to space.
+  '/':['00001','00010','00010','00100','01000','01000','10000'],
+  '(':['00010','00100','01000','01000','01000','00100','00010'],
+  ')':['01000','00100','00010','00010','00010','00100','01000'],
+  '√':['00111','00100','00100','00100','10100','01100','00100'],
+  '^':['00100','01010','10001','00000','00000','00000','00000'],
   '-':['00000','00000','00000','11111','00000','00000','00000'],
   '×':['00000','10001','01010','00100','01010','10001','00000'],
   '÷':['00000','00100','00000','11111','00000','00100','00000'],
@@ -281,7 +288,7 @@ export class Renderer {
   /** isActive=true → blue border (combat question), false → grey (queued) */
   drawSpeechBubble(x, y, text, isActive = true) {
     const P=LOGICAL_PX;
-    const charW=6*P,tW=text.length*charW,padX=12,padY=8;
+    const tW=measurePixelText(text),padX=12,padY=8;
     const bW=tW+padX*2,bH=7*P+padY*2;
     let bx=~~(x-bW/2);bx=Math.max(4,Math.min(CANVAS_W-bW-4,bx));
     const by=~~(y-bH-20);
@@ -447,13 +454,48 @@ export class Renderer {
   _text(text, x, y, colour, scale=1) {
     const ctx=this.ctx;ctx.fillStyle=colour;
     let cx=x;
-    for(const ch of text){
-      const m=PIXEL_FONT[ch.toUpperCase()]||PIXEL_FONT[ch]||PIXEL_FONT[' '];
-      for(let r=0;r<7;r++)for(let c=0;c<5;c++)if(m[r][c]==='1')
-        ctx.fillRect(~~(cx+c*LOGICAL_PX*scale),~~(y+r*LOGICAL_PX*scale),~~(LOGICAL_PX*scale),~~(LOGICAL_PX*scale));
-      cx+=6*LOGICAL_PX*scale;
+    for(const g of pixelGlyphs(text)){
+      // Superscripts and subscripts (2³, log₂) are the same glyphs, smaller,
+      // raised to the cap line or dropped to the baseline.
+      const s=scale*(g.mode==='normal'?1:SMALL_SCALE);
+      const dy=g.mode==='sub'?7*LOGICAL_PX*scale*(1-SMALL_SCALE):0;
+      const px=Math.max(1,~~(LOGICAL_PX*s));
+      for(let r=0;r<7;r++)for(let c=0;c<5;c++)if(g.rows[r][c]==='1')
+        ctx.fillRect(~~(cx+c*LOGICAL_PX*s),~~(y+dy+r*LOGICAL_PX*s),px,px);
+      cx+=6*LOGICAL_PX*s;
     }
   }
 }
 
 function mod(a, b) { return ((a % b) + b) % b; }
+
+// Size of a superscript or subscript glyph relative to the line.
+const SMALL_SCALE = 0.6;
+const SUPERSCRIPTS = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' };
+const SUBSCRIPTS = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9' };
+// Characters drawn with another glyph: the maths minus is the font's hyphen, and the cube
+// root is a small raised 3 in front of the root sign.
+const ALIASES = { '−': '-', '∛': '³√' };
+
+/**
+ * The glyphs the pixel font draws for `text`, each with its 5x7 rows and whether it is a
+ * normal, superscript or subscript character. A character the font has no glyph for is a
+ * space, so every character of a question has to be covered (see renderer tests).
+ */
+export function pixelGlyphs(text) {
+  const out = [];
+  for (const raw of String(text)) {
+    for (const ch of ALIASES[raw] ?? raw) {
+      const mode = SUPERSCRIPTS[ch] ? 'sup' : SUBSCRIPTS[ch] ? 'sub' : 'normal';
+      const base = SUPERSCRIPTS[ch] ?? SUBSCRIPTS[ch] ?? ch;
+      const rows = PIXEL_FONT[base.toUpperCase()] || PIXEL_FONT[base] || null;
+      out.push({ ch: base, mode, rows: rows ?? PIXEL_FONT[' '], known: rows !== null });
+    }
+  }
+  return out;
+}
+
+/** Width in logical pixels of `text` drawn by _text at `scale`. */
+export function measurePixelText(text, scale = 1) {
+  return pixelGlyphs(text).reduce((w, g) => w + 6 * LOGICAL_PX * scale * (g.mode === 'normal' ? 1 : SMALL_SCALE), 0);
+}
