@@ -424,7 +424,7 @@ def _charge_disqualified_by_dispute(charge_id, charge):
 
 
 def _valid_paid_end(subscription):
-    price_id = current_app.config['STRIPE_PRICE_ID']
+    counted_prices = {current_app.config['STRIPE_PRICE_ID'], *provider.LEGACY_PRICE_IDS}
     ends = []
     for invoice in provider.list_paid_invoices(subscription['customer'], subscription['id']):
         if (invoice.get('currency') != 'eur' or invoice.get('amount_paid', 0) < provider.PRICE_UNIT_AMOUNT
@@ -440,7 +440,7 @@ def _valid_paid_end(subscription):
                 or _charge_disqualified_by_dispute(charge_id, charge)):
             continue
         for line in invoice['lines']['data']:
-            if provider.line_price_id(line) == price_id and not provider.line_is_proration(line):
+            if provider.line_price_id(line) in counted_prices and not provider.line_is_proration(line):
                 ends.append(line['period']['end'])
     return _iso(max(ends)) if ends else None
 
