@@ -1981,6 +1981,12 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 }
 #level-clear .overlay-card, #game-over .overlay-card { overflow-y: auto; }
 #level-clear .overlay-card > *, #game-over .overlay-card > * { flex-shrink: 0; }
+/* The web account dialog scrolls as one card: its Profile tab (email form, campaign switch,
+ * hero picker) is taller than a phone screen held sideways, and a short window or the phone
+ * frame (phone-frame.js) must not cut its lower half off unreachably. The panels keep their
+ * height instead of being squeezed. */
+#account-modal .overlay-card { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+#account-modal .overlay-card > * { flex-shrink: 0; }
 #level-attempt-summary, #defeat-attempt-summary { white-space: pre-line; overflow-wrap: normal; }
 #level-attempt-summary:empty, #defeat-attempt-summary:empty { display: none; }
 /* Next-scene preview: the upcoming level's art above its title. The inline
@@ -3635,17 +3641,22 @@ body:not(.legal-body) {
 .m2-paren { opacity: 0.9; }
 .m2-log { margin-right: 0.15em; }
 
-/* The campaign switch (Players page in the app, Play page on the web) and the
- * Campaign II picture on the app's title screen. They wear the menu colours:
- * a forest panel inside the thick-and-thin brass frame of the level numerals,
- * with the brass dragon ring of the intro button on both sides (its circular
- * arrow doubles as "switch"). The text is the game's own: the heading monospace
- * for the campaign name, the UI face for the small lines.
+/* The campaign switch (Players page in the app, account profile on the web) and the
+ * Campaign II picture on the title screen. They wear the menu colours: a forest panel
+ * inside the thick-and-thin brass frame of the level numerals. A pair of dragons frames
+ * the button, one curled around each end: a young dragon while it names Campaign I, an
+ * ancient one for Campaign II (data-dragon, swapped by main.js; art in game/art/ui/). The
+ * text is the game's own: the heading monospace for the campaign name, the UI face for the
+ * small lines.
  *
- * Everything is sized from the space the switch gets (container width capped by
- * the viewport height on the switch, viewport-min units on the title picture,
- * which has no container of its own), so a 320px phone or a short
- * landscape band shrinks it instead of letting the name run out of the frame. */
+ * Everything is derived from one height, --switch-h, which follows the space the switch
+ * gets (container width capped by the viewport height on the switch, viewport-min units on
+ * the title picture, which has no container of its own). The dragons are that height times
+ * --dragon-scale tall, sit half outside the button and overhang above and below; the button
+ * reserves exactly that room (side padding so the text clears them, a narrower width so
+ * their outer halves stay inside the column, vertical margin for the overhang). So a 320px
+ * phone or a short landscape band shrinks the whole piece instead of letting the name or a
+ * dragon run out of the frame. */
 .campaign-switch {
   container-type: inline-size;
   display: flex;
@@ -3658,13 +3669,24 @@ body:not(.legal-body) {
 }
 .campaign-switch[hidden] { display: none; }
 .campaign-switch-btn, .campaign-emblem {
+  /* Young dragon (Campaign I): 402x480 art, 1.75x the button tall. */
+  --dragon-scale: 1.75;
+  --dragon-aspect: 0.8375;
+  --dragon-w: calc(var(--switch-h) * var(--dragon-scale) * var(--dragon-aspect));
+  /* How far each piece reaches out of the button: 45% of its width. */
+  --dragon-out: calc(var(--dragon-w) * 0.45);
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
   min-width: 0;
+  height: var(--switch-h);
   min-height: 44px;
+  margin-block: calc(var(--switch-h) * (var(--dragon-scale) - 1) / 2);
+  padding-block: 0;
+  padding-inline: calc(var(--dragon-w) * 0.55);
+  overflow: visible;
   border: 2px solid var(--brass-light);
   border-radius: 8px;
   background:
@@ -3677,25 +3699,36 @@ body:not(.legal-body) {
   cursor: pointer;
   touch-action: manipulation;
 }
+/* Ancient dragon (Campaign II): 354x480 art, 2.1x the button tall. */
+:is(.campaign-switch-btn, .campaign-emblem)[data-dragon="ancient"] {
+  --dragon-scale: 2.1;
+  --dragon-aspect: 0.7375;
+}
 .campaign-switch-btn {
-  gap: clamp(4px, min(3cqi, 3vh), 14px);
-  width: min(100%, 440px);
-  max-width: 100%;
-  padding: clamp(3px, min(1.6cqi, 1.5vh), 10px) clamp(6px, 3cqi, 16px);
+  --switch-h: clamp(56px, min(16cqi, 13vh), 80px);
+  width: min(calc(100% - 2 * var(--dragon-out)), 440px);
+  max-width: calc(100% - 2 * var(--dragon-out));
 }
 .campaign-switch-btn:hover { border-color: var(--focus-ring); background: radial-gradient(120% 140% at 50% 0%, rgba(228, 197, 119, 0.26), transparent 62%), linear-gradient(145deg, #315641, #19372b); }
-.campaign-switch-btn:active { transform: scale(0.98); }
+.campaign-switch-btn:active { scale: 0.98; }
 .campaign-switch-btn:focus-visible, .campaign-emblem:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+/* The pieces are decoration over the frame: absolutely placed, vertically centred, half
+ * outside. `translate`, not `transform`: the reduced-motion rule resets transform on every
+ * element and would pull the dragons back into the text. */
 .campaign-switch-dragon {
-  flex: 0 1 auto;
-  width: clamp(24px, min(13cqi, 12vh), 56px);
-  height: auto;
-  aspect-ratio: 1;
-  object-fit: contain;
+  position: absolute;
+  top: 50%;
+  height: calc(var(--switch-h) * var(--dragon-scale));
+  width: auto;
+  max-width: none;
+  pointer-events: none;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
 }
-.campaign-switch-dragon--mirror { transform: scaleX(-1); }
+.campaign-switch-dragon--left { left: 0; translate: -45% -50%; }
+.campaign-switch-dragon--right { right: 0; translate: 45% -50%; }
 .campaign-switch-text {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3705,8 +3738,10 @@ body:not(.legal-body) {
 }
 .campaign-switch-eyebrow, .campaign-switch-status {
   font-family: var(--font-ui);
-  font-size: clamp(9px, min(3cqi, 3.4vh), 12px);
-  letter-spacing: 0.18em;
+  /* The three lines are sized from the button height, so they always fit inside the
+   * double frame: 1.15 x (0.16 + 0.31 + 0.16) of it, plus the 12px of frame. */
+  font-size: calc(var(--switch-h) * 0.16);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -3714,12 +3749,20 @@ body:not(.legal-body) {
 .campaign-switch-status { color: var(--brass-light); }
 .campaign-switch-title {
   font-family: var(--font-prose);
-  font-size: clamp(14px, min(7cqi, 6.5vh), 28px);
+  font-size: calc(var(--switch-h) * 0.31);
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
   color: var(--brass-light);
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 12px rgba(228, 197, 119, 0.35);
+}
+/* A narrow column (a 320px phone) cannot give the name, "Switch to Arithmetic" and two
+ * full-size dragons their room at a readable size: the dragons get a little smaller and
+ * the small lines tighten their spacing, instead of the text running into the dragons. */
+@container (max-width: 300px) {
+  .campaign-switch-btn[data-dragon] { --dragon-scale: 1.45; }
+  .campaign-switch-btn[data-dragon="ancient"] { --dragon-scale: 1.7; }
+  .campaign-switch-btn :is(.campaign-switch-eyebrow, .campaign-switch-status) { letter-spacing: 0.06em; }
 }
 /* Campaign II is the one being played: the dragons glow a little brighter. */
 .campaign-switch-btn[aria-pressed="true"] .campaign-switch-dragon { filter: drop-shadow(0 0 6px rgba(228, 197, 119, 0.7)); }
@@ -3727,16 +3770,20 @@ body:not(.legal-body) {
  * viewport side: a landscape phone's 320px height shrinks it like a portrait
  * phone's 320px width. */
 .campaign-emblem {
-  gap: clamp(4px, 2vmin, 12px);
+  --switch-h: clamp(38px, 9vmin, 60px);
   width: auto;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: clamp(3px, 1vmin, 8px) clamp(6px, 2.5vmin, 14px);
+  max-width: calc(100% - 2 * var(--dragon-out));
+  margin-inline: auto;
 }
 .campaign-emblem[hidden] { display: none; }
-.campaign-emblem .campaign-switch-dragon { width: clamp(22px, 8vmin, 44px); }
-.campaign-emblem .campaign-switch-eyebrow { font-size: clamp(8px, 2.4vmin, 11px); }
-.campaign-emblem .campaign-switch-title { font-size: clamp(13px, 4.6vmin, 24px); }
+/* A phone held sideways has no height to spare in the title's intro column: the ancient
+ * dragons barely overhang there, so the picture does not push "Choose your difficulty"
+ * under the navigation. */
+@media (orientation: landscape) and (max-height: 460px) {
+  .campaign-emblem[data-dragon="ancient"] { --dragon-scale: 1.3; }
+}
+.campaign-emblem .campaign-switch-eyebrow { font-size: calc(var(--switch-h) * 0.2); }
+.campaign-emblem .campaign-switch-title { font-size: calc(var(--switch-h) * 0.38); }
 /* end campaign switch */
 .m2-intro-math { font-size: 1.8em; text-align: center; margin: 0.4em 0; }
 .mc-btn .m2-expr { font-size: 1.15em; justify-content: center; }

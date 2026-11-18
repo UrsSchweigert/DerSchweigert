@@ -15,6 +15,12 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="story/player/diorama-player.css">
   <link rel="stylesheet" href="boss.css">
+  <!-- app-omit:start -->
+  <!-- Web only: on a wide screen the game plays inside a portrait phone frame. The script
+       must stay the last thing in <head> (it decides before the body is parsed). -->
+  <link rel="stylesheet" href="phone-frame.css">
+  <script src="game/phone-frame.js"></script>
+  <!-- app-omit:end -->
 </head>
 <body>
   <div id="loading-overlay">
@@ -98,28 +104,31 @@
         <button type="button" data-title-target="family" data-i18n="profiles.switchPlayer">Switch player</button>
       </div>
       <p id="continue-level" class="splash-subtitle"></p>
-      <!-- App only: the picture of Campaign II, shown while the active player has
-           chosen it. The switch itself lives on the Players page (main.js moves it). -->
-      <button type="button" id="campaign-emblem" class="campaign-emblem" data-title-target="family" hidden data-i18n-aria-label="campaign.emblem" aria-label="Campaign II: Genius. Change it on the Players page.">
-        <img class="campaign-switch-dragon" src="game/intro-replay.webp" alt="" width="176" height="176">
+      <!-- The picture of Campaign II, shown while the active player has chosen it. The switch
+           itself lives on the Players page in the app and in the account profile on the web
+           (main.js moves it there); a tap on the picture leads to it. -->
+      <button type="button" id="campaign-emblem" class="campaign-emblem" data-title-target="family" data-dragon="ancient" hidden data-i18n-aria-label="campaign.emblem" aria-label="Campaign II: Genius. Change it on the Players page.">
+        <img class="campaign-switch-dragon campaign-switch-dragon--left" src="game/art/ui/campaign-dragon-ancient-left.webp" alt="" width="354" height="480">
         <span class="campaign-switch-text" aria-hidden="true">
           <span class="campaign-switch-eyebrow" data-i18n="campaign.switch.eyebrow2">Campaign II</span>
           <span class="campaign-switch-title" data-i18n="campaign.switch.title2">Genius</span>
         </span>
-        <img class="campaign-switch-dragon campaign-switch-dragon--mirror" src="game/intro-replay.webp" alt="" width="176" height="176">
+        <img class="campaign-switch-dragon campaign-switch-dragon--right" src="game/art/ui/campaign-dragon-ancient-right.webp" alt="" width="354" height="480">
       </button>
-      <!-- Appears once the player has beaten level 40 for the first time (campaign2/genius.js),
-           or at once for an app owner of Campaign II. Names the campaign being played; a tap
-           switches to the other one. -->
+      <!-- Always offered (campaign2/access.js): Campaign II needs no Campaign I progress and not
+           the full unlock. Names the campaign being played; a tap switches to the other one, or
+           opens the Campaign II purchase (app) or the subscription (web) while it is locked. -->
       <div id="genius-campaign" class="campaign-switch" hidden>
-        <button type="button" id="genius-campaign-btn" class="campaign-switch-btn" aria-pressed="false">
-          <img class="campaign-switch-dragon" src="game/intro-replay.webp" alt="" width="176" height="176">
+        <!-- The dragons follow the campaign being played: young for Campaign I, ancient for
+             Campaign II (main.js swaps them; art and provenance in game/art/ui/). -->
+        <button type="button" id="genius-campaign-btn" class="campaign-switch-btn" data-dragon="young" aria-pressed="false">
+          <img class="campaign-switch-dragon campaign-switch-dragon--left" src="game/art/ui/campaign-dragon-young-left.webp" alt="" width="402" height="480">
           <span class="campaign-switch-text">
             <span class="campaign-switch-eyebrow" id="genius-eyebrow" data-i18n="campaign.switch.eyebrow1">Campaign I</span>
             <span class="campaign-switch-title" id="genius-title" data-i18n="campaign.switch.title1">Arithmetic</span>
             <span class="campaign-switch-status" id="genius-status" data-i18n="campaign.switch.toGenius">Switch to Genius</span>
           </span>
-          <img class="campaign-switch-dragon campaign-switch-dragon--mirror" src="game/intro-replay.webp" alt="" width="176" height="176">
+          <img class="campaign-switch-dragon campaign-switch-dragon--right" src="game/art/ui/campaign-dragon-young-right.webp" alt="" width="402" height="480">
         </button>
         <p id="campaign2-note" class="splash-subtitle" hidden></p>
       </div>

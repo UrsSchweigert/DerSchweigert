@@ -618,8 +618,13 @@ the uploaded build number in the release record.
   and restore flow (Google Play Billing or StoreKit).
 - There are no accounts, no login, no public leaderboard, no ads, no analytics
   and no data collection.
-- One non-consumable in-app purchase (`arithmoslayer_full_unlock`) unlocks
-  levels 3-60. "Restore purchase" is visible on the paywall and title screen.
+- Two independent non-consumable in-app purchases, listed side by side on the
+  Players page (title screen, "Players" tab): `arithmoslayer_full_unlock`
+  unlocks levels 3-60 of Campaign I, and `arithmoslayer_genius_unlock` unlocks
+  Campaign II (Genius). Neither needs the other and neither needs any game
+  progress, so both are reachable on a fresh install. One "Restore purchase"
+  on the Players page (and on the paywall) restores both. Screenshots:
+  `store-art/review/`.
 - A parental gate (a written-out multiplication) guards the purchase, the
   restore and every external link, because the audience includes children.
 - Progress is stored on device and included in OS backup (Android Auto Backup /

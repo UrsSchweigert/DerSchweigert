@@ -8,7 +8,7 @@ import {
   IMPLEMENTED_LEVELS_2, OPTION_COUNT_2, TOTAL_LEVELS_2, KINDS, levelMix, isBossRoundLevel2, BOSS_ROUND_LEVELS_2,
 } from './campaign2-levels.js';
 import { expressionHtml, expressionText, answerHtml } from './math-render.js';
-import { campaign2Access, geniusButtonVisible, CAMPAIGN2_PRODUCT_ID } from './access.js';
+import { campaign2Access, campaignSwitchVisible, CAMPAIGN2_PRODUCT_ID } from './access.js';
 import { getSkillIntro2, INTRO_TEXT_2 } from './intro-text.js';
 
 const SEEDS = Array.from({ length: 300 }, (_, i) => i * 7919 + 13);
@@ -239,41 +239,19 @@ describe('game glue: config, progress, problem adapter', () => {
   });
 });
 
-import { geniusEarned, createGeniusReveal, GENIUS_REVEAL_LEVEL } from './genius.js';
-
-describe('Genius Campaign reveal', () => {
-  it('is earned by clearing level 40 or by playing beyond it, not before', () => {
-    assert.equal(GENIUS_REVEAL_LEVEL, 40);
-    assert.equal(geniusEarned({ cleared: [1, 2, 39] }), false);
-    assert.equal(geniusEarned({ cleared: [39, 40] }), true);
-    assert.equal(geniusEarned({ reachedLevels: [38, 40] }), false);
-    assert.equal(geniusEarned({ reachedLevels: [41] }), true);
-    assert.equal(geniusEarned(), false);
+// Campaign II is independent of Campaign I (owner decision after #586): no level-40 reveal,
+// no need for the full unlock. The switch is always offered in the app; the web keeps it in
+// the account profile, so it needs a login there.
+describe('who is offered the campaign switch', () => {
+  it('every app player at once, with no level gate and without the full unlock', () => {
+    assert.equal(campaignSwitchVisible({ platform: 'app' }), true, 'a fresh install, nothing cleared, nothing bought');
+    assert.equal(campaignSwitchVisible({ platform: 'app', loggedIn: false }), true);
+    assert.equal(campaignSwitchVisible({ platform: 'web', loggedIn: true }), true, 'no level to beat on the web either');
+    assert.equal(campaignSwitchVisible({ platform: 'web', loggedIn: false }), false, 'the profile that holds it needs a login');
+    assert.throws(() => campaignSwitchVisible({ platform: 'tv' }), RangeError);
   });
-  it('is remembered per player, once, and survives broken storage', () => {
-    const data = new Map();
-    const storage = { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v) };
-    const a = createGeniusReveal({ storage, playerId: 'a' });
-    const b = createGeniusReveal({ storage, playerId: 'b' });
-    assert.equal(a.isRevealed(), false);
-    assert.equal(a.reveal(), true);
-    assert.equal(a.reveal(), false, 'only the first reveal is news');
-    assert.equal(a.isRevealed(), true);
-    assert.equal(b.isRevealed(), false);
-    const broken = createGeniusReveal({ storage: { getItem() { throw new Error('no'); }, setItem() { throw new Error('no'); } } });
-    assert.equal(broken.isRevealed(), false);
-    assert.doesNotThrow(() => broken.reveal());
-  });
-});
-
-describe('who sees the Genius Campaign button', () => {
-  it('app owners always, everyone else only once level 40 is beaten', () => {
-    assert.equal(geniusButtonVisible({ platform: 'app', ownsProduct: true, revealed: false }), true);
-    assert.equal(geniusButtonVisible({ platform: 'app', ownsProduct: false, revealed: false }), false);
-    assert.equal(geniusButtonVisible({ platform: 'app', ownsProduct: false, revealed: true }), true, 'not bought, level 40 beaten: it appears so they can buy');
-    assert.equal(geniusButtonVisible({ platform: 'web', revealed: false }), false, 'a subscription alone does not show it early');
-    assert.equal(geniusButtonVisible({ platform: 'web', ownsProduct: true, revealed: false }), false, 'the web has no product to own');
-    assert.equal(geniusButtonVisible({ platform: 'web', revealed: true }), true);
-    assert.throws(() => geniusButtonVisible({ platform: 'tv' }), RangeError);
+  it('Campaign II access never looks at the Campaign I purchase or progress', () => {
+    assert.equal(campaign2Access({ platform: 'app', ownedProductIds: [CAMPAIGN2_PRODUCT_ID] }).granted, true, 'Campaign II alone is enough');
+    assert.equal(campaign2Access({ platform: 'app', ownedProductIds: ['arithmoslayer_full_unlock'] }).granted, false, 'the full unlock does not include it');
   });
 });

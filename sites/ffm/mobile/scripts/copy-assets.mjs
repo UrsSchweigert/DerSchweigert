@@ -59,6 +59,7 @@ export const EXCLUDED = [
   /^boss-preview\.html$/,
   // Provenance notes are for the repository, not the shipped bundle.
   /^game\/boss\/PROVENANCE\.md$/,
+  /^game\/art\/ui\/PROVENANCE\.md$/,
   // Hero tooling, provenance and generation sources stay in the repository;
   // only the three art files of each hero ship.
   /^game\/heroes\/(check-heroes\.mjs|PROVENANCE\.md)$/,
@@ -73,6 +74,10 @@ export const EXCLUDED = [
   // has no marketing page.
   /^promo(\/|$)/,
   /^beta(\/|$)/,
+  // The desktop phone frame is web-only: the app is the phone (index.html links
+  // both files inside app-omit, so nothing in the bundle refers to them).
+  /^game\/phone-frame\.js$/,
+  /^phone-frame\.css$/,
 ];
 
 export const REQUIRED_FILES = ['index.html', 'styles.css', 'game/main.js', 'game/level-data.js'];

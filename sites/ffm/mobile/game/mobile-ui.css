@@ -287,6 +287,18 @@
 .entitlement-outcome { color: #ffe080; }
 .entitlement-outcome.error-msg { color: #ff8080; }
 
+/* Campaign II is a second product of its own, listed under the full unlock: a brass rule
+ * separates the two, and its status line follows its own ownership, never the full unlock's. */
+.entitlement-product {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--brass-deep, #a77a34);
+}
+.entitlement-panel .entitlement-campaign2 .entitlement-status { color: var(--brass-light, #e4c577); }
+.entitlement-panel .entitlement-campaign2[data-entitlement-campaign2="owned"] .entitlement-status { color: #80f080; }
+
 /* Title-screen legal navigation, rendered by legal.js into .splash-legal-links
  * on the app's Terms page. The web build keeps its own footer styling; these
  * brass/forest buttons only reach the app because mobile-ui.css is injected at

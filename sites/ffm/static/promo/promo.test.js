@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize } from 'node:path';
 
 import { DICTIONARY, SUPPORTED_LOCALES, DEFAULT_LOCALE, STORAGE_KEY, splitRanges } from './promo.js';
+import { setLocale as setGameLocale, t as gameT } from '../game/i18n.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // sites/ffm/static is the web root, so "/game/…" resolves below it.
@@ -709,4 +710,33 @@ test('translations keep numeric ranges on one line', () => {
       assert.ok(splitRanges(entry[locale]).some((run) => run.nb), `${key}.${locale} range must be wrapped`);
     }
   }
+});
+
+// The page sells the game, so it names things the way the game does: the difficulty labels,
+// "Abenteuer"/"Campaign" with Campaign II "Genie"/"Genius", and the dragon as the combo-21
+// ability. It also states that the iPhone app is already in the App Store.
+test('promo copy uses the game\'s own names and current facts', () => {
+  for (const locale of SUPPORTED_LOCALES) {
+    setGameLocale(locale, { persist: false });
+    for (const level of ['shapes', 'easy', 'medium', 'hard']) {
+      assert.equal(DICTIONARY[`play.${level}.name`][locale], gameT(`difficulty.${level}.label`),
+        `${locale} ${level} card matches the game's button`);
+    }
+    const campaign2 = `${gameT('campaign.switch.eyebrow2')}: ${gameT('campaign.switch.title2')}`;
+    for (const key of ['prices.compare.row10', 'faq.q8', 'prices.web.f1', 'prices.footnote']) {
+      assert.ok(DICTIONARY[key][locale].includes(campaign2), `${locale} ${key} names "${campaign2}"`);
+    }
+  }
+  const all = Object.values(DICTIONARY).flatMap(entry => [entry.de, entry.en]).join('\n');
+  assert.doesNotMatch(all, /Feldzug/, 'the game says Abenteuer, not Feldzug');
+  assert.doesNotMatch(all, /Drache als Boss|dragon as the boss|am Ende des Feldzugs/, 'the dragon is a combo ability, not a boss');
+  assert.doesNotMatch(all, /Die Apps erscheinen später|apps will arrive in the stores later/,
+    'the iPhone app is already live');
+  // Campaign II is independent of Campaign I (owner decision after #586): no level-40 gate,
+  // no full unlock needed in the app, and the web switch is in the profile.
+  assert.doesNotMatch(DICTIONARY['faq.a8'].de + DICTIONARY['faq.a8'].en, /Level 40|level 40|Startbildschirm|title screen/);
+  assert.match(DICTIONARY['faq.a8'].en, /does not need the full unlock/);
+  assert.match(DICTIONARY['faq.a8'].de, /die Vollversion nicht voraussetzt/);
+  assert.match(DICTIONARY['faq.a8'].en, /in your profile on the web/);
+  assert.match(DICTIONARY['prices.compare.r10app'].en, /no full unlock needed/);
 });

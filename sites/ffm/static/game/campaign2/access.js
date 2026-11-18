@@ -9,13 +9,14 @@
 export const CAMPAIGN2_PRODUCT_ID = 'arithmoslayer_genius_unlock';
 
 /**
- * Whether the title screen shows the Genius Campaign button. Players who own the app product
- * always see it (they bought it, so they can switch at once, even on a fresh install). Everyone
- * else, including web subscribers, sees it only after beating level 40 for the first time.
+ * Whether the campaign switch is offered. Campaign II is independent of Campaign I: no level
+ * has to be beaten and the full unlock is not needed, so the app always offers it (on the
+ * Players page, where an unowned Campaign II can be bought). The web keeps the switch in the
+ * account profile, so it needs a login; the subscription then decides whether Genius plays.
  */
-export function geniusButtonVisible({ platform, ownsProduct = false, revealed = false }) {
+export function campaignSwitchVisible({ platform, loggedIn = false }) {
   if (platform !== 'web' && platform !== 'app') throw new RangeError(`Unknown platform "${platform}"`);
-  return revealed || (platform === 'app' && ownsProduct);
+  return platform === 'app' || loggedIn === true;
 }
 
 /**

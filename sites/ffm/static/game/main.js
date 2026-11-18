@@ -74,9 +74,8 @@ import { bossRoundKinds2, isBossRoundLevel2, TOTAL_LEVELS_2 } from './campaign2/
 import { getCampaign2LevelConfig, ABILITY_LEVEL } from './campaign2/config.js';
 import { getSkillIntro2, INTRO_TEXT_2 } from './campaign2/intro-text.js';
 import { createCampaign2Progress } from './campaign2/progress.js';
-import { createGeniusReveal, geniusEarned } from './campaign2/genius.js';
-import { createCampaignSelection } from './campaign2/selection.js';
-import { campaign2Access, geniusButtonVisible } from './campaign2/access.js';
+import { createCampaignSelection, campaignDragon, campaignDragonSrc } from './campaign2/selection.js';
+import { campaign2Access, campaignSwitchVisible } from './campaign2/access.js';
 import { expressionHtml } from './campaign2/math-render.js';
 import { runestoneDataUri } from './runestone.js';
 import { createLevelNumerals } from './level-numerals.js';
@@ -1406,7 +1405,6 @@ function renderScoreHistory(historyResponse, container) {
 function renderLevelJumpOptions(profile) {
   const scores = profile && profile.scores ? profile.scores : [];
   const levels = [...new Set(scores.map((s) => s.level))].sort((a, b) => a - b);
-  if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ reachedLevels: levels });
   if (levels.length === 0) {
     levelJumpRow.style.display = 'none';
     levelGrid.render({ total: TOTAL_LEVELS, defaultLevel: 1, available: [] });
@@ -1612,7 +1610,6 @@ function scrollPersonalBestToHighest() {
 
 function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   const progress = getCampaignProgress(completed);
-  if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ cleared: progress.cleared });
   if (resetSelection) levelGrid.value = '';
   const label = progress.complete ? t('campaign.complete') : t('campaign.continueAt', { level: progress.nextLevel });
   const selectorLabel = document.getElementById('level-jump-label');
@@ -2133,16 +2130,16 @@ if (!platform.isApp) splashLoginBtn.addEventListener('click', () => {
   }
 });
 
-// --- Genius Campaign button (Campaign II) ---
-// Shown once the player has beaten level 40 of the main campaign (campaign2/genius.js). It
-// switches between the campaigns, and while Campaign II is locked it manages the unlock: the
-// web subscription (login / billing) or the app's in-app purchase.
+// --- Campaign switch (Campaign I: Arithmetic <-> Campaign II: Genius) ---
+// Campaign II is independent of Campaign I: there is no level to beat first and no need for
+// the full unlock, so the switch is always there for the active player (campaign2/access.js).
+// It switches between the campaigns, and while Campaign II is locked it manages the unlock:
+// the app's in-app purchase, or on the web the subscription (login / billing).
 function campaign2PlayerId() {
   return platform.isApp
     ? (platform.localProfiles?.getActiveProfile?.().id ?? 'app')
     : (platform.username || 'web');
 }
-const geniusReveal = () => createGeniusReveal({ playerId: campaign2PlayerId() });
 // The campaign choice is per player (campaign2/selection.js): reload it whenever the
 // player changes, and store it whenever the switch changes it.
 function campaignSelection() {
@@ -2156,28 +2153,40 @@ function chooseCampaign(campaign) {
   selectedCampaign = campaign === 2 ? 2 : 1;
   campaignSelection().set(selectedCampaign);
 }
-// The app keeps the switch with the player it belongs to, on the Players page, between the
-// player list and the purchase panel; the web has no Players page and keeps it on Play.
-if (platform.isApp) {
-  const familyPage = document.getElementById('local-profiles');
+// The switch lives with the player it belongs to. The app keeps it in the player dialog (the
+// Players page), between the player list and the purchase panel; the web keeps it in the
+// account profile, since the web player is the account. The title only shows the Campaign II
+// picture, and a tap on it leads to wherever the switch is.
+{
   const switchWrap = document.getElementById('genius-campaign');
-  if (familyPage && switchWrap) familyPage.insertBefore(switchWrap, document.getElementById('entitlement-root'));
-}
-/** Called wherever progress becomes known; reveals the button the first time level 40 shows as beaten. */
-function noteGeniusProgress(progress) {
-  if (!geniusEarned(progress)) return;
-  if (geniusReveal().reveal() && typeof renderCampaignSwitch === 'function') renderCampaignSwitch();
+  const emblem = document.getElementById('campaign-emblem');
+  if (platform.isApp) {
+    const familyPage = document.getElementById('local-profiles');
+    if (familyPage && switchWrap) familyPage.insertBefore(switchWrap, document.getElementById('entitlement-root'));
+  } else {
+    const profilePanel = document.getElementById('account-profile-panel');
+    if (profilePanel && switchWrap) profilePanel.insertBefore(switchWrap, document.getElementById('account-hero-picker'));
+    if (emblem) {
+      // No Players page on the web: the picture opens the profile instead.
+      emblem.removeAttribute('data-title-target');
+      emblem.dataset.i18nAriaLabel = 'campaign.emblem.web';
+      emblem.setAttribute('aria-label', t('campaign.emblem.web'));
+      emblem.addEventListener('click', () => {
+        if (!platform.isLoggedIn) return;
+        showAccountTab(tabAccountProfile, accountProfilePanel);
+        setAccountModalVisible(true);
+      });
+    }
+  }
 }
 async function renderCampaignSwitch() {
   const wrap = document.getElementById('genius-campaign');
   const button = document.getElementById('genius-campaign-btn');
   if (!wrap || !button) return;
   const access = await getCampaign2AccessNow();
-  // An app owner of the product sees the button at once; everyone else after beating level 40.
-  const visible = geniusButtonVisible({
+  const visible = campaignSwitchVisible({
     platform: platform.isApp ? 'app' : 'web',
-    ownsProduct: platform.isApp && access.granted,
-    revealed: geniusReveal().isRevealed(),
+    loggedIn: Boolean(platform.isLoggedIn),
   });
   if (!visible) {
     wrap.hidden = true;
@@ -2194,16 +2203,28 @@ async function renderCampaignSwitch() {
     set('genius-status', inTwo ? 'campaign.switch.toArithmetic' : access.granted ? 'campaign.switch.toGenius' : 'campaign.switch.unlock');
     button.setAttribute('aria-pressed', String(inTwo));
     button.dataset.campaign = String(selectedCampaign);
+    // The dragon pair belongs to the campaign the button names: young for I, ancient for II.
+    const dragon = campaignDragon(selectedCampaign);
+    if (button.dataset.dragon !== dragon.kind) {
+      button.dataset.dragon = dragon.kind;
+      for (const side of ['left', 'right']) {
+        const piece = button.querySelector(`.campaign-switch-dragon--${side}`);
+        if (!piece) continue;
+        piece.width = dragon.width;
+        piece.height = dragon.height;
+        piece.src = campaignDragonSrc(dragon.kind, side);
+      }
+    }
     const note = document.getElementById('campaign2-note');
     if (note) {
       note.hidden = access.granted || !inTwo;
       note.textContent = t(platform.isApp ? 'campaign2.note.app' : 'campaign2.note.web');
     }
   }
-  // The title shows the Campaign II picture only to a player who chose it (the app; on the
-  // web the switch itself is on the title screen and already shows the choice).
+  // The title shows the Campaign II picture only to a player who chose it; the switch itself
+  // is in the player dialog (app) or the profile (web).
   const emblem = document.getElementById('campaign-emblem');
-  if (emblem) emblem.hidden = !platform.isApp || wrap.hidden || selectedCampaign !== 2;
+  if (emblem) emblem.hidden = wrap.hidden || selectedCampaign !== 2;
   updateTitleStartingLevel();
 }
 document.getElementById('genius-campaign-btn')?.addEventListener('click', async () => {
@@ -2227,7 +2248,9 @@ async function openCampaign2Purchase() {
   try {
     const { createPaywall } = await import('./paywall.js');   // the app bundle's own module
     await createPaywall({
-      platform, locale: getLocale(), product: 'campaign2', onGranted: () => renderCampaignSwitch(),
+      platform, locale: getLocale(), product: 'campaign2',
+      // The Players page lists Campaign II too: reload it so it shows the purchase.
+      onGranted: () => { renderCampaignSwitch(); entitlementPanel?.load(); },
     }).open();
   } catch (error) {
     console.error('Campaign 2 purchase failed', error);
@@ -2527,7 +2550,9 @@ checkoutForm?.addEventListener('submit', async e => {
       withdrawalWaiverConfirmed
     });
     if (platform.isStripeRedirect(result.url, 'checkout.stripe.com')) {
-      window.location.href = result.url;
+      // Stripe refuses to be framed: on a wide screen the game runs inside the phone frame
+      // (phone-frame.js), so the checkout opens in the whole tab, not in the frame.
+      (window.top ?? window).location.href = result.url;
     } else {
       checkoutMessage.textContent = t('checkout.invalidUrl');
     }
@@ -2600,7 +2625,7 @@ if (!platform.isApp) btnOpenPortal.addEventListener('click', async () => {
   try {
     const result = await platform.openBillingPortal();
     if (platform.isStripeRedirect(result.url, 'billing.stripe.com')) {
-      window.location.href = result.url;
+      (window.top ?? window).location.href = result.url;   // the whole tab, as for checkout
     } else {
       billingStatusText.textContent = t('billing.invalidPortalUrl');
     }
@@ -4740,7 +4765,6 @@ function triggerLevelClear() {
   const campaign2 = state.campaign === 2;
   // Campaign 2 progress stays on this device; it has no server or profile record yet.
   if (campaign2) campaign2Progress().markCleared(completedLevelNum);
-  else if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ cleared: [completedLevelNum], reachedLevels: [completedLevelNum] });
   if (!practiceRun && !campaign2 && !completedLevelSave && (platform.isApp || platform.isLoggedIn)) {
     completedLevelSave = createLevelCompletion(platform, {
       level: completedLevelNum, score: state.score - levelStartScore,
@@ -5563,6 +5587,8 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
         onGranted: () => syncNoticeHelp(),
         // The same Restore brings Campaign II back (there is no second restore button).
         onExtrasRestored: () => renderCampaignSwitch(),
+        // Campaign II is listed next to the full unlock and bought on its own.
+        onCampaign2Granted: () => renderCampaignSwitch(),
       });
     }
   }

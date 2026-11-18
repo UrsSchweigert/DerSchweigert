@@ -360,7 +360,14 @@ module "site" {
   # Without this, the browser silently blocks api.js entirely, the widget
   # never renders/produces a token, and the backend (which fails closed on
   # a missing token) rejects every real user's request, not just bots'.
-  content_security_policy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+  #
+  # 'self' in frame-src and frame-ancestors: on a wide screen the game page
+  # shows itself inside a portrait phone frame, an iframe of the same page
+  # (static/game/phone-frame.js). Only this origin may frame it, so other
+  # sites still cannot. Browsers ignore the module's X-Frame-Options: DENY
+  # when frame-ancestors is present (CSP Level 2); an older one that obeys
+  # it gets the page without the frame (phone-frame.js falls back).
+  content_security_policy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
 
   tags = local.tags
 }

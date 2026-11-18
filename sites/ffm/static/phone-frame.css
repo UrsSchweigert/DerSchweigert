@@ -1,0 +1,53 @@
+/* phone-frame.css — the page that shows the game inside a portrait phone frame on a wide
+ * screen (see game/phone-frame.js, which decides and builds it). Web only: index.html links
+ * it inside app-omit, so the apps never load it. Only the host page is styled here; the game
+ * inside the frame is the unchanged index.html. */
+
+html[data-phone-frame="host"],
+html[data-phone-frame="host"] body {
+  background: radial-gradient(120% 90% at 50% 0%, #1d3a30 0%, #0b1813 55%, #050b09 100%);
+}
+
+/* Undo the game's full-screen body (styles.css): the host body is just the stage. */
+html[data-phone-frame="host"] body {
+  position: static;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* The phone: a 390x844 screen in a dark bezel with an iPhone's rounded corners, centred in
+ * the window. It keeps its size and only shrinks as a whole (--phone-frame-scale, set by
+ * phone-frame.js) when the window is shorter or narrower than the phone; `scale` leaves the
+ * layout box alone, so the game inside always sees the same portrait screen. The individual
+ * translate/scale properties, not `transform`, which the reduced-motion rule in styles.css
+ * resets on every element. */
+.phone-frame {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  --phone-frame-bezel: 12px;
+  box-sizing: content-box;
+  width: 390px;
+  height: 844px;
+  padding: var(--phone-frame-bezel);
+  border-radius: 58px;
+  background: linear-gradient(160deg, #2a2d31, #121416 40%, #0b0c0d);
+  box-shadow:
+    0 0 0 2px #4a4f55,
+    0 0 0 3px #15171a,
+    0 30px 80px rgba(0, 0, 0, 0.6);
+  scale: var(--phone-frame-scale, 1);
+}
+
+.phone-frame-screen {
+  display: block;
+  width: 390px;
+  height: 844px;
+  border: 0;
+  border-radius: 46px;
+  background: #0a0a1a;
+}

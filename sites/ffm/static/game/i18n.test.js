@@ -457,3 +457,32 @@ describe('hero picker keys', () => {
     assert.equal(t('heroes.portraitAlt', { name: 'Mönch' }), 'Porträt von Mönch');
   });
 });
+
+// The in-app help follows the Players page of #586: adding players needs the full unlock,
+// the page holds the campaign choice, both purchases (independent of each other) and Restore, and sound sits in the title bar and the
+// pause card's speaker button (not a pause-menu entry any more).
+describe('in-app help matches the current Players page and sound controls', () => {
+  it('says so in both languages', () => {
+    setLocale('en');
+    assert.match(t('help.players.tip2'), /full unlock/);
+    assert.match(t('help.players.summary'), /campaign/);
+    assert.match(t('help.players.summary'), /restore purchases/);
+    assert.match(t('help.title.tip1'), /more players/);
+    assert.match(t('help.title.tip3'), /speaker button/);
+    assert.doesNotMatch(t('campaign2.note.app'), /Tap a difficulty|Start a level/);
+    // Campaign II is sold on the Players page next to the full unlock, and does not need it.
+    assert.match(t('help.players.summary'), /full unlock or Campaign II/);
+    assert.match(t('campaign2.note.app'), /does not need the full unlock/);
+    assert.match(t('campaign.emblem.web'), /profile/);
+    setLocale('de');
+    assert.match(t('help.players.tip2'), /Vollversion/);
+    assert.match(t('help.players.summary'), /Abenteuer/);
+    assert.match(t('help.players.summary'), /Käufe wiederherstellen/);
+    assert.match(t('help.title.tip1'), /weitere Spieler/);
+    assert.match(t('help.title.tip3'), /Lautsprechertaste/);
+    assert.doesNotMatch(t('campaign2.note.app'), /Tippe auf eine Schwierigkeit|Starte auf der Spielen-Seite/);
+    assert.match(t('help.players.summary'), /Vollversion oder Abenteuer II/);
+    assert.match(t('campaign2.note.app'), /nicht nötig/);
+    assert.match(t('campaign.emblem.web'), /Profil/);
+  });
+});

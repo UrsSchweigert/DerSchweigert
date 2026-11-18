@@ -11,10 +11,11 @@
 <div class="legal-page"><div class="legal-content">
 <h1>Player Manual</h1>
 <nav class="legal-return-nav" aria-label="Game"><a href="../index.html">Back to the game</a></nav>
-<p>Arithmo Slayer is a mental-arithmetic adventure. Answer problems to defeat fiends, protect your hearts and clear 60 levels. This manual is bundled with the app and works offline.</p>
+<p>Arithmo Slayer is a mental-arithmetic adventure. Answer problems to defeat fiends, protect your hearts and clear 60 levels; Campaign II, Genius, adds 40 more. This manual is bundled with the app and works offline.</p>
 <nav aria-label="Contents">
 <ol>
 <li><a href="#manual-campaign">Campaign progression</a></li>
+<li><a href="#manual-campaign2">Campaign II: Genius</a></li>
 <li><a href="#manual-difficulty">Difficulty</a></li>
 <li><a href="#manual-controls">Controls</a></li>
 <li><a href="#manual-timer">Timer</a></li>
@@ -30,11 +31,21 @@
 <section data-manual-section="campaign">
 <h2 id="manual-campaign">Campaign progression</h2>
 <p>The campaign has 60 levels in four chapters of 15. A level is a sequence of up to 30 encounters; defeat every encounter to clear it.</p>
-<p>Levels 1–2 are free. One purchase unlocks levels 3–60 permanently.</p>
-<p>Levels 1–10 offer five answer choices; from level 11 there are ten. Level 11 uses the arithmetic of level 10 before the number range grows.</p>
+<p>Levels 1–2 are free. One purchase unlocks levels 3–60 permanently, together with all hero themes and adding more players.</p>
+<p>Levels 1–10 offer five answer choices; from level 11 there are ten.</p>
+<p>The difficulty grows level by level. Level 1 adds numbers up to 3; the largest number grows to 10 by level 4 and to 30 by level 60, and zero joins at level 5. Subtraction starts at level 10, multiplication at level 20 and division at level 30; a new operation fills half of its first level, and from level 40 all four are mixed evenly. On levels 1–2, small additions are shown as runestones to count.</p>
+<p>From level 10 some questions hide a number instead of the result, such as 6 + ? = 10: one question in four at level 10, rising to one in two at level 60.</p>
+<p>The last fiend of levels 20, 30, 40, 50 and 60 is a boss round: it takes three hits and asks three kinds of question in a row.</p>
 <p>A cleared level is saved automatically for the active player, including level 60. Replaying a cleared level never erases that checkpoint. Play continues at the first unfinished level; when all 60 are cleared, play restarts at level 1.</p>
 <p>An attempt you leave before clearing is not banked as a cleared level.</p>
 <p>Elite fiends appear with a 10% chance, have three hearts and triple the points of each correct hit.</p>
+</section>
+<section data-manual-section="campaign2">
+<h2 id="manual-campaign2">Campaign II: Genius</h2>
+<p>Campaign II has 40 levels in eight acts of five: fractions, more fractions, powers, roots, exponent laws, radicals, logarithms and a final synthesis. Each act opens with a short explanation and a worked example.</p>
+<p>Every question has four answer choices. The timer gives more time than the chosen difficulty, from 1.2 times at level 1 up to twice as long at level 40. The hero starts with every ability. The last fiend of levels 10, 20, 30 and 40 is a boss round.</p>
+<p>Campaign II does not depend on Campaign I: it can be bought and played on a fresh install, without clearing any level first and without the full unlock. The campaign switch on the Players page is always there. It names the campaign being played, Arithmetic or Genius, and a tap changes it. The choice is kept for each player; while Genius is chosen, the title screen shows the Campaign II picture, and a tap on it opens the Players page.</p>
+<p>Campaign II is a separate one-time purchase, listed on the Players page next to the full unlock; “Unlock Genius” on the switch opens it too (see <a href="#manual-purchase">Payment and restore</a>). Cleared Campaign II levels are saved for each player on this device; Campaign II records no scores.</p>
 </section>
 <section data-manual-section="difficulty">
 <h2 id="manual-difficulty">Difficulty</h2>
@@ -53,7 +64,7 @@
 <p>Tap the playfield outside its left quarter, or the Pause button, to pause and resume.</p>
 <p>Hold the left quarter of the playfield to heal (see <a href="#manual-healing">Healing</a>).</p>
 <p>Android Back pauses, backs out of the quit confirmation, and exits from the title.</p>
-<p>Switch the language between German and English on the title screen. The speaker menu offers music and effects volume plus mute; audio settings are also in the pause menu.</p>
+<p>Switch the language between German and English with the language button in the title bar. The speaker in the title bar opens music and effects volume plus mute; during a level, the speaker button in the top-right corner of the pause card opens the music and effects volume and vibration. The title bar is hidden while a dialog such as the pause card or a level result is open.</p>
 </section>
 <section data-manual-section="timer">
 <h2 id="manual-timer">Timer</h2>
@@ -66,6 +77,7 @@
 <h2 id="manual-abilities">Abilities and the dragon</h2>
 <p>Correct answers build a combo. Fireball triggers at combo 6, lightning at combo 11, and the dragon at combo 21. Only the highest band reached fires, once per hit; a weaker spell never fires in its place.</p>
 <p>Fireball and lightning defeat one fiend immediately.</p>
+<p>The ability bar also holds three abilities you trigger yourself: Wind (from level 1) removes the active enemy from the encounter, Storm (from level 6) removes enemies from the level, and Earth (from level 11) slows the active fiend and the next ones. Each needs a cooldown of three minutes after use; level bonuses shorten it, to no less than 90 seconds.</p>
 <p>Dragon in the campaign: a successful breath defeats every remaining encounter in the level once. It pays a fixed bonus for each still-unresolved encounter — the level's flawless baseline score divided by its number of encounters — and then finishes the level through the normal level-clear path. The bonus is never paid twice in one attempt.</p>
 <p>In training and Shapes the dragon never finishes the level; it only defeats enemies currently on the field. Spell kills count as defeated encounters, not as correct answers, and give no recovery credit. Combo abilities are not available in training or Shapes.</p>
 </section>
@@ -77,17 +89,18 @@
 </section>
 <section data-manual-section="scoring">
 <h2 id="manual-scoring">Scores, saving and discarding</h2>
-<p>A correct hit scores the fiend's base value plus a speed bonus of up to 50 and 10 points per combo step; elite hits triple the result. A requeued answer earns no speed or combo bonus.</p>
-<p>Clearing a level saves the reached score to the active player's local progress automatically: a per-level best plus the score history. The chart on the practice page adds those level bests up and plots the total high score after every saved result, so the curve shows how the player's cumulative score grew.</p>
+<p>A correct hit scores the fiend's base value plus a speed bonus of up to 50 and 10 points per combo step; elite hits triple the result. A question with a hidden number earns 25 extra points. A requeued answer earns no speed or combo bonus.</p>
+<p>Clearing a level saves the reached score to the active player's local progress automatically: a per-level best plus the score history. The Personal progression chart on the Practice page adds those level bests up and plots the total high score after every saved result, so the curve shows how the player's cumulative score grew.</p>
 <p>Quitting in the pause menu opens “Save your score before leaving?”. Save score banks only the reached score and keeps the level unfinished; progress labels it as an unfinished attempt that did not clear the level, and the level is not marked cleared. Discard returns to the title without recording that attempt.</p>
 <p>Retrying after a defeat restores hearts and the timer but keeps the level-start score. Accuracy and streak are compared only with the same player's previous clear of the same level and difficulty; the results are personal goals, not a certification.</p>
 <p>Shapes and every training mode never record scores.</p>
 </section>
 <section data-manual-section="players">
 <h2 id="manual-players">Family players</h2>
-<p>The Players screen on the title manages local family players: add, rename, delete and switch. Each player has separate progress, scores and practice badges.</p>
+<p>The Players page on the title manages local family players: rename, delete and switch, and, with the full unlock, add more players. Each player has separate progress, scores, practice badges, hero and campaign choice.</p>
+<p>Tap the active player's portrait to choose a hero colour scheme. The hero you wear keeps a thick gold frame and the one you highlight gets a thin gold frame; Change hero puts it on. Ari is free; the other colour schemes come with the full unlock.</p>
 <p>Switch players only on the title screen; switching is blocked while data is being written or a level is starting. At least one player must remain, and deleting a player removes that player's data.</p>
-<p>One purchase unlocks levels 3–60 for every player on the device; scores stay with each player. Everything is stored locally on the device and is included in the operating system's device or iCloud backup. There is no account.</p>
+<p>The Players page also holds the campaign switch and the purchase panel: the full unlock (Campaign I) and Campaign II side by side, each with its own buy button, and one Restore purchase for both. One purchase unlocks levels 3–60 for every player on the device; scores stay with each player. Everything is stored locally on the device and is included in the operating system's device or iCloud backup. There is no account.</p>
 </section>
 <section data-manual-section="training">
 <h2 id="manual-training">Training modes</h2>
@@ -100,15 +113,15 @@
 <li><strong>Recovery practice:</strong> ends after ten encounters and grants one heart after five distinct correct replies; a corrected retry counts once, at most two hearts are granted per attempt, credit at full health is discarded, and spell kills never count.</li>
 <li><strong>Shape counting:</strong> resolves ten questions and shows the result only after the final correction; Endless Shapes remains available.</li>
 </ul>
-<p>Worked examples introduce subtraction, multiplication and division at levels 5, 25 and 34, with Continue or Skip and no score writes.</p>
+<p>Worked examples introduce subtraction, multiplication and division at levels 10, 20 and 30, with Continue or Skip and no score writes.</p>
 <p>Practice badges describe activity, not mastery.</p>
 </section>
 <section data-manual-section="purchase">
 <h2 id="manual-purchase">Payment and restore</h2>
-<p>Levels 1–2 are free. The one-time, non-consumable purchase unlocks levels 3–60; there is no subscription and no recurring charge. The store shows the local price and bills Apple or Google. There is no backend and no third-party purchase service.</p>
+<p>Levels 1–2 are free. The one-time, non-consumable purchase unlocks levels 3–60, all hero themes and adding more players. Campaign II is a second one-time purchase of its own; neither purchase needs the other. There is no subscription and no recurring charge. The store shows the local price and bills Apple or Google. There is no backend and no third-party purchase service.</p>
 <p>Purchase and restore first ask an adult to solve a written multiplication (parental gate).</p>
 <p>The store reports success, cancellation, pending or Ask-to-Buy, already owned, or an error. A pending purchase unlocks the levels once the store confirms it.</p>
-<p>Restore purchase recovers the unlock on a fresh install or a new device with the same store account. The entitlement is cached for offline play, refreshed from the store on launch and resume, and revoked on refund. The unlock applies to the whole device.</p>
+<p>Restore purchase on the Players page recovers both purchases, the full unlock and Campaign II, on a fresh install or a new device with the same store account. The entitlement is cached for offline play, refreshed from the store on launch and resume, and revoked on refund. Both purchases apply to the whole device.</p>
 </section>
 <section data-manual-section="privacy">
 <h2 id="manual-privacy">Privacy</h2>
