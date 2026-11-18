@@ -317,6 +317,23 @@ test('the app bundle carries no phone frame', async () => {
   assert.doesNotMatch(index, /phone-frame/);
 });
 
+// The campaign switch's dragons (young: Campaign I, ancient: Campaign II) must ship offline.
+test('the app bundle carries every campaign dragon piece the page references', async () => {
+  const { BUNDLE_FILES } = await import('../scripts/bundle-check.mjs');
+  const index = stripAppOnlyDom(await readFile(join(staticDir, 'index.html'), 'utf8'));
+  const pieces = ['young', 'ancient'].flatMap((kind) => ['left', 'right']
+    .map((side) => `game/art/ui/campaign-dragon-${kind}-${side}.webp`));
+  for (const piece of pieces) {
+    assert.ok(BUNDLE_FILES.includes(piece), `${piece} is a required bundle file`);
+    assert.ok(!isExcluded(piece), `${piece} is copied`);
+    await stat(join(staticDir, piece));
+  }
+  const referenced = [...index.matchAll(/src="(game\/art\/ui\/[^"]+)"/g)].map((match) => match[1]);
+  assert.equal(referenced.length, 4, 'two pieces on the switch, two on the title picture');
+  for (const src of referenced) assert.ok(pieces.includes(src), src);
+  assert.ok(isExcluded('game/art/ui/PROVENANCE.md'), 'provenance stays in the repository');
+});
+
 test('APP_OVERLAY points at the app-only game modules', () => {
   assert.equal(toPosix(APP_OVERLAY), toPosix(join(root, 'game')));
 });

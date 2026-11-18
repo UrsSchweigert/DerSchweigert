@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createCampaignSelection, SELECTION_KEY_PREFIX } from './campaign2/selection.js';
+import { createCampaignSelection, SELECTION_KEY_PREFIX, campaignDragon, campaignDragonSrc } from './campaign2/selection.js';
 
 const i18n = readFileSync(new URL('./i18n.js', import.meta.url), 'utf8');
 const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
@@ -68,7 +68,7 @@ test('Campaign II is offered with no level gate and no reveal flag', () => {
 });
 
 test('the title shows the Campaign II picture only while it is chosen, and it leads to the switch', () => {
-  assert.match(html, /<button type="button" id="campaign-emblem" class="campaign-emblem" data-title-target="family" hidden/);
+  assert.match(html, /<button type="button" id="campaign-emblem" class="campaign-emblem" data-title-target="family" data-dragon="ancient" hidden/);
   assert.match(main, /emblem\.hidden = wrap\.hidden \|\| selectedCampaign !== 2;/);
   // The web has no Players page: the picture opens the account profile that holds the switch.
   assert.match(main, /emblem\.removeAttribute\('data-title-target'\);[\s\S]{0,400}showAccountTab\(tabAccountProfile, accountProfilePanel\);/);
@@ -87,11 +87,56 @@ test('the switch names the campaign being played, with dragons and in the menu c
   assert.doesNotMatch(rules.slice(0, rules.indexOf('/* end campaign switch */')), /#7c4dff|#cdb6ff|purple/i);
 });
 
-test('the switch and the picture scale with the space they get', () => {
+test('the switch and the picture scale with the space they get, dragons included', () => {
   const rules = css.slice(css.indexOf('.campaign-switch {'), css.indexOf('/* end campaign switch */'));
-  assert.match(rules, /\.campaign-switch-btn \{[^}]*max-width: 100%;/);
-  assert.match(rules, /\.campaign-switch-title \{[^}]*font-size: clamp\(/);
   assert.match(rules, /container-type: inline-size;/);
+  // One height drives everything; the switch follows its column and the viewport height.
+  assert.match(rules, /\.campaign-switch-btn \{\s*--switch-h: clamp\([^;]*cqi[^;]*vh[^;]*\);/);
+  assert.match(rules, /\.campaign-emblem \{\s*--switch-h: clamp\([^;]*vmin[^;]*\);/);
+  // The dragons' outer halves stay inside the column (the old small-screen overflow).
+  assert.match(rules, /width: min\(calc\(100% - 2 \* var\(--dragon-out\)\), 440px\);/);
+  assert.match(rules, /max-width: calc\(100% - 2 \* var\(--dragon-out\)\);/);
+  // The text clears the dragons and fits in the frame, the overhang has its room.
+  assert.match(rules, /padding-inline: calc\(var\(--dragon-w\) \* 0\.55\);/);
+  assert.match(rules, /margin-block: calc\(var\(--switch-h\) \* \(var\(--dragon-scale\) - 1\) \/ 2\);/);
+  assert.match(rules, /\.campaign-switch-title \{[^}]*font-size: calc\(var\(--switch-h\) \* 0\.31\);/);
+  // Pieces are placed with translate, never transform (the reduced-motion rule resets transform).
+  assert.match(rules, /\.campaign-switch-dragon--left \{ left: 0; translate: -45% -50%; \}/);
+  assert.match(rules, /\.campaign-switch-dragon--right \{ right: 0; translate: 45% -50%; \}/);
+  assert.doesNotMatch(rules, /(^|[^-])transform:/m);
+  assert.match(rules, /@container \(max-width: 300px\)/, 'a 320px phone gets smaller dragons, not clipped text');
+});
+
+test('the right dragon frames each campaign, and every piece exists', () => {
+  assert.deepEqual(campaignDragon(1), { kind: 'young', width: 402, height: 480 });
+  assert.deepEqual(campaignDragon(2), { kind: 'ancient', width: 354, height: 480 });
+  assert.equal(campaignDragon(undefined).kind, 'young', 'anything but Campaign II is Campaign I');
+  for (const campaign of [1, 2]) {
+    const { kind, width, height } = campaignDragon(campaign);
+    for (const side of ['left', 'right']) {
+      const src = campaignDragonSrc(kind, side);
+      const file = readFileSync(new URL(`../${src}`, import.meta.url));
+      // RIFF....WEBP, and the VP8X canvas size matches the declared width/height.
+      assert.equal(file.toString('latin1', 0, 4), 'RIFF', src);
+      assert.equal(file.toString('latin1', 8, 12), 'WEBP', src);
+      if (file.toString('latin1', 12, 16) === 'VP8X') {
+        assert.equal(file.readUIntLE(24, 3) + 1, width, `${src} width`);
+        assert.equal(file.readUIntLE(27, 3) + 1, height, `${src} height`);
+      }
+    }
+  }
+  // The markup starts in Campaign I (young) on the switch; the title picture is Campaign II (ancient).
+  const button = html.slice(html.indexOf('id="genius-campaign-btn"'), html.indexOf('</button>', html.indexOf('id="genius-campaign-btn"')));
+  assert.match(html, /id="genius-campaign-btn" class="campaign-switch-btn" data-dragon="young"/);
+  assert.match(button, /src="game\/art\/ui\/campaign-dragon-young-left\.webp" alt="" width="402" height="480"/);
+  assert.match(button, /src="game\/art\/ui\/campaign-dragon-young-right\.webp" alt="" width="402" height="480"/);
+  const emblem = html.slice(html.indexOf('id="campaign-emblem"'), html.indexOf('</button>', html.indexOf('id="campaign-emblem"')));
+  assert.match(emblem, /campaign-dragon-ancient-left\.webp" alt="" width="354" height="480"/);
+  assert.match(emblem, /campaign-dragon-ancient-right\.webp" alt="" width="354" height="480"/);
+  // main.js swaps the pair with the campaign the button names.
+  assert.match(main, /const dragon = campaignDragon\(selectedCampaign\);[\s\S]{0,500}piece\.src = campaignDragonSrc\(dragon\.kind, side\);/);
+  assert.match(css, /\[data-dragon="ancient"\] \{\s*--dragon-scale: 2\.1;\s*--dragon-aspect: 0\.7375;/);
+  assert.doesNotMatch(html, /campaign-switch-dragon--mirror|campaign-switch-dragon" src="game\/intro-replay/);
 });
 
 test('the web profile that holds the switch scrolls instead of cutting it off', () => {

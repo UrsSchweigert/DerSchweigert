@@ -74,7 +74,7 @@ import { bossRoundKinds2, isBossRoundLevel2, TOTAL_LEVELS_2 } from './campaign2/
 import { getCampaign2LevelConfig, ABILITY_LEVEL } from './campaign2/config.js';
 import { getSkillIntro2, INTRO_TEXT_2 } from './campaign2/intro-text.js';
 import { createCampaign2Progress } from './campaign2/progress.js';
-import { createCampaignSelection } from './campaign2/selection.js';
+import { createCampaignSelection, campaignDragon, campaignDragonSrc } from './campaign2/selection.js';
 import { campaign2Access, campaignSwitchVisible } from './campaign2/access.js';
 import { expressionHtml } from './campaign2/math-render.js';
 import { runestoneDataUri } from './runestone.js';
@@ -2203,6 +2203,18 @@ async function renderCampaignSwitch() {
     set('genius-status', inTwo ? 'campaign.switch.toArithmetic' : access.granted ? 'campaign.switch.toGenius' : 'campaign.switch.unlock');
     button.setAttribute('aria-pressed', String(inTwo));
     button.dataset.campaign = String(selectedCampaign);
+    // The dragon pair belongs to the campaign the button names: young for I, ancient for II.
+    const dragon = campaignDragon(selectedCampaign);
+    if (button.dataset.dragon !== dragon.kind) {
+      button.dataset.dragon = dragon.kind;
+      for (const side of ['left', 'right']) {
+        const piece = button.querySelector(`.campaign-switch-dragon--${side}`);
+        if (!piece) continue;
+        piece.width = dragon.width;
+        piece.height = dragon.height;
+        piece.src = campaignDragonSrc(dragon.kind, side);
+      }
+    }
     const note = document.getElementById('campaign2-note');
     if (note) {
       note.hidden = access.granted || !inTwo;

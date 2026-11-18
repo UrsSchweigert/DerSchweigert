@@ -11,7 +11,7 @@ the two ends match exactly.
 | `campaign-dragon-ancient-left.webp` | 354x480 | `c4735d903ea1` |
 | `campaign-dragon-ancient-right.webp` | 354x480 | `24a1f8c46006` |
 
-Not wired into the game yet. This is art only.
+Wired into the campaign switch and the title-screen Campaign II picture (`static/index.html`, `styles.css`, `game/campaign2/selection.js`); the apps ship all four files (`mobile/scripts/bundle-check.mjs`).
 
 ## Generation
 

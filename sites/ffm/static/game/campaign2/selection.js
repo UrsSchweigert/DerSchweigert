@@ -21,3 +21,22 @@ export function createCampaignSelection({ storage = globalThis.localStorage, pla
     },
   };
 }
+
+// The dragons that frame the campaign switch: a young one for Campaign I (Arithmetic), an
+// ancient one for Campaign II (Genius). Each is a left and a right piece (game/art/ui/, see
+// its PROVENANCE.md); width/height are the files' pixel sizes, so the <img> keeps its
+// aspect before the picture has loaded.
+export const CAMPAIGN_DRAGONS = Object.freeze({
+  1: Object.freeze({ kind: 'young', width: 402, height: 480 }),
+  2: Object.freeze({ kind: 'ancient', width: 354, height: 480 }),
+});
+
+/** The dragon of a campaign (anything but 2 is Campaign I). */
+export function campaignDragon(campaign) {
+  return CAMPAIGN_DRAGONS[campaign === 2 ? 2 : 1];
+}
+
+/** The page-relative path of one piece: side is 'left' or 'right'. */
+export function campaignDragonSrc(kind, side) {
+  return `game/art/ui/campaign-dragon-${kind}-${side}.webp`;
+}

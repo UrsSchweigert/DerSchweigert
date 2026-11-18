@@ -46,6 +46,11 @@ export const BUNDLE_FILES = Object.freeze([
   'game/stage-1.webp',
   'game/stage-6.webp',
   'game/dragon.webp',
+  // The campaign switch's dragon pairs (young: Campaign I, ancient: Campaign II).
+  'game/art/ui/campaign-dragon-young-left.webp',
+  'game/art/ui/campaign-dragon-young-right.webp',
+  'game/art/ui/campaign-dragon-ancient-left.webp',
+  'game/art/ui/campaign-dragon-ancient-right.webp',
   'game/platform.js',
   'game/platform-adapter.js',
   'game/mobile-ui.js',

@@ -86,6 +86,7 @@ const EXCLUDED_SAMPLES = [
   'story/README.md',
   'story/ART-BIBLE.md',
   'game/boss/PROVENANCE.md',
+  'game/art/ui/PROVENANCE.md',
   'game/heroes/check-heroes.mjs',
   'game/heroes/PROVENANCE.md',
   'game/heroes/rogue/source/sheet.png',

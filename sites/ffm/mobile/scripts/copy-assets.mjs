@@ -59,6 +59,7 @@ export const EXCLUDED = [
   /^boss-preview\.html$/,
   // Provenance notes are for the repository, not the shipped bundle.
   /^game\/boss\/PROVENANCE\.md$/,
+  /^game\/art\/ui\/PROVENANCE\.md$/,
   // Hero tooling, provenance and generation sources stay in the repository;
   // only the three art files of each hero ship.
   /^game\/heroes\/(check-heroes\.mjs|PROVENANCE\.md)$/,
