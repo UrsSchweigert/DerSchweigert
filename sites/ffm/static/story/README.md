@@ -14,10 +14,26 @@ The prologue plays on the first open of an install, every act opening plays
 when its first level starts, and the finish plays the first time level 60 is
 finished (see [Integration](#integration)).
 
-The art was painted for an earlier draft of the story and has not been redone
-for this text yet: act II shows harvest fields while its cards climb into the
-mountains, act III a night forest, act IV a meadow and timber hall rather than
-a buried city. A later art pass follows the cards.
+Most of the art was painted for an earlier draft of the story. A first pass
+(2026-11-18) replaced the backdrops of acts II, IV, V and VI and the finish's
+dawn, and added the ancient dragon to act V; the midgrounds and foregrounds
+were kept. What still does not match the cards:
+
+- **Act II**: the backdrop is the mountain range the cards climb, but the
+  wheat, windmill and haystacks of the old harvest scene still stand in front.
+- **Act III**: unchanged, a night forest.
+- **Act IV**: the backdrop is the buried stone city; the midground and
+  foreground are still the meadow and timber hall.
+- **Act V**: the backdrop is the silent capital with still banners; the stalls
+  stand on the cobbles instead of floating, and there is a fountain where the
+  cards have clocks running backward.
+- **Act VI**: the backdrop is the climb to the throne room; the midground is
+  still the old hall.
+- **Finish**: the throne-room backdrop is gone, so the opening cards (the crown
+  cracks, dawn pours through the throne-room windows) play over act VI's hall
+  pillars standing in the new dawn landscape.
+- Acts I, II, IV, V and VI show no fiends any more (the owner left them out of
+  this pass); act III still does.
 
 ## Layout
 
@@ -71,12 +87,16 @@ A character can change pose mid-scene: add the second pose as its own layer
 with `"poseOf": "<base layer id>"`, the same role and motion, and crossfade the
 two with `opacity` keyframes (ideally under a `flash`). Poses share their base
 layer's depth plane, so they don't count towards the 3-4 planes. The finish
-uses the same trick for whole planes: the throne room crossfades into dawn
-over the fields under a flash.
+uses the same trick for whole planes: act VI's hall and steps crossfade into
+act I's village and meadow under a flash.
 
-A layer `src` may point into another scene's folder (`../act-6/backdrop.webp`).
-The finish is built that way from the art of act I, act VI and the prologue,
-so it adds no image to the bundle.
+A layer `src` may point into another scene's folder (`../act-6/midground.webp`).
+The finish is built that way from the art of act I, act VI and the prologue;
+its only own image is the dawn backdrop (`scenes/finish/dawn.webp`).
+
+A layer that is taken out of a scene keeps its image in the scene folder, so
+putting it back is a change to `scene.json` only (the fiends of acts I, II, IV,
+V and VI are kept that way).
 
 ## Cards and pacing
 

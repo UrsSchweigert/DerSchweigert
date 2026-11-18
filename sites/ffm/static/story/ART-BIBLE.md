@@ -74,12 +74,15 @@ are **gold**; danger is crimson or sickly violet, never gore.
 ## Recurring cast
 
 - **Blue ice dragon**: ancient ally; matches `static/game/dragon.png` (crystal
-  spikes, pale blue-white belly), restyled as a paper cutout.
+  spikes, pale blue-white belly), restyled as a paper cutout. Act V's
+  `dragon.webp` (descending, wings spread) is the approved cutout; the small
+  dragon in the finish's dawn sky is painted into that backdrop.
 - **Fiends**: the existing fiend classes (`static/game/fiend-sprites/`),
-  restyled as paper cutouts; slightly comical, never gory. Each act opening
-  shows the classes that actually appear in that act (see
-  `getFiendClassWeights` in `game/difficulty-classes.js`), as one cutout group
-  on its own layer so the fight the player is about to have is on screen.
+  restyled as paper cutouts; slightly comical, never gory. Each act's classes
+  (see `getFiendClassWeights` in `game/difficulty-classes.js`) exist as one
+  cutout group, `scenes/act-N/fiends.webp`. Since 2026-11-18 only act III
+  shows its group; the others stay in their folders, unreferenced, so they can
+  be put back.
 - **The Hollow King**: never shown as a body — a floating crown with shadow
   beneath it.
 
@@ -94,10 +97,13 @@ are **gold**; danger is crimson or sickly violet, never gore.
 | V | 41-50 | night town square, fountain, rune circles | `stage-5.png` |
 | VI | 51-60 | blue-and-gold throne room | `stage-6.png` |
 
-These settings are what the shipped art shows. The current story text,
+These settings are what the in-game stages show. The current story text,
 *The Stolen Dawn*, asks for other places in several acts (mountain
 watchtowers in II, a buried stone city in IV, a capital where stalls float in
-V) and names the king's adviser as the villain; the README lists the
+V) and names the king's adviser as the villain. The backdrops of acts II, IV,
+V and VI now follow the story (mountains at stormy dusk, the buried city, the
+silent capital at night, the staircase to the throne room); their midgrounds
+and foregrounds still show the settings above. The README lists the
 differences for the next art pass. The Hollow King above is the boss-mode
 figure, not a character of the story cards.
 
