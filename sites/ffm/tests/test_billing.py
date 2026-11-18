@@ -2791,3 +2791,44 @@ def test_an_invoice_below_the_price_still_does_not_count(billing_app, mock_strip
     with billing_app.app_context():
         assert billing._valid_paid_end({'id': 'sub_real', 'customer': 'cus_real'}) is None
     mock_stripe_provider.charges.retrieve.assert_not_called()
+
+
+def _paid_invoice_for_price(price_id, period_end):
+    return {
+        'id': 'inv_' + price_id, 'customer': 'cus_legacy', 'subscription': 'sub_legacy', 'status': 'paid',
+        'currency': 'eur', 'amount_paid': 300, 'paid': True, 'customer_address': {'country': 'DE'},
+        'charge': 'ch_legacy',
+        'lines': {'data': [{'price': {'id': price_id}, 'period': {'end': period_end}, 'proration': False}]},
+    }
+
+
+def test_invoices_paid_on_a_legacy_price_keep_counting(billing_app, mock_stripe_provider):
+    """A subscriber moved from the archived EUR 3.00 price to the current one must
+    keep the access their earlier invoice already paid for."""
+    from sites.ffm.app import billing
+    from sites.ffm.app import stripe_provider
+
+    legacy = next(iter(stripe_provider.LEGACY_PRICE_IDS))
+    period_end = int(datetime.now(timezone.utc).timestamp()) + 60 * 86400
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        _paid_invoice_for_price(legacy, period_end)]
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_legacy', 'paid': True, 'refunded': False, 'amount_refunded': 0, 'disputed': False,
+        'billing_details': {'address': {'country': 'DE'}},
+    }
+    with billing_app.app_context():
+        paid_until = billing._valid_paid_end({'id': 'sub_legacy', 'customer': 'cus_legacy'})
+    assert paid_until == datetime.fromtimestamp(period_end, timezone.utc).isoformat()
+
+
+def test_invoices_on_an_unrelated_price_do_not_count(billing_app, mock_stripe_provider):
+    from sites.ffm.app import billing
+
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        _paid_invoice_for_price('price_something_else', 2_000_000_000)]
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_legacy', 'paid': True, 'refunded': False, 'amount_refunded': 0, 'disputed': False,
+        'billing_details': {'address': {'country': 'DE'}},
+    }
+    with billing_app.app_context():
+        assert billing._valid_paid_end({'id': 'sub_legacy', 'customer': 'cus_legacy'}) is None
