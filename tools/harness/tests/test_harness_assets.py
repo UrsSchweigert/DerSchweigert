@@ -6,7 +6,7 @@ import zlib
 
 import pytest
 
-from harness import approval, assets, cli, humantasks, plans
+from harness import assets, cli, humantasks, plans
 from harness.assets import AssetService, BlenderCli, validate_entry, validate_request
 from harness.broker import Broker, BrokerRejected
 from harness_doubles import Env, TIER_A

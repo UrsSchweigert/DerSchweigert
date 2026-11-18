@@ -133,6 +133,7 @@ jobs:
           cache-dependency-path: requirements.txt
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
+      - run: pip install ruff==0.11.4 && ruff check sites/derschweigert
       - run: pytest -q sites/derschweigert/tests
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -150,6 +151,7 @@ jobs:
           cache-dependency-path: requirements.txt
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
+      - run: pip install ruff==0.11.4 && ruff check tools
       - run: pytest -q tools/harness/tests
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -229,6 +231,8 @@ jobs:
         if: needs.changes.outputs.ffm_tests == 'true'
         env:
           PYTHONPATH: ${{ github.workspace }}
+      - run: pip install ruff==0.11.4 && ruff check sites/ffm
+        if: needs.changes.outputs.ffm_tests == 'true'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: needs.changes.outputs.ffm_tests == 'true'
         with:
@@ -443,7 +447,7 @@ jobs:
       # `infra/terraform/sites/ffm/variables.tf`, so leaving them unset
       # reproduces today's production config exactly. Secret values (Stripe
       # API keys, webhook signing secret) never go here — only AWS Secrets
-      # Manager ARNs that *point at* them. See sites/ffm/README.md's
+      # Manager ARNs that *point at* them. See sites/ffm/docs/file-map.md's
       # "Billing and Stripe integration" section for provisioning steps.
       TF_VAR_access_control_enabled: ${{ vars.FFM_ACCESS_CONTROL_ENABLED || 'false' }}
       TF_VAR_billing_enabled: ${{ vars.FFM_BILLING_ENABLED || 'false' }}

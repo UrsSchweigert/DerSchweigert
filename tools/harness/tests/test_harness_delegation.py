@@ -1,9 +1,8 @@
 import json
-import os
 
 import pytest
 
-from harness import failures, humantasks, models, runner, schemas
+from harness import failures, humantasks, models, schemas
 from harness.adapter import WorkRequest, build_prompt
 from harness_doubles import Env
 

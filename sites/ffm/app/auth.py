@@ -8,7 +8,7 @@ from .models import (
     create_token, consume_token,
     confirm_email_change, ensure_stable_id,
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
-    VERIFY_EMAIL_TTL_SECONDS, RESET_PASSWORD_TTL_SECONDS, CHANGE_EMAIL_TTL_SECONDS,
+    VERIFY_EMAIL_TTL_SECONDS, RESET_PASSWORD_TTL_SECONDS,
 )
 from .jwt_utils import mint_access_token, mint_refresh_token, decode_auth_token, InvalidAuthToken, TYPE_REFRESH
 from .validation import is_valid_int

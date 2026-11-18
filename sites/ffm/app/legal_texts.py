@@ -10,7 +10,7 @@ be durably recorded as if it were the real, reviewed wording.
 
 Scope and legal basis (operator-confirmed, not an independent legal
 determination by this code — same posture as every other legal caveat in
-this repository, see README.md "Historical legal/tax review questions"):
+this repository, see docs/file-map.md "Historical legal/tax review questions"):
 the paid offering is treated as a contract for the supply of digital
 content not on a tangible medium (Section 356 BGB; the operator has
 specifically confirmed Section 356(6) BGB as the applicable immediate-

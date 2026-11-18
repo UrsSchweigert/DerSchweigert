@@ -14,7 +14,7 @@ the README of the site you are changing.
 
 | Path | What it is | Start here |
 | --- | --- | --- |
-| `sites/ffm/` | Arithmo Slayer: maths game for children. Static game + Flask API on Lambda, Stripe billing, Capacitor iOS/Android apps in `mobile/`. Most of the activity. | `sites/ffm/README.md`, section "Fast file map for common tasks" |
+| `sites/ffm/` | Arithmo Slayer: maths game for children. Static game + Flask API on Lambda, Stripe billing, Capacitor iOS/Android apps in `mobile/`. Most of the activity. | `sites/ffm/README.md`, then `sites/ffm/docs/file-map.md` for your task |
 | `sites/landhauscheck/` | landhauscheck.com: React/Vite SPA + FastAPI on Lambda, own domain, eu-west-1, deployed with OpenTofu | `sites/landhauscheck/README.md`, `docs/SYSTEM.md` |
 | `sites/lesen/` | Reading-practice page + Capacitor apps (Buchstabenzeit) | `sites/lesen/RELEASING.md` |
 | `sites/derschweigert/` | www.derschweigert.de: static templates and assets on S3 + CloudFront; a FastAPI app for local preview only | `README.md` |
@@ -22,8 +22,8 @@ the README of the site you are changing.
 | `infra/terraform/sites/<site>/` | One root stack per site | |
 | `tools/harness/` | Stage-gated harness that plans, approves and runs AI-built work | `tools/harness/README.md`, `docs/harness/security-model.md` |
 
-Historical, not current: `ffm-math-game.prompt.md`, `game-build-state.json`, `.github/prompts/game/` and
-`.github/agents/android-*` describe the original build phases. Do not treat them as the current architecture.
+Historical, not current: `docs/archive/` holds the original Arithmo Slayer build prompts, and
+`.github/agents/android-*` describe the original Android build phases. Do not treat them as the current architecture.
 
 ## Running tests
 
@@ -36,6 +36,9 @@ CI uses Python 3.12 and Node 22. The sites' Python requirements conflict, so use
 | lesen | `node --test sites/lesen/tests/*.test.mjs` |
 | derschweigert | `pip install -r requirements.txt` then `PYTHONPATH=. pytest -q sites/derschweigert/tests` |
 | harness | `pip install -r requirements.txt` then `PYTHONPATH=. pytest -q tools/harness/tests` |
+
+Lint: `ruff check sites/ffm sites/derschweigert tools` (root `ruff.toml`: pyflakes and syntax errors only) and, in
+`sites/landhauscheck`, `ruff check app tests alembic` (its own stricter config). CI runs both.
 
 Branch protection requires the `test` and `test-ffm` checks. CI runs only the suites a change touches, and a change
 under `.github/workflows/` runs all of them.
