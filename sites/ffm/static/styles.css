@@ -2634,6 +2634,8 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   #level-clear .overlay-card, #game-over .overlay-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #level-clear .overlay-card h2, #level-clear .overlay-card p, #level-clear .overlay-card figure,
   #game-over .overlay-card h2, #game-over .overlay-card p { grid-column: 1 / -1; }
+  /* Two buttons share the row; the third (Return to Title) takes its own full row. */
+  #btn-save-score-return-title { grid-column: 1 / -1; }
 }
 
 :root {
@@ -2667,6 +2669,10 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   --text-subheading: 14px;
 }
 
+/* WKWebView inflates paragraph text in landscape but leaves buttons alone, so
+ * 12px body copy rendered ~18px next to 11px button labels. Pin it to 100% so
+ * the menu type scale below is the size that actually shows. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { background: var(--ink-950); }
 body { color: var(--ivory); }
 #loading-overlay { background: var(--ink-950); }
@@ -3097,11 +3103,14 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   width: auto;
   min-width: 24px;
   min-height: 24px;
-  justify-self: center;
+  justify-self: start;
   accent-color: var(--brass-light);
 }
 #pause-overlay:has(#audio-settings[open]) #pause-actions { display: none; }
 #pause-overlay:has(#audio-settings[open]) .player-identity { display: none; }
+/* #pause-quit-actions is shown by an inline display from script, so only
+ * !important can keep the save prompt from stacking under the sound panel. */
+#pause-overlay:has(#audio-settings[open]) #pause-quit-actions { display: none !important; }
 #btn-audio-back { grid-column: 1 / -1; width: 100%; }
 /* The pause dialog keeps the title screen's 560px control column, so the
    action buttons and the audio disclosure share one width on wide screens. */
@@ -3152,9 +3161,16 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 #pause-overlay .audio-settings-toggle:hover,
 #audio-settings[open] > .audio-settings-toggle { border-color: var(--brass-light); background: var(--forest-800); }
 .audio-settings-icon { font-size: 18px; line-height: 1; }
-.audio-controls { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
+.audio-controls { grid-template-columns: minmax(0, 1fr); justify-items: stretch; text-align: left; row-gap: 8px; }
 .audio-controls label { width: 100%; }
 .audio-controls input[type="range"] { max-width: 400px; }
+.audio-controls .screen-status { grid-column: 1 / -1; }
+/* "Music volume control is available." is a live-region message for screen
+ * readers; it only needs to be seen when the control is not available. */
+#music-volume:not(:disabled) + #music-volume-status {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+#btn-audio-back { margin-top: 8px; }
 .playing-as-row button {
   background: linear-gradient(145deg, #203e32, #10241c);
   color: var(--ivory);
