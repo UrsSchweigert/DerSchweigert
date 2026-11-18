@@ -17,6 +17,7 @@ const readManual = (locale) => readFile(join(manualDir, `manual.${locale}.html`)
 
 const SECTIONS = Object.freeze([
   'campaign',
+  'campaign2',
   'difficulty',
   'controls',
   'timer',
@@ -104,6 +105,48 @@ test('the manual content matches the settled campaign, dragon, score and trainin
     /keine Analyse und kein Tracking/,
   ]) {
     assert.match(german, pattern, `manual.de.html states ${pattern}`);
+  }
+});
+
+// The difficulty curve (#534), Campaign II (#538) and the Players-page UI (#586) changed what
+// the manual has to say; these pin the facts so the two languages cannot drift from the game.
+test('the manual describes the difficulty curve, Campaign II and the Players page as built', async () => {
+  const english = await readManual('en');
+  const german = await readManual('de');
+  for (const pattern of [
+    /Subtraction starts at level 10, multiplication at level 20 and division at level 30/,
+    /levels 20, 30, 40, 50 and 60 is a boss round/,
+    /25 extra points/,
+    /subtraction, multiplication and division at levels 10, 20 and 30/,
+    /40 levels in eight acts of five/,
+    /cleared level 40 of Campaign I/,
+    /Arithmetic or Genius/,
+    /Campaign II is a second one-time purchase/,
+    /with the full unlock, add more players/,
+    /Personal progression chart/,
+    /speaker button in the top-right corner of the pause card/,
+    /thick gold frame/,
+  ]) {
+    assert.match(english, pattern, `manual.en.html states ${pattern}`);
+  }
+  for (const pattern of [
+    /Subtraktion beginnt in Level 10, Multiplikation in Level 20 und Division in Level 30/,
+    /Level 20, 30, 40, 50 und 60 ist eine Bossrunde/,
+    /25 Extrapunkte/,
+    /Division in Level 10, 20 und 30 ein/,
+    /40 Level in acht Akten zu je fünf/,
+    /Level 40 von Abenteuer I geschafft/,
+    /Rechnen oder Genie/,
+    /Abenteuer II ist ein zweiter, eigener Einmalkauf/,
+    /mit der Vollversion weitere Spieler hinzufügen/,
+    /Persönlicher Fortschritt/,
+    /Lautsprechertaste oben rechts in der Pausenkarte/,
+    /dicken Goldrahmen/,
+  ]) {
+    assert.match(german, pattern, `manual.de.html states ${pattern}`);
+  }
+  for (const stale of [/levels 5, 25 and 34/, /Level 5, 25 und 34/, /arithmetic of level 10 before/, /Rechenart von Level 10, bevor/]) {
+    assert.doesNotMatch(english + german, stale, `the manual no longer states ${stale}`);
   }
 });
 

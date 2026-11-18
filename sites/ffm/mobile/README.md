@@ -174,7 +174,7 @@ history. See [BACKUP.md](BACKUP.md) for their persistence contract and
 for the required score-version boundary before any trial is promoted.
 
 Optional untimed worked examples introduce subtraction, multiplication and division
-at levels 5, 25 and 34 after authorization, with Continue/Skip and no score writes.
+at levels 10, 20 and 30 after authorization (Campaign II: the first level of each act), with Continue/Skip and no score writes.
 Canonical product/dividend ranges remain unchanged; the generator supports explicit
 `maxProduct`/`maxDividend` constraints for a separately reviewed curriculum change.
 
@@ -228,8 +228,8 @@ its button: words break only as a last resort and the tab row wraps onto a secon
 The tab explains the selected training mode beside its selector and names the
 selected level's arithmetic in one line ("Level 15: addition and subtraction, results up to 20 · 10 answer
 choices"), read from the same authorized level config the session runs on, so it cannot drift from the
-curriculum; a locked level says so instead of inventing a summary. Disclosure labels ("Practice sessions",
-"Audio settings") are centred in their bars. In the app,
+curriculum; a locked level says so instead of inventing a summary. The "Practice sessions" disclosure label is centred in its bar; the pause card opens
+its audio settings from a 44px speaker button in its top-right corner. In the app,
 player-name editing and deletion hide purchase/notice content until the stage
 closes. Terms navigation and manual navigation use stacked forest/brass buttons;
 the manual offers a game-return action above its contents and at the bottom.
