@@ -519,18 +519,38 @@ describe('the story', () => {
     assert.doesNotMatch(readme, /Hollow Crown/);
   });
 
-  it('ends with a finish built from art the other scenes already ship', () => {
+  it('ends with a finish built on its own dawn and art the other scenes already ship', () => {
     const finish = loadScene('finish');
     assert.deepEqual(finish.slot, { type: 'finish' });
     assert.deepEqual(finish.title, { en: 'A World in Balance', de: 'Eine Welt im Gleichgewicht' });
     assert.equal(finish.subtitles[0].kind, 'title', 'the finish opens on its title');
     assert.equal(finish.subtitles.at(-1).text.en, '**Every answer opens another path.**');
-    // No new art: every layer points into another scene's folder.
-    for (const layer of finish.layers) {
+    // The dawn backdrop is the finish's only own image; every other layer
+    // points into another scene's folder.
+    assert.equal(finish.layers[0].id, 'dawn');
+    assert.equal(finish.layers[0].src, 'dawn.webp');
+    for (const layer of finish.layers.slice(1)) {
       assert.match(layer.src, /^\.\.\/(intro|act-[1-6])\/[\w-]+\.webp$/, `${layer.id}: ${layer.src}`);
     }
+    // The owner dropped the throne-room backdrop from the finish (2026-11-18).
+    assert.ok(!finish.layers.some(layer => layer.id === 'throne' || layer.src === '../act-6/backdrop.webp'));
     assert.deepEqual(readdirSync(join(scenesDir, 'finish')).sort(),
-      ['scene.json', 'subtitles.de.vtt', 'subtitles.en.vtt']);
+      ['dawn.webp', 'scene.json', 'subtitles.de.vtt', 'subtitles.en.vtt']);
+  });
+
+  it('shows the ancient dragon descending on its act V card', () => {
+    const act5 = loadScene('act-5');
+    const dragon = act5.layers.find(layer => layer.id === 'dragon');
+    assert.ok(dragon, 'act V has a dragon layer');
+    assert.equal(dragon.src, 'dragon.webp');
+    assert.equal(dragon.role, 'character');
+    const card = act5.subtitles.find(cue => /ancient dragon descends/.test(cue.text.en));
+    assert.ok(card, 'the dragon card is still there');
+    // Hidden until its card, on screen while the card is read.
+    const shown = dragon.motion.find(key => key.opacity > 0);
+    assert.ok(shown.t >= card.start - 1 && shown.t <= card.start + 1, `the dragon appears at ${shown.t}`);
+    assert.ok(dragon.motion.filter(key => key.t < card.start - 0.5).every(key => key.opacity === 0));
+    assert.ok(act5.lighting.glows.some(glow => glow.layer === 'dragon'), 'the dragon glows');
   });
 });
 

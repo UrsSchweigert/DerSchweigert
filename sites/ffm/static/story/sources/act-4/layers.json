@@ -1,6 +1,6 @@
 {
   "scene": "act-4",
-  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP.",
+  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP. Layers with a \"generator\" field were applied later from owner-approved candidates (see \"replaced\" for the art they superseded).",
   "generator": {
     "endpoint": "gpt-image",
     "license": "commercial use of outputs permitted"
@@ -9,13 +9,23 @@
     {
       "id": "backdrop",
       "cutout": false,
-      "seed": 4401,
-      "size": {
-        "width": 1536,
-        "height": 864
+      "generator": "fal-ai/gpt-image-1.5/edit",
+      "seed": null,
+      "candidate": "a4bd-1.png",
+      "approved": "2026-11-18 by the owner, from the story art preview",
+      "references": [
+        "sources/act-4/backdrop-gpt.png",
+        "sources/act-6/backdrop-gpt.png"
+      ],
+      "params": {
+        "image_size": "1536x1024",
+        "quality": "high",
+        "output_format": "png"
       },
-      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: the wardkeepers' hall, a long timber hall with a green copper roof among ancient trees, deer banners hanging from the eaves, wide stone steps, standing rune-stones along the approach, late afternoon light, calm stone path across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
-      "raw": "sources/act-4/backdrop-gpt.png"
+      "prompt": "Backdrop layer for a layered paper-theatre story diorama. Match exactly the hand-painted paper look, aged cardstock texture, visible fibres, brushwork and muted storybook palette of the references. New place: a vast cavern deep below the mountains where an ancient stone city lies swallowed by rock, filling the entire image, flat front view: a rough layered rock ceiling, pale shafts of dusty light falling from cracks above, distant carved stone towers, arches, a broken stone bridge and house fronts half-buried in the cave walls, soft grey-green, ochre and moss tones, calm dusty stone floor across the lower 35%. No characters, text, frame, border or vignette; even neutral lighting.",
+      "raw": "sources/act-4/backdrop-gpt15.png",
+      "postprocessing": "Already 1536x1024 (the backdrop size): no crop or resize; tools/encode.py (WebP quality 80).",
+      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive"
     },
     {
       "id": "midground",
@@ -48,6 +58,20 @@
         "sources/intro/village-raw.png"
       ],
       "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+    }
+  ],
+  "replaced": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "seed": 4401,
+      "size": {
+        "width": 1536,
+        "height": 864
+      },
+      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: the wardkeepers' hall, a long timber hall with a green copper roof among ancient trees, deer banners hanging from the eaves, wide stone steps, standing rune-stones along the approach, late afternoon light, calm stone path across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
+      "raw": "sources/act-4/backdrop-gpt.png",
+      "replacedOn": "2026-11-18"
     }
   ]
 }
