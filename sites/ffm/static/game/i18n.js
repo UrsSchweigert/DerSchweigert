@@ -1029,6 +1029,16 @@ const SERVER_MESSAGES = {
   payment_required: { en: 'Payment required.', de: 'Zahlung erforderlich.' },
   'Access denied': { en: 'Access denied.', de: 'Zugriff verweigert.' },
 
+  // app/__init__.py's JSON 429, and access-flow.js readApiJson's stand-ins for a non-JSON body
+  rate_limited: {
+    en: 'Too many requests from this network. Please wait a few minutes and try again.',
+    de: 'Zu viele Anfragen aus diesem Netzwerk. Bitte warte ein paar Minuten und versuche es erneut.',
+  },
+  server_unavailable: {
+    en: 'The server is not answering right now. Please try again shortly.',
+    de: 'Der Server antwortet gerade nicht. Bitte versuche es gleich noch einmal.',
+  },
+
   // billing.py identifiers
   account_not_found: { en: 'Account not found.', de: 'Konto nicht gefunden.' },
   verification_required: { en: 'Please verify your email first.', de: 'Bitte bestätige zuerst deine E-Mail-Adresse.' },
