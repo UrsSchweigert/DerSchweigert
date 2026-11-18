@@ -18,6 +18,30 @@ export class AccessFlowError extends Error {
 }
 
 /**
+ * The JSON body of an API response, or a stand-in `{ error }` when a failure
+ * status has a body that is not JSON. A gateway or limiter page (HTML 429, 502, 504) would otherwise make
+ * res.json() throw a parser message (Safari: "The string did not match the
+ * expected pattern."), which reached the player in place of their access status.
+ *
+ * @param {Response} res
+ * @returns {Promise<object>}
+ */
+export async function readApiJson(res) {
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;   // not JSON: the stand-in below
+  }
+  if (data && typeof data === 'object') return data;
+  const error = res.status === 429 ? 'rate_limited' : 'server_unavailable';
+  // A success status with an unreadable body is no answer either; callers only
+  // look for `error` on a failure status, so say it here.
+  if (res.ok) throw new AccessFlowError(error, res.status, { error });
+  return { error };
+}
+
+/**
  * Fetch the level configuration for a specific level (1-60).
  * For levels 1-2 (free), returns config without calling backend.
  * For levels 3-60 (premium), requires authorization and calls backend.
@@ -56,7 +80,7 @@ export async function getAuthorizedLevelConfig(levelIndex, api, includeBaseline 
     headers: { 'Cache-Control': 'no-store' }
   });
 
-  const data = await res.json();
+  const data = await readApiJson(res);
 
   if (res.status === 401) {
     throw new AccessFlowError('Authentication required', 401, data);
@@ -86,7 +110,7 @@ export async function getBillingStatus(api) {
     headers: { 'Cache-Control': 'no-store' }
   });
 
-  const data = await res.json();
+  const data = await readApiJson(res);
 
   if (!res.ok) {
     throw new AccessFlowError(data.error || 'Failed to fetch billing status', res.status, data);
@@ -120,7 +144,7 @@ export async function startCheckout(api, options) {
     })
   });
 
-  const data = await res.json();
+  const data = await readApiJson(res);
 
   if (res.status === 401) {
     throw new AccessFlowError('Authentication required', 401, data);
@@ -183,7 +207,7 @@ export async function redeemCode(api, code) {
     body: JSON.stringify({ code })
   });
 
-  const data = await res.json();
+  const data = await readApiJson(res);
 
   if (res.status === 401) {
     throw new AccessFlowError('Authentication required', 401, data);
@@ -213,7 +237,7 @@ export async function cancelSubscription(api) {
     method: 'POST'
   });
 
-  const data = await res.json();
+  const data = await readApiJson(res);
 
   if (res.status === 401) {
     throw new AccessFlowError('Authentication required', 401, data);

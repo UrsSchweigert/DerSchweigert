@@ -24,6 +24,14 @@ class BaseConfig:
     # in auth.py), on top of the per-IP AUTH_RATE_LIMIT, so password guesses
     # against one account stay bounded however many addresses they come from.
     LOGIN_ACCOUNT_RATE_LIMIT = "20/hour"
+    # GET /billing/status, per IP, in place of the app-wide "200/day, 50/hour"
+    # default. The game reads it on every title screen, level start, hero lookup
+    # and Campaign II switch, so one child playing for an hour (or a household
+    # behind one address) passed 50; the 429 then made the client fall back to
+    # the free version, also for grandfathered and paying players. It is a
+    # cheap read of the caller's own row, and the API stage throttle still caps
+    # the total.
+    BILLING_STATUS_RATE_LIMIT = "60/minute"
     DYNAMODB_USERS_TABLE = os.environ.get('DYNAMODB_USERS_TABLE', 'ffm-users')
     DYNAMODB_SCORES_TABLE = os.environ.get('DYNAMODB_SCORES_TABLE', 'ffm-scores')
     DYNAMODB_RATELIMIT_TABLE = os.environ.get('DYNAMODB_RATELIMIT_TABLE', 'ffm-ratelimits')

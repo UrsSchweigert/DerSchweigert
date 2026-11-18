@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import hmac
 import hashlib
 
+import bcrypt
 import pytest
 import boto3
 from moto import mock_aws
@@ -145,6 +146,36 @@ def test_status_authenticated(client):
     assert 'premium_access' in data
     assert 'paid_until' in data
     assert 'gift_until' in data
+
+
+def test_status_survives_a_normal_hour_of_play(client):
+    """The game reads /billing/status on every title screen, level start, hero
+    lookup and Campaign II switch. Under the blanket 50/hour default a
+    grandfathered player was answered 429 mid-session and the game showed the
+    free version. More than 50 reads must pass (here within one minute, the
+    tightest window the route now has)."""
+    models._users().put_item(Item={
+        'pk': 'USER#Founder', 'sk': 'PROFILE', 'username': 'Founder', 'email': 'founder@example.com',
+        'password_hash': bcrypt.hashpw(b'Pass123!', bcrypt.gensalt(rounds=4)).decode(),
+        'created_at': '2019-08-25T16:41:07+00:00', 'grandfathered': True, 'stable_id': 'founder-stable-id',
+    })
+    token = client.post('/api/auth/login', json={'username': 'Founder', 'password': 'Pass123!'}).get_json()['access_token']
+    headers = {'Authorization': 'Bearer ' + token}
+    for _ in range(60):
+        response = client.get('/api/billing/status', headers=headers)
+        assert response.status_code == 200
+        assert response.get_json()['reason'] == 'grandfathered'
+
+
+def test_rate_limited_response_is_json(client, billing_app):
+    """A 429 must be JSON like every other API error: Safari's response.json()
+    on Flask's HTML 429 page throws 'The string did not match the expected
+    pattern.', which is all the player saw."""
+    billing_app.config['BILLING_STATUS_RATE_LIMIT'] = '2/minute'
+    statuses = [client.get('/api/billing/status') for _ in range(3)]
+    assert [r.status_code for r in statuses] == [200, 200, 429]
+    assert statuses[2].is_json
+    assert statuses[2].get_json()['error'] == 'rate_limited'
 
 
 @pytest.mark.parametrize('invoice_country,charge_country,expected', [
