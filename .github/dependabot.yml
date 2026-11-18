@@ -1,14 +1,39 @@
+# Minor and patch updates arrive as one grouped PR per ecosystem and directory;
+# major updates still get their own PR so their breaking changes can be read.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: monthly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: pip
+    directory: /sites/ffm
+    schedule:
+      interval: monthly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: pip
+    directory: /sites/landhauscheck
+    schedule:
+      interval: monthly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /sites/lesen
     schedule:
       interval: monthly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]

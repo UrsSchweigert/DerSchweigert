@@ -8,6 +8,8 @@ import {
   resolveLevelBackground,
   resolveLevelGroundY,
 } from './level-art.js';
+import { MAX_SHAPE_COUNT } from './shapes.js';
+import { RUNESTONE_HEIGHT, RUNESTONE_WIDTH, drawRunestone } from './runestone.js';
 
 export const LOGICAL_PX = 4;
 export const CANVAS_W   = 800;
@@ -288,15 +290,14 @@ export class Renderer {
   }
 
   /**
-   * Shapes-mode bubble: draws `count` (1-10) filled shape icons
-   * (square/circle/triangle) in a grid (up to 5 per row, wrapping to a
-   * 2nd row) instead of a text question, using the same bubble chrome as
+   * Shapes-mode bubble: draws `count` (1-6) runestones in one row
+   * instead of a text question, using the same bubble chrome as
    * drawSpeechBubble so both problem styles read consistently in-game.
    */
   drawShapeBubble(x, y, shapeType, count, isActive = true) {
     const ctx=this.ctx,P=LOGICAL_PX;
-    const cols=Math.min(count,5),rows=Math.ceil(count/5);
-    const cell=5*P,gap=3*P,padX=12,padY=8;
+    const cols=Math.min(count,MAX_SHAPE_COUNT),rows=Math.ceil(count/MAX_SHAPE_COUNT);
+    const cell=7*P,gap=P,padX=12,padY=8;
     const gridW=cols*cell+(cols-1)*gap,gridH=rows*cell+(rows-1)*gap;
     const bW=gridW+padX*2,bH=gridH+padY*2;
     let bx=~~(x-bW/2);bx=Math.max(4,Math.min(CANVAS_W-bW-4,bx));
@@ -305,24 +306,36 @@ export class Renderer {
 
     ctx.fillStyle=isActive?'#1020a0':'#303030';
     for(let i=0;i<count;i++){
-      const col=i%5,row=Math.floor(i/5);
+      const col=i%MAX_SHAPE_COUNT,row=Math.floor(i/MAX_SHAPE_COUNT);
       const cx=bx+padX+col*(cell+gap)+cell/2;
       const cy=by+padY+row*(cell+gap)+cell/2;
-      this._drawShapeIcon(shapeType,cx,cy,cell);
+      this._drawShapeIcon(shapeType,cx,cy,cell,isActive);
     }
   }
 
-  _drawShapeIcon(shapeType, cx, cy, size) {
-    const ctx=this.ctx,half=size/2;
-    if(shapeType==='circle'){
-      ctx.beginPath();ctx.arc(cx,cy,half*0.85,0,Math.PI*2);ctx.fill();
-    } else if(shapeType==='triangle'){
-      ctx.beginPath();
-      ctx.moveTo(cx,cy-half);ctx.lineTo(cx+half,cy+half);ctx.lineTo(cx-half,cy+half);
-      ctx.closePath();ctx.fill();
-    } else {
-      ctx.fillRect(cx-half*0.85,cy-half*0.85,size*0.85,size*0.85);
-    }
+  // Every counting visual is a runestone, whatever the problem's shapeType says.
+  _drawShapeIcon(shapeType, cx, cy, size, isActive = true) {
+    drawRunestone(this.ctx, cx, cy, size, { active: isActive });
+  }
+
+  /**
+   * A counted addition ("3 + 2 = ?") on the first levels: `a` runestones, a
+   * plus sign, `b` runestones and "= ?", inside the same bubble chrome.
+   */
+  drawStoneSumBubble(x, y, a, b, isActive = true) {
+    const ctx=this.ctx,P=LOGICAL_PX;
+    const stoneH=6*P,stoneW=stoneH*RUNESTONE_WIDTH/RUNESTONE_HEIGHT,gap=P,charW=6*P,padX=12,padY=8;
+    const stones=n=>n*stoneW+Math.max(0,n-1)*gap;
+    const parts=[stones(a),charW*3,stones(b),charW*4];   // " + ", stones, " = ?"
+    const bW=parts.reduce((sum,w)=>sum+w,0)+padX*2,bH=7*P+padY*2;
+    let bx=~~(x-bW/2);bx=Math.max(4,Math.min(CANVAS_W-bW-4,bx));
+    const by=~~(y-bH-20);
+    this._drawBubbleChrome(bx,by,bW,bH,isActive);
+    const mid=by+padY+3.5*P,ink=isActive?'#1020a0':'#303030';
+    let cx=bx+padX;
+    const row=(n)=>{for(let i=0;i<n;i++){drawRunestone(ctx,cx+stoneW/2,mid,stoneH,{active:isActive});cx+=stoneW+(i<n-1?gap:0);}};
+    row(a);this._text(' + ',cx,by+padY+4,ink);cx+=charW*3;
+    row(b);this._text(' = ?',cx,by+padY+4,ink);
   }
 
   drawTimerBar(x, y, w, ratio) {

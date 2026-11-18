@@ -3,8 +3,8 @@ resources needed for the ffm site's Phase 3 billing rollout:
 
   - A LIVE Stripe webhook endpoint for
     https://ffm.derschweigert.de/api/billing/webhook, pinned to
-    api_version 2024-06-20 (see app/stripe_provider.py), subscribed to
-    the 10 events documented in sites/ffm/README.md.
+    api_version 2026-10-28.endive (see app/stripe_provider.py), subscribed to
+    the 10 events documented in sites/ffm/docs/file-map.md.
   - Two AWS Secrets Manager secrets the Lambda resolves at runtime
     (sites/ffm/lambda/handler.py): ffm/stripe-secret-key and
     ffm/stripe-webhook-secret.
@@ -63,14 +63,14 @@ import stripe
 # app/__init__.py's package init, which requires a Flask SECRET_KEY env var
 # this script has no business setting. Kept as a literal instead, in sync
 # with API_VERSION there and with the "Pinned webhook API version" in
-# sites/ffm/README.md.
-API_VERSION = '2024-06-20'
+# sites/ffm/docs/file-map.md.
+API_VERSION = '2026-10-28.endive'
 WEBHOOK_URL = 'https://ffm.derschweigert.de/api/billing/webhook'
 EXPECTED_ACCOUNT_ID = '113725432218'
 EXPECTED_REGION = 'eu-central-1'
 SECRET_KEY_NAME = 'ffm/stripe-secret-key'
 WEBHOOK_SECRET_NAME = 'ffm/stripe-webhook-secret'
-# Kept in sync with sites/ffm/README.md's "Events to configure" list.
+# Kept in sync with sites/ffm/docs/file-map.md's "Events to configure" list.
 WEBHOOK_EVENTS = [
     'checkout.session.completed',
     'customer.subscription.created',

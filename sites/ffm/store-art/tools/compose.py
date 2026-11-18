@@ -440,7 +440,6 @@ def add_phone(
     bezel = max(2, round(body_w * BEZEL_RATIO))
     screen_w = body_w - 2 * bezel
     screen_h = screen_w / ratio
-    body_h = round(screen_h + 2 * bezel)
 
     phone = phone_mockup(body_w)
 

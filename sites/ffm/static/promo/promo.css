@@ -881,6 +881,19 @@ ul {
   font-size: 0.97rem;
 }
 
+/* Small print under the cards: the stage names are difficulty levels, so the
+   content-based store rating sits right next to them instead of being left
+   to the App Store page. */
+.gen-note {
+  max-width: 72ch;
+  margin: clamp(14px, 2vw, 20px) 0 0;
+  padding-left: clamp(12px, 1.6vw, 18px);
+  border-left: 2px solid var(--hairline);
+  color: var(--ivory-muted);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
 /* ---------------------------------------------------------------- kunst */
 
 .section-art {

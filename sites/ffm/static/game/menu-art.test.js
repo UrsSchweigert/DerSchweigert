@@ -71,6 +71,29 @@ test('the menus share one type scale: tab-sized buttons, explanation-sized copy'
   assert.match(css, /#active-question \{[^}]*font-size:\s*22px;/s);
 });
 
+test('every dialog shares the title, subtitle, text and button sizes', () => {
+  // Dialog buttons (pause, results, skill intro) take the shared button face:
+  // the legacy .diff-btn rule used to force monospace on them only.
+  const legacy = css.match(/^\.diff-btn \{([^}]*)\}/m)?.[1];
+  assert.ok(legacy);
+  assert.doesNotMatch(legacy, /font-family|font-size/);
+  // The difficulty cards keep their prose face on purpose.
+  assert.match(css, /\.splash-diff-btn \{[^}]*font-family: var\(--font-prose\);/s);
+  // Subtitles have one size of their own, one step under the dialog title.
+  assert.match(css, /--text-subheading:\s*14px;/);
+  assert.match(css, /:where\(\.overlay\) :where\(h3\) \{ font-size: var\(--text-subheading\); \}/);
+  // The speedrun card used to carry 15-18px copy of its own.
+  for (const selector of ['.speedrun-toggle', '.speedrun-empty']) {
+    const rule = css.match(new RegExp(`^\\${selector} \\{([^}]*)\\}`, 'm'))?.[1];
+    assert.ok(rule, selector);
+    assert.doesNotMatch(rule, /font-size/, `${selector} uses the body size`);
+  }
+  assert.match(css, /^\.speedrun-heading \{[^}]*font-size: var\(--text-subheading\);/m);
+  // The Training page: scores at body size, the player caption one step smaller.
+  assert.match(css, /#personal-best-list li \{[^}]*font-size: var\(--text-body\);/s);
+  assert.match(css, /\.title-page\[data-title-page="progress"\] \.player-identity \{ font-size: var\(--text-small\); \}/);
+});
+
 test('long passages are left-aligned with side padding and air before the action', () => {
   const rule = css.match(/(\/\* Running text in dialogs[\s\S]*?)\n\n/)?.[1];
   assert.ok(rule, 'running-text rule missing');
@@ -78,9 +101,11 @@ test('long passages are left-aligned with side padding and air before the action
   assert.match(rule, /padding-inline:\s*8px;/, 'passages keep a side inset from the card edge');
   assert.match(rule, /margin-block-end:\s*8px;/, 'space stays between a passage and the action below it');
   for (const surface of ['.overlay-card', '.paywall-card', '.parental-gate-card',
-    '.entitlement-panel', '.practice-controls', '.app-help-card', '.first-open-notice-card']) {
+    '.practice-controls', '.app-help-card', '.first-open-notice-card']) {
     assert.ok(rule.includes(surface), `${surface} must follow the running-text rule`);
   }
+  // The Players page's purchase panel is a status card of short lines: centred.
+  assert.doesNotMatch(rule.replace(/\/\*[\s\S]*?\*\//g, ''), /\.entitlement-panel/);
   // One-line labels and the welcome text keep their centred presentation.
   assert.ok(rule.includes('p:not(.player-identity)'));
   assert.doesNotMatch(rule, /splash-intro|splash-subtitle|#continue-level/);

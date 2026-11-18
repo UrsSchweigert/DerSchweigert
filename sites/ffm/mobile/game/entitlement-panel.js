@@ -8,6 +8,7 @@
 // platform's real gating rule, never from fixed copy.
 
 import {
+  CAMPAIGN2_PRODUCT_ID,
   PURCHASE_OUTCOMES,
   RESTORE_OUTCOMES,
   createPurchaseStore,
@@ -19,7 +20,7 @@ import { DEFAULT_LOCALE, resolveLocale } from './parental-gate.js';
 /** Panel copy, keyed like the game's i18n dictionary. */
 export const STRINGS = Object.freeze({
   'entitlement.title': { en: 'Your version', de: 'Deine Version' },
-  'entitlement.status.full': { en: 'Full version: all levels are unlocked.', de: 'Vollversion: Alle Level sind freigeschaltet.' },
+  'entitlement.status.full': { en: 'All levels unlocked', de: 'Alle Level freigeschaltet' },
   'entitlement.status.free': { en: 'Free version.', de: 'Kostenlose Version.' },
   'entitlement.status.offline': { en: 'Offline: showing the last saved purchase status.', de: 'Offline: Zuletzt gespeicherter Kaufstatus wird angezeigt.' },
   'entitlement.status.error': { en: 'The purchase status could not be read.', de: 'Der Kaufstatus konnte nicht gelesen werden.' },
@@ -132,22 +133,30 @@ export function buildEntitlementMarkup({
     : paywallText('paywall.buyNoPrice', loc);
   const restore = paywallText('paywall.restore', loc);
   const disabled = busy ? ' disabled' : '';
+  // A fully unlocked install needs only its status line and Restore.
+  const full = statusKey === 'full';
   const lines = [
     `<div class="entitlement-panel" data-entitlement-status="${escapeHtml(statusKey)}"`,
     `     data-entitlement-outcome="${escapeHtml(outcomeKey)}">`,
-    `  <h2 class="entitlement-title">${escapeHtml(entitlementText('entitlement.title', loc))}</h2>`,
-    `  <p class="entitlement-status" role="status" aria-live="polite">${escapeHtml(statusText(statusKey, loc))}</p>`,
-    `  <p class="entitlement-free">${escapeHtml(freeContentText(freeCount, totalLevels, loc))}</p>`,
-    `  <p class="entitlement-unlock">${escapeHtml(entitlementText('entitlement.unlock', loc))}</p>`,
-    `  <p class="entitlement-device">${escapeHtml(entitlementText('entitlement.device', loc))}</p>`,
-    '  <div class="entitlement-actions">',
   ];
-  if (showBuy) {
+  if (!full) {
+    lines.push(`  <h2 class="entitlement-title">${escapeHtml(entitlementText('entitlement.title', loc))}</h2>`);
+  }
+  lines.push(`  <p class="entitlement-status" role="status" aria-live="polite">${escapeHtml(statusText(statusKey, loc))}</p>`);
+  if (!full) {
+    lines.push(`  <p class="entitlement-free">${escapeHtml(freeContentText(freeCount, totalLevels, loc))}</p>`);
+    lines.push(`  <p class="entitlement-unlock">${escapeHtml(entitlementText('entitlement.unlock', loc))}</p>`);
+    lines.push(`  <p class="entitlement-device">${escapeHtml(entitlementText('entitlement.device', loc))}</p>`);
+  }
+  lines.push('  <div class="entitlement-actions">');
+  if (showBuy && !full) {
     lines.push(`    <button type="button" class="diff-btn action-primary" data-entitlement-action="buy"${disabled}>${escapeHtml(buy)}</button>`);
   }
   lines.push(`    <button type="button" class="diff-btn" data-entitlement-action="restore"${disabled}>${escapeHtml(restore)}</button>`);
   lines.push('  </div>');
-  lines.push(`  <p class="entitlement-outcome${outcomeError ? ' error-msg' : ''}" role="status" aria-live="polite">${escapeHtml(outcomeText)}</p>`);
+  if (!full || outcomeText) {
+    lines.push(`  <p class="entitlement-outcome${outcomeError ? ' error-msg' : ''}" role="status" aria-live="polite">${escapeHtml(outcomeText)}</p>`);
+  }
   lines.push('</div>');
   return lines.join('\n');
 }
@@ -220,6 +229,7 @@ export function createEntitlementPanel({
   root,
   totalLevels = null,
   onGranted = () => {},
+  onExtrasRestored = () => {},
   probe = probeFreeLevels,
 } = {}) {
   if (!platform || typeof platform.getBillingStatus !== 'function') {
@@ -335,6 +345,17 @@ export function createEntitlementPanel({
     return paywall;
   }
 
+  // One Restore for every product: the store restores all of the account's purchases at
+  // once, so after it the extra products (Campaign II) are read back too and reported in
+  // the same outcome line. There is no second Restore button anywhere else in the app.
+  async function restoreExtras(result) {
+    if (result?.outcome !== RESTORE_OUTCOMES.RESTORED || typeof platform.getOwnedProductIds !== 'function') return [];
+    let owned = [];
+    try { owned = (await platform.getOwnedProductIds()) ?? []; } catch { owned = []; }
+    if (owned.length) onExtrasRestored(owned);
+    return owned;
+  }
+
   async function run(action) {
     if (busy || destroyed) return null;
     busy = true;
@@ -344,6 +365,12 @@ export function createEntitlementPanel({
       const result = await paywallForCurrentLocale()[action]();
       outcome = outcomeFromResult(result, action);
       if (result?.granted && result?.status) await applyStatus(result.status);
+      if (action === 'restore') {
+        const extras = await restoreExtras(result);
+        if (extras.includes(CAMPAIGN2_PRODUCT_ID)) {
+          outcome = { key: result?.granted ? 'paywall.restoredAll' : 'paywall.campaign2.restored', error: false };
+        }
+      }
       return result;
     } catch {
       outcome = {

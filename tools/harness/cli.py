@@ -11,11 +11,10 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import shutil
 import subprocess
 import time
 
-from . import approval, assets, humantasks, investigate, isolation, models, plans, providers, reconcile, runner, schemas, status, workrecord
+from . import approval, artservice, assets, claudecode, humantasks, investigate, isolation, models, plans, reconcile, runner, schemas, status, workrecord
 from .github import GhCli, GitHubError
 from .approval import AuthorizationError, plan_entity
 from .checks import SandboxChecker
@@ -28,6 +27,8 @@ def _slug(path: str) -> str:
 
 
 SOURCES_ENV = models.SOURCES_ENV
+INVESTIGATOR_MODEL_ENV = "HARNESS_INVESTIGATOR_MODEL"
+MODEL_ID = re.compile(r"[a-z0-9][a-z0-9.:_-]{1,63}")
 
 
 def operator_model_sources() -> Optional[List[str]]:
@@ -40,8 +41,8 @@ def model_sources_arg(given: Optional[List[str]], repo_root: Optional[str] = Non
     if given:
         return given
     if repo_root:
-        from . import remote
-        remote.load_harness_env(Path(repo_root))
+        from . import envfile
+        envfile.load_harness_env(Path(repo_root))
     return operator_model_sources()
 
 
@@ -56,6 +57,7 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
     draft_sources = None
     draft_assets_dir = None
     draft_routing = None
+    draft_art = None
     if phases_path:
         with open(phases_path, encoding="utf-8") as fh:
             data = json.load(fh)
@@ -64,6 +66,7 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
         assets = data.get("assets") if isinstance(data, dict) else None
         draft_assets_dir = assets.get("output_dir") if isinstance(assets, dict) else None
         draft_routing = data.get("model_routing") if isinstance(data, dict) else None
+        draft_art = data.get("art") if isinstance(data, dict) else None
     plan_id = plan_id or _slug(requirements)
     latest = store.get_plan(plan_id) if store else None
     version = latest["plan"]["version"] + 1 if latest else 1
@@ -76,6 +79,8 @@ def plan_command(store: Optional[Store], requirements: str, phases_path: Optiona
         policy = plans.with_overseer(policy or plans.DEFAULT_POLICY, overseer)
     if draft_routing is not None:
         policy = dict(policy or plans.DEFAULT_POLICY, model_routing=draft_routing)
+    if draft_art is not None:
+        policy = plans.with_art(policy, draft_art)  # raises ValueError on a bad block, before anything is saved
     if base_branch and base_branch.strip():
         # The run branch is cut from this branch and its pull requests target it, so a plan may land its work on a
         # branch that is not main. The choice is part of the approval digest.
@@ -151,7 +156,7 @@ def preflight_checks(store: Store, repo_root: str, checks: List[Dict[str, str]],
     """Run approved check definitions in the worker image before approval or issue import."""
     repo = GitRepo(repo_root, "main")
     head = repo.base_head()
-    checker = SandboxChecker(repo, os.path.join(store.home, "copilot.token"))
+    checker = SandboxChecker(repo)
     results = checker.preflight(head, checks)
     record = {"head": head, "results": results, "checked_at": time.time()}
     store.put_doc("check_preflight_result", key, record)
@@ -333,29 +338,25 @@ def runner_command(args) -> int:
                 raise runner.RunRefused("validation configuration errors prevent issue import: %s" %
                                         "; ".join("%s: %s" % (r["command"], r.get("output", "")) for r in config_errors[:3]))
             base = _import_base(root, plans.base_branch(stored["plan"]))
-            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=not args.add)) or "nothing new")
+            print("imported:", ", ".join(runner.import_issues(store, args.plan_id, version, args.file, base, replace=not args.add,
+                                                          redefine=tuple(args.redefine))) or "nothing new")
             return 0
         if not store.list_issues(args.plan_id):
             raise runner.RunRefused("no issues to schedule: supply refined issues with `import-issues`. Issue creation from phases is not automated yet")
         repo_slug = args.repo or detect_repo()
         upstream = "https://github.com/%s.git" % repo_slug
         sched = runner.build_scheduler(store, args.plan_id, version, root, args.dry_run, upstream, repo_slug, os.environ.get("USER", "owner"))
-        tunnel = None
-        if not args.no_tunnel:
-            from . import remote as remote_mod
-            settings = remote_mod.tunnel_settings(Path(root) if root else _repo_root())
-            if settings["pin"] and not settings["disabled"]:
-                tunnel = remote_mod.RemoteDashboard(root or str(_repo_root()), args.home, repo_slug)
-                tunnel.start()
         if args.cmd == "resume" and store.state("plan", plan_entity(args.plan_id, version)) == "Completed":
             # a finished run is not resumed; it is watched until the owner merges or the watch expires
             return runner.watch_promotion(sched, args.interval, args.max_ticks,
                                           lambda e: print(json.dumps(e, sort_keys=True), flush=True))
+        art_service = None
         try:
+            art_service = runner.start_art_service(store, args.plan_id, version, sched, args.dry_run)
             return runner.run_loop(sched, args.interval, args.max_ticks, lambda e: print(json.dumps(e, sort_keys=True), flush=True))
         finally:
-            if tunnel is not None:
-                tunnel.stop()
+            if art_service is not None:
+                art_service.stop()
     except (runner.RunRefused, approval.AuthorizationError) as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2
@@ -363,45 +364,69 @@ def runner_command(args) -> int:
         store.close()
 
 
-def providers_command(args) -> int:
-    """Show, set, or remove a BYOK provider profile. The key is never echoed and never passed as an argument."""
+def claude_command(args) -> int:
+    """Store, show, or remove the Claude subscription token. The token is never echoed and never passed as an argument."""
     home = args.home or default_home()
-    if args.action == "show":
-        profiles = providers.redacted(home)
-        if not profiles:
-            print("no provider profiles in %s" % providers.path(home))
-            return 0
-        print(json.dumps(profiles, indent=2, sort_keys=True))
+    path = claudecode.token_path(home)
+    if args.action == "status":
+        if not claudecode.has_token(home):
+            print("no Claude token in %s; run `harness claude login`" % path)
+            return 1
+        print("claude.token: %s (%s, mode %o)" % (claudecode.redacted(home), path, os.stat(path).st_mode & 0o777))
         return 0
-    source = (args.source or "").strip()
-    if source not in models.SOURCES:
-        print("error: choose a source from %s" % ", ".join(models.SOURCES), file=sys.stderr)
-        return 2
-    if source == "copilot":
-        print("error: copilot uses copilot.token, not a provider profile", file=sys.stderr)
-        return 2
-    if args.action == "rm":
-        removed = providers.remove(home, source)
-        print("removed %s" % source if removed else "no profile for %s" % source)
+    if args.action == "logout":
+        print("removed %s" % path if claudecode.remove_token(home) else "no Claude token in %s" % path)
         return 0
-    if args.api_key_env:
-        key = os.environ.get(args.api_key_env, "").strip()
-        if not key:
-            print("error: %s is empty or unset" % args.api_key_env, file=sys.stderr)
+    if args.token_env:
+        token = os.environ.get(args.token_env, "").strip()
+        if not token:
+            print("error: %s is empty or unset" % args.token_env, file=sys.stderr)
             return 2
     else:
         if not sys.stdin.isatty():
-            print("error: pass --api-key-env VAR, or run in a terminal to be prompted", file=sys.stderr)
+            print("error: pass --token-env VAR, or run in a terminal to be prompted", file=sys.stderr)
             return 2
-        key = getpass.getpass("API key for %s (not echoed): " % source).strip()
+        print("Run `claude setup-token` in another terminal, sign in with your Claude subscription, and paste the token it prints.")
+        token = getpass.getpass("Claude token (not echoed): ").strip()
     try:
-        cfg = providers.save(home, source, api_key=key, base_url=args.base_url, kind=args.type)
+        claudecode.save_token(home, token)
     except (ValueError, OSError) as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2
-    print("saved %s -> %s (%s), key %s" % (source, cfg["baseUrl"], cfg["type"],
-                                           providers.redacted(home).get(source, {}).get("apiKey", "")))
+    print("saved %s (%s). Check it with `harness models --refresh`." % (path, claudecode.redacted(home)))
     return 0
+
+
+def art_command(args) -> int:
+    """Show the image-generation budget and what was spent. Reads the ledger the art service keeps; starts nothing."""
+    store = Store(args.home)
+    try:
+        latest = store.get_plan(args.plan_id)
+        if latest is None:
+            print("error: no plan %s" % args.plan_id, file=sys.stderr)
+            return 2
+        art = latest["plan"]["policy"].get("art")
+        if not art:
+            print("plan %s v%d has no art budget" % (args.plan_id, latest["plan"]["version"]))
+            return 0
+        summary = artservice.Ledger(store.home, args.plan_id, art["credits"]).summary()
+        if args.show:
+            call = next((c for c in summary["calls"] if c["call_id"] == args.show), None)
+            if call is None or not call.get("file") or not os.path.isfile(call["file"]):
+                print("error: %s has no saved image (images are kept from the day the art service started keeping them)" % args.show, file=sys.stderr)
+                return 2
+            print(call["file"])
+            if args.open and sys.platform == "darwin":
+                subprocess.run(["open", call["file"]], check=False)
+            return 0
+        print("%s: %d of %d images used, %d left (%d delivered, %d failed and refunded); generator %s" % (
+            args.plan_id, summary["used"], summary["credits"], summary["remaining"], summary["delivered"], summary["failed"], art["generator"]))
+        for call in summary["calls"][-args.last:]:
+            print("  %s %-9s %-24s seed %-11s %s%s" % (call["call_id"], call["status"], call.get("issue_id") or "-", call.get("seed", "-"), call.get("label") or "",
+                                                       "  [image saved]" if call.get("file") else ""))
+        return 0
+    finally:
+        store.close()
 
 
 def models_command(args) -> int:
@@ -438,12 +463,22 @@ def investigate_command(args) -> int:
             raise runner.RunRefused("investigate refused, Tier B: %s. Run `isolation verify` first" % iso["reason"])
         root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
         clone = runner.trusted_clone(store.home, root, "main")
-        from .adapter import CopilotCliAdapter
-        adapter = CopilotCliAdapter(store.home, clone.path, "main")
+        from .adapter import ClaudeCodeAdapter
+        adapter = ClaudeCodeAdapter(store.home, clone.path, "main")
         probe = adapter.probe()
         if not probe["available"]:
-            raise runner.RunRefused("the Copilot CLI sandbox adapter is unavailable: %s" % probe["reason"])
-        sources = model_sources_arg(args.model_source, root)
+            raise runner.RunRefused("the Claude Code sandbox adapter is unavailable: %s" % probe["reason"])
+        sources = model_sources_arg(args.model_source, root)  # also loads the HARNESS_* keys from the app env file
+        pinned = (args.model or os.environ.get(INVESTIGATOR_MODEL_ENV, "")).strip() or None
+        if pinned:
+            if not MODEL_ID.fullmatch(pinned):
+                raise runner.RunRefused("%r is not a model id" % pinned)
+            # Probed directly, not through the menu cache: one model must not replace the cached menu.
+            accepted = adapter.probe([pinned]).get("models") or []
+            if pinned not in accepted:
+                raise runner.RunRefused("the investigator model %s is not accepted by your Claude subscription; "
+                                        "check the id, or drop --model / %s to use the menu" % (pinned, INVESTIGATOR_MODEL_ENV))
+            print("Investigator pinned to %s." % pinned, flush=True)
         policy = plans.with_model_sources(plans.DEFAULT_POLICY, sources, models.load_catalog(store.home))
         tiers = policy["model_tiers"]
         candidates = sorted({m for v in tiers.values() for m in ([v] if isinstance(v, str) else v)})
@@ -456,7 +491,7 @@ def investigate_command(args) -> int:
         interactive = not args.non_interactive and sys.stdin.isatty()
         print("Starting the investigator (Ctrl+C stops it safely). Progress lines follow.", flush=True)
         inv = investigate.Investigator(adapter, clone, policy, available, tier=args.tier, max_rounds=args.max_rounds, timeout=args.timeout,
-                                       log=lambda m: print(m, flush=True), cache_home=store.home)
+                                       log=lambda m: print(m, flush=True), cache_home=store.home, model=pinned)
         try:
             feedback = list(args.feedback)
             if args.feedback_file:
@@ -647,7 +682,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--fixture", action="store_true", help="mark the plan as a test fixture")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--model-source", action="append", choices=list(models.SOURCES),
-                   help="where the picker menu takes models from (repeatable; default: the phases file's choice, else copilot)")
+                   help="where the picker menu takes models from (repeatable; default: the phases file's choice, else claude)")
     p.add_argument("--assets-dir", help="repository-relative asset output directory for this plan (for example apps/arithmoslayer/assets/)")
     p.add_argument("--base-branch",
                    help="branch the run branch is cut from and the branch run pull requests target (default: main)")
@@ -670,7 +705,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     r.add_argument("--interval", type=float, default=30.0)
     r.add_argument("--max-ticks", type=int)
     r.add_argument("--repo", help="GitHub owner/name")
-    r.add_argument("--no-tunnel", action="store_true", help="do not auto-start the remote dashboard tunnel")
     rs = sub.add_parser("resume", help="reconcile stored state and continue a paused or interrupted run")
     rs.add_argument("plan_id")
     rs.add_argument("--version", type=int)
@@ -678,7 +712,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     rs.add_argument("--interval", type=float, default=30.0)
     rs.add_argument("--max-ticks", type=int)
     rs.add_argument("--repo")
-    rs.add_argument("--no-tunnel", action="store_true", help="do not auto-start the remote dashboard tunnel")
     pz = sub.add_parser("pause", help="pause a running plan: finish the workers in flight, start nothing new, then stop")
     pz.add_argument("plan_id")
     pz.add_argument("--version", type=int)
@@ -692,6 +725,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ii = sub.add_parser("import-issues", help="load refined implementation issues for an approved plan")
     ii.add_argument("--add", action="store_true",
                     help="add the issues in the file and leave the plan's other issues alone, instead of replacing the whole set")
+    ii.add_argument("--redefine", action="append", default=[], metavar="ISSUE",
+                    help="replace the definition of this Blocked issue in place, keeping its pull request and history")
     ii.add_argument("plan_id")
     ii.add_argument("file")
     ii.add_argument("--version", type=int)
@@ -707,8 +742,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     iv.add_argument("--requirements", required=True)
     iv.add_argument("--out", help="output directory (default: <requirements>_plan next to the requirements file)")
     iv.add_argument("--tier", choices=["low", "standard", "strong"], default="standard")
+    iv.add_argument("--model", help="pin the investigator to this model id, e.g. claude-fable-5-2 (default: "
+                                    "$%s, else the menu model of --tier); the drafted plan keeps its own menu"
+                                    % INVESTIGATOR_MODEL_ENV)
     iv.add_argument("--model-source", action="append", choices=list(models.SOURCES),
-                    help="where the picker menu takes models from (repeatable; default copilot)")
+                    help="where the picker menu takes models from (repeatable; default claude)")
     iv.add_argument("--max-rounds", type=int, default=3, help="how many times the investigator may ask questions")
     iv.add_argument("--non-interactive", action="store_true", help="write questions.md and stop instead of asking in the terminal")
     iv.add_argument("--answers", help="JSON file mapping question id to answer, to continue a non-interactive run")
@@ -747,7 +785,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ar.add_argument("kind", choices=["plan", "workspace"])
     ar.add_argument("target", help="the plan id or workspace id")
     ar.add_argument("--undo", action="store_true", help="show it in the dashboard again")
-    tk = sub.add_parser("tasks", help="list open human tasks")
+    sub.add_parser("tasks", help="list open human tasks")
     st = sub.add_parser("sync-tasks", help="mirror open human tasks as GitHub issues")
     st.add_argument("plan_id")
     st.add_argument("--repo")
@@ -756,12 +794,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     asx.add_argument("action", choices=["probe"])
     i = sub.add_parser("isolation", help="Tier A worker sandbox: build the image, verify it, or show the tier")
     i.add_argument("action", choices=["build", "verify", "status"])
-    pv = sub.add_parser("providers", help="manage BYOK provider profiles (endpoint and key) for non-Copilot sources")
-    pv.add_argument("action", choices=["show", "set", "rm"])
-    pv.add_argument("source", nargs="?", help="model source, e.g. deepseek")
-    pv.add_argument("--base-url", help="API endpoint; defaults to the known URL for the source")
-    pv.add_argument("--type", default="openai", choices=["openai", "azure", "anthropic"], help="provider wire type")
-    pv.add_argument("--api-key-env", help="read the key from this environment variable instead of prompting")
+    ar = sub.add_parser("art", help="show the image-generation budget of a plan and what was spent")
+    ar.add_argument("plan_id")
+    ar.add_argument("--last", type=int, default=10, help="how many recent calls to list")
+    ar.add_argument("--show", metavar="CALL_ID", help="print where a generated image is saved, e.g. art-0004")
+    ar.add_argument("--open", action="store_true", help="with --show: open the image (macOS)")
+    cl = sub.add_parser("claude", help="the Claude subscription token workers use (from `claude setup-token`)")
+    cl.add_argument("action", choices=["login", "status", "logout"])
+    cl.add_argument("--token-env", help="read the token from this environment variable instead of prompting")
     md = sub.add_parser("models", help="show the picker menu per source and which models this runtime accepts")
     md.add_argument("--source", action="append", choices=list(models.SOURCES), help="source to show (repeatable; default all)")
     md.add_argument("--refresh", action="store_true", help="probe again instead of using the cached result")
@@ -803,41 +843,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     dashboard.add_argument("--refresh", type=int, default=5, help="refresh interval in seconds")
     dashboard.add_argument("--read-only", action="store_true")
     dashboard.add_argument("--no-browser", action="store_true")
-    dashboard.add_argument("--no-tunnel", action="store_true", help="do not auto-start the PIN-locked relay and Cloudflare tunnel")
     dashboard.add_argument("--repo", help="GitHub owner/name for GUI-launched runs")
-    rm = sub.add_parser("remote", help="PIN-locked loopback relay that proxies the local GUI for a tunnel")
-    rm.add_argument("--upstream", default="http://127.0.0.1:8765", help="the loopback harness GUI URL")
-    rm.add_argument("--host", choices=["127.0.0.1", "localhost"], default="127.0.0.1")
-    rm.add_argument("--port", type=int, default=8443, help="loopback port, or 0 to choose an available port")
-    rm.add_argument("--pin", help="override HARNESS_GUI_PIN")
-    rm.add_argument("--session-hours", type=float, default=12.0, help="signed session lifetime in hours")
     args = ap.parse_args(argv)
 
     try:
         if args.cmd == "gui":
-            from . import gui, remote
+            from . import gui
             try:
-                if not args.no_tunnel:
-                    settings = remote.tunnel_settings(_repo_root())
-                    if settings["pin"] and not settings["disabled"]:
-                        dashboard = gui.make_server(args.home, host=args.host, port=args.port,
-                                                   refresh=args.refresh, read_only=args.read_only)
-                        dashboard.repo_slug = args.repo
-                        tunnel = remote.RemoteDashboard(_repo_root(), args.home, args.repo, gui_server=dashboard)
-                        tunnel.start()
-                        try:
-                            return gui.serve_server(dashboard, open_browser=not args.no_browser)
-                        finally:
-                            tunnel.stop()
                 return gui.serve(args.home, host=args.host, port=args.port, refresh=args.refresh, read_only=args.read_only,
                                  open_browser=not args.no_browser, repo=args.repo)
-            except ValueError as exc:
-                raise RuntimeError(str(exc)) from exc
-        if args.cmd == "remote":
-            from . import remote
-            try:
-                return remote.serve(args.upstream, host=args.host, port=args.port, pin=args.pin,
-                                    session_hours=args.session_hours)
             except ValueError as exc:
                 raise RuntimeError(str(exc)) from exc
         if args.cmd == "issue":
@@ -886,8 +900,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd in ("run", "resume", "cancel", "import-issues", "pause"):
             return runner_command(args)
         if args.cmd == "start":
-            from . import remote
-            remote.load_harness_env(_repo_root())
+            from . import envfile
+            envfile.load_harness_env(_repo_root())
             from .start import run_start
             return run_start(args)
         if args.cmd == "investigate":
@@ -907,8 +921,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         if args.cmd == "isolation":
             return isolation_command(args.action, args.home)
-        if args.cmd == "providers":
-            return providers_command(args)
+        if args.cmd == "claude":
+            return claude_command(args)
+        if args.cmd == "art":
+            return art_command(args)
         if args.cmd == "models":
             return models_command(args)
         if args.cmd == "watch":

@@ -60,7 +60,9 @@ When the tier is unknown, treat it as Tier B.
 * Keep credentials out of worker environments, arguments, task packets, logs, issue content, and sanitized telemetry.
 * Workers cannot mutate GitHub state or authorize their own actions. They return action proposals, and the broker validates each against the approval record and the current lease epoch before acting.
 * Request secret configuration from humans through an external channel, never through issues or comments.
-* **BYOK model keys are the one credential a worker necessarily holds.** When a model source has a provider profile in `<store>/providers.json` (mode `0600`), that source's runs receive its API key by environment name, and only for attempts that use it. This is a deliberate, bounded exception: such a key is billable, so give it a spend cap, keep the profile out of the repository and out of plan packets, and never configure a profile whose key also grants repository access. A run that uses only `copilot` ids forwards no provider key at all, and a `copilot` token is not sent to a BYOK attempt.
+* **The Claude subscription token is the one credential a worker necessarily holds.** Every model attempt receives `<store>/claude.token` (mode `0600`) by environment name (`CLAUDE_CODE_OAUTH_TOKEN`); check containers receive no credential. The token grants no repository access, but it can spend the owner's subscription limits, so keep it out of the repository and out of plan packets, and revoke it from the Claude account settings if a worker could have exfiltrated it. `ANTHROPIC_API_KEY` is never forwarded, and the sandbox probe verifies its absence, because Claude Code would prefer it over the subscription and bill API credit.
+
+* **Image generation never puts the generator key in a worker.** When a plan names an art budget, `harness run` serves a loopback-only art service. A worker container holds the service address and a random per-run token, forwarded by name, and nothing else: the fal key, the model, the output size and the credit budget are decided and held by trusted code. The token is worth only the credits left in the plan, and the service is not reachable from outside the machine. Reference images are limited to small PNG files and prompts are screened for credentials.
 
 ## Local Dashboard
 
@@ -69,21 +71,8 @@ service. It binds only to IPv4 loopback and trusts the operator's OS account.
 Do not publish it through a proxy, tunnel, or port forwarding. Other processes
 that can access the local account and port are not isolated from it.
 
-* Operator override: `harness remote` is an explicit exception. It is a separate
-  loopback-only relay that sits in front of the dashboard, requires a PIN, and
-  forwards only the dashboard's fixed route allowlist to the fixed loopback
-  upstream while rewriting the loopback Host/Origin the dashboard checks. The
-  dashboard itself is never re-bound or exposed directly. When `HARNESS_GUI_PIN`
-  is set in the git-ignored `sites/derschweigert/.env`, `harness gui`, `run`,
-  and `resume` auto-start the relay plus the configured tunnel provider
-  (`cloudflared`, `localhostrun`, or `ngrok`); `--no-tunnel` or
-  `HARNESS_NO_TUNNEL=1` opts out. The relay weakens the default posture (the PIN
-  and tunnel are the only barriers), so it must keep its own controls:
-  constant-time PIN comparison, per-address rate limiting and lockout, signed
-  HttpOnly/SameSite/Strict session cookies, a 16 MiB body cap, no
-  body/token/PIN logging, and no forwarding of arbitrary URLs. Prefer an
-  additional tunnel access layer (for example Cloudflare Access) and stop the
-  relay when remote access is no longer needed.
+There is no remote access path. The PIN-locked relay and tunnel (`harness remote`)
+were retired on 2026-11-18; reach the dashboard only from this machine.
 
 * Validate the Host header on all routes. Mutation requests also require a per-server random token, same-origin browser metadata, and JSON content with a bounded length. Read-only mode rejects all mutation requests.
 * Serve only fixed HTML, JavaScript, and icon routes. Use a nonce-based Content Security Policy, frame denial, no-store responses, and no referrer. Render store content as text, never HTML. Icons are vendored locally from Lucide 0.468.0; the dashboard requires no CDN.

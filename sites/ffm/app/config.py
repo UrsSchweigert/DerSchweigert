@@ -1,5 +1,4 @@
 import os
-from datetime import datetime, timezone
 
 
 class BaseConfig:
@@ -21,6 +20,10 @@ class BaseConfig:
     # specifically by keying on the email in the request body instead of
     # the caller's IP — see _email_rate_limit_key() in auth.py.
     EMAIL_TARGET_RATE_LIMIT = "3/hour"
+    # Applied per-*target-username* to /auth/login (_login_account_rate_limit_key
+    # in auth.py), on top of the per-IP AUTH_RATE_LIMIT, so password guesses
+    # against one account stay bounded however many addresses they come from.
+    LOGIN_ACCOUNT_RATE_LIMIT = "20/hour"
     DYNAMODB_USERS_TABLE = os.environ.get('DYNAMODB_USERS_TABLE', 'ffm-users')
     DYNAMODB_SCORES_TABLE = os.environ.get('DYNAMODB_SCORES_TABLE', 'ffm-scores')
     DYNAMODB_RATELIMIT_TABLE = os.environ.get('DYNAMODB_RATELIMIT_TABLE', 'ffm-ratelimits')
@@ -111,6 +114,8 @@ class TestingConfig(BaseConfig):
     # email) never trip it; a dedicated test overrides this value down to
     # exercise the real limit for just that one request cycle.
     EMAIL_TARGET_RATE_LIMIT = "1000/hour"
+    # Same rationale: the suite logs the same usernames in many times.
+    LOGIN_ACCOUNT_RATE_LIMIT = "1000/hour"
     # Disabled by default so the existing test suite's many
     # register/forgot-password/resend-verification calls don't need a real
     # (or mocked) Turnstile token; dedicated tests re-enable this on a

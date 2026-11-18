@@ -155,3 +155,17 @@ resource "aws_api_gateway_stage" "prod" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   stage_name    = "prod"
 }
+
+# A stage-wide ceiling that does not depend on knowing the caller's address,
+# so it still holds if every per-IP limit in the application were bypassed.
+resource "aws_api_gateway_method_settings" "prod" {
+  count       = var.throttling_rate_limit == null ? 0 : 1
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  stage_name  = aws_api_gateway_stage.prod.stage_name
+  method_path = "*/*"
+
+  settings {
+    throttling_rate_limit  = var.throttling_rate_limit
+    throttling_burst_limit = coalesce(var.throttling_burst_limit, var.throttling_rate_limit * 2)
+  }
+}

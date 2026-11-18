@@ -114,7 +114,9 @@ test('main.js shares the same title widget for web starts and native continuatio
   assert.match(source, /import \{ createLevelNumerals \} from '\.\/level-numerals\.js'/);
   assert.equal((source.match(/createLevelNumerals\(\{/g) ?? []).length, 1);
   assert.match(source, /titleLevelNumerals\.updateLevelSelection\(\{ level: 1 \}\)/);
-  assert.match(source, /updateTitleStartingLevel\(progress\.nextLevel \?\? 1, label\)/);
+  // The third argument is the cleared list: a jump to an uncleared level is
+  // labelled a start rather than a replay (the "unlocked" test profile).
+  assert.match(source, /updateTitleStartingLevel\(progress\.nextLevel \?\? 1, label, progress\.cleared\)/);
   assert.match(source, /else updateTitleStartingLevel\(\)/);
   assert.doesNotMatch(source, /registerWidget\('level-numerals'/);
 });
@@ -162,11 +164,14 @@ function logoHeight({ width, height }) {
   return heightPx;
 }
 
-function titleGeometry({ width, height, safeTop = 0, safeLeft = 0, safeRight = 0, digits = 2 }) {
+// `menu` is a non-Play title page on a short landscape screen: the logo row
+// drops to 44px and the numerals, their svg and the player badge are capped to it.
+function titleGeometry({ width, height, safeTop = 0, safeLeft = 0, safeRight = 0, digits = 2, menu = false }) {
   const contentTop = safeTop + 8;
   const contentLeft = safeLeft + 8;
   const contentWidth = width - safeLeft - safeRight - 16;
-  const rowHeight = titleRowHeight({ width, height });
+  const menuRow = menu && isLandscape({ width, height }) && height <= 460;
+  const rowHeight = menuRow ? 44 : titleRowHeight({ width, height });
   const logoPx = logoHeight({ width, height });
   const logoWidth = Math.min(logoPx * LOGO_ASPECT, contentWidth);
   const logoCenter = contentLeft + contentWidth / 2;
@@ -174,9 +179,13 @@ function titleGeometry({ width, height, safeTop = 0, safeLeft = 0, safeRight = 0
   const logoTop = centered
     ? contentTop + (rowHeight - logoPx) / 2
     : contentTop + rowHeight - logoPx;
-  const numeralWidth = isLandscape({ width, height }) && height <= 400
+  const shortLandscape = isLandscape({ width, height }) && height <= 400;
+  const numeralWidth = shortLandscape || menuRow
     ? 44 : Math.min(Math.min(96, Math.max(44, width * 0.14)), width * 0.2);
-  const numeralHeight = Math.min(width <= 600 ? 44 : 84, numeralWidth * 86 / (digits * 30 + 22));
+  const svgCap = shortLandscape || menuRow ? 44 : (width <= 600 ? 44 : 84);
+  const numeralHeight = Math.min(svgCap, numeralWidth * 86 / (digits * 30 + 22));
+  const badgeLeft = safeLeft + 16 + (menuRow ? 44 : numeralWidth);
+  const sheetWidth = Math.min(contentWidth, 640);
   return {
     numerals: {
       left: safeLeft + 8,
@@ -189,6 +198,13 @@ function titleGeometry({ width, height, safeTop = 0, safeLeft = 0, safeRight = 0
       right: logoCenter + logoWidth / 2,
       top: logoTop,
       bottom: logoTop + logoPx,
+    },
+    badge: { left: badgeLeft, right: badgeLeft + 44, top: safeTop + 8, bottom: safeTop + 8 + 44 },
+    sheet: {
+      left: contentLeft + (contentWidth - sheetWidth) / 2,
+      right: contentLeft + (contentWidth - sheetWidth) / 2 + sheetWidth,
+      top: contentTop + rowHeight,
+      bottom: height,
     },
     introTop: contentTop + rowHeight + TITLE_GAP,
     rowBottom: contentTop + rowHeight,
@@ -246,11 +262,53 @@ test('the shared stylesheet positions the artwork without text glyph fallbacks',
   assert.match(css, /\.title-level-numerals\s*\{[^}]*position:\s*absolute/);
   assert.match(css, /\.title-level-numerals\s*\{[^}]*top:\s*calc\(var\(--safe-area-top[^}]*\+\s*8px\)/);
   assert.match(css, /\.title-level-numerals\s*\{[^}]*left:\s*calc\(var\(--safe-area-left[^}]*\+\s*8px\)/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*width:\s*clamp\(44px,\s*14vw,\s*96px\)/);
-  assert.match(css, /\.title-level-numerals\s*\{[^}]*max-width:\s*20vw/);
+  // Same 44px height as the title-bar controls; the width follows the digit count.
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*--numeral-height:\s*44px/);
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*height:\s*var\(--numeral-height\)/);
+  assert.match(css, /\.title-level-numerals\s*\{[^}]*width:\s*var\(--numeral-width\)/);
   // The numeral takes the taps on purpose: three of them open the speedrun card
   // (see speedrun-ui.js and speedrun-ui.test.js). It is not decorative ink.
   assert.match(css, /\.title-level-numerals\s*\{[^}]*pointer-events:\s*auto/);
   assert.match(css, /\.title-level-numerals\[hidden\]\s*\{\s*display:\s*none/);
   assert.doesNotMatch(css.match(/\.title-level-numerals\s*\{[^}]*\}/)[0], /font-/);
+});
+
+const MENU_LANDSCAPE_VIEWPORTS = [
+  { name: '844x390 notched landscape menu', width: 844, height: 390 },
+  { name: '874x402 landscape menu', width: 874, height: 402 },
+  { name: '896x414 landscape menu', width: 896, height: 414 },
+  { name: '932x430 landscape menu', width: 932, height: 430 },
+  { name: '956x440 landscape menu', width: 956, height: 440 },
+];
+
+test('on short landscape menus the numerals and badge stay in the 44px row above the sheet', () => {
+  for (const viewport of MENU_LANDSCAPE_VIEWPORTS) {
+    for (const safeLeft of [0, 59]) {
+      for (const digits of [1, 2]) {
+        const name = `${viewport.name}, safeLeft ${safeLeft}, ${digits} digit(s)`;
+        const { numerals, badge, sheet, rowBottom } = titleGeometry({
+          ...viewport, safeLeft, safeRight: safeLeft, digits, menu: true,
+        });
+
+        assert.ok(numerals.right - numerals.left <= 44, `${name}: numerals are at most 44px wide`);
+        assert.ok(numerals.bottom - numerals.top <= 44, `${name}: numerals are at most 44px high`);
+        assert.ok(numerals.bottom <= rowBottom, `${name}: numerals stay inside the 44px row`);
+        assert.equal(overlaps(numerals, sheet), false, `${name}: numerals must not overlap the menu sheet`);
+        assert.equal(sheet.top, rowBottom, `${name}: the sheet starts below the row`);
+        assert.equal(sheet.right - sheet.left, Math.min(viewport.width - 2 * safeLeft - 16, 640),
+          `${name}: the sheet is min(100%, 640px) wide`);
+        assert.equal(sheet.left + (sheet.right - sheet.left) / 2, viewport.width / 2,
+          `${name}: the sheet is centred on the safe area`);
+        assert.equal(badge.left - numerals.right, 8, `${name}: the badge sits right of the numerals`);
+        assert.equal(badge.left, safeLeft + 16 + 44, `${name}: badge keeps the 16px rule over a 44px numeral`);
+        assert.equal(overlaps(badge, sheet), false, `${name}: the badge must not overlap the menu sheet`);
+      }
+    }
+  }
+});
+
+test('the numerals are one 44px tall at every viewport and the badge follows their width', async () => {
+  const css = await readFile(join(staticDir, 'styles.css'), 'utf8');
+  assert.doesNotMatch(css, /\.title-level-numerals svg\s*\{[^}]*max-height/);
+  assert.match(css, /\.title-player-badge\s*\{[^}]*left:\s*calc\([^}]*16px \+ 44px \* \(var\(--level-numeral-digits, 1\) \* 30 \+ 22\) \/ 86\)/);
 });

@@ -1,4 +1,4 @@
-"""Runtime adapter interface and the Copilot CLI adapter that runs inside the Tier A sandbox.
+"""Runtime adapter interface and the Claude Code CLI adapter that runs inside the Tier A sandbox.
 
 The interface is non-blocking (start, poll, cancel) so the scheduler owns heartbeats, timeouts, and cancellation.
 """
@@ -10,13 +10,12 @@ import re
 import shutil
 import stat
 import subprocess
-import tempfile
 import threading
 import time
 from collections import namedtuple
 from typing import Any, Dict, List, Optional
 
-from . import isolation, models, providers, usage as usage_mod
+from . import claudecode, isolation, usage as usage_mod
 
 WorkRequest = namedtuple("WorkRequest", "attempt_id epoch issue_id role tier model packet branch")
 Poll = namedtuple("Poll", "state last_activity result error")
@@ -56,8 +55,8 @@ ROLE_INSTRUCTIONS = {
     "reviewer": "Review the diff and validation results in task.json against the scope. /work/repo is checked out at the head under review. Change no files. Set outcome to approve or changes_requested and list findings in risks. Set revision to the reviewed_head value in task.json, exactly.",
     "investigator": "Investigate /work/repo for the task. Change no files.",
     "delegator": "An implementer could not complete the task. task.json holds its stuck report, the attempt history, model_options with relative cost bands, and strong_attempts_remaining. Study /work/repo to diagnose the blocker. Change no files. Decide what happens next. Use action retry when another attempt can succeed: put concrete hints for the next attempt in guidance, and choose the next implementer's model in model_choice, an exact id from model_options with the cost and quality reason. Use a stronger model only when the diagnosis shows the task needs it, never when strong_attempts_remaining is zero. Use action ask_owner when the task is ambiguous, too large, or needs a human decision: say in diagnosis what the owner must decide and, if the task is too big, how to split it. Always explain the blocker in diagnosis.",
-    "overseer": "An issue is stuck and the harness will not hand every stuck issue to the owner. Read /work/task.json: the issue, its plan policy and budgets, and every recorded failure with its classification. Decide what happens next, and name the cause, because the owner only sees what you escalate. task.overseer_rules lists the actions you may choose; never choose anything else. action retry when the next attempt can succeed, and put the concrete hint in guidance. action extend_budget when the retry budget is what stopped it and another attempt within budget is justified. action refine when the task itself is unclear or too large. action escalate when no harness action can fix it: put cause harness_defect when the harness or its tooling is at fault, and cause content when the owner must decide something about the game itself, then say in reason exactly what is broken or which decision is needed. Never claim a failure is the worker's fault without citing the recorded evidence. Never change files.",
-    "analyst": "A task could not be completed and needs a deeper analysis before the owner decides. task.json holds the original task, the stuck report, the delegating agent's diagnosis, the attempt history, and split_rules. Study /work/repo thoroughly. Change no files. Find the root cause: what is missing, ambiguous, too large, or contradictory, citing the files you read. Then recommend one of: split, when the task should become several smaller issues; retry, when another attempt can succeed, and put concrete hints in guidance; needs_owner, when only a human decision can unblock it, and list each decision in questions, one clear sentence each. For a split, propose parts in split that follow split_rules: new issue ids, requirement_ids that together cover every requirement of the original, code_anchors inside path_allowlist or existing files, deps only on other parts or the original's dependencies, validation_commands, and a diff well under diff_size_cap lines per part. Optionally give a part model_choices for implementer, reviewer, or refiner, each an exact id from model_options with the cost and quality reason. Leave out split unless the recommendation is split.",
+    "overseer": "An issue is stuck and the harness will not hand every stuck issue to the owner. Read /work/task.json: the issue, its plan policy and budgets, and every recorded failure with its classification. Decide what happens next, and name the cause, because the owner only sees what you escalate. task.overseer_rules lists the actions you may choose; never choose anything else. action retry when the next attempt can succeed, and put the concrete hint in guidance. action extend_budget when the retry budget is what stopped it and another attempt within budget is justified. action refine when the task itself is unclear or too large. action escalate when no harness action can fix it: put cause harness_defect when the harness or its tooling is at fault, and cause content when the owner must decide something about the game itself, then say in reason exactly what is broken or which decision is needed. Never claim a failure is the worker's fault without citing the recorded evidence. When the recorded failures are review_findings (task.json lists them as review_rounds next to the issue's acceptance_criteria), decide whether the rounds converge: if the findings flip between opposite defects (too aggressive, then too weak) or demand properties that the acceptance criteria cannot all satisfy together, that is a loop, not progress. Name the conflicting criteria and the measurement that flips, and choose escalate with cause content so the owner can change the criteria. If each round fixed what the last one found and the remaining finding is concrete, choose retry and put that finding in guidance. Never change files.",
+    "analyst": "A task could not be completed and needs a deeper analysis before the owner decides. task.json holds the original task, the stuck report, the delegating agent's diagnosis, the attempt history, and split_rules. Study /work/repo thoroughly. Change no files. If task.json carries human_guidance or your_previous_analysis_was_rejected, follow the guidance and correct exactly what was rejected. Find the root cause: what is missing, ambiguous, too large, or contradictory, citing the files you read. Then recommend one of: split, when the task should become several smaller issues; retry, when another attempt can succeed, and put concrete hints in guidance; needs_owner, when only a human decision can unblock it, and list each decision in questions, one clear sentence each. For a split, propose parts in split that follow split_rules: new issue ids (lowercase letters, digits and dashes, 1 to 41 characters: a short stem of your own, never the original's id plus a long suffix), requirement_ids that together cover every requirement of the original, code_anchors inside path_allowlist or existing files, deps only on other parts or the original's dependencies, validation_commands, and a diff well under diff_size_cap lines per part. Every text field, the root cause and each part's text included, must stay under 2000 characters: write terse bullets and count them. Optionally give a part model_choices for implementer, reviewer, or refiner, each an exact id from model_options with the cost and quality reason. Leave out split unless the recommendation is split.",
 }
 
 RESULT_EXAMPLE = {"attempt_id": "<attempt_id from task.json>", "epoch": "<epoch from task.json, an integer>", "outcome": "done", "changed_files": [], "revision": "<git HEAD sha>",
@@ -82,7 +81,17 @@ ANALYSIS_EXAMPLE = {
 }
 
 
-def build_prompt(req: WorkRequest) -> str:
+ART_NOTE = (
+    " The harness art service is available for this attempt. Generate images with `art-generate --prompt-file P.txt "
+    "[--reference PLATE.png] --seed N --size 1024 --out OUT.png --issue <issue_id> --label <short note>`; each image costs one "
+    "credit from a budget shared by every issue, and `art-generate status` shows what is left. It is the only way to "
+    "generate images in this run: wherever the task mentions an asset request, source ai or the asset pipeline for "
+    "generation, it means this command. Never call an image API directly and never look for a key. Keep each call's "
+    "seed and call_id for any provenance the task asks you to record, and generate only what the task needs."
+)
+
+
+def build_prompt(req: WorkRequest, art: bool = False) -> str:
     example = dict(RESULT_EXAMPLE, outcome=OUTCOMES.get(req.role, "done"))
     if req.role == "delegator":
         example["decision"] = DECISION_EXAMPLE
@@ -115,66 +124,60 @@ def build_prompt(req: WorkRequest) -> str:
         "When finished, write /work/result.json as JSON with exactly these keys: %s.%s Do not push or contact GitHub."
         " Fill in usage_estimate with a rough estimate of the tokens you read and wrote in this session, and how you estimated them; do not spend effort measuring it."
         % (req.role, ROLE_INSTRUCTIONS.get(req.role, ""), json.dumps(example), allowed.get(req.role, ""))
+        + (ART_NOTE if art else "")
     )
 
 
 class _Handle:
     def __init__(self, req: WorkRequest, workdir: str, proc: subprocess.Popen, name: str):
         self.req, self.workdir, self.proc, self.name = req, workdir, proc, name
+        self.result_event: Optional[Dict[str, Any]] = None  # Claude Code's final stream-json event: outcome and usage
         self.last_activity = time.time()
         self.tail: List[str] = []
         self.cancelled = False
 
 
-class CopilotCliAdapter(Adapter):
-    name = "copilot-cli"
+class ClaudeCodeAdapter(Adapter):
+    """Claude Code CLI workers in the Tier A sandbox, on the owner's Claude subscription (see claudecode.py)."""
+
+    name = "claude-code"
 
     def __init__(self, store_home: str, source_repo: str, base: str = "main"):
         self.store_home, self.source_repo, self.base = store_home, source_repo, base
-        self.token_file = os.path.join(store_home, "copilot.token")
+        self.token_file = claudecode.token_path(store_home)
+        # Set by `harness run` when the plan has an art budget: the service address and per-run token, which only
+        # implementer attempts receive. The generator key is never part of it.
+        self.art_env: Optional[Dict[str, str]] = None
 
-    def provider_for(self, model_id: str) -> Optional[Dict[str, str]]:
-        """The BYOK environment for this model id, when its source has a configured provider profile."""
-        catalog = models.load_catalog(self.store_home)
-        return providers.env_for(self.store_home, models.source_for(model_id, catalog), model_id)
-
-    def _credential(self, candidates: Optional[List[str]]) -> tuple:
-        """(token file or None, reason). A Copilot id needs the token; a BYOK id needs only its profile."""
-        has_token = os.path.exists(self.token_file)
-        if candidates:
-            uncovered = [m for m in candidates if self.provider_for(m) is None]
-            if uncovered and not has_token:
-                return None, "copilot.token is missing and no provider profile covers: " + ", ".join(uncovered[:3])
-        elif not has_token and not providers.load(self.store_home):
-            return None, "copilot.token is missing from the store and no provider profile is configured"
-        return (self.token_file if has_token else None), ""
+    def credential(self) -> Optional[Dict[str, str]]:
+        """The environment that authenticates a worker, or None when claude.token is missing."""
+        return claudecode.env_for(self.store_home)
 
     def probe(self, candidates: Optional[List[str]] = None) -> Dict[str, Any]:
         if not isolation.docker_available():
             return {"available": False, "reason": "docker is not available", "models": None}
         if isolation.image_id() is None:
             return {"available": False, "reason": "worker image is not built", "models": None}
-        token_file, problem = self._credential(candidates)
-        if problem:
-            return {"available": False, "reason": problem, "models": None}
+        credential = self.credential()
+        if credential is None:
+            return {"available": False, "reason": "claude.token is missing: run `harness claude login`", "models": None}
         accepted = None
         if candidates:
             work = isolation.new_workdir("models-")
             try:
                 accepted = []
                 for m in candidates:
-                    provider = self.provider_for(m)
-                    res = isolation.run_worker(work, ["copilot", "-p", "reply OK", "--model", m, "--silent"],
-                                               token_file, timeout=120, provider=provider)
+                    res = isolation.run_worker(work, claudecode.probe_command(m), credential, timeout=120)
                     output = res.stdout + res.stderr
-                    # BYOK failures (bad key, unreachable endpoint) surface as a non-zero exit, not as the
-                    # Copilot "model is not available" sentence, so both conditions count as not accepted.
-                    if res.returncode == 0 and "is not available" not in output:
+                    # A subscription at its limit still proves the token and the model id; refusing the id would
+                    # cache it as unavailable for a day and refuse the run long after the window resets.
+                    if claudecode.usage_limit([output], time.time()) is not None:
+                        accepted.append(m)
+                    elif res.returncode == 0 and '"is_error":true' not in output.replace(" ", ""):
                         accepted.append(m)
             finally:
                 shutil.rmtree(work, ignore_errors=True)
-        reason = "sandbox and image present; token and/or provider profile configured"
-        return {"available": True, "reason": reason, "models": accepted}
+        return {"available": True, "reason": "sandbox and image present; claude.token configured", "models": accepted}
 
     def _prepare(self, req: WorkRequest, prompt: Optional[str] = None) -> str:
         work = isolation.new_workdir("w-%s-" % re.sub(r"\W+", "_", req.attempt_id)[:30])
@@ -226,23 +229,31 @@ class CopilotCliAdapter(Adapter):
         return work
 
     def start(self, req: WorkRequest, prompt: Optional[str] = None) -> _Handle:
-        work = self._prepare(req, prompt)
+        credential = self.credential()
+        if credential is None:
+            raise RuntimeError("claude.token is missing: run `harness claude login`")
+        art = self.art_env if req.role == "implementer" and self.art_env else None
+        if art:
+            credential = dict(credential, **art)
+        work = self._prepare(req, prompt or build_prompt(req, art=bool(art)))
         name = "harness-%s-%s" % (re.sub(r"[^A-Za-z0-9_.-]", "_", req.attempt_id), os.urandom(3).hex())
-        model = ["--model", req.model] if req.model else []
         script = ("cd /work/repo && git config user.name harness && git config user.email harness@localhost && "
-                  "copilot -p \"$(cat /work/prompt.txt)\" %s --allow-all-tools --allow-all-paths --no-ask-user; echo $? > /work/exit_code" % " ".join(model))
-        provider = self.provider_for(req.model) if req.model else None
-        # A BYOK attempt needs no GitHub token at all; a Copilot attempt needs no provider profile.
-        token_file = None if provider else self.token_file
-        args = isolation.docker_args(work, ["sh", "-c", script],
-                                     pass_env=isolation.pass_env_names(token_file, provider), name=name)
-        env = isolation.worker_env_for_attempt(token_file, provider)
+                  + claudecode.work_command(req.model) + "; echo $? > /work/exit_code")
+        args = isolation.docker_args(work, ["sh", "-c", script], pass_env=isolation.pass_env_names(credential), name=name,
+                                     host_gateway="host.docker.internal" if art else None)
+        env = isolation.worker_env_for_attempt(credential)
         proc = subprocess.Popen(["docker"] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
         handle = _Handle(req, work, proc, name)
 
         def pump():
             for line in proc.stdout:
                 handle.last_activity = time.time()
+                shown, event = claudecode.render(line)
+                if event is not None:
+                    handle.result_event = event
+                if shown is None:
+                    continue
+                line = shown
                 handle.tail = (handle.tail + [line.rstrip()])[-20:]
 
         threading.Thread(target=pump, daemon=True).start()
@@ -260,6 +271,16 @@ class CopilotCliAdapter(Adapter):
         except (OSError, ValueError):
             pass
         # No result: classify from evidence. Token counts in the usage summary must not look like an error code.
+        evidence = [text] + ([str(handle.result_event.get("result", ""))] if handle.result_event else [])
+        reset_at = claudecode.usage_limit(evidence, now)
+        if reset_at is not None:
+            return Poll("finished", handle.last_activity, None,
+                        {"kind": "usage_limit", "retry_at": reset_at,
+                         "detail": "Claude subscription limit reached; resumes after %s"
+                                   % time.strftime("%Y-%m-%d %H:%M", time.localtime(reset_at))})
+        if claudecode.CREDENTIAL_TEXT.search("\n".join(evidence)):
+            return Poll("finished", handle.last_activity, None,
+                        {"kind": "credentials", "detail": "Claude Code rejected claude.token: run `harness claude login`"})
         if re.search(r"rate limit|HTTP 429|\b429 Too Many", text, re.I):
             return Poll("finished", handle.last_activity, None, {"kind": "rate_limit"})
         if re.search(r"authentication|not authorized|HTTP 401|bad credentials", text, re.I):
@@ -278,9 +299,13 @@ class CopilotCliAdapter(Adapter):
         """What trusted code can tell about the session: a lower bound from the prompt and files exchanged, and any usage lines in the output."""
         def size(*names: str) -> int:
             return sum(os.path.getsize(os.path.join(handle.workdir, n)) for n in names if os.path.isfile(os.path.join(handle.workdir, n)))
-        return {"size_estimate": {"input_tokens": usage_mod.tokens_from_size(size("prompt.txt", "task.json")),
-                                  "output_tokens": usage_mod.tokens_from_size(size("result.json"))},
-                "runtime_lines": usage_mod.runtime_lines(handle.tail)}
+        out = {"size_estimate": {"input_tokens": usage_mod.tokens_from_size(size("prompt.txt", "task.json")),
+                                 "output_tokens": usage_mod.tokens_from_size(size("result.json"))},
+               "runtime_lines": usage_mod.runtime_lines(handle.tail)}
+        measured = claudecode.measured_usage(getattr(handle, "result_event", None))  # real counts beat estimates
+        if measured:
+            out["runtime_usage"] = measured
+        return out
 
     def describe(self, handle: _Handle) -> str:
         """The latest worker action (lines starting with a bullet), else the latest output line, for progress display."""

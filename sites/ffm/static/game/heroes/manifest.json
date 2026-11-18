@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "heroes": [
+    {
+      "id": "adventurer",
+      "strike": "sword",
+      "portrait": "heroes/adventurer/portrait.webp",
+      "atlas": "heroes/adventurer/hero-atlas.webp",
+      "frames": "heroes/adventurer/hero-frames.js"
+    },
+    {
+      "id": "wood",
+      "strike": "sword",
+      "portrait": "heroes/wood/portrait.webp",
+      "atlas": "heroes/wood/hero-atlas.webp",
+      "frames": "heroes/wood/hero-frames.js"
+    },
+    {
+      "id": "flint",
+      "strike": "sword",
+      "portrait": "heroes/flint/portrait.webp",
+      "atlas": "heroes/flint/hero-atlas.webp",
+      "frames": "heroes/flint/hero-frames.js"
+    },
+    {
+      "id": "carl",
+      "strike": "sword",
+      "portrait": "heroes/carl/portrait.webp",
+      "atlas": "heroes/carl/hero-atlas.webp",
+      "frames": "heroes/carl/hero-frames.js"
+    },
+    {
+      "id": "ori",
+      "strike": "sword",
+      "portrait": "heroes/ori/portrait.webp",
+      "atlas": "heroes/ori/hero-atlas.webp",
+      "frames": "heroes/ori/hero-frames.js"
+    },
+    {
+      "id": "quirl",
+      "strike": "sword",
+      "portrait": "heroes/quirl/portrait.webp",
+      "atlas": "heroes/quirl/hero-atlas.webp",
+      "frames": "heroes/quirl/hero-frames.js"
+    }
+  ],
+  "entries": []
+}

@@ -7,6 +7,7 @@ app, so its `before_request` enforcement hook never registers and its
 `@limiter.limit(...)` decorators silently do nothing.
 """
 from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/day", "50/hour"])
+from .client_ip import get_client_ip
+
+limiter = Limiter(key_func=get_client_ip, default_limits=["200/day", "50/hour"])

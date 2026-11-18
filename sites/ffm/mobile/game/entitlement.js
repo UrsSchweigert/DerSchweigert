@@ -31,14 +31,14 @@ function isPlainObject(value) {
 }
 
 /** A missing, corrupt or unknown-version document reads as no entitlement. */
-function normalizeRecord(parsed) {
+function normalizeRecord(parsed, defaultProductId = PRODUCT_ID) {
   if (!isPlainObject(parsed) || parsed.version !== ENTITLEMENT_SCHEMA_VERSION) return null;
   if (parsed.entitled !== true || typeof parsed.checked_at !== 'string' || !parsed.checked_at) {
     return null;
   }
   return {
     entitled: true,
-    product_id: typeof parsed.product_id === 'string' ? parsed.product_id : PRODUCT_ID,
+    product_id: typeof parsed.product_id === 'string' ? parsed.product_id : defaultProductId,
     transaction_id: typeof parsed.transaction_id === 'string' ? parsed.transaction_id : null,
     checked_at: parsed.checked_at,
   };
@@ -59,15 +59,17 @@ function statusOf(record) {
 
 /**
  * Create the entitlement store around an injectable backend and purchase reader.
- * @param {{backend?: object, getPurchases?: Function, productId?: string, now?: () => string}} options
+ * @param {{backend?: object, getPurchases?: Function, productId?: string, key?: string, now?: () => string}} options
  * @returns {object} store API with read/write/getStatus/refresh
  */
 export function createEntitlementStore({
   backend,
   getPurchases,
   productId = PRODUCT_ID,
+  key = ENTITLEMENT_KEY,
   now = () => new Date().toISOString(),
 } = {}) {
+  const unlock = { key, id: productId };
   const available = () => Boolean(
     backend
     && typeof backend.get === 'function'
@@ -75,23 +77,25 @@ export function createEntitlementStore({
     && (typeof backend.isAvailable !== 'function' || backend.isAvailable()),
   );
 
-  async function read() {
+  async function read(product = unlock) {
     if (!available()) return null;
     try {
-      const raw = await backend.get(ENTITLEMENT_KEY);
-      return typeof raw === 'string' && raw !== '' ? normalizeRecord(JSON.parse(raw)) : null;
+      const raw = await backend.get(product.key);
+      return typeof raw === 'string' && raw !== ''
+        ? normalizeRecord(JSON.parse(raw), product.id)
+        : null;
     } catch {
       return null;
     }
   }
 
-  async function write(record) {
+  async function write(record, product = unlock) {
     if (!available()) return false;
     try {
-      await backend.set(ENTITLEMENT_KEY, JSON.stringify({
+      await backend.set(product.key, JSON.stringify({
         version: ENTITLEMENT_SCHEMA_VERSION,
         entitled: record.entitled === true,
-        product_id: record.product_id ?? productId,
+        product_id: record.product_id ?? product.id,
         transaction_id: record.transaction_id ?? null,
         checked_at: record.checked_at ?? now(),
         reason: record.reason ?? (record.entitled === true ? 'store_purchase' : 'not_entitled'),
@@ -113,7 +117,11 @@ export function createEntitlementStore({
    */
   const offlineStatus = async () => {
     const status = await getStatus();
-    return { ...status, offline: true, cached: status.premium_access };
+    return {
+      ...status,
+      offline: true,
+      cached: status.premium_access,
+    };
   };
 
   async function refresh() {
@@ -137,7 +145,7 @@ export function createEntitlementStore({
       });
       return {
         ...NOT_ENTITLED,
-        reason: hadGrant ? 'revoked' : 'not_entitled',
+            reason: hadGrant ? 'revoked' : 'not_entitled',
         source: 'store',
         checked_at: checkedAt,
         cached: saved,

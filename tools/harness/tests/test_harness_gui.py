@@ -246,39 +246,9 @@ def test_cli_exposes_the_local_dashboard_without_initializing_a_store(tmp_path, 
     calls = []
     monkeypatch.setattr(gui, "serve", lambda home, **kwargs: calls.append((home, kwargs)) or 0)
     home = str(tmp_path / "unused")
-    assert cli.main(["--home", home, "gui", "--port", "9988", "--read-only", "--no-browser", "--no-tunnel"]) == 0
+    assert cli.main(["--home", home, "gui", "--port", "9988", "--read-only", "--no-browser"]) == 0
     assert calls[0][1]["port"] == 9988 and calls[0][1]["read_only"] and not calls[0][1]["open_browser"]
     assert not (tmp_path / "unused").exists()
-
-
-def test_cli_gui_auto_starts_the_remote_dashboard_when_configured(tmp_path, monkeypatch):
-    from harness import cli, remote
-
-    class FakeGui:
-        repo_slug = None
-        url = "http://127.0.0.1:9988"
-
-    class FakeDashboard:
-        started = stopped = 0
-
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def start(self):
-            FakeDashboard.started += 1
-            return "https://harness.example"
-
-        def stop(self):
-            FakeDashboard.stopped += 1
-
-    monkeypatch.setenv("HARNESS_GUI_PIN", "3009")
-    monkeypatch.setattr(cli, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(gui, "make_server", lambda *args, **kwargs: FakeGui())
-    monkeypatch.setattr(gui, "serve_server", lambda dashboard, **kwargs: 0)
-    monkeypatch.setattr(remote, "RemoteDashboard", FakeDashboard)
-
-    assert cli.main(["--home", str(tmp_path / "home"), "gui", "--no-browser"]) == 0
-    assert FakeDashboard.started == 1 and FakeDashboard.stopped == 1
 
 
 def new_workspace(server, text="# Wishes\n\nKeep offline support.\n\n- Add a search box\n- Show matches"):
@@ -634,7 +604,7 @@ def models_state(server):
 def fake_probe(calls, checked_at=7.0):
     def probe(home, sources, repo_root, refresh=False):
         calls.append({"sources": list(sources), "repo_root": repo_root, "refresh": refresh})
-        return {"sources": list(sources), "menu": {}, "candidates": ["claude-haiku-4.5"], "available": ["claude-haiku-4.5"],
+        return {"sources": list(sources), "menu": {}, "candidates": ["claude-haiku-5-5"], "available": ["claude-haiku-5-5"],
                 "reachable": True, "reason": "", "checked_at": checked_at}
     return probe
 
@@ -642,11 +612,11 @@ def fake_probe(calls, checked_at=7.0):
 def test_the_models_panel_shows_the_menu_and_the_cached_probe(gui_server, tmp_path):
     (tmp_path / "home").mkdir(exist_ok=True)
     (tmp_path / "home" / "models.json").write_text(json.dumps(
-        {"checked_at": 100, "candidates": ["claude-haiku-4.5"], "models": ["claude-haiku-4.5"]}))
+        {"checked_at": 100, "candidates": ["claude-haiku-5-5"], "models": ["claude-haiku-5-5"]}))
     state = models_state(gui_server)
-    assert state["sources"] == ["copilot", "deepseek", "local"]
-    assert state["menu"]["low"][0] == "claude-haiku-4.5" and state["catalog"]["copilot"]["strong"]
-    assert state["cache"]["available"] == ["claude-haiku-4.5"] and state["cache"]["checked_at"] == 100
+    assert state["sources"] == ["claude"]
+    assert state["menu"]["low"][0] == "claude-haiku-5-5" and state["catalog"]["claude"]["strong"]
+    assert state["cache"]["available"] == ["claude-haiku-5-5"] and state["cache"]["checked_at"] == 100
     assert state["read_only"] is False and state["probing"] is False and state["probe"] is None
     assert state["min_interval_s"] == gui.MODEL_PROBE_MIN_INTERVAL_S
 
@@ -659,12 +629,12 @@ def test_the_dashboard_has_the_models_view(gui_server):
 def test_the_gui_probes_the_chosen_sources_in_the_background(gui_server):
     calls = []
     gui_server.probe_runner = fake_probe(calls)
-    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["deepseek", "local"]})
-    assert code == 200 and json.loads(body) == {"status": "probing", "sources": ["deepseek", "local"]}
+    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["claude"]})
+    assert code == 200 and json.loads(body) == {"status": "probing", "sources": ["claude"]}
     assert wait_for(lambda: models_state(gui_server)["probe"] is not None)
     state = models_state(gui_server)
-    assert state["probing"] is False and state["probe"]["available"] == ["claude-haiku-4.5"]
-    assert calls == [{"sources": ["deepseek", "local"], "repo_root": str(gui_server.repo_root), "refresh": True}]
+    assert state["probing"] is False and state["probe"]["available"] == ["claude-haiku-5-5"]
+    assert calls == [{"sources": ["claude"], "repo_root": str(gui_server.repo_root), "refresh": True}]
     assert state["probe_after_s"] > 0  # the next probe waits for the interval
 
 
@@ -682,20 +652,20 @@ def test_a_probe_is_rate_limited(gui_server):
     now = [1000.0]
     gui_server.clock = lambda: now[0]
     gui_server.probe_runner = fake_probe([])
-    assert action(gui_server, "/api/models/probe", {"sources": ["copilot"]})[0] == 200
+    assert action(gui_server, "/api/models/probe", {"sources": ["claude"]})[0] == 200
     assert wait_for(lambda: not models_state(gui_server)["probing"])
     now[0] += 5
-    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["copilot"]})
+    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["claude"]})
     assert code == 400 and "probe again in" in json.loads(body)["error"]
     now[0] += gui.MODEL_PROBE_MIN_INTERVAL_S
-    assert action(gui_server, "/api/models/probe", {"sources": ["copilot"]})[0] == 200
+    assert action(gui_server, "/api/models/probe", {"sources": ["claude"]})[0] == 200
 
 
 def test_one_probe_at_a_time(gui_server):
     release = threading.Event()
     gui_server.probe_runner = lambda home, sources, repo_root, refresh=False: release.wait(5) or {"available": [], "reachable": True, "reason": "", "checked_at": 1.0}
-    assert action(gui_server, "/api/models/probe", {"sources": ["copilot"]})[0] == 200
-    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["copilot"]})
+    assert action(gui_server, "/api/models/probe", {"sources": ["claude"]})[0] == 200
+    code, _, body = action(gui_server, "/api/models/probe", {"sources": ["claude"]})
     assert code == 400 and "already running" in json.loads(body)["error"]
     release.set()
     assert wait_for(lambda: not models_state(gui_server)["probing"])
@@ -704,7 +674,7 @@ def test_one_probe_at_a_time(gui_server):
 @pytest.mark.parametrize("body, message", [
     ({"sources": []}, "at least one"),
     ({"sources": ["mainframe"]}, "unknown model source"),
-    ({"sources": "copilot"}, "list of source names"),
+    ({"sources": "claude"}, "list of source names"),
 ])
 def test_the_probe_rejects_bad_source_lists(gui_server, body, message):
     code, _, payload = action(gui_server, "/api/models/probe", body)
@@ -718,7 +688,7 @@ def test_a_read_only_dashboard_shows_the_menu_but_does_not_probe(tmp_path):
     try:
         state = models_state(server)
         assert state["read_only"] is True and state["menu"]["low"] and state["probing"] is False
-        code, _, body = action(server, "/api/models/probe", {"sources": ["copilot"]})
+        code, _, body = action(server, "/api/models/probe", {"sources": ["claude"]})
         assert code == 403 and "read-only" in json.loads(body)["error"]
     finally:
         server.shutdown()
@@ -731,13 +701,14 @@ def test_the_investigator_uses_the_configured_models(tmp_path, monkeypatch):
     from harness import gui_workflow
 
     monkeypatch.delenv("HARNESS_MODEL_SOURCES", raising=False)  # the operator default would win over this key
-    monkeypatch.setenv("HARNESS_INVESTIGATOR_SOURCES", "deepseek")
+    monkeypatch.setenv("HARNESS_INVESTIGATOR_SOURCES", "claude")
     monkeypatch.setenv("HARNESS_INVESTIGATOR_TIER", "strong")
+    monkeypatch.delenv("HARNESS_INVESTIGATOR_MODEL", raising=False)  # the owner's .env may pin one; an earlier test can load it
     choices = gui_workflow.investigator_choices(tmp_path)
-    assert choices == {"sources": ["deepseek"], "tier": "strong"}
+    assert choices == {"sources": ["claude"], "tier": "strong", "model": ""}
 
     args = gui_workflow.investigate_args({"home": "/h", "requirements": "/r"}, tmp_path / "out", choices)
-    assert args[args.index("--model-source") + 1] == "deepseek"
+    assert args[args.index("--model-source") + 1] == "claude"
     assert args[args.index("--tier") + 1] == "strong"
 
 
@@ -747,15 +718,15 @@ def test_the_investigator_keeps_the_default_when_nothing_is_configured(tmp_path,
     monkeypatch.delenv("HARNESS_MODEL_SOURCES", raising=False)
     monkeypatch.delenv("HARNESS_INVESTIGATOR_SOURCES", raising=False)
     monkeypatch.delenv("HARNESS_INVESTIGATOR_TIER", raising=False)
+    monkeypatch.delenv("HARNESS_INVESTIGATOR_MODEL", raising=False)
     choices = gui_workflow.investigator_choices(tmp_path)
-    assert choices == {"sources": [], "tier": ""}
+    assert choices == {"sources": [], "tier": "", "model": ""}
     args = gui_workflow.investigate_args({"home": "/h", "requirements": "/r"}, tmp_path / "out", choices)
     assert "--model-source" not in args and "--tier" not in args
 
 
 def test_archiving_hides_a_plan_and_a_workspace_without_deleting_them(tmp_path):
-    import json
-    from harness import gui, gui_workflow
+    from harness import gui_workflow
 
     store = Store(str(tmp_path / "home"))
     plan = {"plan_id": "p1", "version": 1, "requirements": [], "phases": [], "policy": {},
@@ -802,7 +773,6 @@ def test_requirements_can_be_updated_in_place(tmp_path):
 
 
 def test_a_running_plan_cannot_change_its_requirements(tmp_path):
-    import json
 
     from harness import approval, gui_workflow
     from harness_doubles import Env
@@ -880,3 +850,17 @@ def test_a_check_row_reports_its_elapsed_time(tmp_path, monkeypatch):
 
     assert report["checks"][0]["elapsed_s"] == 300 and report["checks"][0]["stage"] == "phase"
     store.close()
+
+
+def test_the_dashboard_pins_the_investigator_model_from_the_env_file(tmp_path, monkeypatch):
+    from harness import gui_workflow
+
+    monkeypatch.delenv("HARNESS_INVESTIGATOR_MODEL", raising=False)
+    env_file = tmp_path / "sites" / "derschweigert" / ".env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("HARNESS_INVESTIGATOR_MODEL=claude-fable-5-2\n")
+    choices = gui_workflow.investigator_choices(tmp_path)
+    monkeypatch.delenv("HARNESS_INVESTIGATOR_MODEL", raising=False)  # loaded into os.environ; do not leak it
+    assert choices["model"] == "claude-fable-5-2"
+    args = gui_workflow.investigate_args({"home": "/h", "requirements": "/r"}, tmp_path / "out", choices)
+    assert args[args.index("--model") + 1] == "claude-fable-5-2"

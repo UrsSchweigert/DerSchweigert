@@ -26,7 +26,11 @@ function fixture({ onScoreGain } = {}) {
   question.appendChild = (child) => { question.children.push(child); content += child.textContent; };
   const doc = {
     getElementById: id => elements[id],
-    createElement: () => ({ className: '', textContent: '' }),
+    createElement: () => ({
+      className: '', textContent: '', children: [], attrs: {},
+      setAttribute(name, value) { this.attrs[name] = String(value); },
+      appendChild(child) { this.children.push(child); },
+    }),
   };
   const chrome = createGameplayChrome({ doc, onScoreGain });
   return { chrome, elements };
@@ -112,27 +116,32 @@ test('untimed practice keeps the active question visible without a countdown', (
   assert.equal(elements['active-question'].textContent, '');
 });
 
-test('shapes prompt shows the instruction and the shapes on two rows', () => {
+const stonesOf = (row) => row.children.filter((child) => child.className === 'runestone');
+
+test('shapes prompt shows the instruction and the runestones on two rows', () => {
   const { chrome, elements } = fixture();
-  chrome.update({ timerActive: true, isShapesMode: true }, { displayMode: 'shapes', shapeType: 'triangle', count: 5 });
+  chrome.update({ timerActive: true, isShapesMode: true }, { displayMode: 'shapes', shapeType: 'runestone', count: 5 });
   const question = elements['active-question'];
   assert.equal(question.dataset.shapesHeader, 'two-rows');
-  assert.deepEqual(question.children.map((row) => [row.className, row.textContent]),
-    [['shapes-instruction', 'Count the shapes'], ['shapes-row', '▲ ▲ ▲ ▲ ▲']],
-    'instruction on the first row, the unbroken shape row on the second');
-  assert.equal(question.textContent, 'Count the shapes▲ ▲ ▲ ▲ ▲');
+  assert.deepEqual(question.children.map((row) => row.className), ['shapes-instruction', 'shapes-row']);
+  assert.equal(question.children[0].textContent, 'Count the shapes');
+  assert.equal(stonesOf(question.children[1]).length, 5, 'five runestone images on the second row');
+  assert.equal(question.children[1].textContent, '', 'no glyphs, only images');
+  assert.equal(question.children[1].attrs['aria-label'], '5');
+  assert.equal(question.children[1].attrs.role, 'img');
+  assert.match(stonesOf(question.children[1])[0].src, /^data:image\/png;base64,/);
   assert.equal(elements['accessible-combo-wrap'].hidden, true);
   assert.equal(elements['accessible-score-wrap'].hidden, true);
 });
 
-test('one through ten shapes match the actual problem type and count', () => {
+test('one through six runestones match the actual problem count, whatever the old shape type', () => {
   const { chrome, elements } = fixture();
   const question = elements['active-question'];
-  for (const [type, symbol] of [['circle', '●'], ['triangle', '▲'], ['square', '■']]) {
-    for (let count = 1; count <= 10; count++) {
+  for (const type of ['runestone', 'circle', 'triangle', 'square']) {
+    for (let count = 1; count <= 6; count++) {
       chrome.update({ timerActive: true }, { displayMode: 'shapes', shapeType: type, count });
       assert.equal(question.children[0].textContent, 'Count the shapes');
-      assert.equal(question.children[1].textContent, Array(count).fill(symbol).join(' '));
+      assert.equal(stonesOf(question.children[1]).length, count, `${type} ${count}`);
     }
   }
   // the two-row markup must not survive into a campaign question
@@ -140,6 +149,43 @@ test('one through ten shapes match the actual problem type and count', () => {
   assert.equal(question.textContent, '2 + 2 = ?');
   assert.equal(question.dataset.shapesHeader, undefined);
   assert.equal(question.children.length, 0);
+});
+
+test('a counted addition keeps full size at the six-stone maximum and still shrinks if ever given more', () => {
+  const { chrome, elements } = fixture();
+  const question = elements['active-question'];
+  chrome.update({ timerActive: true }, { question: '1 + 1 = ?', visual: { a: 1, b: 1 } });
+  assert.equal(question.style.fontSize, '22px', 'small sums keep the full size');
+  chrome.update({ timerActive: true }, { question: '3 + 3 = ?', visual: { a: 3, b: 3 } });
+  assert.equal(question.style.fontSize, '22px', 'six stones in total (the most levels 1-2 produce) need no shrinking');
+  chrome.update({ timerActive: true }, { question: '6 + 6 = ?', visual: { a: 6, b: 6 } });
+  const size = Number.parseInt(question.style.fontSize, 10);
+  const widthEm = 12 * 0.9 + 7 * 0.6;
+  assert.ok(size < 22 && size * widthEm <= 304, `${size}px keeps 12 stones inside 304px (safeguard only)`);
+  chrome.update({ timerActive: true }, { question: '4 + 4 = ?' });
+  assert.equal(question.style.fontSize, '', 'plain text goes back to the stylesheet size');
+});
+
+test('a counted addition draws runestones around the signs once per problem and then reverts to text', () => {
+  const { chrome, elements } = fixture();
+  const question = elements['active-question'];
+  const problem = { question: '3 + 2 = ?', visual: { a: 3, b: 2 } };
+  chrome.update({ timerActive: true }, problem);
+  assert.equal(question.dataset.stoneSum, '3+2');
+  assert.deepEqual(question.children.map((part) => part.className),
+    ['stone-sum-stones', 'stone-sum-sign', 'stone-sum-stones', 'stone-sum-sign']);
+  assert.deepEqual(question.children.map((part) => stonesOf(part).length), [3, 0, 2, 0]);
+  assert.equal(question.children[1].textContent, ' + ');
+  assert.equal(question.children[3].textContent, ' = ?');
+  const first = question.children[0];
+  chrome.update({ timerActive: true }, problem);
+  assert.equal(question.children[0], first, 'the same problem is not rebuilt every frame');
+  chrome.update({ timerActive: true }, { question: '4 + 4 = ?' });
+  assert.equal(question.textContent, '4 + 4 = ?');
+  assert.equal(question.dataset.stoneSum, undefined);
+  chrome.update({ timerActive: true }, problem);
+  chrome.update({ reveal: true, timerActive: true, feedback: { question: '3 + 2 = 5' } }, problem);
+  assert.equal(question.textContent, '3 + 2 = 5', 'the correction is plain digits');
 });
 
 test('an installed app-only shapes header owns the two-row shapes markup', () => {
@@ -150,7 +196,7 @@ test('an installed app-only shapes header owns the two-row shapes markup', () =>
     render(args) { calls.push(args); },
     clear() { cleared++; },
   });
-  const problem = { displayMode: 'shapes', shapeType: 'circle', count: 7 };
+  const problem = { displayMode: 'shapes', shapeType: 'circle', count: 6 };
   chrome.update({ timerActive: true }, problem);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].element, elements['active-question']);
@@ -168,8 +214,9 @@ test('an installed app-only shapes header owns the two-row shapes markup', () =>
 
   chrome.setShapesHeader(null);
   chrome.update({ timerActive: true }, problem);
-  assert.equal(elements['active-question'].textContent, 'Count the shapes● ● ● ● ● ● ●',
+  assert.equal(elements['active-question'].children.length, 2,
     'without the widget the chrome writes the same two rows itself');
+  assert.equal(stonesOf(elements['active-question'].children[1]).length, 6);
 });
 
 test('a failing shapes header falls back to the two rows the chrome writes itself', () => {
@@ -177,7 +224,8 @@ test('a failing shapes header falls back to the two rows the chrome writes itsel
   chrome.setShapesHeader({ render() { throw new Error('boom'); } });
   chrome.update({ timerActive: true }, { displayMode: 'shapes', shapeType: 'square', count: 3 });
   const question = elements['active-question'];
-  assert.deepEqual(question.children.map((row) => row.textContent), ['Count the shapes', '■ ■ ■']);
+  assert.equal(question.children[0].textContent, 'Count the shapes');
+  assert.equal(stonesOf(question.children[1]).length, 3);
 });
 
 test('the correction takes the question row and never exposes the queued question', () => {

@@ -225,3 +225,47 @@ test('the paywall reports nothing-to-restore and restore errors without granting
     assert.equal(preferences.has(ENTITLEMENT_KEY), false);
   }
 });
+
+function paywallFor(view, granted) {
+  return createPaywall({
+    platform,
+    purchaseStore: store(),
+    gateUi: passingUi,
+    view,
+    locale: 'en',
+    onGranted: () => granted.push('resume'),
+  });
+}
+
+test('one restore action restores the unlock and opens level 3', async () => {
+  reset();
+  fake.restorable = [owned()];
+  const view = fakeView();
+  const granted = [];
+
+  const result = await paywallFor(view, granted).restore();
+
+  assert.equal(result.granted, true);
+  assert.deepEqual(granted, ['resume']);
+  assert.equal(JSON.parse(preferences.get(ENTITLEMENT_KEY)).entitled, true);
+  assert.equal((await platform.getBillingStatus()).premium_access, true);
+  await assert.rejects(platform.getAuthorizedLevelConfig(2), unlocked);
+});
+
+test('error, denied gate and nothing to restore write no key', async () => {
+  for (const setup of [
+    () => { fake.restoreError = new Error('store down'); },
+    () => {},
+  ]) {
+    reset();
+    setup();
+    await paywallFor(fakeView(), []).restore();
+    assert.equal(preferences.has(ENTITLEMENT_KEY), false);
+  }
+  reset();
+  fake.restorable = [owned()];
+  await createPaywall({
+    platform, purchaseStore: store(), gateUi: denyingUi, view: fakeView(), locale: 'en',
+  }).restore();
+  assert.equal(preferences.has(ENTITLEMENT_KEY), false);
+});

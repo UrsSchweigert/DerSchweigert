@@ -254,19 +254,21 @@ def assert_review_current(store: Store, record: dict, current: dict) -> None:
 
 INVESTIGATOR_SOURCES = "HARNESS_INVESTIGATOR_SOURCES"
 INVESTIGATOR_TIER = "HARNESS_INVESTIGATOR_TIER"
+INVESTIGATOR_MODEL = "HARNESS_INVESTIGATOR_MODEL"
 
 
 def investigator_choices(repo_root: Path) -> dict:
     """Which model sources and tier the planning steps use, after reading the harness env file.
 
-    The GUI has no model picker, so without this it fell back to the policy default (copilot, tier
+    The GUI has no model picker, so without this it fell back to the policy default (claude, tier
     standard) no matter which models the running plan was approved with.
     """
-    from .remote import load_harness_env
+    from .envfile import load_harness_env
     load_harness_env(repo_root)
     sources = models.operator_sources() or []
     tier = os.environ.get(INVESTIGATOR_TIER, "").strip()
-    return {"sources": sources, "tier": tier if tier in ("low", "standard", "strong") else ""}
+    return {"sources": sources, "tier": tier if tier in ("low", "standard", "strong") else "",
+            "model": os.environ.get(INVESTIGATOR_MODEL, "").strip()}
 
 
 def investigate_args(record: dict, out: Path, choices: dict) -> list:
@@ -277,6 +279,8 @@ def investigate_args(record: dict, out: Path, choices: dict) -> list:
         args.extend(["--model-source", source])
     if choices.get("tier"):
         args.extend(["--tier", choices["tier"]])
+    if choices.get("model"):
+        args.extend(["--model", choices["model"]])
     return args
 
 def execute(store: Store, record: dict, repo_root=None) -> str:

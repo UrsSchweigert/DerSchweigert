@@ -69,9 +69,9 @@ native apps, so their notices must survive redistribution.
 
 | Package | Version | Licence | Role |
 | --- | --- | --- | --- |
-| `@capacitor/core` | 8.6.0 | MIT | Web/native bridge |
-| `@capacitor/android` | 8.6.0 | MIT | Android runtime |
-| `@capacitor/ios` | 8.6.0 | MIT | iOS runtime (`capacitor-swift-pm` 8.6.0 via SPM) |
+| `@capacitor/core` | 8.6.2 | MIT | Web/native bridge |
+| `@capacitor/android` | 8.6.2 | MIT | Android runtime |
+| `@capacitor/ios` | 8.6.2 | MIT | iOS runtime (`capacitor-swift-pm` 8.6.2 via SPM) |
 | `@capacitor/app` | 8.1.2 | MIT | App lifecycle, version, Back handler |
 | `@capacitor/filesystem` | 8.1.5 | MIT | CSV report export |
 | `@capacitor/haptics` | 8.0.2 | MIT | Grading feedback |
@@ -109,7 +109,7 @@ introduced.
 | `ion-ios-filesystem` | 2.0.1 | MIT, [versioned LICENSE](https://github.com/ionic-team/ion-ios-filesystem/blob/2.0.1/LICENSE), same retained notice |
 | AndroidX runtime/annotation families | Exact coordinates in the bundled notice | Apache-2.0, resolved POM declarations and embedded AAR `META-INF/androidx/**/LICENSE.txt` |
 | `org.apache.cordova:framework` | 14.0.1 | Apache-2.0; [versioned NOTICE](https://github.com/apache/cordova-android/blob/rel/14.0.1/NOTICE) reproduced in full |
-| Cordova compatibility sources in `capacitor-swift-pm` | Capacitor 8.6.0 | Apache-2.0 source notices; common full licence retained |
+| Cordova compatibility sources in `capacitor-swift-pm` | Capacitor 8.6.2 | Apache-2.0 source notices; common full licence retained |
 | `org.jetbrains.kotlin:kotlin-stdlib` | 2.2.20 | Apache-2.0, resolved Maven POM |
 | `org.jetbrains.kotlinx:kotlinx-coroutines-*` | 1.10.2 | Apache-2.0, resolved Maven POMs; BOM/variant metadata identified separately from executable code |
 | `org.jetbrains:annotations` | 23.0.0 | Apache-2.0, resolved Maven POM |
@@ -141,7 +141,7 @@ notice. Before release, inspect the actual APK's
 ## Build-only tooling
 
 These are installed for local builds and CI but are not copied into `www/` or
-into either native binary: `@capacitor/cli` 8.6.0 (MIT) and
+into either native binary: `@capacitor/cli` 8.6.2 (MIT) and
 `@capacitor/assets` 3.0.5 (MIT), together with their transitive tooling under
 MIT, ISC, Apache-2.0, BSD-2-Clause/0BSD and BlueOak-1.0.0. They impose no
 obligation on the distributed app; the same notices apply only if that tooling
@@ -184,3 +184,12 @@ bundled content licence is identified above; none blocks the one-time paid
 distribution planned for v1, provided the notices stay bundled and reachable as
 described. New dependencies must add a row here (with resolved version and
 licence) before they ship.
+
+Re-reviewed on 2026-11-18 for the Capacitor 8.6.0 → 8.6.2 patch update
+(`@capacitor/core`, `android`, `ios`, `cli`; 8.6.1 is bug fixes, 8.6.2 a
+version bump only). All four packages are still MIT, no runtime dependency was
+added or removed in `package-lock.json`, and `capacitor-swift-pm` resolves to
+tag 8.6.2 (`b945758e`). The privacy findings in `ios/PRIVACY-MANIFEST.md`
+were re-checked against the 8.6.2 `Capacitor` and `Cordova` xcframework
+binaries: no `UserDefaults`, disk-space, boot-time or keyboard API use, and
+their bundled `PrivacyInfo.xcprivacy` files are byte-identical to 8.6.0.

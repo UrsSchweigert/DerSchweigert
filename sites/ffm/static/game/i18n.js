@@ -125,9 +125,11 @@ const DICTIONARY = {
   },
   'personalDevelopment.title': { en: 'Practice', de: 'Training' },
   'personalDevelopment.perLevelBest': { en: 'Level {level}: {score} points', de: 'Level {level}: {score} Punkte' },
+  // Only ever shown for a level that has not been cleared: a cleared level's
+  // best is always a cleared run (see the profile store's ranking rule).
   'personalDevelopment.perLevelBestUnfinished': {
-    en: 'Level {level}: {score} points (unfinished attempt, not cleared)',
-    de: 'Level {level}: {score} Punkte (unfertiger Versuch, nicht geschafft)',
+    en: 'Level {level}: {score} points (best reached, level not yet cleared)',
+    de: 'Level {level}: {score} Punkte (bester Stand, Level noch nicht geschafft)',
   },
   'personalDevelopment.completed': { en: '{completed} of {total} levels completed', de: '{completed} von {total} Leveln geschafft' },
   'personalDevelopment.noProgress': {
@@ -162,6 +164,8 @@ const DICTIONARY = {
   'nav.progress': { en: 'Practice', de: 'Training' },
   'nav.players': { en: 'Players', de: 'Spieler' },
   'nav.levels': { en: 'Levels', de: 'Level' },
+  'levels.select': { en: 'Select', de: 'Auswählen' },
+  'levels.cancel': { en: 'Cancel', de: 'Abbrechen' },
   'nav.leaderboard': { en: 'Ranking', de: 'Rangliste' },
   // First-open thank-you notice (app build): thanks, purpose, a short plea to
   // try, then the one-time unlock. Kept to four kind sentences on purpose.
@@ -181,12 +185,12 @@ const DICTIONARY = {
     de: 'Probier es einfach aus: Auch die Übungsarten sind gratis, ohne Konto.',
   },
   'notice.unlock': {
-    en: 'One purchase unlocks levels {from}–{total} – no subscription, no recurring charges.',
-    de: 'Ein einmaliger Kauf schaltet danach Level {from}–{total} frei – ohne Abo, ohne laufende Kosten.',
+    en: 'One purchase unlocks levels {from}–{total} and all hero themes – no subscription, no recurring charges.',
+    de: 'Ein einmaliger Kauf schaltet danach Level {from}–{total} und alle Heldenfarben frei – ohne Abo, ohne laufende Kosten.',
   },
   'notice.unlockAll': {
-    en: 'One purchase unlocks the remaining levels – no subscription, no recurring charges.',
-    de: 'Ein einmaliger Kauf schaltet alle Level frei – ohne Abo, ohne laufende Kosten.',
+    en: 'One purchase unlocks the remaining levels and all hero themes – no subscription, no recurring charges.',
+    de: 'Ein einmaliger Kauf schaltet alle Level und alle Heldenfarben frei – ohne Abo, ohne laufende Kosten.',
   },
   'notice.continue': { en: 'Continue', de: 'Weiter' },
   'notice.reopen': { en: 'What is free?', de: 'Was ist kostenlos?' },
@@ -204,7 +208,7 @@ const DICTIONARY = {
   },
   'help.title.title': { en: 'Title screen', de: 'Startbildschirm' },
   'help.title.summary': { en: 'Choose a difficulty, then start a campaign level or a training session.', de: 'Wähle einen Schwierigkeitsgrad und starte dann ein Abenteuerlevel oder eine Übungseinheit.' },
-  'help.title.tip1': { en: 'Levels 1–2 are free; one purchase unlocks levels 3–60.', de: 'Level 1–2 sind kostenlos; ein Kauf schaltet Level 3–60 frei.' },
+  'help.title.tip1': { en: 'Levels 1–2 are free; one purchase unlocks levels 3–60 and all hero themes.', de: 'Level 1–2 sind kostenlos; ein Kauf schaltet Level 3–60 und alle Heldenfarben frei.' },
   'help.title.tip2': { en: 'Play continues at your first unfinished level.', de: 'Das Spiel geht beim ersten ungeschafften Level weiter.' },
   'help.title.tip3': { en: 'Switch the language here; audio settings are in the pause menu.', de: 'Hier wechselst du die Sprache; die Audioeinstellungen sind im Pausenmenü.' },
   'help.play.title': { en: 'Playing a level', de: 'Ein Level spielen' },
@@ -385,6 +389,7 @@ const DICTIONARY = {
     en: 'Music volume control is not available on this device. Use the device volume buttons.',
     de: 'Die Musiklautstärke ist auf diesem Gerät nicht einstellbar. Nutze die Lautstärketasten des Geräts.',
   },
+  'audio.silentSwitchHint': { en: 'Sound is on. Still silent? Check the silent switch (silent mode) on your device.', de: 'Ton ist an. Trotzdem still? Prüfe den Stummschalter (Lautlos-Modus) am Gerät.' },
   'audio.musicVolumeReady': { en: 'Music volume control is available.', de: 'Die Musiklautstärke kann angepasst werden.' },
   'audio.effectsVolume': { en: 'Effects volume', de: 'Effektlautstärke' },
   'audio.haptics': { en: 'Vibration', de: 'Vibration' },
@@ -403,11 +408,33 @@ const DICTIONARY = {
   'campaign.complete': { en: 'Campaign complete — replay your favourites', de: 'Abenteuer geschafft — spiele deine Lieblingslevel erneut' },
   'campaign.victory': { en: 'Adventure complete!', de: 'Abenteuer geschafft!' },
   'campaign.chooseLevel': { en: 'Continue or replay a cleared level:', de: 'Weiterspielen oder ein geschafftes Level wiederholen:' },
+  // The campaign switch (Players page in the app, title screen on the web) names the
+  // campaign being played and offers the other one.
+  'campaign.switch.eyebrow1': { en: 'Campaign I', de: 'Abenteuer I' },
+  'campaign.switch.eyebrow2': { en: 'Campaign II', de: 'Abenteuer II' },
+  'campaign.switch.title1': { en: 'Arithmetic', de: 'Rechnen' },
+  'campaign.switch.title2': { en: 'Genius', de: 'Genie' },
+  'campaign.switch.toGenius': { en: 'Switch to Genius', de: 'Zu Genie wechseln' },
+  'campaign.switch.toArithmetic': { en: 'Switch to Arithmetic', de: 'Zu Rechnen wechseln' },
+  'campaign.switch.unlock': { en: 'Unlock Genius', de: 'Genie freischalten' },
+  'campaign.emblem': { en: 'Campaign II: Genius. Change it on the Players page.', de: 'Abenteuer II: Genie. Wechsle es auf der Spieler-Seite.' },
+  'campaign2.continueAt': { en: 'Campaign II: continue at Level {level}', de: 'Abenteuer II: weiter bei Level {level}' },
+  'campaign2.complete': { en: 'Campaign II complete — replay from the start', de: 'Abenteuer II geschafft — spiele von vorn' },
+  'campaign2.note.web': {
+    en: 'Campaign II (fractions, powers, roots and logarithms) is included with a subscription. Log in and subscribe to play.',
+    de: 'Abenteuer II (Brüche, Potenzen, Wurzeln und Logarithmen) ist im Abo enthalten. Melde dich an und schließe das Abo ab, um zu spielen.',
+  },
+  'campaign2.note.app': {
+    en: 'Campaign II (fractions, powers, roots and logarithms) is a separate in-app purchase. Tap a difficulty to unlock it.',
+    de: 'Abenteuer II (Brüche, Potenzen, Wurzeln und Logarithmen) ist ein separater In-App-Kauf. Tippe auf eine Schwierigkeit, um es freizuschalten.',
+  },
+  'campaign.startAt': { en: 'Start at level {level}', de: 'Beginne bei Level {level}' },
   'title.levelNumerals': { en: 'Starting level {level}', de: 'Startlevel {level}' },
   'profiles.navigation': { en: 'Players', de: 'Spieler' },
   'splash.play': { en: 'Play', de: 'Spielen' },
   'splash.levels': { en: 'Levels', de: 'Level' },
   'scoreHistory.title': { en: 'High score development', de: 'Highscore-Entwicklung' },
+  'scoreHistory.label': { en: 'Personal progression', de: 'Persönlicher Fortschritt' },
   'profiles.create': { en: 'Add player', de: 'Spieler hinzufügen' },
   'profiles.rename': { en: 'Rename', de: 'Umbenennen' },
   'profiles.delete': { en: 'Delete player', de: 'Spieler löschen' },
@@ -422,6 +449,9 @@ const DICTIONARY = {
     de: '{name} und den gesamten Fortschritt löschen?',
   },
   'profiles.confirm': { en: 'Confirm deletion', de: 'Löschen bestätigen' },
+  'profiles.gateQuestion': { en: 'Ask an adult: what is {question}?', de: 'Frag einen Erwachsenen: Was ist {question}?' },
+  'profiles.gateAnswer': { en: 'Type the result', de: 'Ergebnis eingeben' },
+  'profiles.gateWrong': { en: 'That is not right. Ask an adult to help.', de: 'Das stimmt nicht. Bitte einen Erwachsenen um Hilfe.' },
   'profiles.switchBlocked': {
     en: 'Return to the title screen before changing players.',
     de: 'Kehre zum Titel zurück, bevor du den Spieler wechselst.',
@@ -670,8 +700,8 @@ const DICTIONARY = {
     de: 'Derzeit ist keine weitere Zahlung geplant.',
   },
   'billing.disclosure': {
-    en: 'Premium subscription unlocks levels 3-60. Free players can enjoy levels 1-2 anytime.',
-    de: 'Das Premium-Abo schaltet die Level 3–60 frei. Kostenlose Spieler können Level 1–2 jederzeit spielen.',
+    en: 'Premium subscription unlocks levels 3-60 and all hero themes. Free players can enjoy levels 1-2 anytime.',
+    de: 'Das Premium-Abo schaltet die Level 3–60 und alle Heldenfarben frei. Kostenlose Spieler können Level 1–2 jederzeit spielen.',
   },
   'billing.confirmCancelRenewals': {
     en: 'Stop future renewals? Already-paid and gifted access will remain available.',
@@ -916,6 +946,28 @@ const DICTIONARY = {
   'boss.hollowKing.silence': { en: 'Silence', de: 'Stille' },
   'boss.hollowKing.unmaking': { en: 'The Unmaking', de: 'Das Entmachen' },
   'boss.hollowKing.mastery': { en: 'The Last Lesson', de: 'Die letzte Lektion' },
+
+  // Hero picker, identity portrait and web account picker. Locked heroes use
+  // neutral wording: no price, no urgency. Pack sheet strings live in its module.
+  'heroes.name.adventurer': { en: 'Ari', de: 'Ari' },
+  'heroes.name.wood': { en: 'Wood', de: 'Wood' },
+  'heroes.name.flint': { en: 'Flint', de: 'Flint' },
+  'heroes.name.carl': { en: 'Carl', de: 'Carl' },
+  'heroes.name.ori': { en: 'Ori', de: 'Ori' },
+  'heroes.name.quirl': { en: 'Quirl', de: 'Quirl' },
+  'heroes.title': { en: 'Choose your hero', de: 'Wähle deinen Helden' },
+  'heroes.change': { en: 'Change hero', de: 'Helden ändern' },
+  'heroes.selected': { en: 'Selected', de: 'Ausgewählt' },
+  'heroes.locked': { en: 'Locked', de: 'Gesperrt' },
+  'heroes.portraitAlt': { en: 'Portrait of {name}', de: 'Porträt von {name}' },
+  'heroes.placeholderAlt': { en: 'Hero portrait placeholder', de: 'Platzhalter für das Heldenporträt' },
+  'heroes.blockedWhilePlaying': { en: 'Heroes can be changed between games.', de: 'Helden lassen sich zwischen den Spielen wechseln.' },
+  'heroes.saved': { en: 'Hero saved.', de: 'Held gespeichert.' },
+  'heroes.saveFailed': { en: 'Could not save the hero. Please try again.', de: 'Der Held konnte nicht gespeichert werden. Bitte versuche es erneut.' },
+  'heroes.close': { en: 'Close', de: 'Schließen' },
+  'heroes.confirm': { en: 'Change hero', de: 'Held wechseln' },
+  'heroes.cancel': { en: 'Cancel', de: 'Abbrechen' },
+  'heroes.webLocked': { en: 'Available with a Premium subscription.', de: 'Mit einem Premium-Abo verfügbar.' },
 };
 
 // --- Known server/error identifiers --------------------------------------

@@ -107,13 +107,27 @@ async function loadNarrationTiming(base, locale) {
  * waits on the network. Playback catches up to the scene as soon as the track
  * is audible (see the 'playing' listener in play()).
  */
-function loadNarrationAudio(base, locale, timing) {
-  const url = new URL(`narration/${locale}/${timing.audio ?? 'narration.mp3'}`, base);
+function loadNarrationAudio(url) {
   const audio = new Audio(url.href);
   audio.preload = 'auto';
   audio.volume = 1;
   audio.load();
   return audio;
+}
+
+/**
+ * The scene's voice-over: a host-supplied voice when createNarration is given
+ * (null on any failure: the scene then runs silently on its timer clock, with
+ * no <audio> fallback), otherwise a plain <audio> element.
+ */
+function openNarration(base, locale, timing, createNarration) {
+  const url = new URL(`narration/${locale}/${timing.audio ?? 'narration.mp3'}`, base);
+  if (!createNarration) return loadNarrationAudio(url);
+  try {
+    return createNarration(url.href, timing) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Linear interpolation of a layer's motion keyframes at time t (seconds). */
@@ -299,10 +313,12 @@ function fillGradient(ctx, gradient, width, height) {
  * @param {boolean} [options.reducedMotion] defaults to the prefers-reduced-motion media query
  * @param {boolean} [options.narration] play the scene's recorded voice-over (default true)
  * @param {boolean} [options.muted] start without sound; the scene still runs
+ * @param {(url: string, timing: object) => object|null} [options.createNarration] host voice
+ *   replacing the <audio> element (same subset: play, pause, currentTime, ...)
  * @param {object} [options.labels] { skip } skip-button label
  */
 export function createDioramaPlayer({
-  container, scene, baseUrl, locale = 'en', reducedMotion, narration = true, muted = false, labels,
+  container, scene, baseUrl, locale = 'en', reducedMotion, narration = true, muted = false, labels, createNarration,
 }) {
   const reduce = reducedMotion ?? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   const text = { ...(DEFAULT_LABELS[locale] ?? DEFAULT_LABELS.en), ...labels };
@@ -347,8 +363,13 @@ export function createDioramaPlayer({
   let audioClocked = false;
 
   /** Total device pixels the canvas may allocate. Keeping this bounded keeps
-   * a scene cheap on tablets with huge, high-density screens. */
-  const MAX_CANVAS_PIXELS = 6e6;
+   * a scene cheap on tablets with huge, high-density screens. The scene is
+   * repainted every frame (layers, ambient multiply, glows, motes, sheet,
+   * vignette), so this multiplies straight into fill rate: at 6 MP a 3x phone
+   * (1170x2532 = 3.0 MP) never hit the cap and a tablet could allocate 24 MB
+   * of framebuffer per frame. 2.2 MP is just above 1080p, which is already
+   * above what the upscaled painted layers can resolve. */
+  const MAX_CANVAS_PIXELS = 2.2e6;
 
   const paintPaper = () => {
     if (!grain || !view.width) return;
@@ -606,6 +627,15 @@ export function createDioramaPlayer({
     raf = requestAnimationFrame(tick);
   }
 
+  /** Start the voice; a blocked or failing play only costs the voice. */
+  function playNarration() {
+    try {
+      Promise.resolve(narrationAudio.play()).catch(() => {});
+    } catch {
+      // The scene runs on its timer clock either way.
+    }
+  }
+
   function stopNarration() {
     if (!narrationAudio) return;
     narrationAudio.pause();
@@ -658,7 +688,9 @@ export function createDioramaPlayer({
       ]);
       if (timing) cues = voicedCues(scene.subtitles, timing);
       if (timing && !muted && !finished) {
-        narrationAudio = loadNarrationAudio(base, voice, timing);
+        narrationAudio = openNarration(base, voice, timing, createNarration);
+      }
+      if (narrationAudio) {
         // If the track only becomes audible after the scene started, slip it
         // forward to the scene clock instead of rewinding the picture to it.
         narrationAudio.addEventListener('playing', () => {
@@ -686,7 +718,7 @@ export function createDioramaPlayer({
         if (narrationAudio) {
           // A blocked autoplay only costs the voice; the scene runs on the
           // requestAnimationFrame clock either way.
-          narrationAudio.play().catch(() => {});
+          playNarration();
         }
         raf = requestAnimationFrame(tick);
       });
@@ -713,7 +745,7 @@ export function createDioramaPlayer({
     resume() {
       if (finished || raf || elapsed >= duration) return;
       startTs = 0;
-      narrationAudio?.play().catch(() => {});
+      if (narrationAudio) playNarration();
       raf = requestAnimationFrame(tick);
     },
     skip() { finish('skipped'); },

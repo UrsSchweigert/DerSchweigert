@@ -8,13 +8,14 @@ from .models import (
     create_token, consume_token,
     confirm_email_change, ensure_stable_id,
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
-    VERIFY_EMAIL_TTL_SECONDS, RESET_PASSWORD_TTL_SECONDS, CHANGE_EMAIL_TTL_SECONDS,
+    VERIFY_EMAIL_TTL_SECONDS, RESET_PASSWORD_TTL_SECONDS,
 )
 from .jwt_utils import mint_access_token, mint_refresh_token, decode_auth_token, InvalidAuthToken, TYPE_REFRESH
 from .validation import is_valid_int
 from . import mailer
 from . import legal_texts
 from .captcha import verify_turnstile_token
+from .client_ip import get_client_ip
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -51,6 +52,17 @@ def _email_rate_limit_key():
     return email or 'no-email'
 
 
+def _login_account_rate_limit_key():
+    """Rate-limit key for /auth/login: the *target* username, not the caller's
+    IP. AUTH_RATE_LIMIT bounds guesses per source address; this bounds guesses
+    against one account however many addresses an attacker spreads them over.
+    The cost is that a determined attacker can hold one named account at the
+    limit for the window; the owner's correct password is refused meanwhile."""
+    data = request.get_json(silent=True) or {}
+    username = str(data.get('username', '')).strip().lower()
+    return 'login-account:' + (username or 'no-username')
+
+
 def _check_captcha(data):
     """Verify the request's Turnstile token. Always True (no-op) when
     TURNSTILE_ENABLED is False (e.g. TestingConfig), so the existing test
@@ -60,7 +72,7 @@ def _check_captcha(data):
     if not current_app.config['TURNSTILE_ENABLED']:
         return True
     token = data.get('turnstile_token', '')
-    return verify_turnstile_token(token, request.remote_addr)
+    return verify_turnstile_token(token, get_client_ip())
 
 
 @auth_bp.route('/register', methods=['POST'])
@@ -109,6 +121,7 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 @limiter.limit(lambda: current_app.config['AUTH_RATE_LIMIT'])
+@limiter.limit(lambda: current_app.config['LOGIN_ACCOUNT_RATE_LIMIT'], key_func=_login_account_rate_limit_key)
 def login():
     data = request.get_json()
     if not data:

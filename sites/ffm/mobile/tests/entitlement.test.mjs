@@ -128,3 +128,41 @@ test('levels 1-2 are free and 3-60 return the 402 paywall error until entitled',
     (error) => error.statusCode === 404 && error.code !== 'entitlement_required',
   );
 });
+
+const LITERAL_DOC = '{"version":1,"entitled":true,"product_id":"arithmoslayer_full_unlock",'
+  + '"transaction_id":"tx-old","checked_at":"2026-01-01T00:00:00.000Z","reason":"store_purchase"}';
+
+test('a literal current-format document reads as the same status', async () => {
+  const backend = createBackend({ [ENTITLEMENT_KEY]: LITERAL_DOC });
+  const status = await createEntitlementStore({ backend }).getStatus();
+  assert.deepEqual(status, {
+    premium_access: true,
+    entitled: true,
+    reason: 'store_purchase',
+    source: 'cache',
+    checked_at: '2026-01-01T00:00:00.000Z',
+    product_id: PRODUCT_ID,
+    transaction_id: 'tx-old',
+  });
+});
+
+test('a failed read keeps the cache untouched and reports them offline', async () => {
+  const backend = createBackend({ [ENTITLEMENT_KEY]: LITERAL_DOC });
+  const before = new Map(backend.data);
+  const failing = createEntitlementStore({
+    backend, getPurchases: async () => { throw new Error('offline'); },
+  });
+  const status = await failing.refresh();
+  assert.equal(status.offline, true);
+  assert.equal(status.premium_access, true);
+  assert.deepEqual(backend.data, before);
+});
+
+test('a store read that no longer lists the unlock revokes it', async () => {
+  const backend = createBackend({ [ENTITLEMENT_KEY]: LITERAL_DOC });
+  const status = await createEntitlementStore({ backend, getPurchases: async () => [] }).refresh();
+  assert.equal(status.premium_access, false);
+  const doc = JSON.parse(backend.data.get(ENTITLEMENT_KEY));
+  assert.equal(doc.entitled, false);
+  assert.equal(doc.reason, 'revoked');
+});

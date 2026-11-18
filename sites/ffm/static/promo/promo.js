@@ -44,8 +44,8 @@ export const DICTIONARY = {
     en: 'Fast arithmetic, hand-painted paper stages and a dragon that is waiting: subscription in the browser, the iPhone app is on the App Store as a one-time purchase – no subscription, no renewal.',
   },
   'hero.ctaWeb': { de: 'Im Browser spielen', en: 'Play in the browser' },
-  'hero.betaLabel': { de: 'Offene Beta', en: 'Open beta' },
-  'hero.betaText': { de: 'Jetzt auf iPhone und Android testen', en: 'Test it on iPhone and Android now' },
+  'hero.betaLabel': { de: 'Android-Beta', en: 'Android beta' },
+  'hero.betaText': { de: 'sucht Tester', en: 'needs testers' },
   'hero.appStoreLink': { de: 'Arithmo Slayer im App Store laden', en: 'Download Arithmo Slayer on the App Store' },
   'hero.ctaPlayStore': { de: 'Bald bei Google Play', en: 'Coming soon to Google Play' },
   'hero.ctaApp': { de: 'Zur App-Version', en: 'About the app version' },
@@ -75,6 +75,10 @@ export const DICTIONARY = {
   'gen.adults.text': {
     de: 'Reflex-Training: Hard gibt 5 Sekunden und 3 Herzen, Combos belohnen Serien, und die Bestenliste vergleicht Jahrgänge.',
     en: 'Reflex training: Hard gives 5 seconds and 3 hearts, combos reward streaks, and the leaderboard compares year groups.',
+  },
+  'gen.note': {
+    de: 'Einstufung im App Store: 9+ (leichte Fantasy-Gewalt) – die drei Stufen sind Schwierigkeitsgrade, keine Altersempfehlung.',
+    en: 'App Store rating: 9+ (mild fantasy violence) – the three stages are difficulty levels, not an age recommendation.',
   },
 
   // Handgemachte Kunst

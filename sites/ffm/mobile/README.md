@@ -82,7 +82,9 @@ theatre fills the screen and the player turns the phone. Gameplay itself is
 unaffected.
 
 `appStateChange` and `backButton` events: it pauses gameplay and BGM when the app leaves the foreground,
-resumes only when that pause was automatic (a pause the player chose stays), maps Android Back to
+suspends the music that belongs to no level (title playlist, story intro, result screens) as well —
+Android keeps a WebView audible in the background, where iOS silences the app through its own audio
+session — resumes only when that pause was automatic (a pause the player chose stays), maps Android Back to
 pause → back out of the quit confirmation → exit, and drives `@capacitor-community/keep-awake` so the screen
 stays awake only while a level is running. Orientation follows the device — the native shells lock nothing
 and both iOS build configurations target iPhone and iPad. The uncropped 800×450 scene maximizes remaining
@@ -129,7 +131,7 @@ keeps the full name and all profile actions.
 
 Gameplay reports defeated encounters (not answered or mastered questions), upcoming combo spells using the
 actual 6/11/21 thresholds; every band fires with certainty. Mistake corrections and timeout feedback remain in
-the readable question area. Shapes counts agree across the canvas, DOM and answers for the full 1-10 range.
+the readable question area. Shapes counts agree across the canvas, DOM and answers for the full 1-6 range.
 Healing progress describes the left quarter of the playfield; recovery still takes nine seconds and is interrupted
 by injury. Experimental recovery is separate from ordinary hold-to-heal.
 
@@ -168,13 +170,32 @@ Shapes remains available.
 Descriptive practice badges are stored per family player with atomic, retryable
 session receipts. They do not certify mastery, create currency or alter campaign
 history. See [BACKUP.md](BACKUP.md) for their persistence contract and
-[the system documentation](../README.md#experimental-practice-and-score-comparability)
+[the system documentation](../docs/behavior.md#experimental-practice-and-score-comparability)
 for the required score-version boundary before any trial is promoted.
 
 Optional untimed worked examples introduce subtraction, multiplication and division
 at levels 5, 25 and 34 after authorization, with Continue/Skip and no score writes.
 Canonical product/dividend ranges remain unchanged; the generator supports explicit
 `maxProduct`/`maxDividend` constraints for a separately reviewed curriculum change.
+
+### Level testing hatch: the `unlocked` player
+
+Reaching level 47 to look at its storm should not mean clearing 46 levels. In the
+app, a local player literally named **`unlocked`** gets every curriculum level on
+the Levels page as a tappable tile (capitals and surrounding spaces are ignored),
+so any level can be entered directly. Only that player is affected: every other
+profile keeps the usual continuation-only page.
+
+Two gates keep it from being a way around the store:
+
+- **App only.** The website has no local profiles, and no level-test path.
+- **Paid unlock only.** The hatch follows the cached store entitlement. On an
+  unpaid device the tiles stay locked, because level 3 and up would only reach
+  the paywall anyway — `getAuthorizedLevelConfig()` still refuses them.
+
+The rule lives in `static/game/test-profile.js` (`isLevelTestProfile`,
+`levelAvailability`) and is applied wherever the Levels page is rendered
+(`renderLocalCampaign` in `main.js`).
 
 ### Visual and audio validation boundary
 
@@ -243,7 +264,8 @@ from same-origin blob URLs so it can share the Web Audio gain path; the music
 slider accepts a gain before first playback and applies it to the routed track.
 One title speaker menu contains music, effects and mute controls; the UI states
 the limitation only when routing is unavailable. See [MUSIC.md](MUSIC.md)
-for the routing path and the physical-device listening gates. No new songs or
+for the routing path and the physical-device listening gates, and
+[CAR-AUDIO.md](CAR-AUDIO.md) for the unverified choppy car audio diagnosis. No new songs or
 hero/weapon art are included.
 
 #### Physical-device audio gates
@@ -256,7 +278,7 @@ iOS and Android device:
 - Bundled music and effects are audible through the speaker and headphones.
 - The app music slider changes live gain at 0, 0.2 and 1 while a track plays,
   and the effects slider changes the next effect cue.
-- The iOS silent switch silences music and effects; unmuting restores them.
+- The iOS silent switch silences music, effects and story narration; unmuting restores them and shows a hint to check the silent switch.
 - A call or alarm interruption pauses music and gameplay, and returning resumes
   both exactly once with mute and gain preserved.
 - Background/foreground transitions do not duplicate playback.
@@ -342,7 +364,7 @@ dependencies, prepares and verifies the offline bundle, syncs native plugins, an
 mobile tests before Xcode resolves packages. It uses Node.js 22+ or installs Homebrew's
 `node@22` on the Cloud runner if needed. Preparation failures stop the build.
 
-Version 1.0.1 is live on the App Store, so `MARKETING_VERSION` now names 1.0.2: an
+Version 1.0.2 is live on the App Store, so `MARKETING_VERSION` now names 1.1: an
 upload that still carries a released version is refused at the App Store Connect
 hand-off, after the archive has already succeeded. `ios/RELEASED_VERSION` records
 the public version and `npm test` fails while `MARKETING_VERSION` is not newer, so

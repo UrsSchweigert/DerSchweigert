@@ -11,7 +11,7 @@ from harness.store import Store
 from harness_doubles import FakeRepo, REQ
 
 REQS = plans.parse_requirements(REQ)  # F1.1, F1.2, F2.1
-MODELS = ["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"]
+MODELS = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"]
 
 
 def good_draft():
@@ -30,9 +30,9 @@ def good_draft():
                  "non_goals": [], "code_anchors": ["src/ui/"], "contract_paths": [], "deps": ["core-b"], "validation_commands": [], "parallel_safe": False}]}
     for issue in draft["issues"]:
         issue["model_choices"] = {
-            "implementer": {"model": "claude-sonnet-5", "reason": "Interacting requirements need careful implementation."},
-            "reviewer": {"model": "claude-haiku-4.5", "reason": "Focused review with reliable automated validation."},
-            "refiner": {"model": "claude-haiku-4.5", "reason": "A narrow comparison against known code anchors."},
+            "implementer": {"model": "claude-sonnet-5-5", "reason": "Interacting requirements need careful implementation."},
+            "reviewer": {"model": "claude-haiku-5-5", "reason": "Focused review with reliable automated validation."},
+            "refiner": {"model": "claude-haiku-5-5", "reason": "A narrow comparison against known code anchors."},
         }
     return draft
 
@@ -107,7 +107,7 @@ def test_a_valid_plan_is_written_and_works_with_the_rest_of_the_harness(out, tmp
     assert runner.import_issues(store, "d", None, os.path.join(out, "issues.json"), "base1") == ["core-a", "core-b", "ui-a"]
     report = open(os.path.join(out, "investigation-report.md")).read()
     assert "Phase P1" in report and "core-a" in report and "Assumptions" in report and "F1.1 (Fixture alpha)" in report
-    assert adapter.cleaned == 1 and adapter.models_used == [("standard", "claude-sonnet-5")]
+    assert adapter.cleaned == 1 and adapter.models_used == [("standard", "claude-sonnet-5-5")]
 
 
 def test_the_investigator_gets_requirements_ids_and_a_prompt_that_treats_data_as_untrusted(out):
@@ -122,9 +122,9 @@ def test_the_investigator_gets_requirements_ids_and_a_prompt_that_treats_data_as
 def test_agent_model_choices_survive_plan_generation_and_issue_import(out, tmp_path):
     draft = good_draft()
     choices = {
-        "implementer": {"model": "claude-sonnet-5", "reason": "Several interacting requirements need careful implementation."},
-        "reviewer": {"model": "claude-haiku-4.5", "reason": "Small, test-covered changes permit an inexpensive independent review."},
-        "refiner": {"model": "claude-haiku-4.5", "reason": "Only check whether the existing code anchors still apply."},
+        "implementer": {"model": "claude-sonnet-5-5", "reason": "Several interacting requirements need careful implementation."},
+        "reviewer": {"model": "claude-haiku-5-5", "reason": "Small, test-covered changes permit an inexpensive independent review."},
+        "refiner": {"model": "claude-haiku-5-5", "reason": "Only check whether the existing code anchors still apply."},
     }
     for issue in draft["issues"]:
         issue["model_choices"] = copy.deepcopy(choices)
@@ -147,10 +147,9 @@ def test_delegator_receives_the_probed_model_menu_and_budget(out):
     run(make(adapter), out)
     packet = adapter.packets[0]
     assert packet["model_options"] == [
-        {"model": "claude-haiku-4.5", "relative_cost": "low"},
-        {"model": "claude-sonnet-5", "relative_cost": "standard"},
-        {"model": "claude-opus-5", "relative_cost": "strong"},
-        {"model": "claude-opus-4.8", "relative_cost": "strong"},
+        {"model": "claude-haiku-5-5", "relative_cost": "low"},
+        {"model": "claude-sonnet-5-5", "relative_cost": "standard"},
+        {"model": "claude-opus-5-5", "relative_cost": "strong"},
     ]
     assert packet["model_budget"] == {"strong_implementation_attempts_per_issue": plans.DEFAULT_POLICY["budgets"]["strong_attempts_per_issue"]}
     assert "You are the delegating agent" in adapter.prompts[0]
@@ -158,8 +157,8 @@ def test_delegator_receives_the_probed_model_menu_and_budget(out):
 
 @pytest.mark.parametrize("role, choice, message", [
     ("implementer", {"model": "unapproved-model", "reason": "Cheap"}, "configured"),
-    ("reviewer", {"model": "claude-sonnet-5", "reason": "Review"}, "independent"),
-    ("refiner", {"model": "claude-haiku-4.5", "reason": " "}, "reason"),
+    ("reviewer", {"model": "claude-sonnet-5-5", "reason": "Review"}, "independent"),
+    ("refiner", {"model": "claude-haiku-5-5", "reason": " "}, "reason"),
 ])
 def test_bad_model_choices_are_returned_to_the_delegator(out, role, choice, message):
     draft = good_draft()
@@ -178,13 +177,14 @@ def test_delegator_must_choose_models_for_new_routable_tasks(out):
 
 
 def test_unavailable_model_is_not_offered_or_accepted(out):
+    policy = copy.deepcopy(plans.DEFAULT_POLICY)
+    policy["model_tiers"]["strong"] = ["claude-opus-5-5", "claude-opus-4-8"]  # approved, but the runtime rejects one
     draft = good_draft()
-    draft["issues"][0]["model_choices"]["implementer"] = {"model": "claude-opus-4.8", "reason": "Complex task."}
+    draft["issues"][0]["model_choices"]["implementer"] = {"model": "claude-opus-4-8", "reason": "Complex task."}
     adapter = FakeInvestigatorAdapter(draft, good_draft())
-    inv = make(adapter)
-    inv.models = MODELS[:-1]
+    inv = Investigator(adapter, repo(), policy, MODELS, sleep=lambda s: None, ask=lambda q: "yes")
     assert run(inv, out)["status"] == "ok"
-    assert all(option["model"] != "claude-opus-4.8" for option in adapter.packets[0]["model_options"])
+    assert all(option["model"] != "claude-opus-4-8" for option in adapter.packets[0]["model_options"])
     assert any("not available" in problem for problem in adapter.packets[1]["previous_problems"])
 
 
@@ -214,7 +214,7 @@ def test_the_investigators_estimate_is_recorded_and_shown_in_the_report(out):
     adapter = SizedAdapter(dict(good_draft(), usage_estimate=estimate))
     assert run(make(adapter), out)["status"] == "ok"
     [entry] = usage_state(out)
-    assert entry["attempt"] == 1 and entry["tier"] == "standard" and entry["model"] == "claude-sonnet-5"
+    assert entry["attempt"] == 1 and entry["tier"] == "standard" and entry["model"] == "claude-sonnet-5-5"
     assert entry["usage"]["agent_estimate"] == estimate and entry["usage"]["size_estimate"] == {"input_tokens": 3000, "output_tokens": 200}
     report = open(os.path.join(out, "investigation-report.md")).read()
     assert "## Usage (estimate)" in report and "~90.0k in / ~4.0k out tokens (estimate)" in report and "1 agent estimates" in report
@@ -475,6 +475,20 @@ def test_a_stuck_worker_is_cancelled_and_retried(out):
     assert res["status"] == "ok" and len(adapter.cancelled) == 1
 
 
+def test_a_worker_still_busy_at_the_timeout_is_not_retried(out):
+    """A busy attempt cut off by --timeout loses its work; an identical retry would run out the same way."""
+    clock = [0.0]
+    adapter = FakeInvestigatorAdapter("busy", good_draft())
+    adapter.poll = lambda h, now: Poll("running", now, None, None)  # active right up to the end
+
+    def sleep(s):
+        clock[0] += 100
+
+    with pytest.raises(investigate.InvestigationError, match="still working when it reached --timeout 1000s.*--timeout 3000"):
+        run(make(adapter, clock=lambda: clock[0], sleep=sleep, timeout=1000, inactivity=10**9), out)
+    assert len(adapter.cancelled) == 1 and len(adapter.models_used) == 1, "no second attempt was started"
+
+
 def test_inactivity_is_a_timeout_too(out):
     clock = [1000.0]
     adapter = FakeInvestigatorAdapter("busy", good_draft())
@@ -611,7 +625,7 @@ def test_progress_is_reported_while_the_worker_runs(out):
     adapter.describe = lambda h: "● Read src/app.js"
     res = run(make(adapter, clock=lambda: clock[0], sleep=lambda s: clock.__setitem__(0, clock[0] + 5), heartbeat=15, log=lines.append), out)
     assert res["status"] == "ok"
-    assert any(l.startswith("investigator attempt 1: tier standard, model claude-sonnet-5") for l in lines)
+    assert any(l.startswith("investigator attempt 1: tier standard, model claude-sonnet-5-5") for l in lines)
     progress = [l for l in lines if "still working" in l]
     assert len(progress) >= 2 and "elapsed" in progress[0] and "last activity" in progress[0] and "● Read src/app.js" in progress[0]
 
@@ -621,7 +635,7 @@ def test_default_inactivity_allows_a_long_quiet_thinking_phase():
 
 
 def test_describe_prefers_the_latest_action():
-    from harness.adapter import CopilotCliAdapter, _Handle, WorkRequest
+    from harness.adapter import ClaudeCodeAdapter, _Handle, WorkRequest
 
     class P:
         returncode = None
@@ -631,7 +645,7 @@ def test_describe_prefers_the_latest_action():
 
     h = _Handle(WorkRequest("a", 1, "i", "investigator", "standard", None, {}, "b"), "/tmp", P(), "n")
     h.tail = ["● Read src/app.js", "  └ 10 lines…", "", "plain text"]
-    adapter = CopilotCliAdapter("/tmp", "/tmp")
+    adapter = ClaudeCodeAdapter("/tmp", "/tmp")
     assert adapter.describe(h) == "● Read src/app.js"
     h.tail = ["only text"]
     assert adapter.describe(h) == "only text"
@@ -640,8 +654,7 @@ def test_describe_prefers_the_latest_action():
 
 
 def test_container_names_are_unique_per_start(tmp_path, monkeypatch):
-    from harness import isolation
-    from harness.adapter import CopilotCliAdapter, WorkRequest
+    from harness.adapter import ClaudeCodeAdapter, WorkRequest
     import subprocess as sp
     seen = []
 
@@ -654,12 +667,12 @@ def test_container_names_are_unique_per_start(tmp_path, monkeypatch):
     real_popen = sp.Popen
     monkeypatch.setattr(sp, "Popen", lambda cmd, *a, **kw: (seen.append(cmd) or Dummy()) if cmd[0] == "docker" else real_popen(cmd, *a, **kw))
     monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "w"))
-    (tmp_path / "copilot.token").write_text("x")
+    (tmp_path / "claude.token").write_text("x")
     src = tmp_path / "src"
     src.mkdir()
     sp.run(["git", "init", "-q", "-b", "main", str(src)], check=True)
     sp.run(["git", "-C", str(src), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "i"], check=True)
-    a = CopilotCliAdapter(str(tmp_path), str(src))
+    a = ClaudeCodeAdapter(str(tmp_path), str(src))
     req = WorkRequest("investigate#1", 1, "investigate", "investigator", "standard", None, {}, "harness/investigate")
     names = []
     for _ in range(2):
@@ -751,25 +764,25 @@ def test_cli_feedback_options_exist(tmp_path, capsys):
     assert rc == 2 and "Tier B" in capsys.readouterr().err  # reaches the sandbox check, so the options parsed
 
 
-def test_the_picker_offers_only_the_chosen_sources(out):
-    policy = plans.with_model_sources(plans.DEFAULT_POLICY, ["deepseek", "local"])
+def test_the_picker_offers_only_the_approved_menu(out):
+    policy = plans.with_model_sources(plans.DEFAULT_POLICY, ["claude"])
     draft = good_draft()
     for issue in draft["issues"]:
         issue["model_choices"] = {
-            "implementer": {"model": "deepseek/deepseek-flash", "reason": "Bounded work with reliable automated checks."},
-            "reviewer": {"model": "deepseek/deepseek-v4-pro", "reason": "Independent review on the stronger model."},
-            "refiner": {"model": "deepseek/deepseek-flash", "reason": "Only compares known code anchors."},
+            "implementer": {"model": "claude-haiku-5-5", "reason": "Bounded work with reliable automated checks."},
+            "reviewer": {"model": "claude-sonnet-5-5", "reason": "Independent review on the stronger model."},
+            "refiner": {"model": "claude-sonnet-5-5", "reason": "Only compares known code anchors."},
         }
     adapter = FakeInvestigatorAdapter(draft)
-    available = ["deepseek/deepseek-flash", "deepseek/deepseek-v4-pro", "claude-haiku-4.5"]
+    available = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-4-8"]
     inv = Investigator(adapter, repo(), policy, available, sleep=lambda s: None, ask=lambda q: "yes")
     assert run(inv, out)["status"] == "ok"
     offered = {option["model"] for option in adapter.packets[0]["model_options"]}
-    assert offered == {"deepseek/deepseek-flash", "deepseek/deepseek-v4-pro"}  # an available copilot model stays out
+    assert offered == {"claude-haiku-5-5", "claude-sonnet-5-5"}  # an available model outside the menu stays out
     with open(os.path.join(out, "phases.json")) as fh:
-        assert json.load(fh)["model_sources"] == ["deepseek", "local"]
+        assert json.load(fh)["model_sources"] == ["claude"]
     result = cli.plan_command(None, REQ, os.path.join(out, "phases.json"), plan_id="d", fixture=True, dry_run=True)
-    assert result["model_sources"] == ["deepseek", "local"] and result["state"] == "Proposed"
+    assert result["model_sources"] == ["claude"] and result["state"] == "Proposed"
 
 
 def test_a_rejected_attempt_says_why_it_was_rejected(out):
@@ -847,3 +860,31 @@ def test_a_validation_test_file_the_phase_cannot_change_needs_no_scope_entry():
     r.existing = r.existing | {"src/core/a.js", "src/core/other.test.js"}
     problems = validate_draft(mutate(ok), REQS, r, plans.DEFAULT_POLICY)
     assert not [p for p in problems if "must be in the phase allowlist as well" in p]
+
+
+def test_a_pinned_investigator_model_is_used_for_every_attempt(out):
+    """The owner's pin wins over the tier menu, also for the repair attempt after a rejected draft."""
+    adapter = FakeInvestigatorAdapter("error:no_result", good_draft())
+    inv = make(adapter, model="claude-fable-5-2")
+    assert run(inv, out)["status"] == "ok"
+    assert adapter.models_used == [("strong", "claude-fable-5-2"), ("strong", "claude-fable-5-2")]
+
+
+def test_investigate_refuses_a_model_the_subscription_rejects(tmp_path, monkeypatch, capsys):
+    from harness import approval, runner
+    from harness.adapter import ClaudeCodeAdapter
+
+    monkeypatch.setattr(approval, "detect_isolation", lambda store: {"tier": "A", "reason": ""})
+    monkeypatch.setattr(runner, "trusted_clone", lambda *a, **k: type("Clone", (), {"path": str(tmp_path)})())
+    probed = []
+
+    def probe(self, candidates=None):
+        probed.append(candidates)
+        return {"available": True, "reason": "", "models": [] if candidates else None}
+
+    monkeypatch.setattr(ClaudeCodeAdapter, "probe", probe)
+    rc = cli.main(["--home", str(tmp_path / "h"), "investigate", "--requirements", REQ, "--model", "claude-fable-9"])
+    assert rc == 2 and "not accepted by your Claude subscription" in capsys.readouterr().err
+    assert probed[-1] == ["claude-fable-9"]
+    rc = cli.main(["--home", str(tmp_path / "h"), "investigate", "--requirements", REQ, "--model", "x; rm -rf /"])
+    assert rc == 2 and "is not a model id" in capsys.readouterr().err

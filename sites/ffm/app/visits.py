@@ -7,7 +7,7 @@ Design:
   gets same salt for deduplication, different dates get different salts
 - TTL: expires_at = timestamp ~400 days hence (DynamoDB TTL deletion async)
 - Never store raw IP or User-Agent
-- Client IP via request.remote_addr set by apig_wsgi from X-Forwarded-For
+- Client IP from app/client_ip.py (never the client-controlled X-Forwarded-For)
 
 Privacy note: Counter measures daily page-load fingerprints (IP + UA hash),
 not actual people or gameplay. Estimates are daily unique page-loads, not
@@ -20,6 +20,7 @@ import hmac
 from datetime import datetime, timezone, timedelta
 from flask import request, current_app
 
+from .client_ip import get_client_ip
 from .models import _ddb
 
 
@@ -50,16 +51,8 @@ def _get_daily_salt():
 
 
 def _get_client_ip():
-    """Extract client IP from request.
-    
-    apig_wsgi sets REMOTE_ADDR from X-Forwarded-For header (first value
-    before comma) when present, or 127.0.0.1 by default. Flask's
-    request.remote_addr uses the WSGI REMOTE_ADDR value. X-Forwarded-For
-    is populated by API Gateway/CloudFront (trusted upstream), not by
-    arbitrary clients. Without ProxyFix middleware, Flask does not parse
-    X-Forwarded-For directly; we rely on apig_wsgi's REMOTE_ADDR setup.
-    """
-    return request.remote_addr
+    """The caller's IP address, from a source the caller cannot forge (see app/client_ip.py)."""
+    return get_client_ip()
 
 
 def _get_client_user_agent():

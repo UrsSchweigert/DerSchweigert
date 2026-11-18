@@ -133,6 +133,16 @@ data "aws_secretsmanager_secret" "turnstile_secret" {
   name = "ffm/turnstile-secret-key"
 }
 
+# Shared secret CloudFront sends to the API as X-Origin-Verify. It is how the
+# app knows a request came through the distribution, and so whether the
+# X-Viewer-Ip header the distribution stamps can be trusted
+# (sites/ffm/app/client_ip.py). Requests sent straight to the execute-api URL
+# lack it and are keyed on the address API Gateway saw instead.
+resource "random_password" "origin_verify" {
+  length  = 48
+  special = false
+}
+
 module "api" {
   source = "../../modules/api_backend"
 
@@ -157,6 +167,7 @@ module "api" {
       # account is still in the SES sandbox.
       BETA_WAITLIST_NOTIFY_EMAIL     = "info@derschweigert.de"
       APP_BASE_URL                   = "https://ffm.derschweigert.de"
+      ORIGIN_VERIFY_SECRET           = random_password.origin_verify.result
       TURNSTILE_SECRET_KEY_ARN       = data.aws_secretsmanager_secret.turnstile_secret.arn
       ADMIN_VISITS_TOKEN             = var.admin_visits_token
       ACCESS_CONTROL_ENABLED         = var.access_control_enabled ? "true" : "false"
@@ -179,6 +190,11 @@ module "api" {
     var.stripe_secret_key_arn != "" ? [var.stripe_secret_key_arn] : [],
     var.stripe_webhook_secret_arn != "" ? [var.stripe_webhook_secret_arn] : [],
   )
+
+  # A ceiling for the whole API that holds whatever address a caller claims.
+  # Real traffic is a few requests per second, so this only bites on floods.
+  throttling_rate_limit  = 50
+  throttling_burst_limit = 100
 
   tags = local.tags
 }
@@ -255,7 +271,7 @@ resource "aws_iam_role_policy" "lambda_stripe_secrets" {
   })
 }
 
-# Daily retention cleanup (see sites/ffm/README.md "Data retention" and
+# Daily retention cleanup (see sites/ffm/docs/behavior.md "Data retention" and
 # app/retention_admin.py's run_scheduled_cleanup): invokes the *same*
 # existing API Lambda directly, once a day, with a fixed `input` payload
 # that sites/ffm/lambda/handler.py's lambda_handler() recognizes and routes
@@ -266,7 +282,7 @@ resource "aws_iam_role_policy" "lambda_stripe_secrets" {
 # aws_dynamodb_table.users above.
 resource "aws_cloudwatch_event_rule" "retention_cleanup" {
   name                = "ffm-retention-cleanup"
-  description         = "Daily purge of expired auth tokens and completed cancellation-request records past their retention cutoff (see sites/ffm/README.md)"
+  description         = "Daily purge of expired auth tokens and completed cancellation-request records past their retention cutoff (see sites/ffm/docs/behavior.md)"
   schedule_expression = "cron(0 3 * * ? *)" # 03:00 UTC daily — low-traffic window, well clear of any one timezone's peak
 
   tags = local.tags
@@ -328,6 +344,12 @@ module "site" {
   }
 
   api_cache_disabled = var.api_cache_disabled
+
+  # Stamp the viewer's real address on API requests and prove they came
+  # through CloudFront; see sites/ffm/app/client_ip.py.
+  api_forward_viewer_ip     = true
+  api_origin_verify_enabled = true
+  api_origin_verify_secret  = random_password.origin_verify.result
 
   # Overrides the module's same-origin-only default: this site embeds
   # Cloudflare Turnstile (see app/captcha.py, static/game/main.js) to guard

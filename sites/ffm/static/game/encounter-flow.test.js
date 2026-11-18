@@ -1,6 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveDragonBreath, createAnswerClock } from './encounter-flow.js';
+import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters, isResolvedFiend } from './encounter-flow.js';
+
+test('a fiend blown at the camera is resolved, so it stops holding the wave open', () => {
+  // Wind and storm leave the fiend alive in state 'idle' for the length of its
+  // flight to the viewer. Treating that as "still on the field" is what made a
+  // level whose last encounter was blown away run on with no fiend and no way
+  // to conclude.
+  const flying = { hp: 1, state: 'idle', isDead: false, isLeaving: true };
+  assert.equal(isResolvedFiend(flying), true);
+  assert.equal(countDragonRemainingEncounters({ fiends: [flying] }), 0,
+    'a blown fiend is not a remaining encounter the dragon still has to clear');
+
+  const walking = { hp: 1, state: 'walk', isDead: false };
+  assert.equal(isResolvedFiend(walking), false);
+  assert.equal(isResolvedFiend({ hp: 0, state: 'death' }), true, 'dead is resolved');
+  assert.equal(isResolvedFiend({ hp: 1, state: 'retreat' }), true, 'walking off is resolved');
+  assert.equal(isResolvedFiend(null), true);
+});
 
 test('dragon counts only present live combat enemies, retaining retreating corrections and queues', () => {
   const enemy = (state = 'idle') => ({ hp: 4, state, setState(value) { this.state = value; } });

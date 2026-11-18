@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from . import approval, schemas
 from .github import Client, with_retries
 from .isolation import scrub_env  # noqa: F401  (re-exported)
-from .store import Store, StaleLease
+from .store import Store
 from .workrecord import ensure_issue, sanitize_untrusted, sha
 
 ACTION_OPERATION = {
@@ -135,6 +135,25 @@ def planned_escalation(declared: Sequence[str], escalation: Sequence[str], worki
         if any(is_escalation(form, escalation) for form in forms):
             hits.append(text)
     return sorted(dict.fromkeys(hits))
+
+
+def planned_out_of_scope(declared: Sequence[str], allowlist: Sequence[str], working_directory: str = ".") -> List[str]:
+    """Which declared files lie outside the phase allowlist, matched like the diff gate matches a diff.
+
+    A relative declaration may be written against the working directory or the repository root, so it is in scope
+    when either form is inside the allowlist; only a path with no in-scope reading is reported.
+    """
+    out, base = [], str(working_directory or ".").strip().strip("/")
+    for raw in declared:
+        text = str(raw).replace(os.sep, "/").strip()
+        if not text:
+            continue
+        forms = {os.path.normpath(text).replace(os.sep, "/")}
+        if base and base != "." and not text.startswith("/"):
+            forms.add(os.path.normpath(base + "/" + text).replace(os.sep, "/"))
+        if not any(f.startswith(a) for f in forms for a in allowlist):
+            out.append(text)
+    return sorted(dict.fromkeys(out))
 
 
 def check_changed_paths(changed: Sequence[str], allowlist: Sequence[str], escalation: Sequence[str]) -> Dict[str, List[str]]:

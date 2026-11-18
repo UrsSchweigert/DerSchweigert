@@ -10,8 +10,10 @@ events are in the past). The workflow is:
      can match future users in the same area.
   4. If an existing ICS file for the same lat/lng is found in the repository
      the PR replaces it (update flow); otherwise a new file is added.
-  5. A GitHub pull request is created on the user's behalf so the maintainer
-     (Urs) can review the calendar before it goes live.
+  5. A GitHub pull request is created on the user's behalf. The review
+     workflow (scripts/review_waste_pr.py) checks it and comments, but never
+     merges: the maintainer merges by hand, because every merge to main
+     deploys to production and the uploader is anonymous.
   6. After the PR is merged to main the backend picks up the new ICS file
      automatically on the next cold start — no further action needed.
 
@@ -26,10 +28,17 @@ Security considerations:
   - Branch and file names are constructed from fixed templates; user-supplied
     calendar names are sanitised with a strict allow-list regex before use.
   - If GITHUB_TOKEN is absent the endpoint returns 503, not an error traceback.
+  - Pending contributions are capped: at most _MAX_PENDING_CONTRIBUTIONS open
+    contribution PRs in total and one per location, so an anonymous caller
+    cannot flood the repository with branches and pull requests. The cap is
+    counted on GitHub itself, so it holds across Lambda instances and does not
+    depend on the caller's (forgeable) address.
+  - GitHub error text is logged, never returned to the caller.
 """
 
 import base64
 import json
+import logging
 import re
 import time
 import urllib.error
@@ -42,11 +51,14 @@ from fastapi.responses import JSONResponse
 from app.core.config import get_settings
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 _MAX_ICS_BYTES = 1_048_576          # 1 MiB hard cap before decoding
 _MIN_FUTURE_EVENTS = 1              # reject calendars with no upcoming events
+_MAX_PENDING_CONTRIBUTIONS = 10     # open contribution PRs allowed at once
+_CONTRIBUTION_BRANCH_PREFIXES = ("waste/contrib-", "waste/update-")
 _GITHUB_API = "https://api.github.com"
 _CALSCALE_ANCHOR = "CALSCALE:GREGORIAN"   # inject geo headers after this line
 # Strict allow-list for calendar names used in file/branch names
@@ -209,6 +221,26 @@ def _gh(method: str, path: str, token: str, body: dict | None = None) -> dict:
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")[:400]
         raise RuntimeError(f"GitHub {exc.code}: {detail}") from exc
+
+
+def _pending_contribution_branches(token: str, repo: str) -> list[str]:
+    """Return the head branch names of every open contribution/update PR.
+
+    Raises RuntimeError when GitHub cannot be asked, so the caller fails closed
+    instead of opening a PR it could not count.
+    """
+    branches: list[str] = []
+    for page in range(1, 6):  # 500 open PRs is far past any cap we enforce
+        pulls = _gh("GET", f"/repos/{repo}/pulls?state=open&per_page=100&page={page}", token)
+        if not isinstance(pulls, list):
+            raise RuntimeError("unexpected pulls listing")
+        for pr in pulls:
+            ref = ((pr or {}).get("head") or {}).get("ref", "")
+            if isinstance(ref, str) and ref.startswith(_CONTRIBUTION_BRANCH_PREFIXES):
+                branches.append(ref)
+        if len(pulls) < 100:
+            break
+    return branches
 
 
 def _list_matching_paths(token: str, repo: str, lat: float, lng: float) -> list[str]:
@@ -529,6 +561,30 @@ async def contribute_waste_calendar(
             ),
         )
 
+    # ── Cap pending contributions (overall and per location) ──────────────────
+    try:
+        pending = _pending_contribution_branches(settings.github_token, settings.github_repo)
+    except RuntimeError as exc:
+        logger.warning("waste contribution: could not list open PRs: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The calendar contribution service is temporarily unavailable. "
+                "Please try again later."
+            ),
+        )
+    location_tag = f"-{lat:.4f}_{lng:.4f}-"
+    if any(location_tag in branch for branch in pending):
+        raise HTTPException(
+            status_code=409,
+            detail="A calendar for this location is already waiting for review.",
+        )
+    if len(pending) >= _MAX_PENDING_CONTRIBUTIONS:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many calendars are waiting for review. Please try again in a few days.",
+        )
+
     # ── Detect update vs new addition ─────────────────────────────────────────
     # If files for this lat/lng already exist in the repo the PR will replace
     # them (update flow); otherwise it adds a new calendar (contribution flow).
@@ -548,31 +604,14 @@ async def contribute_waste_calendar(
             existing_paths=existing_paths,
         )
     except RuntimeError as exc:
+        logger.error("waste contribution: could not create pull request: %s", exc)
         raise HTTPException(
             status_code=502,
-            detail=f"Could not create pull request: {exc}",
+            detail="Could not submit the calendar for review. Please try again later.",
         )
 
-    _record_contribution()
     return JSONResponse({
         "status": "pending_update" if is_update else "pending_review",
         "pr_url": pr_url,
         "events": future_count,
     })
-
-
-def _record_contribution() -> None:
-    """Increment the waste contribution counters in stats_store (best-effort)."""
-    from datetime import UTC, datetime  # noqa: PLC0415
-
-    from app.services import stats_store  # noqa: PLC0415
-
-    try:
-        stats_store.waste_contributions_total += 1
-        day = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        stats_store.waste_contributions_by_day[day] = (
-            stats_store.waste_contributions_by_day.get(day, 0) + 1
-        )
-        stats_store.flush_persisted()
-    except Exception:
-        pass  # never block the response path

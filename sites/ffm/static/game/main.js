@@ -1,10 +1,12 @@
 // main.js — Complete game loop for Arithmo Slayer
 
-import { generateProblem, getArithmeticOptionCount, sampleFiendType, TOTAL_LEVELS } from './levels.js';
+import {
+  BOSS_ROUND_HITS, MISSING_OPERAND_BONUS, bossRoundKinds, generateProblem, getArithmeticOptionCount,
+  isBossRoundLevel, revealQuestion, sampleFiendType, TOTAL_LEVELS,
+} from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
 import { LEVEL_ART_MANIFEST, resolveLevelBackground, stageArtUrl } from './level-art.js';
 import { Hero, Slimeling, Bonehead, Toadlord, Magelitch, BirdFoe, WolfFoe, SnakeFoe, LightningBolt, Fireball, DragonSummon, getHeroGroundOffsetPx } from './entities.js';
-import { castHandAnchor } from './hero-anim.js';
 import { HUD } from './hud.js';
 import { AudioEngine } from './audio.js';
 import {
@@ -13,6 +15,7 @@ import {
   readAudioPreferences,
   writeAudioPreferences,
 } from './audio-preferences.js';
+import { createHeartbeat, isLowHealth } from './low-health.js';
 import { createHaptics } from './haptics.js';
 import { noopVibration, resolveVibrationSource } from './haptics-source.js';
 import {
@@ -41,7 +44,10 @@ import {
   shouldPreserveTimerAfterHit,
 } from './difficulty.js';
 import { CookieConsent } from './cookie-consent.js';
-import { preloadGameAssets, preloadAbilityIcons } from './asset-preload.js';
+import { createHeroSkinManager, loadHeroSkin } from './hero-skin.js';
+import { resolveHero, HEROES, heroAssetUrl } from './heroes.js';
+import { renderHeroIdentity } from './hero-identity.js';
+import { preloadGameAssets, preloadAbilityIcons, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
 import { updateHealHold, getHealHoldRatio, isInHealZone } from './heal-hold.js';
 import { generateShapesProblem } from './shapes.js';
 import { initI18n, t, toggleLocale, translateServerMessage, onLocaleChange, getLocale } from './i18n.js';
@@ -49,7 +55,7 @@ import { initWardenMode } from './boss-run.js';
 import { createGameplayChrome } from './gameplay-chrome.js';
 import { createAbilityBar } from './ability-bar.js';
 import { BONUS_CAPS, applyBonus, bonusForLevel, createBonusRuntime } from './bonus-ladder.js';
-import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow, SPIKE_SLOW_DEFAULTS } from './cooldown-abilities.js';
+import { applySpikeSlow, createAbilityRuntime, restoreSpikeSlow, spikeSlowForBonuses } from './cooldown-abilities.js';
 import { createAttemptSummary } from './attempt-summary.js';
 import { initGameplayModalFocus } from './modal-focus.js';
 import { resolveDragonBreath, createAnswerClock, countDragonRemainingEncounters } from './encounter-flow.js';
@@ -63,17 +69,30 @@ import {
   getPracticeEliteHp,
 } from './practice-session.js';
 import { getSkillIntro } from './skill-intro.js';
+import { generateGameProblem2 } from './campaign2/problem.js';
+import { bossRoundKinds2, isBossRoundLevel2, TOTAL_LEVELS_2 } from './campaign2/campaign2-levels.js';
+import { getCampaign2LevelConfig, ABILITY_LEVEL } from './campaign2/config.js';
+import { getSkillIntro2, INTRO_TEXT_2 } from './campaign2/intro-text.js';
+import { createCampaign2Progress } from './campaign2/progress.js';
+import { createGeniusReveal, geniusEarned } from './campaign2/genius.js';
+import { createCampaignSelection } from './campaign2/selection.js';
+import { campaign2Access, geniusButtonVisible } from './campaign2/access.js';
+import { expressionHtml } from './campaign2/math-render.js';
+import { runestoneDataUri } from './runestone.js';
 import { createLevelNumerals } from './level-numerals.js';
 import { createLevelGrid } from './level-grid.js';
+import { isLevelTestProfile, levelAvailability } from './test-profile.js';
 import { createStoryIntro } from './story-intro.js';
 import { dailyBestTrend, highScoreTrend } from './score-trend.js';
 import { frameDelta } from './frame-delta.js';
-import { createScreenFx } from './screen-fx.js';
+import { createScreenFx, FX_Z_INDEX } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
 import { createEncounterSwords } from './encounter-swords.js';
+import { watchTitleBarDialogs } from './title-bar.js';
 import { createDomBurst } from './dom-burst.js';
 import { TOTAL_RUN_LEVELS, createSpeedrunRecords, createSpeedrunTimer, formatRunTime } from './speedrun.js';
 import { createSpeedrunUi } from './speedrun-ui.js';
+import { scrollToHighestLevel } from './scroll-focus.js';
 
 // The active platform: web (api.js + access-flow.js) or the app bundle's
 // local-only adapter. Resolved once, before any game code runs.
@@ -152,6 +171,16 @@ let volumeControl = null;
 // play area, the pause menu and the title navigation.
 let helpOverlay = null;
 
+// The cached store entitlement, kept in step by syncNoticeHelp() below (launch,
+// every return to the foreground, a finished purchase). The level grid renders
+// synchronously and needs this without awaiting the store, and the "unlocked"
+// test profile is only honoured while it is true.
+let premiumAccess = false;
+
+// Which campaign the title screen has selected (1: the 60-level campaign, 2: Arithmoslayer II),
+// (the level being played carries its own: state.campaign). Declared up here because title code runs early.
+let selectedCampaign = 1;
+
 // App-only: a player who owns the unlock has nothing left to be told about
 // what is free, so the "What is free?" entries follow the store entitlement.
 // The buttons start hidden in the markup and are revealed by the first-open
@@ -169,6 +198,17 @@ async function syncNoticeHelp() {
     const button = document.getElementById(id);
     if (button) button.hidden = unlocked;
   }
+  // A launch or purchase that flips the entitlement can change what the Levels
+  // page offers a test profile, and the grid may well have been rendered before
+  // the store answered.
+  const gained = unlocked && !premiumAccess;
+  const changed = unlocked !== premiumAccess;
+  premiumAccess = unlocked;
+  if (gained && currentPersonalDevelopment) {
+    renderLocalCampaign(currentPersonalDevelopment.completed);
+  }
+  // "Add player" follows the unlock (see the profile UI's canCreate).
+  if (changed && typeof profileUI !== 'undefined') profileUI?.refresh();
   return unlocked;
 }
 
@@ -201,16 +241,20 @@ if (platform.isApp) {
       return import('./shapes-header.js');
     })
     .then(({ createShapesHeader }) => {
-      gameplayChrome.setShapesHeader(createShapesHeader({ doc: document }));
+      gameplayChrome.setShapesHeader(createShapesHeader({ doc: document, stoneSrc: runestoneDataUri() }));
     })
     .catch(() => {});
   // App-only music/effects gain control in the top bar, wired to the same
   // engine and persisted preferences as the pause-menu audio settings. It is
   // created after the engine exists because the overlay import resolves after
   // this synchronous module body.
-  import('./volume-control.js')
-    .then(({ createVolumeControl }) => {
+  Promise.all([
+    import('./volume-control.js'),
+    import('./ios-platform.js').catch(() => null),
+  ])
+    .then(([{ createVolumeControl }, iosPlatform]) => {
       volumeControl = createVolumeControl({
+        silentSwitchHint: Boolean(iosPlatform?.isIosApp()),
         doc: document,
         audio,
         translate: t,
@@ -242,10 +286,10 @@ if (platform.isApp) {
       });
     })
     .catch(() => {});
-  // Pause gameplay and music while the app is in the background, resume only
-  // after an automatic pause, map the Android back button, and keep the
-  // screen awake only while a level is running. The web build never loads
-  // this module.
+  // Pause gameplay and music while the app is in the background — including
+  // the music no level owns — resume only after an automatic pause, map the
+  // Android back button, and keep the screen awake only while a level is
+  // running. The web build never loads this module.
   import('./lifecycle.js')
     .then(({ createAppPlugin, createKeepAwakePlugin, createLifecycle }) => {
       const app = createAppPlugin();
@@ -258,6 +302,13 @@ if (platform.isApp) {
           isPaused: () => paused,
           pause: pauseGame,
           resume: resumeGame,
+          // The title playlist, the story intro, the result screens and the
+          // victory hymn play outside any level, so the level pause above never
+          // reaches them — Android keeps the WebView's audio running in the
+          // background. Resuming keeps a pause the game owns, so returning from
+          // the background never overrides the player.
+          suspendAudio: () => audio.suspendForBackground(),
+          resumeAudio: () => audio.resumeFromBackground(!paused),
           goBack: handleAppBack,
         },
       });
@@ -324,11 +375,36 @@ function hideLoadingOverlay() {
   if (loadingOverlay) loadingOverlay.style.display = 'none';
 }
 
-const assetsLoaded = preloadGameAssets((loaded, total) => {
+// First paint only needs the hero atlas and the fireball; the dragon, the six
+// chapter backgrounds and all 60 fiend class sprites are reachable only once a
+// level starts. Fetching them in front of the overlay instead of behind it cost
+// 11 s to a playable title screen on a 9 Mbps / 60 ms link, against 2.8 s for
+// the critical list alone.
+// The stored hero the player may use; null (logged out, revoked, unreadable)
+// means the adventurer. platform.getActiveHeroSkin() never rejects, and the
+// choice itself stays stored when it is not honoured.
+async function resolveActiveHeroId() {
+  try {
+    return resolveHero(await platform.getActiveHeroSkin?.(), { entitled: true }).id;
+  } catch {
+    return resolveHero(null).id;
+  }
+}
+const activeHeroEntry = resolveHero(await resolveActiveHeroId(), { entitled: true });
+
+const criticalAssetsLoaded = preloadGameAssets((loaded, total) => {
   const pct = total > 0 ? Math.round((loaded / total) * 100) : 100;
   if (loadingBarFill) loadingBarFill.style.width = pct + '%';
   if (loadingPercentEl) loadingPercentEl.textContent = pct + '%';
-});
+}, buildCriticalAssetManifest(activeHeroEntry));
+
+// Started once the title screen is unblocked, so the two lists never compete
+// for bandwidth. startLevel() still waits for this before painting a level, so
+// a fiend can never appear as the procedural placeholder and pop into its art.
+const deferredAssetsLoaded = criticalAssetsLoaded.then(
+  () => preloadGameAssets(undefined, buildDeferredAssetManifest()),
+);
+const assetsLoaded = Promise.all([criticalAssetsLoaded, deferredAssetsLoaded]);
 
 // The three ability icons are optional owner-delivered art; warming them in
 // the background keeps the first unlock from flashing the text fallback.
@@ -339,16 +415,16 @@ preloadAbilityIcons();
 // permanently trap the player behind a black screen — fall back to
 // revealing the game after a generous timeout even if preload never
 // settles, accepting the small risk of a placeholder flicker over an
-// unplayable page. Shared by the initial page-load preload below and by
-// every startLevel() transition (see startLevel in the Level/Wave setup
-// section), which re-shows this same overlay/bar so a level never starts
-// rendering until its assets (including that level's own stage background,
-// via renderer.waitForBackgroundLoad()) are actually ready.
+// unplayable page. Used by the first-paint preload below, which only waits
+// for the critical list, and by every startLevel() transition (see startLevel
+// in the Level/Wave setup section), which re-shows this same overlay/bar so a
+// level never starts rendering until its assets (including that level's own
+// stage background, via renderer.waitForBackgroundLoad()) are actually ready.
 const LOADING_SAFETY_TIMEOUT_MS = 30000;
 // Resolves once the first-paint loading screen is hidden, so the app-only
 // first-open notice appears over the title screen rather than behind it.
 const loadingDone = Promise.race([
-  assetsLoaded,
+  criticalAssetsLoaded,
   new Promise((resolve) => setTimeout(resolve, LOADING_SAFETY_TIMEOUT_MS)),
 ]).then(hideLoadingOverlay);
 
@@ -370,8 +446,16 @@ async function playStoryScene(sceneId) {
       return response.json();
     }),
   ]);
+  // iOS app only: narration goes through Web Audio like the music and effects,
+  // so the hardware silent switch silences it too. Web and Android keep the
+  // <audio> element; a failing import just keeps that path.
+  const iosPlatform = platform.isApp
+    ? await import('./ios-platform.js').catch(() => null)
+    : null;
+  const useWebAudioNarration = Boolean(iosPlatform?.isIosApp());
   const player = createDioramaPlayer({
     container: document.body,
+    ...(useWebAudioNarration ? { createNarration: url => audio.createNarrationVoice(url) } : {}),
     scene,
     baseUrl: sceneBase,
     locale: getLocale(),
@@ -515,28 +599,77 @@ const FIEND_PALETTES = {
   ],
 };
 
+function campaign2Progress() {
+  return createCampaign2Progress({ playerId: campaign2PlayerId() });
+}
+// Campaign 2 is part of the web subscription; the apps sell it as one more in-app product.
+async function getCampaign2AccessNow() {
+  if (platform.isApp) {
+    let owned = [];
+    try { owned = (await platform.getOwnedProductIds?.()) ?? []; } catch { owned = []; }
+    return campaign2Access({ platform: 'app', ownedProductIds: owned });
+  }
+  let premium = false;
+  try { premium = (await platform.getBillingStatus())?.premium_access === true; } catch { premium = false; }
+  return campaign2Access({ platform: 'web', premiumAccess: premium });
+}
+async function getCampaign2Config(levelIndex) {
+  const access = await getCampaign2AccessNow();
+  if (!access.granted) {
+    const error = new Error('Campaign 2 is locked');
+    error.code = 'campaign2_locked';
+    error.reason = access.reason;
+    throw error;
+  }
+  return getCampaign2LevelConfig(levelIndex + 1);
+}
+
+// A multi-hit fiend asks a fresh question after every hit. The last fiend of a
+// boss-round level (20, 30, 40, 50, 60) walks through three different question
+// types in a row instead: ordinary, the newest operation, then a missing operand.
+//
+// Campaign 2 (Arithmoslayer II, cfg.campaign === 2) has its own question generator, boss
+// kinds, and scene / ability levels; Campaign 1 configs carry none of those fields.
+const isBossFor = cfg => (cfg.campaign === 2 ? isBossRoundLevel2(cfg.level) : isBossRoundLevel(cfg.level));
+function makeProblem(cfg, options) {
+  return cfg.campaign === 2
+    ? generateGameProblem2(cfg.level, Date.now(), options)
+    : generateProblem(cfg.level - 1, Date.now(), cfg, options);
+}
+function nextHitProblem(fiend, cfg) {
+  if (fiend.bossRound && !practiceRun) {
+    fiend.bossStep = (fiend.bossStep ?? 0) + 1;
+    const kinds = cfg.campaign === 2 ? bossRoundKinds2(cfg.level) : bossRoundKinds(cfg.level);
+    return makeProblem(cfg, kinds[fiend.bossStep % kinds.length]);
+  }
+  return makeProblem(cfg);
+}
+
 // --- Fiend factory ---
 function createFiend(levelIndex, x) {
   const cfg = platform.getCurrentLevelConfig();
   if (!cfg) throw new Error('Level config not loaded');
-  const problem = generateProblem(levelIndex, Date.now(), cfg);
+  const problem = cfg.campaign === 2 ? makeProblem(cfg) : generateProblem(levelIndex, Date.now(), cfg);
   const spawnIndex = state.fiendsSpawned;
   state.fiendsSpawned++;
-  const fiendTypeKey = String(sampleFiendType(cfg.level, spawnIndex) || cfg.fiendType || '').toLowerCase();
+  const fiendTypeKey = String(sampleFiendType(cfg.artLevel ?? cfg.level, spawnIndex) || cfg.fiendType || '').toLowerCase();
   const FiendClass = FIEND_TYPE_CLASS[fiendTypeKey] ?? OPERATOR_FIEND[problem.operation] ?? Slimeling;
   const isElite = Math.random() < GAME_CONFIG.eliteFiendChance;
   const practiceElite = practiceRun?.kind === 'elite';
+  const bossRound = !practiceRun && isBossFor(cfg) && spawnIndex === cfg.waveSize - 1;
   const hp = practiceElite ? getPracticeEliteHp(cfg.fiendHP)
-    : isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
-  const tier = Math.min(3, Math.floor(levelIndex / 15));
+    : bossRound ? Math.max(BOSS_ROUND_HITS, cfg.fiendHP)
+      : isElite ? GAME_CONFIG.eliteFiendHp : cfg.fiendHP;
+  const tier = Math.min(3, Math.floor(((cfg.artLevel ?? cfg.level) - 1) / 15));
   const palettes = FIEND_PALETTES[fiendTypeKey];
   const palette = palettes ? palettes[tier] : undefined;
   const fiend = new FiendClass(x, groundY, hp, palette);
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, FIEND_PORTAL_X,
     typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
   fiend.problem = problem;
-  fiend.isElite = practiceElite || isElite;
-  fiend.fiendClassId = sampleFiendClassId(cfg.level, spawnIndex);
+  fiend.isElite = practiceElite || (isElite && !bossRound);
+  fiend.bossRound = bossRound;
+  fiend.fiendClassId = sampleFiendClassId(cfg.artLevel ?? cfg.level, spawnIndex);
   fiend.type = fiendTypeKey;
   audio.prepareFiend?.(fiendTypeKey);
   if (practiceRun && practiceRun.kind !== 'targeted' && problem.operation) {
@@ -684,6 +817,9 @@ const userDisplay = document.getElementById('username-display');
 const muteBtn = document.getElementById('mute-btn');
 const langToggleBtn = document.getElementById('lang-toggle-btn');
 const topBar  = document.getElementById('top-bar');
+// Intro, sound and language do nothing over the skill intro, the result and
+// pause cards or a store sheet, so the bar is not shown there (title-bar.js).
+watchTitleBarDialogs({ bar: topBar });
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
 const loginError = document.getElementById('login-error');
@@ -812,6 +948,20 @@ globalThis.ffmScreenFx = createScreenFx({
   effects: createEffectTable(),
   reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
 });
+// Weather has a layer of its own, pinned to the playfield: rain and the storm
+// dim must never wash across the answer row, and the scene-sized canvas is
+// cheaper to clear and composite than a viewport-sized one. It sits one step
+// under the gameplay layer so a spell cast during a storm still reads on top,
+// and it has no bloom — rain does not need the extra blur passes.
+globalThis.ffmStormFx = createScreenFx({
+  playfield: document.getElementById('playfield'),
+  effects: createEffectTable(),
+  confined: true,
+  zIndex: FX_Z_INDEX - 1,
+  id: 'storm-fx',
+  bloom: false,
+  reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+});
 // The app shell serves bundled tracks from the WebView's own origin, so their
 // media elements can share the effects gain path. The web build keeps its
 // unverified status until a deployment is validated.
@@ -933,6 +1083,19 @@ hapticsToggle?.addEventListener('change', () => {
 
 // --- Entity state ---
 let hero = new Hero();
+const heroSkins = createHeroSkinManager();
+async function applyActiveHeroSkin() {
+  try {
+    await heroSkins.apply(hero, await resolveActiveHeroId());
+  } catch (error) {
+    console.error('Unable to apply the hero skin', error);
+  }
+}
+// Outside startLevel the skin is only swapped while no level is in play.
+function refreshHeroSkin() {
+  if (gameRunning || levelStarting) return;
+  applyActiveHeroSkin();
+}
 let fiends = [];
 let spawnQueue = [];
 let requeuedFiends = [];
@@ -998,7 +1161,7 @@ const LUNGE_MIN_DIST = 140; // skip lunge when fiend is already within this dist
 const SPELL_TARGET_Y_OFFSET = 60;
 
 function spellLaunchPoint() {
-  const [dx, dy] = castHandAnchor();
+  const [dx, dy] = hero.castHandAnchor();
   return { x: hero.x + dx, y: hero.y + getHeroGroundOffsetPx() + dy };
 }
 // Must match Fireball's `life` (in entities.js) in milliseconds, so the hit
@@ -1022,7 +1185,6 @@ let profileUI = null;
 let entitlementPanel = null;
 let firstOpenNotice = null;
 let activeTitlePage = 'play';
-let personalBestPage = 0;
 const PERSONAL_BEST_PAGE_SIZE = 3;
 let leaderboardPage = 0;
 let profileMutationPending = false;
@@ -1244,6 +1406,7 @@ function renderScoreHistory(historyResponse, container) {
 function renderLevelJumpOptions(profile) {
   const scores = profile && profile.scores ? profile.scores : [];
   const levels = [...new Set(scores.map((s) => s.level))].sort((a, b) => a - b);
+  if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ reachedLevels: levels });
   if (levels.length === 0) {
     levelJumpRow.style.display = 'none';
     levelGrid.render({ total: TOTAL_LEVELS, defaultLevel: 1, available: [] });
@@ -1263,13 +1426,23 @@ function renderLevelJumpOptions(profile) {
   updateTitleStartingLevel();
 }
 
-function updateTitleStartingLevel(nextLevel = 1, continuationLabel = null) {
+function updateTitleStartingLevel(nextLevel = 1, continuationLabel = null, clearedLevels = null) {
+  if (typeof selectedCampaign !== 'undefined' && selectedCampaign === 2) {
+    const next = campaign2Progress().next();
+    titleLevelNumerals.updateLevelSelection({ level: next ?? TOTAL_LEVELS_2, mode: 'continuation' });
+    const line = document.getElementById('continue-level');
+    if (line) line.textContent = next ? t('campaign2.continueAt', { level: next }) : t('campaign2.complete');
+    return;
+  }
   const level = Number(levelGrid.value) || nextLevel;
   const mode = levelGrid.value ? 'replay' : 'continuation';
   titleLevelNumerals.updateLevelSelection({ level, mode });
   const continuation = document.getElementById('continue-level');
+  // A selected level the player has not cleared is not a replay: the "unlocked"
+  // test profile can start anywhere, and calling that a replay would be wrong.
+  const replaying = !clearedLevels || clearedLevels.includes(level);
   if (continuation) continuation.textContent = platform.isApp
-    ? (mode === 'replay' ? t('campaign.replay', { level })
+    ? (mode === 'replay' ? t(replaying ? 'campaign.replay' : 'campaign.startAt', { level })
       : continuationLabel ?? t('campaign.continueAt', { level }))
     : t('title.levelNumerals', { level });
 }
@@ -1408,12 +1581,9 @@ function renderPersonalDevelopment(state) {
   if (best.length === 0) {
     personalBestList.innerHTML = `<li>${t('personalDevelopment.noProgress')}</li>`;
   } else {
-    const pageCount = Math.max(1, Math.ceil(best.length / PERSONAL_BEST_PAGE_SIZE));
-    personalBestPage = Math.min(personalBestPage, pageCount - 1);
-    personalBestList.innerHTML = best.slice(
-      personalBestPage * PERSONAL_BEST_PAGE_SIZE, (personalBestPage + 1) * PERSONAL_BEST_PAGE_SIZE,
-    )
-      .map((entry) => `<li>${t(entry.unfinished === true
+    // Every level with a score is listed in one scrolling list (no paging).
+    personalBestList.innerHTML = best
+      .map((entry) => `<li data-level="${Number(entry.level)}">${t(entry.unfinished === true
         ? 'personalDevelopment.perLevelBestUnfinished'
         : 'personalDevelopment.perLevelBest', {
         level: entry.level,
@@ -1430,17 +1600,19 @@ function renderPersonalDevelopment(state) {
     completed: completed.length,
     total: Math.max(TOTAL_LEVELS, completed.length),
   });
-  const pages = Math.max(1, Math.ceil(best.length / PERSONAL_BEST_PAGE_SIZE));
-  const previous = document.getElementById('personal-best-prev');
-  const next = document.getElementById('personal-best-next');
-  const pageLabel = document.getElementById('personal-best-page');
-  if (previous) previous.disabled = personalBestPage === 0;
-  if (next) next.disabled = personalBestPage >= pages - 1;
-  if (pageLabel) pageLabel.textContent = t('common.page', { page: personalBestPage + 1, pages });
+  scrollPersonalBestToHighest();
+}
+
+// Opens the list at the highest level that has a score (the top when none).
+// A hidden page has no layout, so this also runs when the Practice page shows.
+function scrollPersonalBestToHighest() {
+  if (!personalBestList || personalBestList.closest('[hidden]')) return;
+  scrollToHighestLevel(personalBestList);
 }
 
 function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   const progress = getCampaignProgress(completed);
+  if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ cleared: progress.cleared });
   if (resetSelection) levelGrid.value = '';
   const label = progress.complete ? t('campaign.complete') : t('campaign.continueAt', { level: progress.nextLevel });
   const selectorLabel = document.getElementById('level-jump-label');
@@ -1449,13 +1621,21 @@ function renderLocalCampaign(completed, { resetSelection = false } = {}) {
   levelGrid.render({
     total: TOTAL_LEVELS,
     defaultLevel: progress.nextLevel ?? 1,
-    available: progress.cleared,
+    available: levelAvailability({
+      testProfile: isLevelTestProfile({
+        isApp: platform.isApp,
+        profileName: activeLocalPlayer?.name,
+        premiumAccess,
+      }),
+      cleared: progress.cleared,
+      total: TOTAL_LEVELS,
+    }),
     labelFor: ({ level, state }) => t(state === 'locked' ? 'levels.locked'
       : state === 'default' && !progress.complete ? 'campaign.continueAt' : 'campaign.replay', { level }),
   });
   levelJumpRow.style.display = '';
   document.getElementById('title-levels-btn').hidden = false;
-  updateTitleStartingLevel(progress.nextLevel ?? 1, label);
+  updateTitleStartingLevel(progress.nextLevel ?? 1, label, progress.cleared);
 }
 
 function renderPlayerIdentity() {
@@ -1472,6 +1652,42 @@ function renderPlayerIdentity() {
     }
   }
   document.getElementById('switch-player-btn')?.toggleAttribute('hidden', !platform.isApp);
+  // typeof: the extracted-function tests run this without the portrait helper.
+  if (typeof paintHeroIdentity === 'function') paintHeroIdentity();
+}
+
+// Paints the gated hero's portrait into the running channel's rows only: the
+// app identity rows, or the web account greeting for a logged-in player. The
+// sequence guards against an older async choice landing after a newer one.
+// The title screen's player badge: the hero portrait beside the level numerals; a tap opens Players.
+const titlePlayerBadge = document.getElementById('title-player-badge');
+titlePlayerBadge?.addEventListener('click', () => {
+  // The app has the Players page; the web has no player dialogue, so the badge opens the hero picker.
+  if (platform.isApp) { document.getElementById('title-family-btn')?.click(); return; }
+  void resolveActiveHeroId().then(hero => openHeroPicker({ hero }));
+});
+function paintTitlePlayerBadge(hero) {
+  if (!titlePlayerBadge) return;
+  renderHeroIdentity(titlePlayerBadge, hero, { t });
+  titlePlayerBadge.hidden = !hero;
+  const name = platform.isApp ? activeLocalPlayer?.name : platform.username;
+  if (hero && name) titlePlayerBadge.setAttribute('aria-label', name);
+}
+let heroIdentitySeq = 0;
+async function paintHeroIdentity() {
+  const seq = ++heroIdentitySeq;
+  const heroId = await resolveActiveHeroId();
+  if (seq !== heroIdentitySeq) return;
+  const hero = resolveHero(heroId, { entitled: true });
+  paintTitlePlayerBadge((platform.isApp ? Boolean(activeLocalPlayer?.name) : platform.isLoggedIn) ? hero : null);
+  if (platform.isApp) {
+    for (const id of ['playing-as', 'progress-player-name', 'pause-player-name']) {
+      const row = document.getElementById(id)?.parentElement;
+      if (row) renderHeroIdentity(row, activeLocalPlayer?.name ? hero : null, { t });
+    }
+  } else if (splashGreeting) {
+    renderHeroIdentity(splashGreeting, platform.isLoggedIn && splashGreeting.textContent ? hero : null, { t });
+  }
 }
 
 function practiceOwnerId() {
@@ -1485,7 +1701,7 @@ function clearMissedProblemsForOwner(ownerId = practiceOwnerId()) {
 }
 
 function rememberMissedProblem(problem, levelIndex) {
-  if (!problem || practiceRun || state.isShapesMode) return;
+  if (!problem || practiceRun || state.isShapesMode || problem.campaign === 2) return;
   const ownerId = runProfileId ?? practiceOwnerId();
   if (missedProblemsOwner !== ownerId) clearMissedProblemsForOwner(ownerId);
   const level = levelIndex + 1;
@@ -1696,6 +1912,19 @@ function showSkillIntro(intro, levelIndex, cfg, baselineScore) {
 function renderSkillIntro() {
   if (!activeSkillIntro) return;
   const [explanation, example] = activeSkillIntro.stages;
+  if (activeSkillIntro.localizationKey?.startsWith('c2Intro.')) {
+    // Campaign 2: texts live in campaign2/intro-text.js, the example is laid out as stacked maths.
+    const text = key => INTRO_TEXT_2[key]?.[getLocale()] ?? INTRO_TEXT_2[key]?.en ?? '';
+    if (skillIntroTitle) skillIntroTitle.textContent = t('practice.intro.title', { level: activeSkillIntro.level });
+    if (skillIntroBody) skillIntroBody.textContent = text(explanation.localizationKey);
+    if (skillIntroExample) {
+      skillIntroExample.innerHTML = `<div class="m2-intro-math">${expressionHtml(example.tokens)}</div>`;
+      const note = document.createElement('p');
+      note.textContent = text(example.localizationKey);
+      skillIntroExample.appendChild(note);
+    }
+    return;
+  }
   const values = {
     ...explanation.values,
     a: activeSkillIntro.exampleProblem.a,
@@ -1726,6 +1955,11 @@ practiceLevelSelect?.addEventListener('change', () => {
   showPracticeStatus('');
   updatePracticeLevelHint();
 });
+document.getElementById('btn-open-practice')?.addEventListener('click', () => {
+  if (!practicePanel) return;
+  practicePanel.open = true;
+  practicePanel.querySelector('#practice-kind')?.focus?.({ preventScroll: true });
+});
 practicePanel?.addEventListener('toggle', () => {
   if (practicePanel.open) resetLevelSummaries();
 });
@@ -1737,7 +1971,7 @@ practicePanel?.addEventListener('toggle', () => {
 function closePracticePanel() {
   if (!practicePanel?.open) return false;
   practicePanel.open = false;
-  practicePanel.querySelector('summary')?.focus?.();
+  document.getElementById('btn-open-practice')?.focus?.();
   return true;
 }
 document.getElementById('btn-close-practice')?.addEventListener('click', closePracticePanel);
@@ -1864,8 +2098,12 @@ function updateHUDLogoutVisibility() {
 }
 
 function applyAuthUIState() {
+  // typeof: the extracted-function tests run this without the skin helpers.
+  if (typeof refreshHeroSkin === 'function') refreshHeroSkin();
   if (platform.isApp) return;
   renderPlayerIdentity();
+  // typeof: as above; the web player is the account, so a login or logout reloads the choice.
+  if (typeof loadCampaignSelection === 'function') loadCampaignSelection();
   if (platform.username) {
     loginBtn.style.display = 'none';
     userDisplay.textContent = platform.username;
@@ -1895,6 +2133,107 @@ if (!platform.isApp) splashLoginBtn.addEventListener('click', () => {
   }
 });
 
+// --- Genius Campaign button (Campaign II) ---
+// Shown once the player has beaten level 40 of the main campaign (campaign2/genius.js). It
+// switches between the campaigns, and while Campaign II is locked it manages the unlock: the
+// web subscription (login / billing) or the app's in-app purchase.
+function campaign2PlayerId() {
+  return platform.isApp
+    ? (platform.localProfiles?.getActiveProfile?.().id ?? 'app')
+    : (platform.username || 'web');
+}
+const geniusReveal = () => createGeniusReveal({ playerId: campaign2PlayerId() });
+// The campaign choice is per player (campaign2/selection.js): reload it whenever the
+// player changes, and store it whenever the switch changes it.
+function campaignSelection() {
+  return createCampaignSelection({ playerId: campaign2PlayerId() });
+}
+function loadCampaignSelection() {
+  selectedCampaign = campaignSelection().get();
+  renderCampaignSwitch();
+}
+function chooseCampaign(campaign) {
+  selectedCampaign = campaign === 2 ? 2 : 1;
+  campaignSelection().set(selectedCampaign);
+}
+// The app keeps the switch with the player it belongs to, on the Players page, between the
+// player list and the purchase panel; the web has no Players page and keeps it on Play.
+if (platform.isApp) {
+  const familyPage = document.getElementById('local-profiles');
+  const switchWrap = document.getElementById('genius-campaign');
+  if (familyPage && switchWrap) familyPage.insertBefore(switchWrap, document.getElementById('entitlement-root'));
+}
+/** Called wherever progress becomes known; reveals the button the first time level 40 shows as beaten. */
+function noteGeniusProgress(progress) {
+  if (!geniusEarned(progress)) return;
+  if (geniusReveal().reveal() && typeof renderCampaignSwitch === 'function') renderCampaignSwitch();
+}
+async function renderCampaignSwitch() {
+  const wrap = document.getElementById('genius-campaign');
+  const button = document.getElementById('genius-campaign-btn');
+  if (!wrap || !button) return;
+  const access = await getCampaign2AccessNow();
+  // An app owner of the product sees the button at once; everyone else after beating level 40.
+  const visible = geniusButtonVisible({
+    platform: platform.isApp ? 'app' : 'web',
+    ownsProduct: platform.isApp && access.granted,
+    revealed: geniusReveal().isRevealed(),
+  });
+  if (!visible) {
+    wrap.hidden = true;
+    if (selectedCampaign === 2) chooseCampaign(1);   // a stale selection never hides the way back
+  } else {
+    wrap.hidden = false;
+    const inTwo = selectedCampaign === 2;
+    const set = (id, key) => {
+      const el = document.getElementById(id);
+      if (el) { el.dataset.i18n = key; el.textContent = t(key); }
+    };
+    set('genius-eyebrow', inTwo ? 'campaign.switch.eyebrow2' : 'campaign.switch.eyebrow1');
+    set('genius-title', inTwo ? 'campaign.switch.title2' : 'campaign.switch.title1');
+    set('genius-status', inTwo ? 'campaign.switch.toArithmetic' : access.granted ? 'campaign.switch.toGenius' : 'campaign.switch.unlock');
+    button.setAttribute('aria-pressed', String(inTwo));
+    button.dataset.campaign = String(selectedCampaign);
+    const note = document.getElementById('campaign2-note');
+    if (note) {
+      note.hidden = access.granted || !inTwo;
+      note.textContent = t(platform.isApp ? 'campaign2.note.app' : 'campaign2.note.web');
+    }
+  }
+  // The title shows the Campaign II picture only to a player who chose it (the app; on the
+  // web the switch itself is on the title screen and already shows the choice).
+  const emblem = document.getElementById('campaign-emblem');
+  if (emblem) emblem.hidden = !platform.isApp || wrap.hidden || selectedCampaign !== 2;
+  updateTitleStartingLevel();
+}
+document.getElementById('genius-campaign-btn')?.addEventListener('click', async () => {
+  if (levelStarting || pendingSkillIntro) return;
+  if (selectedCampaign === 2) {
+    chooseCampaign(1);
+  } else if ((await getCampaign2AccessNow()).granted) {
+    chooseCampaign(2);
+  } else if (platform.isApp) {
+    openCampaign2Purchase();            // the in-app purchase
+  } else if (platform.isLoggedIn) {
+    openBillingPanel();                 // the subscription
+  } else {
+    showAuthForm(loginForm);            // log in (or register) first
+    setAuthModalVisible(true);
+  }
+  renderCampaignSwitch();
+});
+// The app sells Campaign 2 as one more in-app product (see campaign2/access.js).
+async function openCampaign2Purchase() {
+  try {
+    const { createPaywall } = await import('./paywall.js');   // the app bundle's own module
+    await createPaywall({
+      platform, locale: getLocale(), product: 'campaign2', onGranted: () => renderCampaignSwitch(),
+    }).open();
+  } catch (error) {
+    console.error('Campaign 2 purchase failed', error);
+  }
+}
+
 // --- Difficulty select ---
 // Only the buttons that name a difficulty: the splash overlay also holds the
 // Back buttons of the Practice submenu and the history page, and those share
@@ -1917,17 +2256,31 @@ document.querySelectorAll('#difficulty-select [data-difficulty]').forEach(btn =>
       state.isShapesMode = false;
       state.difficulty = btn.dataset.difficulty;
       state.timerMax = parseInt(btn.dataset.timer);
+      state.baseTimerMax = state.timerMax;   // Campaign 2 stretches this per level
       state.timerRemaining = state.timerMax;
       state.maxHearts = parseInt(btn.dataset.hearts);
       state.hearts = state.maxHearts;
       healTipShown = false;
       const jumpValue = levelGrid.value;
       let targetLevel = jumpValue ? parseInt(jumpValue, 10) : 1;
-      if (platform.isApp) {
+      const campaign2Selected = typeof selectedCampaign !== 'undefined' && selectedCampaign === 2;
+      if (campaign2Selected) {
+        // Campaign 2 continues from its own device-local progress (or starts over once complete).
+        targetLevel = campaign2Progress().next() ?? 1;
+      } else if (platform.isApp) {
         const profileId = platform.localProfiles.getActiveProfile().id;
         const { completed } = await platform.getCompletedLevels(profileId);
         const progress = getCampaignProgress(completed);
-        if (jumpValue && !progress.cleared.includes(targetLevel)) {
+        // The Levels page offers a cleared level for replay — and, for the
+        // "unlocked" test profile, every level (see test-profile.js). Refuse a
+        // level this player was not offered, so replaying stays limited to
+        // cleared levels without blocking the hatch.
+        const levelTest = isLevelTestProfile({
+          isApp: true,
+          profileName: activeLocalPlayer?.name,
+          premiumAccess,
+        });
+        if (jumpValue && !progress.cleared.includes(targetLevel) && !levelTest) {
           throw new Error('Selected replay level has not been completed by this player');
         }
         if (!jumpValue) targetLevel = progress.nextLevel ?? 1;
@@ -1936,12 +2289,12 @@ document.querySelectorAll('#difficulty-select [data-difficulty]').forEach(btn =>
       // Run start: fresh cooldowns for the selected campaign level. The
       // `typeof` keeps extracted-function tests (which run this block without
       // main.js) working, matching the volumeControl guard above.
-      if (typeof beginAbilityRun === 'function') beginAbilityRun(targetLevel);
+      if (typeof beginAbilityRun === 'function') beginAbilityRun(targetLevel);   // Campaign 2 is lifted to its ability level by finishStartLevel
       state.score = 0;
       levelStartScore = state.score;
       // Level 1 opens the story: play the intro unless it already ran this
       // session (the first app open shows it before the title appears).
-      await storyIntro.playBeforeLevel(targetLevel);
+      if (!campaign2Selected) await storyIntro.playBeforeLevel(targetLevel);
       diffSelect.style.display = 'none';
       await startLevel(targetIndex, true);
     } catch (error) {
@@ -2344,6 +2697,60 @@ if (!platform.isApp) document.getElementById('btn-cancel-subscription').addEvent
   }
 });
 
+// Web-only hero picker in the account modal. Logged-out players and the app
+// never reach the import, so no request is made for the picker.
+const accountHeroPicker = platform.isApp ? null : document.getElementById('account-hero-picker');
+let accountHeroMount = null;
+async function mountAccountHeroPicker(profile) {
+  accountHeroMount?.destroy();
+  accountHeroMount = null;
+  if (!accountHeroPicker) return;
+  if (!platform.isLoggedIn) {
+    accountHeroPicker.hidden = true;
+    return;
+  }
+  let premium = false;
+  try {
+    premium = (await platform.getBillingStatus())?.premium_access === true;
+  } catch {
+    premium = false;
+  }
+  let selectedId = resolveHero(profile?.user?.hero, { entitled: premium }).id;
+  const { mountHeroPicker } = await import('./hero-picker.js');
+  if (!platform.isLoggedIn) return;
+  accountHeroPicker.hidden = false;
+  accountHeroMount = mountHeroPicker(document.getElementById('account-hero-picker-grid'), {
+    heroes: HEROES,
+    t,
+    getSelectedId: () => selectedId,
+    isLocked: (entry) => !entry.free && !premium,
+    canChange: () => !gameRunning && !levelStarting && !completionPending,
+    onSelect: async (entry) => {
+      const previous = selectedId;
+      selectedId = entry.id;
+      accountProfileMessage.classList.remove('success-msg');
+      accountProfileMessage.textContent = '';
+      try {
+        const result = await platform.updateProfile({ hero: entry.id });
+        if (result?.error) throw new Error(result.error);
+        accountProfileMessage.classList.add('success-msg');
+        accountProfileMessage.textContent = t('heroes.saved');
+        paintHeroIdentity();
+        refreshHeroSkin();
+      } catch (err) {
+        selectedId = previous;
+        accountHeroMount?.update();
+        accountProfileMessage.textContent = err?.message ? translateServerMessage(err.message) : t('heroes.saveFailed');
+      }
+    },
+    onLocked: () => {
+      accountProfileMessage.classList.remove('success-msg');
+      accountProfileMessage.textContent = t('heroes.webLocked');
+      showAccountTab(tabAccountBilling, accountBillingPanel);
+    },
+  });
+}
+
 async function populateAccountModal() {
   if (platform.isApp) return;
   accountProfileMessage.textContent = '';
@@ -2361,6 +2768,7 @@ async function populateAccountModal() {
       accountPendingEmailNote.style.display = 'none';
     }
     renderPersonalBest(profile, accountPersonalBest);
+    await mountAccountHeroPicker(profile);
   } catch (err) {
     accountProfileMessage.textContent = t('account.loadProfileFailed');
   }
@@ -2493,13 +2901,18 @@ if (!platform.isApp) accountDeleteForm.addEventListener('submit', async e => {
 function updateMuteButtonLabel() {
   muteBtn.textContent = audio.muted ? '🔇' : '🔊';
   muteBtn.setAttribute('aria-label', t(audio.muted ? 'topbar.unmuteAriaLabel' : 'topbar.muteAriaLabel'));
+  // The pause card's sound-settings speaker shows the same state as the title bar's.
+  const pauseSpeaker = document.querySelector('#audio-settings .audio-settings-icon');
+  if (pauseSpeaker) pauseSpeaker.textContent = audio.muted ? '🔇' : '🔊';
   volumeControl?.refresh();
 }
 
 muteBtn.addEventListener('click', () => {
+  const wasMuted = audio.muted;
   audio.toggleMute();
   persistAudioPreferences();
   updateMuteButtonLabel();
+  volumeControl?.noteMuteChange?.(wasMuted);
 });
 
 langToggleBtn?.addEventListener('click', () => {
@@ -2557,6 +2970,7 @@ function resumePendingLevel() {
 }
 
 function clearPremiumSession() {
+  if (typeof stopStorm === 'function') stopStorm();
   setAnswerInputVisible(false);
   gameplayTimers.length = 0;
   // Drop in-flight projectiles too, so no collision callback can fire after
@@ -2582,6 +2996,74 @@ function clearPremiumSession() {
   if (typeof startMenuMusic === 'function') startMenuMusic();
   syncKeepAwake();
   updateHUDLogoutVisibility();
+}
+
+// --- Multi-hit level storm ---
+// A level whose fiends need more than one answer runs under a thunderstorm: the
+// playfield is dimmed, rain sheets across it and the odd bolt lands. The storm
+// belongs to the level, so it is armed once when the level starts and stopped on
+// clear, game over and quit — a chain of `schedule` ticks with a token, so
+// stopping it is immediate and no stale tick can re-arm it.
+let stormToken = 0;
+let stormRunning = false;
+// The particle layer steps at 30 Hz while a storm runs: rain and lightning do
+// not need 60, and a full-viewport composite of a DPR-2 canvas is the most
+// expensive per-frame work the game does on a phone. Sprites, input and the HUD
+// keep the full frame rate, and a level without weather is untouched.
+const FX_STORM_STEP_SECONDS = 1 / 30;
+const FX_MAX_STEP_SECONDS = 1 / 20;
+let fxFrameCarry = 0;
+
+/**
+ * How much time the particle layer should advance this frame, and what to carry
+ * into the next one. Pure, so the cadence is testable without the game loop.
+ * @param {number} dt frame delta in seconds
+ * @param {boolean} storm whether a storm level is on screen
+ * @param {number} carry time left over from the previous frame
+ * @returns {{ step: number, carry: number }} `step` is 0 when no frame is due
+ */
+function fxStepFor(dt, storm, carry = 0) {
+  const elapsed = Number.isFinite(dt) && dt > 0 ? dt : 0;
+  if (!storm) return { step: elapsed, carry: 0 };
+  const next = carry + elapsed;
+  if (next < FX_STORM_STEP_SECONDS) return { step: 0, carry: next };
+  return {
+    step: Math.min(next, FX_MAX_STEP_SECONDS),
+    carry: next - FX_STORM_STEP_SECONDS,
+  };
+}
+
+function stopStorm() {
+  stormToken += 1;
+  stormRunning = false;
+  fxFrameCarry = 0;
+  // The weather owns its layer outright: stopping it clears dim, rain and bolts
+  // without touching the gameplay particles on the layer above.
+  globalThis.ffmStormFx?.clear?.();
+}
+
+function startStorm(cfg) {
+  stopStorm();
+  const fx = globalThis.ffmStormFx;
+  const multiHit = Number(cfg?.fiendHP) > 1;
+  if (!multiHit || !fx?.play || !fx?.schedule) return false;
+  // The dim is added once and held for the level: a wash keeps a constant alpha
+  // for its whole life and then vanishes, so re-adding short ones (the first
+  // version) made the whole screen step lighter and darker instead of settling.
+  fx.play('stormDim', {});
+  stormRunning = true;
+  fxFrameCarry = 0;
+  const token = stormToken;
+  const tick = () => {
+    if (token !== stormToken) return;
+    fx.play('stormRain', {});
+    // One bolt every few seconds, never on the first tick, so the level opens
+    // with rain and the thunder arrives as a surprise.
+    if (Math.random() < 0.035) fx.play('stormBolt', { x: 110 + Math.random() * (CANVAS_W - 220) });
+    fx.schedule(0.12, tick);
+  };
+  fx.schedule(0.12, tick);
+  return true;
 }
 
 // --- Level/Wave setup ---
@@ -2620,7 +3102,9 @@ async function startLevel(levelIndex, includeBaseline = false) {
       runProfileId = platform.localProfiles.getActiveProfile().id;
     }
     // Fetch level config (handles authorization for premium levels)
-    const cfg = await platform.getAuthorizedLevelConfig(levelIndex, includeBaseline);
+    const cfg = typeof selectedCampaign !== 'undefined' && selectedCampaign === 2
+      ? await getCampaign2Config(levelIndex)
+      : await platform.getAuthorizedLevelConfig(levelIndex, includeBaseline);
 
     // Check if this request became stale (user logged in/out, or new level started)
     if (myGeneration !== levelRequestGeneration || originalUsername !== platform.username) {
@@ -2631,11 +3115,11 @@ async function startLevel(levelIndex, includeBaseline = false) {
     // Don't set config until we've verified generation
     platform.setCurrentLevelConfig(cfg);
 
-    renderer.setBackgroundByLevel(cfg.level);
+    renderer.setBackgroundByLevel(cfg.artLevel ?? cfg.level);
     applyLevelGround(renderer.groundY);
     // Warm only the current and next level art; the following levels are not
     // requested, and a level without a manifest entry is skipped entirely.
-    renderer.preloadLevelArt?.([cfg.level, cfg.level + 1]);
+    renderer.preloadLevelArt?.([cfg.artLevel ?? cfg.level, (cfg.artLevel ?? cfg.level) + 1]);
 
     // Apply baseline score to state if requested and available
     let baselineScore = 0;
@@ -2643,6 +3127,9 @@ async function startLevel(levelIndex, includeBaseline = false) {
       baselineScore = cfg.baseline_score;
     }
 
+    // Level start is the one safe moment to swap the skin: the overlay is up
+    // and no encounter exists. An unchanged choice loads nothing.
+    if (typeof applyActiveHeroSkin === 'function') await applyActiveHeroSkin();
     const ready = Promise.all([assetsLoaded, renderer.waitForBackgroundLoad()]);
     await Promise.race([
       ready,
@@ -2654,7 +3141,7 @@ async function startLevel(levelIndex, includeBaseline = false) {
         return; // Silently ignore stale request
       }
       hideLoadingOverlay();
-      const intro = getSkillIntro(cfg.level);
+      const intro = cfg.campaign === 2 ? getSkillIntro2(cfg.level) : getSkillIntro(cfg.level);
       if (intro) {
         showSkillIntro(intro, levelIndex, cfg, baselineScore);
         return;
@@ -2688,6 +3175,18 @@ function handleLevelConfigError(err, levelIndex) {
   const level = levelIndex + 1;
   let message = t('auth.failedToLoadLevel', { level });
   const isPractice = Boolean(practiceRun);
+
+  if (err.code === 'campaign2_locked') {
+    // Not entitled: back to the title, where the note under the campaign switch says how to get it.
+    audio.stopBGM();
+    diffSelect.style.display = 'flex';
+    updateHUDLogoutVisibility();
+    renderCampaignSwitch();
+    if (platform.isApp) openCampaign2Purchase();
+    else if (platform.isLoggedIn) openBillingPanel();
+    else { showAuthForm(loginForm); setAuthModalVisible(true); }
+    return;
+  }
 
   audio.stopBGM();
   if (isPractice) {
@@ -2786,9 +3285,7 @@ function beginAbilityRun(level, rank = undefined, spikeSlow = undefined) {
     level: safeLevel,
     rank: safeRank,
     slowBonuses: earned?.slowBonuses ?? 0,
-    spikeSlow: spikeSlow ?? {
-      targets: SPIKE_SLOW_DEFAULTS.targets + (earned?.spikeTargets ?? 0),
-    },
+    spikeSlow: spikeSlow ?? spikeSlowForBonuses(earned?.spikeTargets ?? 0),
     cooldownReductions: readouts?.cooldowns,
   });
   return abilityRuntime;
@@ -2806,6 +3303,10 @@ function activateAbility(id) {
   // Storm always leaves one enemy behind, so a wave with nothing to spare is
   // refused before the cooldown is spent.
   if (id === 'storm' && remainingEnemyCount() < 2) return false;
+  // Earth holds whatever the level still has to send; with nothing left to
+  // slow the press must not burn the three-minute cooldown (wind and storm
+  // refuse for the same reason).
+  if (id === 'earth' && remainingEnemyCount() < 1) return false;
   if (!abilityRuntime.activate(id)) return false;
   // Captured before the cast: wind and storm remove the active fiend, so its
   // centre has to be read while it is still on the field. The `typeof` keeps
@@ -2875,9 +3376,16 @@ function playAbilityCastFeedback(id, origin) {
 // The earth slow's aura runs for exactly as long as the runtime's spike: the
 // emitter is sized from spikeState.durationSeconds and every pulse re-checks
 // the token, so stopSpikeAura silences it the moment the slow is cleared.
+// Each pulse is anchored to a *slowed* fiend. The single origin it used before
+// (the active fiend, or the hero's hands when none was active) pointed at the
+// wrong sprite most of the time, because the spike also holds the spawns that
+// have not walked in yet.
 function startSpikeAura() {
   const spike = abilityRuntime?.spikeState;
-  const duration = spike?.active ? spike.durationSeconds : 0;
+  // The spike can be refreshed by every target it takes hold of, so the aura is
+  // sized for the whole chain and lets each pulse check that the spike is still
+  // running (it already does).
+  const duration = spike?.active ? spike.durationSeconds * (spike.targets + 1) : 0;
   spikeAuraToken += 1;
   const token = spikeAuraToken;
   const fx = globalThis.ffmScreenFx;
@@ -2887,7 +3395,12 @@ function startSpikeAura() {
     // The runtime can clear the slow early (pause, level change, game over), so
     // the aura follows it instead of outliving it.
     if (!abilityRuntime?.spikeState.active) return;
-    fx.play('spikeAura', { ...abilityCastOrigin(), progress });
+    for (const fiend of spikeSlowedFiends) {
+      if (!fiend || fiend.isDead) continue;
+      const centre = globalThis.ffmFx?.fiendCentre?.(fiend) ||
+        { x: fiend.x, y: fiend.y - 20 * LOGICAL_PX };
+      fx.play('spikeAura', { ...centre, progress });
+    }
   });
 }
 
@@ -3032,6 +3545,11 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   currentLevelIndex = levelIndex;
   levelStartScore = state.score;
   state.level = cfg.level;
+  state.campaign = cfg.campaign === 2 ? 2 : 1;
+  // Campaign 2 plays with every hero ability from its first level; Campaign 1 earns them by level.
+  const abilityLevel = cfg.abilityLevel ?? cfg.level;
+  // Campaign 2 questions need more thinking time: the chosen difficulty's timer, stretched per level.
+  if (cfg.campaign === 2) state.timerMax = Math.round((state.baseTimerMax ?? state.timerMax) * cfg.timerScale);
   // A run keeps its cooldowns across levels; the first level of a run creates
   // the runtime (run-start call sites do this earlier, this is the fallback).
   // The `typeof` keeps extracted-function tests running without main.js.
@@ -3043,19 +3561,19 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // cooldown reductions.
   let levelBonuses = null;
   if (typeof bonusReadoutsForLevel === 'function' && typeof levelBonusRuntime !== 'undefined') {
-    levelBonuses = bonusReadoutsForLevel(cfg.level);
+    levelBonuses = bonusReadoutsForLevel(abilityLevel);
     levelBonusRuntime = levelBonuses.runtime;
     levelBonusCooldowns = levelBonuses.cooldowns;
   }
   if (typeof abilityRuntime !== 'undefined') {
-    if (abilityRuntime) abilityRuntime.setLevel(cfg.level);
-    else beginAbilityRun(cfg.level);
+    if (abilityRuntime) abilityRuntime.setLevel(abilityLevel);
+    else beginAbilityRun(abilityLevel);
     if (levelBonuses && abilityRuntime?.setBonuses) {
       abilityRuntime.setBonuses({
         rank: levelBonuses.runtime.stormRank,
         slowBonuses: levelBonuses.runtime.slowBonuses,
         cooldownReductions: levelBonuses.cooldowns,
-        spikeSlow: { targets: SPIKE_SLOW_DEFAULTS.targets + levelBonuses.runtime.spikeTargets },
+        spikeSlow: spikeSlowForBonuses(levelBonuses.runtime.spikeTargets),
       });
     }
   }
@@ -3104,7 +3622,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // level that follows the one it just finished; anything else ends it. The
   // `typeof` keeps extracted-function tests running without main.js.
   if (typeof speedrunTimer !== 'undefined') {
-    if (!practiceRun && !state.isShapesMode && speedrunTimer.start(state.level)) {
+    if (!practiceRun && !state.isShapesMode && cfg.campaign !== 2 && speedrunTimer.start(state.level)) {
       if (state.level === 1) speedrunSplits = [];
     } else {
       speedrunTimer.abandon();
@@ -3115,7 +3633,7 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // The `typeof` keeps extracted-function tests running without main.js.
   if (typeof gameplayChrome !== 'undefined') {
     const bonus = !practiceRun && typeof bonusForLevel === 'function'
-      ? bonusForLevel(cfg.level)
+      ? bonusForLevel(abilityLevel)
       : null;
     if (gameplayChrome?.showBonusNotice?.(bonus) && bonus) {
       // One beat later: this runs before the first frame of the level, while
@@ -3133,9 +3651,13 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   levelClearOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
   if (practiceBadgeRetryButton) practiceBadgeRetryButton.hidden = true;
+  // The level's own weather: a multi-hit level dims the playfield and storms,
+  // which announces "these fiends take more than one answer" before the first
+  // one arrives. Practice and Shapes never carry it.
+  if (typeof startStorm === 'function') startStorm(practiceRun ? null : cfg);
   updateHUDLogoutVisibility();
   hud.update(state);
-  audio.startLevelBGM(cfg.level, cfg.chapter);
+  audio.startLevelBGM(cfg.artLevel ?? cfg.level, cfg.chapter);
   flushDeferredMusicVolume();
   syncKeepAwake();
   if (!animFrameId) gameLoop(performance.now());
@@ -3245,7 +3767,9 @@ btnPauseSave.addEventListener('click', async () => {
   pauseSaveError.textContent = '';
   try {
     if (completedLevelSave) await completedLevelSave();
-    if (platform.isApp) {
+    if (state.campaign === 2) {
+      // Campaign 2 keeps no server or profile score yet, so there is nothing to bank.
+    } else if (platform.isApp) {
       // Bank the reached score only: recordPartialAttempt keeps the level
       // unfinished and leaves completed/continuation untouched.
       await platform.localProfiles.recordPartialAttempt({
@@ -3471,6 +3995,11 @@ function spawnNextFiend() {
         applySpikeSlow(fiend, abilityRuntime.spikeState.factor)) {
       spikeSlowedFiends.add(fiend);
       spikeSpawnSlowLeft -= 1;
+      // Each promised target gets its own window. Without this the single
+      // duration ran out while the slowed fiend in front of the player was
+      // still being answered, so the second and third target never arrived in
+      // time and the spell read as "only one fiend".
+      abilityRuntime?.refreshSpike?.();
     }
     fiends.push(fiend);
     // The entrance: a portal on the level's own ground line, so the fiend appears
@@ -3483,6 +4012,13 @@ function spawnNextFiend() {
 }
 
 function onFiendRetreated(fiend) {
+  // A requeued fiend comes back through spawnNextFiend(), so remember that the
+  // spike still holds it: the base speed is restored here (the walk-off must
+  // not crawl), but the slow has to return with the next approach while the
+  // spike is still running. Without this the spike silently lost its hold on
+  // every fiend that a wrong answer sent back — the opposite of what
+  // activatePendingProblem() documents.
+  if (fiend?.spikeSlowed && requeuedFiends.includes(fiend)) fiend.spikeSlowOnReturn = true;
   if (fiend?.spikeSlowed) {
     restoreSpikeSlow(fiend);
     spikeSlowedFiends.delete(fiend);
@@ -3491,6 +4027,12 @@ function onFiendRetreated(fiend) {
   activeFiend = null;
   inputDisabled = false;
   input.disable();
+  // A fiend that leaves the field is one way an encounter resolves without a
+  // death animation (a blown-away fiend, a requeued one), and removing it is
+  // the last moment anything happens in the level. Re-check here so the wave
+  // still clears when this was the final encounter instead of leaving a level
+  // that runs on with no fiend and no way to conclude.
+  if (checkAllDefeated()) triggerWaveClear();
 }
 
 function onFiendDead(fiend) {
@@ -3501,15 +4043,22 @@ function onFiendDead(fiend) {
 }
 
 function checkAllDefeated() {
+  // "Nothing left to fight" = nothing queued, nothing requeued, and no live
+  // fiend still on the field. A fiend blown at the camera by wind or storm is
+  // already defeated (its sword is filled) but keeps flying for a moment; it
+  // reports 'retreated' when it is gone and onFiendRetreated() re-runs this
+  // check, so the wave clears with a clean field instead of freezing the sprite
+  // mid-flight. Every other removal path must re-check too.
+  const fiendsStillOnField = () => fiends.every(f => f.isDead || f.state === 'retreat');
   if (state.isShapesMode) {
     if (practiceRun?.endless) return false;
     return practiceRun?.session.isComplete() &&
       spawnQueue.length === 0 && requeuedFiends.length === 0 &&
-      fiends.every(f => f.isDead || f.state === 'retreat');
+      fiendsStillOnField();
   }
   return spawnQueue.length === 0 &&
          requeuedFiends.length === 0 &&
-         fiends.every(f => f.isDead || f.state === 'retreat');
+         fiendsStillOnField();
 }
 
 function recordPracticeEncounterDefeated() {
@@ -3586,7 +4135,10 @@ function handleAnswer(value, point) {
   if (['retreat', 'reveal', 'death'].includes(activeFiend.state)) return;
   // ignore if value contains no digits (prevents empty or accidental submissions)
   if (!/\d/.test(value)) return;
-  const correct = parseInt(value, 10) === activeFiend.problem.answer;
+  // Campaign 2 answers are exact keys ("7/12", "6√2"), compared as text; arithmetic answers are integers.
+  const correct = activeFiend.problem.campaign === 2
+    ? value === activeFiend.problem.answer
+    : parseInt(value, 10) === activeFiend.problem.answer;
   const origin = globalThis.ffmFx?.worldFromPoint(point);
   if (correct) {
     handleCorrectAnswer(origin);
@@ -3649,7 +4201,7 @@ function resolveFireballHit(fiend) {
       targetX: HERO_X,
       onArrive: () => {
         const cfg = platform.getCurrentLevelConfig();
-        if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
+        if (cfg) fiend.problem = nextHitProblem(fiend, cfg);
         queueProblemActivation(fiend, { preserveTimer });
         inputDisabled = false;
       }
@@ -3692,7 +4244,8 @@ function handleCorrectAnswer(origin) {
   const comboBonus  = activeFiend.wasRequeued ? 0 : state.combo * 10;
   const multiplier  = activeFiend.isElite ? GAME_CONFIG.elitePointMultiplier : 1;
   const classBase   = getFiendClass(activeFiend.fiendClassId).scoreValue;
-  const points      = (classBase + speedBonus + comboBonus) * multiplier;
+  const insightBonus = !practiceRun && problem.hidden ? MISSING_OPERAND_BONUS : 0;   // the harder, backwards form
+  const points      = (classBase + speedBonus + comboBonus + insightBonus) * multiplier;
 
   // Shapes mode is deliberately unscored (no score/combo/leaderboard) —
   // combo staying at 0 also naturally keeps pickComboAbility() below from
@@ -3791,7 +4344,7 @@ function handleCorrectAnswer(origin) {
           targetX: HERO_X,
           onArrive: () => {
             const cfg = platform.getCurrentLevelConfig();
-            if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
+            if (cfg) fiend.problem = nextHitProblem(fiend, cfg);
             queueProblemActivation(fiend, { preserveTimer });
             inputDisabled = false;
           }
@@ -3805,7 +4358,8 @@ function handleCorrectAnswer(origin) {
       hero.setState('swing');
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
-      audio.playSwordSwing();
+      if (!hero.strike || hero.strike === 'sword') audio.playSwordSwing();
+      else audio.playStrike(hero.strike);
       globalThis.ffmHaptics?.impact();
       audio.playFiendHit?.(fiend.type);
 
@@ -3832,7 +4386,7 @@ function handleCorrectAnswer(origin) {
           targetX: HERO_X,
           onArrive: () => {
             const cfg = platform.getCurrentLevelConfig();
-            if (cfg) fiend.problem = generateProblem(state.level - 1, Date.now(), cfg);
+            if (cfg) fiend.problem = nextHitProblem(fiend, cfg);
             queueProblemActivation(fiend, { preserveTimer });
             inputDisabled = false;
           }
@@ -3895,17 +4449,15 @@ function handleWrongAnswer({ timeout = false, origin = null } = {}) {
 
   scheduleGameplayTimeout(() => {
     if (activeFiend) {
-      // A fiend that leaves the field (retreat/requeue or shapes removal) drops
-      // its spike slow and returns to its base speed.
-      if (typeof restoreSpikeSlow === 'function' && activeFiend.spikeSlowed) {
-        restoreSpikeSlow(activeFiend);
-        if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(activeFiend);
-      }
+      // The spike slow is *not* dropped here: onFiendRetreated() restores the
+      // base speed once the fiend actually walks off, and remembers the slow so
+      // a requeued fiend returns still held by a running spike. Clearing it at
+      // this point (before the retreat) is what used to lose it for good.
       const p = activeFiend.problem;
       // Shapes problems have no text question (see shapes.js's
       // displayMode: 'shapes') — fall back to a plain "Answer: N" reveal.
       activeFiend._revealText = p.question
-        ? p.question.replace(' = ?', ' = ' + p.answer)
+        ? revealQuestion(p)
         : t('feedback.shapesAnswer', { count: p.answer });
       activeFiend.setState('reveal');
 
@@ -3951,11 +4503,15 @@ function activatePendingProblem() {
   const mode = getCurrentInputMode();
   // A requeued fiend comes back with a freshly computed base speed; if it was
   // slowed before it retreated, the active spike re-applies the slow on top.
-  const wasSpikeSlowed = typeof restoreSpikeSlow === 'function' && Boolean(fiend.spikeSlowed);
+  // `spikeSlowOnReturn` is what onFiendRetreated() left behind, because the
+  // base speed has to be restored for the walk-off.
+  const wasSpikeSlowed = typeof restoreSpikeSlow === 'function' &&
+    (Boolean(fiend.spikeSlowed) || fiend.spikeSlowOnReturn === true);
   if (wasSpikeSlowed) {
     restoreSpikeSlow(fiend);
     if (typeof spikeSlowedFiends !== 'undefined') spikeSlowedFiends.delete(fiend);
   }
+  delete fiend.spikeSlowOnReturn;
   fiend.walkSpeed = getFiendWalkSpeed(state.timerMax, fiend.x,
     typeof abilityRuntime !== 'undefined' ? abilityRuntime?.fiendSpeedMultiplier : 1);
   if (wasSpikeSlowed && typeof abilityRuntime !== 'undefined' &&
@@ -3971,7 +4527,7 @@ function activatePendingProblem() {
   if (mode === 'multiple-choice') {
     const mcOptions = fiend.problem.options ??
       [fiend.problem.answer, ...(fiend.problem.distractors || [])].sort(() => Math.random() - 0.5);
-    input.setMCOptions(mcOptions);
+    input.setMCOptions(mcOptions, fiend.problem.optionsHtml ?? null);
   }
   input.enable(mode);
 }
@@ -4026,6 +4582,9 @@ function triggerWaveClear() {
   if (waveClearing) return;
   waveClearing = true;
   gameRunning = false;
+  // The storm belongs to the level, so the level-clear fanfare plays in clear
+  // weather.
+  if (typeof stopStorm === 'function') stopStorm();
   syncKeepAwake();
   hero.setState('victory');
 
@@ -4036,7 +4595,7 @@ function triggerWaveClear() {
   // Level-complete fanfare: the bundled hymn, or the synth cue when it cannot
   // be decoded. The call stays inline because tests evaluate these functions
   // on their own.
-  if (state.level < TOTAL_LEVELS) {
+  if (state.level < (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS)) {
     const hymn = audio.playVictoryHymn?.();
     if (hymn?.then) hymn.then((started) => { if (!started) audio.playLevelClear?.(); });
     else audio.playLevelClear?.();
@@ -4178,7 +4737,11 @@ function triggerLevelClear() {
     }
   }
   const completedIndex = completedLevelNum - 1;   // 0-based LevelConfig index
-  if (!practiceRun && !completedLevelSave && (platform.isApp || platform.isLoggedIn)) {
+  const campaign2 = state.campaign === 2;
+  // Campaign 2 progress stays on this device; it has no server or profile record yet.
+  if (campaign2) campaign2Progress().markCleared(completedLevelNum);
+  else if (typeof noteGeniusProgress === 'function') noteGeniusProgress({ cleared: [completedLevelNum], reachedLevels: [completedLevelNum] });
+  if (!practiceRun && !campaign2 && !completedLevelSave && (platform.isApp || platform.isLoggedIn)) {
     completedLevelSave = createLevelCompletion(platform, {
       level: completedLevelNum, score: state.score - levelStartScore,
       difficulty: state.difficulty, profileId: runProfileId, completionId: createCompletionId(),
@@ -4188,7 +4751,10 @@ function triggerLevelClear() {
   lastLevelClearNum = completedLevelNum;
   levelClearTitle.textContent = t('overlay.levelClearTitle', { level: completedLevelNum });
   levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
-  if (typeof renderLevelClearPreview === 'function') renderLevelClearPreview(state.level + 1);
+  if (campaign2) {
+    // The preview names the next scene by its Campaign 1 number, which means nothing here.
+    levelClearPreview?.style.setProperty('display', 'none');
+  } else if (typeof renderLevelClearPreview === 'function') renderLevelClearPreview(state.level + 1);
   renderAttemptAccomplishment('level-attempt-summary');
   topBar.style.display = 'flex';
   const finishCompletion = async action => {
@@ -4209,9 +4775,9 @@ function triggerLevelClear() {
       for (const button of [btnNextLevel, btnReplayLevel, btnSaveScoreReturnTitle]) button.disabled = false;
     }
   };
-  btnNextLevel.textContent = t(completedLevelNum >= TOTAL_LEVELS ? 'overlay.finishGame' : 'overlay.nextLevel');
+  btnNextLevel.textContent = t(completedLevelNum >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS) ? 'overlay.finishGame' : 'overlay.nextLevel');
   btnNextLevel.onclick = () => finishCompletion(() => {
-    if (completedLevelNum >= TOTAL_LEVELS) triggerGameOver(true);
+    if (completedLevelNum >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS)) triggerGameOver(true);
     else {
       levelClearOverlay.style.display = 'none';
       startLevel(completedIndex + 1);
@@ -4232,7 +4798,7 @@ function triggerLevelClear() {
   }
   btnSaveScoreReturnTitle.onclick = () => finishCompletion(async () => {
     if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
-    if (!practiceRun && !platform.isApp && platform.isLoggedIn) await platform.postHighScore(state.score, state.level);
+    if (!practiceRun && !campaign2 && !platform.isApp && platform.isLoggedIn) await platform.postHighScore(state.score, state.level);
     await refreshProfileAndLeaderboard();
     levelClearOverlay.style.display = 'none';
     if (typeof levelClearPreview !== 'undefined' && levelClearPreview) levelClearPreview.style.display = 'none';
@@ -4250,6 +4816,8 @@ function triggerLevelClear() {
 
 function triggerGameOver(won = false) {
   if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
+  // The storm ends with the level, whichever way it ended.
+  if (typeof stopStorm === 'function') stopStorm();
   setAnswerInputVisible(false);
   if (typeof gameplayChrome !== 'undefined') gameplayChrome?.clearBonusNotice?.();
   campaignWon = won;
@@ -4282,7 +4850,7 @@ function triggerGameOver(won = false) {
     ? won ? 'practice.resultsTitle' : 'overlay.gameOverTitle'
     : won ? 'campaign.victory' : 'overlay.gameOverTitle');
   // Shapes mode is unscored — never submit a high score for it.
-  if (platform.isLoggedIn && !practiceRun && !state.isShapesMode) {
+  if (platform.isLoggedIn && !practiceRun && !state.isShapesMode && state.campaign !== 2) {
     platform.postHighScore(state.score, state.level).then(() => {
       refreshProfileAndLeaderboard();
     }).catch(() => {});
@@ -4323,7 +4891,18 @@ function triggerGameOver(won = false) {
 // --- Timer ---
 function updateTimer(dt) {
   if (!state.timerActive) return;
-  state.timerRemaining -= dt;
+  // The earth spike slows the clock it was cast against, not just the sprite:
+  // a slowed fiend's problem timer burns at the spike's factor, so the spell
+  // buys real answering time. Slowing only the walk-in made the fiend fall
+  // behind its own timer — the sprite was still marching when the clock had
+  // already run out. The `typeof` guards keep extracted-function tests running
+  // without main.js.
+  let step = dt;
+  if (typeof abilityRuntime !== 'undefined' && abilityRuntime?.spikeState.active &&
+      typeof activeFiend !== 'undefined' && activeFiend?.spikeSlowed) {
+    step = dt * abilityRuntime.spikeState.factor;
+  }
+  state.timerRemaining -= step;
   if (state.timerRemaining <= 0) {
     state.timerRemaining = 0;
     state.timerActive = false;
@@ -4336,6 +4915,8 @@ let animFrameId = null;
 let lastTs = null;
 // Set once the loop has drawn its final frame and stopped asking for more.
 let loopParked = false;
+// Paces the red edge pulse while the hero is at low health.
+const lowHealthBeat = createHeartbeat();
 
 // Repainting the playfield is a full-canvas raster every frame, and the phone
 // pays for it in heat and battery. A paused level, the title screen, the
@@ -4374,13 +4955,23 @@ function gameLoop(ts) {
   const dt = frameDelta(ts, lastTs);
   lastTs = ts;
 
-  if (!paused && globalThis.ffmScreenFx?.isActive()) {
-    globalThis.ffmScreenFx?.frame(dt);
+  if (!paused && (globalThis.ffmScreenFx?.isActive() || globalThis.ffmStormFx?.isActive())) {
+    // A storm level advances the layer at 30 Hz (see fxStepFor); every other
+    // level keeps one particle step per rendered frame.
+    const fxStep = fxStepFor(dt, stormRunning, fxFrameCarry);
+    fxFrameCarry = fxStep.carry;
+    if (fxStep.step > 0) {
+      globalThis.ffmScreenFx?.frame(fxStep.step);
+      globalThis.ffmStormFx?.frame(fxStep.step);
+    }
     // Whole-screen shake: the canvas moves with the same offset the layer uses
     // for its particles, plus a hair of scale so no gap shows at the edges.
+    // Both layers can shake; a bolt on the weather layer must move the scene
+    // with it, or the rain would slide out of the storm.
     const shake = globalThis.ffmScreenFx?.getShakeOffset?.();
-    const sx = shake ? shake.x : 0;
-    const sy = shake ? shake.y : 0;
+    const stormShake = globalThis.ffmStormFx?.getShakeOffset?.();
+    const sx = (shake ? shake.x : 0) + (stormShake ? stormShake.x : 0);
+    const sy = (shake ? shake.y : 0) + (stormShake ? stormShake.y : 0);
     // The scale is not free: it re-grids the pixel art while it is on screen, so
     // a sub-pixel nudge is not worth it. Only a real impact (storm, earth) is
     // allowed to move the camera — the spawn portal deliberately does not shake.
@@ -4418,7 +5009,7 @@ function gameLoop(ts) {
     speedrunUi?.updateClock(speedrunRecords.enabled ? speedrunTimer.snapshot() : null);
   }
   abilityBar.update({
-    level: state.level,
+    level: state.campaign === 2 ? ABILITY_LEVEL : state.level,
     progress: abilityRuntime ? (id) => abilityRuntime.progress(id) : 1,
     runtime: abilityRuntime,
     bonus: typeof levelBonusRuntime !== 'undefined' ? levelBonusRuntime : null,
@@ -4427,6 +5018,9 @@ function gameLoop(ts) {
   });
 
   if (gameRunning && !paused) {
+    if (lowHealthBeat.tick(dt, isLowHealth(state.hearts, state.maxHearts))) {
+      globalThis.ffmScreenFx?.play('lowHealthPulse');
+    }
     answerClock.advance(dt, state.timerActive && !inputDisabled);
     updateTimer(dt);
 
@@ -4571,6 +5165,8 @@ function gameLoop(ts) {
 
     if (hero.state === 'walk' && !heroLunge) state.scrollX += 100 * dt;
     hero.lunging = heroLunge !== null && hero.state !== 'swing';
+  } else {
+    lowHealthBeat.reset();
   }
 
   renderer.clear();
@@ -4586,6 +5182,8 @@ function gameLoop(ts) {
     if (f.problem && f.x < FIEND_ENTRY_TRIGGER_X && !f.isDead && f.state !== 'death') {
       if (f.problem.displayMode === 'shapes' && f.state !== 'reveal') {
         renderer.drawShapeBubble(f.x, f.y - 20 * LOGICAL_PX, f.problem.shapeType, f.problem.count, f === activeFiend);
+      } else if (f.problem.visual && f.state !== 'reveal') {
+        renderer.drawStoneSumBubble(f.x, f.y - 20 * LOGICAL_PX, f.problem.visual.a, f.problem.visual.b, f === activeFiend);
       } else {
         const bubbleText = f.state === 'reveal'
           ? (f._revealText || f.problem.question)
@@ -4642,7 +5240,7 @@ function gameLoop(ts) {
     // The header shows the answer alone and keeps it short enough for the
     // question column; the fiend's speech bubble carries the full sentence.
     question: activeFiend.problem.question
-      ? activeFiend.problem.question.replace(' = ?', ` = ${activeFiend.problem.answer}`)
+      ? revealQuestion(activeFiend.problem)
       : t('feedback.shapesAnswerShort', { count: activeFiend.problem.answer }),
   } : null;
   const practiceProgress = practiceRun?.session.snapshot();
@@ -4739,11 +5337,181 @@ if (!platform.isApp) {
   // (each hop can also hit a cold Lambda) before anything is shown.
   leaderboardList.innerHTML = `<li>${t('leaderboard.loading')}</li>`;
 }
+// App hero picker: the shared grid in a dialog over the profile list. The colour
+// schemes come with the regular full unlock, so lock state is the cached unlock
+// entitlement (works offline), and a locked scheme opens the regular paywall.
+let heroUnlocked = false;
+async function readHeroUnlocked() {
+  try {
+    heroUnlocked = (await platform.getBillingStatus())?.premium_access === true;
+  } catch {
+    heroUnlocked = false;
+  }
+}
+const heroPortraitFor = profile => heroAssetUrl(resolveHero(profile.hero, { entitled: true }).portrait);
+const canSwitchProfiles = () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting;
+
+async function openHeroPicker(profile) {
+  if (document.querySelector('.hero-picker-overlay')) return;
+  await readHeroUnlocked();
+  const { mountHeroPicker } = await import('./hero-picker.js');
+  // committedId is the saved hero; selectedId is the highlighted choice and
+  // only becomes the saved hero when "Change hero" is pressed.
+  let committedId = resolveHero(profile.hero, { entitled: true }).id;
+  let selectedId = committedId;
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay hero-picker-overlay';
+  const card = document.createElement('div');
+  card.className = 'overlay-card hero-picker-card';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-modal', 'true');
+  card.setAttribute('aria-labelledby', 'hero-picker-title');
+  const title = document.createElement('h2');
+  title.id = 'hero-picker-title';
+  title.textContent = t('heroes.title');
+  const gridRoot = document.createElement('div');
+  const actions = document.createElement('div');
+  actions.className = 'hero-picker-actions';
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'button';
+  confirmBtn.className = 'diff-btn action-primary hero-picker-confirm';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'diff-btn hero-picker-close';
+  actions.append(confirmBtn, closeBtn);
+  card.append(title, gridRoot, actions);
+  // "Change hero" needs a different, unlocked hero and a moment between games.
+  const syncActions = () => {
+    title.textContent = t('heroes.title');
+    confirmBtn.textContent = t('heroes.confirm');
+    closeBtn.textContent = t('heroes.cancel');
+    const entry = HEROES.find(hero => hero.id === selectedId);
+    const locked = !entry || (!entry.free && !heroUnlocked);
+    confirmBtn.disabled = selectedId === committedId || locked || !canSwitchProfiles();
+  };
+  overlay.append(card);
+
+  // One preview atlas at a time; the sequence drops a load that lost the race.
+  let previewSkin = null;
+  let previewSeq = 0;
+  const releasePreview = () => {
+    try { if (previewSkin?.atlas) previewSkin.atlas.src = ''; } catch { /* nothing to release */ }
+    previewSkin = null;
+  };
+  const renderPreview = async (entry, area) => {
+    const seq = ++previewSeq;
+    const skin = await loadHeroSkin({ heroId: entry.id });
+    if (seq !== previewSeq) {
+      try { if (skin.atlas) skin.atlas.src = ''; } catch { /* nothing to release */ }
+      return;
+    }
+    releasePreview();
+    previewSkin = skin;
+    area.replaceChildren();
+    const frame = skin.atlas && skin.frames?.['idle-1'];
+    if (!frame) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = frame.w;
+    canvas.height = frame.h;
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', t(entry.nameKey));
+    canvas.getContext('2d')?.drawImage(skin.atlas, frame.x, frame.y, frame.w, frame.h, 0, 0, frame.w, frame.h);
+    area.append(canvas);
+  };
+
+  let picker = null;
+  const setStatus = text => {
+    const status = gridRoot.querySelector('[data-hero-status]');
+    if (status) status.textContent = text;
+  };
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    stopLocale();
+    previewSeq++;
+    picker?.destroy();
+    releasePreview();
+    overlay.remove();
+    document.querySelector('#profile-root .profile-change-hero')?.focus();
+  };
+  function onKey(event) {
+    if (event.key === 'Escape' && !document.querySelector('.paywall-overlay')) close();
+  }
+  document.addEventListener('keydown', onKey);
+  // The title bar stays usable under the dialog: sound and language act in
+  // place, so a language switch re-renders the dialog text instead of leaving
+  // it in the old language.
+  const stopLocale = onLocaleChange(() => { picker?.update(); syncActions(); });
+  closeBtn.addEventListener('click', close);
+  confirmBtn.addEventListener('click', async () => {
+    if (confirmBtn.disabled) return;
+    if (!canSwitchProfiles()) {
+      setStatus(t('heroes.blockedWhilePlaying'));
+      syncActions();
+      return;
+    }
+    const entry = HEROES.find(hero => hero.id === selectedId);
+    if (!entry) return;
+    confirmBtn.disabled = true;
+    try {
+      if (platform.isApp) {
+        await platform.localProfiles.setHero(profile.id, entry.id);
+      } else {
+        const result = await platform.updateProfile({ hero: entry.id });
+        if (result?.error) throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Unable to save the hero', error);
+      setStatus(t('heroes.saveFailed'));
+      syncActions();
+      return;
+    }
+    committedId = entry.id;
+    if (platform.isApp) activeLocalPlayer = platform.localProfiles.getActiveProfile();
+    await profileUI?.refresh();
+    renderPlayerIdentity();
+    refreshHeroSkin();
+    close();
+  });
+
+  picker = mountHeroPicker(gridRoot, {
+    t,
+    getSelectedId: () => selectedId,
+    getCurrentId: () => committedId,
+    canChange: canSwitchProfiles,
+    isLocked: entry => !entry.free && !heroUnlocked,
+    renderPreview,
+    // Selecting only highlights; "Change hero" saves it.
+    onSelect: entry => {
+      selectedId = entry.id;
+      syncActions();
+    },
+    onLocked: async () => {
+      try {
+        const { createPaywall } = await import('./paywall.js');
+        await createPaywall({
+          platform,
+          locale: getLocale(),
+          onGranted: async () => {
+            await readHeroUnlocked();
+            picker?.update();
+          },
+        }).open();
+      } catch (error) {
+        console.error('Unable to open the unlock paywall', error);
+      }
+    },
+  });
+  syncActions();
+  document.body.append(overlay);
+  gridRoot.querySelector('button[data-hero-id]')?.focus();
+}
+
 const ensureLocalProfiles = createRetryableInitialization(async () => {
   if (platform.isApp) {
     await platform.localProfiles.initialize({ defaultName: t('profiles.defaultName') });
     activeLocalPlayer = platform.localProfiles.getActiveProfile();
     renderPlayerIdentity();
+    loadCampaignSelection();
     const { mountProfileUI } = await import('./profile-ui.js');
     const root = document.getElementById('profile-root');
     if (root && !profileUI) {
@@ -4756,13 +5524,18 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
           for (const button of document.querySelectorAll('#difficulty-select [data-difficulty]')) button.disabled = busy;
           if (btnStartPractice) btnStartPractice.disabled = busy;
         },
-        canSwitch: () => diffSelect.style.display !== 'none' && !completionPending && !levelStarting,
+        canSwitch: canSwitchProfiles,
+        // "Add player" appears once the app is fully unlocked (premiumAccess, kept by syncNoticeHelp).
+        canCreate: () => premiumAccess,
+        portraitFor: heroPortraitFor,
+        onChangeHero: profile => { void openHeroPicker(profile); },
         onSelected: async () => {
           clearMissedProblemsForOwner(platform.localProfiles.getActiveProfile().id);
-          personalBestPage = 0;
           currentPersonalDevelopment = null;
           activeLocalPlayer = platform.localProfiles.getActiveProfile();
           renderPlayerIdentity();
+          loadCampaignSelection();
+          refreshHeroSkin();
           levelGrid.value = '';
           await refreshPracticeBadges();
           personalBestList.textContent = '';
@@ -4788,9 +5561,12 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
         // A finished purchase unlocks everything, so the "What is free?"
         // entries have nothing left to answer.
         onGranted: () => syncNoticeHelp(),
+        // The same Restore brings Campaign II back (there is no second restore button).
+        onExtrasRestored: () => renderCampaignSwitch(),
       });
     }
   }
+  refreshHeroSkin();
   await refreshProfileAndLeaderboard();
 });
 ensureLocalProfiles().then(refreshPracticeBadges).catch(error => {
@@ -4831,12 +5607,6 @@ if (platform.isApp) {
     })
     .catch(() => {});
 }
-for (const [id, delta] of [['personal-best-prev', -1], ['personal-best-next', 1]]) {
-  document.getElementById(id)?.addEventListener('click', () => {
-    personalBestPage = Math.max(0, personalBestPage + delta);
-    renderPersonalDevelopment(currentPersonalDevelopment);
-  });
-}
 for (const [id, delta] of [['leaderboard-prev', -1], ['leaderboard-next', 1]]) {
   document.getElementById(id)?.addEventListener('click', () => {
     leaderboardPage = Math.max(0, leaderboardPage + delta);
@@ -4859,6 +5629,8 @@ function applyTitlePage(name) {
   for (const button of document.querySelectorAll('.title-navigation [data-title-target]')) {
     button.setAttribute('aria-pressed', String(button.dataset.titleTarget === navPage));
   }
+  if (name === 'progress') scrollPersonalBestToHighest();
+  if (name === 'play') renderCampaignSwitch();
 }
 
 // The intro and the menu pages swap behind a fade to black. The very first
@@ -4888,6 +5660,12 @@ for (const button of document.querySelectorAll('[data-title-target]')) {
     }
   });
 }
+// Cancel leaves the Levels page without choosing: the default start level stays.
+document.getElementById('btn-level-cancel')?.addEventListener('click', () => {
+  levelGrid.value = '';
+  if (platform.isApp && currentPersonalDevelopment) renderLocalCampaign(currentPersonalDevelopment.completed);
+  else updateTitleStartingLevel();
+});
 document.getElementById('title-leaderboard-btn').hidden = platform.isApp;
 document.getElementById('title-progress-btn').hidden = false;
 document.getElementById('title-family-btn').hidden = !platform.isApp;
@@ -4955,7 +5733,7 @@ onLocaleChange(() => {
     levelClearTitle.textContent = t('overlay.levelClearTitle', { level: lastLevelClearNum });
     levelClearScore.textContent = t('overlay.scoreLine', { score: state.score });
     renderLevelClearPreview(lastLevelClearNum + 1);
-    btnNextLevel.textContent = t(state.level >= TOTAL_LEVELS ? 'overlay.finishGame' : 'overlay.nextLevel');
+    btnNextLevel.textContent = t(state.level >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS) ? 'overlay.finishGame' : 'overlay.nextLevel');
     if (!platform.isApp && !platform.isLoggedIn) btnSaveScoreReturnTitle.textContent = t('overlay.returnTitle');
   }
   if (gameOverOverlay.style.display !== 'none') {

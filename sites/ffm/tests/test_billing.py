@@ -3,7 +3,7 @@
 import os
 import json
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch, MagicMock, ANY
+from unittest.mock import MagicMock
 import hmac
 import hashlib
 
@@ -24,7 +24,7 @@ os.environ['DYNAMODB_RATELIMIT_TABLE'] = 'ffm-ratelimits-test'
 
 from sites.ffm.app import create_app
 from sites.ffm.app.config import TestingConfig
-from sites.ffm.app import billing_store, models, stripe_provider
+from sites.ffm.app import billing_store, models
 from sites.ffm.app import legal_texts
 from sites.ffm.app.billing import _iso
 from .test_app import register_and_login
@@ -429,7 +429,7 @@ def test_paid_gift_extends_from_paid_until_exact_dates(client, billing_app, mock
                                headers={'Stripe-Signature': signature})
         assert response.status_code == 200
         if invoice_schema == 'parent':
-            mock_stripe_provider.invoices.retrieve.assert_called_once_with('inv_paid_gift')
+            mock_stripe_provider.invoices.retrieve.assert_called_once_with('inv_paid_gift', {'expand': ['payments']})
         assert billing_store.get_billing_state(stable_id)['paid_until'] == '2030-01-31T00:00:00+00:00'
 
         first_updated = dict(sub_dict)
@@ -496,7 +496,6 @@ def test_failed_renewal_no_future_access(client, billing_app, mock_stripe_provid
     no invoices beyond existing, old invoice periodexpired => no future access."""
     with billing_app.app_context():
         headers = register_and_login(client, 'pastdueuser', 'pastdue@example.com', 'Pass123!')
-        user = models.get_user('pastdueuser')
         stable_id = models.ensure_stable_id('pastdueuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'pastdueuser')
@@ -560,7 +559,6 @@ def test_redemption_grants_exact_six_month_future(client, billing_app, mock_stri
     with billing_app.app_context():
         # Create user
         headers = register_and_login(client, 'giftuser', 'gift@example.com', 'Pass123!')
-        user = models.get_user('giftuser')
         stable_id = models.ensure_stable_id('giftuser')
 
         # Create and setup billing state
@@ -620,7 +618,6 @@ def test_provider_failure_leaves_code_unconsumed(client, billing_app, mock_strip
     recovery without code completes exactly one grant, clears pending, not double 3m."""
     with billing_app.app_context():
         headers = register_and_login(client, 'failuser', 'fail@example.com', 'Pass123!')
-        user = models.get_user('failuser')
         stable_id = models.ensure_stable_id('failuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'failuser')
@@ -713,7 +710,6 @@ def test_account_deletion_cancels_and_tombstones(client, billing_app, mock_strip
     provider list customer includes active sub, cancel raises StripeAPIError => 503."""
     with billing_app.app_context():
         headers = register_and_login(client, 'deluser', 'del@example.com', 'Pass123!')
-        user = models.get_user('deluser')
         stable_id = models.ensure_stable_id('deluser')
 
         billing_store.put_billing_username_mapping(stable_id, 'deluser')
@@ -754,7 +750,6 @@ def test_code_expires_before_grant_checkout_open(client, billing_app, mock_strip
     Open checkout is expired, subsequent paid state re-fetch catches paid."""
     with billing_app.app_context():
         headers = register_and_login(client, 'expireuser', 'expire@example.com', 'Pass123!')
-        user = models.get_user('expireuser')
         stable_id = models.ensure_stable_id('expireuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'expireuser')
@@ -849,7 +844,6 @@ def test_foreign_invoice_paid_refunds_only_triggering_invoice(client, billing_ap
     Deterministic invoice-based refund idempotency. Preserve prior valid paid_until."""
     with billing_app.app_context():
         headers = register_and_login(client, 'foreignuser1', 'foreign1@example.com', 'Pass123!')
-        user = models.get_user('foreignuser1')
         stable_id = models.ensure_stable_id('foreignuser1')
 
         billing_store.put_billing_username_mapping(stable_id, 'foreignuser1')
@@ -923,7 +917,7 @@ def test_foreign_invoice_paid_refunds_only_triggering_invoice(client, billing_ap
     mock_stripe_provider.charges.retrieve.side_effect = get_charge_side_effect
 
     # Mock get_invoice for canonical invoice fetch (triggering invoice)
-    def get_invoice_side_effect(invoice_id):
+    def get_invoice_side_effect(invoice_id, params=None):
         if invoice_id == 'inv_at_foreign':
             return {
                 'id': 'inv_at_foreign',
@@ -1001,8 +995,7 @@ def test_foreign_invoice_payment_succeeded_refunds_only_triggering_invoice(clien
     """Regression 10: Foreign invoice.payment_succeeded event refunds ONLY triggering invoice.
     Same deterministic idempotency and validation as invoice.paid."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'foreignuser2', 'foreign2@example.com', 'Pass123!')
-        user = models.get_user('foreignuser2')
+        register_and_login(client, 'foreignuser2', 'foreign2@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('foreignuser2')
 
         billing_store.put_billing_username_mapping(stable_id, 'foreignuser2')
@@ -1112,8 +1105,7 @@ def test_foreign_checkout_session_refunds_only_session_invoice(client, billing_a
     not subscription.latest_invoice (which may be stale on replay).
     Validates canonical invoice belongs to subscription/customer."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'foreignuser3', 'foreign3@example.com', 'Pass123!')
-        user = models.get_user('foreignuser3')
+        register_and_login(client, 'foreignuser3', 'foreign3@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('foreignuser3')
 
         billing_store.put_billing_username_mapping(stable_id, 'foreignuser3')
@@ -1151,7 +1143,7 @@ def test_foreign_checkout_session_refunds_only_session_invoice(client, billing_a
 
     mock_stripe_provider.refunds.create.side_effect = refund_charge_side_effect
 
-    def get_invoice_side_effect(invoice_id):
+    def get_invoice_side_effect(invoice_id, params=None):
         if invoice_id == 'inv_checkout_fr':
             return {
                 'id': 'inv_checkout_fr',
@@ -1212,8 +1204,7 @@ def test_foreign_webhook_replay_no_duplicate_refund(client, billing_app, mock_st
     """Regression 12: Replay of same foreign event does not duplicate refund.
     Deterministic invoice-based refund idempotency ensures retry safety."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'replayuser', 'replay@example.com', 'Pass123!')
-        user = models.get_user('replayuser')
+        register_and_login(client, 'replayuser', 'replay@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('replayuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'replayuser')
@@ -1316,8 +1307,7 @@ def test_foreign_refund_preserves_prior_valid_invoices_gift_persistence(client, 
     """Regression 13: Foreign refund preserves legitimately paid invoices (DE).
     Gift persistence: gift_until survives refund and cancellation."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'giftpersistuser', 'giftpersist@example.com', 'Pass123!')
-        user = models.get_user('giftpersistuser')
+        register_and_login(client, 'giftpersistuser', 'giftpersist@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('giftpersistuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'giftpersistuser')
@@ -1445,7 +1435,7 @@ def test_charge_refunded_webhook_excludes_refunded_charge_from_paid_until(client
     auto-refund path) must be routed charge -> invoice -> subscription, then reconcile
     paid_until so the now-refunded invoice's period no longer counts toward access."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'refundeduser', 'refunded@example.com', 'Pass123!')
+        register_and_login(client, 'refundeduser', 'refunded@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('refundeduser')
         billing_store.put_billing_username_mapping(stable_id, 'refundeduser')
         billing_store.put_billing_state(
@@ -1521,7 +1511,7 @@ def test_charge_refunded_webhook_excludes_refunded_charge_from_paid_until(client
 
     assert response.status_code == 200
     mock_stripe_provider.charges.retrieve.assert_any_call('ch_refunded')
-    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_refunded')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_refunded', {'expand': ['payments']})
 
     with billing_app.app_context():
         state = billing_store.get_billing_state(stable_id)
@@ -1545,7 +1535,7 @@ def test_charge_dispute_created_webhook_excludes_disputed_charge_from_paid_until
     whose 'charge' field must be used to resolve the charge, then invoice, then subscription.
     Once disputed, the charge's invoice period must no longer count toward paid_until."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'disputeduser', 'disputed@example.com', 'Pass123!')
+        register_and_login(client, 'disputeduser', 'disputed@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('disputeduser')
         billing_store.put_billing_username_mapping(stable_id, 'disputeduser')
         billing_store.put_billing_state(
@@ -1626,7 +1616,7 @@ def test_charge_dispute_created_webhook_excludes_disputed_charge_from_paid_until
 
     assert response.status_code == 200
     mock_stripe_provider.charges.retrieve.assert_any_call('ch_disputed')
-    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_disputed')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_disputed', {'expand': ['payments']})
 
     with billing_app.app_context():
         state = billing_store.get_billing_state(stable_id)
@@ -1722,7 +1712,7 @@ def test_charge_dispute_closed_lost_keeps_charge_excluded_from_paid_until(client
                           headers={'Stripe-Signature': signature})
     assert response.status_code == 200
     mock_stripe_provider.charges.retrieve.assert_any_call('ch_dispute_lost')
-    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_lost')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_lost', {'expand': ['payments']})
 
     with billing_app.app_context():
         state = billing_store.get_billing_state(stable_id)
@@ -1839,7 +1829,7 @@ def test_charge_dispute_closed_won_restores_paid_until(client, billing_app, mock
                           headers={'Stripe-Signature': signature})
     assert response.status_code == 200
     mock_stripe_provider.charges.retrieve.assert_any_call('ch_dispute_won')
-    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_won')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_won', {'expand': ['payments']})
     mock_stripe_provider.disputes.list.assert_any_call({'charge': 'ch_dispute_won', 'limit': 100})
 
     with billing_app.app_context():
@@ -2405,7 +2395,7 @@ def test_delayed_old_subscription_deleted_preserves_new_active_subscription(clie
     it -- otherwise the old subscription's own closure revokes access that
     the newer subscription granted."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'oldsubdeleted', 'oldsubdeleted@example.com', 'Pass123!')
+        register_and_login(client, 'oldsubdeleted', 'oldsubdeleted@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('oldsubdeleted')
         billing_store.put_billing_username_mapping(stable_id, 'oldsubdeleted')
         billing_store.put_billing_state(
@@ -2463,7 +2453,7 @@ def test_delayed_old_subscription_refund_preserves_new_active_subscription(clien
     chain resolves to an old, already-replaced subscription must not
     overwrite the current, still-live subscription's state."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'oldsubrefund', 'oldsubrefund@example.com', 'Pass123!')
+        register_and_login(client, 'oldsubrefund', 'oldsubrefund@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('oldsubrefund')
         billing_store.put_billing_username_mapping(stable_id, 'oldsubrefund')
         billing_store.put_billing_state(
@@ -2518,7 +2508,7 @@ def test_delayed_old_subscription_dispute_closure_preserves_new_active_subscript
     already-replaced subscription must not overwrite the current, still-live
     subscription's state."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'oldsubdispute', 'oldsubdispute@example.com', 'Pass123!')
+        register_and_login(client, 'oldsubdispute', 'oldsubdispute@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('oldsubdispute')
         billing_store.put_billing_username_mapping(stable_id, 'oldsubdispute')
         billing_store.put_billing_state(
@@ -2575,7 +2565,7 @@ def test_replacement_checkout_webhook_attaches_new_subscription_after_old_termin
     still attach its brand-new, live subscription once the previously stored
     subscription has itself gone terminal (canceled)."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'replaceattach', 'replaceattach@example.com', 'Pass123!')
+        register_and_login(client, 'replaceattach', 'replaceattach@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('replaceattach')
         billing_store.put_billing_username_mapping(stable_id, 'replaceattach')
         billing_store.put_billing_state(
@@ -2655,3 +2645,190 @@ def test_reconcile_subscription_rejects_foreign_subscription_even_when_supersede
         state = billing_store.get_billing_state(stable_id)
         assert state['subscription_id'] == 'sub_foreignref_active'
         assert state['status'] == 'active'
+
+
+# ── Current Stripe API shapes (2026-10-28.endive) ────────────────────────────
+# Since 2025-03-31.basil, invoice.charge/paid/subscription, charge.invoice,
+# subscription.current_period_end and line price/proration moved. The tests
+# above use the 2024-06-20 shapes the live webhook endpoint still sends; these
+# two run the same webhook paths with objects shaped like the current API.
+
+def _current_shape_invoice(invoice_id, subscription_id, intent_id, period_end, with_payments=True):
+    invoice = {
+        'id': invoice_id, 'object': 'invoice', 'customer': 'cus_current', 'status': 'paid',
+        'currency': 'eur', 'amount_paid': 300, 'customer_address': {'country': 'DE'},
+        'parent': {'type': 'subscription_details', 'subscription_details': {'subscription': subscription_id}},
+        'lines': {'data': [{
+            'pricing': {'type': 'price_details', 'price_details': {'price': 'price_quarterly'}},
+            'parent': {'type': 'subscription_item_details', 'subscription_item_details': {'proration': False}},
+            'period': {'end': period_end},
+        }]},
+    }
+    if with_payments:
+        invoice['payments'] = {'data': [{'status': 'paid', 'payment': {'type': 'payment_intent', 'payment_intent': intent_id}}]}
+    return invoice
+
+
+def _current_shape_subscription(subscription_id, stable_id, period_end):
+    return {
+        'id': subscription_id, 'object': 'subscription', 'customer': 'cus_current', 'status': 'active',
+        'metadata': {'billing_uuid': stable_id}, 'cancel_at_period_end': False, 'cancel_at': None, 'trial_end': None,
+        'items': {'data': [{'price': {'id': 'price_quarterly'}, 'current_period_end': period_end}]},
+    }
+
+
+def test_invoice_paid_webhook_with_current_api_shapes_grants_access(client, billing_app, mock_stripe_provider):
+    with billing_app.app_context():
+        register_and_login(client, 'currentshape', 'currentshape@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('currentshape')
+        billing_store.put_billing_username_mapping(stable_id, 'currentshape')
+        billing_store.put_billing_state(stable_id, customer_id='cus_current', subscription_id='sub_current', status='active')
+
+    period_end = int(datetime.now(timezone.utc).timestamp()) + 90 * 86400
+    subscription = _current_shape_subscription('sub_current', stable_id, period_end)
+    invoice = _current_shape_invoice('inv_current', 'sub_current', 'pi_current', period_end)
+    mock_stripe_provider.subscriptions.retrieve.return_value = subscription
+    mock_stripe_provider.subscriptions.list.return_value.auto_paging_iter.return_value = [subscription]
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [invoice]
+    mock_stripe_provider.invoices.retrieve.return_value = invoice
+    mock_stripe_provider.payment_intents.retrieve.return_value = {'id': 'pi_current', 'latest_charge': 'ch_current'}
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_current', 'payment_intent': 'pi_current', 'amount': 300, 'paid': True, 'refunded': False,
+        'amount_refunded': 0, 'disputed': False, 'billing_details': {'address': {'country': 'DE'}},
+    }
+
+    # Webhook payloads never include the expandable `payments`.
+    event = {'id': 'evt_current_paid', 'type': 'invoice.paid',
+             'data': {'object': _current_shape_invoice('inv_current', 'sub_current', 'pi_current', period_end, False)}}
+    payload = json.dumps(event)
+    signature = _make_stripe_webhook_signature(payload, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+    response = client.post('/api/billing/webhook', data=payload, content_type='application/json',
+                           headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    mock_stripe_provider.payment_intents.retrieve.assert_any_call('pi_current')
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+    expected = datetime.fromtimestamp(period_end, timezone.utc).isoformat()
+    assert state['paid_until'] == expected
+    assert state['next_payment_at'] == expected  # from items[].current_period_end
+
+
+def test_charge_refunded_with_current_api_shapes_finds_invoice_via_invoice_payments(
+        client, billing_app, mock_stripe_provider):
+    with billing_app.app_context():
+        register_and_login(client, 'currentrefund', 'currentrefund@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('currentrefund')
+        billing_store.put_billing_username_mapping(stable_id, 'currentrefund')
+        billing_store.put_billing_state(stable_id, customer_id='cus_current', subscription_id='sub_refund_now',
+                                        status='active')
+
+    period_end = int(datetime.now(timezone.utc).timestamp()) + 90 * 86400
+    subscription = _current_shape_subscription('sub_refund_now', stable_id, period_end)
+    invoice = _current_shape_invoice('inv_refund_now', 'sub_refund_now', 'pi_refund_now', period_end)
+    mock_stripe_provider.subscriptions.retrieve.return_value = subscription
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [invoice]
+    mock_stripe_provider.invoices.retrieve.return_value = invoice
+    mock_stripe_provider.payment_intents.retrieve.return_value = {'id': 'pi_refund_now', 'latest_charge': 'ch_refund_now'}
+    # Current charges carry no `invoice`; the link is an InvoicePayment.
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_refund_now', 'payment_intent': 'pi_refund_now', 'amount': 300, 'paid': True, 'refunded': True,
+        'amount_refunded': 300, 'disputed': False, 'billing_details': {'address': {'country': 'DE'}},
+    }
+    mock_stripe_provider.invoice_payments.list.return_value.auto_paging_iter.return_value = [
+        {'id': 'inpay_1', 'invoice': 'inv_refund_now', 'status': 'paid'},
+    ]
+
+    event = {'id': 'evt_current_refund', 'type': 'charge.refunded',
+             'data': {'object': {'id': 'ch_refund_now', 'payment_intent': 'pi_refund_now', 'refunded': True}}}
+    payload = json.dumps(event)
+    signature = _make_stripe_webhook_signature(payload, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+    response = client.post('/api/billing/webhook', data=payload, content_type='application/json',
+                           headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    mock_stripe_provider.invoice_payments.list.assert_any_call(
+        {'payment': {'type': 'payment_intent', 'payment_intent': 'pi_refund_now'}, 'limit': 10})
+    mock_stripe_provider.subscriptions.retrieve.assert_any_call('sub_refund_now')
+    with billing_app.app_context():
+        assert billing_store.get_billing_state(stable_id)['paid_until'] is None  # the refunded period no longer counts
+
+
+def test_a_real_price_invoice_counts_toward_paid_until(billing_app, mock_stripe_provider):
+    """Regression: _valid_paid_end() required amount_paid >= 300 from the original
+    EUR 3.00 price, but #454 moved the price to EUR 1.99 (199 cents, tax inclusive).
+    A subscriber's real invoice then never counted, so a paying customer got no
+    paid_until. The threshold is now the price itself (PRICE_UNIT_AMOUNT)."""
+    from sites.ffm.app import billing
+    from sites.ffm.app import stripe_provider
+
+    period_end = int(datetime.now(timezone.utc).timestamp()) + 90 * 86400
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [{
+        'id': 'inv_real_price', 'customer': 'cus_real', 'subscription': 'sub_real', 'status': 'paid',
+        'currency': 'eur', 'amount_paid': stripe_provider.PRICE_UNIT_AMOUNT, 'paid': True,
+        'customer_address': {'country': 'DE'}, 'charge': 'ch_real',
+        'lines': {'data': [{'price': {'id': 'price_quarterly'}, 'period': {'end': period_end}, 'proration': False}]},
+    }]
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_real', 'paid': True, 'refunded': False, 'amount_refunded': 0, 'disputed': False,
+        'billing_details': {'address': {'country': 'DE'}},
+    }
+    with billing_app.app_context():
+        paid_until = billing._valid_paid_end({'id': 'sub_real', 'customer': 'cus_real'})
+    assert stripe_provider.PRICE_UNIT_AMOUNT == 199
+    assert paid_until == datetime.fromtimestamp(period_end, timezone.utc).isoformat()
+
+
+def test_an_invoice_below_the_price_still_does_not_count(billing_app, mock_stripe_provider):
+    from sites.ffm.app import billing
+
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [{
+        'id': 'inv_partial', 'customer': 'cus_real', 'subscription': 'sub_real', 'status': 'paid',
+        'currency': 'eur', 'amount_paid': 100, 'paid': True, 'customer_address': {'country': 'DE'},
+        'charge': 'ch_partial', 'lines': {'data': [{'price': {'id': 'price_quarterly'},
+                                                    'period': {'end': 2_000_000_000}, 'proration': False}]},
+    }]
+    with billing_app.app_context():
+        assert billing._valid_paid_end({'id': 'sub_real', 'customer': 'cus_real'}) is None
+    mock_stripe_provider.charges.retrieve.assert_not_called()
+
+
+def _paid_invoice_for_price(price_id, period_end):
+    return {
+        'id': 'inv_' + price_id, 'customer': 'cus_legacy', 'subscription': 'sub_legacy', 'status': 'paid',
+        'currency': 'eur', 'amount_paid': 300, 'paid': True, 'customer_address': {'country': 'DE'},
+        'charge': 'ch_legacy',
+        'lines': {'data': [{'price': {'id': price_id}, 'period': {'end': period_end}, 'proration': False}]},
+    }
+
+
+def test_invoices_paid_on_a_legacy_price_keep_counting(billing_app, mock_stripe_provider):
+    """A subscriber moved from the archived EUR 3.00 price to the current one must
+    keep the access their earlier invoice already paid for."""
+    from sites.ffm.app import billing
+    from sites.ffm.app import stripe_provider
+
+    legacy = next(iter(stripe_provider.LEGACY_PRICE_IDS))
+    period_end = int(datetime.now(timezone.utc).timestamp()) + 60 * 86400
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        _paid_invoice_for_price(legacy, period_end)]
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_legacy', 'paid': True, 'refunded': False, 'amount_refunded': 0, 'disputed': False,
+        'billing_details': {'address': {'country': 'DE'}},
+    }
+    with billing_app.app_context():
+        paid_until = billing._valid_paid_end({'id': 'sub_legacy', 'customer': 'cus_legacy'})
+    assert paid_until == datetime.fromtimestamp(period_end, timezone.utc).isoformat()
+
+
+def test_invoices_on_an_unrelated_price_do_not_count(billing_app, mock_stripe_provider):
+    from sites.ffm.app import billing
+
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [
+        _paid_invoice_for_price('price_something_else', 2_000_000_000)]
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_legacy', 'paid': True, 'refunded': False, 'amount_refunded': 0, 'disputed': False,
+        'billing_details': {'address': {'country': 'DE'}},
+    }
+    with billing_app.app_context():
+        assert billing._valid_paid_end({'id': 'sub_legacy', 'customer': 'cus_legacy'}) is None

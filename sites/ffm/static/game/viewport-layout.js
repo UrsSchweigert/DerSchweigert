@@ -17,6 +17,11 @@ const FONT_MAX = 26;
 // answer column above the answers. Their row is therefore a floor on that
 // column's width: below it the orbs shrink to a few pixels and vanish.
 const ORB_COLUMNS = 3;
+// The landscape sword column's widest track. The grid gap to the scene comes on
+// top, so the width taken from the scene and the answers is this plus GAP. The
+// swords lie on their side there (tip towards the hero, see styles.css), so the
+// column only needs one sword's length: 20px, down from 28px for upright swords.
+const SWORD_COLUMN_MAX = 20;
 
 /**
  * The narrowest a landscape answer column may be. The answer grid always fits;
@@ -70,12 +75,15 @@ export function answerFontSize(layout, { textWidth = 0, decoration = 0 } = {}) {
 
 // reservedHeight is the space the answer zone spends on rows that are not the
 // answer grid (today: the ability circles and their caption line), so the grid
-// is sized from what is actually left for it.
-export function calculateSceneLayout(width, height, optionCount = 10, landscape = width >= height, minimumAnswerWidth = TARGET, reservedHeight = 0) {
+// is sized from what is actually left for it. reservedWidth is the landscape
+// strip at the left edge (the sword column and its gap); the scene and the
+// answers share only what is left of it. Portrait ignores it.
+export function calculateSceneLayout(width, height, optionCount = 10, landscape = width >= height, minimumAnswerWidth = TARGET, reservedHeight = 0, reservedWidth = 0) {
   width = Math.max(0, Number(width) || 0);
   height = Math.max(0, Number(height) || 0);
   const count = Math.max(1, Math.floor(Number(optionCount) || 1));
   const targetWidth = Math.max(TARGET, Number(minimumAnswerWidth) || TARGET);
+  width -= landscape ? Math.min(width, Math.max(0, Number(reservedWidth) || 0)) : 0;
   const reserved = Math.min(height, Math.max(0, Number(reservedHeight) || 0));
   const answerBudget = Math.max(0, height - reserved);
   let columns;
@@ -178,9 +186,13 @@ export function initViewportLayout({ win = globalThis.window, doc = globalThis.d
     const minimumAnswerWidth = metrics.minimum;
     const chromeHeight = chrome && !chrome.hidden ? (chrome.offsetHeight || 0) + GAP : 0;
     const abilityRow = abilityBar?.offsetHeight ? abilityBar.offsetHeight + GAP : 0;
+    const landscape = win.innerWidth >= win.innerHeight;
+    // The CSS variable is the bare grid track; #game-wrap's gap follows it.
+    const swordColumn = landscape ? Math.min(SWORD_COLUMN_MAX, wrap.clientWidth) : 0;
     const layout = calculateSceneLayout(wrap.clientWidth, Math.max(0, wrap.clientHeight - chromeHeight), count,
-      win.innerWidth >= win.innerHeight, minimumAnswerWidth, abilityRow);
+      landscape, minimumAnswerWidth, abilityRow, swordColumn ? swordColumn + GAP : 0);
     wrap.dataset.layout = layout.landscape ? 'landscape' : 'portrait';
+    wrap.style.setProperty('--sword-column-width', `${swordColumn}px`);
     wrap.style.setProperty('--scene-width', `${layout.sceneWidth}px`);
     wrap.style.setProperty('--scene-height', `${layout.sceneHeight}px`);
     wrap.style.setProperty('--answer-columns', layout.columns);

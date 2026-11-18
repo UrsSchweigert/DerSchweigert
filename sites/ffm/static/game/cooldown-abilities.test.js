@@ -10,6 +10,8 @@ import {
   SPIKE_SLOW_DEFAULTS,
   applySpikeSlow,
   clampSpikeSlow,
+  spikeSlowForBonuses,
+  SPIKE_SLOW_GROWTH,
   createAbilityRuntime,
   fiendSpeedMultiplier,
   restoreSpikeSlow,
@@ -139,14 +141,14 @@ describe('earth spike slow', () => {
   it('starts inert and uses the documented defaults on activation', () => {
     const runtime = createAbilityRuntime({ level: 11 });
     assert.deepEqual(runtime.spikeState, INERT_SPIKE);
-    assert.deepEqual(SPIKE_SLOW_DEFAULTS, { durationSeconds: 8, factor: 0.65, targets: 1 });
+    assert.deepEqual(SPIKE_SLOW_DEFAULTS, { durationSeconds: 10, factor: 0.3, targets: 1 });
 
     runtime.activate('earth');
     assert.deepEqual(runtime.spikeState, {
       active: true,
-      remainingSeconds: 8,
-      durationSeconds: 8,
-      factor: 0.65,
+      remainingSeconds: 10,
+      durationSeconds: 10,
+      factor: 0.3,
       targets: 1,
     });
   });
@@ -156,20 +158,20 @@ describe('earth spike slow', () => {
     runtime.activate('earth');
 
     runtime.tick(3, { encounterRunning: false });
-    assert.equal(runtime.spikeState.remainingSeconds, 8);
+    assert.equal(runtime.spikeState.remainingSeconds, 10);
 
     runtime.tick(4, { encounterRunning: true });
-    assert.equal(runtime.spikeState.remainingSeconds, 4);
+    assert.equal(runtime.spikeState.remainingSeconds, 6);
 
-    runtime.tick(4, { encounterRunning: true });
+    runtime.tick(6, { encounterRunning: true });
     assert.deepEqual(runtime.spikeState, INERT_SPIKE);
   });
 
   it('clamps configured parameters to the caps', () => {
-    assert.deepEqual(SPIKE_SLOW_CAPS, { durationSeconds: 15, factorFloor: 0.4, targets: 5 });
+    assert.deepEqual(SPIKE_SLOW_CAPS, { durationSeconds: 30, factorFloor: 0.15, targets: 5 });
     assert.deepEqual(clampSpikeSlow({ durationSeconds: 99, factor: 0.1, targets: 99 }), {
-      durationSeconds: 15,
-      factor: 0.4,
+      durationSeconds: 30,
+      factor: 0.15,
       targets: 5,
     });
     assert.deepEqual(clampSpikeSlow({ durationSeconds: -2, factor: 4, targets: 0 }), {
@@ -186,12 +188,12 @@ describe('earth spike slow', () => {
     runtime.activate('earth');
     assert.deepEqual(runtime.spikeState, {
       active: true,
-      remainingSeconds: 15,
-      durationSeconds: 15,
-      factor: 0.4,
+      remainingSeconds: 30,
+      durationSeconds: 30,
+      factor: 0.15,
       targets: 5,
     });
-    runtime.tick(15, { encounterRunning: true });
+    runtime.tick(30, { encounterRunning: true });
     assert.deepEqual(runtime.spikeState, INERT_SPIKE);
   });
 
@@ -236,7 +238,7 @@ describe('spike slow on a fiend', () => {
   it('clamps the factor to the documented floor and 1', () => {
     const slow = { walkSpeed: 100 };
     applySpikeSlow(slow, 0.01);
-    closeTo(slow.walkSpeed, 40, 'floor of 0.4');
+    closeTo(slow.walkSpeed, 15, 'floor of 0.15');
 
     const fast = { walkSpeed: 100 };
     applySpikeSlow(fast, 4);
@@ -262,7 +264,37 @@ describe('spike slow on a fiend', () => {
   it('uses the default factor when none is given', () => {
     const fiend = { walkSpeed: 100 };
     assert.equal(applySpikeSlow(fiend), true);
-    closeTo(fiend.walkSpeed, 65, 'SPIKE_SLOW_DEFAULTS.factor');
+    closeTo(fiend.walkSpeed, 30, 'SPIKE_SLOW_DEFAULTS.factor');
+  });
+});
+
+describe('earth bonus growth and the banked stretch', () => {
+  it('grows the stretch, the slow and the targets with every earth bonus', () => {
+    assert.deepEqual(spikeSlowForBonuses(0), { durationSeconds: 10, factor: 0.3, targets: 1 });
+    assert.deepEqual(spikeSlowForBonuses(2), { durationSeconds: 14, factor: 0.24, targets: 3 });
+    assert.deepEqual(spikeSlowForBonuses(99), {
+      durationSeconds: SPIKE_SLOW_CAPS.durationSeconds,
+      factor: SPIKE_SLOW_CAPS.factorFloor,
+      targets: SPIKE_SLOW_CAPS.targets,
+    }, 'clamped by the documented caps');
+    assert.equal(SPIKE_SLOW_GROWTH.secondsPerBonus, 2);
+    assert.deepEqual(spikeSlowForBonuses(-4), { durationSeconds: 10, factor: 0.3, targets: 1 },
+      'nonsense input falls back to the base spell');
+  });
+
+  it('banks the unused time onto the next target, up to the duration cap', () => {
+    const runtime = createAbilityRuntime({ level: 11 });
+    runtime.activate('earth');
+    runtime.tick(4, { encounterRunning: true });
+    assert.equal(runtime.spikeState.remainingSeconds, 6);
+
+    assert.equal(runtime.refreshSpike(), true);
+    assert.equal(runtime.spikeState.remainingSeconds, 16, 'six left plus a full ten');
+
+    // A chain of instant kills cannot leave the field slowed for the level: the
+    // banked stretch stops at the documented cap.
+    for (let i = 0; i < 5; i++) runtime.refreshSpike();
+    assert.equal(runtime.spikeState.remainingSeconds, SPIKE_SLOW_CAPS.durationSeconds);
   });
 });
 

@@ -67,3 +67,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "throttling_rate_limit" {
+  description = "Steady-state requests per second allowed across the whole prod stage. Null leaves the stage unthrottled (account default)."
+  type        = number
+  default     = null
+}
+
+variable "throttling_burst_limit" {
+  description = "Burst size for the prod stage throttle. Used only when throttling_rate_limit is set."
+  type        = number
+  default     = null
+}

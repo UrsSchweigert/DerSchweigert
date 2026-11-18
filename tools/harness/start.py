@@ -13,10 +13,10 @@ import subprocess
 import sys
 from typing import Callable, Dict, List, Optional
 
-from . import approval, isolation, models, plans, runner
+from . import approval, claudecode, isolation, models, plans, runner
 from .store import Store, default_home
 
-DEFAULT_SOURCES = ["copilot"]
+DEFAULT_SOURCES = ["claude"]
 RUNNABLE_STATES = ("Approved", "Executing", "Paused")
 
 
@@ -29,7 +29,7 @@ class Stop(Exception):
 
 
 def parse_sources(text: str, fallback: List[str]) -> List[str]:
-    """Read a source list from one line: `deepseek, local`, `deepseek local`, or `deepseek+local`."""
+    """Read a source list from one line: `a, b`, `a b`, or `a+b`."""
     chosen = [part.strip().lower() for part in text.replace("+", ",").replace(" ", ",").split(",") if part.strip()]
     chosen = list(dict.fromkeys(chosen or fallback))
     unknown = [source for source in chosen if source not in models.SOURCES]
@@ -66,9 +66,9 @@ def _environment(store: Store, home: str, args, execute, ask) -> None:
         if execute(["isolation", "build"]) != 0:
             raise Stop("the worker image could not be built")
     print("  worker image: %s" % isolation.IMAGE, flush=True)
-    if not os.path.exists(os.path.join(home, "copilot.token")):
-        raise Stop("copilot.token is missing from %s; see the one-time setup in tools/harness/README.md" % home)
-    print("  copilot.token: present", flush=True)
+    if not claudecode.has_token(home):
+        raise Stop("claude.token is missing from %s; run `harness claude login` (see tools/harness/README.md)" % home)
+    print("  claude.token: present", flush=True)
     iso = approval.detect_isolation(store)
     if iso["tier"] != "A":
         print("  sandbox: %s" % iso["reason"], flush=True)

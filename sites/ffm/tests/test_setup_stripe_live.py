@@ -320,7 +320,7 @@ class TestSuccessfulRun:
 
         create_kwargs = stripe_client.v1.webhook_endpoints.create.call_args.args[0]
         assert create_kwargs['url'] == setup_stripe_live.WEBHOOK_URL
-        assert create_kwargs['api_version'] == '2024-06-20'
+        assert create_kwargs['api_version'] == '2026-10-28.endive'
         assert create_kwargs['enabled_events'] == setup_stripe_live.WEBHOOK_EVENTS
         assert len(setup_stripe_live.WEBHOOK_EVENTS) == 10
 
@@ -422,7 +422,6 @@ class TestErrorSanitization:
     def test_stripe_error_message_never_echoed(self, monkeypatch, capsys):
         secretsmanager_client = _make_secretsmanager_client()
         session, _ = _make_session(secretsmanager_client)
-        secret_price = types.SimpleNamespace(**VALID_PRICE.__dict__)
         stripe_client = MagicMock()
         stripe_client.v1.prices.retrieve.side_effect = stripe.InvalidRequestError(
             message='No such price: price_abc belonging to account acct_SECRETVALUE123',

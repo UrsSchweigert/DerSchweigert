@@ -487,12 +487,14 @@ test('partial and completed writes share one serialized queue and partial never 
   ]);
   const stored = JSON.parse(data.get(PROFILE_KEY)).profiles[0];
   assert.deepEqual(stored.completed, [1]);
+  // The completion outranks the partial even though it scored lower: a cleared
+  // level never advertises an unfinished attempt as its best.
   assert.deepEqual(stored.best.map((entry) => [entry.level, entry.score, entry.unfinished ?? false]),
-    [[1, 80, true], [2, 90, true]]);
+    [[1, 50, false], [2, 90, true]]);
   assert.deepEqual(stored.history.map((entry) => [entry.level, entry.score, entry.unfinished ?? false]),
     [[1, 80, true], [1, 50, false], [2, 90, true]]);
   assert.deepEqual(stored.completions.clear, {
-    level: 1, score: 50, difficulty: 'easy', bestImproved: false,
+    level: 1, score: 50, difficulty: 'easy', bestImproved: true,
   });
   assert.deepEqual(stored.partialAttempts.pause, {
     level: 1, score: 80, difficulty: 'easy', bestImproved: true,
@@ -512,8 +514,9 @@ test('a failed partial write rejects unchanged and retries once without duplicat
   assert.deepEqual((await store.getBestScores(id)).best.map((entry) => entry.score), [50]);
   assert.deepEqual((await store.getScoreHistory(id)).history.map((entry) => entry.unfinished ?? false), [false]);
   backend.failWrites = false;
+  // The level is already cleared, so the partial cannot become its best.
   const result = await store.recordPartialAttempt(partial(id, 'pause', 80));
-  assert.deepEqual(result, { persisted: true, bestImproved: true });
+  assert.deepEqual(result, { persisted: true, bestImproved: false });
   const writes = backend.writes.length;
   assert.deepEqual(await store.recordPartialAttempt(partial(id, 'pause', 80)), result);
   assert.equal(backend.writes.length, writes);
@@ -600,4 +603,207 @@ test('invalid partial inputs reject before writing', async () => {
   await assert.rejects(store.recordPartialAttempt(partial('missing', 'pause')), { code: 'profile_not_found' });
   assert.equal(backend.writes.length, writes);
   assert.deepEqual(await store.getScoreHistory(id), { history: [] });
+});
+
+test('a cleared level keeps the cleared score even when a partial reached more', async () => {
+  // The reported bug: level 18 showed an unfinished attempt as its high score
+  // after the level had been cleared, because a partial could outrank a clear.
+  const { store, data } = fixture();
+  const { id } = await store.initialize();
+  await store.recordPartialAttempt(partial(id, 'pause-18', 900, 18));
+  assert.deepEqual((await store.getBestScores(id)).best.map((entry) => [entry.level, entry.score]),
+    [[18, 900]], 'an uncleared level does keep the score it reached');
+
+  assert.deepEqual(await store.recordLevel(completion(id, 'clear-18', 400, 18)), {
+    persisted: true, bestImproved: true,
+  }, 'the clear takes the slot although it scored lower');
+  const stored = JSON.parse(data.get(PROFILE_KEY)).profiles[0];
+  assert.deepEqual(stored.best.map((entry) => [entry.level, entry.score, entry.unfinished ?? false]),
+    [[18, 400, false]]);
+  assert.deepEqual(stored.completed, [18]);
+  // The partial is still an honest record of what was reached.
+  assert.equal(stored.history.filter((entry) => entry.unfinished === true).length, 1);
+
+  // And a later partial can no longer take the slot back.
+  assert.deepEqual(await store.recordPartialAttempt(partial(id, 'pause-18-late', 1200, 18)), {
+    persisted: true, bestImproved: false,
+  });
+  assert.deepEqual((await store.getBestScores(id)).best.map((entry) => entry.score), [400]);
+});
+
+test('a higher clear still improves on a lower clear', async () => {
+  const { store } = fixture();
+  const { id } = await store.initialize();
+  await store.recordLevel(completion(id, 'first', 400, 5));
+  assert.deepEqual(await store.recordLevel(completion(id, 'lower', 300, 5)), {
+    persisted: true, bestImproved: false,
+  });
+  assert.deepEqual(await store.recordLevel(completion(id, 'higher', 500, 5)), {
+    persisted: true, bestImproved: true,
+  });
+  assert.deepEqual((await store.getBestScores(id)).best.map((entry) => entry.score), [500]);
+});
+
+test('loading a profile repairs a cleared level whose best is an unfinished attempt', async () => {
+  // Documents written before the rule can hold the bad entry. The completion
+  // receipts are the authority, and the repair happens once, on load.
+  const profile = {
+    id: 'profile-1', name: 'Player',
+    best: [
+      { level: 3, score: 700, difficulty: 'easy', achieved_at: '2026-11-08T10:00:00.000Z' },
+      { level: 18, score: 900, difficulty: 'easy', achieved_at: '2026-11-08T11:00:00.000Z', unfinished: true },
+      { level: 19, score: 250, difficulty: 'easy', achieved_at: '2026-11-08T11:30:00.000Z', unfinished: true },
+    ],
+    history: [
+      { level: 18, score: 900, difficulty: 'easy', achieved_at: '2026-11-08T11:00:00.000Z', unfinished: true },
+      { level: 18, score: 400, difficulty: 'easy', achieved_at: '2026-11-08T11:05:00.000Z' },
+    ],
+    completed: [3, 18],
+    completions: {
+      'clear-3': { level: 3, score: 700, difficulty: 'easy', bestImproved: true },
+      'clear-18': { level: 18, score: 400, difficulty: 'easy', bestImproved: false },
+      'clear-18b': { level: 18, score: 450, difficulty: 'easy', bestImproved: false },
+    },
+  };
+  const initial = { [PROFILE_KEY]: JSON.stringify({
+    version: PROFILE_SCHEMA_VERSION, activeProfileId: 'profile-1', profiles: [profile],
+  }) };
+  const { store, data, backend } = fixture(initial);
+  await store.initialize();
+  const stored = JSON.parse(data.get(PROFILE_KEY)).profiles[0];
+  assert.deepEqual(stored.best.map((entry) => [entry.level, entry.score, entry.unfinished ?? false]), [
+    [3, 700, false],
+    [18, 450, false],
+    [19, 250, true],
+  ], 'the cleared level takes its best clear, the uncleared one keeps what it reached');
+  assert.equal(stored.best[1].achieved_at, '2026-11-08T11:00:00.000Z',
+    'the repaired entry keeps a real timestamp');
+  assert.equal(stored.history.length, 2, 'history is left alone: it is the record of attempts');
+
+  // Idempotent: a reload writes nothing more.
+  const writes = backend.writes.length;
+  const reloaded = createProfileStore(backend, { makeId: () => 'profile-1', now: () => '2026-11-08T12:00:00.000Z' });
+  await reloaded.initialize();
+  assert.equal(backend.writes.length, writes, 'already-repaired documents are not rewritten');
+});
+
+test('loading leaves a document alone when no cleared level holds a partial best', async () => {
+  const { store, backend } = fixture();
+  await store.initialize();
+  const writes = backend.writes.length;
+  await store.recordLevel(completion('profile-1', 'clear', 40, 1));
+  assert.equal(backend.writes.length, writes + 1);
+  const reloaded = createProfileStore(backend, { makeId: () => 'profile-9', now: () => '2026-11-08T12:00:00.000Z' });
+  await reloaded.initialize();
+  assert.equal(backend.writes.length, writes + 1, 'no repair write on a healthy document');
+});
+
+test('setHero stores, clears and rejects invalid ids without writing', async () => {
+  const { store, backend, data } = fixture();
+  const profile = await store.initialize();
+  assert.equal('hero' in store.getActiveProfile(), false, 'a new profile has no hero');
+  assert.deepEqual(await store.setHero(profile.id, 'ninja-cat'), { id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' });
+  assert.deepEqual(store.getActiveProfile(), { id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' });
+  assert.deepEqual(await store.listProfiles(), [{ id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' }]);
+  assert.equal(JSON.parse(data.get(PROFILE_KEY)).profiles[0].hero, 'ninja-cat');
+
+  const writes = backend.writes.length;
+  for (const bad of ['Ninja', '1cat', 'cat_', '', 'a'.repeat(33), ' cat', 7, undefined, {}]) {
+    await assert.rejects(store.setHero(profile.id, bad), { code: 'invalid_hero' }, String(bad));
+  }
+  assert.equal(backend.writes.length, writes, 'invalid ids write nothing');
+  assert.equal(store.getActiveProfile().hero, 'ninja-cat');
+
+  assert.deepEqual(await store.setHero(profile.id, null), { id: 'profile-1', name: 'Player 1' });
+  assert.equal('hero' in store.getActiveProfile(), false);
+  assert.equal('hero' in JSON.parse(data.get(PROFILE_KEY)).profiles[0], false);
+});
+
+test('setHero rejects an unknown profile like renameProfile and leaves state unchanged', async () => {
+  const { store, backend } = fixture();
+  await store.initialize();
+  const writes = backend.writes.length;
+  await assert.rejects(store.setHero('missing', 'ninja-cat'), { code: 'profile_not_found' });
+  await assert.rejects(store.setHero('missing', null), { code: 'profile_not_found' });
+  assert.equal(backend.writes.length, writes);
+});
+
+test('a failed setHero write leaves memory and storage at the committed hero', async () => {
+  const { store, backend, data } = fixture();
+  await store.initialize();
+  await store.setHero('profile-1', 'ninja-cat');
+  const stored = data.get(PROFILE_KEY);
+  backend.failWrites = true;
+  await assert.rejects(store.setHero('profile-1', 'robot'), storageError);
+  await assert.rejects(store.setHero('profile-1', null), storageError);
+  assert.equal(store.getActiveProfile().hero, 'ninja-cat');
+  assert.equal(data.get(PROFILE_KEY), stored);
+  backend.failWrites = false;
+  assert.deepEqual(await store.setHero('profile-1', 'robot'), { id: 'profile-1', name: 'Player 1', hero: 'robot' });
+});
+
+test('a well-formed unknown hero id is kept, while malformed stored heroes read as absent', async () => {
+  const profile = (hero) => ({
+    id: 'profile-1', name: 'Player 1', best: [], history: [], completed: [], completions: {}, hero,
+  });
+  for (const hero of [42, null, ['ninja'], 'Ninja', 'x'.repeat(40)]) {
+    const { store, data } = fixture({ [PROFILE_KEY]: JSON.stringify({
+      version: PROFILE_SCHEMA_VERSION, activeProfileId: 'profile-1', profiles: [profile(hero)],
+    }) });
+    assert.deepEqual(await store.initialize(), { id: 'profile-1', name: 'Player 1' }, JSON.stringify(hero));
+    assert.equal('hero' in store.getActiveProfile(), false, JSON.stringify(hero));
+    assert.deepEqual(JSON.parse(data.get(PROFILE_KEY)).profiles[0].hero, hero, 'the stored value is not rewritten on load');
+  }
+  const { store } = fixture({ [PROFILE_KEY]: JSON.stringify({
+    version: PROFILE_SCHEMA_VERSION, activeProfileId: 'profile-1', profiles: [profile('ninja-cat')],
+  }) });
+  assert.deepEqual(await store.initialize(), { id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' });
+  assert.equal(store.getActiveProfile().hero, 'ninja-cat', 'the well-formed unknown id is kept');
+});
+
+test('legacy documents without a hero load unchanged and are written back without a hero key', async () => {
+  const legacy = {
+    version: PROFILE_SCHEMA_VERSION, activeProfileId: 'profile-1',
+    profiles: [{ id: 'profile-1', name: 'Player 1', best: [], history: [], completed: [], completions: {} }],
+  };
+  const { store, data, backend } = fixture({ [PROFILE_KEY]: JSON.stringify(legacy) });
+  assert.deepEqual(await store.initialize(), { id: 'profile-1', name: 'Player 1' });
+  await store.renameProfile('profile-1', 'Renamed');
+  const written = JSON.parse(data.get(PROFILE_KEY));
+  assert.equal(written.version, PROFILE_SCHEMA_VERSION);
+  assert.equal(written.activeProfileId, 'profile-1');
+  assert.equal(backend.writes.length, 1);
+  assert.equal(data.get(PROFILE_KEY).includes('"hero"'), false);
+});
+
+test('hero survives rename, select, score, practice and other-profile deletion', async () => {
+  const { store, data } = fixture();
+  const first = await store.initialize({ defaultName: 'Alex' });
+  await store.setHero(first.id, 'ninja-cat');
+  const second = await store.createProfile('Sam');
+  await store.setHero(second.id, 'robot');
+  await store.renameProfile(first.id, 'Alexa');
+  await store.selectProfile(first.id);
+  await store.recordLevel(completion(first.id, 'run-1', 50, 1));
+  await store.recordPartialAttempt(partial(first.id, 'pause-1', 20, 2));
+  await store.recordPractice({ profileId: first.id, sessionId: 'practice-1', badgeIds: ['practice-addition'] });
+  assert.equal(store.getActiveProfile().hero, 'ninja-cat');
+  assert.equal((await store.listProfiles())[0].hero, 'ninja-cat');
+  assert.equal(JSON.parse(data.get(PROFILE_KEY)).profiles[0].hero, 'ninja-cat');
+
+  await store.selectProfile(second.id);
+  await store.deleteProfile(first.id, { confirmed: true });
+  assert.deepEqual(await store.listProfiles(), [{ id: second.id, name: 'Sam', hero: 'robot' }]);
+  assert.equal(store.getActiveProfile().hero, 'robot');
+});
+
+test('a new profile starts without a hero even after another profile chose one', async () => {
+  const { store } = fixture();
+  await store.initialize();
+  await store.setHero('profile-1', 'ninja-cat');
+  assert.deepEqual(await store.createProfile('Newcomer'), { id: 'profile-2', name: 'Newcomer' });
+  assert.deepEqual(await store.listProfiles(), [
+    { id: 'profile-1', name: 'Player 1', hero: 'ninja-cat' },
+    { id: 'profile-2', name: 'Newcomer' },
+  ]);
 });

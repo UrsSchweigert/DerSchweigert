@@ -1,6 +1,5 @@
 from fastapi.testclient import TestClient
 from html.parser import HTMLParser
-import os
 from pathlib import Path
 import re
 
@@ -34,32 +33,19 @@ class TagBalanceChecker(HTMLParser):
         return len(self.errors) == 0
 
 
-def test_homepage_renders_public_by_default():
-    """Homepage should be accessible without PIN when PIN_PROTECTION_ENABLED=false (default)."""
+def test_homepage_renders_publicly():
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "production"
-    settings.pin_protection_enabled = False
     response = client.get("/")
     assert response.status_code == 200
     assert "DerSchweigert" in response.text or "Urs Schweigert" in response.text
 
 
-def test_homepage_requires_pin_when_protection_enabled():
-    """Homepage should require PIN when PIN_PROTECTION_ENABLED=true."""
-    from app.config import get_settings
-    settings = get_settings()
-    settings.app_env = "production"
-    settings.pin_protection_enabled = True
-    response = client.get("/", follow_redirects=False)
-    assert response.status_code == 307
-    assert response.headers["location"].startswith("/unlock?next=")
 
-
-def test_impressum_is_accessible_without_pin_in_production():
+def test_impressum_is_publicly_accessible_in_production():
     # German law (§ 5 DDG) requires the legal notice to be reachable without
-    # any access barrier, even while the rest of the site sits behind the
-    # pre-launch PIN wall.
+    # any access barrier.
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "production"
@@ -68,7 +54,7 @@ def test_impressum_is_accessible_without_pin_in_production():
     assert "Impressum" in response.text
 
 
-def test_datenschutz_is_accessible_without_pin_in_production():
+def test_datenschutz_is_publicly_accessible_in_production():
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "production"
@@ -77,11 +63,10 @@ def test_datenschutz_is_accessible_without_pin_in_production():
     assert "Datenschutz" in response.text
 
 
-def test_nutzungsbedingungen_is_accessible_without_pin_in_production():
+def test_nutzungsbedingungen_is_publicly_accessible_in_production():
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "production"
-    settings.pin_protection_enabled = True
     response = client.get("/nutzungsbedingungen", follow_redirects=False)
     assert response.status_code == 200
     assert "Gemeinsame Nutzungsbedingungen" in response.text
@@ -95,7 +80,6 @@ def test_homepage_projects_focus_and_structure():
     from app.config import get_settings
     settings = get_settings()
     settings.app_env = "development"
-    settings.pin_protection_enabled = False
     response = client.get("/")
     assert response.status_code == 200
     html = response.text
@@ -137,55 +121,10 @@ def test_homepage_projects_focus_and_structure():
     assert parser.check_balanced(), f"HTML structure errors: {parser.errors}"
 
 
-def test_pin_unlock_redirects_to_homepage():
-    from app.config import get_settings
-    settings = get_settings()
-    settings.app_env = "production"
-    response = client.post("/unlock", data={"pin": os.environ["ADMIN_PIN"], "next": "/"}, follow_redirects=False)
-    assert response.status_code == 302
-    assert response.headers["location"] == "/"
-    assert "ams_pin=1" in response.headers.get("set-cookie", "")
 
 
-def test_contact_page_returns_410():
-    """Contact form is no longer available."""
-    response = client.get("/contact")
-    assert response.status_code == 410
 
 
-def test_contact_api_returns_410():
-    """Contact API is retired."""
-    payload = {
-        "name": "Test User",
-        "email": "test@example.com",
-        "message": "I need a website for my small business.",
-    }
-    response = client.post("/api/contact", json=payload)
-    assert response.status_code == 410
-
-
-def test_admin_pin_requires_cookie():
-    """Admin page requires valid PIN cookie even when protection disabled."""
-    from app.config import get_settings
-    settings = get_settings()
-    settings.app_env = "production"
-    settings.pin_protection_enabled = False
-    response = client.get("/admin", follow_redirects=False)
-    assert response.status_code == 403
-
-
-def test_invalid_pin_is_rejected():
-    response = client.post("/api/admin/verify-pin", json={"pin": "wrong-pin"})
-    assert response.status_code == 401
-
-
-def test_admin_pin_verification_sets_cookie():
-    response = client.post("/api/admin/verify-pin", json={"pin": os.environ["ADMIN_PIN"]})
-    assert response.status_code == 200
-    set_cookie = response.headers.get("set-cookie", "")
-    assert "ams_pin" in set_cookie
-    assert "HttpOnly" in set_cookie or "httponly" in set_cookie.lower()
-    assert "SameSite" in set_cookie
 
 
 def test_security_headers_are_present():
@@ -207,15 +146,3 @@ def test_a_service_page_cannot_be_read_through_a_path():
     for attempt in ("..%2Findex", "%2e%2e%2findex", "..%2F..%2Fapp%2Fconfig", "services"):
         response = client.get(f"/services/{attempt}")
         assert response.status_code == 404, attempt
-
-
-def test_only_a_same_site_path_is_offered_after_unlock(monkeypatch):
-    from app import main as app_main
-
-    monkeypatch.setattr(app_main.settings, "admin_pin", "123456")
-    for hostile in ("https://example.com/", "//example.com/", "/\\example.com", "javascript:alert(1)"):
-        response = client.post("/unlock", data={"pin": "123456", "next": hostile}, follow_redirects=False)
-        assert response.status_code == 302
-        assert response.headers["location"] == "/", hostile
-    response = client.post("/unlock", data={"pin": "123456", "next": "/admin"}, follow_redirects=False)
-    assert response.headers["location"] == "/admin"

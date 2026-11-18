@@ -3,12 +3,11 @@
 import os
 import json
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 import boto3
 from moto import mock_aws
-import stripe
 
 os.environ['SECRET_KEY'] = 'test-secret-key-for-testing-only'
 os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
@@ -22,8 +21,7 @@ os.environ['DYNAMODB_RATELIMIT_TABLE'] = 'ffm-ratelimits-test'
 
 from sites.ffm.app import create_app
 from sites.ffm.app.config import TestingConfig
-from sites.ffm.app import billing_store, models
-from .test_app import register_and_login
+from sites.ffm.app import billing_store
 
 
 @pytest.fixture(scope='function')
@@ -227,7 +225,7 @@ def test_shutdown_cancels_matching_subscriptions(billing_app, mock_stripe_provid
             'status': 'canceled',
         }
 
-        result = runner.invoke(billing_app.cli, ['billing-admin', 'shutdown', '--confirm'])
+        runner.invoke(billing_app.cli, ['billing-admin', 'shutdown', '--confirm'])
 
         # Should have called cancel
         assert mock_stripe_provider.subscriptions.cancel.called

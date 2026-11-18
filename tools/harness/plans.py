@@ -7,7 +7,7 @@ import json
 import os
 import re
 import shlex
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from . import models, schemas, sizing
 
@@ -50,8 +50,8 @@ DEFAULT_POLICY: Dict[str, Any] = {
         "run_wall_clock_s": None, "pull_requests_per_run": None, "github_write_retries": 5,
         "human_reminder_after_s": 86400, "human_reminders_max": 3, "human_escalation_after_s": 259200,
     },
-    "model_sources": ["copilot"],
-    "model_tiers": {"low": ["claude-haiku-4.5"], "standard": ["claude-sonnet-5"], "strong": ["claude-opus-5", "claude-opus-4.8"]},
+    "model_sources": ["claude"],
+    "model_tiers": {"low": ["claude-haiku-5-5"], "standard": ["claude-sonnet-5-5"], "strong": ["claude-opus-5-5"]},
     "diff_size_cap": 800,
     "assets": {
         "allowed_sources": ["repository", "cc0_library", "procedural"],
@@ -239,6 +239,66 @@ def with_overseer(policy: Optional[Dict[str, Any]], enabled: bool, rounds_per_is
     return policy
 
 
+ART_GENERATOR = re.compile(r"fal-ai/[a-z0-9][a-z0-9./_-]{1,80}")
+ART_MAX_CREDITS = 2000
+
+
+def art_policy_problems(art: Any) -> List[str]:
+    """Problems with a plan's `art` block. An absent block is fine: image generation is then off for the run."""
+    if art is None:
+        return []
+    if not isinstance(art, dict):
+        return ["policy.art must be an object"]
+    problems = []
+    unknown = sorted(set(art) - {"generator", "credits"})
+    if unknown:
+        problems.append("policy.art has unknown keys: %s" % ", ".join(unknown))
+    generator, credits = art.get("generator"), art.get("credits")
+    if not isinstance(generator, str) or not ART_GENERATOR.fullmatch(generator):
+        problems.append("policy.art.generator must name a fal endpoint such as fal-ai/flux-pro/kontext")
+    if type(credits) is not int or not 0 < credits <= ART_MAX_CREDITS:
+        problems.append("policy.art.credits must be a whole number from 1 to %d (one credit per generated image)" % ART_MAX_CREDITS)
+    return problems
+
+
+# What a worker cannot do in this harness. A task whose text asks for one of these can only end in a blocked
+# attempt, so it is refused at draft and import time. A mention that says the thing is NOT needed is fine.
+_UNAVAILABLE = [
+    (re.compile(r"manual[ -]test|manual(?:ly)? (?:verif|check|test)", re.I), "a manual test (no human is present during an attempt)"),
+    (re.compile(r"request_human_task|human task", re.I), "a human task (workers cannot raise one)"),
+    (re.compile(r"asset request|asset pipeline", re.I), "an asset request or pipeline (not available to workers)"),
+]
+_NEGATION = re.compile(r"\b(no|not|never|without|none|neither|nor|avoid|except|instead of)\b|n't", re.I)
+_ART_USE = re.compile(r"art-generate|generate (?:an? )?images?|image generation", re.I)
+
+
+def capability_problems(issue: Dict[str, Any], policy: Dict[str, Any]) -> List[str]:
+    """Problems with a task that asks a worker for something it cannot do; a negated mention is allowed."""
+    texts = [str(issue.get("title", "")), str(issue.get("description", ""))]
+    texts += [str(c) for c in issue.get("acceptance_criteria", []) or []]
+    problems = []
+    for text in texts:
+        for pattern, what in _UNAVAILABLE:
+            for match in pattern.finditer(text):
+                before = text[max(0, match.start() - 30):match.start()]
+                if not _NEGATION.search(before):
+                    problems.append("issue %s asks for %s: %r" % (issue.get("issue_id", "?"), what, text[:100]))
+                    break
+        if _ART_USE.search(text) and not policy.get("art"):
+            problems.append("issue %s uses image generation but the plan has no art budget (policy.art)" % issue.get("issue_id", "?"))
+    return list(dict.fromkeys(problems))
+
+
+def with_art(policy: Optional[Dict[str, Any]], art: Dict[str, Any]) -> Dict[str, Any]:
+    """Bind an image-generation budget into a plan's policy copy. It is part of the approval digest."""
+    problems = art_policy_problems(art)
+    if problems:
+        raise ValueError("; ".join(problems))
+    policy = copy.deepcopy(policy or DEFAULT_POLICY)
+    policy["art"] = {"generator": art["generator"], "credits": art["credits"]}
+    return policy
+
+
 def with_assets_dir(policy: Optional[Dict[str, Any]], value: str) -> Dict[str, Any]:
     """Bind an asset output directory (for example `apps/arithmoslayer/assets/`) into a plan's policy copy."""
     problem = assets_output_dir_problem(value)
@@ -335,6 +395,7 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
             problems.append("policy.model_routing.refiner must be an approved standard or strong model: %s" % exc)
         if not models.routed_tiers(plan["policy"], "overseer")["strong"]:
             problems.append("policy.model_routing.escalation_models needs an approved strong model")
+    problems.extend(art_policy_problems(plan["policy"].get("art")))
     assets = plan["policy"].get("assets") or {}
     problem = assets_output_dir_problem(assets.get("output_dir"))
     if problem:

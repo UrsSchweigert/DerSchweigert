@@ -9,7 +9,7 @@ under `sites/`, and shared infrastructure building blocks live under
 
 ```
 sites/
-  derschweigert/   # www.derschweigert.de — FastAPI app, templates, static assets, Lambda API, tests
+  derschweigert/   # www.derschweigert.de — static templates and assets (S3 + CloudFront), a FastAPI app for local preview, tests
   ffm/              # ffm.derschweigert.de — Arithmo Slayer static game + Flask API
   lesen/            # lesen.derschweigert.de — standalone reading-practice page
   landhauscheck/    # landhauscheck.com — React/Vite SPA + FastAPI Lambda (own domain, eu-west-1)
@@ -21,7 +21,6 @@ infra/
       ffm/            # dedicated FFM stack (static site + API backend)
       lesen/          # dedicated static-site stack for lesen.derschweigert.de
       landhauscheck/  # prod stack for landhauscheck.com (own CloudFront/API/Lambda, eu-west-1)
-      landhauscheck-dev/ # dev stack for dev.landhauscheck.com
 tools/
   harness/          # development harness: plans, approves, and runs AI-built work (see tools/harness/README.md)
 docs/
@@ -66,7 +65,7 @@ The configured production domains for this project are `derschweigert.de` / `www
 1. Create a hosted zone for `derschweigert.de`.
 2. Add an A/AAAA or CloudFront alias record for the apex domain.
 3. Add a second record for `www` that points to the same origin.
-4. Verify the site with HTTPS and test the admin cookie flow after deployment.
+4. Verify the site and the legal pages over HTTPS after deployment.
 
 ## Deployments
 
@@ -199,7 +198,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   hard: `deploy-ffm` had never actually run `terraform apply` before that day,
   and turned out to be missing DynamoDB/Secrets Manager/CloudFront/IAM
   permissions for resources that had existed for a while. See
-  [`sites/ffm/README.md`](sites/ffm/README.md)'s "CI's AWS IAM permissions are
+  [`sites/ffm/docs/deployment.md`](sites/ffm/docs/deployment.md)'s "CI's AWS IAM permissions are
   NOT managed in this repo" section for the exact `aws iam` commands to
   inspect/update it, the 5-versions-per-policy cap, and the current (v17)
   permission set. It happened again on 2026-09-06: adding the
@@ -225,7 +224,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   `aws iam get-policy-version --policy-arn arn:aws:iam::113725432218:policy/landhauscheck-deploy-scope --version-id <id>`;
   it has the same 5-version cap and the same absence of drift checking, so a
   new resource type in the landhauscheck stack needs the same manual grant.
-- **PIN lock (optional, disabled by default)**: production traffic to derschweigert.de/www can be optionally gated by a PIN. The feature is controlled by two independent configuration points: (1) **FastAPI layer**: set `PIN_PROTECTION_ENABLED` environment variable (default `false`) locally or in `sites/derschweigert/.env`; (2) **CloudFront layer**: set the Terraform variable `pin_protection_enabled` (default `false`) in `infra/terraform/sites/derschweigert/variables.tf` or via CI using `TF_VAR_pin_protection_enabled` environment variable (sourced from repo variable `DERSCHWEIGERT_PIN_PROTECTION_ENABLED` in the deploy workflow). When enabled, traffic is gated by an `ams_pin=1` cookie, except for a small allowlist of public paths (`/health`, `/unlock`, `/static/*`, `/impressum`, `/datenschutz`). FFM has its own stack, so its access policy is independent. The PIN value itself is defined in `module "api"`'s `environment_variables` in `infra/terraform/sites/derschweigert/main.tf` — treat it like any other credential when changing it (don't paste into chat/commits). The contact form (`/contact` GET and `/api/contact` POST) has been retired and returns 410 Gone; contact links in templates route to `mailto:info@derschweigert.de` instead.
+- **No PIN lock or API**: derschweigert.de is a static S3 + CloudFront site. The optional PIN gate, the `/unlock` and `/api/admin/verify-pin` endpoints, the contact form and the Lambda/API Gateway behind them were retired on 2026-11-18. The viewer-request CloudFront Function only rewrites `/impressum`, `/datenschutz` and `/nutzungsbedingungen` to their `.html` objects. Contact links in templates use `mailto:info@derschweigert.de`.
 - **Security response headers**: the shared `static_site` module
   (`infra/terraform/modules/static_site/main.tf`) provisions a CloudFront
   response-headers policy (CSP, HSTS, X-Frame-Options, nosniff,
@@ -239,7 +238,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   FFM does exactly this in `infra/terraform/sites/ffm/main.tf` (`module
   "site"`'s `content_security_policy`), adding `https://challenges.cloudflare.com`
   to `script-src`/`frame-src` for the Cloudflare Turnstile CAPTCHA widget (see
-  `sites/ffm/README.md`'s CAPTCHA section) — without it the browser silently
+  `sites/ffm/docs/behavior.md`, rate limiting and CAPTCHA) — without it the browser silently
   blocks Turnstile's script, so the widget never renders/produces a token and
   the backend (which fails closed) rejects every register/forgot-password/
   resend-verification request, not just bots'.
@@ -264,7 +263,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   `aws lambda update-function-code` in the same CI job, immediately after
   `terraform apply`. This means a `terraform apply` for ffm briefly leaves the
   Lambda non-functional until the very next step overwrites it — see
-  `sites/ffm/README.md`'s "Deployment shape" section for the full trade-off
+  `sites/ffm/docs/deployment.md`'s "Deployment shape" section for the full trade-off
   and the fix if it's ever worth removing.
 
 ## Licence

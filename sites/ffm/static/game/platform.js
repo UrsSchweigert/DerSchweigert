@@ -15,6 +15,7 @@
 //   - account/leaderboard   account methods + getLeaderboard + capability flags
 //   - personal development  getAccountAvailability + getBestScores +
 //                           getCompletedLevels (local data in the app build)
+//   - hero selection        getActiveHeroSkin (stored hero id the player may use)
 
 // Every function a platform adapter must provide. These are exactly the
 // api.js methods and access-flow.js functions that main.js calls today.
@@ -57,6 +58,12 @@ export const PERSONAL_METHODS = Object.freeze([
   'getCompletedLevels',
 ]);
 
+// The hero the player may use: a promise of the stored hero id or null, which
+// never rejects. The adapters return the raw id; shared code resolves the skin.
+export const HERO_METHODS = Object.freeze([
+  'getActiveHeroSkin',
+]);
+
 export const ACCESS_FLOW_METHODS = Object.freeze([
   'getAuthorizedLevelConfig',
   'setCurrentLevelConfig',
@@ -71,12 +78,14 @@ export const ACCESS_FLOW_METHODS = Object.freeze([
 // checkout. The web adapter keeps this a no-op.
 export const ENTITLEMENT_METHODS = Object.freeze([
   'refreshEntitlement',
+  'getOwnedProductIds',
 ]);
 
 export const PLATFORM_METHODS = Object.freeze([
   ...ACCESS_FLOW_METHODS,
   ...API_METHODS,
   ...PERSONAL_METHODS,
+  ...HERO_METHODS,
   ...ENTITLEMENT_METHODS,
 ]);
 

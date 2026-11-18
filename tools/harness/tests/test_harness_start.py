@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from harness import approval, models, plans, runner, start
+from harness import approval, plans, runner, start
 from harness.store import Store
 from harness_doubles import FIX, REQ
 
@@ -71,9 +71,9 @@ class Commands:
 def home(tmp_path, monkeypatch):
     store_home = tmp_path / "home"
     store_home.mkdir()
-    (store_home / "copilot.token").write_text("token")
-    (store_home / "models.json").write_text(json.dumps({"checked_at": 1, "candidates": ["claude-haiku-4.5"],
-                                                        "models": ["claude-haiku-4.5"]}))
+    (store_home / "claude.token").write_text("token")
+    (store_home / "models.json").write_text(json.dumps({"checked_at": 1, "candidates": ["claude-haiku-5-5"],
+                                                        "models": ["claude-haiku-5-5"]}))
     monkeypatch.setattr(start.isolation, "docker_available", lambda: True)
     monkeypatch.setattr(start.isolation, "image_id", lambda: "sha256:image")
     monkeypatch.setattr(start.approval, "detect_isolation", lambda store: {"tier": "A", "reason": ""})
@@ -83,7 +83,7 @@ def home(tmp_path, monkeypatch):
 
 def start_args(home, tmp_path, **changes):
     changes.setdefault("out", str(tmp_path / "draft"))
-    changes.setdefault("model_source", ["copilot"])
+    changes.setdefault("model_source", ["claude"])
     return args(home=home, **changes)
 
 
@@ -95,16 +95,16 @@ def commands_for(home, tmp_path, **kw):
 # -- the catalogue of steps -----------------------------------------------------------------------------
 
 def test_sources_accept_commas_spaces_and_pluses():
-    assert start.parse_sources("deepseek, local", ["copilot"]) == ["deepseek", "local"]
-    assert start.parse_sources("deepseek local", ["copilot"]) == ["deepseek", "local"]
-    assert start.parse_sources("deepseek+local", ["copilot"]) == ["deepseek", "local"]
-    assert start.parse_sources("  ", ["copilot"]) == ["copilot"]
-    assert start.parse_sources("local, LOCAL", ["copilot"]) == ["local"]
+    assert start.parse_sources("claude, claude", ["claude"]) == ["claude"]
+    assert start.parse_sources("claude claude", ["claude"]) == ["claude"]
+    assert start.parse_sources("claude+claude", ["claude"]) == ["claude"]
+    assert start.parse_sources("  ", ["claude"]) == ["claude"]
+    assert start.parse_sources("claude, CLAUDE", ["claude"]) == ["claude"]
 
 
 def test_an_unknown_source_is_rejected():
     with pytest.raises(start.Stop, match="unknown model source"):
-        start.parse_sources("mainframe", ["copilot"])
+        start.parse_sources("copilot", ["claude"])
 
 
 # -- the guided path ------------------------------------------------------------------------------------
@@ -130,26 +130,9 @@ def test_the_chosen_sources_reach_investigate_and_the_plan(home, tmp_path):
         start.run_start(start_args(home, tmp_path, requirements=REQ), ask=Script("y", "y", "3"), execute=commands)
         investigate = next(call for call in commands.calls if call[0] == "investigate")
         plan = next(call for call in commands.calls if call[0] == "plan")
-        assert investigate[investigate.index("--model-source") + 1] == "copilot"
-        assert plan[plan.index("--model-source") + 1] == "copilot"
-        assert store.get_plan("requirements-md")["plan"]["policy"]["model_sources"] == ["copilot"]
-    finally:
-        store.close()
-
-
-def test_a_rejected_source_is_explained_and_asked_again(home, tmp_path, capsys, monkeypatch):
-    # An operator default would skip the prompt this test exercises.
-    monkeypatch.delenv(models.SOURCES_ENV, raising=False)
-    monkeypatch.delenv(models.DASHBOARD_SOURCES_ENV, raising=False)
-    store, commands = commands_for(home, tmp_path)
-    try:
-        code = start.run_start(start_args(home, tmp_path, requirements=REQ, model_source=None),
-                               ask=Script("local", "copilot", "y", "y", "3"), execute=commands)
-        assert code == 0
-        out = capsys.readouterr().out
-        assert "none of the local ids are accepted here" in out and "harness models --source local" in out
-        plan = next(call for call in commands.calls if call[0] == "plan")
-        assert plan[plan.index("--model-source") + 1] == "copilot"
+        assert investigate[investigate.index("--model-source") + 1] == "claude"
+        assert plan[plan.index("--model-source") + 1] == "claude"
+        assert store.get_plan("requirements-md")["plan"]["policy"]["model_sources"] == ["claude"]
     finally:
         store.close()
 

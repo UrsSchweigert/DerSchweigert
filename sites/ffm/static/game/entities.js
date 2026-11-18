@@ -4,7 +4,8 @@ import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W, CANVAS_H } from './renderer.js'
 import { FIEND_COMBAT_X } from './difficulty.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
 import { HERO_ATLAS, HERO_FRAMES } from './hero/hero-frames.js';
-import { HeroAnimator } from './hero-anim.js';
+import { drawStrikeFx } from './strike-fx.js';
+import { HeroAnimator, buildHeroClips, castHandAnchor } from './hero-anim.js';
 
 const P = LOGICAL_PX; // shorthand
 
@@ -40,8 +41,19 @@ function _radialGlow(ctx, x, y, radius, alpha, core, mid) {
   ctx.restore();
 }
 
-const _heroAtlas = new Image();
-_heroAtlas.src = HERO_ATLAS;
+// The default atlas is created on first use, so a player whose selected hero
+// has its own atlas never fetches the adventurer's.
+let _heroAtlas = null;
+function defaultHeroAtlas() {
+  if (!_heroAtlas) {
+    _heroAtlas = new Image();
+    _heroAtlas.src = HERO_ATLAS;
+  }
+  return _heroAtlas;
+}
+// What a skin without an atlas draws with: not complete, so Hero.draw takes
+// the procedural canvas hero.
+const NO_ATLAS = Object.freeze({ complete: false, naturalWidth: 0 });
 const _dragonSprite = new Image();
 _dragonSprite.src = new URL('./dragon.webp', import.meta.url).href;
 const _fireballSprite = new Image();
@@ -136,10 +148,32 @@ export class Hero extends Entity {
     this._healAura = 0;       // countdown (seconds) — post-level-clear heal flash
     this._holdHealActive = false; // continuous flag — hold-to-heal in progress
     this._holdHealRatio = 0;  // 0..1 progress toward the next healed heart, for intensity
+    this._atlas = null;  // per-instance skin; null = the default atlas, created on first draw
+    this._frames = HERO_FRAMES;
+    this.strike = 'sword';
     this.anim = new HeroAnimator();
     this.anim.play('idle');
     this._castFx = null;      // 'fire' | 'bolt' — drives the cast glow palette
     this._holdPose = false;   // keep a finished one-shot clip on its last pose
+  }
+
+  /**
+   * Gives this hero one skin: {atlas, frames, anchors, strike}. Timings stay
+   * the shared table; only the strike/cast FX anchors come from the skin.
+   * Unusable parts keep what the hero already has.
+   */
+  setSkin(skin) {
+    if (!skin || typeof skin !== 'object') return;
+    if (skin.atlas) this._atlas = skin.atlas;
+    else if (skin.atlas === null) this._atlas = NO_ATLAS;
+    if (skin.frames && typeof skin.frames === 'object') this._frames = skin.frames;
+    this.strike = typeof skin.strike === 'string' && skin.strike ? skin.strike : 'sword';
+    this.anim.clips = buildHeroClips(skin.anchors);
+  }
+
+  /** The active skin's casting palm, relative to the frame pivot. */
+  castHandAnchor() {
+    return castHandAnchor(this.anim.clips.cast);
   }
 
   update(dt) {
@@ -277,7 +311,8 @@ export class Hero extends Entity {
     const bob = 0;
     const fr = 0;
 
-    if (_heroAtlas.complete && _heroAtlas.naturalWidth) {
+    if (!this._atlas) this._atlas = defaultHeroAtlas();
+    if (this._atlas.complete && this._atlas.naturalWidth) {
       this._drawAtlasFrame(ctx);
       return;
     }
@@ -519,7 +554,7 @@ export class Hero extends Entity {
   }
 
   _drawAtlasFrame(ctx) {
-    const frame = HERO_FRAMES[this.anim.frameId];
+    const frame = this._frames[this.anim.frameId];
     if (!frame) return;
     const tf = this.anim.transform;
     const w = frame.w * HERO_SCALE;
@@ -543,10 +578,10 @@ export class Hero extends Entity {
       // The lean pivots at the feet, so the hero never floats off the ground.
       ctx.translate(left + frame.px * HERO_SCALE, top + frame.py * HERO_SCALE);
       ctx.rotate(tf.rot);
-      ctx.drawImage(_heroAtlas, frame.x, frame.y, frame.w, frame.h,
+      ctx.drawImage(this._atlas, frame.x, frame.y, frame.w, frame.h,
         -frame.px * HERO_SCALE, -frame.py * HERO_SCALE, w, h);
     } else {
-      ctx.drawImage(_heroAtlas, frame.x, frame.y, frame.w, frame.h, left, top, w, h);
+      ctx.drawImage(this._atlas, frame.x, frame.y, frame.w, frame.h, left, top, w, h);
     }
     ctx.restore();
 
@@ -575,74 +610,18 @@ export class Hero extends Entity {
       if (f.at === 'hit') break;
       before += f.ms;
     }
-    const t = this._clipProgress();
-    const hitStart = before / total;
-    if (t < hitStart - 0.06) return;
-    const fade = Math.max(0, 1 - (t - hitStart) / 0.55);
-    if (fade <= 0) return;
-
-    // The FX sets alpha, line width and stroke colours; without its own save
-    // the trailing restore() popped the renderer's state instead, which tore
-    // the frame apart for as long as the swing was on screen.
-    ctx.save();
-
-    // The arc is centred on the hands and sweeps along the path the blade
-    // travelled, from up-right to down-right, so it reads as a trail rather
-    // than a decoration floating next to the hero.
-    const anchor = this.anim.frame.fxAt ?? [-19, -40];
-    const cx = left + (frame.px + anchor[0]) * HERO_SCALE;
-    const cy = top + (frame.py + anchor[1]) * HERO_SCALE;
-    // Fatter than the blade it trails: an ellipse wide in x and shorter in y,
-    // stroked in four layers (soft outer haze, body, bright edge, white core)
-    // so the slash has structure instead of being one uniform line.
-    const radiusX = 146, radiusY = 98;
-    const a0 = -1.35, a1 = 0.92, a1x = a1;
-    const layers = [
-      [26, '#1b4f8c', 0.26],
-      [16, '#2f8fd8', 0.42],
-      [9, '#7fd4ff', 0.68],
-      [3.5, '#ffffff', 0.95],
-    ];
-    for (const [width, colour, alpha] of layers) {
-      ctx.globalAlpha = fade * alpha;
-      ctx.lineWidth = width;
-      ctx.strokeStyle = colour;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, radiusX, radiusY, -0.38, a0, a1x);
-      ctx.stroke();
-    }
-    // Structured glow: the leading edge of the sweep burns brighter, and the
-    // tail feathers out, so the eye reads direction of travel.
-    for (let i = 0; i < 5; i++) {
-      const from = a0 + (a1x - a0) * (i / 5);
-      const to = a0 + (a1x - a0) * ((i + 1) / 5) + 0.03;
-      ctx.globalAlpha = fade * (0.1 + 0.22 * i);
-      ctx.lineWidth = 18 + i * 4;
-      ctx.strokeStyle = i >= 3 ? '#bfeaff' : '#3d8fd0';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, radiusX, radiusY, -0.38, from, to);
-      ctx.stroke();
-    }
-
-    // A single burst at the impact, same light as the cast: the swing is the
-    // moment the hit lands, so it gets one flash rather than a steady glow.
-    const burst = Math.max(0, 1 - (t - hitStart) / 0.3);
-    _radialGlow(ctx, cx + Math.cos(a1x) * radiusX, cy + Math.sin(a1x) * radiusY,
-      64 * (0.7 + 0.5 * burst), 0.8 * burst, '#ffffff', '#8fd8ff');
-
-    // Sparks fly off the blade end, where the arc is brightest.
-    ctx.globalAlpha = fade;
-    ctx.strokeStyle = '#cfeeff';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 4; i++) {
-      const a = a1x - 0.18 + i * 0.14;
-      const r0 = 1.0, r1 = 1.0 + (0.1 + (i % 2) * 0.08);
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a) * radiusX * r0, cy + Math.sin(a) * radiusY * r0);
-      ctx.lineTo(cx + Math.cos(a) * radiusX * r1, cy + Math.sin(a) * radiusY * r1);
-      ctx.stroke();
-    }
-    ctx.restore();
+    // The bow's arrow flies during the windup, when the current frame carries
+    // no anchor; it reads the hit frame's so the path never jumps.
+    const anchor = (this.strike === 'bow'
+      ? clip.frames.find((f) => f.at === 'hit')?.fxAt
+      : this.anim.frame.fxAt) ?? [-19, -40];
+    drawStrikeFx(ctx, this.strike, {
+      cx: left + (frame.px + anchor[0]) * HERO_SCALE,
+      cy: top + (frame.py + anchor[1]) * HERO_SCALE,
+      t: this._clipProgress(),
+      hitStart: before / total,
+      glow: _radialGlow,
+    });
   }
 
   // Glow in the raised palm while the cast clip plays. The hand sits at the
@@ -988,10 +967,31 @@ const FIEND_EXIT_X = CANVAS_W + 100;
 // crawl off-screen for close to 10s.
 const RETREAT_MAX_SECONDS = 3;
 
+/** How often the earth sparkle under a slowed fiend is re-emitted. */
+const HALO_EMIT_SECONDS = 0.12;
+/** The hit-point ring: one particle per answer still owed, held at full alpha
+ *  so the count on screen always equals the answers left. */
+const HALO_RING_LIFE = 1;
+const HALO_RING_RADIUS = 11;
+const HALO_COLOR = '#8a62c8';
+/** How often each bead sheds a sparkle. Fast enough to read as living light,
+ *  slow enough that five beads do not become a particle storm themselves. */
+const HALO_SPARKLE_SECONDS = 0.16;
+/** Halo geometry as fractions of the sprite box, so a small blob and a tall
+ *  wolf get the same readable crown instead of one size for all. */
+const HALO_ORBIT_X = 0.30;
+const HALO_ORBIT_Y = 0.05;
+const HALO_CROWN_Y = 0.11;
+const HALO_SIZE_RATIO = 0.09;
+
 export class Fiend extends Entity {
   constructor(x, y, cfg) {
     super(x, y);
     this.hp = cfg.hp;
+    // Remembered so the last halo survives while the fiend still has an answer
+    // left. Without it a one-hit fiend — the ordinary case — would carry a halo
+    // from the moment it spawns.
+    this.startHp = cfg.hp;
     this._pal = cfg.palette;
     this.walkSpeed = 50;
     this._retreatSpeed = this.walkSpeed * 2;
@@ -1000,6 +1000,14 @@ export class Fiend extends Entity {
     this._redFlash = 0;
     this._particlesSpawned = false;
     this._particles = [];
+    // One dark halo per remaining hit point. A multi-HP fiend that survives a
+    // hit used to look exactly like a fresh one, which made "why is it asking
+    // again?" unreadable. The halos are emitted through the screen-fx layer
+    // (see _emitStatusParticles), so they drift and sparkle like the rest of
+    // the game's particles.
+    this._haloPhase = 0;
+    this._haloEmit = HALO_EMIT_SECONDS;
+    this._haloRings = [];
     this._events = new EventTarget();
     this._dur = 8;
     this.isElite = false;
@@ -1008,11 +1016,21 @@ export class Fiend extends Entity {
   }
 
   get isDead() { return this.hp <= 0; }
+  /** Already fired at the viewer (wind/storm): the sprite is still flying out,
+   *  but the encounter is over. */
+  get isLeaving() { return Boolean(this._blowAway); }
   get palette() { return this._pal; }
   // Fixed once retreat begins (see setState), so the pace stays constant for
   // the whole flight off-screen instead of drifting with the fiend's walk speed.
   get retreatSpeed() { return this._retreatSpeed; }
-  hit() { this.hp-- > 1 ? this.setState('hit') : this.setState('death'); }
+  hit() {
+    // The halo this hit destroys bursts where it floated; the remaining ones
+    // keep orbiting, so one glance says how many answers are left.
+    if (this.hp > 1) this._burstHalo(this.hp - 1);
+    this.hp--;
+    if (this.hp <= 0) this._clearHaloRings();
+    this.hp > 0 ? this.setState('hit') : this.setState('death');
+  }
   attack() { this.setState('attack'); }
   on(ev, fn, options) { this._events.addEventListener(ev, fn, options); }
   _emit(ev) { this._events.dispatchEvent(new Event(ev)); }
@@ -1022,6 +1040,7 @@ export class Fiend extends Entity {
   // edge, and fades late, so the eye reads depth instead of a sideways slide.
   // Used by the wind and storm abilities.
   blowTowardViewer(duration = 0.75) {
+    this._clearHaloRings();
     this._blowAway = { elapsed: 0, duration: Math.max(0.15, duration) };
     this.setState('idle');
   }
@@ -1029,6 +1048,8 @@ export class Fiend extends Entity {
   setState(s) {
     super.setState(s);
     if (s === 'retreat') {
+      // A requeued fiend leaves the field; its rings come back with it.
+      this._clearHaloRings();
       const distance = Math.max(1, FIEND_EXIT_X - this.x);
       // Never slower than the old 2x-walk-speed pace, but always fast enough
       // to finish within RETREAT_MAX_SECONDS.
@@ -1038,6 +1059,14 @@ export class Fiend extends Entity {
 
   update(dt) {
     super.update(dt);
+    this._haloPhase += dt;
+    this._haloDt = dt;
+    this._syncHaloRings();
+    this._haloEmit += dt;
+    if (this._haloEmit >= HALO_EMIT_SECONDS) {
+      this._haloEmit = 0;
+      this._emitSpikeSparkle();
+    }
     // Blown at the viewer: no walking, no retreating — the flight toward the
     // camera owns the sprite until it has faded out, then it reports 'retreated'
     // so the normal cleanup (array removal, next spawn) still runs.
@@ -1236,6 +1265,153 @@ export class Fiend extends Entity {
 
   // Subclasses paint their body here.
   _drawBody(_ctx) {}
+
+  // ── Hit points and the earth slow ────────────────────────────────────────
+  // Every fiend that needs more than one correct answer carries one dark halo
+  // per hit point, and the halo a hit destroys bursts into brass chips. Before
+  // this the only cue was that the same fiend asked again, which read like a
+  // bug ("did my answer count?") — the reason the level-20 report came in.
+
+  /** Where halo `index` of `count` floats at the current phase, plus the ring
+   *  size for this sprite. Everything is derived from the sprite box so the
+   *  crown sits above the head of the drawn creature, not above the canvas. */
+  _haloLayout() {
+    const { bx, by, drawW, drawH } = this._spriteBox();
+    return {
+      cx: bx + drawW / 2,
+      cy: by + drawH * HALO_CROWN_Y,
+      rx: drawW * HALO_ORBIT_X,
+      ry: drawH * HALO_ORBIT_Y,
+      size: Math.max(3, drawW * HALO_SIZE_RATIO),
+    };
+  }
+
+  _haloPoint(index, count = Math.max(0, this.hp)) {
+    const { cx, cy, rx, ry } = this._haloLayout();
+    const start = -Math.PI / 2;
+    const angle = count <= 1 ? start : start + (Math.PI * 2 * index) / count;
+    const phase = this._haloPhase * 0.9;
+    // Each bead bobs on its own offset, so a row of them reads as separate
+    // lights drifting over the head instead of a rigid ring drawn in the air.
+    const bob = Math.sin(this._haloPhase * 2.3 + index * 2.1) * ry * 0.45;
+    return {
+      x: cx + Math.cos(angle + phase) * rx,
+      y: cy + Math.sin(angle + phase) * ry + bob,
+    };
+  }
+
+  // One spent hit point explodes where it floated. The explosion is a screen-fx
+  // recipe rather than canvas drawing, so it shares the particle layer with
+  // every other spark in the game.
+  _burstHalo(index) {
+    const point = this._haloPoint(index);
+    globalThis.ffmScreenFx?.play?.('hitPointBurst', {
+      ...point,
+      radius: this._haloLayout().size * 0.9,
+    });
+  }
+
+  // Hit points are one persistent ring per answer still owed, moved onto the
+  // crown every frame. Emitting a fresh ring per tick (the first version) left
+  // two or three of them alive at once — expanding, overlapping, and fading on
+  // their own clocks — so the count on screen did not match the answers left.
+  // Holding one particle per point makes the count exact and costs no
+  // allocation after the first frame.
+  _syncHaloRings() {
+    const fx = globalThis.ffmScreenFx;
+    // One bead per answer still owed, including the last one: a three-hit fiend
+    // counts 3 → 2 → 1 and a two-hit one 2 → 1. A fiend that never had more than
+    // one answer stays halo-free, so the beads keep meaning "this one is special".
+    const showsHalos = this.startHp >= 2 && this.hp > 0 && !this.isDead;
+    const wanted = showsHalos ? this.hp : 0;
+    if (!this._haloRings) this._haloRings = [];
+    if (wanted === 0 || !fx) {
+      this._clearHaloRings();
+      return;
+    }
+    while (this._haloRings.length > wanted) {
+      const ring = this._haloRings.pop();
+      if (ring) ring.life = 0;
+    }
+    while (this._haloRings.length < wanted) {
+      this._haloRings.push(this._makeHaloBead(fx));
+    }
+    const radius = this._haloLayout().size;
+    if (!this._haloSparkleT) this._haloSparkleT = [];
+    while (this._haloSparkleT.length < wanted) {
+      // Staggered, so the beads do not all sparkle on the same frame.
+      this._haloSparkleT.push(Math.random() * HALO_SPARKLE_SECONDS);
+    }
+    this._haloSparkleT.length = wanted;
+    const lastDt = this._haloDt || 0;
+    for (let i = 0; i < this._haloRings.length; i++) {
+      const ring = this._haloRings[i];
+      if (!ring) continue;
+      const point = this._haloPoint(i, wanted);
+      ring.x = point.x;
+      ring.y = point.y;
+      ring.px = point.x;
+      ring.py = point.y;
+      // The bead is a held sprite; what makes it alive is the particles it
+      // sheds every tick, drawn from the same layer as every other spark.
+      this._haloSparkleT[i] -= lastDt;
+      if (this._haloSparkleT[i] <= 0) {
+        this._haloSparkleT[i] = HALO_SPARKLE_SECONDS * (0.75 + Math.random() * 0.5);
+        this._emitHaloSparkle(point, radius);
+      }
+      // Pinned to full life: a bead that fades on its own clock blinks out
+      // between emissions, which is exactly what made counting impossible.
+      ring.life = HALO_RING_LIFE;
+      ring.maxLife = HALO_RING_LIFE;
+      if (ring.type === 'halo') {
+        // The bead itself is a cached sprite, so breathing and turning are two
+        // numbers per frame, not two gradients.
+        ring.radius = radius;
+        ring.pulse = 1 + Math.sin(this._haloPhase * 3.1 + i * 2.1) * 0.08;
+        ring.spin = this._haloPhase * 1.5 + i * 2.1;
+      } else {
+        ring.r1 = radius;
+        ring.r0 = radius;
+      }
+    }
+  }
+
+  _emitHaloSparkle(point, radius) {
+    const fx = globalThis.ffmScreenFx;
+    if (!fx || typeof fx.play !== 'function') return;
+    fx.play('haloSparkle', { x: point.x, y: point.y, radius });
+  }
+
+  // One bead per answer still owed. `halo` is the glowing sprite; a plain ring
+  // is the fallback for a layer that predates it (and for the test doubles),
+  // so the "one particle per hit point" invariant holds either way.
+  _makeHaloBead(fx) {
+    if (typeof fx.halo === 'function') {
+      return fx.halo(this.x, this.y, HALO_COLOR, HALO_RING_RADIUS, HALO_RING_LIFE);
+    }
+    if (typeof fx.ring === 'function') {
+      return fx.ring(this.x, this.y, HALO_COLOR, HALO_RING_RADIUS, HALO_RING_RADIUS, HALO_RING_LIFE, 2.2);
+    }
+    return null;
+  }
+
+  _clearHaloRings() {
+    if (!this._haloRings || this._haloRings.length === 0) return;
+    for (const ring of this._haloRings) {
+      if (ring) ring.life = 0;
+    }
+    this._haloRings.length = 0;
+    if (this._haloSparkleT) this._haloSparkleT.length = 0;
+  }
+
+  // The earth sparkle under a slowed fiend stays an emission: it is a shimmer,
+  // not a countable marker, so a tick of grains is exactly right.
+  _emitSpikeSparkle() {
+    const fx = globalThis.ffmScreenFx;
+    if (!fx?.play || !this.spikeSlowed || this.hp <= 0) return;
+    const { drawW } = this._spriteBox();
+    fx.play('spikeSparkle', { x: this.x, y: this.y - P, radius: drawW * 0.34 });
+  }
 }
 
 // ─── Slimeling (blue-green blob, Chapter 1 — Addition) ────────────────────────
@@ -2046,8 +2222,11 @@ class SpellProjectile {
 
     const target = this.target;
     // A target that died or left the fight before the projectile arrived ends
-    // it silently: no damage, no hit sound, no reaction.
-    if (target.isDead || target.state === 'death' || target.state === 'retreat' || target.removed) {
+    // it silently: no damage, no hit sound, no reaction. A fiend blown at the
+    // camera by wind or storm counts as gone here as well — it is already
+    // defeated and flying out, so a bolt in flight must not hit it again.
+    if (target.isDead || target.isLeaving === true ||
+        target.state === 'death' || target.state === 'retreat' || target.removed) {
       this._life = 0;
       this.target = null;
       return;

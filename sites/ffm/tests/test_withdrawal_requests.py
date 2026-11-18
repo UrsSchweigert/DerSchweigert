@@ -13,7 +13,6 @@ legal verdict.
 """
 
 import os
-import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -33,7 +32,7 @@ os.environ['DYNAMODB_RATELIMIT_TABLE'] = 'ffm-ratelimits-test'
 
 from sites.ffm.app import create_app
 from sites.ffm.app.config import TestingConfig
-from sites.ffm.app import billing_store, withdrawal_requests_store as withdrawal_store
+from sites.ffm.app import withdrawal_requests_store as withdrawal_store
 from .test_app import register_and_login
 
 

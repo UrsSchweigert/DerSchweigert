@@ -52,10 +52,11 @@ class Element {
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const findButton = (root, text) => root.querySelectorAll('button').find((button) => button.textContent === text);
+const findLabelled = (root, label) => root.querySelectorAll('button').find((button) => button.attributes['aria-label'] === label);
 const rows = (root) => root.querySelectorAll('.profile-row');
 const status = (root) => root.querySelector('.profile-status').textContent;
 
-async function fixture({ count = 1, height = 800, translate } = {}) {
+async function fixture({ count = 1, height = 800, translate, extra = {} } = {}) {
   const data = new Map();
   const backend = {
     fail: false,
@@ -90,6 +91,7 @@ async function fixture({ count = 1, height = 800, translate } = {}) {
   const ui = mountProfileUI({
     root, adapter, translate,
     canSwitch: () => allowed,
+    ...extra,
     onSelected: (profile) => { selected.push(profile); },
     onError: (error) => { errors.push(error); },
     onBusyChange: (busy) => { busyChanges.push(busy); },
@@ -101,12 +103,17 @@ async function fixture({ count = 1, height = 800, translate } = {}) {
 test('profile choices are paginated without scrolling and adapt to tiny landscape', async () => {
   const { root, ui, view, listeners } = await fixture({ count: 7 });
   assert.equal(rows(root).length, 3);
-  assert.equal(findButton(root, 'Previous').disabled, true);
-  findButton(root, 'Next').click();
+  for (const label of ['Previous', 'Next']) {
+    const arrow = findLabelled(root, label);
+    assert.equal(arrow.textContent, '', 'no visible text beside the arrow');
+    assert.equal(arrow.attributes.title, label);
+  }
+  assert.equal(findLabelled(root, 'Previous').disabled, true);
+  findLabelled(root, 'Next').click();
   assert.deepEqual(rows(root).map((row) => row.querySelector('.profile-select').textContent), ['Player 4', 'Player 5', 'Player 6']);
-  findButton(root, 'Next').click();
+  findLabelled(root, 'Next').click();
   assert.equal(rows(root).length, 1);
-  assert.equal(findButton(root, 'Next').disabled, true);
+  assert.equal(findLabelled(root, 'Next').disabled, true);
   view.innerHeight = 320;
   view.visualViewport.height = 320;
   listeners.get('resize')();
@@ -119,7 +126,8 @@ test('profile choices are paginated without scrolling and adapt to tiny landscap
 for (const label of ['New player', 'Rename']) {
   test(`${label} keeps the focused input and draft intact across keyboard and rotation resizes`, async () => {
     const { root, adapter, ui, view, listeners, viewportListeners } = await fixture();
-    findButton(root, label).click();
+    const opener = label === 'Rename' ? rows(root)[0].querySelector('.profile-rename') : findButton(root, label);
+    opener.click();
     const input = root.querySelector('input');
     input.value = 'Draft name';
     input.dispatch('input');
@@ -166,7 +174,7 @@ test('create and rename forms replace the list, support safe names and retain st
   assert.equal(findButton(root, input.value).textContent, input.value);
   assert.deepEqual(selected, [active]);
   const row = rows(root).find((item) => item.querySelector('.profile-select').textContent === active.name);
-  findButton(row, 'Rename').click();
+  row.querySelector('.profile-rename').click();
   const renamed = root.querySelector('input');
   renamed.value = 'Renamed';
   renamed.dispatch('input');
@@ -175,19 +183,43 @@ test('create and rename forms replace the list, support safe names and retain st
   assert.deepEqual(adapter.getActiveProfile(), { id: active.id, name: 'Renamed' });
 });
 
+test('"New player" appears only once the app is fully unlocked', async () => {
+  let unlocked = false;
+  const { root, ui } = await fixture({ count: 2, extra: { canCreate: () => unlocked } });
+  assert.equal(findButton(root, 'New player'), undefined, 'a free install cannot add players');
+  assert.equal(rows(root).length, 2, 'existing players stay selectable');
+  unlocked = true;
+  await ui.refresh();
+  assert.ok(findButton(root, 'New player'));
+  const main = await readFile(new URL('../../static/game/main.js', import.meta.url), 'utf8');
+  assert.match(main, /canCreate: \(\) => premiumAccess/);
+});
+
 test('deletion has a separate confirmation stage and cancel never deletes', async () => {
-  const { root, adapter, selected } = await fixture({ count: 2 });
-  findButton(rows(root)[1], 'Delete').click();
+  const { root, adapter, selected } = await fixture({ count: 2, extra: { random: () => 0, locale: 'en' } });
+  rows(root)[1].querySelector('.profile-delete').click();
   assert.equal(rows(root).length, 0);
   assert.match(root.querySelector('.profile-confirmation').textContent, /Delete Player 2 and all their progress/);
   findButton(root, 'Cancel').click();
   assert.equal((await adapter.listProfiles()).length, 2);
-  findButton(rows(root)[1], 'Delete').click();
+  rows(root)[1].querySelector('.profile-delete').click();
+  assert.match(root.querySelector('.profile-gate').textContent, /six times six/);
+  findButton(root, 'Delete player').click();
+  await tick();
+  assert.equal((await adapter.listProfiles()).length, 2, 'unsolved gate does not delete');
+  root.querySelector('.profile-gate-input').value = '12';
+  root.querySelector('.profile-gate-input').dispatch('input');
+  findButton(root, 'Delete player').click();
+  await tick();
+  assert.equal((await adapter.listProfiles()).length, 2, 'wrong answer does not delete');
+  assert.match(status(root), /not right/);
+  root.querySelector('.profile-gate-input').value = '36';
+  root.querySelector('.profile-gate-input').dispatch('input');
   findButton(root, 'Delete player').click();
   await tick();
   assert.deepEqual(await adapter.listProfiles(), [{ id: 'id-1', name: 'First' }]);
   assert.deepEqual(selected, [adapter.getActiveProfile()]);
-  assert.equal(findButton(root, 'Delete').disabled, true);
+  assert.equal(root.querySelector('.profile-delete').disabled, true);
 });
 
 test('midrun changes are disabled after refresh and stale controls recheck the guard', async () => {
@@ -201,8 +233,12 @@ test('midrun changes are disabled after refresh and stale controls recheck the g
   assert.deepEqual(selected, []);
   assert.match(status(root), /Finish the current game/);
   await ui.refresh();
-  for (const label of ['First', 'Player 2', 'New player', 'Rename', 'Delete']) {
+  for (const label of ['First', 'Player 2', 'New player']) {
     assert.equal(findButton(root, label).disabled, true);
+  }
+  for (const row of rows(root)) {
+    assert.equal(row.querySelector('.profile-rename').disabled, true);
+    assert.equal(row.querySelector('.profile-delete').disabled, true);
   }
 });
 
@@ -327,4 +363,78 @@ test('busy create form disables its input and all navigation controls', async ()
   resolve();
   await ui.whenIdle();
   assert.equal(adapter.getActiveProfile().name, 'New');
+});
+
+test('portrait and Change hero are opt-in, and the action is on the active row only', async () => {
+  const plain = await fixture({ count: 2 });
+  assert.equal(plain.root.querySelectorAll('.profile-portrait').length, 0);
+  assert.equal(plain.root.querySelectorAll('.profile-change-hero').length, 0);
+
+  const asked = [];
+  const changed = [];
+  const { root, adapter, ui, block } = await fixture({
+    count: 2,
+    extra: {
+      portraitFor: (profile) => { asked.push(profile.name); return profile.name === 'First' ? 'heroes/x/portrait.webp' : null; },
+      onChangeHero: (profile) => { changed.push(profile.id); },
+    },
+  });
+  const portraits = root.querySelectorAll('.profile-portrait');
+  assert.equal(portraits.length, 2, 'the active row portrait sits inside the button');
+  assert.equal(portraits[0].tagName, 'IMG');
+  assert.equal(portraits[0].attributes.src, 'heroes/x/portrait.webp');
+  assert.equal(portraits[0].attributes.alt, '');
+  assert.match(portraits[1].className, /profile-portrait-placeholder/);
+  const actions = root.querySelectorAll('.profile-change-hero');
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].textContent, '', 'the button is the portrait, not text');
+  assert.match(actions[0].className, /profile-change-hero-portrait/);
+  assert.equal(actions[0].attributes['aria-label'], `Change hero: ${adapter.getActiveProfile().name}`);
+  actions[0].click();
+  assert.deepEqual(changed, [adapter.getActiveProfile().id]);
+  block();
+  await ui.refresh();
+  assert.equal(root.querySelector('.profile-change-hero').disabled, true);
+});
+
+test('heroFeature false hides the portrait and the Change hero action', async () => {
+  const { root } = await fixture({
+    count: 2,
+    extra: { portraitFor: () => 'heroes/x/portrait.webp', onChangeHero: () => {}, heroFeature: () => false },
+  });
+  assert.equal(root.querySelectorAll('.profile-portrait').length, 0);
+  assert.equal(root.querySelectorAll('.profile-change-hero').length, 0);
+});
+
+test('without a portrait source the Change hero action stays a text button', async () => {
+  const { root } = await fixture({ count: 2, extra: { onChangeHero: () => {} } });
+  const actions = root.querySelectorAll('.profile-change-hero');
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].textContent, 'Change hero');
+});
+
+test('row rename and delete buttons are compact glyphs that keep their spoken names', async () => {
+  const { root } = await fixture({ count: 2 });
+  const [first] = rows(root);
+  const rename = first.querySelector('.profile-rename');
+  const remove = first.querySelector('.profile-delete');
+  assert.equal(rename.textContent, 'ABC');
+  assert.equal(rename.attributes['aria-label'], 'Rename: First');
+  assert.equal(remove.textContent, 'X');
+  assert.equal(remove.attributes['aria-label'], 'Delete: First');
+  assert.equal(remove.disabled, false);
+});
+
+test('the only player cannot be deleted through the X button', async () => {
+  const { root } = await fixture();
+  const remove = rows(root)[0].querySelector('.profile-delete');
+  assert.equal(remove.textContent, 'X');
+  assert.equal(remove.disabled, true);
+});
+
+test('CSS sizes the row glyph buttons to 44px and keeps delete red', async () => {
+  const css = await readFile(new URL('../game/mobile-ui.css', import.meta.url), 'utf8');
+  assert.match(css, /#local-profiles \.profile-rename,\s*#local-profiles \.profile-delete[^{]*\{[^}]*min-width:\s*44px/s);
+  assert.match(css, /#local-profiles \.profile-rename,\s*#local-profiles \.profile-delete[^{]*\{[^}]*min-height:\s*44px/s);
+  assert.match(css, /#local-profiles \.profile-delete\s*\{[^}]*color:\s*#ff6b6b/s);
 });

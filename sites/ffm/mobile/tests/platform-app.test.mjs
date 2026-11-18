@@ -100,3 +100,50 @@ test('the app adapter needs no api.js and never touches the network', async () =
   }
   assert.equal(networkCalls, 0);
 });
+
+test('both adapters implement getActiveHeroSkin', async () => {
+  globalThis.window ??= { location: { origin: 'https://game.example' } };
+  const web = await import('../../static/game/platform-adapter.js');
+  assert.equal(typeof appModule.default.getActiveHeroSkin, 'function');
+  assert.equal(typeof web.default.getActiveHeroSkin, 'function');
+});
+
+test('getActiveHeroSkin follows the active profile and the cached full unlock', async () => {
+  const store = new Map();
+  const realCapacitor = globalThis.Capacitor;
+  const realFetch = globalThis.fetch;
+  globalThis.Capacitor = { Plugins: { Preferences: {
+    get: async ({ key }) => ({ value: store.has(key) ? store.get(key) : null }),
+    set: async ({ key, value }) => { store.set(key, value); },
+  } } };
+  globalThis.fetch = async () => { throw new Error('no network'); };
+  const grantPack = () => store.set('arithmoslayer:entitlement', JSON.stringify({
+    version: 1, entitled: true, product_id: 'arithmoslayer_full_unlock', checked_at: '2026-01-01T00:00:00.000Z',
+  }));
+  try {
+    const platform = appModule.default;
+    const profiles = platform.localProfiles;
+    await profiles.initialize();
+    const first = profiles.getActiveProfile();
+    await profiles.setHero(first.id, 'knight');
+
+    assert.equal(await platform.getActiveHeroSkin(), null, 'no unlock');
+    grantPack();
+    assert.equal(await platform.getActiveHeroSkin(), 'knight', 'unlock plus hero');
+
+    store.delete('arithmoslayer:entitlement');
+    assert.equal((await profiles.getActiveProfile()).hero, 'knight');
+    assert.equal(await platform.getActiveHeroSkin(), null, 'revoked unlock keeps the profile hero');
+
+    grantPack();
+    const second = await profiles.createProfile('Second');
+    assert.equal(await platform.getActiveHeroSkin(), null, 'new profile has no hero');
+    await profiles.setHero(second.id, 'mage');
+    assert.equal(await platform.getActiveHeroSkin(), 'mage');
+    await profiles.selectProfile(first.id);
+    assert.equal(await platform.getActiveHeroSkin(), 'knight');
+  } finally {
+    globalThis.Capacitor = realCapacitor;
+    globalThis.fetch = realFetch;
+  }
+});

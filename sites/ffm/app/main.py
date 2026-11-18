@@ -3,11 +3,12 @@ import bcrypt
 import sys
 import stripe
 import hmac
+import re
 from .jwt_utils import decode_auth_token, InvalidAuthToken, TYPE_ACCESS
 from .models import (
     MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR,
     CHANGE_EMAIL_TTL_SECONDS,
-    get_user, update_user_first_grade_year,
+    get_user, update_user_first_grade_year, update_user_hero,
     get_user_by_email, set_password_hash, set_pending_email,
     create_token, delete_user,
     get_level_scores, put_level_score,
@@ -71,6 +72,9 @@ def private_api_response(response):
     return response
 
 
+HERO_ID_RE = re.compile(r'[a-z][a-z0-9-]{0,31}')
+
+
 @main_bp.route('/profile', methods=['GET'])
 def profile():
     username = require_auth()
@@ -85,6 +89,7 @@ def profile():
         "user": {
             "username": user['username'],
             "first_grade_year": user['first_grade_year'],
+            "hero": user['hero'],
             "email": user['email'],
             "email_verified": user['email_verified'],
             "pending_email": user['pending_email'],
@@ -102,18 +107,30 @@ def update_profile():
         abort(404)
 
     data = request.get_json()
-    if not data or 'first_grade_year' not in data:
+    if not isinstance(data, dict) or not ('first_grade_year' in data or 'hero' in data):
         return jsonify({"error": "Invalid input"}), 400
 
-    first_grade_year = data['first_grade_year']
-    if first_grade_year is not None:
-        if not is_valid_int(first_grade_year, MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR):
-            return jsonify({"error": f"first_grade_year must be between {MIN_FIRST_GRADE_YEAR} and {MAX_FIRST_GRADE_YEAR}"}), 400
+    first_grade_year = user['first_grade_year']
+    hero = user['hero']
 
-    update_user_first_grade_year(username, first_grade_year)
+    if 'first_grade_year' in data:
+        first_grade_year = data['first_grade_year']
+        if first_grade_year is not None:
+            if not is_valid_int(first_grade_year, MIN_FIRST_GRADE_YEAR, MAX_FIRST_GRADE_YEAR):
+                return jsonify({"error": f"first_grade_year must be between {MIN_FIRST_GRADE_YEAR} and {MAX_FIRST_GRADE_YEAR}"}), 400
+
+    if 'hero' in data:
+        hero = data['hero']
+        if hero is not None and not (isinstance(hero, str) and HERO_ID_RE.fullmatch(hero)):
+            return jsonify({"error": "hero must be null or a lowercase id"}), 400
+
+    if 'first_grade_year' in data:
+        update_user_first_grade_year(username, first_grade_year)
+    if 'hero' in data:
+        update_user_hero(username, hero)
 
     return jsonify({
-        "user": {"username": username, "first_grade_year": first_grade_year}
+        "user": {"username": username, "first_grade_year": first_grade_year, "hero": hero}
     }), 200
 
 

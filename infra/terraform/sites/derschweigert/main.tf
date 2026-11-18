@@ -25,18 +25,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-# See the matching import block in infra/terraform/sites/ffm/main.tf for
-# the full rationale: `module.api.aws_cloudwatch_log_group.api` targets
-# `/aws/lambda/derschweigert-api`, already auto-created by Lambda itself
-# before this Terraform resource existed, so it must be imported rather
-# than created. NOT YET APPLIED — same CI-IAM caveat (DescribeLogGroups /
-# ListTagsForResource for the import; CreateLogGroup / PutRetentionPolicy /
-# TagResource going forward) has not been checked or run against this ARN.
-import {
-  to = module.api.aws_cloudwatch_log_group.api
-  id = "/aws/lambda/derschweigert-api"
-}
-
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"
@@ -53,66 +41,18 @@ locals {
     Domain    = local.domain
   }
 
-  # Reserved for ffm.derschweigert.de until it gets its own dedicated stack
-  # under infra/terraform/sites/ffm. Until then it rides on this CloudFront
-  # distribution as an extra alias.
-  pin_lock_function_code = <<-EOF
+  # Viewer-request function for the default behavior. The legal pages are
+  # uploaded to S3 as HTML files; this rewrites their public, extensionless URLs
+  # so the S3 origin resolves the object instead of 403-ing on a missing key.
+  # (Until 2026-11-18 it also carried a PIN gate and a /contact 410; both were
+  # retired with the contact/admin API.)
+  viewer_request_function_code = <<-EOF
   function handler(event) {
     var request = event.request;
     var uri = request.uri || '/';
-    var headers = request.headers || {};
-    var host = headers.host && headers.host.value ? headers.host.value.toLowerCase() : '';
-    var pinProtectionEnabled = ${var.pin_protection_enabled};
-
-    if (uri === '/contact' || uri === '/contact.html') {
-      return {
-        statusCode: 410,
-        statusDescription: 'Gone',
-        headers: { 'cache-control': { value: 'no-store' } }
-      };
-    }
-
-    var hasPinCookie = false;
-    var cookies = request.cookies || {};
-    if (cookies.ams_pin && cookies.ams_pin.value === '1') {
-      hasPinCookie = true;
-    }
-    var cookieHeader = headers.cookie && headers.cookie.value ? headers.cookie.value : '';
-    if (!hasPinCookie && cookieHeader) {
-      var parts = cookieHeader.split(';');
-      for (var i = 0; i < parts.length; i++) {
-        var kv = parts[i].trim().split('=');
-        if (kv[0] === 'ams_pin' && kv[1] === '1') {
-          hasPinCookie = true;
-          break;
-        }
-      }
-    }
-
-    if (host.indexOf('localhost') !== -1 || host === '127.0.0.1' || host === 'ffm.derschweigert.de' || host === 'www.ffm.derschweigert.de') {
-      return request;
-    }
-
-    var isPublicPath = uri === '/health' || uri === '/unlock' || uri === '/favicon.ico' || uri.startsWith('/static/') || uri.startsWith('/api/') || uri === '/contact' || uri === '/impressum' || uri === '/datenschutz' || uri === '/nutzungsbedingungen';
-
-    if (pinProtectionEnabled && !isPublicPath && !hasPinCookie) {
-      return {
-        statusCode: 302,
-        statusDescription: 'Found',
-        headers: {
-          location: { value: '/unlock?next=' + encodeURIComponent(uri) },
-          'cache-control': { value: 'no-store' }
-        }
-      };
-    }
-
-    // Legal pages are uploaded to S3 as HTML files.
-    // Rewrite the public, extensionless URLs so the default S3 behavior
-    // resolves the correct object instead of 403-ing on a missing key.
     if (uri === '/impressum' || uri === '/datenschutz' || uri === '/nutzungsbedingungen') {
       request.uri = uri + '.html';
     }
-
     return request;
   }
   EOF
@@ -120,38 +60,6 @@ locals {
 
 data "aws_route53_zone" "primary" {
   zone_id = var.route53_zone_id
-}
-
-resource "aws_secretsmanager_secret" "github_contact_token" {
-  name                    = "${local.app_name}/github-contact-token"
-  description             = "GitHub token for creating contact-form issues"
-  recovery_window_in_days = 0
-  tags                    = local.tags
-}
-
-module "api" {
-  source = "../../modules/api_backend"
-
-  app_name          = local.app_name
-  description       = "Contact and admin API for ${local.domain}"
-  lambda_source_dir = "${path.root}/../../../../sites/derschweigert/lambda"
-
-  environment_variables = {
-    APP_ENV                   = "production"
-    APP_DOMAIN                = local.domain
-    CANONICAL_HOST            = local.www_domain
-    SITE_URL                  = "https://${local.www_domain}"
-    CONTACT_EMAIL             = "hello@${local.domain}"
-    ADMIN_PIN                 = var.admin_pin
-    ADMIN_COOKIE_NAME         = "ams_pin"
-    GITHUB_CONTACT_REPOSITORY = "UrsSchweigert/DerSchweigert"
-    GITHUB_CONTACT_SECRET_ARN = aws_secretsmanager_secret.github_contact_token.arn
-  }
-
-  secret_arns         = [aws_secretsmanager_secret.github_contact_token.arn]
-  secrets_policy_name = "${local.app_name}-github-contact"
-
-  tags = local.tags
 }
 
 module "email_forwarding" {
@@ -178,14 +86,8 @@ module "site" {
   domain                          = local.domain
   additional_aliases              = [local.www_domain] # ffm gets its own dedicated stack
   route53_zone_id                 = data.aws_route53_zone.primary.zone_id
-  viewer_request_function_code    = local.pin_lock_function_code
-  viewer_request_function_comment = "Block access until a valid PIN cookie is present"
-
-  api_origin = {
-    origin_id   = "api-origin"
-    domain_name = "${module.api.rest_api_id}.execute-api.${var.aws_region}.amazonaws.com"
-    origin_path = "/prod"
-  }
+  viewer_request_function_code    = local.viewer_request_function_code
+  viewer_request_function_comment = "Rewrite extensionless legal-page URLs to their .html objects"
 
   tags = local.tags
 }
@@ -253,69 +155,4 @@ moved {
 moved {
   from = aws_route53_record.ffm
   to   = module.site.aws_route53_record.aliases["ffm.derschweigert.de"]
-}
-
-moved {
-  from = aws_lambda_function.api
-  to   = module.api.aws_lambda_function.api
-}
-
-moved {
-  from = aws_iam_role.lambda_exec
-  to   = module.api.aws_iam_role.lambda_exec
-}
-
-moved {
-  from = aws_iam_role_policy_attachment.lambda_basic
-  to   = module.api.aws_iam_role_policy_attachment.lambda_basic
-}
-
-moved {
-  from = aws_iam_role_policy.lambda_github_contact
-  to   = module.api.aws_iam_role_policy.lambda_secrets[0]
-}
-
-moved {
-  from = aws_api_gateway_rest_api.api
-  to   = module.api.aws_api_gateway_rest_api.api
-}
-
-moved {
-  from = aws_api_gateway_resource.proxy
-  to   = module.api.aws_api_gateway_resource.proxy
-}
-
-moved {
-  from = aws_api_gateway_method.proxy
-  to   = module.api.aws_api_gateway_method.proxy
-}
-
-moved {
-  from = aws_api_gateway_integration.proxy
-  to   = module.api.aws_api_gateway_integration.proxy
-}
-
-moved {
-  from = aws_api_gateway_method.proxy_root
-  to   = module.api.aws_api_gateway_method.proxy_root
-}
-
-moved {
-  from = aws_api_gateway_integration.proxy_root
-  to   = module.api.aws_api_gateway_integration.proxy_root
-}
-
-moved {
-  from = aws_lambda_permission.apigw
-  to   = module.api.aws_lambda_permission.apigw
-}
-
-moved {
-  from = aws_api_gateway_deployment.api
-  to   = module.api.aws_api_gateway_deployment.api
-}
-
-moved {
-  from = aws_api_gateway_stage.prod
-  to   = module.api.aws_api_gateway_stage.prod
 }

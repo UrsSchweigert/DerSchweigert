@@ -7,7 +7,7 @@ from harness.scheduler import Scheduler
 from harness_doubles import Env, FakeAdapter, RecordingNotifier, TIER_A
 
 H = 3600
-MODELS = ["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"]
+MODELS = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-8"]
 
 
 def test_dry_run_demonstration_of_scheduling_escalation_status_and_recovery(tmp_path):

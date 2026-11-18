@@ -8,19 +8,19 @@ from harness_doubles import Env
 from test_harness_runner import ISSUE, REQ, make_plan
 
 
-FLASH = "deepseek/deepseek-flash"
-PRO = "deepseek/deepseek-v4-pro"
-OPUS = "claude-opus-5"
+FLASH = "claude-haiku-5-5"
+PRO = "claude-sonnet-5-5"
+OPUS = "claude-opus-5-5"
 ROUTING = {
     "routine_models": [FLASH, PRO],
     "refiner": OPUS,
-    "escalation_models": ["claude-haiku-4.5", "claude-sonnet-5", OPUS],
+    "escalation_models": ["claude-haiku-5-5", "claude-sonnet-5-5", OPUS],
 }
-AVAILABLE = [FLASH, PRO, "claude-haiku-4.5", "claude-sonnet-5", OPUS]
+AVAILABLE = [FLASH, PRO, "claude-haiku-5-5", "claude-sonnet-5-5", OPUS]
 
 
 def routed_env(tmp_path, available=None):
-    env = Env(tmp_path, model_sources=["deepseek", "copilot"],
+    env = Env(tmp_path, model_sources=["claude"],
               available_models=AVAILABLE if available is None else available,
               policy_overrides={"model_routing": ROUTING})
     issue = env.store.get_issue("i1")
@@ -57,7 +57,7 @@ def test_quality_repairs_and_their_review_use_the_claude_escalation_menu(tmp_pat
 
 
 def test_missing_deepseek_does_not_silently_run_routine_work_on_claude(tmp_path):
-    env = routed_env(tmp_path, available=[OPUS, "claude-sonnet-5"])
+    env = routed_env(tmp_path, available=[OPUS, "claude-sonnet-5-5"])
     env.start()
     env.run_until(lambda: env.state("i1") == "Blocked")
     assert not [a for a in env.store.list_attempts("i1") if a["role"] == "implementer"]
@@ -81,19 +81,19 @@ def test_unavailable_independent_deepseek_reviewer_does_not_share_the_implemente
 
 @pytest.mark.parametrize("role", ["delegator", "analyst", "overseer"])
 def test_escalation_roles_only_see_the_escalation_models(role):
-    policy = plans.with_model_sources(plans.DEFAULT_POLICY, ["deepseek", "copilot"])
+    policy = plans.with_model_sources(plans.DEFAULT_POLICY, ["claude"])
     policy["model_routing"] = ROUTING
     tiers = models.routed_tiers(policy, role)
     assert {m for band in tiers.values() for m in band} == set(ROUTING["escalation_models"])
 
 
-SONNET = "claude-sonnet-5"
+SONNET = "claude-sonnet-5-5"
 SONNET_ROUTING = dict(ROUTING, refiner=SONNET)
 
 
 def sonnet_refiner_env(tmp_path, available=None):
     """A plan whose signed routing names the standard-tier refiner, over an issue whose choice still says Opus."""
-    env = Env(tmp_path, model_sources=["deepseek", "copilot"],
+    env = Env(tmp_path, model_sources=["claude"],
               available_models=AVAILABLE if available is None else available,
               policy_overrides={"model_routing": SONNET_ROUTING})
     issue = env.store.get_issue("i1")
@@ -129,7 +129,7 @@ def test_the_signed_refiner_wins_a_stale_opus_choice_without_rewriting_the_issue
 
 
 def test_an_unavailable_signed_refiner_fails_closed_instead_of_falling_back(tmp_path):
-    env = sonnet_refiner_env(tmp_path, available=[FLASH, PRO, OPUS])
+    env = sonnet_refiner_env(tmp_path, available=[FLASH, OPUS])
     env.start()
     env.run_until(lambda: env.state("i1") == "Blocked")
     assert not [req for req in env.adapter.started if req.role == "refiner"]
@@ -141,8 +141,8 @@ def test_a_legacy_plan_without_routing_refines_on_the_standard_band(tmp_path):
     """No signature and no per-issue choice: refinement starts cheap and climbs only on its own evidence."""
     env = Env(tmp_path)
     issue = env.store.get_issue("i1")
-    issue["model_choices"] = {"implementer": {"model": "claude-sonnet-5", "reason": "Two files interact."},
-                              "refiner": {"model": "claude-haiku-4.5", "reason": "Bounded re-check."}}
+    issue["model_choices"] = {"implementer": {"model": "claude-sonnet-5-5", "reason": "Two files interact."},
+                              "refiner": {"model": "claude-haiku-5-5", "reason": "Bounded re-check."}}
     env.store.put_issue(issue)
     env.start()
     env.run_until(lambda: env.state("i1") == "Done")
@@ -156,7 +156,7 @@ def test_the_plan_check_signs_a_standard_refiner_but_still_refuses_a_cheap_one(t
     plan = copy.deepcopy(env.store.get_plan("fx")["plan"])
     plan["policy"]["model_routing"]["refiner"] = SONNET
     assert not [problem for problem in plans.validate_plan(plan) if "model_routing" in problem]
-    plan["policy"]["model_routing"]["refiner"] = "claude-haiku-4.5"
+    plan["policy"]["model_routing"]["refiner"] = "claude-haiku-5-5"
     assert any("model_routing.refiner" in problem for problem in plans.validate_plan(plan))
 
 
@@ -164,7 +164,7 @@ def test_model_routing_is_part_of_the_approval_digest(tmp_path):
     env = routed_env(tmp_path)
     original = env.store.get_plan("fx")["plan"]
     changed = copy.deepcopy(original)
-    changed["policy"]["model_routing"]["refiner"] = "claude-opus-4.8"
+    changed["policy"]["model_routing"]["refiner"] = "claude-opus-4-8"
     assert plans.plan_digest(original) != plans.plan_digest(changed)
 
 
@@ -173,7 +173,7 @@ def test_model_routing_is_part_of_the_approval_digest(tmp_path):
     ("routine_models", [FLASH, "unapproved"]),
     ("refiner", FLASH),
     ("refiner", ""),
-    ("escalation_models", ["claude-sonnet-5"]),
+    ("escalation_models", ["claude-sonnet-5-5"]),
 ])
 def test_invalid_role_menus_are_rejected(tmp_path, key, value):
     env = routed_env(tmp_path)
@@ -184,11 +184,11 @@ def test_invalid_role_menus_are_rejected(tmp_path, key, value):
 
 def test_plan_preparation_reads_role_routing_from_the_draft(tmp_path):
     env = routed_env(tmp_path)
-    revised = dict(ROUTING, escalation_models=["claude-sonnet-5", OPUS])
+    revised = dict(ROUTING, escalation_models=["claude-sonnet-5-5", OPUS])
     phases = tmp_path / "routed-phases.json"
     phases.write_text(json.dumps({
         "phases": env.store.get_plan("fx")["plan"]["phases"],
-        "model_sources": ["deepseek", "copilot"], "model_routing": revised,
+        "model_sources": ["claude"], "model_routing": revised,
     }))
     result = cli.plan_command(env.store, REQ, str(phases), plan_id="fx", fixture=True)
     assert result["state"] == "Proposed" and not result["problems"]

@@ -27,6 +27,14 @@ The shipped configuration plays `retro-05-ending.mp3` on the intro and every
 menu page, and cycles seven gameplay tracks over two levels each (levels 1-2,
 3-4, 5-6, and so on, restarting the cycle after 14 levels).
 
+All bundled music is MP3 at 128 kbps joint stereo, which keeps the audible band
+of the chiptune sources intact (measured: the share of energy above 12 kHz moves
+from 4.57 % to 4.50 % on the title track). `background-music.mp3` shipped at
+256 kbps and was re-encoded down to that same baseline, halving it from 4.3 MB
+to 2.1 MB with no change below 14 kHz. Do not push below 128 kbps: the retro
+tracks carry real percussive energy between 12 and 16 kHz, and a 96 kbps encode
+cut a third of it.
+
 The menu playlist is one continuous session: it starts on the first user
 gesture (browser autoplay rules), and switching title pages never touches the
 audio engine, so the track keeps playing from its current position across the
@@ -254,7 +262,7 @@ verify on a physical iOS and Android device:
 
 - Bundled music is audible and the music slider changes live gain at 0, 0.2
   and 1 while a track plays.
-- The iOS silent switch silences BGM and effects, and unmuting restores them.
+- The iOS silent switch silences BGM, effects and story narration, and unmuting restores them and shows a hint to check the silent switch.
 - A call/alarm interruption pauses BGM and gameplay, and returning resumes both
   exactly once with mute and gain preserved.
 - Background/foreground transitions do not duplicate playback.

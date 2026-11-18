@@ -6,6 +6,12 @@
 // back through pause -> quit confirmation -> exit, and the screen stays awake
 // only while a level is actually running.
 //
+// Music is suspended even when no level is running — the title playlist, the
+// story intro, the result screens. Android keeps a WebView's audio playing
+// while the app is in the background, so nothing but this seam stops it there;
+// iOS silences the app through its own audio session (SoloAmbient), which is
+// exactly why the two stores would otherwise differ.
+//
 // Capacitor injects the native plugins on `globalThis.Capacitor.Plugins`, so
 // the plugin readers below resolve `App` and `KeepAwake` lazily and return
 // null when a plugin is absent (web preview, partial shell). The lifecycle
@@ -43,8 +49,8 @@ export const PENDING_MANUAL_GATES = Object.freeze([
     id: 'ios-silent-switch',
     platform: 'ios',
     title: 'Silent switch silences game audio',
-    detail: 'Flip the iPhone silent switch and confirm BGM and effects are muted, '
-      + 'and that unmuting restores them without a restart.',
+    detail: 'Flip the iPhone silent switch and confirm BGM, effects and story narration are all muted, '
+      + 'and that unmuting restores them without a restart and shows the silent switch hint.',
   }),
   Object.freeze({
     id: 'audio-interruption',
@@ -111,6 +117,9 @@ function callQuietly(method, ...args) {
  * `game` supplies `isPlaying()`, `isPaused()`, `pause()`, `resume()` and
  * `goBack()`. `goBack()` returns true when it consumed the back press (for
  * example dismissing the quit confirmation) and false to let the app exit.
+ * `suspendAudio()`/`resumeAudio()` are optional: they silence the music that
+ * is not part of a running level (title playlist, story intro, result
+ * screens), which a level pause never covers.
  *
  * @param {{app: object, keepAwake?: object|null, game: object}} options
  * @returns {{start: () => Promise<void>, stop: () => void, setKeepAwake: (active: boolean) => void}}
@@ -131,6 +140,7 @@ export function createLifecycle({ app, keepAwake = null, game } = {}) {
   let handles = [];
   let running = false;
   let autoPaused = false;
+  let audioSuspended = false;
   let awake = false;
 
   const isPlaying = () => Boolean(game.isPlaying()) && !game.isPaused();
@@ -148,14 +158,21 @@ export function createLifecycle({ app, keepAwake = null, game } = {}) {
     if (isActive) {
       // Only an automatic pause resumes; a pause the player chose stays.
       const resume = autoPaused;
+      const resumeMusic = audioSuspended;
       autoPaused = false;
+      audioSuspended = false;
       if (resume && game.isPaused()) game.resume();
+      else if (resumeMusic) game.resumeAudio?.();
       setKeepAwake(isPlaying());
       return;
     }
     if (isPlaying()) {
       autoPaused = true;
       game.pause();
+    } else {
+      // No level owns the music here, so a level pause would not reach it.
+      audioSuspended = true;
+      game.suspendAudio?.();
     }
     setKeepAwake(false);
   }
@@ -188,6 +205,7 @@ export function createLifecycle({ app, keepAwake = null, game } = {}) {
   function stop() {
     running = false;
     autoPaused = false;
+    audioSuspended = false;
     const registered = handles;
     handles = [];
     for (const handle of registered) callQuietly(() => handle?.remove());

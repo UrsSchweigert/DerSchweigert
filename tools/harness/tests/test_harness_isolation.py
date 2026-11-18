@@ -22,35 +22,37 @@ def lookup(value):
 # -- launcher arguments (no Docker needed) -----------------------------------
 
 def test_docker_args_lock_the_container_down(tmp_path):
-    args = isolation.docker_args(str(tmp_path), ["echo", "hi"], pass_env=["COPILOT_GITHUB_TOKEN"])
+    args = isolation.docker_args(str(tmp_path), ["echo", "hi"], pass_env=["CLAUDE_CODE_OAUTH_TOKEN"])
     joined = " ".join(args)
     for flag in ("--read-only", "--cap-drop ALL", "no-new-privileges", "--user 10001:10001", "--pids-limit", "--memory"):
         assert flag in joined
     assert args.count("-v") == 1 and args[args.index("-v") + 1] == "%s:/work:rw" % os.path.realpath(str(tmp_path))
     assert "--privileged" not in args and "--network" not in args and "docker.sock" not in joined
-    assert args[args.index("-e") + 1] == "COPILOT_GITHUB_TOKEN" and "=" not in args[args.index("-e") + 1]
+    assert args[args.index("-e") + 1] == "CLAUDE_CODE_OAUTH_TOKEN" and "=" not in args[args.index("-e") + 1]
     assert args[-3:] == [isolation.IMAGE, "echo", "hi"] or args[-2:] == ["echo", "hi"]
 
 
 def test_scrub_env_is_shared_with_the_broker():
     assert broker.scrub_env is isolation.scrub_env
-    assert isolation.scrub_env({"PATH": "/bin", "GH_TOKEN": "x", "COPILOT_GITHUB_TOKEN": "x"}) == {"PATH": "/bin"}
+    assert isolation.scrub_env({"PATH": "/bin", "GH_TOKEN": "x", "CLAUDE_CODE_OAUTH_TOKEN": "x", "ANTHROPIC_API_KEY": "x"}) == {"PATH": "/bin"}
 
 
 def test_async_worker_keeps_credentials_out_of_arguments(tmp_path, monkeypatch):
-    token = tmp_path / "copilot.token"
-    token.write_text("copilot-only-secret")
+    credential = {isolation.CLAUDE_TOKEN_ENV: "claude-only-secret"}
     monkeypatch.setenv("GH_TOKEN", "host-secret")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "api-billing-secret")
     calls = []
     def launch(args, **kwargs):
         calls.append((args, kwargs))
         return "process"
     monkeypatch.setattr(isolation.subprocess, "Popen", launch)
-    assert isolation.start_worker(str(tmp_path), ["check"], str(token), name="harness-check-test") == "process"
+    assert isolation.start_worker(str(tmp_path), ["check"], credential, name="harness-check-test") == "process"
     args, kwargs = calls[0]
     assert args[:2] == ["docker", "run"] and "--name" in args
-    assert "copilot-only-secret" not in " ".join(args) and "host-secret" not in " ".join(args)
-    assert kwargs["env"][isolation.COPILOT_TOKEN_ENV] == "copilot-only-secret" and "GH_TOKEN" not in kwargs["env"]
+    assert "claude-only-secret" not in " ".join(args) and "host-secret" not in " ".join(args)
+    assert kwargs["env"][isolation.CLAUDE_TOKEN_ENV] == "claude-only-secret" and "GH_TOKEN" not in kwargs["env"]
+    # The API key would switch Claude Code from the subscription to API billing: it never reaches the worker.
+    assert "ANTHROPIC_API_KEY" not in kwargs["env"] and "ANTHROPIC_API_KEY" not in args
 
 
 # -- attestation --------------------------------------------------------------
@@ -130,22 +132,22 @@ def test_real_probe_passes_with_host_canaries(tmp_path):
 
 
 @real_docker
-def test_real_worker_sees_only_its_workdir_and_copilot_token(tmp_path, monkeypatch):
+def test_real_worker_sees_only_its_workdir_and_claude_token(tmp_path, monkeypatch):
     store_home = tmp_path / "store"
     store_home.mkdir()
     (store_home / "approval.key").write_text("secret")
-    token = tmp_path / "copilot.token"
-    token.write_text("dummy-copilot-token")
+    credential = {isolation.CLAUDE_TOKEN_ENV: "dummy-claude-token"}
     monkeypatch.setenv("GH_TOKEN", "canary-gh")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "canary-api")
     monkeypatch.setenv("HARNESS_HOME", str(store_home))
     work = isolation.new_workdir("test-")
     try:
         script = "env; echo ---; ls %s 2>&1; echo ---; echo x > /work/out.txt; touch /etc/x 2>&1" % store_home
-        res = isolation.run_worker(work, ["sh", "-c", script], str(token), timeout=60)
+        res = isolation.run_worker(work, ["sh", "-c", script], credential, timeout=60)
         env_part, _, rest = res.stdout.partition("---")
         names = {line.split("=", 1)[0] for line in env_part.splitlines() if "=" in line}
-        assert "COPILOT_GITHUB_TOKEN" in names
-        assert not {"GH_TOKEN", "GITHUB_TOKEN", "HARNESS_HOME", "SSH_AUTH_SOCK"} & names
+        assert "CLAUDE_CODE_OAUTH_TOKEN" in names
+        assert not {"GH_TOKEN", "GITHUB_TOKEN", "HARNESS_HOME", "SSH_AUTH_SOCK", "ANTHROPIC_API_KEY"} & names
         assert "canary-gh" not in res.stdout
         assert "No such file" in rest and "approval.key" not in rest
         assert os.listdir(work) == ["out.txt"]

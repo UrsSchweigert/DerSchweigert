@@ -65,7 +65,7 @@ Rules:
 - You are the delegating agent: choose the model for each role on each issue, not a fixed model tier per role. Use only task.json model_options. Their relative_cost bands are advisory cost categories, not role assignments or live prices. Prefer an inexpensive model for bounded, well-tested work; pay for deeper reasoning up front when uncertainty, interacting components, or risk justify it. Explain each choice using the actual task and available validation.
 - The refiner re-checks whether a task still matches the code after it changed; it writes no files. Choose the cheapest model whose band fits the judgement: the standard band for a task with clear anchors and reliable tests, a stronger one only when the decision itself is the hard part (conflicting requirements, a wide change across interacting modules, no test to lean on). Name that reason. Trusted code keeps refinement on the standard band for a first pass and escalates it to the strong band on its own evidence - a previous pass on the same issue that produced an unusable answer - so a cheap first choice is not a risk you have to buy away.
 - Choose an independent reviewer with a different model from the implementer whenever another model is available. The reviewer may be cheaper when the diff is straightforward and tests are reliable. Respect model_budget: do not choose a strong implementation model when strong_implementation_attempts_per_issue is zero. Existing evidence-based repair escalation may override the initial choices after a quality failure.
-- Phase ids look like P1, P2. Issue ids are lowercase letters, digits, and dashes (for example flop-training-logic).
+- Phase ids look like P1, P2. Issue ids are lowercase letters, digits, and dashes, at most 41 characters (for example flop-training-logic).
 - Every requirement id from task.json appears in at least one phase. Each phase delivers a demonstrable increment, ordered by dependency and risk. Dependencies list phase ids and must not form a cycle.
 - path_allowlist holds repository-relative prefixes. Directories end with "/". Be tight: only what the phase must change, including its tests. Never include .github/, tools/harness/, docs/harness/, or the repository root.
 - Every phase has at least one issue, and every requirement in a phase is covered by an issue in that phase. An issue covers part of one phase, uses only requirement ids from that phase, and is small enough for one worker session (a diff well under 800 lines).
@@ -80,6 +80,7 @@ Rules:
 """
 
 
+ACTIVE_AT_TIMEOUT_S = 120  # activity this recent at the timeout means the worker was busy, not hung
 MAX_TOP_TIER_ATTEMPTS = 2  # a rejection at the strongest tier only earns one repair attempt; pro models are expensive
 
 
@@ -250,8 +251,9 @@ def validate_draft(draft: Dict[str, Any], requirements: List[Dict[str, str]], re
                                     strong_budget=policy["budgets"]["strong_attempts_per_issue"])
         except ValueError as exc:
             problems.append("issue %s: %s" % (iid, exc))
+        problems.extend(plans.capability_problems(i, policy))
         if not ISSUE_ID.match(iid):
-            problems.append("issue id %r must be lowercase letters, digits, and dashes" % iid)
+            problems.append("issue id %r must use lowercase letters, digits, and dashes and be 1 to 41 characters (it has %d)" % (iid, len(iid)))
         phase = by_phase.get(i["phase_id"])
         if phase is None:
             problems.append("issue %s: unknown phase %s" % (iid, i["phase_id"]))
@@ -350,8 +352,12 @@ class Investigator:
                  ask: Callable[[Dict[str, Any]], Optional[str]] = terminal_ask, tier: str = "standard", max_rounds: int = 3,
                  max_attempts: int = 6, timeout: float = 1200.0, inactivity: float = 600.0, poll_interval: float = 3.0, heartbeat: float = 15.0,
                  clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
-                 log: Callable[[str], None] = lambda m: None, cache_home: Optional[str] = None):
+                 log: Callable[[str], None] = lambda m: None, cache_home: Optional[str] = None,
+                 model: Optional[str] = None):
         self.adapter, self.repo, self.policy, self.models = adapter, repo, policy, available_models
+        # The owner may pin the investigator to one model (`investigate --model`), which need not be on the
+        # plan's menu: the investigator only drafts, and the plans it drafts keep their own approved menu.
+        self.model = model
         self.ask, self.tier, self.max_rounds, self.max_attempts = ask, tier, max_rounds, max_attempts
         self.timeout, self.inactivity, self.poll_interval, self.heartbeat = timeout, inactivity, poll_interval, heartbeat
         self.clock, self.sleep, self.log = clock, sleep, log
@@ -400,7 +406,12 @@ class Investigator:
                  % (attempt, len(entry["summary"]), len(entry.get("modules") or [])))
 
     def _invoke(self, attempt: int, tier: str, packet: Dict[str, Any]):
-        route = models.resolve_model(tier, self.policy["model_tiers"], self.models)
+        if self.model:
+            # A pinned model has nowhere to escalate to, so it counts as the top tier: a rejected draft earns the
+            # same bounded repair attempts as one from the strongest menu model, never a different model.
+            route = {"model": self.model, "tier": models.TIERS[-1], "routing": True, "note": "pinned by the owner"}
+        else:
+            route = models.resolve_model(tier, self.policy["model_tiers"], self.models)
         if route["routing"] and route["model"] is None:
             raise InvestigationError("no configured planning model is available")
         req = WorkRequest("investigate#%d" % attempt, 1, "investigate", "investigator", route["tier"], route["model"], packet, "harness/investigate")
@@ -420,7 +431,9 @@ class Investigator:
                     self.log("  still working: %ds elapsed, last activity %ds ago%s" % (now - started, max(now - poll.last_activity, 0), (" | " + line) if line else ""))
                 if now - started > self.timeout:
                     self.adapter.cancel(handle)
-                    return route, type(poll)("finished", poll.last_activity, None, {"kind": "timeout"})
+                    # Was it still working? A busy agent that runs out of time needs more time, not a fresh start.
+                    active = now - poll.last_activity < ACTIVE_AT_TIMEOUT_S
+                    return route, type(poll)("finished", poll.last_activity, None, {"kind": "timeout", "active": active})
                 if now - poll.last_activity > self.inactivity:
                     self.adapter.cancel(handle)
                     return route, type(poll)("finished", poll.last_activity, None, {"kind": "inactivity"})
@@ -513,7 +526,19 @@ class Investigator:
             if poll.error:
                 kind = poll.error.get("kind", "runtime_crash")
                 if kind == "credentials":
-                    raise InvestigationError("the runtime rejected its credentials: check copilot.token")
+                    raise InvestigationError("the runtime rejected its credentials: %s"
+                                             % poll.error.get("detail", "check claude.token"))
+                if kind == "usage_limit":
+                    # Waiting hours inside an interactive investigation helps nobody; the answers so far are saved.
+                    raise InvestigationError("%s. Rerun the same command then, or choose another --model-source"
+                                             % poll.error.get("detail", "the Claude subscription limit is reached"))
+                if kind == "timeout" and poll.error.get("active"):
+                    # The first Fable run spent its whole 20 minutes reading the repository, was cut off while writing
+                    # the draft, and an identical retry would only have repeated that. Stop and let the owner decide.
+                    raise InvestigationError(
+                        "attempt %d was still working when it reached --timeout %ds, so its work is lost and an identical "
+                        "retry would most likely run out the same way. Rerun with a higher limit, for example "
+                        "--timeout %d (your answers so far are kept)" % (attempt, self.timeout, int(self.timeout * 3)))
                 if kind in TRANSIENT_KINDS or kind in ("timeout", "inactivity"):
                     transient += 1
                     self.log("transient failure (%s), retrying" % kind)
@@ -535,6 +560,9 @@ class Investigator:
                 tier = models.TIERS[min(models.TIERS.index(route["tier"]) + 1, 2)]
                 continue
             self._remember_context(attempt, draft.get("repo_context"))
+            # The reading is cache material with its own caps (repocontext.MAX_SUMMARY); the prompt allows a
+            # 4000-character summary, so it must not be held to the 2000-character plan-string limit below.
+            draft.pop("repo_context", None)
             if draft["status"] == "questions":
                 qs = draft.get("questions") or []
                 if not qs or len(qs) > MAX_QUESTIONS or state["rounds"] >= self.max_rounds:

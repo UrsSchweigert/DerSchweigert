@@ -404,3 +404,41 @@ test('the mobile README records the physical-device gates and the revision to te
   }
   assert.match(readme, /Revision to test:\s*`<revision>`/);
 });
+
+test('the silent-switch hint shows only after a user unmute, and only when enabled', () => {
+  setLocale('en');
+  const build = silentSwitchHint => {
+    const { doc, muteBtn } = fakeDocument();
+    const { audio } = routedEngine({ start: false });
+    const control = createVolumeControl({ doc, audio, translate: t, silentSwitchHint });
+    const click = () => {
+      const wasMuted = audio.muted;
+      audio.toggleMute();
+      control.refresh();
+      control.noteMuteChange(wasMuted);
+    };
+    return { control, click, muteBtn };
+  };
+  const on = build(true);
+  assert.equal(on.control.hint.getAttribute('role'), 'status');
+  assert.equal(on.control.hint.textContent, '', 'not shown at start-up');
+  on.control.refresh();
+  assert.equal(on.control.hint.textContent, '', 'not shown by refresh');
+  on.click();
+  assert.equal(on.control.hint.textContent, '', 'not shown when muting');
+  on.click();
+  assert.equal(on.control.hint.textContent, t('audio.silentSwitchHint'));
+  assert.match(on.control.hint.textContent, /silent switch/);
+  setLocale('de');
+  on.control.refresh();
+  assert.match(on.control.hint.textContent, /Stummschalter/, 'language change re-translates');
+  setLocale('en');
+  on.click();
+  assert.equal(on.control.hint.textContent, '', 'cleared when muting again');
+  assert.equal(on.control.summary.textContent, '🔇', 'icon reflects only the in-app setting');
+
+  const off = build(false);
+  off.click();
+  off.click();
+  assert.equal(off.control.hint.textContent, '');
+});

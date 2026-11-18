@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import html
 from pathlib import Path
-from urllib.parse import quote, urlparse
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.background import BackgroundTask
 
 from app.config import get_settings
 
@@ -29,31 +26,6 @@ STATIC_DIR = BASE_DIR / "static"
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-
-@app.middleware("http")
-async def pin_protection(request: Request, call_next):
-    forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
-    host = forwarded_host.split(":", 1)[0].lower()
-    if host == settings.domain and host != settings.canonical_host:
-        return await call_next(request)
-
-    path = request.url.path
-    # Impressum/Datenschutz must stay reachable without the PIN gate: German
-    # law (§ 5 DDG) requires a site's legal notice to be "leicht erkennbar,
-    # unmittelbar erreichbar" (easily recognizable, directly accessible)
-    # without any access barrier, even while the rest of the site is behind
-    # a pre-launch PIN wall.
-    public_paths = {"/health", "/unlock", "/api/admin/verify-pin", "/contact", "/api/contact", "/impressum", "/datenschutz", "/nutzungsbedingungen"}
-
-    # Apply PIN protection only if explicitly enabled
-    if settings.pin_protection_enabled and settings.app_env == "production" and not path.startswith("/static") and path not in public_paths:
-        if request.cookies.get(settings.admin_cookie_name) != "1":
-            redirect_to = f"/unlock?next={quote(path or '/')}"
-            return RedirectResponse(url=redirect_to, status_code=307)
-
-    response = await call_next(request)
-    return response
 
 
 @app.middleware("http")
@@ -88,99 +60,10 @@ def health():
     return {"status": "ok", "service": settings.app_name.lower()}
 
 
-@app.get("/unlock", response_class=HTMLResponse)
-def unlock_page(request: Request) -> HTMLResponse:
-    next_path = request.query_params.get("next", "/")
-    # Escaped for a double-quoted attribute: quote=True also encodes " and '.
-    escaped_next = html.escape(next_path, quote=True)
-    return HTMLResponse(
-        f"""
-        <!DOCTYPE html>
-        <html lang="de">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>Seite gesperrt</title>
-          <style>
-            body {{ font-family: "Iowan Old Style", Palatino, Georgia, ui-serif, serif; background: #080f13; color: #f5efe2; margin: 0; display: grid; place-items: center; min-height: 100vh;
-                    background-image: radial-gradient(900px 520px at 50% -10%, rgba(28,62,70,0.65), transparent 70%), radial-gradient(600px 420px at 92% 8%, rgba(201,162,85,0.10), transparent 72%); }}
-            .box {{ width: min(420px, calc(100% - 32px)); background: linear-gradient(162deg, #12262e, #0b171c); border: 1px solid rgba(201,162,85,0.22); border-radius: 20px; box-shadow: 0 30px 70px -40px rgba(0,0,0,0.95); padding: 30px; }}
-            h1 {{ margin-top: 0; font-size: 1.8rem; letter-spacing: -0.02em; }}
-            p {{ color: #c6c2b4; }}
-            input {{ width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(245,239,226,0.14); background: rgba(8,15,19,0.6); color: #f5efe2; margin: 10px 0 16px; font-size: 1rem; font-family: inherit; }}
-            button {{ width: 100%; padding: 13px 14px; border: none; border-radius: 999px; background: linear-gradient(180deg, #ebcd8f, #c9a255); color: #17120a; font-weight: 700; letter-spacing: 0.06em; cursor: pointer; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; font-size: 0.8rem; }}
-            .error {{ color: #f0a9a9; margin-top: 10px; font-weight: 600; }}
-          </style>
-        </head>
-        <body>
-          <div class="box">
-            <h1>Seite gesperrt</h1>
-            <p>Bitte geben Sie den PIN ein, um die Seite zu öffnen.</p>
-            <form method="post" action="/unlock">
-              <input type="password" name="pin" placeholder="PIN eingeben" required />
-              <input type="hidden" name="next" value="{escaped_next}" />
-              <button type="submit">Freischalten</button>
-            </form>
-          </div>
-        </body>
-        </html>
-        """
-    )
-
-
 _SERVICES_DIR = Path(TEMPLATES_DIR) / "services"
 # The page a service name maps to is looked up in a fixed table, so the request value is only ever a key and never
 # part of a filename. A per-request path join is what an encoded traversal would have to defeat.
 SERVICES = {path.stem: path for path in _SERVICES_DIR.glob("*.html")}
-
-
-def safe_next(target: str) -> str:
-    """Only a same-site path is a valid post-unlock destination, so ?next= cannot become an open redirect.
-
-    The value is parsed rather than pattern-matched: anything carrying a scheme or a host is refused, and what is
-    kept is the parsed path and query, which cannot address another site.
-    """
-    parsed = urlparse((target or "").strip())
-    if parsed.scheme or parsed.netloc:
-        return "/"
-    path = parsed.path or "/"
-    # A backslash is a slash to some browsers, which would turn "/\\host" into "//host".
-    if not path.startswith("/") or path.startswith("//") or "\\" in path or "\n" in path or "\r" in path:
-        return "/"
-    return path + ("?" + parsed.query if parsed.query else "")
-
-
-@app.post("/unlock")
-def unlock_submit(pin: str = Form(...), next: str = Form("/")):
-    if settings.admin_pin and pin.strip() == settings.admin_pin:
-        response = RedirectResponse(url=safe_next(next), status_code=302)
-        response.set_cookie(
-            key=settings.admin_cookie_name,
-            value="1",
-            max_age=30 * 24 * 60 * 60,
-            path="/",
-            secure=settings.app_env == "production",
-            httponly=True,
-            samesite="lax",
-        )
-        return response
-
-    return HTMLResponse(
-        """
-        <!DOCTYPE html>
-        <html lang="de">
-        <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>PIN falsch</title></head>
-        <body style="font-family:sans-serif;background:#eef4fb;color:#14253d;display:grid;place-items:center;min-height:100vh;">
-          <div style="background:white;padding:28px;border-radius:18px;box-shadow:0 24px 56px rgba(10,47,95,0.12);width:min(420px,calc(100% - 32px));">
-            <h1>PIN falsch</h1>
-            <p>Der eingegebene PIN ist ungültig.</p>
-            <p><a href="/unlock" style="color:#0f4c81;font-weight:700;">Erneut versuchen</a></p>
-          </div>
-        </body>
-        </html>
-        """,
-        status_code=401,
-    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -209,39 +92,3 @@ def privacy_page() -> HTMLResponse:
 @app.get("/nutzungsbedingungen", response_class=HTMLResponse)
 def terms_page() -> HTMLResponse:
     return HTMLResponse((TEMPLATES_DIR / "nutzungsbedingungen.html").read_text(encoding="utf-8"))
-
-
-@app.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request) -> HTMLResponse:
-    if request.cookies.get(settings.admin_cookie_name) != "1":
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return HTMLResponse((TEMPLATES_DIR / "admin.html").read_text(encoding="utf-8"))
-
-
-@app.post("/api/admin/verify-pin")
-def verify_pin(payload: dict):
-    pin = str(payload.get("pin", "")).strip()
-    if not settings.admin_pin or pin != settings.admin_pin:
-        raise HTTPException(status_code=401, detail="Invalid PIN")
-
-    response = JSONResponse({"ok": True})
-    response.set_cookie(
-        key=settings.admin_cookie_name,
-        value="1",
-        max_age=30 * 24 * 60 * 60,
-        path="/",
-        secure=settings.app_env == "production",
-        httponly=True,
-        samesite="lax",
-    )
-    return response
-
-
-@app.get("/contact", response_class=HTMLResponse)
-def contact_page() -> HTMLResponse:
-    raise HTTPException(status_code=410, detail="Contact form no longer available")
-
-
-@app.post("/api/contact")
-def submit_contact(payload: dict):
-    raise HTTPException(status_code=410, detail="Contact API no longer available")

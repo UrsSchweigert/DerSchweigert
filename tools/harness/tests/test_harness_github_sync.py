@@ -4,7 +4,6 @@ import os
 import pytest
 
 from harness import approval, cli, workrecord
-from harness.github import RateLimited
 from harness.store import Store
 from harness_fakes import Crash, FakeGitHub
 

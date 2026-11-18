@@ -1,14 +1,10 @@
 """Tests for Stripe provider adapter using StripeClient.v1 SDK."""
 
 import os
-import json
-import hmac
-import hashlib
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-import stripe
 
 os.environ['SECRET_KEY'] = 'test-key-for-imports'
 os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
@@ -197,11 +193,9 @@ class TestCreateCheckout:
             assert call.args[0]['managed_payments'] == {'enabled': False}
             assert call.args[0]['customer_update'] == {'address': 'auto', 'name': 'auto'}
             assert call.args[0]['consent_collection'] == {'terms_of_service': 'required'}
-            assert call.kwargs['options'] == {
-                'idempotency_key': 'op-123',
-                'stripe_version': '2025-03-31.basil',
-            }
-            assert stripe_provider.API_VERSION == '2024-06-20'
+            # Checkout no longer overrides the version: every request uses API_VERSION.
+            assert call.kwargs['options'] == {'idempotency_key': 'op-123'}
+            assert stripe_provider.API_VERSION == '2026-10-28.endive'
 
     def test_local_sandbox_can_skip_duplicate_hosted_terms(self, app_context):
         from sites.ffm.app import stripe_provider
@@ -555,4 +549,133 @@ class TestClientVersion:
 
         # The _client function should return v1
         # Check the API_VERSION constant
-        assert stripe_provider.API_VERSION == '2024-06-20'
+        assert stripe_provider.API_VERSION == '2026-10-28.endive'
+
+
+# ── _plain(): every result is JSON-safe ──────────────────────────────────────
+
+def _stripe_subscription_with_decimal_amounts():
+    import stripe
+    return stripe.Subscription.construct_from({
+        'id': 'sub_1', 'object': 'subscription', 'status': 'active',
+        'items': {'object': 'list', 'data': [{
+            'id': 'si_1', 'object': 'subscription_item',
+            'plan': {'id': 'plan_1', 'object': 'plan', 'amount': 199, 'amount_decimal': '199'},
+            'price': {'id': 'price_1', 'object': 'price', 'unit_amount': 199, 'unit_amount_decimal': '199.5'},
+        }]},
+    }, 'sk_test_mock')
+
+
+def test_plain_turns_sdk_decimals_back_into_the_api_strings():
+    """The SDK parses Stripe's decimal-string fields into Decimal, which
+    json.dumps rejects. _plain() must hand back the exact strings Stripe sent."""
+    import json
+    from decimal import Decimal
+    from sites.ffm.app.stripe_provider import _plain
+
+    raw = _stripe_subscription_with_decimal_amounts().to_dict()
+    assert isinstance(raw['items']['data'][0]['plan']['amount_decimal'], Decimal)  # the SDK behaviour guarded against
+
+    plain = _plain(_stripe_subscription_with_decimal_amounts())
+    item = plain['items']['data'][0]
+    assert item['plan']['amount_decimal'] == '199'
+    assert item['price']['unit_amount_decimal'] == '199.5'
+    assert item['plan']['amount'] == 199  # integer cents are untouched
+    json.dumps(plain)  # raises TypeError if any Decimal is left
+
+
+def test_plain_keeps_its_other_inputs_working():
+    from decimal import Decimal
+    from sites.ffm.app.stripe_provider import _plain
+
+    assert _plain(None) == {}
+    assert _plain({'a': [Decimal('1.25'), {'b': Decimal('3')}], 'c': 'x'}) == {'a': ['1.25', {'b': '3'}], 'c': 'x'}
+
+
+# ── API-version shape helpers: both the 2024-06-20 and the current shape ─────
+
+class TestShapeHelpers:
+    def test_invoice_subscription_id(self):
+        from sites.ffm.app import stripe_provider as sp
+        assert sp.invoice_subscription_id({'subscription': 'sub_old'}) == 'sub_old'
+        assert sp.invoice_subscription_id({'parent': {'subscription_details': {'subscription': 'sub_new'}}}) == 'sub_new'
+        assert sp.invoice_subscription_id({'parent': None}) is None
+
+    def test_invoice_is_paid(self):
+        from sites.ffm.app import stripe_provider as sp
+        assert sp.invoice_is_paid({'paid': True, 'status': 'open'}) is True
+        assert sp.invoice_is_paid({'paid': False, 'status': 'paid'}) is False
+        assert sp.invoice_is_paid({'status': 'paid'}) is True
+        assert sp.invoice_is_paid({'status': 'open'}) is False
+
+    def test_subscription_period_end(self):
+        from sites.ffm.app import stripe_provider as sp
+        assert sp.subscription_period_end({'current_period_end': 100}) == 100
+        assert sp.subscription_period_end({'items': {'data': [{'current_period_end': 200}, {'current_period_end': 300}]}}) == 300
+        assert sp.subscription_period_end({'items': {'data': []}}) is None
+
+    def test_line_price_and_proration(self):
+        from sites.ffm.app import stripe_provider as sp
+        old = {'price': {'id': 'price_q'}, 'proration': False}
+        new = {'pricing': {'price_details': {'price': 'price_q'}},
+               'parent': {'subscription_item_details': {'proration': True}}}
+        assert sp.line_price_id(old) == 'price_q' and sp.line_is_proration(old) is False
+        assert sp.line_price_id(new) == 'price_q' and sp.line_is_proration(new) is True
+        assert sp.line_is_proration({'parent': {'invoice_item_details': {'proration': False}}}) is False
+
+    def test_invoice_charge_id_old_shape_needs_no_request(self, app_context):
+        from sites.ffm.app import stripe_provider as sp
+        with patch.object(sp, '_client') as client:
+            assert sp.get_invoice_charge_id({'charge': 'ch_old'}) == 'ch_old'
+            client.assert_not_called()
+
+    def test_invoice_charge_id_current_shape_resolves_the_payment_intent(self, app_context):
+        from sites.ffm.app import stripe_provider as sp
+        invoice = {'id': 'in_1', 'payments': {'data': [
+            {'status': 'canceled', 'payment': {'type': 'payment_intent', 'payment_intent': 'pi_failed'}},
+            {'status': 'paid', 'payment': {'type': 'payment_intent', 'payment_intent': 'pi_ok'}},
+        ]}}
+        with patch.object(sp, '_client') as client:
+            client.return_value.payment_intents.retrieve.return_value = {'id': 'pi_ok', 'latest_charge': 'ch_new'}
+            assert sp.get_invoice_charge_id(invoice) == 'ch_new'
+            client.return_value.payment_intents.retrieve.assert_called_once_with('pi_ok')
+
+    def test_invoice_charge_id_fetches_payments_a_webhook_payload_lacks(self, app_context):
+        from sites.ffm.app import stripe_provider as sp
+        with patch.object(sp, '_client') as client:
+            client.return_value.invoices.retrieve.return_value = {'id': 'in_1', 'payments': {'data': [
+                {'status': 'paid', 'payment': {'type': 'charge', 'charge': 'ch_direct'}}]}}
+            assert sp.get_invoice_charge_id({'id': 'in_1'}) == 'ch_direct'
+            client.return_value.invoices.retrieve.assert_called_once_with('in_1', {'expand': ['payments']})
+
+    def test_charge_invoice_id_both_shapes(self, app_context):
+        from sites.ffm.app import stripe_provider as sp
+        assert sp.get_charge_invoice_id({'invoice': 'in_old'}) == 'in_old'
+        assert sp.get_charge_invoice_id({'payment_intent': None}) is None
+        with patch.object(sp, '_client') as client:
+            client.return_value.invoice_payments.list.return_value.auto_paging_iter.return_value = [{'invoice': 'in_new'}]
+            assert sp.get_charge_invoice_id({'payment_intent': 'pi_1'}) == 'in_new'
+            client.return_value.invoice_payments.list.assert_called_once_with(
+                {'payment': {'type': 'payment_intent', 'payment_intent': 'pi_1'}, 'limit': 10})
+
+
+class TestWebhookSecretRotation:
+    def _signed(self, payload, secret):
+        import hashlib
+        import hmac
+        import time
+        t = int(time.time())
+        sig = hmac.new(secret.encode(), f'{t}.'.encode() + payload, hashlib.sha256).hexdigest()
+        return f't={t},v1={sig}'
+
+    def test_either_of_two_configured_secrets_verifies(self, app):
+        import json
+        import stripe
+        from sites.ffm.app import stripe_provider as sp
+        payload = json.dumps({'id': 'evt_1', 'object': 'event', 'type': 'invoice.paid', 'data': {'object': {}}}).encode()
+        app.config['STRIPE_WEBHOOK_SECRET'] = 'whsec_old_endpoint, whsec_new_endpoint'
+        with app.app_context():
+            assert sp.verify_event(payload, self._signed(payload, 'whsec_old_endpoint'))['id'] == 'evt_1'
+            assert sp.verify_event(payload, self._signed(payload, 'whsec_new_endpoint'))['id'] == 'evt_1'
+            with pytest.raises(stripe.SignatureVerificationError):
+                sp.verify_event(payload, self._signed(payload, 'whsec_someone_else'))

@@ -43,10 +43,18 @@ body {
 }
 
 #game-wrap[data-layout="landscape"] {
-  grid-template-columns: var(--scene-width) var(--answer-width, minmax(0, 1fr));
+  grid-template-columns: var(--sword-column-width, 0px) var(--scene-width) var(--answer-width, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
   justify-content: center;
 }
+
+/* Landscape places its three blocks explicitly: the sword column
+ * (encounter-swords.js) owns the first grid column for the full height under
+ * the chrome row, the scene the second and the answers the third. */
+#game-wrap[data-layout="landscape"] > #playfield { grid-column: 2; grid-row: 1; }
+#game-wrap[data-layout="landscape"] > #input-zone { grid-column: 3; grid-row: 1; }
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > #playfield,
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > #input-zone { grid-row: 2; }
 
 #game-wrap:has(#gameplay-chrome:not([hidden])) {
   grid-template-rows: auto var(--scene-height) minmax(0, 1fr);
@@ -54,6 +62,10 @@ body {
 
 #game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) {
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+#game-wrap[data-layout="landscape"]:has(#gameplay-chrome:not([hidden])) > .app-encounter-swords-column {
+  grid-row: 2;
 }
 
 #gameplay-chrome {
@@ -100,7 +112,7 @@ body {
  * worst for the long German sentences. Anchor it to the scene column instead:
  * the bonus belongs to the playfield the spells are cast from. */
 #game-wrap[data-layout="landscape"] #bonus-notice {
-  left: 0;
+  left: calc(var(--sword-column-width, 0px) + 6px);
   right: calc(var(--answer-width) + 12px);
   width: fit-content;
   max-width: calc(var(--scene-width) - 8px);
@@ -141,6 +153,20 @@ body {
   word-break: keep-all;
   font: bold 22px/28px monospace;
 }
+
+/* Runestones: the one counting image (see game/runestone.js), sized from the
+ * row's font so it scales with the header like the glyphs it replaced. */
+.runestone {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  margin: 0 0.3em 0 0;
+  vertical-align: -0.12em;
+  image-rendering: pixelated;
+}
+#active-question[data-stone-sum] { font: bold 22px/28px monospace; }
+#active-question .stone-sum-stones { white-space: nowrap; }
+#active-question .stone-sum-stones .runestone { margin-right: 0.3em; }
 
 #gameplay-chrome[data-question-rows="1"] #active-question {
   white-space: nowrap;
@@ -707,6 +733,50 @@ body {
   user-select: none;
 }
 
+/* Landscape shows the same swords as a vertical column at the left edge of
+ * #game-wrap instead (created by encounter-swords.js; no markup). The slots
+ * shrink evenly (min size 0) so 30 swords fit a 320px-high window. The column
+ * fills its own grid track (--sword-column-width, set by viewport-layout.js)
+ * and adds no margin: body already pads #game-wrap by the left safe-area
+ * inset, so the track itself sits inside the safe area. */
+.app-encounter-swords-column {
+  display: none;
+}
+
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 0;
+  pointer-events: none;
+  user-select: none;
+  visibility: visible;
+}
+
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column[hidden] {
+  visibility: hidden;
+}
+
+/* In the column the swords lie on their side with the tip towards the hero
+ * (to the right, where the scene starts), so each slot is only a blade's width
+ * tall: 30 of them stack in a short landscape window at a readable size, and
+ * the column itself shrinks to one sword's length (viewport-layout.js). */
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column .app-encounter-sword {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 9px;
+  width: 18px;
+}
+
 #game-wrap[data-layout="portrait"] .app-encounter-swords {
   display: flex !important;
 }
@@ -725,15 +795,21 @@ body {
   height: 20px;
 }
 
+/* The sword silhouette, declared once: the portrait bar and the difficulty
+ * picker icons both draw it. */
+.diff-sword::before,
 .app-encounter-sword::before {
   content: "";
   display: block;
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.24);
   clip-path: polygon(50% 0, 62% 9%, 62% 62%, 90% 62%, 90% 71%, 58% 71%, 58% 88%,
     66% 88%, 66% 100%, 34% 100%, 34% 88%, 42% 88%, 42% 71%, 10% 71%, 10% 62%,
     38% 62%, 38% 9%);
+}
+
+.app-encounter-sword::before {
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .app-encounter-sword--filled {
@@ -750,6 +826,18 @@ body {
  * but it stays far dimmer than a pending sword (0.24) and the fill sparkles. */
 .app-encounter-sword--lost::before {
   background: rgba(255, 255, 255, 0.07);
+}
+
+/* The landscape column's swords lie on their side, tip towards the hero. */
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column .app-encounter-sword::before {
+  /* The upright silhouette turned 90 degrees clockwise: (x, y) -> (100 - y, x). */
+  clip-path: polygon(100% 50%, 91% 62%, 38% 62%, 38% 90%, 29% 90%, 29% 58%, 12% 58%,
+    12% 66%, 0 66%, 0 34%, 12% 34%, 12% 42%, 29% 42%, 29% 10%, 38% 10%,
+    38% 38%, 91% 38%);
+}
+#game-wrap[data-layout="landscape"] .app-encounter-swords-column .app-encounter-sword--filled::before {
+  /* The bright end of the fill stays at the tip. */
+  background: linear-gradient(270deg, #c8f7c5 0%, #5fd068 45%, #2e8b3a 100%);
 }
 
 @keyframes ffm-sword-fill {
@@ -862,6 +950,8 @@ input[type=number] {
   line-height: 1.25;
   color: var(--ivory);
 }
+/* Subtitles inside a dialog are one step below its title. */
+:where(.overlay) :where(h3) { font-size: var(--text-subheading); }
 .overlay {
   position: fixed;
   top: 0;
@@ -1173,7 +1263,9 @@ input[type=number] {
   color: #f0f0f0;
   border: 2px solid #6060d0;
   cursor: pointer;
-  font-family: monospace;
+  /* No font here: dialog buttons take the shared button face and size from the
+   * :where(.overlay) defaults, so a pause or result button reads like every
+   * other menu button. The difficulty options set their own (.splash-diff-btn). */
 }
 
 .diff-btn:hover {
@@ -1234,6 +1326,9 @@ input[type=number] {
   z-index: 99;
   pointer-events: none;
 }
+
+/* A dialog whose text and actions the bar cannot change (title-bar.js). */
+#top-bar.behind-dialog { visibility: hidden; }
 
 #top-bar button,
 #top-bar span {
@@ -1873,10 +1968,12 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 /* Running text in dialogs and panels reads left-aligned, inset from the card
  * edge, and keeps air before the action that ends the passage. Centred copy is
  * reserved for the welcome text, headings and one-line labels (a player name,
- * the "choose your difficulty" prompt). */
-:is(.overlay-card, .paywall-card, .parental-gate-card, .entitlement-panel,
+ * the "choose your difficulty" prompt). The Players page's purchase panel is
+ * centred too: it is a status card of short lines under the centred player
+ * list, not a passage (mobile-ui.css). */
+:is(.overlay-card, .paywall-card, .parental-gate-card,
     .practice-controls, .app-help-card, .first-open-notice-card) p:not(.player-identity),
-:is(.overlay-card, .paywall-card, .parental-gate-card, .entitlement-panel,
+:is(.overlay-card, .paywall-card, .parental-gate-card,
     .practice-controls, .app-help-card, .first-open-notice-card) :is(ul, ol) {
   text-align: left;
   padding-inline: 8px;
@@ -2098,6 +2195,8 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   min-height: 44px;
   padding: 4px;
   justify-content: center;
+  /* The difficulty options are cards of prose (name and rules), not menu buttons. */
+  font-family: var(--font-prose);
 }
 .diff-label { font-size: var(--text-option); }
 .diff-detail { display: block; font-size: var(--text-body); color: var(--ivory-muted); }
@@ -2149,12 +2248,15 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 #continue-level { margin: 0; }
 #continue-level:empty { display: none; }
 .title-level-numerals {
+  --numeral-height: 44px;
+  --numeral-width: calc(var(--numeral-height) * (var(--level-numeral-digits, 1) * 30 + 22) / 86);
   position: absolute;
   top: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 8px);
   left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 8px);
   z-index: 3;
-  width: clamp(44px, 14vw, 96px);
-  max-width: 20vw;
+  /* Same 44px height as the title-bar controls and the player badge. */
+  height: var(--numeral-height);
+  width: var(--numeral-width);
   /* Clickable on purpose: three taps here open the speedrun card (see
      speedrun-ui.js), and this numeral is the level display the title screen
      always shows — the intro sentence under it is hidden on small phones. */
@@ -2162,14 +2264,28 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   user-select: none;
   filter: drop-shadow(0 2px 3px #070e0b);
 }
-.title-level-numerals svg { display: block; width: 100%; max-height: 84px; }
+.title-level-numerals svg { display: block; width: 100%; height: 100%; }
 .title-level-numerals[hidden] { display: none; }
-@media (max-width: 600px) {
-  .title-level-numerals svg { max-height: 44px; }
+/* The player's hero portrait sits right of the level numerals and opens the hero picker (web) or Players page (app). */
+.title-player-badge {
+  position: absolute;
+  top: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 8px);
+  left: calc(var(--safe-area-left, env(safe-area-inset-left, 0px)) + 16px + 44px * (var(--level-numeral-digits, 1) * 30 + 22) / 86);
+  z-index: 3;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--brass, #b8923a);
+  border-radius: 50%;
+  background: rgba(9, 20, 17, 0.7);
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: manipulation;
+  filter: drop-shadow(0 2px 3px #070e0b);
 }
-@media (orientation: landscape) and (max-height: 400px) {
-  .title-level-numerals { width: 44px; }
-}
+.title-player-badge[hidden] { display: none; }
+.title-player-badge .hero-identity-portrait { display: block; width: 100%; height: 100%; margin: 0; border-radius: 0; object-fit: cover; }
+.title-player-badge:focus-visible { outline: 3px solid var(--focus-ring, #fff0bd); outline-offset: 2px; }
 /* Tabs take the width their label needs and wrap onto a second row when six
  * of them (plus help) do not fit. A pressed tab is bold and therefore wider, so
  * a fixed six-column grid used to clip "Training" on 320px phones. */
@@ -2501,16 +2617,20 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
 
   /* Menu typography. Two defaults carry every menu: buttons use the title-page
    * tab metrics, body copy uses the difficulty-explanation metrics
-   * ("15 seconds · 7 hearts"). Option names and screen headings are the only
-   * larger steps. Bold and ivory are reserved for headings, the selected tab
-   * and the one primary action per screen. */
+   * ("15 seconds · 7 hearts"). Option names, screen headings and dialog
+   * subtitles (h3) are the only larger steps; --text-small is the one smaller
+   * step, for a caption line under a heading. Bold and ivory are reserved for
+   * headings, the selected tab and the primary action. Every dialog takes these
+   * through the :where(.overlay) defaults, so a dialog never sets its own. */
   --font-ui: system-ui, sans-serif;
   --font-prose: monospace;
   --text-button: clamp(11px, 1.5vw, 15px);
   --text-body: 12px;
+  --text-small: 11px;
   --line-body: 1.35;
   --text-option: clamp(15px, 2.5vw, 22px);
   --text-heading: clamp(16px, 3.4vw, 28px);
+  --text-subheading: 14px;
 }
 
 html, body { background: var(--ink-950); }
@@ -2682,8 +2802,13 @@ body { color: var(--ivory); }
 /* Button hierarchy. Every button in the game is one of three tiers, so the
  * important control on a screen is recognisable before the label is read:
  *
- *   primary  brass fill, a thicker 2px line and a diamond marker. One per
- *            screen: start practice, resume, next level, save a score.
+ *   primary  brass fill, a thicker 2px line and a diamond marker. Gold is
+ *            reserved for the "proceed" half of a proceed/abort choice
+ *            (select vs cancel, start vs back, resume vs leave, buy vs not
+ *            now), so a gold button always means "this goes ahead". A button
+ *            that only opens a page or a submenu is quiet, however important.
+ *            A primary button with its own glyph (Select's ▶) drops the
+ *            diamond, so it never carries two icons.
  *   danger   red 2px line for the irreversible half of a confirmation:
  *            discard a score, delete a player.
  *   quiet    everything else (navigation tabs, pagination, secondary
@@ -2716,6 +2841,7 @@ body { color: var(--ivory); }
 :is(.action-primary, #btn-next-level, #btn-resume-game, #btn-pause-save, #btn-skill-intro-continue):hover {
   background: linear-gradient(145deg, #ecd07d, #c09446);
 }
+#btn-level-select.action-primary::before { content: none; }
 :is(.action-danger, #btn-pause-discard) {
   background: linear-gradient(145deg, #4a2620, #2c1613);
   color: #ffd9d2;
@@ -2836,16 +2962,11 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 #practice-description, #practice-unscored, #practice-badges, #practice-status, #btn-start-practice, #music-volume-status {
   grid-column: 1 / -1;
 }
-/* The practice panel is a submenu of the Training tab: its summary carries the
- * tab's own heading style (monospace, --text-heading, ivory, bold) instead of
- * the quiet disclosure-label look. */
-#practice-panel > summary {
-  font-family: var(--font-prose);
-  font-size: var(--text-heading);
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--ivory);
-}
+/* The practice panel is opened by the real #btn-open-practice button (primary
+ * tier); the <summary> stays in the DOM only because <details> needs it. */
+#practice-panel > summary { display: none; }
+#btn-open-practice { width: 100%; min-height: 44px; flex-shrink: 0; }
+.title-page:has(#practice-panel[open]) #btn-open-practice { display: none; }
 /* The level hint sits under the level selector and spans the control column.
  * It is a one-line label for the chosen level, not running text, so it stays
  * centred (the dialog-wide left alignment for passages does not apply to it). */
@@ -2882,20 +3003,52 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 /* The pause dialog keeps the title screen's 560px control column, so the
    action buttons and the audio disclosure share one width on wide screens. */
 #pause-overlay .overlay-card {
+  position: relative;
   align-items: stretch;
   text-align: center;
   width: 100%;
   max-width: 560px;
   margin-inline: auto;
 }
-#audio-settings { width: 100%; align-self: center; }
-/* Match the disclosure summary to the pause buttons it sits under. */
-#pause-overlay .compact-disclosure > summary {
-  box-sizing: border-box;
-  min-height: 44px;
-  padding: 6px;
-  border-color: var(--brass-deep);
+/* The title keeps clear of the speaker button in the corner, and its row is as
+ * tall as the button, so the content below never slides under it. */
+#pause-overlay .overlay-card > h2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding-inline: 52px;
 }
+#audio-settings { width: 100%; align-self: center; }
+/* Closed, the disclosure is only its speaker button; the frame belongs to the
+ * open settings panel. */
+#audio-settings:not([open]) { border: 0; background: none; box-shadow: none; }
+/* The sound settings open from a speaker in the card's top-right corner (the
+ * corner where the title bar keeps its speaker), not from a full-width row
+ * among the pause actions. The same 44px box and brass hairline as the title
+ * bar's speaker; the summary stays the disclosure's real toggle. */
+#pause-overlay .audio-settings-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 2px solid var(--brass-deep);
+  border-radius: 4px;
+  background: var(--ink-900);
+  list-style: none;
+}
+#pause-overlay .audio-settings-toggle::-webkit-details-marker { display: none; }
+#pause-overlay .audio-settings-toggle::marker { content: ''; }
+#pause-overlay .audio-settings-toggle:hover,
+#audio-settings[open] > .audio-settings-toggle { border-color: var(--brass-light); background: var(--forest-800); }
+.audio-settings-icon { font-size: 18px; line-height: 1; }
 .audio-controls { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
 .audio-controls label { width: 100%; }
 .audio-controls input[type="range"] { max-width: 400px; }
@@ -2925,7 +3078,10 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 }
 .title-play-intro .splash-intro, .title-play-intro .splash-subtitle,
 .title-play-intro .player-identity, .title-play-intro #continue-level {
-  text-shadow: 0 2px 4px #000, 0 0 8px #000, 0 0 16px #000;
+  /* Stacked, tight-to-wide shadow keeps the white text legible over the bright moon. */
+  text-shadow:
+    0 1px 1px #000, 0 2px 3px #000, 0 3px 6px rgba(0, 0, 0, 0.95),
+    0 0 6px #000, 0 0 12px #000, 0 0 22px rgba(0, 0, 0, 0.95), 0 0 34px rgba(0, 0, 0, 0.8);
 }
 .splash-diff-buttons {
   grid-template-columns: minmax(0, 1fr);
@@ -2948,6 +3104,9 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 }
 .splash-diff-btn .diff-label { flex: 0 0 25%; }
 .splash-diff-btn .diff-detail { text-align: right; }
+.diff-swords { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; height: 20px; }
+.diff-sword { flex: 0 0 12px; width: 12px; height: 20px; }
+.diff-sword::before { background: linear-gradient(180deg, #c8f7c5 0%, #5fd068 45%, #2e8b3a 100%); }
 #game-wrap[data-layout="portrait"] #input-zone {
   position: relative;
   isolation: isolate;
@@ -3051,6 +3210,94 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   min-height: 0;
 }
 #practice-panel[open] .practice-controls { align-content: start; }
+
+/* The per-level scores are one scrolling list instead of pages. The Practice
+ * sheet is as tall as the band (minus the footer navigation and the title bar,
+ * which sit outside it); the list takes what the heading, the Practice button
+ * and the chart button leave, and scrolls inside that. While the practice
+ * submenu is open the whole sheet scrolls again, as on every other menu page. */
+.title-page[data-title-page="progress"]:not(:has(#practice-panel[open])) {
+  height: 100%;
+  max-height: calc(100dvh - env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+}
+.title-page[data-title-page="progress"] #personal-development:not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.title-page[data-title-page="progress"] #personal-best-list {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+/* The scores are body text: the standard prose size in compact, left-aligned
+ * rows (the leaderboard's 4px padding plus 4px margin made every level a 28px
+ * row, so a landscape phone showed one level at a time). The "Practice for"
+ * line under the heading is one step smaller than body text. */
+/* Room for a two-digit marker ("45.") inside the scroll box, which clips anything outside it. */
+.title-page[data-title-page="progress"] #personal-best-list { padding-left: 4.5ch; font-size: var(--text-body); }
+.title-page[data-title-page="progress"] #personal-best-list li {
+  margin: 0;
+  padding: 1px 4px;
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+  text-align: left;
+}
+.title-page[data-title-page="progress"] .player-identity { font-size: var(--text-small); }
+/* The chart button names what it opens; the icon is decoration. */
+#personal-history-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; }
+.history-toggle-icon { font-size: 1.2em; line-height: 1; }
+/* Short landscape: the scores take the left column at full height, and the two
+ * page buttons stack as a narrow column on the right instead of eating the rows
+ * the list needs. */
+@media (orientation: landscape) and (max-height: 460px) {
+  .title-page[data-title-page="progress"]:not(:has(#practice-panel[open])) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 6px;
+    align-content: stretch;
+  }
+  .title-page[data-title-page="progress"]:not(:has(#practice-panel[open])) > #personal-development {
+    grid-column: 1;
+    grid-row: 1 / -1;
+  }
+  .title-page[data-title-page="progress"]:not(:has(#practice-panel[open])) > #btn-open-practice {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    max-width: 34vw;
+  }
+  .title-page[data-title-page="progress"]:not(:has(#practice-panel[open])) > .screen-pagination {
+    grid-column: 2;
+    grid-row: 2;
+    margin: 0;
+  }
+  .title-page[data-title-page="progress"]:not(:has(#practice-panel[open])) > .screen-pagination button {
+    width: 100%;
+    max-width: 34vw;
+  }
+  .title-page[data-title-page="progress"]:not(:has(#practice-panel[open])) > #practice-panel {
+    grid-column: 2;
+    grid-row: 3;
+    border-top: 0;
+  }
+}
+.level-jump-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  flex-shrink: 0;
+}
+.level-jump-actions button { min-height: 44px; margin: 0; }
 
 .skill-intro-card { gap: 10px; }
 .skill-intro-example {
@@ -3245,7 +3492,6 @@ body:not(.legal-body) {
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  font-size: 16px;
   cursor: pointer;
 }
 
@@ -3258,21 +3504,24 @@ body:not(.legal-body) {
 
 .speedrun-best-run {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--text-option);
   font-variant-numeric: tabular-nums;
 }
 
 .speedrun-heading {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--text-subheading);
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   opacity: 0.75;
 }
 
 .speedrun-levels {
+  position: relative;
   margin: 0;
+  /* Bounded so the list scrolls even when the card is not height-limited. */
+  max-height: min(45dvh, 320px);
   padding: 0 2px 0 0;
   list-style: none;
   display: grid;
@@ -3302,7 +3551,6 @@ body:not(.legal-body) {
 
 .speedrun-empty {
   margin: 0;
-  font-size: 15px;
   opacity: 0.75;
 }
 
@@ -3347,3 +3595,149 @@ body:not(.legal-body) {
   font-size: 13px;
   opacity: 0.7;
 }
+
+/* Web hero picker (account modal) and the hero portrait beside player names. */
+.hero-picker-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+.hero-picker-actions .diff-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.hero-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; margin: 8px 0; }
+.hero-picker-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px; min-height: 44px; padding: 6px; border: 2px solid transparent; border-radius: 8px; background: rgba(255, 255, 255, 0.06); color: inherit; cursor: pointer; }
+.hero-picker-item:focus-visible { outline: 3px solid #ffd54a; outline-offset: 2px; }
+/* The worn hero has the thick gold frame of a selected row or tab; a different
+ * hero highlighted as the next choice gets the thin gold hairline beside it, so
+ * the player sees both "now" and "after Change hero" (hero-picker.js). */
+.hero-picker-item.is-current { border-color: var(--brass-light); }
+.hero-picker-item.is-prospective { border-color: transparent; box-shadow: inset 0 0 0 1px var(--brass-light); background: rgba(228, 197, 119, 0.1); }
+.hero-picker-item.is-locked { opacity: 0.8; }
+.hero-picker-portrait, .hero-picker-placeholder, .hero-identity-portrait { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: rgba(255, 255, 255, 0.15); }
+.hero-picker-placeholder, .hero-identity-portrait-placeholder { display: inline-block; }
+.hero-identity-portrait { width: 28px; height: 28px; vertical-align: middle; margin-right: 12px; }
+.hero-picker-lock { position: absolute; top: 2px; right: 2px; min-width: 22px; padding: 0 4px; border-radius: 4px; background: #000; color: #fff; font-size: 14px; line-height: 22px; text-align: center; }
+.hero-picker-name { font-size: 12px; text-align: center; }
+.hero-picker-status { min-height: 16px; margin: 0; font-size: 12px; color: #f0d080; }
+
+/* Campaign 2 (Arithmoslayer II) maths: stacked fractions and mixed numbers (campaign2/math-render.js). */
+.m2-expr { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; }
+.m2-mixed { display: inline-flex; align-items: center; gap: 0.15em; }
+.m2-frac { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.05; font-size: 0.8em; }
+.m2-frac .m2-num { padding: 0 0.2em 0.08em; border-bottom: 0.09em solid currentColor; }
+.m2-frac .m2-den { padding: 0.08em 0.2em 0; }
+.m2-blank { opacity: 0.85; }
+.m2-int { font-variant-numeric: tabular-nums; }
+.m2-pow { display: inline-flex; align-items: flex-start; }
+.m2-sup, .m2-sub { font-size: 0.62em; line-height: 1; }
+.m2-sup { align-self: flex-start; margin-left: 0.08em; position: relative; top: -0.15em; }
+.m2-sub { position: relative; top: 0.35em; margin-right: 0.12em; }
+.m2-sup .m2-expr, .m2-sup .m2-frac { font-size: 1em; }
+.m2-root { display: inline-flex; align-items: flex-end; }
+.m2-idx { font-size: 0.55em; align-self: flex-start; margin-right: -0.1em; }
+.m2-rad { border-top: 0.09em solid currentColor; padding: 0.04em 0.15em 0; margin-left: -0.05em; }
+.m2-surd { display: inline-flex; align-items: flex-end; gap: 0.05em; }
+.m2-paren { opacity: 0.9; }
+.m2-log { margin-right: 0.15em; }
+
+/* The campaign switch (Players page in the app, Play page on the web) and the
+ * Campaign II picture on the app's title screen. They wear the menu colours:
+ * a forest panel inside the thick-and-thin brass frame of the level numerals,
+ * with the brass dragon ring of the intro button on both sides (its circular
+ * arrow doubles as "switch"). The text is the game's own: the heading monospace
+ * for the campaign name, the UI face for the small lines.
+ *
+ * Everything is sized from the space the switch gets (container width capped by
+ * the viewport height on the switch, viewport-min units on the title picture,
+ * which has no container of its own), so a 320px phone or a short
+ * landscape band shrinks it instead of letting the name run out of the frame. */
+.campaign-switch {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+.campaign-switch[hidden] { display: none; }
+.campaign-switch-btn, .campaign-emblem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 44px;
+  border: 2px solid var(--brass-light);
+  border-radius: 8px;
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(228, 197, 119, 0.18), transparent 62%),
+    linear-gradient(145deg, #284c3c, #10241c);
+  /* The thin inner line of the double frame, 3px inside the thick one. */
+  box-shadow: inset 0 0 0 3px #10241c, inset 0 0 0 4px var(--brass), 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: var(--ivory);
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.campaign-switch-btn {
+  gap: clamp(4px, min(3cqi, 3vh), 14px);
+  width: min(100%, 440px);
+  max-width: 100%;
+  padding: clamp(3px, min(1.6cqi, 1.5vh), 10px) clamp(6px, 3cqi, 16px);
+}
+.campaign-switch-btn:hover { border-color: var(--focus-ring); background: radial-gradient(120% 140% at 50% 0%, rgba(228, 197, 119, 0.26), transparent 62%), linear-gradient(145deg, #315641, #19372b); }
+.campaign-switch-btn:active { transform: scale(0.98); }
+.campaign-switch-btn:focus-visible, .campaign-emblem:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.campaign-switch-dragon {
+  flex: 0 1 auto;
+  width: clamp(24px, min(13cqi, 12vh), 56px);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+.campaign-switch-dragon--mirror { transform: scaleX(-1); }
+.campaign-switch-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.15;
+}
+.campaign-switch-eyebrow, .campaign-switch-status {
+  font-family: var(--font-ui);
+  font-size: clamp(9px, min(3cqi, 3.4vh), 12px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.campaign-switch-eyebrow { color: var(--ivory-muted); }
+.campaign-switch-status { color: var(--brass-light); }
+.campaign-switch-title {
+  font-family: var(--font-prose);
+  font-size: clamp(14px, min(7cqi, 6.5vh), 28px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--brass-light);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 12px rgba(228, 197, 119, 0.35);
+}
+/* Campaign II is the one being played: the dragons glow a little brighter. */
+.campaign-switch-btn[aria-pressed="true"] .campaign-switch-dragon { filter: drop-shadow(0 0 6px rgba(228, 197, 119, 0.7)); }
+/* The title picture has no container of its own, so it scales with the shorter
+ * viewport side: a landscape phone's 320px height shrinks it like a portrait
+ * phone's 320px width. */
+.campaign-emblem {
+  gap: clamp(4px, 2vmin, 12px);
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: clamp(3px, 1vmin, 8px) clamp(6px, 2.5vmin, 14px);
+}
+.campaign-emblem[hidden] { display: none; }
+.campaign-emblem .campaign-switch-dragon { width: clamp(22px, 8vmin, 44px); }
+.campaign-emblem .campaign-switch-eyebrow { font-size: clamp(8px, 2.4vmin, 11px); }
+.campaign-emblem .campaign-switch-title { font-size: clamp(13px, 4.6vmin, 24px); }
+/* end campaign switch */
+.m2-intro-math { font-size: 1.8em; text-align: center; margin: 0.4em 0; }
+.mc-btn .m2-expr { font-size: 1.15em; justify-content: center; }
+.mc-btn .m2-frac { font-size: 0.85em; }

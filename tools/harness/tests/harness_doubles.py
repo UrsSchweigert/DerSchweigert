@@ -1,10 +1,9 @@
 """TEST DOUBLES for fault injection. They are not real integrations: FakeAdapter stands in for the runtime,
 FakeRepo for git, and FakeChecker for the sandboxed check runner."""
-import itertools
 import json
 import os
 
-from harness import approval, cli, humantasks, plans
+from harness import approval, humantasks, plans
 from harness.adapter import Adapter, Poll
 from harness.checks import Checker, DryRunPublisher
 from harness.repo import RebaseResult, Repo
@@ -201,7 +200,7 @@ class FakeAdapter(Adapter):
             queue = self.verdicts.get(req.issue_id) or ["approve"]
             verdict = queue.pop(0) if len(queue) > 1 else queue[0]
             result.update(outcome=verdict, revision="someone-elses-head" if step == "wrong_revision" else self.repo.branch_head(branch),
-                          risks=["finding"] if verdict != "approve" else [])
+                          risks=(getattr(self, "risks", None) or ["finding"]) if verdict != "approve" else [])
         elif req.role == "refiner":
             result["outcome"] = "needs_input" if step == "needs_input" else "not_sure" if step == "not_sure" else "ready"
             if step in ("needs_input", "not_sure"):
@@ -240,7 +239,7 @@ class Clock:
 class Env:
     """An approved plan, Tier A attestation override, and a scheduler wired to doubles."""
 
-    def __init__(self, tmp_path, issues=None, allowlist=("src/",), merge_policy=None, available_models=("claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"),
+    def __init__(self, tmp_path, issues=None, allowlist=("src/",), merge_policy=None, available_models=("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-8"),
                  budgets=None, phases=None, authorized_operations=None, model_sources=None, policy_overrides=None):
         self.store = Store(str(tmp_path / "home"))
         phases = phases or [

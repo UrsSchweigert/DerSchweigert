@@ -2,7 +2,8 @@ name: 'Landhauscheck: waste calendar review'
 
 # Triggered whenever a PR touches ICS files in the waste data directory.
 # Only runs for branches opened by the contribution endpoint (waste/*).
-# The review agent validates, normalises and—if all checks pass—merges the PR.
+# The review agent validates, normalises and comments on the PR. It never merges:
+# the uploads are anonymous and every merge to main deploys, so the maintainer merges by hand.
 
 on:
   pull_request:
@@ -16,7 +17,7 @@ permissions:
 
 jobs:
   review:
-    name: Review & auto-merge waste calendar
+    name: Review waste calendar
     runs-on: ubuntu-latest
 
     # Only act on the bot's own PR branches — human PRs go through normal review.
@@ -29,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.head_ref }}
           # Use the PAT so that pushes (normalisation commits) are allowed
@@ -38,7 +39,7 @@ jobs:
           fetch-depth: 0    # need full history for git diff against base
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
 
@@ -50,6 +51,6 @@ jobs:
           REPO: ${{ github.repository }}
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
-        # Exit 0 = approved (and merged).  Exit 1 = changes requested.
-        # Exit 2 = script-level error (see logs).
+        # Exit 0 = review posted (passed checks or changes requested).
+        # Exit 1 = fatal error: missing env vars or a GitHub API failure (see logs).
         run: python sites/landhauscheck/scripts/review_waste_pr.py

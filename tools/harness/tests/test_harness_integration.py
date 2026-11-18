@@ -317,7 +317,7 @@ def test_a_deletion_only_diff_does_not_trip_the_cap(tmp_path):
 def test_human_merge_policy_stops_at_review(tmp_path):
     env = Env(tmp_path, merge_policy="human-merges")
     env.start()
-    events = env.run_until(lambda: any(e["event"] == "merge_refused" for e in env.sched.events) or env.state("i1") == "Done", limit=15)
+    env.run_until(lambda: any(e["event"] == "merge_refused" for e in env.sched.events) or env.state("i1") == "Done", limit=15)
     assert env.state("i1") == "In Review"
     assert not [i for i in env.publisher.intents if i["action"] == "merge_pr"]
 
@@ -771,7 +771,7 @@ def test_a_failed_branch_publication_is_retried_without_merging(tmp_path):
     env.repo.advance_base(["docs/elsewhere.md"])
     env.publisher.update_errors = [GitHubError("publishing the rebased harness/i1 failed: stale info")]
     next(h["handle"] for h in env.sched.handles.values() if h["handle"].req.role == "reviewer").step = "ok"
-    events = env.run_until(lambda: any(e["event"] == "publish_failed" for e in env.sched.events), limit=30)
+    env.run_until(lambda: any(e["event"] == "publish_failed" for e in env.sched.events), limit=30)
     assert not [i for i in env.publisher.intents if i["action"] == "merge_pr"]
     env.run_until(lambda: env.state("i1") == "Done")
 

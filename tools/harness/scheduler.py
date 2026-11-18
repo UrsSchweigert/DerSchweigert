@@ -62,7 +62,8 @@ HELPER_FAILURE = {"delegator": "the delegating agent gave no usable decision", "
 # What the overseer may decide. Everything else stays with the owner: a scope breach, an escalation path, a permission
 # problem, an isolation failure, or a cancelled plan is not a process question.
 OVERSEER_KINDS = {"checks_failed", "check_configuration", "schema_invalid", "patch_changed", "push_rejected",
-                  "merge_conflict", "diff_too_large", "worker_blocked", "lease_lost", "inactivity", "timeout", "no_result"}
+                  "merge_conflict", "diff_too_large", "worker_blocked", "lease_lost", "inactivity", "timeout", "no_result",
+                  "review_loop"}  # review_loop: the second round of review findings, see _check_review_loop
 # inactivity and timeout belong here for the same reason lease_lost does: the attempt produced no result, and nothing
 # observed so far says the issue is at fault. Leaving them out sent every stalled worker to the owner as if it were a
 # decision about the game.
@@ -596,7 +597,8 @@ class Scheduler:
             if kind == "cancelled":
                 self._release(meta["attempt_id"])
                 return
-            self._record_failure(meta, kind, now, poll.error.get("detail", kind), tail=self._attempt_tail(h))
+            self._record_failure(meta, kind, now, poll.error.get("detail", kind), tail=self._attempt_tail(h),
+                                 retry_at=poll.error.get("retry_at"))
             return
         result = poll.result
         try:
@@ -617,7 +619,7 @@ class Scheduler:
 
     def _record_failure(self, meta: Dict[str, Any], kind: str, now: float, detail: str, outcome: Optional[str] = None,
                         already_final: bool = False, evidence: Optional[Dict[str, Any]] = None,
-                        tail: Optional[List[str]] = None) -> None:
+                        tail: Optional[List[str]] = None, retry_at: Optional[float] = None) -> None:
         """Classify by code, finish the attempt, update budgets, and retry, block, or pause."""
         attempt_id, issue_id = meta["attempt_id"], meta["issue_id"]
         prior_timeout = any(a["attempt_id"] != attempt_id and a.get("outcome") == "TimedOut" and a.get("packet_digest") == meta.get("packet_digest")
@@ -654,7 +656,7 @@ class Scheduler:
         issue["last_failures"][-1]["signature"] = failure_signature
         decision = {"action": "block", "reason": HELPER_FAILURE[meta["role"]]} if (
             meta["role"] in HELPER_FAILURE and fclass in (failures.DETERMINISTIC, failures.POLICY, failures.CONFIGURATION)
-        ) else failures.decide(fclass, issue, budgets, now, self.rng)  # a failed helper must not spend the implementer's repair budget
+        ) else failures.decide(fclass, issue, budgets, now, self.rng, retry_at=retry_at)  # a failed helper must not spend the implementer's repair budget
         if fclass == failures.REPORTED and decision["action"] == "block" and self._schedule_analysis(issue):
             decision = {"action": "analyze"}
         # An oversize diff is a sizing problem, not a policy violation: the worker wrote the work, it just does not fit
@@ -666,6 +668,8 @@ class Scheduler:
         self._emit("attempt_failed", attempt=attempt_id, issue=issue_id, kind=kind, failure_class=fclass, action=decision["action"])
         if decision["action"] == "analyze":
             self._emit("analysis_scheduled", issue=issue_id, trigger="stuck_report")
+        if decision.get("wait") == "usage_limit":
+            self._emit("usage_limit_wait", issue=issue_id, resume_at=issue["not_before"], detail=detail[:200])
         state = self.store.state("issue", issue_id)
         if kind == ENVIRONMENT_KIND and decision["action"] == "block" and self._only_environment_failures(issue):
             # No worker ever ran, so nothing was learned about this issue and retrying it cannot help: every other
@@ -1040,7 +1044,7 @@ class Scheduler:
                                  "findings": result["risks"][:10]}, now)
         self._emit("review", issue=issue["issue_id"], verdict=verdict)
         if verdict == "changes":
-            self._issue_failure(issue, "review_findings", "; ".join(result["risks"])[:400] or "changes requested", now)
+            self._issue_failure(issue, "review_findings", "; ".join(result["risks"])[:1200] or "changes requested", now)
 
     def _on_refiner(self, meta, h, result, now) -> None:
         issue = self.store.get_issue(meta["issue_id"])
@@ -1070,6 +1074,16 @@ class Scheduler:
             # whose file list trusted code could not read.
             self._record_failure(meta, "schema_invalid", now, str(exc))
             return
+        outside = self._plan_outside_scope(issue, declared)
+        repeated = bool(outside) and any(f.get("kind") == "plan_out_of_scope" for f in issue.get("last_failures", []))
+        if outside and not repeated:
+            # Scope closure: a plan that needs files the phase may not touch can never pass the diff gate. The
+            # refiner is told once, in its next packet, to plan inside the scope or ask for the change.
+            self._record_failure(meta, "plan_out_of_scope", now,
+                                 "the plan writes files outside task.path_allowlist: %s. Plan only files inside "
+                                 "task.path_allowlist, or report needs_input and name the scope change the owner must approve."
+                                 % ", ".join(outside)[:600])
+            return
         self.store.finish(meta["attempt_id"], h["epoch"], "Succeeded", now, {})
         self._release(meta["attempt_id"])
         meta.update(outcome="Succeeded", finished_at=now)
@@ -1087,6 +1101,17 @@ class Scheduler:
         issue["base_rev"] = self.repo.base_head()
         issue.pop("plan_prerequisites", None)  # a fresh plan answers the previous one; the guard below records it again if it still applies
         self.store.put_issue(issue)
+        if outside:
+            detail = "the plan needs files outside the phase scope: %s" % ", ".join(outside)
+            issue["last_failures"].append({"attempt": meta["attempt_id"], "role": "refiner", "kind": "plan_out_of_scope",
+                                           "class": "human", "detail": detail[:400]})
+            issue["last_failures"] = issue["last_failures"][-6:]
+            issue["blocked_reason"] = ("%s; no implementer was started. Widen the phase scope or send the issue back to be re-planned."
+                                       % detail)[:300]
+            self.store.put_issue(issue)
+            self._emit("plan_scope_gap", issue=issue["issue_id"], paths=outside, attempt=meta["attempt_id"])
+            self._block(issue, now)
+            return
         if self._plan_needs_owner_merge(issue, declared, meta, now):
             return
         self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"base": issue["base_rev"]}, now=now)
@@ -1101,6 +1126,12 @@ class Scheduler:
             if not self._schedule_triage(issue, now, force=True):
                 self._block(issue, now)
             return
+
+    def _plan_outside_scope(self, issue: Dict[str, Any], declared: List[str]) -> List[str]:
+        if not declared:
+            return []
+        working = issue.get("working_directory") or self._phase(issue).get("working_directory", ".")
+        return broker.planned_out_of_scope(declared, self._phase(issue)["path_allowlist"], working)
 
     def _declared_plan_files(self, meta: Dict[str, Any], result: Dict[str, Any]) -> List[str]:
         """The files the refiner says its plan writes, under the contract its dispatch was recorded with.
@@ -1429,11 +1460,31 @@ class Scheduler:
         self.store.put_issue(issue)
         if invalidate_evidence:
             self.store.transition("issue", issue["issue_id"], "In Progress", self.runner_id, {"reason": kind}, now=now)
+            if kind == "review_findings":
+                self._check_review_loop(issue, now)
         else:
             # In Review has no edge to Ready, so step through In Progress. Ready lets the resume path rebuild review from
             # the evidence that was kept instead of spending a model attempt on work that is already done.
             self.store.transition("issue", issue["issue_id"], "In Progress", self.runner_id, {"reason": kind}, now=now)
             self.store.transition("issue", issue["issue_id"], "Ready", self.runner_id, {"reason": kind, "evidence_kept": True}, now=now)
+
+    def _check_review_loop(self, issue: Dict[str, Any], now: float) -> None:
+        """Report a second round of review findings to the overseer before a third repair is paid for.
+
+        Trusted code cannot read two findings and see that they pull in opposite directions, but a model can. On the hero
+        pack's `ffmhero-art-tooling` a reviewer first found a softening filter too aggressive (the face went
+        transparent) and then too weak (the spikes were untouched), because the acceptance criteria asked for a filter
+        and a hair mask that could not both hold. Three implementer attempts and three strong reviews went into that
+        before the last one approved. The overseer reads the findings next to the criteria: it sends a converging
+        repair on with a concrete hint, and escalates a conflict to the owner with the criteria named. Once per issue.
+        """
+        rounds = sum(1 for f in issue["last_failures"] if f["kind"] == "review_findings")
+        if rounds < 2 or issue.get("review_loop_checked"):
+            return
+        issue["review_loop_checked"] = True
+        self._emit("review_loop", issue=issue["issue_id"], rounds=rounds)
+        if not self._overseer_instead(issue, "review_loop", now, "In Progress"):
+            self.store.put_issue(issue)  # the overseer is off or spent: the repair goes ahead as before
 
     # -- integration: drift, staleness, merge gate ------------------------------
 
@@ -1803,12 +1854,14 @@ class Scheduler:
         return dict(self._history_data(issue, evidence), delegator_diagnosis=diagnosis,
                     model_options=models.model_options(self._plan()["policy"]["model_tiers"], self.available_models), split_rules={
             "parts": "2 to %d" % splits.MAX_PARTS, "diff_size_cap": self._plan()["policy"]["diff_size_cap"], "requirement_ids": issue["requirement_ids"],
+            "issue_id": "lowercase letters, digits and dashes, 1 to %d characters" % splits.MAX_ID, "max_text_chars": splits.MAX_TEXT,
             "original_dependencies": issue["deps"], "existing_issue_ids": sorted(i["issue_id"] for i in self.store.list_issues())})
 
     def _packet(self, issue: Dict[str, Any], role: str, tier: str) -> Dict[str, Any]:
         phase = self._phase(issue)
         data: Any = {}
-        evidence = [f for f in issue["last_failures"] if f["class"] != failures.TRANSIENT]  # infrastructure noise is not evidence
+        # Infrastructure noise and subscription limits say nothing about the work, so neither is evidence.
+        evidence = [f for f in issue["last_failures"] if f["class"] not in (failures.TRANSIENT, failures.QUOTA)]
         if role == "implementer" and [f for f in evidence if f["role"] != "reviewer"]:
             data = {"previous_failures": [f for f in evidence if f["role"] != "reviewer"][-3:]}
         own = [f for f in evidence if f["role"] == role]
@@ -1822,8 +1875,17 @@ class Scheduler:
             data = self._delegator_data(issue, evidence)
         if role == "analyst":
             data = self._analyst_data(issue, evidence)
+            # A retry used to be blind: its history leaves out analyst failures and no guidance reached it, so the
+            # overseer's hint and the owner's option 2 changed nothing and the same rejection came back.
+            if issue.get("guidance"):
+                data = dict(data, human_guidance=issue["guidance"])
+            if own:
+                data = dict(data, your_previous_analysis_was_rejected=own[-2:])
         if role == "overseer":
             data = {"recorded_failures": evidence[-6:], "blocked_reason": issue.get("blocked_reason", ""),
+                    "review_rounds": [{"round": n, "findings": f["detail"]} for n, f in enumerate(
+                        (f for f in issue["last_failures"] if f["kind"] == "review_findings"), 1)],
+                    "acceptance_criteria": [c[:700] for c in (issue.get("acceptance_criteria") or [])[:14]],
                     "attempts": [{"attempt": a["attempt_id"], "role": a["role"], "tier": a.get("tier"), "model": a.get("model"),
                                   "outcome": a.get("outcome"), "kind": a.get("failure_kind"), "detail": (a.get("detail") or "")[:300]}
                                  for a in self.store.list_attempts(issue["issue_id"])][-8:],
@@ -1959,7 +2021,9 @@ class Scheduler:
             self.store.put_issue(issue)
             self._block(issue, now)
             return
-        packet["untrusted_data"] = broker.sanitize_untrusted(packet["untrusted_data"])
+        # The overseer's data is built by trusted code from recorded failures, review rounds and acceptance criteria, and
+        # it ends with the rules for its own answer. A cut at the usual 4000 characters would drop exactly that tail.
+        packet["untrusted_data"] = broker.sanitize_untrusted(packet["untrusted_data"], 16000 if role == "overseer" else 4000)
         if role == "reviewer":
             packet["reviewed_head"] = issue["head_rev"]  # trusted value, outside the untrusted data block
         if role == "implementer" and issue.get("head_rev") and self.repo.pinned(issue["issue_id"]) == issue["head_rev"]:

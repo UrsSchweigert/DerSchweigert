@@ -86,6 +86,7 @@
 
   <div id="difficulty-select" class="overlay splash-screen">
     <div class="splash-bg" aria-hidden="true"></div>
+    <button type="button" id="title-player-badge" class="title-player-badge" hidden></button>
     <div class="splash-content">
       <h1 class="splash-title" aria-label="Arithmo Slayer"><img class="title-logo" src="game/title-logo.webp" alt="Arithmo Slayer" width="1408" height="680"></h1>
       <div class="title-pages">
@@ -97,6 +98,31 @@
         <button type="button" data-title-target="family" data-i18n="profiles.switchPlayer">Switch player</button>
       </div>
       <p id="continue-level" class="splash-subtitle"></p>
+      <!-- App only: the picture of Campaign II, shown while the active player has
+           chosen it. The switch itself lives on the Players page (main.js moves it). -->
+      <button type="button" id="campaign-emblem" class="campaign-emblem" data-title-target="family" hidden data-i18n-aria-label="campaign.emblem" aria-label="Campaign II: Genius. Change it on the Players page.">
+        <img class="campaign-switch-dragon" src="game/intro-replay.webp" alt="" width="176" height="176">
+        <span class="campaign-switch-text" aria-hidden="true">
+          <span class="campaign-switch-eyebrow" data-i18n="campaign.switch.eyebrow2">Campaign II</span>
+          <span class="campaign-switch-title" data-i18n="campaign.switch.title2">Genius</span>
+        </span>
+        <img class="campaign-switch-dragon campaign-switch-dragon--mirror" src="game/intro-replay.webp" alt="" width="176" height="176">
+      </button>
+      <!-- Appears once the player has beaten level 40 for the first time (campaign2/genius.js),
+           or at once for an app owner of Campaign II. Names the campaign being played; a tap
+           switches to the other one. -->
+      <div id="genius-campaign" class="campaign-switch" hidden>
+        <button type="button" id="genius-campaign-btn" class="campaign-switch-btn" aria-pressed="false">
+          <img class="campaign-switch-dragon" src="game/intro-replay.webp" alt="" width="176" height="176">
+          <span class="campaign-switch-text">
+            <span class="campaign-switch-eyebrow" id="genius-eyebrow" data-i18n="campaign.switch.eyebrow1">Campaign I</span>
+            <span class="campaign-switch-title" id="genius-title" data-i18n="campaign.switch.title1">Arithmetic</span>
+            <span class="campaign-switch-status" id="genius-status" data-i18n="campaign.switch.toGenius">Switch to Genius</span>
+          </span>
+          <img class="campaign-switch-dragon campaign-switch-dragon--mirror" src="game/intro-replay.webp" alt="" width="176" height="176">
+        </button>
+        <p id="campaign2-note" class="splash-subtitle" hidden></p>
+      </div>
       <!-- app-omit:start -->
       <div class="splash-login-row">
         <button id="splash-login-btn" class="splash-btn splash-btn--secondary" data-i18n="splash.loginRegister">Login / Register</button>
@@ -112,14 +138,17 @@
         </button>
         <button class="diff-btn splash-diff-btn" data-difficulty="easy" data-timer="15" data-hearts="7">
           <span class="diff-label" data-i18n="difficulty.easy.label">Easy</span>
+          <span class="diff-swords" aria-hidden="true"><span class="diff-sword"></span></span>
           <span class="diff-detail" data-i18n="difficulty.easy.detail">15 seconds · 7 hearts</span>
         </button>
         <button class="diff-btn splash-diff-btn" data-difficulty="medium" data-timer="10" data-hearts="5">
           <span class="diff-label" data-i18n="difficulty.medium.label">Medium</span>
+          <span class="diff-swords" aria-hidden="true"><span class="diff-sword"></span><span class="diff-sword"></span></span>
           <span class="diff-detail" data-i18n="difficulty.medium.detail">10 seconds · 5 hearts</span>
         </button>
         <button class="diff-btn splash-diff-btn" data-difficulty="hard" data-timer="5" data-hearts="3">
           <span class="diff-label" data-i18n="difficulty.hard.label">Hard</span>
+          <span class="diff-swords" aria-hidden="true"><span class="diff-sword"></span><span class="diff-sword"></span><span class="diff-sword"></span></span>
           <span class="diff-detail" data-i18n="difficulty.hard.detail">5 seconds · 3 hearts</span>
         </button>
       </div>
@@ -182,8 +211,9 @@
         <p id="personal-development-error" class="screen-status error-msg" role="status"></p>
         <ol id="personal-best-list" class="leaderboard-list"></ol>
       </section>
+        <button type="button" id="btn-open-practice" class="diff-btn" aria-controls="practice-panel" data-i18n="practice.title">Practice sessions</button>
         <details id="practice-panel" class="compact-disclosure">
-          <summary data-i18n="practice.title">Practice sessions</summary>
+          <summary hidden data-i18n="practice.title">Practice sessions</summary>
           <div class="practice-controls">
             <label for="practice-kind" data-i18n="practice.sessionType">Session type</label>
             <select id="practice-kind" aria-describedby="practice-description practice-unscored">
@@ -205,11 +235,8 @@
             <button type="button" id="btn-close-practice" class="diff-btn practice-back" data-i18n="practice.back">Back</button>
           </div>
         </details>
-        <nav class="screen-pagination" aria-label="Practice pages">
-          <button id="personal-best-prev" type="button" aria-label="Previous page" data-page-direction="previous"></button>
-        <span id="personal-best-page" role="status">1</span>
-        <button id="personal-best-next" type="button" aria-label="Next page" data-page-direction="next"></button>
-        <button id="personal-history-toggle" type="button" data-title-target="history" data-i18n-aria-label="scoreHistory.title" aria-label="High score development">📈</button>
+        <nav class="screen-pagination" aria-label="Practice">
+        <button id="personal-history-toggle" type="button" data-title-target="history"><span class="history-toggle-icon" aria-hidden="true">📈</span><span data-i18n="scoreHistory.label">Personal progression</span></button>
       </nav>
       </section>
       <section data-title-page="history" class="title-page" hidden>
@@ -227,7 +254,10 @@
         <p id="level-jump-label" class="level-jump-label" data-i18n="leaderboard.jumpLabel">Jump to a level you've already cleared:</p>
         <div id="level-jump-grid" class="level-jump-grid" role="group" aria-labelledby="level-jump-label"></div>
       </div>
-      <button type="button" data-title-target="play">▶</button>
+      <div class="level-jump-actions">
+        <button type="button" id="btn-level-cancel" class="diff-btn" data-title-target="play" data-i18n="levels.cancel">Cancel</button>
+        <button type="button" id="btn-level-select" class="action-primary" data-title-target="play"><span aria-hidden="true">▶ </span><span data-i18n="levels.select">Select</span></button>
+      </div>
       </section>
       <section data-title-page="legal" class="title-page title-legal" hidden>
       <p class="splash-legal-links">
@@ -325,6 +355,10 @@
           <button type="submit" data-i18n="account.save">Save</button>
           <p id="account-profile-message" class="error-msg"></p>
         </form>
+        <section id="account-hero-picker" class="account-hero-picker" aria-labelledby="account-hero-picker-title" hidden>
+          <h3 id="account-hero-picker-title" data-i18n="heroes.title">Choose your hero</h3>
+          <div id="account-hero-picker-grid"></div>
+        </section>
       </div>
 
       <div id="account-password-panel" style="display:none">
@@ -357,7 +391,7 @@
             <p id="billing-redeem-message" class="error-msg"></p>
           </div>
         </div>
-        <p class="billing-disclosure"><span data-i18n="billing.disclosure">Premium subscription unlocks levels 3-60. Free players can enjoy levels 1-2 anytime.</span> <a href="/terms.html" data-i18n="legal.terms">Terms</a> · <a href="/terms.en.html" data-i18n="legal.termsEnglish">Terms (English)</a></p>
+        <p class="billing-disclosure"><span data-i18n="billing.disclosure">Premium subscription unlocks levels 3-60 and all hero themes. Free players can enjoy levels 1-2 anytime.</span> <a href="/terms.html" data-i18n="legal.terms">Terms</a> · <a href="/terms.en.html" data-i18n="legal.termsEnglish">Terms (English)</a></p>
       </div>
       <div id="account-danger-panel" style="display:none">
         <form id="account-delete-form">
@@ -427,7 +461,7 @@
       </label>
       <p id="speedrun-best-run" class="speedrun-best-run"></p>
       <h3 class="speedrun-heading" data-i18n="speedrun.levelsHeading">Best time per level</h3>
-      <ol id="speedrun-levels" class="speedrun-levels"></ol>
+      <ol id="speedrun-levels" class="speedrun-levels" tabindex="0" data-i18n-aria-label="speedrun.levelsHeading" aria-label="Best time per level"></ol>
       <p id="speedrun-empty" class="speedrun-empty" data-i18n="speedrun.empty" hidden>No level times recorded yet.</p>
       <button type="button" class="diff-btn" id="speedrun-close" data-i18n="speedrun.close">Close</button>
     </div>
@@ -461,6 +495,21 @@
   <div id="pause-overlay" class="overlay" style="display:none">
     <div class="overlay-card">
       <h2 data-i18n="overlay.pausedTitle">Paused</h2>
+      <!-- Sound settings open from a speaker button in the card's top-right corner,
+           the place the title bar keeps its own speaker. -->
+      <details id="audio-settings" class="compact-disclosure">
+        <summary class="audio-settings-toggle" data-i18n-aria-label="audio.settings" aria-label="Audio settings"><span class="audio-settings-icon" aria-hidden="true">🔊</span></summary>
+        <div class="audio-controls">
+          <label for="music-volume" data-i18n="audio.musicVolume">Music volume</label>
+          <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35" disabled aria-describedby="music-volume-status">
+          <p id="music-volume-status" class="screen-status" role="status" data-i18n="audio.musicVolumeUnavailable">Music volume control is not available on this device.</p>
+          <label for="effects-volume" data-i18n="audio.effectsVolume">Effects volume</label>
+          <input id="effects-volume" type="range" min="0" max="1" step="0.05" value="1">
+          <label for="haptics-toggle" data-i18n="audio.haptics">Vibration</label>
+          <input id="haptics-toggle" type="checkbox" checked>
+          <button type="button" class="diff-btn" id="btn-audio-back" data-i18n="overlay.backToPause">Back</button>
+        </div>
+      </details>
       <p class="player-identity" hidden><span data-i18n="profiles.playingAsLabel">Playing as</span> <strong id="pause-player-name"></strong></p>
       <div id="pause-actions">
         <button class="diff-btn" id="btn-resume-game" data-i18n="overlay.backToGame">Back to game</button>
@@ -475,19 +524,6 @@
         <button class="diff-btn action-danger" id="btn-pause-discard" data-i18n="overlay.discardScore">Discard Score &amp; Return to Title</button>
         <button class="diff-btn" id="btn-pause-back" data-i18n="overlay.backToPause">Back</button>
       </div>
-      <details id="audio-settings" class="compact-disclosure">
-        <summary data-i18n="audio.settings">Audio settings</summary>
-        <div class="audio-controls">
-          <label for="music-volume" data-i18n="audio.musicVolume">Music volume</label>
-          <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35" disabled aria-describedby="music-volume-status">
-          <p id="music-volume-status" class="screen-status" role="status" data-i18n="audio.musicVolumeUnavailable">Music volume control is not available on this device.</p>
-          <label for="effects-volume" data-i18n="audio.effectsVolume">Effects volume</label>
-          <input id="effects-volume" type="range" min="0" max="1" step="0.05" value="1">
-          <label for="haptics-toggle" data-i18n="audio.haptics">Vibration</label>
-          <input id="haptics-toggle" type="checkbox" checked>
-          <button type="button" class="diff-btn" id="btn-audio-back" data-i18n="overlay.backToPause">Back</button>
-        </div>
-      </details>
     </div>
   </div>
 

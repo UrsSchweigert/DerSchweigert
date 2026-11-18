@@ -14,6 +14,16 @@ export const WORLD_HEIGHT = 450;
 export const MAX_DPR = 2;
 export const DPR_TIERS = [2, 1.5, 1.25];
 
+// A halo is a glowing bead: a soft bloom, a bright rim, an inner ring and three
+// orbiting glints. Built from primitives it would need a radial gradient per
+// particle per frame — the single most expensive thing this layer can do on an
+// Android WebView — so it is rasterised once into an offscreen sprite and every
+// frame is one drawImage plus a rotate. Oversampled so it stays crisp when the
+// world is scaled up on a large viewport.
+const HALO_SPRITE_SCALE = 4;
+const HALO_SPRITE_SPAN = 2.9;   // sprite width as a multiple of the rim radius
+const HALO_SPRITE_LIMIT = 12;   // distinct (colour, radius) sprites kept around
+
 const MAX_STEP = 0.05;          // seconds; a single frame may not advance further
 // Hard ceiling on live particles. Lifetime already retires every spawn, but a
 // stuck or boosted emitter must not be able to grow the array without bound on
@@ -128,6 +138,14 @@ export function createScreenFx(options = {}) {
       ? !!options.reducedMotion
       : (typeof root.matchMedia === 'function' ? !!root.matchMedia('(prefers-reduced-motion: reduce)').matches : false),
     _bloom: options.bloom !== false,
+    // A confined layer's canvas *is* the playfield: it is positioned and sized
+    // to the scene rect, so a wash or a streak can only ever cover the scene
+    // and never spill over the answer row. Its world mapping is therefore 1:1
+    // inside that box (offset 0) instead of offset by the playfield's position
+    // on a viewport-sized canvas.
+    _confined: options.confined === true,
+    _zIndex: Number.isFinite(options.zIndex) ? options.zIndex : FX_Z_INDEX,
+    _canvasId: typeof options.id === 'string' ? options.id : 'screen-fx',
     _paused: false,
     _destroyed: false,
 
@@ -140,6 +158,7 @@ export function createScreenFx(options = {}) {
     _dtBuffer: [],
     _timers: [],
     _emitters: [],
+    _haloSprites: new Map(),
 
     _rect: { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT },
     _cssW: WORLD_WIDTH,
@@ -235,7 +254,7 @@ export function createScreenFx(options = {}) {
 
   // The visible canvas is the only element this module creates and mounts.
   instance.canvas = instance._makeCanvas();
-  instance.canvas.id = 'screen-fx';
+  instance.canvas.id = instance._canvasId;
   if (typeof instance.canvas.setAttribute === 'function') instance.canvas.setAttribute('aria-hidden', 'true');
   const style = instance.canvas.style || (instance.canvas.style = {});
   style.position = 'fixed';
@@ -243,7 +262,7 @@ export function createScreenFx(options = {}) {
   style.width = '100%';
   style.height = '100%';
   style.pointerEvents = 'none';
-  style.zIndex = String(FX_Z_INDEX);
+  style.zIndex = String(instance._zIndex);
 
   if (instance._host && typeof instance._host.appendChild === 'function') {
     instance._host.appendChild(instance.canvas);
@@ -334,6 +353,20 @@ export function createScreenFx(options = {}) {
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, Math.max(0.5, radius), 0, Math.PI * 2);
         ctx.stroke();
+        break;
+      }
+      // A cached-sprite bead: one blit, no gradient built here. `spin` turns the
+      // rim glints and `pulse` breathes the whole bead.
+      case 'halo': {
+        const sprite = instance._haloSprite(particle.color, particle.radius);
+        if (!sprite) break;
+        const pulse = particle.pulse > 0 ? particle.pulse : 1;
+        const span = Math.max(1, particle.radius * HALO_SPRITE_SPAN) * pulse;
+        ctx.save();
+        ctx.translate(particle.x, particle.y);
+        if (particle.spin) ctx.rotate(particle.spin);
+        ctx.drawImage(sprite, -span / 2, -span / 2, span, span);
+        ctx.restore();
         break;
       }
       case 'arc':
@@ -480,9 +513,20 @@ export function createScreenFx(options = {}) {
   instance.resize = function resize() {
     if (instance._destroyed) return;
     instance._rect = instance._readRect();
-    const viewport = instance._viewportSize();
-    instance._cssW = viewport.width;
-    instance._cssH = viewport.height;
+    let box;
+    if (instance._confined) {
+      const rect = instance._rect;
+      box = {
+        left: rect.left || 0,
+        top: rect.top || 0,
+        width: Math.max(1, rect.width || WORLD_WIDTH),
+        height: Math.max(1, rect.height || WORLD_HEIGHT),
+      };
+    } else {
+      box = { left: 0, top: 0, ...instance._viewportSize() };
+    }
+    instance._cssW = box.width;
+    instance._cssH = box.height;
     const dpr = instance._dpr;
     const width = Math.max(1, Math.round(instance._cssW * dpr));
     const height = Math.max(1, Math.round(instance._cssH * dpr));
@@ -492,6 +536,12 @@ export function createScreenFx(options = {}) {
     // stretch the canvas whenever innerWidth/innerHeight differ from the
     // element's own box (scrollbars, visualViewport, page zoom).
     if (instance.canvas.style) {
+      if (instance._confined) {
+        // Pinned over the scene instead of filling the viewport.
+        instance.canvas.style.inset = 'auto';
+        instance.canvas.style.left = box.left + 'px';
+        instance.canvas.style.top = box.top + 'px';
+      }
       instance.canvas.style.width = instance._cssW + 'px';
       instance.canvas.style.height = instance._cssH + 'px';
     }
@@ -518,15 +568,26 @@ export function createScreenFx(options = {}) {
   // the sprites as soon as the viewport changed.
   instance._syncLayout = function syncLayout() {
     if (instance._destroyed) return;
-    const viewport = instance._viewportSize();
-    if (viewport.width !== instance._cssW || viewport.height !== instance._cssH) {
-      instance.resize();
-      return;
+    // A confined layer's canvas *is* the scene, so its size is the rect below;
+    // comparing it against the viewport would re-resize (and re-measure the
+    // layout) on every single frame.
+    if (!instance._confined) {
+      const viewport = instance._viewportSize();
+      if (viewport.width !== instance._cssW || viewport.height !== instance._cssH) {
+        instance.resize();
+        return;
+      }
     }
     const rect = instance._readRect();
     const current = instance._rect;
     if (!current || rect.left !== current.left || rect.top !== current.top
       || rect.width !== current.width || rect.height !== current.height) {
+      if (instance._confined) {
+        // The canvas box *is* the rect here, so a moved or resized scene has to
+        // take the canvas with it.
+        instance.resize();
+        return;
+      }
       instance._rect = rect;
     }
   };
@@ -537,8 +598,8 @@ export function createScreenFx(options = {}) {
     const rect = instance._rect;
     return {
       scale: rect.width / WORLD_WIDTH,
-      offsetX: rect.left,
-      offsetY: rect.top,
+      offsetX: instance._confined ? 0 : rect.left,
+      offsetY: instance._confined ? 0 : rect.top,
       width: rect.width,
       height: rect.height,
     };
@@ -843,6 +904,91 @@ export function createScreenFx(options = {}) {
     return first;
   };
 
+  // Rasterised once per (colour, rim radius) pair. The bead is drawn with the
+  // rim on the sprite's own edge, so callers keep thinking in world units: one
+  // `halo` particle covers HALO_SPRITE_SPAN × its radius.
+  instance._haloSprite = function haloSprite(color, radius) {
+    const cssR = Math.max(3, radius) * HALO_SPRITE_SCALE;
+    const key = `${color}|${Math.round(cssR)}`;
+    const cached = instance._haloSprites.get(key);
+    if (cached !== undefined) return cached;
+    let sprite = null;
+    const size = Math.ceil(cssR * HALO_SPRITE_SPAN);
+    const canvas = instance._makeCanvas();
+    canvas.width = size;
+    canvas.height = size;
+    const surface = canvas.getContext ? canvas.getContext('2d') : null;
+    if (surface) {
+      const c = size / 2;
+      // Bloom first: a deep violet cloud, strongest at the centre so the bead
+      // reads as something burning rather than as a drawn circle.
+      const bloom = surface.createRadialGradient(c, c, 0, c, c, cssR * 1.40);
+      bloom.addColorStop(0, withAlpha(color, 0.88));
+      bloom.addColorStop(0.30, withAlpha(color, 0.5));
+      bloom.addColorStop(0.62, withAlpha(color, 0.24));
+      bloom.addColorStop(0.85, withAlpha(color, 0.1));
+      bloom.addColorStop(1, withAlpha(color, 0));
+      surface.fillStyle = bloom;
+      surface.beginPath();
+      surface.arc(c, c, cssR * 1.40, 0, Math.PI * 2);
+      surface.fill();
+      // A second, hotter cloud inside the rim, warm instead of violet, so the
+      // middle of the bead is lit from within.
+      const core = surface.createRadialGradient(c, c, 0, c, c, cssR * 0.62);
+      core.addColorStop(0, withAlpha('#ffffff', 0.75));
+      core.addColorStop(0.35, withAlpha('#e8dcff', 0.34));
+      core.addColorStop(1, withAlpha('#b48cf0', 0));
+      surface.fillStyle = core;
+      surface.beginPath();
+      surface.arc(c, c, cssR * 0.62, 0, Math.PI * 2);
+      surface.fill();
+      // Rim: thin and tinted, not a white band — it only has to stay countable.
+      surface.lineWidth = Math.max(1, cssR * 0.16);
+      surface.strokeStyle = withAlpha(color, 0.42);
+      surface.beginPath();
+      surface.arc(c, c, cssR * 1.05, 0, Math.PI * 2);
+      surface.stroke();
+      surface.lineWidth = Math.max(1, cssR * 0.085);
+      surface.strokeStyle = withAlpha('#e6d8ff', 0.34);
+      surface.beginPath();
+      surface.arc(c, c, cssR, 0, Math.PI * 2);
+      surface.stroke();
+      // Three glints on the rim. The whole sprite spins, so these read as a
+      // bead turning in place — motion without changing its size or count.
+      for (let i = 0; i < 3; i++) {
+        const angle = (Math.PI * 2 * i) / 3;
+        surface.fillStyle = withAlpha('#ffffff', i === 0 ? 0.72 : 0.34);
+        surface.beginPath();
+        surface.arc(c + Math.cos(angle) * cssR, c + Math.sin(angle) * cssR,
+          Math.max(1, cssR * (i === 0 ? 0.085 : 0.05)), 0, Math.PI * 2);
+        surface.fill();
+      }
+      sprite = canvas;
+    }
+    if (instance._haloSprites.size >= HALO_SPRITE_LIMIT) instance._haloSprites.clear();
+    instance._haloSprites.set(key, sprite);
+    return sprite;
+  };
+
+  instance.halo = function halo(x, y, color, radius, durationSeconds) {
+    const duration = durationSeconds || 1;
+    return instance._addParticle({
+      type: 'halo',
+      x,
+      y,
+      life: duration,
+      maxLife: duration,
+      radius: radius || 10,
+      // Driven by the owner every frame (see Fiend._syncHaloRings): a halo is
+      // held, and only breathes and turns.
+      pulse: 1,
+      spin: 0,
+      color,
+      alpha: instance._alphaScale(),
+      blend: 'lighter',
+    });
+  };
+
   instance.ember = function ember(x, y, vx, vy, color, life) {
     const duration = life || 0.8;
     return instance._addParticle({
@@ -1127,6 +1273,15 @@ export function createScreenFx(options = {}) {
     instance._shake.time = Math.max(instance._shake.time, duration);
   };
 
+  // Drop only the full-screen washes. A level-long effect (the storm's dim)
+  // owns its wash and has to be able to end it without clearing the particles
+  // the rest of the screen is still using.
+  instance.clearWashes = function clearWashes() {
+    if (instance._destroyed) return;
+    instance._washes = [];
+    instance._washTimes = [];
+  };
+
   // Reset everything in flight without tearing down the layer or its canvas.
   // Used when the game state is replaced (new level, restart) so a torrent or
   // a scheduled impact from the previous encounter cannot bleed into the next.
@@ -1134,6 +1289,9 @@ export function createScreenFx(options = {}) {
     if (instance._destroyed) return;
     instance._particles = [];
     instance._washes = [];
+    // The wash budget history belongs to the effects just cleared: left behind,
+    // it throttles the next level's long wash to a fifth of its alpha.
+    instance._washTimes = [];
     instance._vignettes = [];
     instance._shake = null;
     instance._timers = [];

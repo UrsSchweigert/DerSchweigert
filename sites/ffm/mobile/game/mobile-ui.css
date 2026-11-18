@@ -76,7 +76,7 @@
  * rows: the localized instruction and one unbroken row of shapes.
  *
  * The renderer writes the per-row font size inline, scaled from the measured
- * header width, so a count of 1-10 never wraps between shapes and never needs
+ * header width, so a count of 1-6 never wraps between shapes and never needs
  * clipping or ellipsis. Only the header text is restructured: #input-zone,
  * #mc-buttons and the 44px answer targets keep their web geometry. */
 #active-question[data-shapes-header="two-rows"] {
@@ -253,12 +253,22 @@
   margin: 0;
 }
 
+/* Every line is centred, like the player list above it: the panel is a status
+ * card (version, what is free, Restore), not running text. */
+.entitlement-panel,
+.entitlement-panel h2,
+.entitlement-panel p {
+  text-align: center;
+}
+
 .entitlement-panel p {
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-.entitlement-status { color: var(--brass-light, #e4c577); }
+.entitlement-actions { justify-content: center; }
+
+.entitlement-status { color: var(--brass-light, #e4c577); text-align: center; }
 .entitlement-panel[data-entitlement-status="full"] .entitlement-status { color: #80f080; }
 .entitlement-panel[data-entitlement-status="offline"] .entitlement-status { color: #ffe080; }
 .entitlement-panel[data-entitlement-status="error"] .entitlement-status { color: #ff8080; }
@@ -449,6 +459,139 @@
 }
 
 .app-help-manual-link:focus-visible {
+  outline: 2px solid var(--focus-ring, #fff0bd);
+  outline-offset: 2px;
+}
+
+
+/* Hero portrait beside the player name in the identity rows. */
+.player-identity .hero-identity-portrait,
+.playing-as-row .hero-identity-portrait {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  margin-right: 12px;
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: middle;
+}
+
+.hero-identity-portrait-placeholder {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* App hero picker and profile row portraits. */
+#local-profiles .profile-portrait {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+/* The active player's portrait is the Change hero button. */
+#local-profiles .profile-change-hero-portrait {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  padding: 2px;
+  border-radius: 10px;
+}
+#local-profiles .profile-change-hero-portrait .profile-portrait {
+  margin-right: 0;
+}
+#local-profiles .profile-portrait-placeholder {
+  display: inline-block;
+  background: var(--ink-900, #1b1b2a);
+  border: 1px solid currentColor;
+  opacity: 0.6;
+}
+#local-profiles .profile-change-hero,
+#local-profiles .profile-rename,
+#local-profiles .profile-delete,
+.hero-picker-overlay .hero-picker-item,
+.hero-picker-overlay .hero-picker-close,
+.hero-picker-overlay .hero-picker-confirm {
+  min-width: 44px;
+  min-height: 44px;
+}
+/* The hero picker is a dialog below the title bar, so the sound button, the player
+ * badge and the level numerals stay visible above it. The bar is 44px where the
+ * numerals are capped at 44px (see styles.css), and 84px on wide screens. */
+.overlay.hero-picker-overlay {
+  --hero-title-bar-height: 84px;
+  --hero-picker-shift: calc(var(--safe-area-top, env(safe-area-inset-top, 0px))
+    + 8px + var(--hero-title-bar-height) + 8px);
+  --hero-picker-top: calc(var(--viewport-top, 0px) + var(--hero-picker-shift));
+  top: var(--hero-picker-top);
+  /* The visual-viewport height minus the shift keeps the bottom edge where the plain overlay has it. */
+  height: calc(var(--overlay-height) - var(--hero-picker-shift));
+  /* The shift already covers the top inset; do not count it again inside the box. */
+  padding-top: 0;
+}
+@media (max-width: 600px), (orientation: landscape) and (max-height: 460px) {
+  .overlay.hero-picker-overlay { --hero-title-bar-height: 44px; }
+}
+/* The blur artwork extends 8px past the box; start it at the picker edge, not above it. */
+.overlay:not(.splash-screen).hero-picker-overlay::before {
+  top: 0;
+}
+.hero-picker-overlay .hero-picker-card {
+  max-height: 100%;
+  overflow-y: auto;
+}
+.hero-picker-overlay .hero-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+}
+.hero-picker-overlay .hero-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+}
+.hero-picker-overlay .hero-picker-portrait,
+.hero-picker-overlay .hero-picker-placeholder {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+/* Frames come from styles.css: thick gold for the worn hero, the thin gold
+ * hairline for the highlighted next choice. */
+.hero-picker-overlay .hero-picker-preview {
+  min-height: 80px;
+  display: flex;
+  justify-content: center;
+}
+.hero-picker-overlay .hero-picker-preview canvas {
+  max-height: 120px;
+  width: auto;
+}
+#local-profiles .profile-rename,
+#local-profiles .profile-delete {
+  flex: 0 0 auto;
+  font-weight: 700;
+  padding: 0 8px;
+  border-radius: 8px;
+}
+/* Red text on a dark border keeps the delete glyph readable on the dialog. */
+#local-profiles .profile-delete {
+  color: #ff6b6b;
+  border: 2px solid #ff6b6b;
+  background: var(--ink-900, #1b1b2a);
+}
+#local-profiles .profile-delete:disabled {
+  opacity: 0.5;
+}
+#local-profiles .profile-change-hero:focus-visible,
+#local-profiles .profile-rename:focus-visible,
+#local-profiles .profile-delete:focus-visible,
+.hero-picker-overlay button:focus-visible {
   outline: 2px solid var(--focus-ring, #fff0bd);
   outline-offset: 2px;
 }

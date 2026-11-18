@@ -11,17 +11,24 @@ import {
   createPurchaseStore,
   createPurchasesPlugin,
 } from './purchase.js';
+import { CAMPAIGN2_PRODUCT_ID } from './purchase.js';
 import { DEFAULT_LOCALE, resolveLocale } from './parental-gate.js';
 
 export const STRINGS = Object.freeze({
   'paywall.title': { en: 'Unlock levels 3-60', de: 'Level 3–60 freischalten' },
-  'paywall.description': { en: 'One purchase unlocks every level. Levels 1-2 stay free.', de: 'Ein Kauf schaltet alle Level frei. Level 1–2 bleiben kostenlos.' },
+  'paywall.description': { en: 'One purchase unlocks every level and all hero themes. Levels 1-2 stay free.', de: 'Ein Kauf schaltet alle Level und alle Heldenfarben frei. Level 1–2 bleiben kostenlos.' },
   'paywall.buy': { en: 'Buy for {price}', de: 'Für {price} kaufen' },
   'paywall.buyNoPrice': { en: 'Buy full unlock', de: 'Vollversion kaufen' },
   'paywall.restore': { en: 'Restore purchase', de: 'Kauf wiederherstellen' },
+  'paywall.campaign2.title': { en: 'Unlock Campaign II', de: 'Abenteuer II freischalten' },
+  'paywall.campaign2.description': { en: 'Forty more levels of fractions, powers, roots and logarithms. One purchase, yours to keep.', de: 'Vierzig weitere Level mit Brüchen, Potenzen, Wurzeln und Logarithmen. Ein Kauf, für immer.' },
+  'paywall.campaign2.buyNoPrice': { en: 'Buy Campaign II', de: 'Abenteuer II kaufen' },
+  'paywall.campaign2.success': { en: 'Purchase complete. Campaign II is unlocked.', de: 'Kauf abgeschlossen. Abenteuer II ist freigeschaltet.' },
+  'paywall.campaign2.restored': { en: 'Purchase restored. Campaign II is unlocked.', de: 'Kauf wiederhergestellt. Abenteuer II ist freigeschaltet.' },
   'paywall.close': { en: 'Not now', de: 'Später' },
-  'paywall.success': { en: 'Purchase complete. All levels are unlocked.', de: 'Kauf abgeschlossen. Alle Level sind freigeschaltet.' },
-  'paywall.restored': { en: 'Purchase restored. All levels are unlocked.', de: 'Kauf wiederhergestellt. Alle Level sind freigeschaltet.' },
+  'paywall.success': { en: 'Purchase complete. All levels and hero themes are unlocked.', de: 'Kauf abgeschlossen. Alle Level und Heldenfarben sind freigeschaltet.' },
+  'paywall.restored': { en: 'Purchase restored. All levels and hero themes are unlocked.', de: 'Kauf wiederhergestellt. Alle Level und Heldenfarben sind freigeschaltet.' },
+  'paywall.restoredAll': { en: 'Purchases restored. All levels, hero themes and Campaign II are unlocked.', de: 'Käufe wiederhergestellt. Alle Level, Heldenfarben und Abenteuer II sind freigeschaltet.' },
   'paywall.cancelled': { en: 'Purchase cancelled.', de: 'Kauf abgebrochen.' },
   'paywall.pending': { en: 'Purchase pending approval. Levels unlock once the store confirms it.', de: 'Kauf wartet auf Bestätigung. Freischaltung folgt, sobald der Store ihn bestätigt.' },
   'paywall.gated': { en: 'Ask an adult to complete the parental gate.', de: 'Bitte einen Erwachsenen, die Elternkontrolle abzuschließen.' },
@@ -37,7 +44,7 @@ export function paywallText(key, locale = DEFAULT_LOCALE, vars = {}) {
     (vars[name] === undefined ? match : String(vars[name])));
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -56,16 +63,17 @@ export function priceLabel(product) {
  * @param {{locale?: string, price?: string|null}} options
  * @returns {string} dialog markup for the caller to insert
  */
-export function buildPaywallMarkup({ locale = DEFAULT_LOCALE, price = null } = {}) {
+export function buildPaywallMarkup({ locale = DEFAULT_LOCALE, price = null, product = 'full' } = {}) {
   const loc = resolveLocale(locale);
+  const campaign2 = product === 'campaign2';
   const buy = price
     ? paywallText('paywall.buy', loc, { price })
-    : paywallText('paywall.buyNoPrice', loc);
+    : paywallText(campaign2 ? 'paywall.campaign2.buyNoPrice' : 'paywall.buyNoPrice', loc);
   return [
     '<div class="paywall-card overlay-card" role="dialog" aria-modal="true"',
     '     aria-labelledby="paywall-title" aria-describedby="paywall-description">',
-    `  <h2 id="paywall-title">${escapeHtml(paywallText('paywall.title', loc))}</h2>`,
-    `  <p id="paywall-description">${escapeHtml(paywallText('paywall.description', loc))}</p>`,
+    `  <h2 id="paywall-title">${escapeHtml(paywallText(campaign2 ? 'paywall.campaign2.title' : 'paywall.title', loc))}</h2>`,
+    `  <p id="paywall-description">${escapeHtml(paywallText(campaign2 ? 'paywall.campaign2.description' : 'paywall.description', loc))}</p>`,
     '  <div class="paywall-actions">',
     `    <button type="button" class="diff-btn action-primary" data-paywall-action="buy">${escapeHtml(buy)}</button>`,
     `    <button type="button" class="diff-btn" data-paywall-action="restore">${escapeHtml(paywallText('paywall.restore', loc))}</button>`,
@@ -77,7 +85,12 @@ export function buildPaywallMarkup({ locale = DEFAULT_LOCALE, price = null } = {
 }
 
 /** Default view: an overlay inserted into the document body. */
-export function createDomPaywallView({ doc = globalThis.document } = {}) {
+export function createDomPaywallView({
+  doc = globalThis.document,
+  overlayClass = 'overlay paywall-overlay',
+  actionAttr = 'data-paywall-action',
+  statusSelector = '.paywall-status',
+} = {}) {
   let overlay = null;
   const find = (selector) => overlay?.querySelector(selector) ?? null;
   return {
@@ -85,23 +98,23 @@ export function createDomPaywallView({ doc = globalThis.document } = {}) {
       if (!doc?.body) return null;
       if (!overlay) {
         overlay = doc.createElement('div');
-        overlay.className = 'overlay paywall-overlay';
+        overlay.className = overlayClass;
         doc.body.appendChild(overlay);
       }
       overlay.innerHTML = markup;
       for (const action of ['buy', 'restore', 'close']) {
-        find(`[data-paywall-action="${action}"]`)?.addEventListener('click', handlers[action]);
+        find(`[${actionAttr}="${action}"]`)?.addEventListener('click', handlers[action]);
       }
       return overlay;
     },
     setStatus(text, { error = false } = {}) {
-      const node = find('.paywall-status');
+      const node = find(statusSelector);
       if (!node) return;
       node.textContent = text;
       node.classList.toggle('error-msg', error);
     },
     setBusy(busy) {
-      for (const button of overlay?.querySelectorAll('[data-paywall-action]') ?? []) {
+      for (const button of overlay?.querySelectorAll(`[${actionAttr}]`) ?? []) {
         button.disabled = busy;
       }
     },
@@ -151,12 +164,15 @@ export function createDomGateUi({ doc = globalThis.document } = {}) {
  * the platform's cached entitlement now says premium_access; the controller
  * refreshes it from the store before calling onGranted, so a refund that lands
  * between purchase and refresh still leaves the level locked.
- * @param {{platform: object, locale?: string, onGranted?: Function, purchaseStore?: object, plugin?: object, gateUi?: object, view?: object}} options
+ * `product: 'campaign2'` sells Campaign II (a second non-consumable) instead of the full unlock;
+ * it is granted once the platform reports the product as owned.
+ * @param {{platform: object, locale?: string, product?: 'full'|'campaign2', onGranted?: Function, purchaseStore?: object, plugin?: object, gateUi?: object, view?: object}} options
  * @returns {{open: Function, close: Function, buy: Function, restore: Function}}
  */
 export function createPaywall({
   platform,
   locale = DEFAULT_LOCALE,
+  product = 'full',
   onGranted = () => {},
   purchaseStore,
   plugin,
@@ -167,7 +183,14 @@ export function createPaywall({
     throw new TypeError('paywall needs a platform with refreshEntitlement');
   }
   const loc = resolveLocale(locale);
-  const store = purchaseStore ?? createPurchaseStore({ plugin: plugin ?? createPurchasesPlugin() });
+  const campaign2 = product === 'campaign2';
+  if (campaign2 && typeof platform.getOwnedProductIds !== 'function') {
+    throw new TypeError('the Campaign II paywall needs a platform with getOwnedProductIds');
+  }
+  const store = purchaseStore ?? createPurchaseStore({
+    plugin: plugin ?? createPurchasesPlugin(),
+    ...(campaign2 ? { productId: CAMPAIGN2_PRODUCT_ID } : {}),
+  });
   const ui = gateUi ?? createDomGateUi();
   const screen = view ?? createDomPaywallView();
 
@@ -190,20 +213,23 @@ export function createPaywall({
     }
   };
   const grant = async (outcome, key) => {
-    const status = await withBusy(() => platform.refreshEntitlement());
+    const status = campaign2
+      ? await withBusy(async () => ({ premium_access: (await platform.getOwnedProductIds()).includes(CAMPAIGN2_PRODUCT_ID) }))
+      : await withBusy(() => platform.refreshEntitlement());
     if (!status?.premium_access) {
       return { outcome, granted: false, status, message: message('paywall.error', {}, true) };
     }
-    message(key);
+    const doneKey = campaign2 ? key.replace('paywall.', 'paywall.campaign2.') : key;
+    message(doneKey);
     screen.close?.();
     onGranted();
-    return { outcome, granted: true, status, message: paywallText(key, loc) };
+    return { outcome, granted: true, status, message: paywallText(doneKey, loc) };
   };
 
   const paywall = {
     async open() {
       const result = await withBusy(() => store.queryProduct()).catch(() => ({ product: null }));
-      screen.render?.(buildPaywallMarkup({ locale: loc, price: priceLabel(result?.product) }), {
+      screen.render?.(buildPaywallMarkup({ locale: loc, price: priceLabel(result?.product), product }), {
         buy: () => paywall.buy(),
         restore: () => paywall.restore(),
         close: () => paywall.close(),

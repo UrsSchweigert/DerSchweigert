@@ -76,7 +76,7 @@ function castEnv({
     `abilityRuntime = createAbilityRuntime(${JSON.stringify(runtimeOptions)});`,
     `function castWindAbility() { __calls.casts.push('wind'); activeFiend = __nextFiend; return ${castResult}; }`,
     `function castStormAbility() { __calls.casts.push('storm'); activeFiend = __nextFiend; return ${castResult}; }`,
-    `function castEarthAbility() { __calls.casts.push('earth'); activeFiend = __nextFiend; return ${castResult}; }`,
+    `function castEarthAbility() { __calls.casts.push('earth'); activeFiend = __nextFiend; if (activeFiend) spikeSlowedFiends.add(activeFiend); return ${castResult}; }`,
     ...EXTRACTED.map(functionSource),
   ].join('\n'), context);
   return {
@@ -135,8 +135,11 @@ describe('ability cast feedback', () => {
     assert.equal(env.run("activateAbility('earth')"), true);
     assert.equal(env.emitters.length, 1, 'one aura emitter per earth cast');
     const emitter = env.emitters[0];
-    assert.equal(emitter.duration, 5, 'the emitter runs for the runtime spike duration');
-    assert.equal(emitter.duration, env.run('abilityRuntime.spikeState.durationSeconds'));
+    // The spike refreshes per target, so the emitter is sized for the whole
+    // chain (duration x (targets + 1)) and each pulse re-checks the runtime.
+    const spike = env.run('abilityRuntime.spikeState');
+    assert.equal(emitter.duration, spike.durationSeconds * (spike.targets + 1),
+      'the emitter outlives every window the spike can be refreshed into');
 
     emitter.fn(0.2);
     assert.equal(env.auraPulses().length, 1, 'the aura pulses while the slow runs');

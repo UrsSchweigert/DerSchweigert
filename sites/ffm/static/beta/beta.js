@@ -31,86 +31,61 @@ export const DICTIONARY = {
   'beta.nav.play': { de: 'Jetzt spielen', en: 'Play now' },
 
   // Hero
-  'beta.hero.kicker': { de: 'Offene Beta für iPhone und Android', en: 'Open beta for iPhone and Android' },
+  'beta.hero.kicker': { de: 'iOS-Beta abgeschlossen · Android-Beta offen', en: 'iOS beta concluded · Android beta open' },
   'beta.hero.title': {
-    de: 'Spiele Arithmo Slayer, bevor es alle tun',
-    en: 'Play Arithmo Slayer before everyone else',
+    de: 'Die iOS-Beta ist abgeschlossen – danke!',
+    en: 'The iOS beta is concluded – thank you!',
   },
   'beta.hero.sub': {
-    de: 'Die offene Beta läuft auf iOS über TestFlight – und für Android sammeln wir gerade die Google-Adressen für den Play-Test-Track. Kostenlos, ohne Abo, mit direkter Rückmeldung an uns.',
-    en: 'The open beta runs on iOS through TestFlight – and for Android we are collecting the Google addresses for the Play test track. Free of charge, no subscription, with direct feedback to us.',
+    de: 'Danke an alle, die mitgetestet haben: Euer Feedback steckt in der Version, die jetzt im App Store steht. Für Android sammeln wir weiter Google-Adressen für den Play-Test-Track – kostenlos, ohne Abo, mit direkter Rückmeldung an uns.',
+    en: 'Thank you to everyone who tested with us: your feedback is in the version that is now on the App Store. For Android we keep collecting Google addresses for the Play test track – free of charge, no subscription, with direct feedback to us.',
   },
-  'beta.hero.ctaIos': { de: 'iOS-Beta bei TestFlight starten', en: 'Start the iOS beta on TestFlight' },
+  'beta.appStoreLink': { de: 'Arithmo Slayer im App Store laden', en: 'Download Arithmo Slayer on the App Store' },
   'beta.hero.ctaAndroid': { de: 'Android: auf die Warteliste', en: 'Android: join the waitlist' },
   'beta.hero.phoneCaption': { de: 'Titelbildschirm der App', en: "The app's title screen" },
 
   // Requirements strip
   'beta.strip.label': { de: 'Voraussetzungen', en: 'Requirements' },
   'beta.strip.osTitle': { de: 'iOS 15 oder neuer', en: 'iOS 15 or newer' },
-  'beta.strip.osText': { de: 'iPhone und iPad', en: 'iPhone and iPad' },
-  'beta.strip.testflightTitle': { de: 'Kostenlose TestFlight-App', en: 'Free TestFlight app' },
-  'beta.strip.testflightText': { de: 'von Apple, aus dem App Store', en: 'from Apple, on the App Store' },
+  'beta.strip.osText': { de: 'iPhone und iPad – im App Store', en: 'iPhone and iPad – on the App Store' },
+  'beta.strip.androidTitle': { de: 'Android 7.0 oder neuer', en: 'Android 7.0 or newer' },
+  'beta.strip.androidText': { de: 'Beta-Warteliste offen', en: 'Beta waitlist open' },
   'beta.strip.costTitle': { de: 'Kostenlos, kein Konto', en: 'Free, no account' },
   'beta.strip.costText': { de: 'lokale Profile, keine E-Mail', en: 'local profiles, no email' },
 
   // Section intro
-  'beta.steps.kicker': { de: 'Zwei Wege in die Beta', en: 'Two ways into the beta' },
-  'beta.steps.title': { de: 'So kommst du hinein', en: 'How to get in' },
+  'beta.steps.kicker': { de: 'iOS abgeschlossen · Android offen', en: 'iOS concluded · Android open' },
+  'beta.steps.title': { de: 'So geht es weiter', en: 'What happens next' },
   'beta.steps.lead': {
-    de: 'iOS läuft über TestFlight und ist offen. Android läuft über den Test-Track von Google Play – dort sammeln wir zuerst die Google-Adressen, die eingeladen werden sollen.',
-    en: "iOS runs through TestFlight and is open. Android runs through Google Play's test track – there we first collect the Google addresses to invite.",
+    de: 'Die öffentliche iOS-Beta ist beendet, die App steht im App Store. Wer auf Android mittesten will, trägt seine Google-Adresse ein – wir laden sie in den Play-Test-Track ein, sobald der Build dort liegt.',
+    en: 'The public iOS beta has concluded and the app is on the App Store. If you want to test on Android, enter your Google address – we invite it to the Play test track as soon as the build is there.',
   },
 
   // iOS track
-  'beta.ios.badge': { de: 'Jetzt offen', en: 'Open now' },
-  'beta.ios.title': { de: 'iOS über TestFlight', en: 'iOS via TestFlight' },
+  'beta.ios.badge': { de: 'Abgeschlossen', en: 'Concluded' },
+  'beta.ios.title': { de: 'iOS-Beta abgeschlossen', en: 'iOS beta concluded' },
   'beta.ios.text': {
-    de: 'Die iOS-Beta läuft als TestFlight-Build direkt von Apple. Du bekommst den Stand, an dem wir gerade arbeiten – samt der Baustellen, die noch offen sind.',
-    en: 'The iOS beta runs as a TestFlight build straight from Apple. You get the build we are working on – including the rough edges that are still open.',
+    de: 'Die öffentliche Beta auf iOS ist beendet. Die TestFlight-Builds sind eingestellt; die fertige App steht im App Store – samt allem, was wir aus eurem Feedback gelernt haben.',
+    en: 'The public beta on iOS has concluded. The TestFlight builds are discontinued; the finished app is on the App Store – including everything we learned from your feedback.',
   },
   'beta.ios.deviceLabel': { de: 'Geräte', en: 'Devices' },
   'beta.ios.deviceValue': { de: 'iPhone und iPad mit iOS 15 oder neuer', en: 'iPhone and iPad with iOS 15 or newer' },
   'beta.ios.accessLabel': { de: 'Zugang', en: 'Access' },
   'beta.ios.accessValue': {
-    de: 'Öffentlicher Link, keine E-Mail-Einladung nötig',
-    en: 'Public link, no emailed invitation needed',
+    de: 'Im App Store – TestFlight ist nicht mehr nötig',
+    en: 'On the App Store – TestFlight is no longer needed',
   },
   'beta.ios.costLabel': { de: 'Kosten', en: 'Cost' },
-  'beta.ios.costValue': { de: 'Kostenlos, Level 1–2 bleiben gratis', en: 'Free, levels 1–2 stay free' },
-  'beta.ios.oneTitle': { de: 'TestFlight installieren', en: 'Install TestFlight' },
-  'beta.ios.oneText': {
-    de: 'TestFlight ist Apples App für Beta-Versionen. Lade sie kostenlos aus dem App Store – ohne sie lässt sich die Beta nicht installieren.',
-    en: "TestFlight is Apple's app for beta versions. Download it free from the App Store – without it you cannot install the beta.",
-  },
-  'beta.ios.oneLink': { de: 'TestFlight im App Store öffnen', en: 'Open TestFlight on the App Store' },
-  'beta.ios.twoTitle': { de: 'Einladung annehmen', en: 'Accept the invitation' },
-  'beta.ios.twoText': {
-    de: 'Öffne den Einladungslink auf demselben Gerät. TestFlight zeigt Arithmo Slayer mit einem Annehmen-Knopf – ein Tipp genügt.',
-    en: 'Open the invitation link on the same device. TestFlight shows Arithmo Slayer with an Accept button – one tap is enough.',
-  },
-  'beta.ios.twoLink': { de: 'Einladung öffnen', en: 'Open the invitation' },
-  'beta.ios.threeTitle': { de: 'Installieren und losspielen', en: 'Install and play' },
-  'beta.ios.threeText': {
-    de: 'Tippe in TestFlight auf Installieren, starte die App und lege ein lokales Profil an. Level 1–2 spielst du sofort gratis.',
-    en: 'Tap Install in TestFlight, start the app and create a local profile. Levels 1–2 are free right away.',
-  },
-  'beta.ios.threeMeta': { de: 'Spielbar offline · kein Login', en: 'Plays offline · no login' },
-  'beta.ios.fourTitle': { de: 'Rückmeldung geben', en: 'Send feedback' },
-  'beta.ios.fourText': {
-    de: 'Was hakt, was fehlt, was ist unklar? Schreib uns – jede Meldung aus der Beta landet direkt bei uns.',
-    en: 'Something broken, missing or unclear? Write to us – every beta report lands directly with us.',
-  },
-  'beta.ios.fourLink': { de: 'Mail schreiben', en: 'Write an email' },
+  'beta.ios.costValue': { de: 'Level 1–2 gratis, der Rest als Einmalkauf', en: 'Levels 1–2 free, the rest as a one-time purchase' },
   'beta.ios.note': {
-    de: 'Der Link bleibt offen, solange die Beta läuft. TestFlight-Builds verfallen nach 90 Tagen – wir laden neue hoch, damit du durchspielen kannst.',
-    en: 'The link stays open while the beta runs. TestFlight builds expire after 90 days – we upload new ones so you can play through.',
+    de: 'Danke an alle, die mitgetestet haben: Jede Meldung aus der Beta haben wir gelesen, und vieles davon steckt jetzt in der Store-Version. Fehler oder Wünsche? Schreib uns weiter an info@derschweigert.de.',
+    en: 'Thank you to everyone who tested with us: we read every beta report, and much of it is in the store version now. Something broken or missing? Keep writing to info@derschweigert.de.',
   },
-  'beta.ios.unlockTitle': { de: 'Vollversion in der Beta', en: 'Full version in the beta' },
+  'beta.ios.unlockTitle': { de: 'Vollversion nach der Beta', en: 'Full version after the beta' },
   'beta.ios.unlockText': {
-    de: 'Auch die Vollversion kostet in der Beta nichts: Der Freischalten-Schritt bleibt Teil des Ablaufs, TestFlight berechnet aber keinen Betrag.',
-    en: 'The full version costs nothing during the beta either: the unlock step stays part of the flow, but TestFlight never charges anything.',
+    de: 'Der kostenlose Beta-Zugang ist vorbei. Level 1–2 bleiben gratis; Level 3–60 schaltest du im App Store mit einem Einmalkauf frei – kein Abo, keine Verlängerung.',
+    en: 'The free beta access is over. Levels 1–2 stay free; you unlock levels 3–60 on the App Store with a one-time purchase – no subscription, no renewal.',
   },
-  'beta.ios.cta': { de: 'Einladung öffnen', en: 'Open the invitation' },
 
   // Android track
   'beta.android.badge': { de: 'In Vorbereitung', en: 'In preparation' },
@@ -211,10 +186,10 @@ export const DICTIONARY = {
   // FAQ
   'beta.faq.kicker': { de: 'FAQ', en: 'FAQ' },
   'beta.faq.title': { de: 'Häufige Fragen zur Beta', en: 'Frequently asked questions about the beta' },
-  'beta.faq.q1': { de: 'Was kostet die Beta?', en: 'What does the beta cost?' },
+  'beta.faq.q1': { de: 'Was kostet die App?', en: 'What does the app cost?' },
   'beta.faq.a1': {
-    de: 'Nichts. Die Beta ist kostenlos, Level 1–2 bleiben auch danach gratis. Während der Beta ist auch die Vollversion kostenlos: auf iOS im TestFlight-Build, auf Android per Play-Promo-Code. Nach der Beta schaltest du Level 3–60 mit einem Einmalkauf frei.',
-    en: 'Nothing. The beta is free, levels 1–2 stay free afterwards too. During the beta the full version is free as well: in the iOS TestFlight build, on Android via a Play promo code. After the beta you unlock levels 3–60 with a one-time purchase.',
+    de: 'Level 1–2 sind gratis, auch nach der Beta. Level 3–60 schaltest du im App Store mit einem Einmalkauf frei – kein Abo. In der laufenden Android-Beta ist die Vollversion per Play-Promo-Code kostenlos.',
+    en: 'Levels 1–2 are free, after the beta too. You unlock levels 3–60 on the App Store with a one-time purchase – no subscription. In the running Android beta the full version is free via a Play promo code.',
   },
   'beta.faq.q2': {
     de: 'Brauche ich ein Konto oder eine E-Mail-Adresse?',
@@ -226,8 +201,8 @@ export const DICTIONARY = {
   },
   'beta.faq.q3': { de: 'Welche iOS-Version brauche ich?', en: 'Which iOS version do I need?' },
   'beta.faq.a3': {
-    de: 'iOS 15 oder neuer – auf iPhone und iPad – plus die kostenlose TestFlight-App von Apple.',
-    en: 'iOS 15 or newer – on iPhone and iPad – plus the free TestFlight app from Apple.',
+    de: 'iOS 15 oder neuer – auf iPhone und iPad. Die App steht im App Store; TestFlight brauchst du nicht mehr.',
+    en: 'iOS 15 or newer – on iPhone and iPad. The app is on the App Store; you no longer need TestFlight.',
   },
   'beta.faq.q4': { de: 'Wann kommt Android?', en: 'When is Android coming?' },
   'beta.faq.a4': {
@@ -245,13 +220,13 @@ export const DICTIONARY = {
     en: 'Read the app privacy policy',
   },
   'beta.faq.a6': {
-    de: 'Die App selbst spielt ohne Konto, ohne Werbung und ohne Analyse-Tracking. TestFlight und der Play-Test-Track sind Dienste von Apple bzw. Google – was sie dabei erheben, steht in ihren Datenschutzhinweisen. Für die Android-Warteliste speichern wir nur die Adresse, die du einträgst.',
-    en: "The app itself plays without an account, without ads and without analytics tracking. TestFlight and the Play test track are services run by Apple and Google – what they collect is described in their privacy notices. For the Android waitlist we store only the address you enter.",
+    de: 'Die App selbst spielt ohne Konto, ohne Werbung und ohne Analyse-Tracking. Die iOS-Beta lief über TestFlight, die Android-Warteliste gehört zum Play-Test-Track – Dienste von Apple bzw. Google, deren Datenschutzhinweise gelten. Für die Android-Warteliste speichern wir nur die Adresse, die du einträgst.',
+    en: 'The app itself plays without an account, without ads and without analytics tracking. The iOS beta ran through TestFlight, the Android waitlist belongs to the Play test track – services run by Apple and Google, whose privacy notices apply. For the Android waitlist we store only the address you enter.',
   },
   'beta.faq.q7': { de: 'Was passiert nach der Beta?', en: 'What happens after the beta?' },
   'beta.faq.a7': {
-    de: 'Dann erscheint Arithmo Slayer im App Store und bei Google Play. TestFlight-Builds laufen nach 90 Tagen ab; die Store-Version installierst du danach regulär.',
-    en: 'Then Arithmo Slayer arrives on the App Store and on Google Play. TestFlight builds expire after 90 days; you install the store version afterwards as usual.',
+    de: 'Die iOS-App ist im App Store erhältlich – installier sie dort regulär. Die Android-Beta läuft noch; danach erscheint Arithmo Slayer auch bei Google Play.',
+    en: 'The iOS app is available on the App Store – install it there as usual. The Android beta is still running; after it, Arithmo Slayer arrives on Google Play too.',
   },
   'beta.faq.q8': { de: 'Wo melde ich einen Fehler?', en: 'Where do I report a bug?' },
   'beta.faq.a8': {
@@ -261,8 +236,8 @@ export const DICTIONARY = {
 
   // Footer
   'beta.footer.tagline': {
-    de: 'Kopfrechnen für Jung und Alt – im Browser, die App für iOS und Android ist in Vorbereitung.',
-    en: 'Mental math for young and old – in the browser; the app for iOS and Android is in preparation.',
+    de: 'Kopfrechnen für Jung und Alt – im Browser, die iPhone-App im App Store, die Android-Beta offen.',
+    en: 'Mental math for young and old – in the browser, the iPhone app on the App Store, the Android beta open.',
   },
   'beta.footer.play': { de: 'Zum Spiel', en: 'To the game' },
   'beta.footer.legalTitle': { de: 'Rechtliches', en: 'Legal' },

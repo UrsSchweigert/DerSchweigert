@@ -13,7 +13,7 @@ import { resetLevelAttempt } from './campaign-progress.js';
 import { getSkillIntro } from './skill-intro.js';
 import { isAbilityBandStart } from './combo-abilities.js';
 import { generateShapesProblem } from './shapes.js';
-import { getArithmeticOptionCount } from './levels.js';
+import { getArithmeticOptionCount, revealQuestion } from './levels.js';
 import { PRACTICE_KINDS } from './practice-session.js';
 import { setLocale, t } from './i18n.js';
 import {
@@ -179,17 +179,18 @@ test('the practice panel is a submenu with the tab title style and its own way b
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
-  // The summary carries the Training tab's own heading style.
-  const summary = css.match(/^#practice-panel > summary \{([^}]*)\}/m)?.[1];
-  assert.ok(summary, 'practice submenu title rule missing');
-  assert.match(summary, /font-family:\s*var\(--font-prose\);/);
-  assert.match(summary, /font-size:\s*var\(--text-heading\);/);
-  assert.match(summary, /font-weight:\s*700;/);
-  assert.match(summary, /color:\s*var\(--ivory\);/);
+  // A real (quiet) button opens the submenu; the <summary> is not shown. Gold is
+  // kept for proceed/abort choices, and opening a submenu is not one.
+  assert.match(html, /<button type="button" id="btn-open-practice" class="diff-btn"[^>]*data-i18n="practice\.title">Practice sessions<\/button>/);
+  assert.match(css, /^#practice-panel > summary \{ display: none; \}/m);
+  assert.match(source, /getElementById\('btn-open-practice'\)\?\.addEventListener\('click'[\s\S]*?practicePanel\.open = true;/);
+  // The per-level scores scroll instead of paging.
+  assert.doesNotMatch(html, /personal-best-(prev|next|page)/);
+  assert.match(css, /#personal-best-list \{[^}]*overflow-y: auto;/);
 
   // A back control closes the submenu and the summary can take focus back.
   assert.match(html, /<button type="button" id="btn-close-practice" class="diff-btn practice-back" data-i18n="practice.back">Back<\/button>/);
-  assert.match(source, /function closePracticePanel\(\) \{[\s\S]*?practicePanel\.open = false;[\s\S]*?querySelector\('summary'\)\?\.focus\?\.\(\);/);
+  assert.match(source, /function closePracticePanel\(\) \{[\s\S]*?practicePanel\.open = false;[\s\S]*?getElementById\('btn-open-practice'\)\?\.focus\?\.\(\);/);
   assert.match(source, /getElementById\('btn-close-practice'\)\?\.addEventListener\('click', closePracticePanel\)/);
   assert.match(source, /practicePanel\?\.addEventListener\('keydown',[\s\S]*?'Escape'[\s\S]*?closePracticePanel\(\)/);
   const back = css.match(/^#btn-close-practice \{([^}]*)\}/m)?.[1];
@@ -371,7 +372,7 @@ test('worked examples render only after authorization and both intro actions sta
     vm.runInContext(`${fn('renderSkillIntro')}\n${fn('showSkillIntro')}\n` +
       `btnSkillIntroContinue.addEventListener('click', () => pendingSkillIntro?.());\n` +
       `btnSkillIntroSkip.addEventListener('click', () => pendingSkillIntro?.());`, context);
-    context.showSkillIntro(getSkillIntro(34), 33, { level: 34 }, 0);
+    context.showSkillIntro(getSkillIntro(30), 29, { level: 30 }, 0);
     assert.equal(context.skillIntroOverlay.style.display, 'flex');
     assert.match(context.skillIntroBody.textContent, /20\/4\/5/);
     assert.match(context.skillIntroExample.textContent, /20\/4\/5/);
@@ -495,7 +496,7 @@ function correctAnswerContext(kind, { hearts = 5, maxHearts = 5, hp = 1 } = {}) 
     spawnInterval: 2, shouldPreserveTimerAfterHit: () => true,
     recordPracticeEncounterDefeated: null,
     getCurrentInputMode: () => 'multiple-choice',
-    generateProblem: () => problem(),
+    generateProblem: () => problem(), nextHitProblem: () => problem(),
     platform: { getCurrentLevelConfig: () => ({ level: 1 }) },
     queueProblemActivation: (fiendArg, options) => { context.queued = { fiend: fiendArg, options }; },
   };
@@ -641,7 +642,7 @@ test('targeted mistakes wait through correction and retry the same problem; fina
     input: { disable() {} }, inputDisabled: false,
     scheduleGameplayTimeout: callback => targetedTimers.push(callback),
     healTipShown: true, triggerGameOver() {}, requeuedFiends: [],
-    t: key => key, console: { error() {} },
+    t: key => key, console: { error() {} }, revealQuestion,
   };
   vm.createContext(targeted);
   vm.runInContext(mistake, targeted);

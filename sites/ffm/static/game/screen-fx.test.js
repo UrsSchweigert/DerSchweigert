@@ -642,3 +642,89 @@ test('render keeps using the cached mapping so drawing never forces a reflow', (
   }
   assert.equal(reads, 1, 'one measurement per frame, not one per drawn particle');
 });
+
+test('a confined layer covers the playfield instead of the viewport', () => {
+  const env = fixture();
+  const fx = createScreenFx({
+    document: env.doc,
+    confined: true,
+    zIndex: 89,
+    id: 'storm-fx',
+    bloom: false,
+  });
+  // The scene sits at 100,50 and is 400x225 inside an 800x450 viewport.
+  env.playfield.left = 100;
+  env.playfield.top = 50;
+  env.playfield.width = 400;
+  env.playfield.height = 225;
+  fx.frame(1 / 60);
+
+  assert.equal(fx.canvas.id, 'storm-fx');
+  assert.equal(fx.canvas.style.zIndex, '89', 'it sits under the gameplay layer');
+  assert.equal(fx.getBloom?.() ?? false, false);
+  assert.equal(fx.canvas.style.left, '100px', 'pinned over the scene, not the viewport');
+  assert.equal(fx.canvas.style.top, '50px');
+  assert.equal(fx.canvas.style.width, '400px');
+  assert.equal(fx.canvas.style.height, '225px');
+
+  // World (0,0) is the top-left of the scene, so a wash can never reach the
+  // answer row below it.
+  assert.deepEqual(fx.worldToScreen(0, 0), { x: 0, y: 0 });
+  assert.deepEqual(fx.worldToScreen(400, 225), { x: 200, y: 112.5 });
+
+  // A moved scene takes the canvas with it on the next frame.
+  env.playfield.top = 90;
+  fx.frame(1 / 60);
+  assert.equal(fx.canvas.style.top, '90px');
+});
+
+test('draws a hit-point halo from one cached sprite, not a gradient per frame', () => {
+  // The bead used to be re-emitted ~8x/s per hit point and each frame of a
+  // `glow` built a radial gradient — the single most expensive thing this layer
+  // can do on an Android WebView. It is now rasterised once and blitted.
+  const env = fixture();
+  let gradients = 0;
+  const createElement = env.doc.createElement.bind(env.doc);
+  env.doc.createElement = (tag) => {
+    const canvas = createElement(tag);
+    const getContext = canvas.getContext.bind(canvas);
+    canvas.getContext = (type) => {
+      const ctx = getContext(type);
+      if (ctx && !ctx.__gradientCounted) {
+        ctx.__gradientCounted = true;
+        const base = ctx.createRadialGradient.bind(ctx);
+        ctx.createRadialGradient = (...args) => { gradients += 1; return base(...args); };
+      }
+      return ctx;
+    };
+    return canvas;
+  };
+  const fx = createScreenFx({ document: env.doc, bloom: false });
+
+  const bead = fx.halo(400, 200, '#8a62c8', 12, 1);
+  assert.equal(bead.type, 'halo');
+  fx.render();
+  const rasterised = gradients;
+  assert.ok(rasterised >= 1, 'rasterising the bead builds its gradients exactly once');
+
+  const layer = layerCtx(env.canvases);
+  const before = layer.calls.filter((call) => call.method === 'drawImage').length;
+  for (let i = 0; i < 5; i++) fx.render();
+  assert.equal(gradients, rasterised, 'and no frame after that builds another gradient');
+  assert.equal(layer.calls.filter((call) => call.method === 'drawImage').length, before + 5,
+    'each frame is exactly one blit of the cached bead');
+});
+
+test('breathing and turning a halo needs no new particle or sprite', () => {
+  const { fx } = make({ bloom: false });
+  const bead = fx.halo(400, 200, '#8a62c8', 12, 1);
+  fx.render();
+  const sprites = fx._haloSprites.size;
+  for (let i = 0; i < 30; i++) {
+    bead.pulse = 1 + Math.sin(i) * 0.08;
+    bead.spin = i * 0.1;
+    bead.life = bead.maxLife;
+    fx.render();
+  }
+  assert.equal(fx._haloSprites.size, sprites, 'one sprite serves every pulse and rotation');
+});

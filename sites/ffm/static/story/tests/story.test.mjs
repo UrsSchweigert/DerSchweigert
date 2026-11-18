@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cueAt, gradientStops, landscapeBox,
-  narrationLocale, parseCssColor, sampleMotion, stageTransform, pickText, voicedCues,
+  createDioramaPlayer, narrationLocale, parseCssColor, sampleMotion, stageTransform, pickText, voicedCues,
 } from '../player/diorama-player.js';
 import { LOCALES, toVtt } from '../tools/build-subtitles.mjs';
 
@@ -364,6 +364,18 @@ describe('player chrome', () => {
   const css = readFileSync(join(storyDir, 'player', 'diorama-player.css'), 'utf8');
   const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
 
+  it('keeps the turn and the strip centring when the visitor asks for reduced motion', () => {
+    // styles.css kills every transform under prefers-reduced-motion; without these
+    // restated rules a portrait phone shows the scene as a hard-edged picture over
+    // the lower right of the title menu with its Skip button off-screen.
+    assert.match(css, /\.diorama\.is-turned \{\s*transform: translate\(-50%, -50%\) rotate\(90deg\) !important;/);
+    assert.match(css, /\.diorama \.diorama__subtitle \{\s*transform: translate\(-50%, 8px\) !important;/);
+    assert.match(css, /\.diorama \.diorama__subtitle\.is-visible \{\s*transform: translate\(-50%, 0\) !important;/);
+    const site = readFileSync(join(storyDir, '..', 'styles.css'), 'utf8');
+    assert.match(site, /prefers-reduced-motion: reduce\) \{[^}]*transform: none !important;/,
+      'if the site-wide rule goes away, these restated rules can go too');
+  });
+
   it('paints the scene into one canvas, not a stack of composited layers', () => {
     // Each DOM layer needs its own compositor surface; on a 1440p phone that
     // exhausted the Android WebView's raster memory and dropped tiles showed as
@@ -400,5 +412,83 @@ describe('player chrome', () => {
       'radial-gradient(ellipse at 20% 15%, rgba(255,236,200,0) 0%, rgba(140,95,40,0.25) 100%)');
     assert.deepEqual(radial.map(stop => stop.at), [0, 1]);
     assert.equal(radial[0].color.a, 0);
+  });
+});
+
+describe('narration factory seam', () => {
+  const noop = () => {};
+  function setup(factory) {
+    const made = [];
+    const node = () => ({
+      className: '', style: { setProperty: noop, removeProperty: noop }, classList: { add: noop, remove: noop, toggle: noop }, children: [],
+      setAttribute: noop, appendChild(child) { this.children.push(child); }, remove: noop,
+      addEventListener: noop, focus: noop, getContext: () => null, removeAttribute: noop,
+    });
+    const saved = {};
+    const globals = {
+      document: { createElement: node, activeElement: null, baseURI: 'https://localhost/', addEventListener: noop, removeEventListener: noop },
+      window: { matchMedia: () => ({ matches: false }), addEventListener: noop, removeEventListener: noop },
+      requestAnimationFrame: () => 1,
+      cancelAnimationFrame: noop,
+      fetch: async () => ({ ok: true, json: async () => ({ lines: [{ cue: 0, start: 0, duration: 1 }] }) }),
+      Audio: class { constructor(src) { made.push(src); this.src = src; } addEventListener() {} play() { return Promise.resolve(); } pause() {} load() {} removeAttribute() {} },
+    };
+    for (const [key, value] of Object.entries(globals)) {
+      saved[key] = Object.getOwnPropertyDescriptor(globalThis, key);
+      Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+    }
+    const restore = () => {
+      for (const [key, descriptor] of Object.entries(saved)) {
+        if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+        else delete globalThis[key];
+      }
+    };
+    const scene = { duration: 5, layers: [], subtitles: [{ start: 0, end: 1, text: 'hi' }], title: 'T' };
+    return { made, restore, make: () => createDioramaPlayer({
+      container: node(), scene, baseUrl: 'https://localhost/scene/', locale: 'en', createNarration: factory,
+    }) };
+  }
+
+  async function run(factory) {
+    const env = setup(factory);
+    try {
+      const player = env.make();
+      const playing = player.play();
+      await new Promise(resolve => setTimeout(resolve, 5));
+      player.skip();
+      assert.equal(await playing, 'skipped');
+      return env.made;
+    } finally {
+      env.restore();
+    }
+  }
+
+  it('replaces the <audio> element with the factory voice', async () => {
+    const calls = [];
+    const voice = {
+      paused: true, ended: false, readyState: 4, duration: 5, currentTime: 0,
+      addEventListener: noop, pause() { calls.push('pause'); }, removeAttribute: noop,
+      load() { calls.push('load'); }, play() { calls.push('play'); return Promise.resolve(); },
+    };
+    const made = await run((url, timing) => { calls.push(url, timing.lines.length); return voice; });
+    assert.deepEqual(made, [], 'no Audio object constructed');
+    assert.deepEqual(calls.slice(0, 3), ['https://localhost/scene/narration/en/narration.mp3', 1, 'play']);
+    assert.ok(calls.includes('load'));
+  });
+
+  it('runs silently on the timer when the factory returns nothing, throws, or play rejects', async () => {
+    assert.deepEqual(await run(() => null), []);
+    assert.deepEqual(await run(() => { throw new Error('no context'); }), []);
+    const rejecting = {
+      paused: true, readyState: 0, addEventListener: noop, pause: noop, removeAttribute: noop, load: noop,
+      play: () => Promise.reject(new Error('blocked')),
+    };
+    assert.deepEqual(await run(() => rejecting), []);
+    const throwing = { ...rejecting, play() { throw new Error('sync'); } };
+    assert.deepEqual(await run(() => throwing), []);
+  });
+
+  it('keeps the <audio> element when no factory is given', async () => {
+    assert.deepEqual(await run(undefined), ['https://localhost/scene/narration/en/narration.mp3']);
   });
 });

@@ -2,6 +2,10 @@
 # production Lambda bundle (see .github/workflows/deploy.yml's "Build
 # Lambda zip" step, which installs only requirements.txt).
 -r requirements.txt
-pytest>=8.0
-moto>=5.0
-python-dotenv>=1.0
+pytest>=9.2.0
+moto>=5.2.5
+python-dotenv>=1.2.4
+# The art scripts in scripts/ (hero_frames.py, hero_regions.py, hero_recolor.py) and their tests.
+numpy>=2.5.4
+scipy>=1.18.1
+Pillow>=13.0.0

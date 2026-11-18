@@ -9,6 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CATALOGUE_IDS,
   PRODUCT_ID,
   PRODUCT_TYPE,
   PURCHASE_OUTCOMES,
@@ -408,4 +409,43 @@ test('classifyError covers the store-specific failure families', () => {
   assert.equal(classifyError({ code: 'ITEM_ALREADY_OWNED' }), PURCHASE_OUTCOMES.ALREADY_OWNED);
   assert.equal(classifyError(new Error('boom')), PURCHASE_OUTCOMES.ERROR);
   assert.equal(classifyError(null), PURCHASE_OUTCOMES.ERROR);
+});
+
+test('the catalogue is frozen and holds the full unlock and Campaign II', () => {
+  assert.equal(PRODUCT_ID, 'arithmoslayer_full_unlock');
+  assert.deepEqual([...CATALOGUE_IDS], [PRODUCT_ID, 'arithmoslayer_genius_unlock']);
+  assert.equal(Object.isFrozen(CATALOGUE_IDS), true);
+});
+
+test('a denied gate never reaches the plugin for a purchase or a restore', async () => {
+  const h = createHarness({ allow: false });
+  assert.equal((await h.store.purchase()).outcome, PURCHASE_OUTCOMES.GATED);
+  assert.equal((await h.store.restore()).outcome, RESTORE_OUTCOMES.GATED);
+  assert.deepEqual(h.events, ['gate:purchase', 'gate:restore']);
+});
+
+test('a product outside the catalogue is rejected without any plugin call', async () => {
+  const h = createHarness();
+  assert.equal((await h.store.purchase({ productId: 'other' })).outcome, PURCHASE_OUTCOMES.ERROR);
+  assert.deepEqual(await h.store.queryProduct('other'), { product: null, error: 'unknown product' });
+  assert.deepEqual(h.events, []);
+});
+
+test('the retired hero pack id is not in the catalogue', async () => {
+  const h = createHarness();
+  assert.equal((await h.store.purchase({ productId: 'arithmoslayer_hero_pack' })).outcome, PURCHASE_OUTCOMES.ERROR);
+  assert.deepEqual(h.events, []);
+});
+
+test('restore reads the owned unlock with one restore and one read', async () => {
+  const h = createHarness();
+  h.state.purchases = [transaction()];
+  const owned = await h.store.restore();
+  assert.equal(owned.entitled, true);
+  assert.deepEqual(owned.ownedProducts, [PRODUCT_ID]);
+  assert.equal(h.events.filter((e) => e === 'restorePurchases').length, 1);
+  assert.equal(h.events.filter((e) => e === 'getPurchases').length, 1);
+
+  h.state.purchases = [];
+  assert.deepEqual(await h.store.restore(), { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false });
 });

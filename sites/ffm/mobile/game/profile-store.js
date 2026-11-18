@@ -3,6 +3,7 @@ import { SCORE_HISTORY_LIMIT } from './progress-store.js';
 export const PROFILE_KEY = 'arithmoslayer:profiles';
 export const PROFILE_SCHEMA_VERSION = 1;
 export const PROFILE_NAME_LIMIT = 40;
+export const HERO_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 export const PRACTICE_BADGE_IDS = Object.freeze([
   'practice-targeted', 'practice-addition', 'practice-subtraction',
   'practice-multiplication', 'practice-division', 'practice-shapes',
@@ -13,6 +14,7 @@ const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const levelValid = (level) => Number.isInteger(level) && level >= 1;
 const scoreValid = (score) => typeof score === 'number' && Number.isFinite(score) && score >= 0;
+const heroValid = (hero) => typeof hero === 'string' && HERO_ID_PATTERN.test(hero);
 const attemptFields = ['firstAttemptCorrect', 'firstAttemptTotal', 'correctAnswers',
   'incorrectAnswers', 'timeouts', 'bestStreak'];
 
@@ -150,7 +152,10 @@ export function createProfileStore(backend, {
     if (!profile) throw error('profile_not_found', 'Profile does not exist');
     return profile;
   };
-  const summary = (profile) => ({ id: profile.id, name: profile.name });
+  // A malformed stored hero reads as absent; the document itself stays valid.
+  const summary = (profile) => ({
+    id: profile.id, name: profile.name, ...(heroValid(profile.hero) ? { hero: profile.hero } : {}),
+  });
   const fresh = (name, doc) => {
     const id = makeId();
     if (typeof id !== 'string' || !id || doc?.profiles.some((item) => item.id === id)) {
@@ -170,6 +175,40 @@ export function createProfileStore(backend, {
     return clone(result);
   });
 
+  // A cleared run outranks an unfinished one (see recordPartialAttempt and
+  // recordLevel), but a document written before that rule can still hold a
+  // partial in the best slot of a level the player has since cleared — and then
+  // no completion could ever displace it. The completion receipts are the
+  // authority: one per cleared attempt, written once and never pruned, so the
+  // best cleared score is recomputed from them. Idempotent, and it only ever
+  // touches levels that are actually in `completed`.
+  const repairBestEntries = (doc) => {
+    let changed = false;
+    for (const profile of doc.profiles) {
+      if (!Array.isArray(profile.best) || !Array.isArray(profile.completed)) continue;
+      for (const level of profile.completed) {
+        const slot = profile.best.find((entry) => entry.level === level);
+        if (!slot || slot.unfinished !== true) continue;
+        let winner = null;
+        for (const receipt of Object.values(profile.completions ?? {})) {
+          if (!receipt || receipt.level !== level || !Number.isFinite(receipt.score)) continue;
+          if (!winner || receipt.score > winner.score) winner = receipt;
+        }
+        if (!winner) continue;
+        profile.best = profile.best.filter((entry) => entry.level !== level);
+        profile.best.push({
+          level,
+          score: winner.score,
+          difficulty: winner.difficulty ?? null,
+          achieved_at: slot.achieved_at,
+        });
+        profile.best.sort((a, b) => a.level - b.level);
+        changed = true;
+      }
+    }
+    return changed;
+  };
+
   return {
     initialize({ defaultName = 'Player 1' } = {}) {
       return serialize(async () => {
@@ -182,6 +221,7 @@ export function createProfileStore(backend, {
             return parsed;
           });
           document = loaded;
+          if (repairBestEntries(document)) await commit(document);
         } else {
           const profile = fresh(defaultName);
           await commit({ version: PROFILE_SCHEMA_VERSION, activeProfileId: profile.id, profiles: [profile] });
@@ -208,6 +248,18 @@ export function createProfileStore(backend, {
     renameProfile: (id, name) => mutate((doc) => {
       const profile = find(doc, id);
       profile.name = nameValue(name);
+      return summary(profile);
+    }),
+    // null clears the choice; an invalid id throws before the single write.
+    setHero: (id, hero) => mutate((doc) => {
+      const profile = find(doc, id);
+      if (hero === null) {
+        delete profile.hero;
+      } else if (heroValid(hero)) {
+        profile.hero = hero;
+      } else {
+        throw error('invalid_hero', 'Choose a valid hero ID or clear the choice');
+      }
       return summary(profile);
     }),
     deleteProfile: (id, { confirmed = false } = {}) => mutate((doc) => {
@@ -282,7 +334,14 @@ export function createProfileStore(backend, {
           return resultFor(receipt);
         }
         const best = profile.best.find((entry) => entry.level === level);
-        const bestImproved = score > (best?.score ?? 0);
+        // A cleared run outranks an unfinished one: a partial only takes the
+        // best slot of a level that is still uncleared, or beats another
+        // partial. Letting it outrank a completion would leave the level
+        // advertising an unfinished score that no clear could ever replace.
+        const cleared = (profile.completed ?? []).includes(level);
+        const bestImproved = best
+          ? best.unfinished === true && score > best.score
+          : !cleared;
         const timestamp = now();
         const entry = { level, score, difficulty, achieved_at: timestamp instanceof Date ? timestamp.toISOString() : timestamp,
           unfinished: true };
@@ -338,7 +397,11 @@ export function createProfileStore(backend, {
           return resultFor(receipt);
         }
         const best = profile.best.find((entry) => entry.level === level);
-        const bestImproved = score > (best?.score ?? 0);
+        // Cleared outranks unfinished: the completion takes the slot even when
+        // the partial it replaces reached a higher score.
+        // `score > 0` keeps the long-standing rule that a cleared level with no
+        // points does not invent a best entry.
+        const bestImproved = best ? (best.unfinished === true || score > best.score) : score > 0;
         const timestamp = now();
         const entry = { level, score, difficulty, achieved_at: timestamp instanceof Date ? timestamp.toISOString() : timestamp,
           ...(hasAttempt ? { attemptSummary } : {}) };

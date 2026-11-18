@@ -311,3 +311,30 @@ test('stripAppOnlyDom removes marked regions and rejects an unclosed marker', ()
 test('APP_OVERLAY points at the app-only game modules', () => {
   assert.equal(toPosix(APP_OVERLAY), toPosix(join(root, 'game')));
 });
+
+test('a hero ships its three art files and none of its development files', async () => {
+  await withDirs(async (make) => {
+    const from = await fixture({
+      'index.html': '<html></html>',
+      'styles.css': '',
+      'game/main.js': '',
+      'game/heroes/manifest.json': '{}',
+      'game/heroes/check-heroes.mjs': '',
+      'game/heroes/PROVENANCE.md': '',
+      'game/heroes/rogue/portrait.webp': 'p',
+      'game/heroes/rogue/hero-atlas.webp': 'a',
+      'game/heroes/rogue/hero-frames.js': 'f',
+      'game/heroes/rogue/source/sheet.png': 's',
+    });
+    const out = await make('ffm-www-');
+    await copyAssets(from, out, join(root, 'missing-overlay'));
+    const heroes = (await listFiles(out)).filter((rel) => rel.startsWith('game/heroes/'));
+    assert.deepEqual(heroes, [
+      'game/heroes/manifest.json',
+      'game/heroes/rogue/hero-atlas.webp',
+      'game/heroes/rogue/hero-frames.js',
+      'game/heroes/rogue/portrait.webp',
+    ]);
+    await rm(from, { recursive: true, force: true });
+  });
+});

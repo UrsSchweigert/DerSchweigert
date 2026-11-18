@@ -2,7 +2,7 @@
 //
 // shapes-header.js ships through the overlay as www/game/shapes-header.js and
 // is imported by main.js only behind platform.isApp. These tests pin the
-// exactly-two-rows layout for counts 1-10 in DE and EN at the 320px portrait
+// exactly-two-rows layout for counts 1-6 in DE and EN at the 320px portrait
 // and landscape header widths, the unbroken shape row, the scale-down that
 // replaces wrapping/clipping, the widget's DOM structure and teardown, the
 // overlay-only CSS, and the 44px answer-target budget. The web build keeps the
@@ -92,7 +92,7 @@ function fakeDocument(width = SHAPES_HEADER_WIDTHS.portrait) {
 }
 
 describe('two-row Shapes header layout', () => {
-  test('enumerates counts 1-10 x {de,en} x {portrait,landscape} as exactly two rows', () => {
+  test('enumerates counts 1-6 x {de,en} x {portrait,landscape} as exactly two rows', () => {
     try {
       for (const locale of ['de', 'en']) {
         setLocale(locale, { persist: false });
@@ -137,22 +137,22 @@ describe('two-row Shapes header layout', () => {
 
   test('scales the shape row down instead of wrapping at the narrowest landscape header', () => {
     const base = layoutShapesHeader({
-      count: 10,
+      count: 6,
       instruction: 'Count the shapes',
       maxWidth: SHAPES_HEADER_WIDTHS.portrait,
     });
     const narrow = layoutShapesHeader({
-      count: 10,
+      count: 6,
       instruction: 'Count the shapes',
-      maxWidth: 228,
+      maxWidth: 120,
     });
     assert.equal(narrow.rowCount, 2);
-    assert.equal(narrow.shapeCount, 10);
+    assert.equal(narrow.shapeCount, 6);
     assert.ok(narrow.rows[1].fontSize < base.rows[1].fontSize, 'the shape row shrinks to fit');
     assert.ok(narrow.rows[1].fontSize >= SHAPES_HEADER_MIN_FONT_SIZE);
     assert.equal(narrow.fits, true);
-    assert.ok(narrow.rows[1].fontSize * 19 * 0.65 <= 228 + 0.5, 'the scaled row fits the width');
-    assert.equal(narrow.shapeText.split(' ').length, 10, 'scaling never drops a shape');
+    assert.ok(narrow.rows[1].fontSize * 11 * 0.65 <= 120 + 0.5, 'the scaled row fits the width');
+    assert.equal(narrow.shapeText.split(' ').length, 6, 'scaling never drops a shape');
   });
 
   test('represents every shape type with its own glyph and keeps unknown types square', () => {
@@ -166,12 +166,13 @@ describe('two-row Shapes header layout', () => {
 
   test('clamps counts defensively without changing the published problem count', () => {
     assert.equal(normalizeShapeCount(1), 1);
-    assert.equal(normalizeShapeCount(10), 10);
-    assert.equal(normalizeShapeCount('7'), 7);
-    assert.equal(normalizeShapeCount(7.9), 7);
+    assert.equal(normalizeShapeCount(6), 6);
+    assert.equal(normalizeShapeCount('5'), 5);
+    assert.equal(normalizeShapeCount(10), 6, 'the old 1-10 range is clamped to six');
+    assert.equal(normalizeShapeCount(5.9), 5);
     assert.equal(normalizeShapeCount(0), 0);
     assert.equal(normalizeShapeCount(-3), 0);
-    assert.equal(normalizeShapeCount(99), 10);
+    assert.equal(normalizeShapeCount(99), 6);
     assert.equal(normalizeShapeCount(Number.NaN), 0);
     assert.equal(normalizeShapeCount(undefined), 0);
   });
@@ -183,7 +184,7 @@ describe('Shapes header widget', () => {
     const widget = createShapesHeader({ doc });
     target.textContent = 'Count the shapes: ▲ ▲';
     const layout = widget.render({
-      problem: { displayMode: 'shapes', shapeType: 'triangle', count: 10 },
+      problem: { displayMode: 'shapes', shapeType: 'triangle', count: 6 },
       instruction: 'Count the shapes',
     });
 
@@ -192,27 +193,27 @@ describe('Shapes header widget', () => {
     assert.equal(target.children[1].className, SHAPES_ROW_CLASS);
     assert.equal(target.getAttribute(SHAPES_HEADER_ATTRIBUTE), SHAPES_HEADER_ATTRIBUTE_VALUE);
     assert.equal(target.children[0].textContent, 'Count the shapes:');
-    assert.equal(target.children[1].textContent, '▲ ▲ ▲ ▲ ▲ ▲ ▲ ▲ ▲ ▲');
-    assert.equal(layout.shapeCount, 10);
+    assert.equal(target.children[1].textContent, '▲ ▲ ▲ ▲ ▲ ▲');
+    assert.equal(layout.shapeCount, 6);
 
     widget.render({
-      problem: { displayMode: 'shapes', shapeType: 'triangle', count: 10 },
+      problem: { displayMode: 'shapes', shapeType: 'triangle', count: 6 },
       instruction: 'Count the shapes',
     });
     assert.equal(target.children.length, 2, 'repeated frames never add a third row');
   });
 
   test('writes the scaled font size and line height onto the rows', () => {
-    const { target, doc } = fakeDocument(228);
+    const { target, doc } = fakeDocument(120);
     const widget = createShapesHeader({ doc });
     const layout = widget.render({
-      problem: { displayMode: 'shapes', shapeType: 'circle', count: 10 },
+      problem: { displayMode: 'shapes', shapeType: 'circle', count: 6 },
       instruction: 'Zähle die Formen',
     });
     assert.equal(target.children[1].style.fontSize, `${layout.rows[1].fontSize}px`);
     assert.equal(target.children[1].style.lineHeight, `${layout.rows[1].lineHeight}px`);
     assert.ok(layout.rows[1].fontSize < SHAPES_HEADER_BASE_FONT_SIZE);
-    assert.equal(target.children[1].textContent.split(' ').length, 10);
+    assert.equal(target.children[1].textContent.split(' ').length, 6);
   });
 
   test('clear removes both rows and the two-row marker', () => {
@@ -238,6 +239,22 @@ describe('Shapes header widget', () => {
   });
 });
 
+describe('Shapes header with runestone images', () => {
+  test('writes one runestone image per shape instead of glyphs when given a stone source', () => {
+    const { target, doc } = fakeDocument();
+    const widget = createShapesHeader({ doc, stoneSrc: 'data:image/png;base64,stone' });
+    for (const count of [1, 3, 6]) {
+      widget.render({ problem: { displayMode: 'shapes', shapeType: 'runestone', count }, instruction: 'Count the shapes' });
+      const row = target.children[1];
+      assert.equal(row.children.length, count, `${count} stones`);
+      assert.ok(row.children.every((stone) => stone.className === 'runestone' && stone.src === 'data:image/png;base64,stone'));
+      assert.equal(row.textContent, '', 'no glyph text');
+      assert.equal(row.getAttribute('aria-label'), String(count));
+      assert.equal(target.children.length, 2, 'still exactly two rows');
+    }
+  });
+});
+
 describe('app-only delivery', () => {
   test('the module ships only through the app overlay, never the web build', async () => {
     await assert.rejects(
@@ -258,7 +275,7 @@ describe('app-only delivery', () => {
   test('main.js wires the two-row header only behind the app guard', async () => {
     const source = await readFile(join(staticDir, 'game', 'main.js'), 'utf8');
     assert.equal((source.match(/import\('\.\/shapes-header\.js'\)/g) ?? []).length, 1);
-    assert.match(source, /gameplayChrome\.setShapesHeader\(createShapesHeader\(\{ doc: document \}\)\)/);
+    assert.match(source, /gameplayChrome\.setShapesHeader\(createShapesHeader\(\{ doc: document, stoneSrc: runestoneDataUri\(\) \}\)\)/);
     const appStart = source.indexOf('if (platform.isApp) {');
     const appEnd = source.indexOf('\n}\n', appStart);
     assert.ok(source.slice(appStart, appEnd).includes("import('./shapes-header.js')"),

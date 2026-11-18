@@ -14,7 +14,7 @@ import {
   createEntitlementPanel, entitlementText, freeContentText, outcomeFromResult,
   probeFreeLevels, resolveStatus, statusText,
 } from '../game/entitlement-panel.js';
-import { PURCHASE_OUTCOMES, RESTORE_OUTCOMES } from '../game/purchase.js';
+import { CAMPAIGN2_PRODUCT_ID, PURCHASE_OUTCOMES, RESTORE_OUTCOMES } from '../game/purchase.js';
 import { paywallText } from '../game/paywall.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -88,6 +88,21 @@ test('panel copy is bilingual and never implies a subscription or cross-platform
   }
 });
 
+test('the full state shows only the unlock line and Restore, in both locales', () => {
+  const english = buildEntitlementMarkup({ locale: 'en', statusKey: 'full', freeCount: 60, totalLevels: 60, price: '4,99 €', showBuy: true });
+  const german = buildEntitlementMarkup({ locale: 'de', statusKey: 'full', freeCount: 60, totalLevels: 60, price: '4,99 €', showBuy: true });
+  assert.match(english, /<p class="entitlement-status" role="status" aria-live="polite">All levels unlocked<\/p>/);
+  assert.match(english, /data-entitlement-status="full"/);
+  assert.match(german, /<p class="entitlement-status" role="status" aria-live="polite">Alle Level freigeschaltet<\/p>/);
+  for (const text of [english, german]) {
+    assert.doesNotMatch(text, /Your version|Deine Version|levels are available|Alle \d+ Level|entitlement-unlock|entitlement-device|entitlement-free|data-entitlement-action="buy"/);
+    assert.match(text, /data-entitlement-action="restore"/);
+    assert.doesNotMatch(text, /class="entitlement-outcome/, 'an empty outcome line adds no height');
+  }
+  const withOutcome = buildEntitlementMarkup({ locale: 'en', statusKey: 'full', outcomeKey: 'paywall.restored', outcomeText: 'Restored.' });
+  assert.match(withOutcome, /class="entitlement-outcome[^>]*>Restored\.<\/p>/);
+});
+
 test('the price comes from the store product, never a hard-coded amount', async () => {
   const { view } = await loadedPanel({
     platform: fakePlatform(), purchaseStore: fakeStore({ product: { priceString: '7,25 €' } }), totalLevels: 60,
@@ -133,7 +148,7 @@ test('free, full, offline and error are distinct panel states', async () => {
   assert.match(free.view.markup, /data-entitlement-action="buy"/);
   const full = await loadedPanel({ platform: fakePlatform({ status: { premium_access: true } }), purchaseStore: fakeStore(), totalLevels: 60 });
   assert.match(full.view.markup, /data-entitlement-status="full"/);
-  assert.match(full.view.markup, /All 60 levels are available\./);
+  assert.match(full.view.markup, /data-entitlement-status="full"[\s\S]*All levels unlocked</);
   assert.doesNotMatch(full.view.markup, /data-entitlement-action="buy"/);
   assert.match(full.view.markup, /data-entitlement-action="restore"/);
   const offline = await loadedPanel({ platform: fakePlatform({ status: { premium_access: false, offline: true } }), purchaseStore: fakeStore(), totalLevels: 60 });
@@ -209,6 +224,56 @@ test('a successful buy or restore refreshes the status to full and gates through
   assert.match(restore.view.markup, /data-entitlement-status="full"/);
 });
 
+test('the one Restore also brings Campaign II back and says so', async () => {
+  const restored = [];
+  const withExtra = (status, ids) => Object.assign(fakePlatform(status), { async getOwnedProductIds() { return ids; } });
+
+  // Full unlock and Campaign II restored together.
+  const both = await loadedPanel({
+    platform: withExtra({ status: { premium_access: false }, refreshStatus: { premium_access: true, offline: false } }, [CAMPAIGN2_PRODUCT_ID]),
+    purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: true } }),
+    totalLevels: 60,
+    onExtrasRestored: (ids) => restored.push(ids),
+  });
+  await both.panel.restore();
+  assert.equal(both.panel.getOutcome().key, 'paywall.restoredAll');
+  assert.deepEqual(restored, [[CAMPAIGN2_PRODUCT_ID]], 'the caller re-renders the campaign switch');
+
+  // Only Campaign II owned: the outcome is not "nothing to restore".
+  const extraOnly = await loadedPanel({
+    platform: withExtra({ status: { premium_access: false } }, [CAMPAIGN2_PRODUCT_ID]),
+    purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false } }),
+    totalLevels: 60,
+  });
+  await extraOnly.panel.restore();
+  assert.equal(extraOnly.panel.getOutcome().key, 'paywall.campaign2.restored');
+  assert.equal(extraOnly.panel.getOutcome().error, false);
+
+  // Nothing extra owned, or a gate the child failed: unchanged outcomes, no store read for extras.
+  let reads = 0;
+  const gated = await loadedPanel({
+    platform: Object.assign(fakePlatform(), { async getOwnedProductIds() { reads += 1; return [CAMPAIGN2_PRODUCT_ID]; } }),
+    purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.GATED, entitled: false } }),
+    totalLevels: 60,
+  });
+  await gated.panel.restore();
+  assert.equal(gated.panel.getOutcome().key, 'paywall.gated');
+  assert.equal(reads, 0, 'a failed gate never reads the store');
+  const nothing = await loadedPanel({
+    platform: withExtra({ status: { premium_access: false } }, []),
+    purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false } }),
+    totalLevels: 60,
+  });
+  await nothing.panel.restore();
+  assert.equal(nothing.panel.getOutcome().key, 'paywall.nothingToRestore');
+  assert.ok(paywallText('paywall.restoredAll', 'de'));
+});
+
+test('the title screen has no second restore button', async () => {
+  const html = await readFile(join(root, '..', 'static', 'index.html'), 'utf8');
+  assert.doesNotMatch(html, /restore-purchases-btn/);
+});
+
 test('locale changes re-render without re-reading the store', async () => {
   let locale = 'en';
   const platform = fakePlatform();
@@ -280,4 +345,10 @@ test('outcome mapping covers every purchase and restore result', () => {
   assert.equal(outcomeFromResult({ outcome: RESTORE_OUTCOMES.RESTORED, entitled: false }, 'restore').key, 'paywall.nothingToRestore');
   assert.equal(outcomeFromResult({ outcome: RESTORE_OUTCOMES.ERROR, entitled: false }, 'restore').key, 'paywall.restoreError');
   assert.equal(outcomeFromResult(null, 'restore').key, 'paywall.restoreError');
+});
+
+test('the status line is centered in the panel', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../game/mobile-ui.css', import.meta.url), 'utf8');
+  assert.match(css, /\.entitlement-status\s*\{[^}]*text-align:\s*center/);
 });

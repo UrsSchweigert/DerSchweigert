@@ -7,7 +7,7 @@ import pytest
 
 from harness import adapter as adapter_mod
 from harness import approval, cli, isolation, publisher, runner
-from harness.adapter import CopilotCliAdapter, WorkRequest, build_prompt
+from harness.adapter import ClaudeCodeAdapter, WorkRequest, build_prompt
 from harness.broker import BrokerRejected
 from harness.github import GhCli, GitHubError
 from harness.publisher import GitHubPublisher, merge_base_into, push_branch
@@ -211,7 +211,7 @@ def test_dry_run_demonstration_schedules_retries_blocks_and_recovers(tmp_path):
     adapter2 = FakeAdapter(env.repo, env.clock)
     adapter2.script("flaky", "implementer", "error:infra")
     s2 = Scheduler(env.store, "fx", 1, adapter2, env.repo, env.checker, env.publisher, clock=env.clock, isolation_override=TIER_A,
-                   available_models=["claude-haiku-4.5", "claude-sonnet-5", "claude-opus-5", "claude-opus-4.8"], runner_id="runner-2")
+                   available_models=["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-8"], runner_id="runner-2")
     env.sched, env.adapter = s2, adapter2
     env.clock.advance(65)  # the dead runner's plan lock expires after two heartbeats
     s2.start(env.clock())
@@ -620,7 +620,7 @@ def finished_handle(tmp_path, rc=0, tail=(), result=None, cancelled=False):
     (0, [], None, "no_result"),  # a clean exit with no file at all produced nothing; that is not a schema violation
 ])
 def test_adapter_poll_classifies_outcomes(tmp_path, rc, tail, result, expected):
-    a = CopilotCliAdapter(str(tmp_path), str(tmp_path))
+    a = ClaudeCodeAdapter(str(tmp_path), str(tmp_path))
     poll = a.poll(finished_handle(tmp_path, rc, tail, result), 0)
     assert poll.state == "finished"
     assert (poll.error or {}).get("kind") == expected
@@ -629,7 +629,7 @@ def test_adapter_poll_classifies_outcomes(tmp_path, rc, tail, result, expected):
 
 
 def test_adapter_poll_reports_cancellation_and_running(tmp_path):
-    a = CopilotCliAdapter(str(tmp_path), str(tmp_path))
+    a = ClaudeCodeAdapter(str(tmp_path), str(tmp_path))
     assert a.poll(finished_handle(tmp_path, 137, cancelled=True), 0).error == {"kind": "cancelled"}
     running = finished_handle(tmp_path)
     running.proc._rc = None
@@ -652,7 +652,7 @@ def test_adapter_prepares_an_isolated_workdir_from_the_trusted_clone(tmp_path, m
         fh.write("x\n")
     git(src, "add", "-A")
     git(src, "commit", "-q", "-m", "i")
-    a = CopilotCliAdapter(str(tmp_path / "home"), src)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), src)
     req = WorkRequest("i1#2", 2, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
     work = a._prepare(req)
     assert git(os.path.join(work, "repo"), "rev-parse", "--abbrev-ref", "HEAD") == "harness/i1"
@@ -664,12 +664,12 @@ def test_adapter_prepares_an_isolated_workdir_from_the_trusted_clone(tmp_path, m
 
 def test_adapter_probe_reports_missing_pieces(tmp_path, monkeypatch):
     monkeypatch.setattr(isolation, "docker_available", lambda: False)
-    assert CopilotCliAdapter(str(tmp_path), str(tmp_path)).probe()["available"] is False
+    assert ClaudeCodeAdapter(str(tmp_path), str(tmp_path)).probe()["available"] is False
     monkeypatch.setattr(isolation, "docker_available", lambda: True)
     monkeypatch.setattr(isolation, "image_id", lambda image=isolation.IMAGE: None)
-    assert "image" in CopilotCliAdapter(str(tmp_path), str(tmp_path)).probe()["reason"]
+    assert "image" in ClaudeCodeAdapter(str(tmp_path), str(tmp_path)).probe()["reason"]
     monkeypatch.setattr(isolation, "image_id", lambda image=isolation.IMAGE: "sha256:x")
-    assert "copilot.token" in CopilotCliAdapter(str(tmp_path), str(tmp_path)).probe()["reason"]
+    assert "claude.token" in ClaudeCodeAdapter(str(tmp_path), str(tmp_path)).probe()["reason"]
 
 
 def test_trusted_clone_tracks_the_base_branch(tmp_path):
@@ -769,7 +769,7 @@ def test_rehearsal_is_a_separate_copy_of_the_state(tmp_path):
     for s in ("Refining", "Ready"):
         store.transition("issue", "i1", s, "t")
     (tmp_path / "home" / "isolation.json").write_text("{}")
-    (tmp_path / "home" / "copilot.token").write_text("tok")
+    (tmp_path / "home" / "claude.token").write_text("tok")
     path = runner.make_rehearsal(store.home)
     assert os.path.dirname(path) == store.home
     copy = Store(path)
@@ -778,7 +778,7 @@ def test_rehearsal_is_a_separate_copy_of_the_state(tmp_path):
     copy.transition("issue", "i1", "In Progress", "rehearsal")
     copy.cx.execute("UPDATE entities SET state='Completed' WHERE machine='plan'")
     assert store.state("issue", "i1") == "Ready" and store.state("plan", "fx@v1") == "Approved"  # the real store is untouched
-    for name in ("approval.key", "isolation.json", "copilot.token", "harness.sqlite"):
+    for name in ("approval.key", "isolation.json", "claude.token", "harness.sqlite"):
         assert oct(os.stat(os.path.join(path, name)).st_mode & 0o777) == "0o600"
 
 
@@ -864,7 +864,7 @@ def test_a_reviewer_workdir_is_checked_out_at_the_branch_under_review(tmp_path, 
     git(src, "commit", "-q", "-m", "work")
     git(str(tmp_path), "--git-dir", trusted, "fetch", "-q", src, "+refs/heads/harness/i1:refs/heads/harness/i1")
     reviewed = git(src, "rev-parse", "HEAD")
-    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), trusted)
     reviewer = a._prepare(WorkRequest("i1#2", 1, "i1", "reviewer", "strong", None, {}, "harness/i1"))
     implementer = a._prepare(WorkRequest("i1#3", 1, "i1", "implementer", "standard", None, {}, "harness/i1"))
     assert git(os.path.join(reviewer, "repo"), "rev-parse", "HEAD") == reviewed and os.path.exists(os.path.join(reviewer, "repo", "new.txt"))
@@ -897,7 +897,7 @@ def test_preparing_a_worker_folder_keeps_executable_files_executable_and_the_tre
     git(src, "commit", "-q", "-m", "i")
     trusted = str(tmp_path / "trusted.git")
     git(str(tmp_path), "clone", "-q", "--bare", src, trusted)
-    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), trusted)
     work = a._prepare(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "harness/i1"))
     repo = os.path.join(work, "repo")
     assert os.stat(os.path.join(repo, "gradlew")).st_mode & 0o111 and os.stat(os.path.join(repo, "scripts", "run.sh")).st_mode & 0o111  # still executable
@@ -921,7 +921,7 @@ def test_a_mode_only_change_in_the_worker_copy_is_not_committed(tmp_path, monkey
     git(src, "commit", "-q", "-m", "i")
     trusted = str(tmp_path / "trusted.git")
     git(str(tmp_path), "clone", "-q", "--bare", src, trusted)
-    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), trusted)
     repo = os.path.join(a._prepare(WorkRequest("i1#1", 1, "i1", "implementer", "low", None, {}, "harness/i1")), "repo")
     os.chmod(os.path.join(repo, "tool.sh"), 0o644)  # an accidental chmod by the worker or a tool
     assert git(repo, "status", "--porcelain") == "" and git(repo, "config", "core.fileMode") == "false"
@@ -957,7 +957,7 @@ def test_a_repair_workdir_starts_from_the_last_good_head_and_pushes_as_a_fast_fo
     git(src, "commit", "-q", "-m", "diverged")
     git(str(tmp_path), "--git-dir", trusted, "fetch", "-q", src, "+refs/heads/harness/i1:refs/heads/harness/i1")
     assert repo.branch_head("harness/i1") != good and repo.pinned("i1") == good
-    a = CopilotCliAdapter(str(tmp_path / "home"), trusted)
+    a = ClaudeCodeAdapter(str(tmp_path / "home"), trusted)
     repair = a._prepare(WorkRequest("i1#4", 1, "i1", "implementer", "standard", None, {"resume_from": "harness-good/i1"}, "harness/i1"))
     repo_dir = os.path.join(repair, "repo")
     assert git(repo_dir, "rev-parse", "HEAD") == good and os.path.exists(os.path.join(repo_dir, "first.txt"))
@@ -1142,6 +1142,23 @@ def test_an_issue_that_already_has_work_is_not_silently_skipped(tmp_path):
         runner.import_issues(store, "fx", None, str(corrected), "base2")
 
 
+def test_a_revision_that_leaves_an_issue_alone_does_not_trip_over_its_work_in_flight(tmp_path):
+    """Importing a revised plan while some other issue is under review must work: only changed definitions need replacing."""
+    store = make_plan(tmp_path)
+    first = tmp_path / "issues.json"
+    first.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(first), "base1")
+    store.put_issue(dict(store.get_issue("i1"), head_rev="a" * 40, pr=7))
+
+    assert runner.import_issues(store, "fx", None, str(first), "base2") == [], "unchanged: nothing to report, nothing refused"
+    issue = store.get_issue("i1")
+    assert issue["head_rev"] == "a" * 40 and issue["pr"] == 7 and issue["base_rev"] == "base1", "the work and its base are left exactly as they were"
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["changed"])]))
+    with pytest.raises(runner.RunRefused, match="has work recorded"):
+        runner.import_issues(store, "fx", None, str(corrected), "base2")  # a changed definition under work is still refused
+
+
 def test_an_issue_id_of_another_plan_is_reported(tmp_path):
     store = make_plan(tmp_path)
     other = tmp_path / "other.json"
@@ -1156,7 +1173,6 @@ def test_an_issue_id_of_another_plan_is_reported(tmp_path):
 
 def test_a_cancelled_run_keeps_its_branch_and_main_untouched(remote_world, tmp_path):
     from harness import plans as plans_mod
-    from harness import approval
 
     origin, clone = remote_world
     store = Store(str(tmp_path / "home"))
@@ -1241,7 +1257,7 @@ def test_a_worker_starts_on_a_run_branch_that_is_not_the_default(tmp_path, monke
     git(src, "add", "-A")
     git(src, "commit", "-q", "-m", "i")
     git(src, "branch", "harness/run/fx")
-    adapter = CopilotCliAdapter(str(tmp_path / "home"), src, "harness/run/fx")
+    adapter = ClaudeCodeAdapter(str(tmp_path / "home"), src, "harness/run/fx")
     req = WorkRequest("i1#1", 1, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
 
     work = adapter._prepare(req)
@@ -1262,7 +1278,7 @@ def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkey
         fh.write("x\n")
     git(src, "add", "-A")
     git(src, "commit", "-q", "-m", "i")
-    adapter = CopilotCliAdapter(str(tmp_path / "home"), src)
+    adapter = ClaudeCodeAdapter(str(tmp_path / "home"), src)
     req = WorkRequest("i1#1", 1, "i1", "reviewer", "low", None, {"issue_id": "i1"}, "harness/i1")
     handle = _Handle(req, adapter._prepare(req), None, "probe")
 
@@ -1274,7 +1290,6 @@ def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkey
     assert adapter._last_sign_of_work(handle, quiet_since + 5) == quiet_since          # too soon to look
     assert adapter._last_sign_of_work(handle, quiet_since + ACTIVITY_SCAN_AFTER_S + 5) > quiet_since
 def test_a_check_job_does_not_wait_for_a_reader_whose_writer_is_gone(tmp_path, monkeypatch):
-    import threading
 
     from harness.checks import SandboxChecker, _CheckHandle
 
@@ -1391,227 +1406,6 @@ def test_the_promotion_sync_goes_through_a_pull_request(remote_world):
     assert number and number in gh.prs
     assert gh.prs[number]["head"] == publisher.SYNC_BRANCH and gh.prs[number]["base"] == "harness/run/p1"
     assert gh.prs[number]["state"] == "merged"
-
-
-def test_the_publisher_offers_the_finished_run_to_the_base_branch_once(remote_world, tmp_path):
-    origin, clone = remote_world
-    gh = FakeGitHub()
-    pub = GitHubPublisher(gh, clone, origin, "harness/run/p1", None, sleep=lambda s: None)
-
-    first = pub.open_promotion("main", "promote", "body")
-    again = pub.open_promotion("main", "promote", "body")
-
-    assert first == again == 100 and len(gh.prs) == 1
-    assert gh.prs[100]["head"] == "harness/run/p1" and gh.prs[100]["base"] == "main"
-
-
-def test_a_run_that_works_on_the_base_branch_needs_no_promotion(remote_world, tmp_path):
-    origin, clone = remote_world
-    gh = FakeGitHub()
-    pub = GitHubPublisher(gh, clone, origin, "main", None, sleep=lambda s: None)
-
-    assert pub.open_promotion("main", "promote", "body") is None and not gh.prs
-
-
-def test_a_new_plan_version_replaces_an_issue_that_has_no_work_yet(tmp_path):
-    store = make_plan(tmp_path)
-    first = tmp_path / "issues.json"
-    first.write_text(json.dumps([ISSUE]))
-    assert runner.import_issues(store, "fx", None, str(first), "base1") == ["i1"]
-
-    corrected = tmp_path / "corrected.json"
-    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["the corrected outcome"], acceptance_criteria=["new"] )]))
-
-    assert runner.import_issues(store, "fx", None, str(corrected), "base2") == ["i1"]  # reported as changed
-    issue = store.get_issue("i1")
-    assert issue["outcomes"] == ["the corrected outcome"] and issue["base_rev"] == "base2"
-    assert store.state("issue", "i1") == "Ready"
-
-
-def test_an_issue_that_already_has_work_is_not_silently_skipped(tmp_path):
-    store = make_plan(tmp_path)
-    first = tmp_path / "issues.json"
-    first.write_text(json.dumps([ISSUE]))
-    runner.import_issues(store, "fx", None, str(first), "base1")
-    store.put_issue(dict(store.get_issue("i1"), head_rev="a" * 40))
-
-    corrected = tmp_path / "corrected.json"
-    corrected.write_text(json.dumps([dict(ISSUE, outcomes=["changed"])]))
-
-    with pytest.raises(runner.RunRefused, match="has work recorded"):
-        runner.import_issues(store, "fx", None, str(corrected), "base2")
-
-
-def test_an_issue_id_of_another_plan_is_reported(tmp_path):
-    store = make_plan(tmp_path)
-    other = tmp_path / "other.json"
-    other.write_text(json.dumps([ISSUE]))
-    runner.import_issues(store, "fx", None, str(other), "base1")
-    issue = store.get_issue("i1")
-    store.put_issue(dict(issue, plan_id="other-plan"))
-
-    with pytest.raises(runner.RunRefused, match="already belongs to plan other-plan"):
-        runner.import_issues(store, "fx", None, str(other), "base1")
-
-
-def test_a_cancelled_run_keeps_its_branch_and_main_untouched(remote_world, tmp_path):
-    from harness import plans as plans_mod
-    from harness import approval
-
-    origin, clone = remote_world
-    store = Store(str(tmp_path / "home"))
-    phases = [{"id": "P1", "outcomes": ["o"], "requirements": ["R1"], "path_allowlist": ["a"], "non_goals": [],
-               "dependencies": [], "exit_criteria": ["e"], "validation": ["node --test x.mjs"]}]
-    plan = plans_mod.build_plan("fx", 1, [{"id": "R1", "title": "t", "source": "s"}], phases, fixture=True)
-    store.put_plan(plan, plans_mod.plan_digest(plan))
-    store.transition("plan", "fx@v1", "Proposed", "t")
-    store.transition("plan", "fx@v1", "Approved", "t")
-    store.transition("plan", "fx@v1", "Executing", "t")
-    store.put_run("fx", {"started_at": 1.0})
-    git(clone, "branch", "harness/run/fx")
-    git(clone, "push", "-q", "origin", "harness/run/fx")
-    store.transition("plan", "fx@v1", "Cancelled", "t")
-
-    # cancelling is only a state change: the branch and the base branch are exactly as they were
-    assert git(clone, "--git-dir", origin, "rev-parse", "harness/run/fx") == git(clone, "rev-parse", "main")
-    assert git(clone, "--git-dir", origin, "rev-parse", "main") == git(clone, "rev-parse", "main")
-
-
-def test_discarding_a_stopped_run_branch_deletes_it(remote_world, tmp_path):
-    from harness import plans as plans_mod
-
-    origin, clone = remote_world
-    store = Store(str(tmp_path / "home"))
-    phases = [{"id": "P1", "outcomes": ["o"], "requirements": ["R1"], "path_allowlist": ["a"], "non_goals": [],
-               "dependencies": [], "exit_criteria": ["e"], "validation": ["node --test x.mjs"]}]
-    plan = plans_mod.build_plan("fx", 1, [{"id": "R1", "title": "t", "source": "s"}], phases, fixture=True)
-    store.put_plan(plan, plans_mod.plan_digest(plan))
-    store.transition("plan", "fx@v1", "Proposed", "t")
-    store.transition("plan", "fx@v1", "Approved", "t")
-    store.transition("plan", "fx@v1", "Executing", "t")
-    git(clone, "branch", "harness/run/fx")
-    git(clone, "push", "-q", "origin", "harness/run/fx")
-
-    with pytest.raises(runner.RunRefused, match="still owns its run branch"):
-        runner.discard_run_branch(store, "fx", 1, clone, origin)
-
-    store.transition("plan", "fx@v1", "Cancelled", "t")
-    assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is True
-    assert git(clone, "--git-dir", origin, "branch", "--list", "harness/run/fx") == ""
-    assert runner.discard_run_branch(store, "fx", 1, clone, origin)["deleted"] is False
-
-
-def test_an_issue_the_revised_plan_no_longer_names_is_retired(tmp_path):
-    store = make_plan(tmp_path)
-    first = tmp_path / "issues.json"
-    first.write_text(json.dumps([ISSUE, dict(ISSUE, issue_id="i2")]))
-    runner.import_issues(store, "fx", None, str(first), "base1")
-    assert store.state("issue", "i2") == "Ready"
-
-    revised = tmp_path / "revised.json"
-    revised.write_text(json.dumps([dict(ISSUE, outcomes=["merged"])]))  # i2 disappeared, i1 kept
-
-    assert runner.import_issues(store, "fx", None, str(revised), "base2", replace=True) == ["i1"]
-    assert store.state("issue", "i2") == "Cancelled" and store.state("issue", "i1") == "Ready"
-    assert store.get_doc("import_report", "fx")["superseded"] == ["i2"]
-
-
-def test_a_leftover_issue_with_work_blocks_the_import(tmp_path):
-    store = make_plan(tmp_path)
-    first = tmp_path / "issues.json"
-    first.write_text(json.dumps([ISSUE, dict(ISSUE, issue_id="i2")]))
-    runner.import_issues(store, "fx", None, str(first), "base1")
-    store.put_issue(dict(store.get_issue("i2"), head_rev="b" * 40))
-
-    revised = tmp_path / "revised.json"
-    revised.write_text(json.dumps([dict(ISSUE, outcomes=["merged"])]))
-
-    with pytest.raises(runner.RunRefused, match="i2 from an earlier version already has work"):
-        runner.import_issues(store, "fx", None, str(revised), "base2", replace=True)
-    assert store.state("issue", "i1") == "Ready" and store.state("issue", "i2") == "Ready"  # nothing was written
-
-
-def test_a_worker_starts_on_a_run_branch_that_is_not_the_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
-    src = str(tmp_path / "src")
-    os.makedirs(src)
-    git(src, "init", "-q", "-b", "main")
-    with open(os.path.join(src, "f.txt"), "w") as fh:
-        fh.write("x\n")
-    git(src, "add", "-A")
-    git(src, "commit", "-q", "-m", "i")
-    git(src, "branch", "harness/run/fx")
-    adapter = CopilotCliAdapter(str(tmp_path / "home"), src, "harness/run/fx")
-    req = WorkRequest("i1#1", 1, "i1", "implementer", "standard", None, {"issue_id": "i1"}, "harness/i1")
-
-    work = adapter._prepare(req)
-
-    repo = os.path.join(work, "repo")
-    assert git(repo, "rev-parse", "--abbrev-ref", "HEAD") == "harness/i1"
-    assert git(repo, "rev-parse", "HEAD") == git(src, "rev-parse", "harness/run/fx")
-
-
-def test_a_silent_worker_that_is_still_writing_counts_as_active(tmp_path, monkeypatch):
-    from harness.adapter import ACTIVITY_SCAN_AFTER_S, _Handle
-
-    monkeypatch.setenv("HARNESS_WORK_ROOT", str(tmp_path / "work"))
-    src = str(tmp_path / "src")
-    os.makedirs(src)
-    git(src, "init", "-q", "-b", "main")
-    with open(os.path.join(src, "f.txt"), "w") as fh:
-        fh.write("x\n")
-    git(src, "add", "-A")
-    git(src, "commit", "-q", "-m", "i")
-    adapter = CopilotCliAdapter(str(tmp_path / "home"), src)
-    req = WorkRequest("i1#1", 1, "i1", "reviewer", "low", None, {"issue_id": "i1"}, "harness/i1")
-    handle = _Handle(req, adapter._prepare(req), None, "probe")
-
-    quiet_since = 1000.0
-    handle.last_activity = quiet_since
-    with open(os.path.join(handle.workdir, "repo", "analysis.txt"), "w") as fh:
-        fh.write("work\n")
-
-    assert adapter._last_sign_of_work(handle, quiet_since + 5) == quiet_since          # too soon to look
-    assert adapter._last_sign_of_work(handle, quiet_since + ACTIVITY_SCAN_AFTER_S + 5) > quiet_since
-def test_a_check_job_does_not_wait_for_a_reader_whose_writer_is_gone(tmp_path, monkeypatch):
-    import threading
-
-    from harness.checks import SandboxChecker, _CheckHandle
-
-    env = Env(tmp_path)
-    checker = SandboxChecker(env.repo, str(tmp_path / "token"))
-    handle = _CheckHandle(str(tmp_path / "work"), ["true"])
-    handle.results.append({"command": "true", "exit_code": 0})  # the only command already finished
-
-    class Done:
-        returncode = 0
-
-        def poll(self):
-            return 0
-
-        def __getattr__(self, name):
-            return lambda *a, **k: None
-
-    class Stuck:
-        def is_alive(self):
-            return True
-
-        def join(self, timeout=None):
-            return None
-
-    handle.proc, handle.reader = Done(), Stuck()
-
-    assert checker.poll(handle) == [{"command": "true", "exit_code": 0}]
-
-
-def _advance_main(clone, origin, path, text, message):
-    git(clone, "checkout", "-q", "main")
-    git(clone, "pull", "-q", "origin", "main")
-    with open(os.path.join(clone, path), "w") as fh:
-        fh.write(text)
-    git(clone, "add", "-A")
-    git(clone, "commit", "-q", "-m", message)
-    git(clone, "push", "-q", "origin", "HEAD:main")
 
 
 def test_a_finished_run_keeps_watching_its_pull_request(monkeypatch):
@@ -1773,7 +1567,38 @@ def test_the_runner_reclaims_working_copies_left_by_a_dead_runner(monkeypatch, t
 
 def test_adapter_poll_separates_an_invalid_file_from_a_missing_one(tmp_path):
     """A present but unparseable result.json is a schema problem; an absent one is a worker that produced nothing."""
-    a = CopilotCliAdapter(str(tmp_path), str(tmp_path))
+    a = ClaudeCodeAdapter(str(tmp_path), str(tmp_path))
     (tmp_path / "result.json").write_text("{not json")
     poll = a.poll(finished_handle(tmp_path, 0), 0)
     assert poll.error["kind"] == "schema_invalid" and "not valid JSON" in poll.error["detail"]
+
+
+def test_redefine_replaces_a_blocked_issue_in_place_and_keeps_its_work(tmp_path):
+    store = make_plan(tmp_path)
+
+    def load(doc):
+        f = tmp_path / "issues.json"
+        f.write_text(json.dumps([doc]))
+        return str(f)
+
+    runner.import_issues(store, "fx", None, load(ISSUE), "base1")
+    issue = store.get_issue("i1")
+    issue["head_rev"], issue["pr"] = "abc", 7
+    store.put_issue(issue)
+    store.transition("issue", "i1", "Blocked", "coordinator", {"reason": "x"})
+    new = dict(ISSUE, acceptance_criteria=["Placeholder is fine."])
+    with pytest.raises(runner.RunRefused):
+        runner.import_issues(store, "fx", None, load(new), "base1", replace=False)
+    assert runner.import_issues(store, "fx", None, load(new), "base1", replace=False, redefine=("i1",)) == ["i1"]
+    kept = store.get_issue("i1")
+    assert kept["acceptance_criteria"] == ["Placeholder is fine."] and kept["pr"] == 7 and kept["head_rev"] == "abc"
+    assert store.state("issue", "i1") == "Blocked"
+
+
+def test_redefine_refuses_an_issue_that_is_not_blocked(tmp_path):
+    store = make_plan(tmp_path)
+    f = tmp_path / "issues.json"
+    f.write_text(json.dumps([ISSUE]))
+    runner.import_issues(store, "fx", None, str(f), "base1")
+    with pytest.raises(runner.RunRefused):
+        runner.import_issues(store, "fx", None, str(f), "base1", replace=False, redefine=("i1",))

@@ -122,8 +122,7 @@ test('the panel renders per-level best, the chart and the completed overview', a
   // store data, the chart receives the local history and the overview counts
   // the completed levels against TOTAL_LEVELS.
   const context = {
-    personalBestPage: 0,
-    PERSONAL_BEST_PAGE_SIZE: 3,
+    scrollPersonalBestToHighest: () => { context.scrolled = (context.scrolled ?? 0) + 1; },
     document: { getElementById() { return null; } },
     personalDevelopment: {},
     personalBestList: { innerHTML: '' },
@@ -150,6 +149,9 @@ test('the panel renders per-level best, the chart and the completed overview', a
   );
   assert.match(context.personalBestList.innerHTML, /Level 2: 40 points/);
   assert.match(context.personalBestList.innerHTML, /Level 5: 90 points/);
+  assert.match(context.personalBestList.innerHTML, /<li data-level="5">/, 'rows carry their level for the scroll');
+  assert.ok(context.scrolled >= 1, 'the list is scrolled to the highest scored level after rendering');
+  assert.doesNotMatch(source, /personalBestPage|personal-best-(prev|next)/, 'no paging for the per-level list');
   assert.equal(JSON.stringify(context.chartPayload), JSON.stringify({ trend: [
     { score: 40, achieved_at: null },
     { score: 130, achieved_at: null },

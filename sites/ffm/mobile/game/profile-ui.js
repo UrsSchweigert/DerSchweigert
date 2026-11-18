@@ -1,4 +1,5 @@
 import { PROFILE_NAME_LIMIT } from './profile-store.js';
+import { generateChallenge, questionText, checkAnswer, resolveLocale } from './parental-gate.js';
 
 const LABELS = {
   'profiles.create': 'New player',
@@ -12,14 +13,22 @@ const LABELS = {
   'profiles.page': 'Page {page} of {pages}',
   'profiles.confirmDelete': 'Delete {name} and all their progress?',
   'profiles.confirm': 'Delete player',
+  'profiles.gateQuestion': 'Ask an adult: what is {question}?',
+  'profiles.gateAnswer': 'Type the result',
+  'profiles.gateWrong': 'That is not right. Ask an adult to help.',
   'profiles.switchBlocked': 'Finish the current game before changing players.',
   'profiles.storageError': 'Player data could not be saved. Please try again.',
   'profiles.invalidName': 'Enter a name of 1-40 characters.',
   'profiles.lastProfile': 'Keep at least one player.',
+  'heroes.change': 'Change hero',
+  'heroes.placeholderAlt': 'Hero portrait placeholder',
 };
 
 export function mountProfileUI({
   root, adapter, translate = (key) => LABELS[key], canSwitch = () => true,
+  random = Math.random, locale = null, portraitFor = null, onChangeHero = null, heroFeature = () => true,
+  // Adding players comes with the full unlock; the caller passes the cached entitlement.
+  canCreate = () => true,
   onSelected = () => {}, onError = () => {}, onBusyChange = () => {},
 }) {
   if (!root?.ownerDocument) throw new TypeError('A profile UI root is required');
@@ -62,6 +71,22 @@ export function mountProfileUI({
     if (className) element.className = className;
     if (content !== undefined) element.textContent = content;
     return element;
+  };
+  // The portrait is decoration beside the name: no alt text, and a neutral
+  // placeholder (without a src, so no second request) when it is missing.
+  const placeholder = () => {
+    const holder = node('span', 'profile-portrait profile-portrait-placeholder');
+    holder.setAttribute('aria-hidden', 'true');
+    return holder;
+  };
+  const portrait = (url) => {
+    if (typeof url !== 'string' || !url) return placeholder();
+    const img = node('img', 'profile-portrait');
+    img.setAttribute('alt', '');
+    img.setAttribute('aria-hidden', 'true');
+    img.addEventListener('error', () => { if (img.parentNode) img.replaceWith(placeholder()); });
+    img.setAttribute('src', url);
+    return img;
   };
   const report = (failure) => {
     const key = failure.code === 'invalid_profile_name' ? 'profiles.invalidName'
@@ -156,14 +181,38 @@ export function mountProfileUI({
       form.append(label, controls);
       panel.append(form);
     } else if (stage?.type === 'delete') {
-      const confirmation = node('div', 'profile-confirmation');
+      const confirmation = node('form', 'profile-confirmation');
       confirmation.append(node('p', '', text('profiles.confirmDelete', { name: stage.name })));
+      // Parental check: a child must solve the shared parental-gate sum first.
+      stage.challenge ??= generateChallenge(random);
+      const loc = resolveLocale(typeof locale === 'function' ? locale() : locale ?? doc.documentElement?.lang?.slice(0, 2));
+      const label = node('label', 'profile-gate', text('profiles.gateQuestion', { question: questionText(stage.challenge, loc) }));
+      const answer = node('input', 'profile-gate-input');
+      answer.type = 'text';
+      answer.setAttribute('inputmode', 'numeric');
+      answer.setAttribute('aria-label', text('profiles.gateAnswer'));
+      answer.autocomplete = 'off';
+      answer.disabled = busy || !canSwitch();
+      answer.addEventListener('input', () => { stage.answer = answer.value; });
+      answer.value = stage.answer ?? '';
+      label.append(answer);
+      confirmation.append(label);
       const controls = node('div', 'profile-actions');
       const id = stage.id;
+      const confirmButton = button(text('profiles.confirm'), () => {
+        if (!checkAnswer(stage.challenge, answer.value)) {
+          stage.challenge = generateChallenge(random);
+          stage.answer = '';
+          message = text('profiles.gateWrong');
+          render();
+          root.querySelector('.profile-gate-input')?.focus();
+          return;
+        }
+        return action(() => adapter.deleteProfile(id, { confirmed: true }), true);
+      }, { blocked: true, className: 'action-danger' });
+      confirmation.addEventListener('submit', (event) => { event.preventDefault(); confirmButton.click(); });
       controls.append(
-        button(text('profiles.confirm'), () => action(
-          () => adapter.deleteProfile(id, { confirmed: true }), true,
-        ), { blocked: true, className: 'action-danger' }),
+        confirmButton,
         button(text('profiles.cancel'), () => { stage = null; message = ''; render(); }),
       );
       confirmation.append(controls);
@@ -179,15 +228,37 @@ export function mountProfileUI({
           blocked: true, className: 'profile-select',
         });
         select.setAttribute('aria-pressed', String(profile.id === activeId));
-        row.append(select);
+        const showHero = heroFeature();
+        const changeHero = showHero && typeof onChangeHero === 'function' && profile.id === activeId;
+        if (changeHero && typeof portraitFor === 'function') {
+          // The active player's portrait is the Change hero button: the hero is both shown and changed here.
+          const label = `${text('heroes.change')}: ${profile.name}`;
+          const holder = button('', () => onChangeHero(profile), {
+            blocked: true, className: 'profile-change-hero profile-change-hero-portrait', ariaLabel: label,
+          });
+          holder.setAttribute('title', text('heroes.change'));
+          holder.append(portrait(portraitFor(profile)));
+          row.append(holder);
+          row.append(select);
+        } else {
+          if (showHero && typeof portraitFor === 'function') row.append(portrait(portraitFor(profile)));
+          row.append(select);
+          if (changeHero) {
+            row.append(button(text('heroes.change'), () => onChangeHero(profile), {
+              blocked: true, className: 'profile-change-hero',
+              ariaLabel: `${text('heroes.change')}: ${profile.name}`,
+            }));
+          }
+        }
+        // Compact glyphs keep the row short; the aria-labels keep the words.
         if (typeof adapter.renameProfile === 'function') {
-          row.append(button(text('profiles.rename'), () => openStage({ type: 'rename', ...profile }), {
-            blocked: true, ariaLabel: `${text('profiles.rename')}: ${profile.name}`,
+          row.append(button('ABC', () => openStage({ type: 'rename', ...profile }), {
+            blocked: true, className: 'profile-rename', ariaLabel: `${text('profiles.rename')}: ${profile.name}`,
           }));
         }
         if (typeof adapter.deleteProfile === 'function') {
-          const remove = button(text('profiles.delete'), () => openStage({ type: 'delete', ...profile }), {
-            blocked: true, ariaLabel: `${text('profiles.delete')}: ${profile.name}`,
+          const remove = button('X', () => openStage({ type: 'delete', ...profile }), {
+            blocked: true, className: 'profile-delete', ariaLabel: `${text('profiles.delete')}: ${profile.name}`,
           });
           remove.disabled ||= profiles.length <= 1;
           row.append(remove);
@@ -195,11 +266,15 @@ export function mountProfileUI({
         list.append(row);
       }
       const controls = node('div', 'profile-actions');
-      controls.append(button(text('profiles.create'), () => openStage({ type: 'create', name: '' }), { blocked: true }));
+      if (canCreate()) {
+        controls.append(button(text('profiles.create'), () => openStage({ type: 'create', name: '' }), { blocked: true }));
+      }
       const pagination = node('div', 'profile-pagination');
-      const previous = button(text('profiles.previous'), () => { page--; render(); }, { pageDirection: 'previous' });
+      const previous = button('', () => { page--; render(); }, { pageDirection: 'previous', ariaLabel: text('profiles.previous') });
+      previous.setAttribute('title', text('profiles.previous'));
       previous.disabled ||= page <= 0;
-      const next = button(text('profiles.next'), () => { page++; render(); }, { pageDirection: 'next' });
+      const next = button('', () => { page++; render(); }, { pageDirection: 'next', ariaLabel: text('profiles.next') });
+      next.setAttribute('title', text('profiles.next'));
       next.disabled ||= page >= pages - 1;
       const indicator = node('span', '', text('profiles.page', { page: page + 1, pages }));
       pagination.append(previous, indicator, next);

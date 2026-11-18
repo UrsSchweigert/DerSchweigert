@@ -9,7 +9,7 @@
 // renders it as exactly two deliberate rows: the localized instruction
 // ("Count the shapes" / "Zähle die Formen") and one unbroken row holding every
 // shape. The shape row is `white-space: nowrap`, and its font size is scaled
-// from the measured header width, so counts 1-10 never wrap between shapes,
+// from the measured header width, so counts 1-6 never wrap between shapes,
 // never clip and never lose a shape at 320px portrait or landscape. It changes
 // no gameplay, scoring or problem generation: the count comes straight from the
 // published problem.
@@ -36,7 +36,8 @@ export const SHAPES_HEADER_MIN_FONT_SIZE = 8;
 /** Conservative monospace advance per em; 0.6 is typical, 0.65 leaves slack. */
 export const SHAPES_HEADER_GLYPH_RATIO = 0.65;
 export const SHAPES_HEADER_MIN_COUNT = 1;
-export const SHAPES_HEADER_MAX_COUNT = 10;
+// Matches MAX_SHAPE_COUNT in static/game/shapes.js (the app overlay cannot import it).
+export const SHAPES_HEADER_MAX_COUNT = 6;
 
 export const SHAPE_SYMBOLS = Object.freeze({
   square: '■',
@@ -60,7 +61,7 @@ export function shapeSymbol(shapeType) {
   return SHAPE_SYMBOLS[shapeType] ?? DEFAULT_SHAPE_SYMBOL;
 }
 
-/** Clamp any input to an integer shape count in 0..10 (non-numbers become 0). */
+/** Clamp any input to an integer shape count in 0..6 (non-numbers become 0). */
 export function normalizeShapeCount(count) {
   const value = Math.floor(Number(count));
   if (!Number.isFinite(value)) return 0;
@@ -173,6 +174,8 @@ function measure(element) {
  * @param {number} [options.baseFontSize]
  * @param {number} [options.minFontSize]
  * @param {number} [options.glyphRatio]
+ * @param {string} [options.stoneSrc] `src` of the runestone image; when given, the
+ *   shape row is that many images instead of glyphs (main.js always passes it)
  * @returns {{
  *   element: object|null,
  *   render: (input?: object) => object|null,
@@ -186,14 +189,35 @@ export function createShapesHeader({
   baseFontSize = SHAPES_HEADER_BASE_FONT_SIZE,
   minFontSize = SHAPES_HEADER_MIN_FONT_SIZE,
   glyphRatio = SHAPES_HEADER_GLYPH_RATIO,
+  stoneSrc = null,
 } = {}) {
   const target = doc?.getElementById?.(targetId) ?? null;
   let mounted = null;
   let rows = [];
   let signature = '';
 
+  // Runestone images take the place of the glyphs; each is 1.3em wide with its
+  // margin, which is exactly the two characters the glyph layout budgets per shape.
+  function fillStones(row, count) {
+    row.textContent = '';
+    for (let i = 0; i < count; i += 1) {
+      const stone = doc.createElement('img');
+      stone.className = 'runestone';
+      stone.src = stoneSrc;
+      stone.alt = '';
+      stone.setAttribute?.('aria-hidden', 'true');
+      row.appendChild(stone);
+    }
+    row.setAttribute?.('role', 'img');
+    row.setAttribute?.('aria-label', String(count));
+  }
+
   function applyRow(row, spec) {
-    if (row.textContent !== spec.text) row.textContent = spec.text;
+    if (spec.kind === 'shapes' && stoneSrc) {
+      fillStones(row, spec.count);
+    } else if (row.textContent !== spec.text) {
+      row.textContent = spec.text;
+    }
     row.style.fontSize = `${spec.fontSize}px`;
     row.style.lineHeight = `${spec.lineHeight}px`;
     row.setAttribute?.(SHAPES_ROW_KIND_ATTRIBUTE, spec.kind);
