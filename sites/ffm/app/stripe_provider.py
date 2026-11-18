@@ -17,6 +17,13 @@ API_VERSION = '2026-10-28.endive'
 # that paid at least this much, so the two can never disagree again.
 PRICE_UNIT_AMOUNT = 199
 
+# Earlier prices of the same product whose already-paid invoices still count
+# toward paid_until after a subscription moves to the current price. Without
+# this, switching a subscriber to the current price would drop the access they
+# already paid for (billing._valid_paid_end only counts listed prices).
+#   price_1UQkljDYFrEur0X9y18ekslo: EUR 3.00 every 3 months, archived 2026-11-14 (#454)
+LEGACY_PRICE_IDS = frozenset({'price_1UQkljDYFrEur0X9y18ekslo'})
+
 
 def _secret(name):
     value = current_app.config.get(name) or os.environ.get(name)
