@@ -320,7 +320,7 @@ class TestSuccessfulRun:
 
         create_kwargs = stripe_client.v1.webhook_endpoints.create.call_args.args[0]
         assert create_kwargs['url'] == setup_stripe_live.WEBHOOK_URL
-        assert create_kwargs['api_version'] == '2024-06-20'
+        assert create_kwargs['api_version'] == '2026-10-28.endive'
         assert create_kwargs['enabled_events'] == setup_stripe_live.WEBHOOK_EVENTS
         assert len(setup_stripe_live.WEBHOOK_EVENTS) == 10
 

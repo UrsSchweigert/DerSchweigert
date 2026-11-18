@@ -129,9 +129,22 @@ with app.app_context():
     invs = record("list_paid_invoices", lambda: sp.list_paid_invoices(cid, sid), ("count", len))
     inv_id = (s or {}).get("latest_invoice")
     inv = record("get_invoice", lambda: sp.get_invoice(inv_id), ("status", lambda o: o.get("status")))
-    charge_id = (inv or {}).get("charge")
+    # The shape helpers billing.py relies on, on real objects at API_VERSION.
+    charge_id = record("helper_get_invoice_charge_id", lambda: sp.get_invoice_charge_id(inv or {}),
+                       ("found", bool))
+    report["calls"]["helper_get_invoice_charge_id"]["value_is_charge"] = str(charge_id or "").startswith("ch_")
+    report["calls"]["helper_invoice_fields"] = {
+        "ok": True,
+        "subscription_matches": sp.invoice_subscription_id(inv or {}) == sid,
+        "is_paid": sp.invoice_is_paid(inv or {}),
+        "line_price_matches": all(sp.line_price_id(line) == price_id for line in (inv or {}).get("lines", {}).get("data", [])),
+        "no_proration": not any(sp.line_is_proration(line) for line in (inv or {}).get("lines", {}).get("data", [])),
+        "period_end_found": bool(sp.subscription_period_end(s or {})),
+    }
     if charge_id:
-        record("get_charge", lambda: sp.get_charge(charge_id), ("paid", lambda o: o.get("paid")))
+        charge = record("get_charge", lambda: sp.get_charge(charge_id), ("paid", lambda o: o.get("paid")))
+        record("helper_get_charge_invoice_id", lambda: sp.get_charge_invoice_id(charge or {}),
+               ("matches_invoice", lambda o: o == inv_id))
         record("list_disputes", lambda: sp.list_disputes(charge_id), ("count", len))
         record("refund_charge", lambda: sp.refund_charge(charge_id, 50, "ref-" + stable), ("status", lambda o: o.get("status")))
     else:

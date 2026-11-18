@@ -429,7 +429,7 @@ def test_paid_gift_extends_from_paid_until_exact_dates(client, billing_app, mock
                                headers={'Stripe-Signature': signature})
         assert response.status_code == 200
         if invoice_schema == 'parent':
-            mock_stripe_provider.invoices.retrieve.assert_called_once_with('inv_paid_gift')
+            mock_stripe_provider.invoices.retrieve.assert_called_once_with('inv_paid_gift', {'expand': ['payments']})
         assert billing_store.get_billing_state(stable_id)['paid_until'] == '2030-01-31T00:00:00+00:00'
 
         first_updated = dict(sub_dict)
@@ -917,7 +917,7 @@ def test_foreign_invoice_paid_refunds_only_triggering_invoice(client, billing_ap
     mock_stripe_provider.charges.retrieve.side_effect = get_charge_side_effect
 
     # Mock get_invoice for canonical invoice fetch (triggering invoice)
-    def get_invoice_side_effect(invoice_id):
+    def get_invoice_side_effect(invoice_id, params=None):
         if invoice_id == 'inv_at_foreign':
             return {
                 'id': 'inv_at_foreign',
@@ -1143,7 +1143,7 @@ def test_foreign_checkout_session_refunds_only_session_invoice(client, billing_a
 
     mock_stripe_provider.refunds.create.side_effect = refund_charge_side_effect
 
-    def get_invoice_side_effect(invoice_id):
+    def get_invoice_side_effect(invoice_id, params=None):
         if invoice_id == 'inv_checkout_fr':
             return {
                 'id': 'inv_checkout_fr',
@@ -1511,7 +1511,7 @@ def test_charge_refunded_webhook_excludes_refunded_charge_from_paid_until(client
 
     assert response.status_code == 200
     mock_stripe_provider.charges.retrieve.assert_any_call('ch_refunded')
-    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_refunded')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_refunded', {'expand': ['payments']})
 
     with billing_app.app_context():
         state = billing_store.get_billing_state(stable_id)
@@ -1616,7 +1616,7 @@ def test_charge_dispute_created_webhook_excludes_disputed_charge_from_paid_until
 
     assert response.status_code == 200
     mock_stripe_provider.charges.retrieve.assert_any_call('ch_disputed')
-    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_disputed')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_disputed', {'expand': ['payments']})
 
     with billing_app.app_context():
         state = billing_store.get_billing_state(stable_id)
@@ -1712,7 +1712,7 @@ def test_charge_dispute_closed_lost_keeps_charge_excluded_from_paid_until(client
                           headers={'Stripe-Signature': signature})
     assert response.status_code == 200
     mock_stripe_provider.charges.retrieve.assert_any_call('ch_dispute_lost')
-    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_lost')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_lost', {'expand': ['payments']})
 
     with billing_app.app_context():
         state = billing_store.get_billing_state(stable_id)
@@ -1829,7 +1829,7 @@ def test_charge_dispute_closed_won_restores_paid_until(client, billing_app, mock
                           headers={'Stripe-Signature': signature})
     assert response.status_code == 200
     mock_stripe_provider.charges.retrieve.assert_any_call('ch_dispute_won')
-    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_won')
+    mock_stripe_provider.invoices.retrieve.assert_any_call('inv_dispute_won', {'expand': ['payments']})
     mock_stripe_provider.disputes.list.assert_any_call({'charge': 'ch_dispute_won', 'limit': 100})
 
     with billing_app.app_context():
@@ -2645,6 +2645,113 @@ def test_reconcile_subscription_rejects_foreign_subscription_even_when_supersede
         state = billing_store.get_billing_state(stable_id)
         assert state['subscription_id'] == 'sub_foreignref_active'
         assert state['status'] == 'active'
+
+
+# ── Current Stripe API shapes (2026-10-28.endive) ────────────────────────────
+# Since 2025-03-31.basil, invoice.charge/paid/subscription, charge.invoice,
+# subscription.current_period_end and line price/proration moved. The tests
+# above use the 2024-06-20 shapes the live webhook endpoint still sends; these
+# two run the same webhook paths with objects shaped like the current API.
+
+def _current_shape_invoice(invoice_id, subscription_id, intent_id, period_end, with_payments=True):
+    invoice = {
+        'id': invoice_id, 'object': 'invoice', 'customer': 'cus_current', 'status': 'paid',
+        'currency': 'eur', 'amount_paid': 300, 'customer_address': {'country': 'DE'},
+        'parent': {'type': 'subscription_details', 'subscription_details': {'subscription': subscription_id}},
+        'lines': {'data': [{
+            'pricing': {'type': 'price_details', 'price_details': {'price': 'price_quarterly'}},
+            'parent': {'type': 'subscription_item_details', 'subscription_item_details': {'proration': False}},
+            'period': {'end': period_end},
+        }]},
+    }
+    if with_payments:
+        invoice['payments'] = {'data': [{'status': 'paid', 'payment': {'type': 'payment_intent', 'payment_intent': intent_id}}]}
+    return invoice
+
+
+def _current_shape_subscription(subscription_id, stable_id, period_end):
+    return {
+        'id': subscription_id, 'object': 'subscription', 'customer': 'cus_current', 'status': 'active',
+        'metadata': {'billing_uuid': stable_id}, 'cancel_at_period_end': False, 'cancel_at': None, 'trial_end': None,
+        'items': {'data': [{'price': {'id': 'price_quarterly'}, 'current_period_end': period_end}]},
+    }
+
+
+def test_invoice_paid_webhook_with_current_api_shapes_grants_access(client, billing_app, mock_stripe_provider):
+    with billing_app.app_context():
+        register_and_login(client, 'currentshape', 'currentshape@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('currentshape')
+        billing_store.put_billing_username_mapping(stable_id, 'currentshape')
+        billing_store.put_billing_state(stable_id, customer_id='cus_current', subscription_id='sub_current', status='active')
+
+    period_end = int(datetime.now(timezone.utc).timestamp()) + 90 * 86400
+    subscription = _current_shape_subscription('sub_current', stable_id, period_end)
+    invoice = _current_shape_invoice('inv_current', 'sub_current', 'pi_current', period_end)
+    mock_stripe_provider.subscriptions.retrieve.return_value = subscription
+    mock_stripe_provider.subscriptions.list.return_value.auto_paging_iter.return_value = [subscription]
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [invoice]
+    mock_stripe_provider.invoices.retrieve.return_value = invoice
+    mock_stripe_provider.payment_intents.retrieve.return_value = {'id': 'pi_current', 'latest_charge': 'ch_current'}
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_current', 'payment_intent': 'pi_current', 'amount': 300, 'paid': True, 'refunded': False,
+        'amount_refunded': 0, 'disputed': False, 'billing_details': {'address': {'country': 'DE'}},
+    }
+
+    # Webhook payloads never include the expandable `payments`.
+    event = {'id': 'evt_current_paid', 'type': 'invoice.paid',
+             'data': {'object': _current_shape_invoice('inv_current', 'sub_current', 'pi_current', period_end, False)}}
+    payload = json.dumps(event)
+    signature = _make_stripe_webhook_signature(payload, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+    response = client.post('/api/billing/webhook', data=payload, content_type='application/json',
+                           headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    mock_stripe_provider.payment_intents.retrieve.assert_any_call('pi_current')
+    with billing_app.app_context():
+        state = billing_store.get_billing_state(stable_id)
+    expected = datetime.fromtimestamp(period_end, timezone.utc).isoformat()
+    assert state['paid_until'] == expected
+    assert state['next_payment_at'] == expected  # from items[].current_period_end
+
+
+def test_charge_refunded_with_current_api_shapes_finds_invoice_via_invoice_payments(
+        client, billing_app, mock_stripe_provider):
+    with billing_app.app_context():
+        register_and_login(client, 'currentrefund', 'currentrefund@example.com', 'Pass123!')
+        stable_id = models.ensure_stable_id('currentrefund')
+        billing_store.put_billing_username_mapping(stable_id, 'currentrefund')
+        billing_store.put_billing_state(stable_id, customer_id='cus_current', subscription_id='sub_refund_now',
+                                        status='active')
+
+    period_end = int(datetime.now(timezone.utc).timestamp()) + 90 * 86400
+    subscription = _current_shape_subscription('sub_refund_now', stable_id, period_end)
+    invoice = _current_shape_invoice('inv_refund_now', 'sub_refund_now', 'pi_refund_now', period_end)
+    mock_stripe_provider.subscriptions.retrieve.return_value = subscription
+    mock_stripe_provider.invoices.list.return_value.auto_paging_iter.return_value = [invoice]
+    mock_stripe_provider.invoices.retrieve.return_value = invoice
+    mock_stripe_provider.payment_intents.retrieve.return_value = {'id': 'pi_refund_now', 'latest_charge': 'ch_refund_now'}
+    # Current charges carry no `invoice`; the link is an InvoicePayment.
+    mock_stripe_provider.charges.retrieve.return_value = {
+        'id': 'ch_refund_now', 'payment_intent': 'pi_refund_now', 'amount': 300, 'paid': True, 'refunded': True,
+        'amount_refunded': 300, 'disputed': False, 'billing_details': {'address': {'country': 'DE'}},
+    }
+    mock_stripe_provider.invoice_payments.list.return_value.auto_paging_iter.return_value = [
+        {'id': 'inpay_1', 'invoice': 'inv_refund_now', 'status': 'paid'},
+    ]
+
+    event = {'id': 'evt_current_refund', 'type': 'charge.refunded',
+             'data': {'object': {'id': 'ch_refund_now', 'payment_intent': 'pi_refund_now', 'refunded': True}}}
+    payload = json.dumps(event)
+    signature = _make_stripe_webhook_signature(payload, billing_app.config['STRIPE_WEBHOOK_SECRET'])
+    response = client.post('/api/billing/webhook', data=payload, content_type='application/json',
+                           headers={'Stripe-Signature': signature})
+
+    assert response.status_code == 200
+    mock_stripe_provider.invoice_payments.list.assert_any_call(
+        {'payment': {'type': 'payment_intent', 'payment_intent': 'pi_refund_now'}, 'limit': 10})
+    mock_stripe_provider.subscriptions.retrieve.assert_any_call('sub_refund_now')
+    with billing_app.app_context():
+        assert billing_store.get_billing_state(stable_id)['paid_until'] is None  # the refunded period no longer counts
 
 
 def test_a_real_price_invoice_counts_toward_paid_until(billing_app, mock_stripe_provider):
