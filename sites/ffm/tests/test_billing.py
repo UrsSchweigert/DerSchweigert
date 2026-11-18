@@ -3,7 +3,7 @@
 import os
 import json
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch, MagicMock, ANY
+from unittest.mock import MagicMock
 import hmac
 import hashlib
 
@@ -24,7 +24,7 @@ os.environ['DYNAMODB_RATELIMIT_TABLE'] = 'ffm-ratelimits-test'
 
 from sites.ffm.app import create_app
 from sites.ffm.app.config import TestingConfig
-from sites.ffm.app import billing_store, models, stripe_provider
+from sites.ffm.app import billing_store, models
 from sites.ffm.app import legal_texts
 from sites.ffm.app.billing import _iso
 from .test_app import register_and_login
@@ -496,7 +496,6 @@ def test_failed_renewal_no_future_access(client, billing_app, mock_stripe_provid
     no invoices beyond existing, old invoice periodexpired => no future access."""
     with billing_app.app_context():
         headers = register_and_login(client, 'pastdueuser', 'pastdue@example.com', 'Pass123!')
-        user = models.get_user('pastdueuser')
         stable_id = models.ensure_stable_id('pastdueuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'pastdueuser')
@@ -560,7 +559,6 @@ def test_redemption_grants_exact_six_month_future(client, billing_app, mock_stri
     with billing_app.app_context():
         # Create user
         headers = register_and_login(client, 'giftuser', 'gift@example.com', 'Pass123!')
-        user = models.get_user('giftuser')
         stable_id = models.ensure_stable_id('giftuser')
 
         # Create and setup billing state
@@ -620,7 +618,6 @@ def test_provider_failure_leaves_code_unconsumed(client, billing_app, mock_strip
     recovery without code completes exactly one grant, clears pending, not double 3m."""
     with billing_app.app_context():
         headers = register_and_login(client, 'failuser', 'fail@example.com', 'Pass123!')
-        user = models.get_user('failuser')
         stable_id = models.ensure_stable_id('failuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'failuser')
@@ -713,7 +710,6 @@ def test_account_deletion_cancels_and_tombstones(client, billing_app, mock_strip
     provider list customer includes active sub, cancel raises StripeAPIError => 503."""
     with billing_app.app_context():
         headers = register_and_login(client, 'deluser', 'del@example.com', 'Pass123!')
-        user = models.get_user('deluser')
         stable_id = models.ensure_stable_id('deluser')
 
         billing_store.put_billing_username_mapping(stable_id, 'deluser')
@@ -754,7 +750,6 @@ def test_code_expires_before_grant_checkout_open(client, billing_app, mock_strip
     Open checkout is expired, subsequent paid state re-fetch catches paid."""
     with billing_app.app_context():
         headers = register_and_login(client, 'expireuser', 'expire@example.com', 'Pass123!')
-        user = models.get_user('expireuser')
         stable_id = models.ensure_stable_id('expireuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'expireuser')
@@ -849,7 +844,6 @@ def test_foreign_invoice_paid_refunds_only_triggering_invoice(client, billing_ap
     Deterministic invoice-based refund idempotency. Preserve prior valid paid_until."""
     with billing_app.app_context():
         headers = register_and_login(client, 'foreignuser1', 'foreign1@example.com', 'Pass123!')
-        user = models.get_user('foreignuser1')
         stable_id = models.ensure_stable_id('foreignuser1')
 
         billing_store.put_billing_username_mapping(stable_id, 'foreignuser1')
@@ -1001,8 +995,7 @@ def test_foreign_invoice_payment_succeeded_refunds_only_triggering_invoice(clien
     """Regression 10: Foreign invoice.payment_succeeded event refunds ONLY triggering invoice.
     Same deterministic idempotency and validation as invoice.paid."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'foreignuser2', 'foreign2@example.com', 'Pass123!')
-        user = models.get_user('foreignuser2')
+        register_and_login(client, 'foreignuser2', 'foreign2@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('foreignuser2')
 
         billing_store.put_billing_username_mapping(stable_id, 'foreignuser2')
@@ -1112,8 +1105,7 @@ def test_foreign_checkout_session_refunds_only_session_invoice(client, billing_a
     not subscription.latest_invoice (which may be stale on replay).
     Validates canonical invoice belongs to subscription/customer."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'foreignuser3', 'foreign3@example.com', 'Pass123!')
-        user = models.get_user('foreignuser3')
+        register_and_login(client, 'foreignuser3', 'foreign3@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('foreignuser3')
 
         billing_store.put_billing_username_mapping(stable_id, 'foreignuser3')
@@ -1212,8 +1204,7 @@ def test_foreign_webhook_replay_no_duplicate_refund(client, billing_app, mock_st
     """Regression 12: Replay of same foreign event does not duplicate refund.
     Deterministic invoice-based refund idempotency ensures retry safety."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'replayuser', 'replay@example.com', 'Pass123!')
-        user = models.get_user('replayuser')
+        register_and_login(client, 'replayuser', 'replay@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('replayuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'replayuser')
@@ -1316,8 +1307,7 @@ def test_foreign_refund_preserves_prior_valid_invoices_gift_persistence(client, 
     """Regression 13: Foreign refund preserves legitimately paid invoices (DE).
     Gift persistence: gift_until survives refund and cancellation."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'giftpersistuser', 'giftpersist@example.com', 'Pass123!')
-        user = models.get_user('giftpersistuser')
+        register_and_login(client, 'giftpersistuser', 'giftpersist@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('giftpersistuser')
 
         billing_store.put_billing_username_mapping(stable_id, 'giftpersistuser')
@@ -1445,7 +1435,7 @@ def test_charge_refunded_webhook_excludes_refunded_charge_from_paid_until(client
     auto-refund path) must be routed charge -> invoice -> subscription, then reconcile
     paid_until so the now-refunded invoice's period no longer counts toward access."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'refundeduser', 'refunded@example.com', 'Pass123!')
+        register_and_login(client, 'refundeduser', 'refunded@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('refundeduser')
         billing_store.put_billing_username_mapping(stable_id, 'refundeduser')
         billing_store.put_billing_state(
@@ -1545,7 +1535,7 @@ def test_charge_dispute_created_webhook_excludes_disputed_charge_from_paid_until
     whose 'charge' field must be used to resolve the charge, then invoice, then subscription.
     Once disputed, the charge's invoice period must no longer count toward paid_until."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'disputeduser', 'disputed@example.com', 'Pass123!')
+        register_and_login(client, 'disputeduser', 'disputed@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('disputeduser')
         billing_store.put_billing_username_mapping(stable_id, 'disputeduser')
         billing_store.put_billing_state(
@@ -2405,7 +2395,7 @@ def test_delayed_old_subscription_deleted_preserves_new_active_subscription(clie
     it -- otherwise the old subscription's own closure revokes access that
     the newer subscription granted."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'oldsubdeleted', 'oldsubdeleted@example.com', 'Pass123!')
+        register_and_login(client, 'oldsubdeleted', 'oldsubdeleted@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('oldsubdeleted')
         billing_store.put_billing_username_mapping(stable_id, 'oldsubdeleted')
         billing_store.put_billing_state(
@@ -2463,7 +2453,7 @@ def test_delayed_old_subscription_refund_preserves_new_active_subscription(clien
     chain resolves to an old, already-replaced subscription must not
     overwrite the current, still-live subscription's state."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'oldsubrefund', 'oldsubrefund@example.com', 'Pass123!')
+        register_and_login(client, 'oldsubrefund', 'oldsubrefund@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('oldsubrefund')
         billing_store.put_billing_username_mapping(stable_id, 'oldsubrefund')
         billing_store.put_billing_state(
@@ -2518,7 +2508,7 @@ def test_delayed_old_subscription_dispute_closure_preserves_new_active_subscript
     already-replaced subscription must not overwrite the current, still-live
     subscription's state."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'oldsubdispute', 'oldsubdispute@example.com', 'Pass123!')
+        register_and_login(client, 'oldsubdispute', 'oldsubdispute@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('oldsubdispute')
         billing_store.put_billing_username_mapping(stable_id, 'oldsubdispute')
         billing_store.put_billing_state(
@@ -2575,7 +2565,7 @@ def test_replacement_checkout_webhook_attaches_new_subscription_after_old_termin
     still attach its brand-new, live subscription once the previously stored
     subscription has itself gone terminal (canceled)."""
     with billing_app.app_context():
-        headers = register_and_login(client, 'replaceattach', 'replaceattach@example.com', 'Pass123!')
+        register_and_login(client, 'replaceattach', 'replaceattach@example.com', 'Pass123!')
         stable_id = models.ensure_stable_id('replaceattach')
         billing_store.put_billing_username_mapping(stable_id, 'replaceattach')
         billing_store.put_billing_state(

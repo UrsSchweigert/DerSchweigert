@@ -1,6 +1,5 @@
 """A plan that needs files outside the phase scope is turned back before an implementer is paid for."""
 from harness import broker
-from harness_doubles import Env
 from test_harness_plan_prerequisites import refining_env, run_refinement, roles
 
 

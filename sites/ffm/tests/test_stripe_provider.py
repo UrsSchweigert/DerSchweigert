@@ -1,14 +1,10 @@
 """Tests for Stripe provider adapter using StripeClient.v1 SDK."""
 
 import os
-import json
-import hmac
-import hashlib
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-import stripe
 
 os.environ['SECRET_KEY'] = 'test-key-for-imports'
 os.environ['AWS_ACCESS_KEY_ID'] = 'testing'

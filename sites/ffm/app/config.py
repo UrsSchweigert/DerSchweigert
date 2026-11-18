@@ -1,5 +1,4 @@
 import os
-from datetime import datetime, timezone
 
 
 class BaseConfig:

@@ -7,7 +7,6 @@ across pin protection enabled/disabled states.
 """
 
 import json
-import os
 import re
 import subprocess
 from pathlib import Path

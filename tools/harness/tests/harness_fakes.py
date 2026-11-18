@@ -1,6 +1,6 @@
 """TEST DOUBLE. An in-memory stand-in for GitHub used for fault injection. Not a real integration."""
 from harness.github import Client, GitHubError, RateLimited
-from harness.workrecord import render_block, sha
+from harness.workrecord import render_block
 
 
 class Crash(Exception):

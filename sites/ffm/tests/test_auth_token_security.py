@@ -18,7 +18,7 @@ rejection of legacy pre-fix tokens and malformed/incomplete claims, and
 version-based revocation on password change/reset.
 """
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import boto3
@@ -220,7 +220,7 @@ def test_refresh_token_rejected_as_bearer_access_token(client):
 
 @pytest.mark.parametrize("missing_claim", ["exp", "sub", "stable_id", "ver", "typ"])
 def test_token_missing_required_claim_rejected(client, missing_claim):
-    headers = register_and_login(client, "claimuser", "claim@example.com", "password123")
+    register_and_login(client, "claimuser", "claim@example.com", "password123")
     user = models.get_user("claimuser")
     payload = {
         "sub": "claimuser",
@@ -294,7 +294,7 @@ def test_malformed_claim_type_rejected_at_refresh_endpoint(client, claim, bad_va
 
 
 def test_token_wrong_stable_id_rejected(client):
-    headers = register_and_login(client, "wrongstable", "wrongstable@example.com", "password123")
+    register_and_login(client, "wrongstable", "wrongstable@example.com", "password123")
     user = models.get_user("wrongstable")
     payload = {
         "sub": "wrongstable", "username": "wrongstable",

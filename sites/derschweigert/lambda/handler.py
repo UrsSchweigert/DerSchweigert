@@ -1,8 +1,7 @@
 import json
 import os
 from html import escape as escape_html
-from urllib.parse import parse_qs, quote, urlparse
-from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 

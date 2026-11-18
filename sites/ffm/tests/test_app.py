@@ -750,7 +750,7 @@ def test_forgot_password_generic_response_for_unknown_email(client):
 
 def test_forgot_password_and_reset_password_success(client):
     """Reset password flow should allow changing password."""
-    headers = register_and_login(client, "resetusr", "reset@example.com", "oldpass123")
+    register_and_login(client, "resetusr", "reset@example.com", "oldpass123")
 
     captured = {}
     with patch('sites.ffm.app.mailer.send_password_reset_email',

@@ -24,8 +24,7 @@ Covers the approved retention policy:
 """
 
 import os
-import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 import boto3
@@ -149,7 +148,7 @@ def test_open_requests_never_purgeable(app):
 
 def test_completed_request_not_purgeable_before_cutoff(app):
     with app.app_context():
-        item = _make_request(request_id='recent-1')
+        _make_request(request_id='recent-1')
         cancel_store.start_processing('recent-1', 'alice', 'sid-1', None)
         cancel_store.finalize('recent-1', 'no_subscription', {'note': 'no sub'})
         now = datetime.now(timezone.utc)

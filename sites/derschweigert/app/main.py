@@ -8,7 +8,6 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.background import BackgroundTask
 
 from app.config import get_settings
 

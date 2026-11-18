@@ -1,4 +1,3 @@
-import json
 import pathlib
 import time
 
@@ -361,7 +360,6 @@ def test_an_attempt_left_by_a_stopped_runner_is_requeued_without_charge(tmp_path
 
 def test_a_failure_keeps_the_workers_own_last_words(tmp_path):
     """Without the worker's output a failure is a category with no cause, and every such failure ends at the owner."""
-    import json as _json
     env = Env(tmp_path, budgets=dict(LONG, transient_retries=5))
     env.adapter.tail_lines = ["Rate limit reached for deepseek-flash", "context length exceeded: 131072 tokens"]
     env.adapter.script("i1", "implementer", "error:no_result", "ok")

@@ -30,7 +30,7 @@ import threading
 import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from .broker import assert_no_secrets, BrokerRejected
 from .plans import art_policy_problems

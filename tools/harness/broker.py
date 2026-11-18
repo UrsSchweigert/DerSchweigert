@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from . import approval, schemas
 from .github import Client, with_retries
 from .isolation import scrub_env  # noqa: F401  (re-exported)
-from .store import Store, StaleLease
+from .store import Store
 from .workrecord import ensure_issue, sanitize_untrusted, sha
 
 ACTION_OPERATION = {
