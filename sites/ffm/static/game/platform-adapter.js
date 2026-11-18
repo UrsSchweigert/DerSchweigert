@@ -97,6 +97,15 @@ const platform = {
   },
 };
 
+// The billing status is cached in memory for a few minutes (api.js). A tab that
+// comes back after a while may have paid, been refunded or been logged in
+// elsewhere, so an answer older than two minutes is re-read on the next ask.
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') api.expireBillingStatus(2 * 60 * 1000);
+  });
+}
+
 for (const name of API_METHODS) {
   platform[name] = (...args) => api[name](...args);
 }

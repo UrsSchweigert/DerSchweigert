@@ -7,8 +7,116 @@ const BASE_URL = window.location.origin + '/api';
 let _accessToken = null;
 let _sessionEpoch = 0; // Incremented on login/logout to invalidate stale requests
 
-function parseJwt(token) {
-  return JSON.parse(atob(token.split('.')[1]));
+// JWT segments are base64url (RFC 7515: '-' and '_', no padding). atob() only
+// takes standard base64 and throws on '-' or '_' (WebKit: "The string did not
+// match the expected pattern."), so a token whose payload happened to encode
+// to one of them read as no user at all.
+export function parseJwt(token) {
+  const segment = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(segment + '='.repeat((4 - (segment.length % 4)) % 4));
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+// The account a token belongs to: username plus the immutable stable_id, so a
+// deleted and re-registered username is a different identity. 'anonymous' when
+// logged out. Unreadable tokens get a key of their own that no other token shares.
+function identityKey(token) {
+  if (!token) return 'anonymous';
+  try {
+    const payload = parseJwt(token);
+    return 'user:' + JSON.stringify([payload.sub ?? null, payload.stable_id ?? null]);
+  } catch {
+    return 'token:' + token;
+  }
+}
+
+// A failure worth riding out on the last good answer: rate limited, server or
+// gateway trouble, or no answer at all (offline, DNS, CORS). A 401/403 is not
+// one of them: the session itself is in question.
+function isTransientFailure(error) {
+  const status = error?.status;
+  return status === undefined || status === null || status === 429 || status >= 500;
+}
+
+/**
+ * One shared, in-memory billing status for the web game.
+ *
+ * The game asks for /billing/status on every title page render, level start,
+ * hero lookup, hero picker and Campaign II switch. It is our own endpoint (one
+ * DynamoDB read, never a Stripe call), but one request per screen added up to
+ * a household tripping the per-IP rate limit, after which the game showed the
+ * free version. This keeps one answer per identity for `maxAgeMs` and lets
+ * concurrent callers share one request.
+ *
+ * - Keyed to the identity of the current token: another account never sees
+ *   this one's status, and `clear()` (login, logout, account deletion) drops it.
+ * - Never stored outside memory: a reload asks the server again.
+ * - An error is never cached. A transient failure (see isTransientFailure)
+ *   returns the last good status of the same identity while it is younger
+ *   than `staleLimitMs`; otherwise the error reaches the caller.
+ * - `invalidate()` after anything that changes access (checkout, redeem,
+ *   cancel, recover): the next read goes to the server, and a request already
+ *   in flight from before is neither shared nor stored.
+ * - `fresh: true` skips the stored answer (the Billing tab, a checkout return).
+ *
+ * The server stays authoritative: paid level configs are still checked by the
+ * API on every fetch, whatever this cache says.
+ */
+export function createBillingStatusCache({
+  load, getKey, now = () => Date.now(), maxAgeMs = 5 * 60 * 1000, staleLimitMs = 30 * 60 * 1000,
+}) {
+  let entry = null;      // { key, status, at: fresh-from time (reset by invalidate), fetchedAt }
+  let inflight = null;   // { key, generation, promise }
+  let generation = 0;
+
+  function invalidate() {
+    generation++;
+    inflight = null;
+    if (entry) entry = { ...entry, at: -Infinity };   // kept only as a stale-while-error fallback
+  }
+
+  return {
+    async get({ fresh = false } = {}) {
+      const key = getKey();
+      if (entry && entry.key !== key) entry = null;
+      if (!fresh && entry && now() - entry.at < maxAgeMs) return entry.status;
+      if (inflight && inflight.key === key && inflight.generation === generation) return inflight.promise;
+
+      const started = generation;
+      const fallback = entry;
+      const request = { key, generation: started, promise: null };
+      request.promise = (async () => {
+        try {
+          const status = await load();
+          if (generation === started && getKey() === key) entry = { key, status, at: now(), fetchedAt: now() };
+          return status;
+        } catch (error) {
+          const usable = fallback && fallback.key === key && getKey() === key
+            && now() - fallback.fetchedAt < staleLimitMs;
+          if (isTransientFailure(error) && usable) return fallback.status;
+          throw error;
+        } finally {
+          if (inflight === request) inflight = null;
+        }
+      })();
+      inflight = request;
+      return request.promise;
+    },
+
+    invalidate,
+
+    /** Drops the status entirely: a new session must never see the last one's. */
+    clear() {
+      invalidate();
+      entry = null;
+    },
+
+    /** Invalidates when the stored answer is older than `ms` (a tab coming back). */
+    expireOlderThan(ms) {
+      if (entry && now() - entry.at >= ms) invalidate();
+    },
+  };
 }
 
 export const api = {
@@ -46,12 +154,14 @@ export const api = {
     }
     if (epoch !== _sessionEpoch) throw new Error('Session changed during login. Please try again.');
     _accessToken = data.access_token;
+    billingStatusCache.clear();
     return data;
   },
 
   async logout() {
     _sessionEpoch++;
     _accessToken = null;
+    billingStatusCache.clear();
     await fetch(BASE_URL + '/auth/logout', {
       method: 'POST',
       credentials: 'include'
@@ -159,6 +269,14 @@ export const api = {
 
     let res = await fetch(BASE_URL + path, { credentials: 'include', ...options });
 
+    // Checkout, portal, redeem, cancel and recover can all change access, and
+    // so can deleting the account: whatever the outcome, the stored status is
+    // no longer to be trusted.
+    const method = (options.method || 'GET').toUpperCase();
+    if (method !== 'GET' && (path.startsWith('/billing/') || (path === '/profile' && method === 'DELETE'))) {
+      billingStatusCache.invalidate();
+    }
+
     // If session epoch changed (login/logout), don't retry with stale token
     if (res.status === 401 && !options._retried && requestEpoch === _sessionEpoch) {
       const ok = await this.refresh();
@@ -231,6 +349,7 @@ export const api = {
     }
     _sessionEpoch++;
     _accessToken = null;
+    billingStatusCache.clear();
     return data;
   },
 
@@ -300,7 +419,23 @@ export const api = {
     return data;
   },
 
-  async getBillingStatus() {
+  // The shared, cached status (see createBillingStatusCache). `fresh: true`
+  // asks the server even when a recent answer is stored.
+  getBillingStatus({ fresh = false } = {}) {
+    return billingStatusCache.get({ fresh });
+  },
+
+  // Forget the stored status: the next read asks the server.
+  invalidateBillingStatus() {
+    billingStatusCache.invalidate();
+  },
+
+  // The tab came back to the foreground: an answer older than `ms` is re-read.
+  expireBillingStatus(ms) {
+    billingStatusCache.expireOlderThan(ms);
+  },
+
+  async _loadBillingStatus() {
     const res = await this._fetch('/billing/status', {
       headers: { 'Cache-Control': 'no-store' }
     });
@@ -403,3 +538,8 @@ export const api = {
     }
   }
 };
+
+const billingStatusCache = createBillingStatusCache({
+  load: () => api._loadBillingStatus(),
+  getKey: () => identityKey(_accessToken),
+});
