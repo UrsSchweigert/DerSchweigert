@@ -28,12 +28,23 @@ test('the pause dialog and its disclosure share the 560px control column', () =>
   assert.match(css, /#audio-settings \{ width: 100%; align-self: center; \}/);
 });
 
-test('the audio summary inherits the pause buttons’ size and weight', () => {
-  const summary = css.match(/^#pause-overlay \.compact-disclosure > summary \{([^}]*)\}/m)?.[1];
-  assert.ok(summary, 'pause disclosure summary rule missing');
+test('sound settings open from a 44px speaker button in the card’s top-right corner', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const summary = css.match(/^#pause-overlay \.audio-settings-toggle \{([^}]*)\}/m)?.[1];
+  assert.ok(summary, 'pause speaker rule missing');
+  assert.match(summary, /position:\s*absolute;/);
+  assert.match(summary, /top:\s*8px;/);
+  assert.match(summary, /right:\s*8px;/);
+  assert.match(summary, /width:\s*44px;/);
   assert.match(summary, /min-height:\s*44px;/);
-  assert.match(summary, /padding:\s*6px;/);
-  // Neither the summary nor the overlay buttons override the shared button
+  assert.match(css, /^#pause-overlay \.overlay-card \{[^}]*position:\s*relative;/m);
+  // The summary is an icon with a spoken name, no longer a "sound settings" row.
+  assert.match(html, /<summary class="audio-settings-toggle" data-i18n-aria-label="audio\.settings" aria-label="Audio settings"><span class="audio-settings-icon" aria-hidden="true">🔊<\/span><\/summary>/);
+  assert.doesNotMatch(html, /<summary data-i18n="audio\.settings">/);
+  // It comes right after the title, so it is reached before the actions.
+  const card = html.slice(html.indexOf('id="pause-overlay"'), html.indexOf('id="skill-intro"'));
+  assert.ok(card.indexOf('id="audio-settings"') < card.indexOf('id="pause-actions"'));
+  // Neither the speaker nor the overlay buttons override the shared button
   // default, so both keep the title-page tab metrics.
   assert.doesNotMatch(summary, /font-size:|font-weight:/);
   assert.match(css, /\.overlay-card \.diff-btn \{ margin: 0; padding: 6px; \}/);

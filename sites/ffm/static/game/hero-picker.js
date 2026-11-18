@@ -23,12 +23,22 @@ function placeholderMarkup(t) {
   return `<span class="hero-picker-placeholder" role="img" aria-label="${esc(t('heroes.placeholderAlt'))}"></span>`;
 }
 
+// The frame classes of one grid button. `current` is the hero the player wears
+// now and `selected` the one highlighted in the picker: the worn hero keeps the
+// thick gold frame, and a different highlighted hero (the one "Change hero"
+// would put on) gets the thin gold frame, so both stay visible at once.
+export function heroItemClasses({ locked = false, selected = false, current = false } = {}) {
+  return `hero-picker-item${locked ? ' is-locked' : ''}${selected ? ' is-selected' : ''}`
+    + `${current ? ' is-current' : ''}${selected && !current ? ' is-prospective' : ''}`;
+}
+
 // Returns the grid as an HTML string: one native button per hero in roster
 // order, then the preview area and the status line for the blocked message.
 export function buildHeroGridMarkup(options) {
   const {
     heroes = HEROES,
     selectedId,
+    currentId = selectedId,
     isLocked = () => false,
     t,
     portraitUrl = (hero) => heroAssetUrl(hero.portrait),
@@ -37,7 +47,7 @@ export function buildHeroGridMarkup(options) {
     const locked = Boolean(isLocked(hero));
     const selected = hero.id === selectedId;
     const name = t(hero.nameKey);
-    const classes = `hero-picker-item${locked ? ' is-locked' : ''}${selected ? ' is-selected' : ''}`;
+    const classes = heroItemClasses({ locked, selected, current: hero.id === currentId });
     const badge = locked
       ? `<span class="hero-picker-lock" role="img" aria-label="${esc(t('heroes.locked'))}">&#128274;</span>`
       : '';
@@ -62,6 +72,9 @@ export function mountHeroPicker(root, options) {
   const {
     heroes = HEROES,
     getSelectedId = () => undefined,
+    // The saved hero, when it differs from the highlighted one (the app picker
+    // saves only on "Change hero"); the web picker saves on tap, so both match.
+    getCurrentId = getSelectedId,
     canChange = () => true,
     isLocked = () => false,
     onSelect = () => {},
@@ -94,6 +107,7 @@ export function mountHeroPicker(root, options) {
     root.innerHTML = buildHeroGridMarkup({
       heroes,
       selectedId: getSelectedId(),
+      currentId: getCurrentId(),
       isLocked,
       t,
       portraitUrl,
@@ -135,14 +149,18 @@ export function mountHeroPicker(root, options) {
     }
   }
 
-  // Keeps the pressed state in step with the caller's selection without
-  // rebuilding the buttons, so focus stays where it is.
+  // Keeps the pressed state and the frames in step with the caller's selection
+  // without rebuilding the buttons, so focus stays where it is.
   function refresh() {
     const selectedId = getSelectedId();
+    const currentId = getCurrentId();
     for (const button of root.querySelectorAll('button[data-hero-id]')) {
       const hero = find(button.getAttribute('data-hero-id'));
       if (!hero) continue;
       const selected = hero.id === selectedId;
+      button.setAttribute('class', heroItemClasses({
+        locked: Boolean(isLocked(hero)), selected, current: hero.id === currentId,
+      }));
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
       button.setAttribute('aria-label', label(t, hero, Boolean(isLocked(hero)), selected));
     }

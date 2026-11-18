@@ -14,7 +14,7 @@ import {
   createEntitlementPanel, entitlementText, freeContentText, outcomeFromResult,
   probeFreeLevels, resolveStatus, statusText,
 } from '../game/entitlement-panel.js';
-import { PURCHASE_OUTCOMES, RESTORE_OUTCOMES } from '../game/purchase.js';
+import { CAMPAIGN2_PRODUCT_ID, PURCHASE_OUTCOMES, RESTORE_OUTCOMES } from '../game/purchase.js';
 import { paywallText } from '../game/paywall.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -222,6 +222,56 @@ test('a successful buy or restore refreshes the status to full and gates through
   assert.equal(restore.panel.getStatus().premium_access, true);
   assert.equal(restore.panel.getOutcome().key, 'paywall.restored');
   assert.match(restore.view.markup, /data-entitlement-status="full"/);
+});
+
+test('the one Restore also brings Campaign II back and says so', async () => {
+  const restored = [];
+  const withExtra = (status, ids) => Object.assign(fakePlatform(status), { async getOwnedProductIds() { return ids; } });
+
+  // Full unlock and Campaign II restored together.
+  const both = await loadedPanel({
+    platform: withExtra({ status: { premium_access: false }, refreshStatus: { premium_access: true, offline: false } }, [CAMPAIGN2_PRODUCT_ID]),
+    purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: true } }),
+    totalLevels: 60,
+    onExtrasRestored: (ids) => restored.push(ids),
+  });
+  await both.panel.restore();
+  assert.equal(both.panel.getOutcome().key, 'paywall.restoredAll');
+  assert.deepEqual(restored, [[CAMPAIGN2_PRODUCT_ID]], 'the caller re-renders the campaign switch');
+
+  // Only Campaign II owned: the outcome is not "nothing to restore".
+  const extraOnly = await loadedPanel({
+    platform: withExtra({ status: { premium_access: false } }, [CAMPAIGN2_PRODUCT_ID]),
+    purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false } }),
+    totalLevels: 60,
+  });
+  await extraOnly.panel.restore();
+  assert.equal(extraOnly.panel.getOutcome().key, 'paywall.campaign2.restored');
+  assert.equal(extraOnly.panel.getOutcome().error, false);
+
+  // Nothing extra owned, or a gate the child failed: unchanged outcomes, no store read for extras.
+  let reads = 0;
+  const gated = await loadedPanel({
+    platform: Object.assign(fakePlatform(), { async getOwnedProductIds() { reads += 1; return [CAMPAIGN2_PRODUCT_ID]; } }),
+    purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.GATED, entitled: false } }),
+    totalLevels: 60,
+  });
+  await gated.panel.restore();
+  assert.equal(gated.panel.getOutcome().key, 'paywall.gated');
+  assert.equal(reads, 0, 'a failed gate never reads the store');
+  const nothing = await loadedPanel({
+    platform: withExtra({ status: { premium_access: false } }, []),
+    purchaseStore: fakeStore({ restore: { outcome: RESTORE_OUTCOMES.RESTORED, entitled: false } }),
+    totalLevels: 60,
+  });
+  await nothing.panel.restore();
+  assert.equal(nothing.panel.getOutcome().key, 'paywall.nothingToRestore');
+  assert.ok(paywallText('paywall.restoredAll', 'de'));
+});
+
+test('the title screen has no second restore button', async () => {
+  const html = await readFile(join(root, '..', 'static', 'index.html'), 'utf8');
+  assert.doesNotMatch(html, /restore-purchases-btn/);
 });
 
 test('locale changes re-render without re-reading the store', async () => {

@@ -72,12 +72,29 @@ describe('difficulty picker sword icons', () => {
   it('declares the sword clip-path once, shared with the portrait sword bar', async () => {
     const css = await readStyles();
     const polygons = css.match(/clip-path:\s*polygon\(/g) ?? [];
-    assert.equal(polygons.length, 1, 'the sword silhouette is declared once');
+    // The upright silhouette, plus the same silhouette lying on its side for the
+    // landscape column (tip towards the hero).
+    assert.equal(polygons.length, 2, 'one upright sword and its rotated twin');
     const shared = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/([^{}]*)\{([^}]*clip-path:\s*polygon\([^}]*)\}/);
     assert.ok(shared, 'the clip-path sits in a rule');
     const selectors = shared[1].trim().split(/\s*,\s*/);
     assert.equal(selectors.at(-1), '.app-encounter-sword::before', 'the grouped rule ends on the bar sword');
     assert.ok(selectors.includes('.diff-sword::before'), 'the picker icon shares the rule');
+  });
+
+  it('lays the landscape column swords on their side, tip to the right, as the exact same silhouette', async () => {
+    const css = (await readStyles()).replace(/\/\*[\s\S]*?\*\//g, '');
+    const points = (body) => body.split(',').map((pair) => pair.trim().split(/\s+/).map((v) => parseFloat(v)));
+    const [upright, turned] = [...css.matchAll(/clip-path:\s*polygon\(([^)]*)\)/g)].map((m) => points(m[1]));
+    const rule = css.match(/([^{}]*)\{[^}]*clip-path:\s*polygon\([^}]*\}/g)[1];
+    assert.match(rule, /#game-wrap\[data-layout="landscape"\] \.app-encounter-swords-column \.app-encounter-sword::before/);
+    assert.equal(turned.length, upright.length);
+    // Turned 90 degrees clockwise: (x, y) -> (100 - y, x); the tip (50, 0) lands at (100, 50).
+    upright.forEach(([x, y], i) => assert.deepEqual(turned[i], [100 - y, x], `point ${i}`));
+    assert.deepEqual(turned[0], [100, 50], 'the tip points right, at the hero');
+    const slot = css.match(/#game-wrap\[data-layout="landscape"\] \.app-encounter-swords-column \.app-encounter-sword \{([^}]*)\}/)?.[1];
+    assert.match(slot, /max-height:\s*9px;/);
+    assert.match(slot, /width:\s*18px;/, 'wider than tall: the sword lies down');
   });
 
   it('draws the icon as a filled green sword without animation', async () => {

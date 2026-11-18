@@ -27,6 +27,8 @@ const LABELS = {
 export function mountProfileUI({
   root, adapter, translate = (key) => LABELS[key], canSwitch = () => true,
   random = Math.random, locale = null, portraitFor = null, onChangeHero = null, heroFeature = () => true,
+  // Adding players comes with the full unlock; the caller passes the cached entitlement.
+  canCreate = () => true,
   onSelected = () => {}, onError = () => {}, onBusyChange = () => {},
 }) {
   if (!root?.ownerDocument) throw new TypeError('A profile UI root is required');
@@ -264,7 +266,9 @@ export function mountProfileUI({
         list.append(row);
       }
       const controls = node('div', 'profile-actions');
-      controls.append(button(text('profiles.create'), () => openStage({ type: 'create', name: '' }), { blocked: true }));
+      if (canCreate()) {
+        controls.append(button(text('profiles.create'), () => openStage({ type: 'create', name: '' }), { blocked: true }));
+      }
       const pagination = node('div', 'profile-pagination');
       const previous = button('', () => { page--; render(); }, { pageDirection: 'previous', ariaLabel: text('profiles.previous') });
       previous.setAttribute('title', text('profiles.previous'));

@@ -179,8 +179,9 @@ test('the practice panel is a submenu with the tab title style and its own way b
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
-  // A real primary button opens the submenu; the <summary> is not shown.
-  assert.match(html, /<button type="button" id="btn-open-practice" class="action-primary"[^>]*data-i18n="practice\.title">Practice sessions<\/button>/);
+  // A real (quiet) button opens the submenu; the <summary> is not shown. Gold is
+  // kept for proceed/abort choices, and opening a submenu is not one.
+  assert.match(html, /<button type="button" id="btn-open-practice" class="diff-btn"[^>]*data-i18n="practice\.title">Practice sessions<\/button>/);
   assert.match(css, /^#practice-panel > summary \{ display: none; \}/m);
   assert.match(source, /getElementById\('btn-open-practice'\)\?\.addEventListener\('click'[\s\S]*?practicePanel\.open = true;/);
   // The per-level scores scroll instead of paging.

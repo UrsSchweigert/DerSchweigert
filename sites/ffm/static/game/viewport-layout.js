@@ -18,8 +18,10 @@ const FONT_MAX = 26;
 // column's width: below it the orbs shrink to a few pixels and vanish.
 const ORB_COLUMNS = 3;
 // The landscape sword column's widest track. The grid gap to the scene comes on
-// top, so the width taken from the scene and the answers is this plus GAP.
-const SWORD_COLUMN_MAX = 28;
+// top, so the width taken from the scene and the answers is this plus GAP. The
+// swords lie on their side there (tip towards the hero, see styles.css), so the
+// column only needs one sword's length: 20px, down from 28px for upright swords.
+const SWORD_COLUMN_MAX = 20;
 
 /**
  * The narrowest a landscape answer column may be. The answer grid always fits;

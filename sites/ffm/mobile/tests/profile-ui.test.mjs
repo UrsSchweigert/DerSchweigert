@@ -183,6 +183,18 @@ test('create and rename forms replace the list, support safe names and retain st
   assert.deepEqual(adapter.getActiveProfile(), { id: active.id, name: 'Renamed' });
 });
 
+test('"New player" appears only once the app is fully unlocked', async () => {
+  let unlocked = false;
+  const { root, ui } = await fixture({ count: 2, extra: { canCreate: () => unlocked } });
+  assert.equal(findButton(root, 'New player'), undefined, 'a free install cannot add players');
+  assert.equal(rows(root).length, 2, 'existing players stay selectable');
+  unlocked = true;
+  await ui.refresh();
+  assert.ok(findButton(root, 'New player'));
+  const main = await readFile(new URL('../../static/game/main.js', import.meta.url), 'utf8');
+  assert.match(main, /canCreate: \(\) => premiumAccess/);
+});
+
 test('deletion has a separate confirmation stage and cancel never deletes', async () => {
   const { root, adapter, selected } = await fixture({ count: 2, extra: { random: () => 0, locale: 'en' } });
   rows(root)[1].querySelector('.profile-delete').click();

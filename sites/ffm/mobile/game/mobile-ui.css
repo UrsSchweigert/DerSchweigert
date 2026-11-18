@@ -253,10 +253,20 @@
   margin: 0;
 }
 
+/* Every line is centred, like the player list above it: the panel is a status
+ * card (version, what is free, Restore), not running text. */
+.entitlement-panel,
+.entitlement-panel h2,
+.entitlement-panel p {
+  text-align: center;
+}
+
 .entitlement-panel p {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.entitlement-actions { justify-content: center; }
 
 .entitlement-status { color: var(--brass-light, #e4c577); text-align: center; }
 .entitlement-panel[data-entitlement-status="full"] .entitlement-status { color: #80f080; }
@@ -551,9 +561,8 @@
   height: 44px;
   object-fit: contain;
 }
-.hero-picker-overlay .hero-picker-item.is-selected {
-  outline: 2px solid currentColor;
-}
+/* Frames come from styles.css: thick gold for the worn hero, the thin gold
+ * hairline for the highlighted next choice. */
 .hero-picker-overlay .hero-picker-preview {
   min-height: 80px;
   display: flex;

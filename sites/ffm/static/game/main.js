@@ -75,6 +75,7 @@ import { getCampaign2LevelConfig, ABILITY_LEVEL } from './campaign2/config.js';
 import { getSkillIntro2, INTRO_TEXT_2 } from './campaign2/intro-text.js';
 import { createCampaign2Progress } from './campaign2/progress.js';
 import { createGeniusReveal, geniusEarned } from './campaign2/genius.js';
+import { createCampaignSelection } from './campaign2/selection.js';
 import { campaign2Access, geniusButtonVisible } from './campaign2/access.js';
 import { expressionHtml } from './campaign2/math-render.js';
 import { runestoneDataUri } from './runestone.js';
@@ -87,6 +88,7 @@ import { frameDelta } from './frame-delta.js';
 import { createScreenFx, FX_Z_INDEX } from './screen-fx.js';
 import { createEffectTable } from './screen-fx-effects.js';
 import { createEncounterSwords } from './encounter-swords.js';
+import { watchTitleBarDialogs } from './title-bar.js';
 import { createDomBurst } from './dom-burst.js';
 import { TOTAL_RUN_LEVELS, createSpeedrunRecords, createSpeedrunTimer, formatRunTime } from './speedrun.js';
 import { createSpeedrunUi } from './speedrun-ui.js';
@@ -200,10 +202,13 @@ async function syncNoticeHelp() {
   // page offers a test profile, and the grid may well have been rendered before
   // the store answered.
   const gained = unlocked && !premiumAccess;
+  const changed = unlocked !== premiumAccess;
   premiumAccess = unlocked;
   if (gained && currentPersonalDevelopment) {
     renderLocalCampaign(currentPersonalDevelopment.completed);
   }
+  // "Add player" follows the unlock (see the profile UI's canCreate).
+  if (changed && typeof profileUI !== 'undefined') profileUI?.refresh();
   return unlocked;
 }
 
@@ -812,6 +817,9 @@ const userDisplay = document.getElementById('username-display');
 const muteBtn = document.getElementById('mute-btn');
 const langToggleBtn = document.getElementById('lang-toggle-btn');
 const topBar  = document.getElementById('top-bar');
+// Intro, sound and language do nothing over the skill intro, the result and
+// pause cards or a store sheet, so the bar is not shown there (title-bar.js).
+watchTitleBarDialogs({ bar: topBar });
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
 const loginError = document.getElementById('login-error');
@@ -2094,6 +2102,8 @@ function applyAuthUIState() {
   if (typeof refreshHeroSkin === 'function') refreshHeroSkin();
   if (platform.isApp) return;
   renderPlayerIdentity();
+  // typeof: as above; the web player is the account, so a login or logout reloads the choice.
+  if (typeof loadCampaignSelection === 'function') loadCampaignSelection();
   if (platform.username) {
     loginBtn.style.display = 'none';
     userDisplay.textContent = platform.username;
@@ -2133,6 +2143,26 @@ function campaign2PlayerId() {
     : (platform.username || 'web');
 }
 const geniusReveal = () => createGeniusReveal({ playerId: campaign2PlayerId() });
+// The campaign choice is per player (campaign2/selection.js): reload it whenever the
+// player changes, and store it whenever the switch changes it.
+function campaignSelection() {
+  return createCampaignSelection({ playerId: campaign2PlayerId() });
+}
+function loadCampaignSelection() {
+  selectedCampaign = campaignSelection().get();
+  renderCampaignSwitch();
+}
+function chooseCampaign(campaign) {
+  selectedCampaign = campaign === 2 ? 2 : 1;
+  campaignSelection().set(selectedCampaign);
+}
+// The app keeps the switch with the player it belongs to, on the Players page, between the
+// player list and the purchase panel; the web has no Players page and keeps it on Play.
+if (platform.isApp) {
+  const familyPage = document.getElementById('local-profiles');
+  const switchWrap = document.getElementById('genius-campaign');
+  if (familyPage && switchWrap) familyPage.insertBefore(switchWrap, document.getElementById('entitlement-root'));
+}
 /** Called wherever progress becomes known; reveals the button the first time level 40 shows as beaten. */
 function noteGeniusProgress(progress) {
   if (!geniusEarned(progress)) return;
@@ -2151,37 +2181,37 @@ async function renderCampaignSwitch() {
   });
   if (!visible) {
     wrap.hidden = true;
-    if (selectedCampaign === 2) selectedCampaign = 1;   // a stale selection never hides the way back
+    if (selectedCampaign === 2) chooseCampaign(1);   // a stale selection never hides the way back
   } else {
     wrap.hidden = false;
     const inTwo = selectedCampaign === 2;
-    const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
-    set('genius-title', inTwo ? 'campaign2.genius.back' : 'campaign2.genius.title');
-    set('genius-eyebrow', 'campaign2.genius.eyebrow');
-    set('genius-status', inTwo ? 'campaign2.genius.backStatus' : access.granted ? 'campaign2.genius.play' : 'campaign2.genius.unlock');
+    const set = (id, key) => {
+      const el = document.getElementById(id);
+      if (el) { el.dataset.i18n = key; el.textContent = t(key); }
+    };
+    set('genius-eyebrow', inTwo ? 'campaign.switch.eyebrow2' : 'campaign.switch.eyebrow1');
+    set('genius-title', inTwo ? 'campaign.switch.title2' : 'campaign.switch.title1');
+    set('genius-status', inTwo ? 'campaign.switch.toArithmetic' : access.granted ? 'campaign.switch.toGenius' : 'campaign.switch.unlock');
     button.setAttribute('aria-pressed', String(inTwo));
+    button.dataset.campaign = String(selectedCampaign);
     const note = document.getElementById('campaign2-note');
     if (note) {
       note.hidden = access.granted || !inTwo;
       note.textContent = t(platform.isApp ? 'campaign2.note.app' : 'campaign2.note.web');
     }
   }
+  // The title shows the Campaign II picture only to a player who chose it (the app; on the
+  // web the switch itself is on the title screen and already shows the choice).
+  const emblem = document.getElementById('campaign-emblem');
+  if (emblem) emblem.hidden = !platform.isApp || wrap.hidden || selectedCampaign !== 2;
   updateTitleStartingLevel();
-}
-// App only: restoring a purchase made on another device or before a reinstall. Opens the
-// Campaign II purchase screen, which has the parental-gated Restore button (a player who has
-// not beaten level 40 cannot see the Genius button yet, so this is their way in).
-const restoreButton = document.getElementById('restore-purchases-btn');
-if (restoreButton && platform.isApp) {
-  restoreButton.hidden = false;
-  restoreButton.addEventListener('click', () => openCampaign2Purchase());
 }
 document.getElementById('genius-campaign-btn')?.addEventListener('click', async () => {
   if (levelStarting || pendingSkillIntro) return;
   if (selectedCampaign === 2) {
-    selectedCampaign = 1;
+    chooseCampaign(1);
   } else if ((await getCampaign2AccessNow()).granted) {
-    selectedCampaign = 2;
+    chooseCampaign(2);
   } else if (platform.isApp) {
     openCampaign2Purchase();            // the in-app purchase
   } else if (platform.isLoggedIn) {
@@ -2871,6 +2901,9 @@ if (!platform.isApp) accountDeleteForm.addEventListener('submit', async e => {
 function updateMuteButtonLabel() {
   muteBtn.textContent = audio.muted ? '🔇' : '🔊';
   muteBtn.setAttribute('aria-label', t(audio.muted ? 'topbar.unmuteAriaLabel' : 'topbar.muteAriaLabel'));
+  // The pause card's sound-settings speaker shows the same state as the title bar's.
+  const pauseSpeaker = document.querySelector('#audio-settings .audio-settings-icon');
+  if (pauseSpeaker) pauseSpeaker.textContent = audio.muted ? '🔇' : '🔊';
   volumeControl?.refresh();
 }
 
@@ -5443,6 +5476,7 @@ async function openHeroPicker(profile) {
   picker = mountHeroPicker(gridRoot, {
     t,
     getSelectedId: () => selectedId,
+    getCurrentId: () => committedId,
     canChange: canSwitchProfiles,
     isLocked: entry => !entry.free && !heroUnlocked,
     renderPreview,
@@ -5477,6 +5511,7 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
     await platform.localProfiles.initialize({ defaultName: t('profiles.defaultName') });
     activeLocalPlayer = platform.localProfiles.getActiveProfile();
     renderPlayerIdentity();
+    loadCampaignSelection();
     const { mountProfileUI } = await import('./profile-ui.js');
     const root = document.getElementById('profile-root');
     if (root && !profileUI) {
@@ -5490,6 +5525,8 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
           if (btnStartPractice) btnStartPractice.disabled = busy;
         },
         canSwitch: canSwitchProfiles,
+        // "Add player" appears once the app is fully unlocked (premiumAccess, kept by syncNoticeHelp).
+        canCreate: () => premiumAccess,
         portraitFor: heroPortraitFor,
         onChangeHero: profile => { void openHeroPicker(profile); },
         onSelected: async () => {
@@ -5497,6 +5534,7 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
           currentPersonalDevelopment = null;
           activeLocalPlayer = platform.localProfiles.getActiveProfile();
           renderPlayerIdentity();
+          loadCampaignSelection();
           refreshHeroSkin();
           levelGrid.value = '';
           await refreshPracticeBadges();
@@ -5523,6 +5561,8 @@ const ensureLocalProfiles = createRetryableInitialization(async () => {
         // A finished purchase unlocks everything, so the "What is free?"
         // entries have nothing left to answer.
         onGranted: () => syncNoticeHelp(),
+        // The same Restore brings Campaign II back (there is no second restore button).
+        onExtrasRestored: () => renderCampaignSwitch(),
       });
     }
   }

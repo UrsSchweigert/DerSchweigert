@@ -28,6 +28,7 @@ export const STRINGS = Object.freeze({
   'paywall.close': { en: 'Not now', de: 'Später' },
   'paywall.success': { en: 'Purchase complete. All levels and hero themes are unlocked.', de: 'Kauf abgeschlossen. Alle Level und Heldenfarben sind freigeschaltet.' },
   'paywall.restored': { en: 'Purchase restored. All levels and hero themes are unlocked.', de: 'Kauf wiederhergestellt. Alle Level und Heldenfarben sind freigeschaltet.' },
+  'paywall.restoredAll': { en: 'Purchases restored. All levels, hero themes and Campaign II are unlocked.', de: 'Käufe wiederhergestellt. Alle Level, Heldenfarben und Abenteuer II sind freigeschaltet.' },
   'paywall.cancelled': { en: 'Purchase cancelled.', de: 'Kauf abgebrochen.' },
   'paywall.pending': { en: 'Purchase pending approval. Levels unlock once the store confirms it.', de: 'Kauf wartet auf Bestätigung. Freischaltung folgt, sobald der Store ihn bestätigt.' },
   'paywall.gated': { en: 'Ask an adult to complete the parental gate.', de: 'Bitte einen Erwachsenen, die Elternkontrolle abzuschließen.' },
