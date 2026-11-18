@@ -18,9 +18,11 @@ The agent:
          being removed.
   4. Commits any normalisation changes back to the PR branch (bot commit).
   5. Posts a GitHub PR review:
-       – APPROVE          all checks pass → auto-merges immediately.
+       – COMMENT          all checks pass → ready for the maintainer to merge.
        – REQUEST_CHANGES  validation errors → maintainer must fix.
-  6. If approved: squash-merges the PR and deletes the remote branch.
+
+It never merges. The uploads come from anonymous visitors and every merge to
+main deploys to production, so a human reads each calendar and merges it.
 
 Environment variables (injected by GitHub Actions):
     GH_TOKEN   PAT with 'repo' scope  (GH_WASTE_PAT secret)
@@ -30,7 +32,7 @@ Environment variables (injected by GitHub Actions):
     HEAD_REF   PR head branch name  (waste/contrib-… / waste/update-… / waste/expire-…)
 
 Exit codes:
-    0   Script ran without fatal errors (review posted; PR merged or waiting).
+    0   Script ran without fatal errors (review posted; PR waits for the maintainer).
     1   Unrecoverable error (missing env vars, GitHub API hard failure).
 """
 
@@ -430,7 +432,7 @@ def _build_review(
     """Build the review body and decide the GitHub review event.
 
     Returns:
-        (body_markdown, event)  where event ∈ {"APPROVE", "REQUEST_CHANGES"}
+        (body_markdown, event)  where event ∈ {"COMMENT", "REQUEST_CHANGES"}
     """
     all_issues: list[_Issue] = []
     all_normalizations: list[str] = []
@@ -441,12 +443,12 @@ def _build_review(
 
     errors = [i for i in all_issues if i["severity"] == "error"]
     warnings = [i for i in all_issues if i["severity"] == "warning"]
-    event = "REQUEST_CHANGES" if errors else "APPROVE"
+    event = "REQUEST_CHANGES" if errors else "COMMENT"
 
     lines: list[str] = ["## 🤖 Waste Calendar Review\n"]
 
     if not errors and not warnings:
-        lines.append("✅ All checks passed — this calendar is ready to go live!\n")
+        lines.append("✅ All automated checks passed — ready for maintainer review.\n")
 
     if errors:
         lines.append("### ❌ Errors (must be fixed before merge)\n")
@@ -476,8 +478,11 @@ def _build_review(
             lines.append(f"- {n}")
         lines.append("\n_Changes were committed back to this PR branch._")
 
-    if event == "APPROVE":
-        lines.append("\n---\n_Approved and auto-merging. 🚀_")
+    if event == "COMMENT":
+        lines.append(
+            "\n---\n_Automated checks only. Check the dates and the location against the "
+            "provider's real schedule, then merge by hand; merging deploys it._"
+        )
     else:
         lines.append("\n---\n_Please address the errors above and push a new commit._")
 
@@ -616,30 +621,6 @@ def main() -> int:
     except RuntimeError as exc:
         print(f"ERROR: Could not post review: {exc}", file=sys.stderr)
         return 1
-
-    # ── 6. Auto-merge if approved ─────────────────────────────────────────────
-    if event == "APPROVE":
-        print("\nMerging PR...")
-        try:
-            _gh("PUT", f"/repos/{repo}/pulls/{pr_number}/merge", token, {
-                "merge_method": "squash",
-                "commit_title": f"feat(waste): merge waste calendar PR #{pr_number} [bot]",
-                "commit_message": body[:2000],
-            })
-            print("  PR merged successfully.")
-
-            # Delete the remote branch after merge (keep repo tidy)
-            try:
-                _gh("DELETE", f"/repos/{repo}/git/refs/heads/{head_ref}", token)
-                print(f"  Deleted branch: {head_ref}")
-            except RuntimeError as exc:
-                print(f"WARNING: Could not delete branch: {exc}", file=sys.stderr)
-
-        except RuntimeError as exc:
-            # Merge may fail if required status checks are pending.
-            # In this case the review approval is already posted — the PR
-            # will be mergeable once all checks pass.
-            print(f"WARNING: Auto-merge failed (will need manual merge): {exc}", file=sys.stderr)
 
     return 0
 
