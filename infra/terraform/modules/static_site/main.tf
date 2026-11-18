@@ -38,6 +38,24 @@ resource "aws_cloudfront_origin_access_identity" "site" {
   comment = "OAI for ${var.domain}"
 }
 
+# Stamps the viewer's real address on API requests. event.viewer.ip is the
+# address of the TCP connection to CloudFront, so the client cannot forge it,
+# and setting the header here replaces any value the client sent.
+resource "aws_cloudfront_function" "api_viewer_ip" {
+  count   = var.api_forward_viewer_ip ? 1 : 0
+  name    = "${var.app_name}-api-viewer-ip"
+  runtime = "cloudfront-js-2.0"
+  comment = "Writes the viewer address into X-Viewer-Ip for ${var.domain} API requests"
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      request.headers['x-viewer-ip'] = { value: event.viewer.ip };
+      return request;
+    }
+  EOT
+}
+
 resource "aws_cloudfront_function" "viewer_request" {
   count   = var.viewer_request_function_code == null ? 0 : 1
   name    = "${var.app_name}-pin-lock"
@@ -132,6 +150,15 @@ resource "aws_cloudfront_distribution" "site" {
       origin_id   = origin.value.origin_id
       origin_path = origin.value.origin_path
 
+      # CloudFront replaces any viewer-sent header of the same name with this one.
+      dynamic "custom_header" {
+        for_each = var.api_origin_verify_enabled ? [1] : []
+        content {
+          name  = "X-Origin-Verify"
+          value = var.api_origin_verify_secret
+        }
+      }
+
       custom_origin_config {
         http_port              = 80
         https_port             = 443
@@ -184,9 +211,20 @@ resource "aws_cloudfront_distribution" "site" {
       max_ttl                    = var.api_cache_disabled || ordered_cache_behavior.value == "/unlock*" ? 0 : null
       response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
+      dynamic "function_association" {
+        for_each = var.api_forward_viewer_ip ? [1] : []
+        content {
+          event_type   = "viewer-request"
+          function_arn = aws_cloudfront_function.api_viewer_ip[0].arn
+        }
+      }
+
       forwarded_values {
         query_string = true
-        headers      = ["Authorization", "Content-Type", "Origin", "Accept"]
+        headers = concat(
+          ["Authorization", "Content-Type", "Origin", "Accept"],
+          var.api_forward_viewer_ip ? ["X-Viewer-Ip"] : [],
+        )
 
         cookies {
           forward = "all"

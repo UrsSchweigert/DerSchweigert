@@ -59,6 +59,25 @@ variable "api_origin" {
   default = null
 }
 
+variable "api_forward_viewer_ip" {
+  description = "When true, a viewer-request CloudFront Function on the /api/* and /unlock* behaviors writes the viewer's address (event.viewer.ip) into X-Viewer-Ip, replacing any client-sent value, and forwards it to the API origin. The API must trust it only together with the X-Origin-Verify secret (api_origin_verify_secret)."
+  type        = bool
+  default     = false
+}
+
+variable "api_origin_verify_enabled" {
+  description = "Whether the API origin gets the X-Origin-Verify custom header. A separate, non-sensitive flag because a sensitive value cannot decide a dynamic block's for_each."
+  type        = bool
+  default     = false
+}
+
+variable "api_origin_verify_secret" {
+  description = "Value CloudFront sends as X-Origin-Verify to the API origin when api_origin_verify_enabled is true. It proves to the API that a request came through this distribution, so the API can trust X-Viewer-Ip on it."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "content_security_policy" {
   description = "Content-Security-Policy header value applied via the response headers policy. Default assumes a same-origin-only site with no external CDNs/fonts, and allows inline `style=\"...\"` attributes (both sites use them for simple show/hide toggling) without allowing inline <script>."
   type        = string
