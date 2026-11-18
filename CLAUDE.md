@@ -17,7 +17,7 @@ the README of the site you are changing.
 | `sites/ffm/` | Arithmo Slayer: maths game for children. Static game + Flask API on Lambda, Stripe billing, Capacitor iOS/Android apps in `mobile/`. Most of the activity. | `sites/ffm/README.md`, then `sites/ffm/docs/file-map.md` for your task |
 | `sites/landhauscheck/` | landhauscheck.com: React/Vite SPA + FastAPI on Lambda, own domain, eu-west-1, deployed with OpenTofu | `sites/landhauscheck/README.md`, `docs/SYSTEM.md` |
 | `sites/lesen/` | Reading-practice page + Capacitor apps (Buchstabenzeit) | `sites/lesen/RELEASING.md` |
-| `sites/derschweigert/` | www.derschweigert.de: FastAPI app, templates, small Lambda | `README.md` |
+| `sites/derschweigert/` | www.derschweigert.de: static templates and assets on S3 + CloudFront; a FastAPI app for local preview only | `README.md` |
 | `infra/terraform/modules/` | Shared modules (`static_site`, `api_backend`, `email_forwarding`) used by several stacks | Changing a module changes every stack that uses it |
 | `infra/terraform/sites/<site>/` | One root stack per site | |
 | `tools/harness/` | Stage-gated harness that plans, approves and runs AI-built work | `tools/harness/README.md`, `docs/harness/security-model.md` |

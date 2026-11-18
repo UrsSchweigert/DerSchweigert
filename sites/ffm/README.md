@@ -76,7 +76,7 @@ Known-good automated checks:
 - `pip install -r sites/ffm/requirements-dev.txt && SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q --tb=short`
 - `node --test sites/ffm/static/game/levels.test.js`
 
-Dependency layout: `sites/ffm/requirements.txt` is the **production** dependency set — it's what actually gets bundled into the deployed Lambda zip (see `.github/workflows/deploy.yml`'s "Build Lambda zip" step), so it must stay minimal. `sites/ffm/requirements-dev.txt` (`-r requirements.txt` plus `pytest`/`moto`/`python-dotenv`) is for local dev and CI's `test-ffm` job only — never point the Lambda build step at it.
+Dependency layout: `sites/ffm/requirements.in` lists the direct **production** dependencies; `sites/ffm/requirements.txt` is the fully pinned set compiled from it with `pip-compile` (Python 3.12), and it is what gets bundled into the deployed Lambda zip (see `.github/workflows/deploy.yml`'s "Build Lambda zip" step). Keep the `.in` minimal, never edit the `.txt` by hand, and regenerate it with `pip-compile --strip-extras --no-emit-index-url -o requirements.txt requirements.in` after changing the `.in`. Dependabot keeps the pins current. `sites/ffm/requirements-dev.txt` (`-r requirements.txt` plus `pytest`/`moto`/`python-dotenv`) is for local dev and CI's `test-ffm` job only — never point the Lambda build step at it.
 
 Important local-dev caveat:
 
