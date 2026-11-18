@@ -107,6 +107,27 @@ test('the switch and the picture scale with the space they get, dragons included
   assert.match(rules, /@container \(max-width: 300px\)/, 'a 320px phone gets smaller dragons, not clipped text');
 });
 
+test('the title picture is three quarters of its first size, proportions and tap area kept', () => {
+  // The owner asked for the dragon picture on the title 25% smaller. Its size was
+  // clamp(38px, 9vmin, 60px) with the shared 44px floor; every bound shrinks by a quarter.
+  const rules = css.slice(css.indexOf('.campaign-switch {'), css.indexOf('/* end campaign switch */'));
+  const emblem = rules.match(/\n\.campaign-emblem \{([^}]*)\}/)[1];
+  const [, low, fluid, high] = emblem.match(/--switch-h: clamp\(([\d.]+)px, ([\d.]+)vmin, ([\d.]+)px\);/).map(Number);
+  assert.deepEqual([low, fluid, high], [38 * 0.75, 9 * 0.75, 60 * 0.75]);
+  assert.match(emblem, new RegExp(`min-height: ${44 * 0.75}px;`));
+  // The dragons keep their size relative to the frame (the shared 1.75x / 2.1x scales and the
+  // 45% overhang), so only --switch-h changes.
+  assert.doesNotMatch(emblem, /--dragon-scale/);
+  // Still a 44px tap target, and the text keeps a readable floor that fits the 33px frame.
+  assert.match(rules, /\.campaign-emblem::after \{[^}]*position: absolute;[^}]*inset: -6px 0;/);
+  const eyebrow = Number(rules.match(/\.campaign-emblem \.campaign-switch-eyebrow \{ font-size: max\(([\d.]+)px/)[1]);
+  const title = Number(rules.match(/\.campaign-emblem \.campaign-switch-title \{ font-size: max\(([\d.]+)px/)[1]);
+  assert.ok(eyebrow >= 7 && title >= 11, 'readable');
+  assert.ok((eyebrow + title) * 1.15 + 12 <= 44 * 0.75, 'both lines fit inside the double frame');
+  // The switch itself (Players page / account profile) keeps its size.
+  assert.match(rules, /\.campaign-switch-btn \{\s*--switch-h: clamp\(56px, min\(16cqi, 13vh\), 80px\);/);
+});
+
 test('the right dragon frames each campaign, and every piece exists', () => {
   assert.deepEqual(campaignDragon(1), { kind: 'young', width: 402, height: 480 });
   assert.deepEqual(campaignDragon(2), { kind: 'ancient', width: 354, height: 480 });
