@@ -42,8 +42,8 @@ def model_sources_arg(given: Optional[List[str]], repo_root: Optional[str] = Non
     if given:
         return given
     if repo_root:
-        from . import remote
-        remote.load_harness_env(Path(repo_root))
+        from . import envfile
+        envfile.load_harness_env(Path(repo_root))
     return operator_model_sources()
 
 
@@ -347,13 +347,6 @@ def runner_command(args) -> int:
         repo_slug = args.repo or detect_repo()
         upstream = "https://github.com/%s.git" % repo_slug
         sched = runner.build_scheduler(store, args.plan_id, version, root, args.dry_run, upstream, repo_slug, os.environ.get("USER", "owner"))
-        tunnel = None
-        if not args.no_tunnel:
-            from . import remote as remote_mod
-            settings = remote_mod.tunnel_settings(Path(root) if root else _repo_root())
-            if settings["pin"] and not settings["disabled"]:
-                tunnel = remote_mod.RemoteDashboard(root or str(_repo_root()), args.home, repo_slug)
-                tunnel.start()
         if args.cmd == "resume" and store.state("plan", plan_entity(args.plan_id, version)) == "Completed":
             # a finished run is not resumed; it is watched until the owner merges or the watch expires
             return runner.watch_promotion(sched, args.interval, args.max_ticks,
@@ -365,8 +358,6 @@ def runner_command(args) -> int:
         finally:
             if art_service is not None:
                 art_service.stop()
-            if tunnel is not None:
-                tunnel.stop()
     except (runner.RunRefused, approval.AuthorizationError) as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2
@@ -715,7 +706,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     r.add_argument("--interval", type=float, default=30.0)
     r.add_argument("--max-ticks", type=int)
     r.add_argument("--repo", help="GitHub owner/name")
-    r.add_argument("--no-tunnel", action="store_true", help="do not auto-start the remote dashboard tunnel")
     rs = sub.add_parser("resume", help="reconcile stored state and continue a paused or interrupted run")
     rs.add_argument("plan_id")
     rs.add_argument("--version", type=int)
@@ -723,7 +713,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     rs.add_argument("--interval", type=float, default=30.0)
     rs.add_argument("--max-ticks", type=int)
     rs.add_argument("--repo")
-    rs.add_argument("--no-tunnel", action="store_true", help="do not auto-start the remote dashboard tunnel")
     pz = sub.add_parser("pause", help="pause a running plan: finish the workers in flight, start nothing new, then stop")
     pz.add_argument("plan_id")
     pz.add_argument("--version", type=int)
@@ -855,41 +844,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     dashboard.add_argument("--refresh", type=int, default=5, help="refresh interval in seconds")
     dashboard.add_argument("--read-only", action="store_true")
     dashboard.add_argument("--no-browser", action="store_true")
-    dashboard.add_argument("--no-tunnel", action="store_true", help="do not auto-start the PIN-locked relay and Cloudflare tunnel")
     dashboard.add_argument("--repo", help="GitHub owner/name for GUI-launched runs")
-    rm = sub.add_parser("remote", help="PIN-locked loopback relay that proxies the local GUI for a tunnel")
-    rm.add_argument("--upstream", default="http://127.0.0.1:8765", help="the loopback harness GUI URL")
-    rm.add_argument("--host", choices=["127.0.0.1", "localhost"], default="127.0.0.1")
-    rm.add_argument("--port", type=int, default=8443, help="loopback port, or 0 to choose an available port")
-    rm.add_argument("--pin", help="override HARNESS_GUI_PIN")
-    rm.add_argument("--session-hours", type=float, default=12.0, help="signed session lifetime in hours")
     args = ap.parse_args(argv)
 
     try:
         if args.cmd == "gui":
-            from . import gui, remote
+            from . import gui
             try:
-                if not args.no_tunnel:
-                    settings = remote.tunnel_settings(_repo_root())
-                    if settings["pin"] and not settings["disabled"]:
-                        dashboard = gui.make_server(args.home, host=args.host, port=args.port,
-                                                   refresh=args.refresh, read_only=args.read_only)
-                        dashboard.repo_slug = args.repo
-                        tunnel = remote.RemoteDashboard(_repo_root(), args.home, args.repo, gui_server=dashboard)
-                        tunnel.start()
-                        try:
-                            return gui.serve_server(dashboard, open_browser=not args.no_browser)
-                        finally:
-                            tunnel.stop()
                 return gui.serve(args.home, host=args.host, port=args.port, refresh=args.refresh, read_only=args.read_only,
                                  open_browser=not args.no_browser, repo=args.repo)
-            except ValueError as exc:
-                raise RuntimeError(str(exc)) from exc
-        if args.cmd == "remote":
-            from . import remote
-            try:
-                return remote.serve(args.upstream, host=args.host, port=args.port, pin=args.pin,
-                                    session_hours=args.session_hours)
             except ValueError as exc:
                 raise RuntimeError(str(exc)) from exc
         if args.cmd == "issue":
@@ -938,8 +901,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd in ("run", "resume", "cancel", "import-issues", "pause"):
             return runner_command(args)
         if args.cmd == "start":
-            from . import remote
-            remote.load_harness_env(_repo_root())
+            from . import envfile
+            envfile.load_harness_env(_repo_root())
             from .start import run_start
             return run_start(args)
         if args.cmd == "investigate":
