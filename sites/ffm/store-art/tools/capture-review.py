@@ -85,11 +85,15 @@ with socketserver.TCPServer(("127.0.0.1", 0), handler) as httpd:
             page.locator("#title-family-btn").click()
             page.wait_for_timeout(1000)
             page.wait_for_selector("[data-entitlement-campaign2]", timeout=5000)
-            # Scroll the Players page so the switch and both products are in view.
+            # Scroll the Players page so the switch and both products are in view, and the
+            # player list above is scrolled out completely: the switch (its box includes the
+            # dragons' overhang) starts right at the sheet's inner top edge, so no sliver of
+            # the list's pagination buttons is left at the top of the shot.
             page.evaluate("""() => {
               const pageEl = document.getElementById('local-profiles');
               const sw = document.getElementById('genius-campaign');
-              pageEl.scrollTop = Math.max(0, sw.offsetTop - pageEl.offsetTop - 8);
+              const inner = pageEl.getBoundingClientRect().top + pageEl.clientTop;
+              pageEl.scrollTop += sw.getBoundingClientRect().top - inner - 2;
             }""")
             page.wait_for_timeout(400)
         if scene == "paywall":
