@@ -532,9 +532,9 @@ const DICTIONARY = {
   // The gameplay header's correction row: same answer, short enough to fit the
   // question column next to the help and pause buttons.
   'feedback.shapesAnswerShort': { en: '{count} shapes', de: '{count} Formen' },
-  'gameplay.encounters': { en: 'Defeated: {defeated}/{total}', de: 'Besiegt: {defeated}/{total}' },
-  'gameplay.encountersCompact': { en: 'Defeated: {defeated}', de: 'Besiegt: {defeated}' },
-  'gameplay.healProgress': { en: 'Heal: {percent}%', de: 'Heilen: {percent}%' },
+  'gameplay.encounters': { en: 'Defeated {defeated}/{total}', de: 'Besiegt {defeated}/{total}' },
+  'gameplay.encountersCompact': { en: 'Defeated {defeated}', de: 'Besiegt {defeated}' },
+  'gameplay.healProgress': { en: 'Heal {percent}%', de: 'Heilen {percent}%' },
 
   // Difficulty buttons
   'difficulty.shapes.label': { en: 'Shapes', de: 'Formen' },

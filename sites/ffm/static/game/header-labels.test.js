@@ -90,7 +90,7 @@ describe('main.js uses the formatters', () => {
 
 describe('the compact strings exist in both languages', () => {
   for (const [key, en, de] of [
-    ['gameplay.encountersCompact', 'Defeated: {defeated}', 'Besiegt: {defeated}'],
+    ['gameplay.encountersCompact', 'Defeated {defeated}', 'Besiegt {defeated}'],
     ['reward.upcomingCompact', '{ability} {count}', '{ability} {count}'],
     ['reward.active', '{ability}', '{ability}'],
   ]) {
