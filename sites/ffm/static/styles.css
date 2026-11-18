@@ -3838,11 +3838,22 @@ body:not(.legal-body) {
 /* The title picture has no container of its own, so it scales with the shorter
  * viewport side: a landscape phone's 320px height shrinks it like a portrait
  * phone's 320px width. */
+/* It is a picture, not the control: three quarters of the size it had (clamp(38px, 9vmin,
+ * 60px) and the 44px floor), so it no longer crowds the title. The dragons, the frame and
+ * the text all follow --switch-h, so the proportions stay; the text keeps a readable floor,
+ * and the 33px frame (75% of 44px) holds both lines at it. The tap area stays 44px tall
+ * (::after), as large as before. */
 .campaign-emblem {
-  --switch-h: clamp(38px, 9vmin, 60px);
+  --switch-h: clamp(28.5px, 6.75vmin, 45px);
+  min-height: 33px;
   width: auto;
   max-width: calc(100% - 2 * var(--dragon-out));
   margin-inline: auto;
+}
+.campaign-emblem::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
 }
 .campaign-emblem[hidden] { display: none; }
 /* A phone held sideways has no height to spare in the title's intro column: the ancient
@@ -3851,8 +3862,8 @@ body:not(.legal-body) {
 @media (orientation: landscape) and (max-height: 460px) {
   .campaign-emblem[data-dragon="ancient"] { --dragon-scale: 1.3; }
 }
-.campaign-emblem .campaign-switch-eyebrow { font-size: calc(var(--switch-h) * 0.2); }
-.campaign-emblem .campaign-switch-title { font-size: calc(var(--switch-h) * 0.38); }
+.campaign-emblem .campaign-switch-eyebrow { font-size: max(7px, calc(var(--switch-h) * 0.2)); }
+.campaign-emblem .campaign-switch-title { font-size: max(11px, calc(var(--switch-h) * 0.38)); }
 /* end campaign switch */
 .m2-intro-math { font-size: 1.8em; text-align: center; margin: 0.4em 0; }
 .mc-btn .m2-expr { font-size: 1.15em; justify-content: center; }
