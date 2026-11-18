@@ -2,7 +2,8 @@ name: 'Landhauscheck: waste calendar review'
 
 # Triggered whenever a PR touches ICS files in the waste data directory.
 # Only runs for branches opened by the contribution endpoint (waste/*).
-# The review agent validates, normalises and—if all checks pass—merges the PR.
+# The review agent validates, normalises and comments on the PR. It never merges:
+# the uploads are anonymous and every merge to main deploys, so the maintainer merges by hand.
 
 on:
   pull_request:
@@ -16,7 +17,7 @@ permissions:
 
 jobs:
   review:
-    name: Review & auto-merge waste calendar
+    name: Review waste calendar
     runs-on: ubuntu-latest
 
     # Only act on the bot's own PR branches — human PRs go through normal review.
@@ -50,6 +51,6 @@ jobs:
           REPO: ${{ github.repository }}
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
-        # Exit 0 = approved (and merged).  Exit 1 = changes requested.
-        # Exit 2 = script-level error (see logs).
+        # Exit 0 = review posted (passed checks or changes requested).
+        # Exit 1 = fatal error: missing env vars or a GitHub API failure (see logs).
         run: python sites/landhauscheck/scripts/review_waste_pr.py
