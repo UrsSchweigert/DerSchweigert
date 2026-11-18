@@ -121,15 +121,17 @@
       <div id="genius-campaign" class="campaign-switch" hidden>
         <!-- The dragons follow the campaign being played: young for Campaign I, ancient for
              Campaign II (main.js swaps them; art and provenance in game/art/ui/). -->
-        <button type="button" id="genius-campaign-btn" class="campaign-switch-btn" data-dragon="young" aria-pressed="false">
+        <!-- The button is the title picture at the same size (styles.css); what a tap does is
+             the caption under it, so the frame holds two lines like the picture's. -->
+        <button type="button" id="genius-campaign-btn" class="campaign-switch-btn" data-dragon="young" aria-pressed="false" aria-describedby="genius-status">
           <img class="campaign-switch-dragon campaign-switch-dragon--left" src="game/art/ui/campaign-dragon-young-left.webp" alt="" width="402" height="480">
           <span class="campaign-switch-text">
             <span class="campaign-switch-eyebrow" id="genius-eyebrow" data-i18n="campaign.switch.eyebrow1">Campaign I</span>
             <span class="campaign-switch-title" id="genius-title" data-i18n="campaign.switch.title1">Arithmetic</span>
-            <span class="campaign-switch-status" id="genius-status" data-i18n="campaign.switch.toGenius">Switch to Genius</span>
           </span>
           <img class="campaign-switch-dragon campaign-switch-dragon--right" src="game/art/ui/campaign-dragon-young-right.webp" alt="" width="402" height="480">
         </button>
+        <span class="campaign-switch-status" id="genius-status" data-i18n="campaign.switch.toGenius">Switch to Genius</span>
         <p id="campaign2-note" class="splash-subtitle" hidden></p>
       </div>
       <!-- app-omit:start -->

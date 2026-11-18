@@ -89,43 +89,84 @@ test('the switch names the campaign being played, with dragons and in the menu c
 
 test('the switch and the picture scale with the space they get, dragons included', () => {
   const rules = css.slice(css.indexOf('.campaign-switch {'), css.indexOf('/* end campaign switch */'));
-  assert.match(rules, /container-type: inline-size;/);
-  // One height drives everything; the switch follows its column and the viewport height.
-  assert.match(rules, /\.campaign-switch-btn \{\s*--switch-h: clamp\([^;]*cqi[^;]*vh[^;]*\);/);
-  assert.match(rules, /\.campaign-emblem \{\s*--switch-h: clamp\([^;]*vmin[^;]*\);/);
   // The dragons' outer halves stay inside the column (the old small-screen overflow).
-  assert.match(rules, /width: min\(calc\(100% - 2 \* var\(--dragon-out\)\), 440px\);/);
   assert.match(rules, /max-width: calc\(100% - 2 \* var\(--dragon-out\)\);/);
   // The text clears the dragons and fits in the frame, the overhang has its room.
   assert.match(rules, /padding-inline: calc\(var\(--dragon-w\) \* 0\.55\);/);
-  assert.match(rules, /margin-block: calc\(var\(--switch-h\) \* \(var\(--dragon-scale\) - 1\) \/ 2\);/);
-  assert.match(rules, /\.campaign-switch-title \{[^}]*font-size: calc\(var\(--switch-h\) \* 0\.31\);/);
+  assert.match(rules, /margin-block: calc\(var\(--switch-h\) \* \(var\(--dragon-room\) - 1\) \/ 2\);/);
+  assert.doesNotMatch(rules, /margin-block: [^;]*--dragon-scale/, 'the room never follows the pair on show');
+  assert.match(rules, /\.campaign-switch-dragon \{[^}]*height: calc\(var\(--switch-h\) \* var\(--dragon-scale\)\);/);
   // Pieces are placed with translate, never transform (the reduced-motion rule resets transform).
   assert.match(rules, /\.campaign-switch-dragon--left \{ left: 0; translate: -45% -50%; \}/);
   assert.match(rules, /\.campaign-switch-dragon--right \{ right: 0; translate: 45% -50%; \}/);
   assert.doesNotMatch(rules, /(^|[^-])transform:/m);
-  assert.match(rules, /@container \(max-width: 300px\)/, 'a 320px phone gets smaller dragons, not clipped text');
 });
 
-test('the title picture is three quarters of its first size, proportions and tap area kept', () => {
-  // The owner asked for the dragon picture on the title 25% smaller. Its size was
-  // clamp(38px, 9vmin, 60px) with the shared 44px floor; every bound shrinks by a quarter.
+// The owner asked for the dragon art on the Players page (app) and in the profile (web) to be
+// the same size as the title picture, which #594 made 25% smaller: clamp(38px, 9vmin, 60px)
+// became clamp(28.5px, 6.75vmin, 45px). The switch kept its own clamp(56px, 16cqi, 80px) and
+// so showed dragons twice as tall. Now both read one height and one set of scales.
+test('the switch and the title picture share one size, so their dragons cannot drift apart', () => {
   const rules = css.slice(css.indexOf('.campaign-switch {'), css.indexOf('/* end campaign switch */'));
-  const emblem = rules.match(/\n\.campaign-emblem \{([^}]*)\}/)[1];
-  const [, low, fluid, high] = emblem.match(/--switch-h: clamp\(([\d.]+)px, ([\d.]+)vmin, ([\d.]+)px\);/).map(Number);
+  const shared = rules.match(/\n\.campaign-switch-btn, \.campaign-emblem \{([^}]*)\}/)[1];
+  const [, low, fluid, high] = shared.match(/--switch-h: clamp\(([\d.]+)px, ([\d.]+)vmin, ([\d.]+)px\);/).map(Number);
   assert.deepEqual([low, fluid, high], [38 * 0.75, 9 * 0.75, 60 * 0.75]);
-  assert.match(emblem, new RegExp(`min-height: ${44 * 0.75}px;`));
-  // The dragons keep their size relative to the frame (the shared 1.75x / 2.1x scales and the
-  // 45% overhang), so only --switch-h changes.
-  assert.doesNotMatch(emblem, /--dragon-scale/);
-  // Still a 44px tap target, and the text keeps a readable floor that fits the 33px frame.
-  assert.match(rules, /\.campaign-emblem::after \{[^}]*position: absolute;[^}]*inset: -6px 0;/);
-  const eyebrow = Number(rules.match(/\.campaign-emblem \.campaign-switch-eyebrow \{ font-size: max\(([\d.]+)px/)[1]);
-  const title = Number(rules.match(/\.campaign-emblem \.campaign-switch-title \{ font-size: max\(([\d.]+)px/)[1]);
-  assert.ok(eyebrow >= 7 && title >= 11, 'readable');
-  assert.ok((eyebrow + title) * 1.15 + 12 <= 44 * 0.75, 'both lines fit inside the double frame');
-  // The switch itself (Players page / account profile) keeps its size.
-  assert.match(rules, /\.campaign-switch-btn \{\s*--switch-h: clamp\(56px, min\(16cqi, 13vh\), 80px\);/);
+  assert.match(shared, new RegExp(`min-height: ${44 * 0.75}px;`));
+  assert.match(shared, /--dragon-scale: 1\.75;/);
+  // --switch-h and the dragon scales are set in the shared rules only: no rule for one of
+  // the two (a container query, a media query, a per-element override) may set its own.
+  assert.equal((css.match(/--switch-h:/g) ?? []).length, 1, 'one --switch-h in the whole stylesheet');
+  assert.doesNotMatch(rules, /@container/);
+  for (const [, selector, body] of rules.matchAll(/([^{}\n]+)\{([^{}]*--dragon-scale:[^{}]*)\}/g)) {
+    assert.match(selector.trim(), /^(\.campaign-switch-btn, \.campaign-emblem|:is\(\.campaign-switch-btn, \.campaign-emblem\)\[data-dragon="ancient"\])$/,
+      `${selector.trim()} sets --dragon-scale for only one of the two (${body.trim()})`);
+  }
+  assert.match(rules, /:is\(\.campaign-switch-btn, \.campaign-emblem\)\[data-dragon="ancient"\] \{\s*--dragon-scale: 2\.1;/);
+  // The short-landscape scale (the title's intro column) applies to the switch as well.
+  assert.match(rules, /@media \(orientation: landscape\) and \(max-height: 460px\) \{\s*:is\(\.campaign-switch-btn, \.campaign-emblem\)\[data-dragon="ancient"\] \{ --dragon-scale: 1\.3; \}/);
+  // The text is shared too, with the readable floor: 7px small lines, 11px name.
+  assert.match(rules, /\.campaign-switch-eyebrow \{[^}]*font-size: max\(7px, calc\(var\(--switch-h\) \* 0\.2\)\);/);
+  assert.match(rules, /\.campaign-switch-title \{[^}]*font-size: max\(11px, calc\(var\(--switch-h\) \* 0\.38\)\);/);
+  assert.doesNotMatch(rules, /\.campaign-emblem \.campaign-switch-(eyebrow|title)/, 'no picture-only text size');
+  // No rule gives the switch a frame of its own (height, min-height, padding): the button is
+  // the picture, two lines in the same 33px frame. Its third line, what a tap does, is a
+  // readable caption under it that the button points at.
+  assert.doesNotMatch(rules, /\n\.campaign-switch-btn \{/, 'no switch-only box rule');
+  assert.ok((7 + 11) * 1.15 + 12 <= 33, 'both lines fit inside the double frame');
+  const button = html.slice(html.indexOf('id="genius-campaign-btn"'), html.indexOf('</button>', html.indexOf('id="genius-campaign-btn"')));
+  assert.match(button, /aria-describedby="genius-status"/);
+  assert.doesNotMatch(button, /campaign-switch-status/, 'the status is outside the frame');
+  assert.match(html, /<\/button>\s*<span class="campaign-switch-status" id="genius-status"/);
+  const caption = Number(rules.match(/\.campaign-switch-status \{[^}]*font-size: ([\d.]+)px;/)[1]);
+  assert.ok(caption >= 11, 'the caption is easy to read');
+});
+
+// Tapping the switch swaps the young pair (1.75x) for the ancient one (2.1x, 1.3x on a short
+// landscape screen). The overhang room used to follow the pair on show, so the Players page
+// and the profile below the switch jumped by 20px on every tap. The room is the taller pair's.
+test('the switch reserves the same room for both dragon pairs, so a tap moves nothing below it', () => {
+  const rules = css.slice(css.indexOf('.campaign-switch {'), css.indexOf('/* end campaign switch */'));
+  const num = re => Number(rules.match(re)[1]);
+  const young = num(/\n\.campaign-switch-btn, \.campaign-emblem \{[^}]*--dragon-scale: ([\d.]+);/);
+  const ancient = num(/\[data-dragon="ancient"\] \{\s*--dragon-scale: ([\d.]+);/);
+  const room = num(/\n\.campaign-switch-btn, \.campaign-emblem \{[^}]*--dragon-room: ([\d.]+);/);
+  assert.equal(room, Math.max(young, ancient));
+  const landscape = rules.slice(rules.indexOf('@media (orientation: landscape) and (max-height: 460px)'));
+  const ancientLandscape = num(/max-height: 460px\) \{\s*:is\([^)]*\)\[data-dragon="ancient"\] \{ --dragon-scale: ([\d.]+); \}/);
+  const switchRoom = Number(landscape.match(/\.campaign-switch-btn \{ --dragon-room: ([\d.]+); \}/)[1]);
+  assert.equal(switchRoom, Math.max(young, ancientLandscape));
+  // The title picture is always the ancient pair, so its room stays what it was.
+  assert.equal(Number(landscape.match(/\.campaign-emblem \{ --dragon-room: ([\d.]+); \}/)[1]), ancientLandscape);
+});
+
+test('both campaign pieces keep a 44px tap area however small the frame is', () => {
+  const rules = css.slice(css.indexOf('.campaign-switch {'), css.indexOf('/* end campaign switch */'));
+  const after = rules.match(/:is\(\.campaign-switch-btn, \.campaign-emblem\)::after \{([^}]*)\}/)[1];
+  assert.match(after, /position: absolute;/);
+  // 100% is the padding box: max() keeps the button's own height when it is taller.
+  assert.match(after, /height: max\(100%, 44px\);/);
+  assert.match(after, /top: 50%;[\s\S]*translate: 0 -50%;/);
+  assert.match(rules, /\.campaign-switch-btn, \.campaign-emblem \{[^}]*position: relative;/);
 });
 
 test('the right dragon frames each campaign, and every piece exists', () => {

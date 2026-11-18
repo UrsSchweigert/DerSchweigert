@@ -61,9 +61,11 @@ test('the correction cannot run under the help and pause buttons', () => {
 
 test('the mode marker is level-scoped and published on every build', () => {
   const chrome = readFileSync(new URL('./gameplay-chrome.js', import.meta.url), 'utf8');
-  assert.match(chrome, /function setQuestionReserve\(shapesLevel\)/);
-  assert.match(chrome, /const value = shapesLevel \? '2' : '1';/);
-  assert.match(chrome, /setQuestionReserve\(!!state\.isShapesMode\);/,
+  assert.match(chrome, /function setQuestionReserve\(state\)/);
+  assert.match(chrome, /if \(state\.isShapesMode\) \{\n[^\n]*\n\s*applyReserve\('2'\);/);
+  assert.match(chrome, /applyReserve\(reserve\.px > COMPACT_ROW_PX \? 'math' : '1'\);/,
+    'Campaign II maths taller than the line gets its own marker, everything else one line');
+  assert.match(chrome, /setQuestionReserve\(state\);/,
     'every update republishes the level-scoped reservation');
 });
 

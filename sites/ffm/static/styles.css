@@ -173,6 +173,34 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Campaign II: stacked maths (a fraction, a power over a fraction, a root) is
+ * taller than the 28px line. gameplay-chrome.js measures the tallest question a
+ * level can ask when it starts (campaign2/question-reserve.js) and publishes it
+ * as --question-row-height with the marker "math". The row is exactly that high
+ * for the whole level - fixed, not a minimum, so no question, correction or
+ * empty pause between problems can grow or shrink the header (viewport-layout.js
+ * sizes the scene from it). The maths sits centred in the row; the plain-text
+ * correction keeps its 28px line, padded to the middle of the row, so it keeps
+ * its ellipsis. The line height itself never changes: the measurement copies
+ * it. Both stay on one line and are clipped at the row's edge. */
+#gameplay-chrome[data-question-rows="math"] #active-question {
+  box-sizing: border-box;
+  height: var(--question-row-height, 28px);
+  min-height: var(--question-row-height, 28px);
+  padding-block: calc((var(--question-row-height, 28px) - 28px) / 2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#gameplay-chrome[data-question-rows="math"] #active-question[data-math-key] {
+  display: flex;
+  align-items: center;
+  padding-block: 0;
+}
+#gameplay-chrome[data-question-rows="math"] #active-question[data-math-key] > .m2-expr {
+  flex: none;
+}
+
 /* The correction is plain text in either mode, so it needs the same guard: it
  * must stop at the help/pause buttons instead of running under them. */
 #active-question:not([data-shapes-header]) {
@@ -3718,16 +3746,17 @@ body:not(.legal-body) {
  * text is the game's own: the heading monospace for the campaign name, the UI face for the
  * small lines.
  *
- * Everything is derived from one height, --switch-h, which follows the space the switch
- * gets (container width capped by the viewport height on the switch, viewport-min units on
- * the title picture, which has no container of its own). The dragons are that height times
- * --dragon-scale tall, sit half outside the button and overhang above and below; the button
- * reserves exactly that room (side padding so the text clears them, a narrower width so
- * their outer halves stay inside the column, vertical margin for the overhang). So a 320px
- * phone or a short landscape band shrinks the whole piece instead of letting the name or a
- * dragon run out of the frame. */
+ * Both are one piece of art at one size. Everything is derived from one height, --switch-h,
+ * set once for both below: it follows the shorter viewport side (vmin), so the switch on
+ * the Players page or in the profile and the picture on the title are the same size on the
+ * same screen, and a 320px phone or a short landscape band shrinks both alike. The switch
+ * used to have its own height (from its column width, clamp(56px, min(16cqi, 13vh), 80px))
+ * and was left with twice the picture's dragons when #594 made the picture smaller. The
+ * dragons are that height times --dragon-scale tall, sit half outside the button and
+ * overhang above and below; the button reserves exactly that room (side padding so the
+ * text clears them, a narrower width so their outer halves stay inside the column,
+ * vertical margin for the overhang). */
 .campaign-switch {
-  container-type: inline-size;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3738,6 +3767,8 @@ body:not(.legal-body) {
 }
 .campaign-switch[hidden] { display: none; }
 .campaign-switch-btn, .campaign-emblem {
+  /* The one size: 75% of the picture's first size, clamp(38px, 9vmin, 60px) (#594). */
+  --switch-h: clamp(28.5px, 6.75vmin, 45px);
   /* Young dragon (Campaign I): 402x480 art, 1.75x the button tall. */
   --dragon-scale: 1.75;
   --dragon-aspect: 0.8375;
@@ -3750,9 +3781,17 @@ body:not(.legal-body) {
   justify-content: center;
   box-sizing: border-box;
   min-width: 0;
+  width: auto;
+  max-width: calc(100% - 2 * var(--dragon-out));
   height: var(--switch-h);
-  min-height: 44px;
-  margin-block: calc(var(--switch-h) * (var(--dragon-scale) - 1) / 2);
+  /* The frame is 33px at the least (75% of 44px); the tap area stays 44px (::after). */
+  min-height: 33px;
+  /* The overhang room is reserved for the taller pair (--dragon-room), not for the pair on
+   * show: the switch swaps young (1.75x) for ancient (2.1x) dragons, and a margin that
+   * followed --dragon-scale moved everything below the switch by 20px on every tap. */
+  --dragon-room: 2.1;
+  margin-block: calc(var(--switch-h) * (var(--dragon-room) - 1) / 2);
+  margin-inline: auto;
   padding-block: 0;
   padding-inline: calc(var(--dragon-w) * 0.55);
   overflow: visible;
@@ -3768,15 +3807,21 @@ body:not(.legal-body) {
   cursor: pointer;
   touch-action: manipulation;
 }
+/* A tap area at least 44px tall however small the frame is, centred on it. 100% is the
+ * padding box, which is why the old `inset: -6px 0` on the 33px frame only reached 41px. */
+:is(.campaign-switch-btn, .campaign-emblem)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: max(100%, 44px);
+  translate: 0 -50%;
+}
 /* Ancient dragon (Campaign II): 354x480 art, 2.1x the button tall. */
 :is(.campaign-switch-btn, .campaign-emblem)[data-dragon="ancient"] {
   --dragon-scale: 2.1;
   --dragon-aspect: 0.7375;
-}
-.campaign-switch-btn {
-  --switch-h: clamp(56px, min(16cqi, 13vh), 80px);
-  width: min(calc(100% - 2 * var(--dragon-out)), 440px);
-  max-width: calc(100% - 2 * var(--dragon-out));
 }
 .campaign-switch-btn:hover { border-color: var(--focus-ring); background: radial-gradient(120% 140% at 50% 0%, rgba(228, 197, 119, 0.26), transparent 62%), linear-gradient(145deg, #315641, #19372b); }
 .campaign-switch-btn:active { scale: 0.98; }
@@ -3805,65 +3850,49 @@ body:not(.legal-body) {
   min-width: 0;
   line-height: 1.15;
 }
-.campaign-switch-eyebrow, .campaign-switch-status {
+/* The lines follow --switch-h as well, with the picture's readable floor: 7px for the
+ * small line, 11px for the name. */
+.campaign-switch-eyebrow {
   font-family: var(--font-ui);
-  /* The three lines are sized from the button height, so they always fit inside the
-   * double frame: 1.15 x (0.16 + 0.31 + 0.16) of it, plus the 12px of frame. */
-  font-size: calc(var(--switch-h) * 0.16);
+  font-size: max(7px, calc(var(--switch-h) * 0.2));
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
+  color: var(--ivory-muted);
 }
-.campaign-switch-eyebrow { color: var(--ivory-muted); }
-.campaign-switch-status { color: var(--brass-light); }
+/* What a tap on the switch does ("Switch to Genius"). A third line would not fit the
+ * picture's 33px frame at a readable size, so it is the caption under the switch (the
+ * button's aria-describedby) and keeps a size of its own that is easy to read. */
+.campaign-switch-status {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--brass-light);
+}
 .campaign-switch-title {
   font-family: var(--font-prose);
-  font-size: calc(var(--switch-h) * 0.31);
+  font-size: max(11px, calc(var(--switch-h) * 0.38));
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
   color: var(--brass-light);
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 12px rgba(228, 197, 119, 0.35);
 }
-/* A narrow column (a 320px phone) cannot give the name, "Switch to Arithmetic" and two
- * full-size dragons their room at a readable size: the dragons get a little smaller and
- * the small lines tighten their spacing, instead of the text running into the dragons. */
-@container (max-width: 300px) {
-  .campaign-switch-btn[data-dragon] { --dragon-scale: 1.45; }
-  .campaign-switch-btn[data-dragon="ancient"] { --dragon-scale: 1.7; }
-  .campaign-switch-btn :is(.campaign-switch-eyebrow, .campaign-switch-status) { letter-spacing: 0.06em; }
-}
 /* Campaign II is the one being played: the dragons glow a little brighter. */
 .campaign-switch-btn[aria-pressed="true"] .campaign-switch-dragon { filter: drop-shadow(0 0 6px rgba(228, 197, 119, 0.7)); }
-/* The title picture has no container of its own, so it scales with the shorter
- * viewport side: a landscape phone's 320px height shrinks it like a portrait
- * phone's 320px width. */
-/* It is a picture, not the control: three quarters of the size it had (clamp(38px, 9vmin,
- * 60px) and the 44px floor), so it no longer crowds the title. The dragons, the frame and
- * the text all follow --switch-h, so the proportions stay; the text keeps a readable floor,
- * and the 33px frame (75% of 44px) holds both lines at it. The tap area stays 44px tall
- * (::after), as large as before. */
-.campaign-emblem {
-  --switch-h: clamp(28.5px, 6.75vmin, 45px);
-  min-height: 33px;
-  width: auto;
-  max-width: calc(100% - 2 * var(--dragon-out));
-  margin-inline: auto;
-}
-.campaign-emblem::after {
-  content: "";
-  position: absolute;
-  inset: -6px 0;
-}
 .campaign-emblem[hidden] { display: none; }
-/* A phone held sideways has no height to spare in the title's intro column: the ancient
- * dragons barely overhang there, so the picture does not push "Choose your difficulty"
- * under the navigation. */
+/* A phone held sideways has no height to spare (the title's intro column, the Players
+ * page): the ancient dragons barely overhang there, so the picture does not push "Choose
+ * your difficulty" under the navigation. The switch follows it, so the two stay one size. */
 @media (orientation: landscape) and (max-height: 460px) {
-  .campaign-emblem[data-dragon="ancient"] { --dragon-scale: 1.3; }
+  :is(.campaign-switch-btn, .campaign-emblem)[data-dragon="ancient"] { --dragon-scale: 1.3; }
+  /* Here the young pair (1.75x) is the taller one. The picture is always ancient. */
+  .campaign-switch-btn { --dragon-room: 1.75; }
+  .campaign-emblem { --dragon-room: 1.3; }
 }
-.campaign-emblem .campaign-switch-eyebrow { font-size: max(7px, calc(var(--switch-h) * 0.2)); }
-.campaign-emblem .campaign-switch-title { font-size: max(11px, calc(var(--switch-h) * 0.38)); }
 /* end campaign switch */
 .m2-intro-math { font-size: 1.8em; text-align: center; margin: 0.4em 0; }
 .mc-btn .m2-expr { font-size: 1.15em; justify-content: center; }
