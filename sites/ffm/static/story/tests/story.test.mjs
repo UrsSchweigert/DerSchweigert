@@ -538,6 +538,19 @@ describe('the story', () => {
       ['dawn.webp', 'scene.json', 'subtitles.de.vtt', 'subtitles.en.vtt']);
   });
 
+  it('shows fiends only in act III, keeping the other groups on disk to put back', () => {
+    // The owner left the fiends out of the 2026-11-18 art pass for acts I, II,
+    // IV, V and VI. Their images stay in place so restoring one is a scene.json
+    // change (git revert of the commit that unreferenced them, for I/II/IV/VI).
+    for (const id of ['act-1', 'act-2', 'act-4', 'act-5', 'act-6']) {
+      const scene = loadScene(id);
+      assert.ok(!scene.layers.some(layer => layer.id === 'fiends' || /fiends/.test(layer.src)), `${id} shows fiends`);
+      assert.ok(!(scene.lighting.glows ?? []).some(glow => glow.layer === 'fiends'), `${id} lights fiends`);
+      assert.ok(existsSync(join(scenesDir, id, 'fiends.webp')), `${id}/fiends.webp must stay for a revert`);
+    }
+    assert.ok(loadScene('act-3').layers.some(layer => layer.src === 'fiends.webp'), 'act III keeps its fiends');
+  });
+
   it('shows the ancient dragon descending on its act V card', () => {
     const act5 = loadScene('act-5');
     const dragon = act5.layers.find(layer => layer.id === 'dragon');

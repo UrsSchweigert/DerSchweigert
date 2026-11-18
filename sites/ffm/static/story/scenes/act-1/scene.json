@@ -56,37 +56,6 @@
       ]
     },
     {
-      "id": "fiends",
-      "role": "character",
-      "src": "fiends.webp",
-      "x": 820,
-      "y": 588,
-      "width": 620,
-      "motion": [
-        {
-          "t": 0,
-          "x": 60,
-          "y": 0,
-          "opacity": 0,
-          "scale": 1
-        },
-        {
-          "t": 4.8,
-          "x": 40,
-          "y": 0,
-          "opacity": 1,
-          "scale": 1
-        },
-        {
-          "t": 38.7,
-          "x": -40,
-          "y": 0,
-          "opacity": 1,
-          "scale": 1.03
-        }
-      ]
-    },
-    {
       "id": "foreground",
       "role": "foreground",
       "src": "foreground.webp",
@@ -120,15 +89,6 @@
         "color": "rgba(255,214,160,0.26)",
         "from": 0,
         "pulse": 5
-      },
-      {
-        "layer": "fiends",
-        "x": 1380,
-        "y": 760,
-        "radius": 220,
-        "color": "rgba(160,210,255,0.22)",
-        "from": 4.8,
-        "pulse": 3.4
       }
     ],
     "motes": {
