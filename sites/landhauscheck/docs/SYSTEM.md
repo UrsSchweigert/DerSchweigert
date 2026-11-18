@@ -439,7 +439,7 @@ checkout has no `terraform.tfvars` (gitignored, holds the same values locally).
 | `TF_VAR_DB_STADA_API_KEY` | `deploy-lhc` | **yes** (no default) | SSM DB StaDa key |
 | `TF_VAR_TANKERKOENIG_API_KEY` | `deploy-lhc` | no (defaults empty) | Fuel prices; blanking it disables the widget |
 | `JIRA_API_KEY` | `deploy-lhc` | no (defaults empty) | Feature-request endpoint |
-| `GH_WASTE_PAT` | `deploy-lhc`, `waste-calendar-review.yml` | no (defaults empty) | Waste contribution + auto-merge; PAT with `repo` and `pull-requests: write` |
+| `GH_WASTE_PAT` | `deploy-lhc`, `waste-calendar-review.yml` | no (defaults empty) | Waste contribution PRs + review comments (merged by hand); PAT with `repo` and `pull-requests: write` |
 | `DB_STADA_CLIENT_ID` | `refresh-stations.yml` | yes for that cron | Monthly station snapshot |
 | `DB_STADA_API_KEY` | `refresh-stations.yml` | yes for that cron | Monthly station snapshot |
 

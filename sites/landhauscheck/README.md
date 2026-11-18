@@ -143,7 +143,7 @@ Required (`tofu apply` fails without them, and the job says which are missing):
 Optional — used if present; the backing feature degrades gracefully otherwise:
 
 - `TF_VAR_TANKERKOENIG_API_KEY` (fuel prices), `JIRA_API_KEY` (feature requests),
-  `GH_WASTE_PAT` (waste-calendar contributions and auto-merge; needs `repo` and
+  `GH_WASTE_PAT` (waste-calendar contributions and review comments; needs `repo` and
   `pull-requests: write`)
 
 Also needed by the monthly station-refresh workflow: `DB_STADA_CLIENT_ID` and
