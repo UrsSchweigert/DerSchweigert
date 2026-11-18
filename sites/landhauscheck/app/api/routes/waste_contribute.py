@@ -610,26 +610,8 @@ async def contribute_waste_calendar(
             detail="Could not submit the calendar for review. Please try again later.",
         )
 
-    _record_contribution()
     return JSONResponse({
         "status": "pending_update" if is_update else "pending_review",
         "pr_url": pr_url,
         "events": future_count,
     })
-
-
-def _record_contribution() -> None:
-    """Increment the waste contribution counters in stats_store (best-effort)."""
-    from datetime import UTC, datetime  # noqa: PLC0415
-
-    from app.services import stats_store  # noqa: PLC0415
-
-    try:
-        stats_store.waste_contributions_total += 1
-        day = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        stats_store.waste_contributions_by_day[day] = (
-            stats_store.waste_contributions_by_day.get(day, 0) + 1
-        )
-        stats_store.flush_persisted()
-    except Exception:
-        pass  # never block the response path
