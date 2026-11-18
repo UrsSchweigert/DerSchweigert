@@ -10,7 +10,6 @@ import re
 import shutil
 import stat
 import subprocess
-import tempfile
 import threading
 import time
 from collections import namedtuple

@@ -29,7 +29,6 @@ import hmac
 import json
 import re
 import secrets
-from datetime import datetime, timezone
 
 from botocore.exceptions import BotoCoreError, ClientError
 from flask import Blueprint, Response, current_app, jsonify, request

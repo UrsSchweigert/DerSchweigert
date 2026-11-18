@@ -37,6 +37,9 @@ CI uses Python 3.12 and Node 22. The sites' Python requirements conflict, so use
 | derschweigert | `pip install -r requirements.txt` then `PYTHONPATH=. pytest -q sites/derschweigert/tests` |
 | harness | `pip install -r requirements.txt` then `PYTHONPATH=. pytest -q tools/harness/tests` |
 
+Lint: `ruff check sites/ffm sites/derschweigert tools` (root `ruff.toml`: pyflakes and syntax errors only) and, in
+`sites/landhauscheck`, `ruff check app tests alembic` (its own stricter config). CI runs both.
+
 Branch protection requires the `test` and `test-ffm` checks. CI runs only the suites a change touches, and a change
 under `.github/workflows/` runs all of them.
 
