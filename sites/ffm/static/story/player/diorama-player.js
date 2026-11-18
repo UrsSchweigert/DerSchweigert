@@ -157,15 +157,29 @@ export function sampleMotion(keyframes, t) {
  * portrait screen exactly as it fills a landscape one. The player never has to
  * ask the shell for an orientation lock, and turning the device to landscape
  * mid-scene simply drops back to an unrotated box.
+ *
+ * Turning only makes sense where the player can turn the screen. Inside the
+ * web's desktop phone frame (game/phone-frame.js) the portrait screen is a
+ * picture on a monitor: there the scene is letterboxed instead, a 16:9 band
+ * across the full width with the subtitles below it (`turn: false`).
  * @param {number} viewW viewport width
  * @param {number} viewH viewport height
- * @returns {{turned: boolean, width: number, height: number}}
+ * @param {{turn?: boolean}} [options] turn a portrait screen (default) or letterbox it
+ * @returns {{turned: boolean, letterboxed: boolean, width: number, height: number}}
  */
-export function landscapeBox(viewW, viewH) {
+export function landscapeBox(viewW, viewH, { turn = true } = {}) {
   const width = Number(viewW) || 0;
   const height = Number(viewH) || 0;
-  const turned = height > width;
-  return { turned, width: turned ? height : width, height: turned ? width : height };
+  const portrait = height > width;
+  if (portrait && !turn) {
+    return { turned: false, letterboxed: true, width, height: Math.round((width * STAGE_H) / STAGE_W) };
+  }
+  return { turned: portrait, letterboxed: false, width: portrait ? height : width, height: portrait ? width : height };
+}
+
+/** True inside the web's desktop phone frame, where nobody can turn the screen. */
+export function inPhoneFrame(doc) {
+  return doc?.getAttribute?.('data-phone-frame') === 'screen';
 }
 
 /** Scale and offset that make the stage cover its landscape box, keeping the
@@ -400,9 +414,14 @@ export function createDioramaPlayer({
     const box = landscapeBox(
       doc?.clientWidth || window.innerWidth || root.clientWidth,
       doc?.clientHeight || window.innerHeight || root.clientHeight,
+      { turn: !inPhoneFrame(doc) },
     );
     root.classList.toggle('is-turned', box.turned);
-    root.classList.toggle('is-compact', box.height < COMPACT_BOX_HEIGHT);
+    root.classList.toggle('is-letterboxed', box.letterboxed);
+    // A letterboxed scene has the screen below it for the subtitles: the full-size strip.
+    root.classList.toggle('is-compact', !box.letterboxed && box.height < COMPACT_BOX_HEIGHT);
+    if (box.letterboxed) root.style.setProperty('--diorama-band-height', `${box.height}px`);
+    else root.style.removeProperty('--diorama-band-height');
     if (box.turned) {
       // The rotated box is centred on the screen, so its own width/height are
       // the screen's height/width.

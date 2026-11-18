@@ -142,3 +142,21 @@
 .diorama .diorama__subtitle.is-visible {
   transform: translate(-50%, 0) !important;
 }
+
+/* Inside the web's desktop phone frame (game/phone-frame.js) the portrait screen cannot be
+ * turned, so the scene is not rotated: it is a 16:9 band across the full width, centred,
+ * with the subtitle strip below it and Skip in the screen's own top-right corner. The band
+ * height comes from the player (--diorama-band-height). Placed with top/left, not
+ * transform, so the reduced-motion reset above cannot move it. */
+.diorama.is-letterboxed .diorama__canvas {
+  position: absolute;
+  left: 0;
+  top: calc(50% - var(--diorama-band-height, 56.25vw) / 2);
+}
+
+.diorama.is-letterboxed .diorama__subtitle {
+  top: calc(50% + var(--diorama-band-height, 56.25vw) / 2 + 20px);
+  bottom: auto;
+  width: 90%;
+  font-size: 18px;
+}
