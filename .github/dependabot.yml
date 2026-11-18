@@ -8,6 +8,14 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  - package-ecosystem: pip
+    directory: /sites/ffm
+    schedule:
+      interval: monthly
+  - package-ecosystem: pip
+    directory: /sites/landhauscheck
+    schedule:
+      interval: monthly
   - package-ecosystem: npm
     directory: /sites/lesen
     schedule:
