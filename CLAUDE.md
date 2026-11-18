@@ -14,7 +14,7 @@ the README of the site you are changing.
 
 | Path | What it is | Start here |
 | --- | --- | --- |
-| `sites/ffm/` | Arithmo Slayer: maths game for children. Static game + Flask API on Lambda, Stripe billing, Capacitor iOS/Android apps in `mobile/`. Most of the activity. | `sites/ffm/README.md`, section "Fast file map for common tasks" |
+| `sites/ffm/` | Arithmo Slayer: maths game for children. Static game + Flask API on Lambda, Stripe billing, Capacitor iOS/Android apps in `mobile/`. Most of the activity. | `sites/ffm/README.md`, then `sites/ffm/docs/file-map.md` for your task |
 | `sites/landhauscheck/` | landhauscheck.com: React/Vite SPA + FastAPI on Lambda, own domain, eu-west-1, deployed with OpenTofu | `sites/landhauscheck/README.md`, `docs/SYSTEM.md` |
 | `sites/lesen/` | Reading-practice page + Capacitor apps (Buchstabenzeit) | `sites/lesen/RELEASING.md` |
 | `sites/derschweigert/` | www.derschweigert.de: FastAPI app, templates, small Lambda | `README.md` |
@@ -22,8 +22,8 @@ the README of the site you are changing.
 | `infra/terraform/sites/<site>/` | One root stack per site | |
 | `tools/harness/` | Stage-gated harness that plans, approves and runs AI-built work | `tools/harness/README.md`, `docs/harness/security-model.md` |
 
-Historical, not current: `ffm-math-game.prompt.md`, `game-build-state.json`, `.github/prompts/game/` and
-`.github/agents/android-*` describe the original build phases. Do not treat them as the current architecture.
+Historical, not current: `docs/archive/` holds the original Arithmo Slayer build prompts, and
+`.github/agents/android-*` describe the original Android build phases. Do not treat them as the current architecture.
 
 ## Running tests
 

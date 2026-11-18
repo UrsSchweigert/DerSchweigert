@@ -22,7 +22,7 @@ Key files:
 - `outputs.tf` — CloudFront/API/Lambda outputs
 
 **Before adding a new resource type here**, read
-[`sites/ffm/README.md`](../../../../sites/ffm/README.md)'s "CI's AWS IAM
+[`sites/ffm/docs/deployment.md`](../../../../sites/ffm/docs/deployment.md)'s "CI's AWS IAM
 permissions are NOT managed in this repo" section — the CI deploy user's IAM
 policy is hand-maintained outside Terraform and does not automatically grant
 permissions for new resource types.
