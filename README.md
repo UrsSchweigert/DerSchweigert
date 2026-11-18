@@ -21,7 +21,6 @@ infra/
       ffm/            # dedicated FFM stack (static site + API backend)
       lesen/          # dedicated static-site stack for lesen.derschweigert.de
       landhauscheck/  # prod stack for landhauscheck.com (own CloudFront/API/Lambda, eu-west-1)
-      landhauscheck-dev/ # dev stack for dev.landhauscheck.com
 tools/
   harness/          # development harness: plans, approves, and runs AI-built work (see tools/harness/README.md)
 docs/
