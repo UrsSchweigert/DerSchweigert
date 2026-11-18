@@ -18,7 +18,6 @@ describe("API origin", () => {
   it.each([
     "https://landhauscheck.com",
     "https://www.landhauscheck.com",
-    "https://dev.landhauscheck.com",
     "https://example.cloudfront.net",
   ])("keeps every production URL on %s even with a stale build override", async (origin) => {
     const base = await apiBase({ origin, override: "http://localhost:8000" });

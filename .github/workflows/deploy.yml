@@ -87,7 +87,7 @@ jobs:
                 infra/terraform/sites/ffm/*) ffm=true ;;
                 infra/terraform/sites/lesen/*) lesen=true ;;
                 infra/terraform/sites/derschweigert/*) site=true ;;
-                infra/terraform/sites/landhauscheck/*|infra/terraform/sites/landhauscheck-dev/*) lhc=true ;;
+                infra/terraform/sites/landhauscheck/*) lhc=true ;;
                 infra/*) ffm=true; lesen=true; site=true; lhc=true ;;
               esac
               # Each shared suite runs only when something it reads changed. The derschweigert suite reads its own site and
