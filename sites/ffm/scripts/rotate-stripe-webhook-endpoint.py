@@ -70,7 +70,7 @@ def start(args, client, secrets, lam):
     print(f'old endpoint: {old.id} api_version={old.api_version} status={old.status} '
           f'events={len(old.enabled_events)} livemode={old.livemode}')
     print(f'will create:  same url and events, api_version={args.api_version}, status={old.status}')
-    print(f'will store:   "<old>,<new>" in {args.webhook_secret_id}, then recycle Lambda {args.lambda_name}')
+    print(f'will store:   both signing secrets in the webhook secret, then recycle Lambda {args.lambda_name}')
     if not args.yes:
         print('dry run: nothing changed (pass --yes to apply)')
         return
