@@ -4,7 +4,7 @@
 -r requirements.txt
 pytest>=8.0
 moto>=5.0
-python-dotenv>=1.0
+python-dotenv>=1.2.4
 # The art scripts in scripts/ (hero_frames.py, hero_regions.py, hero_recolor.py) and their tests.
 numpy>=2.0
 scipy>=1.13
