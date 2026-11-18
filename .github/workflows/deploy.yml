@@ -125,7 +125,7 @@ jobs:
     if: needs.changes.outputs.site_tests == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
@@ -142,7 +142,7 @@ jobs:
     if: needs.changes.outputs.harness_tests == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
@@ -159,7 +159,7 @@ jobs:
     if: needs.changes.outputs.lesen_tests == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
@@ -213,7 +213,7 @@ jobs:
       - name: sites/ffm code is unchanged
         if: needs.changes.outputs.ffm_tests == 'false'
         run: echo "::notice::sites/ffm code unchanged; its tests are skipped for this change"
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.ffm_tests == 'true'
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         if: needs.changes.outputs.ffm_tests == 'true'
@@ -266,7 +266,7 @@ jobs:
       - name: sites/landhauscheck code is unchanged
         if: needs.changes.outputs.lhc_tests == 'false'
         run: echo "::notice::sites/landhauscheck code unchanged; its tests are skipped for this change"
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.lhc_tests == 'true'
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         if: needs.changes.outputs.lhc_tests == 'true'
@@ -337,7 +337,7 @@ jobs:
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       TF_VAR_route53_zone_id: ${{ secrets.ROUTE53_ZONE_ID }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set deployment target
         run: echo "Deploy target - derschweigert.de"
@@ -456,7 +456,7 @@ jobs:
       TF_VAR_stripe_webhook_secret_arn: ${{ vars.FFM_STRIPE_WEBHOOK_SECRET_ARN || '' }}
       TF_VAR_admin_visits_token: ${{ secrets.FFM_ADMIN_VISITS_TOKEN }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -705,7 +705,7 @@ jobs:
       TF_VAR_jira_api_key: ${{ secrets.JIRA_API_KEY }}
       TF_VAR_github_token: ${{ secrets.GH_WASTE_PAT }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Verify Terraform variables are configured
         run: |
@@ -803,7 +803,7 @@ jobs:
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       TF_VAR_route53_zone_id: ${{ secrets.ROUTE53_ZONE_ID }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set deployment target
         run: echo "Deploy targets - lesen.derschweigert.de and buchstabenzeit.derschweigert.de"
