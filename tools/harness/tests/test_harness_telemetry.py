@@ -1,9 +1,8 @@
 import json
 
 import pytest
-import os
 
-from harness import cli, humantasks, status, telemetry
+from harness import cli, status, telemetry
 from harness.store import Store
 from harness_doubles import Env, RecordingNotifier
 

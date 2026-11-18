@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from harness import approval, models, plans, runner, start
+from harness import approval, plans, runner, start
 from harness.store import Store
 from harness_doubles import FIX, REQ
 

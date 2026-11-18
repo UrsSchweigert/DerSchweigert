@@ -1,8 +1,6 @@
-import copy
-import json
 import os
 
-from harness import investigate, plans, repocontext
+from harness import investigate, repocontext
 from harness_doubles import FakeRepo
 from test_harness_investigate import FakeInvestigatorAdapter, good_draft, make, mutate, run, REQ
 

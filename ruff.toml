@@ -1,0 +1,14 @@
+# Lint for every Python package except sites/landhauscheck, which has its own
+# stricter config in its pyproject.toml. The rule set is deliberately small:
+# pyflakes (F) and syntax errors (E9) catch real bugs (undefined names,
+# shadowed tests that never run, unused code) without style churn.
+target-version = "py312"
+line-length = 120
+extend-exclude = ["node_modules", "build", ".venv", "docs/archive"]
+
+[lint]
+select = ["F", "E9"]
+
+[lint.per-file-ignores]
+# Imports pytest fixtures from test_app, which the test functions then take as parameters.
+"sites/ffm/tests/test_speedrun_records.py" = ["F811"]

@@ -5,9 +5,9 @@ apps. Existing word-list and font notices are supplied separately.
 Versions below are resolved by package-lock.json; no dependency was added.
 
 ======================================================================
-@capacitor/core 8.6.0
-@capacitor/android 8.6.0
-@capacitor/ios 8.6.0 (including capacitor-swift-pm)
+@capacitor/core 8.6.2
+@capacitor/android 8.6.2
+@capacitor/ios 8.6.2 (including capacitor-swift-pm)
 Source: LICENSE in each installed npm package (identical notices)
 ======================================================================
 

@@ -726,8 +726,7 @@ def test_the_investigator_keeps_the_default_when_nothing_is_configured(tmp_path,
 
 
 def test_archiving_hides_a_plan_and_a_workspace_without_deleting_them(tmp_path):
-    import json
-    from harness import gui, gui_workflow
+    from harness import gui_workflow
 
     store = Store(str(tmp_path / "home"))
     plan = {"plan_id": "p1", "version": 1, "requirements": [], "phases": [], "policy": {},
@@ -774,7 +773,6 @@ def test_requirements_can_be_updated_in_place(tmp_path):
 
 
 def test_a_running_plan_cannot_change_its_requirements(tmp_path):
-    import json
 
     from harness import approval, gui_workflow
     from harness_doubles import Env

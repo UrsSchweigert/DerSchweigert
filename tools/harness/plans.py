@@ -7,7 +7,7 @@ import json
 import os
 import re
 import shlex
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from . import models, schemas, sizing
 
