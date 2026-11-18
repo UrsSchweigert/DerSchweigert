@@ -1,6 +1,6 @@
 """Operator-only Flask CLI commands implementing the project's approved
 data-retention policy for the two record types where that policy is fully
-specified (see sites/ffm/README.md "Data retention"):
+specified (see sites/ffm/docs/behavior.md "Data retention"):
 
 1. Single-use verification/reset/email-change tokens (app/models.py
    TOKEN# items) — already deleted immediately on successful consumption by

@@ -198,7 +198,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   hard: `deploy-ffm` had never actually run `terraform apply` before that day,
   and turned out to be missing DynamoDB/Secrets Manager/CloudFront/IAM
   permissions for resources that had existed for a while. See
-  [`sites/ffm/README.md`](sites/ffm/README.md)'s "CI's AWS IAM permissions are
+  [`sites/ffm/docs/deployment.md`](sites/ffm/docs/deployment.md)'s "CI's AWS IAM permissions are
   NOT managed in this repo" section for the exact `aws iam` commands to
   inspect/update it, the 5-versions-per-policy cap, and the current (v17)
   permission set. It happened again on 2026-09-06: adding the
@@ -238,7 +238,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   FFM does exactly this in `infra/terraform/sites/ffm/main.tf` (`module
   "site"`'s `content_security_policy`), adding `https://challenges.cloudflare.com`
   to `script-src`/`frame-src` for the Cloudflare Turnstile CAPTCHA widget (see
-  `sites/ffm/README.md`'s CAPTCHA section) — without it the browser silently
+  `sites/ffm/docs/behavior.md`, rate limiting and CAPTCHA) — without it the browser silently
   blocks Turnstile's script, so the widget never renders/produces a token and
   the backend (which fails closed) rejects every register/forgot-password/
   resend-verification request, not just bots'.
@@ -263,7 +263,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   `aws lambda update-function-code` in the same CI job, immediately after
   `terraform apply`. This means a `terraform apply` for ffm briefly leaves the
   Lambda non-functional until the very next step overwrites it — see
-  `sites/ffm/README.md`'s "Deployment shape" section for the full trade-off
+  `sites/ffm/docs/deployment.md`'s "Deployment shape" section for the full trade-off
   and the fix if it's ever worth removing.
 
 ## Licence
