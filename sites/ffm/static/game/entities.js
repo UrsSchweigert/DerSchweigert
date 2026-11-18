@@ -3,6 +3,7 @@
 import { LOGICAL_PX, GROUND_Y, HERO_X, CANVAS_W, CANVAS_H } from './renderer.js';
 import { FIEND_COMBAT_X } from './difficulty.js';
 import { FIEND_CLASSES, getFiendClass } from './difficulty-classes.js';
+import { walkFrameIndex, walkSourceRect } from './fiend-walk.js';
 import { HERO_ATLAS, HERO_FRAMES } from './hero/hero-frames.js';
 import { drawStrikeFx } from './strike-fx.js';
 import { HeroAnimator, buildHeroClips, castHandAnchor } from './hero-anim.js';
@@ -72,6 +73,24 @@ function getFiendClassSprite(fiendClassId) {
     img = new Image();
     img.src = new URL(cls.spritePath, import.meta.url).href;
     _fiendClassSpriteCache.set(fiendClassId, img);
+  }
+  return img;
+}
+
+// Walk strips: the same lazy one-Image-per-class cache, for the 8-frame walk
+// cycle in fiend-walk/. A class without a strip, or one that has not loaded yet,
+// simply keeps drawing its still.
+const _fiendWalkStripCache = new Map();
+
+function getFiendWalkStrip(fiendClassId) {
+  if (!fiendClassId) return null;
+  let img = _fiendWalkStripCache.get(fiendClassId);
+  if (!img) {
+    const cls = FIEND_CLASSES.find((c) => c.id === fiendClassId);
+    if (!cls || !cls.walkPath) return null;
+    img = new Image();
+    img.src = new URL(cls.walkPath, import.meta.url).href;
+    _fiendWalkStripCache.set(fiendClassId, img);
   }
   return img;
 }
@@ -1012,6 +1031,8 @@ export class Fiend extends Entity {
     this._dur = 8;
     this.isElite = false;
     this.fiendClassId = cfg.fiendClassId ?? null;
+    // Seconds spent moving (walking in or retreating); drives the walk-cycle frame.
+    this._walkClock = 0;
     this.setState('walk');
   }
 
@@ -1078,6 +1099,7 @@ export class Fiend extends Entity {
       }
       return;
     }
+    if (this._state === 'walk' || this._state === 'retreat') this._walkClock += dt;
     if (this._state === 'walk') {
       this.x -= this.walkSpeed * dt;
       if (this.x < FIEND_COMBAT_X) this.setState('idle');
@@ -1221,10 +1243,20 @@ export class Fiend extends Entity {
 
     ctx.save();
     if (this.isElite) this._drawEliteAura(ctx, bx, by, drawW, drawH);
+    // While it is moving (walking in, or retreating) the fiend plays its walk
+    // cycle; every other state - idle at combat range, hit, death - holds the
+    // still. The strip's frames are cut with the still's box, so the same
+    // drawW x drawH fits both.
+    const moving = this._state === 'walk' || this._state === 'retreat';
+    const strip = moving ? getFiendWalkStrip(this.fiendClassId) : null;
+    const frame = strip ? walkSourceRect(strip, walkFrameIndex(this._walkClock)) : null;
     if (faceRight) {
       ctx.translate(bx + drawW, by);
       ctx.scale(-1, 1);
-      ctx.drawImage(img, 0, 0, drawW, drawH);
+      if (frame) ctx.drawImage(strip, frame.sx, frame.sy, frame.sw, frame.sh, 0, 0, drawW, drawH);
+      else ctx.drawImage(img, 0, 0, drawW, drawH);
+    } else if (frame) {
+      ctx.drawImage(strip, frame.sx, frame.sy, frame.sw, frame.sh, bx, by, drawW, drawH);
     } else {
       ctx.drawImage(img, bx, by, drawW, drawH);
     }

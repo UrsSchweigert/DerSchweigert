@@ -6,9 +6,17 @@ import fs from 'node:fs';
 import { abilityOrnamentUrl, buildAssetManifest, buildAbilityIconUrls, buildCriticalAssetManifest, buildDeferredAssetManifest } from './asset-preload.js';
 
 describe('buildAssetManifest', () => {
-  it('returns 3 core sprites + 6 stage backgrounds + 60 fiend class sprites', () => {
+  it('returns 3 core sprites + 6 stage backgrounds + 60 fiend stills + 60 fiend walk strips', () => {
     const urls = buildAssetManifest();
-    assert.strictEqual(urls.length, 3 + 6 + 60);
+    assert.strictEqual(urls.length, 3 + 6 + 60 + 60);
+  });
+
+  it('lists every fiend walk strip after every fiend still', () => {
+    const urls = buildDeferredAssetManifest();
+    const lastStill = Math.max(...urls.map((u, i) => (u.includes('/fiend-sprites/') ? i : -1)));
+    const firstStrip = urls.findIndex((u) => u.includes('/fiend-walk/'));
+    assert.ok(firstStrip > lastStill, 'a strip is listed before a still');
+    assert.strictEqual(urls.filter((u) => u.includes('/fiend-walk/')).length, 60);
   });
 
   it('has no duplicate URLs', () => {

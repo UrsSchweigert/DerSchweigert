@@ -73,6 +73,11 @@ export function buildDeferredAssetManifest() {
   for (const cls of FIEND_CLASSES) {
     urls.push(new URL(cls.spritePath, import.meta.url).href);
   }
+  // The walk strips come after every still: a fiend can always be drawn from its
+  // still, so the strips are the part that may finish last.
+  for (const cls of FIEND_CLASSES) {
+    if (cls.walkPath) urls.push(new URL(cls.walkPath, import.meta.url).href);
+  }
   return urls;
 }
 

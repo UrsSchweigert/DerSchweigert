@@ -177,15 +177,34 @@ that argument would make every fiend arrive early. `difficulty.test.js` asserts 
 
 ### Fiend sprites and their ground shadow
 
-Fiends are single WebP files in `static/game/fiend-sprites/` (60 of them: young
-`set1-01.webp` … `set1-18.webp`, old `set2-…`, ancient `set3-…`, plus
-`dragon-1.webp` … `dragon-6.webp`), picked per level through
-`difficulty-classes.js`, which also carries the hand-calibrated
-`BOTTOM_PAD_RATIO` that puts each creature's feet on `GROUND_Y`
-(`calibrate.html` fits that; align the feet, not the shadow). The calibrator has
-a background-level selector (or `[` / `]`), which is what makes the check
+Every fiend has two files, built together by `scripts/build_fiend_walks.py`:
+
+- `static/game/fiend-sprites/<name>.webp`: the still. Used while the fiend stands
+  at combat range, is hit or dies, and as the fallback until its strip has loaded.
+- `static/game/fiend-walk/<name>.webp`: the walk cycle, `WALK_FRAMES` (8) equally
+  wide frames side by side. `Fiend._drawClassSprite` plays it while the fiend walks
+  in or retreats (`fiend-walk.js`: `walkFrameIndex`, 9 fps; mirrored on retreat).
+
+60 fiends: young `set1-01` … `set1-18`, old `set2-…`, ancient `set3-…`, plus
+`dragon-1` … `dragon-6`. Each is a different creature (names in `CLASS_NAMES` in
+`difficulty-classes.js`, which also picks the file per level and carries the
+`BOTTOM_PAD_RATIO` that puts each creature's feet on `GROUND_Y`; `calibrate.html`
+fits that - align the feet, not the shadow). The calibrator has a
+background-level selector (or `[` / `]`), which is what makes the check
 meaningful: the 60 level images do not share one floor line, so the feet have to
 be judged against the background the level actually ships with.
+
+The art is generated (a style-matched image per creature, then an 8-frame walk
+animated from it). `build_fiend_walks.py` takes the raw PNGs (`<name>_0.png` the
+still, `<name>_1..8.png` the frames) and crops the still and all 8 frames with one
+box per fiend, the union of what any of them draws. That is the only processing:
+frames are deliberately not re-aligned or retimed, because aligning the feet frame
+by frame made the walks look choppy. Because the still shares the strip's box, the
+sprite's aspect ratio - which sizes the fiend and its hit box - does not change
+when the walk starts. Re-run it with `--only <name> ...` to swap a single fiend.
+The strips are the bulk of the art payload (about 6.7 MB for the 60); they are
+listed after every still in `buildDeferredAssetManifest()`, so first paint never
+waits for them.
 
 The calibrator also moves the ground line itself, together with the hero and the
 fiend (`−` / `+`, or the “Ground line (this level)” buttons). That is how a level
@@ -209,8 +228,9 @@ shows how many levels are left, “Next untouched ▶” (`n`) jumps to the next
 and reloading returns to the level you were on. `Clear tuning` drops the local
 edits without touching the manifest; only `Generate + copy` changes what ships.
 
-- The art generator baked a hard-edged shadow ellipse into every one of those
-  sprites. `python3 sites/ffm/scripts/feather_fiend_shadows.py` removes it: it
+- The original art generator baked a hard-edged shadow ellipse into the sprites;
+  the current art has none (it is drawn on transparency), so the script below is
+  only needed for art that does. `python3 sites/ffm/scripts/feather_fiend_shadows.py` removes it: it
   looks for the tone that is common in the sprite's bottom band but absent on
   the creature, falls back to the sprite set's default shadow tone, then grows
   the removal along the dithered rim. A candidate is only accepted when the
