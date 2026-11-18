@@ -22,9 +22,10 @@
         "output_format": "png"
       },
       "prompt": "Backdrop layer for a layered paper-theatre story diorama. Keep exactly the hand-painted paper look, aged cardstock texture, palette and the blue-and-gold marble hall of the reference, flat front view, filling the entire image. Change it into the climb to the throne room: two winding marble staircases spiral up the left and right sides of the hall to a high gallery; along the gallery a row of arched niches, each holding an empty golden crown on a small blue cushion; tall arched windows at the back with no light behind them, a cracked marble floor with a long blue carpet across the lower 35%, no throne. No characters, text, frame, border or vignette; even neutral lighting.",
-      "raw": "sources/act-6/backdrop-gpt15.png",
+      "raw": "sources/act-6/backdrop-gpt15.png (not committed, kept offline)",
       "postprocessing": "Already 1536x1024 (the backdrop size): no crop or resize; tools/encode.py (WebP quality 80).",
-      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive"
+      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive",
+      "rawNote": "The raw render is not in the public repo; the owner keeps it offline. The candidate file name above identifies it."
     },
     {
       "id": "midground",

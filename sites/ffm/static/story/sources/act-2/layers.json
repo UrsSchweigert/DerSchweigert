@@ -20,8 +20,9 @@
         "output_format": "png"
       },
       "prompt": "Repaint this paper-theatre storybook illustration as a different place in exactly the same hand-painted paper-cutout style, cardstock texture and muted palette: a high mountain range at stormy dusk, layered torn-paper ridges of slate-blue and violet mountains, jagged grey cliffs, dark storm clouds with a rose and amber glow low on the horizon, a thin crooked mountain path climbing between the peaks, a tiny silhouette of a royal capital city with spires far away on the right horizon, calm dark rocky slope across the lower third. Remove the wheat fields, windmill and fence. No characters, no text.",
-      "raw": "sources/act-2/backdrop-kontext.png",
-      "postprocessing": "Upscaled 1248x832 -> 1536x1024 (same 3:2 aspect, Lanczos, no crop) to match the other backdrops; tools/encode.py (WebP quality 80)."
+      "raw": "sources/act-2/backdrop-kontext.png (not committed, kept offline)",
+      "postprocessing": "Upscaled 1248x832 -> 1536x1024 (same 3:2 aspect, Lanczos, no crop) to match the other backdrops; tools/encode.py (WebP quality 80).",
+      "rawNote": "The raw render is not in the public repo; the owner keeps it offline. The candidate file name above identifies it."
     },
     {
       "id": "midground",

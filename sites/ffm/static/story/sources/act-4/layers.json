@@ -23,9 +23,10 @@
         "output_format": "png"
       },
       "prompt": "Backdrop layer for a layered paper-theatre story diorama. Match exactly the hand-painted paper look, aged cardstock texture, visible fibres, brushwork and muted storybook palette of the references. New place: a vast cavern deep below the mountains where an ancient stone city lies swallowed by rock, filling the entire image, flat front view: a rough layered rock ceiling, pale shafts of dusty light falling from cracks above, distant carved stone towers, arches, a broken stone bridge and house fronts half-buried in the cave walls, soft grey-green, ochre and moss tones, calm dusty stone floor across the lower 35%. No characters, text, frame, border or vignette; even neutral lighting.",
-      "raw": "sources/act-4/backdrop-gpt15.png",
+      "raw": "sources/act-4/backdrop-gpt15.png (not committed, kept offline)",
       "postprocessing": "Already 1536x1024 (the backdrop size): no crop or resize; tools/encode.py (WebP quality 80).",
-      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive"
+      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive",
+      "rawNote": "The raw render is not in the public repo; the owner keeps it offline. The candidate file name above identifies it."
     },
     {
       "id": "midground",

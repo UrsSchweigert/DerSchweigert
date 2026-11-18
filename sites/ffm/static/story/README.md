@@ -44,7 +44,7 @@ were kept. What still does not match the cards:
 | `scenes/<id>/scene.json` | layers, motion, lighting, cards (source of truth) |
 | `scenes/<id>/*.webp` | final layers (backdrop opaque, others with alpha) |
 | `scenes/<id>/subtitles.{en,de}.vtt` | generated WebVTT copies of the cards |
-| `sources/<id>/` | art packet (`layers.json`: prompts, references, retouches) and raw renders |
+| `sources/<id>/` | art packet (`layers.json`: prompts, references, retouches) and raw renders of the first set; raws of the 2026-11-18 pass are kept offline (the packet says so) |
 | `references/` | approved hero reference sheet |
 | `tools/` | cutout, encoding, paper-grain, card timing, card measuring and subtitle scripts |
 | `ART-BIBLE.md` | consistency rules every layer is reviewed against |

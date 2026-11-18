@@ -11,7 +11,7 @@
       "approved": "2026-11-18 by the owner, from the story art preview",
       "references": [
         "sources/act-1/backdrop-gpt.png",
-        "sources/act-5/dragon-gpt15.png"
+        "sources/act-5/dragon-gpt15.png (not committed, kept offline)"
       ],
       "params": {
         "image_size": "1536x1024",
@@ -19,9 +19,10 @@
         "output_format": "png"
       },
       "prompt": "Backdrop layer for a layered paper-theatre story diorama. Match exactly the hand-painted paper look, aged cardstock texture, brushwork and palette of the first reference, flat front view, filling the entire image. The kingdom at sunrise after the dawn has returned: a golden sun just above the rolling slate-blue hills, a warm rose and gold sky with scissor-cut paper clouds, a calm river winding through green fields inside its banks, a straight pale road running across the land to a far small palace on the horizon; high in the sky, small, the blue ice dragon of the second reference circling with wings spread; calm green meadow across the lower 35%. No characters other than the small dragon, no text, frame, border or vignette.",
-      "raw": "sources/finish/dawn-gpt15.png",
+      "raw": "sources/finish/dawn-gpt15.png (not committed, kept offline)",
       "postprocessing": "Already 1536x1024 (the backdrop size): no crop or resize; tools/encode.py (WebP quality 80).",
-      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive"
+      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive",
+      "rawNote": "The raw render is not in the public repo; the owner keeps it offline. The candidate file name above identifies it."
     }
   ]
 }
