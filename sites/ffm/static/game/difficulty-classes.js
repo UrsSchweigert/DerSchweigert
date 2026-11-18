@@ -4,33 +4,40 @@
 // Naming note: state.difficulty already means pacing (easy/medium/hard). This is a
 // separate axis, referred to in code as "fiend class" to avoid a name collision.
 //
-// Mapping is fixed by design: class N (1-18) = grid position N (row-major) in
-// fiend_sprites_1.png ("set1"); class N+18 (19-36) = the SAME grid position in
-// fiend_sprites_2.png ("set2"). Score is assigned purely by class index - this is a
-// positional ladder, not a curated one; sheet 2 (19-36) is always the higher band.
+// Mapping is fixed by design: class N (1-18) = grid position N in sprite set 1,
+// class N+18 (19-36) = the same grid position in set 2, N+36 in set 3, and 55-60
+// are the dragons. Score is assigned purely by class index - a positional ladder,
+// not a curated one; each later set is always the higher band. Every class has its
+// own creature (see CLASS_NAMES); the grid position only fixes the file name and
+// the score rung.
 
-const CREATURE_NAMES = [
-  'Imp with Trident',
-  'Blue-Flame Skeleton Mage',
-  'Moss Golem',
-  'Beholder',
-  'Baby Dragon',
-  'Lava Golem',
-  'Spider',
-  'Skull-Slime',
-  'Goblin Swordsman',
-  'Wraith',
-  'Minotaur',
-  'Flying Imp',
-  'Skeleton Warrior',
-  'Kraken',
-  'Orc Warlord',
-  'Phoenix',
-  'Ice Golem',
-  'Reaper',
+// One name per class, in id order: 18 young (set 1), 18 old (set 2), 18 ancient
+// (set 3). The art is redrawn per stage - a slot holds a different creature in
+// each set (the old "same creature, three ages" ladder is gone), so the names
+// follow the sprite, like the dragon variants below.
+const CLASS_NAMES = [
+  // young (set 1)
+  'Pitchfork Imp', 'Necromancer', 'Sandstone Golem', 'Winged Evil Eye', 'Amethyst Wyvern',
+  'Fire Elemental', 'Tarantula', 'King Slime', 'Goblin Archer', 'Banshee',
+  'Werewolf', 'Giant Vampire Bat', 'Skeleton Pirate', 'Armored Crab', 'Orc Warlord',
+  'Thunderbird', 'Frost Knight', 'Grim Reaper',
+  // old (set 2)
+  'Brimstone Demon', 'Mummy Sorcerer', 'Treant', 'Jellyfish Horror', 'Desert Dragon',
+  'Obsidian Knight', 'Frost Spider', 'Acid Slime', 'Goblin Shaman', 'Pirate Ghost',
+  'War Boar', 'Harpy', 'Samurai Skeleton', 'Anglerfish', 'Swamp Troll',
+  'Carrion Vulture', 'Stone Tortoise', 'Plague Doctor',
+  // ancient (set 3)
+  'Jester Demon', 'Frost Witch', 'Steam Golem', 'Flaming Skull', 'Sea Dragon',
+  'Storm Elemental', 'Black Scorpion', 'Poison Slime', 'Goblin Bomber', 'Ghost Knight',
+  'Yeti', 'Gargoyle', 'Skeleton Gladiator', 'Black Octopus', 'Cyclops',
+  'Ice Owl', 'Mushroom Brute', 'Witch Doctor',
 ];
 
 const SCORE_STEP = 50;
+
+// Frames in every walk strip (fiend-walk/*.webp): the strip is that many equally
+// wide frames side by side, in playing order.
+export const WALK_FRAMES = 8;
 
 // Fraction of each fiend sprite's drawn height to shift the sprite DOWN by, so
 // its true ground-contact point (not just its lowest opaque pixel) lands on
@@ -40,20 +47,13 @@ const SCORE_STEP = 50;
 // what the game renders.
 //
 // One entry per class, in id order: 18 young (set 1), 18 old (set 2), 18
-// ancient (set 3), then the six dragon variants (ids 55-60). The ancient set
-// starts from the old set's values because those sprites were fitted to the
-// same heights, and the dragon variants start from their stage's dragon - all
-// of it needs a calibration pass after any sprite art changes.
-const BOTTOM_PAD_RATIO = [
-  // young (set 1)
-  0.04, 0.035, 0.045, 0.0, 0.02, 0.03, 0.1, 0.095, 0.06, 0.0, 0.06, 0.05, 0.045, 0.02, 0.055, 0.0, 0.015, 0.01,
-  // old (set 2)
-  0.05, 0.04, 0.035, 0.015, 0.06, 0.02, 0.06, 0.05, 0.02, 0.0, 0.04, 0.11, 0.0, 0.06, 0.06, 0.015, 0.04, 0.04,
-  // ancient (set 3)
-  0.05, 0.04, 0.035, 0.035, 0.04, 0.04, 0.08, 0.09, 0.06, 0.08, 0.04, 0.15, 0.08, 0.08, 0.04, 0.055, 0.02, 0.04,
-  // dragon variants: young, young, old, old, ancient, ancient
-  0.02, 0.02, 0.06, 0.06, 0.06, 0.06,
-];
+// ancient (set 3), then the six dragons (ids 55-60). The redrawn sprites are
+// cropped tight to the creature (build_fiend_walks.py), so there is no padding
+// to compensate for and every entry starts at 0 - lowest opaque pixel on the
+// ground line. The old per-creature values belonged to the old, padded art and
+// would now sink the fiends below the floor; a calibration pass can still add a
+// small positive value for a creature whose feet sit above its lowest pixel.
+const BOTTOM_PAD_RATIO = new Array(60).fill(0);
 
 // Three art stages per creature: the same grid position in sprite sets 1-3.
 const STAGES = [
@@ -62,33 +62,35 @@ const STAGES = [
   { set: 3, stage: 'ancient' },
 ];
 
-// Levels 55-60 get the dragon line: three stages, each in two colour shifts.
-// dragon-1/3/5 rotate the blue dragon to a molten red, dragon-2/4/6 to a
-// verdant green, so the names follow the sprite rather than the download order.
+// Levels 55-60 get the dragon line: six different dragons, one per sprite file.
+// The names follow the sprite rather than the download order.
 const DRAGON_VARIANTS = [
-  { name: 'Young Dragon (Ember)', sprite: 'dragon-1' },
-  { name: 'Young Dragon (Verdant)', sprite: 'dragon-2' },
-  { name: 'Old Dragon (Ember)', sprite: 'dragon-3' },
-  { name: 'Old Dragon (Verdant)', sprite: 'dragon-4' },
-  { name: 'Ancient Dragon (Ember)', sprite: 'dragon-5' },
-  { name: 'Ancient Dragon (Verdant)', sprite: 'dragon-6' },
+  { name: 'Ember Dragon', sprite: 'dragon-1' },
+  { name: 'Venom Dragon', sprite: 'dragon-2' },
+  { name: 'Thunder Dragon', sprite: 'dragon-3' },
+  { name: 'Shadow Dragon', sprite: 'dragon-4' },
+  { name: 'Golden Dragon', sprite: 'dragon-5' },
+  { name: 'Bone Dragon', sprite: 'dragon-6' },
 ];
 
-const STAGE_CLASS_COUNT = STAGES.length * CREATURE_NAMES.length;   // 54
+const STAGE_CLASS_COUNT = STAGES.length * 18;   // 54
 export const FIEND_CLASS_COUNT = STAGE_CLASS_COUNT + DRAGON_VARIANTS.length;   // 60
 
 function buildFiendClasses() {
   const classes = [];
   for (const { set, stage } of STAGES) {
-    for (let gridIndex = 1; gridIndex <= CREATURE_NAMES.length; gridIndex++) {
-      const id = (set - 1) * CREATURE_NAMES.length + gridIndex;
+    for (let gridIndex = 1; gridIndex <= 18; gridIndex++) {
+      const id = (set - 1) * 18 + gridIndex;
+      const file = `set${set}-${String(gridIndex).padStart(2, '0')}`;
       classes.push({
         id,
-        name: CREATURE_NAMES[gridIndex - 1],
+        name: CLASS_NAMES[id - 1],
         stage,
         spriteSet: set,
         gridIndex,
-        spritePath: `./fiend-sprites/set${set}-${String(gridIndex).padStart(2, '0')}.webp`,
+        spritePath: `./fiend-sprites/${file}.webp`,
+        walkPath: `./fiend-walk/${file}.webp`,
+        walkFrames: WALK_FRAMES,
         scoreValue: SCORE_STEP * id,
         bottomPadRatio: BOTTOM_PAD_RATIO[id - 1],
       });
@@ -101,8 +103,10 @@ function buildFiendClasses() {
       name: variant.name,
       stage: 'dragon',
       spriteSet: STAGES.length + 1,
-      gridIndex: 5,          // the dragon slot the variant derives from
+      gridIndex: 5,          // the dragon slot (the grid position the dragon line fills)
       spritePath: `./fiend-sprites/${variant.sprite}.webp`,
+      walkPath: `./fiend-walk/${variant.sprite}.webp`,
+      walkFrames: WALK_FRAMES,
       scoreValue: SCORE_STEP * id,
       bottomPadRatio: BOTTOM_PAD_RATIO[id - 1],
     });
