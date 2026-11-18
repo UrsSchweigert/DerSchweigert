@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cueAt, gradientStops, landscapeBox,
+  COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cueAt, gradientStops, inPhoneFrame, landscapeBox,
   createDioramaPlayer, narrationLocale, parseCssColor, sampleMotion, stageTransform, pickText, voicedCues,
 } from '../player/diorama-player.js';
 import { LOCALES, toVtt } from '../tools/build-subtitles.mjs';
@@ -260,10 +260,10 @@ describe('player helpers', () => {
   });
 
   it('turns a portrait screen into a landscape box instead of letterboxing', () => {
-    assert.deepEqual(landscapeBox(390, 844), { turned: true, width: 844, height: 390 });
-    assert.deepEqual(landscapeBox(844, 390), { turned: false, width: 844, height: 390 });
-    assert.deepEqual(landscapeBox(1024, 1024), { turned: false, width: 1024, height: 1024 });
-    assert.deepEqual(landscapeBox(0, 0), { turned: false, width: 0, height: 0 });
+    assert.deepEqual(landscapeBox(390, 844), { turned: true, letterboxed: false, width: 844, height: 390 });
+    assert.deepEqual(landscapeBox(844, 390), { turned: false, letterboxed: false, width: 844, height: 390 });
+    assert.deepEqual(landscapeBox(1024, 1024), { turned: false, letterboxed: false, width: 1024, height: 1024 });
+    assert.deepEqual(landscapeBox(0, 0), { turned: false, letterboxed: false, width: 0, height: 0 });
 
     // The turned box is always landscape, so the stage covers it edge to edge.
     for (const [w, h] of [[390, 844], [320, 700], [820, 1180]]) {
@@ -297,7 +297,35 @@ describe('player helpers', () => {
       'screen-height media queries cannot see a turned box');
     const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
     assert.match(player, /root\.classList\.toggle\('is-turned', box\.turned\)/);
-    assert.match(player, /root\.classList\.toggle\('is-compact', box\.height < COMPACT_BOX_HEIGHT\)/);
+    assert.match(player, /root\.classList\.toggle\('is-compact', !box\.letterboxed && box\.height < COMPACT_BOX_HEIGHT\)/);
+  });
+
+  // Production bug after #589: inside the web's desktop phone frame the intro was turned 90°
+  // on a monitor nobody can turn. There the portrait screen letterboxes the scene instead;
+  // a real portrait phone still turns (the intended phone behaviour above).
+  it('letterboxes instead of turning inside the desktop phone frame', () => {
+    assert.deepEqual(landscapeBox(390, 844, { turn: false }), { turned: false, letterboxed: true, width: 390, height: 219 });
+    assert.deepEqual(landscapeBox(844, 390, { turn: false }), landscapeBox(844, 390), 'a landscape screen is unchanged');
+    const band = landscapeBox(390, 844, { turn: false });
+    const { scale, x, y } = stageTransform(band.width, band.height);
+    assert.ok(Math.abs(STAGE_W * scale - 390) < 1 && Math.abs(y) < 1 && Math.abs(x) < 1, 'the 16:9 band shows the whole stage');
+    assert.equal(inPhoneFrame({ getAttribute: (name) => (name === 'data-phone-frame' ? 'screen' : null) }), true);
+    assert.equal(inPhoneFrame({ getAttribute: () => 'host' }), false);
+    assert.equal(inPhoneFrame({ getAttribute: () => null }), false, 'a phone has no frame');
+    assert.equal(inPhoneFrame(undefined), false);
+    const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
+    assert.match(player, /\{ turn: !inPhoneFrame\(doc\) \}/);
+    assert.match(player, /root\.classList\.toggle\('is-letterboxed', box\.letterboxed\)/);
+    const css = readFileSync(join(storyDir, 'player', 'diorama-player.css'), 'utf8');
+    const canvas = css.match(/\.diorama\.is-letterboxed \.diorama__canvas \{([^}]*)\}/)?.[1];
+    assert.ok(canvas, 'the letterboxed band rule is missing');
+    assert.match(canvas, /top: calc\(50% - var\(--diorama-band-height/);
+    assert.doesNotMatch(canvas, /transform|rotate/, 'the band is never turned');
+    assert.match(css, /\.diorama\.is-letterboxed \.diorama__subtitle \{[^}]*top: calc\(50% \+ var\(--diorama-band-height/);
+    // The frame marks the page it holds with this attribute (game/phone-frame.js).
+    const frame = readFileSync(join(storyDir, '..', 'game', 'phone-frame.js'), 'utf8');
+    assert.match(frame, /setAttribute\('data-phone-frame', mode\)/);
+    assert.match(frame, /return 'screen';/);
   });
 
   it('interpolates motion between keyframes and holds the ends', () => {
