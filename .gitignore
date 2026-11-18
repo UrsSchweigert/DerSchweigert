@@ -42,6 +42,7 @@ sites/ffm/store-art/google-play/
 sites/ffm/store-art/press/
 sites/ffm/store-art/**/*.preview.jpg
 sites/ffm/store-art/handoff/
+sites/ffm/store-art/explainers/
 
 # The marketing pack is generated from the app bundle by marketing/tools/build.py. It is
 # ~56 MB of screenshots in two languages, so only the recipe (README, copy/, tools/) is tracked.
