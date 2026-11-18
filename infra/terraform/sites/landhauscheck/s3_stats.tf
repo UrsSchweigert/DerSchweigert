@@ -37,3 +37,16 @@ removed {
     destroy = false
   }
 }
+
+# The stats PIN guard function could not be deleted in the same apply that
+# detaches it from the distribution: CloudFront refused with 409
+# FunctionInUse, and the half-finished apply left the Lambda without its
+# API Gateway invoke permission (LHC returned 500 for about seven minutes
+# on 2026-11-18). Forget it here so the apply can finish; the function is
+# deleted by hand once the distribution no longer references it.
+removed {
+  from = aws_cloudfront_function.stats_pin_guard
+  lifecycle {
+    destroy = false
+  }
+}
