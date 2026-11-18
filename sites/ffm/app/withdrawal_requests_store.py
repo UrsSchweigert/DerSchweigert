@@ -18,7 +18,7 @@ app/billing_store.py (via `_users()`), under its own
 
 Retention: deliberately NOT wired into app/retention_admin.py. Unlike
 cancel_requests (whose 3-years-after-closure purge policy is explicitly
-approved, see README.md "Data retention"), no retention period has been
+approved, see docs/behavior.md "Data retention"), no retention period has been
 separately approved for withdrawal declarations -- these are evidence of a
 statutory consumer-protection declaration, not merely an operational
 support ticket, and silently reusing cancel_requests' 3-year figure here

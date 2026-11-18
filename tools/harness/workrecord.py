@@ -6,7 +6,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
-from . import approval, plans
+from . import approval
 from .github import Client, GitHubError, RateLimited, with_retries
 from .store import Store
 

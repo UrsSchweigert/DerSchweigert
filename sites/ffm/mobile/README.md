@@ -170,7 +170,7 @@ Shapes remains available.
 Descriptive practice badges are stored per family player with atomic, retryable
 session receipts. They do not certify mastery, create currency or alter campaign
 history. See [BACKUP.md](BACKUP.md) for their persistence contract and
-[the system documentation](../README.md#experimental-practice-and-score-comparability)
+[the system documentation](../docs/behavior.md#experimental-practice-and-score-comparability)
 for the required score-version boundary before any trial is promoted.
 
 Optional untimed worked examples introduce subtraction, multiplication and division

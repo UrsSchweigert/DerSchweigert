@@ -7,7 +7,6 @@ changing that route's own behavior.
 """
 
 import os
-import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
@@ -856,7 +855,6 @@ def test_process_binds_none_snapshot_when_no_subscription_at_review_time(client,
     def crash_finalize(*a, **kw):
         raise RuntimeError('simulated crash before durable finalize write')
 
-    monkeypatch_target = 'sites.ffm.app.billing_admin.cancel_store.finalize'
     import sites.ffm.app.billing_admin as billing_admin_module
     billing_admin_module.cancel_store.finalize = crash_finalize
     try:

@@ -87,7 +87,7 @@ check_arn_format "stripe_webhook_secret_arn" "$STRIPE_WEBHOOK_SECRET_ARN"
 # encode test-vs-live mode in their format at all, and must never be scanned
 # for substrings — a real LIVE id can by chance contain "test"/"dev"), the
 # Secrets Manager secret *names* for Stripe credentials are this repo's own
-# choice, documented in sites/ffm/README.md: `ffm/stripe-secret-key` and
+# choice, documented in sites/ffm/docs/file-map.md: `ffm/stripe-secret-key` and
 # `ffm/stripe-webhook-secret`. AWS appends a random 6-character suffix to the
 # ARN unless the secret was created with an explicit full name, so constrain
 # the check to that fixed, documented prefix before the random suffix instead
@@ -105,7 +105,7 @@ check_known_secret_path() {
   fi
   local secret_path="${arn#*:secret:}"
   if ! [[ "$secret_path" =~ ^${expected_prefix}(-[A-Za-z0-9]{6})?$ ]]; then
-    fail "$name's secret name does not match this repo's documented production path ('$expected_prefix', see sites/ffm/README.md); confirm it points at the intended secret before wiring it in."
+    fail "$name's secret name does not match this repo's documented production path ('$expected_prefix', see sites/ffm/docs/file-map.md); confirm it points at the intended secret before wiring it in."
   fi
 }
 check_known_secret_path "stripe_secret_key_arn" "$STRIPE_SECRET_KEY_ARN" "ffm/stripe-secret-key"
@@ -154,7 +154,7 @@ PY
 # billing_enabled=true alone (sales and access control both off) must keep
 # working even if billing_terms_approved is false or gets flipped back to
 # false later — that is the core webhook-processing/cancellation path relied
-# on by the shutdown and incident-recovery runbooks (see sites/ffm/README.md
+# on by the shutdown and incident-recovery runbooks (see sites/ffm/docs/file-map.md
 # "Sales-off rollback") for already-existing subscriptions, and it must not
 # be blocked by a terms re-review. Only *opening new sales* requires the full
 # approved chain.

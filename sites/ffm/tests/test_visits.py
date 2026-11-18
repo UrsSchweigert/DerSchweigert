@@ -2,8 +2,7 @@ import os
 import pytest
 import boto3
 from moto import mock_aws
-from unittest.mock import patch
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 os.environ['SECRET_KEY'] = 'test-secret-key-for-testing-only'
 os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
@@ -396,7 +395,6 @@ def test_admin_visits_token_not_configured_returns_403(app):
 def test_daily_salt_consistent_within_day():
     """Verify daily_salt is computed consistently for the same UTC date."""
     from sites.ffm.app import visits
-    from datetime import datetime, timezone
     
     os.environ['SECRET_KEY'] = 'test-key-123'
     
