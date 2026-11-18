@@ -119,7 +119,9 @@ test('the manual describes the difficulty curve, Campaign II and the Players pag
     /25 extra points/,
     /subtraction, multiplication and division at levels 10, 20 and 30/,
     /40 levels in eight acts of five/,
-    /cleared level 40 of Campaign I/,
+    /does not depend on Campaign I/,
+    /without clearing any level first and without the full unlock/,
+    /side by side, each with its own buy button, and one Restore purchase for both/,
     /Arithmetic or Genius/,
     /Campaign II is a second one-time purchase/,
     /with the full unlock, add more players/,
@@ -135,7 +137,9 @@ test('the manual describes the difficulty curve, Campaign II and the Players pag
     /25 Extrapunkte/,
     /Division in Level 10, 20 und 30 ein/,
     /40 Level in acht Akten zu je fünf/,
-    /Level 40 von Abenteuer I geschafft/,
+    /hängt nicht von Abenteuer I ab/,
+    /ohne vorher ein Level zu schaffen und ohne Vollversion/,
+    /jedes mit eigenem Kaufknopf, und ein „Kauf wiederherstellen“ für beide/,
     /Rechnen oder Genie/,
     /Abenteuer II ist ein zweiter, eigener Einmalkauf/,
     /mit der Vollversion weitere Spieler hinzufügen/,
@@ -145,7 +149,9 @@ test('the manual describes the difficulty curve, Campaign II and the Players pag
   ]) {
     assert.match(german, pattern, `manual.de.html states ${pattern}`);
   }
-  for (const stale of [/levels 5, 25 and 34/, /Level 5, 25 und 34/, /arithmetic of level 10 before/, /Rechenart von Level 10, bevor/]) {
+  for (const stale of [/levels 5, 25 and 34/, /Level 5, 25 und 34/, /arithmetic of level 10 before/, /Rechenart von Level 10, bevor/,
+    // Campaign II has no level-40 gate any more (owner decision after #586).
+    /cleared level 40/, /Level 40 von Abenteuer I geschafft/]) {
     assert.doesNotMatch(english + german, stale, `the manual no longer states ${stale}`);
   }
 });

@@ -102,13 +102,15 @@ bundle (`mobile/www`, Capacitor Preferences shim, Chromium at 414×896 with a 3�
 
 | File | Shows |
 | --- | --- |
-| `review/campaign2-players-{en,de}-1242x2688.jpg` | Where it is offered: the Players page, campaign switch "Campaign I · Arithmetic · Unlock Genius" above the purchase panel |
+| `review/campaign2-players-{en,de}-1242x2688.jpg` | Where it is offered: the Players page of a fresh install, with the campaign switch ("Campaign I · Arithmetic · Unlock Genius") and the purchase panel listing the full unlock (Campaign I) and Campaign II side by side, each with its own buy button, and one Restore purchase for both |
 | `review/campaign2-paywall-{en,de}-1242x2688.jpg` | What it unlocks: the "Unlock Campaign II" sheet that a tap on the switch opens |
 
-The captured install owns the full unlock and has cleared level 40 (that reveals the
-switch), but not Campaign II. The fake store reports no price, so the buy button reads
-"Buy Campaign II"; on a device it shows the store's localised price. Recapture after any
-change to the Players page or the paywall with `tools/capture-review.py`.
+The captured install is fresh: no level cleared and nothing bought. Campaign II is
+independent of Campaign I, so it is offered from the first launch, with no level to beat
+and no need for the full unlock. The fake store reports no price, so the buy buttons read
+"Buy full unlock" and "Buy Campaign II"; on a device they show the store's localised
+prices. Recapture after any change to the Players page or the paywall with
+`tools/capture-review.py`.
 
 ## Provenance
 

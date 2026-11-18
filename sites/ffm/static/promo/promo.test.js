@@ -732,4 +732,11 @@ test('promo copy uses the game\'s own names and current facts', () => {
   assert.doesNotMatch(all, /Drache als Boss|dragon as the boss|am Ende des Feldzugs/, 'the dragon is a combo ability, not a boss');
   assert.doesNotMatch(all, /Die Apps erscheinen später|apps will arrive in the stores later/,
     'the iPhone app is already live');
+  // Campaign II is independent of Campaign I (owner decision after #586): no level-40 gate,
+  // no full unlock needed in the app, and the web switch is in the profile.
+  assert.doesNotMatch(DICTIONARY['faq.a8'].de + DICTIONARY['faq.a8'].en, /Level 40|level 40|Startbildschirm|title screen/);
+  assert.match(DICTIONARY['faq.a8'].en, /does not need the full unlock/);
+  assert.match(DICTIONARY['faq.a8'].de, /die Vollversion nicht voraussetzt/);
+  assert.match(DICTIONARY['faq.a8'].en, /in your profile on the web/);
+  assert.match(DICTIONARY['prices.compare.r10app'].en, /no full unlock needed/);
 });

@@ -278,7 +278,7 @@ export const DICTIONARY = {
   'prices.compare.r9app': { de: 'Nein, in der App ausgeblendet', en: 'No, hidden in the app' },
   'prices.compare.row10': { de: 'Abenteuer II: Genie', en: 'Campaign II: Genius' },
   'prices.compare.r10web': { de: 'Ja, im Abo enthalten', en: 'Yes, included in the subscription' },
-  'prices.compare.r10app': { de: 'Eigener Einmalkauf', en: 'Separate one-time purchase' },
+  'prices.compare.r10app': { de: 'Eigener Einmalkauf, auch ohne Vollversion', en: 'Separate one-time purchase, no full unlock needed' },
   'prices.compare.row8': { de: 'Kündigung', en: 'Cancellation' },
   'prices.compare.r8web': { de: 'Jederzeit im Konto', en: 'Anytime in your account' },
   'prices.compare.r8app': { de: 'Nicht nötig – kein Abo', en: 'Not needed – no subscription' },
@@ -349,8 +349,8 @@ export const DICTIONARY = {
   'faq.q7': { de: 'Brauchen Kinder in der App ein Konto?', en: 'Do kids need an account in the app?' },
   'faq.q8': { de: 'Was ist Abenteuer II: Genie?', en: 'What is Campaign II: Genius?' },
   'faq.a8': {
-    de: 'Das zweite Abenteuer nach Level 40: 40 Level mit Brüchen, Potenzen, Wurzeln und Logarithmen, mit vier Antworten pro Aufgabe und mehr Zeit. Im Web-Abo ist es enthalten, in der App ist es ein eigener Einmalkauf. Gewechselt wird auf der Spieler-Seite der App, im Web auf dem Startbildschirm.',
-    en: 'The second campaign after level 40: 40 levels of fractions, powers, roots and logarithms, with four answers per question and more time. It is included in the web subscription and a separate one-time purchase in the app. You switch campaigns on the app\'s Players page, or on the title screen on the web.',
+    de: 'Das zweite Abenteuer: 40 Level mit Brüchen, Potenzen, Wurzeln und Logarithmen, mit vier Antworten pro Aufgabe und mehr Zeit. Es hängt nicht vom ersten ab und ist sofort spielbar, ohne vorher ein Level zu schaffen. Im Web-Abo ist es enthalten; in der App ist es ein eigener Einmalkauf, der die Vollversion nicht voraussetzt. Gewechselt wird auf der Spieler-Seite der App, im Web im Profil.',
+    en: 'The second campaign: 40 levels of fractions, powers, roots and logarithms, with four answers per question and more time. It does not depend on the first one and can be played straight away, with no level to clear first. It is included in the web subscription; in the app it is a separate one-time purchase that does not need the full unlock. You switch campaigns on the app\'s Players page, or in your profile on the web.',
   },
   'faq.a7': { de: 'Nein. In der App legst du lokale Profile an – ohne E-Mail-Adresse und ohne Passwort.', en: 'No. In the app you create local profiles – no email address, no password.' },
 
