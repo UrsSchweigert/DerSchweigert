@@ -10,6 +10,9 @@ The tests cover:
   - _list_matching_paths helper (mocked GitHub response)
   - _open_deletion_pr helper (mocked GitHub calls)
 
+  - The pending-contribution cap (overall and per location) and its fail-closed path
+  - The review script posting a COMMENT review and never merging
+
 GitHub PR creation is not exercised in unit tests — that requires a live PAT
 and would create real branches. It is covered by manual smoke testing.
 """
@@ -211,6 +214,7 @@ def test_contribute_valid_ics_with_token_creates_pr():
 
     with (
         patch("app.api.routes.waste_contribute.get_settings", mock_get_settings),
+        patch("app.api.routes.waste_contribute._pending_contribution_branches", return_value=[]),
         patch("app.api.routes.waste_contribute._list_matching_paths", return_value=[]),
         patch(
             "app.api.routes.waste_contribute._open_pr",
@@ -245,6 +249,7 @@ def test_contribute_existing_file_returns_pending_update():
 
     with (
         patch("app.api.routes.waste_contribute.get_settings", mock_get_settings),
+        patch("app.api.routes.waste_contribute._pending_contribution_branches", return_value=[]),
         patch("app.api.routes.waste_contribute._list_matching_paths", return_value=existing),
         patch(
             "app.api.routes.waste_contribute._open_pr",
@@ -353,3 +358,146 @@ def test_open_deletion_pr_creates_pr_if_branch_missing():
             47.1234, 11.5678,
         )
     assert result == "https://github.com/owner/repo/pull/42"
+
+
+# ── Pending-contribution cap ─────────────────────────────────────────────────
+
+
+def _token_settings():
+    from app.core.config import Settings
+
+    class FakeSettings(Settings):
+        github_token: str = "ghp_fake_token_for_testing"
+        github_repo: str = "owner/repo"
+
+    return FakeSettings()
+
+
+def _post_contribution(pending=None, pending_error=None, open_pr=None):
+    target = "app.api.routes.waste_contribute._pending_contribution_branches"
+    pending_patch = (
+        patch(target, side_effect=pending_error)
+        if pending_error
+        else patch(target, return_value=pending or [])
+    )
+    pr_url = "https://github.com/owner/repo/pull/1"
+    open_pr_patch = patch(
+        "app.api.routes.waste_contribute._open_pr",
+        **({"side_effect": open_pr} if isinstance(open_pr, Exception)
+           else {"return_value": pr_url}),
+    )
+    with (
+        patch("app.api.routes.waste_contribute.get_settings", _token_settings),
+        pending_patch,
+        patch("app.api.routes.waste_contribute._list_matching_paths", return_value=[]),
+        open_pr_patch as opened,
+    ):
+        r = client.post(
+            "/api/v1/waste/contribute?lat=47.8894&lng=11.4967",
+            files={"file": ("calendar.ics", io.BytesIO(_MINIMAL_ICS.encode()), "text/calendar")},
+        )
+    return r, opened
+
+
+def test_contribute_refuses_when_too_many_are_pending():
+    from app.api.routes.waste_contribute import _MAX_PENDING_CONTRIBUTIONS
+
+    pending = [f"waste/contrib-1.{i:04d}_2.0000-{i}" for i in range(_MAX_PENDING_CONTRIBUTIONS)]
+    r, opened = _post_contribution(pending=pending)
+    assert r.status_code == 429
+    opened.assert_not_called()
+
+
+def test_contribute_refuses_a_second_pending_upload_for_the_same_location():
+    r, opened = _post_contribution(pending=["waste/update-47.8894_11.4967-1700000000"])
+    assert r.status_code == 409
+    opened.assert_not_called()
+
+
+def test_contribute_fails_closed_when_pending_prs_cannot_be_counted():
+    r, opened = _post_contribution(pending_error=RuntimeError("GitHub 500: boom"))
+    assert r.status_code == 503
+    opened.assert_not_called()
+
+
+def test_contribute_does_not_leak_github_error_text():
+    r, _ = _post_contribution(open_pr=RuntimeError("GitHub 422: secret-ish detail"))
+    assert r.status_code == 502
+    assert "secret-ish" not in r.text
+    assert "GitHub 422" not in r.text
+
+
+def test_pending_contribution_branches_counts_only_contribution_prs():
+    from app.api.routes.waste_contribute import _pending_contribution_branches
+
+    pulls = [
+        {"head": {"ref": "waste/contrib-47.8894_11.4967-1"}},
+        {"head": {"ref": "waste/update-48.0000_11.0000-2"}},
+        {"head": {"ref": "waste/expire-2025_Old"}},
+        {"head": {"ref": "feat/something"}},
+    ]
+    with patch("app.api.routes.waste_contribute._gh", return_value=pulls):
+        assert _pending_contribution_branches("t", "owner/repo") == [
+            "waste/contrib-47.8894_11.4967-1",
+            "waste/update-48.0000_11.0000-2",
+        ]
+
+
+def test_pending_contribution_branches_raises_on_unexpected_payload():
+    from app.api.routes.waste_contribute import _pending_contribution_branches
+
+    with patch("app.api.routes.waste_contribute._gh", return_value={"message": "Bad credentials"}):
+        with pytest.raises(RuntimeError):
+            _pending_contribution_branches("t", "owner/repo")
+
+
+# ── Review script never merges ───────────────────────────────────────────────
+
+
+def _load_review_script():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "review_waste_pr.py"
+    spec = importlib.util.spec_from_file_location("review_waste_pr", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_review_passing_calendar_is_a_comment_not_an_approval():
+    review = _load_review_script()
+    body, event = review._build_review(
+        [{"path": "x.ics", "issues": [], "normalizations": [], "future_events": 3}], [], []
+    )
+    assert event == "COMMENT"
+    assert "merge by hand" in body
+
+
+def test_review_script_never_calls_the_merge_api(monkeypatch, tmp_path):
+    review = _load_review_script()
+    calls = []
+
+    def fake_gh(method, path, token, body=None):
+        calls.append((method, path))
+        return {}
+
+    ics = tmp_path / "2026_Test_47.8894_11.4967.ics"
+    geo = "CALSCALE:GREGORIAN\nX-WR-GEO-LAT:47.8894\nX-WR-GEO-LNG:11.4967\n"
+    ics.write_text(_MINIMAL_ICS.replace("CALSCALE:GREGORIAN\n", geo))
+
+    def fake_git(*args):
+        if args[0] == "diff":
+            return f"A\t{ics}"
+        return ""
+
+    monkeypatch.setattr(review, "_gh", fake_gh)
+    monkeypatch.setattr(review, "_git", fake_git)
+    monkeypatch.setattr(review, "_find_nearby_files", lambda *a, **k: [])
+    env = {"GH_TOKEN": "t", "REPO": "owner/repo", "PR_NUMBER": "7", "HEAD_REF": "waste/contrib-x"}
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    assert review.main() == 0
+    assert ("POST", "/repos/owner/repo/pulls/7/reviews") in calls
+    assert not any(path.endswith("/merge") or method == "DELETE" for method, path in calls)
