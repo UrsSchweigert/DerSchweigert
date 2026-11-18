@@ -25,7 +25,7 @@ describe("API origin", () => {
     for (const path of [
       "/health", "/api/v1/weather/forecast", "/api/v1/waste/upcoming",
       "/api/v1/transit/nearby", "/api/v1/transit/rail-nearby",
-      "/api/v1/transit/poi-nearby", "/api/v1/logs",
+      "/api/v1/transit/poi-nearby",
       "/api/v1/notifications/manifest", "/api/v1/waste/calendar.ics",
     ]) {
       expect(new URL(`${base}${path}`).origin).toBe(origin);

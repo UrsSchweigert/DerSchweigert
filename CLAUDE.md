@@ -70,6 +70,6 @@ Read the surrounding code and tests before changing these:
   or `X-Forwarded-For`; the client controls both on this API.
 - `sites/landhauscheck/app/api/routes/waste_contribute.py` and `scripts/review_waste_pr.py`: anonymous uploads become
   PRs on this repository. The review bot must never merge.
-- Anything rendered with `innerHTML`: escape API-derived values (`escHtml` in ffm, `esc` in landhauscheck `stats.html`).
+- Anything rendered with `innerHTML`: escape API-derived values (`escHtml` in ffm).
 - `.github/workflows/`, `tools/harness/`, `docs/harness/`: protected paths for harness workers (see
   `tools/harness/broker.py`, `ALWAYS_PROTECTED`).

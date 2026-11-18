@@ -527,7 +527,7 @@ cmd_aws_frontend() {
   # index.html and continue loading the old JS bundle even after a new deploy.
   # LESSON: Only stats.html was no-cached before; index.html was missing — browsers
   # kept loading old bundles and saw stale geocode/API behaviour.
-  for html_file in index.html stats.html impressum.html datenschutz.html stats-login.html release-notes.html help.html; do
+  for html_file in index.html impressum.html datenschutz.html release-notes.html help.html; do
     local_path="$SITE_ROOT/frontend/dist/${html_file}"
     if [[ -f "$local_path" ]]; then
       aws s3 cp "$local_path" \

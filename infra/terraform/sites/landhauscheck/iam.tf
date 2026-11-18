@@ -29,36 +29,6 @@ resource "aws_iam_role_policy_attachment" "lambda_ecr_read" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-# S3 read/write for stats persistence
-resource "aws_iam_role_policy" "lambda_stats_s3" {
-  name = "${local.name}-lambda-stats-s3"
-  role = aws_iam_role.lambda_exec.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:GetObject", "s3:PutObject", "s3:HeadObject"]
-      Resource = "${aws_s3_bucket.stats.arn}/*"
-    }]
-  })
-}
-
-# CloudWatch Logs read — for /api/v1/logs endpoint that feeds the frontend console overlay
-resource "aws_iam_role_policy" "lambda_cloudwatch_read" {
-  name = "${local.name}-lambda-cloudwatch-read"
-  role = aws_iam_role.lambda_exec.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["logs:FilterLogEvents", "logs:DescribeLogStreams", "logs:GetLogEvents"]
-      Resource = "${aws_cloudwatch_log_group.lambda_backend.arn}:*"
-    }]
-  })
-}
-
 # SSM Parameter Store read — allows future runtime SSM fetching without IAM changes.
 # Currently values are injected at apply time, so no runtime SSM call is made.
 resource "aws_iam_role_policy" "lambda_ssm_read" {

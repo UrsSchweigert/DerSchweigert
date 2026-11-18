@@ -1539,12 +1539,6 @@ body {
   margin-top: 0.3rem;
 }
 
-.consoleOverlay__spinner { font-weight: 400; opacity: 0.7; }
-
-.consoleOverlay__logs--aws { }
-
-.consoleOverlay__logEntry--aws .consoleOverlay__logMsg { color: rgba(160, 220, 140, 0.82); }
-
 /* ── Portrait: fill the screen edge-to-edge ── */
 @media (orientation: portrait) {
   .consoleOverlay {
@@ -1574,17 +1568,6 @@ body {
     font-size: 0.7rem;
   }
 }
-
-.consoleOverlay__logStream {
-  color: rgba(90, 200, 250, 0.55);
-  flex-shrink: 0;
-  max-width: 9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.consoleOverlay__logEntry--muted .consoleOverlay__logMsg { color: rgba(255, 255, 255, 0.28); font-style: italic; }
 
 /* ── Garbage / Waste Collection Widget ──────────────────────── */
 
