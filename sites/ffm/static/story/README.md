@@ -32,8 +32,8 @@ were kept. What still does not match the cards:
 - **Finish**: the throne-room backdrop is gone, so the opening cards (the crown
   cracks, dawn pours through the throne-room windows) play over act VI's hall
   pillars standing in the new dawn landscape.
-- Acts I, II, IV, V and VI show no fiends any more (the owner left them out of
-  this pass); act III still does.
+- No scene shows fiends any more (the owner took them out of every scene on
+  2026-11-18), although cards in acts I, III and V still talk about them.
 
 ## Layout
 
@@ -94,9 +94,10 @@ A layer `src` may point into another scene's folder (`../act-6/midground.webp`).
 The finish is built that way from the art of act I, act VI and the prologue;
 its only own image is the dawn backdrop (`scenes/finish/dawn.webp`).
 
-A layer that is taken out of a scene keeps its image in the scene folder, so
-putting it back is a change to `scene.json` only (the fiends of acts I, II, IV,
-V and VI are kept that way).
+A layer taken out of a scene goes out of the scene folder too, so the bundle
+ships only what plays: the fiend groups of acts I–VI were removed that way,
+and their packet entries moved to `"removed"` in `sources/<id>/layers.json`
+(the images stay in git history).
 
 ## Cards and pacing
 

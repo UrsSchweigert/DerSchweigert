@@ -77,12 +77,10 @@ are **gold**; danger is crimson or sickly violet, never gore.
   spikes, pale blue-white belly), restyled as a paper cutout. Act V's
   `dragon.webp` (descending, wings spread) is the approved cutout; the small
   dragon in the finish's dawn sky is painted into that backdrop.
-- **Fiends**: the existing fiend classes (`static/game/fiend-sprites/`),
-  restyled as paper cutouts; slightly comical, never gory. Each act's classes
-  (see `getFiendClassWeights` in `game/difficulty-classes.js`) exist as one
-  cutout group, `scenes/act-N/fiends.webp`. Since 2026-11-18 only act III
-  shows its group; the others stay in their folders, unreferenced, so they can
-  be put back.
+- **Fiends**: not shown in the story scenes. The owner took the per-act fiend
+  groups out of every diorama on 2026-11-18; the fiends appear in the game
+  itself (`static/game/fiend-sprites/`). Should they return, they are paper
+  cutouts of those classes, slightly comical, never gory.
 - **The Hollow King**: never shown as a body — a floating crown with shadow
   beneath it.
 
@@ -117,8 +115,8 @@ figure, not a character of the story cards.
   the foreground becomes dense (≥50% coverage in a row) and place that row at
   stage y ≈ 840 — roughly 140 px above the midground's base, because the
   midground render carries a flat painted ground strip below its subject.
-- Keep the act's fiends clear of that line: stand them so their bodies sit
-  above it and only their feet disappear into the plants.
+- Keep characters clear of that line: stand them so their bodies sit above it
+  and only their feet disappear into the plants.
 - Mirror-tile a strip that is too short to span the stage
   (`tools/tile-foreground.py`). Both ends of the source strip must be plain —
   low plants, cobbles, weeds — because a crate or a post at the edge becomes a

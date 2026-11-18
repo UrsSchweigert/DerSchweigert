@@ -50,16 +50,6 @@
       "raw": "sources/act-5/foreground-gpt.png"
     },
     {
-      "id": "fiends",
-      "cutout": true,
-      "raw": "sources/act-5/fiends-raw.png",
-      "references": [
-        "static/game/fiend-sprites/ (the act's own classes)",
-        "sources/intro/village-raw.png"
-      ],
-      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
-    },
-    {
       "id": "dragon",
       "cutout": true,
       "generator": "fal-ai/gpt-image-1.5/edit",
@@ -94,6 +84,20 @@
       "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: a night market square, cobbles, market stalls with low lanterns, a stone fountain glowing cold blue in the middle, rune circles inlaid in the paving, tall gabled town houses around the square, starry sky, calm cobbles across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
       "raw": "sources/act-5/backdrop-gpt.png",
       "replacedOn": "2026-11-18"
+    }
+  ],
+  "removed": [
+    {
+      "id": "fiends",
+      "cutout": true,
+      "raw": "sources/act-5/fiends-raw.png",
+      "references": [
+        "static/game/fiend-sprites/ (the act's own classes)",
+        "sources/intro/village-raw.png"
+      ],
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white.",
+      "removedOn": "2026-11-18",
+      "removedNote": "The owner took the fiend groups out of every story scene. The cutout (scenes/<id>/fiends.webp) and its raw were deleted from the repo; both remain in git history before the removal commit."
     }
   ]
 }

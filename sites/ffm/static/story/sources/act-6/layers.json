@@ -47,16 +47,6 @@
       },
       "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: a marble step edge, scattered gold petals, the corner of a fallen blue banner.",
       "raw": "sources/act-6/foreground-gpt.png"
-    },
-    {
-      "id": "fiends",
-      "cutout": true,
-      "raw": "sources/act-6/fiends-raw.png",
-      "references": [
-        "static/game/fiend-sprites/ (the act's own classes)",
-        "sources/intro/village-raw.png"
-      ],
-      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
     }
   ],
   "replaced": [
@@ -71,6 +61,20 @@
       "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: a palace throne room in blue and gold, tall marble columns, a long runner carpet, an empty stone throne on a dais at the far end under a shaft of cold light, golden filigree, deep blue shadows, calm polished floor across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
       "raw": "sources/act-6/backdrop-gpt.png",
       "replacedOn": "2026-11-18"
+    }
+  ],
+  "removed": [
+    {
+      "id": "fiends",
+      "cutout": true,
+      "raw": "sources/act-6/fiends-raw.png",
+      "references": [
+        "static/game/fiend-sprites/ (the act's own classes)",
+        "sources/intro/village-raw.png"
+      ],
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white.",
+      "removedOn": "2026-11-18",
+      "removedNote": "The owner took the fiend groups out of every story scene. The cutout (scenes/<id>/fiends.webp) and its raw were deleted from the repo; both remain in git history before the removal commit."
     }
   ]
 }

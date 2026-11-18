@@ -538,17 +538,20 @@ describe('the story', () => {
       ['dawn.webp', 'scene.json', 'subtitles.de.vtt', 'subtitles.en.vtt']);
   });
 
-  it('shows fiends only in act III, keeping the other groups on disk to put back', () => {
-    // The owner left the fiends out of the 2026-11-18 art pass for acts I, II,
-    // IV, V and VI. Their images stay in place so restoring one is a scene.json
-    // change (git revert of the commit that unreferenced them, for I/II/IV/VI).
-    for (const id of ['act-1', 'act-2', 'act-4', 'act-5', 'act-6']) {
+  it('shows no fiends and ships no fiends art', () => {
+    // The owner took the fiend groups out of every story scene (2026-11-18): the
+    // game shows the fiends, the dioramas tell the story around them.
+    for (const id of sceneDirs) {
       const scene = loadScene(id);
-      assert.ok(!scene.layers.some(layer => layer.id === 'fiends' || /fiends/.test(layer.src)), `${id} shows fiends`);
-      assert.ok(!(scene.lighting.glows ?? []).some(glow => glow.layer === 'fiends'), `${id} lights fiends`);
-      assert.ok(existsSync(join(scenesDir, id, 'fiends.webp')), `${id}/fiends.webp must stay for a revert`);
+      assert.ok(!scene.layers.some(layer => /fiend/.test(layer.id) || /fiend/.test(layer.src)), `${id} shows fiends`);
+      assert.ok(!(scene.lighting.glows ?? []).some(glow => /fiend/.test(glow.layer ?? '')), `${id} lights fiends`);
+      assert.ok(!readdirSync(join(scenesDir, id)).some(name => /fiend/.test(name)), `${id} still ships fiends art`);
     }
-    assert.ok(loadScene('act-3').layers.some(layer => layer.src === 'fiends.webp'), 'act III keeps its fiends');
+    for (const id of readdirSync(join(storyDir, 'sources'))) {
+      assert.ok(!readdirSync(join(storyDir, 'sources', id)).some(name => /fiend/.test(name)), `sources/${id} keeps fiends art`);
+      const packet = JSON.parse(readFileSync(join(storyDir, 'sources', id, 'layers.json'), 'utf8'));
+      assert.ok(!packet.layers.some(layer => /fiend/.test(layer.id)), `sources/${id}/layers.json lists fiends`);
+    }
   });
 
   it('shows the ancient dragon descending on its act V card', () => {
