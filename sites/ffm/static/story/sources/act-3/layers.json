@@ -38,7 +38,9 @@
       },
       "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: curling ferns, blue wildflowers, two mossy stones.",
       "raw": "sources/act-3/foreground-gpt.png"
-    },
+    }
+  ],
+  "removed": [
     {
       "id": "fiends",
       "cutout": true,
@@ -47,7 +49,9 @@
         "static/game/fiend-sprites/ (the act's own classes)",
         "sources/intro/village-raw.png"
       ],
-      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white.",
+      "removedOn": "2026-11-18",
+      "removedNote": "The owner took the fiend groups out of every story scene. The cutout (scenes/<id>/fiends.webp) and its raw were deleted from the repo; both remain in git history before the removal commit."
     }
   ]
 }

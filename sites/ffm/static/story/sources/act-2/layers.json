@@ -1,6 +1,6 @@
 {
   "scene": "act-2",
-  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP.",
+  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP. Layers with a \"generator\" field were applied later from owner-approved candidates (see \"replaced\" for the art they superseded).",
   "generator": {
     "endpoint": "gpt-image",
     "license": "commercial use of outputs permitted"
@@ -9,13 +9,20 @@
     {
       "id": "backdrop",
       "cutout": false,
-      "seed": 2201,
-      "size": {
-        "width": 1536,
-        "height": 864
+      "generator": "fal-ai/flux-pro/kontext",
+      "seed": 2212,
+      "candidate": "a2bd-kontext-1.png",
+      "approved": "2026-11-18 by the owner, from the story art preview",
+      "references": [
+        "sources/act-2/backdrop-gpt.png"
+      ],
+      "params": {
+        "output_format": "png"
       },
-      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: sunset over golden wheat fields, warm orange and rose sky, the low sun behind a ridge, rows of ripe wheat, a wooden windmill and haystacks, a line of golden runes running along the field edge, calm field across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
-      "raw": "sources/act-2/backdrop-gpt.png"
+      "prompt": "Repaint this paper-theatre storybook illustration as a different place in exactly the same hand-painted paper-cutout style, cardstock texture and muted palette: a high mountain range at stormy dusk, layered torn-paper ridges of slate-blue and violet mountains, jagged grey cliffs, dark storm clouds with a rose and amber glow low on the horizon, a thin crooked mountain path climbing between the peaks, a tiny silhouette of a royal capital city with spires far away on the right horizon, calm dark rocky slope across the lower third. Remove the wheat fields, windmill and fence. No characters, no text.",
+      "raw": "sources/act-2/backdrop-kontext.png (not committed, kept offline)",
+      "postprocessing": "Upscaled 1248x832 -> 1536x1024 (same 3:2 aspect, Lanczos, no crop) to match the other backdrops; tools/encode.py (WebP quality 80).",
+      "rawNote": "The raw render is not in the public repo; the owner keeps it offline. The candidate file name above identifies it."
     },
     {
       "id": "midground",
@@ -38,7 +45,23 @@
       },
       "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: ripe wheat stalks, red poppies, a tied sheaf of cut wheat.",
       "raw": "sources/act-2/foreground-gpt.png"
-    },
+    }
+  ],
+  "replaced": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "seed": 2201,
+      "size": {
+        "width": 1536,
+        "height": 864
+      },
+      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: sunset over golden wheat fields, warm orange and rose sky, the low sun behind a ridge, rows of ripe wheat, a wooden windmill and haystacks, a line of golden runes running along the field edge, calm field across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
+      "raw": "sources/act-2/backdrop-gpt.png",
+      "replacedOn": "2026-11-18"
+    }
+  ],
+  "removed": [
     {
       "id": "fiends",
       "cutout": true,
@@ -47,7 +70,9 @@
         "static/game/fiend-sprites/ (the act's own classes)",
         "sources/intro/village-raw.png"
       ],
-      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white.",
+      "removedOn": "2026-11-18",
+      "removedNote": "The owner took the fiend groups out of every story scene. The cutout (scenes/<id>/fiends.webp) and its raw were deleted from the repo; both remain in git history before the removal commit."
     }
   ]
 }
