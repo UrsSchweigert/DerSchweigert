@@ -51,7 +51,8 @@ describe('web getActiveHeroSkin', () => {
     assert.equal(await platform.getActiveHeroSkin(), 'knight');
     assert.equal(await platform.getActiveHeroSkin(), 'knight');
     assert.equal(count('/profile'), 1);
-    assert.equal(count('/billing/status'), 2);
+    // The second read is the shared cached status (api.js), not another request.
+    assert.equal(count('/billing/status'), 1);
   });
 
   it('skips billing when no hero is stored', async () => {
@@ -86,10 +87,12 @@ describe('web getActiveHeroSkin', () => {
     assert.equal(count('/profile'), 0);
   });
 
-  it('gives null once premium has ended', async () => {
+  it('gives null once premium has ended and the status is read again', async () => {
     await platform.login('kid', 'pw');
     assert.equal(await platform.getActiveHeroSkin(), 'knight');
     billingBody = { premium_access: false };
+    // Any billing change (here a cancel) drops the cached status.
+    await platform.cancelSubscription();
     assert.equal(await platform.getActiveHeroSkin(), null);
   });
 

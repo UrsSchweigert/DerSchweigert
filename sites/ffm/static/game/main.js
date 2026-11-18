@@ -504,8 +504,8 @@ async function handleCheckoutRedirect() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('billing') === 'success') {
     try {
-      // Get updated billing status
-      const status = await platform.getBillingStatus();
+      // Get updated billing status, from the server (the webhook may just have landed)
+      const status = await platform.getBillingStatus({ fresh: true });
       // Clean URL to remove billing parameter
       window.history.replaceState({}, document.title, window.location.pathname);
       // If user is entitled, resume pending level
@@ -2740,7 +2740,8 @@ async function loadBilling() {
   try {
     billingStatusDisplay.textContent = t('billing.loadingShort');
     billingActions.style.display = 'none';
-    const status = await platform.getBillingStatus();
+    // The Billing tab is where a player checks their access: always ask the server.
+    const status = await platform.getBillingStatus({ fresh: true });
     renderBillingStatus(status);
   } catch (err) {
     billingStatusDisplay.textContent = translateServerMessage(err.message) || t('billing.loadFailed');
