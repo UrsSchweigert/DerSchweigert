@@ -16,6 +16,7 @@ Outputs (sizes are the ones App Store Connect and Play Console actually offer):
   ../google-play/feature-graphic-1024x500.png  24-bit PNG, no alpha
   ../google-play/icon-512x512.png            32-bit RGBA, alpha fully opaque (Play requires 32-bit)
   ../press/header-1920x1080.png              banner, NOT a store slot
+  ../explainers/<locale>/...                 combat/combos/levels screenshots, see explainers.py
 
 Every wide creative is art + brass frame + a phone on the right showing the upper
 half of the real title screen. None of them carries text: the store shows the app
@@ -547,6 +548,12 @@ def main() -> None:
             preview = image.convert("RGB")
             preview.thumbnail((preview.width // 2, preview.height // 2), Image.LANCZOS)
             preview.save(path.with_suffix(".preview.jpg"), "JPEG", quality=88)
+
+    # The explainer screenshots (combat, combos, levels) reuse this backdrop and
+    # frame; imported here because explainers.py imports from this module.
+    from explainers import render_all
+
+    render_all(["de", "en"], preview=args.preview)
 
 
 if __name__ == "__main__":
