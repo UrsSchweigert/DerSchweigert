@@ -552,3 +552,43 @@ class TestClientVersion:
         # The _client function should return v1
         # Check the API_VERSION constant
         assert stripe_provider.API_VERSION == '2024-06-20'
+
+
+# ── _plain(): every result is JSON-safe ──────────────────────────────────────
+
+def _stripe_subscription_with_decimal_amounts():
+    import stripe
+    return stripe.Subscription.construct_from({
+        'id': 'sub_1', 'object': 'subscription', 'status': 'active',
+        'items': {'object': 'list', 'data': [{
+            'id': 'si_1', 'object': 'subscription_item',
+            'plan': {'id': 'plan_1', 'object': 'plan', 'amount': 199, 'amount_decimal': '199'},
+            'price': {'id': 'price_1', 'object': 'price', 'unit_amount': 199, 'unit_amount_decimal': '199.5'},
+        }]},
+    }, 'sk_test_mock')
+
+
+def test_plain_turns_sdk_decimals_back_into_the_api_strings():
+    """The SDK parses Stripe's decimal-string fields into Decimal, which
+    json.dumps rejects. _plain() must hand back the exact strings Stripe sent."""
+    import json
+    from decimal import Decimal
+    from sites.ffm.app.stripe_provider import _plain
+
+    raw = _stripe_subscription_with_decimal_amounts().to_dict()
+    assert isinstance(raw['items']['data'][0]['plan']['amount_decimal'], Decimal)  # the SDK behaviour guarded against
+
+    plain = _plain(_stripe_subscription_with_decimal_amounts())
+    item = plain['items']['data'][0]
+    assert item['plan']['amount_decimal'] == '199'
+    assert item['price']['unit_amount_decimal'] == '199.5'
+    assert item['plan']['amount'] == 199  # integer cents are untouched
+    json.dumps(plain)  # raises TypeError if any Decimal is left
+
+
+def test_plain_keeps_its_other_inputs_working():
+    from decimal import Decimal
+    from sites.ffm.app.stripe_provider import _plain
+
+    assert _plain(None) == {}
+    assert _plain({'a': [Decimal('1.25'), {'b': Decimal('3')}], 'c': 'x'}) == {'a': ['1.25', {'b': '3'}], 'c': 'x'}
