@@ -7,13 +7,15 @@ from decimal import Decimal
 import stripe
 from flask import current_app
 
-API_VERSION = '2024-06-20'
+# One API version for every request. Since 2025-03-31.basil several fields FFM
+# reads moved (see the shape helpers at the bottom); the live webhook endpoint
+# renders events at its own pinned version, so the helpers accept both shapes.
+API_VERSION = '2026-10-28.endive'
 
 # The subscription's price in cents (EUR 1.99, tax inclusive, every 3 months).
 # validate_price() requires it and billing._valid_paid_end() counts only invoices
 # that paid at least this much, so the two can never disagree again.
 PRICE_UNIT_AMOUNT = 199
-CHECKOUT_API_VERSION = '2025-03-31.basil'
 
 
 def _secret(name):
@@ -56,8 +58,20 @@ def _plain(value):
     return _decimals_to_strings(value)
 
 
+def _webhook_secrets():
+    """STRIPE_WEBHOOK_SECRET may hold several comma-separated signing secrets, so
+    an old and a new webhook endpoint can both deliver while one replaces the other."""
+    return [part.strip() for part in _secret('STRIPE_WEBHOOK_SECRET').split(',') if part.strip()]
+
+
 def verify_event(payload, signature):
-    return _plain(stripe.Webhook.construct_event(payload, signature, _secret('STRIPE_WEBHOOK_SECRET')))
+    error = None
+    for secret in _webhook_secrets():
+        try:
+            return _plain(stripe.Webhook.construct_event(payload, signature, secret))
+        except stripe.SignatureVerificationError as exc:
+            error = exc
+    raise error or stripe.SignatureVerificationError('no webhook secret configured', signature)
 
 
 def validate_price(price_id):
@@ -103,9 +117,7 @@ def create_checkout(customer_id, stable_uuid, price_id, return_base_url, operati
     }
     if current_app.config.get('STRIPE_CHECKOUT_TERMS_CONSENT_ENABLED', True):
         params['consent_collection'] = {'terms_of_service': 'required'}
-    return _plain(_client().checkout.sessions.create(
-        params, options={'idempotency_key': operation_id, 'stripe_version': CHECKOUT_API_VERSION},
-    ))
+    return _plain(_client().checkout.sessions.create(params, options={'idempotency_key': operation_id}))
 
 
 def get_checkout(session_id):
@@ -135,12 +147,14 @@ def list_customer_subscriptions(customer_id):
 
 
 def get_invoice(invoice_id):
-    return _plain(_client().invoices.retrieve(invoice_id))
+    # `payments` is only returned when expanded; get_invoice_charge_id() needs it.
+    return _plain(_client().invoices.retrieve(invoice_id, {'expand': ['payments']}))
 
 
 def list_paid_invoices(customer_id, subscription_id):
     return [_plain(invoice) for invoice in _client().invoices.list({
         'customer': customer_id, 'subscription': subscription_id, 'status': 'paid', 'limit': 100,
+        'expand': ['data.payments'],
     }).auto_paging_iter()]
 
 
@@ -185,3 +199,95 @@ def list_all_subscriptions(status='all'):
     return [_plain(sub) for sub in _client().subscriptions.list({
         'status': status, 'limit': 100,
     }).auto_paging_iter()]
+
+
+# ── Shape helpers ─────────────────────────────────────────────────────────────
+# Since API version 2025-03-31.basil Stripe moved fields FFM depends on. Objects
+# fetched here use API_VERSION, but webhook payloads use the endpoint's pinned
+# version, so every helper reads the current shape and falls back to the
+# 2024-06-20 one.
+
+def invoice_subscription_id(invoice):
+    """2024-06-20: invoice.subscription. Since basil: invoice.parent.subscription_details.subscription."""
+    if invoice.get('subscription'):
+        return invoice['subscription']
+    return ((invoice.get('parent') or {}).get('subscription_details') or {}).get('subscription')
+
+
+def invoice_is_paid(invoice):
+    """2024-06-20: invoice.paid. Since basil the flag is gone; status 'paid' means the same."""
+    if invoice.get('paid') is not None:
+        return bool(invoice['paid'])
+    return invoice.get('status') == 'paid'
+
+
+def get_invoice_charge_id(invoice):
+    """2024-06-20: invoice.charge. Since basil: the invoice's payments, whose payment
+    is either a charge or a payment intent (whose latest charge it is)."""
+    if invoice.get('charge'):
+        return invoice['charge']
+    payments = invoice.get('payments')
+    if payments is None and invoice.get('id'):
+        payments = get_invoice(invoice['id']).get('payments')
+    for invoice_payment in ((payments or {}).get('data') or []):
+        if invoice_payment.get('status') not in (None, 'paid'):
+            continue
+        payment = invoice_payment.get('payment') or {}
+        if payment.get('type') == 'charge' and payment.get('charge'):
+            charge = payment['charge']
+            return charge['id'] if isinstance(charge, dict) else charge
+        if payment.get('type') == 'payment_intent' and payment.get('payment_intent'):
+            intent = payment['payment_intent']
+            intent_id = intent['id'] if isinstance(intent, dict) else intent
+            latest = _plain(_client().payment_intents.retrieve(intent_id)).get('latest_charge')
+            if latest:
+                return latest['id'] if isinstance(latest, dict) else latest
+    return None
+
+
+def get_charge_invoice_id(charge):
+    """2024-06-20: charge.invoice. Since basil the link is an InvoicePayment, found by
+    the charge's payment intent."""
+    if charge.get('invoice'):
+        return charge['invoice']
+    intent = charge.get('payment_intent')
+    if not intent:
+        return None
+    intent_id = intent['id'] if isinstance(intent, dict) else intent
+    for invoice_payment in _client().invoice_payments.list({
+        'payment': {'type': 'payment_intent', 'payment_intent': intent_id}, 'limit': 10,
+    }).auto_paging_iter():
+        invoice = _plain(invoice_payment).get('invoice')
+        if invoice:
+            return invoice['id'] if isinstance(invoice, dict) else invoice
+    return None
+
+
+def subscription_period_end(subscription):
+    """2024-06-20: subscription.current_period_end. Since basil it lives on each item."""
+    if subscription.get('current_period_end'):
+        return subscription['current_period_end']
+    ends = [item.get('current_period_end') for item in (subscription.get('items') or {}).get('data', [])]
+    ends = [end for end in ends if end]
+    return max(ends) if ends else None
+
+
+def line_price_id(line):
+    """2024-06-20: line.price.id. Since basil: line.pricing.price_details.price."""
+    price = line.get('price')
+    if isinstance(price, dict) and price.get('id'):
+        return price['id']
+    if isinstance(price, str):
+        return price
+    return ((line.get('pricing') or {}).get('price_details') or {}).get('price')
+
+
+def line_is_proration(line):
+    """2024-06-20: line.proration. Since basil: under the line's parent details."""
+    if line.get('proration') is not None:
+        return bool(line['proration'])
+    parent = line.get('parent') or {}
+    for details in ('subscription_item_details', 'invoice_item_details'):
+        if (parent.get(details) or {}).get('proration'):
+            return True
+    return False

@@ -18,7 +18,7 @@ What it does, in order:
      rk_live_) and the local `stripe listen` webhook signing secret
      (whsec_...).
   3. Fetches ONLY that event id from Stripe, read-only, pinned to API
-     version 2024-06-20 (matching app/stripe_provider.py and the sandbox
+     version 2026-10-28.endive (matching app/stripe_provider.py and the sandbox
      listener in sites/ffm/docs/file-map.md). No other Stripe call is made.
   4. Requires the fetched event's `livemode` to be exactly False and its
      `type` to be one of the ffm billing webhook's allow-listed event
@@ -57,7 +57,7 @@ import requests
 import stripe
 
 # Kept in sync with app/stripe_provider.py and sites/ffm/docs/file-map.md.
-API_VERSION = '2024-06-20'
+API_VERSION = '2026-10-28.endive'
 # Kept in sync with sites/ffm/docs/file-map.md's "Events to configure" list and
 # sites/ffm/scripts/setup-stripe-live.py's WEBHOOK_EVENTS.
 ALLOWED_EVENT_TYPES = frozenset({
