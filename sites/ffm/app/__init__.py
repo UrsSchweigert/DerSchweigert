@@ -1,7 +1,7 @@
 import os
 import re
 
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from .config import BaseConfig, ProductionConfig
 from .extensions import limiter
@@ -52,6 +52,15 @@ def create_app(config_class=None):
     # its per-route @limiter.limit(...) decorators are bound to the same
     # instance that gets init_app()'d here (and therefore actually enforced).
     limiter.init_app(app)
+
+    # Every client reads API errors with response.json(). Flask's default 429
+    # is an HTML page, which Safari reports as "The string did not match the
+    # expected pattern." instead of saying the player is being rate limited.
+    @app.errorhandler(429)
+    def rate_limited(error):
+        response = jsonify(error='rate_limited')
+        response.status_code = 429
+        return response
 
     from .auth import auth_bp
     from .main import main_bp

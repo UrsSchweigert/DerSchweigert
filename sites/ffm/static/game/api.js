@@ -1,6 +1,7 @@
 // api.js — JWT auth + score API client for Arithmo Slayer
 
 import { getLocale } from './i18n.js';
+import { readApiJson } from './access-flow.js';
 
 const BASE_URL = window.location.origin + '/api';
 let _accessToken = null;
@@ -289,7 +290,7 @@ export const api = {
     const res = await this._fetch(path, {
       headers: { 'Cache-Control': 'no-store' }
     });
-    const data = await res.json();
+    const data = await readApiJson(res);
     if (!res.ok) {
       const err = new Error(data.error || 'Failed to fetch level');
       err.status = res.status;
@@ -303,7 +304,7 @@ export const api = {
     const res = await this._fetch('/billing/status', {
       headers: { 'Cache-Control': 'no-store' }
     });
-    const data = await res.json();
+    const data = await readApiJson(res);
     if (!res.ok) {
       const err = new Error(data.error || 'Failed to fetch billing status');
       err.status = res.status;

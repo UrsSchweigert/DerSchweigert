@@ -118,6 +118,7 @@ def provider_unavailable(error):
 
 
 @billing_bp.route('/status', methods=['GET'])
+@limiter.limit(lambda: current_app.config['BILLING_STATUS_RATE_LIMIT'])
 def status():
     username = require_auth() if request.headers.get('Authorization') else None
     return jsonify(entitlements.get_access_status(username))
