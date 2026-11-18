@@ -3122,6 +3122,10 @@ input:focus-visible, select:focus-visible, button:focus-visible,
   max-width: 560px;
   margin-inline: auto;
 }
+/* The pause dialog is a short centred stack (title, "Playing as", prompt,
+ * buttons). The shared rule that left-aligns dialog paragraphs is for passages;
+ * here it left only the prompt and save notice off the centre line. */
+#pause-overlay .overlay-card p { text-align: center; }
 /* The title keeps clear of the speaker button in the corner, and its row is as
  * tall as the button, so the content below never slides under it. */
 #pause-overlay .overlay-card > h2 {

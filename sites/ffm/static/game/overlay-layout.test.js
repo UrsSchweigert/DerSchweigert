@@ -43,3 +43,7 @@ test('HUD counters use the same unpunctuated "Label value" form as the other rea
     assert.doesNotMatch(line, /[A-Za-zäöü]: \{/, `${key} still has a colon`);
   }
 });
+
+test('the pause dialog centres its prompt and notices like its title and "Playing as" line', () => {
+  assert.match(css, /^#pause-overlay \.overlay-card p \{ text-align: center; \}/m);
+});
