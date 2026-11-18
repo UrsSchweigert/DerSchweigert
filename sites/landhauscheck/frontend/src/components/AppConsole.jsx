@@ -1,16 +1,6 @@
-import { useEffect, useState } from "react";
-import { diagnosticFetch as fetch } from "../networkDiagnostics";
-
 function fmtCountdown(s) {
   if (s === null || s === undefined) return "";
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
-// /api/v1/logs is PIN-protected; stats-login.html stores the PIN in the lhc_pin
-// cookie (not HttpOnly), so the diagnostics console can reuse it.
-function readStatsPin() {
-  const match = document.cookie.match(/(?:^|; )lhc_pin=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : "";
 }
 
 export default function AppConsole({
@@ -29,29 +19,6 @@ export default function AppConsole({
   onChangeLocation,
   consoleLogs,
 }) {
-  const [awsLogs, setAwsLogs] = useState([]);
-  const [awsLogsLoading, setAwsLogsLoading] = useState(false);
-  const [awsLogsError, setAwsLogsError] = useState("");
-
-  // Fetch CloudWatch logs on mount (console is only rendered when open)
-  useEffect(() => {
-    setAwsLogsLoading(true);
-    setAwsLogsError("");
-    fetch(`${apiBaseUrl}/api/v1/logs?minutes=10`, {
-      headers: { "X-Stats-Pin": readStatsPin() },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
-        return r.json();
-      })
-      .then((data) => setAwsLogs(data))
-      .catch((error) => {
-        setAwsLogs([]);
-        setAwsLogsError(`CloudWatch logs unavailable: ${error.message}. See App events for request details.`);
-      })
-      .finally(() => setAwsLogsLoading(false));
-  }, [apiBaseUrl]);
-
   void lang; // passed for future i18n use in console labels
 
   return (
@@ -193,31 +160,6 @@ export default function AppConsole({
                 {import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? "present ✓" : "MISSING ✗"}
               </span>
             </div>
-          </div>
-
-          {/* AWS CloudWatch logs */}
-          <div className="consoleOverlay__sectionLabel">
-            ☁ CloudWatch — last 10 min
-            {awsLogsLoading && <span className="consoleOverlay__spinner"> loading…</span>}
-          </div>
-          <div className="consoleOverlay__logs consoleOverlay__logs--aws" aria-live="polite">
-            {awsLogsError && (
-              <div className="consoleOverlay__logEntry" role="alert">
-                <span className="consoleOverlay__logMsg">{awsLogsError}</span>
-              </div>
-            )}
-            {!awsLogsLoading && !awsLogsError && awsLogs.length === 0 && (
-              <div className="consoleOverlay__logEntry consoleOverlay__logEntry--muted">
-                <span className="consoleOverlay__logMsg">No entries (not running in AWS or no recent logs)</span>
-              </div>
-            )}
-            {awsLogs.map((entry, i) => (
-              <div key={i} className="consoleOverlay__logEntry consoleOverlay__logEntry--aws">
-                <span className="consoleOverlay__logTs">{entry.ts}</span>
-                <span className="consoleOverlay__logStream">{entry.stream?.split("/").pop()}</span>
-                <span className="consoleOverlay__logMsg">{entry.message}</span>
-              </div>
-            ))}
           </div>
 
           {/* Frontend / app logs */}

@@ -27,12 +27,6 @@ class Settings(BaseSettings):
     tankerkoenig_api_key: str = ""
     # Comma-separated list of allowed CORS origins
     cors_origins: str = "http://localhost:5173"
-    # AWS settings for CloudWatch log fetching
-    aws_region: str = "eu-west-1"
-    cloudwatch_log_group: str = "/aws/lambda/basicwebapp-backend"
-    # Stats dashboard PIN — must match the CloudFront Function guard and the
-    # X-Stats-Pin header sent by stats.html. Change via STATS_PIN env var.
-    stats_pin: str = ""
 
     # ── Jira Cloud (feature request integration) ───────────────────────────
     # Used by the /api/v1/feature-request endpoint to create issues in Jira.

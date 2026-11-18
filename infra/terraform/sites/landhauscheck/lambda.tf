@@ -38,9 +38,7 @@ resource "aws_lambda_function" "backend" {
     variables = {
       APP_ENV              = var.environment
       LOG_LEVEL            = "INFO"
-      CLOUDWATCH_LOG_GROUP = "/aws/lambda/${local.name}-backend"
       CORS_ORIGINS         = "http://localhost:5173,https://${aws_cloudfront_distribution.frontend.domain_name}"
-      STATS_BUCKET         = aws_s3_bucket.stats.bucket
       # API keys — read from SSM Parameter Store at apply time, baked into Lambda env vars.
       # Lambda does not call SSM at runtime (no latency or cost overhead).
       # See ssm.tf for the parameter definitions.
@@ -57,9 +55,6 @@ resource "aws_lambda_function" "backend" {
       # GitHub PAT — waste calendar contribution (creates PRs on user upload)
       GITHUB_TOKEN = aws_ssm_parameter.github_token.value
       GITHUB_REPO  = "UrsSchweigert/DerSchweigert"
-      # Stats dashboard PIN — must match cloudfront.tf stats_pin_guard function.
-      # Both read var.stats_pin; rotate by changing the secret and redeploying.
-      STATS_PIN = var.stats_pin
     }
   }
 

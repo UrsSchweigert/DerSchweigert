@@ -111,7 +111,7 @@ The app **must** render the following widgets, each in its own `<ErrorBoundary>`
 | FR-3.1 | **Must** support DE (default), EN, PT. |
 | FR-3.2 | Detection order: `localStorage.lhc_lang` → `navigator.language` prefix → DE. |
 | FR-3.3 | `sites/landhauscheck/frontend/src/config/i18n.js` is the single source of truth for React app strings. **All three language blocks must be updated together** when adding/changing any user-visible string. |
-| FR-3.4 | Static HTML pages (impressum, datenschutz, help, donate, release-notes, stats-login) **must** have inline trilingual dictionaries updated in sync. |
+| FR-3.4 | Static HTML pages (impressum, datenschutz, help, donate, release-notes) **must** have inline trilingual dictionaries updated in sync. |
 
 ### FR-4 — Unit System
 
@@ -128,15 +128,6 @@ The app **must** render the following widgets, each in its own `<ErrorBoundary>`
 | FR-5.1 | Tapping interactive tiles **must** open a NavPromptSheet (bottom sheet via `createPortal`). |
 | FR-5.2 | iOS: `maps://` scheme. Android: `geo:` intent (OS chooser). Desktop: Google Maps web. |
 | FR-5.3 | Travel mode **must** match context: driving for fuel/charger/train, walking for restroom/ATM/POI/bus. |
-
-### FR-6 — Stats System
-
-| ID | Requirement |
-|---|---|
-| FR-6.1 | Stats **must** be PIN-protected (`X-Stats-Pin` header + CloudFront Function cookie check). |
-| FR-6.2 | Developer traffic (`lhc_devmode=1` cookie) **must** be excluded from all tracking. |
-| FR-6.3 | Bot requests (CloudFront health probes, crawlers) **must** be excluded from human session count. |
-| FR-6.4 | Stats **must** persist to S3 (`stats_persist.json`) and survive Lambda cold starts. |
 
 ---
 
@@ -188,7 +179,6 @@ The app **must** render the following widgets, each in its own `<ErrorBoundary>`
 | NFR-4.1 | A single widget crash **must not** blank the entire app (each wrapped in `<ErrorBoundary>`). |
 | NFR-4.2 | Weather **must** have a fallback provider (Open-Meteo → Bright Sky). |
 | NFR-4.3 | Train stations **must** have a fallback (DB StaDa snapshot → Google Places). |
-| NFR-4.4 | Stats **must** survive Lambda cold starts (S3 persistence + `/tmp` fallback). |
 | NFR-4.5 | CloudWatch log retention: 7 days. |
 
 ### NFR-5 — Accessibility & UX
@@ -202,14 +192,6 @@ The app **must** render the following widgets, each in its own `<ErrorBoundary>`
 | NFR-5.5 | Screen wake lock **must** be active and re-acquired on `visibilitychange`. |
 | NFR-5.6 | Portrait mode: single-column, document scroll. Landscape: grid, fills viewport. |
 | NFR-5.7 | Mobile portrait banner visible only on `(max-width: 480px) and (orientation: portrait)`. |
-
-### NFR-6 — Observability
-
-| ID | Requirement |
-|---|---|
-| NFR-6.1 | Stats dashboard (`/stats.html`) **must** refresh every 30 s. |
-| NFR-6.2 | Stats dashboard **must** show: summary cards, endpoint chart, daily chart, sessions-per-day chart, user map (Leaflet), sessions table, error log. |
-| NFR-6.3 | Bot traffic **must** be shown as a collapsed summary row, separate from human sessions. |
 
 ---
 
@@ -235,15 +217,6 @@ Base path: `/api/v1/`
 | `GET` | `/chargers` | `lat`, `lng`, `poi_type` | JSON: nearby chargers/gas/toilet/ATM | 15 min client |
 | `GET` | `/notifications/manifest` | — | JSON: tomorrow's waste collections by ICS location | CloudFront 1 h |
 | `POST` | `/feature-request` | JSON body | `201` + Jira issue key | — |
-
-### 4.2 — Admin Endpoints (PIN-protected)
-
-| Method | Path | Auth | Response |
-|---|---|---|---|
-| `POST` | `/admin/verify-pin` | PIN in body | Sets `lhc_pin` + `lhc_devmode` cookies |
-| `GET` | `/admin/stats` | `X-Stats-Pin` header | Full stats JSON |
-| `POST` | `/admin/clear-devmode` | `X-Stats-Pin` header | Clears `lhc_devmode` cookie |
-| `GET` | `/logs` | `X-Stats-Pin` header | JSON: recent CloudWatch log events |
 
 ---
 
