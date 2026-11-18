@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import stripe
 from flask import current_app
@@ -25,13 +26,29 @@ def _client():
     ).v1
 
 
+def _decimals_to_strings(value):
+    """The SDK turns Stripe's decimal-string fields (unit_amount_decimal,
+    plan.amount_decimal, ...) into Decimal, which json.dumps cannot serialize.
+    Turning them back into strings restores exactly what the API sent: no float
+    rounding for money, and the result stays safe for JSON and DynamoDB."""
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _decimals_to_strings(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_decimals_to_strings(item) for item in value]
+    return value
+
+
 def _plain(value):
+    """Every Stripe result leaves this module as plain JSON-safe data."""
     if hasattr(value, 'to_dict_recursive'):
-        return value.to_dict_recursive()
+        value = value.to_dict_recursive()
     elif hasattr(value, 'to_dict'):
-        return value.to_dict()
+        value = value.to_dict()
     else:
-        return dict(value) if value else {}
+        value = dict(value) if value else {}
+    return _decimals_to_strings(value)
 
 
 def verify_event(payload, signature):
