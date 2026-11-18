@@ -3,7 +3,7 @@ resources needed for the ffm site's Phase 3 billing rollout:
 
   - A LIVE Stripe webhook endpoint for
     https://ffm.derschweigert.de/api/billing/webhook, pinned to
-    api_version 2024-06-20 (see app/stripe_provider.py), subscribed to
+    api_version 2026-10-28.endive (see app/stripe_provider.py), subscribed to
     the 10 events documented in sites/ffm/docs/file-map.md.
   - Two AWS Secrets Manager secrets the Lambda resolves at runtime
     (sites/ffm/lambda/handler.py): ffm/stripe-secret-key and
@@ -64,7 +64,7 @@ import stripe
 # this script has no business setting. Kept as a literal instead, in sync
 # with API_VERSION there and with the "Pinned webhook API version" in
 # sites/ffm/docs/file-map.md.
-API_VERSION = '2024-06-20'
+API_VERSION = '2026-10-28.endive'
 WEBHOOK_URL = 'https://ffm.derschweigert.de/api/billing/webhook'
 EXPECTED_ACCOUNT_ID = '113725432218'
 EXPECTED_REGION = 'eu-central-1'

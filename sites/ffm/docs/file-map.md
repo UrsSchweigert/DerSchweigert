@@ -329,12 +329,20 @@ Configuration:
 **Webhook configuration (TEST mode):**
 
 - Stripe webhook endpoint: `/api/billing/webhook` on an explicitly configured sandbox backend. Do not point test payments at the production game.
-- Pinned webhook API version: `2024-06-20` (configurable in Stripe dashboard per endpoint)
-- Subscription/invoice reads use `2024-06-20`. Checkout creation uses
-  `2025-03-31.basil` to explicitly disable Managed Payments and preserve standard
-  Payments + Billing (operator as merchant of record), regardless of dashboard
-  defaults. Newer invoice webhook formats are re-fetched in the pinned read
-  format before processing.
+- Pinned webhook API version: `2026-10-28.endive` (set per endpoint when it is created; an
+  existing endpoint cannot change version, it is replaced — see
+  `scripts/rotate-stripe-webhook-endpoint.py`)
+- Every API request, including Checkout creation, uses `2026-10-28.endive`
+  (`API_VERSION` in `app/stripe_provider.py`). Checkout still sets
+  `managed_payments: {enabled: false}` explicitly, preserving standard Payments +
+  Billing (operator as merchant of record) regardless of dashboard defaults.
+- Since `2025-03-31.basil` Stripe moved fields billing reads (`invoice.charge`,
+  `invoice.paid`, `invoice.subscription`, `charge.invoice`,
+  `subscription.current_period_end`, line `price`/`proration`). The shape helpers
+  at the bottom of `app/stripe_provider.py` read the current shape and fall back
+  to the `2024-06-20` one, so events from an endpoint on either version work.
+- `STRIPE_WEBHOOK_SECRET` may hold several comma-separated signing secrets, so an
+  old and a new endpoint can overlap during a rotation.
   **Decision (2026-10-15):** the operator selected standard Stripe Payments +
   Billing and will handle taxes. The earlier Managed Payments migration proposal
   is withdrawn; keep `managed_payments` explicitly `False`. The implementation
@@ -414,7 +422,7 @@ listen` signing secret (`whsec_...`) used above only at the hidden terminal
 prompts, never in chat, source files, or command-line arguments. The script:
 
 - Fetches only the requested event id, read-only, pinned to API version
-  `2024-06-20`, and requires `livemode` to be exactly `False` and the event's
+  `2026-10-28.endive` (Stripe renders retrieved events at the account's default version), and requires `livemode` to be exactly `False` and the event's
   `type` to be one of the events listed above — anything else stops before any
   POST is attempted.
 - Signs the fetched event with a fresh timestamp and POSTs it once to the
@@ -469,7 +477,7 @@ What it does, strictly in this order:
 5. Creates `ffm/stripe-secret-key` in Secrets Manager (plain `SecretString`,
    not JSON-wrapped).
 6. Creates the LIVE webhook endpoint for `https://ffm.derschweigert.de/api/billing/webhook`,
-   pinned to `api_version` `2024-06-20`, subscribed to the same 10 events
+   pinned to `api_version` `2026-10-28.endive`, subscribed to the same 10 events
    listed above, then immediately disables it (the Stripe API has no
    create-already-disabled option) — it stays disabled until the payments
    backend billing configuration is enabled and verified; nothing in the script

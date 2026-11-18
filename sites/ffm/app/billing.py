@@ -389,8 +389,10 @@ def _invoice_country(invoice, charge=None):
     country = (invoice.get('customer_address') or {}).get('country')
     if country:
         return country
-    if charge is None and invoice.get('charge'):
-        charge = provider.get_charge(invoice['charge'])
+    if charge is None:
+        charge_id = provider.get_invoice_charge_id(invoice)
+        if charge_id:
+            charge = provider.get_charge(charge_id)
     return (((charge or {}).get('billing_details') or {}).get('address') or {}).get('country')
 
 
@@ -425,9 +427,10 @@ def _valid_paid_end(subscription):
     price_id = current_app.config['STRIPE_PRICE_ID']
     ends = []
     for invoice in provider.list_paid_invoices(subscription['customer'], subscription['id']):
-        if invoice.get('currency') != 'eur' or invoice.get('amount_paid', 0) < 300 or not invoice.get('paid'):
+        if (invoice.get('currency') != 'eur' or invoice.get('amount_paid', 0) < 300
+                or not provider.invoice_is_paid(invoice)):
             continue
-        charge_id = invoice.get('charge')
+        charge_id = provider.get_invoice_charge_id(invoice)
         if not charge_id:
             continue
         charge = provider.get_charge(charge_id)
@@ -437,7 +440,7 @@ def _valid_paid_end(subscription):
                 or _charge_disqualified_by_dispute(charge_id, charge)):
             continue
         for line in invoice['lines']['data']:
-            if (line.get('price') or {}).get('id') == price_id and not line.get('proration'):
+            if provider.line_price_id(line) == price_id and not provider.line_is_proration(line):
                 ends.append(line['period']['end'])
     return _iso(max(ends)) if ends else None
 
@@ -572,7 +575,8 @@ def reconcile_subscription(identity, subscription_id, event_id=None, owner=None)
         'subscription_id': subscription_id, 'status': subscription['status'],
         'paid_until': _valid_paid_end(subscription), 'revocation': False,
         'cancel_at_period_end': bool(subscription.get('cancel_at_period_end') or subscription.get('cancel_at')),
-        'next_payment_at': _iso(subscription.get('trial_end') or subscription['current_period_end']) if renewing else None,
+        'next_payment_at': (_iso(subscription.get('trial_end') or provider.subscription_period_end(subscription))
+                            if renewing else None),
     }
     if changes['paid_until']:
         # Server-verified real payment (see _valid_paid_end above). For a
@@ -604,17 +608,20 @@ def process_event(event):
     if event_type.startswith('customer.subscription.'):
         subscription_id = obj['id']
     elif event_type.startswith('invoice.'):
-        # Newer webhook versions move subscription references under parent.
-        # Retrieve the invoice using our pinned API version before interpreting it.
-        if 'subscription' not in obj:
+        # The webhook endpoint renders events at its own API version; the
+        # helper reads both the old invoice.subscription and the newer
+        # invoice.parent.subscription_details.subscription.
+        subscription_id = provider.invoice_subscription_id(obj)
+        if not subscription_id:
             obj = provider.get_invoice(obj['id'])
-        subscription_id = obj.get('subscription')
+            subscription_id = provider.invoice_subscription_id(obj)
     elif event_type == 'checkout.session.completed':
         subscription_id = obj.get('subscription')
     elif event_type.startswith('charge.refund') or event_type.startswith('charge.dispute.'):
         charge = provider.get_charge(obj.get('charge') or obj['id'])
-        invoice = provider.get_invoice(charge['invoice']) if charge.get('invoice') else None
-        subscription_id = invoice.get('subscription') if invoice else None
+        charge_invoice_id = provider.get_charge_invoice_id(charge)
+        invoice = provider.get_invoice(charge_invoice_id) if charge_invoice_id else None
+        subscription_id = provider.invoice_subscription_id(invoice) if invoice else None
     else:
         return
     if not subscription_id:
@@ -647,12 +654,13 @@ def process_event(event):
             invoice_id = obj.get('invoice') if event_type == 'checkout.session.completed' else obj['id']
             if invoice_id:
                 invoice = provider.get_invoice(invoice_id)
-                if (invoice.get('subscription') != subscription_id
+                if (provider.invoice_subscription_id(invoice) != subscription_id
                         or invoice.get('customer') != state.get('customer_id')):
                     raise ValueError('invalid_invoice')
-                if invoice.get('charge'):
-                    charge = provider.get_charge(invoice['charge'])
-                    if charge.get('invoice') != invoice_id:
+                invoice_charge_id = provider.get_invoice_charge_id(invoice)
+                if invoice_charge_id:
+                    charge = provider.get_charge(invoice_charge_id)
+                    if provider.get_charge_invoice_id(charge) != invoice_id:
                         raise ValueError('invalid_charge')
                     remaining = charge['amount'] - charge.get('amount_refunded', 0)
                     if remaining > 0:
