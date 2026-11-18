@@ -425,7 +425,8 @@ def _valid_paid_end(subscription):
     price_id = current_app.config['STRIPE_PRICE_ID']
     ends = []
     for invoice in provider.list_paid_invoices(subscription['customer'], subscription['id']):
-        if invoice.get('currency') != 'eur' or invoice.get('amount_paid', 0) < 300 or not invoice.get('paid'):
+        if (invoice.get('currency') != 'eur' or invoice.get('amount_paid', 0) < provider.PRICE_UNIT_AMOUNT
+                or not invoice.get('paid')):
             continue
         charge_id = invoice.get('charge')
         if not charge_id:
