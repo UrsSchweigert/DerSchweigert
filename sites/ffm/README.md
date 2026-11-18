@@ -24,7 +24,7 @@ Browser
   │   ├─ input.js       (answer UI + keyboard handling)
   │   ├─ audio.js       (SFX + BGM)
   │   ├─ hud.js         (hearts / score / level)
-  │   ├─ story-intro.js (when the story intro plays)
+  │   ├─ story-intro.js (when the story scenes play)
   │   ├─ speedrun.js    (continuous-run clock + device records)
   │   ├─ speedrun-ui.js (hidden records card, opt-in HUD clock)
   │   └─ api.js         (auth/profile/leaderboard/high score client)
@@ -53,7 +53,7 @@ Browser
 - Infra stack: `infra/terraform/sites/ffm/main.tf`
 - Backend tests: `sites/ffm/tests/test_app.py`
 - Curriculum tests: `sites/ffm/static/game/levels.test.js`
-- Story dioramas (intro, later act openings and the finish): `sites/ffm/static/story/`
+- Story dioramas (prologue, six act openings and the finish; silent text cards): `sites/ffm/static/story/`
   — art bible, scene format and pipeline in `sites/ffm/static/story/README.md`
 - Store graphics (key-art masters, the compositor and the launcher-icon source):
   `sites/ffm/store-art/` — upload slots and the Pillow recipe in

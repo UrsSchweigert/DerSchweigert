@@ -59,9 +59,18 @@
   border-radius: 3px 6px 4px 7px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 0 22px rgba(140, 95, 40, 0.35);
   font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
-  font-size: clamp(16px, 2.6vw, 30px);
+  font-size: clamp(16px, calc(var(--diorama-text-box, 100vw) * 0.026), 30px);
   line-height: 1.35;
   text-align: center;
+  /* The cards carry the whole story now (there is no voice-over), so a card
+   * holds up to three short sentences. Authored line breaks show, lines are
+   * balanced so a card never ends on one orphaned word, and a long German
+   * compound may break rather than push past the card's edge. The card's
+   * rendered height is measured at the smallest boxes by tools/measure-cards.py. */
+  white-space: pre-line;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  hyphens: manual;
   opacity: 0;
   transition: opacity 0.45s ease, transform 0.45s ease;
   z-index: 10;
@@ -74,6 +83,18 @@
 
 .diorama__subtitle:empty { display: none; }
 
+/* Spellbook lines (**…** in scene.json). */
+.diorama__subtitle strong {
+  font-weight: 700;
+  font-style: italic;
+}
+
+/* The heading card of a scene ("Act II: The Long Country · Levels 11–20"). */
+.diorama__subtitle.is-title {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
 /* Landscape phones — and a turned portrait screen, which is the same short
  * landscape box — get a slimmer strip so it covers less of the scene. The
  * class comes from the player (COMPACT_BOX_HEIGHT), so it follows the box
@@ -82,7 +103,7 @@
   bottom: max(3%, calc(env(safe-area-inset-bottom) + 8px));
   width: min(88%, 1100px);
   padding: 0.35em 1em 0.45em;
-  font-size: clamp(14px, 2.05vw, 20px);
+  font-size: clamp(14px, calc(var(--diorama-text-box, 100vw) * 0.0205), 20px);
   line-height: 1.3;
 }
 

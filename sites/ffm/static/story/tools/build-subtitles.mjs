@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const LOCALES = ['en', 'de'];
-const scenesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'scenes');
+export const scenesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'scenes');
 
 function stamp(seconds) {
   const ms = Math.round(seconds * 1000);
@@ -19,9 +19,16 @@ function stamp(seconds) {
   return `${h}:${m}:${s}.${String(ms % 1000).padStart(3, '0')}`;
 }
 
+/** A card in WebVTT cue text: `**bold**` becomes <b>, and the reserved
+ * characters are escaped so a stray "<" or "&" cannot start a tag. */
+export function vttText(text) {
+  const escaped = String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escaped.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+}
+
 export function toVtt(scene, locale) {
   const cues = scene.subtitles.map((cue, i) =>
-    `${i + 1}\n${stamp(cue.start)} --> ${stamp(cue.end)}\n${cue.text[locale]}`);
+    `${i + 1}\n${stamp(cue.start)} --> ${stamp(cue.end)}\n${vttText(cue.text[locale])}`);
   return `WEBVTT\n\n${cues.join('\n\n')}\n`;
 }
 

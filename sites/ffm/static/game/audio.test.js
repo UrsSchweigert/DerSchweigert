@@ -943,27 +943,27 @@ describe('shared sound buses and event cues', () => {
 
     it('stacks music ducks by reason so releasing one never un-ducks another', () => {
       const { audio } = soundEngine();
-      assert.equal(audio.setMusicDuck('story-narration', 0.3), 0.3, 'the story scene dips the music');
+      assert.equal(audio.setMusicDuck('other-dip', 0.3), 0.3, 'a second reason dips the music');
       assert.equal(audio.setMusicDuck('victory-hymn', 0.2), 0.2, 'the louder dip wins');
-      assert.equal(audio.setMusicDuck('story-narration', null), 0.2,
-        'a scene ending does not undo the hymn');
+      assert.equal(audio.setMusicDuck('other-dip', null), 0.2,
+        'releasing the other dip does not undo the hymn');
       assert.equal(audio._musicDuck, 0.2);
       assert.equal(audio.setMusicDuck('victory-hymn', null), 1, 'releasing the last dip restores the music');
       assert.equal(audio._musicDuck, 1);
 
-      assert.equal(audio.setMusicDuck('story-narration', 5), 1, 'a dip above full level is clamped');
-      assert.equal(audio.setMusicDuck('story-narration', -2), 0, 'a negative dip is clamped');
-      assert.equal(audio.setMusicDuck('story-narration', null), 1);
+      assert.equal(audio.setMusicDuck('other-dip', 5), 1, 'a dip above full level is clamped');
+      assert.equal(audio.setMusicDuck('other-dip', -2), 0, 'a negative dip is clamped');
+      assert.equal(audio.setMusicDuck('other-dip', null), 1);
     });
 
-    it('fades the music under a story scene instead of cutting it', () => {
+    it('fades the music into a dip instead of cutting it', () => {
       const { audio } = soundEngine();
       audio.startBGM();
-      audio.setMusicDuck('story-narration', 0.3);
+      audio.setMusicDuck('other-dip', 0.3);
       const events = audio._musicBus.gain.events.slice(-2);
       assert.deepEqual(events, [['set', 0.35, 10], ['linear', 0.35 * 0.3, 10 + 0.15]],
         'the dip ramps over the shared music fade');
-      audio.setMusicDuck('story-narration', null);
+      audio.setMusicDuck('other-dip', null);
       assert.deepEqual(audio._musicBus.gain.events.at(-1), ['linear', 0.35, 10.15],
         'and comes back up the same way');
     });
@@ -1632,146 +1632,4 @@ it('a level that starts while the playlist loads is not replaced by menu music',
   await audio._levelMusicReady;
   await Promise.resolve();
   assert.equal(audio._rotation.currentTrack.file, 'level.mp3', 'menu music must not hijack the level');
-});
-
-describe('Web Audio narration voice', () => {
-  function narrationContext() {
-    const context = {
-      currentTime: 10, state: 'running', nodes: [], sources: [],
-      resume() { return Promise.resolve(); },
-      suspend() { this.state = 'suspended'; return Promise.resolve(); },
-      decodeAudioData: async () => ({ duration: 8 }),
-    };
-    const node = kind => {
-      const n = {
-        kind, connections: [], disconnected: false,
-        connect(target) { this.connections.push(target); },
-        disconnect() { this.disconnected = true; },
-      };
-      context.nodes.push(n);
-      return n;
-    };
-    const param = () => ({ value: 0, setValueAtTime(v) { this.value = v; } });
-    context.destination = node('destination');
-    context.createGain = () => Object.assign(node('gain'), { gain: param() });
-    context.createBufferSource = () => {
-      const source = Object.assign(node('buffer'), {
-        starts: [], stops: 0, onended: null,
-        start(when, at) { this.starts.push([when, at]); },
-        stop() { this.stops++; },
-      });
-      context.sources.push(source);
-      return source;
-    };
-    return context;
-  }
-
-  function narrationEngine({ context = narrationContext(), ...options } = {}) {
-    const audio = new AudioEngine({
-      tracks: SINGLE,
-      makeContext: () => context,
-      baseUrl: 'https://localhost/game/',
-      fetchTrack: async () => ({ arrayBuffer: async () => new ArrayBuffer(8) }),
-      ...options,
-    });
-    return { audio, context };
-  }
-
-  it('is null-safe without an AudioContext', () => {
-    const audio = new AudioEngine({ tracks: SINGLE, makeContext: () => null, baseUrl: null });
-    assert.equal(audio.createNarrationVoice('https://localhost/n.mp3'), null);
-  });
-
-  it('is not ready until decoded, then plays through its own bus', async () => {
-    const { audio, context } = narrationEngine();
-    const voice = audio.createNarrationVoice('https://localhost/n.mp3');
-    assert.equal(voice.readyState, 0);
-    assert.equal(voice.paused, true);
-    let playing = 0;
-    voice.addEventListener('playing', () => { playing++; });
-    await voice.play();
-    assert.ok(voice.readyState >= 2);
-    assert.equal(voice.duration, 8);
-    assert.equal(voice.paused, false);
-    assert.equal(playing, 1);
-    assert.equal(context.sources[0].connections[0], audio._narrationBus);
-    assert.ok(audio._narrationBus.connections.length > 0);
-    assert.notEqual(audio._narrationBus, audio._musicBus);
-  });
-
-  it('follows the context clock, holds on pause and suspend, and resumes from the offset', async () => {
-    const { audio, context } = narrationEngine();
-    const voice = audio.createNarrationVoice('https://localhost/n.mp3');
-    await voice.play();
-    context.currentTime = 12;
-    assert.equal(voice.currentTime, 2);
-    voice.pause();
-    context.currentTime = 15;
-    assert.equal(voice.currentTime, 2);
-    assert.equal(voice.paused, true);
-    await voice.play();
-    assert.deepEqual(context.sources[1].starts[0], [15, 2]);
-    context.currentTime = 16;
-    assert.equal(voice.currentTime, 3);
-    // A suspended context stops its own clock, so the position holds.
-    context.state = 'suspended';
-    assert.equal(voice.currentTime, 3);
-  });
-
-  it('seeks while playing and while paused', async () => {
-    const { audio, context } = narrationEngine();
-    const voice = audio.createNarrationVoice('https://localhost/n.mp3');
-    await voice.play();
-    voice.currentTime = 5;
-    assert.equal(context.sources[0].stops, 1);
-    assert.deepEqual(context.sources[1].starts[0], [10, 5]);
-    assert.equal(voice.currentTime, 5);
-    voice.pause();
-    voice.currentTime = 1;
-    assert.equal(voice.currentTime, 1);
-  });
-
-  it('ends only after the buffer played to its end', async () => {
-    const { audio, context } = narrationEngine();
-    const voice = audio.createNarrationVoice('https://localhost/n.mp3');
-    await voice.play();
-    voice.pause();
-    assert.equal(voice.ended, false);
-    await voice.play();
-    context.currentTime = 30;
-    context.sources.at(-1).onended();
-    assert.equal(voice.ended, true);
-    assert.equal(voice.paused, true);
-    assert.equal(voice.currentTime, 8);
-  });
-
-  it('is silenced by mute, unaffected by music and effects sliders, and released by load()', async () => {
-    const { audio, context } = narrationEngine();
-    const voice = audio.createNarrationVoice('https://localhost/n.mp3');
-    audio._musicVolume = 0.1;
-    audio.setEffectsVolume(0.1);
-    assert.equal(audio._narrationBus.gain.value, 1);
-    await voice.play();
-    audio.setMuted(true);
-    assert.equal(audio._narrationBus.gain.value, 0);
-    assert.equal(context.sources[0].stops, 1, 'mute stops the playing voice');
-    assert.equal(voice.paused, true);
-    await assert.rejects(voice.play());
-    audio.setMuted(false);
-    assert.equal(audio._narrationBus.gain.value, 1);
-
-    const second = audio.createNarrationVoice('https://localhost/n.mp3');
-    await second.play();
-    second.removeAttribute('src');
-    second.load();
-    assert.equal(context.sources.at(-1).stops, 1);
-    assert.equal(context.sources.at(-1).disconnected, true);
-    assert.equal(second.readyState, 0);
-  });
-
-  it('rejects play() when the track cannot be fetched', async () => {
-    const { audio } = narrationEngine({ fetchTrack: async () => { throw new Error('offline'); } });
-    const voice = audio.createNarrationVoice('https://localhost/n.mp3');
-    await assert.rejects(voice.play());
-  });
 });

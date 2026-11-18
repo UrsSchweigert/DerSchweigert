@@ -94,6 +94,13 @@ are **gold**; danger is crimson or sickly violet, never gore.
 | V | 41-50 | night town square, fountain, rune circles | `stage-5.png` |
 | VI | 51-60 | blue-and-gold throne room | `stage-6.png` |
 
+These settings are what the shipped art shows. The current story text,
+*The Stolen Dawn*, asks for other places in several acts (mountain
+watchtowers in II, a buried stone city in IV, a capital where stalls float in
+V) and names the king's adviser as the villain; the README lists the
+differences for the next art pass. The Hollow King above is the boss-mode
+figure, not a character of the story cards.
+
 ## Composition
 
 - Stage is 1920×1080. Keep faces, the sword, and anything the subtitle refers

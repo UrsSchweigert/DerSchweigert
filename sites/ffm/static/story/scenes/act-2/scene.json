@@ -6,10 +6,10 @@
     "fromLevel": 11
   },
   "title": {
-    "en": "Act 2 · The Fading Harvest",
-    "de": "Akt 2 · Die schwindende Ernte"
+    "en": "Act II: The Long Country",
+    "de": "Akt II: Das weite Land"
   },
-  "duration": 16,
+  "duration": 43,
   "layers": [
     {
       "id": "backdrop",
@@ -23,10 +23,10 @@
           "t": 0,
           "x": 20,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 43,
           "x": -40,
           "y": 12,
           "scale": 1.05
@@ -45,10 +45,10 @@
           "t": 0,
           "x": 100,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 43,
           "x": -100,
           "y": -6,
           "scale": 1.03
@@ -68,17 +68,17 @@
           "x": 60,
           "y": 0,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 2.0,
+          "t": 5.4,
           "x": 40,
           "y": 0,
           "opacity": 1,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 43,
           "x": -40,
           "y": 0,
           "opacity": 1,
@@ -98,10 +98,10 @@
           "t": 0,
           "x": 220,
           "y": 10,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 43,
           "x": -220,
           "y": -14,
           "scale": 1.05
@@ -127,7 +127,7 @@
         "y": 760,
         "radius": 220,
         "color": "rgba(160,210,255,0.22)",
-        "from": 2.0,
+        "from": 5.4,
         "pulse": 3.4
       }
     ],
@@ -138,36 +138,63 @@
     "events": [
       {
         "type": "dim",
-        "at": 11.8,
+        "at": 38.1,
         "duration": 2.4,
         "color": "#0b1024",
-        "intensity": 0.5
+        "intensity": 0.5,
+        "atCue": 5,
+        "offset": -0.2
       }
     ]
   },
   "subtitles": [
     {
       "start": 0.8,
-      "end": 6.0,
+      "end": 8.5,
       "text": {
-        "en": "Beyond the gate, the fields burn gold.",
-        "de": "Hinter dem Tor glühen die Felder golden."
+        "en": "The path climbs into mountains where broken watchtowers cling to the cliffs.",
+        "de": "Der Pfad steigt hinauf in die Berge, wo sich zerfallene Wachtürme an die Felswände klammern."
       }
     },
     {
-      "start": 6.4,
-      "end": 11.6,
+      "start": 8.9,
+      "end": 17.1,
       "text": {
-        "en": "The harvest ward is out of tune. Mend it.",
-        "de": "Das Erntesiegel ist verstimmt. Stimme es neu."
+        "en": "Lightning leaps between their roofs, carrying stolen pieces of the Crown’s magic toward the capital.",
+        "de": "Blitze springen von Dach zu Dach und tragen gestohlene Stücke vom Zauber der Krone zur Hauptstadt."
       }
     },
     {
-      "start": 12.0,
-      "end": 16,
+      "start": 17.5,
+      "end": 28,
       "text": {
-        "en": "Act II · The Fading Harvest",
-        "de": "Akt II · Die schwindende Ernte"
+        "en": "Your spellbook opens to a page you have never seen: a dragon curled around a chain of shining numbers.",
+        "de": "Dein Zauberbuch öffnet sich auf einer Seite, die du noch nie gesehen hast: ein Drache, der sich um eine Kette leuchtender Zahlen rollt."
+      }
+    },
+    {
+      "start": 28.4,
+      "end": 32.4,
+      "text": {
+        "en": "Beneath it, one sentence appears:",
+        "de": "Darunter erscheint ein einziger Satz:"
+      }
+    },
+    {
+      "start": 32.8,
+      "end": 37.9,
+      "text": {
+        "en": "**A steady mind can wake what thunder cannot.**",
+        "de": "**Ein ruhiger Geist kann wecken, was kein Donner weckt.**"
+      }
+    },
+    {
+      "start": 38.3,
+      "end": 42.4,
+      "kind": "title",
+      "text": {
+        "en": "Act II: The Long Country · Levels 11–20",
+        "de": "Akt II: Das weite Land · Level 11–20"
       }
     }
   ]

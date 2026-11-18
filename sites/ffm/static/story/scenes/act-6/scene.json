@@ -6,10 +6,10 @@
     "fromLevel": 51
   },
   "title": {
-    "en": "Act 6 · The Empty Throne",
-    "de": "Akt 6 · Der leere Thron"
+    "en": "Act VI: The Throne",
+    "de": "Akt VI: Der Thron"
   },
-  "duration": 16,
+  "duration": 42,
   "layers": [
     {
       "id": "backdrop",
@@ -23,10 +23,10 @@
           "t": 0,
           "x": 20,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 42,
           "x": -40,
           "y": 12,
           "scale": 1.05
@@ -45,10 +45,10 @@
           "t": 0,
           "x": 100,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 42,
           "x": -100,
           "y": -6,
           "scale": 1.03
@@ -68,17 +68,17 @@
           "x": 60,
           "y": 0,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 2.0,
+          "t": 5.3,
           "x": 40,
           "y": 0,
           "opacity": 1,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 42,
           "x": -40,
           "y": 0,
           "opacity": 1,
@@ -98,10 +98,10 @@
           "t": 0,
           "x": 220,
           "y": 10,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 42,
           "x": -220,
           "y": -14,
           "scale": 1.05
@@ -127,7 +127,7 @@
         "y": 760,
         "radius": 220,
         "color": "rgba(160,210,255,0.22)",
-        "from": 2.0,
+        "from": 5.3,
         "pulse": 3.4
       }
     ],
@@ -138,36 +138,63 @@
     "events": [
       {
         "type": "dim",
-        "at": 11.8,
+        "at": 37.2,
         "duration": 2.4,
         "color": "#0b1024",
-        "intensity": 0.5
+        "intensity": 0.5,
+        "atCue": 5,
+        "offset": -0.2
       }
     ]
   },
   "subtitles": [
     {
       "start": 0.8,
-      "end": 6.0,
+      "end": 10.1,
       "text": {
-        "en": "A throne that should have been empty.",
-        "de": "Ein Thron, der leer hätte bleiben sollen."
+        "en": "Through the palace doors, the path becomes a climb: shattered halls, winding stairs, a gallery of empty crowns.",
+        "de": "Hinter den Palasttoren wird der Weg zum Aufstieg: zerbrochene Hallen, gewundene Treppen, eine Galerie leerer Kronen."
       }
     },
     {
-      "start": 6.4,
-      "end": 11.6,
+      "start": 10.5,
+      "end": 15.2,
       "text": {
-        "en": "One ward remains. The crown is waiting.",
-        "de": "Ein Siegel bleibt. Die Krone wartet."
+        "en": "Beyond the final doorway waits the throne room.",
+        "de": "Hinter der letzten Tür wartet der Thronsaal."
       }
     },
     {
-      "start": 12.0,
-      "end": 16,
+      "start": 15.6,
+      "end": 24.5,
       "text": {
-        "en": "Act VI · The Empty Throne",
-        "de": "Akt VI · Der leere Thron"
+        "en": "The adviser sits beneath the stolen Crown of Balance. He offers you a place beside him.",
+        "de": "Der Berater sitzt unter der gestohlenen Krone des Gleichgewichts. Er bietet dir einen Platz an seiner Seite an."
+      }
+    },
+    {
+      "start": 24.9,
+      "end": 32.6,
+      "text": {
+        "en": "“Why solve a difficult world,” he asks, “when you can make it obey?”",
+        "de": "„Warum eine schwierige Welt lösen“, fragt er, „wenn du sie einfach gehorchen lassen kannst?“"
+      }
+    },
+    {
+      "start": 33,
+      "end": 37,
+      "text": {
+        "en": "You open your spellbook.",
+        "de": "Du schlägst dein Zauberbuch auf."
+      }
+    },
+    {
+      "start": 37.4,
+      "end": 41.4,
+      "kind": "title",
+      "text": {
+        "en": "Act VI: The Throne · Levels 51–60",
+        "de": "Akt VI: Der Thron · Level 51–60"
       }
     }
   ]

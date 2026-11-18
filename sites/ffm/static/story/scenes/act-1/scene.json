@@ -6,10 +6,10 @@
     "fromLevel": 1
   },
   "title": {
-    "en": "Act 1 · The First Light",
-    "de": "Akt 1 · Das erste Licht"
+    "en": "Act I: Beyond the Village",
+    "de": "Akt I: Hinter dem Dorf"
   },
-  "duration": 16,
+  "duration": 38.7,
   "layers": [
     {
       "id": "backdrop",
@@ -23,10 +23,10 @@
           "t": 0,
           "x": 20,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 38.7,
           "x": -40,
           "y": 12,
           "scale": 1.05
@@ -45,10 +45,10 @@
           "t": 0,
           "x": 100,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 38.7,
           "x": -100,
           "y": -6,
           "scale": 1.03
@@ -68,17 +68,17 @@
           "x": 60,
           "y": 0,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 2.0,
+          "t": 4.8,
           "x": 40,
           "y": 0,
           "opacity": 1,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 38.7,
           "x": -40,
           "y": 0,
           "opacity": 1,
@@ -98,10 +98,10 @@
           "t": 0,
           "x": 220,
           "y": 10,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 38.7,
           "x": -220,
           "y": -14,
           "scale": 1.05
@@ -127,7 +127,7 @@
         "y": 760,
         "radius": 220,
         "color": "rgba(160,210,255,0.22)",
-        "from": 2.0,
+        "from": 4.8,
         "pulse": 3.4
       }
     ],
@@ -138,36 +138,55 @@
     "events": [
       {
         "type": "dim",
-        "at": 11.8,
+        "at": 33.8,
         "duration": 2.4,
         "color": "#0b1024",
-        "intensity": 0.5
+        "intensity": 0.5,
+        "atCue": 4,
+        "offset": -0.2
       }
     ]
   },
   "subtitles": [
     {
       "start": 0.8,
-      "end": 6.0,
+      "end": 10.4,
       "text": {
-        "en": "Dawn. The village is quiet, and one rune is still dark.",
-        "de": "Der Morgen. Das Dorf ist still, und eine Rune ist noch dunkel."
+        "en": "The village lanterns fade behind you as you follow the crooked road through orchards and abandoned farms.",
+        "de": "Die Laternen des Dorfes verblassen hinter dir, während du der krummen Straße durch Obstgärten und verlassene Höfe folgst."
       }
     },
     {
-      "start": 6.4,
-      "end": 11.6,
+      "start": 10.8,
+      "end": 18.9,
       "text": {
-        "en": "Ten wards, ten villages. Wake the first one here.",
-        "de": "Zehn Siegel, zehn Dörfer. Wecke hier das erste."
+        "en": "Small fiends steal signposts, scramble milestones, and scatter your neighbours’ belongings.",
+        "de": "Kleine Feinde stehlen Wegweiser, verdrehen Meilensteine und verstreuen die Sachen deiner Nachbarn."
       }
     },
     {
-      "start": 12.0,
-      "end": 16,
+      "start": 19.3,
+      "end": 29.1,
       "text": {
-        "en": "Act I · The First Light",
-        "de": "Akt I · Das erste Licht"
+        "en": "Your first spells are little more than sparks and gusts. But with each victory, the road straightens beneath your feet.",
+        "de": "Deine ersten Zauber sind kaum mehr als Funken und Windstöße. Doch mit jedem Sieg wird die Straße unter deinen Füßen gerader."
+      }
+    },
+    {
+      "start": 29.5,
+      "end": 33.6,
+      "text": {
+        "en": "Someone is afraid you will.",
+        "de": "Jemand fürchtet, dass dir das gelingt."
+      }
+    },
+    {
+      "start": 34,
+      "end": 38.1,
+      "kind": "title",
+      "text": {
+        "en": "Act I: Beyond the Village · Levels 1–10",
+        "de": "Akt I: Hinter dem Dorf · Level 1–10"
       }
     }
   ]

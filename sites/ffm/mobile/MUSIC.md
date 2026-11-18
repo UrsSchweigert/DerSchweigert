@@ -262,7 +262,7 @@ verify on a physical iOS and Android device:
 
 - Bundled music is audible and the music slider changes live gain at 0, 0.2
   and 1 while a track plays.
-- The iOS silent switch silences BGM, effects and story narration, and unmuting restores them and shows a hint to check the silent switch.
+- The iOS silent switch silences BGM and effects, and unmuting restores them and shows a hint to check the silent switch.
 - A call/alarm interruption pauses BGM and gameplay, and returning resumes both
   exactly once with mute and gain preserved.
 - Background/foreground transitions do not duplicate playback.

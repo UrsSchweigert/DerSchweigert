@@ -54,6 +54,12 @@
         "act": 6,
         "fromLevel": 51
       }
+    },
+    {
+      "id": "finish",
+      "slot": {
+        "type": "finish"
+      }
     }
   ]
 }

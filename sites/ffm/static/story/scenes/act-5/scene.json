@@ -6,10 +6,10 @@
     "fromLevel": 41
   },
   "title": {
-    "en": "Act 5 · The Night Market",
-    "de": "Akt 5 · Der Nachtmarkt"
+    "en": "Act V: The Silent Capital",
+    "de": "Akt V: Die stille Hauptstadt"
   },
-  "duration": 16,
+  "duration": 48.4,
   "layers": [
     {
       "id": "backdrop",
@@ -23,10 +23,10 @@
           "t": 0,
           "x": 20,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 48.4,
           "x": -40,
           "y": 12,
           "scale": 1.05
@@ -45,10 +45,10 @@
           "t": 0,
           "x": 100,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 48.4,
           "x": -100,
           "y": -6,
           "scale": 1.03
@@ -68,17 +68,17 @@
           "x": 60,
           "y": 0,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 2.0,
+          "t": 6.1,
           "x": 40,
           "y": 0,
           "opacity": 1,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 48.4,
           "x": -40,
           "y": 0,
           "opacity": 1,
@@ -98,10 +98,10 @@
           "t": 0,
           "x": 220,
           "y": 10,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 48.4,
           "x": -220,
           "y": -14,
           "scale": 1.05
@@ -127,7 +127,7 @@
         "y": 760,
         "radius": 220,
         "color": "rgba(160,210,255,0.22)",
-        "from": 2.0,
+        "from": 6.1,
         "pulse": 3.4
       }
     ],
@@ -138,36 +138,63 @@
     "events": [
       {
         "type": "dim",
-        "at": 11.8,
+        "at": 43.3,
         "duration": 2.4,
         "color": "#0b1024",
-        "intensity": 0.5
+        "intensity": 0.5,
+        "atCue": 5,
+        "offset": -0.2
       }
     ]
   },
   "subtitles": [
     {
       "start": 0.8,
-      "end": 6.0,
+      "end": 7.5,
       "text": {
-        "en": "Lanterns stay low. The fountain tries to speak.",
-        "de": "Die Laternen bleiben tief. Der Brunnen will sprechen."
+        "en": "The capital’s gates stand open, but no one comes to greet you.",
+        "de": "Die Tore der Hauptstadt stehen offen, aber niemand kommt, um dich zu begrüßen."
       }
     },
     {
-      "start": 6.4,
-      "end": 11.6,
+      "start": 7.9,
+      "end": 17.6,
       "text": {
-        "en": "Every lit window is part of the ward.",
-        "de": "Jedes erleuchtete Fenster gehört zum Siegel."
+        "en": "Market stalls float above the cobbles. Clocks run backward. Palace banners hang perfectly still in a howling wind.",
+        "de": "Marktstände schweben über dem Pflaster. Uhren laufen rückwärts. Die Banner des Palasts hängen ganz still im heulenden Wind."
       }
     },
     {
-      "start": 12.0,
-      "end": 16,
+      "start": 18,
+      "end": 26.9,
       "text": {
-        "en": "Act V · The Night Market",
-        "de": "Akt V · Der Nachtmarkt"
+        "en": "The adviser’s strongest fiends hunt through the streets, combining the tricks you have already overcome.",
+        "de": "Die stärksten Feinde des Beraters jagen durch die Straßen und verbinden alle Tricks, die du schon besiegt hast."
+      }
+    },
+    {
+      "start": 27.3,
+      "end": 32.6,
+      "text": {
+        "en": "A sequence of correct answers lights the sky.",
+        "de": "Eine Reihe richtiger Antworten lässt den Himmel leuchten."
+      }
+    },
+    {
+      "start": 33,
+      "end": 43.1,
+      "text": {
+        "en": "The ancient dragon descends, and for the first time since dawn was stolen, the city hears a hopeful sound.",
+        "de": "Der uralte Drache steigt herab, und zum ersten Mal, seit der Morgen gestohlen wurde, hört die Stadt einen hoffnungsvollen Klang."
+      }
+    },
+    {
+      "start": 43.5,
+      "end": 47.8,
+      "kind": "title",
+      "text": {
+        "en": "Act V: The Silent Capital · Levels 41–50",
+        "de": "Akt V: Die stille Hauptstadt · Level 41–50"
       }
     }
   ]

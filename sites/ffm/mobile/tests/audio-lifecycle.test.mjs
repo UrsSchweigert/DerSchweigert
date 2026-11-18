@@ -87,9 +87,13 @@ test('an app interruption pauses and resumes bundled music exactly once', async 
   lifecycle.stop();
 });
 
-test('main.js wires the Web Audio narration factory only for the iOS app', () => {
-  const source = readFileSync(new URL('../../static/game/main.js', import.meta.url), 'utf8');
-  assert.match(source, /platform\.isApp\s*\?\s*await import\('\.\/ios-platform\.js'\)\.catch\(\(\) => null\)/);
-  assert.match(source, /iosPlatform\?\.isIosApp\(\)/);
-  assert.match(source, /useWebAudioNarration \? \{ createNarration: url => audio\.createNarrationVoice\(url\) \} : \{\}/);
+// The story lost its voice-over: the scenes are silent picture-and-text cards,
+// so no platform needs a narration voice any more (the iOS Web Audio path of
+// #525 is gone with it). The silent-switch hint still uses ios-platform.js.
+test('no platform wires a story narration voice', () => {
+  const main = readFileSync(new URL('../../static/game/main.js', import.meta.url), 'utf8');
+  const audio = readFileSync(new URL('../../static/game/audio.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /createNarration|useWebAudioNarration|story-narration/);
+  assert.doesNotMatch(audio, /createNarrationVoice|_narrationBus|_releaseNarrationVoices/);
+  assert.match(main, /silentSwitchHint: Boolean\(iosPlatform\?\.isIosApp\(\)\)/);
 });

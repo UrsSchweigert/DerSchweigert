@@ -4,12 +4,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 
-import { FIRST_LEVEL, OPEN_SHOWN_KEY, createStoryIntro } from './story-intro.js';
+import vm from 'node:vm';
+
+import {
+  FINISH_SCENE, FINISH_SHOWN_KEY, FIRST_LEVEL, OPEN_SHOWN_KEY, SCENE_WAIT_MAX_MS, createStoryIntro,
+} from './story-intro.js';
 import { setLocale, t } from './i18n.js';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+const storyIndex = JSON.parse(readFileSync(new URL('../story/scenes/index.json', import.meta.url), 'utf8'));
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -222,7 +227,7 @@ test('a level start asked for while a scene is on screen waits for it', async ()
 
   // The prologue is loading/playing over the title screen, and the player taps
   // Play before it is finished. The level used to start underneath it, taking
-  // over the music while the narration was still running.
+  // over the menu music while the scene was still on screen.
   const opening = intro.playOnOpen();
   let settled = false;
   const levelStart = intro.playBeforeLevel(FIRST_LEVEL).then((scene) => { settled = true; return scene; });
@@ -293,4 +298,139 @@ test('the title bar offers a circular dragon-arrow replay button left of Login',
   setLocale('de');
   assert.equal(t('splash.replayIntro'), 'Intro erneut ansehen');
   setLocale('en');
+});
+
+// --- The finish (outro) after Campaign I's last level ---
+
+test('the finish plays the first time this install finishes the game, and only then', async () => {
+  const storage = memoryStorage({ [OPEN_SHOWN_KEY]: '1' });
+  const { calls, play } = recorder();
+  const intro = createStoryIntro({ play, storage, sceneForLevel });
+
+  assert.equal(intro.hasShownFinish(), false);
+  assert.equal(await intro.playFinish(), 'ended');
+  assert.deepEqual(calls, [FINISH_SCENE]);
+  assert.equal(storage.data.get(FINISH_SHOWN_KEY), '1');
+  assert.equal(await intro.playFinish(), null, 'a second finish of level 60 plays nothing');
+
+  // Another session on the same install has seen it too.
+  const later = createStoryIntro({ play, storage, sceneForLevel });
+  assert.equal(await later.playFinish(), null);
+  assert.deepEqual(calls, [FINISH_SCENE]);
+});
+
+test('the finish waits for a scene already on screen instead of stacking on it', async () => {
+  const storage = memoryStorage();
+  const starts = [];
+  const releases = [];
+  const intro = createStoryIntro({
+    play: (scene) => { starts.push(scene); return new Promise((resolve) => { releases.push(resolve); }); },
+    storage,
+  });
+  const prologue = intro.playOnOpen();
+  const finish = intro.playFinish();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(starts, ['intro']);
+  releases[0]('skipped');
+  await prologue;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(starts, ['intro', FINISH_SCENE]);
+  releases[1]('ended');
+  assert.equal(await finish, 'ended');
+});
+
+test('a finish that never ends cannot hold back the victory screen', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const warn = t.mock.method(console, 'warn', () => {});
+  const intro = createStoryIntro({ play: () => new Promise(() => {}), storage: memoryStorage() });
+  const finish = intro.playFinish();
+  await Promise.resolve();
+  t.mock.timers.tick(SCENE_WAIT_MAX_MS);
+  assert.equal(await finish, null);
+  assert.equal(warn.mock.callCount(), 1);
+});
+
+test('a broken finish scene is logged and shown only once', async (t) => {
+  const storage = memoryStorage();
+  const errors = t.mock.method(console, 'error', () => {});
+  const intro = createStoryIntro({ play: async () => { throw new Error('HTTP 404'); }, storage });
+  assert.equal(await intro.playFinish(), null);
+  assert.equal(storage.data.get(FINISH_SHOWN_KEY), '1');
+  assert.equal(errors.mock.callCount(), 1);
+});
+
+test('the story index has a finish slot the controller plays', () => {
+  const finish = storyIndex.scenes.filter((entry) => entry.slot?.type === 'finish');
+  assert.deepEqual(finish.map((entry) => entry.id), [FINISH_SCENE]);
+});
+
+// "Finish game" on the level-clear card: the level-clear handler runs in a
+// sandbox with the game's collaborators stubbed, like mobile-score-flow.test.js.
+const clearSource = main.match(/function triggerLevelClear\(\) \{[\s\S]*?\n\}/)?.[0];
+
+function levelClearContext({ level, campaign = 1, shapes = false, finish = async () => 'ended' }) {
+  const element = () => ({ style: { setProperty() {} }, disabled: false, textContent: '' });
+  const events = [];
+  const context = {
+    state: { level, score: 900, difficulty: 'easy', campaign, isShapesMode: shapes },
+    setAnswerInputVisible() {},
+    practiceRun: null,
+    levelStartScore: 100, runProfileId: 'player-a',
+    completedLevelSave: null, completionPending: false,
+    attemptSummary: { snapshot: () => ({}) },
+    renderAttemptAccomplishment() {},
+    createCompletionId: () => 'completion-1',
+    createLevelCompletion: () => async () => { if (!events.includes('saved')) events.push('saved'); return null; },
+    campaign2Progress: () => ({ markCleared() {} }),
+    TOTAL_LEVELS: 60, TOTAL_LEVELS_2: 40,
+    platform: { isApp: true, isLoggedIn: false },
+    t: (key) => key,
+    levelClearOverlay: element(), levelClearTitle: element(), levelClearScore: element(),
+    levelClearPreview: element(),
+    topBar: element(), btnNextLevel: element(), btnReplayLevel: element(),
+    btnSaveScoreReturnTitle: element(), diffSelect: element(),
+    profileUI: null, audio: { stopBGM() {} },
+    updateHUDLogoutVisibility() {},
+    async refreshProfileAndLeaderboard() {},
+    storyIntro: { async playFinish() { events.push('finish'); return finish(); } },
+    triggerGameOver(won) { events.push(`gameOver:${won}`); },
+    startLevel(index) { events.push(`start:${index}`); },
+    console: { error() {} },
+  };
+  vm.createContext(context);
+  vm.runInContext(clearSource, context);
+  return { context, events };
+}
+
+test('Finish game on Campaign I level 60 saves, plays the finish, then the victory screen', async () => {
+  assert.ok(clearSource, 'triggerLevelClear must exist');
+  const { context, events } = levelClearContext({ level: 60 });
+  await context.triggerLevelClear();
+  assert.deepEqual(events, ['saved'], 'the level is saved before anything else');
+  await context.btnNextLevel.onclick();
+  assert.deepEqual(events, ['saved', 'finish', 'gameOver:true']);
+});
+
+test('the victory screen still follows when the finish fails', async () => {
+  const { context, events } = levelClearContext({ level: 60, finish: async () => { throw new Error('boom'); } });
+  await context.triggerLevelClear();
+  await context.btnNextLevel.onclick();
+  assert.deepEqual(events, ['saved', 'finish', 'gameOver:true']);
+});
+
+test('no finish for Campaign II, shapes mode, or any level before the last', async () => {
+  const campaign2 = levelClearContext({ level: 40, campaign: 2 });
+  await campaign2.context.triggerLevelClear();
+  await campaign2.context.btnNextLevel.onclick();
+  assert.deepEqual(campaign2.events, ['gameOver:true'], 'Campaign II ends without the story');
+
+  const shapes = levelClearContext({ level: 60, shapes: true });
+  await shapes.context.triggerLevelClear();
+  await shapes.context.btnNextLevel.onclick();
+  assert.ok(!shapes.events.includes('finish'));
+
+  const earlier = levelClearContext({ level: 59 });
+  await earlier.context.triggerLevelClear();
+  await earlier.context.btnNextLevel.onclick();
+  assert.deepEqual(earlier.events, ['saved', 'start:59']);
 });
