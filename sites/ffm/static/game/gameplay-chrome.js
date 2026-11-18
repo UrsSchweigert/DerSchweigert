@@ -1,15 +1,29 @@
 import { appendRunestones } from './runestone.js';
 import { MAX_SHAPE_COUNT } from './shapes.js';
 import { expressionHtml, expressionText } from './campaign2/math-render.js';
+import { COMPACT_ROW_PX, measureLevelReserve } from './campaign2/question-reserve.js';
 
 const STONE_ADVANCE_EM = 0.9;      // stone width plus its gap, in the row's font size
 const STONE_SUM_BUDGET_PX = 300;   // narrowest usable header width
 
 // Lifecycle owners call setVisible on screen changes and update(state, activeProblem)
 // with paused/reveal flags. Queued fiends never belong in this live question.
-export function createGameplayChrome({ doc = globalThis.document, translate, onScoreGain } = {}) {
+// `measureReserve(doc, row, level)` is the Campaign II row height (question-reserve.js); tests
+// pass their own, since only a browser can lay maths out.
+export function createGameplayChrome({
+  doc = globalThis.document, translate, onScoreGain, measureReserve = measureLevelReserve,
+} = {}) {
   const element = id => doc?.getElementById(id);
   const chrome = element('gameplay-chrome');
+  // The Campaign II level the question row is reserved for, and its height. A new font size
+  // (orientation, a resize across a media query, a web font that finished loading) changes
+  // what the maths measures, so those drop the measurement and the next frame takes it again.
+  let reserve = { key: null, px: COMPACT_ROW_PX };
+  const remeasure = () => { reserve = { ...reserve, key: null }; };
+  const win = doc?.defaultView;
+  win?.addEventListener?.('resize', remeasure);
+  win?.addEventListener?.('orientationchange', remeasure);
+  doc?.fonts?.addEventListener?.('loadingdone', remeasure);
   let shapesHeader = null;
   const text = (id, value) => {
     const el = element(id);
@@ -64,7 +78,36 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
     el.dataset.mathKey = html;
     el.innerHTML = html;
     el.setAttribute?.('aria-label', expressionText(tokens));
+    guardReserve(el);
     return true;
+  }
+  // The reserve comes from a sample of the level's questions. Should a question ever be taller
+  // than all of them, the row takes its height and keeps it for the rest of the level: it may
+  // grow once, but it never shrinks back on the next, flatter question. One layout read per
+  // new question, not per frame.
+  function guardReserve(el) {
+    if (!reserve.key) return;
+    const height = el.firstElementChild?.getBoundingClientRect?.().height;
+    if (!(height > reserve.px)) return;
+    reserve = { ...reserve, px: Math.ceil(height) };
+    applyReserve('math');
+  }
+  // Called every frame: the writes only happen when the marker or the height changes.
+  let appliedHeight = '';
+  function applyReserve(value) {
+    if (chrome.dataset.questionRows !== value) chrome.dataset.questionRows = value;
+    const height = value === 'math' ? `${reserve.px}px` : '';
+    if (height === appliedHeight) return;
+    appliedHeight = height;
+    const style = chrome.style || (chrome.style = {});
+    if (style.setProperty) {
+      if (height) style.setProperty('--question-row-height', height);
+      else style.removeProperty('--question-row-height');
+    } else if (height) {
+      style['--question-row-height'] = height;
+    } else {
+      delete style['--question-row-height'];
+    }
   }
   // A counted addition on the first levels: "<stones> + <stones> = ?", written
   // once per problem (the key stops it being rewritten every frame).
@@ -222,15 +265,37 @@ export function createGameplayChrome({ doc = globalThis.document, translate, onS
    * measured height, so a row that appears and disappears rescales the board
    * between problems. Both stylesheets read the marker (web styles.css and the
    * app overlay's mobile-ui.css).
+   *
+   * Campaign II asks one question too, but as stacked maths that can stand taller
+   * than the text line. Its level reserves the height of its tallest question
+   * (question-reserve.js) as --question-row-height under the marker "math"; a
+   * level whose maths all fits the line keeps "1".
    */
-  function setQuestionReserve(shapesLevel) {
+  function setQuestionReserve(state) {
     if (!chrome?.dataset) return;
-    const value = shapesLevel ? '2' : '1';
-    if (chrome.dataset.questionRows !== value) chrome.dataset.questionRows = value;
+    if (state.isShapesMode) {
+      reserve = { key: null, px: COMPACT_ROW_PX };
+      applyReserve('2');
+      return;
+    }
+    const level = state.campaign === 2 && Number.isInteger(state.level) ? state.level : null;
+    const key = level === null ? null : `2:${level}`;
+    if (key !== reserve.key) {
+      let px = COMPACT_ROW_PX;
+      if (key) {
+        try {
+          px = Math.max(COMPACT_ROW_PX, Math.ceil(Number(measureReserve(doc, element('active-question'), level)) || 0));
+        } catch {
+          px = COMPACT_ROW_PX;
+        }
+      }
+      reserve = { key, px };
+    }
+    applyReserve(reserve.px > COMPACT_ROW_PX ? 'math' : '1');
   }
   function update(state = {}, problem = null) {
     if (!chrome) return;
-    setQuestionReserve(!!state.isShapesMode);
+    setQuestionReserve(state);
     const active = !!problem && !state.paused && !state.reveal && !!(state.questionActive ?? state.timerActive);
     let question = '';
     let shapesLines = null;

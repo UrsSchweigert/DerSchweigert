@@ -292,6 +292,117 @@ test('the question rows are reserved per mode, on every build', () => {
   assert.equal(web['gameplay-chrome'].dataset.questionRows, '1');
 });
 
+// Campaign II: stacked maths is taller than the text line, so the level reserves its tallest
+// question (campaign2/question-reserve.js) and keeps that height between problems, through the
+// correction and the pause. viewport-layout.js sizes the scene from the header, so a row that
+// followed each question used to rescale the board on every fraction.
+function mathFixture(heights) {
+  const listeners = {};
+  const calls = [];
+  const row = {
+    dataset: {}, style: {}, textContent: '', innerHTML: '', firstElementChild: null,
+    setAttribute() {}, removeAttribute() {}, appendChild() {},
+  };
+  const elements = { 'gameplay-chrome': { dataset: {}, hidden: true }, 'active-question': row };
+  const doc = {
+    getElementById: id => elements[id],
+    createElement: () => ({ setAttribute() {}, appendChild() {} }),
+    defaultView: { addEventListener: (type, fn) => { listeners[type] = fn; } },
+  };
+  const chrome = createGameplayChrome({
+    doc,
+    measureReserve: (d, el, level) => {
+      calls.push({ level, row: el === row });
+      return heights[level] ?? 28;
+    },
+  });
+  const header = elements['gameplay-chrome'];
+  const reserved = () => [header.dataset.questionRows, header.style['--question-row-height']];
+  return { chrome, row, header, calls, listeners, reserved };
+}
+const fractionProblem = { question: '1/3 + 1/4 = ?', math: [{ t: 'frac', n: 1, d: 3 }, { t: 'op', s: '+' }, { t: 'frac', n: 1, d: 4 }, { t: 'op', s: '=' }, { t: 'blank' }] };
+const powerProblem = { question: '2³ = ?', math: [{ t: 'pow', base: [{ t: 'int', v: 2 }], exp: [{ t: 'int', v: 3 }] }, { t: 'op', s: '=' }, { t: 'blank' }] };
+
+test('a Campaign II level reserves its tallest question for every problem, reveal and pause', () => {
+  const { chrome, row, calls, reserved } = mathFixture({ 14: 40.3 });
+  const level = { campaign: 2, level: 14, timerActive: true };
+  chrome.setVisible(true);
+  chrome.update(level, null);
+  assert.deepEqual(reserved(), ['math', '41px'], 'reserved before the first question appears');
+  chrome.update(level, fractionProblem);
+  assert.match(row.innerHTML, /m2-frac/);
+  assert.deepEqual(reserved(), ['math', '41px']);
+  chrome.update(level, powerProblem);
+  assert.deepEqual(reserved(), ['math', '41px'], 'a flatter question keeps the row');
+  chrome.update({ ...level, reveal: true, feedback: { question: '1/3 + 1/4 = 7/12' } }, fractionProblem);
+  assert.equal(row.textContent, '1/3 + 1/4 = 7/12');
+  assert.deepEqual(reserved(), ['math', '41px'], 'the plain-text correction keeps the row');
+  chrome.update({ ...level, paused: true }, fractionProblem);
+  assert.deepEqual(reserved(), ['math', '41px'], 'the pause keeps the row');
+  chrome.update({ ...level, timerActive: false }, null);
+  assert.deepEqual(reserved(), ['math', '41px'], 'between problems keeps the row');
+  assert.deepEqual(calls, [{ level: 14, row: true }], 'measured once, from the real question row');
+});
+
+test('the reserve follows the level, and Campaign I and Shapes keep their markers', () => {
+  const { chrome, calls, reserved } = mathFixture({ 14: 41, 24: 47 });
+  chrome.update({ campaign: 2, level: 14 }, fractionProblem);
+  assert.deepEqual(reserved(), ['math', '41px']);
+  chrome.update({ campaign: 2, level: 24 }, fractionProblem);
+  assert.deepEqual(reserved(), ['math', '47px'], 'the next level measures its own questions');
+  chrome.update({ campaign: 2, level: 3 }, fractionProblem);
+  assert.deepEqual(reserved(), ['1', undefined], 'maths that fits the line keeps the compact row');
+  chrome.update({ campaign: 1, level: 14 }, { question: '7 + 5 = ?' });
+  assert.deepEqual(reserved(), ['1', undefined], 'Campaign I is unchanged');
+  chrome.update({ campaign: 2, level: 14, isShapesMode: true }, null);
+  assert.deepEqual(reserved(), ['2', undefined], 'Shapes keeps its two rows');
+  assert.deepEqual(calls.map(c => c.level), [14, 24, 3]);
+});
+
+test('a resize, a rotation or a loaded font measures the level again', () => {
+  const { chrome, calls, listeners, reserved } = mathFixture({ 14: 41 });
+  chrome.update({ campaign: 2, level: 14 }, fractionProblem);
+  for (const type of ['resize', 'orientationchange']) {
+    listeners[type]();
+    chrome.update({ campaign: 2, level: 14 }, fractionProblem);
+  }
+  assert.equal(calls.length, 3);
+  assert.deepEqual(reserved(), ['math', '41px']);
+});
+
+test('a question taller than the sample raises the row once and it never shrinks back', () => {
+  const { chrome, row, reserved } = mathFixture({ 14: 41 });
+  chrome.update({ campaign: 2, level: 14, timerActive: true }, null);
+  Object.defineProperty(row, 'innerHTML', {
+    get: () => row._html ?? '',
+    set(html) {
+      row._html = html;
+      const tall = html.includes('m2-frac') ? 52.5 : 28;
+      row.firstElementChild = { getBoundingClientRect: () => ({ height: tall }) };
+    },
+  });
+  chrome.update({ campaign: 2, level: 14, timerActive: true }, fractionProblem);
+  assert.deepEqual(reserved(), ['math', '53px']);
+  chrome.update({ campaign: 2, level: 14, timerActive: true }, powerProblem);
+  assert.deepEqual(reserved(), ['math', '53px']);
+});
+
+test('both stylesheets give the reserved maths row a fixed, centred, one-line height', async () => {
+  const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+  const rule = css.match(/#gameplay-chrome\[data-question-rows="math"\] #active-question \{([^}]*)\}/)?.[1] ?? '';
+  assert.match(rule, /height: var\(--question-row-height, 28px\);/);
+  assert.match(rule, /min-height: var\(--question-row-height, 28px\);/);
+  assert.match(rule, /white-space: nowrap;/);
+  assert.match(rule, /overflow: hidden;/);
+  assert.match(rule, /padding-block: calc\(\(var\(--question-row-height, 28px\) - 28px\) \/ 2\);/);
+  const math = css.match(/#gameplay-chrome\[data-question-rows="math"\] #active-question\[data-math-key\] \{([^}]*)\}/)?.[1] ?? '';
+  assert.match(math, /display: flex;/);
+  assert.match(math, /align-items: center;/);
+  // The app loads the same styles.css; its overlay must not override the reserved height.
+  const appCss = await readFile(new URL('../../mobile/game/mobile-ui.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(appCss, /data-question-rows="math"/);
+});
+
 test('absent DOM remains a no-op', () => {
   const chrome = createGameplayChrome({ doc: null });
   assert.doesNotThrow(() => { chrome.update(); chrome.setVisible(true); });
