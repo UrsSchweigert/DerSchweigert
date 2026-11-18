@@ -123,6 +123,35 @@ test('available hero calls onSelect once and updates aria-pressed', () => {
   assert.equal(buttons[0].getAttribute('aria-pressed'), 'false');
 });
 
+test('a different highlighted hero gets the thin frame while the worn hero keeps the thick one', () => {
+  let selected = 'adventurer';
+  const root = new El('div');
+  mountHeroPicker(root, {
+    t,
+    getSelectedId: () => selected,
+    getCurrentId: () => 'adventurer',
+    isLocked: () => false,
+    onSelect: (h) => { selected = h.id; },
+  });
+  const buttons = root.querySelectorAll('button[data-hero-id]');
+  assert.match(buttons[0].attrs.class, /\bis-current\b/);
+  assert.doesNotMatch(buttons[0].attrs.class, /is-prospective/, 'the worn hero is not a new choice');
+  buttons[2].fire('click');
+  assert.match(buttons[0].attrs.class, /\bis-current\b/, 'the worn hero keeps its frame');
+  assert.doesNotMatch(buttons[0].attrs.class, /is-selected/);
+  assert.match(buttons[2].attrs.class, /\bis-selected\b/);
+  assert.match(buttons[2].attrs.class, /\bis-prospective\b/, 'the next choice is framed too');
+  buttons[0].fire('click');
+  assert.equal(root.all().filter((e) => /is-prospective/.test(e.attrs.class ?? '')).length, 0);
+});
+
+test('the frames are the shared gold: thick for the worn hero, hairline for the next choice', () => {
+  const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.hero-picker-item\.is-current \{ border-color: var\(--brass-light\); \}/);
+  assert.match(css, /\.hero-picker-item\.is-prospective \{[^}]*box-shadow: inset 0 0 0 1px var\(--brass-light\)/);
+  assert.doesNotMatch(css, /\.hero-picker-item\.is-selected \{/, 'no separate (green) selection frame is left');
+});
+
 test('canChange false selects nothing and shows blocked message in status', () => {
   const { root, calls } = setup({ isLocked: () => false, canChange: () => false });
   root.querySelectorAll('button[data-hero-id]')[1].fire('click');

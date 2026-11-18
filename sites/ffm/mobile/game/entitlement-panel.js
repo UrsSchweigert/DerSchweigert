@@ -8,6 +8,7 @@
 // platform's real gating rule, never from fixed copy.
 
 import {
+  CAMPAIGN2_PRODUCT_ID,
   PURCHASE_OUTCOMES,
   RESTORE_OUTCOMES,
   createPurchaseStore,
@@ -228,6 +229,7 @@ export function createEntitlementPanel({
   root,
   totalLevels = null,
   onGranted = () => {},
+  onExtrasRestored = () => {},
   probe = probeFreeLevels,
 } = {}) {
   if (!platform || typeof platform.getBillingStatus !== 'function') {
@@ -343,6 +345,17 @@ export function createEntitlementPanel({
     return paywall;
   }
 
+  // One Restore for every product: the store restores all of the account's purchases at
+  // once, so after it the extra products (Campaign II) are read back too and reported in
+  // the same outcome line. There is no second Restore button anywhere else in the app.
+  async function restoreExtras(result) {
+    if (result?.outcome !== RESTORE_OUTCOMES.RESTORED || typeof platform.getOwnedProductIds !== 'function') return [];
+    let owned = [];
+    try { owned = (await platform.getOwnedProductIds()) ?? []; } catch { owned = []; }
+    if (owned.length) onExtrasRestored(owned);
+    return owned;
+  }
+
   async function run(action) {
     if (busy || destroyed) return null;
     busy = true;
@@ -352,6 +365,12 @@ export function createEntitlementPanel({
       const result = await paywallForCurrentLocale()[action]();
       outcome = outcomeFromResult(result, action);
       if (result?.granted && result?.status) await applyStatus(result.status);
+      if (action === 'restore') {
+        const extras = await restoreExtras(result);
+        if (extras.includes(CAMPAIGN2_PRODUCT_ID)) {
+          outcome = { key: result?.granted ? 'paywall.restoredAll' : 'paywall.campaign2.restored', error: false };
+        }
+      }
       return result;
     } catch {
       outcome = {

@@ -99,3 +99,26 @@ test('the primary and danger tiers are visibly different from quiet buttons', ()
   assert.match(html, /class="action-primary" data-i18n="practice.start"/,
     'starting a practice session stays the primary play action');
 });
+
+test('gold marks only the proceed half of a proceed/abort choice', () => {
+  // Opening the practice submenu is navigation, not a choice: it is quiet.
+  assert.doesNotMatch(html, /id="btn-open-practice" class="[^"]*action-primary/);
+  // Every primary button in the markup sits beside its abort partner.
+  const pairs = [
+    ['btn-level-select', 'btn-level-cancel'],
+    ['btn-start-practice', 'btn-close-practice'],
+    ['btn-skill-intro-continue', 'btn-skill-intro-skip'],
+  ];
+  for (const [, abort] of pairs) assert.match(html, new RegExp(`id="${abort}"`), abort);
+  const primaries = [...html.matchAll(/<button[^>]*class="[^"]*action-primary[^"]*"[^>]*>/g)].map((m) => m[0]);
+  assert.ok(primaries.length >= pairs.length);
+  for (const tag of primaries) {
+    const id = tag.match(/id="([^"]+)"/)?.[1];
+    assert.ok(pairs.some(([proceed]) => proceed === id), `${id ?? tag} is gold without an abort partner`);
+  }
+});
+
+test('Select carries one icon: its arrow, without the primary diamond', () => {
+  assert.match(html, /id="btn-level-select"[^>]*><span aria-hidden="true">▶ <\/span>/);
+  assert.match(css, /#btn-level-select\.action-primary::before \{ content: none; \}/);
+});

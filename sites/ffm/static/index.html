@@ -98,21 +98,31 @@
         <button type="button" data-title-target="family" data-i18n="profiles.switchPlayer">Switch player</button>
       </div>
       <p id="continue-level" class="splash-subtitle"></p>
-      <!-- Appears once the player has beaten level 40 for the first time (campaign2/genius.js). -->
-      <div id="genius-campaign" class="genius-campaign" hidden>
-        <button type="button" id="genius-campaign-btn" class="genius-btn" aria-pressed="false">
-          <span class="genius-ornament" aria-hidden="true"></span>
-          <span class="genius-text">
-            <span class="genius-eyebrow" id="genius-eyebrow" data-i18n="campaign2.genius.eyebrow">Campaign II</span>
-            <span class="genius-title" id="genius-title" data-i18n="campaign2.genius.title">Genius Campaign</span>
-            <span class="genius-status" id="genius-status" data-i18n="campaign2.genius.unlock">Unlock</span>
+      <!-- App only: the picture of Campaign II, shown while the active player has
+           chosen it. The switch itself lives on the Players page (main.js moves it). -->
+      <button type="button" id="campaign-emblem" class="campaign-emblem" data-title-target="family" hidden data-i18n-aria-label="campaign.emblem" aria-label="Campaign II: Genius. Change it on the Players page.">
+        <img class="campaign-switch-dragon" src="game/intro-replay.webp" alt="" width="176" height="176">
+        <span class="campaign-switch-text" aria-hidden="true">
+          <span class="campaign-switch-eyebrow" data-i18n="campaign.switch.eyebrow2">Campaign II</span>
+          <span class="campaign-switch-title" data-i18n="campaign.switch.title2">Genius</span>
+        </span>
+        <img class="campaign-switch-dragon campaign-switch-dragon--mirror" src="game/intro-replay.webp" alt="" width="176" height="176">
+      </button>
+      <!-- Appears once the player has beaten level 40 for the first time (campaign2/genius.js),
+           or at once for an app owner of Campaign II. Names the campaign being played; a tap
+           switches to the other one. -->
+      <div id="genius-campaign" class="campaign-switch" hidden>
+        <button type="button" id="genius-campaign-btn" class="campaign-switch-btn" aria-pressed="false">
+          <img class="campaign-switch-dragon" src="game/intro-replay.webp" alt="" width="176" height="176">
+          <span class="campaign-switch-text">
+            <span class="campaign-switch-eyebrow" id="genius-eyebrow" data-i18n="campaign.switch.eyebrow1">Campaign I</span>
+            <span class="campaign-switch-title" id="genius-title" data-i18n="campaign.switch.title1">Arithmetic</span>
+            <span class="campaign-switch-status" id="genius-status" data-i18n="campaign.switch.toGenius">Switch to Genius</span>
           </span>
-          <span class="genius-ornament genius-ornament--mirror" aria-hidden="true"></span>
+          <img class="campaign-switch-dragon campaign-switch-dragon--mirror" src="game/intro-replay.webp" alt="" width="176" height="176">
         </button>
+        <p id="campaign2-note" class="splash-subtitle" hidden></p>
       </div>
-      <p id="campaign2-note" class="splash-subtitle" hidden></p>
-      <!-- App only (shown by main.js): restore a Campaign II purchase. -->
-      <button type="button" id="restore-purchases-btn" class="splash-legal-link-btn" hidden data-i18n="campaign2.restore">Restore purchases</button>
       <!-- app-omit:start -->
       <div class="splash-login-row">
         <button id="splash-login-btn" class="splash-btn splash-btn--secondary" data-i18n="splash.loginRegister">Login / Register</button>
@@ -201,7 +211,7 @@
         <p id="personal-development-error" class="screen-status error-msg" role="status"></p>
         <ol id="personal-best-list" class="leaderboard-list"></ol>
       </section>
-        <button type="button" id="btn-open-practice" class="action-primary" aria-controls="practice-panel" data-i18n="practice.title">Practice sessions</button>
+        <button type="button" id="btn-open-practice" class="diff-btn" aria-controls="practice-panel" data-i18n="practice.title">Practice sessions</button>
         <details id="practice-panel" class="compact-disclosure">
           <summary hidden data-i18n="practice.title">Practice sessions</summary>
           <div class="practice-controls">
@@ -226,7 +236,7 @@
           </div>
         </details>
         <nav class="screen-pagination" aria-label="Practice">
-        <button id="personal-history-toggle" type="button" data-title-target="history" data-i18n-aria-label="scoreHistory.title" aria-label="High score development">📈</button>
+        <button id="personal-history-toggle" type="button" data-title-target="history"><span class="history-toggle-icon" aria-hidden="true">📈</span><span data-i18n="scoreHistory.label">Personal progression</span></button>
       </nav>
       </section>
       <section data-title-page="history" class="title-page" hidden>
@@ -485,6 +495,21 @@
   <div id="pause-overlay" class="overlay" style="display:none">
     <div class="overlay-card">
       <h2 data-i18n="overlay.pausedTitle">Paused</h2>
+      <!-- Sound settings open from a speaker button in the card's top-right corner,
+           the place the title bar keeps its own speaker. -->
+      <details id="audio-settings" class="compact-disclosure">
+        <summary class="audio-settings-toggle" data-i18n-aria-label="audio.settings" aria-label="Audio settings"><span class="audio-settings-icon" aria-hidden="true">🔊</span></summary>
+        <div class="audio-controls">
+          <label for="music-volume" data-i18n="audio.musicVolume">Music volume</label>
+          <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35" disabled aria-describedby="music-volume-status">
+          <p id="music-volume-status" class="screen-status" role="status" data-i18n="audio.musicVolumeUnavailable">Music volume control is not available on this device.</p>
+          <label for="effects-volume" data-i18n="audio.effectsVolume">Effects volume</label>
+          <input id="effects-volume" type="range" min="0" max="1" step="0.05" value="1">
+          <label for="haptics-toggle" data-i18n="audio.haptics">Vibration</label>
+          <input id="haptics-toggle" type="checkbox" checked>
+          <button type="button" class="diff-btn" id="btn-audio-back" data-i18n="overlay.backToPause">Back</button>
+        </div>
+      </details>
       <p class="player-identity" hidden><span data-i18n="profiles.playingAsLabel">Playing as</span> <strong id="pause-player-name"></strong></p>
       <div id="pause-actions">
         <button class="diff-btn" id="btn-resume-game" data-i18n="overlay.backToGame">Back to game</button>
@@ -499,19 +524,6 @@
         <button class="diff-btn action-danger" id="btn-pause-discard" data-i18n="overlay.discardScore">Discard Score &amp; Return to Title</button>
         <button class="diff-btn" id="btn-pause-back" data-i18n="overlay.backToPause">Back</button>
       </div>
-      <details id="audio-settings" class="compact-disclosure">
-        <summary data-i18n="audio.settings">Audio settings</summary>
-        <div class="audio-controls">
-          <label for="music-volume" data-i18n="audio.musicVolume">Music volume</label>
-          <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35" disabled aria-describedby="music-volume-status">
-          <p id="music-volume-status" class="screen-status" role="status" data-i18n="audio.musicVolumeUnavailable">Music volume control is not available on this device.</p>
-          <label for="effects-volume" data-i18n="audio.effectsVolume">Effects volume</label>
-          <input id="effects-volume" type="range" min="0" max="1" step="0.05" value="1">
-          <label for="haptics-toggle" data-i18n="audio.haptics">Vibration</label>
-          <input id="haptics-toggle" type="checkbox" checked>
-          <button type="button" class="diff-btn" id="btn-audio-back" data-i18n="overlay.backToPause">Back</button>
-        </div>
-      </details>
     </div>
   </div>
 
