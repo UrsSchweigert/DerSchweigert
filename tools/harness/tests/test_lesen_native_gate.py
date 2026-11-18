@@ -37,7 +37,7 @@ def test_native_ci_runs_after_a_merge_to_main_only():
     # request, and a test that fails on every one of them teaches people to edit the pin without reading the diff.
     # What must hold is the shape of the gate: two checkouts, the Android SDK package the build needs, and no path
     # that lets the aggregate report success without the builds.
-    assert len(re.findall(r"uses: actions/checkout@v\d+", workflow)) == 2
+    assert len(re.findall(r"uses: actions/checkout@(?:v\d+|[0-9a-f]{40} # v[\d.]+)", workflow)) == 2
     assert "CODE_SIGNING_ALLOWED=NO" in workflow
     assert "needs: [android, ios]\n    if: always()" in workflow
-    assert re.search(r"uses: android-actions/setup-android@v\d+\n\s+with:\n\s+packages: platform-tools", workflow)
+    assert re.search(r"uses: android-actions/setup-android@(?:v\d+|[0-9a-f]{40} # v[\d.]+)\n\s+with:\n\s+packages: platform-tools", workflow)

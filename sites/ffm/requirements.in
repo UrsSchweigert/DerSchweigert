@@ -1,0 +1,12 @@
+# Direct runtime dependencies of the FFM Lambda. Edit this file, then regenerate the
+# pinned requirements.txt (which the Lambda build and CI install) with:
+#   pip-compile --strip-extras --no-emit-index-url -o requirements.txt requirements.in
+# using Python 3.12, the Lambda runtime.
+flask>=3.0
+flask-limiter>=3.5
+flask-cors>=4.0
+bcrypt>=4.1
+pyjwt>=2.8
+apig-wsgi>=2.4
+boto3>=1.34
+stripe>=16,<17

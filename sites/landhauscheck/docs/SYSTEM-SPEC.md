@@ -262,13 +262,13 @@ Base path: `/api/v1/`
 
 | ID | Rule |
 |---|---|
-| DR-1 | **Always deploy to `dev.landhauscheck.com` first.** Confirm testing before any prod deployment. `deploy.sh` enforces interactively; CI bypasses with `DEPLOY_CONFIRMED=yes`. |
+| DR-1 | There is no dev environment (retired 2026-11-18). Every merge to `main` deploys prod, so backend and frontend tests **must** pass before merging. A manual `deploy.sh aws` asks for confirmation; CI skips it with `DEPLOY_CONFIRMED=yes`. |
 | DR-2 | Lambda images **must** be built with `--platform linux/arm64`. |
 | DR-3 | ECR tags are **immutable** — always use git SHA, never `latest`. |
 | DR-4 | API Gateway payload format **must** be `2.0` (Mangum requirement). |
 | DR-5 | CloudFront invalidation (`/*`) **must** follow every S3 sync. |
 | DR-6 | Region **must** be `eu-west-1` (read from `terraform.tfvars`, not `variables.tf` default). |
-| DR-7 | IaC tool: OpenTofu v1.11.5 (`tofu` command). Prod: `infra/terraform/sites/landhauscheck/`. Dev: `infra/terraform/sites/landhauscheck-dev/`. Separate state files. |
+| DR-7 | IaC tool: OpenTofu v1.11.5 (`tofu` command). Stack: `infra/terraform/sites/landhauscheck/`. |
 | DR-8 | `releases.json` **must** be regenerated before every frontend build (GitHub Releases API, 4-level token fallback). |
 
 ---
