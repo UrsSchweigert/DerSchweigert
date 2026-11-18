@@ -4,10 +4,10 @@
     "type": "intro"
   },
   "title": {
-    "en": "The Broken Wards",
-    "de": "Die zerbrochenen Siegel"
+    "en": "The Stolen Dawn",
+    "de": "Der gestohlene Morgen"
   },
-  "duration": 44,
+  "duration": 66.2,
   "layers": [
     {
       "id": "backdrop",
@@ -21,10 +21,10 @@
           "t": 0,
           "x": 20,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 44,
+          "t": 66.2,
           "x": -40,
           "y": 12,
           "scale": 1.05
@@ -43,10 +43,10 @@
           "t": 0,
           "x": 100,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 44,
+          "t": 66.2,
           "x": -100,
           "y": -6,
           "scale": 1.03
@@ -66,38 +66,38 @@
           "x": 60,
           "y": 120,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 22.6,
+          "t": 27.6,
           "x": 10,
           "y": 120,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 25.6,
+          "t": 30.6,
           "x": -10,
           "y": 0,
           "opacity": 1,
           "scale": 1.02
         },
         {
-          "t": 28.0,
+          "t": 37.6,
           "x": -25,
           "y": 0,
           "opacity": 1,
           "scale": 1.025
         },
         {
-          "t": 28.5,
+          "t": 38.1,
           "x": -28,
           "y": 0,
           "opacity": 0,
           "scale": 1.03
         },
         {
-          "t": 44,
+          "t": 66.2,
           "x": -140,
           "y": 0,
           "opacity": 0,
@@ -119,38 +119,38 @@
           "x": 60,
           "y": 120,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 22.6,
+          "t": 27.6,
           "x": 10,
           "y": 120,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 25.6,
+          "t": 30.6,
           "x": -10,
           "y": 0,
           "opacity": 0,
           "scale": 1.02
         },
         {
-          "t": 28.0,
+          "t": 37.6,
           "x": -25,
           "y": 0,
           "opacity": 0,
           "scale": 1.025
         },
         {
-          "t": 28.5,
+          "t": 38.1,
           "x": -28,
           "y": 0,
           "opacity": 1,
           "scale": 1.03
         },
         {
-          "t": 44,
+          "t": 66.2,
           "x": -140,
           "y": 0,
           "opacity": 1,
@@ -170,10 +170,10 @@
           "t": 0,
           "x": 220,
           "y": 10,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 44,
+          "t": 66.2,
           "x": -220,
           "y": -14,
           "scale": 1.05
@@ -208,9 +208,9 @@
         "y": 595,
         "radius": 230,
         "color": "rgba(150,215,255,0.55)",
-        "from": 23.2,
+        "from": 28.2,
         "pulse": 2.4,
-        "to": 28.5
+        "to": 38.1
       },
       {
         "layer": "hero-raised",
@@ -218,7 +218,7 @@
         "y": 200,
         "radius": 260,
         "color": "rgba(150,215,255,0.6)",
-        "from": 28.0,
+        "from": 37.6,
         "pulse": 2.4
       }
     ],
@@ -229,81 +229,86 @@
     "events": [
       {
         "type": "dim",
-        "at": 11.4,
+        "at": 18.5,
         "duration": 3.8,
-        "color": "#0b0f26"
+        "color": "#0b0f26",
+        "atCue": 2,
+        "offset": 0
       },
       {
         "type": "flash",
-        "at": 28,
+        "at": 37.6,
         "duration": 1.2,
-        "color": "#bfe8ff"
+        "color": "#bfe8ff",
+        "atCue": 4,
+        "offset": 0.6
       }
     ]
   },
   "subtitles": [
     {
       "start": 0.8,
-      "end": 5.4,
+      "end": 8.3,
       "text": {
-        "en": "For generations, six great wards have kept the kingdom safe.",
-        "de": "Seit Generationen schützen sechs große Schutzsiegel das Königreich."
+        "en": "On the morning the sun failed to rise, every bell in the village rang thirteen times.",
+        "de": "An dem Morgen, an dem die Sonne nicht aufging, läuteten alle Glocken im Dorf dreizehnmal."
       }
     },
     {
-      "start": 5.8,
-      "end": 11.0,
+      "start": 8.7,
+      "end": 18.1,
       "text": {
-        "en": "Their runes guide the rivers, guard the harvest, and hold the night beyond the door.",
-        "de": "Ihre Runen lenken die Flüsse, behüten die Ernte und halten die Nacht vor der Tür."
+        "en": "Far beyond the fields, the king’s adviser had stolen the Crown of Balance and twisted its magic.",
+        "de": "Weit hinter den Feldern hatte der Berater des Königs die Krone des Gleichgewichts gestohlen und ihren Zauber verdreht."
       }
     },
     {
-      "start": 11.4,
-      "end": 15.0,
+      "start": 18.5,
+      "end": 27.8,
       "text": {
-        "en": "Last night, something broke them.",
-        "de": "Letzte Nacht hat etwas sie zerbrochen."
+        "en": "Roads folded into loops. Rivers flowed uphill. Fiends prowled the path to the royal throne room.",
+        "de": "Straßen verknoteten sich zu Schleifen. Flüsse flossen bergauf. Feinde lauerten auf dem Weg zum Thronsaal des Königs."
       }
     },
     {
-      "start": 15.4,
-      "end": 22.2,
+      "start": 28.2,
+      "end": 36.6,
       "text": {
-        "en": "Now strange creatures walk the roads, and a voice from the distant palace calls itself the Hollow King.",
-        "de": "Nun ziehen seltsame Kreaturen über die Wege, und eine Stimme aus dem fernen Palast nennt sich der Hohle König."
+        "en": "You are the village apprentice who notices what everyone else is missing: the chaos follows a pattern.",
+        "de": "Du bist der Lehrling des Dorfes und bemerkst, was alle anderen übersehen: Das Chaos folgt einem Muster."
       }
     },
     {
-      "start": 22.6,
-      "end": 27.7,
+      "start": 37,
+      "end": 45.4,
       "text": {
-        "en": "At your village gate, you find an old sword buried beneath a fallen rune-stone.",
-        "de": "Am Tor deines Dorfes findest du ein altes Schwert unter einem umgestürzten Runenstein."
+        "en": "Armed with spells and a talent for numbers, you set out to put the world right.",
+        "de": "Mit Zaubersprüchen und einem Talent für Zahlen ziehst du los, um die Welt wieder in Ordnung zu bringen."
       }
     },
     {
-      "start": 28.0,
-      "end": 34.4,
+      "start": 45.8,
+      "end": 52.7,
       "text": {
-        "en": "As you lift it, a question shines along the blade. You feel a calling and respond with your heart.",
-        "de": "Als du es hebst, leuchtet eine Frage auf der Klinge. Du spürst einen Ruf und antwortest mit deinem Herzen."
+        "en": "Every correct answer fuels your magic. Every level strengthens your spells.",
+        "de": "Jede richtige Antwort nährt deine Magie. Jedes Level macht deine Zauber stärker."
       }
     },
     {
-      "start": 34.8,
-      "end": 38.8,
+      "start": 53.1,
+      "end": 61.2,
       "text": {
-        "en": "The sword lights up. Beyond the fence, something stirs.",
-        "de": "Das Schwert erstrahlt. Hinter dem Zaun regt sich etwas."
+        "en": "Keep your answers true in an unbroken sequence, and an ancient dragon will answer your call.",
+        "de": "Gib Antwort um Antwort richtig, ohne Fehler dazwischen – dann folgt ein uralter Drache deinem Ruf."
       }
     },
     {
-      "start": 39.2,
-      "end": 43.2,
+      "start": 61.6,
+      "end": 65.6,
+      "kind": "title",
       "text": {
-        "en": "Your journey begins at home.",
-        "de": "Deine Reise beginnt zu Hause."
+        "en": "The Stolen Dawn",
+        "de": "Der gestohlene Morgen"
       }
     }
   ]

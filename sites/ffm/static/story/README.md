@@ -1,15 +1,23 @@
 # Arithmo Slayer story dioramas
 
 Full-screen, layered paper-theatre scenes for the campaign story
-(*The Hollow Crown*): an intro, an opening for each act, one scene per level,
-and the finish. Each scene is 3-4 PNG cutout layers moving in relation to one
-another, a lighting overlay, and English/German subtitles on top.
+(*The Stolen Dawn*): a prologue, an opening for each of the six acts, and the
+finish (*A World in Balance*) after level 60. Each scene is 3-4 cutout layers
+moving in relation to one another, a lighting overlay, and English/German text
+cards on top. The scenes are silent: there is no voice-over, and the story is
+told by the parchment cards alone (see [Cards and pacing](#cards-and-pacing)).
 
 This folder ships with the game: the website deploy syncs `static/`, and the
 app bundle copies what `mobile/scripts/copy-assets.mjs` keeps (the generation
-sources, reference sheets, art bible and `preview.html` stay web-side). The
-intro plays on the first open of an install and again before level 1, and every
-act opening plays when its first level starts (see [Integration](#integration)).
+sources, reference sheets, art bible, tools and `preview.html` stay web-side).
+The prologue plays on the first open of an install, every act opening plays
+when its first level starts, and the finish plays the first time level 60 is
+finished (see [Integration](#integration)).
+
+The art was painted for an earlier draft of the story and has not been redone
+for this text yet: act II shows harvest fields while its cards climb into the
+mountains, act III a night forest, act IV a meadow and timber hall rather than
+a buried city. A later art pass follows the cards.
 
 ## Layout
 
@@ -17,13 +25,12 @@ act opening plays when its first level starts (see [Integration](#integration)).
 | --- | --- |
 | `player/` | `diorama-player.js` (ES module, no game dependency), its CSS, and the generated paper-grain tile |
 | `scenes/index.json` | every scene and the slot it plays in (`intro`, `act`, `level`, `finish`) |
-| `scenes/<id>/scene.json` | layers, motion, lighting, subtitles (source of truth) |
+| `scenes/<id>/scene.json` | layers, motion, lighting, cards (source of truth) |
 | `scenes/<id>/*.webp` | final layers (backdrop opaque, others with alpha) |
-| `scenes/<id>/subtitles.{en,de}.vtt` | generated WebVTT copies of the cues |
-| `scenes/<id>/narration/<lang>/` | recorded voice-over: one track, its stems and `timing.json` |
+| `scenes/<id>/subtitles.{en,de}.vtt` | generated WebVTT copies of the cards |
 | `sources/<id>/` | art packet (`layers.json`: prompts, references, retouches) and raw renders |
 | `references/` | approved hero reference sheet |
-| `tools/` | cutout, encoding, paper-grain and subtitle scripts |
+| `tools/` | cutout, encoding, paper-grain, card timing, card measuring and subtitle scripts |
 | `ART-BIBLE.md` | consistency rules every layer is reviewed against |
 | `preview.html` | development preview |
 
@@ -31,22 +38,29 @@ act opening plays when its first level starts (see [Integration](#integration)).
 
 ```jsonc
 {
-  "id": "intro",
-  "slot": { "type": "intro" },            // or { "type": "level", "level": 12, "when": "before" } / { "type": "finish" }
-  "title": { "en": "…", "de": "…" },
-  "duration": 42,                         // seconds; a Continue button appears at the end
-  "layers": [                             // back to front, 3-4 entries, first is the backdrop
-    { "id": "backdrop", "role": "backdrop", "src": "backdrop.png",
-      "x": -48, "y": -150, "width": 2016, // placement on the 1920×1080 stage (height follows the PNG)
-      "motion": [{ "t": 0, "x": 0, "scale": 1 }, { "t": 42, "x": -20, "scale": 1.03 }] }
+  "id": "act-2",
+  "slot": { "type": "act", "act": 2, "fromLevel": 11 }, // or { "type": "intro" } / { "type": "finish" }
+  "title": { "en": "Act II: The Long Country", "de": "Akt II: Das weite Land" },
+  "duration": 43,                         // seconds, set by tools/card-timing.mjs; the scene ends by itself
+  "layers": [                             // back to front, 3-4 planes, first is the backdrop
+    { "id": "backdrop", "role": "backdrop", "src": "backdrop.webp",
+      "x": -48, "y": -150, "width": 2016, // placement on the 1920×1080 stage (height follows the image)
+      "motion": [{ "t": 0, "x": 0, "scale": 1 }, { "t": 43, "x": -20, "scale": 1.03 }] }
   ],
   "lighting": {
     "ambient": "linear-gradient(…)",      // multiplied over the stage
     "glows": [{ "layer": "hero", "x": 1420, "y": 760, "radius": 220, "color": "rgba(…)", "from": 21, "pulse": 2.4 }],
     "motes": { "count": 24, "color": "#9fdcff" },
-    "events": [{ "type": "flash", "at": 27, "duration": 1.2, "color": "#bfe8ff" }] // "flash" brightens (screen), "dim" darkens (multiply, default intensity 0.6)
+    "events": [                           // "flash" brightens (screen), "dim" darkens (multiply, default intensity 0.6)
+      { "type": "dim", "atCue": 5, "offset": -0.2, "at": 38.1, "duration": 2.4, "color": "#0b1024" }
+    ]
   },
-  "subtitles": [{ "start": 0.8, "end": 5.2, "text": { "en": "…", "de": "…" } }]
+  "subtitles": [                          // the cards, in order
+    { "start": 0.8, "end": 8.5, "text": { "en": "The path climbs …", "de": "Der Pfad steigt …" } },
+    { "start": 32.8, "end": 37.9, "text": { "en": "**A steady mind …**", "de": "**Ein ruhiger Geist …**" } },
+    { "start": 38.3, "end": 42.4, "kind": "title",
+      "text": { "en": "Act II: The Long Country · Levels 11–20", "de": "Akt II: Das weite Land · Level 11–20" } }
+  ]
 }
 ```
 
@@ -56,68 +70,63 @@ with smoothstep. Layers scale around 50% / 60% of the stage.
 A character can change pose mid-scene: add the second pose as its own layer
 with `"poseOf": "<base layer id>"`, the same role and motion, and crossfade the
 two with `opacity` keyframes (ideally under a `flash`). Poses share their base
-layer's depth plane, so they don't count towards the 3-4 planes.
+layer's depth plane, so they don't count towards the 3-4 planes. The finish
+uses the same trick for whole planes: the throne room crossfades into dawn
+over the fields under a flash.
 
-## Voice-over (`narration/`)
+A layer `src` may point into another scene's folder (`../act-6/backdrop.webp`).
+The finish is built that way from the art of act I, act VI and the prologue,
+so it adds no image to the bundle.
 
-Every scene ships a recorded narrator. It is optional: a scene without a
-`narration/` folder plays silently on the authored cue times, and locales are
-independent — the prologue is voiced in German and English, while the act
-openings are voiced in English only, because the German takes of those short
-lines did not sound German and were dropped (a German act opening reads on its
-authored cue times instead). The tests require an English voice-over on every
-scene and validate whichever other locales are present.
+## Cards and pacing
+
+The cards are the story. Each card is one paragraph of the story text; a long
+paragraph is split at a sentence boundary so a card holds two or three short
+sentences at most (the tests cap a card at 150 English / 170 German
+characters and three sentences). Text between `**…**` is a spellbook line and
+is set in bold italics; a `\n` breaks the line. The player builds the card from
+text nodes and `<strong>`, never from HTML.
+
+Every scene has exactly one heading card (`"kind": "title"`), shown slightly
+heavier. An act's heading is its last card and names the act's real levels,
+which the tests derive from `index.json` (`fromLevel` up to the next act's
+first level): act I is levels 1–10, act II (*The Long Country*) 11–20, act III
+(*The Whispering Woods*) 21–30, and so on to act VI, 51–60. The prologue ends
+on *The Stolen Dawn*; the finish opens on *A World in Balance*.
+
+Without a voice-over the reader sets the pace, so the timing comes from the
+text. `tools/card-timing.mjs` gives every card
 
 ```
-scenes/<id>/narration/de/narration.mp3   single track, scene duration, mono, -2 dBFS
-scenes/<id>/narration/de/line01.mp3      one stem per narrated cue, in cue order
-scenes/<id>/narration/de/timing.json     where each stem sits on the scene clock
+seconds = max(4, 1.5 + visible characters / 15)
 ```
 
-```jsonc
-{
-  "voice": "Brian",
-  "model": "fal-ai/elevenlabs/tts/eleven-v3",
-  "audio": "narration.mp3",
-  "duration": 44,                          // must equal scene.duration
-  "lines": [
-    { "stem": "line01.mp3", "cue": 0,      // index into scene.subtitles
-      "cueStart": 0.8, "start": 0.8, "duration": 3.94 }
-  ]
-}
+in each locale and uses the slower one (German runs about a fifth longer, so
+it usually sets the window). Cards follow each other with 0.4 s of blank paper,
+the first waits 0.8 s for the scene to fade in, and the scene ends 0.6 s after
+the last card. When a scene's length changes, the tool stretches its keyframes
+and glow windows by the same factor; a lighting event with `"atCue"` (and an
+optional `"offset"`) is pinned to its card instead. Skip stays on screen for
+the whole scene, and Esc skips too.
+
+After editing any card:
+
+```sh
+node sites/ffm/static/story/tools/card-timing.mjs      # retime every scene.json
+node sites/ffm/static/story/tools/build-subtitles.mjs  # regenerate the .vtt copies
+node --test sites/ffm/static/story/tests/*.test.mjs
+python3 sites/ffm/static/story/tools/measure-cards.py sites/ffm/static   # needs Playwright
 ```
 
-The player (`voicedCues`) shows a narrated cue from its line's real `start` and
-holds it until the line ends, so the text follows the voice instead of the
-authored window; cues the narrator skips keep their authored timing — that is
-why act title cards ("Act I · The First Light") stay on screen unvoiced. Lines
-never overlap: when a take runs longer than its window, the following lines
-slide back just enough to clear it, and `timing.json` records the offset.
-
-The track is the clock: while it plays, `audio.currentTime` drives the scene,
-and the requestAnimationFrame clock takes over again if it ends or stalls.
-`createDioramaPlayer({ muted })` skips the track but keeps the cue timing; a
-missing or undecodable track only costs the sound.
-
-`tests/story.test.mjs` checks the manifest against the scene: one stem per
-narrated cue, for every locale that ships, no overlap, every line inside the
-scene, and no cue that loses its text before the line ends.
-
-### Re-recording a locale
-
-The tracks are made outside this repo (ElevenLabs v3 "Brian" at stability 0.25
-through fal.ai: one line per spoken cue with an audio tag in front such as
-`[ominous] …`, then trimmed, placed at the cue start, mixed to mono MP3 at
-128 kbit/s with about 2 dB of headroom). The settings of an existing take are
-in its `timing.json`.
-
-To replace a locale, write `narration/<lang>/{narration.mp3,lineNN.mp3,timing.json}`
-into the scene folder and run
-`node --test sites/ffm/static/story/tests/story.test.mjs`. No code change is
-needed: the player uses any locale folder it finds and falls back to the
-authored cue times when there is none — which is why the German act openings
-are silent until their German takes are re-recorded; dropping `narration/de/`
-back into those folders is all it takes.
+`measure-cards.py` renders every card of every scene, in both languages, with
+the real player CSS in Chrome at 320×568 and 390×844 (portrait phones, turned),
+568×320 and 844×390 (landscape phones) and in the web's 390×844 desktop phone
+frame (letterboxed), and fails when a line runs past the card, the card leaves
+the screen or reaches Skip, or a card covers more than 42 % of the scene. Run it
+against `sites/ffm/mobile/www` too after `npm run copy-assets`. The tests keep a
+pessimistic text-only model of the same limits in CI. The card type follows
+the landscape box it is read in (`--diorama-text-box`), not the screen, so a
+turned portrait phone gets the same size as a landscape one.
 
 ## Producing a scene
 
@@ -197,6 +206,13 @@ The intro is wired in `game/main.js` through
   title bar, left of Login (`#btn-replay-intro`), plays the prologue again,
   however often the player asks for it. It never rewrites the first-open flag,
   and `story-intro.js` keeps one scene on screen at a time.
+- **Finish** — "Finish game" on the level-clear card of Campaign I's level 60
+  plays the finish (`playFinish()`) over the card, then the victory screen
+  follows. It plays the first time an install gets there (device-wide flag
+  `arithmoslayer:story-finish-shown`), after the level is already saved, and a
+  scene that never ends is given up after `SCENE_WAIT_MAX_MS`. Campaign II
+  (Genius), practice and shapes mode never play it. There is no replay button
+  for it yet.
 
 Playing a scene:
 
@@ -215,11 +231,9 @@ const result = await player.play(); // 'ended' or 'skipped'
 player.destroy();
 ```
 
-The game hands the player the current mute choice and dips the title playlist
-under the narration while the scene runs (`audio.setMusicDuck('story-narration',
-0.3)`, released in a `finally`), so the narrator is never buried in the music.
-That dip stacks with the victory hymn's: each reason keeps its own level and
-the lowest wins.
+A scene makes no sound of its own: the title playlist (started by
+`beforeScene`) runs on under it at its normal level, and the player creates no
+audio element.
 
 The stylesheet (`story/player/diorama-player.css`) is linked from
 `index.html`. Scenes stay optional and skippable: a missing or broken scene
@@ -252,7 +266,7 @@ Two details worth keeping:
   is upscaled anyway; rasterising the canvas above the screen size only buys
   memory pressure.
 
-Still to come: an act opening before each act's first level, a `before` scene
-when a level is started from the level-clear "Next level" button, and the
-finish after level 60's "Finish game". Pause the player with `pause()` and
-`resume()` from the app lifecycle hooks.
+Still to come: an act opening when an act's first level is reached through
+the level-clear "Next level" button (today the openings play when the level is
+started from the title screen), a replay for the finish, and pausing the player
+with `pause()` and `resume()` from the app lifecycle hooks.

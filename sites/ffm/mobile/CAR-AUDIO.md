@@ -22,10 +22,8 @@ implemented**.
   `static/game/music-loop.js`. The fallback is an `<audio>` element routed into
   the graph with `createMediaElementSource` (`_captureMusicElement` in
   `audio.js`).
-- Narration per platform: in the iOS app it plays through Web Audio
-  (`createNarrationVoice` in `audio.js`, selected in `static/game/main.js`
-  when `isIosApp()`). On the web and Android it is a plain `<audio>` element
-  (`loadNarrationAudio` in `static/story/player/diorama-player.js`).
+- The story scenes have no voice-over: the diorama player creates no audio
+  element, so music and effects are the only sounds.
 - No native audio-session code: `SceneDelegate.swift` sets no `AVAudioSession`
   category (see `RELEASING.md`), and there is no Capacitor audio plugin.
 - The web inspector is disabled: `webContentsDebuggingEnabled` is `false` for
@@ -44,10 +42,9 @@ implemented**.
    A2DP and wireless CarPlay are choppy but wired CarPlay and the phone speaker
    are clean, on all sound types. Refuted if: wired CarPlay is also choppy.
 3. **Audio session category switching when an `<audio>` element starts or
-   stops.** Confirmed if: choppiness starts or stops with narration (or the
-   music fallback) starting or stopping, and iOS narration (Web Audio) is
-   cleaner than Android narration. Refuted if: music-only and effects-only
-   playback is choppy without any `<audio>` element.
+   stops.** Confirmed if: choppiness starts or stops with the music fallback
+   (the only `<audio>` element left) starting or stopping. Refuted if:
+   decoded-buffer music and effects are choppy without any `<audio>` element.
 4. **CPU load.** Confirmed if: the phone speaker is also choppy under the same
    scene, or choppiness tracks busy scenes. Refuted if: the phone speaker is
    clean in the same scene and only the car route is choppy.
@@ -60,25 +57,18 @@ Run each cell and write the outcome (clean / choppy / n/a) in the Result column.
 | --- | --- | --- | --- |
 | Wired CarPlay | before connecting | music | |
 | Wired CarPlay | before connecting | effects | |
-| Wired CarPlay | before connecting | narration | |
 | Wired CarPlay | after connecting | music | |
 | Wired CarPlay | after connecting | effects | |
-| Wired CarPlay | after connecting | narration | |
 | Wireless CarPlay | before connecting | music | |
 | Wireless CarPlay | before connecting | effects | |
-| Wireless CarPlay | before connecting | narration | |
 | Wireless CarPlay | after connecting | music | |
 | Wireless CarPlay | after connecting | effects | |
-| Wireless CarPlay | after connecting | narration | |
 | Bluetooth A2DP | before connecting | music | |
 | Bluetooth A2DP | before connecting | effects | |
-| Bluetooth A2DP | before connecting | narration | |
 | Bluetooth A2DP | after connecting | music | |
 | Bluetooth A2DP | after connecting | effects | |
-| Bluetooth A2DP | after connecting | narration | |
 | Phone speaker (control) | n/a | music | |
 | Phone speaker (control) | n/a | effects | |
-| Phone speaker (control) | n/a | narration | |
 
 Further questions to answer while connected:
 
@@ -93,7 +83,7 @@ Further questions to answer while connected:
 | --- | --- | --- |
 | Choppy only when connecting while running; restart cures it | Recreate or resume the context on route change (`statechange`, `devicechange`) | not implemented |
 | Choppy only on Bluetooth / wireless CarPlay, any sound | `latencyHint: "playback"` when no low latency is needed | not implemented |
-| Choppy tied to `<audio>` start/stop (Android narration, music fallback) | Route narration through Web Audio on Android too | not implemented |
+| Choppy tied to `<audio>` start/stop (the music fallback) | Route the music fallback through a decoded buffer instead of `<audio>` | not implemented |
 | Choppy after a phone call or Siri prompt | Resume the context when it is `suspended` or `interrupted` | not implemented |
 | Choppy on the phone speaker too, in busy scenes | Reduce load: fewer simultaneous voices, skip the compressor | not implemented |
 | No pattern, cause unclear | Temporarily enable the web inspector (owner-merged build change) and log the context state, `sampleRate` and `baseLatency` | not implemented |
@@ -103,5 +93,5 @@ Further questions to answer while connected:
 - Device and iOS/Android version?
 - Car or head unit?
 - Connection type (wired CarPlay, wireless CarPlay, Bluetooth A2DP)?
-- Which sounds are choppy (music, effects, narration)?
+- Which sounds are choppy (music, effects)?
 - Does it happen from the start or after an event (connecting, a call, Siri)?

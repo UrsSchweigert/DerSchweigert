@@ -45,88 +45,48 @@ export function cueAt(subtitles, t) {
   return subtitles.find(cue => t >= cue.start && t < cue.end) ?? null;
 }
 
-const NARRATION_LOCALES = new Set(['de', 'en']);
-
-/** Locale folder the voice-over lives in; an unknown locale reads English. */
-export function narrationLocale(locale) {
-  return NARRATION_LOCALES.has(locale) ? locale : 'en';
-}
-
 /**
- * Subtitle cues with the recorded voice-over folded in.
- *
- * A scene may ship narration/<locale>/timing.json (see ../README.md), which
- * names the cue each recorded line belongs to plus its real start and length.
- * Such a cue appears when its line is actually heard and stays up until the
- * line ends, so a slow take never leaves the text behind. Cues the voice-over
- * does not speak (act title cards) keep their authored timing, and no cue runs
- * into the next one.
- *
- * @param {Array<{start: number, end: number, text: object|string}>} subtitles
- * @param {{lines?: Array<{cue?: number, start?: number, duration?: number}>}|null} timing
- * @returns {Array<{start: number, end: number, text: object|string}>}
+ * A card's text split into runs: `**…**` marks a bold run (the spellbook
+ * lines of the story), everything else is plain. Line breaks stay in the text
+ * and the card's CSS (white-space: pre-line) shows them. An unclosed marker is
+ * kept as literal text, so a typo never swallows the rest of the card.
+ * @param {string} value
+ * @returns {Array<{text: string, bold: boolean}>}
  */
-export function voicedCues(subtitles, timing) {
-  const lines = (timing?.lines ?? []).filter(
-    line => Number.isFinite(line?.start) && Number.isInteger(line?.cue) && subtitles[line.cue],
-  );
-  if (!lines.length) return subtitles;
-  const byCue = new Map(lines.map(line => [line.cue, line]));
-  const ordered = [...byCue.values()].sort((a, b) => a.start - b.start);
-  const nextStart = new Map(ordered.map((line, i) => [line.cue, ordered[i + 1]?.start ?? Infinity]));
-
-  return subtitles.map((cue, index) => {
-    const line = byCue.get(index);
-    if (!line) return cue;
-    // Never bleed into the following text: the next recorded line, or an
-    // unvoiced cue such as an act title card that keeps its authored time.
-    const next = subtitles[index + 1];
-    const nextCueStart = next ? (byCue.get(index + 1)?.start ?? next.start) : Infinity;
-    const limit = Math.min(nextStart.get(index) ?? Infinity, nextCueStart);
-    const voicedEnd = line.start + (Number(line.duration) || 0);
-    const end = Math.min(limit, Math.max(cue.end, voicedEnd));
-    return end > line.start ? { ...cue, start: line.start, end } : cue;
-  });
-}
-
-/** The scene's voice-over timing, or null when the scene has none. */
-async function loadNarrationTiming(base, locale) {
-  try {
-    const response = await fetch(new URL(`narration/${locale}/timing.json`, base));
-    if (!response.ok) return null;
-    const timing = await response.json();
-    return timing?.lines?.length ? timing : null;
-  } catch {
-    // Narration is optional: a missing or broken manifest just means no voice.
-    return null;
+export function cardRuns(value) {
+  const source = String(value ?? '');
+  const runs = [];
+  const pattern = /\*\*([^*]+)\*\*/g;
+  let at = 0;
+  let match;
+  while ((match = pattern.exec(source))) {
+    if (match.index > at) runs.push({ text: source.slice(at, match.index), bold: false });
+    runs.push({ text: match[1], bold: true });
+    at = match.index + match[0].length;
   }
+  if (at < source.length) runs.push({ text: source.slice(at), bold: false });
+  return runs;
+}
+
+/** What a reader actually sees on a card: its text without the bold markers. */
+export function plainText(value) {
+  return cardRuns(value).map(run => run.text).join('');
 }
 
 /**
- * The scene's voice-over track, started but not awaited: the scene clock never
- * waits on the network. Playback catches up to the scene as soon as the track
- * is audible (see the 'playing' listener in play()).
+ * Fills a card with text nodes and <strong> runs. The text comes from our own
+ * scene.json, but it is still never parsed as HTML.
  */
-function loadNarrationAudio(url) {
-  const audio = new Audio(url.href);
-  audio.preload = 'auto';
-  audio.volume = 1;
-  audio.load();
-  return audio;
-}
-
-/**
- * The scene's voice-over: a host-supplied voice when createNarration is given
- * (null on any failure: the scene then runs silently on its timer clock, with
- * no <audio> fallback), otherwise a plain <audio> element.
- */
-function openNarration(base, locale, timing, createNarration) {
-  const url = new URL(`narration/${locale}/${timing.audio ?? 'narration.mp3'}`, base);
-  if (!createNarration) return loadNarrationAudio(url);
-  try {
-    return createNarration(url.href, timing) ?? null;
-  } catch {
-    return null;
+function renderCard(node, value) {
+  node.replaceChildren();
+  for (const run of cardRuns(value)) {
+    if (!run.bold) {
+      node.appendChild(document.createTextNode(run.text));
+      continue;
+    }
+    const strong = document.createElement('strong');
+    strong.textContent = run.text;
+    node.appendChild(strong);
   }
 }
 
@@ -325,14 +285,13 @@ function fillGradient(ctx, gradient, width, height) {
  * @param {string|URL} options.baseUrl URL of the scene folder (layer src are relative to it)
  * @param {'en'|'de'} [options.locale]
  * @param {boolean} [options.reducedMotion] defaults to the prefers-reduced-motion media query
- * @param {boolean} [options.narration] play the scene's recorded voice-over (default true)
- * @param {boolean} [options.muted] start without sound; the scene still runs
- * @param {(url: string, timing: object) => object|null} [options.createNarration] host voice
- *   replacing the <audio> element (same subset: play, pause, currentTime, ...)
  * @param {object} [options.labels] { skip } skip-button label
+ *
+ * A scene is silent: it has no voice-over, and the player never creates an
+ * audio element. Its pace is the reading time of its cards (see the README).
  */
 export function createDioramaPlayer({
-  container, scene, baseUrl, locale = 'en', reducedMotion, narration = true, muted = false, labels, createNarration,
+  container, scene, baseUrl, locale = 'en', reducedMotion, labels,
 }) {
   const reduce = reducedMotion ?? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   const text = { ...(DEFAULT_LABELS[locale] ?? DEFAULT_LABELS.en), ...labels };
@@ -370,11 +329,7 @@ export function createDioramaPlayer({
   let shownCue = null;
   let resolvePlay = null;
   let finished = false;
-  // Cue list and clock source: the voice-over, when the scene ships one, is
-  // both the timeline and the truth for when each line is on screen.
-  let cues = scene.subtitles;
-  let narrationAudio = null;
-  let audioClocked = false;
+  const cues = scene.subtitles;
 
   /** Total device pixels the canvas may allocate. Keeping this bounded keeps
    * a scene cheap on tablets with huge, high-density screens. The scene is
@@ -420,6 +375,9 @@ export function createDioramaPlayer({
     root.classList.toggle('is-letterboxed', box.letterboxed);
     // A letterboxed scene has the screen below it for the subtitles: the full-size strip.
     root.classList.toggle('is-compact', !box.letterboxed && box.height < COMPACT_BOX_HEIGHT);
+    // The card's type follows the box it is read in, not the screen: a turned
+    // portrait phone is a wide landscape box, though its 100vw is narrow.
+    root.style.setProperty('--diorama-text-box', `${box.width}px`);
     if (box.letterboxed) root.style.setProperty('--diorama-band-height', `${box.height}px`);
     else root.style.removeProperty('--diorama-band-height');
     if (box.turned) {
@@ -610,33 +568,18 @@ export function createDioramaPlayer({
       shownCue = cue;
       subtitle.classList.remove('is-visible');
       if (cue) {
-        subtitle.textContent = pickText(cue.text, locale);
+        // A title card (the act heading) is set apart from the story cards.
+        subtitle.classList.toggle('is-title', cue.kind === 'title');
+        renderCard(subtitle, pickText(cue.text, locale));
         // Next frame, so the fade-in restarts for every cue.
         requestAnimationFrame(() => subtitle.classList.add('is-visible'));
       }
     }
   }
 
-  /** True while the voice-over itself can drive the clock. */
-  function audioDrives() {
-    return Boolean(narrationAudio)
-      && !narrationAudio.paused && !narrationAudio.ended && narrationAudio.readyState >= 2;
-  }
-
   function tick(ts) {
-    if (audioDrives()) {
-      audioClocked = true;
-      elapsed = Math.min(duration, narrationAudio.currentTime);
-    } else {
-      // Hand the clock back to requestAnimationFrame the moment the voice-over
-      // ends or stalls, so the scene still reaches its last frame.
-      if (audioClocked) {
-        audioClocked = false;
-        startTs = ts - elapsed * 1000;
-      }
-      if (!startTs) startTs = ts - elapsed * 1000;
-      elapsed = Math.min(duration, (ts - startTs) / 1000);
-    }
+    if (!startTs) startTs = ts - elapsed * 1000;
+    elapsed = Math.min(duration, (ts - startTs) / 1000);
     render(elapsed);
     if (elapsed >= duration) {
       // The scene ends by itself so the title screen follows without a click.
@@ -646,29 +589,11 @@ export function createDioramaPlayer({
     raf = requestAnimationFrame(tick);
   }
 
-  /** Start the voice; a blocked or failing play only costs the voice. */
-  function playNarration() {
-    try {
-      Promise.resolve(narrationAudio.play()).catch(() => {});
-    } catch {
-      // The scene runs on its timer clock either way.
-    }
-  }
-
-  function stopNarration() {
-    if (!narrationAudio) return;
-    narrationAudio.pause();
-    narrationAudio.removeAttribute('src');
-    narrationAudio.load();
-    narrationAudio = null;
-  }
-
   function finish(reason) {
     if (finished) return;
     finished = true;
     cancelAnimationFrame(raf);
     raf = 0;
-    stopNarration();
     resolvePlay?.(reason);
   }
 
@@ -688,41 +613,21 @@ export function createDioramaPlayer({
 
   return {
     element: root,
-    /** Loads every layer (and the voice-over), then plays; resolves with 'ended' or 'skipped'. */
+    /** Loads every layer, then plays; resolves with 'ended' or 'skipped'. */
     async play() {
       const base = new URL(baseUrl, document.baseURI);
-      const voice = narrationLocale(locale);
-      const [timing] = await Promise.all([
-        narration ? loadNarrationTiming(base, voice) : null,
-        Promise.all([
-          ...scene.layers.map(async (layer, index) => {
-            images[index] = await loadImage(new URL(layer.src, base).href);
-          }),
-          // The grain sheet lives beside this module, not in the scene folder.
-          loadImage(new URL('./paper-grain.webp', import.meta.url).href).then(
-            (image) => { grain = image; },
-            () => { grain = null; },
-          ),
-        ]),
+      await Promise.all([
+        // A layer src may point into another scene's folder (../act-6/…):
+        // the finish reuses earlier art instead of shipping copies of it.
+        ...scene.layers.map(async (layer, index) => {
+          images[index] = await loadImage(new URL(layer.src, base).href);
+        }),
+        // The grain sheet lives beside this module, not in the scene folder.
+        loadImage(new URL('./paper-grain.webp', import.meta.url).href).then(
+          (image) => { grain = image; },
+          () => { grain = null; },
+        ),
       ]);
-      if (timing) cues = voicedCues(scene.subtitles, timing);
-      if (timing && !muted && !finished) {
-        narrationAudio = openNarration(base, voice, timing, createNarration);
-      }
-      if (narrationAudio) {
-        // If the track only becomes audible after the scene started, slip it
-        // forward to the scene clock instead of rewinding the picture to it.
-        narrationAudio.addEventListener('playing', () => {
-          const { currentTime, duration: audioDuration } = narrationAudio ?? {};
-          if (elapsed > 0.2 && Math.abs(currentTime - elapsed) > 0.2) {
-            try {
-              narrationAudio.currentTime = Math.min(elapsed, audioDuration || elapsed);
-            } catch {
-              // A track that cannot seek simply plays from where it is.
-            }
-          }
-        });
-      }
       fit();
       resizeObserver?.observe(root);
       window.addEventListener('resize', fit);
@@ -734,11 +639,6 @@ export function createDioramaPlayer({
           resolve('skipped');
           return;
         }
-        if (narrationAudio) {
-          // A blocked autoplay only costs the voice; the scene runs on the
-          // requestAnimationFrame clock either way.
-          playNarration();
-        }
         raf = requestAnimationFrame(tick);
       });
     },
@@ -746,25 +646,16 @@ export function createDioramaPlayer({
     seek(t) {
       elapsed = Math.max(0, Math.min(duration, t));
       startTs = 0;
-      if (narrationAudio && Number.isFinite(narrationAudio.duration)) {
-        try {
-          narrationAudio.currentTime = Math.min(elapsed, narrationAudio.duration);
-        } catch {
-          // Seeking a stream that is not ready yet is not worth failing over.
-        }
-      }
       render(elapsed);
     },
     /** Freeze on the current frame (preview stills, app backgrounding). */
     pause() {
       cancelAnimationFrame(raf);
       raf = 0;
-      narrationAudio?.pause();
     },
     resume() {
       if (finished || raf || elapsed >= duration) return;
       startTs = 0;
-      if (narrationAudio) playNarration();
       raf = requestAnimationFrame(tick);
     },
     skip() { finish('skipped'); },

@@ -428,14 +428,12 @@ const loadingDone = Promise.race([
 ]).then(hideLoadingOverlay);
 
 // --- Story dioramas (see ../story/) ---
-// The prologue plays on the first open of the install; each act's opening plays
-// when its first level starts (see ./story-intro.js). The player loads lazily,
-// and a missing scene or index never blocks the game.
+// The prologue plays on the first open of the install, each act's opening
+// when its first level starts, and the finish after Campaign I's last level
+// (see ./story-intro.js). The scenes are silent picture-and-text cards: the
+// title playlist simply runs on under them. The player loads lazily, and a
+// missing scene or index never blocks the game.
 const storyBase = new URL('../story/', import.meta.url);
-// The narrator carries a story scene, so the title playlist steps back under it
-// and comes back up when the scene ends. Silent playback has nothing to clear
-// the way for, so it leaves the music alone.
-const STORY_NARRATION_DUCK = 0.3;
 async function playStoryScene(sceneId) {
   const sceneBase = new URL(`scenes/${sceneId}/`, storyBase);
   const [{ createDioramaPlayer }, scene] = await Promise.all([
@@ -445,28 +443,15 @@ async function playStoryScene(sceneId) {
       return response.json();
     }),
   ]);
-  // iOS app only: narration goes through Web Audio like the music and effects,
-  // so the hardware silent switch silences it too. Web and Android keep the
-  // <audio> element; a failing import just keeps that path.
-  const iosPlatform = platform.isApp
-    ? await import('./ios-platform.js').catch(() => null)
-    : null;
-  const useWebAudioNarration = Boolean(iosPlatform?.isIosApp());
   const player = createDioramaPlayer({
     container: document.body,
-    ...(useWebAudioNarration ? { createNarration: url => audio.createNarrationVoice(url) } : {}),
     scene,
     baseUrl: sceneBase,
     locale: getLocale(),
-    // The diorama is a full-screen modal, so the mute choice is taken once, as
-    // it stands when the scene opens.
-    muted: audio.muted,
   });
-  audio.setMusicDuck('story-narration', audio.muted ? null : STORY_NARRATION_DUCK);
   try {
     return await player.play();
   } finally {
-    audio.setMusicDuck('story-narration', null);
     player.destroy();
   }
 }
@@ -4878,9 +4863,21 @@ function triggerLevelClear() {
     }
   };
   btnNextLevel.textContent = t(completedLevelNum >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS) ? 'overlay.finishGame' : 'overlay.nextLevel');
-  btnNextLevel.onclick = () => finishCompletion(() => {
-    if (completedLevelNum >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS)) triggerGameOver(true);
-    else {
+  btnNextLevel.onclick = () => finishCompletion(async () => {
+    if (completedLevelNum >= (state.campaign === 2 ? TOTAL_LEVELS_2 : TOTAL_LEVELS)) {
+      // "Finish game" on Campaign I's last level: the story's finish plays
+      // over the level-clear card (the first time on this install) and the
+      // victory screen follows it. The level is already saved above, and a
+      // broken or stuck outro only costs the outro. Campaign II has no story.
+      if (!campaign2 && !state.isShapesMode && typeof storyIntro !== 'undefined') {
+        try {
+          await storyIntro.playFinish();
+        } catch (error) {
+          console.error('Unable to play the story finish', error);
+        }
+      }
+      triggerGameOver(true);
+    } else {
       levelClearOverlay.style.display = 'none';
       startLevel(completedIndex + 1);
     }

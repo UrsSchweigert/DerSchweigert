@@ -6,10 +6,10 @@
     "fromLevel": 21
   },
   "title": {
-    "en": "Act 3 · The Remembering Wood",
-    "de": "Akt 3 · Der erinnernde Wald"
+    "en": "Act III: The Whispering Woods",
+    "de": "Akt III: Der Flüsterwald"
   },
-  "duration": 16,
+  "duration": 36.6,
   "layers": [
     {
       "id": "backdrop",
@@ -23,10 +23,10 @@
           "t": 0,
           "x": 20,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 36.6,
           "x": -40,
           "y": 12,
           "scale": 1.05
@@ -45,10 +45,10 @@
           "t": 0,
           "x": 100,
           "y": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 36.6,
           "x": -100,
           "y": -6,
           "scale": 1.03
@@ -68,17 +68,17 @@
           "x": 60,
           "y": 0,
           "opacity": 0,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 2.0,
+          "t": 4.6,
           "x": 40,
           "y": 0,
           "opacity": 1,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 36.6,
           "x": -40,
           "y": 0,
           "opacity": 1,
@@ -98,10 +98,10 @@
           "t": 0,
           "x": 220,
           "y": 10,
-          "scale": 1.0
+          "scale": 1
         },
         {
-          "t": 16,
+          "t": 36.6,
           "x": -220,
           "y": -14,
           "scale": 1.05
@@ -127,7 +127,7 @@
         "y": 760,
         "radius": 220,
         "color": "rgba(160,210,255,0.22)",
-        "from": 2.0,
+        "from": 4.6,
         "pulse": 3.4
       }
     ],
@@ -138,36 +138,55 @@
     "events": [
       {
         "type": "dim",
-        "at": 11.8,
+        "at": 31.3,
         "duration": 2.4,
         "color": "#0b1024",
-        "intensity": 0.5
+        "intensity": 0.5,
+        "atCue": 4,
+        "offset": -0.2
       }
     ]
   },
   "subtitles": [
     {
       "start": 0.8,
-      "end": 6.0,
+      "end": 7.9,
       "text": {
-        "en": "Lanterns wake among the trees as you pass.",
-        "de": "Laternen erwachen zwischen den Bäumen."
+        "en": "Deep in the woods, leaves whisper wrong answers and roots rearrange the trail.",
+        "de": "Tief im Wald flüstern die Blätter falsche Antworten, und Wurzeln verlegen den Pfad."
       }
     },
     {
-      "start": 6.4,
-      "end": 11.6,
+      "start": 8.3,
+      "end": 17.2,
       "text": {
-        "en": "These stones remember an older promise.",
-        "de": "Diese Steine erinnern ein älteres Versprechen."
+        "en": "Each new kind of fiend has a different trick, and familiar-looking problems hide unfamiliar dangers.",
+        "de": "Jede neue Art von Feind hat einen anderen Trick, und Aufgaben, die vertraut aussehen, verbergen neue Gefahren."
       }
     },
     {
-      "start": 12.0,
-      "end": 16,
+      "start": 17.6,
+      "end": 25.1,
       "text": {
-        "en": "Act III · The Remembering Wood",
-        "de": "Akt III · Der erinnernde Wald"
+        "en": "Your fireballs light the way. Your growing earth magic holds the shifting ground steady.",
+        "de": "Deine Feuerbälle erhellen den Weg. Deine wachsende Erdmagie hält den wankenden Boden fest."
+      }
+    },
+    {
+      "start": 25.5,
+      "end": 31.1,
+      "text": {
+        "en": "Beyond the bridge, thunder rolls from a cloudless sky.",
+        "de": "Hinter der Brücke grollt Donner aus einem wolkenlosen Himmel."
+      }
+    },
+    {
+      "start": 31.5,
+      "end": 36,
+      "kind": "title",
+      "text": {
+        "en": "Act III: The Whispering Woods · Levels 21–30",
+        "de": "Akt III: Der Flüsterwald · Level 21–30"
       }
     }
   ]

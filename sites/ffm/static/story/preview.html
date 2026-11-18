@@ -20,7 +20,14 @@
     then open http://127.0.0.1:8190/preview.html
     Query parameters: scene=<id>  lang=en|de  t=<seconds> (freeze on that frame)
     reduced=1 (force reduced motion)  autoplay=1
+    frame=1 (act as the web's desktop phone frame: a portrait window letterboxes instead of turning)
   -->
+  <script>
+    // Set before the player module runs, exactly as game/phone-frame.js marks the framed game.
+    if (new URLSearchParams(location.search).get('frame') === '1') {
+      document.documentElement.setAttribute('data-phone-frame', 'screen');
+    }
+  </script>
   <div class="picker">
     <label>Scene <select id="scene"></select></label>
     <label>Language <select id="lang"><option value="en">English</option><option value="de">Deutsch</option></select></label>

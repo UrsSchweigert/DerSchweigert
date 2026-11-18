@@ -7,10 +7,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cueAt, gradientStops, inPhoneFrame, landscapeBox,
-  createDioramaPlayer, narrationLocale, parseCssColor, sampleMotion, stageTransform, pickText, voicedCues,
+  COMPACT_BOX_HEIGHT, STAGE_W, STAGE_H, STAGE_SAFE, cardRuns, cueAt, gradientStops, inPhoneFrame, landscapeBox,
+  createDioramaPlayer, parseCssColor, plainText, sampleMotion, stageTransform, pickText,
 } from '../player/diorama-player.js';
-import { LOCALES, toVtt } from '../tools/build-subtitles.mjs';
+import { LOCALES, toVtt, vttText } from '../tools/build-subtitles.mjs';
+import { READING, cardSeconds, retimeScene } from '../tools/card-timing.mjs';
+import { SCENE_WAIT_MAX_MS } from '../../game/story-intro.js';
 
 const storyDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const scenesDir = join(storyDir, 'scenes');
@@ -18,8 +20,26 @@ const index = JSON.parse(readFileSync(join(scenesDir, 'index.json'), 'utf8'));
 const sceneDirs = readdirSync(scenesDir, { withFileTypes: true })
   .filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
 const ROLES = new Set(['backdrop', 'midground', 'character', 'foreground']);
-// Comfortable reading speed for young readers (characters per second).
-const MAX_CPS = 17;
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+// A card is a few short sentences, never a wall of text (see the README).
+const MAX_CARD_CHARS = { en: 150, de: 170 };
+const MAX_CARD_SENTENCES = 3;
+const LAST_LEVEL = 60;
+
+/** Every file below a folder, as paths relative to it. */
+function filesBelow(dir, prefix = '') {
+  return readdirSync(dir, { withFileTypes: true }).flatMap(entry => (entry.isDirectory()
+    ? filesBelow(join(dir, entry.name), `${prefix}${entry.name}/`)
+    : [`${prefix}${entry.name}`]));
+}
+
+/** The level range an act covers: from its own first level to the next act's. */
+function actLevels(act) {
+  const starts = index.scenes.filter(entry => entry.slot.type === 'act')
+    .map(entry => entry.slot.fromLevel).sort((a, b) => a - b);
+  const at = starts.indexOf(act.slot.fromLevel);
+  return [starts[at], at + 1 < starts.length ? starts[at + 1] - 1 : LAST_LEVEL];
+}
 
 function pngInfo(file) {
   const buf = readFileSync(file);
@@ -101,6 +121,34 @@ describe('scene index', () => {
       assert.deepEqual(loadScene(id).slot, slot, `${id}: index slot matches scene.json`);
     }
   });
+
+  it('has one prologue and one finish', () => {
+    assert.deepEqual(index.scenes.filter(entry => entry.slot.type === 'intro').map(entry => entry.id), ['intro']);
+    assert.deepEqual(index.scenes.filter(entry => entry.slot.type === 'finish').map(entry => entry.id), ['finish']);
+  });
+});
+
+describe('story without a voice-over', () => {
+  it('ships no narration folder and no audio file in any scene', () => {
+    for (const id of sceneDirs) {
+      const files = filesBelow(join(scenesDir, id));
+      assert.deepEqual(files.filter(file => /(^|\/)narration\//.test(file)), [], `${id}: narration folder`);
+      assert.deepEqual(files.filter(file => /\.(mp3|m4a|aac|ogg|opus|wav)$/i.test(file)), [], `${id}: audio file`);
+      assert.doesNotMatch(readFileSync(join(scenesDir, id, 'scene.json'), 'utf8'), /narrat|timing\.json|\.mp3/i,
+        `${id}: scene.json still names a voice-over`);
+    }
+  });
+
+  it('plays no sound: the player and its wiring have no voice-over path left', () => {
+    const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
+    assert.doesNotMatch(player, /new Audio\b|AudioContext|narration\/|voicedCues|createNarration/);
+    assert.doesNotMatch(player, /muted|narration\s*=/, 'no sound options remain on the player');
+    const main = readFileSync(join(storyDir, '..', 'game', 'main.js'), 'utf8');
+    assert.doesNotMatch(main, /createNarration|story-narration|STORY_NARRATION/);
+    const readme = readFileSync(join(storyDir, 'README.md'), 'utf8');
+    assert.doesNotMatch(readme, /^#+ Voice-over/m, 'the README must not document a voice-over');
+    assert.doesNotMatch(readme, /narration\//);
+  });
 });
 
 for (const id of sceneDirs) {
@@ -160,7 +208,7 @@ for (const id of sceneDirs) {
       }
     });
 
-    it('has ordered, readable subtitles in every locale', () => {
+    it('has ordered cards in every locale, each up long enough to be read', () => {
       let previousEnd = 0;
       for (const cue of scene.subtitles) {
         assert.ok(cue.start >= previousEnd && cue.end > cue.start && cue.end <= scene.duration,
@@ -169,11 +217,60 @@ for (const id of sceneDirs) {
         for (const locale of LOCALES) {
           const text = cue.text[locale];
           assert.ok(text?.trim(), `cue at ${cue.start}: missing ${locale}`);
-          assert.ok(text.length / (cue.end - cue.start) <= MAX_CPS,
-            `cue at ${cue.start} (${locale}) is too fast to read`);
+          // Without a voice-over the reader sets the pace: never shorter than
+          // the reading estimate of tools/card-timing.mjs.
+          assert.ok(cue.end - cue.start >= cardSeconds(text) - 1e-9,
+            `cue at ${cue.start} (${locale}) is up ${(cue.end - cue.start).toFixed(1)} s, needs ${cardSeconds(text).toFixed(1)} s`);
         }
       }
       for (const locale of LOCALES) assert.ok(scene.title[locale]?.trim(), `title ${locale}`);
+      const reading = scene.subtitles.reduce((sum, cue) => sum
+        + Math.max(...LOCALES.map(locale => cardSeconds(cue.text[locale]))), 0);
+      assert.ok(scene.duration >= reading, `${id}: ${scene.duration} s is shorter than its ${reading.toFixed(1)} s of reading`);
+    });
+
+    it('is paced by tools/card-timing.mjs', () => {
+      assert.deepEqual(retimeScene(scene), scene,
+        `${id} is not paced to its cards: run node sites/ffm/static/story/tools/card-timing.mjs`);
+      // The game gives up waiting for a scene after SCENE_WAIT_MAX_MS.
+      assert.ok(scene.duration * 1000 < SCENE_WAIT_MAX_MS - 20000, `${id}: ${scene.duration} s is too long`);
+    });
+
+    it('keeps every card to a few short sentences', () => {
+      for (const cue of scene.subtitles) {
+        for (const locale of LOCALES) {
+          const text = plainText(cue.text[locale]);
+          assert.ok([...text].length <= MAX_CARD_CHARS[locale], `${id} (${locale}) card too long: ${text}`);
+          const sentences = text.split(/(?<=[.!?…])\s+/).filter(Boolean).length;
+          assert.ok(sentences <= MAX_CARD_SENTENCES, `${id} (${locale}) card has ${sentences} sentences: ${text}`);
+          assert.doesNotMatch(text, /\*/, `${id} (${locale}): unbalanced bold marker in ${cue.text[locale]}`);
+          assert.doesNotMatch(text, /Hollow|Hohle/i, `${id} (${locale}): the old story's name`);
+        }
+        // German typography: „…“, never straight quotes.
+        assert.doesNotMatch(cue.text.de, /["']/, `${id}: straight quote in ${cue.text.de}`);
+        assert.equal((cue.text.de.match(/„/g) ?? []).length, (cue.text.de.match(/“/g) ?? []).length,
+          `${id}: unpaired German quotes in ${cue.text.de}`);
+        assert.doesNotMatch(cue.text.en, /["']/, `${id}: straight quote or apostrophe in ${cue.text.en}`);
+      }
+    });
+
+    it('shows its heading on exactly one title card', () => {
+      const titles = scene.subtitles.filter(cue => cue.kind === 'title');
+      assert.equal(titles.length, 1, `${id}: one title card`);
+      const [heading] = titles;
+      const entry = index.scenes.find(candidate => candidate.id === id);
+      if (entry.slot.type === 'act') {
+        // The act heading closes the act's opening, with the act's real levels.
+        assert.equal(scene.subtitles.at(-1), heading, `${id}: the heading is the last card`);
+        const [from, to] = actLevels(entry);
+        const numeral = ROMAN[entry.slot.act - 1];
+        assert.equal(heading.text.en, `${scene.title.en} · Levels ${from}–${to}`);
+        assert.equal(heading.text.de, `${scene.title.de} · Level ${from}–${to}`);
+        assert.match(scene.title.en, new RegExp(`^Act ${numeral}: [A-Z]`));
+        assert.match(scene.title.de, new RegExp(`^Akt ${numeral}: \\S`));
+      } else {
+        assert.deepEqual(heading.text, scene.title, `${id}: the title card is the scene's title`);
+      }
     });
 
     it('ships up-to-date WebVTT subtitles', () => {
@@ -184,56 +281,11 @@ for (const id of sceneDirs) {
       }
     });
 
-    it('ships voice-over that matches its subtitles in every narrated locale', () => {
-      const narrationDir = join(scenesDir, id, 'narration');
-      const voicedLocales = existsSync(narrationDir)
-        ? readdirSync(narrationDir, { withFileTypes: true }).filter(entry => entry.isDirectory())
-          .map(entry => entry.name).sort()
-        : [];
-      // English carries every scene; a locale that is not voiced on purpose
-      // simply has no folder and plays on its authored cue times.
-      assert.ok(voicedLocales.includes('en'), `${id}: English voice-over missing`);
-      for (const locale of voicedLocales) assert.ok(LOCALES.includes(locale), `${id}: ${locale} is not a scene locale`);
-
-      for (const locale of voicedLocales) {
-        const dir = join(narrationDir, locale);
-        const timingFile = join(dir, 'timing.json');
-        assert.ok(existsSync(timingFile), `${id}/${locale}: narration/timing.json missing`);
-        const timing = JSON.parse(readFileSync(timingFile, 'utf8'));
-        assert.equal(timing.duration, scene.duration, `${id}/${locale}: scene duration`);
-        assert.ok(existsSync(join(dir, timing.audio)), `${id}/${locale}: ${timing.audio} missing`);
-
-        // One recorded line per spoken cue; act title cards stay unvoiced.
-        const spoken = scene.subtitles
-          .map((cue, index) => ({ cue, index }))
-          .filter(({ cue }) => !/^(Act|Akt)\b/.test(cue.text[locale].trim()));
-        assert.deepEqual(timing.lines.map(line => line.cue), spoken.map(entry => entry.index),
-          `${id}/${locale}: recorded cues`);
-
-        let previousEnd = 0;
-        for (const line of timing.lines) {
-          assert.ok(existsSync(join(dir, line.stem)), `${id}/${locale}: ${line.stem} missing`);
-          assert.ok(line.start >= previousEnd - 0.001,
-            `${id}/${locale}: ${line.stem} starts before the line before it ends`);
-          assert.ok(line.start + line.duration <= scene.duration + 0.01,
-            `${id}/${locale}: ${line.stem} runs past the scene`);
-          previousEnd = line.start + line.duration;
-        }
-
-        // Folded into the cues, the voice-over must stay ordered and must not
-        // collide, and no line may lose its text while it is still speaking.
-        const voiced = voicedCues(scene.subtitles, timing);
-        for (const [index, cue] of voiced.entries()) {
-          assert.ok(cue.end > cue.start, `${id}/${locale}: cue ${index} has no window`);
-          if (index) assert.ok(cue.start >= voiced[index - 1].end - 0.001,
-            `${id}/${locale}: cue ${index} overlaps the one before it`);
-        }
-        for (const line of timing.lines) {
-          const cue = voiced[line.cue];
-          assert.equal(cue.start, line.start, `${id}/${locale}: ${line.stem} is not synced to its cue`);
-          assert.ok(cue.end >= line.start + line.duration - 0.001,
-            `${id}/${locale}: ${line.stem} loses its subtitle before the line ends`);
-        }
+    it('keeps lighting events inside the scene', () => {
+      for (const event of scene.lighting?.events ?? []) {
+        assert.ok(event.at >= 0 && event.at + event.duration <= scene.duration + 1e-9,
+          `${id}: ${event.type} at ${event.at} runs past the scene`);
+        if (Number.isInteger(event.atCue)) assert.ok(scene.subtitles[event.atCue], `${id}: atCue ${event.atCue}`);
       }
     });
 
@@ -345,46 +397,140 @@ describe('player helpers', () => {
     assert.equal(pickText(cues[0].text, 'de'), 'a');
   });
 
-  it('moves cue timing onto the recorded lines without letting them collide', () => {
-    const subtitles = [
-      { start: 1, end: 3, text: 'first' },
-      { start: 4, end: 6, text: 'second' },
-      { start: 8, end: 10, text: 'title card' },
-    ];
-    // A slow take: the first line runs past its authored window.
-    const timing = {
-      lines: [
-        { cue: 0, start: 1.4, duration: 3.2 }, // ends 4.6 — later than the second line starts
-        { cue: 1, start: 4.9, duration: 1.1 },
+  it('splits a card into plain and bold runs', () => {
+    assert.deepEqual(cardRuns('Beneath it:\n**A steady mind.**'), [
+      { text: 'Beneath it:\n', bold: false }, { text: 'A steady mind.', bold: true },
+    ]);
+    assert.deepEqual(cardRuns('**Every answer opens another path.**'),
+      [{ text: 'Every answer opens another path.', bold: true }]);
+    assert.deepEqual(cardRuns('a **b** c'), [
+      { text: 'a ', bold: false }, { text: 'b', bold: true }, { text: ' c', bold: false },
+    ]);
+    // An unclosed marker stays literal rather than swallowing the card.
+    assert.deepEqual(cardRuns('**open'), [{ text: '**open', bold: false }]);
+    assert.deepEqual(cardRuns(''), []);
+    assert.equal(plainText('x **y** z'), 'x y z');
+  });
+
+  it('never builds a card from HTML', () => {
+    const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
+    assert.doesNotMatch(player, /innerHTML|insertAdjacentHTML|outerHTML/);
+    assert.match(player, /createElement\('strong'\)/);
+    assert.match(player, /strong\.textContent = run\.text/);
+    assert.equal(vttText('**A <b> & c**'), '<b>A &lt;b&gt; &amp; c</b>');
+  });
+
+  it('times a card by its length, with a floor', () => {
+    assert.equal(cardSeconds('Hi.'), READING.minSeconds);
+    const long = 'x'.repeat(150);
+    assert.equal(cardSeconds(long), READING.leadSeconds + 150 / READING.charsPerSecond);
+    // Bold markers are not read.
+    assert.equal(cardSeconds(`**${long}**`), cardSeconds(long));
+  });
+
+  it('lays cards out at reading speed and stretches the rest of the scene with them', () => {
+    const scene = {
+      duration: 10,
+      layers: [{ id: 'a', motion: [{ t: 0 }, { t: 5 }, { t: 10 }] }],
+      lighting: {
+        glows: [{ layer: 'a', from: 2 }],
+        events: [{ type: 'flash', at: 4, duration: 1 }, { type: 'dim', atCue: 1, offset: -0.2, at: 0, duration: 1 }],
+      },
+      subtitles: [
+        { start: 0, end: 1, text: { en: 'Hi.', de: 'Hallo.' } },
+        { start: 1, end: 2, kind: 'title', text: { en: 'x'.repeat(60), de: 'y'.repeat(75) } },
       ],
     };
-    const voiced = voicedCues(subtitles, timing);
-    assert.deepEqual(voiced[0], { start: 1.4, end: 4.6, text: 'first' });
-    assert.deepEqual(voiced[1], { start: 4.9, end: 6, text: 'second' });
-    // The unvoiced title card keeps its authored time even though line 2 runs late.
-    assert.deepEqual(voiced[2], subtitles[2]);
+    const timed = retimeScene(scene);
+    // 0.8 + 4 s floor, 0.4 s gap, then the German heading: 1.5 + 75 / 15 = 6.5 s; 0.6 s tail.
+    assert.deepEqual(timed.subtitles.map(cue => [cue.start, cue.end]), [[0.8, 4.8], [5.2, 11.7]]);
+    assert.equal(timed.subtitles[1].kind, 'title');
+    assert.equal(timed.duration, 12.3);
+    assert.deepEqual(timed.layers[0].motion.map(key => key.t), [0, 6.2, 12.3]);
+    assert.equal(timed.lighting.glows[0].from, 2.5);
+    assert.ok(!('to' in timed.lighting.glows[0]), 'an open glow stays open');
+    assert.equal(timed.lighting.events[0].at, 4.9);
+    assert.equal(timed.lighting.events[1].at, 5, 'a pinned event follows its card');
+    assert.deepEqual(retimeScene(timed), timed, 'retiming a paced scene changes nothing');
+    assert.equal(scene.duration, 10, 'the input is not modified');
+  });
+});
+
+// The real check is tools/measure-cards.py, which renders every card with the
+// player CSS in Chromium at 320x568, 390x844, 568x320, 844x390 and inside the
+// 390x844 desktop phone frame (see the README). This keeps a cheap, deliberately
+// pessimistic model of it in CI: Georgia averages ~0.5em per character, the
+// model assumes 0.6em.
+describe('cards fit the smallest screens', () => {
+  const GLYPH_EM = 0.6;
+  const boxes = [
+    // [label, box width, box height, font px, card width share, padding x em, padding y em, line height]
+    ['568x320 (and a turned 320x568)', 568, 320, 14, 0.88, 1, 0.8, 1.3],
+    ['844x390 (and a turned 390x844)', 844, 390, 17.3, 0.88, 1, 0.8, 1.3],
+  ];
+  for (const [label, width, height, font, share, padX, padY, lineHeight] of boxes) {
+    it(`keeps every card under 42% of a ${label} box`, () => {
+      const perLine = Math.floor((width * share - 2 * padX * font) / (font * GLYPH_EM));
+      for (const id of sceneDirs) {
+        for (const cue of loadScene(id).subtitles) {
+          for (const locale of LOCALES) {
+            const lines = plainText(cue.text[locale]).split('\n')
+              .reduce((sum, part) => sum + Math.max(1, Math.ceil([...part].length / perLine)), 0);
+            const cardHeight = (lines * lineHeight + padY) * font;
+            assert.ok(cardHeight <= 0.42 * height,
+              `${id} (${locale}) needs ${lines} lines (${Math.round(cardHeight)} px) at ${label}`);
+          }
+        }
+      }
+    });
+  }
+
+  it('leaves room under the letterbox band in the desktop phone frame', () => {
+    const font = 18;
+    const perLine = Math.floor((390 * 0.9 - 2 * 1.1 * font) / (font * GLYPH_EM));
+    const band = landscapeBox(390, 844, { turn: false }).height;
+    const room = 844 / 2 - band / 2 - 20;
+    for (const id of sceneDirs) {
+      for (const cue of loadScene(id).subtitles) {
+        for (const locale of LOCALES) {
+          const lines = Math.ceil([...plainText(cue.text[locale])].length / perLine);
+          assert.ok((lines * 1.35 + 1.2) * font <= room, `${id} (${locale}): ${lines} lines in the phone frame`);
+        }
+      }
+    }
   });
 
-  it('keeps a cue readable when the take is shorter than its window', () => {
-    const subtitles = [{ start: 1, end: 5, text: 'short take' }];
-    const voiced = voicedCues(subtitles, { lines: [{ cue: 0, start: 1.2, duration: 1.5 }] });
-    assert.deepEqual(voiced[0], { start: 1.2, end: 5, text: 'short take' });
+  it('sizes the card type by the box it is read in, not the screen', () => {
+    const css = readFileSync(join(storyDir, 'player', 'diorama-player.css'), 'utf8');
+    assert.match(css, /\.diorama__subtitle \{[^}]*font-size: clamp\(16px, calc\(var\(--diorama-text-box, 100vw\) \* 0\.026\), 30px\);/);
+    assert.match(css, /\.diorama\.is-compact \.diorama__subtitle \{[^}]*font-size: clamp\(14px, calc\(var\(--diorama-text-box, 100vw\) \* 0\.0205\), 20px\);/);
+    assert.match(css, /\.diorama__subtitle \{[^}]*white-space: pre-line;/);
+    const player = readFileSync(join(storyDir, 'player', 'diorama-player.js'), 'utf8');
+    assert.match(player, /root\.style\.setProperty\('--diorama-text-box', `\$\{box\.width\}px`\)/);
+  });
+});
+
+describe('the story', () => {
+  it('is called The Stolen Dawn', () => {
+    const intro = loadScene('intro');
+    assert.deepEqual(intro.title, { en: 'The Stolen Dawn', de: 'Der gestohlene Morgen' });
+    const readme = readFileSync(join(storyDir, 'README.md'), 'utf8');
+    assert.match(readme, /\*The Stolen Dawn\*/);
+    assert.doesNotMatch(readme, /Hollow Crown/);
   });
 
-  it('leaves the cues alone without a usable voice-over manifest', () => {
-    const subtitles = [{ start: 1, end: 2, text: 'x' }];
-    assert.equal(voicedCues(subtitles, null), subtitles);
-    assert.equal(voicedCues(subtitles, { lines: [] }), subtitles);
-    // Unknown cue indices and unreadable starts are ignored, not thrown at.
-    const junk = { lines: [{ cue: 9, start: 0, duration: 1 }, { cue: 0, start: 'x', duration: 1 }] };
-    assert.equal(voicedCues(subtitles, junk), subtitles);
-  });
-
-  it('reads the voice-over folder for a supported locale', () => {
-    assert.equal(narrationLocale('de'), 'de');
-    assert.equal(narrationLocale('en'), 'en');
-    assert.equal(narrationLocale('fr'), 'en');
-    assert.equal(narrationLocale(undefined), 'en');
+  it('ends with a finish built from art the other scenes already ship', () => {
+    const finish = loadScene('finish');
+    assert.deepEqual(finish.slot, { type: 'finish' });
+    assert.deepEqual(finish.title, { en: 'A World in Balance', de: 'Eine Welt im Gleichgewicht' });
+    assert.equal(finish.subtitles[0].kind, 'title', 'the finish opens on its title');
+    assert.equal(finish.subtitles.at(-1).text.en, '**Every answer opens another path.**');
+    // No new art: every layer points into another scene's folder.
+    for (const layer of finish.layers) {
+      assert.match(layer.src, /^\.\.\/(intro|act-[1-6])\/[\w-]+\.webp$/, `${layer.id}: ${layer.src}`);
+    }
+    assert.deepEqual(readdirSync(join(scenesDir, 'finish')).sort(),
+      ['scene.json', 'subtitles.de.vtt', 'subtitles.en.vtt']);
   });
 });
 
@@ -443,10 +589,11 @@ describe('player chrome', () => {
   });
 });
 
-describe('narration factory seam', () => {
+describe('a silent player', () => {
   const noop = () => {};
-  function setup(factory) {
+  function setup() {
     const made = [];
+    const fetched = [];
     const node = () => ({
       className: '', style: { setProperty: noop, removeProperty: noop }, classList: { add: noop, remove: noop, toggle: noop }, children: [],
       setAttribute: noop, appendChild(child) { this.children.push(child); }, remove: noop,
@@ -458,8 +605,9 @@ describe('narration factory seam', () => {
       window: { matchMedia: () => ({ matches: false }), addEventListener: noop, removeEventListener: noop },
       requestAnimationFrame: () => 1,
       cancelAnimationFrame: noop,
-      fetch: async () => ({ ok: true, json: async () => ({ lines: [{ cue: 0, start: 0, duration: 1 }] }) }),
-      Audio: class { constructor(src) { made.push(src); this.src = src; } addEventListener() {} play() { return Promise.resolve(); } pause() {} load() {} removeAttribute() {} },
+      fetch: async (url) => { fetched.push(String(url)); return { ok: false, json: async () => ({}) }; },
+      Audio: class { constructor(src) { made.push(src); } },
+      AudioContext: class { constructor() { made.push('AudioContext'); } },
     };
     for (const [key, value] of Object.entries(globals)) {
       saved[key] = Object.getOwnPropertyDescriptor(globalThis, key);
@@ -472,51 +620,25 @@ describe('narration factory seam', () => {
       }
     };
     const scene = { duration: 5, layers: [], subtitles: [{ start: 0, end: 1, text: 'hi' }], title: 'T' };
-    return { made, restore, make: () => createDioramaPlayer({
-      container: node(), scene, baseUrl: 'https://localhost/scene/', locale: 'en', createNarration: factory,
+    return { made, fetched, restore, make: () => createDioramaPlayer({
+      container: node(), scene, baseUrl: 'https://localhost/scene/', locale: 'de',
     }) };
   }
 
-  async function run(factory) {
-    const env = setup(factory);
+  it('plays and skips a scene without fetching or creating any audio', async () => {
+    const env = setup();
     try {
       const player = env.make();
       const playing = player.play();
       await new Promise(resolve => setTimeout(resolve, 5));
+      player.pause();
+      player.resume();
       player.skip();
       assert.equal(await playing, 'skipped');
-      return env.made;
+      assert.deepEqual(env.made, [], 'no audio element or context');
+      assert.deepEqual(env.fetched, [], 'no voice-over manifest is fetched');
     } finally {
       env.restore();
     }
-  }
-
-  it('replaces the <audio> element with the factory voice', async () => {
-    const calls = [];
-    const voice = {
-      paused: true, ended: false, readyState: 4, duration: 5, currentTime: 0,
-      addEventListener: noop, pause() { calls.push('pause'); }, removeAttribute: noop,
-      load() { calls.push('load'); }, play() { calls.push('play'); return Promise.resolve(); },
-    };
-    const made = await run((url, timing) => { calls.push(url, timing.lines.length); return voice; });
-    assert.deepEqual(made, [], 'no Audio object constructed');
-    assert.deepEqual(calls.slice(0, 3), ['https://localhost/scene/narration/en/narration.mp3', 1, 'play']);
-    assert.ok(calls.includes('load'));
-  });
-
-  it('runs silently on the timer when the factory returns nothing, throws, or play rejects', async () => {
-    assert.deepEqual(await run(() => null), []);
-    assert.deepEqual(await run(() => { throw new Error('no context'); }), []);
-    const rejecting = {
-      paused: true, readyState: 0, addEventListener: noop, pause: noop, removeAttribute: noop, load: noop,
-      play: () => Promise.reject(new Error('blocked')),
-    };
-    assert.deepEqual(await run(() => rejecting), []);
-    const throwing = { ...rejecting, play() { throw new Error('sync'); } };
-    assert.deepEqual(await run(() => throwing), []);
-  });
-
-  it('keeps the <audio> element when no factory is given', async () => {
-    assert.deepEqual(await run(undefined), ['https://localhost/scene/narration/en/narration.mp3']);
   });
 });

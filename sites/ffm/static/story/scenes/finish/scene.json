@@ -1,0 +1,421 @@
+{
+  "id": "finish",
+  "slot": {
+    "type": "finish"
+  },
+  "title": {
+    "en": "A World in Balance",
+    "de": "Eine Welt im Gleichgewicht"
+  },
+  "duration": 64.6,
+  "layers": [
+    {
+      "id": "throne",
+      "role": "backdrop",
+      "src": "../act-6/backdrop.webp",
+      "x": -48,
+      "y": -150,
+      "width": 2016,
+      "motion": [
+        {
+          "t": 0,
+          "opacity": 1,
+          "x": 20,
+          "y": 0,
+          "scale": 1
+        },
+        {
+          "t": 15,
+          "opacity": 1,
+          "x": 6.1,
+          "y": 2.8,
+          "scale": 1.012
+        },
+        {
+          "t": 15.8,
+          "opacity": 1,
+          "x": 5.3,
+          "y": 2.9,
+          "scale": 1.012
+        },
+        {
+          "t": 64.6,
+          "opacity": 1,
+          "x": -40,
+          "y": 12,
+          "scale": 1.05
+        }
+      ]
+    },
+    {
+      "id": "dawn",
+      "role": "backdrop",
+      "poseOf": "throne",
+      "src": "../act-1/backdrop.webp",
+      "x": -48,
+      "y": -150,
+      "width": 2016,
+      "motion": [
+        {
+          "t": 0,
+          "opacity": 0,
+          "x": 20,
+          "y": 0,
+          "scale": 1
+        },
+        {
+          "t": 15,
+          "opacity": 0,
+          "x": 6.1,
+          "y": 2.8,
+          "scale": 1.012
+        },
+        {
+          "t": 15.8,
+          "opacity": 1,
+          "x": 5.3,
+          "y": 2.9,
+          "scale": 1.012
+        },
+        {
+          "t": 64.6,
+          "opacity": 1,
+          "x": -40,
+          "y": 12,
+          "scale": 1.05
+        }
+      ]
+    },
+    {
+      "id": "hall",
+      "role": "midground",
+      "src": "../act-6/midground.webp",
+      "x": 100,
+      "y": 199,
+      "width": 1720,
+      "motion": [
+        {
+          "t": 0,
+          "opacity": 1,
+          "x": 100,
+          "y": 0,
+          "scale": 1
+        },
+        {
+          "t": 15,
+          "opacity": 1,
+          "x": 53.6,
+          "y": -1.4,
+          "scale": 1.007
+        },
+        {
+          "t": 15.8,
+          "opacity": 0,
+          "x": 51.1,
+          "y": -1.5,
+          "scale": 1.007
+        },
+        {
+          "t": 64.6,
+          "opacity": 0,
+          "x": -100,
+          "y": -6,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "village",
+      "role": "midground",
+      "poseOf": "hall",
+      "src": "../act-1/midground.webp",
+      "x": -90,
+      "y": 217,
+      "width": 2100,
+      "motion": [
+        {
+          "t": 0,
+          "opacity": 0,
+          "x": 100,
+          "y": 0,
+          "scale": 1
+        },
+        {
+          "t": 15,
+          "opacity": 0,
+          "x": 53.6,
+          "y": -1.4,
+          "scale": 1.007
+        },
+        {
+          "t": 15.8,
+          "opacity": 1,
+          "x": 51.1,
+          "y": -1.5,
+          "scale": 1.007
+        },
+        {
+          "t": 64.6,
+          "opacity": 1,
+          "x": -100,
+          "y": -6,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "hero",
+      "role": "character",
+      "src": "../intro/hero-raised.webp",
+      "x": 1100,
+      "y": 190,
+      "width": 400,
+      "motion": [
+        {
+          "t": 0,
+          "x": 60,
+          "y": 120,
+          "opacity": 0,
+          "scale": 1
+        },
+        {
+          "t": 29.7,
+          "x": 40,
+          "y": 120,
+          "opacity": 0,
+          "scale": 1
+        },
+        {
+          "t": 32.7,
+          "x": 0,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.02
+        },
+        {
+          "t": 64.6,
+          "x": -120,
+          "y": 0,
+          "opacity": 1,
+          "scale": 1.03
+        }
+      ]
+    },
+    {
+      "id": "steps",
+      "role": "foreground",
+      "src": "../act-6/foreground.webp",
+      "x": -290,
+      "y": 702,
+      "width": 2500,
+      "motion": [
+        {
+          "t": 0,
+          "opacity": 1,
+          "x": 220,
+          "y": 10,
+          "scale": 1
+        },
+        {
+          "t": 15,
+          "opacity": 1,
+          "x": 117.8,
+          "y": 4.4,
+          "scale": 1.012
+        },
+        {
+          "t": 15.8,
+          "opacity": 0,
+          "x": 112.4,
+          "y": 4.1,
+          "scale": 1.012
+        },
+        {
+          "t": 64.6,
+          "opacity": 0,
+          "x": -220,
+          "y": -14,
+          "scale": 1.05
+        }
+      ]
+    },
+    {
+      "id": "meadow",
+      "role": "foreground",
+      "poseOf": "steps",
+      "src": "../act-1/foreground.webp",
+      "x": -290,
+      "y": 617,
+      "width": 2500,
+      "motion": [
+        {
+          "t": 0,
+          "opacity": 0,
+          "x": 220,
+          "y": 10,
+          "scale": 1
+        },
+        {
+          "t": 15,
+          "opacity": 0,
+          "x": 117.8,
+          "y": 4.4,
+          "scale": 1.012
+        },
+        {
+          "t": 15.8,
+          "opacity": 1,
+          "x": 112.4,
+          "y": 4.1,
+          "scale": 1.012
+        },
+        {
+          "t": 64.6,
+          "opacity": 1,
+          "x": -220,
+          "y": -14,
+          "scale": 1.05
+        }
+      ]
+    }
+  ],
+  "lighting": {
+    "ambient": "linear-gradient(180deg, #5a4a7a44 0%, rgba(40,30,20,0.06) 55%, rgba(20,14,6,0.26) 100%)",
+    "glows": [
+      {
+        "layer": "throne",
+        "x": 960,
+        "y": 420,
+        "radius": 260,
+        "color": "rgba(255,230,160,0.45)",
+        "from": 6.4,
+        "to": 15.8,
+        "pulse": 1.6
+      },
+      {
+        "layer": "dawn",
+        "x": 1500,
+        "y": 300,
+        "radius": 340,
+        "color": "rgba(255,214,150,0.34)",
+        "from": 15,
+        "pulse": 6
+      },
+      {
+        "layer": "village",
+        "x": 960,
+        "y": 620,
+        "radius": 300,
+        "color": "rgba(255,214,160,0.26)",
+        "from": 15,
+        "pulse": 5
+      },
+      {
+        "layer": "hero",
+        "x": 1306,
+        "y": 240,
+        "radius": 240,
+        "color": "rgba(150,215,255,0.5)",
+        "from": 31.1,
+        "pulse": 2.4
+      }
+    ],
+    "motes": {
+      "count": 22,
+      "color": "#ffe2a8"
+    },
+    "events": [
+      {
+        "type": "flash",
+        "atCue": 1,
+        "offset": 1.2,
+        "duration": 1.4,
+        "color": "#fff1c8",
+        "at": 6.4
+      },
+      {
+        "type": "flash",
+        "atCue": 2,
+        "offset": -0.3,
+        "duration": 1.6,
+        "color": "#ffe6b0",
+        "at": 15
+      }
+    ]
+  },
+  "subtitles": [
+    {
+      "start": 0.8,
+      "end": 4.8,
+      "kind": "title",
+      "text": {
+        "en": "A World in Balance",
+        "de": "Eine Welt im Gleichgewicht"
+      }
+    },
+    {
+      "start": 5.2,
+      "end": 14.9,
+      "text": {
+        "en": "The final answer lands. The Crown cracks, and the stolen dawn pours through the throne-room windows.",
+        "de": "Die letzte Antwort sitzt. Die Krone bekommt einen Riss, und der gestohlene Morgen strömt durch die Fenster des Thronsaals."
+      }
+    },
+    {
+      "start": 15.3,
+      "end": 24.4,
+      "text": {
+        "en": "Across the kingdom, rivers settle into their banks. Roads return to their destinations.",
+        "de": "Überall im Königreich kehren die Flüsse in ihr Bett zurück. Die Straßen führen wieder dorthin, wo sie hingehören."
+      }
+    },
+    {
+      "start": 24.8,
+      "end": 29.7,
+      "text": {
+        "en": "In your village, the bells ring once.",
+        "de": "In deinem Dorf läuten die Glocken ein einziges Mal."
+      }
+    },
+    {
+      "start": 30.1,
+      "end": 38.2,
+      "text": {
+        "en": "You place the restored Crown beside the empty throne. Then you turn toward home.",
+        "de": "Du legst die wiederhergestellte Krone neben den leeren Thron. Dann machst du dich auf den Heimweg."
+      }
+    },
+    {
+      "start": 38.6,
+      "end": 47,
+      "text": {
+        "en": "The dragon circles overhead as sunlight reaches the road you fought so hard to follow.",
+        "de": "Der Drache kreist über dir, während das Sonnenlicht die Straße erreicht, der du so mutig gefolgt bist."
+      }
+    },
+    {
+      "start": 47.4,
+      "end": 54.5,
+      "text": {
+        "en": "Your spellbook is heavier now, its pages bright with wind, storm, and earth.",
+        "de": "Dein Zauberbuch ist jetzt schwerer, seine Seiten leuchten von Wind, Sturm und Erde."
+      }
+    },
+    {
+      "start": 54.9,
+      "end": 59.6,
+      "text": {
+        "en": "On the last page, fresh ink begins to form.",
+        "de": "Auf der letzten Seite bildet sich frische Tinte."
+      }
+    },
+    {
+      "start": 60,
+      "end": 64,
+      "text": {
+        "en": "**Every answer opens another path.**",
+        "de": "**Jede Antwort öffnet einen neuen Weg.**"
+      }
+    }
+  ]
+}

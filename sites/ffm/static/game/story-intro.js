@@ -1,31 +1,36 @@
 // story-intro.js — decides which story diorama (see ../story/) plays, and when.
-// Four rules:
+// Five rules:
 //
 //   * the very first time the app is opened, the intro (prologue) plays once;
 //   * starting the first level of an act plays that act's opening scene, at
 //     most once per scene per run;
 //   * on the very first run the act I opening is skipped when the prologue has
 //     just played, so a new player is not shown two scenes before level 1;
+//   * the first time Campaign I's last level is finished on this install, the
+//     finish (outro) plays before the victory screen;
 //   * a level never starts underneath a scene: a start asked for while one is
 //     on screen waits for it, because the level would otherwise take over the
-//     music under the narration.
+//     menu music under the scene.
 //
-// The "opened before" flag is device-wide (localStorage, like the locale
-// choice): it describes this install, not a player's progress, so it survives
-// profile switches and is shared by every player on the device.
+// The "seen" flags are device-wide (localStorage, like the locale choice):
+// they describe this install, not a player's progress, so they survive
+// profile switches and are shared by every player on the device.
 
 export const OPEN_SHOWN_KEY = 'arithmoslayer:story-intro-open-shown';
+export const FINISH_SHOWN_KEY = 'arithmoslayer:story-finish-shown';
 export const INTRO_SCENE = 'intro';
+export const FINISH_SCENE = 'finish';
 export const FIRST_LEVEL = 1;
 // A scene that cannot finish — a stalled decode, or the app backgrounded
 // mid-scene, where the scene clock stops — must never wedge a level start.
+// The longest scene is about 70 seconds of reading.
 export const SCENE_WAIT_MAX_MS = 120000;
 
 /** Resolves when `promise` settles, or after `limitMs`, whichever comes first. */
 function settle(promise, limitMs = SCENE_WAIT_MAX_MS) {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
-      console.warn('A story scene did not finish; starting the level without it');
+      console.warn('A story scene did not finish; carrying on without it');
       resolve();
     }, limitMs);
     const done = () => {
@@ -45,19 +50,19 @@ function defaultStorage() {
   }
 }
 
-function hasShownAtOpen(storage) {
+function hasSeen(storage, key) {
   try {
-    return storage?.getItem?.(OPEN_SHOWN_KEY) === '1';
+    return storage?.getItem?.(key) === '1';
   } catch {
     return false;
   }
 }
 
-function markShownAtOpen(storage) {
+function markSeen(storage, key) {
   try {
-    storage?.setItem?.(OPEN_SHOWN_KEY, '1');
+    storage?.setItem?.(key, '1');
   } catch {
-    // A failed write only means the intro may show again at the next open.
+    // A failed write only means the scene may show again next time.
   }
 }
 
@@ -73,9 +78,12 @@ function markShownAtOpen(storage) {
  * @param {object|null} [options.storage] - localStorage-compatible store;
  *   defaults to the page's localStorage.
  * @param {string} [options.scene] - the prologue scene id.
+ * @param {string} [options.finishScene] - the outro scene id.
  * @returns {object} story controller
  */
-export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForLevel, beforeScene } = {}) {
+export function createStoryIntro({
+  play, storage, scene = INTRO_SCENE, finishScene = FINISH_SCENE, sceneForLevel, beforeScene,
+} = {}) {
   if (typeof play !== 'function') throw new TypeError('createStoryIntro needs a play() function');
   const store = storage === undefined ? defaultStorage() : storage;
   const playedThisRun = new Set();
@@ -109,14 +117,15 @@ export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForL
   }
 
   return {
-    hasShownAtOpen: () => hasShownAtOpen(store),
+    hasShownAtOpen: () => hasSeen(store, OPEN_SHOWN_KEY),
+    hasShownFinish: () => hasSeen(store, FINISH_SHOWN_KEY),
     hasPlayedThisRun: (sceneId = scene) => playedThisRun.has(sceneId),
 
     /** Call once at boot: plays the prologue on the first open of an install. */
     async playOnOpen() {
-      if (hasShownAtOpen(store)) return null;
+      if (hasSeen(store, OPEN_SHOWN_KEY)) return null;
       // Marked before playing, so an interrupted intro cannot loop forever.
-      markShownAtOpen(store);
+      markSeen(store, OPEN_SHOWN_KEY);
       return playOnce(scene);
     },
 
@@ -126,10 +135,10 @@ export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForL
       if (typeof sceneForLevel !== 'function') return null;
       const level = Number(levelNumber);
       // A level must never start under a scene that is still on screen: the
-      // scene's music would be the level's (see the module comment), and the
-      // act opening would be dropped by the one-scene-at-a-time rule. On a
-      // slow first launch the prologue is still loading when the player taps
-      // Play, which is exactly when this matters.
+      // level would take over the menu music the scene runs on, and the act
+      // opening would be dropped by the one-scene-at-a-time rule. On a slow
+      // first launch the prologue is still loading when the player taps Play,
+      // which is exactly when this matters.
       if (inFlight) await settle(inFlight);
       // The prologue has just played in this run, so the first act opening
       // would be a second scene before the player has done anything.
@@ -137,6 +146,23 @@ export function createStoryIntro({ play, storage, scene = INTRO_SCENE, sceneForL
       const sceneId = await sceneForLevel(level);
       if (!sceneId) return null;
       return playOnce(sceneId);
+    },
+
+    /**
+     * Call when Campaign I's last level is finished ("Finish game"), before
+     * the victory screen: plays the outro the first time this install gets
+     * there. Resolves once the outro is over, or after SCENE_WAIT_MAX_MS, so
+     * a stuck scene can never hold back the victory screen and its score.
+     */
+    async playFinish() {
+      if (hasSeen(store, FINISH_SHOWN_KEY)) return null;
+      if (inFlight) await settle(inFlight);
+      // Marked before playing, like the prologue: a broken outro shows once.
+      markSeen(store, FINISH_SHOWN_KEY);
+      let result = null;
+      const scenePlay = playOnce(finishScene).then((value) => { result = value; });
+      await settle(scenePlay);
+      return result;
     },
 
     /** Call when the player asks for the prologue again, e.g. from the title

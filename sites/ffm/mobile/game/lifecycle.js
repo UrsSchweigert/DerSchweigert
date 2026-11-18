@@ -49,7 +49,7 @@ export const PENDING_MANUAL_GATES = Object.freeze([
     id: 'ios-silent-switch',
     platform: 'ios',
     title: 'Silent switch silences game audio',
-    detail: 'Flip the iPhone silent switch and confirm BGM, effects and story narration are all muted, '
+    detail: 'Flip the iPhone silent switch and confirm BGM and effects are both muted, '
       + 'and that unmuting restores them without a restart and shows the silent switch hint.',
   }),
   Object.freeze({
