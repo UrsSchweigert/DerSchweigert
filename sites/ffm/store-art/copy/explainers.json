@@ -1,0 +1,78 @@
+{
+  "_comment": "Text for the three explainer screenshots drawn by store-art/tools/explainers.py. Every claim is taken from the game, and tests/test_store_art_explainers.py checks the numbers against it: combat and healing from static/game/main.js (handleCorrectAnswer, handleWrongAnswer, hold-to-heal) and the in-game help (i18n.js help.play.*); combo thresholds from static/game/combo-abilities.js; the level steps from app/level_data.json, scripts/linear-curriculum.mjs and static/game/levels.js. Keep lines short: the cards are read at store-thumbnail size.",
+  "combat": {
+    "shot": "level-01-strike",
+    "de": {
+      "title": "SO WIRD GEKÄMPFT",
+      "rows": [
+        "Löse die Aufgabe des Feindes",
+        "Richtig: dein Held schlägt zu",
+        "Falsch oder zu spät: ein Herz weg",
+        "Linken Rand halten: Herz heilen"
+      ]
+    },
+    "en": {
+      "title": "HOW TO FIGHT",
+      "rows": [
+        "Solve the fiend's problem",
+        "Right: your hero strikes",
+        "Wrong or too slow: lose a heart",
+        "Hold the left edge to heal"
+      ]
+    }
+  },
+  "combos": {
+    "tiles": [
+      { "ability": "fireball", "combo": 6, "shot": "level-10-fireball" },
+      { "ability": "lightning", "combo": 11, "shot": "level-20-blitz" },
+      { "ability": "dragon", "combo": 21, "shot": "level-30-dragon" }
+    ],
+    "de": {
+      "title": "SERIEN",
+      "subtitle": "Richtige Antworten am Stück",
+      "tiles": [
+        { "name": "FEUERBALL", "text": "trifft aus der Ferne" },
+        { "name": "BLITZ", "text": "besiegt jeden Feind" },
+        { "name": "DRACHE", "text": "beendet das Level" }
+      ],
+      "footer": "Ein Fehler: Serie wieder auf 0"
+    },
+    "en": {
+      "title": "COMBOS",
+      "subtitle": "Right answers in a row",
+      "tiles": [
+        { "name": "FIREBALL", "text": "hits from afar" },
+        { "name": "LIGHTNING", "text": "defeats any fiend" },
+        { "name": "DRAGON", "text": "clears the level" }
+      ],
+      "footer": "One mistake: combo back to 0"
+    }
+  },
+  "levels": {
+    "steps": [
+      { "level": 1, "op": "+", "example": "2 + 1" },
+      { "level": 10, "op": "-", "example": "? - 6 = 8" },
+      { "level": 20, "op": "×", "example": "7 × 8" },
+      { "level": 30, "op": "÷", "example": "56 ÷ 8" },
+      { "level": 40, "op": "+-×÷", "example": "? × 9 = 63" }
+    ],
+    "operand_cap": { "first": 3, "last": 30 },
+    "boss_levels": [20, 30, 40, 50, 60],
+    "de": {
+      "title": "60 LEVEL",
+      "subtitle": "Die Aufgaben wachsen mit",
+      "level": "LEVEL {n}",
+      "level_from": "AB {n}",
+      "steps": ["Plus", "Minus, Lücken", "Mal", "Geteilt", "Alles gemischt"],
+      "footer": ["Zahlen wachsen von 3 bis 30", "Bossrunde in Level 20, 30, 40, 50, 60"]
+    },
+    "en": {
+      "title": "60 LEVELS",
+      "subtitle": "Problems grow with you",
+      "level": "LEVEL {n}",
+      "level_from": "FROM {n}",
+      "steps": ["Plus", "Minus, gaps", "Times", "Divide", "All mixed"],
+      "footer": ["Numbers grow from 3 to 30", "Boss round at levels 20, 30, 40, 50, 60"]
+    }
+  }
+}

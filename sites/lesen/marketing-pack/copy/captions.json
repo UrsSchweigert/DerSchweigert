@@ -1,0 +1,56 @@
+{
+  "_comment": "Screenshot captions and alt texts for the Buchstabenzeit marketing pack. Keys are the capture stems written by marketing-pack/tools/build.py. The German wording matches the app and the marketing site (sites/lesen/marketing), so the pack, the store listing and lesen.derschweigert.de never describe the app differently.",
+  "order": ["01-setup", "02-card-syllable", "03-card-word", "04-complete", "05-report"],
+  "shots": {
+    "01-setup": {
+      "de": {
+        "caption": "Buchstaben auswählen, Karten lesen",
+        "alt": "Auswahlbildschirm: Buchstaben, Vokale und Besonderheiten sind als Kacheln angeordnet, daneben die Kartenmodi."
+      },
+      "en": {
+        "caption": "Pick the letters, read the cards",
+        "alt": "Selection screen: consonants, vowels and special sounds as tiles next to the card modes."
+      }
+    },
+    "02-card-syllable": {
+      "de": {
+        "caption": "Silben lesen, Schritt für Schritt",
+        "alt": "Lesekarte mit der Silbe »ma«, Fortschrittsbalken, Vorlesen-Knopf und den Schaltflächen »Noch üben« und »Richtig gelesen«."
+      },
+      "en": {
+        "caption": "Syllables, one step at a time",
+        "alt": "Reading card showing the syllable ›ma‹ with a progress bar, the read-aloud button and the ›Practice more‹ and ›Read correctly‹ actions."
+      }
+    },
+    "03-card-word": {
+      "de": {
+        "caption": "Von der Silbe zum ganzen Wort",
+        "alt": "Lesekarte mit einem ganzen Wort in großer Schrift, daneben der Fortschritt der Runde."
+      },
+      "en": {
+        "caption": "From syllable to whole word",
+        "alt": "Reading card showing a whole word in large type with the round's progress."
+      }
+    },
+    "04-complete": {
+      "de": {
+        "caption": "Alle Karten geschafft",
+        "alt": "Abschlussbildschirm mit Häkchen, Sternen und der Zusammenfassung der gelesenen Karten."
+      },
+      "en": {
+        "caption": "All cards done",
+        "alt": "Completion screen with a check mark, stars and a summary of the cards read."
+      }
+    },
+    "05-report": {
+      "de": {
+        "caption": "Elternbericht auf dem Gerät",
+        "alt": "Bericht-Dialog mit geübten Karten, Trefferquote und Tabelle pro Karte sowie »Als CSV exportieren«."
+      },
+      "en": {
+        "caption": "Parent report, on the device",
+        "alt": "Report dialog with cards practised, accuracy and a per-card table next to ›Export as CSV‹."
+      }
+    }
+  }
+}

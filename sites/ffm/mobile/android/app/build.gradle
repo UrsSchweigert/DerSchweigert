@@ -60,6 +60,16 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // Optional side-by-side harness build: `./gradlew assembleDebug -PstoryTest`
+            // installs as de.derschweigert.arithmoslayer.storytest, so it can sit
+            // next to a release install without touching its data.
+            if (project.hasProperty('storyTest')) {
+                applicationIdSuffix '.storytest'
+                versionNameSuffix '-storytest'
+                resValue 'string', 'app_name', 'Arithmo Story Test'
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

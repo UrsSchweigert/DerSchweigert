@@ -83,12 +83,26 @@ speech.
 | 3 | Adult-gated, default-off local reminders | One optional daily local notification, off by default, behind an adult multiplication challenge; only explicit opt-in requests permission. No server, push service or account. |
 | 4 | Reduce-Motion-aware grading haptics | Distinct success and retry haptics for grading, suppressed when the system Reduce Motion setting is on. Physical-device behaviour. |
 
+## Screenshots
+
+The screenshot sets are generated, not hand-made: `../marketing-pack/` captures
+five real app screens in German and English at both store sizes
+(`app-store-6.1-portrait/` 1179 × 2556, `google-play-9x16/` 1080 × 1920) by
+driving the app bundle through its own UI — see `../marketing-pack/README.md`.
+Captions, alt texts, social posts and the press fact sheet live next to them in
+`../marketing-pack/copy/`.
+
+Those files still have to be checked against the exact submitted build on a real
+device before they are uploaded; the capture shows the shared web source, which
+is what both shells render.
+
 ## Not performed here
 
 This file is a draft only. No store listing, price, merchant setting, privacy
 declaration or production configuration was changed, and nothing was submitted
-to Google Play or App Store Connect. Producing signed builds, capturing
-screenshots, running the device checks and publishing remain owner actions.
+to Google Play or App Store Connect. Producing signed builds, checking the
+captured screenshots on the submitted build, running the device checks and
+publishing remain owner actions.
 
 ## App Store — German v1 text draft
 

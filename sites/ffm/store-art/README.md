@@ -86,6 +86,31 @@ one file per size serves every store language.
 | `google-play/icon-512x512.png` | 512×512 | **32-bit** PNG, alpha opaque | Store listing → App icon. Play uses it on the listing, in search results and in top charts. |
 | `google-play/feature-graphic-1024x500.png` | 1024×500 | PNG, no alpha | Store listing → Feature graphic, i.e. the header banner. Same treatment: art, brass frame, phone. |
 
+## Explainer screenshots
+
+Three screenshots that explain the game, in German and English, at the two
+landscape screenshot sizes the marketing pack (`../marketing/`) uploads:
+
+| Card | Says |
+| --- | --- |
+| `01-combat` | Solve the fiend's problem; right answer: the hero strikes; wrong or too slow: lose a heart; hold the left edge to heal. |
+| `02-combos` | Right answers in a row: fireball at 6, lightning at 11 (defeats any fiend), dragon at 21 (clears the level); one mistake resets the combo. |
+| `03-levels` | 60 levels: + from level 1, − and missing-number questions from 10, × from 20, ÷ from 30, all four mixed from 40; numbers grow from 3 to 30; boss rounds at 20, 30, 40, 50, 60. |
+
+| File | Size | Upload to |
+| --- | --- | --- |
+| `explainers/<locale>/app-store-6.1-landscape/0N-*.png` | 2556×1179 | App Store Connect → iPhone 6.1"/6.3" screenshots, next to the gameplay captures |
+| `explainers/<locale>/google-play-16x9/0N-*.png` | 1920×1080 | Play Console → Phone screenshots |
+
+`compose.py` renders them along with everything else; `tools/explainers.py` renders
+only these (`--locale`, `--preview`). The text lives in `copy/explainers.json`, and
+`sites/ffm/tests/test_store_art_explainers.py` checks each number against the game
+(`combo-abilities.js`, `main.js`, `levels.js`, `app/level_data.json`). The text is set
+in Courier Bold, the face the game's CSS `monospace` resolves to on Apple devices,
+on the app's overlay-card panels; the gameplay frames are crops of the committed
+captures in `../promo-shots/` (German HUD). The renderer raises instead of shrinking
+text below a legible size, so a longer translation means shorter copy, not smaller type.
+
 ## Not a store slot
 
 | File | Size | Format | Use |
