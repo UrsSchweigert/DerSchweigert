@@ -15,7 +15,7 @@ No other required-reason API is declared because none is used by the shell or
 its pinned dependencies:
 
 - `NSPrivacyAccessedAPICategoryUserDefaults`: no `UserDefaults` use in
-  Capacitor 8.6.0 core (checked in the `Capacitor.xcframework` binary) or in
+  Capacitor 8.6.2 core (checked in the `Capacitor.xcframework` binary; re-checked 2026-11-18) or in
   the app, filesystem, haptics, local-notifications and share plugin sources.
 - `NSPrivacyAccessedAPICategoryDiskSpace`: no
   `volumeAvailableCapacity*`/`statfs` use in those sources.

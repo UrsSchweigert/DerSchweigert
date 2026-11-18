@@ -3,7 +3,7 @@
 Bundle id `de.derschweigert.buchstabenzeit`, display name **Buchstabenzeit**
 ("Letter time"). The app is a guided reading exercise for children: an adult
 picks letter cards, the child reads each card aloud, and the adult marks the
-answer. It is a Capacitor 8.6.0 shell around the web app in `../static/`, built
+answer. It is a Capacitor 8.6.2 shell around the web app in `../static/`, built
 as an iPhone app in German and English.
 
 This file is the review package for the four native capabilities, an

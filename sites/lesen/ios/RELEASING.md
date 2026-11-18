@@ -72,7 +72,7 @@ submission images.
   there is no `Podfile` and no CocoaPods step. `ios/App/CapApp-SPM` is generated
   by the Capacitor CLI and resolves `capacitor-swift-pm` plus the five locked
   plugins from `node_modules`.
-- **Node.js 22+** and npm (Capacitor 8.6.0 from the locked
+- **Node.js 22+** and npm (Capacitor 8.6.2 from the locked
   `package-lock.json`).
 - An Apple Developer Program team with the app id
   `de.derschweigert.buchstabenzeit` and an App Store Connect app record. Both
