@@ -37,7 +37,7 @@ The Lambda is deployed as a **zip** (Python 3.12, arm64), built by
 does not manage the deployed code object (`ignore_changes = [s3_key]`), so an
 infrastructure-only apply never reverts a running function.
 
-A parallel **dev environment** (`dev.landhauscheck.com`) mirrors prod using `infra/terraform/sites/landhauscheck-dev/`.
+There is no dev environment: `dev.landhauscheck.com` was retired on 2026-11-18. Every merge to `main` deploys prod.
 
 This site lives inside the `DerSchweigert` monorepo; its state is stored in the
 shared S3 backend under `landhauscheck/{prod,dev}/terraform.tfstate`.
@@ -61,9 +61,8 @@ scripts/            deploy.sh — one-script deploy for local Docker and AWS
 alembic/            Local-dev database migrations (prod has no database)
 ```
 
-Terraform stacks live outside the site directory, next to every other site:
-`infra/terraform/sites/landhauscheck/` (prod) and
-`infra/terraform/sites/landhauscheck-dev/` (dev).
+The Terraform stack lives outside the site directory, next to every other site:
+`infra/terraform/sites/landhauscheck/`.
 
 ---
 
@@ -108,9 +107,6 @@ The backend uses fixture caching (`DEV_CACHE_MODE=on`) to replay recorded API re
 All deployments go through `scripts/deploy.sh`.
 
 ```bash
-# Deploy frontend to dev
-bash scripts/deploy.sh aws --env dev --frontend-only
-
 # Deploy everything to prod (requires confirmation)
 DEPLOY_CONFIRMED=yes bash scripts/deploy.sh aws
 
@@ -150,7 +146,7 @@ Also needed by the monthly station-refresh workflow: `DB_STADA_CLIENT_ID` and
 `DB_STADA_API_KEY`.
 
 The Lambda itself reads its API keys from SSM Parameter Store
-(`/basicwebapp/*`, `/basicwebapp-dev/*`), so runtime keys are independent of
+(`/basicwebapp/*`), so runtime keys are independent of
 these build-time secrets.
 
 `gh` can never read an existing secret's value, so each must be pasted once. If

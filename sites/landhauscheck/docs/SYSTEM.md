@@ -48,25 +48,12 @@ Browser
 | **API** | API Gateway HTTP API | `AWS_PROXY` → Lambda |
 | **Backend** | Lambda `basicwebapp-backend` | ARM64, 512MB, zip package (Python 3.12) |
 | **Lambda artifact** | S3 `basicwebapp-frontend-113725432218/deployments/basicwebapp-lambda.zip` | Uploaded per deploy; Terraform does not manage the code object |
-| **Stats persistence** | S3 `basicwebapp-stats-113725432218` | `stats_persist.json`, survives cold starts |
 | **Secrets** | SSM Parameter Store (`/basicwebapp/` prefix, SecureString) | Free — replaces Secrets Manager (saved ~$3.60/mo) |
 | **DNS** | Route 53 | `landhauscheck.com` + `www` alias |
 | **TLS** | ACM `us-east-1` | `landhauscheck.com` + `www.landhauscheck.com` |
 | **Logs** | CloudWatch `/aws/lambda/basicwebapp-backend` | 7-day retention |
-| **IaC** | OpenTofu v1.11.5 (`tofu`) | Prod: `infra/terraform/sites/landhauscheck/` · Dev: `infra/terraform/sites/landhauscheck-dev/` |
+| **IaC** | OpenTofu v1.11.5 (`tofu`) | `infra/terraform/sites/landhauscheck/` |
 | **Registrar** | Route 53 | Annual domain registration fee for `landhauscheck.com` |
-
-### Dev environment — dev.landhauscheck.com
-| Component | Resource | Notes |
-|---|---|---|
-| **Frontend** | S3 `basicwebapp-dev-frontend-113725432218` | Static React/Vite SPA (dev build) |
-| **CDN** | CloudFront (see `tofu -chdir=infra/terraform/sites/landhauscheck-dev output`) | Two origins: S3 + API GW |
-| **API** | API Gateway HTTP API (dev) | `AWS_PROXY` → Lambda |
-| **Backend** | Lambda `basicwebapp-dev-backend` | ARM64, 512MB, zip package (Python 3.12) |
-| **Stats persistence** | S3 `basicwebapp-dev-stats-113725432218` | `stats_persist.json` |
-| **Secrets** | SSM Parameter Store (`/basicwebapp-dev/` prefix, SecureString) | **Free** — no Secrets Manager cost |
-| **DNS** | Route 53 `dev.landhauscheck.com` | A/AAAA alias to CloudFront |
-| **TLS** | ACM `us-east-1` | `dev.landhauscheck.com` |
 
 ### Removed Terraform files
 | File | Reason |
@@ -95,10 +82,6 @@ Base path: `https://landhauscheck.com/api/v1/`
 | `GET` | `/geocode` | Address → lat/lng (Google Geocoding proxy) | None |
 | `GET` | `/fuel` | 4 cheapest diesel/E10 stations near lat/lng (Tankerkönig, DE only) | None |
 | `GET` | `/chargers` | EV chargers, gas stations, restrooms, or ATMs near lat/lng (Google Places) – `poi_type=ev|gas|toilet|atm` | None |
-| `POST` | `/admin/verify-pin` | Validates stats PIN, sets `lhc_pin` + `lhc_devmode` cookies | None (PIN in body) |
-| `GET` | `/admin/stats` | Full stats JSON | `X-Stats-Pin` header required |
-| `POST` | `/admin/clear-devmode` | Removes `lhc_devmode` cookie (re-enables tracking) | `X-Stats-Pin` header required |
-| `GET` | `/logs` | Recent CloudWatch log events for the diagnostics console | `X-Stats-Pin` header required |
 | `POST` | `/feature-request` | Create Jira Task in project LHC (donation thank-you) | None (PayPal redirect is implicit gate) |
 | `GET` | `/notifications/manifest` | Tomorrow's waste collections for all ICS locations (CloudFront-cached 1 h) | None |
 
@@ -131,7 +114,7 @@ App.jsx  (orchestrator, ~165 lines — owns no state directly; delegates to hook
 ├── LocationPicker.jsx      — Reworked welcome screen: lang switcher in header, 6-card
 │                             feature grid, DSGVO consent, GPS/manual entry; reset button
 │                             in app footer reopens this without page reload
-├── AppConsole.jsx          — Diagnostics overlay (CloudWatch logs on mount)
+├── AppConsole.jsx          — Diagnostics overlay (app events and system state)
 ├── GoogleMapWidget.jsx     — Traffic map + five-tab inline panel (⛽⚡🚻🏧);
 │   │                         420 lines (refactored from 753 in v1.3.1)
 │   ├── MapPanel.jsx        — Card list + mini-map container for tabs 1-4;
@@ -185,7 +168,7 @@ public/sw.js                   — Service worker: stores user location+lang in 
   identify enforced vs report-only policies and blocked targets. Generic fetch
   failures list possible causes without claiming to distinguish CORS, DNS, TLS or
   filtering, which browsers do not expose to JavaScript. The console shows the
-  current page origin and explicitly reports failures to retrieve CloudWatch logs.
+  current page origin.
   SDK-internal and service-worker requests are not instrumented.
 - `lang` and `countryCode` are passed as props to every widget
 - `countryCode` drives: unit system (US → imperial), fuel tab availability (DE only for Tankerkönig prices)
@@ -294,7 +277,7 @@ DEV_CACHE_MODE=on docker-compose -f sites/landhauscheck/docker/docker-compose.lo
 
 All secrets stored in **AWS SSM Parameter Store** (SecureString, Standard tier — free). Values are read at `tofu apply` time and baked into Lambda environment variables. Lambda does not call SSM at runtime.
 
-Prod parameters use prefix `/basicwebapp/`; dev uses `/basicwebapp-dev/`.
+Parameters use the prefix `/basicwebapp/`.
 
 | Secret name | Env var | Used in | Restriction |
 |---|---|---|---|
@@ -314,7 +297,7 @@ Prod parameters use prefix `/basicwebapp/`; dev uses `/basicwebapp-dev/`.
 
 **Dev environment secrets (SSM Parameter Store — free)**
 
-Both prod and dev now use SSM SecureString. Prod prefix: `/basicwebapp/`. Dev prefix: `/basicwebapp-dev/`. Same key names, same values. Values are injected at `tofu apply` time. `infra/terraform/sites/landhauscheck/ssm.tf` (prod) and `infra/terraform/sites/landhauscheck-dev/ssm.tf` (dev) define the parameters; both IAM roles have `ssm:GetParameter` on their respective prefix.
+Secrets use SSM SecureString with the prefix `/basicwebapp/`. Values are injected at `tofu apply` time. `infra/terraform/sites/landhauscheck/ssm.tf` defines the parameters; the Lambda role has `ssm:GetParameter` on that prefix.
 
 ---
 
@@ -329,21 +312,6 @@ Both prod and dev now use SSM SecureString. Prod prefix: `/basicwebapp/`. Dev pr
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self), payment=()` |
-
-### Stats Page PIN Protection
-- CloudFront Function intercepts every `/stats.html` request at the edge
-- Checks `lhc_pin` cookie → redirects to `/stats-login.html` if missing/wrong
-- `stats-login.html` POSTs to `/api/v1/admin/verify-pin` (PIN validated server-side against `STATS_PIN` env var); on success, sets **both** `lhc_pin` and `lhc_devmode=1` cookies via JS (not HttpOnly, so client JS can read them)
-- `GET /api/v1/admin/stats` also validates `X-Stats-Pin` header (defence in depth)
-- PIN is never present in HTML source
-- PIN comparison uses `secrets.compare_digest()` (timing-safe; prevents timing-based enumeration)
-
-### Developer Traffic Exclusion (`lhc_devmode` cookie)
-- `stats-login.html` sets `lhc_devmode=1` (1-year, SameSite=Strict, Secure) via JS on successful login
-- CloudFront `/api/*` behavior whitelists `lhc_devmode` — the cookie is forwarded to Lambda
-- The stats middleware in `main.py` skips all tracking (endpoint hits, session, provider costs, error log) when the request carries `lhc_devmode=1`
-- `stats.html` shows an amber badge ("👤 Dein Traffic wird nicht gezählt") when the cookie is present (detected via `document.cookie`)
-- `POST /api/v1/admin/clear-devmode` removes the cookie (PIN-protected via `X-Stats-Pin` header); badge shows a "Zurücksetzen" button
 
 ### CI Security Scanning (every push to main)
 
@@ -360,8 +328,8 @@ Both prod and dev now use SSM SecureString. Prod prefix: `/basicwebapp/`. Dev pr
 
 ## 11. Deployment
 
-> **Rule: always deploy to `dev.landhauscheck.com` and explicitly confirm you have tested the change before running any prod deployment.**
-> `deploy.sh` enforces this with an interactive confirmation prompt. Bypass in CI with `DEPLOY_CONFIRMED=yes`.
+> There is no dev environment (`dev.landhauscheck.com` was retired on 2026-11-18). Every merge to `main` deploys prod, so run the tests locally first.
+> A manual `deploy.sh aws` asks for confirmation; CI skips the prompt with `DEPLOY_CONFIRMED=yes`.
 
 ### Quick reference
 ```bash
@@ -377,13 +345,7 @@ bash scripts/deploy.sh aws --frontend-only
 # Infrastructure only (Terraform changes)
 bash scripts/deploy.sh aws --infra-only
 
-# Dev environment
-bash scripts/deploy.sh aws --env dev                  # full dev deploy
-bash scripts/deploy.sh aws --env dev --backend-only   # dev Lambda update
-bash scripts/deploy.sh aws --env dev --frontend-only  # dev frontend
-bash scripts/deploy.sh aws --env dev --infra-only     # dev tofu apply
-
-# Force Lambda cold start (resets in-memory stats) — safe, preserves all env vars
+# Force Lambda cold start — safe, preserves all env vars
 aws lambda update-function-configuration \
   --function-name basicwebapp-backend \
   --description "reset-$(date +%s)" \
@@ -396,9 +358,9 @@ cd infra/terraform && tofu apply
 
 ### What deploy.sh does
 1. **Backend**: builds the Lambda zip with manylinux `aarch64` wheels (`pip install --platform manylinux2014_aarch64 -t build/`, then `app/` copied in), uploads it to `s3://<site-bucket>/deployments/<app>-lambda.zip`, calls `update-function-code`, waits for `function-updated`
-2. **Frontend**: builds React with Docker (Node 20), fetches `VITE_GOOGLE_MAPS_API_KEY` + `VITE_HERE_API_KEY` from SSM Parameter Store (`/basicwebapp/` or `/basicwebapp-dev/` prefix), `aws s3 sync dist/ s3://...`
+2. **Frontend**: builds React with Docker (Node 20), fetches `VITE_GOOGLE_MAPS_API_KEY` + `VITE_HERE_API_KEY` from SSM Parameter Store (`/basicwebapp/` prefix), `aws s3 sync dist/ s3://...`
 3. **releases.json**: `generate_releases_json()` fetches GitHub Releases API with 4-level token fallback (GH_TOKEN env → `gh auth token` CLI → `git credential fill` → `github_token` from `terraform.tfvars`) and writes `sites/landhauscheck/frontend/public/releases.json` before the frontend build. On **backend-only** prod deploys, `push_releases_json_to_s3()` also regenerates and uploads `releases.json` directly to S3 (bypasses the frontend build) + CloudFront invalidation for `/releases.json` + `/release-notes.html`.
-4. **HTML no-cache**: `index.html`, `stats.html`, `impressum.html`, `datenschutz.html`, `stats-login.html`, `release-notes.html`, `help.html`, `calendar-import.html` uploaded with `Cache-Control: no-cache, no-store, must-revalidate`
+4. **HTML no-cache**: `index.html`, `impressum.html`, `datenschutz.html`, `release-notes.html`, `help.html`, `calendar-import.html` uploaded with `Cache-Control: no-cache, no-store, must-revalidate`
 5. **CloudFront invalidation**: `/*` + all HTML paths
 
 ### Lambda packaging
@@ -475,22 +437,16 @@ GOOGLE_MAPS_API_KEY=...
 HERE_API_KEY=...
 DB_STADA_API_KEY=...
 TANKERKOENIG_API_KEY=...
-STATS_PIN=<your-pin>   # required; in production from the DERSCHWEIGERT_ADMIN_PIN secret
 ```
 
 ---
 
-## 13. Stats System
+## 13. Stats System (retired)
 
-- **In-memory**: `stats_store.py` — endpoint hits, sessions, error log, provider counts, `waste_contributions_total`, `waste_contributions_by_day`
-- **Persistence**: flushes to S3 (`stats_persist.json`) + `/tmp` on every write. Loaded on Lambda cold start.
-- **Developer exclusion**: requests with `lhc_devmode=1` cookie are skipped entirely by the stats middleware — no endpoint hit, no session, no provider cost counted. Cookie set on stats login, removed via `POST /admin/clear-devmode`.
-- **Waste counters**: `_record_contribution()` in `waste_contribute.py` increments both counters on every successful PR creation; `_count_waste_calendars()` in `stats.py` globs `data/waste/*.ics` on each GET
-- **Session active window**: 5 minutes (`ACTIVE_WINDOW_S = 300`)
-- **Session location**: extracted from `lat/lng` query params on paths in `_LOCATION_PATHS` (excludes `/transit/nearby` — those are station coordinates, not user location)
-- **Bot detection**: `ua_short` containing "CloudFront", "Googlebot", "bot", "crawl", "spider", "curl", "python-requests"
-- **CloudFront health probes**: ~2,880/day — excluded from human session count, shown separately in stats.html
-- **Reset procedure**: delete `s3://basicwebapp-stats-113725432218/stats_persist.json`, then force cold start via `--description` (see §10)
+The PIN-protected stats dashboard, its request and session tracking (including the
+BigDataCloud reverse geocode of user coordinates), the S3 stats bucket and the
+`/api/v1/logs` console feed were removed on 2026-11-18. The API no longer records
+per-request or per-session data. Use CloudWatch metrics and logs in the AWS console.
 
 ---
 
@@ -567,3 +523,5 @@ All three route overlay widgets share the same pattern:
 | 2026-04-11 | v1.3.10: **Bug fix — map widget panel blank on second visit**. `MapPanel` was unmounted every time the user switched back to the traffic tab (`tab > 0` condition). On the next visit to any non-traffic tab the component remounted with a fresh DOM node, but `fuelMapInstanceRef.current` still pointed to the old detached instance — the "already initialized" guard triggered `resize` on the dead node and returned early, leaving the new div permanently blank (card list visible, map tiles absent). Fix: `MapPanel` now remains mounted once opened (`panelEverOpenedRef` tracks first open), hidden via `display:none` when `tab === 0`; `MapPanel` accepts the `style` prop and applies it to its root `<div>`. Frontend-only deploy. |
 | 2026-04-11 | v1.3.9: **POI widget — scrollable list capped at 7 visible items**. `.poiWidget__list` gains `max-height: 17rem` in both landscape (default flex rules) and portrait (media-query override changed from `overflow:visible` to `overflow-y:auto`). When ≤7 POIs match the active filter the list renders at natural height with no scrollbar; when >7 match the list is capped and a native scrollbar appears. Pure CSS change — no JS or API modifications. Frontend-only deploy. |
 | 2026-04-07 | v1.3.8: **POI widget overhaul — 5-category scheme with icon filter chips**. Backend (`poi.py`): `_GOOGLE_CATEGORY_TYPES` restructured into 5 categories — Food & Drink (`restaurant/cafe/bakery/bar`), Essential Facilities (`public_bathroom/pharmacy/hospital/atm`), Shopping (`supermarket/convenience_store/drugstore/electronics_store`), Accommodation (`hotel/tourist_attraction/park`), Culture (`museum/art_gallery/library/church/monument`). `_UTILITY_TYPES` frozenset bypasses `rating<3/count<3` quality filter for utility services that typically have no user reviews. `public_bathroom` no longer early-exits with `continue` — populates restroom cache as side-effect AND appears in Essential Facilities results. Default `limit` raised 12→20. Per-category fairness bucketing removed; results returned sorted by distance. Frontend (`PoiWidget.jsx`): icon-only filter chip row replaces text labels; 6 framed-gradient SVG pictograms (All, Food & Drink, Essential Facilities, Shopping, Accommodation, Culture) matching the map widget tab bar visual language (linearGradient fill + radialGradient gloss + white border rect + white icon paths, 32×32 viewBox). `availableCategories` derived via `useMemo` from API data, preserving `CATEGORY_ORDER`. Default filter set to Food & Drink. `CATEGORY_META` updated with 5-category inline list-item icons and colours. `genericFilterIcon()` fallback (grey pin) for unknown future categories. CSS: `.poiWidget__chip` uses `flex:1; min-height:2.75rem` (Apple HIG 44 px touch target); active state navy `#0e1f8c`. i18n: `poiFilterFoodDrink`, `poiFilterEssential`, `poiFilterShopping`, `poiFilterAccommodation`, `poiFilterCulture` keys added in DE/EN/PT; old `poiFilterRestaurant`/`poiFilterEntertainment` removed. `package.json` bumped `1.3.7 → 1.3.8`. Full stack deployed to prod (Lambda + frontend). |
+| 2026-11-18 | **Stats dashboard retired**: `stats.html`, `stats-login.html`, `/api/v1/admin/*`, `/api/v1/logs`, the tracking middleware, `stats_store.py`, the stats S3 bucket, the CloudFront PIN guard and the `STATS_PIN`/`lhc_devmode` cookies removed. The diagnostics console keeps its app-event log. |
+| 2026-11-18 | **Dev environment retired**: the `dev.landhauscheck.com` stack was destroyed (CloudFront, API, Lambda, buckets, SSM, DNS records), `infra/terraform/sites/landhauscheck-dev/` and the `--env dev` paths in `deploy.sh` removed. |

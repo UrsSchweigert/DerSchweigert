@@ -14,8 +14,7 @@
 # Options:
 #   --tag TAG         Docker image tag (default: short git SHA)
 #   --region REGION   Override AWS region (default: read from terraform.tfvars)
-#   --env ENV         Target environment: prod (default) or dev
-#                     dev uses infra/terraform/sites/landhauscheck-dev/ and dev.landhauscheck.com
+#   --env ENV         Only "prod" is accepted (the dev environment was retired on 2026-11-18)
 #
 # Environment variables (alternative to terraform.tfvars flags):
 #   TAG               Docker image tag
@@ -105,11 +104,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Set TF_DIR based on environment
-if [[ "$ENV" == "dev" ]]; then
-  TF_DIR="$REPO_ROOT/infra/terraform/sites/landhauscheck-dev"
-  info "Using dev environment (infra/terraform/sites/landhauscheck-dev/)"
-fi
+# The dev environment (dev.landhauscheck.com) was retired on 2026-11-18.
+[[ "$ENV" == "prod" ]] || error "Unknown environment '$ENV': only prod exists (dev was retired)."
 
 # =============================================================================
 # HELPERS
@@ -380,7 +376,7 @@ cmd_aws_infra() {
 # lambda.tf), so an `--infra-only` apply never reverts a running function to an
 # older artifact. The artifact must exist before the function is first created.
 
-# App name as Terraform knows it ("basicwebapp" / "basicwebapp-dev"), used for
+# App name as Terraform knows it ("basicwebapp"), used for
 # the artifact key. Derived from the Lambda name, which Terraform names
 # "<app_name>-backend", so both names come from one source of truth.
 lambda_app_name() {
@@ -485,37 +481,21 @@ cmd_aws_frontend() {
   cf_dist_id="$(tf_output cloudfront_distribution_id)" || error "Cannot read cloudfront_distribution_id."
   frontend_url="$(tf_output frontend_url 2>/dev/null || echo "https://${cf_dist_id}.cloudfront.net")"
 
-  # Fetch browser keys — from SSM (dev) or Secrets Manager (prod)
+  # Fetch browser keys from SSM
   local here_browser_api_key google_maps_browser_api_key
-  if [[ "$ENV" == "dev" ]]; then
-    here_browser_api_key="$(aws ssm get-parameter \
-      --name "/basicwebapp-dev/here-browser-api-key" \
-      --with-decryption \
-      --region "$region" \
-      --query Parameter.Value \
-      --output text)" || error "Cannot read /basicwebapp-dev/here-browser-api-key from SSM."
+  here_browser_api_key="$(aws ssm get-parameter \
+    --name "/basicwebapp/here-browser-api-key" \
+    --with-decryption \
+    --region "$region" \
+    --query Parameter.Value \
+    --output text)" || error "Cannot read /basicwebapp/here-browser-api-key from SSM."
 
-    google_maps_browser_api_key="$(aws ssm get-parameter \
-      --name "/basicwebapp-dev/google-maps-browser-api-key" \
-      --with-decryption \
-      --region "$region" \
-      --query Parameter.Value \
-      --output text)" || error "Cannot read /basicwebapp-dev/google-maps-browser-api-key from SSM."
-  else
-    here_browser_api_key="$(aws ssm get-parameter \
-      --name "/basicwebapp/here-browser-api-key" \
-      --with-decryption \
-      --region "$region" \
-      --query Parameter.Value \
-      --output text)" || error "Cannot read /basicwebapp/here-browser-api-key from SSM."
-
-    google_maps_browser_api_key="$(aws ssm get-parameter \
-      --name "/basicwebapp/google-maps-browser-api-key" \
-      --with-decryption \
-      --region "$region" \
-      --query Parameter.Value \
-      --output text)" || error "Cannot read /basicwebapp/google-maps-browser-api-key from SSM."
-  fi
+  google_maps_browser_api_key="$(aws ssm get-parameter \
+    --name "/basicwebapp/google-maps-browser-api-key" \
+    --with-decryption \
+    --region "$region" \
+    --query Parameter.Value \
+    --output text)" || error "Cannot read /basicwebapp/google-maps-browser-api-key from SSM."
 
   # Generate releases.json from GitHub so release-notes.html works without auth
   # (the repo is private; unauthenticated GitHub API returns 404 from browsers)
@@ -547,7 +527,7 @@ cmd_aws_frontend() {
   # index.html and continue loading the old JS bundle even after a new deploy.
   # LESSON: Only stats.html was no-cached before; index.html was missing — browsers
   # kept loading old bundles and saw stale geocode/API behaviour.
-  for html_file in index.html stats.html impressum.html datenschutz.html stats-login.html release-notes.html help.html; do
+  for html_file in index.html impressum.html datenschutz.html release-notes.html help.html; do
     local_path="$SITE_ROOT/frontend/dist/${html_file}"
     if [[ -f "$local_path" ]]; then
       aws s3 cp "$local_path" \
@@ -595,17 +575,12 @@ Usage:
   ./scripts/deploy.sh aws --frontend-only   Build React app, sync to S3+CloudFront
   ./scripts/deploy.sh aws --infra-only      Run tofu apply only
 
-  ./scripts/deploy.sh aws --env dev                  Full dev deploy
-  ./scripts/deploy.sh aws --env dev --backend-only   Dev Lambda update
-  ./scripts/deploy.sh aws --env dev --frontend-only  Dev frontend
-  ./scripts/deploy.sh aws --env dev --infra-only     Dev tofu apply
-
   ./scripts/deploy.sh preflight             Check all prerequisites
 
 Options:
   --tag TAG          Release tag recorded in logs (default: git short SHA)
   --region REGION    Override AWS region
-  --env ENV          Target environment: prod (default) or dev
+  --env ENV          Only "prod" (dev was retired on 2026-11-18)
 
 First-time prod setup:
   1. aws configure
@@ -614,13 +589,6 @@ First-time prod setup:
   4. ./scripts/deploy.sh aws --infra-only
   5. ./scripts/deploy.sh aws --backend-only
   6. ./scripts/deploy.sh aws --frontend-only
-
-First-time dev setup:
-  1. Fill in infra/terraform/sites/landhauscheck-dev/terraform.tfvars (copy from .example)
-  2. tofu -chdir=infra/terraform/sites/landhauscheck-dev init
-  3. ./scripts/deploy.sh aws --env dev --infra-only
-  4. ./scripts/deploy.sh aws --env dev --backend-only
-  5. ./scripts/deploy.sh aws --env dev --frontend-only
 EOF
 }
 
@@ -635,21 +603,21 @@ case "$MODE" in
   aws)
     check_aws_prereqs
     # ── Prod deployment guard ────────────────────────────────────────────────
-    # Rule: always deploy to dev and confirm testing before touching prod.
+    # There is no dev environment: the local and CI tests are the only gate.
     if [[ "$ENV" == "prod" ]]; then
       echo ""
       echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
       echo -e "${YELLOW}║  PRODUCTION DEPLOYMENT                                       ║${NC}"
       echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
       echo ""
-      warn "Rule: always deploy to dev.landhauscheck.com and explicitly confirm"
-      warn "      you have tested the change there before deploying to prod."
+      warn "There is no dev environment. Run the backend and frontend tests"
+      warn "locally first; CI deploys every merge to main anyway."
       echo ""
       if [[ "${DEPLOY_CONFIRMED:-}" == "yes" ]]; then
         info "DEPLOY_CONFIRMED=yes — skipping interactive prompt."
       else
-        read -r -p "  Have you tested this change on dev? Type 'yes' to continue: " _confirm
-        [[ "$_confirm" == "yes" ]] || error "Prod deployment aborted. Test on dev first: bash scripts/deploy.sh aws --env dev"
+        read -r -p "  Deploy to production now? Type 'yes' to continue: " _confirm
+        [[ "$_confirm" == "yes" ]] || error "Prod deployment aborted."
       fi
       echo ""
     fi

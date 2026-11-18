@@ -1,51 +1,52 @@
-# ── Stats persistence bucket ──────────────────────────────────────────────────
-# Stores stats_persist.json, poi_cache.json, dep_cache.json so they survive
-# ECS container replacements (deploys, task restarts, Fargate spot reclamation).
+# The stats dashboard was retired (2026-11-18). Its bucket is dropped from state
+# here instead of destroyed, because it is not empty and has no force_destroy, so
+# a destroy would fail the deploy. The bucket itself was deleted by hand once the
+# Lambda that wrote to it was gone. Delete this file after one successful apply.
 
-resource "aws_s3_bucket" "stats" {
-  bucket = "${local.name}-stats-${data.aws_caller_identity.current.account_id}"
-  tags   = local.tags
-}
-
-resource "aws_s3_bucket_versioning" "stats" {
-  bucket = aws_s3_bucket.stats.id
-  versioning_configuration {
-    status = "Enabled"
+removed {
+  from = aws_s3_bucket.stats
+  lifecycle {
+    destroy = false
   }
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "stats" {
-  bucket = aws_s3_bucket.stats.id
-
-  rule {
-    id     = "expire-old-versions"
-    status = "Enabled"
-
-    filter {}
-
-    noncurrent_version_expiration {
-      noncurrent_days = 30
-    }
+removed {
+  from = aws_s3_bucket_versioning.stats
+  lifecycle {
+    destroy = false
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "stats" {
-  bucket                  = aws_s3_bucket.stats.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "stats" {
-  bucket = aws_s3_bucket.stats.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
+removed {
+  from = aws_s3_bucket_lifecycle_configuration.stats
+  lifecycle {
+    destroy = false
   }
 }
 
-output "stats_bucket_name" {
-  value = aws_s3_bucket.stats.bucket
+removed {
+  from = aws_s3_bucket_public_access_block.stats
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_s3_bucket_server_side_encryption_configuration.stats
+  lifecycle {
+    destroy = false
+  }
+}
+
+# The stats PIN guard function could not be deleted in the same apply that
+# detaches it from the distribution: CloudFront refused with 409
+# FunctionInUse, and the half-finished apply left the Lambda without its
+# API Gateway invoke permission (LHC returned 500 for about seven minutes
+# on 2026-11-18). Forget it here so the apply can finish; the function is
+# deleted by hand once the distribution no longer references it.
+removed {
+  from = aws_cloudfront_function.stats_pin_guard
+  lifecycle {
+    destroy = false
+  }
 }
