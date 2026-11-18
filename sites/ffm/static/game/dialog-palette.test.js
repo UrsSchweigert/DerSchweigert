@@ -30,16 +30,29 @@ test('the selected dialog tab looks like the selected title tab, not indigo', ()
   }
 });
 
-test('the close X keeps its own corner: the tab rows end before it', () => {
-  assert.match(html, /<button id="close-account" class="close-btn"[^>]*>×<\/button>\s*<div id="account-tabs">/);
-  assert.match(html, /<button id="close-auth"[^>]*>×<\/button>\s*<div id="auth-tabs">/);
-  const close = lastBlock(':is(.close-btn, #close-auth)');
+// The owner's request after #590: the X gets its own reserved space, so nothing can ever be
+// laid out under it. #590 only kept a corner free with a margin on the tab rows.
+test('every dialog close X sits in a row of its own, above all content', () => {
+  // Each X is the first child of its card in the real markup...
+  const cards = {
+    'account-modal': 'close-account', 'auth-modal': 'close-auth',
+    'checkout-modal': 'close-checkout', 'auth-status-modal': 'close-auth-status',
+  };
+  for (const [modal, close] of Object.entries(cards)) {
+    assert.match(html, new RegExp(`<div id="${modal}" class="overlay"[^>]*>\\s*<div class="overlay-card">\\s*<button id="${close}"[^>]*>×</button>`), modal);
+  }
+  // ...and a static flex item (not absolutely placed) at the start of the column.
+  const close = lastBlock(':is(#account-modal, #auth-modal, #checkout-modal, #auth-status-modal) :is(.close-btn, #close-auth)');
+  assert.match(close, /position: static;/);
+  assert.match(close, /align-self: flex-end;/);
+  assert.match(close, /order: -1;/);
   assert.match(close, /width: 44px;/);
   assert.match(close, /height: 44px;/);
-  assert.match(close, /right: 4px;/);
-  // 4px inset + 44px X = 48px; the card's own 12px padding covers the rest, so a 44px
-  // margin on the tab row keeps every tab clear of the X at any width.
-  assert.match(css, /#account-tabs, #auth-tabs \{ margin-inline-end: 44px; \}/);
+  const card = lastBlock(':is(#account-modal, #auth-modal, #checkout-modal, #auth-status-modal) .overlay-card');
+  assert.match(card, /display: flex;/);
+  assert.match(card, /flex-direction: column;/);
+  // The old corner trick is gone: tabs use the full width again.
+  assert.doesNotMatch(css, /#account-tabs, #auth-tabs \{ margin-inline-end/);
 });
 
 test('links and plain billing buttons in the dialogs are brass and forest, not blue or grey', () => {
