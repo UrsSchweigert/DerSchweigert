@@ -613,58 +613,6 @@ changing what that coordinator decides. A failure (no network, no token) is prin
 can never fail a run. A copy is always kept at `<store>/status-<plan-id>.md`. The page is redacted: no home directory, no
 token.
 
-**Remote dashboard (operator override)**
-
-`harness remote` is an explicit, opt-in exception for when you need the dashboard
-while away from the machine. It does not re-bind the dashboard: it runs a second
-loopback-only service that sits in front of the GUI, adds the PIN gate the
-dashboard deliberately lacks, and forwards a fixed allowlist of routes while
-rewriting the loopback `Host`/`Origin` metadata the GUI requires.
-
-Configuration lives in the git-ignored `sites/derschweigert/.env` (only
-`HARNESS_*` keys are read, never the app's other secrets):
-
-```sh
-HARNESS_GUI_PIN=...                     # required
-HARNESS_TUNNEL_PROVIDER=localhostrun    # cloudflared | localhostrun | ngrok (default cloudflared)
-# HARNESS_TUNNEL_NAME=harness           # cloudflared named tunnel only
-# HARNESS_TUNNEL_HOST=...               # cloudflared named tunnel only
-# HARNESS_NO_TUNNEL=1                   # opt out of auto-start
-```
-
-When `HARNESS_GUI_PIN` is set, `harness gui`, `harness run`, and `harness resume`
-automatically start the relay and the configured tunnel provider and print the
-address. Pass `--no-tunnel` to start without the tunnel.
-
-- `localhostrun` needs no account or install: it uses `ssh` and prints a new
-  `https://...lhr.life` URL each launch.
-- `ngrok` prints a new `https://...ngrok-free.app` URL each launch and needs a
-  free authtoken.
-- `cloudflared` uses a quick tunnel by default (new `https://...trycloudflare.com`
-  URL each launch), or a named tunnel when both `HARNESS_TUNNEL_NAME` and
-  `HARNESS_TUNNEL_HOST` are set (stable address, needs a Cloudflare zone).
-
-A `cloudflared` named tunnel needs one-time setup on this machine:
-
-```sh
-cloudflared tunnel login                 # opens a browser to authenticate
-cloudflared tunnel create harness
-cloudflared tunnel route dns harness harness.derschweigert.de   # or a CNAME at your DNS provider
-```
-
-Sessions are signed cookies (HttpOnly, SameSite=Strict, Secure behind the
-tunnel) that expire after 12 hours by default (`--session-hours`). Five wrong
-PINs lock the address out for 15 minutes. The relay only proxies the GUI's
-known GET/POST routes to the fixed `--upstream` URL, enforces the 16 MiB body
-cap, and never logs bodies, tokens, or the PIN.
-
-This weakens the default posture: anyone with the PIN and tunnel URL can reach
-the dashboard, and dashboard approval can merge to production. Prefer the
-strongest tunnel access layer you have (for example Cloudflare Access in
-addition to the PIN), keep the machine's store folder private, and stop the
-relay when you are back. The dashboard itself remains loopback-only and is
-never exposed directly.
-
 **Pause, resume, stop**
 
 ```sh
@@ -943,12 +891,11 @@ Every command is `harness <command>`. Add `--home DIR` before the command to use
 | `art` | Show a plan's image-generation budget and the latest calls | `PLAN_ID`, `--last N` |
 | `approve PLAN_ID` | Record your one-time approval (real terminal) | `--version` |
 | `import-issues PLAN_ID FILE` | Load refined issues as Ready | `--version`, `--add` (add the file's issues and leave the plan's other issues alone) |
-| `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version`, `--no-tunnel` |
+| `run PLAN_ID` | Execute the plan, in the foreground | `--dry-run`, `--interval SECONDS` (30), `--max-ticks N`, `--repo OWNER/NAME`, `--version` |
 | `resume PLAN_ID` | Continue a paused or interrupted run | same as `run` |
 | `pause PLAN_ID` | Stop after current work (graceful) | `--now`, `--after-phase PHASE_ID` (finish that phase, start nothing outside it and its prerequisites, then stop; also arms the gate on an already paused plan) |
 | `cancel PLAN_ID` | Stop for good | `--drain` |
-| `gui` | Local monitoring and management; auto-starts the remote dashboard when `HARNESS_GUI_PIN` is set | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--no-tunnel`, `--repo OWNER/NAME` |
-| `remote` | PIN-locked loopback relay that proxies the local GUI for a tunnel (operator override) | `--upstream URL` (http://127.0.0.1:8765), `--host 127.0.0.1\|localhost`, `--port` (8443, or 0), `--pin`, `--session-hours` (12) |
+| `gui` | Local monitoring and management (loopback only) | `--host 127.0.0.1\|localhost`, `--port` (8765, or 0 for a free port), `--refresh` (5 seconds), `--read-only`, `--no-browser`, `--repo OWNER/NAME` |
 | `status` | Everything at a glance (read-only) | `--json` |
 | `watch PLAN_ID` | Read-only supervision: exit 2 with an alert when a running plan stalls | `--once`, `--interval`, `--max-minutes`, `--missing-check-minutes`, `--stall-minutes`, `--no-github`, `--json` |
 | `report <plan>` | Publish the run's state as a markdown page on `harness/status/<plan>` | `--once`, `--interval`, `--no-push`, `--branch`, `--repo` |
@@ -1060,7 +1007,7 @@ What is not, honestly:
 * The individual work issues are not mirrored to GitHub: they exist only in the harness store, so use `status` and the pull requests for progress. GitHub Project fields are not synced.
 * If a person merges a harness pull request on GitHub, the harness does not notice.
 * Token and cost figures are estimates. The runtime reports no usage, so each attempt records the agent's own estimate and a lower bound from prompt and file sizes. `status`, `issue`, and the dashboard label every figure by source, and nothing enforces them. Cost appears only if you add prices.
-* The local dashboard is not a remote administration service. It has no separate user authentication, persistent process registry, or cross-dashboard singleton lock. `harness remote` is a documented operator override: a loopback-only, PIN-locked relay that proxies the dashboard for a tunnel. It is not the default posture.
+* The local dashboard is not a remote administration service. It has no separate user authentication, persistent process registry, or cross-dashboard singleton lock.
 * Phase-wide exit checks run only when a phase is validated. Each issue is checked with its own commands.
 * Headless Godot does not render. No automated check covers how the game looks, whether a shader compiles into the intended effect, or how many frames a device draws. Loadability is not correctness: a passing Godot smoke check means the scenes and scripts parse and instantiate, nothing more.
 * The Godot smoke check and `godot-test` work on a copy of the project inside the container's 256 MB `/tmp` tmpfs. A project larger than that cannot be checked until the sandbox sizes change, which invalidates the attestation.

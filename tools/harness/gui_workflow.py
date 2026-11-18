@@ -263,7 +263,7 @@ def investigator_choices(repo_root: Path) -> dict:
     The GUI has no model picker, so without this it fell back to the policy default (claude, tier
     standard) no matter which models the running plan was approved with.
     """
-    from .remote import load_harness_env
+    from .envfile import load_harness_env
     load_harness_env(repo_root)
     sources = models.operator_sources() or []
     tier = os.environ.get(INVESTIGATOR_TIER, "").strip()
