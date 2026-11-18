@@ -106,7 +106,7 @@ def main():
         for label, width, height, framed in VIEWPORTS:
             page = browser.new_page(viewport={'width': width, 'height': height}, device_scale_factor=2)
             # The app bundle has no preview.html: serve the web copy for it.
-            page.route('**/story/preview.html', lambda route: route.fulfill(
+            page.route('**/story/preview.html?*', lambda route: route.fulfill(
                 status=200, content_type='text/html', body=PREVIEW.read_text()))
             worst = {'height': 0}
             for entry in index['scenes']:
