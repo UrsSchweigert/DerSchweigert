@@ -74,12 +74,13 @@ are **gold**; danger is crimson or sickly violet, never gore.
 ## Recurring cast
 
 - **Blue ice dragon**: ancient ally; matches `static/game/dragon.png` (crystal
-  spikes, pale blue-white belly), restyled as a paper cutout.
-- **Fiends**: the existing fiend classes (`static/game/fiend-sprites/`),
-  restyled as paper cutouts; slightly comical, never gory. Each act opening
-  shows the classes that actually appear in that act (see
-  `getFiendClassWeights` in `game/difficulty-classes.js`), as one cutout group
-  on its own layer so the fight the player is about to have is on screen.
+  spikes, pale blue-white belly), restyled as a paper cutout. Act V's
+  `dragon.webp` (descending, wings spread) is the approved cutout; the small
+  dragon in the finish's dawn sky is painted into that backdrop.
+- **Fiends**: not shown in the story scenes. The owner took the per-act fiend
+  groups out of every diorama on 2026-11-18; the fiends appear in the game
+  itself (`static/game/fiend-sprites/`). Should they return, they are paper
+  cutouts of those classes, slightly comical, never gory.
 - **The Hollow King**: never shown as a body — a floating crown with shadow
   beneath it.
 
@@ -94,10 +95,13 @@ are **gold**; danger is crimson or sickly violet, never gore.
 | V | 41-50 | night town square, fountain, rune circles | `stage-5.png` |
 | VI | 51-60 | blue-and-gold throne room | `stage-6.png` |
 
-These settings are what the shipped art shows. The current story text,
+These settings are what the in-game stages show. The current story text,
 *The Stolen Dawn*, asks for other places in several acts (mountain
 watchtowers in II, a buried stone city in IV, a capital where stalls float in
-V) and names the king's adviser as the villain; the README lists the
+V) and names the king's adviser as the villain. The backdrops of acts II, IV,
+V and VI now follow the story (mountains at stormy dusk, the buried city, the
+silent capital at night, the staircase to the throne room); their midgrounds
+and foregrounds still show the settings above. The README lists the
 differences for the next art pass. The Hollow King above is the boss-mode
 figure, not a character of the story cards.
 
@@ -111,8 +115,8 @@ figure, not a character of the story cards.
   the foreground becomes dense (≥50% coverage in a row) and place that row at
   stage y ≈ 840 — roughly 140 px above the midground's base, because the
   midground render carries a flat painted ground strip below its subject.
-- Keep the act's fiends clear of that line: stand them so their bodies sit
-  above it and only their feet disappear into the plants.
+- Keep characters clear of that line: stand them so their bodies sit above it
+  and only their feet disappear into the plants.
 - Mirror-tile a strip that is too short to span the stage
   (`tools/tile-foreground.py`). Both ends of the source strip must be plain —
   low plants, cobbles, weeds — because a crate or a post at the edge becomes a

@@ -56,23 +56,37 @@
       ]
     },
     {
-      "id": "fiends",
+      "id": "dragon",
       "role": "character",
-      "src": "fiends.webp",
-      "x": 820,
-      "y": 618,
-      "width": 620,
+      "src": "dragon.webp",
+      "x": 700,
+      "y": 60,
+      "width": 1000,
       "motion": [
         {
           "t": 0,
-          "x": 60,
-          "y": 0,
+          "x": 320,
+          "y": -560,
           "opacity": 0,
-          "scale": 1
+          "scale": 0.94
         },
         {
-          "t": 6.1,
-          "x": 40,
+          "t": 32.6,
+          "x": 320,
+          "y": -560,
+          "opacity": 0,
+          "scale": 0.94
+        },
+        {
+          "t": 33.6,
+          "x": 250,
+          "y": -420,
+          "opacity": 1,
+          "scale": 0.95
+        },
+        {
+          "t": 39.5,
+          "x": 0,
           "y": 0,
           "opacity": 1,
           "scale": 1
@@ -80,9 +94,9 @@
         {
           "t": 48.4,
           "x": -40,
-          "y": 0,
+          "y": 18,
           "opacity": 1,
-          "scale": 1.03
+          "scale": 1.02
         }
       ]
     },
@@ -122,13 +136,13 @@
         "pulse": 5
       },
       {
-        "layer": "fiends",
-        "x": 1380,
-        "y": 760,
-        "radius": 220,
-        "color": "rgba(160,210,255,0.22)",
-        "from": 6.1,
-        "pulse": 3.4
+        "layer": "dragon",
+        "x": 1180,
+        "y": 330,
+        "radius": 320,
+        "color": "rgba(127,212,255,0.30)",
+        "from": 33.6,
+        "pulse": 3.2
       }
     ],
     "motes": {
@@ -136,6 +150,15 @@
       "color": "#d6d2ff"
     },
     "events": [
+      {
+        "type": "flash",
+        "atCue": 4,
+        "offset": 0.2,
+        "duration": 1.6,
+        "color": "#cfeeff",
+        "intensity": 0.55,
+        "at": 33.2
+      },
       {
         "type": "dim",
         "at": 43.3,

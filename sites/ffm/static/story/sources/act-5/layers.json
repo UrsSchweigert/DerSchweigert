@@ -1,6 +1,6 @@
 {
   "scene": "act-5",
-  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP.",
+  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP. Layers with a \"generator\" field were applied later from owner-approved candidates (see \"replaced\" for the art they superseded).",
   "generator": {
     "endpoint": "gpt-image",
     "license": "commercial use of outputs permitted"
@@ -9,13 +9,24 @@
     {
       "id": "backdrop",
       "cutout": false,
-      "seed": 5501,
-      "size": {
-        "width": 1536,
-        "height": 864
+      "generator": "fal-ai/gpt-image-1.5/edit",
+      "seed": null,
+      "candidate": "a5bd-1.png",
+      "approved": "2026-11-18 by the owner, from the story art preview",
+      "references": [
+        "sources/act-5/backdrop-gpt.png",
+        "sources/act-6/backdrop-gpt.png"
+      ],
+      "params": {
+        "image_size": "1536x1024",
+        "quality": "high",
+        "output_format": "png"
       },
-      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: a night market square, cobbles, market stalls with low lanterns, a stone fountain glowing cold blue in the middle, rune circles inlaid in the paving, tall gabled town houses around the square, starry sky, calm cobbles across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
-      "raw": "sources/act-5/backdrop-gpt.png"
+      "prompt": "Backdrop layer for a layered paper-theatre story diorama. Match exactly the hand-painted paper look, aged cardstock texture, visible fibres, brushwork and night palette of the first reference. New view of the same silent royal capital at night, filling the entire image, flat front view: a deep violet-blue night sky with a thin crescent moon and torn-paper storm clouds streaking sideways in a howling wind, rooftops and towers of the city on both sides with trees bent by the wind, in the centre distance a blue-and-gold palace on a hill whose long crimson and gold banners hang perfectly straight and still, the great city gates below it standing wide open with nobody there, a calm empty cobbled square across the lower 35%. No characters, text, frame, border or vignette; even neutral lighting.",
+      "raw": "sources/act-5/backdrop-gpt15.png (not committed, kept offline)",
+      "postprocessing": "Already 1536x1024 (the backdrop size): no crop or resize; tools/encode.py (WebP quality 80).",
+      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive",
+      "rawNote": "The raw render is not in the public repo; the owner keeps it offline. The candidate file name above identifies it."
     },
     {
       "id": "midground",
@@ -40,6 +51,45 @@
       "raw": "sources/act-5/foreground-gpt.png"
     },
     {
+      "id": "dragon",
+      "cutout": true,
+      "generator": "fal-ai/gpt-image-1.5/edit",
+      "seed": null,
+      "candidate": "a5dragon-1.png",
+      "approved": "2026-11-18 by the owner, from the story art preview",
+      "references": [
+        "static/game/dragon.png (flattened on white)",
+        "sources/intro/hero-raised-raw.png"
+      ],
+      "params": {
+        "image_size": "1536x1024",
+        "quality": "high",
+        "output_format": "png",
+        "background": "transparent"
+      },
+      "prompt": "The same blue ice dragon as the first reference (crystal-blue spikes, pale blue-white belly, ice-blue wings), redrawn as a hand-painted paper-theatre cutout in the painted storybook style of the second reference (painted cardstock, visible fibres, soft brushwork, no pixel art), with a thin cream scissor-cut paper border around the whole silhouette. Ancient, calm and majestic, descending from the sky toward the viewer's left: wings spread wide, body curving gracefully downward, head lowered and gentle, mouth closed, no breath, a faint crystal-blue glow along the spikes. Whole dragon visible, nothing cropped. No characters, no text, no ground, no shadow. Transparent background.",
+      "raw": "sources/act-5/dragon-gpt15.png (not committed, kept offline)",
+      "postprocessing": "Rendered with its own transparent background and cream border, so tools/cutout.py was not needed (no white to flood-fill; edges checked on dark and light grounds, no halo). Trimmed to the alpha bounding box plus 8 px like cutout.py (1512x915); tools/encode.py (WebP quality 80).",
+      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive",
+      "rawNote": "The raw render is not in the public repo; the owner keeps it offline. The candidate file name above identifies it."
+    }
+  ],
+  "replaced": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "seed": 5501,
+      "size": {
+        "width": 1536,
+        "height": 864
+      },
+      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: a night market square, cobbles, market stalls with low lanterns, a stone fountain glowing cold blue in the middle, rune circles inlaid in the paving, tall gabled town houses around the square, starry sky, calm cobbles across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
+      "raw": "sources/act-5/backdrop-gpt.png",
+      "replacedOn": "2026-11-18"
+    }
+  ],
+  "removed": [
+    {
       "id": "fiends",
       "cutout": true,
       "raw": "sources/act-5/fiends-raw.png",
@@ -47,7 +97,9 @@
         "static/game/fiend-sprites/ (the act's own classes)",
         "sources/intro/village-raw.png"
       ],
-      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white.",
+      "removedOn": "2026-11-18",
+      "removedNote": "The owner took the fiend groups out of every story scene. The cutout (scenes/<id>/fiends.webp) and its raw were deleted from the repo; both remain in git history before the removal commit."
     }
   ]
 }

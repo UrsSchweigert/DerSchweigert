@@ -10,76 +10,33 @@
   "duration": 64.6,
   "layers": [
     {
-      "id": "throne",
-      "role": "backdrop",
-      "src": "../act-6/backdrop.webp",
-      "x": -48,
-      "y": -150,
-      "width": 2016,
-      "motion": [
-        {
-          "t": 0,
-          "opacity": 1,
-          "x": 20,
-          "y": 0,
-          "scale": 1
-        },
-        {
-          "t": 15,
-          "opacity": 1,
-          "x": 6.1,
-          "y": 2.8,
-          "scale": 1.012
-        },
-        {
-          "t": 15.8,
-          "opacity": 1,
-          "x": 5.3,
-          "y": 2.9,
-          "scale": 1.012
-        },
-        {
-          "t": 64.6,
-          "opacity": 1,
-          "x": -40,
-          "y": 12,
-          "scale": 1.05
-        }
-      ]
-    },
-    {
       "id": "dawn",
       "role": "backdrop",
-      "poseOf": "throne",
-      "src": "../act-1/backdrop.webp",
+      "src": "dawn.webp",
       "x": -48,
       "y": -150,
       "width": 2016,
       "motion": [
         {
           "t": 0,
-          "opacity": 0,
           "x": 20,
           "y": 0,
           "scale": 1
         },
         {
           "t": 15,
-          "opacity": 0,
           "x": 6.1,
           "y": 2.8,
           "scale": 1.012
         },
         {
           "t": 15.8,
-          "opacity": 1,
           "x": 5.3,
           "y": 2.9,
           "scale": 1.012
         },
         {
           "t": 64.6,
-          "opacity": 1,
           "x": -40,
           "y": 12,
           "scale": 1.05
@@ -283,7 +240,7 @@
     "ambient": "linear-gradient(180deg, #5a4a7a44 0%, rgba(40,30,20,0.06) 55%, rgba(20,14,6,0.26) 100%)",
     "glows": [
       {
-        "layer": "throne",
+        "layer": "hall",
         "x": 960,
         "y": 420,
         "radius": 260,
@@ -294,8 +251,8 @@
       },
       {
         "layer": "dawn",
-        "x": 1500,
-        "y": 300,
+        "x": 1230,
+        "y": 330,
         "radius": 340,
         "color": "rgba(255,214,150,0.34)",
         "from": 15,

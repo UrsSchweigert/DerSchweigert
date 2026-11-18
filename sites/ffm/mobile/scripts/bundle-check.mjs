@@ -75,9 +75,10 @@ export const BUNDLE_FILES = Object.freeze([
   'story/scenes/intro/hero.webp',
   'story/scenes/intro/hero-raised.webp',
   'story/scenes/intro/foreground.webp',
-  // The finish has no art of its own: its layers point into act-1, act-6 and
-  // intro, which the act and intro scenes already ship.
+  // The finish's only own art is its dawn backdrop; its other layers point
+  // into act-1, act-6 and intro, which those scenes already ship.
   'story/scenes/finish/scene.json',
+  'story/scenes/finish/dawn.webp',
   'legal/legal.css',
   'legal/manual.de.html',
   'legal/manual.en.html',

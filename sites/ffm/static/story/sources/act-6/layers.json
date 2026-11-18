@@ -1,6 +1,6 @@
 {
   "scene": "act-6",
-  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP.",
+  "note": "Art packet for an act opening. Every layer is a GPT image render against the listed references; cutout layers were rendered on pure white, processed with tools/cutout.py and encoded to WebP. Layers with a \"generator\" field were applied later from owner-approved candidates (see \"replaced\" for the art they superseded).",
   "generator": {
     "endpoint": "gpt-image",
     "license": "commercial use of outputs permitted"
@@ -9,13 +9,23 @@
     {
       "id": "backdrop",
       "cutout": false,
-      "seed": 6601,
-      "size": {
-        "width": 1536,
-        "height": 864
+      "generator": "fal-ai/gpt-image-1.5/edit",
+      "seed": null,
+      "candidate": "a6bd-1.png",
+      "approved": "2026-11-18 by the owner, from the story art preview",
+      "references": [
+        "sources/act-6/backdrop-gpt.png"
+      ],
+      "params": {
+        "image_size": "1536x1024",
+        "quality": "high",
+        "output_format": "png"
       },
-      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: a palace throne room in blue and gold, tall marble columns, a long runner carpet, an empty stone throne on a dais at the far end under a shaft of cold light, golden filigree, deep blue shadows, calm polished floor across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
-      "raw": "sources/act-6/backdrop-gpt.png"
+      "prompt": "Backdrop layer for a layered paper-theatre story diorama. Keep exactly the hand-painted paper look, aged cardstock texture, palette and the blue-and-gold marble hall of the reference, flat front view, filling the entire image. Change it into the climb to the throne room: two winding marble staircases spiral up the left and right sides of the hall to a high gallery; along the gallery a row of arched niches, each holding an empty golden crown on a small blue cushion; tall arched windows at the back with no light behind them, a cracked marble floor with a long blue carpet across the lower 35%, no throne. No characters, text, frame, border or vignette; even neutral lighting.",
+      "raw": "sources/act-6/backdrop-gpt15.png (not committed, kept offline)",
+      "postprocessing": "Already 1536x1024 (the backdrop size): no crop or resize; tools/encode.py (WebP quality 80).",
+      "seedNote": "the GPT image endpoint takes no seed; the raw render is the archive",
+      "rawNote": "The raw render is not in the public repo; the owner keeps it offline. The candidate file name above identifies it."
     },
     {
       "id": "midground",
@@ -38,7 +48,23 @@
       },
       "prompt": "Single continuous hand-painted paper cutout on a plain flat pure white background, thin cream scissor-cut paper border around the whole silhouette, illustration not photograph, nothing cropped, no characters, no text, no ground shadow. Scene: a marble step edge, scattered gold petals, the corner of a fallen blue banner.",
       "raw": "sources/act-6/foreground-gpt.png"
-    },
+    }
+  ],
+  "replaced": [
+    {
+      "id": "backdrop",
+      "cutout": false,
+      "seed": 6601,
+      "size": {
+        "width": 1536,
+        "height": 864
+      },
+      "prompt": "Hand-painted paper-theatre storybook illustration printed on aged cream cardstock, torn scissor-cut paper edges, flat painted, visible paper fibres, muted storybook palette, illustration not photograph. Scene: a palace throne room in blue and gold, tall marble columns, a long runner carpet, an empty stone throne on a dais at the far end under a shaft of cold light, golden filigree, deep blue shadows, calm polished floor across the lower third. Full bleed edge to edge, no margin, no frame, no border.",
+      "raw": "sources/act-6/backdrop-gpt.png",
+      "replacedOn": "2026-11-18"
+    }
+  ],
+  "removed": [
     {
       "id": "fiends",
       "cutout": true,
@@ -47,7 +73,9 @@
         "static/game/fiend-sprites/ (the act's own classes)",
         "sources/intro/village-raw.png"
       ],
-      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white."
+      "prompt": "The fiends that actually appear in this act, as one paper cutout group on plain pure white.",
+      "removedOn": "2026-11-18",
+      "removedNote": "The owner took the fiend groups out of every story scene. The cutout (scenes/<id>/fiends.webp) and its raw were deleted from the repo; both remain in git history before the removal commit."
     }
   ]
 }
