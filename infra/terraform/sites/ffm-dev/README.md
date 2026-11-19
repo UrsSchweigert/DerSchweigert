@@ -7,7 +7,7 @@ state (`ffm/dev/terraform.tfstate`) and its own `ffm-dev-*` resources, so applyi
 (`route53_zone_id` in `terraform.tfvars` is the same ID prod uses). Do not add an
 `aws_route53_zone` here.
 
-Deploy it from the Actions tab: "ffm: deploy to dev (manual)". Everything else (what is left out, the
+A merge to `main` deploys it; a branch is deployed from the Actions tab: "ffm: deploy to dev". Everything else (what is left out, the
 Turnstile hostname step, mail behaviour) is in
 [`sites/ffm/docs/deployment.md`](../../../../sites/ffm/docs/deployment.md#dev-environment-ffm-devderschweigertde).
 

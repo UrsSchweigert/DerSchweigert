@@ -5,8 +5,10 @@ the README of the site you are changing.
 
 ## Two facts that change how you work
 
-1. **Every merge to `main` deploys to production.** `.github/workflows/deploy.yml` applies Terraform and ships each
-   site whose files changed. There is no staging environment. Treat a merge as a release.
+1. **Every merge to `main` deploys.** `.github/workflows/deploy.yml` applies Terraform and ships each site whose files
+   changed. landhauscheck, lesen and derschweigert go straight to production: they have no staging environment, so
+   treat a merge as a release. ffm goes to `ffm-dev.derschweigert.de` first; production ffm is released by hand from
+   the Actions tab ("Sites: deploy to production" → Run workflow on `main`), which ships whatever `main` holds then.
 2. **The repository is public.** Anything you commit is readable by anyone, forever, including in history. Never
    commit secrets, `.env` files, keystores, tokens, real user data, or the gift codes in `sites/ffm/private-codes/`.
 
@@ -47,8 +49,9 @@ under `.github/workflows/` runs all of them.
 
 `deploy.yml`'s `changes` job maps changed paths to deploys:
 
-- `sites/<site>/**` → that site's tests and deploy.
-- `infra/terraform/sites/<site>/**` → that site's deploy only.
+- `sites/<site>/**` → that site's tests and deploy. For ffm the deploy is the dev deploy (`deploy-ffm-dev`).
+- `infra/terraform/sites/<site>/**` → that site's deploy only. Production ffm Terraform is applied by the manual
+  release, the dev stack (`ffm-dev`) by the merge.
 - Anything else under `infra/` (the shared modules) → **every** site deploys.
 - `.github/workflows/**` alone → every test job runs, nothing deploys.
 - The push a merge produces does not run the suites again when `changes` can prove the merged tree is the tree the

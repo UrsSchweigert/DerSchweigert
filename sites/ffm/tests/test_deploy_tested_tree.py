@@ -150,6 +150,34 @@ def test_an_unproven_tree_runs_every_suite_its_change_needs(tested, tmp_path):
     assert (gates['ffm'], gates['lhc']) == ('true', 'true')
 
 
+def _release(tmp_path, sites, files=()):
+    _, script = _step('diff', '\n  # The shared suites')
+    world = {'repos/%s/compare/%s...%s' % (REPO, BEFORE, MERGE): {'files': [{'filename': name} for name in files]}}
+    return _run(script, world, tmp_path, PR='', BASE='', HEAD_SHA=MERGE, EVENT='workflow_dispatch', RELEASE=sites)
+
+
+def test_the_manual_ffm_release_tests_and_deploys_ffm_alone(tmp_path):
+    gates = _release(tmp_path, 'ffm')
+    assert (gates['ffm_tests'], gates['ffm']) == ('true', 'true'), 'a release runs the ffm suite before it deploys'
+    others = ('lesen', 'site', 'lhc', 'lhc_tests', 'site_tests', 'harness_tests', 'lesen_tests', 'ffm_dev')
+    assert {gates[name] for name in others} == {'false'}, gates
+
+
+def test_the_manual_release_of_everything_still_tests_and_deploys_every_site(tmp_path):
+    gates = _release(tmp_path, 'all')
+    for name in ('ffm', 'lesen', 'site', 'lhc', 'ffm_tests', 'lhc_tests', 'site_tests', 'harness_tests', 'lesen_tests'):
+        assert gates[name] == 'true', name
+
+
+def test_a_change_to_the_dev_stack_reaches_dev_and_no_production_site(tmp_path):
+    _, script = _step('diff', '\n  # The shared suites')
+    compare = {'files': [{'filename': 'infra/terraform/sites/ffm-dev/main.tf'}]}
+    world = {'repos/%s/compare/%s...%s' % (REPO, BEFORE, MERGE): compare}
+    gates = _run(script, world, tmp_path, PR='', BASE=BEFORE, HEAD_SHA=MERGE, EVENT='push', RELEASE='')
+    assert gates['ffm_dev'] == 'true'
+    assert {gates[name] for name in ('ffm', 'lesen', 'site', 'lhc')} == {'false'}
+
+
 def test_the_parallel_flag_stays_in_the_workflow():
     """A plain `pytest sites/ffm/tests` must keep working without pytest-xdist: harness checks and developers run it."""
     assert 'pytest sites/ffm/tests/ -q --tb=short -n auto' in WORKFLOW
