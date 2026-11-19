@@ -1155,6 +1155,12 @@ function spellLaunchPoint() {
 const HERO_CENTRE_ABOVE_GROUND = 78;
 
 const FIREBALL_FLIGHT_MS = 1350;
+// A sword strike's vibration waits this long after the contact frame. The phone
+// plays the slash sound later than it fires the vibration, so on contact the buzz
+// felt early; the fireball, whose boom peaks much later, never did. Tuned by
+// feel. Keep it under the contact frame's own length (55 ms in hero-anim.js):
+// any later and the buzz lands in the follow-through, after the blade pulls back.
+const SWORD_HAPTIC_DELAY_MS = 40;
 let currentProfile = null;
 let webScoreHistory = null;
 let currentLeaderboard = null;
@@ -4461,7 +4467,10 @@ function handleCorrectAnswer(origin) {
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
       if (!swordSound) audio.playStrike(hero.strike);
-      globalThis.ffmHaptics?.impact();
+      // Only the sword's vibration is held back; the other weapons' synthesised
+      // strikes sound on the contact frame and keep theirs there.
+      if (swordSound) scheduleGameplayTimeout(() => globalThis.ffmHaptics?.impact(), SWORD_HAPTIC_DELAY_MS);
+      else globalThis.ffmHaptics?.impact();
       audio.playFiendHit?.(fiend.type);
 
       if (fiend.isDead) {

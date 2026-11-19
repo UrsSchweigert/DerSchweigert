@@ -149,6 +149,7 @@ function answerEnv({ ability = null, practiceRun = null, hearts = 3, maxHearts =
     CANVAS_W: 900,
     SPELL_TARGET_Y_OFFSET: 30,
     FIREBALL_FLIGHT_MS: 500,
+    SWORD_HAPTIC_DELAY_MS: 40,
     ffmHaptics: haptics,
   });
   return { context, fiend, haptics, sounds };
@@ -163,9 +164,42 @@ test('a dragon finisher vibrates once', () => {
 
 test('a plain sword hit vibrates once', () => {
   const { context, haptics, sounds } = answerEnv({ ability: null });
+  const timers = [];
+  context.scheduleGameplayTimeout = (callback, delay) => timers.push({ callback, delay });
   context.handleCorrectAnswer();
+  // No animator in this stub, so the contact frame is 0 ms.
+  timers.filter(t => t.delay === 0).forEach(t => t.callback());
   assert.deepEqual(sounds, ['sword']);
+  timers.filter(t => t.delay === 40).forEach(t => t.callback());
   assert.deepEqual(haptics.calls, ['impact']);
+});
+
+test('a sword hit\'s vibration waits 40 ms after the contact frame, the flash and sound do not', () => {
+  const { context, fiend, haptics, sounds } = answerEnv({ ability: null });
+  const timers = [];
+  context.scheduleGameplayTimeout = (callback, delay) => timers.push({ callback, delay });
+  context.hero.anim = { clips: { swing: { frames: [{ ms: 85 }, { ms: 55, at: 'hit' }, { ms: 60 }] } } };
+  context.handleCorrectAnswer();
+  timers.find(t => t.delay === 85).callback();
+  // The contact frame has landed: the fiend is hit, but the buzz is still queued.
+  assert.equal(fiend.hp, 0);
+  assert.deepEqual(haptics.calls, []);
+  const queued = timers.filter(t => t.delay === 40);
+  assert.equal(queued.length, 1, 'exactly one vibration is queued');
+  queued[0].callback();
+  assert.deepEqual(haptics.calls, ['impact']);
+});
+
+test('a non-sword strike keeps its vibration on the contact frame', () => {
+  const { context, haptics } = answerEnv({ ability: null });
+  const timers = [];
+  context.scheduleGameplayTimeout = (callback, delay) => timers.push({ callback, delay });
+  context.hero.strike = 'fist';
+  context.audio.playStrike = () => {};
+  context.handleCorrectAnswer();
+  timers.filter(t => t.delay === 0).forEach(t => t.callback());
+  assert.deepEqual(haptics.calls, ['impact']);
+  assert.equal(timers.filter(t => t.delay === 40).length, 0);
 });
 
 test('a sword hit lands on the swing\'s contact frame, with the sound leading it', () => {
@@ -184,6 +218,8 @@ test('a sword hit lands on the swing\'s contact frame, with the sound leading it
   assert.deepEqual(sounds, ['sword']);
   assert.deepEqual(haptics.calls, []);
   timers.find(t => t.delay === 85).callback();
+  assert.deepEqual(haptics.calls, []);
+  timers.find(t => t.delay === 40).callback();
   assert.deepEqual(haptics.calls, ['impact']);
 });
 
