@@ -70,7 +70,7 @@ Read the README first, then only the page your change needs:
 | Page | Covers |
 | --- | --- |
 | [docs/behavior.md](docs/behavior.md) | Gameplay and practice rules, curriculum contracts, auth/profile/leaderboard, email flows, data model and retention, rate limiting and JWT identity, legal pages and cookie consent |
-| [docs/deployment.md](docs/deployment.md) | Deployment shape, CI IAM permissions for new AWS resources, promo landing page and URL routing |
+| [docs/deployment.md](docs/deployment.md) | Deployment shape, the dev environment (ffm-dev.derschweigert.de), CI IAM permissions for new AWS resources, promo landing page and URL routing |
 | [docs/file-map.md](docs/file-map.md) | Where to start for each kind of change (gameplay, art, audio, API, mobile), plus billing and Stripe integration, the Stripe events to configure, and the legal/tax review history |
 
 ## Local development and validation

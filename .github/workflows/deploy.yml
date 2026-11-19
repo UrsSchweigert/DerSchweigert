@@ -88,6 +88,9 @@ jobs:
                 infra/terraform/sites/lesen/*) lesen=true ;;
                 infra/terraform/sites/derschweigert/*) site=true ;;
                 infra/terraform/sites/landhauscheck/*) lhc=true ;;
+                # The ffm dev stack is applied only by deploy-ffm-dev.yml (manual). Without this line it would fall into
+                # the infra/* catch-all below and a merge would deploy every site, production included.
+                infra/terraform/sites/ffm-dev/*) ;;
                 infra/*) ffm=true; lesen=true; site=true; lhc=true ;;
               esac
               # Each shared suite runs only when something it reads changed. The derschweigert suite reads its own site and

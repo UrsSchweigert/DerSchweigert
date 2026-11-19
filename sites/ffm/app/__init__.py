@@ -41,7 +41,10 @@ def create_app(config_class=None):
     os.environ['BETA_WAITLIST_NOTIFY_EMAIL'] = app.config['BETA_WAITLIST_NOTIFY_EMAIL']
     os.environ['APP_BASE_URL'] = app.config['APP_BASE_URL']
 
-    allowed_origins = ["https://ffm.derschweigert.de"]
+    # The site's own origin, taken from APP_BASE_URL so the dev environment
+    # (https://ffm-dev.derschweigert.de) answers its own browser and not prod's.
+    # APP_BASE_URL defaults to the production URL, so prod is unchanged.
+    allowed_origins = [app.config['APP_BASE_URL'].rstrip('/')]
     if os.environ.get('FLASK_ENV') != 'production':
         allowed_origins.append(re.compile(r"http://localhost:\d+"))
         allowed_origins.append(re.compile(r"http://127\.0\.0\.1:\d+"))
