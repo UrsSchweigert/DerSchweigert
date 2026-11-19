@@ -26,6 +26,7 @@ infra/terraform/lambda.zip
 # The landhauscheck stacks hold API keys in terraform.tfvars — never commit them.
 # (ffm's tracked terraform.tfvars contains only non-secret ids, so it is left alone.)
 infra/terraform/sites/landhauscheck/terraform.tfvars
+infra/terraform/sites/landhauscheck-dev/terraform.tfvars
 
 # The fal.ai API key file that sites/ffm/scripts/regenerate_fiends.py reads — never commit it.
 tools/fal_key.txt
