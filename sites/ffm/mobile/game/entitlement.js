@@ -7,6 +7,12 @@
 // revocation: offline, the cached grant stays and the status reports
 // `offline: true`. Only a successful read without an owned, non-revoked
 // transaction (a refund) clears the cache.
+//
+// An empty store answer is not that proof. Offline, StoreKit and Play can
+// resolve with an empty list instead of failing, and treating it as a refund
+// locked paying players out in airplane mode. An empty list therefore only
+// revokes once the grant has gone unconfirmed for ENTITLEMENT_GRACE_MS; an
+// explicit revocation (StoreKit lists refunded transactions) revokes at once.
 
 import { PRODUCT_ID, isPurchased } from './purchase.js';
 
@@ -15,6 +21,12 @@ export const ENTITLEMENT_SCHEMA_VERSION = 1;
 
 /** The single key holding the cached entitlement. */
 export const ENTITLEMENT_KEY = 'arithmoslayer:entitlement';
+
+/** How long a cached grant survives store answers that do not list the unlock. */
+export const ENTITLEMENT_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** A store read that has not answered by now is treated as offline. */
+export const STORE_READ_TIMEOUT_MS = 8000;
 
 const NOT_ENTITLED = Object.freeze({
   premium_access: false,
@@ -68,6 +80,8 @@ export function createEntitlementStore({
   productId = PRODUCT_ID,
   key = ENTITLEMENT_KEY,
   now = () => new Date().toISOString(),
+  graceMs = ENTITLEMENT_GRACE_MS,
+  timeoutMs = STORE_READ_TIMEOUT_MS,
 } = {}) {
   const unlock = { key, id: productId };
   const available = () => Boolean(
@@ -128,7 +142,16 @@ export function createEntitlementStore({
     if (typeof getPurchases !== 'function') return offlineStatus();
     let purchases;
     try {
-      purchases = await getPurchases();
+      // A store call that hangs offline must not hold the launch refresh open.
+      let timer;
+      const timedOut = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('store read timed out')), timeoutMs);
+      });
+      try {
+        purchases = await Promise.race([getPurchases(), timedOut]);
+      } finally {
+        clearTimeout(timer);
+      }
     } catch {
       return offlineStatus();
     }
@@ -137,7 +160,16 @@ export function createEntitlementStore({
     );
     const checkedAt = now();
     if (!owned) {
-      const hadGrant = (await read()) !== null;
+      const cached = await read();
+      const refunded = (Array.isArray(purchases) ? purchases : []).some(
+        (transaction) => transaction?.productIdentifier === productId
+          && typeof transaction.revocationDate === 'string' && transaction.revocationDate,
+      );
+      const age = cached ? Date.parse(checkedAt) - Date.parse(cached.checked_at) : NaN;
+      // A cached grant with no refund on record and a recent confirmation
+      // survives an answer that simply does not list it.
+      if (cached && !refunded && !(age >= graceMs)) return offlineStatus();
+      const hadGrant = cached !== null;
       const saved = await write({
         entitled: false,
         checked_at: checkedAt,

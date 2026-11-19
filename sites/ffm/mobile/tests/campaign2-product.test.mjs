@@ -39,6 +39,9 @@ test('Campaign II has its own entitlement cache: owning it does not unlock the g
   assert.equal((await offline.refresh()).premium_access, true, 'offline keeps the cached grant');
 
   purchases = [];
+  assert.equal((await campaign2.refresh()).premium_access, true, 'an empty answer is not a refund: offline reads look the same');
+
+  purchases = [{ ...owned(CAMPAIGN2_PRODUCT_ID), revocationDate: '2026-11-01T00:00:00.000Z' }];
   assert.equal((await campaign2.refresh()).premium_access, false, 'a refund revokes it');
   assert.notEqual(ENTITLEMENT_KEY, 'arithmoslayer:entitlement:campaign2');
 });
