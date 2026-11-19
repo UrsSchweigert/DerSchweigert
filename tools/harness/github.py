@@ -249,12 +249,16 @@ class GhCli(Client):
             raise GitHubError("pull request has no merge commit")
         # The merge commit is the primary evidence: it is the revision the base branch actually carries.
         evidence: Dict[str, tuple] = {name: (conclusion, merge_sha) for name, conclusion in self._checks_at(merge_sha).items()}
-        absent = [name for name in required_checks if name not in evidence]
+        # A job that was skipped on the merge commit ran nothing there, so it says as much about the merged content as a
+        # job that never started: it counts as absent, not as a verdict. GitHub itself accepts a skipped required check
+        # as passing; this does not. It only lets the head answer instead, under the same identical-tree rule, and a
+        # check skipped on the head as well is still not a success.
+        absent = [name for name in required_checks if evidence.get(name, ("skipped", ""))[0] == "skipped"]
         if absent and head_sha:
             # A gate that only triggers on pull_request events never runs on the merge commit, so a legitimately merged
             # pull request would be unverifiable. The tested head carries those runs, and an identical tree id proves
             # the merged content is byte for byte the content they ran on. Only contexts the merge commit never
-            # reported at all are read from the head: a check that failed there stays failed, one that is still
+            # ran are read from the head: a check that failed there stays failed, one that is still
             # running stays pending, and a differing tree reads nothing at all.
             merge_tree = self._tree_of(merge_sha)
             if merge_tree and merge_tree == self._tree_of(head_sha):
