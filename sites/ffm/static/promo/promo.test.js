@@ -775,3 +775,27 @@ test('promo copy uses the game\'s own names and current facts', () => {
   assert.match(DICTIONARY['faq.a8'].en, /in your profile on the web/);
   assert.match(DICTIONARY['prices.compare.r10app'].en, /no full unlock needed/);
 });
+
+// Campaign II gets its own section, built from the game's own curriculum so the page cannot
+// promise more (or fewer) levels than the campaign has.
+test('the Campaign II section matches the campaign\'s curriculum', async () => {
+  const { ACTS, TOTAL_LEVELS_2, OPTION_COUNT_2, BOSS_ROUND_LEVELS_2 } = await import('../game/campaign2/campaign2-levels.js');
+  assert.match(html, /<section class="section section-genie" id="genie"/);
+  const topics = [...html.matchAll(/data-i18n="genie\.t(\d+)\.name"/g)];
+  assert.equal(topics.length, ACTS.length, 'one card per act');
+  ACTS.forEach((act, i) => {
+    const to = i + 1 < ACTS.length ? ACTS[i + 1].from - 1 : TOTAL_LEVELS_2;
+    assert.ok(html.includes(`data-i18n="genie.t${act.act}.lv">Level <span class="nb">${act.from}–${to}</span>`), `act ${act.act} card shows levels ${act.from}–${to}`);
+  });
+  for (const locale of SUPPORTED_LOCALES) {
+    assert.match(DICTIONARY['genie.lead'][locale], new RegExp(`${TOTAL_LEVELS_2}`));
+    assert.match(DICTIONARY['genie.f1.text'][locale], new RegExp(OPTION_COUNT_2 === 4 ? '(vier|four)' : 'x'));
+    for (const level of BOSS_ROUND_LEVELS_2) {
+      assert.ok(DICTIONARY['genie.f2.text'][locale].includes(String(level)), `${locale} names boss level ${level}`);
+    }
+    assert.ok(DICTIONARY['genie.title'][locale].length > 5);
+  }
+  for (const side of ['left', 'right']) {
+    assert.ok(existsSync(join(webRoot, `game/art/ui/campaign-dragon-ancient-${side}.webp`)));
+  }
+});

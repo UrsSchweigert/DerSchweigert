@@ -2475,3 +2475,83 @@ ul {
     transform: none;
   }
 }
+
+/* Campaign II (#genie): the ancient dragon flanks the campaign's name like the game's switch
+   picture, then the eight five-level acts as a grid with one worked example each. */
+.genie-emblem {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(8px, 3vw, 32px);
+  margin: clamp(18px, 3vw, 32px) auto;
+}
+
+.genie-emblem img {
+  height: clamp(110px, 18vw, 190px);
+  width: auto;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.55));
+}
+
+.genie-emblem-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 8px;
+  text-align: center;
+}
+
+.genie-emblem-eyebrow {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+}
+
+.genie-emblem-title {
+  font-family: var(--mono);
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ivory);
+}
+
+.genie-topics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+  margin: 0 0 clamp(18px, 3vw, 32px);
+  padding: 0;
+  list-style: none;
+}
+
+.genie-topic {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline-soft);
+  background: var(--panel);
+}
+
+.genie-topic-levels {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+}
+
+.genie-topic-name {
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  color: var(--ivory);
+}
+
+.genie-topic-ex {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--ivory-muted);
+}

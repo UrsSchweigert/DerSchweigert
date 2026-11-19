@@ -162,8 +162,8 @@ export const DICTIONARY = {
   'play.kicker': { de: 'So spielt es sich', en: 'How it plays' },
   'play.title': { de: 'Drei Schwierigkeiten, ein Formen-Modus', en: 'Three difficulties, a shapes mode' },
   'play.lead': {
-    de: 'Du wählst das Tempo, das Spiel liefert die Fragen: Leicht, Mittel und Schwer führen durch dieselben 60 Level in sechs Akten – Formen ist der freie Zähl-Modus daneben.',
-    en: 'You pick the tempo, the game brings the questions: Easy, Medium and Hard lead through the same 60 levels in six acts – Shapes is the free-form practice mode alongside.',
+    de: 'Du wählst das Tempo, das Spiel liefert die Fragen: Leicht, Mittel und Schwer führen durch dieselben 60 Level in sechs Akten von Abenteuer I – Formen ist der freie Zähl-Modus daneben, und Abenteuer II: Genie wartet weiter unten.',
+    en: 'You pick the tempo, the game brings the questions: Easy, Medium and Hard lead through the same 60 levels in six acts of Campaign I – Shapes is the free-form practice mode alongside, and Campaign II: Genius follows below.',
   },
   'play.shapes.name': {
     de: 'Formen',
@@ -225,6 +225,56 @@ export const DICTIONARY = {
   },
 
   // Preise
+  // Campaign II: facts from static/game/campaign2 (40 levels, eight acts, boss rounds, four answers, timer 1.2x-2x)
+  'genie.kicker': { de: 'Abenteuer II', en: 'Campaign II' },
+  'genie.title': { de: 'Genie: von Brüchen bis Logarithmen', en: 'Genius: from fractions to logarithms' },
+  'genie.lead': {
+    de: 'Das zweite Abenteuer hat 40 Level in acht Akten zu je fünf Leveln. Es spielt auf den Bühnen des ersten, wartet mit einem uralten Drachen auf – und fragt, was in der Schule erst später kommt.',
+    en: 'The second campaign has 40 levels in eight acts of five. It plays on the first campaign\'s stages, brings an ancient dragon along, and asks what school only teaches later.',
+  },
+  'genie.emblemEyebrow': { de: 'Abenteuer II', en: 'Campaign II' },
+  'genie.emblemTitle': { de: 'Genie', en: 'Genius' },
+  'genie.topicsLabel': { de: 'Die acht Akte von Abenteuer II', en: 'The eight acts of Campaign II' },
+  'genie.t1.lv': { de: 'Level 1–5', en: 'Levels 1–5' },
+  'genie.t2.lv': { de: 'Level 6–10', en: 'Levels 6–10' },
+  'genie.t3.lv': { de: 'Level 11–15', en: 'Levels 11–15' },
+  'genie.t4.lv': { de: 'Level 16–20', en: 'Levels 16–20' },
+  'genie.t5.lv': { de: 'Level 21–25', en: 'Levels 21–25' },
+  'genie.t6.lv': { de: 'Level 26–30', en: 'Levels 26–30' },
+  'genie.t7.lv': { de: 'Level 31–35', en: 'Levels 31–35' },
+  'genie.t8.lv': { de: 'Level 36–40', en: 'Levels 36–40' },
+  'genie.t1.name': { de: 'Brüche', en: 'Fractions' },
+  'genie.t1.ex': { de: '3/12 = 1/4', en: '3/12 = 1/4' },
+  'genie.t2.name': { de: 'Brüche mit ungleichen Nennern', en: 'Fractions with unlike denominators' },
+  'genie.t2.ex': { de: '1/3 + 1/4 = 7/12', en: '1/3 + 1/4 = 7/12' },
+  'genie.t3.name': { de: 'Potenzen', en: 'Powers' },
+  'genie.t3.ex': { de: '(−3)³ = −27', en: '(−3)³ = −27' },
+  'genie.t4.name': { de: 'Wurzeln', en: 'Roots' },
+  'genie.t4.ex': { de: '∛343 = 7', en: '∛343 = 7' },
+  'genie.t5.name': { de: 'Potenzgesetze', en: 'Exponent laws' },
+  'genie.t5.ex': { de: '8^(2/3) = 4', en: '8^(2/3) = 4' },
+  'genie.t6.name': { de: 'Wurzeln umformen', en: 'Simplifying radicals' },
+  'genie.t6.ex': { de: '√72 = 6√2', en: '√72 = 6√2' },
+  'genie.t7.name': { de: 'Logarithmen', en: 'Logarithms' },
+  'genie.t7.ex': { de: 'log₃(1/9) = −2', en: 'log₃(1/9) = −2' },
+  'genie.t8.name': { de: 'Alles zusammen', en: 'Everything together' },
+  'genie.t8.ex': { de: '(2/3)⁻² − √(81/16) = 0', en: '(2/3)⁻² − √(81/16) = 0' },
+  'genie.f1.title': { de: 'Vier Antworten, mehr Zeit', en: 'Four answers, more time' },
+  'genie.f1.text': {
+    de: 'Jede Aufgabe hat vier Antworten zur Wahl, und der Timer deiner Schwierigkeit wird gedehnt: anfangs um ein Fünftel, am Ende auf das Doppelte.',
+    en: 'Every question offers four answers, and your difficulty\'s timer is stretched: by a fifth at first, up to double at the end.',
+  },
+  'genie.f2.title': { de: 'Boss-Runden', en: 'Boss rounds' },
+  'genie.f2.text': {
+    de: 'Auf Level 10, 20, 30 und 40 wartet eine Boss-Runde, die den Stoff der letzten fünf Level zusammenfasst.',
+    en: 'Levels 10, 20, 30 and 40 end in a boss round that pulls the last five levels together.',
+  },
+  'genie.f3.title': { de: 'Unabhängig vom ersten Abenteuer', en: 'Independent of the first campaign' },
+  'genie.f3.text': {
+    de: 'Du brauchst weder ein geschafftes Level noch die Vollversion: Abenteuer II ist sofort spielbar und wechselt auf der Spieler-Seite der App, im Web im Profil.',
+    en: 'You need no cleared level and no full unlock: Campaign II is playable straight away, and you switch on the app\'s Players page, or in your profile on the web.',
+  },
+
   'prices.kicker': { de: 'Preise', en: 'Pricing' },
   'prices.title': { de: 'Ein Modell für jeden Weg', en: 'A model for every route' },
   'prices.lead': {
