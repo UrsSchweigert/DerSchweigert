@@ -89,16 +89,40 @@ export const DICTIONARY = {
     en: 'Every act is a painted parallax diorama: sky, midground and foreground as separate layers of paper that shift as you scroll. 60 levels on six stages – none of it off the shelf.',
   },
   'art.story': {
-    de: 'Zehn Runen, zehn Dörfer. Eine Rune ist noch dunkel – und ein Schwertkämpfer mit geliehener Klinge zieht aus, um sie zu wecken. Sechs Akte lang richtet er die Ernte-Rune, durchquert einen Wald, der sich an ein älteres Versprechen erinnert, steht in einer Halle, deren Hüter ihre Kraft längst gegeben haben, handelt auf einem Nachtmarkt, auf dem jedes erleuchtete Fenster Teil der Rune ist – und steigt am Ende zu einem Thron, der leer hätte bleiben sollen. Das Kopfrechnen ist die Klinge: jede richtige Antwort trifft tiefer.',
-    en: 'Ten wards, ten villages. One rune is still dark — and a swordsman with a borrowed blade sets out to wake it. Across six acts he mends the harvest ward, walks a wood that remembers an older promise, stands in a hall whose keepers already gave their strength, trades in a night market where every lit window is part of the ward, and finally climbs to a throne that should have stayed empty. The arithmetic is the blade: every correct answer cuts deeper.',
+    de: 'Am Morgen, an dem die Sonne nicht aufging, läuteten alle Glocken dreizehnmal: Der Berater des Königs hat die Krone des Gleichgewichts gestohlen und ihren Zauber verdreht. Als Lehrling des Dorfes ziehst du mit einem Zauberbuch und einem Talent für Zahlen los, um die Welt wieder in Ordnung zu bringen. Jede richtige Antwort nährt deine Magie. Erzählt wird auf stillen Pergamentkarten, und nach Level 60 wartet ein Ende.',
+    en: 'On the morning the sun did not rise, every bell in the village rang thirteen times: the king\'s adviser had stolen the Crown of Balance and twisted its magic. As the village apprentice you set out with a spellbook and a talent for numbers to put the world right. Every right answer feeds your magic. The story is told on silent parchment cards, and after level 60 an ending waits.',
   },
   'art.stripLabel': { de: 'Die sechs Akte', en: 'The six acts' },
-  'art.act1': { de: 'Akt 1 · Das erste Licht', en: 'Act 1 · The First Light' },
-  'art.act2': { de: 'Akt 2 · Die schwindende Ernte', en: 'Act 2 · The Fading Harvest' },
-  'art.act3': { de: 'Akt 3 · Der erinnernde Wald', en: 'Act 3 · The Remembering Wood' },
-  'art.act4': { de: 'Akt 4 · Das Versprechen der Hüter', en: "Act 4 · The Keepers' Promise" },
-  'art.act5': { de: 'Akt 5 · Der Nachtmarkt', en: 'Act 5 · The Night Market' },
-  'art.act6': { de: 'Akt 6 · Der leere Thron', en: 'Act 6 · The Empty Throne' },
+  'art.act1': { de: 'Akt 1 · Hinter dem Dorf', en: 'Act 1 · Beyond the Village' },
+  'art.act1Teaser': {
+    de: 'Die Laternen des Dorfes verblassen, und kleine Feinde verdrehen die Meilensteine.',
+    en: 'The village lanterns fade behind you, and small fiends twist the milestones.',
+  },
+  'art.act2': { de: 'Akt 2 · Das weite Land', en: 'Act 2 · The Long Country' },
+  'art.act2Teaser': {
+    de: 'Der Pfad steigt in die Berge, und dein Zauberbuch öffnet eine Seite, die du noch nie gesehen hast.',
+    en: 'The path climbs into the mountains, and your spellbook opens to a page you have never seen.',
+  },
+  'art.act3': { de: 'Akt 3 · Der Flüsterwald', en: 'Act 3 · The Whispering Woods' },
+  'art.act3Teaser': {
+    de: 'Im Wald flüstern die Blätter falsche Antworten, und vertraute Aufgaben verbergen neue Gefahren.',
+    en: 'In the woods the leaves whisper wrong answers, and familiar sums hide new dangers.',
+  },
+  'art.act4': { de: 'Akt 4 · Die verschüttete Stadt', en: 'Act 4 · The Buried City' },
+  'art.act4Teaser': {
+    de: 'Unter den Bergen liegt eine Stadt, die der Stein verschluckt hat, voller unfertiger Rechnungen.',
+    en: 'Under the mountains lies a city the stone swallowed, full of unfinished sums.',
+  },
+  'art.act5': { de: 'Akt 5 · Die stille Hauptstadt', en: 'Act 5 · The Silent Capital' },
+  'art.act5Teaser': {
+    de: 'Die Tore stehen offen, aber niemand grüßt dich, und die Uhren laufen rückwärts.',
+    en: 'The gates stand open, but no one greets you, and the clocks run backward.',
+  },
+  'art.act6': { de: 'Akt 6 · Der Thron', en: 'Act 6 · The Throne' },
+  'art.act6Teaser': {
+    de: 'Hinter der letzten Tür wartet der Berater unter der gestohlenen Krone des Gleichgewichts.',
+    en: 'Behind the last door the adviser waits beneath the stolen Crown of Balance.',
+  },
   'art.actionTitle': { de: 'Der Held im Kampf', en: 'The hero in combat' },
   'art.actionText': {
     de: 'Drei Momente aus dem Kampf, gemalt im Stil der Bühnen: Nahkampf, Feuerball und die Blitzkugel als Combo-Angriff.',
@@ -110,10 +134,10 @@ export const DICTIONARY = {
     de: 'Blitzkugel ab Serie 11.',
     en: 'Lightning ball from combo 11.',
   },
-  'art.fiendsTitle': { de: '36 Feinde und ein Drache', en: '36 fiends and a dragon' },
+  'art.fiendsTitle': { de: '54 Feinde und ein Drache', en: '54 fiends and a dragon' },
   'art.fiendsText': {
-    de: '36 einzeln gezeichnete Feind-Sprites in zwei Sets, vom Schleim bis zum Skelett-Krieger, dazu der Drache als höchste Combo-Stufe. 16-Bit-Nostalgie, gemalt wie ein Papiertheater.',
-    en: '36 individually drawn fiend sprites in two sets, from slime to skeleton warrior, plus the dragon as the highest combo tier. 16-bit nostalgia, painted like a paper theatre.',
+    de: '54 einzeln gezeichnete Feinde in drei Sets, vom Kobold bis zum Kraken, jeder mit eigenem Laufzyklus aus acht Bildern, dazu der Drache als höchste Combo-Stufe. 16-Bit-Nostalgie, gemalt wie ein Papiertheater.',
+    en: '54 individually drawn fiends in three sets, from imp to kraken, each with its own eight-frame walk cycle, plus the dragon as the highest combo tier. 16-bit nostalgia, painted like a paper theatre.',
   },
   'art.dragonCaption': {
     de: 'Ab Serie 21 greift der Drache ein.',
