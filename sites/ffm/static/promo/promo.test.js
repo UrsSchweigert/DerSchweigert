@@ -8,7 +8,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize } from 'node:path';
 
@@ -428,6 +428,41 @@ test('the age cards pair one hero with one growing stage each', () => {
   assert.match(DICTIONARY['gen.note'].de, /9\+/);
   assert.match(DICTIONARY['gen.note'].de, /keine Altersempfehlung/);
   assert.match(DICTIONARY['gen.note'].en, /not an age recommendation/);
+});
+
+// The page tells the story the game tells: the act titles come from the story scenes, so a
+// rewrite of the story cannot leave the page behind (the Nov 10 draft did, until Nov 19).
+test('act titles, teasers and the story follow the game\'s story scenes', () => {
+  const scene = (id) => JSON.parse(readFileSync(join(webRoot, 'story/scenes', id, 'scene.json'), 'utf8'));
+  for (let act = 1; act <= 6; act += 1) {
+    const { title } = scene(`act-${act}`);
+    assert.equal(DICTIONARY[`art.act${act}`].de, `Akt ${act} · ${title.de.replace(/^Akt [IVX]+: /, '')}`);
+    assert.equal(DICTIONARY[`art.act${act}`].en, `Act ${act} · ${title.en.replace(/^Act [IVX]+: /, '')}`);
+    assert.ok(html.includes(`data-i18n="art.act${act}Teaser"`), `act ${act} needs a teaser`);
+    assert.equal((html.match(new RegExp(`data-i18n="art.act${act}Teaser"`, 'g')) || []).length, 2,
+      'the teaser sits in the frame and in its loop clone');
+    for (const locale of SUPPORTED_LOCALES) {
+      const teaser = DICTIONARY[`art.act${act}Teaser`][locale];
+      assert.ok(teaser.length > 20 && teaser.length <= 130, `${locale} act ${act} teaser is one sentence`);
+    }
+  }
+  assert.match(DICTIONARY['art.story'].de, /gestohlen/);
+  assert.match(DICTIONARY['art.story'].en, /Crown of Balance/);
+  for (const stale of ['Zehn Runen', 'Ten wards', 'geliehener Klinge', 'borrowed blade', 'Nachtmarkt', 'Night Market']) {
+    const all = Object.values(DICTIONARY).flatMap(entry => [entry.de, entry.en]).join('\n') + html;
+    assert.ok(!all.includes(stale), `the old story draft ("${stale}") must be gone`);
+  }
+});
+
+test('the fiend copy states the real sprite count', () => {
+  const fiends = readdirSync(join(webRoot, 'game/fiend-sprites')).filter((f) => /^set\d+-\d+\.webp$/.test(f));
+  assert.equal(fiends.length, 54, 'three sets of 18; update the copy if this changes');
+  assert.match(DICTIONARY['art.fiendsTitle'].de, /^54 Feinde/);
+  assert.match(DICTIONARY['art.fiendsTitle'].en, /^54 fiends/);
+  const parade = [...html.matchAll(/<ul class="fiend-parade"[\s\S]*?<\/ul>/g)][0][0];
+  for (const [, src] of parade.matchAll(/src="([^"]+)"/g)) {
+    assert.ok(existsSync(join(webRoot, src)), `${src} is missing on disk`);
+  }
 });
 
 test('all six act dioramas are shown with their real titles', () => {

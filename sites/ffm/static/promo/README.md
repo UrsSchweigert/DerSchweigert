@@ -40,7 +40,7 @@ would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 | Hero | `#hero` | Centred poster: kicker, logo with shine, headline, then the CTA block in priority order — the brass-filled, glowing **Android-beta pill** (`hero.betaLabel`/`hero.betaText` → `/beta/`, own row; the iOS beta is over, so it only calls for Android testers) first, then the official Apple **“Download on the App Store” badge** (`art/ui/app-store-badge.png`) linked to the listing and the disabled Google Play marker, the browser game as a ghost button last — plus the payment-split subline. The stage is landscape only (act-1 backdrop, sunrise gradient, intro village, parallax) — no characters. |
 | Gameplay band | `#screenshots` | Five full portrait app captures (strike, fireball, blitz, dragon, healing) in CSS phone bodies, as one static row that shares the section column from 900 px up (short landscape windows keep a height-capped horizontal scroller), right above the generations section. Hovering a capture lifts it into a brass glow; in portrait the row scrolls sideways at a legible phone size. |
 | Age cards | `#generationen` | Kindergarten / Grundschule / Erwachsene: `art/heroes/hero-*.webp` standing on `art/stages/stage-*.webp`, one aspect ratio and one hero baseline for all three, plus the `gen.note` small print: the content-based App Store rating (9+) and the statement that the three stages are difficulty levels, not an age recommendation. |
-| Handcrafted | `#kunst` | Story wrap-up, the six finished acts from `art/acts/act-1…6.webp` in a pannable, self-advancing loop with their real titles (the six frames are 30 % larger than the old filmstrip), three action stills (`art/action/{fight,fireball,lightning}.webp`), and the fiend parade with the dragon. |
+| Handcrafted | `#kunst` | Story teaser (the prologue in three sentences), the six acts from `art/acts/act-1…6.webp` in a pannable, self-advancing loop, each with its real title and a one-sentence teaser taken from the act's cards (frames 30 % larger than the old filmstrip; regenerate them with `tools/render-acts.py` after a scene changes), three action stills (`art/action/{fight,fireball,lightning}.webp`), and the fiend parade (54 fiends in three sets, each with an eight-frame walk cycle) with the dragon. |
 | How it plays | `#spiel` | Four difficulty cards with inline-SVG iconography (shape trio for Shapes, one to three swords for Easy/Medium/Hard) and a visually hidden "difficulty n of 3" sentence. |
 | Pricing | `#preise` | Subscription vs. one-time purchase and the comparison table. |
 | Family | `#familie` | Profile cards with the `head-*.webp` portraits, a CSS-built phone mockup around `art/ui/title-screen.webp`, store chips. |
@@ -57,7 +57,7 @@ Every `<img>` carries `width`/`height`; only the hero backdrop uses
 * `art/heroes/` — three full figures (512×640, transparent) and three head
   portraits (256/240/232 px, transparent) for the age cards and profiles.
 * `art/stages/` — three 1600×1000 stages, small → mid → grand.
-* `art/acts/` — the six finished 1920×1080 act dioramas.
+* `art/acts/` — the six 1920×1080 act frames, rendered from the live story scenes by `tools/render-acts.py`.
 * `art/action/` — three 1600×900 gameplay stills (melee, fireball, lightning).
   Underscore-prefixed files in that folder are intermediates and are never
   referenced.

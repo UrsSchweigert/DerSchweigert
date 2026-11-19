@@ -31,51 +31,24 @@ real 8-bit channel (values only 0 and 255), all four corners transparent.
 
 ## acts/
 
-Six act stills for the promo page's pannable, self-advancing "six acts" ribbon. **No generated model was
-involved**: each one is a deterministic PIL composite of the diorama layers
-already committed under `sites/ffm/static/story/scenes/act-<n>/`, placed exactly
-the way `story/player/diorama-player.js` places them.
+The six act frames are no generation of their own: `tools/render-acts.py` composites each
+act's live story scene (`story/scenes/act-N/scene.json`: layers, placement and motion
+keyframes) on the 1920×1080 stage, so they follow the game when a scene is repainted.
+Re-run it after any change under `story/scenes/`. The art pass of 2026-11-18 (new
+backdrops for acts II, IV, V and VI, the act V dragon) is what these frames show; the
+earlier t = 0 exports of 2026-11-10 were replaced.
 
-Method (same for all six, `Pillow 11.3`, `WebP quality=86 method=6`):
+| File | Moment (s into the scene) | Layers |
+| --- | --- | --- |
+| `acts/act-1.webp` | 14 | backdrop · midground · foreground |
+| `acts/act-2.webp` | 15 | backdrop · midground · foreground |
+| `acts/act-3.webp` | 13 | backdrop · midground · foreground |
+| `acts/act-4.webp` | 12 | backdrop · midground · foreground |
+| `acts/act-5.webp` | 44 | backdrop · midground · ancient dragon · foreground |
+| `acts/act-6.webp` | 14 | backdrop · midground · foreground |
 
-1. For every layer, the DOM is `img { left: x; top: y; width: width; height: auto }`
-   inside `.diorama__layer { inset: 0; transform-origin: 50% 60%; transform:
-   translate3d(x, y, 0) rotate(r) scale(s) }`. At the scene's **t = 0 keyframe**
-   `rotate = 0` and `scale = 1`, so the transform degenerates to a plain
-   translate and the layer simply lands at `scene.x + motion[0].x`,
-   `scene.y + motion[0].y`, rendered `width` px wide at its intrinsic aspect
-   ratio. Layers are composited in player order: backdrop → midground → fiends →
-   foreground, then cropped to the 1920×1080 stage.
-2. Each cut-out gets the player's soft contact shadow (`.diorama__img`'s two
-   `drop-shadow`s, 0 14px 12px and 0 2px 2px, as one alpha mask).
-3. The two full-frame CSS light passes from `scene.json` → `lighting.ambient` are
-   reproduced: the `linear-gradient(180deg, …)` multiplied over the frame, then
-   `.diorama__vignette`'s `radial-gradient(ellipse at 50% 50%, transparent 55%,
-   rgba(18,10,2,0.75) 100%)`. The drifting motes, timed flashes and the paper
-   grain are not baked in — they are screen effects, not layers, and the grain
-   costs ~40 % more bytes in WebP.
-4. **`fiends` is omitted from all six.** The character layer is authored
-   `opacity: 0` in its own `motion[0]` keyframe for every act — it fades in at
-   t = 2 s — so it is not part of any act's opening frame. That is the one rule,
-   applied uniformly; it also avoids the act-5 pose where the foreground crate
-   cuts the monsters in half. The stills were also rendered with the layer at its
-   first visible keyframe for comparison; they were not used.
-
-Cross-check: freezing the real player at `story/preview.html?scene=act-<n>&t=0`
-(1920×1080, dpr 1) and registering the stills against it gives the best match at
-scale 1.0, offset (0, 0); the residual mean |Δ| of ~6/255 is the paper grain,
-glow and motes the composite leaves out.
-
-| File | Composited layers (t = 0 placement on the 1920×1080 stage) |
-| --- | --- |
-| `acts/act-1.webp` | `backdrop.webp` @ (-28,-150) 2016×1344 · `midground.webp` @ (10,217) 2100×763 · `foreground.webp` @ (-70,627) 2500×560 |
-| `acts/act-2.webp` | `backdrop.webp` @ (-28,-150) 2016×1344 · `midground.webp` @ (10,433) 2100×547 · `foreground.webp` @ (-70,644) 2500×560 |
-| `acts/act-3.webp` | `backdrop.webp` @ (-28,-150) 2016×1344 · `midground.webp` @ (10,98) 2100×882 · `foreground.webp` @ (-70,619) 2500×560 |
-| `acts/act-4.webp` | `backdrop.webp` @ (-28,-150) 2016×1344 · `midground.webp` @ (10,146) 2100×834 · `foreground.webp` @ (-70,603) 2500×560 |
-| `acts/act-5.webp` | `backdrop.webp` @ (-28,-150) 2016×1344 · `midground.webp` @ (10,303) 2100×677 · `foreground.webp` @ (-70,709) 2500×560 |
-| `acts/act-6.webp` | `backdrop.webp` @ (-28,-150) 2016×1344 · `midground.webp` @ (200,199) 1720×781 · `foreground.webp` @ (-70,712) 2500×560 |
-
-All six: 1920×1080, lossy WebP q86 method 6, 273–368 KB.
+All six: 1920×1080, lossy WebP q84 method 6. Pose layers, lighting overlay and motes are
+left out, and no scene shows fiends.
 
 ## ui/
 
