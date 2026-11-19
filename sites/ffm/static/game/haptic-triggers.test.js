@@ -126,7 +126,9 @@ function answerEnv({ ability = null, practiceRun = null, hearts = 3, maxHearts =
     LightningBolt: class {}, Fireball: class {}, DragonSummon: class {},
     input: { disable() {}, enable() {} },
     inputDisabled: false,
-    scheduleGameplayTimeout() {},
+    // The sword strike waits for the swing's contact frame; with no animator in
+    // this stub that is 0 ms, so run it now and leave the later timers unrun.
+    scheduleGameplayTimeout(callback, delay) { if (delay === 0) callback(); },
     spawnInterval: 2,
     hud: { update() {} },
     audio: {
@@ -163,6 +165,25 @@ test('a plain sword hit vibrates once', () => {
   const { context, haptics, sounds } = answerEnv({ ability: null });
   context.handleCorrectAnswer();
   assert.deepEqual(sounds, ['sword']);
+  assert.deepEqual(haptics.calls, ['impact']);
+});
+
+test('a sword hit lands on the swing\'s contact frame, with the sound leading it', () => {
+  const { context, fiend, haptics, sounds } = answerEnv({ ability: null });
+  const timers = [];
+  context.scheduleGameplayTimeout = (callback, delay) => timers.push({ callback, delay });
+  context.hero.anim = { clips: { swing: { frames: [{ ms: 85 }, { ms: 55, at: 'hit' }, { ms: 60 }] } } };
+  context.handleCorrectAnswer();
+  // Nothing lands on the windup frame: no recoil, vibration or sound yet.
+  assert.deepEqual(sounds, []);
+  assert.deepEqual(haptics.calls, []);
+  assert.equal(fiend.hp, 1);
+  const byDelay = timers.map(t => t.delay).sort((a, b) => a - b);
+  assert.deepEqual(byDelay, [55, 85]);
+  timers.find(t => t.delay === 55).callback();
+  assert.deepEqual(sounds, ['sword']);
+  assert.deepEqual(haptics.calls, []);
+  timers.find(t => t.delay === 85).callback();
   assert.deepEqual(haptics.calls, ['impact']);
 });
 
