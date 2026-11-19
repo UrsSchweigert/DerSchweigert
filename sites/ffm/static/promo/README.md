@@ -43,6 +43,7 @@ would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 | Handcrafted | `#kunst` | Story teaser (the prologue in three sentences), the six acts from `art/acts/act-1…6.webp` in a pannable, self-advancing loop, each with its real title and a one-sentence teaser taken from the act's cards (frames 30 % larger than the old filmstrip; regenerate them with `tools/render-acts.py` after a scene changes), three action stills (`art/action/{fight,fireball,lightning}.webp`), and the fiend parade (54 fiends in three sets, each with an eight-frame walk cycle) with the dragon. |
 | How it plays | `#spiel` | Four difficulty cards with inline-SVG iconography (shape trio for Shapes, one to three swords for Easy/Medium/Hard) and a visually hidden "difficulty n of 3" sentence. |
 | Pricing | `#preise` | Subscription vs. one-time purchase and the comparison table. |
+| Campaign II | `#genie` | Ancient-dragon emblem, the eight five-level acts with one worked example each, and facts (four answers, stretched timer, boss rounds, independent of Campaign I). Level ranges come from `game/campaign2/campaign2-levels.js`, and a test fails if they drift. |
 | Family | `#familie` | Profile cards with the `head-*.webp` portraits, a CSS-built phone mockup around `art/ui/title-screen.webp`, store chips. |
 | FAQ / footer | `#faq` | Legal links, support address. |
 

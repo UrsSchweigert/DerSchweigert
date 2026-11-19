@@ -350,7 +350,7 @@
         <header class="section-head reveal">
           <p class="kicker" data-i18n="play.kicker">So spielt es sich</p>
           <h2 id="spiel-title" data-i18n="play.title">Drei Schwierigkeiten, ein Formen-Modus</h2>
-          <p class="lead" data-i18n="play.lead">Du wählst das Tempo, das Spiel liefert die Fragen: Leicht, Mittel und Schwer führen durch dieselben 60 Level in sechs Akten – Formen ist der freie Zähl-Modus daneben.</p>
+          <p class="lead" data-i18n="play.lead">Du wählst das Tempo, das Spiel liefert die Fragen: Leicht, Mittel und Schwer führen durch dieselben 60 Level in sechs Akten von Abenteuer I – Formen ist der freie Zähl-Modus daneben, und Abenteuer II: Genie wartet weiter unten.</p>
         </header>
 
         <ul class="difficulty-grid">
@@ -425,6 +425,84 @@
           <div class="heal-bar" aria-hidden="true"><span class="heal-fill"></span></div>
           <figcaption data-i18n="play.healDemo">Links unten 9 Sekunden halten: Die Leiste füllt sich, ein Herz kehrt zurück.</figcaption>
         </figure>
+      </div>
+    </section>
+
+    <!-- ============================ GENIE =========================== -->
+    <section class="section section-genie" id="genie" aria-labelledby="genie-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="kicker" data-i18n="genie.kicker">Abenteuer II</p>
+          <h2 id="genie-title" data-i18n="genie.title">Genie: von Brüchen bis Logarithmen</h2>
+          <p class="lead" data-i18n="genie.lead">Das zweite Abenteuer hat 40 Level in acht Akten zu je fünf Leveln. Es spielt auf den Bühnen des ersten, wartet mit einem uralten Drachen auf – und fragt, was in der Schule erst später kommt.</p>
+        </header>
+
+        <div class="genie-emblem reveal" aria-hidden="true">
+          <img src="/game/art/ui/campaign-dragon-ancient-left.webp" alt="" width="354" height="480" loading="lazy" decoding="async">
+          <span class="genie-emblem-text">
+            <span class="genie-emblem-eyebrow" data-i18n="genie.emblemEyebrow">Abenteuer II</span>
+            <span class="genie-emblem-title" data-i18n="genie.emblemTitle">Genie</span>
+          </span>
+          <img src="/game/art/ui/campaign-dragon-ancient-right.webp" alt="" width="354" height="480" loading="lazy" decoding="async">
+        </div>
+
+        <ol class="genie-topics" aria-label="Die acht Akte von Abenteuer II" data-i18n-aria-label="genie.topicsLabel">
+            <li class="genie-topic reveal">
+              <span class="genie-topic-levels" data-i18n="genie.t1.lv">Level <span class="nb">1–5</span></span>
+              <span class="genie-topic-name" data-i18n="genie.t1.name">Brüche</span>
+              <span class="genie-topic-ex" data-i18n="genie.t1.ex">3/12 = 1/4</span>
+            </li>
+            <li class="genie-topic reveal">
+              <span class="genie-topic-levels" data-i18n="genie.t2.lv">Level <span class="nb">6–10</span></span>
+              <span class="genie-topic-name" data-i18n="genie.t2.name">Brüche mit ungleichen Nennern</span>
+              <span class="genie-topic-ex" data-i18n="genie.t2.ex">1/3 + 1/4 = 7/12</span>
+            </li>
+            <li class="genie-topic reveal">
+              <span class="genie-topic-levels" data-i18n="genie.t3.lv">Level <span class="nb">11–15</span></span>
+              <span class="genie-topic-name" data-i18n="genie.t3.name">Potenzen</span>
+              <span class="genie-topic-ex" data-i18n="genie.t3.ex">(−3)³ = −27</span>
+            </li>
+            <li class="genie-topic reveal">
+              <span class="genie-topic-levels" data-i18n="genie.t4.lv">Level <span class="nb">16–20</span></span>
+              <span class="genie-topic-name" data-i18n="genie.t4.name">Wurzeln</span>
+              <span class="genie-topic-ex" data-i18n="genie.t4.ex">∛343 = 7</span>
+            </li>
+            <li class="genie-topic reveal">
+              <span class="genie-topic-levels" data-i18n="genie.t5.lv">Level <span class="nb">21–25</span></span>
+              <span class="genie-topic-name" data-i18n="genie.t5.name">Potenzgesetze</span>
+              <span class="genie-topic-ex" data-i18n="genie.t5.ex">8^(2/3) = 4</span>
+            </li>
+            <li class="genie-topic reveal">
+              <span class="genie-topic-levels" data-i18n="genie.t6.lv">Level <span class="nb">26–30</span></span>
+              <span class="genie-topic-name" data-i18n="genie.t6.name">Wurzeln umformen</span>
+              <span class="genie-topic-ex" data-i18n="genie.t6.ex">√72 = 6√2</span>
+            </li>
+            <li class="genie-topic reveal">
+              <span class="genie-topic-levels" data-i18n="genie.t7.lv">Level <span class="nb">31–35</span></span>
+              <span class="genie-topic-name" data-i18n="genie.t7.name">Logarithmen</span>
+              <span class="genie-topic-ex" data-i18n="genie.t7.ex">log₃(1/9) = −2</span>
+            </li>
+            <li class="genie-topic reveal">
+              <span class="genie-topic-levels" data-i18n="genie.t8.lv">Level <span class="nb">36–40</span></span>
+              <span class="genie-topic-name" data-i18n="genie.t8.name">Alles zusammen</span>
+              <span class="genie-topic-ex" data-i18n="genie.t8.ex">(2/3)⁻² − √(81/16) = 0</span>
+            </li>
+        </ol>
+
+        <ul class="feature-grid">
+          <li class="feature reveal">
+            <h3 data-i18n="genie.f1.title">Vier Antworten, mehr Zeit</h3>
+            <p data-i18n="genie.f1.text">Jede Aufgabe hat vier Antworten zur Wahl, und der Timer deiner Schwierigkeit wird gedehnt: anfangs um ein Fünftel, am Ende auf das Doppelte.</p>
+          </li>
+          <li class="feature reveal">
+            <h3 data-i18n="genie.f2.title">Boss-Runden</h3>
+            <p data-i18n="genie.f2.text">Auf Level 10, 20, 30 und 40 wartet eine Boss-Runde, die den Stoff der letzten fünf Level zusammenfasst.</p>
+          </li>
+          <li class="feature reveal">
+            <h3 data-i18n="genie.f3.title">Unabhängig vom ersten Abenteuer</h3>
+            <p data-i18n="genie.f3.text">Du brauchst weder ein geschafftes Level noch die Vollversion: Abenteuer II ist sofort spielbar und wechselt auf der Spieler-Seite der App, im Web im Profil.</p>
+          </li>
+        </ul>
       </div>
     </section>
 
