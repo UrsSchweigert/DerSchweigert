@@ -904,6 +904,25 @@
             font-weight: 600;
         }
 
+        .store-badge-compact {
+            margin-top: 0;
+            gap: 7px;
+            padding: 6px 12px 6px 9px;
+            border-radius: 9px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .nav-links .store-badge-compact:hover {
+            color: #fff;
+        }
+
+        .store-badge-compact svg {
+            width: 20px;
+            height: 20px;
+        }
+
         .project-reference {
             margin: 22px auto 0;
             color: var(--blue);
@@ -1091,8 +1110,20 @@
         }
 
         @media (max-width: 850px) {
-            .nav-links a:not(.button) {
+            .nav-links a:not(.button):not(.store-badge) {
                 display: none;
+            }
+
+            .store-badge-compact span {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                overflow: hidden;
+                clip-path: inset(50%);
+            }
+
+            .store-badge-compact {
+                padding: 7px;
             }
 
             .hero {
@@ -1329,6 +1360,12 @@
                 padding: 8px 9px;
                 font-size: 11px;
             }
+
+            /* Four items no longer fit beside the brand on a phone; the store
+               section and the sticky mobile bar still link the apps. */
+            .nav-links .store-badge-compact {
+                display: none;
+            }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -1423,6 +1460,14 @@
                 <a href="#so-gehts" data-i18n="navHow">So geht's</a>
                 <a href="#fuer-eltern" data-i18n="navAdults">Für Erwachsene</a>
                 <a id="language-toggle" class="language-toggle" href="?lang=en" lang="en" aria-label="View this page in English">EN</a>
+                <a class="store-badge store-badge-compact" href="https://apps.apple.com/de/app/time-for-letters/id6831006870" rel="noopener" data-i18n-aria="appStoreBadgeLabel" aria-label="Buchstabenzeit im App Store laden">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="#fff"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.8-3.5.8s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.600 2.800-.4 6.900 1.2 9.2.8 1.100 1.700 2.3 2.900 2.3 1.2 0 1.600-.7 3-.7s1.800.7 3 .7c1.300 0 2.100-1.100 2.800-2.200.9-1.300 1.300-2.500 1.300-2.600-.1 0-2.500-1-2.500-3.700zM14.200 5.800c.6-.8 1.100-1.800.9-2.800-.9 0-2 .6-2.600 1.400-.6.700-1.100 1.700-.9 2.700 1 .1 2-.5 2.600-1.300z"/></svg>
+                    <span>App Store</span>
+                </a>
+                <a class="store-badge store-badge-compact" href="https://play.google.com/store/apps/details?id=de.derschweigert.buchstabenzeit" rel="noopener" data-i18n-aria="playBadgeLabel" aria-label="Buchstabenzeit bei Google Play herunterladen">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="#00d2ff" d="M3.6 2.4 13.2 12 3.6 21.6a1.6 1.6 0 0 1-.6-1.3V3.7c0-.5.2-1 .6-1.3z"/><path fill="#00f076" d="m16.4 8.8-3.2 3.2L3.6 2.4c.5-.3 1.1-.3 1.7 0z"/><path fill="#ff3a44" d="m16.4 15.2-11.1 6.4c-.6.3-1.2.3-1.7 0l9.6-9.6z"/><path fill="#ffd400" d="m20.4 10.7-4 2.3-3.2-1 3.2-3.2 4 2.3c.8.5.8 1.1 0 1.6z" transform="translate(0 0.5)"/></svg>
+                    <span>Google Play</span>
+                </a>
                 <a class="button" href="#stores-title">
                     <span data-i18n="navApps">Apps entdecken</span>
                     <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>

@@ -123,3 +123,10 @@ test('marketing page links both store listings with badges', () => {
   assert.doesNotMatch(page, /Store-Link folgt|noch nicht in den Stores/);
   assert.match(language, /playBadgeLabel/);
 });
+
+test('marketing header carries compact store badges beside the apps button', () => {
+  const nav = page.slice(page.indexOf('<div class="nav-links">'), page.indexOf('</nav>'));
+  assert.equal((nav.match(/store-badge-compact/g) || []).length, 2);
+  assert.match(nav, /apps\.apple\.com\/de\/app\/time-for-letters\/id6831006870/);
+  assert.match(nav, /play\.google\.com\/store\/apps\/details\?id=de\.derschweigert\.buchstabenzeit/);
+});
