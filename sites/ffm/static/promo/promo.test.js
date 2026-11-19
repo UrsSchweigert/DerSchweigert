@@ -799,3 +799,48 @@ test('the Campaign II section matches the campaign\'s curriculum', async () => {
     assert.ok(existsSync(join(webRoot, `game/art/ui/campaign-dragon-ancient-${side}.webp`)));
   }
 });
+
+// Campaign I's description is derived from the real curve: the stage starts are the levels
+// where an operation first appears, the boss rounds and the missing-operand start come
+// from levels.js.
+test('the Campaign I section matches the level curve', async () => {
+  const data = JSON.parse(readFileSync(join(webRoot, '../app/level_data.json'), 'utf8'));
+  const levels = Array.isArray(data) ? data : data.levels;
+  const { BOSS_ROUND_LEVELS, MISSING_OPERAND_FROM_LEVEL, MISSING_OPERAND_BONUS, TOTAL_LEVELS } = await import('../game/levels.js');
+  const first = (op) => levels.find((l) => l.operations.includes(op)).level;
+  assert.deepEqual(['+', '-', '*', '/'].map(first), [1, 10, 20, 30], 'the unlock levels the cards start at');
+  assert.ok(levels.filter((l) => l.level >= 40).every((l) => ['+', '-', '*', '/'].every((op) => l.operations.includes(op))),
+    'all four operations from level 40');
+  assert.equal(Math.max(...levels.map((l) => l.operandRange.b[1])), 30, 'numbers up to 30');
+  assert.equal(TOTAL_LEVELS, 60);
+  const starts = [1, 10, 20, 30, 40, 50];
+  starts.forEach((from, i) => {
+    const to = i + 1 < starts.length ? starts[i + 1] - 1 : TOTAL_LEVELS;
+    assert.ok(html.includes(`data-i18n="camp1.t${i + 1}.lv">Level <span class="nb">${from}–${to}</span>`), `card ${i + 1}`);
+  });
+  for (const locale of SUPPORTED_LOCALES) {
+    for (const level of BOSS_ROUND_LEVELS) {
+      assert.ok(DICTIONARY['camp1.f1.text'][locale].includes(String(level)), `${locale} names boss level ${level}`);
+    }
+    assert.ok(DICTIONARY['camp1.f2.text'][locale].includes(String(MISSING_OPERAND_FROM_LEVEL)));
+    assert.ok(DICTIONARY['camp1.f2.text'][locale].includes(String(MISSING_OPERAND_BONUS)));
+  }
+  for (const side of ['left', 'right']) {
+    assert.ok(existsSync(join(webRoot, `game/art/ui/campaign-dragon-young-${side}.webp`)));
+  }
+});
+
+// The prices list Campaign II as its own purchase: in the apps a separate one-time product,
+// in the web subscription already included (game/campaign2/access.js).
+test('the price grid offers Campaign II as its own card', () => {
+  const grid = html.match(/<div class="price-grid">[\s\S]*?<div class="table-wrap/)[0];
+  assert.equal((grid.match(/<article class="price-card/g) || []).length, 3, 'web, app and Campaign II');
+  assert.match(grid, /data-i18n="prices\.c2\.name"/);
+  assert.match(grid, /href="#genie"/);
+  for (const locale of SUPPORTED_LOCALES) {
+    setGameLocale(locale, { persist: false });
+    assert.ok(DICTIONARY['prices.c2.name'][locale].includes(`${gameT('campaign.switch.eyebrow2')}: ${gameT('campaign.switch.title2')}`));
+    assert.match(DICTIONARY['prices.c2.note'][locale], /(Abo|subscription)/);
+    assert.match(DICTIONARY['prices.c2.f3'][locale], /(Web-Abo|web subscription)/);
+  }
+});
