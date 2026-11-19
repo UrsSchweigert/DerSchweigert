@@ -3,6 +3,8 @@
 # Lambda zip" step, which installs only requirements.txt).
 -r requirements.txt
 pytest>=9.2.0
+# Lets CI run the suite on every core (`-n auto` in deploy.yml). Optional locally.
+pytest-xdist>=3.8.0
 moto>=5.2.5
 python-dotenv>=1.2.4
 # The art scripts in scripts/ (hero_frames.py, hero_regions.py, hero_recolor.py) and their tests.

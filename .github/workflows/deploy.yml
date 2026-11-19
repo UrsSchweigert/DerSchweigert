@@ -25,6 +25,8 @@ permissions:
   contents: read
   # Read-only on pull request metadata, for the changed-file list behind the site gates below.
   pull-requests: read
+  # Read-only on check runs, for the proof that a merged tree was already tested on its pull request.
+  checks: read
 
 jobs:
   # Which sites a change touches, and whether it touches their code or only their infrastructure. Required checks make a
@@ -44,11 +46,59 @@ jobs:
       harness_tests: ${{ steps.diff.outputs.harness_tests }}
       lesen_tests: ${{ steps.diff.outputs.lesen_tests }}
     steps:
+      # A merge to main used to run every suite a second time, although `main` only accepts an up-to-date branch whose
+      # checks passed, so the merged tree is the tree the pull request tested. That re-test doubled the wait between a
+      # merge and its deploy and proved nothing new. This step does not take the branch rules on trust: it looks up the
+      # pull request this commit merged, compares the two tree ids (the identity of the content, whatever the merge
+      # method), and requires the three test checks to have succeeded on that pull request's head. Only then does the
+      # next step drop the suites. Anything else (a direct push, a tree that differs, a check that did not succeed, a
+      # failed API call) leaves `tested=false`, and every suite runs exactly as before.
+      - id: proof
+        name: Was this merged tree already tested on its pull request?
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          tested=false
+          tree_of() { gh api "repos/$REPO/git/commits/$1" --jq '.tree.sha' 2>/dev/null; }
+          merged_tree="$(tree_of "$HEAD_SHA")" || merged_tree=""
+          heads="$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" 2>/dev/null \
+                    | jq -r --arg sha "$HEAD_SHA" '.[] | select(.merged_at != null and .merge_commit_sha == $sha) | .head.sha' 2>/dev/null)" || heads=""
+          for head in $heads; do
+            head_tree="$(tree_of "$head")" || head_tree=""
+            if [ -z "$merged_tree" ] || [ "$head_tree" != "$merged_tree" ]; then
+              echo "::notice::pull request head $head has another tree than the merge; its checks do not cover this commit"
+              continue
+            fi
+            proven=true
+            for name in test test-ffm test-lhc; do
+              # `filter=latest` returns the newest run of each name, so a re-run that failed is not hidden by an older pass.
+              # Every run that is reported must be a success, and there must be at least one.
+              conclusions="$(gh api "repos/$REPO/commits/$head/check-runs?check_name=$name&filter=latest&per_page=100" 2>/dev/null \
+                              | jq -r '[.check_runs[] | select(.app.slug == "github-actions") | (.conclusion // "pending")] | unique | join(" ")' 2>/dev/null)" || conclusions=""
+              if [ "$conclusions" != success ]; then
+                echo "::notice::check $name on $head reports '${conclusions:-nothing}', not success"
+                proven=false
+              fi
+            done
+            if [ "$proven" = true ]; then
+              tested=true
+              echo "::notice::tree $merged_tree was tested on pull request head $head; the suites are not run again"
+              break
+            fi
+          done
+          [ "$tested" = true ] || echo "::notice::no proof that this tree was tested; every suite the change needs runs here"
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+
       - id: diff
         name: List the changed paths
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          TESTED: ${{ steps.proof.outputs.tested }}
           PR: ${{ github.event.pull_request.number }}
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -115,6 +165,12 @@ jobs:
               harness_tests=true
               lesen_tests=true
             fi
+          fi
+          # Last, so it also covers the two "run everything" cases above. The deploy outputs are left alone: a tested
+          # tree still has to be deployed. See the proof step for what `TESTED` means.
+          if [ "${TESTED:-}" = true ]; then
+            echo "::notice::this tree passed its tests on the pull request; no suite runs again before the deploy"
+            ffm_tests=false; lhc_tests=false; site_tests=false; harness_tests=false; lesen_tests=false
           fi
           echo "changed -> ffm_tests=$ffm_tests deploy ffm=$ffm lesen=$lesen site=$site lhc_tests=$lhc_tests deploy lhc=$lhc site_tests=$site_tests harness_tests=$harness_tests lesen_tests=$lesen_tests"
           printf 'ffm_tests=%s\nffm=%s\nlesen=%s\nsite=%s\nlhc_tests=%s\nlhc=%s\nsite_tests=%s\nharness_tests=%s\nlesen_tests=%s\n' \
@@ -215,9 +271,9 @@ jobs:
         run: |
           echo "::error::the changes job produced no result, so nothing proves sites/ffm was tested"
           exit 1
-      - name: sites/ffm code is unchanged
+      - name: sites/ffm needs no test run
         if: needs.changes.outputs.ffm_tests == 'false'
-        run: echo "::notice::sites/ffm code unchanged; its tests are skipped for this change"
+        run: echo "::notice::sites/ffm code is unchanged, or this tree already passed on its pull request; its tests are skipped"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.ffm_tests == 'true'
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -230,7 +286,9 @@ jobs:
         if: needs.changes.outputs.ffm_tests == 'true'
       - run: pip install -r sites/ffm/requirements-dev.txt -q
         if: needs.changes.outputs.ffm_tests == 'true'
-      - run: SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q --tb=short
+      # One worker per core. The flag lives here and not in a pytest config file, so a plain `pytest sites/ffm/tests`
+      # (a developer, a harness check in its own container) never needs pytest-xdist installed.
+      - run: SECRET_KEY=ci-test-key pytest sites/ffm/tests/ -q --tb=short -n auto
         if: needs.changes.outputs.ffm_tests == 'true'
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -270,9 +328,9 @@ jobs:
         run: |
           echo "::error::the changes job produced no result, so nothing proves sites/landhauscheck was tested"
           exit 1
-      - name: sites/landhauscheck code is unchanged
+      - name: sites/landhauscheck needs no test run
         if: needs.changes.outputs.lhc_tests == 'false'
-        run: echo "::notice::sites/landhauscheck code unchanged; its tests are skipped for this change"
+        run: echo "::notice::sites/landhauscheck code is unchanged, or this tree already passed on its pull request; its tests are skipped"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.lhc_tests == 'true'
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0

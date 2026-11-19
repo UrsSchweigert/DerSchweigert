@@ -172,7 +172,11 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   change set that cannot be listed is treated as touching everything.
   `test` (derschweigert pytest, harness pytest, and lesen's node tests),
   `test-ffm` (ffm pytest, standalone), and `test-lhc` (ruff, pytest, Vitest,
-  Vite build) run on both `push` to `main` and `pull_request` into `main`. The
+  Vite build) run on every `pull_request` into `main`. On the `push` that a
+  merge produces, `changes` first proves that the merged tree is the tree the
+  pull request tested (same tree id, all three test checks green on the pull
+  request's head) and then skips the suites, so the deploy starts at once; a
+  push it cannot prove this for runs them as before. The
   deploy jobs — `deploy` (derschweigert terraform apply + static sync),
   `deploy-ffm` (ffm terraform apply + Lambda code push + static sync),
   `deploy-lesen` (lesen terraform apply + static sync), and `deploy-lhc`
