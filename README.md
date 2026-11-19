@@ -178,7 +178,11 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   request's head) and then skips the suites, so the deploy starts at once; a
   push it cannot prove this for runs them as before. The
   deploy jobs — `deploy` (derschweigert terraform apply + static sync),
-  `deploy-ffm` (ffm terraform apply + Lambda code push + static sync),
+  `deploy-ffm-dev` (the merge's ffm deploy, to `ffm-dev.derschweigert.de`, by
+  calling `deploy-ffm-dev.yml`), `deploy-ffm` (production ffm terraform apply +
+  Lambda code push + static sync; **manual only**: Actions → "Sites: deploy to
+  production" → Run workflow on `main`, which tests ffm and ships what `main`
+  holds),
   `deploy-lesen` (lesen terraform apply + static sync), and `deploy-lhc`
   (OpenTofu apply + Lambda zip + frontend sync) — additionally require
   `github.ref == 'refs/heads/main'` plus their own gate, so they never run for

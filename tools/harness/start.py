@@ -238,7 +238,7 @@ def _run(store: Store, plan_id: str, args, execute, ask) -> int:
     print("  3  stop here", flush=True)
     choice = (ask("  choice [1]: ").strip() or "1")[:1]
     if choice == "1":
-        print("  every merge to main deploys to production; the gates and budgets from the plan still apply", flush=True)
+        print("  every merge to main deploys (ffm to dev, the other sites to production); the gates and budgets from the plan still apply", flush=True)
         return execute(command)
     if choice == "2":
         return execute(["gui"] + (["--repo", args.repo] if args.repo else []))

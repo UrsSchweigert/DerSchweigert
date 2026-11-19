@@ -1,23 +1,31 @@
-name: 'ffm: deploy to dev (manual)'
+name: 'ffm: deploy to dev'
 
-# Deploys ONE branch of this repo to https://ffm-dev.derschweigert.de so a change can be
-# tried against real AWS before it is merged to main (a merge to main deploys production).
+# Deploys this repo's ffm to https://ffm-dev.derschweigert.de. It starts in two ways:
+#   - a merge to main: deploy.yml's deploy-ffm-dev job calls this workflow with the merged commit, so dev always
+#     shows what the next production release would ship;
+#   - by hand, for ONE branch, to try a change against real AWS before it is merged. The next merge to main
+#     replaces that branch on dev.
 #
-# Manual only, on purpose. The repository is public and this job holds AWS credentials, so it
-# must never start from a pull request: a PR's code would run with them. workflow_dispatch can
-# only be started by someone with write access, from a branch of this repository.
+# Never from a pull request, on purpose. The repository is public and this job holds AWS credentials: a PR's code
+# would run with them. workflow_dispatch can only be started by someone with write access, from a branch of this
+# repository, and deploy.yml calls this workflow only for a push to main.
 #
 # The committed configuration cannot touch production: its Terraform state is ffm/dev/terraform.tfstate,
 # every resource it names starts with `ffm-dev`, and it never reads the FFM_* billing variables. But the
 # job runs whatever the chosen branch contains (Terraform, pip install, build scripts) with the same AWS
 # credentials as the production deploy, so only dispatch a branch whose changes you have read.
-# Run it from the Actions tab: "ffm: deploy to dev (manual)" -> Run workflow -> pick the branch.
+# Run it from the Actions tab: "ffm: deploy to dev" -> Run workflow -> pick the branch.
 
 on:
   workflow_dispatch:
     inputs:
       infra:
         description: 'Apply the Terraform stack first (untick for a faster code-only redeploy)'
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      infra:
         type: boolean
         default: true
 

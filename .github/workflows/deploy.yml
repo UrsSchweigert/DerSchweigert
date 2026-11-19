@@ -5,11 +5,18 @@ on:
     branches: [main]
   pull_request:
     branches: [main, 'harness/run/**']   # a harness run lands on its own protected branch first
-  # Allows re-running the deploy from the Actions UI (same `main` ref, no new
-  # commit needed) after changing the non-secret FFM billing/access
-  # repository variables below — e.g. to apply a newly provisioned Stripe ID
-  # without a code push. Does not change what gets deployed or any default.
-  workflow_dispatch: {}
+  # The manual release. A merge to main deploys ffm to ffm-dev.derschweigert.de only (the deploy-ffm-dev job below);
+  # production ffm is deployed from here: Actions -> "Sites: deploy to production" -> Run workflow, on `main`. The run
+  # tests ffm again and then deploys whatever `main` holds at that moment, so several merges can go out as one release.
+  # It is also how a changed FFM billing/access repository variable is applied without a code push.
+  # The other three sites have no dev copy and still deploy on the merge; `all` redeploys them from here as well.
+  workflow_dispatch:
+    inputs:
+      sites:
+        description: 'What to deploy to production'
+        type: choice
+        options: [ffm, all]
+        default: ffm
 
 concurrency:
   # A pull request's superseded runs are cancelled — they only test a branch, and the newest run tests everything that
@@ -38,6 +45,7 @@ jobs:
     outputs:
       ffm_tests: ${{ steps.diff.outputs.ffm_tests }}
       ffm: ${{ steps.diff.outputs.ffm }}
+      ffm_dev: ${{ steps.diff.outputs.ffm_dev }}
       lesen: ${{ steps.diff.outputs.lesen }}
       site: ${{ steps.diff.outputs.site }}
       lhc_tests: ${{ steps.diff.outputs.lhc_tests }}
@@ -99,15 +107,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           TESTED: ${{ steps.proof.outputs.tested }}
+          EVENT: ${{ github.event_name }}
+          RELEASE: ${{ inputs.sites }}
           PR: ${{ github.event.pull_request.number }}
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           ffm_tests=false; ffm=false; lesen=false; site=false; lhc_tests=false; lhc=false
-          site_tests=false; harness_tests=false; lesen_tests=false
+          site_tests=false; harness_tests=false; lesen_tests=false; ffm_dev=false
           changed=""; listed=true
-          if [ -n "${PR:-}" ]; then
+          if [ "${EVENT:-}" = workflow_dispatch ] && [ "${RELEASE:-}" = ffm ]; then
+            # The manual ffm release: there is no diff to read, the owner asked for ffm. Its suite runs first.
+            echo "::notice::manual release of ffm to production"
+            ffm_tests=true; ffm=true
+          elif [ -n "${PR:-}" ]; then
             # The files endpoint pages through every file, so nothing is truncated. `--slurp` cannot be combined with
             # `--jq` (gh rejects the pair), so paginate and filter per page instead.
             changed="$(gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" \
@@ -120,7 +134,9 @@ jobs:
           else
             listed=false
           fi
-          if [ "$listed" != true ] || [ -z "$changed" ]; then
+          if [ "${EVENT:-}" = workflow_dispatch ] && [ "${RELEASE:-}" = ffm ]; then
+            :
+          elif [ "$listed" != true ] || [ -z "$changed" ]; then
             echo "::warning::could not list every changed path; treating every site as changed"
             ffm_tests=true; ffm=true; lesen=true; site=true; lhc_tests=true; lhc=true
             site_tests=true; harness_tests=true; lesen_tests=true
@@ -138,9 +154,9 @@ jobs:
                 infra/terraform/sites/lesen/*) lesen=true ;;
                 infra/terraform/sites/derschweigert/*) site=true ;;
                 infra/terraform/sites/landhauscheck/*) lhc=true ;;
-                # The ffm dev stack is applied only by deploy-ffm-dev.yml (manual). Without this line it would fall into
-                # the infra/* catch-all below and a merge would deploy every site, production included.
-                infra/terraform/sites/ffm-dev/*) ;;
+                # The ffm dev stack belongs to the dev deploy alone. Without this line it would fall into the infra/*
+                # catch-all below and a merge would deploy every site, production included.
+                infra/terraform/sites/ffm-dev/*) ffm_dev=true ;;
                 infra/*) ffm=true; lesen=true; site=true; lhc=true ;;
               esac
               # Each shared suite runs only when something it reads changed. The derschweigert suite reads its own site and
@@ -175,6 +191,7 @@ jobs:
           echo "changed -> ffm_tests=$ffm_tests deploy ffm=$ffm lesen=$lesen site=$site lhc_tests=$lhc_tests deploy lhc=$lhc site_tests=$site_tests harness_tests=$harness_tests lesen_tests=$lesen_tests"
           printf 'ffm_tests=%s\nffm=%s\nlesen=%s\nsite=%s\nlhc_tests=%s\nlhc=%s\nsite_tests=%s\nharness_tests=%s\nlesen_tests=%s\n' \
             "$ffm_tests" "$ffm" "$lesen" "$site" "$lhc_tests" "$lhc" "$site_tests" "$harness_tests" "$lesen_tests" >> "$GITHUB_OUTPUT"
+          echo "ffm_dev=$ffm_dev" >> "$GITHUB_OUTPUT"
 
   # The shared suites run as separate jobs so they run in parallel and each skips on its own paths. `test` stays the
   # one required check: it fails unless every suite its change needed passed, so deploy and branch protection are
@@ -489,11 +506,30 @@ jobs:
           DIST_ID=$(terraform -chdir=infra/terraform/sites/derschweigert output -raw cloudfront_distribution_id)
           aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
 
+  # A merge to main puts ffm on https://ffm-dev.derschweigert.de, never on production. The job is the dev workflow
+  # itself, called with the merged commit, so there is one definition of a dev deploy. It must stay limited to a push to
+  # main: the called workflow receives the AWS credentials, and a pull request's code must never run with them.
+  # `ffm_dev` covers a change to the dev stack alone, which no production site needs.
+  deploy-ffm-dev:
+    needs: [test-ffm, check-secrets, changes]
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.check-secrets.outputs.has_secrets == 'true' &&
+      (needs.changes.outputs.ffm == 'true' || needs.changes.outputs.ffm_dev == 'true')
+    uses: ./.github/workflows/deploy-ffm-dev.yml
+    with:
+      infra: true
+    secrets: inherit
+
+  # Production ffm is released by hand (see `workflow_dispatch` at the top), never by a merge: a merge goes to dev
+  # first, where it can be looked at. The run that deploys is always on `main`, so it ships only merged, tested code.
   deploy-ffm:
     needs: [test-ffm, check-secrets, changes]
     runs-on: ubuntu-latest
     # `ffm` (not `ffm_tests`) because a terraform-only change must still be applied, even though it runs no app tests.
     if: |
+      github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
       needs.check-secrets.outputs.has_secrets == 'true' &&
       needs.changes.outputs.ffm == 'true'
