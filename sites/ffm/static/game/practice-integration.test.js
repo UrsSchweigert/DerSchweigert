@@ -454,6 +454,7 @@ test('answer zone is explicitly hidden on title and result transitions and shown
 });
 
 function correctAnswerContext(kind, { hearts = 5, maxHearts = 5, hp = 1 } = {}) {
+  const delays = [];
   const p = problem('+', 2);
   const fiend = {
     problem: p, isDead: false, isElite: kind === 'elite', fiendClassId: 1, type: 'slimeling',
@@ -487,10 +488,13 @@ function correctAnswerContext(kind, { hearts = 5, maxHearts = 5, hp = 1 } = {}) 
     input: { disable() {} }, inputDisabled: false,
     // The sword strike waits for the swing's contact frame (0 ms without an
     // animator here): run it now, keep the later timers for inspection.
+    // A closure, not `this`: the game calls this as a bare function, and the
+    // contact-frame callback now schedules the sword's delayed vibration itself.
     scheduleGameplayTimeout(callback, delay) {
-      if (delay === 0) callback(); else this.delays.push([callback, delay]);
+      if (delay === 0) callback(); else delays.push([callback, delay]);
     },
-    delays: [], hud: { update() {} },
+    SWORD_HAPTIC_DELAY_MS: 40,
+    delays, hud: { update() {} },
     audio: {
       playCorrect() { played.correct++; }, playHeal() { played.heal++; },
       playSwordSwing() {}, prepareFiend() {},
