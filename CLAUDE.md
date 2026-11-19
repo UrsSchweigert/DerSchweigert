@@ -51,6 +51,9 @@ under `.github/workflows/` runs all of them.
 - `infra/terraform/sites/<site>/**` → that site's deploy only.
 - Anything else under `infra/` (the shared modules) → **every** site deploys.
 - `.github/workflows/**` alone → every test job runs, nothing deploys.
+- The push a merge produces does not run the suites again when `changes` can prove the merged tree is the tree the
+  pull request tested (identical tree id, `test`, `test-ffm` and `test-lhc` green on its head). Without that proof
+  they run as on a pull request. `sites/ffm/tests/test_deploy_tested_tree.py` covers the proof.
 
 Before changing Terraform, run a read-only plan for each affected stack (`terraform plan -lock=false`). For ffm, export
 the `FFM_*` repository variables as `TF_VAR_*` first, or the plan shows false Stripe diffs.
