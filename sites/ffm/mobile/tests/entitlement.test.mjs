@@ -166,3 +166,64 @@ test('a store read that no longer lists the unlock revokes it', async () => {
   assert.equal(doc.entitled, false);
   assert.equal(doc.reason, 'revoked');
 });
+
+// Offline, the store can answer with an empty list instead of failing. That
+// used to read as a refund and locked paying players out in airplane mode.
+test('an empty store answer keeps a recently confirmed grant', async () => {
+  const backend = createBackend();
+  const purchases = { items: [owned()] };
+  let clock = Date.parse('2026-11-01T00:00:00.000Z');
+  const store = createEntitlementStore({
+    backend, getPurchases: async () => purchases.items, now: () => new Date(clock).toISOString(),
+  });
+  await store.refresh();
+
+  purchases.items = [];
+  clock += 3 * 24 * 60 * 60 * 1000;
+  const status = await store.refresh();
+  assert.equal(status.premium_access, true);
+  assert.equal(status.offline, true);
+  assert.equal(JSON.parse(backend.data.get(ENTITLEMENT_KEY)).entitled, true);
+  // The confirmation date is not refreshed by an answer that did not confirm.
+  assert.equal(JSON.parse(backend.data.get(ENTITLEMENT_KEY)).checked_at, '2026-11-01T00:00:00.000Z');
+});
+
+test('an empty store answer revokes once the grant has gone unconfirmed past the grace period', async () => {
+  const backend = createBackend();
+  const purchases = { items: [owned()] };
+  let clock = Date.parse('2026-11-01T00:00:00.000Z');
+  const store = createEntitlementStore({
+    backend, getPurchases: async () => purchases.items, now: () => new Date(clock).toISOString(),
+  });
+  await store.refresh();
+
+  purchases.items = [];
+  clock += 31 * 24 * 60 * 60 * 1000;
+  const status = await store.refresh();
+  assert.equal(status.premium_access, false);
+  assert.equal(status.reason, 'revoked');
+});
+
+test('an explicit refund revokes at once, even inside the grace period', async () => {
+  const backend = createBackend();
+  const purchases = { items: [owned()] };
+  const store = createEntitlementStore({ backend, getPurchases: async () => purchases.items });
+  await store.refresh();
+
+  purchases.items = [owned({ revocationDate: '2026-01-01T00:00:00.000Z' })];
+  assert.equal((await store.refresh()).premium_access, false);
+});
+
+test('a store read that never answers counts as offline and keeps the grant', async () => {
+  const backend = createBackend();
+  let hang = false;
+  const store = createEntitlementStore({
+    backend, timeoutMs: 20,
+    getPurchases: () => (hang ? new Promise(() => {}) : Promise.resolve([owned()])),
+  });
+  await store.refresh();
+  hang = true;
+  const status = await store.refresh();
+  assert.equal(status.premium_access, true);
+  assert.equal(status.offline, true);
+});
