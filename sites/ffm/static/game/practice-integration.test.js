@@ -485,7 +485,11 @@ function correctAnswerContext(kind, { hearts = 5, maxHearts = 5, hp = 1 } = {}) 
     activeLightningBolts: [], activeFireballs: [], activeDragons: [],
     LightningBolt: class {}, Fireball: class {}, DragonSummon: class {},
     input: { disable() {} }, inputDisabled: false,
-    scheduleGameplayTimeout(callback, delay) { this.delays.push([callback, delay]); },
+    // The sword strike waits for the swing's contact frame (0 ms without an
+    // animator here): run it now, keep the later timers for inspection.
+    scheduleGameplayTimeout(callback, delay) {
+      if (delay === 0) callback(); else this.delays.push([callback, delay]);
+    },
     delays: [], hud: { update() {} },
     audio: {
       playCorrect() { played.correct++; }, playHeal() { played.heal++; },

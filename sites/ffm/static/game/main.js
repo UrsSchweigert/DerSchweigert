@@ -4442,12 +4442,25 @@ function handleCorrectAnswer(origin) {
       // No ability (null): normal hit resolution
       // hero.x follows the lunge, so the arc lands where the sword connects
       // rather than at the resting position it started from.
-      globalThis.ffmScreenFx?.play('heroStrike', { x: hero.x + 62, y: hero.y - 46 });
+      // The impact waits for the swing's contact frame: the blade only reaches
+      // the fiend there, and the flash, recoil and sound firing on the first
+      // windup frame read as landing before the sword did. Input stays shut
+      // meanwhile so a second answer cannot start another strike.
       hero.setState('swing');
+      input.disable();
+      inputDisabled = true;
+      const swingFrames = hero.anim?.clips?.swing?.frames ?? [];
+      const contactAt = swingFrames.findIndex((f) => f.at === 'hit');
+      const hitMs = contactAt < 0 ? 0 : swingFrames.slice(0, contactAt).reduce((sum, f) => sum + f.ms, 0);
+      // The sword sample peaks ~40 ms after it starts, so it starts that much
+      // early to put its crack on the contact frame.
+      const swordSound = !hero.strike || hero.strike === 'sword';
+      if (swordSound) scheduleGameplayTimeout(() => audio.playSwordSwing(), Math.max(0, hitMs - 30));
+      scheduleGameplayTimeout(() => {
+      globalThis.ffmScreenFx?.play('heroStrike', { x: hero.x + 62, y: hero.y - 46 });
       fiend.hit();
       globalThis.ffmFx?.fiendHurt(fiend);
-      if (!hero.strike || hero.strike === 'sword') audio.playSwordSwing();
-      else audio.playStrike(hero.strike);
+      if (!swordSound) audio.playStrike(hero.strike);
       globalThis.ffmHaptics?.impact();
       audio.playFiendHit?.(fiend.type);
 
@@ -4480,6 +4493,7 @@ function handleCorrectAnswer(origin) {
           }
         };
       }
+      }, hitMs);
     }
     hud.update(state);
   };
