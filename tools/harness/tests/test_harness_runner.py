@@ -402,6 +402,36 @@ def test_completion_evidence_does_not_let_a_successful_status_mask_a_running_che
         client.completion_evidence(7, ["test"])
 
 
+def test_completion_evidence_reads_the_head_for_a_check_skipped_on_the_merge_commit():
+    """A push to the base branch may start the workflow and skip its test job, because the pull request already tested
+    that tree. The skipped job ran nothing, so the identical-tree head answers, exactly as if it had never started."""
+    client, _ = evidence_world([("test", "skipped")], [("test", "success")])
+    proof = client.completion_evidence(7, ["test"])
+    assert proof["checks"] == [{"name": "test", "conclusion": "success", "revision": HEAD_SHA}]
+
+
+def test_completion_evidence_refuses_a_skipped_check_when_the_merged_tree_differs():
+    client, _ = evidence_world([("test", "skipped")], [("test", "success")], merge_tree=OTHER_TREE)
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+
+
+def test_completion_evidence_refuses_a_check_skipped_on_both_revisions():
+    """GitHub counts a skipped required check as passing. The harness does not: nothing ran, so nothing is proven."""
+    client, _ = evidence_world([("test", "skipped")], [("test", "skipped")])
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+
+
+def test_completion_evidence_keeps_a_non_successful_status_over_a_skipped_check_run():
+    """A skipped check run does not open the head fallback when a commit status of the same name is still pending."""
+    client, calls = evidence_world([("test", "skipped")], [("test", "success")],
+                                   merge_statuses=[{"context": "test", "state": "pending"}])
+    with pytest.raises(GitHubError, match="required checks"):
+        client.completion_evidence(7, ["test"])
+    assert not any(HEAD_SHA in "".join(args) for args in calls), "the head was consulted for a pending status"
+
+
 def test_completion_evidence_fails_closed_when_neither_revision_has_the_check():
     client, _ = evidence_world([], [])
     with pytest.raises(GitHubError, match="required checks"):
