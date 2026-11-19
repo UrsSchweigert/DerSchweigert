@@ -863,6 +863,47 @@
             content: "";
         }
 
+        .store-badge {
+            display: inline-flex;
+            margin-top: auto;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 18px 9px 14px;
+            border: 1px solid #5b6270;
+            border-radius: 11px;
+            background: #000;
+            color: #fff;
+            text-decoration: none;
+            line-height: 1.1;
+        }
+
+        .store-badge:hover {
+            background: #1c1f26;
+        }
+
+        .store-badge:focus-visible {
+            outline: 3px solid var(--blue);
+            outline-offset: 3px;
+        }
+
+        .store-badge svg {
+            width: 28px;
+            height: 28px;
+            flex: none;
+        }
+
+        .store-badge small {
+            display: block;
+            font-size: 11px;
+            letter-spacing: .02em;
+        }
+
+        .store-badge strong {
+            display: block;
+            font-size: 19px;
+            font-weight: 600;
+        }
+
         .project-reference {
             margin: 22px auto 0;
             color: var(--blue);
@@ -1546,21 +1587,27 @@
         <section class="content-section store-section" aria-labelledby="stores-title">
             <div class="section-heading">
                 <p class="eyebrow" data-i18n="storesEyebrow">Für unterwegs</p>
-                <h2 id="stores-title" data-i18n="storesTitle">Buchstabenzeit kommt auf Android &amp; iPhone.</h2>
-                <p data-i18n="storesIntro">Die Apps sind noch nicht in den Stores veröffentlicht – sie erscheinen für Google Play und den Apple App Store. Preise und direkte Store-Links ergänzen wir zum Start.</p>
+                <h2 id="stores-title" data-i18n="storesTitle">Buchstabenzeit für Android &amp; iPhone.</h2>
+                <p data-i18n="storesIntro">Die Apps gibt es für Google Play und den Apple App Store.</p>
             </div>
             <div class="store-grid">
                 <article class="store-card reveal">
                     <span class="store-icon" aria-hidden="true"><svg class="icon"><use href="#i-play" /></svg></span>
                     <h3>Google Play</h3>
                     <p data-i18n="playDescription">Die Android-App bringt eure Lesekarten und den lokalen Lernfortschritt aufs Smartphone oder Tablet.</p>
-                    <span class="store-status" data-i18n="storeComing">Store-Link folgt</span>
+                    <a class="store-badge" href="https://play.google.com/store/apps/details?id=de.derschweigert.buchstabenzeit" rel="noopener" data-i18n-aria="playBadgeLabel" aria-label="Buchstabenzeit bei Google Play herunterladen">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="#00d2ff" d="M3.6 2.4 13.2 12 3.6 21.6a1.6 1.6 0 0 1-.6-1.3V3.7c0-.5.2-1 .6-1.3z"/><path fill="#00f076" d="m16.4 8.8-3.2 3.2L3.6 2.4c.5-.3 1.1-.3 1.7 0z"/><path fill="#ff3a44" d="m16.4 15.2-11.1 6.4c-.6.3-1.2.3-1.7 0l9.6-9.6z"/><path fill="#ffd400" d="m20.4 10.7-4 2.3-3.2-1 3.2-3.2 4 2.3c.8.5.8 1.1 0 1.6z" transform="translate(0 0.5)"/></svg>
+                        <span><small data-i18n="badgeGetItOn">Jetzt bei</small><strong>Google Play</strong></span>
+                    </a>
                 </article>
                 <article class="store-card reveal">
                     <span class="store-icon" aria-hidden="true"><svg class="icon"><use href="#i-phone" /></svg></span>
                     <h3>Apple App Store</h3>
                     <p data-i18n="appStoreDescription">Die iPhone- und iPad-App bietet dieselben begleiteten Leseübungen – ohne Abo und ohne Benutzerkonto.</p>
-                    <span class="store-status" data-i18n="storeComing">Store-Link folgt</span>
+                    <a class="store-badge" href="https://apps.apple.com/de/app/time-for-letters/id6831006870" rel="noopener" data-i18n-aria="appStoreBadgeLabel" aria-label="Buchstabenzeit im App Store laden">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="#fff"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.8-3.5.8s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.600 2.800-.4 6.900 1.2 9.2.8 1.100 1.700 2.3 2.900 2.3 1.2 0 1.600-.7 3-.7s1.800.7 3 .7c1.300 0 2.100-1.100 2.800-2.200.9-1.300 1.300-2.500 1.300-2.600-.1 0-2.500-1-2.500-3.700zM14.200 5.800c.6-.8 1.100-1.800.9-2.800-.9 0-2 .6-2.600 1.400-.6.700-1.100 1.700-.9 2.700 1 .1 2-.5 2.600-1.300z"/></svg>
+                        <span><small data-i18n="badgeDownloadOn">Laden im</small><strong>App Store</strong></span>
+                    </a>
                 </article>
             </div>
             <p class="project-reference"><a href="https://derschweigert.de/#projects" data-i18n="projectReference">Buchstabenzeit auf DerSchweigert ansehen</a></p>
@@ -1572,9 +1619,9 @@
                     alt="" aria-hidden="true">
                 <div class="cta-copy">
                     <h2 data-i18n="closingTitle">Gemeinsam wachsen – Karte für Karte.</h2>
-                    <p data-i18n="closingText">Buchstabenzeit erscheint für Android und iPhone. Wir schreiben eine kurze Nachricht, sobald es losgeht.</p>
-                    <a class="button" href="mailto:info@derschweigert.de?subject=Buchstabenzeit%3A%20Info%20zum%20Start">
-                        <span data-i18n="closingButton">Beim Start informiert werden</span>
+                    <p data-i18n="closingText">Buchstabenzeit gibt es für Android und iPhone. Bei Fragen schreibt uns gern.</p>
+                    <a class="button" href="mailto:info@derschweigert.de?subject=Buchstabenzeit">
+                        <span data-i18n="closingButton">Kontakt aufnehmen</span>
                         <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
                     </a>
                 </div>
@@ -1601,7 +1648,7 @@
     </footer>
 
     <div class="mobile-cta" id="mobile-cta">
-        <span data-i18n="mobileCtaNote">Bald im Store</span>
+        <span data-i18n="mobileCtaNote">Jetzt im Store</span>
         <a class="button" href="#stores-title">
             <span data-i18n="mobileCta">Zu den Apps</span>
             <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>

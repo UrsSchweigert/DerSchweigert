@@ -15,13 +15,9 @@ test('marketing page describes the guided reading app and its audience', () => {
 });
 
 test('marketing page focuses on the apps without promoting a browser version', () => {
-  assert.match(page, /noch nicht in den Stores veröffentlicht/i);
-  assert.match(page, /Store-Link folgt/);
   assert.doesNotMatch(page, /Browser|browser/);
   assert.doesNotMatch(page, /kostenlos|kostenfreie/i);
   assert.doesNotMatch(page, /https:\/\/lesen\.derschweigert\.de\/(?!datenschutz\.html)/);
-  assert.doesNotMatch(page, /play\.google\.com\/store\/apps\/details/);
-  assert.doesNotMatch(page, /apps\.apple\.com\/[^"]+\/app\//);
 });
 
 test('marketing page links the official privacy, terms, imprint and contact pages', () => {
@@ -118,4 +114,12 @@ test('marketing closing call to action pairs the copy with decorative artwork', 
     assert.ok(image.length > 0, `Missing marketing asset: ${asset}`);
     assert.ok(image.length < 200_000, `Marketing asset too heavy: ${asset}`);
   }
+});
+
+test('marketing page links both store listings with badges', () => {
+  assert.match(page, /href="https:\/\/play\.google\.com\/store\/apps\/details\?id=de\.derschweigert\.buchstabenzeit"/);
+  assert.match(page, /href="https:\/\/apps\.apple\.com\/de\/app\/time-for-letters\/id6831006870"/);
+  assert.equal((page.match(/class="store-badge"/g) || []).length, 2);
+  assert.doesNotMatch(page, /Store-Link folgt|noch nicht in den Stores/);
+  assert.match(language, /playBadgeLabel/);
 });
