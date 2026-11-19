@@ -770,10 +770,10 @@ test('promo copy uses the game\'s own names and current facts', () => {
   // Campaign II is independent of Campaign I (owner decision after #586): no level-40 gate,
   // no full unlock needed in the app, and the web switch is in the profile.
   assert.doesNotMatch(DICTIONARY['faq.a8'].de + DICTIONARY['faq.a8'].en, /Level 40|level 40|Startbildschirm|title screen/);
-  assert.match(DICTIONARY['faq.a8'].en, /does not need the full unlock/);
-  assert.match(DICTIONARY['faq.a8'].de, /die Vollversion nicht voraussetzt/);
+  assert.match(DICTIONARY['faq.a8'].en, /need neither own nor have played Campaign I/);
+  assert.match(DICTIONARY['faq.a8'].de, /Abenteuer I weder besitzen noch gespielt/);
   assert.match(DICTIONARY['faq.a8'].en, /in your profile on the web/);
-  assert.match(DICTIONARY['prices.compare.r10app'].en, /no full unlock needed/);
+  assert.match(DICTIONARY['prices.compare.r10app'].en, /Campaign I not needed/);
 });
 
 // Campaign II gets its own section, built from the game's own curriculum so the page cannot
@@ -843,4 +843,21 @@ test('the price grid offers Campaign II as its own card', () => {
     assert.match(DICTIONARY['prices.c2.note'][locale], /(Abo|subscription)/);
     assert.match(DICTIONARY['prices.c2.f3'][locale], /(Web-Abo|web subscription)/);
   }
+});
+
+// Both campaigns are separate in-app purchases (owner, 2026-11-19): Campaign I EUR 2.99 and
+// Campaign II EUR 1.99 in Germany, and Campaign II needs no Campaign I.
+test('prices: Campaign I 2,99 EUR and Campaign II 1,99 EUR, each its own purchase', () => {
+  assert.equal(DICTIONARY['prices.app.price'].de, '2,99 EUR');
+  assert.equal(DICTIONARY['prices.c2.price'].de, '1,99 EUR');
+  assert.equal(DICTIONARY['prices.c2.price'].en, 'EUR 1.99');
+  for (const locale of SUPPORTED_LOCALES) {
+    const campaign1 = `${gameT('campaign.switch.eyebrow1')}: ${gameT('campaign.switch.title1')}`;
+    setGameLocale(locale, { persist: false });
+    assert.equal(DICTIONARY['prices.app.name'][locale], `${gameT('campaign.switch.eyebrow1')}: ${gameT('campaign.switch.title1')}`, `${locale} app card is ${campaign1}`);
+    assert.match(DICTIONARY['prices.compare.r2app'][locale], /2[.,]99.*1[.,]99/);
+    assert.match(DICTIONARY['prices.c2.note'][locale], /(Abenteuer I ist nicht nötig|Campaign I is not needed)/);
+    assert.match(DICTIONARY['prices.app.f1'][locale], /1–2/, 'the free levels belong to Campaign I');
+  }
+  assert.doesNotMatch(DICTIONARY['prices.c2.period'].de, /Store/, 'the price is stated, not deferred to the store');
 });

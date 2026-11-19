@@ -330,15 +330,15 @@ export const DICTIONARY = {
   },
   'genie.f3.title': { de: 'Unabhängig vom ersten Abenteuer', en: 'Independent of the first campaign' },
   'genie.f3.text': {
-    de: 'Du brauchst weder ein geschafftes Level noch die Vollversion: Abenteuer II ist sofort spielbar und wechselt auf der Spieler-Seite der App, im Web im Profil.',
-    en: 'You need no cleared level and no full unlock: Campaign II is playable straight away, and you switch on the app\'s Players page, or in your profile on the web.',
+    de: 'Du musst Abenteuer I weder besitzen noch gespielt haben: Abenteuer II ist sofort spielbar und wechselt auf der Spieler-Seite der App, im Web im Profil.',
+    en: 'You need neither own nor have played Campaign I: Campaign II is playable straight away, and you switch on the app\'s Players page, or in your profile on the web.',
   },
 
   'prices.kicker': { de: 'Preise', en: 'Pricing' },
   'prices.title': { de: 'Ein Modell für jeden Weg', en: 'A model for every route' },
   'prices.lead': {
-    de: 'Im Browser abonnierst du, in der App kaufst du einmal. Beide Wege starten mit Level 1–2 gratis.',
-    en: 'On the web you subscribe, in the app you buy once. Both start with levels 1–2 for free.',
+    de: 'Im Browser abonnierst du, in der App kaufst du jedes Abenteuer einzeln und einmalig. Abenteuer I startet mit Level 1–2 gratis.',
+    en: 'On the web you subscribe, in the app you buy each campaign separately, once. Campaign I starts with levels 1–2 for free.',
   },
   'prices.web.tag': { de: 'Im Browser', en: 'In the browser' },
   'prices.web.name': { de: 'Web-Abo', en: 'Web subscription' },
@@ -357,7 +357,10 @@ export const DICTIONARY = {
   'prices.web.f4': { de: 'Jederzeit kündbar', en: 'Cancel anytime' },
   'prices.web.cta': { de: 'Im Browser spielen', en: 'Play in the browser' },
   'prices.app.tag': { de: 'Empfohlen', en: 'Recommended' },
-  'prices.app.name': { de: 'App-Einmalkauf', en: 'App one-time purchase' },
+  'prices.app.name': {
+    de: 'Abenteuer I: Rechnen',
+    en: 'Campaign I: Arithmetic',
+  },
   'prices.app.price': { de: '2,99 EUR', en: 'EUR 2.99' },
   'prices.app.period': { de: 'einmalig', en: 'one-time' },
   'prices.app.note': {
@@ -365,8 +368,8 @@ export const DICTIONARY = {
     en: 'Unlocked with one payment · no subscription, no renewal',
   },
   'prices.app.f1': {
-    de: 'Einmal zahlen und Level 3–60, alle Heldenfarben und weitere Spieler freischalten',
-    en: 'Pay once and unlock levels 3–60, all hero themes and more players',
+    de: 'Level 1–2 gratis zum Ausprobieren, dann einmal zahlen und Level 3–60, alle Heldenfarben und weitere Spieler freischalten',
+    en: 'Levels 1–2 free to try, then pay once to unlock levels 3–60, all hero themes and more players',
   },
   'prices.app.f2': { de: 'Kein Konto nötig', en: 'No account required' },
   'prices.app.f3': {
@@ -376,16 +379,28 @@ export const DICTIONARY = {
   'prices.app.f4': { de: 'Kauf gilt geräteweit – für alle Profile auf dem Gerät', en: 'Device-wide – covers every profile on the device' },
   'prices.app.iosBadge': { de: 'Jetzt im App Store', en: 'Now on the App Store' },
   'prices.app.androidBadge': { de: 'Bald bei Google Play', en: 'Coming soon to Google Play' },
-  'prices.c2.tag': { de: 'Zusatz in der App', en: 'Add-on in the app' },
+  'prices.c2.tag': {
+    de: 'Auch in der App',
+    en: 'Also in the app',
+  },
   'prices.c2.name': { de: 'Abenteuer II: Genie', en: 'Campaign II: Genius' },
-  'prices.c2.price': { de: 'Einmalkauf', en: 'One-time' },
-  'prices.c2.period': { de: 'Preis laut Store', en: 'price as shown in the store' },
+  'prices.c2.price': {
+    de: '1,99 EUR',
+    en: 'EUR 1.99',
+  },
+  'prices.c2.period': {
+    de: 'einmalig',
+    en: 'one-time',
+  },
   'prices.c2.note': {
-    de: 'Einmalig freigeschaltet · kein Abo · die Vollversion ist nicht nötig',
-    en: 'Unlocked once · no subscription · the full unlock is not needed',
+    de: 'Einmalig freigeschaltet · kein Abo · Abenteuer I ist nicht nötig',
+    en: 'Unlocked once · no subscription · Campaign I is not needed',
   },
   'prices.c2.f1': { de: '40 Level mit Brüchen, Potenzen, Wurzeln und Logarithmen', en: '40 levels of fractions, powers, roots and logarithms' },
-  'prices.c2.f2': { de: 'Sofort spielbar, ohne vorher ein Level zu schaffen', en: 'Playable straight away, with no level to clear first' },
+  'prices.c2.f2': {
+    de: 'Sofort spielbar: Abenteuer I musst du weder besitzen noch gespielt haben',
+    en: 'Playable straight away: you need neither own nor have played Campaign I',
+  },
   'prices.c2.f3': { de: 'Im Web-Abo ist Abenteuer II schon enthalten', en: 'In the web subscription Campaign II is already included' },
   'prices.c2.cta': { de: 'Mehr zu Abenteuer II', en: 'More about Campaign II' },
   'prices.app.cta': { de: 'Mehr zur Familien-App', en: 'More about the family app' },
@@ -402,7 +417,10 @@ export const DICTIONARY = {
   'prices.compare.r1app': { de: 'Einmalkauf', en: 'One-time purchase' },
   'prices.compare.row2': { de: 'Abrechnung', en: 'Billing' },
   'prices.compare.r2web': { de: '1,99 EUR alle 3 Monate', en: 'EUR 1.99 every 3 months' },
-  'prices.compare.r2app': { de: '2,99 EUR einmalig', en: 'EUR 2.99 once' },
+  'prices.compare.r2app': {
+    de: 'Abenteuer I: 2,99 EUR · Abenteuer II: 1,99 EUR, je einmalig',
+    en: 'Campaign I: EUR 2.99 · Campaign II: EUR 1.99, each once',
+  },
   'prices.compare.row3': { de: 'Konto nötig', en: 'Account needed' },
   'prices.compare.r3web': { de: 'Ja, für Premium', en: 'Yes, for premium' },
   'prices.compare.r3app': { de: 'Nein', en: 'No' },
@@ -417,19 +435,25 @@ export const DICTIONARY = {
   'prices.compare.r6app': { de: 'Ja, lokale Profile', en: 'Yes, local profiles' },
   'prices.compare.row7': { de: 'Alle 60 Level', en: 'All 60 levels' },
   'prices.compare.r7web': { de: 'Ja, mit Premium', en: 'Yes, with premium' },
-  'prices.compare.r7app': { de: 'Ja, mit dem Einmalkauf', en: 'Yes, with the one-time purchase' },
+  'prices.compare.r7app': {
+    de: 'Ja, mit Abenteuer I',
+    en: 'Yes, with Campaign I',
+  },
   'prices.compare.row9': { de: 'Bestenliste', en: 'Leaderboard' },
   'prices.compare.r9web': { de: 'Ja', en: 'Yes' },
   'prices.compare.r9app': { de: 'Nein, in der App ausgeblendet', en: 'No, hidden in the app' },
   'prices.compare.row10': { de: 'Abenteuer II: Genie', en: 'Campaign II: Genius' },
   'prices.compare.r10web': { de: 'Ja, im Abo enthalten', en: 'Yes, included in the subscription' },
-  'prices.compare.r10app': { de: 'Eigener Einmalkauf, auch ohne Vollversion', en: 'Separate one-time purchase, no full unlock needed' },
+  'prices.compare.r10app': {
+    de: 'Eigener Einmalkauf, Abenteuer I nicht nötig',
+    en: 'Separate one-time purchase, Campaign I not needed',
+  },
   'prices.compare.row8': { de: 'Kündigung', en: 'Cancellation' },
   'prices.compare.r8web': { de: 'Jederzeit im Konto', en: 'Anytime in your account' },
   'prices.compare.r8app': { de: 'Nicht nötig – kein Abo', en: 'Not needed – no subscription' },
   'prices.footnote': {
-    de: 'Alle Preise inklusive Steuern. Der App-Preis ist der geplante Preis; im Store gilt der jeweils lokale Preis. Abenteuer II: Genie ist in der App ein eigener Einmalkauf zum Preis, den der Store zeigt. Die iPhone-App gibt es im App Store, die Android-App folgt bei Google Play.',
-    en: 'All prices include taxes. The app price is the planned price; the store shows the local price. In the app, Campaign II: Genius is a separate one-time purchase at the price the store shows. The iPhone app is on the App Store; the Android app follows on Google Play.',
+    de: 'Alle Preise inklusive Steuern, hier die Preise in Deutschland; im Store gilt der jeweils lokale Preis. Abenteuer I und Abenteuer II: Genie sind in der App zwei getrennte Einmalkäufe, und Genie braucht Abenteuer I nicht. Die iPhone-App gibt es im App Store, die Android-App folgt bei Google Play.',
+    en: 'All prices include taxes and are the prices in Germany; the store shows the local price. In the app, Campaign I and Campaign II: Genius are two separate one-time purchases, and Genius does not need Campaign I. The iPhone app is on the App Store; the Android app follows on Google Play.',
   },
 
   // Familie
@@ -471,8 +495,8 @@ export const DICTIONARY = {
   },
   'faq.q2': { de: 'Was bekomme ich mit dem Einmalkauf?', en: 'What does the one-time purchase include?' },
   'faq.a2': {
-    de: 'Für 2,99 EUR einmalig schaltest du in der App Level 3–60, alle Heldenfarben und weitere Spieler frei – ohne Abo. Der Kauf gilt geräteweit für alle Profile auf diesem Gerät; bei einer Erstattung entfällt der Zugang.',
-    en: 'For a one-time EUR 2.99 you unlock levels 3–60, all hero themes and more players in the app – no subscription. The purchase is device-wide and covers every profile on that device; a refund ends the entitlement.',
+    de: 'Für 2,99 EUR einmalig schaltest du in der App Abenteuer I frei: Level 3–60, alle Heldenfarben und weitere Spieler – ohne Abo. Der Kauf gilt geräteweit für alle Profile auf diesem Gerät; bei einer Erstattung entfällt der Zugang. Abenteuer II: Genie ist ein eigener Einmalkauf für 1,99 EUR.',
+    en: 'For a one-time EUR 2.99 you unlock Campaign I in the app: levels 3–60, all hero themes and more players – no subscription. The purchase is device-wide and covers every profile on that device; a refund ends the entitlement. Campaign II: Genius is its own one-time purchase for EUR 1.99.',
   },
   'faq.q3': { de: 'Muss ich zahlen, um es auszuprobieren?', en: 'Do I have to pay to try it?' },
   'faq.a3': {
@@ -494,8 +518,8 @@ export const DICTIONARY = {
   'faq.q7': { de: 'Brauchen Kinder in der App ein Konto?', en: 'Do kids need an account in the app?' },
   'faq.q8': { de: 'Was ist Abenteuer II: Genie?', en: 'What is Campaign II: Genius?' },
   'faq.a8': {
-    de: 'Das zweite Abenteuer: 40 Level mit Brüchen, Potenzen, Wurzeln und Logarithmen, mit vier Antworten pro Aufgabe und mehr Zeit. Es hängt nicht vom ersten ab und ist sofort spielbar, ohne vorher ein Level zu schaffen. Im Web-Abo ist es enthalten; in der App ist es ein eigener Einmalkauf, der die Vollversion nicht voraussetzt. Gewechselt wird auf der Spieler-Seite der App, im Web im Profil.',
-    en: 'The second campaign: 40 levels of fractions, powers, roots and logarithms, with four answers per question and more time. It does not depend on the first one and can be played straight away, with no level to clear first. It is included in the web subscription; in the app it is a separate one-time purchase that does not need the full unlock. You switch campaigns on the app\'s Players page, or in your profile on the web.',
+    de: 'Das zweite Abenteuer: 40 Level mit Brüchen, Potenzen, Wurzeln und Logarithmen, mit vier Antworten pro Aufgabe und mehr Zeit. Es hängt nicht vom ersten ab: Du musst Abenteuer I weder besitzen noch gespielt haben. Im Web-Abo ist es enthalten; in der App ist es ein eigener Einmalkauf für 1,99 EUR in Deutschland. Gewechselt wird auf der Spieler-Seite der App, im Web im Profil.',
+    en: 'The second campaign: 40 levels of fractions, powers, roots and logarithms, with four answers per question and more time. It does not depend on the first one: you need neither own nor have played Campaign I. It is included in the web subscription; in the app it is a separate one-time purchase for EUR 1.99 in Germany. You switch campaigns on the app\'s Players page, or in your profile on the web.',
   },
   'faq.a7': { de: 'Nein. In der App legst du lokale Profile an – ohne E-Mail-Adresse und ohne Passwort.', en: 'No. In the app you create local profiles – no email address, no password.' },
 
