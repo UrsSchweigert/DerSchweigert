@@ -2478,7 +2478,7 @@ ul {
 
 /* Campaign II (#genie): the ancient dragon flanks the campaign's name like the game's switch
    picture, then the eight five-level acts as a grid with one worked example each. */
-.genie-emblem {
+.camp-emblem {
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -2486,13 +2486,13 @@ ul {
   margin: clamp(18px, 3vw, 32px) auto;
 }
 
-.genie-emblem img {
+.camp-emblem img {
   height: clamp(110px, 18vw, 190px);
   width: auto;
   filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.55));
 }
 
-.genie-emblem-text {
+.camp-emblem-text {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2500,7 +2500,7 @@ ul {
   text-align: center;
 }
 
-.genie-emblem-eyebrow {
+.camp-emblem-eyebrow {
   font-family: var(--mono);
   font-size: 0.78rem;
   letter-spacing: 0.18em;
@@ -2508,7 +2508,7 @@ ul {
   color: var(--brass-light);
 }
 
-.genie-emblem-title {
+.camp-emblem-title {
   font-family: var(--mono);
   font-size: clamp(2rem, 5vw, 3.4rem);
   font-weight: 700;
@@ -2517,7 +2517,7 @@ ul {
   color: var(--ivory);
 }
 
-.genie-topics {
+.camp-topics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 12px;
@@ -2526,7 +2526,11 @@ ul {
   list-style: none;
 }
 
-.genie-topic {
+.camp-topics--six {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.camp-topic {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2536,7 +2540,7 @@ ul {
   background: var(--panel);
 }
 
-.genie-topic-levels {
+.camp-topic-levels {
   font-family: var(--mono);
   font-size: 0.72rem;
   letter-spacing: 0.1em;
@@ -2544,13 +2548,19 @@ ul {
   color: var(--brass-light);
 }
 
-.genie-topic-name {
+.camp-topic-name {
   font-family: var(--serif);
   font-size: 1.05rem;
   color: var(--ivory);
 }
 
-.genie-topic-ex {
+.camp-topic-text {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ivory-muted);
+}
+
+.camp-topic-ex {
   font-family: var(--mono);
   font-size: 0.9rem;
   color: var(--ivory-muted);
