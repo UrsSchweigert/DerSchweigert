@@ -1,0 +1,107 @@
+# Proposal: the owner copies this file to .github/workflows/tagwerk.yml (see docs/owner-setup.md).
+name: 'Tagwerk: test'
+
+on:
+  pull_request:
+    branches: [main, 'harness/run/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    # Cheap Linux job: the macOS job bills at ten times the Linux rate, so it runs only when apps/tagwerk changed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tagwerk: ${{ steps.diff.outputs.tagwerk }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if git diff --name-only "$BASE" "$HEAD" | grep -q '^apps/tagwerk/'; then
+            echo "tagwerk=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagwerk=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  macos:
+    needs: changes
+    if: needs.changes.outputs.tagwerk == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/tagwerk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: xcodebuild -version
+      - name: No downloaded dependencies
+        run: sh scripts/check-no-third-party.sh .
+      - name: Core tests
+        run: swift test --package-path Core
+      - name: Build every Apple package scheme for iOS Simulator and macOS
+        run: |
+          set -euo pipefail
+          [ -d Apple ] || { echo "apps/tagwerk/Apple does not exist yet"; exit 0; }
+          cd Apple
+          schemes=$(xcodebuild -list -json | python3 -c 'import json,sys; print("\n".join(json.load(sys.stdin)["workspace"]["schemes"]))')
+          while IFS= read -r scheme; do
+            [ -n "$scheme" ] || continue
+            for dest in 'generic/platform=iOS Simulator' 'generic/platform=macOS'; do
+              xcodebuild -scheme "$scheme" -destination "$dest" \
+                -derivedDataPath "$RUNNER_TEMP/tagwerk-derived" \
+                CODE_SIGNING_ALLOWED=NO build
+            done
+          done <<< "$schemes"
+      - name: Apple package tests on a simulator
+        run: |
+          set -euo pipefail
+          [ -d Apple ] || exit 0
+          cd Apple
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k,v in d.items() if "iOS" in k for x in v if "iPhone" in x["name"]))')
+          xcodebuild -scheme "$(xcodebuild -list -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["workspace"]["name"])')" \
+            -destination "id=$device" -derivedDataPath "$RUNNER_TEMP/tagwerk-derived" \
+            CODE_SIGNING_ALLOWED=NO test
+      - name: Build the Xcode project once it exists
+        run: |
+          set -euo pipefail
+          project=$(find App -maxdepth 2 -name '*.xcodeproj' | head -n 1)
+          [ -n "$project" ] || { echo "no Xcode project yet"; exit 0; }
+          xcodebuild -project "$project" -scheme App \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/tagwerk-derived" \
+            CODE_SIGNING_ALLOWED=NO build
+
+  test-tagwerk:
+    # Always reports, so it can be a required check on pull requests that do not touch apps/tagwerk.
+    needs: [changes, macos]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a passing or deliberately skipped macOS job
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CHANGED: ${{ needs.changes.outputs.tagwerk }}
+          MACOS: ${{ needs.macos.result }}
+        run: |
+          set -euo pipefail
+          if [ "$CHANGES" != success ]; then
+            echo "::error::change detection did not succeed ($CHANGES)"
+            exit 1
+          fi
+          if [ "$CHANGED" = true ] && [ "$MACOS" != success ]; then
+            echo "::error::the macOS job did not pass ($MACOS)"
+            exit 1
+          fi
+          echo "Tagwerk checks passed (changed=$CHANGED, macos=$MACOS)."
