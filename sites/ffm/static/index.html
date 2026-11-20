@@ -578,5 +578,11 @@
       .catch(err => console.warn('[visit] ' + (err.message || err)));
   </script>
   <script type="module" src="game/main.js"></script>
+  <!-- app-omit:start -->
+  <!-- Web only (the apps must not phone home): Umami Cloud visitor statistics. It sits after
+       phone-frame.js on purpose: the frame host stops parsing there, so a desktop visit counts
+       once (inside the frame), not twice. -->
+  <script defer src="https://cloud.umami.is/script.js" data-website-id="6421f0d0-8671-4335-a944-ecffb8af86bd" data-domains="arithmoslayer.de,www.arithmoslayer.de"></script>
+  <!-- app-omit:end -->
 </body>
 </html>

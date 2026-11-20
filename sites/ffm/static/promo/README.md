@@ -115,7 +115,9 @@ The one exception is the Umami Cloud script (cookie-free visitor statistics, the
 website id is public by design). Its origins are in the CSP in
 `infra/terraform/sites/ffm{,-dev}/main.tf` (`script-src` cloud.umami.is,
 `connect-src` gateway.umami.is); change the tag and the CSP together or the
-browser blocks it silently. `data-domains` keeps dev and localhost out of the stats.
+browser blocks it silently. `data-domains` keeps dev and localhost out of the stats. The same tag is on `/beta` and on the
+game shell `static/index.html` (inside `app-omit`, so the apps never carry it, and after
+`phone-frame.js` so a framed desktop visit counts once).
 
 ## Locale handling
 

@@ -290,10 +290,12 @@ test('the form script targets the real endpoint and handles every failure class'
 
 // --- CSP / scripting ----------------------------------------------------
 
-test('exactly one script tag, external, and no inline handlers or javascript: URLs', () => {
+test('two external script tags (beta.js, Umami), and no inline handlers or javascript: URLs', () => {
   const scriptTags = html.match(/<script\b[^>]*>/gi) || [];
-  assert.equal(scriptTags.length, 1, 'the page must ship exactly one <script> tag');
-  assert.match(scriptTags[0], /\bsrc="\/beta\/beta\.js"/, 'the single script must load /beta/beta.js');
+  assert.equal(scriptTags.length, 2, 'the page must ship exactly two <script> tags: beta.js and Umami');
+  assert.match(scriptTags[0], /\bsrc="\/beta\/beta\.js"/, 'the first script must load /beta/beta.js');
+  assert.match(scriptTags[1], /\bsrc="https:\/\/cloud\.umami\.is\/script\.js"[^>]*\bdata-domains="arithmoslayer\.de,www\.arithmoslayer\.de"/,
+    'the second script is Umami, limited to the live domains');
   assert.match(scriptTags[0], /\btype="module"/, 'beta.js is an ES module and must load as one');
 
   assert.deepEqual(html.match(/<script(?![^>]*\bsrc=)[^>]*>/gi) || [], [], 'no inline <script> blocks allowed');
@@ -310,7 +312,7 @@ test('every reference is root-absolute, allow-listed or an anchor', () => {
   for (const match of html.matchAll(/\b(?:src|href)="([^"]+)"/g)) urls.add(match[1]);
   for (const match of css.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) urls.add(match[1]);
 
-  const allowList = [APP_STORE];
+  const allowList = [APP_STORE, 'https://cloud.umami.is/script.js'];
   const allowedAbsolute = /^https:\/\/arithmoslayer\.de\//;
   const bad = [];
   for (const url of urls) {
