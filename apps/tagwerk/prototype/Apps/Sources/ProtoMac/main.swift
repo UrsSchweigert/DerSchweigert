@@ -1,7 +1,8 @@
 import AppKit
 import ProtoKit
 
-/// Menu-bar app. Pass `--checkin-after <minutes>` to show a check-in after that delay.
+/// Menu-bar app. Pass `--checkin-after <minutes>` to show a check-in after that delay and again every time it
+/// passes, so a working day gets regular check-ins without the menu.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let log = ProtoLog()
     var peripheral: Peripheral!
@@ -25,8 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         let args = CommandLine.arguments
-        if let i = args.firstIndex(of: "--checkin-after"), i + 1 < args.count, let minutes = Double(args[i + 1]) {
-            Timer.scheduledTimer(withTimeInterval: minutes * 60, repeats: false) { [weak self] _ in self?.checkin.show() }
+        if let i = args.firstIndex(of: "--checkin-after"), i + 1 < args.count, let minutes = Double(args[i + 1]),
+           minutes > 0 {
+            Timer.scheduledTimer(withTimeInterval: minutes * 60, repeats: true) { [weak self] _ in self?.checkin.show() }
         }
     }
 

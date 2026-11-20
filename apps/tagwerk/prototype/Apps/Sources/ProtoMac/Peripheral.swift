@@ -13,11 +13,16 @@ final class Peripheral: NSObject, CBPeripheralManagerDelegate {
                                                  value: nil, permissions: [.readable])
     private let inbox = CBMutableCharacteristic(type: CBUUID(string: ProtoWire.phoneToComputerUUID),
                                                 properties: [.write], value: nil, permissions: [.writeable])
+    /// Centrals subscribed to the ping characteristic: the ones a ping reaches.
     private var subscribers = Set<UUID>()
+    private var serviceAdded = false
     private var seq: UInt32 = 0
     private var sentAt: [Int: Date] = [:]
+    /// Event messages the stack refused because its queue was full; sent again when it is ready. Pings are not
+    /// queued: a late ping would carry a stale time, so a refused ping stays a gap.
+    private var pendingEvents: [Data] = []
     private var timer: Timer?
-    /// Called on the main thread for every message the phone writes, after it has been logged.
+    /// Called on the main thread for every message the phone writes.
     var onMessage: ((ProtoWire.Message) -> Void)?
 
     init(log: ProtoLog, pingInterval: TimeInterval = 60) {
@@ -28,51 +33,92 @@ final class Peripheral: NSObject, CBPeripheralManagerDelegate {
     }
 
     func send(_ message: ProtoWire.Message) {
-        manager.updateValue(Data(message.text.utf8), for: events, onSubscribedCentrals: nil)
+        pendingEvents.append(Data(message.text.utf8))
+        flushEvents()
+    }
+
+    private func flushEvents() {
+        while let data = pendingEvents.first, manager.updateValue(data, for: events, onSubscribedCentrals: nil) {
+            pendingEvents.removeFirst()
+        }
+    }
+
+    /// Seconds since the last keyboard, mouse or trackpad input of any kind.
+    static func idleSeconds() -> Double {
+        guard let any = CGEventType(rawValue: ~0) else { return 0 }
+        return CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: any)
     }
 
     private func sendPing() {
+        guard serviceAdded else { return }
         let now = Date()
-        // Seconds since the last keyboard or mouse input, whichever is newer.
-        let idle = min(CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown),
-                       CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .mouseMoved))
         seq += 1
-        let frame = PingFrame(seq: seq, senderMs: UInt64(now.timeIntervalSince1970 * 1000), idleSeconds: UInt32(max(0, idle)))
-        sentAt[Int(seq)] = now
-        _ = manager.updateValue(frame.encoded(), for: ping, onSubscribedCentrals: nil)
-        log.log(.pingSent(seq: Int(seq), senderMs: Int64(frame.senderMs)))
-        log.log(.marker(label: "ping_sent seq=\(seq) subscribers=\(subscribers.count)"))
+        let frame = PingFrame(seq: seq, senderMs: UInt64(now.timeIntervalSince1970 * 1000),
+                              idleSeconds: UInt32(min(Double(UInt32.max), max(0, Self.idleSeconds()))))
+        let queued = manager.updateValue(frame.encoded(), for: ping, onSubscribedCentrals: nil)
+        if queued { sentAt[Int(seq)] = now }
+        log.log(.pingSent(seq: Int(seq), senderMs: Int64(frame.senderMs), subscribers: subscribers.count, queued: queued))
     }
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        log.log(.bluetoothState(state: String(describing: peripheral.state.rawValue)))
-        guard peripheral.state == .poweredOn else { return }
+        log.log(.bluetoothState(state: Self.name(peripheral.state)))
+        guard peripheral.state == .poweredOn else {
+            // Bluetooth off or reset drops the service and every subscription.
+            serviceAdded = false
+            subscribers.removeAll()
+            return
+        }
+        peripheral.removeAllServices()
         let service = CBMutableService(type: CBUUID(string: ProtoWire.serviceUUID), primary: true)
         service.characteristics = [ping, inbox, events]
         peripheral.add(service)
+    }
+
+    func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
+        if let error = error {
+            log.log(.marker(label: "service_add_failed \(error.localizedDescription)"))
+            return
+        }
+        serviceAdded = true
         peripheral.startAdvertising([CBAdvertisementDataServiceUUIDsKey: [service.uuid]])
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral,
                            didSubscribeTo characteristic: CBCharacteristic) {
-        subscribers.insert(central.identifier)
-        log.log(.marker(label: "subscribe \(characteristic.uuid.uuidString) subscribers=\(subscribers.count)"))
+        if characteristic.uuid == ping.uuid { subscribers.insert(central.identifier) }
+        log.log(.subscribe(characteristic: characteristic.uuid.uuidString, subscribers: subscribers.count))
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral,
                            didUnsubscribeFrom characteristic: CBCharacteristic) {
-        subscribers.remove(central.identifier)
-        log.log(.marker(label: "unsubscribe \(characteristic.uuid.uuidString) subscribers=\(subscribers.count)"))
+        if characteristic.uuid == ping.uuid { subscribers.remove(central.identifier) }
+        log.log(.unsubscribe(characteristic: characteristic.uuid.uuidString, subscribers: subscribers.count))
     }
+
+    func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) { flushEvents() }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
         for request in requests {
             guard let data = request.value, let message = ProtoWire.Message.parse(data) else { continue }
-            if case let .ack(seq) = message, let sent = sentAt.removeValue(forKey: seq) {
-                log.log(.marker(label: "ack seq=\(seq) rtt_ms=\(Int(Date().timeIntervalSince(sent) * 1000))"))
+            if case let .ack(seq) = message {
+                let rtt = sentAt.removeValue(forKey: seq).map { Date().timeIntervalSince($0) * 1000 }
+                log.log(.ack(seq: seq, rttMs: rtt))
             }
             onMessage?(message)
-            peripheral.respond(to: request, withResult: .success)
+        }
+        // Core Bluetooth expects one response per batch, given with the first request.
+        if let first = requests.first { peripheral.respond(to: first, withResult: .success) }
+    }
+
+    private static func name(_ state: CBManagerState) -> String {
+        switch state {
+        case .poweredOn: return "poweredOn"
+        case .poweredOff: return "poweredOff"
+        case .resetting: return "resetting"
+        case .unauthorized: return "unauthorized"
+        case .unsupported: return "unsupported"
+        case .unknown: return "unknown"
+        @unknown default: return "raw\(state.rawValue)"
         }
     }
 }

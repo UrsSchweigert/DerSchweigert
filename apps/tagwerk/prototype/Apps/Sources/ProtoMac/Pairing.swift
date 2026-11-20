@@ -6,13 +6,18 @@ import ProtoKit
 final class Pairing {
     private let log: ProtoLog
     private var window: NSWindow?
+    private var shownAt: Date?
     let code = String(format: "%06d", Int.random(in: 0..<1_000_000))
 
     init(log: ProtoLog) { self.log = log }
 
-    /// The phone reports which way it paired; that is logged here.
+    /// The phone reports which way it got the code and the code itself. Success means the code matches the one
+    /// shown here; the duration runs from showing the code to the report.
     func handle(_ message: ProtoWire.Message) {
-        if case let .pairing(method) = message { log.log(.pairing(method: method, success: true, durationMs: 0)) }
+        guard case let .pairing(method, reported) = message else { return }
+        let duration = shownAt.map { Date().timeIntervalSince($0) * 1000 }
+        log.log(.pairing(method: method, success: reported == code, durationMs: duration))
+        if reported == code { window?.close(); window = nil }
     }
 
     func show() {
@@ -32,11 +37,13 @@ final class Pairing {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 280, height: 320), styleMask: [.titled, .closable],
                               backing: .buffered, defer: false)
         window.title = "Pair the phone"
+        window.isReleasedWhenClosed = false
         window.contentView?.addSubview(image)
         window.contentView?.addSubview(label)
         window.center()
         window.makeKeyAndOrderFront(nil)
         self.window = window
-        log.log(.marker(label: "pairing_shown code=\(code)"))
+        shownAt = Date()
+        log.log(.pairingShown)
     }
 }

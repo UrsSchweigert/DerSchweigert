@@ -3,7 +3,11 @@ import XCTest
 
 final class LogFormatTests: XCTestCase {
     static let events: [LogEvent] = [
-        .pingSent(seq: 3, senderMs: 1_700_000_000_123),
+        .pingSent(seq: 3, senderMs: 1_700_000_000_123, subscribers: 1, queued: true),
+        .pingSent(seq: 4, senderMs: 9, subscribers: 0, queued: false),
+        .subscribe(characteristic: ProtoWire.pingUUID, subscribers: 1), .unsubscribe(characteristic: "x", subscribers: 0),
+        .ack(seq: 3, rttMs: 85.5), .ack(seq: 9, rttMs: nil), .pairingShown,
+        .pairing(method: "qr", success: false, durationMs: nil),
         .pingReceived(seq: 3, senderMs: 1_700_000_000_123, appState: "background", restoredLaunch: true, rssi: -61, backgroundRemainingS: 9.5),
         .pingReceived(seq: 4, senderMs: 5, appState: "active", restoredLaunch: false, rssi: nil, backgroundRemainingS: nil),
         .orientation(x: 0.01, y: -0.02, z: -0.99, cls: .faceUp, readLatencyMs: 12.5, error: nil),
@@ -31,6 +35,19 @@ final class LogFormatTests: XCTestCase {
     func testHeaderKeys() throws {
         let text = try LogLine(wallMs: 7, uptimeS: 1.5, role: .computer, runId: "r", event: .launch).encoded()
         XCTAssertEqual(text, #"{"event":"launch","role":"computer","run_id":"r","uptime_s":1.5,"wall_ms":7}"#)
+    }
+
+    /// The procedure and the analyser name these keys; a rename must fail here.
+    func testMeasurementKeys() throws {
+        func keys(_ e: LogEvent) throws -> String {
+            let text = try LogLine(wallMs: 1, uptimeS: 1, role: .computer, runId: "r", event: e).encoded()
+            let obj = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] ?? [:]
+            return obj.keys.filter { !["wall_ms", "uptime_s", "role", "run_id"].contains($0) }.sorted().joined(separator: ",")
+        }
+        XCTAssertEqual(try keys(.pingSent(seq: 1, senderMs: 2, subscribers: 1, queued: true)), "event,queued,sender_ms,seq,subscribers")
+        XCTAssertEqual(try keys(.subscribe(characteristic: "c", subscribers: 1)), "characteristic,event,subscribers")
+        XCTAssertEqual(try keys(.ack(seq: 1, rttMs: 3)), "event,rtt_ms,seq")
+        XCTAssertEqual(try keys(.pairing(method: "qr", success: true, durationMs: 5)), "duration_ms,event,method,success")
     }
 
     func testUnknownEventDecodesToUnknown() throws {
@@ -122,7 +139,7 @@ final class ProtoWireTests: XCTestCase {
     }
 
     func testMessagesRoundTrip() {
-        let msgs: [ProtoWire.Message] = [.ack(seq: 7), .checkinAnswered(id: "c1", answer: "a:b"), .pairing(method: "qr"),
+        let msgs: [ProtoWire.Message] = [.ack(seq: 7), .checkinAnswered(id: "c1", answer: "a:b"), .pairing(method: "qr", code: "042117"),
                                          .checkinShown(id: "c1")]
         for m in msgs { XCTAssertEqual(ProtoWire.Message.parse(Data(m.text.utf8)), m) }
         XCTAssertNil(ProtoWire.Message.parse(Data("ack:x".utf8)))

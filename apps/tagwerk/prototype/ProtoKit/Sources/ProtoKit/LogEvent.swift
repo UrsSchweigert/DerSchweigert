@@ -14,10 +14,17 @@ public enum OrientationClass: String, Codable, Equatable {
 /// Everything either prototype app logs. One flat JSON object per line: the `event` key names the case and the
 /// other keys carry its fields, so the analyser and the procedure can name each value by its JSON key.
 public enum LogEvent: Equatable {
-    case pingSent(seq: Int, senderMs: Int64)
+    /// `queued` is false when the Bluetooth stack refused the notification (its queue was full): that ping is
+    /// dropped, not retried, so the phone sees a sequence gap.
+    case pingSent(seq: Int, senderMs: Int64, subscribers: Int, queued: Bool)
     case pingReceived(seq: Int, senderMs: Int64, appState: String, restoredLaunch: Bool, rssi: Int?, backgroundRemainingS: Double?)
     case orientation(x: Double, y: Double, z: Double, cls: OrientationClass, readLatencyMs: Double?, error: String?)
     case connect
+    /// A central subscribed to or unsubscribed from a characteristic; `subscribers` counts centrals afterwards.
+    case subscribe(characteristic: String, subscribers: Int)
+    case unsubscribe(characteristic: String, subscribers: Int)
+    /// An acknowledgement from the phone. `rtt_ms` is absent when the ping it names is unknown or already acked.
+    case ack(seq: Int, rttMs: Double?)
     case disconnect(reason: String?)
     case restore
     case launch
@@ -31,7 +38,9 @@ public enum LogEvent: Equatable {
     case checkinDismissed(id: String)
     case notificationScheduled(id: String)
     case notificationCancelled(id: String)
-    case pairing(method: String, success: Bool, durationMs: Double)
+    case pairingShown
+    /// `duration_ms` runs from the code being shown to the report; absent when no code was shown in this run.
+    case pairing(method: String, success: Bool, durationMs: Double?)
     case sensorPermission(promptSeen: Bool)
     case marker(label: String)
     /// An event name this build does not know, kept so newer logs still load.
@@ -47,6 +56,7 @@ extension LogEvent: Codable {
         case reason, state, level, charging, lowPowerMode = "low_power_mode"
         case idleS = "idle_s", id, method, success, durationMs = "duration_ms"
         case promptSeen = "prompt_seen", label
+        case subscribers, queued, characteristic, rttMs = "rtt_ms"
     }
 
     public init(from decoder: Decoder) throws {
@@ -54,7 +64,9 @@ extension LogEvent: Codable {
         let name = try c.decode(String.self, forKey: .event)
         switch name {
         case "ping_sent":
-            self = .pingSent(seq: try c.decode(Int.self, forKey: .seq), senderMs: try c.decode(Int64.self, forKey: .senderMs))
+            self = .pingSent(
+                seq: try c.decode(Int.self, forKey: .seq), senderMs: try c.decode(Int64.self, forKey: .senderMs),
+                subscribers: try c.decode(Int.self, forKey: .subscribers), queued: try c.decode(Bool.self, forKey: .queued))
         case "ping_received":
             self = .pingReceived(
                 seq: try c.decode(Int.self, forKey: .seq), senderMs: try c.decode(Int64.self, forKey: .senderMs),
@@ -69,6 +81,11 @@ extension LogEvent: Codable {
                 readLatencyMs: try c.decodeIfPresent(Double.self, forKey: .readLatencyMs),
                 error: try c.decodeIfPresent(String.self, forKey: .error))
         case "connect": self = .connect
+        case "subscribe", "unsubscribe":
+            let ch = try c.decode(String.self, forKey: .characteristic), n = try c.decode(Int.self, forKey: .subscribers)
+            self = name == "subscribe" ? .subscribe(characteristic: ch, subscribers: n)
+                : .unsubscribe(characteristic: ch, subscribers: n)
+        case "ack": self = .ack(seq: try c.decode(Int.self, forKey: .seq), rttMs: try c.decodeIfPresent(Double.self, forKey: .rttMs))
         case "disconnect": self = .disconnect(reason: try c.decodeIfPresent(String.self, forKey: .reason))
         case "restore": self = .restore
         case "launch": self = .launch
@@ -88,7 +105,8 @@ extension LogEvent: Codable {
         case "pairing":
             self = .pairing(
                 method: try c.decode(String.self, forKey: .method), success: try c.decode(Bool.self, forKey: .success),
-                durationMs: try c.decode(Double.self, forKey: .durationMs))
+                durationMs: try c.decodeIfPresent(Double.self, forKey: .durationMs))
+        case "pairing_shown": self = .pairingShown
         case "sensor_permission": self = .sensorPermission(promptSeen: try c.decode(Bool.self, forKey: .promptSeen))
         case "marker": self = .marker(label: try c.decode(String.self, forKey: .label))
         default: self = .unknown(name: name)
@@ -98,8 +116,9 @@ extension LogEvent: Codable {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: Key.self)
         switch self {
-        case let .pingSent(seq, senderMs):
+        case let .pingSent(seq, senderMs, subscribers, queued):
             try c.encode("ping_sent", forKey: .event); try c.encode(seq, forKey: .seq); try c.encode(senderMs, forKey: .senderMs)
+            try c.encode(subscribers, forKey: .subscribers); try c.encode(queued, forKey: .queued)
         case let .pingReceived(seq, senderMs, appState, restored, rssi, bg):
             try c.encode("ping_received", forKey: .event); try c.encode(seq, forKey: .seq)
             try c.encode(senderMs, forKey: .senderMs); try c.encode(appState, forKey: .appState)
@@ -111,6 +130,11 @@ extension LogEvent: Codable {
             try c.encode(cls, forKey: .cls)
             try c.encodeIfPresent(latency, forKey: .readLatencyMs); try c.encodeIfPresent(error, forKey: .error)
         case .connect: try c.encode("connect", forKey: .event)
+        case let .subscribe(ch, n), let .unsubscribe(ch, n):
+            if case .subscribe = self { try c.encode("subscribe", forKey: .event) } else { try c.encode("unsubscribe", forKey: .event) }
+            try c.encode(ch, forKey: .characteristic); try c.encode(n, forKey: .subscribers)
+        case let .ack(seq, rtt):
+            try c.encode("ack", forKey: .event); try c.encode(seq, forKey: .seq); try c.encodeIfPresent(rtt, forKey: .rttMs)
         case let .disconnect(reason):
             try c.encode("disconnect", forKey: .event); try c.encodeIfPresent(reason, forKey: .reason)
         case .restore: try c.encode("restore", forKey: .event)
@@ -133,7 +157,8 @@ extension LogEvent: Codable {
             try c.encode("notification_cancelled", forKey: .event); try c.encode(id, forKey: .id)
         case let .pairing(method, success, durationMs):
             try c.encode("pairing", forKey: .event); try c.encode(method, forKey: .method)
-            try c.encode(success, forKey: .success); try c.encode(durationMs, forKey: .durationMs)
+            try c.encode(success, forKey: .success); try c.encodeIfPresent(durationMs, forKey: .durationMs)
+        case .pairingShown: try c.encode("pairing_shown", forKey: .event)
         case let .sensorPermission(seen):
             try c.encode("sensor_permission", forKey: .event); try c.encode(seen, forKey: .promptSeen)
         case let .marker(label): try c.encode("marker", forKey: .event); try c.encode(label, forKey: .label)

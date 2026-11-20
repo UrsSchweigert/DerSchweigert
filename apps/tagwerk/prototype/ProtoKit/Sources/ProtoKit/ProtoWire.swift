@@ -16,14 +16,16 @@ public enum ProtoWire {
     public enum Message: Equatable {
         case ack(seq: Int)
         case checkinAnswered(id: String, answer: String)
-        case pairing(method: String)
+        /// The phone reports how it got the code (`qr` or `number`) and the code itself, so the computer can tell
+        /// whether pairing succeeded.
+        case pairing(method: String, code: String)
         case checkinShown(id: String)
 
         public var text: String {
             switch self {
             case let .ack(seq): return "ack:\(seq)"
             case let .checkinAnswered(id, answer): return "answer:\(id):\(answer)"
-            case let .pairing(method): return "pair:\(method)"
+            case let .pairing(method, code): return "pair:\(method):\(code)"
             case let .checkinShown(id): return "shown:\(id)"
             }
         }
@@ -33,7 +35,7 @@ public enum ProtoWire {
             switch (p.first, p.count) {
             case ("ack", 2): return Int(p[1]).map { .ack(seq: $0) }
             case ("answer", 3): return .checkinAnswered(id: p[1], answer: p[2])
-            case ("pair", 2): return .pairing(method: p[1])
+            case ("pair", 3): return .pairing(method: p[1], code: p[2])
             case ("shown", 2): return .checkinShown(id: p[1])
             default: return nil
             }
