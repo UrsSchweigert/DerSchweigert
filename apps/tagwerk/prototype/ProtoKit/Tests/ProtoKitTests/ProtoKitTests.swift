@@ -113,3 +113,24 @@ final class CheckinSyncTests: XCTestCase {
         XCTAssertFalse(s.handle(.shown, checkin: "d"))
     }
 }
+
+final class ProtoWireTests: XCTestCase {
+    func testUUIDsAreValidAndDistinct() {
+        let all = [ProtoWire.serviceUUID, ProtoWire.pingUUID, ProtoWire.phoneToComputerUUID, ProtoWire.eventsUUID]
+        XCTAssertEqual(Set(all).count, 4)
+        for s in all { XCTAssertNotNil(UUID(uuidString: s)) }
+    }
+
+    func testMessagesRoundTrip() {
+        let msgs: [ProtoWire.Message] = [.ack(seq: 7), .checkinAnswered(id: "c1", answer: "a:b"), .pairing(method: "qr"),
+                                         .checkinShown(id: "c1")]
+        for m in msgs { XCTAssertEqual(ProtoWire.Message.parse(Data(m.text.utf8)), m) }
+        XCTAssertNil(ProtoWire.Message.parse(Data("ack:x".utf8)))
+    }
+
+    func testPairingLink() {
+        let link = ProtoWire.pairingLink(code: "123456")
+        XCTAssertEqual(ProtoWire.pairingCode(fromLink: link), "123456")
+        XCTAssertNil(ProtoWire.pairingCode(fromLink: "https://pair?code=1"))
+    }
+}
