@@ -543,6 +543,15 @@ export const DICTIONARY = {
   'footer.legalTermsEn': { de: 'Terms (EN)', en: 'Terms (EN)' },
   'footer.supportTitle': { de: 'Support', en: 'Support' },
   'footer.supportText': { de: 'Fragen, Wünsche oder ein Fehler gefunden? Schreib uns.', en: 'Questions, requests or found a bug? Write to us.' },
+  // Follow call to action (links to the public Facebook Page; plain link, no plugin, no external request)
+  'follow.title': { de: 'Folge uns auf Facebook', en: 'Follow us on Facebook' },
+  'follow.text': {
+    de: 'Neuigkeiten zu Arithmo Slayer, Einblicke hinter die Kulissen und Rechenrätsel für die ganze Familie – direkt in deinem Feed.',
+    en: 'News about Arithmo Slayer, a look behind the scenes and maths puzzles for the whole family – right in your feed.',
+  },
+  'follow.cta': { de: 'Auf Facebook folgen', en: 'Follow on Facebook' },
+  'follow.aria': { de: 'Auf Facebook folgen (öffnet in einem neuen Tab)', en: 'Follow on Facebook (opens in a new tab)' },
+  'footer.facebook': { de: 'Facebook', en: 'Facebook' },
   'footer.copyright': { de: '© 2026 Der Schweigert · Arithmo Slayer', en: '© 2026 Der Schweigert · Arithmo Slayer' },
 };
 
