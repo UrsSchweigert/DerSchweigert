@@ -160,6 +160,24 @@ test('exactly one script tag, external, and no inline handlers or javascript: UR
   assert.ok(!/style="/i.test(html), 'no inline style attributes');
 });
 
+test('the Facebook follow call to action links to the Page, safely, with the logo inline', () => {
+  const FB = 'https://www.facebook.com/profile.php?id=61596637234356';
+  const links = [...html.matchAll(/<a\b[^>]*href="(https:\/\/www\.facebook\.com\/[^"]*)"[^>]*>/g)];
+  assert.ok(links.length >= 2, 'the follow section and the footer both link to the Page');
+  for (const [tag, href] of links) {
+    assert.equal(href, FB, 'every Facebook link goes to the one public Page');
+    assert.match(tag, /\btarget="_blank"/);
+    assert.match(tag, /\brel="noopener noreferrer"/, 'external links must not hand over window.opener');
+  }
+  const section = html.match(/<section[^>]*id="folgen"[\s\S]*?<\/section>/)[0];
+  assert.match(section, /data-i18n="follow\.title"/);
+  assert.match(section, /data-i18n="follow\.cta"/);
+  assert.match(section, /data-i18n-aria-label="follow\.aria"/);
+  assert.match(section, /<svg class="btn-logo"[^>]*aria-hidden="true"/, 'the logo is decorative; the button text names the action');
+  // Inline SVG on purpose: a hosted logo or the Facebook plugin would be a third-party request (privacy, GDPR).
+  assert.ok(!/<img[^>]+facebook/i.test(html) && !/connect\.facebook\.net|facebook\.com\/tr|fbcdn/.test(html), 'no Facebook plugin, pixel or hosted asset');
+});
+
 test('every asset reference is root-absolute, allow-listed or an anchor', () => {
   // The page is served at "/" and at "/promo" (CloudFront viewer-request
   // rewrite keeps the browser URL), so a bare relative "promo.css" resolves to
@@ -170,7 +188,7 @@ test('every asset reference is root-absolute, allow-listed or an anchor', () => 
   for (const match of css.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) urls.add(match[1]);
   for (const match of html.matchAll(/<link\b[^>]*\bhref="([^"]+)"/g)) urls.add(match[1]);
 
-  const allowedAbsolute = /^(?:https:\/\/arithmoslayer\.de\/|https:\/\/apps\.apple\.com\/)/;
+  const allowedAbsolute = /^(?:https:\/\/arithmoslayer\.de\/|https:\/\/apps\.apple\.com\/|https:\/\/www\.facebook\.com\/profile\.php\?id=61596637234356$)/;
   const bad = [];
   for (const url of urls) {
     if (url.startsWith('#') || url.startsWith('mailto:')) continue;

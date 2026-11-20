@@ -2177,6 +2177,76 @@ ul {
   opacity: 0.85;
 }
 
+/* --------------------------------------------------------- follow on Facebook */
+
+.section-follow {
+  padding-block: clamp(40px, 6vw, 72px);
+}
+
+.follow-card {
+  display: flex;
+  align-items: center;
+  gap: clamp(18px, 3vw, 36px);
+  padding: clamp(22px, 3.4vw, 36px) clamp(22px, 4vw, 44px);
+  border: 1px solid var(--hairline);
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(32, 70, 58, 0.78), rgba(16, 33, 27, 0.92));
+  box-shadow: 0 24px 60px -34px rgba(0, 0, 0, 0.8);
+}
+
+.follow-logo {
+  flex: none;
+  width: clamp(52px, 7vw, 72px);
+  height: auto;
+}
+
+.follow-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.follow-copy h2 {
+  font-size: clamp(1.25rem, 2.6vw, 1.8rem);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ivory);
+  margin-bottom: 0.35em;
+}
+
+.follow-copy p {
+  color: var(--ivory-muted);
+  max-width: 62ch;
+}
+
+.follow-btn {
+  flex: none;
+}
+
+.btn-logo,
+.footer-logo {
+  flex: none;
+  display: block;
+  border-radius: 50%;
+}
+
+/* own line under the mail address; .footer-col a would otherwise keep it inline-flex beside it */
+.footer-col .footer-social {
+  display: flex;
+  width: fit-content;
+  gap: 0.55em;
+}
+
+@media (max-width: 720px) {
+  .follow-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .follow-btn {
+    width: 100%;
+  }
+}
+
 /* --------------------------------------------------------- anchors/motion */
 
 [tabindex="-1"]:focus,
@@ -2190,7 +2260,8 @@ ul {
 #spiel,
 #preise,
 #familie,
-#faq {
+#faq,
+#folgen {
   scroll-margin-top: calc(var(--header-h) + 14px);
 }
 
