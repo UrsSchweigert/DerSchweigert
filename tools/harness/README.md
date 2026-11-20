@@ -342,6 +342,7 @@ You need:
 | `gh` signed in as the repository owner | `gh auth status` | logged in, scopes include `repo` and `read:project` |
 | Worker image | `docker images harness-worker` | `harness-worker:1` is listed |
 | Engine toolchain in the image | `docker run --rm harness-worker:1 sh -c 'godot --headless --version; gdlint --version'` | `4.7.2.stable.official...` and gdtoolkit `4.5.0` |
+| Swift toolchain in the image | `docker run --rm harness-worker:1 swift --version` | `Swift version 6.4.2` |
 | Token files | `ls -l ~/.local/state/derschweigert-harness/` | `broker.token` and `claude.token`, both `-rw-------` |
 
 * `broker.token`: a GitHub token the harness uses to open and merge pull requests. Keep it in the store folder only, never in the repository.
@@ -350,6 +351,12 @@ You need:
 * Godot is not installed on your machine: the pinned Godot 4 editor, gdtoolkit (`gdlint`, `gdformat`), and the GUT test
   runner live in the worker image. Changing any of them means rebuilding the image and rerunning `isolation verify`.
   Export templates and the Android SDK are deliberately absent; Android builds stay a human-owned release workflow.
+* The image carries Swift for Linux, so a worker can run `swift build` and `swift test` on a Swift package that
+  imports only Foundation and has no package to download. It is not Xcode. SwiftUI, CoreBluetooth, WidgetKit,
+  ActivityKit, CoreLocation and the other Apple frameworks do not exist on Linux, so no worker can compile an iOS
+  or macOS app, a widget or a menu-bar app. Put the logic that needs no device in a package of its own and let the
+  app target import it; the app is built by a macOS workflow or on your Mac. A build tree belongs under the
+  repository copy in `/work`, which is where `swift` puts it by default: `/tmp` in the sandbox holds 256 MB.
 
 Set up a shortcut in every terminal you use (it only lasts for that window):
 
@@ -995,7 +1002,7 @@ What is enforced:
 * Real merges require verified strict required checks enforced for administrators, preventing an external base change between the final fetch and the merge from bypassing validation.
 * Asset request identifiers cannot contain paths. Outputs, manifests, scripts, existing assets, and human-upload destinations are checked for traversal and symlink escapes.
 * Nothing is merged for escalation paths, out-of-scope changes, failed checks, or stale evidence.
-* The worker toolchain is pinned and verified. The Godot binary matches the official SHA512 of its release, GUT is pinned to a commit that `git` verifies at build time, and gdtoolkit is pinned by version. The Tier A probe fails unless `godot` and `gdlint` report the pinned versions and a throwaway project imports headless under the read-only root filesystem.
+* The worker toolchain is pinned and verified. The Godot binary matches the official SHA512 of its release, GUT is pinned to a commit that `git` verifies at build time, and gdtoolkit is pinned by version. The Tier A probe fails unless `godot` and `gdlint` report the pinned versions and a throwaway project imports headless under the read-only root filesystem. The Swift toolchain matches a SHA256 pinned in `worker/install_swift.py`, and the probe fails unless `swift` reports the pinned version and a throwaway package builds and passes its test in the sandbox.
 
 What is not, honestly:
 

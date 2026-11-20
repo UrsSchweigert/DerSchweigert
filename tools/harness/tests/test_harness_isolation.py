@@ -1,5 +1,7 @@
+import importlib.util
 import json
 import os
+import re
 
 import pytest
 
@@ -7,6 +9,15 @@ from harness import approval, broker, cli, isolation
 from harness.store import Store
 
 FIX = os.path.join(os.path.dirname(__file__), "..", "fixtures")
+WORKER = os.path.join(os.path.dirname(__file__), "..", "worker")
+
+
+def _load_worker_module(name):
+    """The worker scripts are copied into the image, not imported by the harness, so they are loaded by path."""
+    spec = importlib.util.spec_from_file_location(name, os.path.join(WORKER, name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 REQ = os.path.join(FIX, "requirements.md")
 PHASES = os.path.join(FIX, "phases.json")
 KEY = b"k" * 32
@@ -164,6 +175,55 @@ def test_the_probe_requires_the_pinned_engine_toolchain():
         assert ("chk %s " % name) in isolation.PROBE_SCRIPT, name
     assert "4.7.2.stable" in isolation.PROBE_SCRIPT
     assert "gdtoolkit" in isolation.PROBE_SCRIPT
+
+
+def test_the_probe_requires_the_pinned_swift_toolchain():
+    for name in ("swift_pinned", "swift_package_test"):
+        assert name in isolation.REQUIRED_CHECKS, name
+        assert ("chk %s " % name) in isolation.PROBE_SCRIPT, name
+    # The version the probe demands is the one the installer pins, so the two cannot drift apart.
+    install_swift = _load_worker_module("install_swift")
+    assert ("Swift version %s " % install_swift.RELEASE).replace(".", r"\.") in isolation.PROBE_SCRIPT
+    # Building is the proof; a probe that only asked for the version would pass a toolchain that cannot link.
+    assert "swift_probe.sh" in isolation.PROBE_SCRIPT
+
+
+def test_the_swift_installer_pins_a_checksum_for_each_architecture():
+    install_swift = _load_worker_module("install_swift")
+    assert sorted(install_swift.SHA256) == ["amd64", "arm64"]
+    for arch, (directory, name, sha256) in install_swift.SHA256.items():
+        assert re.fullmatch(r"[0-9a-f]{64}", sha256), arch
+        assert install_swift.RELEASE in name and name.endswith(".tar.gz")
+        assert install_swift.archive_url(arch) == "https://download.swift.org/swift-%s-release/%s/swift-%s-RELEASE/%s" % (
+            install_swift.RELEASE, directory, install_swift.RELEASE, name)
+    assert install_swift.SHA256["amd64"][2] != install_swift.SHA256["arm64"][2]
+    assert install_swift.main("riscv64") == 2
+
+
+def test_the_image_installs_swift_through_the_pinned_installer():
+    with open(os.path.join(WORKER, "Dockerfile")) as fh:
+        dockerfile = fh.read()
+    assert "install_swift.py" in dockerfile and "/opt/swift/usr/bin" in dockerfile
+    with open(os.path.join(WORKER, "smoke", "swift_probe.sh")) as fh:
+        probe = fh.read()
+    # A piped `swift test` would report the pipe's status and pass a failing build.
+    assert not re.search(r"swift test[^\n]*\|", probe)
+
+
+@real_docker
+def test_a_worker_can_build_and_test_a_swift_package():
+    # The default work root, not pytest's tmp_path: Docker shares the home folder but not every temp location.
+    work = isolation.new_workdir("test-")
+    try:
+        res = isolation.run_worker(work, ["sh", "/opt/harness/smoke/swift_probe.sh", "/work"], timeout=300)
+        if "swift_probe.sh" in res.stdout + res.stderr and res.returncode == 2:
+            pytest.skip("the built image predates the Swift toolchain; run `harness isolation build`")
+        assert res.returncode == 0, res.stdout[-400:] + res.stderr[-400:]
+        assert "OK: swift package built and tested" in res.stdout
+        assert os.listdir(work) == []
+    finally:
+        import shutil
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def test_an_attestation_without_the_engine_checks_is_not_tier_a(tmp_path):

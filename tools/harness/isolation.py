@@ -55,7 +55,8 @@ def image_id(image: str = IMAGE) -> Optional[str]:
 
 def build_image(context: Optional[str] = None) -> str:
     context = context or os.path.join(os.path.dirname(__file__), "worker")
-    out = _docker(["build", "-q", "-t", IMAGE, context], timeout=900)
+    # A build with no cached layers downloads Chromium, Godot and the 1.1 GB Swift archive and has taken half an hour.
+    out = _docker(["build", "-q", "-t", IMAGE, context], timeout=3600)
     if out.returncode != 0:
         raise RuntimeError("image build failed: " + out.stderr.strip()[-300:])
     return out.stdout.strip()
@@ -153,12 +154,15 @@ chk gdtoolkit_pinned 'python3 -c "import importlib.metadata as m, sys; sys.exit(
 chk godot_headless_import 'T=$(mktemp -d) && printf "config_version=5\n[application]\nconfig/name=\"probe\"\n" > "$T/project.godot" && godot --headless --path "$T" --import >/dev/null 2>&1 && [ -d "$T/.godot" ] && rm -rf "$T"'
 chk ios_shell_tool '[ -f /opt/harness/smoke/ios_shell.sh ] && sh /opt/harness/smoke/ios_shell.sh /work harness-probe-absent 2>/dev/null | grep -q "^SKIP:"'
 chk godot_test_tool 'command -v godot-test >/dev/null && [ -f /opt/harness/godot/addons/gut/gut_cmdln.gd ] && [ -f /opt/harness/smoke/godot_project.sh ] && [ -f /opt/harness/smoke/godot_verify.gd ]'
+chk swift_pinned 'swift --version 2>/dev/null | grep -q "Swift version 6\.4\.2 "'
+chk swift_package_test 'sh /opt/harness/smoke/swift_probe.sh /work >/dev/null 2>&1 && [ ! -e /work/.harness-swift-probe ]'
 """
 
 REQUIRED_CHECKS = [
     "non_root", "no_host_credentials_in_env", "no_claude_token_unless_passed", "no_anthropic_api_key", "store_path_absent", "host_home_absent",
     "no_ssh_agent", "no_docker_socket", "rootfs_read_only", "workdir_writable", "no_capabilities", "no_new_privileges",
     "claude_installed", "art_libs", "art_generate_tool", "smoke_tool", "godot_pinned", "gdtoolkit_pinned", "godot_headless_import", "godot_test_tool", "ios_shell_tool",
+    "swift_pinned", "swift_package_test",
 ]
 
 
@@ -217,7 +221,8 @@ def probe(store_home: str, image: str = IMAGE) -> Dict[str, Any]:
                          "ANTHROPIC_API_KEY": "canary", "CLAUDE_CODE_OAUTH_TOKEN": "canary"})
         args = docker_args(work, ["sh", "-c", PROBE_SCRIPT], pass_env=None, image=image)
         args[args.index(image):args.index(image)] = ["-e", "STORE_PATH=" + os.path.realpath(store_home)]
-        out = _docker(args, timeout=120, env=host_env)
+        # A cold `swift test` of the probe package takes about half a minute on its own, so the probe gets room.
+        out = _docker(args, timeout=300, env=host_env)
         checks = {m.group(1): m.group(2) == "pass" for m in re.finditer(r"^(\w+)=(pass|fail)$", out.stdout, re.M)}
         missing = [c for c in REQUIRED_CHECKS if c not in checks]
         failed = sorted(c for c, ok in checks.items() if not ok) + ["missing:" + c for c in missing]
