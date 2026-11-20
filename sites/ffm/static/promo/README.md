@@ -3,7 +3,7 @@
 One static page that sells the browser game (subscription) and the iOS app
 (one-time purchase, live on the App Store) next to the upcoming Android app.
 It is plain HTML + CSS + a single ES module: no build step, no dependencies,
-no external requests.
+no external requests apart from the Umami visitor statistics (see below).
 
 | File | Purpose |
 | --- | --- |
@@ -106,10 +106,16 @@ iOS chips have to link to
 ## Why there are no inline scripts
 
 Production serves this page with a strict Content-Security-Policy
-(`script-src 'self' https://challenges.cloudflare.com`). Inline `<script>`
+(`script-src 'self' https://challenges.cloudflare.com https://cloud.umami.is`). Inline `<script>`
 blocks, `onclick="…"` attributes and `javascript:` URLs would all be blocked,
 so all behaviour lives in the single external `promo.js` module and all styling
 lives in `promo.css`.
+
+The one exception is the Umami Cloud script (cookie-free visitor statistics, the
+website id is public by design). Its origins are in the CSP in
+`infra/terraform/sites/ffm{,-dev}/main.tf` (`script-src` cloud.umami.is,
+`connect-src` gateway.umami.is); change the tag and the CSP together or the
+browser blocks it silently. `data-domains` keeps dev and localhost out of the stats.
 
 ## Locale handling
 

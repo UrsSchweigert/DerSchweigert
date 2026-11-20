@@ -367,7 +367,11 @@ module "site" {
   # sites still cannot. Browsers ignore the module's X-Frame-Options: DENY
   # when frame-ancestors is present (CSP Level 2); an older one that obeys
   # it gets the page without the frame (phone-frame.js falls back).
-  content_security_policy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+  # Umami Cloud (promo page visitor statistics): script.js is served from
+  # cloud.umami.is and reports to gateway.umami.is, hence script-src and
+  # connect-src. The CSP is site-wide, so /play may load it too; only the
+  # promo page does.
+  content_security_policy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://cloud.umami.is; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://gateway.umami.is; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
 
   tags = local.tags
 }
