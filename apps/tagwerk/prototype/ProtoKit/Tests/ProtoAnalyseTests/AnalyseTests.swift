@@ -47,14 +47,20 @@ private func fixture(minutes: Int = 120, lost: Range<Int> = 0..<0, markers: Bool
             p(10.75, .orientation(x: 0, y: 0, z: 0, cls: .faceUp, readLatencyMs: nil, error: "timeout"))
             p(20.75, .orientation(x: 0, y: 0, z: 1, cls: .faceUp, readLatencyMs: 50, error: nil))
         }
-        // Reconnect: the marker is half a minute into a minute, so the next ping is 0.5 min away.
-        for (i, kind) in MarkerLabel.reconnectKinds.enumerated() {
-            p(70 + Double(2 * i) + 0.5, .marker(label: kind + MarkerLabel.end))
-        }
-        if degraded { p(80.5, .marker(label: "phone_restart" + MarkerLabel.end)) }
-        c(50, .marker(label: MarkerLabel.idleStart)); c(60, .marker(label: MarkerLabel.idleEnd))
-        c(52, .computerIdle(seconds: 120)); c(55, .computerIdle(seconds: 300))
-        if degraded { c(58, .computerIdle(seconds: 0)) }
+        // Reconnect: each kind ends half a minute into a minute, so the next ping is 0.5 min away. Out of range
+        // ends at the `near` marker after the away stretch, which lands on a ping.
+        p(0, .launch)
+        p(69, .bluetoothState(state: "4")); c(69, .bluetoothState(state: "poweredOff"))
+        p(70.5, .bluetoothState(state: "5")); c(70.5, .bluetoothState(state: "poweredOn"))
+        c(71.9, .computerSleep); c(72.5, .computerWake)
+        p(74.5, .restore); p(74.5, .launch)
+        p(76.5, .launch)
+        p(95, .disconnect(reason: "out of range"))
+        if degraded { p(80.5, .restore); p(80.5, .launch) }
+        // Idle: the owner left at minute 90; the degraded run has a sample that says someone typed.
+        c(92, .computerIdle(seconds: 120)); c(95, .computerIdle(seconds: 300))
+        c(40, .computerIdle(seconds: 0))
+        if degraded { c(98, .computerIdle(seconds: 0)) }
         // Check-ins: shown on both, answered on the phone after 5 s, dismissed on the computer 2 s or 30 s later.
         for (id, m, lag) in [("c1", 95.0, 2.0), ("c2", 100.0, degraded ? 30.0 : 3.0)] {
             p(m, .checkinShown(id: id)); c(m, .checkinShown(id: id))
@@ -68,6 +74,12 @@ private func fixture(minutes: Int = 120, lost: Range<Int> = 0..<0, markers: Bool
         p(1, .pairing(method: "number", success: true, durationMs: 4000)); p(2, .pairing(method: "number", success: false, durationMs: nil))
     }
     return (phone.joined(separator: "\n"), computer.joined(separator: "\n"))
+}
+
+private func metricsEvents(_ f: (phone: String, computer: String)) throws -> [Stamped] {
+    (LogReader.read(f.phone).lines.map { Stamped(t: Double($0.wallMs), role: .phone, event: $0.event) }
+        + LogReader.read(f.computer).lines.map { Stamped(t: Double($0.wallMs), role: .computer, event: $0.event) })
+        .sorted { $0.t < $1.t }
 }
 
 private func metrics(_ f: (phone: String, computer: String)) throws -> Metrics {
@@ -169,6 +181,7 @@ final class AnalyseTests: XCTestCase {
         let report = try analyse(phoneLog: f.phone, computerLog: f.computer, thresholdsJSON: thresholds)
         XCTAssertTrue(report.contains("| max_battery_drop_per_hour | 10.0 | 5.000 | met |"))
         XCTAssertTrue(report.contains("| phone_restart | 0.5"))
+        XCTAssertTrue(report.contains("| out_of_range | 0.0"))
         XCTAssertTrue(report.contains("| number | 2 | 1 | 4000 |"))
     }
 
@@ -183,8 +196,8 @@ final class AnalyseTests: XCTestCase {
         XCTAssertEqual(x.orientationShare!, 4.0 / 6, accuracy: 1e-9)
         XCTAssertEqual(x.rssiErrorRate!, 20.0 / 116, accuracy: 1e-9)
         XCTAssertEqual(x.reconnectMinutes["phone_restart"]!, 3.5, accuracy: 0.01)
-        XCTAssertEqual(x.idleAgreeShare!, 2.0 / 3, accuracy: 0.5)
-        XCTAssertEqual(x.checkinCompleteShare!, 2.0 / 3, accuracy: 0.5)
+        XCTAssertEqual(x.idleAgreeShare!, 2.0 / 3, accuracy: 1e-9)
+        XCTAssertEqual(x.checkinCompleteShare!, 2.0 / 3, accuracy: 1e-9)
         XCTAssertEqual(x.checkinLatencyMaxS!, 30, accuracy: 0.5)
         XCTAssertEqual(x.batteryDropPerHour!, 30, accuracy: 0.5)
         let r = try evaluate(thresholdsJSON: thresholds, metrics: m.values).results
@@ -205,9 +218,19 @@ final class AnalyseTests: XCTestCase {
         XCTAssertTrue(report.contains("Overall verdict: **incomplete**"))
     }
 
+    func testReconnectKindsComeFromLoggedEvents() throws {
+        let at = { (m: Double) in Double(t0) + m * 60_000 }
+        let starts = reconnectStarts(try metricsEvents(fixture(extras: true)), nearIv: [(at(0), at(90)), (at(110), at(120))])
+        XCTAssertEqual(starts["bluetooth_off"], [at(70.5), at(70.5)])
+        XCTAssertEqual(starts["computer_sleep"], [at(72.5)]); XCTAssertEqual(starts["phone_restart"], [at(74.5)])
+        XCTAssertEqual(starts["app_removed"], [at(76.5)]); XCTAssertEqual(starts["out_of_range"], [at(110)])
+        // A first launch is the start of the measurement, and an away stretch without a disconnect is no outage.
+        XCTAssertNil(reconnectStarts(try metricsEvents(fixture()), nearIv: [(0, 1), (2, 3)])["out_of_range"])
+    }
+
     func testReconnectThatNeverHappensIsInfinite() throws {
         var f = fixture()
-        f.phone += "\n" + line(t0 + 119 * 60_000 + 30_000, .phone, .marker(label: "app_removed_end"))
+        f.phone += "\n" + line(t0, .phone, .launch) + "\n" + line(t0 + 119 * 60_000 + 30_000, .phone, .launch)
         let x = try metrics(f).extra
         XCTAssertEqual(x.reconnectMinutes["app_removed"], .infinity)
         XCTAssertTrue(try analyse(phoneLog: f.phone, computerLog: f.computer, thresholdsJSON: thresholds).contains("| app_removed | never |"))

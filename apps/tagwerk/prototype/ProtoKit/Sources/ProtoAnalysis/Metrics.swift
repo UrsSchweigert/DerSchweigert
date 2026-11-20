@@ -101,8 +101,8 @@ func compute(phone: [LogLine], computer: [LogLine]) throws -> Metrics {
     recv.sort { $0.t < $1.t }; sends.sort { $0.t < $1.t }
     let dayEnd = max(recv.last?.t ?? 0, sends.last?.t ?? 0)
     let nearIv = intervals(near, dayEnd: dayEnd), sleepIv = intervals(asleep, dayEnd: dayEnd)
-    let excluded = sleepIv + intervals(interrupted, dayEnd: dayEnd)
-        + complement(nearIv, from: near.map { $0.t }.min() ?? 0, to: dayEnd)
+    let awayIv = complement(nearIv, from: near.map { $0.t }.min() ?? 0, to: dayEnd)
+    let excluded = sleepIv + intervals(interrupted, dayEnd: dayEnd) + awayIv
     let receivedSeqs = Set(recv.map { $0.seq })
     m.sent = sends.count; m.received = sends.filter { receivedSeqs.contains($0.seq) }.count
     // A lost ping has no app_state of its own: it takes the state of the latest received ping before it.
@@ -128,7 +128,7 @@ func compute(phone: [LogLine], computer: [LogLine]) throws -> Metrics {
             m.lostMinutes[grace] = ordinary.map { max(0, ($0.end - $0.start) / 60_000 - Double(grace)) }.reduce(0, +)
         }
     }
-    m.extra = computeExtra(stamped, nearIv: nearIv, hasNear: !near.isEmpty, dayEnd: dayEnd)
+    m.extra = computeExtra(stamped, nearIv: nearIv, awayIv: awayIv, hasNear: !near.isEmpty)
     return m
 }
 

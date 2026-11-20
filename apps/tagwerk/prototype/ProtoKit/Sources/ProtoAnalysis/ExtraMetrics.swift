@@ -19,7 +19,7 @@ struct ExtraMetrics {
     var orientationShare: Double?
     var rssiByMarker: [String: (mean: Double, count: Int)] = [:]
     var rssiCut: Double?, rssiErrorRate: Double?
-    /// Longest wait from a `<kind>_end` marker to the next received ping, per interruption kind (minutes).
+    /// Longest wait from the moment the link could return to the next received ping, per kind (minutes).
     var reconnectMinutes: [String: Double] = [:]
     var idleSamples = 0
     var idleAgreeShare: Double?
@@ -44,12 +44,12 @@ struct ExtraMetrics {
     }
 }
 
-/// Idle seconds may lag the owner's own idea of "since when" by this much: markers are tapped by hand.
+/// Idle seconds may lag the `away` marker by this much: the owner taps it by hand, often after the last keystroke.
 private let idleSlackS = 60.0
 /// A distance marker names the RSSI samples within this long of it.
 private let distanceWindowMs = 120_000.0
 
-func computeExtra(_ events: [Stamped], nearIv: [Interval], hasNear: Bool, dayEnd: Double) -> ExtraMetrics {
+func computeExtra(_ events: [Stamped], nearIv: [Interval], awayIv: [Interval], hasNear: Bool) -> ExtraMetrics {
     var x = ExtraMetrics()
     let sorted = events.sorted { $0.t < $1.t }
     func markers(_ pred: (String) -> Bool) -> [(t: Double, label: String)] {
@@ -95,24 +95,20 @@ func computeExtra(_ events: [Stamped], nearIv: [Interval], hasNear: Bool, dayEnd
         x.rssiErrorRate = best.map { Double($0.errors) / Double(desk.count + away.count) }
     }
 
-    // Reconnect: from the end of each interruption to the next received ping; never is infinite.
-    for kind in MarkerLabel.reconnectKinds {
-        let ends = markers { $0 == kind + MarkerLabel.end }.map { $0.t }
-        let waits = ends.map { e in received.first { $0.t >= e }.map { ($0.t - e) / 60_000 } ?? .infinity }
+    // Reconnect: from the moment the link could come back to the next received ping; never is infinite.
+    for (kind, starts) in reconnectStarts(sorted, nearIv: nearIv) {
+        let waits = starts.map { e in received.first { $0.t >= e }.map { ($0.t - e) / 60_000 } ?? .infinity }
         if let worst = waits.max() { x.reconnectMinutes[kind] = worst }
     }
 
-    // Idle seconds: inside an owner-marked idle stretch the counter must have run since its start.
-    var idleOpen: [(t: Double, open: Bool)] = []
-    for m in markers({ $0 == MarkerLabel.idleStart || $0 == MarkerLabel.idleEnd }) {
-        idleOpen.append((m.t, m.label == MarkerLabel.idleStart))
-    }
-    let idleIv = intervals(idleOpen, dayEnd: dayEnd)
+    // Idle seconds: after the owner taps `away` the computer is untouched, so idle_s must cover the time since.
     var agree = 0
-    for s in sorted {
-        guard case let .computerIdle(secs) = s.event, let iv = idleIv.first(where: { $0.start <= s.t && s.t <= $0.end }) else { continue }
-        x.idleSamples += 1
-        if secs >= (s.t - iv.start) / 1000 - idleSlackS { agree += 1 }
+    if hasNear {
+        for s in sorted {
+            guard case let .computerIdle(secs) = s.event, let iv = awayIv.first(where: { $0.start <= s.t && s.t <= $0.end }) else { continue }
+            x.idleSamples += 1
+            if secs >= (s.t - iv.start) / 1000 - idleSlackS { agree += 1 }
+        }
     }
     if x.idleSamples > 0 { x.idleAgreeShare = Double(agree) / Double(x.idleSamples) }
 
@@ -165,4 +161,40 @@ func computeExtra(_ events: [Stamped], nearIv: [Interval], hasNear: Bool, dayEnd
         })
     }
     return x
+}
+
+/// A phone `launch` and `restore` this close together are one relaunch by Bluetooth state restoration.
+private let restoreWindowMs = 10_000.0
+
+/// When each interruption kind ended, from logged events only (the procedure names them):
+/// - out_of_range: the `near` marker that closes an away stretch in which the phone logged a `disconnect`;
+/// - bluetooth_off: a `bluetooth_state` back to powered on (`poweredOn` on the computer, raw `5` on the phone)
+///   after any other state on the same device;
+/// - computer_sleep: `computer_wake`;
+/// - phone_restart: a phone `launch` with a `restore` beside it (iOS relaunched the app after the restart);
+/// - app_removed: a later phone `launch` without `restore` (iOS does not relaunch a removed app; the owner did).
+func reconnectStarts(_ sorted: [Stamped], nearIv: [Interval]) -> [String: [Double]] {
+    var out: [String: [Double]] = [:]
+    let phone = sorted.filter { $0.role == .phone }
+    let disconnects = phone.compactMap { if case .disconnect = $0.event { return $0.t } else { return nil } }
+    for (prev, iv) in zip(nearIv, nearIv.dropFirst()) where disconnects.contains(where: { prev.end <= $0 && $0 <= iv.start }) {
+        out["out_of_range", default: []].append(iv.start)
+    }
+    var btOff: Set<String> = []
+    let restores = phone.compactMap { if case .restore = $0.event { return $0.t } else { return nil } }
+    var launches = 0
+    for s in sorted {
+        switch s.event {
+        case let .bluetoothState(state):
+            let on = state == (s.role == .computer ? "poweredOn" : "5")
+            if !on { btOff.insert(s.role.rawValue) } else if btOff.remove(s.role.rawValue) != nil { out["bluetooth_off", default: []].append(s.t) }
+        case .computerWake: out["computer_sleep", default: []].append(s.t)
+        case .launch where s.role == .phone:
+            launches += 1
+            if restores.contains(where: { abs($0 - s.t) <= restoreWindowMs }) { out["phone_restart", default: []].append(s.t) }
+            else if launches > 1 { out["app_removed", default: []].append(s.t) }
+        default: break
+        }
+    }
+    return out
 }

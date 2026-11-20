@@ -34,11 +34,13 @@ public func analyse(phoneLog: String, computerLog: String, thresholdsJSON: Strin
     for k in x.rssiByMarker.keys.sorted() { out.append("| \(k) | \(x.rssiByMarker[k]!.count) | \(f(x.rssiByMarker[k]!.mean, 1)) |") }
     if x.rssiByMarker.isEmpty { out.append("| not measured | | |") }
     out += ["", "At-desk against away: cut \(x.rssiCut.map { f($0, 1) } ?? "not measured") dBm, error rate \(share(x.rssiErrorRate))", "",
-            "## Reconnect after interruption (minutes to the next ping)", "", "| Kind | Longest |", "| --- | --- |"]
+            "## Reconnect after interruption (minutes to the next ping)", "",
+            "Each kind is recognised from logged events (bluetooth_state, computer_wake, launch, restore, disconnect, near).", "",
+            "| Kind | Longest |", "| --- | --- |"]
     for k in MarkerLabel.reconnectKinds {
         out.append("| \(k) | \(x.reconnectMinutes[k].map { $0.isFinite ? f($0) : "never" } ?? "not measured") |")
     }
-    out += ["", "## Idle seconds", "", "Samples inside idle markers: \(x.idleSamples); agreeing: \(share(x.idleAgreeShare))", "",
+    out += ["", "## Idle seconds", "", "Samples while away (after an `away` marker): \(x.idleSamples); agreeing: \(share(x.idleAgreeShare))", "",
             "## Check-in", "", "Shown: \(x.checkinsShown); shown on both, answered on one, dismissed on the other: \(share(x.checkinCompleteShare))",
             "Longest answer-to-dismissal latency after the clock offset: \(x.checkinLatencyMaxS.map { f($0, 1) + " s" } ?? "not measured")", "",
             "## Battery", "", "Drop per hour (percentage points, not charging): \(x.batteryDropPerHour.map { f($0, 1) } ?? "not measured")", "",
