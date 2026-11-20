@@ -188,7 +188,7 @@ test('every asset reference is root-absolute, allow-listed or an anchor', () => 
   for (const match of css.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) urls.add(match[1]);
   for (const match of html.matchAll(/<link\b[^>]*\bhref="([^"]+)"/g)) urls.add(match[1]);
 
-  const allowedAbsolute = /^(?:https:\/\/arithmoslayer\.de\/|https:\/\/apps\.apple\.com\/|https:\/\/www\.facebook\.com\/profile\.php\?id=61596637234356$)/;
+  const allowedAbsolute = /^(?:https:\/\/arithmoslayer\.de\/|https:\/\/apps\.apple\.com\/|https:\/\/cloud\.umami\.is\/script\.js$|https:\/\/www\.facebook\.com\/profile\.php\?id=61596637234356$)/;
   const bad = [];
   for (const url of urls) {
     if (url.startsWith('#') || url.startsWith('mailto:')) continue;
