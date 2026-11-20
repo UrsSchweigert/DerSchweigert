@@ -20,6 +20,7 @@ the README of the site you are changing.
 | `sites/landhauscheck/` | landhauscheck.com: React/Vite SPA + FastAPI on Lambda, own domain, eu-west-1, deployed with OpenTofu | `sites/landhauscheck/README.md`, `docs/SYSTEM.md` |
 | `sites/lesen/` | Reading-practice page + Capacitor apps (Buchstabenzeit) | `sites/lesen/RELEASING.md` |
 | `sites/derschweigert/` | www.derschweigert.de: static templates and assets on S3 + CloudFront; a FastAPI app for local preview only | `README.md` |
+| `apps/tagwerk/` | Tagwerk: iPhone and computer working-day tracker in Swift, no server. Sandbox proves only Foundation-only packages and syntax | `apps/tagwerk/README.md` |
 | `infra/terraform/modules/` | Shared modules (`static_site`, `api_backend`, `email_forwarding`) used by several stacks | Changing a module changes every stack that uses it |
 | `infra/terraform/sites/<site>/` | One root stack per site | |
 | `tools/harness/` | Stage-gated harness that plans, approves and runs AI-built work | `tools/harness/README.md`, `docs/harness/security-model.md` |
@@ -37,6 +38,7 @@ CI uses Python 3.12 and Node 22. The sites' Python requirements conflict, so use
 | landhauscheck | in `sites/landhauscheck`: `pip install -r requirements-dev.txt`, `ruff check app tests alembic`, `pytest tests -q --ignore=tests/smoke` (smoke tests hit live services); in `frontend/`: `npm ci && npm test && npm run build` |
 | lesen | `node --test sites/lesen/tests/*.test.mjs` |
 | derschweigert | `pip install -r requirements.txt` then `PYTHONPATH=. pytest -q sites/derschweigert/tests` |
+| tagwerk | in `apps/tagwerk`: `sh scripts/check-swift-syntax.sh .`, `sh scripts/check-no-third-party.sh .`; `swift test` in each Foundation-only package |
 | harness | `pip install -r requirements.txt` then `PYTHONPATH=. pytest -q tools/harness/tests` |
 
 Lint: `ruff check sites/ffm sites/derschweigert tools` (root `ruff.toml`: pyflakes and syntax errors only) and, in
