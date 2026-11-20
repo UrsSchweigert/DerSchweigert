@@ -49,7 +49,7 @@ Phone log, by `event` (keys not repeated from above):
 | `orientation` | `x`, `y`, `z`, `class`, `read_latency_ms` or `error` |
 | `battery` | `level`, `charging`, `low_power_mode`; on every tenth ping |
 | `notification_scheduled`, `notification_cancelled`, `checkin_shown`, `checkin_answered`, `checkin_dismissed` | `id` |
-| `pairing` | `method`, `success` (the write to the computer succeeded), `duration_ms` from entry to the write result |
+| `pairing` | `method`, `success` (the write to the computer succeeded; false when a disconnect drops it), `duration_ms` from entry to the write result, including the wait for a connection |
 | `sensor_permission` | `prompt_seen`, from the two buttons |
 | `marker` | `label`: `near`, `away`, `distance_1m`, `distance_2m`, `distance_5m`, `distance_next_room`, `face_up`, `face_down`, `locked`, `in_bag` |
 

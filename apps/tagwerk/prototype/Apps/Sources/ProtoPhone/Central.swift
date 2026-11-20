@@ -13,7 +13,11 @@ final class Central: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private var phoneToComputer: CBCharacteristic?
     private var pending: (frame: PingFrame, state: String, remaining: Double?)?
     private var pings = 0
+    /// Writes sent and not yet answered by the stack, in order.
     private var writes: [Write] = []
+    /// Messages waiting for the phoneToComputer characteristic: a Camera link usually cold-launches the app before
+    /// Bluetooth has connected, and that first pairing must reach the computer rather than vanish.
+    private var outbox: [(message: ProtoWire.Message, write: Write)] = []
     /// Set at launch when iOS started the app to restore the central.
     var restoredLaunch = false
     /// Called for each text message the computer notifies on the events characteristic.
@@ -33,7 +37,9 @@ final class Central: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         log.log(.bluetoothState(state: "\(central.state.rawValue)"))
         guard central.state == .poweredOn else { return }
-        if let p = peripheral { connect(p) } else { scan() }
+        guard let p = peripheral else { return scan() }
+        // A restored peripheral may still be connected: then didConnect does not fire again, so discover now.
+        if p.state == .connected { p.discoverServices([CBUUID(string: ProtoWire.serviceUUID)]) } else { connect(p) }
     }
 
     func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
@@ -74,6 +80,8 @@ final class Central: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
         log.log(.disconnect(reason: error.map { "\($0)" }))
         phoneToComputer = nil
+        // The stack answers no write that was in flight; a pairing among them failed and is logged as such.
+        for case let .pairing(method, since) in writes { logPairing(method: method, since: since, success: false) }
         writes = []
         connect(p)
     }
@@ -90,6 +98,9 @@ final class Central: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             default: break
             }
         }
+        let queued = outbox
+        outbox = []
+        queued.forEach { write($0.message, as: $0.write) }
     }
 
     func peripheral(_ p: CBPeripheral, didUpdateNotificationStateFor c: CBCharacteristic, error: Error?) {
@@ -130,17 +141,28 @@ final class Central: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
     }
 
-    /// Writes with response so the result of a pairing write can be logged.
+    /// Writes with response so the result of a pairing write can be logged. Before the characteristic is known the
+    /// message waits in the outbox; a pairing's duration still runs from its entry.
     func send(_ message: ProtoWire.Message, pairing: (method: String, since: Date)? = nil) {
-        guard let p = peripheral, let c = phoneToComputer else { return }
-        writes.append(pairing.map { .pairing(method: $0.method, since: $0.since) } ?? .plain)
+        write(message, as: pairing.map { .pairing(method: $0.method, since: $0.since) } ?? .plain)
+    }
+
+    private func write(_ message: ProtoWire.Message, as kind: Write) {
+        guard let p = peripheral, p.state == .connected, let c = phoneToComputer else {
+            return outbox.append((message, kind))
+        }
+        writes.append(kind)
         p.writeValue(Data(message.text.utf8), for: c, type: .withResponse)
+    }
+
+    private func logPairing(method: String, since: Date, success: Bool) {
+        log.log(.pairing(method: method, success: success, durationMs: Date().timeIntervalSince(since) * 1000))
     }
 
     func peripheral(_ p: CBPeripheral, didWriteValueFor c: CBCharacteristic, error: Error?) {
         guard !writes.isEmpty else { return }
         if case let .pairing(method, since) = writes.removeFirst() {
-            log.log(.pairing(method: method, success: error == nil, durationMs: Date().timeIntervalSince(since) * 1000))
+            logPairing(method: method, since: since, success: error == nil)
         }
     }
 
