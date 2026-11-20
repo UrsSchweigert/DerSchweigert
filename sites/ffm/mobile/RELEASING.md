@@ -205,7 +205,7 @@ Record each upload below. A row without a git revision is not evidence.
 
 `ios/App/App.xcodeproj/project.pbxproj` holds one scheme for both
 configurations: `MARKETING_VERSION` (`CFBundleShortVersionString`, currently
-`1.1.1`) and `CURRENT_PROJECT_VERSION` (`CFBundleVersion`, currently `3`). Bump
+`1.1.2`) and `CURRENT_PROJECT_VERSION` (`CFBundleVersion`, currently `3`). Bump
 `MARKETING_VERSION` for a user-visible release and always increase
 `CURRENT_PROJECT_VERSION` for every upload, including re-uploads of the same
 marketing version. The plist reads both values, so no version literal is
