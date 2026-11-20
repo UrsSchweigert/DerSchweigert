@@ -1,0 +1,4 @@
+{
+  "min_ping_share_near_awake": 0.95,
+  "max_ordinary_gap_minutes": 5
+}

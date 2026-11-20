@@ -6,11 +6,15 @@ let package = Package(
     name: "ProtoKit",
     products: [
         .library(name: "ProtoKit", targets: ["ProtoKit"]),
+        .library(name: "ProtoAnalysis", targets: ["ProtoAnalysis"]),
         .executable(name: "ProtoAnalyse", targets: ["ProtoAnalyse"]),
     ],
     targets: [
         .target(name: "ProtoKit"),
-        .executableTarget(name: "ProtoAnalyse", dependencies: ["ProtoKit"]),
+        // The analysis is a library so tests can import it; the executable is only argument handling.
+        .target(name: "ProtoAnalysis", dependencies: ["ProtoKit"]),
+        .executableTarget(name: "ProtoAnalyse", dependencies: ["ProtoAnalysis"]),
         .testTarget(name: "ProtoKitTests", dependencies: ["ProtoKit"]),
+        .testTarget(name: "ProtoAnalyseTests", dependencies: ["ProtoAnalysis", "ProtoKit"]),
     ]
 )
