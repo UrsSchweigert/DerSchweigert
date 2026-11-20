@@ -1196,6 +1196,30 @@ The hero-pack plan needs ten art issues that generate sheets, split them and bui
   recorded in the ledger; `harness art PLAN --show ID [--open]` finds it. A failed save never costs the worker its paid image.
 * The three adventurer tries made before this change are lost.
 
+## The sandbox builds Swift packages, and still never builds an app (2026-11-20)
+
+A native iPhone app with a Mac companion (Tagwerk) cannot be built in the Linux sandbox, and the decision of
+2026-11-03 stands: Xcode, signing and the Apple frameworks stay on macOS. Without any Swift in the image, though, a
+worker could only write Swift it had never compiled, and the first compiler would have been the owner's Mac.
+
+* The image now carries the Swift 6.4.2 toolchain for Linux. A worker can `swift build` and `swift test` a package
+  that imports only Foundation, which is where the logic that needs no device belongs: sessions, time arithmetic,
+  merging sources, export files. The app, the widget and the menu-bar app import that package and are built on
+  macOS.
+* swift.org signs its archives and publishes no checksum file. The SHA256 of each archive is pinned in
+  `worker/install_swift.py`, as the Godot SHA512 is, so the build fails on other bytes and needs no key server.
+* The Tier A probe builds and tests a throwaway package (`worker/smoke/swift_probe.sh`) instead of only asking for
+  the version: a toolchain that prints its version and cannot link, or cannot find XCTest, would otherwise attest.
+* Rejected: running `xcodebuild` on the owner's Mac for worker-written code, the way the art service runs image
+  generation there. A build executes what the worker wrote (build phases, package plugins, macros) outside the
+  sandbox and next to the owner's credentials. The art service only forwards a prompt.
+
+**Cost accepted.** The image grows from 3.0 GB to 8.2 GB and its first build downloads 1.1 GB. A package that passes on
+Linux can still fail on Apple platforms, because Foundation on Linux is a separate implementation with small
+differences, and nothing in the sandbox says anything about Bluetooth, location, widgets or how the app looks; those
+stay macOS builds and human tasks. Checks must not rely on the network, so a package that a check builds should
+have no dependency to download.
+
 ## A Blocked issue's definition can be corrected in place
 
 `harness import-issues --add --redefine ISSUE PLAN FILE` replaces only the definition fields (criteria, anchors, commands and so on) of a Blocked issue and keeps its branch, pull request and attempts. A new plan version still refuses to replace an issue a worker has touched; this is the owner's explicit, per-issue exception for a definition that makes every attempt block. The change is journaled as a `redefinition` document.
