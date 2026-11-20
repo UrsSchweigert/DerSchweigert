@@ -31,7 +31,7 @@ function rewrites `/` and `/promo` to `/promo/index.html` without changing the
 browser URL. That is why **nothing** may be a bare relative path — `promo.css`
 would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 `promo.test.js` fails on any `src`/`href` that is not root-absolute,
-`https://arithmoslayer.de/…`, the App Store listing, `mailto:` or a `#anchor`.
+`https://arithmoslayer.de/…`, the App Store listing, the Facebook Page (one exact URL), `mailto:` or a `#anchor`.
 
 ## What the page shows
 
@@ -46,6 +46,7 @@ would resolve to `/promo.css` at `/` and to `/promo/promo.css` at `/promo`.
 | Campaign I | `#abenteuer1` | Young-dragon emblem and six stages (adding, subtracting, multiplying, dividing, all four, the finale) with one worked example each, plus boss rounds, the missing number and the pace. The stage starts are the levels where an operation first appears in `app/level_data.json`; a test fails if they drift. |
 | Campaign II | `#genie` | Ancient-dragon emblem, the eight five-level acts with one worked example each, and facts (four answers, stretched timer, boss rounds, independent of Campaign I). Level ranges come from `game/campaign2/campaign2-levels.js`, and a test fails if they drift. |
 | Family | `#familie` | Profile cards with the `head-*.webp` portraits, a CSS-built phone mockup around `art/ui/title-screen.webp`, store chips. |
+| Follow | `#folgen` | Card with the inline Facebook logo and a "Follow on Facebook" button to the public Page; the footer carries the same link. A plain link: no plugin, pixel or hosted asset, so no third-party request before the click. |
 | FAQ / footer | `#faq` | Legal links, support address. |
 
 Every `<img>` carries `width`/`height`; only the hero backdrop uses
